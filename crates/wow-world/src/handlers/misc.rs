@@ -2104,6 +2104,7 @@ impl crate::session::WorldSession {
         self.set_player_map_position_like_cpp(new_map as u16, new_pos);
         let _ = self.ensure_canonical_world_map_for_current_player_like_cpp();
         self.update_registry_position();
+        self.resummon_pet_temporary_unsummoned_if_any_like_cpp();
         self.process_represented_delayed_resurrection_after_teleport_like_cpp();
 
         // SMSG_NEW_WORLD — place player in new world

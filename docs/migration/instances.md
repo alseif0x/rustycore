@@ -821,3 +821,21 @@ Complejidad: **L** (low, <1h), **M** (med, 1-4h), **H** (high, 4-12h), **XL** (>
 - `instance_encounter_in_progress_like_cpp` es un seam representado en `ManagedMap`; falta conectarlo al `InstanceScriptBase::is_encounter_in_progress_like_cpp` real y a la lifecycle `InstanceMap::GetInstanceScript()`.
 - El requisito de achievement de líder ajeno queda cubierto para líderes conectados con snapshot representado; líderes offline/no representados, criterios dinámicos y `AchievementMgr` completo siguen pendientes.
 - Siguen pendientes la conexión real de `InstanceScript`, broader portal/teleport call-sites, y validación live con cliente/bot.
+
+## 15. Temporary pet resummon after teleport (2026-06-16)
+
+🟡 parcialmente mitigado. Auditado contra `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp`,
+`Pet.cpp` y `Handlers/MovementHandler.cpp`.
+
+**Cerrado en Rust (`#NEXT.RUNTIME.L3.031j100`):**
+- `WorldSession` representa una `PetStable` session-local hasta que `Pet::LoadPetFromDB` real quede conectado a `character_pet`.
+- `Player::ResummonPetTemporaryUnSummonedIfAny` queda representado para el caso de teleport: retorna sin tocar estado si `m_temporaryUnsummonedPetNumber == 0`, si `IsPetNeedBeTemporaryUnsummoned()` sigue activo, o si ya existe pet activa.
+- `IsPetNeedBeTemporaryUnsummoned` cubre los gates ya representados en Rust: no estar en mundo, no estar vivo y `MOVEMENTFLAG_FLYING`.
+- En el intento de load, Rust usa `Pet::get_load_pet_info(stable, 0, pet_number, None)` y recrea una pet canónica mínima en el mapa actual con owner, entry, posición, display, nivel, health, mana, react state, specialization y `CharmInfo::pet_number`.
+- Igual que C++, si el load representado falla después de pasar los gates previos, `m_temporaryUnsummonedPetNumber` se limpia a `0`; no se queda reintentando infinitamente.
+- `HandleMoveWorldportAck` y `HandleMoveTeleportAck` llaman al helper antes de operaciones diferidas, igual que C++.
+
+**Límites honestos:**
+- No es todavía `Pet::LoadPetFromDB` real: faltan action bar, spells, auras, cooldowns, happiness/focus exactos, save mode, deleted slot handling y persistencia completa de `character_pet`.
+- El gate de vuelo avanzado C++ `MOVEMENTFLAG3_ADV_FLYING` no está cubierto porque no hay campo equivalente representado en `WorldSession`; añadirlo cuando se porte `MovementInfo::flags2/flags3` completo.
+- Falta validar live con cliente/bot que la pet reaparece visualmente tras worldport/near teleport y que los paquetes de create/update son suficientes.

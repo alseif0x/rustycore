@@ -116,7 +116,8 @@ use wow_entities::{
     Item, ItemCreateInfo, ItemDataUpdate, ItemLimitCategoryTemplate, ItemPosCount, ItemSlotRef,
     ItemStorageRef, ItemStorageTemplate, ItemValuesUpdate, MAX_BAG_SIZE, MAX_ITEM_SPELLS,
     MAX_MONEY_AMOUNT, MAX_POWERS, NULL_BAG, NULL_SLOT, ObjectAccessor, PLAYER_SLOT_END, PhaseShift,
-    Player, PlayerEnchantTimeUpdate, PlayerInventoryStorage, PlayerItemTimeUpdate,
+    Pet, PetStable, PetStableInfo, Player, PlayerEnchantTimeUpdate, PlayerInventoryStorage,
+    PlayerItemTimeUpdate,
     QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE, REAGENT_BAG_SLOT_END,
     REAGENT_BAG_SLOT_START, SendNewItemDelivery, SendNewItemDisplayText, SendNewItemPlan,
     TYPEID_ITEM, UNIT_DATA_HEALTH_BIT, Unit, UnitDataUpdate, UnitDataValues,
@@ -3615,6 +3616,8 @@ pub struct WorldSession {
     represented_temporary_unsummoned_pet_number_like_cpp: u32,
     /// C++ `Player::m_oldpetspell`, used by `RemovePet(nullptr, ..., returnreagent=true)`.
     represented_old_pet_spell_like_cpp: u32,
+    /// Represented `character_pet`/stable rows until `Pet::LoadPetFromDB` is wired to DB.
+    represented_pet_stable_like_cpp: PetStable,
     /// Represented `Pet::m_unitData->CreatedBySpell` for the active pet until UnitData owns it.
     represented_pet_created_by_spell_like_cpp: u32,
     /// Represented current pet react state for C++ mount/dismount PetMode side effects.
@@ -4961,6 +4964,7 @@ impl WorldSession {
             represented_pet_guid_like_cpp: None,
             represented_temporary_unsummoned_pet_number_like_cpp: 0,
             represented_old_pet_spell_like_cpp: 0,
+            represented_pet_stable_like_cpp: PetStable::default(),
             represented_pet_created_by_spell_like_cpp: 0,
             represented_pet_react_state_like_cpp:
                 wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
@@ -24134,6 +24138,21 @@ impl WorldSession {
     }
 
     #[cfg(test)]
+    pub(crate) fn set_represented_pet_stable_like_cpp(&mut self, stable: PetStable) {
+        self.represented_pet_stable_like_cpp = stable;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_temporary_unsummoned_pet_number_like_cpp(&self) -> u32 {
+        self.represented_temporary_unsummoned_pet_number_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_pet_guid_like_cpp(&self) -> Option<ObjectGuid> {
+        self.represented_pet_guid_like_cpp
+    }
+
+    #[cfg(test)]
     pub(crate) fn account_mounts_like_cpp(&self) -> &HashMap<i32, u8> {
         &self.account_mounts_like_cpp
     }
@@ -24926,6 +24945,147 @@ impl WorldSession {
         self.represented_pet_command_state_like_cpp =
             wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP;
         self.temporary_mount_pet_react_state_like_cpp = None;
+    }
+
+    fn represented_pet_stable_info_by_number_like_cpp(
+        &self,
+        pet_number: u32,
+    ) -> Option<PetStableInfo> {
+        self.represented_pet_stable_like_cpp
+            .active_pets
+            .iter()
+            .chain(self.represented_pet_stable_like_cpp.stabled_pets.iter())
+            .flatten()
+            .find(|pet| pet.pet_number == pet_number)
+            .cloned()
+            .or_else(|| {
+                self.represented_pet_stable_like_cpp
+                    .unslotted_pets
+                    .iter()
+                    .find(|pet| pet.pet_number == pet_number)
+                    .cloned()
+            })
+    }
+
+    fn is_pet_need_be_temporary_unsummoned_like_cpp(&self) -> bool {
+        !self.player_is_in_world_for_registry_like_cpp()
+            || !self.player_alive_like_cpp
+            || self.player_movement_flags_like_cpp.contains(MovementFlag::FLYING)
+    }
+
+    pub(crate) fn resummon_pet_temporary_unsummoned_if_any_like_cpp(&mut self) {
+        self.temporary_pet_resummon_requests_like_cpp = self
+            .temporary_pet_resummon_requests_like_cpp
+            .saturating_add(1);
+
+        let pet_number = self.represented_temporary_unsummoned_pet_number_like_cpp;
+        if pet_number == 0
+            || self.is_pet_need_be_temporary_unsummoned_like_cpp()
+            || self.represented_pet_guid_like_cpp.is_some()
+        {
+            return;
+        }
+
+        let load_info =
+            Pet::get_load_pet_info(&self.represented_pet_stable_like_cpp, 0, pet_number, None);
+        let stable_info = load_info
+            .filter(|info| info.pet_number == pet_number)
+            .and_then(|_| self.represented_pet_stable_info_by_number_like_cpp(pet_number));
+
+        let inserted_guid = stable_info.and_then(|info| {
+            let owner_guid = self.player_guid()?;
+            let map_id = u32::from(self.player_map_id_like_cpp());
+            let instance_id = self
+                .current_canonical_player_map_key_like_cpp()
+                .map(|key| key.instance_id)
+                .unwrap_or(0);
+            let position = self
+                .player_position_like_cpp()
+                .unwrap_or_else(|| Position::new(0.0, 0.0, 0.0, 0.0));
+            let creature_id = info.creature_id;
+            let pet_guid = ObjectGuid::create_world_object(
+                HighGuid::Pet,
+                0,
+                1,
+                self.player_map_id_like_cpp(),
+                instance_id,
+                creature_id,
+                i64::from(pet_number),
+            );
+
+            let mut pet = Pet::new(owner_guid, info.pet_type);
+            pet.set_specialization(info.specialization_id);
+            pet.creature_mut()
+                .unit_mut()
+                .world_mut()
+                .object_mut()
+                .create(pet_guid);
+            pet.creature_mut()
+                .unit_mut()
+                .world_mut()
+                .object_mut()
+                .set_entry(creature_id);
+            let _ = pet
+                .creature_mut()
+                .unit_mut()
+                .world_mut()
+                .set_map(map_id, instance_id);
+            pet.creature_mut()
+                .unit_mut()
+                .world_mut()
+                .relocate(position);
+            if !info.name.is_empty() {
+                pet.creature_mut().unit_mut().world_mut().set_name(info.name);
+            }
+            if info.display_id != 0 {
+                pet.creature_mut()
+                    .set_display_id(info.display_id, true, None);
+            }
+            if info.level != 0 {
+                pet.creature_mut().unit_mut().set_level(info.level);
+            }
+            if info.health != 0 {
+                pet.creature_mut()
+                    .unit_mut()
+                    .set_max_health(u64::from(info.health));
+                pet.creature_mut()
+                    .unit_mut()
+                    .set_health(u64::from(info.health));
+            }
+            if info.mana != 0 {
+                pet.creature_mut()
+                    .unit_mut()
+                    .set_power(PowerType::Mana, info.mana as i32);
+            }
+            pet.creature_mut().set_react_state(info.react_state);
+            pet.creature_mut()
+                .unit_mut()
+                .subsystems_mut()
+                .control
+                .init_charm_info()
+                .pet_number = pet_number;
+
+            let manager = self.canonical_map_manager.as_ref().map(Arc::clone)?;
+            let mut manager = manager.lock().ok()?;
+            if manager.find_map_mut(map_id, instance_id).is_none() {
+                manager.create_world_map(map_id, instance_id);
+            }
+            let managed = manager.find_map_mut(map_id, instance_id)?;
+            managed
+                .map_mut()
+                .insert_map_object_record(wow_entities::MapObjectRecord::new_pet(pet).ok()?)
+                .ok()?;
+            Some(pet_guid)
+        });
+
+        self.represented_temporary_unsummoned_pet_number_like_cpp = 0;
+        if let Some(pet_guid) = inserted_guid {
+            self.represented_pet_guid_like_cpp = Some(pet_guid);
+            if let Some(info) = self.represented_pet_stable_info_by_number_like_cpp(pet_number) {
+                self.represented_pet_created_by_spell_like_cpp = info.created_by_spell_id;
+                self.represented_pet_react_state_like_cpp = info.react_state as u8;
+            }
+        }
     }
 
     #[cfg(test)]
@@ -32394,9 +32554,7 @@ impl WorldSession {
             self.player_pvp_enabled_like_cpp = false;
         }
 
-        self.temporary_pet_resummon_requests_like_cpp = self
-            .temporary_pet_resummon_requests_like_cpp
-            .saturating_add(1);
+        self.resummon_pet_temporary_unsummoned_if_any_like_cpp();
         self.process_represented_delayed_resurrection_after_teleport_like_cpp();
         self.delayed_operations_processed_like_cpp =
             self.delayed_operations_processed_like_cpp.saturating_add(1);
@@ -65505,6 +65663,178 @@ mod tests {
                     .is_none()
             );
         }
+    }
+
+    fn represented_hunter_pet_stable_like_cpp(pet_number: u32, creature_id: u32) -> PetStable {
+        PetStable {
+            current_pet_index: Some(0),
+            active_pets: vec![Some(PetStableInfo {
+                name: "Misha".to_string(),
+                pet_number,
+                creature_id,
+                display_id: 12_345,
+                health: 345,
+                mana: 67,
+                created_by_spell_id: 9_001,
+                specialization_id: 2,
+                level: 80,
+                react_state: wow_entities::ReactState::Defensive,
+                pet_type: wow_entities::PetType::Hunter,
+                ..PetStableInfo::default()
+            })],
+            stabled_pets: Vec::new(),
+            unslotted_pets: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn resummon_pet_temporary_unsummoned_loads_represented_stable_pet_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 8_420);
+        let position = Position::new(17.0, 27.0, 37.0, 1.2);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TemporaryPetResummon".to_string(),
+            position,
+            571,
+            1,
+            3,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
+        session.represented_temporary_unsummoned_pet_number_like_cpp = 42;
+        session.set_represented_pet_stable_like_cpp(represented_hunter_pet_stable_like_cpp(
+            42, 500,
+        ));
+
+        session.resummon_pet_temporary_unsummoned_if_any_like_cpp();
+
+        assert_eq!(session.temporary_pet_resummon_requests_like_cpp(), 1);
+        assert_eq!(
+            session.represented_temporary_unsummoned_pet_number_like_cpp(),
+            0
+        );
+        let pet_guid = session
+            .represented_pet_guid_like_cpp()
+            .expect("represented active pet guid");
+        assert_eq!(session.represented_pet_created_by_spell_like_cpp, 9_001);
+        let manager = canonical.lock().unwrap();
+        let pet = manager
+            .find_map(571, 0)
+            .unwrap()
+            .map()
+            .get_typed_pet(pet_guid)
+            .expect("canonical represented pet");
+        assert_eq!(pet.owner_guid(), player_guid);
+        assert_eq!(pet.creature().entry(), 500);
+        assert_eq!(pet.creature().unit().data().level, 80);
+        assert_eq!(pet.creature().unit().data().health, 345);
+        assert_eq!(
+            pet.creature()
+                .unit()
+                .subsystems()
+                .control
+                .charm_info
+                .as_ref()
+                .map(|info| info.pet_number),
+            Some(42)
+        );
+    }
+
+    #[test]
+    fn resummon_pet_temporary_unsummoned_waits_while_player_dead_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        session.represented_temporary_unsummoned_pet_number_like_cpp = 42;
+        session.set_represented_pet_stable_like_cpp(represented_hunter_pet_stable_like_cpp(
+            42, 500,
+        ));
+        session.set_player_alive_like_cpp(false);
+
+        session.resummon_pet_temporary_unsummoned_if_any_like_cpp();
+
+        assert_eq!(session.temporary_pet_resummon_requests_like_cpp(), 1);
+        assert_eq!(
+            session.represented_temporary_unsummoned_pet_number_like_cpp(),
+            42
+        );
+        assert_eq!(session.represented_pet_guid_like_cpp(), None);
+    }
+
+    #[test]
+    fn resummon_pet_temporary_unsummoned_waits_while_player_flying_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        session.represented_temporary_unsummoned_pet_number_like_cpp = 42;
+        session.set_represented_pet_stable_like_cpp(represented_hunter_pet_stable_like_cpp(
+            42, 500,
+        ));
+        session.set_player_movement_flags_like_cpp(MovementFlag::FLYING);
+
+        session.resummon_pet_temporary_unsummoned_if_any_like_cpp();
+
+        assert_eq!(session.temporary_pet_resummon_requests_like_cpp(), 1);
+        assert_eq!(
+            session.represented_temporary_unsummoned_pet_number_like_cpp(),
+            42
+        );
+        assert_eq!(session.represented_pet_guid_like_cpp(), None);
+    }
+
+    #[test]
+    fn resummon_pet_temporary_unsummoned_failed_load_clears_number_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 8_422);
+        let position = Position::new(17.0, 27.0, 37.0, 1.2);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TemporaryPetMissingStable".to_string(),
+            position,
+            571,
+            1,
+            3,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
+        session.represented_temporary_unsummoned_pet_number_like_cpp = 42;
+        session.set_represented_pet_stable_like_cpp(represented_hunter_pet_stable_like_cpp(
+            99, 500,
+        ));
+
+        session.resummon_pet_temporary_unsummoned_if_any_like_cpp();
+
+        assert_eq!(session.temporary_pet_resummon_requests_like_cpp(), 1);
+        assert_eq!(
+            session.represented_temporary_unsummoned_pet_number_like_cpp(),
+            0,
+            "C++ clears m_temporaryUnsummonedPetNumber after a failed LoadPetFromDB attempt"
+        );
+        assert_eq!(session.represented_pet_guid_like_cpp(), None);
+    }
+
+    #[test]
+    fn resummon_pet_temporary_unsummoned_skips_when_pet_already_active_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let pet_guid = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 571, 0, 500, 8421);
+        session.represented_temporary_unsummoned_pet_number_like_cpp = 42;
+        session.set_represented_pet_mode_state_like_cpp(
+            Some(pet_guid),
+            wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
+            wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP,
+        );
+
+        session.resummon_pet_temporary_unsummoned_if_any_like_cpp();
+
+        assert_eq!(session.temporary_pet_resummon_requests_like_cpp(), 1);
+        assert_eq!(
+            session.represented_temporary_unsummoned_pet_number_like_cpp(),
+            42
+        );
+        assert_eq!(session.represented_pet_guid_like_cpp(), Some(pet_guid));
     }
 
     #[tokio::test]
