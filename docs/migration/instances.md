@@ -516,10 +516,9 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
   transfer path. Refs: `Player.cpp:933-935`, `Player.cpp:1154-1155`,
   `Player.cpp:1372-1386`, `Player.cpp:1388-1473`, `Player.h:2185-2189`,
   `Player.h:3095-3098`.
-  Remaining gaps: represented far `mSemaphoreTeleport_Far` as a distinct state
-  from `pending_teleport`, real old-map removal, full real-pet temporary
-  unsummon internals, transport/vehicle payloads, install/restart, bot, and
-  live-client validation remain pending.
+  Remaining gaps: real old-map removal, full real-pet temporary unsummon
+  internals, transport/vehicle payloads, install/restart, bot, and live-client
+  validation remain pending.
 - `#NEXT.RUNTIME.L3.031j96` represents the `RewardQuest`-scoped delayed-teleport
   window. `reward_represented_quest_like_cpp` now opens the represented
   `Player::m_bCanDelayTeleport` flag on entry, keeps it active through
@@ -528,10 +527,21 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
   whether the C++ delay window was active so tests can prove the timing, not
   only the final state. Refs: `Player.cpp:14635`, `Player.cpp:14830-14870`,
   `Player.cpp:14893`.
-  Remaining gaps: represented far `mSemaphoreTeleport_Far` as a distinct state
-  from `pending_teleport`, real old-map removal, full real-pet temporary
-  unsummon internals, transport/vehicle payloads, install/restart, bot, and
-  live-client validation remain pending.
+  Remaining gaps: real old-map removal, full real-pet temporary unsummon
+  internals, transport/vehicle payloads, install/restart, bot, and live-client
+  validation remain pending.
+- `#NEXT.RUNTIME.L3.031j97` separates the represented far teleport semaphore
+  from `pending_teleport`. Rust now tracks C++ `Player::mSemaphoreTeleport_Far`
+  as its own state, sets it on immediate and delayed far `TeleportTo`, clears it
+  when same-map near teleport starts, and makes `WorldPortResponse` ignore
+  unexpected far-teleport acks unless the semaphore is set. The ack clears the
+  semaphore before consuming the stored destination, matching
+  `WorldSession::HandleMoveWorldportAck`. Refs: `Player.cpp:203-204`,
+  `Player.cpp:1306`, `Player.cpp:1381`, `Player.cpp:1473`,
+  `MovementHandler.cpp:53-58`, `Player.h:2184-2189`, `Player.h:3116-3117`.
+  Remaining gaps: real old-map removal, full real-pet temporary unsummon
+  internals, transport/vehicle payloads, install/restart, bot, and live-client
+  validation remain pending.
 
 **Tests existing:**
 - `cargo test -p wow-instances -- --nocapture` currently covers 19 focused tests, including C++-contrasted lock key/binding, daily/weekly reset anchors, temporary lock creation, active lock lookup, temp promotion, expired-lock replacement, DB row reconstruction, shared weak-ref cleanup, prepared-statement parameter order, flex-mask join rejection, different-instance rejection, and reset in-use guard.

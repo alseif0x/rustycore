@@ -3667,6 +3667,8 @@ pub struct WorldSession {
     represented_has_delayed_teleport_like_cpp: bool,
     /// C++ `Player::mSemaphoreTeleport_Near` represented state.
     near_teleport_pending_like_cpp: bool,
+    /// C++ `Player::mSemaphoreTeleport_Far` represented state.
+    represented_far_teleport_pending_like_cpp: bool,
     /// C++ `Player::m_teleport_dest` represented state for near teleports.
     near_teleport_destination_like_cpp: Option<(u16, wow_core::Position)>,
     /// Saved `TeleportTo` arguments while `m_bHasDelayedTeleport` is set.
@@ -4982,6 +4984,7 @@ impl WorldSession {
             represented_can_delay_teleport_like_cpp: false,
             represented_has_delayed_teleport_like_cpp: false,
             near_teleport_pending_like_cpp: false,
+            represented_far_teleport_pending_like_cpp: false,
             near_teleport_destination_like_cpp: None,
             represented_delayed_teleport_like_cpp: None,
             near_teleport_destination_zone_area_like_cpp: None,
@@ -22412,6 +22415,7 @@ impl WorldSession {
 
         let same_map_near_teleport = u32::from(self.player_map_id_like_cpp()) == new_map;
         if same_map_near_teleport {
+            self.represented_far_teleport_pending_like_cpp = false;
             self.initiate_same_map_near_teleport_like_cpp(new_map, new_pos, options);
             return;
         }
@@ -22439,6 +22443,7 @@ impl WorldSession {
                 self.near_teleport_pending_like_cpp = false;
                 self.near_teleport_destination_like_cpp = None;
                 self.near_teleport_destination_zone_area_like_cpp = None;
+                self.represented_far_teleport_pending_like_cpp = true;
                 self.represented_delayed_teleport_like_cpp = Some((new_map, new_pos, options));
                 return;
             }
@@ -22499,6 +22504,7 @@ impl WorldSession {
         }
 
         // 4. Transition to Transfer state — only WorldPortResponse accepted now
+        self.represented_far_teleport_pending_like_cpp = true;
         self.state = SessionState::Transfer;
 
         info!(
@@ -22687,6 +22693,7 @@ impl WorldSession {
             });
         }
 
+        self.represented_far_teleport_pending_like_cpp = true;
         self.state = SessionState::Transfer;
     }
 
@@ -32536,6 +32543,14 @@ impl WorldSession {
         &self,
     ) -> Option<(u32, wow_core::Position, TeleportToOptionsLikeCpp)> {
         self.represented_delayed_teleport_like_cpp
+    }
+
+    pub(crate) fn represented_far_teleport_pending_like_cpp(&self) -> bool {
+        self.represented_far_teleport_pending_like_cpp
+    }
+
+    pub(crate) fn set_represented_far_teleport_pending_like_cpp(&mut self, pending: bool) {
+        self.represented_far_teleport_pending_like_cpp = pending;
     }
 
     pub(crate) fn near_teleport_pending_like_cpp(&self) -> bool {
@@ -65354,6 +65369,7 @@ mod tests {
             session.represented_delayed_teleport_like_cpp(),
             Some((0, destination, TELE_TO_NONE_LIKE_CPP))
         );
+        assert!(session.represented_far_teleport_pending_like_cpp());
         assert_eq!(session.pending_teleport, None);
         assert!(
             session.in_combat,
@@ -65423,6 +65439,7 @@ mod tests {
         );
         assert_eq!(session.state, SessionState::Transfer);
         assert_eq!(session.pending_teleport, Some((0, destination)));
+        assert!(session.represented_far_teleport_pending_like_cpp());
         assert!(!session.represented_has_delayed_teleport_like_cpp());
         assert_eq!(session.represented_delayed_teleport_like_cpp(), None);
         assert!(!session.in_combat);
@@ -65477,6 +65494,7 @@ mod tests {
             ]
         );
         assert_eq!(session.pending_teleport, Some((0, destination)));
+        assert!(session.represented_far_teleport_pending_like_cpp());
         assert_eq!(
             session.active_player_local_flags_like_cpp()
                 & PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP,

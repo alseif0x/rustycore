@@ -2073,6 +2073,15 @@ impl crate::session::WorldSession {
     pub async fn handle_world_port_response(&mut self, _pkt: wow_packet::WorldPacket) {
         use wow_packet::packets::misc::{NewWorld, ResumeToken};
 
+        if !self.represented_far_teleport_pending_like_cpp() {
+            warn!(
+                "WorldPortResponse from account {} but far teleport semaphore is not set",
+                self.account_id
+            );
+            return;
+        }
+        self.set_represented_far_teleport_pending_like_cpp(false);
+
         let Some((new_map, new_pos)) = self.pending_teleport.take() else {
             warn!(
                 "WorldPortResponse from account {} but no pending teleport",
@@ -6408,6 +6417,52 @@ mod tests {
             ),
             send_rx,
         )
+    }
+
+    #[tokio::test]
+    async fn world_port_response_ignores_ack_without_far_teleport_semaphore_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let destination = Position::new(11.0, 22.0, 33.0, 1.5);
+        session.pending_teleport = Some((0, destination));
+        session.set_state(crate::session::SessionState::Transfer);
+
+        session
+            .handle_world_port_response(WorldPacket::new_empty())
+            .await;
+
+        assert_eq!(session.pending_teleport, Some((0, destination)));
+        assert_eq!(session.state(), crate::session::SessionState::Transfer);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn world_port_response_clears_far_teleport_semaphore_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let destination = Position::new(11.0, 22.0, 33.0, 1.5);
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.pending_teleport = Some((0, destination));
+        session.set_represented_far_teleport_pending_like_cpp(true);
+        session.set_state(crate::session::SessionState::Transfer);
+
+        session
+            .handle_world_port_response(WorldPacket::new_empty())
+            .await;
+
+        assert_eq!(session.pending_teleport, None);
+        assert!(!session.represented_far_teleport_pending_like_cpp());
+        assert_eq!(session.player_map_id_like_cpp(), 0);
+        assert_eq!(session.player_position_like_cpp(), Some(destination));
+        assert_eq!(session.state(), crate::session::SessionState::LoggedIn);
+        assert_eq!(
+            std::iter::from_fn(|| send_rx.try_recv().ok())
+                .map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
+                .collect::<Vec<_>>(),
+            vec![
+                ServerOpcodes::NewWorld as u16,
+                ServerOpcodes::ResumeToken as u16,
+            ]
+        );
     }
 
     fn install_pending_bind_instance_context_like_cpp(
