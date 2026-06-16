@@ -335,6 +335,7 @@ fn copy_player_data_update(
     packet_update.party_type = update.values.party_type;
     packet_update.num_bank_slots = update.values.num_bank_slots;
     packet_update.native_sex = update.values.native_sex;
+    packet_update.inebriation = update.values.inebriation;
     packet_update.player_title = update.values.player_title;
     packet_update.current_spec_id = update.values.current_spec_id;
     packet_update.current_battle_pet_breed_quality = update.values.current_battle_pet_breed_quality;
@@ -993,6 +994,27 @@ mod tests {
         ));
         assert_eq!(active.honor, 1_234);
         assert_eq!(active.honor_next_level, 8_800);
+    }
+
+    #[test]
+    fn bridges_player_inebriation_field_like_cpp() {
+        let mut player = Player::new(Some(7), true);
+        player.clear_data_changes();
+
+        player.set_inebriation_like_cpp(67);
+
+        let update = player.values_update(true);
+        let packet_update = player_values_update_to_packet(&update).unwrap();
+
+        assert!(mask_has(
+            &packet_update.player_data_mask,
+            PLAYER_DATA_PARENT_BIT
+        ));
+        assert!(mask_has(
+            &packet_update.player_data_mask,
+            wow_entities::PLAYER_DATA_INEBRIATION_BIT
+        ));
+        assert_eq!(packet_update.inebriation, 67);
     }
 
     #[test]

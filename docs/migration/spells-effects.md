@@ -181,7 +181,6 @@ Todas las rutas relativas a `/home/server/woltk-trinity-legacy/`.
 - `EffectTameCreature` (77) — tame to hunter pet
 - `EffectDismissPet` (96) — dismiss
 - `EffectAddFarsight` (16) — farsight totem
-- `EffectInebriate` (142) — increase drunk state
 
 **Combat mechanics:**
 - `EffectParry` (87) — grant parry ability passive
@@ -208,7 +207,7 @@ Todas las rutas relativas a `/home/server/woltk-trinity-legacy/`.
 - `EffectGameobjectSetDestructionState` — change GO state
 - `EffectForceDeselect` — clear target on client
 - `EffectPickPocket` (102) — rogue pickpocket
-- `EffectInebriate` (142) — drunken
+- `EffectInebriate` (100) — drunken
 - `EffectModifyThreatPercent` — % threat mod
 
 **NULL / Unused:** ~50 entradas a `EffectNULL` o `EffectUnused` (effects deprecated/never-implemented).
@@ -554,7 +553,12 @@ Numerados como `#SPELLS-EFFECTS.N` para referencia desde `MIGRATION_ROADMAP.md`.
 - [ ] **#SPELLS-EFFECTS.61** Implementar `EffectTameCreature` (M)
 - [ ] **#SPELLS-EFFECTS.62** Implementar `EffectDismissPet` (L)
 - [ ] **#SPELLS-EFFECTS.63** Implementar `EffectAddFarsight` (L)
-- [ ] **#SPELLS-EFFECTS.64** Implementar `EffectInebriate` (drunk state) (L)
+- [~] **#SPELLS-EFFECTS.64** Implementar `EffectInebriate` (drunk state) (L) —
+  represented-partial: current canonical player target only, `PlayerData::Inebriation`
+  update-field storage/bridge, and C++ `damage + current` clamp `0..100` are covered.
+  Still missing: Drunken Vomit trigger spell `67468`, fake-inebriate aura/invisibility detect
+  side effects, sobering timer reset, `SMSG_CROSSED_INEBRIATION_THRESHOLD`, generic player
+  target handling, and live-client/manual validation.
 - [ ] **#SPELLS-EFFECTS.65** Implementar `EffectParry`, `EffectBlock` (passive grant) (L)
 - [ ] **#SPELLS-EFFECTS.66** Implementar `EffectReputation` (faction modify) (L)
 - [ ] **#SPELLS-EFFECTS.67** Implementar `EffectDuel` (L)
@@ -735,10 +739,10 @@ historical scan only proves that the standalone `wow-spell` engine remains empty
 - Item: `EffectCreateItem`, `EffectCreateItem2`, `EffectCreateRandomItem`, `EffectFeedPet`, `EffectEnchantItemPerm`, `EffectEnchantItemTmp`, `EffectEnchantItemPrismatic`, `EffectEnchantHeldItem`, `EffectDisEnchant`, `EffectMillItem`, `EffectProspecting` — none.
 - Quest/Profession: `EffectQuestComplete`, `EffectQuestStart`, `EffectQuestRedirect`, `EffectLearnSpell`, `EffectUnlearnSpecialization`, `EffectLearnPetSpell`, `EffectLearnSkill`, `EffectTradeSkill`, `EffectProficiency`, `EffectUntrainTalents` — none.
 - OpenLock/GO: `EffectOpenLock`, `EffectActivateObject`, `EffectSendEvent`, `EffectGameobjectDamage`, `EffectGameObjectRepair`, `EffectGameobjectSetDestructionState` — none.
-- Pet/Charm: `EffectTameCreature`, `EffectDismissPet`, `EffectAddFarsight`, `EffectInebriate` — none.
+- Pet/Charm: `EffectTameCreature`, `EffectDismissPet`, `EffectAddFarsight` — none.
 - Combat misc: `EffectParry`, `EffectBlock`, `EffectReputation`, `EffectDuel` — none.
 - Glyph/Talent: `EffectApplyGlyph` — none.
-- Misc: `EffectDistract` — represented-partial; `EffectForceCast`, `EffectTriggerSpell`, `EffectTriggerMissileSpell`, `EffectTriggerRitualOfSummoning`, `EffectPlayMovie`, `EffectPlayScene`, `EffectPlaySceneScriptPackage`, `EffectGiveHonor`, `EffectGrantBattlePetExperience`, `EffectForceDeselect`, `EffectPickPocket`, `EffectModifyAuraStacks` — none.
+- Misc: `EffectDistract`, `EffectInebriate` — represented-partial; `EffectForceCast`, `EffectTriggerSpell`, `EffectTriggerMissileSpell`, `EffectTriggerRitualOfSummoning`, `EffectPlayMovie`, `EffectPlayScene`, `EffectPlaySceneScriptPackage`, `EffectGiveHonor`, `EffectGrantBattlePetExperience`, `EffectForceDeselect`, `EffectPickPocket`, `EffectModifyAuraStacks` — none.
 
 **Dispatch infrastructure missing.** No `SpellEffect` Rust enum, no `match spell_effect` switch, no `Spell::handle_effects` method (because no `Spell` struct exists either — see `spells-cast.md`). `crates/wow-world/src/handlers/spell.rs` contains a stub `execute_spell(spell_id, target_guid)` whose body — when traced through `session.rs` and the surrounding code — does not branch on `SpellEffect`, does not consult `SpellEffectInfo`, does not invoke any `Effect*` semantic. It is plumbing-only: name without payload.
 

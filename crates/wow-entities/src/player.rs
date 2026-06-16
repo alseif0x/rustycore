@@ -669,6 +669,7 @@ pub const PLAYER_DATA_PARTY_TYPE_PARENT_BIT: usize = 32;
 pub const PLAYER_DATA_PARTY_TYPE_FIRST_BIT: usize = 33;
 pub const PLAYER_DATA_NUM_BANK_SLOTS_BIT: usize = 12;
 pub const PLAYER_DATA_NATIVE_SEX_BIT: usize = 13;
+pub const PLAYER_DATA_INEBRIATION_BIT: usize = 14;
 pub const PLAYER_DATA_PLAYER_TITLE_BIT: usize = 21;
 pub const PLAYER_DATA_CURRENT_SPEC_ID_BIT: usize = 24;
 pub const PLAYER_DATA_CURRENT_BATTLE_PET_BREED_QUALITY_BIT: usize = 26;
@@ -2724,6 +2725,7 @@ pub struct PlayerDataValues {
     pub party_type: [u8; 2],
     pub num_bank_slots: u8,
     pub native_sex: u8,
+    pub inebriation: u8,
     pub player_title: i32,
     pub current_spec_id: u32,
     pub current_battle_pet_breed_quality: u8,
@@ -2740,6 +2742,7 @@ impl Default for PlayerDataValues {
             party_type: [0; 2],
             num_bank_slots: 0,
             native_sex: Gender::Male as u8,
+            inebriation: 0,
             player_title: 0,
             current_spec_id: 0,
             current_battle_pet_breed_quality: 0,
@@ -3267,6 +3270,16 @@ impl Player {
     pub fn set_native_gender(&mut self, gender: Gender) {
         self.set_player_u8(PLAYER_DATA_NATIVE_SEX_BIT, gender as u8, |data| {
             &mut data.native_sex
+        });
+    }
+
+    pub const fn inebriation_like_cpp(&self) -> u8 {
+        self.data.inebriation
+    }
+
+    pub fn set_inebriation_like_cpp(&mut self, value: u8) {
+        self.set_player_u8(PLAYER_DATA_INEBRIATION_BIT, value.min(100), |data| {
+            &mut data.inebriation
         });
     }
 
@@ -12252,6 +12265,36 @@ mod tests {
         player.remove_player_flag_ex(0x04);
         assert!(!player.has_player_flag(0x20));
         assert!(!player.has_player_flag_ex(0x04));
+    }
+
+    #[test]
+    fn set_inebriation_matches_cpp_clamp_and_marks_playerdata_bit() {
+        let mut player = Player::new(None, false);
+        player.clear_data_changes();
+
+        player.set_inebriation_like_cpp(55);
+
+        assert_eq!(player.inebriation_like_cpp(), 55);
+        assert!(
+            player
+                .player_data_changes_mask()
+                .is_set(PLAYER_DATA_PARENT_BIT)
+        );
+        assert!(
+            player
+                .player_data_changes_mask()
+                .is_set(PLAYER_DATA_INEBRIATION_BIT)
+        );
+
+        player.clear_data_changes();
+        player.set_inebriation_like_cpp(150);
+
+        assert_eq!(player.inebriation_like_cpp(), 100);
+        assert!(
+            player
+                .player_data_changes_mask()
+                .is_set(PLAYER_DATA_INEBRIATION_BIT)
+        );
     }
 
     #[test]

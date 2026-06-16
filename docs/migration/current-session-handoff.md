@@ -1,3 +1,18 @@
+- `#NEXT.RUNTIME.L3.031j46` — WotLK represented `Spell::EffectInebriate` for current
+  canonical player targets (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:1246`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellEffects.cpp:3464-3481`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:863-904`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.cpp:697-704`.
+  Rust now names `SPELL_EFFECT_INEBRIATE = 100`, adds canonical `PlayerData::Inebriation`
+  storage/update-mask support at bit 14, bridges it into `PlayerDataValuesDeltaUpdate`, and
+  dispatches the direct represented effect with C++ `damage + current` clamp semantics over
+  `0..100`. Coverage: entity tests cover clamp + bit marking, bridge tests cover packet delta
+  value/mask, and spell tests cover increase, positive clamp, negative sobering clamp, and
+  non-player-target no-op. Boundary remains partial: current canonical player target only, no
+  Drunken Vomit trigger spell `67468`, no fake-inebriate aura/invisibility side effects, no
+  sobering timer reset, no `SMSG_CROSSED_INEBRIATION_THRESHOLD` fanout/item id, no install/restart,
+  bot, or live-client/manual validation.
 - `#NEXT.RUNTIME.L3.031j45` — WotLK represented `Spell::EffectAddExtraAttacks` state storage for
   current canonical player targets (not manual-test-ready). Source-of-truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:1165`,

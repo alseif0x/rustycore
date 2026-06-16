@@ -81,6 +81,7 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_KILL_CREDIT: u32 = 90;
     pub const SPELL_EFFECT_THREAT_ALL: u32 = 91;
     pub const SPELL_EFFECT_SELF_RESURRECT: u32 = 94;
+    pub const SPELL_EFFECT_INEBRIATE: u32 = 100;
     /// First C++ `SPELL_EFFECT_SUMMON_OBJECT_SLOT*` value; see
     /// `Spell::EffectSummonObject` (`SpellEffects.cpp:3541-3597`).
     pub const SPELL_EFFECT_SUMMON_OBJECT_SLOT1: u32 = 104;
@@ -1144,6 +1145,7 @@ mod tests {
         assert_eq!(spell_effect_types::SPELL_EFFECT_BIND_SIGHT, 82);
         assert_eq!(spell_effect_types::SPELL_EFFECT_KILL_CREDIT, 90);
         assert_eq!(spell_effect_types::SPELL_EFFECT_THREAT_ALL, 91);
+        assert_eq!(spell_effect_types::SPELL_EFFECT_INEBRIATE, 100);
         assert_eq!(spell_effect_types::SPELL_EFFECT_SURVEY, 105);
         assert_eq!(spell_effect_types::SPELL_EFFECT_SHOW_CORPSE_LOOT, 107);
         assert_eq!(spell_effect_types::SPELL_EFFECT_112, 112);
