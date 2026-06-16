@@ -25,6 +25,7 @@ pub struct DifficultyEntry {
     pub id: u32,
     pub instance_type: u8,
     pub flags: u8,
+    pub fallback_difficulty_id: u8,
     pub toggle_difficulty_id: u8,
 }
 
@@ -39,6 +40,7 @@ impl DifficultyStore {
             id,
             instance_type: 0,
             flags: 0,
+            fallback_difficulty_id: 0,
             toggle_difficulty_id: 0,
         }))
     }
@@ -70,10 +72,12 @@ impl DifficultyStore {
                     id,
                     // WDC4 record ids supply C++ field 0 (`ID`). Physical
                     // fields then start at `Name`, so C++ `InstanceType` and
-                    // `Flags` and `ToggleDifficultyID` are reader fields 1,
-                    // 7, and 9 respectively.
+                    // `Flags`, `FallbackDifficultyID`, and
+                    // `ToggleDifficultyID` are reader fields 7, 4, and 9
+                    // respectively.
                     instance_type: reader.get_field_u8(idx, 1),
                     flags: reader.get_field_u8(idx, 7),
+                    fallback_difficulty_id: reader.get_field_u8(idx, 4),
                     toggle_difficulty_id: reader.get_field_u8(idx, 9),
                 },
             );
@@ -170,18 +174,21 @@ mod tests {
                 id: 2,
                 instance_type: MAP_INSTANCE_LIKE_CPP,
                 flags: DifficultyFlags::CAN_SELECT.bits(),
+                fallback_difficulty_id: 0,
                 toggle_difficulty_id: 0,
             },
             DifficultyEntry {
                 id: 19,
                 instance_type: MAP_INSTANCE_LIKE_CPP,
                 flags: 0,
+                fallback_difficulty_id: 0,
                 toggle_difficulty_id: 0,
             },
             DifficultyEntry {
                 id: 15,
                 instance_type: MAP_RAID_LIKE_CPP,
                 flags: DifficultyFlags::CAN_SELECT.bits(),
+                fallback_difficulty_id: 0,
                 toggle_difficulty_id: 0,
             },
         ]);
@@ -208,18 +215,21 @@ mod tests {
                 id: 15,
                 instance_type: MAP_RAID_LIKE_CPP,
                 flags: DifficultyFlags::CAN_SELECT.bits(),
+                fallback_difficulty_id: 0,
                 toggle_difficulty_id: 0,
             },
             DifficultyEntry {
                 id: 3,
                 instance_type: MAP_RAID_LIKE_CPP,
                 flags: (DifficultyFlags::CAN_SELECT | DifficultyFlags::LEGACY).bits(),
+                fallback_difficulty_id: 0,
                 toggle_difficulty_id: 0,
             },
             DifficultyEntry {
                 id: 2,
                 instance_type: MAP_INSTANCE_LIKE_CPP,
                 flags: DifficultyFlags::CAN_SELECT.bits(),
+                fallback_difficulty_id: 0,
                 toggle_difficulty_id: 0,
             },
         ]);
@@ -246,18 +256,21 @@ mod tests {
                 id: 3,
                 instance_type: MAP_RAID_LIKE_CPP,
                 flags: (DifficultyFlags::CAN_SELECT | DifficultyFlags::LEGACY).bits(),
+                fallback_difficulty_id: 0,
                 toggle_difficulty_id: 0,
             },
             DifficultyEntry {
                 id: 15,
                 instance_type: MAP_RAID_LIKE_CPP,
                 flags: DifficultyFlags::CAN_SELECT.bits(),
+                fallback_difficulty_id: 0,
                 toggle_difficulty_id: 0,
             },
             DifficultyEntry {
                 id: 2,
                 instance_type: MAP_INSTANCE_LIKE_CPP,
                 flags: DifficultyFlags::CAN_SELECT.bits(),
+                fallback_difficulty_id: 0,
                 toggle_difficulty_id: 0,
             },
         ]);

@@ -406,6 +406,40 @@ impl MapDifficultyStore {
         fallback
     }
 
+    /// C++ `DB2Manager::GetDownscaledMapDifficultyData`.
+    ///
+    /// Returns the selected `MapDifficultyEntry` plus the effective difficulty
+    /// id after following `DifficultyEntry::FallbackDifficultyID`. If the
+    /// requested difficulty or fallback chain is missing, C++ falls back to
+    /// `GetDefaultMapDifficulty` and mutates the caller's difficulty id to the
+    /// default row.
+    pub fn downscaled_for_map_like_cpp(
+        &self,
+        map_id: u32,
+        difficulty_id: u8,
+        difficulty_store: &DifficultyStore,
+    ) -> Option<(&MapDifficultyEntry, u8)> {
+        let Some(mut difficulty) = difficulty_store.get(u32::from(difficulty_id)) else {
+            let default = self.default_for_map_like_cpp(map_id, difficulty_store)?;
+            return Some((default, default.difficulty_id));
+        };
+
+        let mut effective_difficulty_id = difficulty_id;
+        loop {
+            if let Some(map_difficulty) = self.get(map_id, effective_difficulty_id) {
+                return Some((map_difficulty, effective_difficulty_id));
+            }
+
+            effective_difficulty_id = difficulty.fallback_difficulty_id;
+            let Some(next_difficulty) = difficulty_store.get(u32::from(effective_difficulty_id))
+            else {
+                let default = self.default_for_map_like_cpp(map_id, difficulty_store)?;
+                return Some((default, default.difficulty_id));
+            };
+            difficulty = next_difficulty;
+        }
+    }
+
     pub fn len(&self) -> usize {
         self.by_id.len()
     }
@@ -681,12 +715,14 @@ mod tests {
                 id: 3,
                 instance_type: 2,
                 flags: DifficultyFlags::CAN_SELECT.bits(),
+                fallback_difficulty_id: 0,
                 toggle_difficulty_id: 0,
             },
             crate::DifficultyEntry {
                 id: 15,
                 instance_type: 2,
                 flags: (DifficultyFlags::CAN_SELECT | DifficultyFlags::DEFAULT).bits(),
+                fallback_difficulty_id: 0,
                 toggle_difficulty_id: 0,
             },
         ]);
@@ -720,6 +756,7 @@ mod tests {
             id: 3,
             instance_type: 2,
             flags: DifficultyFlags::CAN_SELECT.bits(),
+            fallback_difficulty_id: 0,
             toggle_difficulty_id: 0,
         }]);
         let store = MapDifficultyStore::from_entries([MapDifficultyEntry {
@@ -735,6 +772,104 @@ mod tests {
 
         assert_eq!(entry.difficulty_id, 3);
         assert!(store.default_for_map_like_cpp(632, &difficulties).is_none());
+    }
+
+    #[test]
+    fn downscaled_for_map_uses_exact_map_difficulty_like_cpp() {
+        let difficulties = DifficultyStore::from_entries([crate::DifficultyEntry {
+            id: 2,
+            instance_type: 1,
+            flags: 0,
+            fallback_difficulty_id: 1,
+            toggle_difficulty_id: 0,
+        }]);
+        let store = MapDifficultyStore::from_entries([MapDifficultyEntry {
+            id: 900,
+            map_id: 33,
+            difficulty_id: 2,
+            lock_id: 8,
+            reset_interval: 1,
+            flags: 0,
+        }]);
+
+        let (entry, effective_difficulty) = store
+            .downscaled_for_map_like_cpp(33, 2, &difficulties)
+            .unwrap();
+
+        assert_eq!(entry.lock_id, 8);
+        assert_eq!(effective_difficulty, 2);
+    }
+
+    #[test]
+    fn downscaled_for_map_follows_fallback_difficulty_like_cpp() {
+        let difficulties = DifficultyStore::from_entries([
+            crate::DifficultyEntry {
+                id: 5,
+                instance_type: 1,
+                flags: 0,
+                fallback_difficulty_id: 2,
+                toggle_difficulty_id: 0,
+            },
+            crate::DifficultyEntry {
+                id: 2,
+                instance_type: 1,
+                flags: 0,
+                fallback_difficulty_id: 1,
+                toggle_difficulty_id: 0,
+            },
+        ]);
+        let store = MapDifficultyStore::from_entries([MapDifficultyEntry {
+            id: 900,
+            map_id: 33,
+            difficulty_id: 2,
+            lock_id: 8,
+            reset_interval: 1,
+            flags: 0,
+        }]);
+
+        let (entry, effective_difficulty) = store
+            .downscaled_for_map_like_cpp(33, 5, &difficulties)
+            .unwrap();
+
+        assert_eq!(entry.difficulty_id, 2);
+        assert_eq!(entry.lock_id, 8);
+        assert_eq!(effective_difficulty, 2);
+    }
+
+    #[test]
+    fn downscaled_for_map_falls_back_to_default_when_chain_breaks_like_cpp() {
+        let difficulties = DifficultyStore::from_entries([
+            crate::DifficultyEntry {
+                id: 5,
+                instance_type: 1,
+                flags: 0,
+                fallback_difficulty_id: 99,
+                toggle_difficulty_id: 0,
+            },
+            crate::DifficultyEntry {
+                id: 1,
+                instance_type: 1,
+                flags: DifficultyFlags::DEFAULT.bits(),
+                fallback_difficulty_id: 0,
+                toggle_difficulty_id: 0,
+            },
+        ]);
+        let store = MapDifficultyStore::from_entries([MapDifficultyEntry {
+            id: 900,
+            map_id: 33,
+            difficulty_id: 1,
+            lock_id: 7,
+            reset_interval: 0,
+            flags: 0,
+        }]);
+
+        let (entry, effective_difficulty) = store
+            .downscaled_for_map_like_cpp(33, 5, &difficulties)
+            .unwrap();
+
+        assert_eq!(entry.difficulty_id, 1);
+        assert_eq!(entry.lock_id, 7);
+        assert_eq!(effective_difficulty, 1);
     }
 
     #[test]

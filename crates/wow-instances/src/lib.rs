@@ -202,6 +202,31 @@ impl MapDb2Entries {
         })
     }
 
+    pub fn from_downscaled_stores_like_cpp(
+        map_store: &wow_data::MapStore,
+        map_difficulty_store: &wow_data::MapDifficultyStore,
+        difficulty_store: &wow_data::DifficultyStore,
+        map_id: u32,
+        difficulty_id: u8,
+    ) -> Option<Self> {
+        let map = map_store.get(map_id)?;
+        let (map_difficulty, effective_difficulty_id) = map_difficulty_store
+            .downscaled_for_map_like_cpp(map_id, difficulty_id, difficulty_store)?;
+
+        Some(Self {
+            map_id,
+            difficulty_id: effective_difficulty_id,
+            lock_id: u32::from(map_difficulty.lock_id),
+            reset_interval: match map_difficulty.reset_interval {
+                1 => MapDifficultyResetInterval::Daily,
+                2 => MapDifficultyResetInterval::Weekly,
+                _ => MapDifficultyResetInterval::Anytime,
+            },
+            is_flex_locking: map.is_flex_locking(),
+            is_using_encounter_locks: map_difficulty.is_using_encounter_locks(),
+        })
+    }
+
     /// C++ null-guarded `MapDb2Entries::GetKey`.
     pub const fn key(&self) -> InstanceLockKey {
         (self.map_id, self.lock_id)
@@ -1843,6 +1868,63 @@ mod tests {
             }
         );
         assert!(MapDb2Entries::from_stores_like_cpp(&maps, &difficulties, 631, 3).is_none());
+    }
+
+    #[test]
+    fn map_db2_entries_from_downscaled_stores_match_cpp_fields() {
+        let maps = wow_data::MapStore::from_entries([wow_data::MapEntry {
+            id: 33,
+            instance_type: wow_data::map::MAP_INSTANCE,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+        }]);
+        let difficulties = wow_data::DifficultyStore::from_entries([
+            wow_data::DifficultyEntry {
+                id: 5,
+                instance_type: 1,
+                flags: 0,
+                fallback_difficulty_id: 2,
+                toggle_difficulty_id: 0,
+            },
+            wow_data::DifficultyEntry {
+                id: 2,
+                instance_type: 1,
+                flags: 0,
+                fallback_difficulty_id: 1,
+                toggle_difficulty_id: 0,
+            },
+        ]);
+        let map_difficulties =
+            wow_data::MapDifficultyStore::from_entries([wow_data::MapDifficultyEntry {
+                id: 900,
+                map_id: 33,
+                difficulty_id: 2,
+                lock_id: 9,
+                reset_interval: 1,
+                flags: wow_data::map::MAP_DIFFICULTY_FLAG_USE_LOOT_BASED_LOCK,
+            }]);
+
+        let entries = MapDb2Entries::from_downscaled_stores_like_cpp(
+            &maps,
+            &map_difficulties,
+            &difficulties,
+            33,
+            5,
+        )
+        .unwrap();
+
+        assert_eq!(
+            entries,
+            MapDb2Entries {
+                map_id: 33,
+                difficulty_id: 2,
+                lock_id: 9,
+                reset_interval: MapDifficultyResetInterval::Daily,
+                is_flex_locking: false,
+                is_using_encounter_locks: true,
+            }
+        );
     }
 
     #[test]

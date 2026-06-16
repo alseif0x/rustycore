@@ -1,3 +1,16 @@
+- `#NEXT.RUNTIME.L3.031j62` — WotLK `GetDownscaledMapDifficultyData` DB2
+  foundation for represented dungeon `CreateMap` (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Stores.cpp:2314-2380`,
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Structure.h:1378-1390`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Maps/MapManager.cpp:177`.
+  Rust `DifficultyEntry` now carries `FallbackDifficultyID`, `MapDifficultyStore` exposes
+  `downscaled_for_map_like_cpp`, and `MapDb2Entries::from_downscaled_stores_like_cpp` builds
+  the effective lock input after following the C++ fallback chain or default-map-difficulty
+  fallback. Coverage: targeted `wow-data downscaled_for_map` and `wow-instances
+  map_db2_entries` tests cover exact lookup, fallback chain, broken-chain default fallback,
+  and effective difficulty field mapping. Boundary remains partial: this still does not wire
+  active/temporary `InstanceLockMgr` into live dungeon `CreateMap`, nor install/restart, bot,
+  or live-client validation.
 - `#NEXT.RUNTIME.L3.031j61` — WotLK shared `MapDb2Entries` DB2 builder for
   represented `MapManager::CreateMap` (not manual-test-ready). Source-of-truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Maps/MapManager.cpp:177-221`,
@@ -9,10 +22,9 @@
   private DB2 helper to that shared implementation, so the next `WorldSession` dungeon
   `CreateMap` slice can reuse instance-lock inputs without depending on a bin-private helper.
   Coverage: targeted `wow-instances map_db2_entries` tests cover field mapping and missing
-  difficulty behavior. Boundary remains partial: this is still exact `(mapId,difficultyId)`
-  lookup only; full `sDB2Manager.GetDownscaledMapDifficultyData(mapId,difficulty)` fallback,
-  active/temporary `InstanceLockMgr` integration, live dungeon `CreateMap`, install/restart,
-  bot, and live-client validation remain pending.
+  difficulty behavior. Boundary remains partial: active/temporary `InstanceLockMgr`
+  integration, live dungeon `CreateMap`, install/restart, bot, and live-client validation
+  remain pending.
 - `#NEXT.RUNTIME.L3.031j60` — WotLK represented `MapManager::CreateMap` side-effect
   application seam (not manual-test-ready). Source-of-truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Maps/MapManager.cpp:177-221` and the Rust
