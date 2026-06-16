@@ -969,6 +969,27 @@ impl Pet {
         }
     }
 
+    pub fn have_in_diet_like_cpp(
+        item_food_type: u32,
+        creature_has_template: bool,
+        creature_family_pet_food_mask: Option<u32>,
+    ) -> bool {
+        if item_food_type == 0 || !creature_has_template {
+            return false;
+        }
+
+        let Some(diet) = creature_family_pet_food_mask else {
+            return false;
+        };
+
+        let food_shift = item_food_type.saturating_sub(1);
+        let Some(food_mask) = 1u32.checked_shl(food_shift) else {
+            return false;
+        };
+
+        (diet & food_mask) != 0
+    }
+
     pub const fn specialization(&self) -> u16 {
         self.pet_specialization
     }
@@ -1708,6 +1729,29 @@ mod tests {
         assert_eq!(uncontrolled.group_update_mask(), 0);
         assert_eq!(uncontrolled.creature().unit().data().display_id, 22_222);
         assert_eq!(uncontrolled.creature().unit().data().native_display_id, 0);
+    }
+
+    #[test]
+    fn pet_have_in_diet_matches_cpp_food_type_and_family_mask() {
+        assert!(
+            !Pet::have_in_diet_like_cpp(0, true, Some(0xFFFF)),
+            "C++ returns false before template lookup when item->FoodType is zero"
+        );
+        assert!(
+            !Pet::have_in_diet_like_cpp(1, false, Some(0xFFFF)),
+            "C++ returns false when GetCreatureTemplate() is missing"
+        );
+        assert!(
+            !Pet::have_in_diet_like_cpp(1, true, None),
+            "C++ returns false when CreatureFamily lookup is missing"
+        );
+        assert!(Pet::have_in_diet_like_cpp(1, true, Some(0b0001)));
+        assert!(Pet::have_in_diet_like_cpp(4, true, Some(0b1000)));
+        assert!(!Pet::have_in_diet_like_cpp(4, true, Some(0b0100)));
+        assert!(
+            !Pet::have_in_diet_like_cpp(33, true, Some(u32::MAX)),
+            "C++ food masks are u32; out-of-range represented input fails closed"
+        );
     }
 
     #[test]
