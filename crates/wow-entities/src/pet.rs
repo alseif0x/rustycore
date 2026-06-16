@@ -19,6 +19,7 @@ pub const PET_XP_FACTOR: f32 = 0.05;
 pub const GROUP_UPDATE_FLAG_PET_LIKE_CPP: u32 = 0x0001_0000;
 pub const GROUP_UPDATE_FLAG_PET_NONE_LIKE_CPP: u32 = 0x0000_0000;
 pub const GROUP_UPDATE_FLAG_PET_MODEL_ID_LIKE_CPP: u32 = 0x0000_0004;
+pub const PET_MAX_SPECIALIZATIONS_LIKE_CPP: usize = 4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
@@ -99,6 +100,13 @@ pub struct PetFamilyScaleLikeCpp {
     pub min_scale_level: u8,
     pub max_scale: f32,
     pub max_scale_level: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PetSpecializationSpellLikeCpp {
+    pub spell_id: u32,
+    pub spell_exists: bool,
+    pub spell_level: u8,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -260,6 +268,18 @@ pub struct PetSetDisplayIdOutcomeLikeCpp {
     pub model_id: u32,
     pub set_native: bool,
     pub group_update: Option<PetGroupUpdateOutcomeLikeCpp>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PetSetSpecializationOutcomeLikeCpp {
+    pub changed: bool,
+    pub removed_specialization_spells: Vec<u32>,
+    pub remove_learn_prev: bool,
+    pub remove_clear_action_bar: bool,
+    pub learned_specialization_spells: Vec<u32>,
+    pub cleanup_action_bar: bool,
+    pub pet_spell_initialize: bool,
+    pub packet_spec_id: Option<u16>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1059,6 +1079,96 @@ impl Pet {
 
     pub fn set_specialization(&mut self, specialization: u16) {
         self.pet_specialization = specialization;
+    }
+
+    pub fn learn_specialization_spells_plan_like_cpp(
+        pet_level: u8,
+        spec_spells: &[PetSpecializationSpellLikeCpp],
+    ) -> Vec<u32> {
+        spec_spells
+            .iter()
+            .filter_map(|spec_spell| {
+                if spec_spell.spell_exists && spec_spell.spell_level <= pet_level {
+                    Some(spec_spell.spell_id)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    pub fn remove_specialization_spells_plan_like_cpp(
+        normal_spec_spells_by_index: &[&[u32]],
+        override_spec_spells_by_index: &[&[u32]],
+    ) -> Vec<u32> {
+        let mut unlearned_spells = Vec::new();
+        for index in 0..PET_MAX_SPECIALIZATIONS_LIKE_CPP {
+            if let Some(spells) = normal_spec_spells_by_index.get(index) {
+                unlearned_spells.extend_from_slice(spells);
+            }
+            if let Some(spells) = override_spec_spells_by_index.get(index) {
+                unlearned_spells.extend_from_slice(spells);
+            }
+        }
+        unlearned_spells
+    }
+
+    pub fn set_specialization_like_cpp(
+        &mut self,
+        spec: u16,
+        spec_exists: bool,
+        learned_spec_spells: &[PetSpecializationSpellLikeCpp],
+        normal_spec_spells_by_index: &[&[u32]],
+        override_spec_spells_by_index: &[&[u32]],
+    ) -> PetSetSpecializationOutcomeLikeCpp {
+        if self.pet_specialization == spec {
+            return PetSetSpecializationOutcomeLikeCpp {
+                changed: false,
+                removed_specialization_spells: Vec::new(),
+                remove_learn_prev: false,
+                remove_clear_action_bar: false,
+                learned_specialization_spells: Vec::new(),
+                cleanup_action_bar: false,
+                pet_spell_initialize: false,
+                packet_spec_id: None,
+            };
+        }
+
+        let removed_specialization_spells = Self::remove_specialization_spells_plan_like_cpp(
+            normal_spec_spells_by_index,
+            override_spec_spells_by_index,
+        );
+
+        if !spec_exists {
+            self.pet_specialization = 0;
+            return PetSetSpecializationOutcomeLikeCpp {
+                changed: true,
+                removed_specialization_spells,
+                remove_learn_prev: true,
+                remove_clear_action_bar: false,
+                learned_specialization_spells: Vec::new(),
+                cleanup_action_bar: false,
+                pet_spell_initialize: false,
+                packet_spec_id: None,
+            };
+        }
+
+        self.pet_specialization = spec;
+        let learned_specialization_spells = Self::learn_specialization_spells_plan_like_cpp(
+            self.creature.level(),
+            learned_spec_spells,
+        );
+
+        PetSetSpecializationOutcomeLikeCpp {
+            changed: true,
+            removed_specialization_spells,
+            remove_learn_prev: true,
+            remove_clear_action_bar: false,
+            learned_specialization_spells,
+            cleanup_action_bar: true,
+            pet_spell_initialize: true,
+            packet_spec_id: Some(self.pet_specialization),
+        }
     }
 
     pub fn declined_name(&self) -> Option<&str> {
@@ -2494,6 +2604,128 @@ mod tests {
         assert_eq!(outcome.levels_gained, 0);
         assert_eq!(pet.creature().level(), 10);
         assert_eq!(pet.pet_experience(), 1);
+    }
+
+    #[test]
+    fn pet_specialization_spell_plans_match_cpp_filters_and_order() {
+        let learned = [
+            PetSpecializationSpellLikeCpp {
+                spell_id: 101,
+                spell_exists: true,
+                spell_level: 9,
+            },
+            PetSpecializationSpellLikeCpp {
+                spell_id: 102,
+                spell_exists: false,
+                spell_level: 1,
+            },
+            PetSpecializationSpellLikeCpp {
+                spell_id: 103,
+                spell_exists: true,
+                spell_level: 12,
+            },
+        ];
+        assert_eq!(
+            Pet::learn_specialization_spells_plan_like_cpp(10, &learned),
+            vec![101],
+            "C++ skips missing SpellInfo and spells above pet level"
+        );
+
+        let normal_specs: [&[u32]; PET_MAX_SPECIALIZATIONS_LIKE_CPP] =
+            [&[11, 12], &[], &[31], &[41, 42]];
+        let override_specs: [&[u32]; PET_MAX_SPECIALIZATIONS_LIKE_CPP] =
+            [&[111], &[221, 222], &[], &[441]];
+        assert_eq!(
+            Pet::remove_specialization_spells_plan_like_cpp(&normal_specs, &override_specs),
+            vec![11, 12, 111, 221, 222, 31, 41, 42, 441],
+            "C++ loops index 0..MAX_SPECIALIZATIONS and appends normal then override spec spells"
+        );
+    }
+
+    #[test]
+    fn pet_set_specialization_like_cpp_preserves_cpp_side_effect_order() {
+        let normal_specs: [&[u32]; PET_MAX_SPECIALIZATIONS_LIKE_CPP] =
+            [&[11], &[21, 22], &[], &[41]];
+        let override_specs: [&[u32]; PET_MAX_SPECIALIZATIONS_LIKE_CPP] =
+            [&[111], &[], &[331], &[441, 442]];
+        let learned = [
+            PetSpecializationSpellLikeCpp {
+                spell_id: 501,
+                spell_exists: true,
+                spell_level: 8,
+            },
+            PetSpecializationSpellLikeCpp {
+                spell_id: 502,
+                spell_exists: true,
+                spell_level: 20,
+            },
+        ];
+
+        let mut unchanged = Pet::new(owner_guid(), PetType::Hunter);
+        unchanged.set_specialization(7);
+        assert_eq!(
+            unchanged.set_specialization_like_cpp(
+                7,
+                true,
+                &learned,
+                &normal_specs,
+                &override_specs
+            ),
+            PetSetSpecializationOutcomeLikeCpp {
+                changed: false,
+                removed_specialization_spells: Vec::new(),
+                remove_learn_prev: false,
+                remove_clear_action_bar: false,
+                learned_specialization_spells: Vec::new(),
+                cleanup_action_bar: false,
+                pet_spell_initialize: false,
+                packet_spec_id: None,
+            },
+            "C++ returns before removing old specialization spells when spec is unchanged"
+        );
+
+        let mut invalid = Pet::new(owner_guid(), PetType::Hunter);
+        invalid.set_specialization(3);
+        invalid.creature_mut().unit_mut().set_level(10);
+        assert_eq!(
+            invalid.set_specialization_like_cpp(
+                999,
+                false,
+                &learned,
+                &normal_specs,
+                &override_specs
+            ),
+            PetSetSpecializationOutcomeLikeCpp {
+                changed: true,
+                removed_specialization_spells: vec![11, 111, 21, 22, 331, 41, 441, 442],
+                remove_learn_prev: true,
+                remove_clear_action_bar: false,
+                learned_specialization_spells: Vec::new(),
+                cleanup_action_bar: false,
+                pet_spell_initialize: false,
+                packet_spec_id: None,
+            },
+            "C++ removes old spec spells before LookupEntry(spec), then sets specialization to 0 and returns"
+        );
+        assert_eq!(invalid.specialization(), 0);
+
+        let mut valid = Pet::new(owner_guid(), PetType::Hunter);
+        valid.set_specialization(3);
+        valid.creature_mut().unit_mut().set_level(10);
+        assert_eq!(
+            valid.set_specialization_like_cpp(7, true, &learned, &normal_specs, &override_specs),
+            PetSetSpecializationOutcomeLikeCpp {
+                changed: true,
+                removed_specialization_spells: vec![11, 111, 21, 22, 331, 41, 441, 442],
+                remove_learn_prev: true,
+                remove_clear_action_bar: false,
+                learned_specialization_spells: vec![501],
+                cleanup_action_bar: true,
+                pet_spell_initialize: true,
+                packet_spec_id: Some(7),
+            }
+        );
+        assert_eq!(valid.specialization(), 7);
     }
 
     #[test]
