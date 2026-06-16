@@ -186,6 +186,7 @@ pub struct MapDifficultyEntry {
     pub difficulty_id: u8,
     pub lock_id: u8,
     pub reset_interval: u8,
+    pub max_players: u32,
     pub flags: u8,
 }
 
@@ -352,6 +353,7 @@ impl MapDifficultyStore {
                 difficulty_id: reader.get_field_u8(idx, 3),
                 lock_id: reader.get_field_u8(idx, 4),
                 reset_interval: reader.get_field_u8(idx, 5),
+                max_players: reader.get_field_u32(idx, 6),
                 flags: reader.get_field_u8(idx, 7),
                 map_id: reader.get_field_u32(idx, 8),
             });
@@ -699,6 +701,7 @@ mod tests {
             difficulty_id: 4,
             lock_id: 7,
             reset_interval: 2,
+            max_players: 0,
             flags: MAP_DIFFICULTY_FLAG_USE_LOOT_BASED_LOCK,
         }]);
 
@@ -733,6 +736,7 @@ mod tests {
                 difficulty_id: 3,
                 lock_id: 0,
                 reset_interval: 0,
+                max_players: 0,
                 flags: 0,
             },
             MapDifficultyEntry {
@@ -741,6 +745,7 @@ mod tests {
                 difficulty_id: 15,
                 lock_id: 0,
                 reset_interval: 0,
+                max_players: 0,
                 flags: 0,
             },
         ]);
@@ -765,6 +770,7 @@ mod tests {
             difficulty_id: 3,
             lock_id: 0,
             reset_interval: 0,
+            max_players: 0,
             flags: 0,
         }]);
 
@@ -789,6 +795,7 @@ mod tests {
             difficulty_id: 2,
             lock_id: 8,
             reset_interval: 1,
+            max_players: 0,
             flags: 0,
         }]);
 
@@ -824,6 +831,7 @@ mod tests {
             difficulty_id: 2,
             lock_id: 8,
             reset_interval: 1,
+            max_players: 0,
             flags: 0,
         }]);
 
@@ -860,6 +868,7 @@ mod tests {
             difficulty_id: 1,
             lock_id: 7,
             reset_interval: 0,
+            max_players: 0,
             flags: 0,
         }]);
 

@@ -726,6 +726,7 @@ use wow_packet::{ClientPacket, WorldPacket};
 /// Maximum number of packets processed per `update()` call.
 const MAX_PACKETS_PER_UPDATE: usize = 100;
 const TRANSFER_ABORT_DIFFICULTY_LIKE_CPP: u32 = 8;
+const TRANSFER_ABORT_MAX_PLAYERS_LIKE_CPP: u32 = 2;
 const TRANSFER_ABORT_MAP_NOT_ALLOWED_LIKE_CPP: u32 = 16;
 const MAP_BATTLEGROUND_LIKE_CPP: i8 = 3;
 const MAP_ARENA_LIKE_CPP: i8 = 4;
@@ -7097,6 +7098,7 @@ impl WorldSession {
                 side_effects: Vec::new(),
             });
         }
+        let bypass_player_cannot_enter_like_cpp = is_dungeon && self.player_is_game_master_like_cpp();
         let entry = wow_map::CreateMapEntryContext {
             map_id,
             kind: if is_dungeon {
@@ -7149,9 +7151,31 @@ impl WorldSession {
                 .and_then(|map| map.instance_lock_context()),
             _ => None,
         };
+        let existing_instance_player_count = match &decision {
+            wow_map::CreateMapDecision::Existing { key, .. } if is_dungeon => manager
+                .find_map(key.map_id, key.instance_id)
+                .map(|map| map.player_count()),
+            _ => None,
+        };
         drop(manager);
 
         if is_dungeon
+            && !bypass_player_cannot_enter_like_cpp
+            && let wow_map::CreateMapDecision::Existing {
+                key, difficulty_id, ..
+            } = &decision
+            && let Some(player_count) = existing_instance_player_count
+            && let Some(entries) = self.create_map_db2_entries_like_cpp(key.map_id, *difficulty_id)
+            && player_count >= entries.max_players
+        {
+            self.send_transfer_aborted_like_cpp(key.map_id, TRANSFER_ABORT_MAX_PLAYERS_LIKE_CPP);
+            return Some(wow_map::CreateMapDecision::Reject {
+                side_effects: Vec::new(),
+            });
+        }
+
+        if is_dungeon
+            && !bypass_player_cannot_enter_like_cpp
             && let wow_map::CreateMapDecision::Existing {
                 key, difficulty_id, ..
             } = &decision
@@ -39078,6 +39102,7 @@ mod tests {
                 difficulty_id: default_difficulty_id,
                 lock_id: 0,
                 reset_interval: 0,
+                max_players: 0,
                 flags: 0,
             },
         ])));
@@ -39103,6 +39128,24 @@ mod tests {
         lock_id: u8,
         reset_interval: u8,
     ) {
+        install_create_map_active_lock_stores_with_max_players_like_cpp(
+            session,
+            map_id,
+            difficulty_id,
+            lock_id,
+            reset_interval,
+            10,
+        );
+    }
+
+    fn install_create_map_active_lock_stores_with_max_players_like_cpp(
+        session: &mut WorldSession,
+        map_id: u32,
+        difficulty_id: u8,
+        lock_id: u8,
+        reset_interval: u8,
+        max_players: u32,
+    ) {
         session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
             wow_data::MapEntry {
                 id: map_id,
@@ -39126,6 +39169,7 @@ mod tests {
                 difficulty_id,
                 lock_id,
                 reset_interval,
+                max_players,
                 flags: 0,
             },
         ])));
@@ -39152,6 +39196,7 @@ mod tests {
                 difficulty_id,
                 lock_id,
                 reset_interval,
+                max_players: 10,
                 flags: wow_data::map::MAP_DIFFICULTY_FLAG_USE_LOOT_BASED_LOCK,
             },
         ])));
@@ -39364,6 +39409,7 @@ mod tests {
                 difficulty_id: 2,
                 lock_id: 9,
                 reset_interval: 1,
+                max_players: 0,
                 flags: wow_data::map::MAP_DIFFICULTY_FLAG_USE_LOOT_BASED_LOCK,
             },
         ])));
@@ -39408,6 +39454,7 @@ mod tests {
                 difficulty_id: 1,
                 lock_id: 7,
                 reset_interval: 0,
+                max_players: 0,
                 flags: 0,
             },
         ])));
@@ -55972,6 +56019,148 @@ mod tests {
                 .get_typed_player(member)
                 .is_none(),
             "rejected player must not be synchronized into the incompatible instance map"
+        );
+    }
+
+    #[test]
+    fn canonical_player_existing_instance_map_full_sends_transfer_abort_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let leader = ObjectGuid::create_player(1, 70);
+        let member = ObjectGuid::create_player(1, 71);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            member,
+            "DungeonFullReject".to_string(),
+            Position::new(3700.0, 1500.0, 120.0, 0.0),
+            631,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.represented_raid_difficulty_id_like_cpp = 3;
+        install_create_map_active_lock_stores_with_max_players_like_cpp(&mut session, 631, 3, 77, 0, 1);
+
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.raid_difficulty_id = 3;
+        group.add_member(member);
+        group.set_recent_instance_like_cpp(631, leader, 9001);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+
+        {
+            let mut manager = canonical.lock().unwrap();
+            manager
+                .create_map_entry(
+                    631,
+                    9001,
+                    3,
+                    wow_map::ManagedMapKind::Dungeon {
+                        has_reset_schedule: false,
+                    },
+                )
+                .set_player_count(1);
+        }
+
+        assert_eq!(
+            session.ensure_canonical_world_map_for_current_player_like_cpp(),
+            Some(wow_map::CreateMapDecision::Reject {
+                side_effects: Vec::new()
+            })
+        );
+        assert_eq!(
+            send_rx.try_recv().expect("SMSG_TRANSFER_ABORTED"),
+            wow_packet::packets::misc::TransferAborted {
+                map_id: 631,
+                arg: 0,
+                map_difficulty_x_condition_id: 0,
+                transfer_abort: TRANSFER_ABORT_MAX_PLAYERS_LIKE_CPP,
+            }
+            .to_bytes()
+        );
+        assert!(
+            canonical
+                .lock()
+                .unwrap()
+                .find_map(631, 9001)
+                .unwrap()
+                .map()
+                .get_typed_player(member)
+                .is_none(),
+            "full instance rejection must not synchronize the player"
+        );
+    }
+
+    #[test]
+    fn canonical_game_master_bypasses_existing_instance_full_gate_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let leader = ObjectGuid::create_player(1, 72);
+        let gm = ObjectGuid::create_player(1, 73);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            gm,
+            "DungeonFullGm".to_string(),
+            Position::new(3700.0, 1500.0, 120.0, 0.0),
+            631,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_player_game_master_like_cpp(true);
+        session.represented_raid_difficulty_id_like_cpp = 3;
+        install_create_map_active_lock_stores_with_max_players_like_cpp(&mut session, 631, 3, 77, 0, 1);
+
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.raid_difficulty_id = 3;
+        group.add_member(gm);
+        group.set_recent_instance_like_cpp(631, leader, 9001);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+
+        {
+            let mut manager = canonical.lock().unwrap();
+            manager
+                .create_map_entry(
+                    631,
+                    9001,
+                    3,
+                    wow_map::ManagedMapKind::Dungeon {
+                        has_reset_schedule: false,
+                    },
+                )
+                .set_player_count(1);
+        }
+
+        assert_eq!(
+            session.ensure_canonical_world_map_for_current_player_like_cpp(),
+            Some(wow_map::CreateMapDecision::Existing {
+                key: wow_map::MapKey::new(631, 9001),
+                difficulty_id: 3,
+                side_effects: Vec::new(),
+            })
+        );
+        assert!(send_rx.try_recv().is_err());
+        assert!(
+            canonical
+                .lock()
+                .unwrap()
+                .find_map(631, 9001)
+                .unwrap()
+                .map()
+                .get_typed_player(gm)
+                .is_some(),
+            "GM bypass should still synchronize the represented player into the map"
         );
     }
 

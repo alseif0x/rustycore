@@ -6168,6 +6168,7 @@ mod tests {
                 difficulty_id: *difficulty_id,
                 lock_id: 0,
                 reset_interval: 0,
+                max_players: 0,
                 flags: 0,
             },
         ))

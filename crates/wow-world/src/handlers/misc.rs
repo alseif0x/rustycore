@@ -4695,6 +4695,7 @@ impl crate::session::WorldSession {
                                         2 => wow_instances::MapDifficultyResetInterval::Weekly,
                                         _ => wow_instances::MapDifficultyResetInterval::Anytime,
                                     },
+                                    max_players: map_difficulty.max_players,
                                     is_flex_locking: map.is_flex_locking(),
                                     is_using_encounter_locks: map_difficulty
                                         .is_using_encounter_locks(),
@@ -4793,6 +4794,7 @@ impl crate::session::WorldSession {
                             2 => wow_instances::MapDifficultyResetInterval::Weekly,
                             _ => wow_instances::MapDifficultyResetInterval::Anytime,
                         },
+                        max_players: map_difficulty.max_players,
                         is_flex_locking: map.is_flex_locking(),
                         is_using_encounter_locks: map_difficulty.is_using_encounter_locks(),
                     };
@@ -6435,6 +6437,7 @@ mod tests {
                 difficulty_id,
                 lock_id,
                 reset_interval: 2,
+                max_players: 0,
                 flags: 0,
             },
         ])));
@@ -9840,6 +9843,7 @@ mod tests {
             difficulty_id: 4,
             lock_id: 10,
             reset_interval: wow_instances::MapDifficultyResetInterval::Weekly,
+            max_players: 10,
             is_flex_locking: true,
             is_using_encounter_locks: false,
         };
@@ -9892,6 +9896,7 @@ mod tests {
                 difficulty_id: 4,
                 lock_id: 10,
                 reset_interval: 2,
+                max_players: 0,
                 flags: 0,
             },
         ])));
@@ -16125,6 +16130,7 @@ mod tests {
             difficulty_id: 4,
             lock_id: 10,
             reset_interval: wow_instances::MapDifficultyResetInterval::Weekly,
+            max_players: 10,
             is_flex_locking: true,
             is_using_encounter_locks: false,
         };
@@ -16172,6 +16178,7 @@ mod tests {
                 difficulty_id: 4,
                 lock_id: 10,
                 reset_interval: 2,
+                max_players: 0,
                 flags: 0,
             },
         ])));
@@ -16210,6 +16217,7 @@ mod tests {
             difficulty_id: 4,
             lock_id: 10,
             reset_interval: wow_instances::MapDifficultyResetInterval::Weekly,
+            max_players: 10,
             is_flex_locking: true,
             is_using_encounter_locks: false,
         };
@@ -16259,6 +16267,7 @@ mod tests {
                 difficulty_id: 4,
                 lock_id: 10,
                 reset_interval: 2,
+                max_players: 0,
                 flags: 0,
             },
         ])));
@@ -16287,6 +16296,7 @@ mod tests {
             difficulty_id: 4,
             lock_id: 10,
             reset_interval: wow_instances::MapDifficultyResetInterval::Weekly,
+            max_players: 10,
             is_flex_locking: true,
             is_using_encounter_locks: false,
         };
@@ -16339,6 +16349,7 @@ mod tests {
                 difficulty_id: 4,
                 lock_id: 10,
                 reset_interval: 2,
+                max_players: 0,
                 flags: 0,
             },
         ])));

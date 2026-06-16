@@ -174,6 +174,7 @@ pub struct MapDb2Entries {
     pub difficulty_id: u8,
     pub lock_id: u32,
     pub reset_interval: MapDifficultyResetInterval,
+    pub max_players: u32,
     pub is_flex_locking: bool,
     pub is_using_encounter_locks: bool,
 }
@@ -197,6 +198,7 @@ impl MapDb2Entries {
                 2 => MapDifficultyResetInterval::Weekly,
                 _ => MapDifficultyResetInterval::Anytime,
             },
+            max_players: map_difficulty.max_players,
             is_flex_locking: map.is_flex_locking(),
             is_using_encounter_locks: map_difficulty.is_using_encounter_locks(),
         })
@@ -222,6 +224,7 @@ impl MapDb2Entries {
                 2 => MapDifficultyResetInterval::Weekly,
                 _ => MapDifficultyResetInterval::Anytime,
             },
+            max_players: map_difficulty.max_players,
             is_flex_locking: map.is_flex_locking(),
             is_using_encounter_locks: map_difficulty.is_using_encounter_locks(),
         })
@@ -452,6 +455,7 @@ impl InstanceLockMgr {
                 difficulty_id: row.difficulty_id,
                 lock_id: row.lock_id,
                 reset_interval: MapDifficultyResetInterval::Anytime,
+                max_players: 0,
                 is_flex_locking: true,
                 is_using_encounter_locks: true,
             });
@@ -1839,6 +1843,7 @@ mod tests {
             difficulty_id: 4,
             lock_id: 7,
             reset_interval: MapDifficultyResetInterval::Weekly,
+            max_players: 25,
             is_flex_locking: false,
             is_using_encounter_locks: false,
         }
@@ -1894,6 +1899,7 @@ mod tests {
                 difficulty_id: 15,
                 lock_id: 7,
                 reset_interval: 2,
+                max_players: 25,
                 flags: wow_data::map::MAP_DIFFICULTY_FLAG_USE_LOOT_BASED_LOCK,
             }]);
 
@@ -1906,6 +1912,7 @@ mod tests {
                 difficulty_id: 15,
                 lock_id: 7,
                 reset_interval: MapDifficultyResetInterval::Weekly,
+                max_players: 25,
                 is_flex_locking: true,
                 is_using_encounter_locks: true,
             }
@@ -1945,6 +1952,7 @@ mod tests {
                 difficulty_id: 2,
                 lock_id: 9,
                 reset_interval: 1,
+                max_players: 5,
                 flags: wow_data::map::MAP_DIFFICULTY_FLAG_USE_LOOT_BASED_LOCK,
             }]);
 
@@ -1964,6 +1972,7 @@ mod tests {
                 difficulty_id: 2,
                 lock_id: 9,
                 reset_interval: MapDifficultyResetInterval::Daily,
+                max_players: 5,
                 is_flex_locking: false,
                 is_using_encounter_locks: true,
             }
