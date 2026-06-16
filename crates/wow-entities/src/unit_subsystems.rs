@@ -3585,8 +3585,32 @@ pub const SUMMON_SLOT_QUEST: usize = 6;
 pub const MAX_SUMMON_SLOT: usize = 7;
 pub const MAX_GAMEOBJECT_SLOT: usize = 4;
 pub const MAX_TOTEM_SLOT: usize = 5;
+pub const ACTION_BAR_INDEX_START: usize = 0;
+pub const ACTION_BAR_INDEX_PET_SPELL_START: usize = 3;
+pub const ACTION_BAR_INDEX_PET_SPELL_END: usize = 7;
+pub const ACTION_BAR_INDEX_END: usize = 10;
 pub const MAX_UNIT_ACTION_BAR_INDEX: usize = 10;
 pub const MAX_SPELL_CHARM: usize = 4;
+pub const ACT_PASSIVE_LIKE_CPP: u8 = 0x01;
+pub const ACT_DISABLED_LIKE_CPP: u8 = 0x81;
+pub const ACT_ENABLED_LIKE_CPP: u8 = 0xC1;
+pub const ACT_COMMAND_LIKE_CPP: u8 = 0x07;
+pub const ACT_REACTION_LIKE_CPP: u8 = 0x06;
+pub const COMMAND_STAY_LIKE_CPP: u32 = 0;
+pub const COMMAND_FOLLOW_LIKE_CPP: u32 = 1;
+pub const COMMAND_ATTACK_LIKE_CPP: u32 = 2;
+
+pub const fn make_unit_action_button_like_cpp(action: u32, active_type: u8) -> u32 {
+    (action & 0x007F_FFFF) | ((active_type as u32) << 23)
+}
+
+pub const fn unit_action_button_action_like_cpp(packed: u32) -> u32 {
+    packed & 0x007F_FFFF
+}
+
+pub const fn unit_action_button_type_like_cpp(packed: u32) -> u8 {
+    ((packed & 0xFF00_0000) >> 23) as u8
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
@@ -3625,6 +3649,50 @@ impl Default for CharmInfoState {
             is_returning: false,
             stay_position: None,
         }
+    }
+}
+
+impl CharmInfoState {
+    pub fn init_pet_action_bar_like_cpp(&mut self) {
+        for index in ACTION_BAR_INDEX_START..ACTION_BAR_INDEX_PET_SPELL_START {
+            self.action_bar[index] = make_unit_action_button_like_cpp(
+                COMMAND_ATTACK_LIKE_CPP - index as u32,
+                ACT_COMMAND_LIKE_CPP,
+            );
+        }
+        for index in ACTION_BAR_INDEX_PET_SPELL_START..ACTION_BAR_INDEX_PET_SPELL_END {
+            self.action_bar[index] = make_unit_action_button_like_cpp(0, ACT_PASSIVE_LIKE_CPP);
+        }
+        for index in ACTION_BAR_INDEX_PET_SPELL_END..ACTION_BAR_INDEX_END {
+            self.action_bar[index] = make_unit_action_button_like_cpp(
+                COMMAND_ATTACK_LIKE_CPP - (index - ACTION_BAR_INDEX_PET_SPELL_END) as u32,
+                ACT_REACTION_LIKE_CPP,
+            );
+        }
+    }
+
+    pub fn load_pet_action_bar_like_cpp(&mut self, data: &str) -> bool {
+        self.init_pet_action_bar_like_cpp();
+
+        let tokens: Vec<&str> = data.split(' ').filter(|token| !token.is_empty()).collect();
+        if tokens.len() != (ACTION_BAR_INDEX_END - ACTION_BAR_INDEX_START) * 2 {
+            return false;
+        }
+
+        for (offset, index) in (ACTION_BAR_INDEX_START..ACTION_BAR_INDEX_END).enumerate() {
+            let type_token = tokens[offset * 2];
+            let action_token = tokens[offset * 2 + 1];
+            let (Some(active_type), Some(action)) = (
+                type_token.parse::<u8>().ok(),
+                action_token.parse::<u32>().ok(),
+            ) else {
+                continue;
+            };
+
+            self.action_bar[index] = make_unit_action_button_like_cpp(action, active_type);
+        }
+
+        true
     }
 }
 
@@ -5905,6 +5973,94 @@ mod unit_subsystems_tests {
         assert_eq!(control.gameobject_slots[2], ObjectGuid::EMPTY);
         assert!(control.remove_owned_gameobject_like_cpp(gameobject));
         assert!(control.owned_gameobjects.is_empty());
+    }
+
+    #[test]
+    fn charm_info_init_pet_action_bar_matches_cpp_defaults() {
+        let mut charm_info = CharmInfoState::default();
+
+        charm_info.init_pet_action_bar_like_cpp();
+
+        assert_eq!(
+            charm_info.action_bar[0],
+            make_unit_action_button_like_cpp(COMMAND_ATTACK_LIKE_CPP, ACT_COMMAND_LIKE_CPP)
+        );
+        assert_eq!(
+            charm_info.action_bar[1],
+            make_unit_action_button_like_cpp(COMMAND_FOLLOW_LIKE_CPP, ACT_COMMAND_LIKE_CPP)
+        );
+        assert_eq!(
+            charm_info.action_bar[2],
+            make_unit_action_button_like_cpp(COMMAND_STAY_LIKE_CPP, ACT_COMMAND_LIKE_CPP)
+        );
+        for index in ACTION_BAR_INDEX_PET_SPELL_START..ACTION_BAR_INDEX_PET_SPELL_END {
+            assert_eq!(
+                charm_info.action_bar[index],
+                make_unit_action_button_like_cpp(0, ACT_PASSIVE_LIKE_CPP)
+            );
+        }
+        assert_eq!(
+            charm_info.action_bar[7],
+            make_unit_action_button_like_cpp(COMMAND_ATTACK_LIKE_CPP, ACT_REACTION_LIKE_CPP)
+        );
+        assert_eq!(
+            charm_info.action_bar[8],
+            make_unit_action_button_like_cpp(COMMAND_FOLLOW_LIKE_CPP, ACT_REACTION_LIKE_CPP)
+        );
+        assert_eq!(
+            charm_info.action_bar[9],
+            make_unit_action_button_like_cpp(COMMAND_STAY_LIKE_CPP, ACT_REACTION_LIKE_CPP)
+        );
+    }
+
+    #[test]
+    fn charm_info_load_pet_action_bar_parses_twenty_tokens_like_cpp() {
+        let mut charm_info = CharmInfoState::default();
+
+        assert!(charm_info.load_pet_action_bar_like_cpp(
+            "7 2 7 1 7 0 193 12345 129 23456 1 34567 193 45678 6 2 6 1 6 0"
+        ));
+
+        assert_eq!(
+            charm_info.action_bar[0],
+            make_unit_action_button_like_cpp(2, ACT_COMMAND_LIKE_CPP)
+        );
+        assert_eq!(
+            charm_info.action_bar[3],
+            make_unit_action_button_like_cpp(12_345, ACT_ENABLED_LIKE_CPP)
+        );
+        assert_eq!(
+            charm_info.action_bar[4],
+            make_unit_action_button_like_cpp(23_456, ACT_DISABLED_LIKE_CPP)
+        );
+        assert_eq!(
+            unit_action_button_action_like_cpp(charm_info.action_bar[5]),
+            34_567
+        );
+        assert_eq!(
+            charm_info.action_bar[9],
+            make_unit_action_button_like_cpp(0, ACT_REACTION_LIKE_CPP)
+        );
+    }
+
+    #[test]
+    fn charm_info_load_pet_action_bar_bad_shape_keeps_cpp_default_bar() {
+        let mut charm_info = CharmInfoState::default();
+
+        assert!(!charm_info.load_pet_action_bar_like_cpp("1 2 3"));
+
+        assert_eq!(
+            charm_info.action_bar[0],
+            make_unit_action_button_like_cpp(COMMAND_ATTACK_LIKE_CPP, ACT_COMMAND_LIKE_CPP)
+        );
+        assert_eq!(
+            charm_info.action_bar[3],
+            make_unit_action_button_like_cpp(0, ACT_PASSIVE_LIKE_CPP)
+        );
+        assert_eq!(
+            charm_info.action_bar[9],
+            make_unit_action_button_like_cpp(COMMAND_STAY_LIKE_CPP, ACT_REACTION_LIKE_CPP)
+        );
     }
 
     #[test]

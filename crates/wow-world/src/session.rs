@@ -25221,12 +25221,14 @@ impl WorldSession {
                     .set_power(PowerType::Mana, info.mana as i32);
             }
             pet.creature_mut().set_react_state(info.react_state);
-            pet.creature_mut()
+            let charm_info = pet
+                .creature_mut()
                 .unit_mut()
                 .subsystems_mut()
                 .control
-                .init_charm_info()
-                .pet_number = pet_number;
+                .init_charm_info();
+            charm_info.pet_number = pet_number;
+            charm_info.load_pet_action_bar_like_cpp(&info.action_bar);
             if let Some(spells) = self.represented_pet_spells_like_cpp.get(&pet_number) {
                 for spell in spells {
                     pet.add_spell(
@@ -66063,8 +66065,10 @@ mod tests {
         ));
         add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
         session.represented_temporary_unsummoned_pet_number_like_cpp = 42;
-        session
-            .set_represented_pet_stable_like_cpp(represented_hunter_pet_stable_like_cpp(42, 500));
+        let mut stable = represented_hunter_pet_stable_like_cpp(42, 500);
+        stable.active_pets[0].as_mut().unwrap().action_bar =
+            "7 2 7 1 7 0 193 12345 129 23456 1 34567 193 45678 6 2 6 1 6 0".to_string();
+        session.set_represented_pet_stable_like_cpp(stable);
         session.load_represented_pet_spell_rows_like_cpp(
             42,
             [
@@ -66125,6 +66129,28 @@ mod tests {
                 .as_ref()
                 .map(|info| info.pet_number),
             Some(42)
+        );
+        let charm_info = pet
+            .creature()
+            .unit()
+            .subsystems()
+            .control
+            .charm_info
+            .as_ref()
+            .expect("pet charm info");
+        assert_eq!(
+            charm_info.action_bar[3],
+            wow_entities::make_unit_action_button_like_cpp(
+                12_345,
+                wow_entities::ACT_ENABLED_LIKE_CPP
+            )
+        );
+        assert_eq!(
+            charm_info.action_bar[4],
+            wow_entities::make_unit_action_button_like_cpp(
+                23_456,
+                wow_entities::ACT_DISABLED_LIKE_CPP
+            )
         );
     }
 

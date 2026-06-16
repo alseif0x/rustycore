@@ -279,9 +279,11 @@ pub use unit::{
     UnitVisibilityDetectionStateLikeCpp,
 };
 pub use unit_subsystems::{
-    AURA_STATE_DEFENSIVE, AURA_STATE_DEFENSIVE_2, AURA_STATE_ENRAGED, AURA_STATE_NONE,
-    AURA_STATE_RAID_ENCOUNTER_2, AURA_STATE_ROGUE_POISONED, AiSubsystem, AppliedAuraRef,
-    AssistanceDistractFinalize, AssistanceMovementFinalize, AuraRef, AuraSubsystem,
+    ACT_COMMAND_LIKE_CPP, ACT_DISABLED_LIKE_CPP, ACT_ENABLED_LIKE_CPP, ACT_PASSIVE_LIKE_CPP,
+    ACT_REACTION_LIKE_CPP, AURA_STATE_DEFENSIVE, AURA_STATE_DEFENSIVE_2, AURA_STATE_ENRAGED,
+    AURA_STATE_NONE, AURA_STATE_RAID_ENCOUNTER_2, AURA_STATE_ROGUE_POISONED, AiSubsystem,
+    AppliedAuraRef, AssistanceDistractFinalize, AssistanceMovementFinalize, AuraRef, AuraSubsystem,
+    COMMAND_ATTACK_LIKE_CPP, COMMAND_FOLLOW_LIKE_CPP, COMMAND_STAY_LIKE_CPP,
     CREATURE_FAMILY_ASSISTANCE_DELAY_MS_LIKE_CPP, CURRENT_FIRST_NON_MELEE_SPELL, CURRENT_MAX_SPELL,
     CharmInfoState, CharmType, CombatBeginContextLikeCpp, CombatReferenceState, CombatSubsystem,
     ControlSubsystem, ControlledOwnerAttackedNotification, CurrentSpellRef, CurrentSpellSlot,
@@ -317,6 +319,8 @@ pub use unit_subsystems::{
     VehicleKitAddToWorldResetOutcomeLikeCpp, VehicleKitCreateOutcomeLikeCpp,
     VehicleKitInstallOutcomeLikeCpp, VehicleKitRemoveOutcomeLikeCpp, VehicleKitState,
     VehicleSubsystem, VisibleAuraApplicationLikeCpp, VisibleAuraEffectAmountLikeCpp,
+    make_unit_action_button_like_cpp, unit_action_button_action_like_cpp,
+    unit_action_button_type_like_cpp,
 };
 pub use update_fields::{
     ACTIVE_PLAYER_DATA_BITS, AREA_TRIGGER_DATA_BITS, CONTAINER_DATA_BITS, CONVERSATION_DATA_BITS,

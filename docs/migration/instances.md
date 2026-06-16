@@ -848,7 +848,11 @@ Complejidad: **L** (low, <1h), **M** (med, 1-4h), **H** (high, 4-12h), **XL** (>
 - El login carga `character_pet_declinedname` para el `summonedPetNumber` representado usando la statement C++ `CHAR_SEL_PET_DECLINED_NAME` (`SELECT genitive, dative, accusative, instrumental, prepositional FROM character_pet_declinedname WHERE owner = ? AND id = ?`).
 - `wow_entities::Pet` conserva ahora los cinco casos de declined names y el resummon representado los aplica solo cuando la stable row es `HUNTER_PET`, igual que el branch final de C++ `Pet::LoadPetFromDB`.
 
+**Cerrado en Rust (`#NEXT.RUNTIME.L3.031j104`):**
+- `CharmInfoState` porta el formato de `CharmInfo::InitPetActionBar` / `LoadPetActionBar`: defaults attack/follow/stay, cuatro slots de spell, tres reacciones, parse de 20 tokens `type action` desde `character_pet.abdata`, y packing `MAKE_UNIT_ACTION_BUTTON(action, type)`.
+- El resummon representado aplica `PetStableInfo.action_bar` al `CharmInfoState` del pet vivo junto al `pet_number`, cerrando la parte estructural de `Pet::LoadPetFromDB` que llama `m_charmInfo->LoadPetActionBar(petInfo->ActionBar)`.
+
 **Límites honestos:**
-- No es todavía `Pet::LoadPetFromDB` real: aunque `character_pet`, `pet_spell` y declined names de hunter pet ya alimentan el resummon representado, faltan aplicar action bar al pet vivo, auras, cooldowns/charges, happiness/focus exactos, save mode, deleted slot handling y persistencia completa de `character_pet`.
+- No es todavía `Pet::LoadPetFromDB` real: aunque `character_pet`, `pet_spell`, action bar y declined names de hunter pet ya alimentan el resummon representado, faltan la validación de `LoadPetActionBar` contra `sSpellMgr->GetSpellInfo(...)->IsAutocastable()`, auras, cooldowns/charges, happiness/focus exactos, save mode, deleted slot handling y persistencia completa de `character_pet`.
 - El gate de vuelo avanzado C++ `MOVEMENTFLAG3_ADV_FLYING` no está cubierto porque no hay campo equivalente representado en `WorldSession`; añadirlo cuando se porte `MovementInfo::flags2/flags3` completo.
 - Falta validar live con cliente/bot que la pet reaparece visualmente tras worldport/near teleport y que los paquetes de create/update son suficientes.
