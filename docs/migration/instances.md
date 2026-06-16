@@ -304,8 +304,16 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
   Rust now sends `SMSG_TRANSFER_ABORTED` with
   `TRANSFER_ABORT_INSUF_EXPAN_LVL` and the required expansion argument before
   `SMSG_TRANSFER_PENDING`. Remaining gaps: C++ transport passenger removal and
-  graveyard repop on this branch, battleground-assignment rejection, and the
-  broader `Player::TeleportTo` cleanup/finalization paths remain pending.
+  graveyard repop on this branch, and the broader `Player::TeleportTo`
+  cleanup/finalization paths remain pending.
+- `#NEXT.RUNTIME.L3.031j77` wires the earlier C++ battleground/arena
+  assignment gate in `Player::TeleportTo`: unassigned players targeting a
+  battleground/arena map now return silently before expansion checks or
+  transfer packets, while a represented assigned battleground player can still
+  start the far transfer. Refs: `Player.cpp:1260`, `Player.h:2350`. Remaining
+  gap: this uses Rust's represented battleground type seam as the available
+  stand-in for C++ `m_bgData.bgInstanceID`; full `BattlegroundMgr`
+  assignment/instance ownership and live-client validation remain pending.
 
 **Tests existing:**
 - `cargo test -p wow-instances -- --nocapture` currently covers 19 focused tests, including C++-contrasted lock key/binding, daily/weekly reset anchors, temporary lock creation, active lock lookup, temp promotion, expired-lock replacement, DB row reconstruction, shared weak-ref cleanup, prepared-statement parameter order, flex-mask join rejection, different-instance rejection, and reset in-use guard.

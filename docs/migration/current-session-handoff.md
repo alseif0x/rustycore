@@ -1,3 +1,24 @@
+- `#NEXT.RUNTIME.L3.031j77` — WotLK `Player::TeleportTo` now mirrors the
+  C++ battleground/arena assignment gate before the client-expansion branch
+  (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:1260`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:2350`.
+  C++ returns `false` silently when `!InBattleground()` and the target
+  `MapEntry` is battleground/arena, where `InBattleground()` means
+  `m_bgData.bgInstanceID != 0`. Rust now applies the same silent early return
+  in `WorldSession::teleport_to` for battleground/arena targets when the
+  represented battleground assignment seam is absent, preserving the existing
+  disabled-map ordering and returning before expansion checks,
+  `SMSG_TRANSFER_ABORTED`, `SMSG_TRANSFER_PENDING`, or `SMSG_SUSPEND_TOKEN`.
+  Coverage: targeted `wow-world` tests prove an unassigned Arathi Basin-style
+  target emits no packets and creates no pending transfer, while a represented
+  assigned battleground player still starts the far transfer. Boundary remains
+  partial: Rust uses the current represented `player_battleground_type_id_like_cpp`
+  seam as the available stand-in for C++ `bgInstanceID`; full
+  `BattlegroundMgr` assignment, `SetBattlegroundId`, queue/instance ownership,
+  transport/pet/vehicle/duel/movement cleanup, same-map near teleport,
+  install/restart, bot, and live-client/manual validation remain pending.
 - `#NEXT.RUNTIME.L3.031j43` — WotLK `Player::TeleportTo` now enforces the
   C++ client-expansion gate before starting the transfer (not manual-test-ready).
   Source-of-truth:
@@ -14,8 +35,9 @@
   expansion-2 map receives `SMSG_TRANSFER_ABORTED { reason: 7, arg: 2 }` and no
   pending transfer, while expansion-2 still emits `SMSG_TRANSFER_PENDING` and
   `SMSG_SUSPEND_TOKEN`. Boundary remains partial: C++ transport passenger
-  removal + graveyard repop on this branch, battleground-assignment rejection,
-  vehicle/duel/movement cleanup, same-map near teleport, install/restart, bot,
+  removal + graveyard repop on this branch, full BattlegroundMgr assignment
+  ownership, vehicle/duel/movement cleanup, same-map near teleport,
+  install/restart, bot,
   and live-client/manual validation remain pending.
 - `#NEXT.RUNTIME.L3.031j42` — WotLK `Player::TeleportTo` now runs the
   represented `Map::PlayerCannotEnter` preflight for target dungeon/raid maps
@@ -35,8 +57,9 @@
   instance teleport still sends `SMSG_TRANSFER_PENDING` + `SMSG_SUSPEND_TOKEN`
   and leaves target map materialization for the later world-port path. Boundary
   remains partial: same-map near teleport semantics, expansion/pet/vehicle/duel/
-  transport/BG cleanup, `WorldPortAck` fallback, LFG-specific teleports,
-  install/restart, bot, and live-client/manual validation remain pending.
+  transport cleanup, full BattlegroundMgr assignment ownership,
+  `WorldPortAck` fallback, LFG-specific teleports, install/restart, bot, and
+  live-client/manual validation remain pending.
 - `#NEXT.RUNTIME.L3.031j41` — WotLK `Player::Satisfy(access_requirement)`
   achievement gates now resolve a connected group leader before rejecting
   (not manual-test-ready). Source-of-truth:

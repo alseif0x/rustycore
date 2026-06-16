@@ -22135,6 +22135,21 @@ impl WorldSession {
             .map_store
             .as_ref()
             .and_then(|store| store.get(new_map).copied())
+            && target_map.is_battleground_or_arena()
+            && !self.player_in_represented_battleground_like_cpp()
+        {
+            warn!(
+                account = self.account_id,
+                map_id = new_map,
+                "Teleport silently blocked by C++ battleground assignment gate"
+            );
+            return;
+        }
+
+        if let Some(target_map) = self
+            .map_store
+            .as_ref()
+            .and_then(|store| store.get(new_map).copied())
             && self.expansion < target_map.expansion_like_cpp()
         {
             warn!(
@@ -64142,6 +64157,81 @@ mod tests {
             vec![ServerOpcodes::TransferPending, ServerOpcodes::SuspendToken]
         );
         assert_eq!(session.pending_teleport, Some((870, destination)));
+        assert_eq!(session.state, SessionState::Transfer);
+    }
+
+    #[tokio::test]
+    async fn teleport_to_battleground_without_assignment_is_silent_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 794);
+        let destination = Position::new(102.0, 202.0, 32.0, 1.7);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 529,
+                instance_type: wow_data::map::MAP_BATTLEGROUND,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TeleportBgReject".to_string(),
+            Position::new(10.0, 20.0, 30.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+
+        session.teleport_to(529, destination).await;
+
+        assert!(
+            send_rx.try_recv().is_err(),
+            "C++ Player::TeleportTo returns false without SMSG_TRANSFER_ABORTED for unassigned battleground/arena maps"
+        );
+        assert_eq!(session.pending_teleport, None);
+        assert_ne!(session.state, SessionState::Transfer);
+    }
+
+    #[tokio::test]
+    async fn teleport_to_battleground_with_assignment_can_start_transfer_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 795);
+        let destination = Position::new(103.0, 203.0, 33.0, 1.8);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 529,
+                instance_type: wow_data::map::MAP_BATTLEGROUND,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.set_player_battleground_type_id_like_cpp(BATTLEGROUND_AB_LIKE_CPP);
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TeleportBgAllow".to_string(),
+            Position::new(10.0, 20.0, 30.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+
+        session.teleport_to(529, destination).await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::TransferPending, ServerOpcodes::SuspendToken]
+        );
+        assert_eq!(session.pending_teleport, Some((529, destination)));
         assert_eq!(session.state, SessionState::Transfer);
     }
 
