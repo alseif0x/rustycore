@@ -1,3 +1,24 @@
+- `#NEXT.RUNTIME.L3.031j71` — WotLK represented pending-instance-bind accept
+  now performs the C++ `Player::ConfirmPendingBind` lock mutation when the
+  current canonical instance map matches the pending bind (not manual-test-ready).
+  Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:1192-1207`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:19012-19020`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Maps/Map.cpp:3175-3190`.
+  C++ clears the pending bind for both accept/decline; accept calls
+  `ConfirmPendingBind`, which returns unless the current `InstanceMap` instance id
+  matches `_pendingBindId`, skips lock creation for GMs, and otherwise calls
+  `InstanceMap::CreateInstanceLockForPlayer` / `UpdateInstanceLockForPlayer`.
+  Rust `RepresentedPendingBind` now carries the source map id and completed mask
+  from `SMSG_PENDING_RAID_LOCK`, `ManagedMap` exposes its difficulty, and
+  `CMSG_INSTANCE_LOCK_RESPONSE` accept validates the current canonical map,
+  updates the shared `InstanceLockMgr` through the transactional wrapper, and
+  sends `SMSG_INSTANCE_SAVE_CREATED` when this creates a new player lock. Coverage:
+  targeted `wow-world instance_lock_response` tests cover accept creating the lock,
+  mismatch clearing without binding, and decline repop; `send_pending_raid_lock`
+  tests cover the enriched pending bind context. Boundary remains partial: full
+  `InstanceMap::i_data` save-data, calendar lockout fanout, live DB commit exercise,
+  install/restart, bot, and live-client/manual validation remain pending.
 - `#NEXT.RUNTIME.L3.031j70` — WotLK DB-loaded instance-lock id reservation now
   preserves the C++ `InstanceLockMgr::Load()` side effect for every
   `character_instance_lock.instanceId`, including rows later skipped as corrupt

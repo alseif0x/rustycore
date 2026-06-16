@@ -1251,7 +1251,9 @@ pub(crate) enum RepresentedGameObjectSpellCaster {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedPendingBind {
+    pub map_id: u32,
     pub instance_id: u32,
+    pub completed_mask: u32,
     pub time_until_lock_ms: u32,
 }
 
@@ -7358,7 +7360,7 @@ impl WorldSession {
         })
     }
 
-    fn create_map_db2_entries_like_cpp(
+    pub(crate) fn create_map_db2_entries_like_cpp(
         &self,
         map_id: u32,
         difficulty_id: wow_map::Difficulty,
@@ -12257,6 +12259,10 @@ impl WorldSession {
 
     pub fn set_reset_schedule_like_cpp(&mut self, schedule: wow_instances::ResetSchedule) {
         self.reset_schedule_like_cpp = schedule;
+    }
+
+    pub(crate) const fn reset_schedule_like_cpp(&self) -> wow_instances::ResetSchedule {
+        self.reset_schedule_like_cpp
     }
 
     pub(crate) fn repair_cost_rate_like_cpp(&self) -> f32 {

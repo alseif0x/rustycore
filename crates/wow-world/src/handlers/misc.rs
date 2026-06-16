@@ -39,7 +39,7 @@ use wow_packet::packets::collection::{
 use wow_packet::packets::gossip::Hello;
 use wow_packet::packets::instance::{
     InstanceInfo, InstanceLockInfo, InstanceLockResponse, InstanceReset, InstanceResetFailed,
-    PendingRaidLock,
+    InstanceSaveCreated, PendingRaidLock,
 };
 use wow_packet::packets::item::{
     GetItemPurchaseData, InventoryChangeFailure, ItemPurchaseContents, ItemPurchaseRefundCurrency,
@@ -4861,12 +4861,118 @@ impl crate::session::WorldSession {
         };
 
         if response.accept_lock {
-            self.represented_confirmed_pending_binds
-                .push(pending_bind.instance_id);
+            if self.confirm_pending_bind_like_cpp(pending_bind).await {
+                self.represented_confirmed_pending_binds
+                    .push(pending_bind.instance_id);
+            }
         } else {
             self.represented_repop_at_graveyard_count =
                 self.represented_repop_at_graveyard_count.saturating_add(1);
         }
+    }
+
+    /// Represented C++ `Player::ConfirmPendingBind`.
+    ///
+    /// The real C++ path asks the current `InstanceMap` to create a player lock
+    /// only when the player's current map instance matches `_pendingBindId`.
+    /// Rust does not own full `InstanceMap::i_data` yet, so this bridge uses the
+    /// pending-lock completed mask that produced `SMSG_PENDING_RAID_LOCK` as the
+    /// available represented `i_instanceLock->GetData()` state.
+    async fn confirm_pending_bind_like_cpp(
+        &mut self,
+        pending_bind: crate::session::RepresentedPendingBind,
+    ) -> bool {
+        if u32::from(self.player_map_id_like_cpp()) != pending_bind.map_id {
+            return false;
+        }
+
+        let difficulty_id = {
+            let Some(manager) = self.canonical_map_manager.as_ref() else {
+                return false;
+            };
+            let Ok(manager) = manager.lock() else {
+                return false;
+            };
+            let Some(map) = manager.find_map(pending_bind.map_id, pending_bind.instance_id) else {
+                return false;
+            };
+            map.difficulty()
+        };
+
+        if self.player_is_game_master_like_cpp() {
+            return true;
+        }
+
+        let Some(player_guid) = self.player_guid() else {
+            return false;
+        };
+        let Some(entries) =
+            self.create_map_db2_entries_like_cpp(pending_bind.map_id, difficulty_id)
+        else {
+            return false;
+        };
+        let Some(instance_lock_mgr) = self.instance_lock_mgr.as_ref().cloned() else {
+            return false;
+        };
+
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_secs())
+            .unwrap_or(0);
+        let mut tx = SqlTransaction::new();
+        let is_new_lock = {
+            let mut mgr = match instance_lock_mgr.write() {
+                Ok(mgr) => mgr,
+                Err(_) => return false,
+            };
+            let is_new_lock = mgr
+                .find_active_instance_lock_at(player_guid, &entries, now)
+                .is_none_or(|lock| lock.is_new || lock.is_expired_at(now));
+            let update_event = wow_instances::InstanceLockUpdateEvent {
+                instance_id: pending_bind.instance_id,
+                new_data: String::new(),
+                instance_completed_encounters_mask: pending_bind.completed_mask,
+                completed_encounter_bit: None,
+                entrance_world_safe_loc_id: None,
+            };
+            if mgr
+                .update_instance_lock_for_player_tx_at(
+                    &mut tx,
+                    player_guid,
+                    &entries,
+                    update_event,
+                    self.reset_schedule_like_cpp(),
+                    now,
+                )
+                .is_none()
+            {
+                return false;
+            }
+            is_new_lock
+        };
+
+        if !tx.is_empty() {
+            if let Some(char_db) = self.char_db()
+                && let Err(err) = char_db.commit_transaction(tx).await
+            {
+                warn!(
+                    account = self.account_id,
+                    player_guid = ?player_guid,
+                    instance_id = pending_bind.instance_id,
+                    error = ?err,
+                    "failed to commit represented pending instance bind transaction"
+                );
+                return false;
+            }
+        }
+
+        if is_new_lock {
+            self.send_packet(&InstanceSaveCreated {
+                gm: self.player_is_game_master_like_cpp(),
+            });
+        }
+
+        true
     }
 
     #[allow(dead_code)]
@@ -4886,7 +4992,9 @@ impl crate::session::WorldSession {
 
         if !warning_only {
             self.pending_bind = Some(crate::session::RepresentedPendingBind {
+                map_id: u32::from(self.player_map_id_like_cpp()),
                 instance_id,
+                completed_mask,
                 time_until_lock_ms: 60_000,
             });
         }
@@ -6203,6 +6311,55 @@ mod tests {
             ),
             send_rx,
         )
+    }
+
+    fn install_pending_bind_instance_context_like_cpp(
+        session: &mut crate::session::WorldSession,
+        player_guid: ObjectGuid,
+        map_id: u32,
+        instance_id: u32,
+        difficulty_id: u8,
+        lock_id: u8,
+    ) -> Arc<RwLock<wow_instances::InstanceLockMgr>> {
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(map_id as u16, 1, 1, 10, 0);
+        session.set_map_store(Arc::new(MapStore::from_entries([MapEntry {
+            id: map_id,
+            instance_type: 2,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+        }])));
+        session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([difficulty_entry(
+            u32::from(difficulty_id),
+            2,
+            DifficultyFlags::empty(),
+        )])));
+        session.set_map_difficulty_store(Arc::new(MapDifficultyStore::from_entries([
+            MapDifficultyEntry {
+                id: 1,
+                map_id,
+                difficulty_id,
+                lock_id,
+                reset_interval: 2,
+                flags: 0,
+            },
+        ])));
+
+        let canonical = Arc::new(Mutex::new(wow_map::MapManager::default()));
+        canonical.lock().unwrap().create_map_entry(
+            map_id,
+            instance_id,
+            difficulty_id,
+            wow_map::ManagedMapKind::Dungeon {
+                has_reset_schedule: true,
+            },
+        );
+        session.set_canonical_map_manager(canonical);
+
+        let mgr = Arc::new(RwLock::new(wow_instances::InstanceLockMgr::default()));
+        session.set_instance_lock_mgr(Arc::clone(&mgr));
+        mgr
     }
 
     fn install_represented_guild_bank_like_cpp(
@@ -16042,7 +16199,9 @@ mod tests {
         assert_eq!(
             session.pending_bind,
             Some(crate::session::RepresentedPendingBind {
+                map_id: 0,
                 instance_id: 77,
+                completed_mask: 0xA5,
                 time_until_lock_ms: 60_000,
             })
         );
@@ -16059,9 +16218,20 @@ mod tests {
 
     #[tokio::test]
     async fn instance_lock_response_accept_confirms_and_clears_pending_bind_like_cpp() {
-        let (mut session, _send_rx) = make_session();
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let mgr = install_pending_bind_instance_context_like_cpp(
+            &mut session,
+            player_guid,
+            631,
+            9001,
+            4,
+            10,
+        );
         session.pending_bind = Some(crate::session::RepresentedPendingBind {
-            instance_id: 77,
+            map_id: 631,
+            instance_id: 9001,
+            completed_mask: 0xA5,
             time_until_lock_ms: 60_000,
         });
 
@@ -16070,15 +16240,79 @@ mod tests {
             .await;
 
         assert!(session.pending_bind.is_none());
-        assert_eq!(session.represented_confirmed_pending_binds, vec![77]);
+        assert_eq!(session.represented_confirmed_pending_binds, vec![9001]);
         assert_eq!(session.represented_repop_at_graveyard_count, 0);
+
+        let entries = session.create_map_db2_entries_like_cpp(631, 4).unwrap();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let lock = mgr
+            .read()
+            .unwrap()
+            .find_active_instance_lock_at(player_guid, &entries, now)
+            .cloned()
+            .expect("accepting a matching pending bind creates the player instance lock");
+        assert_eq!(lock.instance_id, 9001);
+        assert_eq!(lock.data.completed_encounters_mask, 0xA5);
+        assert!(!lock.is_new);
+
+        let sent = send_rx.try_recv().unwrap();
+        assert_eq!(
+            u16::from_le_bytes([sent[0], sent[1]]),
+            ServerOpcodes::InstanceSaveCreated as u16
+        );
+    }
+
+    #[tokio::test]
+    async fn instance_lock_response_accept_mismatched_instance_only_clears_pending_bind_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let mgr = install_pending_bind_instance_context_like_cpp(
+            &mut session,
+            player_guid,
+            631,
+            9001,
+            4,
+            10,
+        );
+        session.pending_bind = Some(crate::session::RepresentedPendingBind {
+            map_id: 631,
+            instance_id: 9002,
+            completed_mask: 0xA5,
+            time_until_lock_ms: 60_000,
+        });
+
+        session
+            .handle_instance_lock_response(WorldPacket::from_bytes(&[0x80]))
+            .await;
+
+        assert!(session.pending_bind.is_none());
+        assert!(session.represented_confirmed_pending_binds.is_empty());
+        assert!(send_rx.try_recv().is_err());
+
+        let entries = session.create_map_db2_entries_like_cpp(631, 4).unwrap();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        assert!(
+            mgr.read()
+                .unwrap()
+                .find_active_instance_lock_at(player_guid, &entries, now)
+                .is_none(),
+            "C++ ConfirmPendingBind returns before creating a lock when current InstanceMap id mismatches"
+        );
     }
 
     #[tokio::test]
     async fn instance_lock_response_decline_repops_and_clears_pending_bind_like_cpp() {
         let (mut session, _send_rx) = make_session();
         session.pending_bind = Some(crate::session::RepresentedPendingBind {
+            map_id: 0,
             instance_id: 77,
+            completed_mask: 0xA5,
             time_until_lock_ms: 60_000,
         });
 

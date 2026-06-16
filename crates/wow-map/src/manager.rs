@@ -276,6 +276,10 @@ impl ManagedMap {
         self.map.instance_id()
     }
 
+    pub const fn difficulty(&self) -> Difficulty {
+        self.map.spawn_mode()
+    }
+
     pub const fn kind(&self) -> ManagedMapKind {
         self.kind
     }
