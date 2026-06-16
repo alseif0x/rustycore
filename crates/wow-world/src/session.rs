@@ -7375,6 +7375,86 @@ impl WorldSession {
             .or_insert(enter_time.saturating_add(HOUR_SECS_LIKE_CPP));
     }
 
+    #[cfg(test)]
+    fn load_instance_time_restriction_rows_like_cpp(
+        &mut self,
+        rows: impl IntoIterator<Item = (u32, u64)>,
+    ) {
+        self.represented_instance_reset_times_like_cpp.clear();
+        for (instance_id, release_time) in rows {
+            self.represented_instance_reset_times_like_cpp
+                .entry(instance_id)
+                .or_insert(release_time);
+        }
+    }
+
+    pub async fn load_instance_time_restrictions_like_cpp(&mut self) {
+        self.represented_instance_reset_times_like_cpp.clear();
+
+        let Some(char_db) = self.char_db().map(Arc::clone) else {
+            warn!(
+                account = self.account_id,
+                "LoadInstanceTimeRestrictions skipped: character database unavailable"
+            );
+            return;
+        };
+
+        let mut stmt = char_db.prepare(CharStatements::SEL_ACCOUNT_INSTANCELOCKTIMES);
+        stmt.set_u32(0, self.account_id);
+
+        let result = match char_db.query(&stmt).await {
+            Ok(result) => result,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "LoadInstanceTimeRestrictions query failed: {error}"
+                );
+                return;
+            }
+        };
+
+        if result.is_empty() {
+            return;
+        }
+
+        let mut result = result;
+        loop {
+            let instance_id = result.try_read::<u32>(0).unwrap_or(0);
+            let release_time = result.try_read::<u64>(1).unwrap_or(0);
+            self.represented_instance_reset_times_like_cpp
+                .entry(instance_id)
+                .or_insert(release_time);
+
+            if !result.next_row() {
+                break;
+            }
+        }
+    }
+
+    fn instance_time_restriction_save_statements_like_cpp(&self) -> Vec<PreparedStatement> {
+        if self.represented_instance_reset_times_like_cpp.is_empty() {
+            return Vec::new();
+        }
+
+        let mut statements =
+            Vec::with_capacity(self.represented_instance_reset_times_like_cpp.len() + 1);
+        statements.push(
+            wow_instances::InstanceLockMgr::delete_account_instance_lock_times_statement(
+                self.account_id,
+            ),
+        );
+        for (&instance_id, &release_time) in &self.represented_instance_reset_times_like_cpp {
+            statements.push(
+                wow_instances::InstanceLockMgr::insert_account_instance_lock_time_statement(
+                    self.account_id,
+                    instance_id,
+                    release_time,
+                ),
+            );
+        }
+        statements
+    }
+
     fn access_requirement_abort_like_cpp(
         &self,
         map_id: u32,
@@ -16588,6 +16668,7 @@ impl WorldSession {
         self.save_player_level_xp_like_cpp().await;
         self.save_player_gold().await;
         self.save_player_difficulties_like_cpp().await;
+        self.save_instance_time_restrictions_like_cpp().await;
         self.save_played_time().await;
         self.save_reputation_to_db_like_cpp().await;
     }
@@ -16607,6 +16688,31 @@ impl WorldSession {
             warn!(
                 "Failed to save player difficulties for guid {}: {err}",
                 guid.counter()
+            );
+        }
+    }
+
+    async fn save_instance_time_restrictions_like_cpp(&self) {
+        let statements = self.instance_time_restriction_save_statements_like_cpp();
+        if statements.is_empty() {
+            return;
+        }
+        let Some(char_db) = self.char_db().map(Arc::clone) else {
+            warn!(
+                account = self.account_id,
+                "SaveInstanceTimeRestrictions skipped: character database unavailable"
+            );
+            return;
+        };
+
+        let mut tx = SqlTransaction::new();
+        for statement in statements {
+            tx.append(statement);
+        }
+        if let Err(err) = char_db.commit_transaction(tx).await {
+            warn!(
+                account = self.account_id,
+                "Failed to save account instance time restrictions: {err}"
             );
         }
     }
@@ -56534,6 +56640,94 @@ mod tests {
                 .represented_instance_reset_times_like_cpp
                 .contains_key(&2)
         );
+    }
+
+    #[test]
+    fn instance_time_restriction_load_rows_match_cpp_insert_semantics() {
+        let (mut session, _pkt_tx, _send_rx) = make_session();
+        session
+            .represented_instance_reset_times_like_cpp
+            .insert(99, 9_999);
+
+        session.load_instance_time_restriction_rows_like_cpp([
+            (10, 1_000),
+            (20, 2_000),
+            (10, 3_000),
+        ]);
+
+        assert_eq!(session.represented_instance_reset_times_like_cpp.len(), 2);
+        assert_eq!(
+            session.represented_instance_reset_times_like_cpp.get(&10),
+            Some(&1_000)
+        );
+        assert_eq!(
+            session.represented_instance_reset_times_like_cpp.get(&20),
+            Some(&2_000)
+        );
+        assert!(
+            !session
+                .represented_instance_reset_times_like_cpp
+                .contains_key(&99)
+        );
+    }
+
+    #[test]
+    fn instance_time_restriction_save_plan_skips_empty_like_cpp() {
+        let (session, _pkt_tx, _send_rx) = make_session();
+
+        assert!(
+            session
+                .instance_time_restriction_save_statements_like_cpp()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn instance_time_restriction_save_plan_deletes_then_inserts_like_cpp() {
+        let (mut session, _pkt_tx, _send_rx) = make_session();
+        session.account_id = 22;
+        session
+            .represented_instance_reset_times_like_cpp
+            .insert(9002, 5_556);
+        session
+            .represented_instance_reset_times_like_cpp
+            .insert(9001, 5_555);
+
+        let statements = session.instance_time_restriction_save_statements_like_cpp();
+
+        assert_eq!(statements.len(), 3);
+        assert_eq!(
+            statements[0].sql(),
+            CharStatements::DEL_ACCOUNT_INSTANCE_LOCK_TIMES.sql()
+        );
+        assert!(matches!(
+            statements[0].params(),
+            [wow_database::SqlParam::U32(22)]
+        ));
+        assert_eq!(
+            statements[1].sql(),
+            CharStatements::INS_ACCOUNT_INSTANCE_LOCK_TIMES.sql()
+        );
+        assert!(matches!(
+            statements[1].params(),
+            [
+                wow_database::SqlParam::U32(22),
+                wow_database::SqlParam::U32(9001),
+                wow_database::SqlParam::U64(5_555)
+            ]
+        ));
+        assert_eq!(
+            statements[2].sql(),
+            CharStatements::INS_ACCOUNT_INSTANCE_LOCK_TIMES.sql()
+        );
+        assert!(matches!(
+            statements[2].params(),
+            [
+                wow_database::SqlParam::U32(22),
+                wow_database::SqlParam::U32(9002),
+                wow_database::SqlParam::U64(5_556)
+            ]
+        ));
     }
 
     #[test]

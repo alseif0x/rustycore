@@ -3926,6 +3926,7 @@ impl WorldSession {
 
         // Load active quests from characters DB
         self.load_player_quests().await;
+        self.load_instance_time_restrictions_like_cpp().await;
         self.load_player_account_data_like_cpp(guid).await;
 
         self.send_login_sequence(
