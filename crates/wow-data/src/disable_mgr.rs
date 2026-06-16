@@ -586,6 +586,7 @@ mod tests {
             MapEntry {
                 id: 0,
                 instance_type: 0,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -593,6 +594,7 @@ mod tests {
             MapEntry {
                 id: 571,
                 instance_type: 1,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -607,6 +609,7 @@ mod tests {
             difficulty_id: DIFFICULTY_HEROIC,
             lock_id: 0,
             reset_interval: 0,
+            max_players: 5,
             flags: 0,
         }])
     }

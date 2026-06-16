@@ -5771,6 +5771,7 @@ mod tests {
         wow_data::MapStore::from_entries(ids.iter().copied().map(|id| wow_data::MapEntry {
             id,
             instance_type: 0,
+            expansion_id: 0,
             parent_map_id: -1,
             cosmetic_parent_map_id: -1,
             flags1: 0,
@@ -5781,6 +5782,7 @@ mod tests {
         wow_data::MapStore::from_entries(ids.iter().copied().map(|id| wow_data::MapEntry {
             id,
             instance_type: wow_data::map::MAP_INSTANCE,
+            expansion_id: 0,
             parent_map_id: -1,
             cosmetic_parent_map_id: -1,
             flags1: 0,

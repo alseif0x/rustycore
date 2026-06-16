@@ -29,6 +29,7 @@ pub const MAP_SCENARIO: i8 = 5;
 pub struct MapEntry {
     pub id: u32,
     pub instance_type: i8,
+    pub expansion_id: u8,
     pub parent_map_id: i16,
     pub cosmetic_parent_map_id: i16,
     pub flags1: u32,
@@ -45,6 +46,10 @@ impl MapEntry {
 
     pub const fn is_dungeon(self) -> bool {
         matches!(self.instance_type, MAP_INSTANCE | MAP_RAID | MAP_SCENARIO) && !self.is_garrison()
+    }
+
+    pub const fn expansion_like_cpp(self) -> u8 {
+        self.expansion_id
     }
 
     pub const fn is_non_raid_dungeon_like_cpp(self) -> bool {
@@ -91,10 +96,11 @@ impl MapStore {
             let entry = MapEntry {
                 id,
                 // WDC4 record ids supply C++ field 0 (`ID`) and this reader
-                // exposes `Flags[3]` as one array field, so C++ field 8 -> 7
-                // C++ fields 13..14 -> fields 12..13 and C++ fields 22..24
-                // -> field 21.
+                // exposes `Flags[3]` as one array field, so C++ field 8 -> 7,
+                // C++ field 9 -> 8, C++ fields 13..14 -> fields 12..13,
+                // and C++ fields 22..24 -> field 21.
                 instance_type: reader.get_field_i8(idx, 7),
+                expansion_id: reader.get_field_u8(idx, 8),
                 parent_map_id: reader.get_field_i16(idx, 12),
                 cosmetic_parent_map_id: reader.get_field_i16(idx, 13),
                 flags1: reader.get_field_u32(idx, 21),
@@ -460,6 +466,7 @@ mod tests {
         let store = MapStore::from_entries([MapEntry {
             id: 631,
             instance_type: 2,
+            expansion_id: 0,
             parent_map_id: -1,
             cosmetic_parent_map_id: -1,
             flags1: MAP_FLAG_FLEXIBLE_RAID_LOCKING,
@@ -474,6 +481,7 @@ mod tests {
         let world = MapEntry {
             id: 0,
             instance_type: MAP_COMMON,
+            expansion_id: 0,
             parent_map_id: -1,
             cosmetic_parent_map_id: -1,
             flags1: 0,
@@ -481,6 +489,7 @@ mod tests {
         let dungeon = MapEntry {
             id: 33,
             instance_type: MAP_INSTANCE,
+            expansion_id: 0,
             parent_map_id: -1,
             cosmetic_parent_map_id: -1,
             flags1: 0,
@@ -488,6 +497,7 @@ mod tests {
         let raid = MapEntry {
             id: 631,
             instance_type: MAP_RAID,
+            expansion_id: 2,
             parent_map_id: -1,
             cosmetic_parent_map_id: -1,
             flags1: 0,
@@ -495,6 +505,7 @@ mod tests {
         let battleground = MapEntry {
             id: 489,
             instance_type: MAP_BATTLEGROUND,
+            expansion_id: 0,
             parent_map_id: -1,
             cosmetic_parent_map_id: -1,
             flags1: 0,
@@ -502,6 +513,7 @@ mod tests {
         let arena = MapEntry {
             id: 562,
             instance_type: MAP_ARENA,
+            expansion_id: 0,
             parent_map_id: -1,
             cosmetic_parent_map_id: -1,
             flags1: 0,
@@ -509,6 +521,7 @@ mod tests {
         let garrison = MapEntry {
             id: 1152,
             instance_type: MAP_INSTANCE,
+            expansion_id: 0,
             parent_map_id: -1,
             cosmetic_parent_map_id: -1,
             flags1: MAP_FLAG_GARRISON,
@@ -516,6 +529,7 @@ mod tests {
         let split = MapEntry {
             id: 609,
             instance_type: MAP_COMMON,
+            expansion_id: 0,
             parent_map_id: 571,
             cosmetic_parent_map_id: -1,
             flags1: 0,
@@ -524,6 +538,7 @@ mod tests {
         assert!(world.is_world_map());
         assert!(dungeon.is_dungeon());
         assert!(raid.is_dungeon());
+        assert_eq!(raid.expansion_like_cpp(), 2);
         assert!(battleground.is_battleground_or_arena());
         assert!(arena.is_battleground_or_arena());
         assert!(garrison.is_garrison());
@@ -537,6 +552,7 @@ mod tests {
             MapEntry {
                 id: 609,
                 instance_type: 0,
+                expansion_id: 0,
                 parent_map_id: 571,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -544,6 +560,7 @@ mod tests {
             MapEntry {
                 id: 111,
                 instance_type: 0,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: 1,
                 flags1: 0,
@@ -564,6 +581,7 @@ mod tests {
             MapEntry {
                 id: 1,
                 instance_type: 0,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -571,6 +589,7 @@ mod tests {
             MapEntry {
                 id: 571,
                 instance_type: 0,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: 1,
                 flags1: 0,
@@ -578,6 +597,7 @@ mod tests {
             MapEntry {
                 id: 609,
                 instance_type: 0,
+                expansion_id: 0,
                 parent_map_id: 571,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -595,6 +615,7 @@ mod tests {
             MapEntry {
                 id: 1,
                 instance_type: 0,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -602,6 +623,7 @@ mod tests {
             MapEntry {
                 id: 571,
                 instance_type: 0,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -609,6 +631,7 @@ mod tests {
             MapEntry {
                 id: 609,
                 instance_type: 0,
+                expansion_id: 0,
                 parent_map_id: 571,
                 cosmetic_parent_map_id: 1,
                 flags1: 0,
@@ -623,6 +646,7 @@ mod tests {
         let store = MapStore::from_entries([MapEntry {
             id: 609,
             instance_type: 0,
+            expansion_id: 0,
             parent_map_id: 571,
             cosmetic_parent_map_id: -1,
             flags1: 0,
@@ -638,6 +662,7 @@ mod tests {
             MapEntry {
                 id: 1,
                 instance_type: 0,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -645,6 +670,7 @@ mod tests {
             MapEntry {
                 id: 571,
                 instance_type: 0,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: 1,
                 flags1: 0,
@@ -652,6 +678,7 @@ mod tests {
             MapEntry {
                 id: 609,
                 instance_type: 0,
+                expansion_id: 0,
                 parent_map_id: 571,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -670,6 +697,7 @@ mod tests {
         let store = MapStore::from_entries([MapEntry {
             id: 609,
             instance_type: 0,
+            expansion_id: 0,
             parent_map_id: 571,
             cosmetic_parent_map_id: -1,
             flags1: 0,
@@ -685,6 +713,7 @@ mod tests {
         let store = MapStore::from_entries([MapEntry {
             id: 609,
             instance_type: 0,
+            expansion_id: 0,
             parent_map_id: 571,
             cosmetic_parent_map_id: 1,
             flags1: 0,

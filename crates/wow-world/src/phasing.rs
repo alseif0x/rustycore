@@ -955,6 +955,7 @@ mod tests {
         MapEntry {
             id,
             instance_type: 0,
+            expansion_id: 0,
             parent_map_id,
             cosmetic_parent_map_id: -1,
             flags1: 0,

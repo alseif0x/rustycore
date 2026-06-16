@@ -6356,6 +6356,7 @@ mod tests {
         MapEntry {
             id,
             instance_type,
+            expansion_id: 0,
             parent_map_id: -1,
             cosmetic_parent_map_id: -1,
             flags1: 0,
@@ -6421,6 +6422,7 @@ mod tests {
         session.set_map_store(Arc::new(MapStore::from_entries([MapEntry {
             id: map_id,
             instance_type: 2,
+            expansion_id: 0,
             parent_map_id: -1,
             cosmetic_parent_map_id: -1,
             flags1: 0,
@@ -9877,6 +9879,7 @@ mod tests {
             MapEntry {
                 id: 0,
                 instance_type: 0,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -9884,6 +9887,7 @@ mod tests {
             MapEntry {
                 id: 631,
                 instance_type: 2,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: wow_data::map::MAP_FLAG_FLEXIBLE_RAID_LOCKING,
@@ -16159,6 +16163,7 @@ mod tests {
             MapEntry {
                 id: 0,
                 instance_type: 0,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -16166,6 +16171,7 @@ mod tests {
             MapEntry {
                 id: 631,
                 instance_type: 2,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: wow_data::map::MAP_FLAG_FLEXIBLE_RAID_LOCKING,
@@ -16248,6 +16254,7 @@ mod tests {
             MapEntry {
                 id: 0,
                 instance_type: 0,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -16255,6 +16262,7 @@ mod tests {
             MapEntry {
                 id: 631,
                 instance_type: 2,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: wow_data::map::MAP_FLAG_FLEXIBLE_RAID_LOCKING,
@@ -16325,6 +16333,7 @@ mod tests {
             MapEntry {
                 id: 0,
                 instance_type: 0,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -16332,6 +16341,7 @@ mod tests {
             MapEntry {
                 id: 631,
                 instance_type: 2,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: wow_data::map::MAP_FLAG_FLEXIBLE_RAID_LOCKING,

@@ -301,6 +301,10 @@ pub struct SessionResources {
     pub quest_high_level_hide_diff: u32,
     pub enable_ae_loot: bool,
     pub addon_channel: bool,
+    /// C++ `CONFIG_EXPANSION`; used by map-entry expansion gates.
+    pub server_expansion: u8,
+    /// C++ `CONFIG_INSTANCE_IGNORE_RAID` / `Instance.IgnoreRaid`.
+    pub instance_ignore_raid: bool,
     pub chat_fake_message_preventing: bool,
     pub party_raid_warnings: bool,
     pub chat_strict_link_checking_kick: bool,

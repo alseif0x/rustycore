@@ -1888,6 +1888,7 @@ mod tests {
         let maps = wow_data::MapStore::from_entries([wow_data::MapEntry {
             id: 631,
             instance_type: wow_data::map::MAP_RAID,
+            expansion_id: 0,
             parent_map_id: -1,
             cosmetic_parent_map_id: -1,
             flags1: wow_data::map::MAP_FLAG_FLEXIBLE_RAID_LOCKING,
@@ -1925,6 +1926,7 @@ mod tests {
         let maps = wow_data::MapStore::from_entries([wow_data::MapEntry {
             id: 33,
             instance_type: wow_data::map::MAP_INSTANCE,
+            expansion_id: 0,
             parent_map_id: -1,
             cosmetic_parent_map_id: -1,
             flags1: 0,

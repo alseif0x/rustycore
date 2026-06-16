@@ -165,6 +165,7 @@ mod tests {
             parent_map_id: -1,
             cosmetic_parent_map_id: -1,
             instance_type: 0,
+            expansion_id: 0,
             flags1: 0,
         }]);
 

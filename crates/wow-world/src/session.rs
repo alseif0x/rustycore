@@ -728,6 +728,7 @@ const MAX_PACKETS_PER_UPDATE: usize = 100;
 const TRANSFER_ABORT_DIFFICULTY_LIKE_CPP: u32 = 8;
 const TRANSFER_ABORT_MAX_PLAYERS_LIKE_CPP: u32 = 2;
 const TRANSFER_ABORT_ZONE_IN_COMBAT_LIKE_CPP: u32 = 6;
+const TRANSFER_ABORT_NEED_GROUP_LIKE_CPP: u32 = 11;
 const TRANSFER_ABORT_MAP_NOT_ALLOWED_LIKE_CPP: u32 = 16;
 const MAP_BATTLEGROUND_LIKE_CPP: i8 = 3;
 const MAP_ARENA_LIKE_CPP: i8 = 4;
@@ -2950,6 +2951,8 @@ pub struct WorldSession {
     pub security: u8,
     pub expansion: u8,
     pub account_expansion: u8,
+    server_expansion_like_cpp: u8,
+    instance_ignore_raid_like_cpp: bool,
     pub build: u32,
     pub session_key: Vec<u8>,
     pub locale: String,
@@ -4558,6 +4561,8 @@ impl WorldSession {
             security,
             expansion,
             account_expansion,
+            server_expansion_like_cpp: 2,
+            instance_ignore_raid_like_cpp: false,
             build,
             session_key,
             locale,
@@ -6433,6 +6438,20 @@ impl WorldSession {
         })
     }
 
+    fn current_player_is_in_raid_group_like_cpp(&self) -> bool {
+        let (Some(group_guid), Some(group_registry), Some(player_guid)) = (
+            self.group_guid,
+            self.group_registry.as_ref(),
+            self.player_guid(),
+        ) else {
+            return false;
+        };
+
+        group_registry
+            .get(&group_guid)
+            .is_some_and(|group| group.is_raid_group() && group.members.contains(&player_guid))
+    }
+
     fn represented_player_is_same_raid_with_like_cpp(
         &self,
         player_guid: ObjectGuid,
@@ -7099,7 +7118,20 @@ impl WorldSession {
                 side_effects: Vec::new(),
             });
         }
-        let bypass_player_cannot_enter_like_cpp = is_dungeon && self.player_is_game_master_like_cpp();
+        let bypass_player_cannot_enter_like_cpp =
+            is_dungeon && self.player_is_game_master_like_cpp();
+        if is_dungeon
+            && !bypass_player_cannot_enter_like_cpp
+            && map_entry.instance_type == wow_data::map::MAP_RAID
+            && map_entry.expansion_like_cpp() >= self.server_expansion_like_cpp
+            && !self.instance_ignore_raid_like_cpp
+            && !self.current_player_is_in_raid_group_like_cpp()
+        {
+            self.send_transfer_aborted_like_cpp(map_id, TRANSFER_ABORT_NEED_GROUP_LIKE_CPP);
+            return Some(wow_map::CreateMapDecision::Reject {
+                side_effects: Vec::new(),
+            });
+        }
         let entry = wow_map::CreateMapEntryContext {
             map_id,
             kind: if is_dungeon {
@@ -7188,10 +7220,7 @@ impl WorldSession {
             && let wow_map::CreateMapDecision::Existing { key, .. } = &decision
             && existing_instance_encounter_in_progress == Some(true)
         {
-            self.send_transfer_aborted_like_cpp(
-                key.map_id,
-                TRANSFER_ABORT_ZONE_IN_COMBAT_LIKE_CPP,
-            );
+            self.send_transfer_aborted_like_cpp(key.map_id, TRANSFER_ABORT_ZONE_IN_COMBAT_LIKE_CPP);
             return Some(wow_map::CreateMapDecision::Reject {
                 side_effects: Vec::new(),
             });
@@ -12715,6 +12744,14 @@ impl WorldSession {
 
     pub fn set_packet_spoof_config_like_cpp(&mut self, config: PacketSpoofConfigLikeCpp) {
         self.packet_spoof_config_like_cpp = config;
+    }
+
+    pub fn set_server_expansion_like_cpp(&mut self, expansion: u8) {
+        self.server_expansion_like_cpp = expansion;
+    }
+
+    pub fn set_instance_ignore_raid_like_cpp(&mut self, ignore: bool) {
+        self.instance_ignore_raid_like_cpp = ignore;
     }
 
     pub fn set_legacy_creature_aggro_config_like_cpp(
@@ -39138,6 +39175,7 @@ mod tests {
         wow_data::map::MapEntry {
             id: map_id,
             instance_type,
+            expansion_id: 0,
             parent_map_id: -1,
             cosmetic_parent_map_id: -1,
             flags1: 0,
@@ -39169,10 +39207,31 @@ mod tests {
         reset_interval: u8,
         max_players: u32,
     ) {
+        install_create_map_active_lock_stores_with_expansion_and_max_players_like_cpp(
+            session,
+            map_id,
+            difficulty_id,
+            lock_id,
+            reset_interval,
+            0,
+            max_players,
+        );
+    }
+
+    fn install_create_map_active_lock_stores_with_expansion_and_max_players_like_cpp(
+        session: &mut WorldSession,
+        map_id: u32,
+        difficulty_id: u8,
+        lock_id: u8,
+        reset_interval: u8,
+        expansion_id: u8,
+        max_players: u32,
+    ) {
         session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
             wow_data::MapEntry {
                 id: map_id,
                 instance_type: wow_data::map::MAP_RAID,
+                expansion_id,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -39404,6 +39463,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 33,
                 instance_type: wow_data::map::MAP_INSTANCE,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -39458,6 +39518,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 33,
                 instance_type: wow_data::map::MAP_INSTANCE,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -39504,6 +39565,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 33,
                 instance_type: wow_data::map::MAP_INSTANCE,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -48271,6 +48333,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: 0,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -48278,6 +48341,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 1,
                 instance_type: 0,
+                expansion_id: 0,
                 parent_map_id: 0,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -49249,6 +49313,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -49507,6 +49572,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -53380,6 +53446,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -53759,6 +53826,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -55243,6 +55311,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -55551,6 +55620,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 609,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: 571,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -55588,6 +55658,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -55595,6 +55666,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -55727,6 +55799,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: wow_data::map::MAP_INSTANCE,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -55773,6 +55846,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 631,
                 instance_type: wow_data::map::MAP_RAID,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -55818,6 +55892,220 @@ mod tests {
             canonical.lock().unwrap().find_map(631, 0).is_none(),
             "rejected dungeon difficulty must not create or sync a canonical map"
         );
+    }
+
+    #[test]
+    fn canonical_current_expansion_raid_requires_raid_group_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 78);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "RaidNoGroup".to_string(),
+            Position::new(3700.0, 1500.0, 120.0, 0.0),
+            631,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.represented_raid_difficulty_id_like_cpp = 3;
+        install_create_map_active_lock_stores_with_expansion_and_max_players_like_cpp(
+            &mut session,
+            631,
+            3,
+            77,
+            2,
+            2,
+            25,
+        );
+
+        assert_eq!(
+            session.ensure_canonical_world_map_for_current_player_like_cpp(),
+            Some(wow_map::CreateMapDecision::Reject {
+                side_effects: Vec::new()
+            })
+        );
+        assert_eq!(
+            send_rx.try_recv().expect("SMSG_TRANSFER_ABORTED"),
+            wow_packet::packets::misc::TransferAborted {
+                map_id: 631,
+                arg: 0,
+                map_difficulty_x_condition_id: 0,
+                transfer_abort: TRANSFER_ABORT_NEED_GROUP_LIKE_CPP,
+            }
+            .to_bytes()
+        );
+        assert!(
+            canonical.lock().unwrap().find_map(631, 0).is_none(),
+            "C++ rejects current-expansion raid entry before resolving/creating an instance"
+        );
+    }
+
+    #[test]
+    fn canonical_current_expansion_raid_group_allows_entry_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 79);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "RaidGroup".to_string(),
+            Position::new(3700.0, 1500.0, 120.0, 0.0),
+            631,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.represented_raid_difficulty_id_like_cpp = 3;
+        install_create_map_active_lock_stores_with_expansion_and_max_players_like_cpp(
+            &mut session,
+            631,
+            3,
+            77,
+            2,
+            2,
+            25,
+        );
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(player_guid);
+        group.convert_to_raid_like_cpp();
+        group.raid_difficulty_id = 3;
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+
+        assert!(matches!(
+            session.ensure_canonical_world_map_for_current_player_like_cpp(),
+            Some(wow_map::CreateMapDecision::Create {
+                key,
+                difficulty_id: 3,
+                ..
+            }) if key == wow_map::MapKey::new(631, 1)
+        ));
+        assert!(send_rx.try_recv().is_err());
+        assert!(
+            canonical
+                .lock()
+                .unwrap()
+                .find_map(631, 1)
+                .unwrap()
+                .map()
+                .get_typed_player(player_guid)
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn canonical_old_expansion_raid_skips_raid_group_requirement_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 80);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "OldRaidNoGroup".to_string(),
+            Position::new(3700.0, 1500.0, 120.0, 0.0),
+            631,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.represented_raid_difficulty_id_like_cpp = 3;
+        install_create_map_active_lock_stores_with_expansion_and_max_players_like_cpp(
+            &mut session,
+            631,
+            3,
+            77,
+            2,
+            1,
+            25,
+        );
+
+        assert!(matches!(
+            session.ensure_canonical_world_map_for_current_player_like_cpp(),
+            Some(wow_map::CreateMapDecision::Create { .. })
+        ));
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn canonical_game_master_bypasses_raid_group_requirement_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let gm = ObjectGuid::create_player(1, 81);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            gm,
+            "RaidGmNoGroup".to_string(),
+            Position::new(3700.0, 1500.0, 120.0, 0.0),
+            631,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_player_game_master_like_cpp(true);
+        session.represented_raid_difficulty_id_like_cpp = 3;
+        install_create_map_active_lock_stores_with_expansion_and_max_players_like_cpp(
+            &mut session,
+            631,
+            3,
+            77,
+            2,
+            2,
+            25,
+        );
+
+        assert!(matches!(
+            session.ensure_canonical_world_map_for_current_player_like_cpp(),
+            Some(wow_map::CreateMapDecision::Create { .. })
+        ));
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn canonical_instance_ignore_raid_config_bypasses_raid_group_requirement_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 82);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "RaidIgnoreConfig".to_string(),
+            Position::new(3700.0, 1500.0, 120.0, 0.0),
+            631,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_instance_ignore_raid_like_cpp(true);
+        session.represented_raid_difficulty_id_like_cpp = 3;
+        install_create_map_active_lock_stores_with_expansion_and_max_players_like_cpp(
+            &mut session,
+            631,
+            3,
+            77,
+            2,
+            2,
+            25,
+        );
+
+        assert!(matches!(
+            session.ensure_canonical_world_map_for_current_player_like_cpp(),
+            Some(wow_map::CreateMapDecision::Create { .. })
+        ));
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[test]
@@ -56064,7 +56352,14 @@ mod tests {
             0,
         ));
         session.represented_raid_difficulty_id_like_cpp = 3;
-        install_create_map_active_lock_stores_with_max_players_like_cpp(&mut session, 631, 3, 77, 0, 1);
+        install_create_map_active_lock_stores_with_max_players_like_cpp(
+            &mut session,
+            631,
+            3,
+            77,
+            0,
+            1,
+        );
 
         let group_registry = Arc::new(GroupRegistry::default());
         let mut group = GroupInfo::new(leader);
@@ -56139,7 +56434,14 @@ mod tests {
         ));
         session.set_player_game_master_like_cpp(true);
         session.represented_raid_difficulty_id_like_cpp = 3;
-        install_create_map_active_lock_stores_with_max_players_like_cpp(&mut session, 631, 3, 77, 0, 1);
+        install_create_map_active_lock_stores_with_max_players_like_cpp(
+            &mut session,
+            631,
+            3,
+            77,
+            0,
+            1,
+        );
 
         let group_registry = Arc::new(GroupRegistry::default());
         let mut group = GroupInfo::new(leader);
@@ -56426,6 +56728,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -56494,6 +56797,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -56550,6 +56854,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 33,
                 instance_type: wow_data::map::MAP_INSTANCE,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -57033,6 +57338,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -57084,6 +57390,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_INSTANCE,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -57351,6 +57658,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: wow_data::map::MAP_INSTANCE,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -57862,6 +58170,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: 0,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -57869,6 +58178,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 609,
                 instance_type: 0,
+                expansion_id: 0,
                 parent_map_id: 571,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -57988,6 +58298,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: 0,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -57995,6 +58306,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 609,
                 instance_type: 0,
+                expansion_id: 0,
                 parent_map_id: 571,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -58896,6 +59208,7 @@ mod tests {
         Arc::new(MapStore::from_entries([wow_data::MapEntry {
             id: 571,
             instance_type,
+            expansion_id: 0,
             parent_map_id: -1,
             cosmetic_parent_map_id: -1,
             flags1: 0,
@@ -59741,6 +60054,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -60192,6 +60506,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -60249,6 +60564,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -62450,6 +62766,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -62559,6 +62876,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_INSTANCE,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -63520,6 +63838,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -65229,6 +65548,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -65305,6 +65625,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -65375,6 +65696,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -65449,6 +65771,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -65524,6 +65847,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -65892,6 +66216,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -65950,6 +66275,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -66025,6 +66351,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -66142,6 +66469,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -66225,6 +66553,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -66301,6 +66630,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -66369,6 +66699,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -66418,6 +66749,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -66494,6 +66826,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -66572,6 +66905,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -66652,6 +66986,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -66719,6 +67054,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -66795,6 +67131,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -66874,6 +67211,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -66953,6 +67291,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -67035,6 +67374,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -67103,6 +67443,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -67171,6 +67512,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -67297,6 +67639,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -67391,6 +67734,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -67446,6 +67790,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -67490,6 +67835,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -67552,6 +67898,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -67627,6 +67974,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -67702,6 +68050,7 @@ mod tests {
         let map_store = Arc::new(wow_data::MapStore::from_entries([wow_data::MapEntry {
             id: 571,
             instance_type: wow_data::map::MAP_COMMON,
+            expansion_id: 0,
             parent_map_id: -1,
             cosmetic_parent_map_id: -1,
             flags1: 0,
@@ -67783,6 +68132,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -67866,6 +68216,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -67957,6 +68308,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -68047,6 +68399,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -68182,6 +68535,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -68267,6 +68621,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -68335,6 +68690,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -68395,6 +68751,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -68487,6 +68844,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -68558,6 +68916,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -68644,6 +69003,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -68736,6 +69096,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -68816,6 +69177,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -68861,6 +69223,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -68912,6 +69275,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -68965,6 +69329,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -69013,6 +69378,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -69051,6 +69417,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -69119,6 +69486,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -69183,6 +69551,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -69275,6 +69644,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -69358,6 +69728,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -69461,6 +69832,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -69533,6 +69905,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -69623,6 +69996,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -69703,6 +70077,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -69778,6 +70153,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -69852,6 +70228,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -69903,6 +70280,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -75329,6 +75707,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -76819,6 +77198,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 571,
                 instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -89021,6 +89401,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_BATTLEGROUND,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -89065,6 +89446,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_INSTANCE,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
@@ -89128,6 +89510,7 @@ mod tests {
             wow_data::MapEntry {
                 id: 0,
                 instance_type: wow_data::map::MAP_INSTANCE,
+                expansion_id: 0,
                 parent_map_id: -1,
                 cosmetic_parent_map_id: -1,
                 flags1: 0,
