@@ -244,6 +244,7 @@ pub struct SessionResources {
     pub map_store: Option<Arc<wow_data::MapStore>>,
     pub map_difficulty_store: Option<Arc<wow_data::MapDifficultyStore>>,
     pub map_difficulty_x_condition_store: Option<Arc<wow_data::MapDifficultyXConditionStore>>,
+    pub access_requirement_store: Option<Arc<wow_data::AccessRequirementStoreLikeCpp>>,
     pub lfg_dungeons_store: Option<Arc<wow_data::LfgDungeonsStore>>,
     pub battlemaster_list_store: Option<Arc<wow_data::BattlemasterListStore>>,
     pub creature_template_mount_store: Option<Arc<wow_data::CreatureTemplateMountStoreLikeCpp>>,
@@ -305,6 +306,8 @@ pub struct SessionResources {
     pub server_expansion: u8,
     /// C++ `CONFIG_INSTANCE_IGNORE_RAID` / `Instance.IgnoreRaid`.
     pub instance_ignore_raid: bool,
+    /// C++ `CONFIG_INSTANCE_IGNORE_LEVEL` / `Instance.IgnoreLevel`.
+    pub instance_ignore_level: bool,
     pub chat_fake_message_preventing: bool,
     pub party_raid_warnings: bool,
     pub chat_strict_link_checking_kick: bool,

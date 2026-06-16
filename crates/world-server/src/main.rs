@@ -1914,6 +1914,22 @@ async fn main() -> Result<ExitCode> {
             .await
             .context("Failed to load quest store")?,
     );
+    let access_requirement_store = Arc::new(
+        wow_data::AccessRequirementStoreLikeCpp::load_like_cpp(
+            world_db.as_ref(),
+            &map_store,
+            &map_difficulty_store,
+            &item_store,
+            quest_store.as_ref(),
+            achievement_store.as_ref(),
+        )
+        .await
+        .context("Failed to load C++ access_requirement rows")?,
+    );
+    info!(
+        "Loaded {} C++ access requirement rows",
+        access_requirement_store.len()
+    );
     let disable_mgr = Arc::new(
         load_disable_mgr_like_cpp(
             world_db.as_ref(),
@@ -2643,6 +2659,7 @@ async fn main() -> Result<ExitCode> {
         map_store: Some(Arc::clone(&map_store)),
         map_difficulty_store: Some(Arc::clone(&map_difficulty_store)),
         map_difficulty_x_condition_store: Some(Arc::clone(&map_difficulty_x_condition_store)),
+        access_requirement_store: Some(Arc::clone(&access_requirement_store)),
         lfg_dungeons_store: Some(Arc::clone(&lfg_dungeons_store)),
         battlemaster_list_store: Some(Arc::clone(&battlemaster_list_typed_store)),
         creature_template_mount_store: Some(Arc::clone(&creature_template_mount_store)),
@@ -2714,6 +2731,11 @@ async fn main() -> Result<ExitCode> {
         instance_ignore_raid: world_config_bool(
             &world_configs,
             "CONFIG_INSTANCE_IGNORE_RAID",
+            false,
+        ),
+        instance_ignore_level: world_config_bool(
+            &world_configs,
+            "CONFIG_INSTANCE_IGNORE_LEVEL",
             false,
         ),
         chat_fake_message_preventing: world_config_bool(
@@ -8935,6 +8957,9 @@ async fn create_session(
     if let Some(ref store) = resources.map_difficulty_x_condition_store {
         session.set_map_difficulty_x_condition_store(Arc::clone(store));
     }
+    if let Some(ref store) = resources.access_requirement_store {
+        session.set_access_requirement_store(Arc::clone(store));
+    }
     if let Some(ref store) = resources.lfg_dungeons_store {
         session.set_lfg_dungeons_store(Arc::clone(store));
     }
@@ -9051,6 +9076,7 @@ async fn create_session(
     session.set_addon_channel_like_cpp(resources.addon_channel);
     session.set_server_expansion_like_cpp(resources.server_expansion);
     session.set_instance_ignore_raid_like_cpp(resources.instance_ignore_raid);
+    session.set_instance_ignore_level_like_cpp(resources.instance_ignore_level);
     session.set_chat_fake_message_preventing_like_cpp(resources.chat_fake_message_preventing);
     session.set_party_raid_warnings_like_cpp(resources.party_raid_warnings);
     session.set_chat_strict_link_checking_kick_like_cpp(resources.chat_strict_link_checking_kick);
@@ -13578,6 +13604,19 @@ ResetSchedule.WeekDay = 5
         assert!(world_config_bool(
             &configs,
             "CONFIG_INSTANCE_IGNORE_RAID",
+            false
+        ));
+    }
+
+    #[test]
+    fn instance_ignore_level_uses_cpp_world_config_key() {
+        let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+        wow_config::load_config_from_str("Instance.IgnoreLevel = 1\n").expect("config should load");
+
+        let configs = wow_config::load_world_config_values();
+        assert!(world_config_bool(
+            &configs,
+            "CONFIG_INSTANCE_IGNORE_LEVEL",
             false
         ));
     }

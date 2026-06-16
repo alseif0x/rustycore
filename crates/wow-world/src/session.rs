@@ -55,17 +55,18 @@ use wow_constants::{
 use wow_core::{ObjectGuid, ObjectGuidGenerator, Position, guid::HighGuid};
 use wow_data::character_progression::{ChrClassesStore, ChrRacesStore};
 use wow_data::{
-    AdventureMapPoiStore, AreaTableStore, AreaTriggerStore, BankBagSlotPricesStore,
-    BattlePetBreedQualityStore, BattlePetBreedStateStore, BattlePetSpeciesStateStore,
-    BattlePetSpeciesStore, BattlePetXpGameTableLikeCpp, BattlemasterListStore,
-    ChrSpecializationStore, CinematicSequencesStore, ConditionEntriesByTypeStore,
-    CreatureDisplayInfoStore, CreatureModelDataStore, CreatureTemplateMountStoreLikeCpp,
-    CurrencyTypesEntry, CurrencyTypesStore, DISABLE_TYPE_BATTLEGROUND, DISABLE_TYPE_MAP,
-    DifficultyStore, DisableMgrLikeCpp, DisableWorldObjectRefLikeCpp, DungeonEncounterStore,
-    DurabilityCostsStore, DurabilityQualityStore, FishingBaseSkillStoreLikeCpp,
-    GameObjectDisplayInfoStore, GameObjectTemplateLifecycleStoreLikeCpp, HeirloomEntry,
-    HeirloomStore, HotfixBlobCache, ImportPriceStores, ItemAppearanceStore, ItemClassStore,
-    ItemCurrencyCostStore, ItemDisenchantLootStore, ItemEffectStore, ItemExtendedCostStore,
+    AccessRequirementStoreLikeCpp, AdventureMapPoiStore, AreaTableStore, AreaTriggerStore,
+    BankBagSlotPricesStore, BattlePetBreedQualityStore, BattlePetBreedStateStore,
+    BattlePetSpeciesStateStore, BattlePetSpeciesStore, BattlePetXpGameTableLikeCpp,
+    BattlemasterListStore, ChrSpecializationStore, CinematicSequencesStore,
+    ConditionEntriesByTypeStore, CreatureDisplayInfoStore, CreatureModelDataStore,
+    CreatureTemplateMountStoreLikeCpp, CurrencyTypesEntry, CurrencyTypesStore,
+    DISABLE_TYPE_BATTLEGROUND, DISABLE_TYPE_MAP, DifficultyStore, DisableMgrLikeCpp,
+    DisableWorldObjectRefLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
+    DurabilityQualityStore, FishingBaseSkillStoreLikeCpp, GameObjectDisplayInfoStore,
+    GameObjectTemplateLifecycleStoreLikeCpp, HeirloomEntry, HeirloomStore, HotfixBlobCache,
+    ImportPriceStores, ItemAppearanceStore, ItemClassStore, ItemCurrencyCostStore,
+    ItemDisenchantLootStore, ItemEffectStore, ItemExtendedCostStore,
     ItemLimitCategoryConditionStore, ItemLimitCategoryStore, ItemModifiedAppearanceStore,
     ItemPriceBaseStore, ItemRandomEnchantmentTemplateStore, ItemRandomPropertiesStore,
     ItemRandomPropertyTemplateEntry, ItemRandomSuffixStore, ItemSearchNameStore,
@@ -726,6 +727,7 @@ use wow_packet::{ClientPacket, WorldPacket};
 /// Maximum number of packets processed per `update()` call.
 const MAX_PACKETS_PER_UPDATE: usize = 100;
 const TRANSFER_ABORT_DIFFICULTY_LIKE_CPP: u32 = 8;
+const TRANSFER_ABORT_ERROR_LIKE_CPP: u32 = 1;
 const TRANSFER_ABORT_MAX_PLAYERS_LIKE_CPP: u32 = 2;
 const TRANSFER_ABORT_ZONE_IN_COMBAT_LIKE_CPP: u32 = 6;
 const TRANSFER_ABORT_NEED_GROUP_LIKE_CPP: u32 = 11;
@@ -2953,6 +2955,7 @@ pub struct WorldSession {
     pub account_expansion: u8,
     server_expansion_like_cpp: u8,
     instance_ignore_raid_like_cpp: bool,
+    instance_ignore_level_like_cpp: bool,
     pub build: u32,
     pub session_key: Vec<u8>,
     pub locale: String,
@@ -3133,6 +3136,7 @@ pub struct WorldSession {
     map_store: Option<Arc<MapStore>>,
     map_difficulty_store: Option<Arc<MapDifficultyStore>>,
     map_difficulty_x_condition_store: Option<Arc<MapDifficultyXConditionStore>>,
+    access_requirement_store: Option<Arc<AccessRequirementStoreLikeCpp>>,
     lfg_dungeons_store: Option<Arc<LfgDungeonsStore>>,
     battlemaster_list_store: Option<Arc<BattlemasterListStore>>,
     represented_dungeon_difficulty_id_like_cpp: u32,
@@ -3683,6 +3687,8 @@ pub struct WorldSession {
     /// Quests the player has already been rewarded for (non-repeatable quests cannot be re-taken).
     /// C# ref: m_RewardedQuests
     pub(crate) rewarded_quests: std::collections::HashSet<u32>,
+    /// C++ `Player::HasAchieved`, represented per-session until character achievements are fully loaded.
+    pub(crate) represented_completed_achievements_like_cpp: HashSet<u32>,
     /// C++ `ActivePlayerData::DailyQuestsCompleted`, represented per-session until full Player runtime owns it.
     pub(crate) daily_quests_completed_like_cpp: HashSet<u32>,
     /// C++ `Player::m_DFQuests`, represented per-session until full Player runtime owns it.
@@ -4563,6 +4569,7 @@ impl WorldSession {
             account_expansion,
             server_expansion_like_cpp: 2,
             instance_ignore_raid_like_cpp: false,
+            instance_ignore_level_like_cpp: false,
             build,
             session_key,
             locale,
@@ -4639,6 +4646,7 @@ impl WorldSession {
             map_store: None,
             map_difficulty_store: None,
             map_difficulty_x_condition_store: None,
+            access_requirement_store: None,
             lfg_dungeons_store: None,
             battlemaster_list_store: None,
             represented_dungeon_difficulty_id_like_cpp: DIFFICULTY_NORMAL_LIKE_CPP,
@@ -4937,6 +4945,7 @@ impl WorldSession {
             quest_faction_reward_store: None,
             player_quests: HashMap::new(),
             rewarded_quests: std::collections::HashSet::new(),
+            represented_completed_achievements_like_cpp: HashSet::new(),
             daily_quests_completed_like_cpp: HashSet::new(),
             df_quests_like_cpp: HashSet::new(),
             weekly_quests_completed_like_cpp: HashSet::new(),
@@ -7122,6 +7131,21 @@ impl WorldSession {
             is_dungeon && self.player_is_game_master_like_cpp();
         if is_dungeon
             && !bypass_player_cannot_enter_like_cpp
+            && let Some((transfer_abort, arg, map_difficulty_x_condition_id)) =
+                self.access_requirement_abort_like_cpp(map_id, requested_difficulty as u8)
+        {
+            self.send_transfer_aborted_with_params_like_cpp(
+                map_id,
+                transfer_abort,
+                arg,
+                map_difficulty_x_condition_id,
+            );
+            return Some(wow_map::CreateMapDecision::Reject {
+                side_effects: Vec::new(),
+            });
+        }
+        if is_dungeon
+            && !bypass_player_cannot_enter_like_cpp
             && map_entry.instance_type == wow_data::map::MAP_RAID
             && map_entry.expansion_like_cpp() >= self.server_expansion_like_cpp
             && !self.instance_ignore_raid_like_cpp
@@ -7277,12 +7301,175 @@ impl WorldSession {
     }
 
     fn send_transfer_aborted_like_cpp(&self, map_id: u32, transfer_abort: u32) {
+        self.send_transfer_aborted_with_params_like_cpp(map_id, transfer_abort, 0, 0);
+    }
+
+    fn send_transfer_aborted_with_params_like_cpp(
+        &self,
+        map_id: u32,
+        transfer_abort: u32,
+        arg: u8,
+        map_difficulty_x_condition_id: i32,
+    ) {
         self.send_packet(&wow_packet::packets::misc::TransferAborted {
             map_id,
-            arg: 0,
-            map_difficulty_x_condition_id: 0,
+            arg,
+            map_difficulty_x_condition_id,
             transfer_abort,
         });
+    }
+
+    fn access_requirement_abort_like_cpp(
+        &self,
+        map_id: u32,
+        requested_difficulty: u8,
+    ) -> Option<(u32, u8, i32)> {
+        let downscaled_entries = self
+            .create_map_db2_entries_like_cpp(map_id, requested_difficulty as wow_map::Difficulty)?;
+        let map_difficulty_id = self
+            .map_difficulty_store
+            .as_ref()
+            .and_then(|store| store.get(map_id, downscaled_entries.difficulty_id))
+            .map(|entry| entry.id)
+            .unwrap_or(0);
+
+        let failed_map_difficulty_x_condition =
+            if self.instance_ignore_level_like_cpp || map_difficulty_id == 0 {
+                0
+            } else {
+                self.map_difficulty_x_condition_store
+                    .as_ref()
+                    .zip(self.player_condition_store.as_ref())
+                    .and_then(|(difficulty_conditions, player_conditions)| {
+                        difficulty_conditions.failed_condition_like_cpp(
+                            map_difficulty_id,
+                            player_conditions,
+                            |condition| {
+                                let context = self.represented_player_condition_context_like_cpp();
+                                is_player_meeting_condition_like_cpp(
+                                    condition,
+                                    &context.as_context(self),
+                                )
+                            },
+                        )
+                    })
+                    .unwrap_or(0)
+            };
+
+        let access_requirement = self
+            .access_requirement_store
+            .as_ref()
+            .and_then(|store| store.get(map_id, requested_difficulty));
+
+        let mut level_min = 0;
+        let mut level_max = 0;
+        let mut missing_item = 0;
+        let mut missing_quest = 0;
+        let mut missing_achievement = 0;
+
+        if let Some(access_requirement) = access_requirement {
+            if !self.instance_ignore_level_like_cpp {
+                if access_requirement.level_min != 0
+                    && self.player_level_like_cpp() < access_requirement.level_min
+                {
+                    level_min = access_requirement.level_min;
+                }
+                if access_requirement.level_max != 0
+                    && self.player_level_like_cpp() > access_requirement.level_max
+                {
+                    level_max = access_requirement.level_max;
+                }
+            }
+
+            let item_counts = self.represented_inventory_item_counts_like_cpp();
+            if access_requirement.item != 0 {
+                if item_counts
+                    .get(&access_requirement.item)
+                    .copied()
+                    .unwrap_or(0)
+                    == 0
+                    && (access_requirement.item2 == 0
+                        || item_counts
+                            .get(&access_requirement.item2)
+                            .copied()
+                            .unwrap_or(0)
+                            == 0)
+                {
+                    missing_item = access_requirement.item;
+                }
+            } else if access_requirement.item2 != 0
+                && item_counts
+                    .get(&access_requirement.item2)
+                    .copied()
+                    .unwrap_or(0)
+                    == 0
+            {
+                missing_item = access_requirement.item2;
+            }
+
+            match player_team_for_race_cpp(self.player_race_like_cpp()) {
+                Team::Alliance
+                    if access_requirement.quest_done_a != 0
+                        && !self
+                            .rewarded_quests
+                            .contains(&access_requirement.quest_done_a) =>
+                {
+                    missing_quest = access_requirement.quest_done_a;
+                }
+                Team::Horde
+                    if access_requirement.quest_done_h != 0
+                        && !self
+                            .rewarded_quests
+                            .contains(&access_requirement.quest_done_h) =>
+                {
+                    missing_quest = access_requirement.quest_done_h;
+                }
+                _ => {}
+            }
+
+            if access_requirement.completed_achievement != 0
+                && !self.access_requirement_leader_has_achievement_like_cpp(
+                    access_requirement.completed_achievement,
+                )
+            {
+                missing_achievement = access_requirement.completed_achievement;
+            }
+        }
+
+        if level_min != 0
+            || level_max != 0
+            || failed_map_difficulty_x_condition != 0
+            || missing_item != 0
+            || missing_quest != 0
+            || missing_achievement != 0
+        {
+            if failed_map_difficulty_x_condition != 0 {
+                return Some((
+                    TRANSFER_ABORT_DIFFICULTY_LIKE_CPP,
+                    requested_difficulty,
+                    failed_map_difficulty_x_condition as i32,
+                ));
+            }
+            return Some((TRANSFER_ABORT_ERROR_LIKE_CPP, 0, 0));
+        }
+
+        None
+    }
+
+    fn access_requirement_leader_has_achievement_like_cpp(&self, achievement_id: u32) -> bool {
+        if achievement_id == 0 {
+            return true;
+        }
+
+        let leader_is_current_player = self
+            .group_guid
+            .and_then(|group_guid| self.group_registry.as_ref()?.get(&group_guid))
+            .map(|group| Some(group.leader_guid) == self.player_guid)
+            .unwrap_or(true);
+        leader_is_current_player
+            && self
+                .represented_completed_achievements_like_cpp
+                .contains(&achievement_id)
     }
 
     fn cannot_enter_existing_instance_lock_like_cpp(
@@ -12754,6 +12941,10 @@ impl WorldSession {
         self.instance_ignore_raid_like_cpp = ignore;
     }
 
+    pub fn set_instance_ignore_level_like_cpp(&mut self, ignore: bool) {
+        self.instance_ignore_level_like_cpp = ignore;
+    }
+
     pub fn set_legacy_creature_aggro_config_like_cpp(
         &mut self,
         config: LegacyCreatureAggroConfigLikeCpp,
@@ -15706,6 +15897,10 @@ impl WorldSession {
         store: Arc<MapDifficultyXConditionStore>,
     ) {
         self.map_difficulty_x_condition_store = Some(store);
+    }
+
+    pub fn set_access_requirement_store(&mut self, store: Arc<AccessRequirementStoreLikeCpp>) {
+        self.access_requirement_store = Some(store);
     }
 
     pub fn set_lfg_dungeons_store(&mut self, store: Arc<LfgDungeonsStore>) {
@@ -39257,6 +39452,33 @@ mod tests {
         ])));
     }
 
+    fn install_access_requirement_store_like_cpp(
+        session: &mut WorldSession,
+        requirement: wow_data::AccessRequirementLikeCpp,
+    ) {
+        session.set_access_requirement_store(Arc::new(
+            wow_data::AccessRequirementStoreLikeCpp::from_entries_like_cpp([requirement]),
+        ));
+    }
+
+    fn access_requirement_like_cpp(
+        map_id: u32,
+        difficulty: u8,
+    ) -> wow_data::AccessRequirementLikeCpp {
+        wow_data::AccessRequirementLikeCpp {
+            map_id,
+            difficulty,
+            level_min: 0,
+            level_max: 0,
+            item: 0,
+            item2: 0,
+            quest_done_a: 0,
+            quest_done_h: 0,
+            completed_achievement: 0,
+            quest_failed_text: String::new(),
+        }
+    }
+
     fn install_create_map_encounter_lock_stores_like_cpp(
         session: &mut WorldSession,
         map_id: u32,
@@ -55891,6 +56113,311 @@ mod tests {
         assert!(
             canonical.lock().unwrap().find_map(631, 0).is_none(),
             "rejected dungeon difficulty must not create or sync a canonical map"
+        );
+    }
+
+    #[test]
+    fn canonical_access_requirement_min_level_rejects_before_raid_group_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 83);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AccessLevel".to_string(),
+            Position::new(3700.0, 1500.0, 120.0, 0.0),
+            631,
+            1,
+            1,
+            79,
+            0,
+        ));
+        session.represented_raid_difficulty_id_like_cpp = 3;
+        install_create_map_active_lock_stores_with_expansion_and_max_players_like_cpp(
+            &mut session,
+            631,
+            3,
+            77,
+            2,
+            2,
+            25,
+        );
+        let mut requirement = access_requirement_like_cpp(631, 3);
+        requirement.level_min = 80;
+        install_access_requirement_store_like_cpp(&mut session, requirement);
+
+        assert_eq!(
+            session.ensure_canonical_world_map_for_current_player_like_cpp(),
+            Some(wow_map::CreateMapDecision::Reject {
+                side_effects: Vec::new()
+            })
+        );
+        assert_eq!(
+            send_rx.try_recv().expect("SMSG_TRANSFER_ABORTED"),
+            wow_packet::packets::misc::TransferAborted {
+                map_id: 631,
+                arg: 0,
+                map_difficulty_x_condition_id: 0,
+                transfer_abort: TRANSFER_ABORT_ERROR_LIKE_CPP,
+            }
+            .to_bytes()
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn canonical_access_requirement_ignore_level_config_bypasses_level_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 84);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AccessIgnoreLevel".to_string(),
+            Position::new(3700.0, 1500.0, 120.0, 0.0),
+            631,
+            1,
+            1,
+            1,
+            0,
+        ));
+        session.represented_raid_difficulty_id_like_cpp = 3;
+        session.set_instance_ignore_level_like_cpp(true);
+        install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
+        let mut requirement = access_requirement_like_cpp(631, 3);
+        requirement.level_min = 80;
+        install_access_requirement_store_like_cpp(&mut session, requirement);
+
+        assert!(matches!(
+            session.ensure_canonical_world_map_for_current_player_like_cpp(),
+            Some(wow_map::CreateMapDecision::Create { .. })
+        ));
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn canonical_access_requirement_item_or_item2_matches_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 85);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AccessItem".to_string(),
+            Position::new(3700.0, 1500.0, 120.0, 0.0),
+            631,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.represented_raid_difficulty_id_like_cpp = 3;
+        install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
+        let mut requirement = access_requirement_like_cpp(631, 3);
+        requirement.item = 700;
+        requirement.item2 = 701;
+        install_access_requirement_store_like_cpp(&mut session, requirement);
+
+        assert_eq!(
+            session.ensure_canonical_world_map_for_current_player_like_cpp(),
+            Some(wow_map::CreateMapDecision::Reject {
+                side_effects: Vec::new()
+            })
+        );
+        assert_eq!(
+            send_rx.try_recv().expect("missing key item abort"),
+            wow_packet::packets::misc::TransferAborted {
+                map_id: 631,
+                arg: 0,
+                map_difficulty_x_condition_id: 0,
+                transfer_abort: TRANSFER_ABORT_ERROR_LIKE_CPP,
+            }
+            .to_bytes()
+        );
+
+        let item_guid = ObjectGuid::create_item(1, 701);
+        session.insert_inventory_item_like_cpp(
+            23,
+            InventoryItem {
+                guid: item_guid,
+                entry_id: 701,
+                db_guid: 701,
+                inventory_type: None,
+            },
+        );
+        let item = session.make_inventory_item_object(
+            item_guid,
+            701,
+            player_guid,
+            1,
+            0,
+            ItemContext::None,
+            23,
+        );
+        session.insert_inventory_item_object(item);
+
+        assert!(matches!(
+            session.ensure_canonical_world_map_for_current_player_like_cpp(),
+            Some(wow_map::CreateMapDecision::Create { .. })
+        ));
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn canonical_access_requirement_uses_team_quest_reward_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 86);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AccessQuest".to_string(),
+            Position::new(3700.0, 1500.0, 120.0, 0.0),
+            631,
+            2,
+            1,
+            80,
+            0,
+        ));
+        session.represented_raid_difficulty_id_like_cpp = 3;
+        install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
+        let mut requirement = access_requirement_like_cpp(631, 3);
+        requirement.quest_done_a = 100;
+        requirement.quest_done_h = 200;
+        install_access_requirement_store_like_cpp(&mut session, requirement);
+
+        assert_eq!(
+            session.ensure_canonical_world_map_for_current_player_like_cpp(),
+            Some(wow_map::CreateMapDecision::Reject {
+                side_effects: Vec::new()
+            })
+        );
+        assert_eq!(
+            send_rx.try_recv().expect("missing Horde quest abort"),
+            wow_packet::packets::misc::TransferAborted {
+                map_id: 631,
+                arg: 0,
+                map_difficulty_x_condition_id: 0,
+                transfer_abort: TRANSFER_ABORT_ERROR_LIKE_CPP,
+            }
+            .to_bytes()
+        );
+
+        session.rewarded_quests.insert(200);
+        assert!(matches!(
+            session.ensure_canonical_world_map_for_current_player_like_cpp(),
+            Some(wow_map::CreateMapDecision::Create { .. })
+        ));
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn canonical_access_requirement_current_player_achievement_matches_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 88);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AccessAchievement".to_string(),
+            Position::new(3700.0, 1500.0, 120.0, 0.0),
+            631,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.represented_raid_difficulty_id_like_cpp = 3;
+        install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
+        let mut requirement = access_requirement_like_cpp(631, 3);
+        requirement.completed_achievement = 9001;
+        install_access_requirement_store_like_cpp(&mut session, requirement);
+
+        assert_eq!(
+            session.ensure_canonical_world_map_for_current_player_like_cpp(),
+            Some(wow_map::CreateMapDecision::Reject {
+                side_effects: Vec::new()
+            })
+        );
+        assert_eq!(
+            send_rx.try_recv().expect("missing achievement abort"),
+            wow_packet::packets::misc::TransferAborted {
+                map_id: 631,
+                arg: 0,
+                map_difficulty_x_condition_id: 0,
+                transfer_abort: TRANSFER_ABORT_ERROR_LIKE_CPP,
+            }
+            .to_bytes()
+        );
+
+        session
+            .represented_completed_achievements_like_cpp
+            .insert(9001);
+        assert!(matches!(
+            session.ensure_canonical_world_map_for_current_player_like_cpp(),
+            Some(wow_map::CreateMapDecision::Create { .. })
+        ));
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn canonical_access_requirement_map_difficulty_condition_sends_condition_abort_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 87);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AccessCondition".to_string(),
+            Position::new(3700.0, 1500.0, 120.0, 0.0),
+            631,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.represented_raid_difficulty_id_like_cpp = 3;
+        install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
+        session.set_map_difficulty_x_condition_store(Arc::new(
+            wow_data::MapDifficultyXConditionStore::from_entries([
+                wow_data::MapDifficultyXConditionEntry {
+                    id: 222,
+                    failure_description: String::new(),
+                    player_condition_id: 333,
+                    order_index: 0,
+                    map_difficulty_id: 900,
+                },
+            ]),
+        ));
+        session.set_player_condition_store(Arc::new(wow_data::PlayerConditionStore::from_entries(
+            [wow_data::PlayerConditionEntry {
+                id: 333,
+                class_mask: 1 << 1,
+                ..Default::default()
+            }],
+        )));
+
+        assert_eq!(
+            session.ensure_canonical_world_map_for_current_player_like_cpp(),
+            Some(wow_map::CreateMapDecision::Reject {
+                side_effects: Vec::new()
+            })
+        );
+        assert_eq!(
+            send_rx.try_recv().expect("map difficulty condition abort"),
+            wow_packet::packets::misc::TransferAborted {
+                map_id: 631,
+                arg: 3,
+                map_difficulty_x_condition_id: 222,
+                transfer_abort: TRANSFER_ABORT_DIFFICULTY_LIKE_CPP,
+            }
+            .to_bytes()
         );
     }
 

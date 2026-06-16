@@ -12,7 +12,7 @@ Bool	CONFIG_ALLOW_TWO_SIDE_INTERACTION_AUCTION	server/game/World/World.h:113	All
 Bool	CONFIG_ALLOW_TWO_SIDE_TRADE	server/game/World/World.h:114	AllowTwoSide.Trade	Bool	server/game/World/World.cpp:916	false		missing_in_rust	-
 Bool	CONFIG_ALL_TAXI_PATHS	server/game/World/World.h:115	AllFlightPaths	Bool	server/game/World/World.cpp:1110	false		missing_in_rust	-
 Bool	CONFIG_INSTANT_TAXI	server/game/World/World.h:116	InstantFlightPaths	Bool	server/game/World/World.cpp:1111	false		missing_in_rust	-
-Bool	CONFIG_INSTANCE_IGNORE_LEVEL	server/game/World/World.h:117	Instance.IgnoreLevel	Bool	server/game/World/World.cpp:1113	false		missing_in_rust	-
+Bool	CONFIG_INSTANCE_IGNORE_LEVEL	server/game/World/World.h:117	Instance.IgnoreLevel	Bool	server/game/World/World.cpp:1113	false	world_config_bool:crates/world-server/src/main.rs	rust_exact_key	Used by Player::Satisfy/access_requirement entry gate in WorldSession.
 Bool	CONFIG_INSTANCE_IGNORE_RAID	server/game/World/World.h:118	Instance.IgnoreRaid	Bool	server/game/World/World.cpp:1114	false	world_config_bool:crates/world-server/src/main.rs	rust_exact_key	Used by current-expansion raid group entry gate in WorldSession.
 Bool	CONFIG_CAST_UNSTUCK	server/game/World/World.h:119	CastUnstuck	Bool	server/game/World/World.cpp:1116	true		missing_in_rust	-
 Bool	CONFIG_ALLOW_GM_GROUP	server/game/World/World.h:120	GM.AllowInvite	Bool	server/game/World/World.cpp:1163	false		missing_in_rust	-

@@ -525,9 +525,11 @@ Complejidad: **L** (low, <1h), **M** (med, 1-4h), **H** (high, 4-12h), **XL** (>
 - La entrada a un mapa de instancia canónica existente comprueba `player_count >= max_players` y envía `SMSG_TRANSFER_ABORTED` con `TRANSFER_ABORT_MAX_PLAYERS = 2`, antes del gate de lock compatible, igual que `InstanceMap::CannotEnter`.
 - La entrada a una raid canónica existente con encuentro en progreso envía `SMSG_TRANSFER_ABORTED` con `TRANSFER_ABORT_ZONE_IN_COMBAT = 6` para jugadores no-GM que no estén en estado de loading/relog, antes del gate de lock compatible, igual que `InstanceMap::CannotEnter`.
 - `Map.db2::ExpansionID` ya se carga en `wow_data::MapEntry`, y la entrada a raids de la expansión actual exige grupo raid salvo GM o `Instance.IgnoreRaid=1`, enviando `SMSG_TRANSFER_ABORTED` con `TRANSFER_ABORT_NEED_GROUP = 11` antes de resolver/crear instancia como `Map::PlayerCannotEnter`.
+- `access_requirement` ya se carga desde world DB con las columnas exactas de C++ `ObjectMgr::LoadAccessRequirements`, validando mapa/dificultad y anulando item/quest/achievement inexistentes como Trinity. `WorldSession::ensure_canonical_world_map_for_current_player_like_cpp` ejecuta el gate `Player::Satisfy` en la posición C++: `MapDifficultyXCondition`, `Instance.IgnoreLevel`, nivel min/max, item/item2, quest por facción y achievement representado del jugador actual.
 - El seam representado de GM bypassa los gates posteriores a dificultad (`MAX_PLAYERS` y lock compatibility) como `Map::PlayerCannotEnter` hace tras `GetDownscaledMapDifficultyData`.
 
 **Límites honestos:**
 - `player_count` es el conteo representado del `ManagedMap`; todavía no hay contabilidad separada equivalente a `GetPlayersCountExceptGMs()` para GMs ya presentes dentro del mapa.
 - `instance_encounter_in_progress_like_cpp` es un seam representado en `ManagedMap`; falta conectarlo al `InstanceScriptBase::is_encounter_in_progress_like_cpp` real y a la lifecycle `InstanceMap::GetInstanceScript()`.
-- Siguen pendientes `Player::Satisfy`/access requirements, `CheckInstanceCount`/`account_instance_times`, y validación live con cliente/bot.
+- El gate de access requirements aún no envía las notificaciones/sysmessages exactas de `Player::Satisfy`, y el requisito de achievement de líder ajeno queda conservador hasta portar carga de `character_achievement` y resolución de líder viva.
+- Siguen pendientes `CheckInstanceCount`/`account_instance_times`, exactas notificaciones de rechazo de access requirements, y validación live con cliente/bot.
