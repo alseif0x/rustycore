@@ -7723,15 +7723,24 @@ impl WorldSession {
             return true;
         }
 
-        let leader_is_current_player = self
+        let Some(player_guid) = self.player_guid else {
+            return false;
+        };
+        let leader_guid = self
             .group_guid
             .and_then(|group_guid| self.group_registry.as_ref()?.get(&group_guid))
-            .map(|group| Some(group.leader_guid) == self.player_guid)
-            .unwrap_or(true);
-        leader_is_current_player
-            && self
+            .map(|group| group.leader_guid)
+            .unwrap_or(player_guid);
+        if leader_guid == player_guid {
+            return self
                 .represented_completed_achievements_like_cpp
-                .contains(&achievement_id)
+                .contains(&achievement_id);
+        }
+
+        self.player_registry
+            .as_ref()
+            .and_then(|registry| registry.get(&leader_guid))
+            .is_some_and(|leader| leader.completed_achievements.contains(&achievement_id))
     }
 
     fn cannot_enter_existing_instance_lock_like_cpp(
@@ -18709,6 +18718,7 @@ impl WorldSession {
                     .map(|(quest_id, status)| (*quest_id, status.objective_counts.clone()))
                     .collect(),
                 rewarded_quests: self.rewarded_quests.clone(),
+                completed_achievements: self.represented_completed_achievements_like_cpp.clone(),
                 daily_quests_completed: self.daily_quests_completed_like_cpp.clone(),
                 df_quests: self.df_quests_like_cpp.clone(),
                 faction_template_id: self.player_faction_template_like_cpp.unwrap_or(0),
@@ -57040,6 +57050,88 @@ mod tests {
     }
 
     #[test]
+    fn canonical_access_requirement_connected_group_leader_achievement_matches_cpp() {
+        let (mut leader_session, _leader_pkt_tx, _leader_send_rx) = make_session();
+        let (mut member_session, _member_pkt_tx, member_send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let group_registry = Arc::new(GroupRegistry::default());
+        let leader_guid = ObjectGuid::create_player(1, 89);
+        let member_guid = ObjectGuid::create_player(1, 90);
+
+        leader_session.set_player_registry(Arc::clone(&player_registry));
+        leader_session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            leader_guid,
+            "AccessLeader".to_string(),
+            Position::new(3700.0, 1500.0, 120.0, 0.0),
+            631,
+            1,
+            1,
+            80,
+            0,
+        ));
+        leader_session.register_in_player_registry();
+
+        let mut group = GroupInfo::new(leader_guid);
+        group.raid_difficulty_id = 3;
+        group.add_member(member_guid);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        member_session.set_canonical_map_manager(Arc::clone(&canonical));
+        member_session.set_player_registry(Arc::clone(&player_registry));
+        member_session.set_group_registry(
+            Arc::clone(&group_registry),
+            Arc::new(PendingInvites::default()),
+        );
+        member_session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            member_guid,
+            "AccessMember".to_string(),
+            Position::new(3700.0, 1500.0, 120.0, 0.0),
+            631,
+            1,
+            1,
+            80,
+            0,
+        ));
+        member_session.group_guid = Some(group_guid);
+        member_session.represented_raid_difficulty_id_like_cpp = 3;
+        install_create_map_active_lock_stores_like_cpp(&mut member_session, 631, 3, 77, 2);
+        let mut requirement = access_requirement_like_cpp(631, 3);
+        requirement.completed_achievement = 9001;
+        install_access_requirement_store_like_cpp(&mut member_session, requirement);
+
+        assert_eq!(
+            member_session.ensure_canonical_world_map_for_current_player_like_cpp(),
+            Some(wow_map::CreateMapDecision::Reject {
+                side_effects: Vec::new()
+            })
+        );
+        assert_eq!(
+            member_send_rx
+                .try_recv()
+                .expect("missing remote leader achievement abort"),
+            wow_packet::packets::misc::TransferAborted {
+                map_id: 631,
+                arg: 0,
+                map_difficulty_x_condition_id: 0,
+                transfer_abort: TRANSFER_ABORT_ERROR_LIKE_CPP,
+            }
+            .to_bytes()
+        );
+        assert!(member_send_rx.try_recv().is_err());
+
+        if let Some(mut leader_info) = player_registry.get_mut(&leader_guid) {
+            leader_info.completed_achievements.insert(9001);
+        }
+        assert!(matches!(
+            member_session.ensure_canonical_world_map_for_current_player_like_cpp(),
+            Some(wow_map::CreateMapDecision::Create { .. })
+        ));
+        assert!(member_send_rx.try_recv().is_err());
+    }
+
+    #[test]
     fn load_completed_achievement_rows_like_cpp_clears_stale_and_deduplicates() {
         let (mut session, _, _) = make_session();
         session
@@ -60199,6 +60291,7 @@ mod tests {
             active_quest_statuses: Default::default(),
             active_quest_objective_counts: Default::default(),
             rewarded_quests: Default::default(),
+            completed_achievements: Default::default(),
             daily_quests_completed: Default::default(),
             df_quests: Default::default(),
             faction_template_id: 0,

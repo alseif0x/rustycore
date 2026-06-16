@@ -1610,12 +1610,14 @@ mod tests {
                 id: 2,
                 instance_type: 1,
                 flags: wow_constants::shared::DifficultyFlags::CAN_SELECT.bits(),
+                fallback_difficulty_id: 0,
                 toggle_difficulty_id: 0,
             },
             wow_data::DifficultyEntry {
                 id: 15,
                 instance_type: 2,
                 flags: wow_constants::shared::DifficultyFlags::CAN_SELECT.bits(),
+                fallback_difficulty_id: 0,
                 toggle_difficulty_id: 0,
             },
             wow_data::DifficultyEntry {
@@ -1624,6 +1626,7 @@ mod tests {
                 flags: (wow_constants::shared::DifficultyFlags::CAN_SELECT
                     | wow_constants::shared::DifficultyFlags::LEGACY)
                     .bits(),
+                fallback_difficulty_id: 0,
                 toggle_difficulty_id: 0,
             },
         ]);
@@ -2436,12 +2439,14 @@ mod tests {
                 id: 2,
                 instance_type: 1,
                 flags: wow_constants::shared::DifficultyFlags::CAN_SELECT.bits(),
+                fallback_difficulty_id: 0,
                 toggle_difficulty_id: 0,
             },
             wow_data::DifficultyEntry {
                 id: 15,
                 instance_type: 2,
                 flags: wow_constants::shared::DifficultyFlags::CAN_SELECT.bits(),
+                fallback_difficulty_id: 0,
                 toggle_difficulty_id: 0,
             },
             wow_data::DifficultyEntry {
@@ -2450,6 +2455,7 @@ mod tests {
                 flags: (wow_constants::shared::DifficultyFlags::CAN_SELECT
                     | wow_constants::shared::DifficultyFlags::LEGACY)
                     .bits(),
+                fallback_difficulty_id: 0,
                 toggle_difficulty_id: 0,
             },
         ]);

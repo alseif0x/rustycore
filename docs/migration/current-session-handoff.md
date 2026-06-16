@@ -1,3 +1,19 @@
+- `#NEXT.RUNTIME.L3.031j41` — WotLK `Player::Satisfy(access_requirement)`
+  achievement gates now resolve a connected group leader before rejecting
+  (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:19112-19118`
+  and `/home/server/woltk-trinity-legacy/src/server/game/Achievements/AchievementMgr.cpp:68-70`.
+  C++ uses `GetGroup()->GetLeaderGUID()`, resolves a non-self leader through
+  `ObjectAccessor::FindPlayer`, and checks `leader->HasAchieved(ar->achievement)`;
+  a missing/offline leader fails the gate. Rust now publishes a connected
+  player's represented completed-achievement snapshot through `PlayerRegistry`
+  and the access gate consults that snapshot for a remote group leader, while
+  preserving the current-player path and the conservative rejection when the
+  leader is not connected/represented. Coverage: targeted `wow-world`
+  access-requirement test proves a connected leader without the achievement
+  rejects and the same connected leader with the achievement accepts. Boundary
+  remains partial: full `AchievementMgr`, criteria progress, dynamic achievement
+  earned updates, and offline leader loading remain future work.
 - `#NEXT.RUNTIME.L3.031j40` — WotLK `Player::Satisfy(access_requirement)`
   missing-item and min-level notifications now use C++ `trinity_string` and
   localized item names before the generic transfer abort (not manual-test-ready).

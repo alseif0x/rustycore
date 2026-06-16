@@ -517,6 +517,10 @@ pub struct PlayerBroadcastInfo {
     pub active_quest_objective_counts: HashMap<u32, Vec<i32>>,
     /// Rewarded quest ids, used for remote `QUEST_STATUS_REWARDED` checks.
     pub rewarded_quests: HashSet<u32>,
+    /// C++ `Player::HasAchieved` snapshot for connected-player gates that resolve
+    /// another live player through `ObjectAccessor::FindPlayer`, such as
+    /// `Player::Satisfy(access_requirement)` checking the group leader.
+    pub completed_achievements: HashSet<u32>,
     /// Represented `ActivePlayerData::DailyQuestsCompleted` snapshot for remote `SatisfyQuestDay`.
     pub daily_quests_completed: HashSet<u32>,
     /// Represented `Player::m_DFQuests` snapshot for remote `SatisfyQuestDay`.
@@ -639,6 +643,7 @@ mod tests {
             active_quest_statuses: Default::default(),
             active_quest_objective_counts: Default::default(),
             rewarded_quests: Default::default(),
+            completed_achievements: Default::default(),
             daily_quests_completed: Default::default(),
             df_quests: Default::default(),
             faction_template_id: 0,

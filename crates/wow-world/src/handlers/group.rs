@@ -2823,6 +2823,7 @@ mod tests {
             active_quest_statuses: Default::default(),
             active_quest_objective_counts: Default::default(),
             rewarded_quests: Default::default(),
+            completed_achievements: Default::default(),
             daily_quests_completed: Default::default(),
             df_quests: Default::default(),
             faction_template_id: 0,

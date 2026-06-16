@@ -1735,6 +1735,7 @@ mod tests {
             active_quest_statuses: HashMap::new(),
             active_quest_objective_counts: HashMap::new(),
             rewarded_quests: HashSet::new(),
+            completed_achievements: HashSet::new(),
             daily_quests_completed: HashSet::new(),
             df_quests: HashSet::new(),
             faction_template_id: 0,
