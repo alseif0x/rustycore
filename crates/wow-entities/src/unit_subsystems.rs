@@ -3729,7 +3729,7 @@ pub const fn unit_action_button_action_like_cpp(packed: u32) -> u32 {
 }
 
 pub const fn unit_action_button_type_like_cpp(packed: u32) -> u8 {
-    ((packed & 0xFF00_0000) >> 23) as u8
+    ((packed & 0xFF80_0000) >> 23) as u8
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -6258,6 +6258,26 @@ mod unit_subsystems_tests {
         assert_eq!(
             charm_info.action_bar[9],
             make_unit_action_button_like_cpp(0, ACT_REACTION_LIKE_CPP)
+        );
+    }
+
+    #[test]
+    fn unit_action_button_type_keeps_low_type_bit_like_trinitycore() {
+        let enabled = make_unit_action_button_like_cpp(12_345, ACT_ENABLED_LIKE_CPP);
+        let disabled = make_unit_action_button_like_cpp(23_456, ACT_DISABLED_LIKE_CPP);
+        let passive = make_unit_action_button_like_cpp(34_567, ACT_PASSIVE_LIKE_CPP);
+
+        assert_eq!(
+            unit_action_button_type_like_cpp(enabled),
+            ACT_ENABLED_LIKE_CPP
+        );
+        assert_eq!(
+            unit_action_button_type_like_cpp(disabled),
+            ACT_DISABLED_LIKE_CPP
+        );
+        assert_eq!(
+            unit_action_button_type_like_cpp(passive),
+            ACT_PASSIVE_LIKE_CPP
         );
     }
 

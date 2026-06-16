@@ -4,10 +4,12 @@ use wow_constants::{Class, CreatureType, DeathState, PowerType, UnitFlags};
 use wow_core::ObjectGuid;
 
 use crate::{
-    Creature, CreatureRuntimePlan, ReactState, UNIT_MASK_CONTROLABLE_GUARDIAN, UNIT_MASK_GUARDIAN,
-    UNIT_MASK_HUNTER_PET, UNIT_MASK_MINION, UNIT_MASK_PET, UNIT_MASK_SUMMON,
+    ACT_DISABLED_LIKE_CPP, ACT_ENABLED_LIKE_CPP, ACT_PASSIVE_LIKE_CPP, Creature,
+    CreatureRuntimePlan, MAX_UNIT_ACTION_BAR_INDEX, ReactState, UNIT_MASK_CONTROLABLE_GUARDIAN,
+    UNIT_MASK_GUARDIAN, UNIT_MASK_HUNTER_PET, UNIT_MASK_MINION, UNIT_MASK_PET, UNIT_MASK_SUMMON,
     UnitAddToWorldOutcomeLikeCpp, UnitRemoveFromWorldOutcomeLikeCpp,
-    unit_action_button_action_like_cpp, unit_action_button_type_like_cpp,
+    make_unit_action_button_like_cpp, unit_action_button_action_like_cpp,
+    unit_action_button_type_like_cpp,
 };
 
 pub const HAPPINESS_LEVEL_SIZE: u32 = 333_000;
@@ -280,6 +282,18 @@ pub struct PetSetSpecializationOutcomeLikeCpp {
     pub cleanup_action_bar: bool,
     pub pet_spell_initialize: bool,
     pub packet_spec_id: Option<u16>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PetCleanupActionBarOperationLikeCpp {
+    ClearSlot { index: usize },
+    EnableAutocast { index: usize, spell_id: u32 },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PetCleanupActionBarOutcomeLikeCpp {
+    pub action_bar: [u32; MAX_UNIT_ACTION_BAR_INDEX],
+    pub operations: Vec<PetCleanupActionBarOperationLikeCpp>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1388,6 +1402,38 @@ impl Pet {
         data
     }
 
+    pub fn cleanup_action_bar_like_cpp(
+        &mut self,
+        action_bar: &mut [u32; MAX_UNIT_ACTION_BAR_INDEX],
+        mut spell_exists_like_cpp: impl FnMut(u32) -> bool,
+    ) -> PetCleanupActionBarOutcomeLikeCpp {
+        let mut operations = Vec::new();
+
+        for (index, packed) in action_bar.iter_mut().enumerate() {
+            let action = unit_action_button_action_like_cpp(*packed);
+            let active_type = unit_action_button_type_like_cpp(*packed);
+            if action == 0 || !Self::is_action_bar_for_spell_like_cpp(active_type) {
+                continue;
+            }
+
+            if !self.has_spell(action) {
+                *packed = make_unit_action_button_like_cpp(0, ACT_PASSIVE_LIKE_CPP);
+                operations.push(PetCleanupActionBarOperationLikeCpp::ClearSlot { index });
+            } else if active_type == ACT_ENABLED_LIKE_CPP && spell_exists_like_cpp(action) {
+                self.toggle_autocast(action, true);
+                operations.push(PetCleanupActionBarOperationLikeCpp::EnableAutocast {
+                    index,
+                    spell_id: action,
+                });
+            }
+        }
+
+        PetCleanupActionBarOutcomeLikeCpp {
+            action_bar: *action_bar,
+            operations,
+        }
+    }
+
     pub fn fill_pet_info_like_cpp(
         &self,
         pet_number: u32,
@@ -1607,6 +1653,13 @@ impl Pet {
         } else {
             self.autospells.retain(|known| *known != spell_id);
         }
+    }
+
+    fn is_action_bar_for_spell_like_cpp(active_type: u8) -> bool {
+        matches!(
+            active_type,
+            ACT_DISABLED_LIKE_CPP | ACT_ENABLED_LIKE_CPP | ACT_PASSIVE_LIKE_CPP
+        )
     }
 }
 
@@ -3288,6 +3341,88 @@ mod tests {
 
         assert!(pet.remove_spell(123));
         assert!(!pet.has_spell(123));
+    }
+
+    #[test]
+    fn pet_cleanup_action_bar_matches_cpp_slot_filtering_and_autocast() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+        assert!(pet.add_spell(
+            100,
+            ActiveState::Disabled,
+            PetSpellState::New,
+            PetSpellType::Normal
+        ));
+        assert!(pet.add_spell(
+            200,
+            ActiveState::Disabled,
+            PetSpellState::New,
+            PetSpellType::Normal
+        ));
+
+        let mut action_bar = [0; MAX_UNIT_ACTION_BAR_INDEX];
+        action_bar[0] = make_unit_action_button_like_cpp(1, crate::ACT_COMMAND_LIKE_CPP);
+        action_bar[3] = make_unit_action_button_like_cpp(100, ACT_ENABLED_LIKE_CPP);
+        action_bar[4] = make_unit_action_button_like_cpp(999, ACT_DISABLED_LIKE_CPP);
+        action_bar[5] = make_unit_action_button_like_cpp(200, ACT_ENABLED_LIKE_CPP);
+        action_bar[6] = make_unit_action_button_like_cpp(0, ACT_ENABLED_LIKE_CPP);
+
+        let outcome = pet.cleanup_action_bar_like_cpp(&mut action_bar, |spell_id| spell_id == 100);
+
+        assert_eq!(
+            outcome.operations,
+            vec![
+                PetCleanupActionBarOperationLikeCpp::EnableAutocast {
+                    index: 3,
+                    spell_id: 100,
+                },
+                PetCleanupActionBarOperationLikeCpp::ClearSlot { index: 4 },
+            ],
+            "C++ walks slots in order, clears missing pet spells and toggles ACT_ENABLED spells only when SpellMgr has SpellInfo"
+        );
+        assert_eq!(
+            action_bar[0],
+            make_unit_action_button_like_cpp(1, crate::ACT_COMMAND_LIKE_CPP),
+            "UnitActionBarEntry::IsActionBarForSpell skips command slots"
+        );
+        assert_eq!(
+            action_bar[4],
+            make_unit_action_button_like_cpp(0, ACT_PASSIVE_LIKE_CPP)
+        );
+        assert_eq!(outcome.action_bar, action_bar);
+        assert_eq!(pet.autospells(), &[100]);
+        assert_eq!(pet.spells().get(&100).unwrap().active, ActiveState::Enabled);
+        assert_eq!(
+            pet.spells().get(&200).unwrap().active,
+            ActiveState::Disabled,
+            "C++ does not ToggleAutocast when sSpellMgr->GetSpellInfo returns null"
+        );
+    }
+
+    #[test]
+    fn pet_cleanup_action_bar_treats_removed_pet_spell_as_missing_like_cpp() {
+        let mut pet = Pet::new(owner_guid(), PetType::Hunter);
+        assert!(pet.add_spell(
+            300,
+            ActiveState::Enabled,
+            PetSpellState::New,
+            PetSpellType::Normal
+        ));
+        assert!(pet.remove_spell(300));
+
+        let mut action_bar = [0; MAX_UNIT_ACTION_BAR_INDEX];
+        action_bar[2] = make_unit_action_button_like_cpp(300, ACT_ENABLED_LIKE_CPP);
+
+        let outcome = pet.cleanup_action_bar_like_cpp(&mut action_bar, |_| true);
+
+        assert_eq!(
+            outcome.operations,
+            vec![PetCleanupActionBarOperationLikeCpp::ClearSlot { index: 2 }]
+        );
+        assert_eq!(
+            action_bar[2],
+            make_unit_action_button_like_cpp(0, ACT_PASSIVE_LIKE_CPP)
+        );
+        assert!(pet.autospells().is_empty());
     }
 
     #[test]
