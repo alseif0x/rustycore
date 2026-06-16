@@ -128,8 +128,9 @@ use wow_network::session_mgr::{InstanceLink, SessionManager};
 use wow_network::{
     ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp,
     GameEventQuestCompleteClientOutcomeLikeCpp, GameEventQuestCompleteCommandLikeCpp,
-    GroupRegistry, KickLikeCppCommand, LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp,
-    PendingInvites, PlayerBroadcastInfo, PlayerRegistry, ReputationRatesLikeCpp, SessionCommand,
+    GroupInstanceResetMethodLikeCpp, GroupInstanceResetResultLikeCpp, GroupRegistry,
+    KickLikeCppCommand, LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp, PendingInvites,
+    PlayerBroadcastInfo, PlayerRegistry, ReputationRatesLikeCpp, SessionCommand,
     SocketTimeoutsLikeCpp, group_guid_by_db_store_id_like_cpp,
 };
 use wow_packet::packets::item::{
@@ -3117,6 +3118,7 @@ pub struct WorldSession {
     represented_dungeon_difficulty_id_like_cpp: u32,
     represented_raid_difficulty_id_like_cpp: u32,
     represented_legacy_raid_difficulty_id_like_cpp: u32,
+    represented_player_recent_instances_like_cpp: HashMap<u32, u32>,
     faction_store: Option<Arc<FactionStore>>,
     friendship_rep_reaction_store: Option<Arc<FriendshipRepReactionStore>>,
     paragon_reputation_store: Option<Arc<ParagonReputationStore>>,
@@ -4618,6 +4620,7 @@ impl WorldSession {
             represented_dungeon_difficulty_id_like_cpp: DIFFICULTY_NORMAL_LIKE_CPP,
             represented_raid_difficulty_id_like_cpp: DIFFICULTY_NORMAL_RAID_LIKE_CPP,
             represented_legacy_raid_difficulty_id_like_cpp: DIFFICULTY_10_N_LIKE_CPP,
+            represented_player_recent_instances_like_cpp: HashMap::new(),
             faction_store: None,
             friendship_rep_reaction_store: None,
             paragon_reputation_store: None,
@@ -7057,7 +7060,7 @@ impl WorldSession {
             battleground_id: 0,
             has_battleground: false,
             player_difficulty_id: 0,
-            player_recent_instance_id: 0,
+            player_recent_instance_id: self.represented_player_recent_instance_id_like_cpp(map_id),
             group: None,
         };
         let entry = wow_map::CreateMapEntryContext {
@@ -14491,6 +14494,54 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn represented_legacy_raid_difficulty_id_like_cpp(&self) -> u32 {
         self.represented_legacy_raid_difficulty_id_like_cpp
+    }
+
+    /// C++ `Player::GetRecentInstanceId`.
+    pub(crate) fn represented_player_recent_instance_id_like_cpp(&self, map_id: u32) -> u32 {
+        self.represented_player_recent_instances_like_cpp
+            .get(&map_id)
+            .copied()
+            .unwrap_or(0)
+    }
+
+    /// C++ `Player::SetRecentInstance`.
+    pub(crate) fn set_represented_player_recent_instance_like_cpp(
+        &mut self,
+        map_id: u32,
+        instance_id: u32,
+    ) {
+        self.represented_player_recent_instances_like_cpp
+            .insert(map_id, instance_id);
+    }
+
+    pub(crate) fn forget_represented_player_recent_instance_like_cpp(
+        &mut self,
+        map_id: u32,
+    ) -> bool {
+        self.represented_player_recent_instances_like_cpp
+            .remove(&map_id)
+            .is_some()
+    }
+
+    pub(crate) fn apply_represented_player_instance_reset_result_like_cpp(
+        &mut self,
+        map_id: u32,
+        result: GroupInstanceResetResultLikeCpp,
+        method: GroupInstanceResetMethodLikeCpp,
+    ) -> bool {
+        match result {
+            GroupInstanceResetResultLikeCpp::Success => {
+                self.forget_represented_player_recent_instance_like_cpp(map_id)
+            }
+            GroupInstanceResetResultLikeCpp::NotEmpty
+                if method == GroupInstanceResetMethodLikeCpp::OnChangeDifficulty =>
+            {
+                self.forget_represented_player_recent_instance_like_cpp(map_id)
+            }
+            GroupInstanceResetResultLikeCpp::NotEmpty
+            | GroupInstanceResetResultLikeCpp::CannotReset
+            | GroupInstanceResetResultLikeCpp::Other => false,
+        }
     }
 
     pub(crate) fn represented_toggle_difficulty_target_like_cpp(&self) -> Option<u32> {
@@ -38488,7 +38539,8 @@ mod tests {
     use wow_network::{
         ApplyCreatureMeleeDamageLikeCppCommand, CreatureAttackStartLikeCppCommand,
         GameEventQuestCompleteClientOutcomeLikeCpp, GameEventQuestCompleteResponseLikeCpp,
-        GroupInfo, GroupRegistry, KickLikeCppCommand, PendingInvites, PlayerBroadcastInfo,
+        GroupInfo, GroupInstanceResetMethodLikeCpp, GroupInstanceResetResultLikeCpp, GroupRegistry,
+        KickLikeCppCommand, PendingInvites, PlayerBroadcastInfo,
         RefreshVisibleWorldCreaturesLikeCppCommand, ResetSeasonalQuestStatusCommand,
         SendIfVisibleLikeCppCommand, SendPartyUpdateLikeCppCommand,
         SendVisibleObjectValuesUpdateCommand, SessionCommand,
@@ -38535,6 +38587,102 @@ mod tests {
             flags: flags.bits(),
             toggle_difficulty_id: 0,
         }
+    }
+
+    #[test]
+    fn represented_player_recent_instance_defaults_to_zero_like_cpp() {
+        let (session, _, _) = make_session();
+
+        assert_eq!(
+            session.represented_player_recent_instance_id_like_cpp(631),
+            0
+        );
+    }
+
+    #[test]
+    fn represented_player_recent_instance_tracks_id_by_map_like_cpp() {
+        let (mut session, _, _) = make_session();
+
+        session.set_represented_player_recent_instance_like_cpp(631, 9001);
+        session.set_represented_player_recent_instance_like_cpp(533, 7001);
+        session.set_represented_player_recent_instance_like_cpp(631, 9002);
+
+        assert_eq!(
+            session.represented_player_recent_instance_id_like_cpp(631),
+            9002
+        );
+        assert_eq!(
+            session.represented_player_recent_instance_id_like_cpp(533),
+            7001
+        );
+    }
+
+    #[test]
+    fn represented_player_reset_success_forgets_recent_instance_like_cpp() {
+        let (mut session, _, _) = make_session();
+
+        session.set_represented_player_recent_instance_like_cpp(631, 9001);
+
+        assert!(
+            session.apply_represented_player_instance_reset_result_like_cpp(
+                631,
+                GroupInstanceResetResultLikeCpp::Success,
+                GroupInstanceResetMethodLikeCpp::Manual,
+            )
+        );
+        assert_eq!(
+            session.represented_player_recent_instance_id_like_cpp(631),
+            0
+        );
+    }
+
+    #[test]
+    fn represented_player_reset_not_empty_forgets_only_on_change_difficulty_like_cpp() {
+        let (mut session, _, _) = make_session();
+
+        session.set_represented_player_recent_instance_like_cpp(631, 9001);
+        assert!(
+            !session.apply_represented_player_instance_reset_result_like_cpp(
+                631,
+                GroupInstanceResetResultLikeCpp::NotEmpty,
+                GroupInstanceResetMethodLikeCpp::Manual,
+            )
+        );
+        assert_eq!(
+            session.represented_player_recent_instance_id_like_cpp(631),
+            9001
+        );
+
+        assert!(
+            session.apply_represented_player_instance_reset_result_like_cpp(
+                631,
+                GroupInstanceResetResultLikeCpp::NotEmpty,
+                GroupInstanceResetMethodLikeCpp::OnChangeDifficulty,
+            )
+        );
+        assert_eq!(
+            session.represented_player_recent_instance_id_like_cpp(631),
+            0
+        );
+    }
+
+    #[test]
+    fn represented_player_reset_cannot_reset_keeps_recent_instance_like_cpp() {
+        let (mut session, _, _) = make_session();
+
+        session.set_represented_player_recent_instance_like_cpp(631, 9001);
+
+        assert!(
+            !session.apply_represented_player_instance_reset_result_like_cpp(
+                631,
+                GroupInstanceResetResultLikeCpp::CannotReset,
+                GroupInstanceResetMethodLikeCpp::Manual,
+            )
+        );
+        assert_eq!(
+            session.represented_player_recent_instance_id_like_cpp(631),
+            9001
+        );
     }
 
     #[test]

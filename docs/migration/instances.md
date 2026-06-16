@@ -239,7 +239,11 @@ NOTE: `InstanceSaveMgr` no longer exists as a separate class in this WoLK 3.4.3 
 
 **What's missing vs C++:**
 - `InstanceLockMgr` real world/map call-sites that invoke the transaction-aware update helpers.
-- `CMSG_RESET_INSTANCES` now reaches `InstanceLockMgr`, but exact C++ `Player::m_recentInstances` / `Group::m_ownedInstancesMgr` runtime map reset semantics are still pending because Rust does not yet own the corresponding `InstanceMap` runtime references.
+- `CMSG_RESET_INSTANCES` now reaches `InstanceLockMgr`; represented `Player::m_recentInstances`
+  and `Group::m_recentInstances` / `m_ownedInstancesMgr` state plus reset-result erase rules are
+  present. Remaining gap: the exact live C++ runtime still needs real `InstanceMap` references,
+  `InstanceMap::Reset(method)` calls, and reset success/failure packet integration from those live
+  map results.
 - `SMSG_PENDING_RAID_LOCK` / `CMSG_INSTANCE_LOCK_RESPONSE` protocol and represented pending-bind state are present; creation of the prompt from `InstanceMap::AddPlayerToMap` and real `ConfirmPendingBind` lock creation remain pending with `InstanceMap`.
 - Everything below `InstanceScript` — boss-state machine, door/minion linking, encounter packets, persistent values, JSON save blob.
 - Reset cron caller in `MapManager::Update`; pure `GetNextResetTime` is now ported/tested in `wow-instances`.
@@ -353,7 +357,7 @@ Complejidad: **L** (low, <1h), **M** (med, 1-4h), **H** (high, 4-12h), **XL** (>
 - [ ] **#INST.33** Implement `UpdateLfgEncounterState` integration (depends on `wow-lfg` doc) (M)
 - [ ] **#INST.34** Implement `UpdatePhasing` integration (depends on `phasing.md`) (M)
 - [~] **#INST.35** Implement `Player::SendRaidInfo` → `SMSG_INSTANCE_INFO` builder (M) — C++ packet layout, empty `CMSG_REQUEST_RAID_INFO` fallback, pure `InstanceLockMgr` raid-info view, session/shared-manager read path, DB2 resolver, and startup population done; gameplay call-sites that create/update/reset real locks still pending.
-- [~] **#INST.36** Implement `WorldSession::HandleResetInstancesOpcode` (`CMSG_RESET_INSTANCES`) → call `ResetInstanceLocksForPlayer` or `Group::ResetInstances` (M) — opcode registration/dispatch, packet builders, outside-instance guard, group-leader guard, lock reset transaction and reset notifications done; exact `m_recentInstances`/`m_ownedInstancesMgr` runtime map reset semantics pending.
+- [~] **#INST.36** Implement `WorldSession::HandleResetInstancesOpcode` (`CMSG_RESET_INSTANCES`) → call `ResetInstanceLocksForPlayer` or `Group::ResetInstances` (M) — opcode registration/dispatch, packet builders, outside-instance guard, group-leader guard, lock reset transaction, reset notifications, represented player/group recent-instance state, represented owned-instance refs, and reset-result erase rules done; exact live `InstanceMap::Reset` integration and map-result-driven packet fanout pending.
 - [~] **#INST.37** Implement `SMSG_INSTANCE_RESET` / `_FAILED` / `SMSG_RAID_INSTANCE_MESSAGE` packet senders (M) — reset/reset-failed/raid-instance-message packet builders and represented reset sends done; real movement welcome and expire broadcast call-sites pending with map transition/`InstanceMap`.
 - [~] **#INST.38** Implement `SMSG_PENDING_RAID_LOCK` + `CMSG_INSTANCE_LOCK_RESPONSE` round-trip (M) — packet layouts, handler dispatch, represented pending bind accept/decline state done; real prompt creation from `InstanceMap::AddPlayerToMap` and `ConfirmPendingBind` map binding pending.
 - [~] **#INST.39** Implement instance respawn purge on reset (`respawn` rows by `mapId` + `instanceId`) (M) — C++ `CHAR_DEL_ALL_RESPAWNS` SQL and Rust prepared statement builder done; real reset call-site pending with `InstanceMap`.

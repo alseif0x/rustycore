@@ -1,3 +1,18 @@
+- `#NEXT.RUNTIME.L3.031j58` — WotLK represented `Player::m_recentInstances` foundation
+  (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:2527-2538`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:20675-20704`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Maps/MapManager.cpp:181-221`. Rust
+  `WorldSession` now stores represented per-player recent instance ids by `mapId`, exposes
+  C++-shaped `GetRecentInstanceId` / `SetRecentInstance` / erase helpers, and feeds the represented
+  recent id into the canonical `CreateMapPlayerContext` instead of hardcoding `0`. The represented
+  player reset rule intentionally differs from group reset like C++: `Success` erases,
+  `NotEmpty` erases only for `OnChangeDifficulty`, and `CannotReset` keeps the recent id. Coverage:
+  targeted `wow-world represented_player_recent_instance` tests cover fallback, replacement,
+  per-map storage, and reset-result erase/no-erase branches. Boundary remains partial: no live
+  dungeon/battleground `CreateMap` bridge consumes all side effects yet, no persistence for the
+  in-memory player recent map, no real `InstanceMap::Reset`, no install/restart, bot, or live-client
+  validation.
 - `#NEXT.RUNTIME.L3.031j57` — WotLK represented `GroupInstanceReference` /
   `m_ownedInstancesMgr` foundation plus `Group::ResetInstances` recent-instance erase semantics
   (not manual-test-ready). Source-of-truth:
