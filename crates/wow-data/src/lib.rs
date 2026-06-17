@@ -291,8 +291,10 @@ pub use player_power::{
 pub use player_stats::{PlayerLevelStats, PlayerStatsStore};
 pub use rand_prop_points::{RandPropPointsEntry, RandPropPointsStore};
 pub use skill::{
-    PetLevelupSpellInfoLikeCpp, PetLevelupSpellSetLikeCpp, PetLevelupSpellStoreLikeCpp,
-    SkillInfoEntry, SkillLineAbilityRecord, SkillStore,
+    MAX_CREATURE_SPELL_DATA_SLOT_LIKE_CPP, PetDefaultSpellCreatureTemplateLikeCpp,
+    PetDefaultSpellEffectLikeCpp, PetDefaultSpellInfoLikeCpp, PetDefaultSpellStoreLikeCpp,
+    PetDefaultSpellsEntryLikeCpp, PetLevelupSpellInfoLikeCpp, PetLevelupSpellSetLikeCpp,
+    PetLevelupSpellStoreLikeCpp, SkillInfoEntry, SkillLineAbilityRecord, SkillStore,
 };
 pub use skill_talent::{
     GlyphBindableSpellEntry, GlyphBindableSpellStore, GlyphPropertiesEntry, GlyphPropertiesStore,

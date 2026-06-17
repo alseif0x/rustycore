@@ -184,6 +184,144 @@ impl PetLevelupSpellStoreLikeCpp {
     }
 }
 
+pub const MAX_CREATURE_SPELL_DATA_SLOT_LIKE_CPP: usize = 4;
+
+const SPELL_EFFECT_SUMMON_LIKE_CPP: u32 = 28;
+const SPELL_EFFECT_SUMMON_PET_LIKE_CPP: u32 = 56;
+
+/// Minimal C++ `CreatureTemplate` view used by `LoadPetDefaultSpells`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PetDefaultSpellCreatureTemplateLikeCpp {
+    pub entry: u32,
+    pub family: u32,
+    pub spells: [u32; MAX_CREATURE_SPELL_DATA_SLOT_LIKE_CPP],
+}
+
+/// Minimal C++ `SpellEffectInfo` view used by `LoadPetDefaultSpells`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PetDefaultSpellEffectLikeCpp {
+    pub effect: u32,
+    pub misc_value: i32,
+}
+
+/// Minimal C++ `SpellInfo` view used by `LoadPetDefaultSpells`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PetDefaultSpellInfoLikeCpp {
+    pub difficulty_none: bool,
+    pub effects: Vec<PetDefaultSpellEffectLikeCpp>,
+}
+
+/// C++ `PetDefaultSpellsEntry`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PetDefaultSpellsEntryLikeCpp {
+    pub spellid: [u32; MAX_CREATURE_SPELL_DATA_SLOT_LIKE_CPP],
+}
+
+/// Represented C++ `SpellMgr::mPetDefaultSpellsMap`.
+#[derive(Debug, Clone, Default)]
+pub struct PetDefaultSpellStoreLikeCpp {
+    default_spells_by_entry: HashMap<i32, PetDefaultSpellsEntryLikeCpp>,
+}
+
+impl PetDefaultSpellStoreLikeCpp {
+    /// C++ `SpellMgr::LoadPetDefaultSpells`, represented without live `SpellMgr`.
+    pub fn load_like_cpp(
+        spell_infos: impl IntoIterator<Item = PetDefaultSpellInfoLikeCpp>,
+        creature_templates: impl IntoIterator<Item = PetDefaultSpellCreatureTemplateLikeCpp>,
+        pet_levelup_spells: &PetLevelupSpellStoreLikeCpp,
+    ) -> Self {
+        let creature_templates: HashMap<u32, PetDefaultSpellCreatureTemplateLikeCpp> =
+            creature_templates
+                .into_iter()
+                .map(|template| (template.entry, template))
+                .collect();
+        let mut default_spells_by_entry = HashMap::new();
+
+        for spell_info in spell_infos {
+            if !spell_info.difficulty_none {
+                continue;
+            }
+
+            for spell_effect in spell_info.effects {
+                if spell_effect.effect != SPELL_EFFECT_SUMMON_LIKE_CPP
+                    && spell_effect.effect != SPELL_EFFECT_SUMMON_PET_LIKE_CPP
+                {
+                    continue;
+                }
+
+                let creature_id = spell_effect.misc_value as u32;
+                let Some(creature_template) = creature_templates.get(&creature_id) else {
+                    continue;
+                };
+
+                let pet_spells_id = creature_template.entry as i32;
+                if default_spells_by_entry.contains_key(&pet_spells_id) {
+                    continue;
+                }
+
+                let mut pet_default_spells = PetDefaultSpellsEntryLikeCpp {
+                    spellid: creature_template.spells,
+                };
+
+                if load_pet_default_spells_helper_like_cpp(
+                    creature_template,
+                    &mut pet_default_spells,
+                    pet_levelup_spells,
+                ) {
+                    default_spells_by_entry.insert(pet_spells_id, pet_default_spells);
+                }
+            }
+        }
+
+        Self {
+            default_spells_by_entry,
+        }
+    }
+
+    /// C++ `SpellMgr::GetPetDefaultSpellsEntry(id)`.
+    pub fn get_pet_default_spells_entry_like_cpp(
+        &self,
+        id: i32,
+    ) -> Option<&PetDefaultSpellsEntryLikeCpp> {
+        self.default_spells_by_entry.get(&id)
+    }
+
+    pub fn count(&self) -> usize {
+        self.default_spells_by_entry.len()
+    }
+}
+
+fn load_pet_default_spells_helper_like_cpp(
+    creature_template: &PetDefaultSpellCreatureTemplateLikeCpp,
+    pet_default_spells: &mut PetDefaultSpellsEntryLikeCpp,
+    pet_levelup_spells: &PetLevelupSpellStoreLikeCpp,
+) -> bool {
+    if !pet_default_spells.spellid.iter().any(|spell| *spell != 0) {
+        return false;
+    }
+
+    if creature_template.family != 0 {
+        if let Some(levelup_spells) =
+            pet_levelup_spells.get_pet_levelup_spell_list_like_cpp(creature_template.family)
+        {
+            for spell in &mut pet_default_spells.spellid {
+                if *spell == 0 {
+                    continue;
+                }
+
+                if levelup_spells
+                    .iter()
+                    .any(|(_, levelup_spell)| levelup_spell == *spell)
+                {
+                    *spell = 0;
+                }
+            }
+        }
+    }
+
+    pet_default_spells.spellid.iter().any(|spell| *spell != 0)
+}
+
 // ── Store ───────────────────────────────────────────────────────────
 
 /// In-memory store for auto-learned spells from DBC data.
@@ -716,6 +854,29 @@ mod tests {
         }
     }
 
+    fn pet_default_template(
+        entry: u32,
+        family: u32,
+        spells: [u32; MAX_CREATURE_SPELL_DATA_SLOT_LIKE_CPP],
+    ) -> PetDefaultSpellCreatureTemplateLikeCpp {
+        PetDefaultSpellCreatureTemplateLikeCpp {
+            entry,
+            family,
+            spells,
+        }
+    }
+
+    fn summon_spell(
+        difficulty_none: bool,
+        effect: u32,
+        misc_value: i32,
+    ) -> PetDefaultSpellInfoLikeCpp {
+        PetDefaultSpellInfoLikeCpp {
+            difficulty_none,
+            effects: vec![PetDefaultSpellEffectLikeCpp { effect, misc_value }],
+        }
+    }
+
     #[test]
     fn skill_line_ability_map_bounds_group_by_spell_like_cpp() {
         let store = SkillStore::from_skill_line_abilities_like_cpp([
@@ -873,6 +1034,117 @@ mod tests {
             vec![(10, 3001), (20, 3000), (20, 3002)],
             "C++ PetLevelupSpellSet is a multimap keyed by SpellLevel"
         );
+    }
+
+    #[test]
+    fn pet_default_spells_loads_summon_templates_like_cpp() {
+        let levelup_spells = PetLevelupSpellStoreLikeCpp::default();
+        let store = PetDefaultSpellStoreLikeCpp::load_like_cpp(
+            [
+                summon_spell(true, SPELL_EFFECT_SUMMON_LIKE_CPP, 500),
+                summon_spell(true, SPELL_EFFECT_SUMMON_PET_LIKE_CPP, 501),
+                summon_spell(false, SPELL_EFFECT_SUMMON_LIKE_CPP, 502),
+                summon_spell(true, 2, 503),
+                summon_spell(true, SPELL_EFFECT_SUMMON_LIKE_CPP, 999),
+            ],
+            [
+                pet_default_template(500, 0, [10, 0, 11, 0]),
+                pet_default_template(501, 0, [20, 21, 0, 0]),
+                pet_default_template(502, 0, [30, 0, 0, 0]),
+                pet_default_template(503, 0, [40, 0, 0, 0]),
+            ],
+            &levelup_spells,
+        );
+
+        assert_eq!(store.count(), 2);
+        assert_eq!(
+            store
+                .get_pet_default_spells_entry_like_cpp(500)
+                .expect("summon creature template should be loaded")
+                .spellid,
+            [10, 0, 11, 0]
+        );
+        assert_eq!(
+            store
+                .get_pet_default_spells_entry_like_cpp(501)
+                .expect("summon pet creature template should be loaded")
+                .spellid,
+            [20, 21, 0, 0]
+        );
+        assert!(store.get_pet_default_spells_entry_like_cpp(502).is_none());
+        assert!(store.get_pet_default_spells_entry_like_cpp(503).is_none());
+        assert!(store.get_pet_default_spells_entry_like_cpp(999).is_none());
+    }
+
+    #[test]
+    fn pet_default_spells_removes_levelup_duplicates_like_cpp() {
+        let skill_store = SkillStore::from_skill_line_abilities_like_cpp([
+            pet_ability(
+                1,
+                10,
+                100,
+                SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP,
+            ),
+            pet_ability(
+                2,
+                10,
+                101,
+                SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP,
+            ),
+        ]);
+        let levelup_spells = PetLevelupSpellStoreLikeCpp::load_like_cpp(
+            [creature_family(7, [10, 0])],
+            &skill_store,
+            |spell_id| {
+                Some(PetLevelupSpellInfoLikeCpp {
+                    id: spell_id as u32,
+                    spell_level: 1,
+                })
+            },
+        );
+
+        let store = PetDefaultSpellStoreLikeCpp::load_like_cpp(
+            [summon_spell(true, SPELL_EFFECT_SUMMON_PET_LIKE_CPP, 500)],
+            [pet_default_template(500, 7, [100, 999, 101, 0])],
+            &levelup_spells,
+        );
+
+        assert_eq!(
+            store
+                .get_pet_default_spells_entry_like_cpp(500)
+                .expect("non-levelup default spell keeps entry alive")
+                .spellid,
+            [0, 999, 0, 0]
+        );
+    }
+
+    #[test]
+    fn pet_default_spells_skips_empty_after_levelup_duplicate_removal_like_cpp() {
+        let skill_store = SkillStore::from_skill_line_abilities_like_cpp([pet_ability(
+            1,
+            10,
+            100,
+            SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP,
+        )]);
+        let levelup_spells = PetLevelupSpellStoreLikeCpp::load_like_cpp(
+            [creature_family(7, [10, 0])],
+            &skill_store,
+            |_| {
+                Some(PetLevelupSpellInfoLikeCpp {
+                    id: 100,
+                    spell_level: 1,
+                })
+            },
+        );
+
+        let store = PetDefaultSpellStoreLikeCpp::load_like_cpp(
+            [summon_spell(true, SPELL_EFFECT_SUMMON_PET_LIKE_CPP, 500)],
+            [pet_default_template(500, 7, [100, 0, 0, 0])],
+            &levelup_spells,
+        );
+
+        assert_eq!(store.count(), 0);
+        assert!(store.get_pet_default_spells_entry_like_cpp(500).is_none());
     }
 
     #[test]
