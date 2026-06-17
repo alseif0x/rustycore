@@ -9555,6 +9555,7 @@ struct LoadedGridAreaTriggerLoadSummaryLikeCpp {
     load_record_missing: usize,
     pre_add_records_added: usize,
     loaded_grid_primary_records: usize,
+    loaded_area_trigger_guids: Vec<ObjectGuid>,
     add_to_map_errors: usize,
 }
 
@@ -9569,6 +9570,11 @@ impl LoadedGridAreaTriggerLoadSummaryLikeCpp {
         self.load_record_missing += grid.load_record_missing;
         self.pre_add_records_added += grid.pre_add_records_added;
         self.loaded_grid_primary_records += grid.loaded_grid_primary_records.len();
+        self.loaded_area_trigger_guids.extend(
+            grid.loaded_grid_primary_records
+                .iter()
+                .map(|record| record.object().guid()),
+        );
         self.add_to_map_errors += grid.add_to_map_errors;
     }
 }
@@ -19349,6 +19355,7 @@ mmap.enablePathFinding = 0
         assert_eq!(summary.grid_not_loaded, 0);
         assert_eq!(summary.metadata_entries, 1);
         assert_eq!(summary.loaded_grid_primary_records, 1);
+        assert_eq!(summary.loaded_area_trigger_guids.len(), 1);
         assert_eq!(summary.add_to_map_errors, 0);
         let area_trigger = manager
             .find_map_mut(571, 0)
@@ -19356,6 +19363,10 @@ mmap.enablePathFinding = 0
             .map()
             .get_area_trigger_by_spawn_id_like_cpp(spawn_id)
             .expect("AreaTrigger should be materialized on the loaded grid");
+        assert_eq!(
+            summary.loaded_area_trigger_guids,
+            vec![area_trigger.world().guid()]
+        );
         assert_eq!(area_trigger.spawn_id(), spawn_id);
         assert_eq!(area_trigger.template_id().unwrap().id, template_id);
         assert_eq!(
@@ -19369,6 +19380,7 @@ mmap.enablePathFinding = 0
         assert_eq!(second.loaded_grids_evaluated, 1);
         assert_eq!(second.metadata_entries, 0);
         assert_eq!(second.loaded_grid_primary_records, 0);
+        assert!(second.loaded_area_trigger_guids.is_empty());
         assert_eq!(second.skipped_already_loaded, 1);
     }
 
