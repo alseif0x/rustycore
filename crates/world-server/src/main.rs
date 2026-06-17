@@ -1762,18 +1762,50 @@ async fn main() -> Result<ExitCode> {
             u32::from(create_properties_id.is_custom)
         );
     }
+    for create_properties_id in &area_trigger_template_outcome
+        .report
+        .skipped_orbit_invalid_create_properties
+    {
+        tracing::error!(
+            target: "sql.sql",
+            "Table `areatrigger_create_properties_orbit` reference invalid AreaTriggerCreatePropertiesId: (Id: {}, IsCustom: {})",
+            create_properties_id.id,
+            u32::from(create_properties_id.is_custom)
+        );
+    }
+    for (create_properties_id, float_field, value) in &area_trigger_template_outcome
+        .report
+        .corrected_orbit_invalid_floats
+    {
+        let float_name = match float_field {
+            wow_data::AreaTriggerOrbitFloatFieldLikeCpp::Radius => "Radius",
+            wow_data::AreaTriggerOrbitFloatFieldLikeCpp::BlendFromRadius => "BlendFromRadius",
+            wow_data::AreaTriggerOrbitFloatFieldLikeCpp::InitialAngle => "InitialAngle",
+            wow_data::AreaTriggerOrbitFloatFieldLikeCpp::ZOffset => "ZOffset",
+        };
+        tracing::error!(
+            target: "sql.sql",
+            "Table `areatrigger_create_properties_orbit` has listed areatrigger (AreaTriggerCreatePropertiesId: {}, IsCustom: {}) with invalid {} ({}), set to 0!",
+            create_properties_id.id,
+            u32::from(create_properties_id.is_custom),
+            float_name,
+            value
+        );
+    }
     let area_trigger_template_report = area_trigger_template_outcome.report;
     let area_trigger_template_store = Arc::new(area_trigger_template_outcome.store);
     info!(
-        "Loaded {} C++ area-trigger templates, {} create properties, {} actions, {} polygon vertices ({} targets), and {} spline points from {} template rows / {} create-property rows / {} action rows / {} polygon rows / {} spline rows ({} invalid rows skipped; orbit/spawns pending)",
+        "Loaded {} C++ area-trigger templates, {} create properties, {} orbit infos, {} actions, {} polygon vertices ({} targets), and {} spline points from {} template rows / {} create-property rows / {} orbit rows / {} action rows / {} polygon rows / {} spline rows ({} invalid rows skipped; spawns pending)",
         area_trigger_template_report.loaded_templates,
         area_trigger_template_report.loaded_create_properties,
+        area_trigger_template_report.loaded_orbit_infos,
         area_trigger_template_report.loaded_actions,
         area_trigger_template_report.loaded_polygon_vertices,
         area_trigger_template_report.loaded_polygon_target_vertices,
         area_trigger_template_report.loaded_spline_points,
         area_trigger_template_report.template_rows_seen,
         area_trigger_template_report.create_properties_rows_seen,
+        area_trigger_template_report.orbit_rows_seen,
         area_trigger_template_report.action_rows_seen,
         area_trigger_template_report.polygon_vertex_rows_seen,
         area_trigger_template_report.spline_point_rows_seen,
@@ -1800,6 +1832,12 @@ async fn main() -> Result<ExitCode> {
                 .len()
             + area_trigger_template_report
                 .invalid_polygon_target_vertex_counts
+                .len()
+            + area_trigger_template_report
+                .skipped_orbit_invalid_create_properties
+                .len()
+            + area_trigger_template_report
+                .corrected_orbit_invalid_floats
                 .len()
     );
     let script_name_interner = Arc::new(script_name_interner);

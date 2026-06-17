@@ -135,6 +135,19 @@ pub struct AreaTriggerCreatePropertiesRowLikeCpp {
     pub script_name: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct AreaTriggerCreatePropertiesOrbitRowLikeCpp {
+    pub create_properties_id: u32,
+    pub is_custom: bool,
+    pub start_delay: u32,
+    pub circle_radius: f32,
+    pub blend_from_radius: f32,
+    pub initial_angle: f32,
+    pub z_offset: f32,
+    pub counter_clockwise: bool,
+    pub can_loop: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AreaTriggerTemplateLikeCpp {
     pub id: AreaTriggerIdLikeCpp,
@@ -177,8 +190,30 @@ pub struct AreaTriggerCreatePropertiesLikeCpp {
     pub time_to_target_scale: u32,
     pub shape: AreaTriggerShapeInfoLikeCpp,
     pub spline_points: Vec<AreaTriggerPosition3LikeCpp>,
+    pub orbit_info: Option<AreaTriggerOrbitInfoLikeCpp>,
     pub script_id: ScriptIdLikeCpp,
     pub script_name: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct AreaTriggerOrbitInfoLikeCpp {
+    pub counter_clockwise: bool,
+    pub can_loop: bool,
+    pub time_to_target: u32,
+    pub elapsed_time_for_movement: i32,
+    pub start_delay: u32,
+    pub radius: f32,
+    pub blend_from_radius: f32,
+    pub initial_angle: f32,
+    pub z_offset: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AreaTriggerOrbitFloatFieldLikeCpp {
+    Radius,
+    BlendFromRadius,
+    InitialAngle,
+    ZOffset,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -189,7 +224,7 @@ pub enum AreaTriggerCurveFieldLikeCpp {
     Facing,
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct AreaTriggerTemplateLoadReportLikeCpp {
     pub template_rows_seen: usize,
     pub action_rows_seen: usize,
@@ -201,7 +236,9 @@ pub struct AreaTriggerTemplateLoadReportLikeCpp {
     pub loaded_polygon_target_vertices: usize,
     pub loaded_spline_points: usize,
     pub create_properties_rows_seen: usize,
+    pub orbit_rows_seen: usize,
     pub loaded_create_properties: usize,
+    pub loaded_orbit_infos: usize,
     pub skipped_actions_invalid_action_type: Vec<(AreaTriggerIdLikeCpp, u32, u32)>,
     pub skipped_actions_invalid_target_type: Vec<(AreaTriggerIdLikeCpp, u32, u32)>,
     pub skipped_actions_invalid_teleport_world_safe_loc: Vec<(AreaTriggerIdLikeCpp, u32)>,
@@ -217,6 +254,9 @@ pub struct AreaTriggerTemplateLoadReportLikeCpp {
     )>,
     pub corrected_polygon_heights: Vec<AreaTriggerIdLikeCpp>,
     pub invalid_polygon_target_vertex_counts: Vec<AreaTriggerIdLikeCpp>,
+    pub skipped_orbit_invalid_create_properties: Vec<AreaTriggerIdLikeCpp>,
+    pub corrected_orbit_invalid_floats:
+        Vec<(AreaTriggerIdLikeCpp, AreaTriggerOrbitFloatFieldLikeCpp, f32)>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -266,6 +306,7 @@ impl AreaTriggerTemplateStore {
         polygon_vertex_rows: impl IntoIterator<Item = AreaTriggerPolygonVertexRowLikeCpp>,
         spline_point_rows: impl IntoIterator<Item = AreaTriggerSplinePointRowLikeCpp>,
         create_properties_rows: impl IntoIterator<Item = AreaTriggerCreatePropertiesRowLikeCpp>,
+        orbit_rows: impl IntoIterator<Item = AreaTriggerCreatePropertiesOrbitRowLikeCpp>,
         world_safe_locs: &WorldSafeLocStore,
         mut curve_exists: impl FnMut(u32) -> bool,
         mut script_id_for_name: impl FnMut(&str) -> ScriptIdLikeCpp,
@@ -498,10 +539,67 @@ impl AreaTriggerTemplateStore {
                     time_to_target_scale: row.time_to_target_scale,
                     shape,
                     spline_points,
+                    orbit_info: None,
                     script_id,
                     script_name: row.script_name,
                 },
             );
+        }
+
+        for row in orbit_rows {
+            report.orbit_rows_seen += 1;
+            let id = AreaTriggerIdLikeCpp {
+                id: row.create_properties_id,
+                is_custom: row.is_custom,
+            };
+            let Some(create_properties) = create_properties.get_mut(&id) else {
+                report.skipped_orbit_invalid_create_properties.push(id);
+                continue;
+            };
+
+            let mut radius = row.circle_radius;
+            let mut blend_from_radius = row.blend_from_radius;
+            let mut initial_angle = row.initial_angle;
+            let mut z_offset = row.z_offset;
+            for (value, field) in [
+                (radius, AreaTriggerOrbitFloatFieldLikeCpp::Radius),
+                (
+                    blend_from_radius,
+                    AreaTriggerOrbitFloatFieldLikeCpp::BlendFromRadius,
+                ),
+                (
+                    initial_angle,
+                    AreaTriggerOrbitFloatFieldLikeCpp::InitialAngle,
+                ),
+                (z_offset, AreaTriggerOrbitFloatFieldLikeCpp::ZOffset),
+            ] {
+                if !value.is_finite() {
+                    report
+                        .corrected_orbit_invalid_floats
+                        .push((id, field, value));
+                    match field {
+                        AreaTriggerOrbitFloatFieldLikeCpp::Radius => radius = 0.0,
+                        AreaTriggerOrbitFloatFieldLikeCpp::BlendFromRadius => {
+                            blend_from_radius = 0.0
+                        }
+                        AreaTriggerOrbitFloatFieldLikeCpp::InitialAngle => initial_angle = 0.0,
+                        AreaTriggerOrbitFloatFieldLikeCpp::ZOffset => z_offset = 0.0,
+                    }
+                }
+            }
+
+            create_properties.orbit_info = Some(AreaTriggerOrbitInfoLikeCpp {
+                counter_clockwise: row.counter_clockwise,
+                can_loop: row.can_loop,
+                time_to_target: 0,
+                elapsed_time_for_movement: 0,
+                start_delay: row.start_delay,
+                radius,
+                blend_from_radius,
+                initial_angle,
+                z_offset,
+            });
+            report.loaded_orbit_infos += 1;
         }
 
         report.loaded_templates = templates.len();
@@ -635,6 +733,30 @@ impl AreaTriggerTemplateStore {
             }
         }
 
+        let mut orbit_rows = Vec::new();
+        let mut orbit_result = db
+            .query(&db.prepare(WorldStatements::SEL_AREATRIGGER_CREATE_PROPERTIES_ORBIT))
+            .await?;
+        if !orbit_result.is_empty() {
+            loop {
+                orbit_rows.push(AreaTriggerCreatePropertiesOrbitRowLikeCpp {
+                    create_properties_id: orbit_result.read(0),
+                    is_custom: orbit_result.read(1),
+                    start_delay: orbit_result.read(2),
+                    circle_radius: orbit_result.read(3),
+                    blend_from_radius: orbit_result.read(4),
+                    initial_angle: orbit_result.read(5),
+                    z_offset: orbit_result.read(6),
+                    counter_clockwise: orbit_result.read(7),
+                    can_loop: orbit_result.read(8),
+                });
+
+                if !orbit_result.next_row() {
+                    break;
+                }
+            }
+        }
+
         let mut template_rows = Vec::new();
         let mut template_result = db
             .query(&db.prepare(WorldStatements::SEL_AREATRIGGER_TEMPLATES))
@@ -659,6 +781,7 @@ impl AreaTriggerTemplateStore {
             polygon_vertex_rows,
             spline_point_rows,
             create_properties_rows,
+            orbit_rows,
             world_safe_locs,
             curve_exists,
             script_id_for_name,
@@ -862,6 +985,23 @@ mod tests {
         }
     }
 
+    fn orbit(
+        create_properties_id: u32,
+        is_custom: bool,
+    ) -> AreaTriggerCreatePropertiesOrbitRowLikeCpp {
+        AreaTriggerCreatePropertiesOrbitRowLikeCpp {
+            create_properties_id,
+            is_custom,
+            start_delay: 7,
+            circle_radius: 1.5,
+            blend_from_radius: 2.5,
+            initial_angle: 3.5,
+            z_offset: 4.5,
+            counter_clockwise: true,
+            can_loop: true,
+        }
+    }
+
     #[test]
     fn area_trigger_template_store_keys_by_id_and_custom_flag_like_cpp() {
         let store = AreaTriggerTemplateStore::from_keys([(7, false), (7, true)]);
@@ -899,6 +1039,7 @@ mod tests {
             [],
             [],
             [],
+            [],
             &safe_locs([7]),
             |_| true,
             |_| ScriptIdLikeCpp::NONE,
@@ -931,6 +1072,7 @@ mod tests {
                 action(10, false, 0, 2, AREATRIGGER_ACTION_USER_MAX_LIKE_CPP),
                 action(10, false, AREATRIGGER_ACTION_TELEPORT_LIKE_CPP, 999, 0),
             ],
+            [],
             [],
             [],
             [],
@@ -992,6 +1134,7 @@ mod tests {
             [],
             [],
             [],
+            [],
             &safe_locs([]),
             |_| true,
             |_| ScriptIdLikeCpp::NONE,
@@ -1014,6 +1157,7 @@ mod tests {
                 spline_point(90, false, 5.0, 6.0, 7.0),
                 spline_point(90, false, 8.0, 9.0, 10.0),
             ],
+            [],
             [],
             &safe_locs([]),
             |_| true,
@@ -1065,6 +1209,7 @@ mod tests {
             [partial_polygon_vertex(77, true, 4)],
             [],
             [],
+            [],
             &safe_locs([]),
             |_| true,
             |_| ScriptIdLikeCpp::NONE,
@@ -1103,6 +1248,7 @@ mod tests {
             ],
             [spline_point(200, false, 5.0, 6.0, 7.0)],
             [row],
+            [],
             &safe_locs([]),
             |curve_id| curve_id == 44 || curve_id == 55,
             |name| {
@@ -1166,6 +1312,7 @@ mod tests {
                 create_properties(201, false, 99, false, AREATRIGGER_SHAPE_SPHERE_LIKE_CPP),
                 create_properties(202, true, 0, false, AREATRIGGER_SHAPE_MAX_LIKE_CPP),
             ],
+            [],
             &safe_locs([]),
             |_| true,
             |_| ScriptIdLikeCpp::NONE,
@@ -1211,6 +1358,7 @@ mod tests {
             [],
             [],
             [row],
+            [],
             &safe_locs([]),
             |curve_id| curve_id == 101,
             |_| ScriptIdLikeCpp::NONE,
@@ -1276,6 +1424,7 @@ mod tests {
                 false,
                 AREATRIGGER_SHAPE_POLYGON_LIKE_CPP,
             )],
+            [],
             &safe_locs([]),
             |_| true,
             |_| ScriptIdLikeCpp::NONE,
@@ -1289,5 +1438,109 @@ mod tests {
         assert_eq!(props.shape.polygon_vertices.len(), 2);
         assert!(props.shape.polygon_vertices_target.is_empty());
         assert_eq!(outcome.report.invalid_polygon_target_vertex_counts, [id]);
+    }
+
+    #[test]
+    fn load_templates_attaches_orbit_info_like_cpp() {
+        let outcome = AreaTriggerTemplateStore::from_rows_like_cpp(
+            [],
+            [],
+            [],
+            [],
+            [create_properties(
+                205,
+                false,
+                0,
+                false,
+                AREATRIGGER_SHAPE_SPHERE_LIKE_CPP,
+            )],
+            [orbit(205, false)],
+            &safe_locs([]),
+            |_| true,
+            |_| ScriptIdLikeCpp::NONE,
+        );
+        let id = AreaTriggerIdLikeCpp {
+            id: 205,
+            is_custom: false,
+        };
+        let orbit = outcome
+            .store
+            .get_create_properties_like_cpp(id)
+            .unwrap()
+            .orbit_info
+            .unwrap();
+
+        assert_eq!(outcome.report.orbit_rows_seen, 1);
+        assert_eq!(outcome.report.loaded_orbit_infos, 1);
+        assert_eq!(orbit.start_delay, 7);
+        assert_eq!(orbit.radius, 1.5);
+        assert_eq!(orbit.blend_from_radius, 2.5);
+        assert_eq!(orbit.initial_angle, 3.5);
+        assert_eq!(orbit.z_offset, 4.5);
+        assert!(orbit.counter_clockwise);
+        assert!(orbit.can_loop);
+        assert_eq!(orbit.time_to_target, 0);
+        assert_eq!(orbit.elapsed_time_for_movement, 0);
+    }
+
+    #[test]
+    fn load_templates_skips_invalid_orbit_reference_and_zeroes_nonfinite_floats_like_cpp() {
+        let mut invalid_float_orbit = orbit(206, false);
+        invalid_float_orbit.circle_radius = f32::NAN;
+        invalid_float_orbit.blend_from_radius = f32::INFINITY;
+        invalid_float_orbit.initial_angle = f32::NEG_INFINITY;
+
+        let outcome = AreaTriggerTemplateStore::from_rows_like_cpp(
+            [],
+            [],
+            [],
+            [],
+            [create_properties(
+                206,
+                false,
+                0,
+                false,
+                AREATRIGGER_SHAPE_SPHERE_LIKE_CPP,
+            )],
+            [orbit(999, true), invalid_float_orbit],
+            &safe_locs([]),
+            |_| true,
+            |_| ScriptIdLikeCpp::NONE,
+        );
+        let id = AreaTriggerIdLikeCpp {
+            id: 206,
+            is_custom: false,
+        };
+        let orbit = outcome
+            .store
+            .get_create_properties_like_cpp(id)
+            .unwrap()
+            .orbit_info
+            .unwrap();
+
+        assert_eq!(
+            outcome.report.skipped_orbit_invalid_create_properties,
+            [AreaTriggerIdLikeCpp {
+                id: 999,
+                is_custom: true,
+            }]
+        );
+        assert_eq!(orbit.radius, 0.0);
+        assert_eq!(orbit.blend_from_radius, 0.0);
+        assert_eq!(orbit.initial_angle, 0.0);
+        assert_eq!(orbit.z_offset, 4.5);
+        assert_eq!(
+            outcome
+                .report
+                .corrected_orbit_invalid_floats
+                .iter()
+                .map(|(_, field, _)| *field)
+                .collect::<Vec<_>>(),
+            [
+                AreaTriggerOrbitFloatFieldLikeCpp::Radius,
+                AreaTriggerOrbitFloatFieldLikeCpp::BlendFromRadius,
+                AreaTriggerOrbitFloatFieldLikeCpp::InitialAngle,
+            ]
+        );
     }
 }

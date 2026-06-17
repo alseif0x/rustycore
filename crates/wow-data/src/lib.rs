@@ -110,9 +110,10 @@ pub use area_trigger::{
 };
 pub use area_trigger_template::{
     AreaTriggerActionLikeCpp, AreaTriggerCreatePropertiesLikeCpp,
-    AreaTriggerCreatePropertiesRowLikeCpp, AreaTriggerCurveFieldLikeCpp, AreaTriggerIdLikeCpp,
-    AreaTriggerPolygonVertexRowLikeCpp, AreaTriggerPosition2LikeCpp, AreaTriggerPosition3LikeCpp,
-    AreaTriggerShapeInfoLikeCpp, AreaTriggerSplinePointRowLikeCpp,
+    AreaTriggerCreatePropertiesOrbitRowLikeCpp, AreaTriggerCreatePropertiesRowLikeCpp,
+    AreaTriggerCurveFieldLikeCpp, AreaTriggerIdLikeCpp, AreaTriggerOrbitFloatFieldLikeCpp,
+    AreaTriggerOrbitInfoLikeCpp, AreaTriggerPolygonVertexRowLikeCpp, AreaTriggerPosition2LikeCpp,
+    AreaTriggerPosition3LikeCpp, AreaTriggerShapeInfoLikeCpp, AreaTriggerSplinePointRowLikeCpp,
     AreaTriggerTemplateActionRowLikeCpp, AreaTriggerTemplateLikeCpp,
     AreaTriggerTemplateLoadOutcomeLikeCpp, AreaTriggerTemplateLoadReportLikeCpp,
     AreaTriggerTemplateRowLikeCpp, AreaTriggerTemplateStore,
