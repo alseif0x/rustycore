@@ -2376,6 +2376,19 @@ async fn main() -> Result<ExitCode> {
         spell_proc_outcome.generated_entry_count,
         spell_proc_outcome.errors.len()
     );
+    let spell_required_outcome = wow_data::SpellRequiredStoreLikeCpp::load_like_cpp(
+        world_db.as_ref(),
+        &spell_store,
+        spell_chain_store.as_ref(),
+    )
+    .await
+    .context("Failed to load C++ spell_required rows")?;
+    let spell_required_store = Arc::new(spell_required_outcome.store);
+    info!(
+        "Loaded {} C++ spell_required rows ({} validation issues)",
+        spell_required_outcome.loaded_row_count,
+        spell_required_outcome.errors.len()
+    );
     let spell_threat_outcome =
         wow_data::SpellThreatStoreLikeCpp::load_like_cpp(world_db.as_ref(), &spell_store)
             .await
@@ -2740,6 +2753,7 @@ async fn main() -> Result<ExitCode> {
         spell_misc_store: Some(Arc::clone(&spell_misc_store)),
         spell_procs_per_minute_store: Some(Arc::clone(&spell_procs_per_minute_store)),
         spell_proc_store: Some(Arc::clone(&spell_proc_store)),
+        spell_required_store: Some(Arc::clone(&spell_required_store)),
         spell_threat_store: Some(Arc::clone(&spell_threat_store)),
         spell_duration_store: Some(Arc::clone(&spell_duration_store)),
         spell_radius_store: Some(Arc::clone(&spell_radius_store)),
@@ -9030,6 +9044,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.spell_proc_store {
         session.set_spell_proc_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.spell_required_store {
+        session.set_spell_required_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.spell_threat_store {
         session.set_spell_threat_store(Arc::clone(store));

@@ -79,12 +79,12 @@ use wow_data::{
     PlayerConditionStore, PlayerStatsStore, RandPropPointsStore, SkillLineStore, SkillStore,
     SpellAuraOptionsStore, SpellCategoryStore, SpellChainStoreLikeCpp, SpellDurationStore,
     SpellItemEnchantmentStore, SpellMiscStore, SpellProcEntryLikeCpp, SpellProcStoreLikeCpp,
-    SpellRadiusStore, SpellRangeStore, SpellStore, SpellTargetPositionStoreLikeCpp,
-    SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp, SummonPropertiesEntry, ToyStore,
-    TransmogSetEntry, TransmogSetItemStore, TrinityStringStoreLikeCpp,
-    VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore,
-    VehicleTemplateStoreLikeCpp, calculate_battle_pet_stats_like_cpp,
-    is_player_meeting_condition_like_cpp,
+    SpellRadiusStore, SpellRangeStore, SpellRequiredStoreLikeCpp, SpellStore,
+    SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp,
+    SummonPropertiesEntry, ToyStore, TransmogSetEntry, TransmogSetItemStore,
+    TrinityStringStoreLikeCpp, VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp,
+    VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
+    calculate_battle_pet_stats_like_cpp, is_player_meeting_condition_like_cpp,
     progression_rewards::{
         ContentTuningStore, FactionEntry, FactionStore, FactionTemplateStore,
         FriendshipRepReactionStore, ParagonReputationStore, QuestFactionRewardStore,
@@ -3869,6 +3869,7 @@ pub struct WorldSession {
     spell_aura_options_store: Option<Arc<SpellAuraOptionsStore>>,
     spell_misc_store: Option<Arc<SpellMiscStore>>,
     spell_proc_store: Option<Arc<SpellProcStoreLikeCpp>>,
+    spell_required_store: Option<Arc<SpellRequiredStoreLikeCpp>>,
     spell_threat_store: Option<Arc<SpellThreatStoreLikeCpp>>,
     spell_duration_store: Option<Arc<SpellDurationStore>>,
     spell_radius_store: Option<Arc<SpellRadiusStore>>,
@@ -5172,6 +5173,7 @@ impl WorldSession {
             spell_aura_options_store: None,
             spell_misc_store: None,
             spell_proc_store: None,
+            spell_required_store: None,
             spell_threat_store: None,
             spell_duration_store: None,
             spell_radius_store: None,
@@ -16920,6 +16922,31 @@ impl WorldSession {
                 .and_then(|difficulties| difficulties.get(current_difficulty))
                 .map(|difficulty| u32::from(difficulty.fallback_difficulty_id))
         })
+    }
+
+    pub fn set_spell_required_store(&mut self, store: Arc<SpellRequiredStoreLikeCpp>) {
+        self.spell_required_store = Some(store);
+    }
+
+    pub(crate) fn spells_required_for_spell_like_cpp(&self, spell_id: u32) -> &[u32] {
+        self.spell_required_store
+            .as_ref()
+            .map(|store| store.spells_required_for_spell_like_cpp(spell_id))
+            .unwrap_or(&[])
+    }
+
+    pub(crate) fn spells_requiring_spell_like_cpp(&self, req_spell: u32) -> &[u32] {
+        self.spell_required_store
+            .as_ref()
+            .map(|store| store.spells_requiring_spell_like_cpp(req_spell))
+            .unwrap_or(&[])
+    }
+
+    pub(crate) fn is_spell_requiring_spell_like_cpp(&self, spell_id: u32, req_spell: u32) -> bool {
+        self.spell_required_store
+            .as_ref()
+            .map(|store| store.is_spell_requiring_spell_like_cpp(spell_id, req_spell))
+            .unwrap_or(false)
     }
 
     pub fn set_spell_threat_store(&mut self, store: Arc<SpellThreatStoreLikeCpp>) {
@@ -41484,6 +41511,28 @@ mod tests {
         }
     }
 
+    fn test_spell_required_store_like_cpp() -> wow_data::SpellRequiredStoreLikeCpp {
+        let outcome = wow_data::SpellRequiredStoreLikeCpp::from_rows_like_cpp(
+            [
+                wow_data::SpellRequiredRowLikeCpp {
+                    spell_id: 100,
+                    req_spell: 10,
+                },
+                wow_data::SpellRequiredRowLikeCpp {
+                    spell_id: 100,
+                    req_spell: 11,
+                },
+                wow_data::SpellRequiredRowLikeCpp {
+                    spell_id: 101,
+                    req_spell: 10,
+                },
+            ],
+            |_| true,
+            |_, _| false,
+        );
+        outcome.store
+    }
+
     #[test]
     fn spell_proc_entry_prefers_exact_difficulty_like_cpp() {
         let (mut session, _, _) = make_session();
@@ -41623,6 +41672,26 @@ mod tests {
             .expect("first-rank threat entry");
 
         assert_eq!(entry.flat_mod, 11);
+    }
+
+    #[test]
+    fn spell_required_queries_return_empty_without_store_like_cpp() {
+        let (session, _, _) = make_session();
+
+        assert!(session.spells_required_for_spell_like_cpp(100).is_empty());
+        assert!(session.spells_requiring_spell_like_cpp(10).is_empty());
+        assert!(!session.is_spell_requiring_spell_like_cpp(100, 10));
+    }
+
+    #[test]
+    fn spell_required_queries_match_forward_reverse_maps_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_spell_required_store(Arc::new(test_spell_required_store_like_cpp()));
+
+        assert_eq!(session.spells_required_for_spell_like_cpp(100), &[10, 11]);
+        assert_eq!(session.spells_requiring_spell_like_cpp(10), &[100, 101]);
+        assert!(session.is_spell_requiring_spell_like_cpp(100, 10));
+        assert!(!session.is_spell_requiring_spell_like_cpp(11, 100));
     }
 
     fn install_create_map_difficulty_stores_like_cpp(

@@ -1576,6 +1576,35 @@ pub struct SpellRequiredStoreLikeCpp {
 }
 
 impl SpellRequiredStoreLikeCpp {
+    pub async fn load_like_cpp(
+        db: &WorldDatabase,
+        spells: &SpellStore,
+        spell_chains: &SpellChainStoreLikeCpp,
+    ) -> Result<SpellRequiredLoadOutcomeLikeCpp> {
+        let stmt = db.prepare(WorldStatements::SEL_SPELL_REQUIRED);
+        let mut result = db.query(&stmt).await?;
+        let mut rows = Vec::new();
+
+        if !result.is_empty() {
+            loop {
+                rows.push(SpellRequiredRowLikeCpp {
+                    spell_id: result.try_read::<u32>(0).unwrap_or(0),
+                    req_spell: result.try_read::<u32>(1).unwrap_or(0),
+                });
+
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        Ok(Self::from_rows_like_cpp(
+            rows,
+            |spell_id| spells.get(spell_id as i32).is_some(),
+            |spell_id, req_spell| spell_chains.is_rank_of_like_cpp(spell_id, req_spell),
+        ))
+    }
+
     pub fn from_rows_like_cpp<I, SpellExists, SameRankChain>(
         rows: I,
         mut spell_exists: SpellExists,
@@ -1873,6 +1902,11 @@ impl SpellChainStoreLikeCpp {
         self.spell_chain_node_like_cpp(spell_id)
             .map(|node| node.first_spell_id)
             .unwrap_or(spell_id)
+    }
+
+    pub fn is_rank_of_like_cpp(&self, spell_id: u32, other_spell_id: u32) -> bool {
+        self.first_spell_in_chain_like_cpp(spell_id)
+            == self.first_spell_in_chain_like_cpp(other_spell_id)
     }
 
     pub fn last_spell_in_chain_like_cpp(&self, spell_id: u32) -> u32 {
