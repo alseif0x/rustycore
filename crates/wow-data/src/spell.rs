@@ -396,11 +396,15 @@ pub mod aura_types {
     pub const SPELL_AURA_HASTE_SPELLS: i32 = 73;
     pub const SPELL_AURA_MOUNTED: i32 = 78;
     pub const SPELL_AURA_MOD_DETECT_RANGE: i32 = 91;
+    pub const SPELL_AURA_ADD_FLAT_MODIFIER: i32 = 107;
+    pub const SPELL_AURA_ADD_PCT_MODIFIER: i32 = 108;
     pub const SPELL_AURA_MOD_MELEE_HASTE: i32 = 138;
     pub const SPELL_AURA_MOD_RANGED_HASTE: i32 = 140;
     pub const SPELL_AURA_MOD_DETECTED_RANGE: i32 = 152;
     pub const SPELL_AURA_MOD_MELEE_RANGED_HASTE: i32 = 192;
+    pub const SPELL_AURA_ADD_PCT_MODIFIER_BY_SPELL_LABEL: i32 = 218;
     pub const SPELL_AURA_PROVIDE_SPELL_FOCUS: i32 = 281;
+    pub const SPELL_AURA_IGNORE_SPELL_COOLDOWN: i32 = 383;
     pub const SPELL_AURA_MOD_BATTLE_PET_XP_PCT: i32 = 420;
 }
 
@@ -1645,6 +1649,455 @@ pub struct SpellGroupStackRuleLoadOutcomeLikeCpp {
     pub loaded_row_count: usize,
     pub same_effect_parsed_count: usize,
     pub errors: Vec<SpellGroupStackRuleLoadErrorLikeCpp>,
+}
+
+pub const SPELL_SCHOOL_MASK_ALL_LIKE_CPP: u8 = 0x7F;
+pub const PROC_FLAG_DEAL_MELEE_SWING_LIKE_CPP: u32 = 0x0000_0004;
+pub const PROC_FLAG_TAKE_MELEE_SWING_LIKE_CPP: u32 = 0x0000_0008;
+pub const PROC_FLAG_DEAL_MELEE_ABILITY_LIKE_CPP: u32 = 0x0000_0010;
+pub const PROC_FLAG_TAKE_MELEE_ABILITY_LIKE_CPP: u32 = 0x0000_0020;
+pub const PROC_FLAG_DEAL_RANGED_ATTACK_LIKE_CPP: u32 = 0x0000_0040;
+pub const PROC_FLAG_TAKE_RANGED_ATTACK_LIKE_CPP: u32 = 0x0000_0080;
+pub const PROC_FLAG_DEAL_RANGED_ABILITY_LIKE_CPP: u32 = 0x0000_0100;
+pub const PROC_FLAG_TAKE_RANGED_ABILITY_LIKE_CPP: u32 = 0x0000_0200;
+pub const PROC_FLAG_DEAL_HELPFUL_ABILITY_LIKE_CPP: u32 = 0x0000_0400;
+pub const PROC_FLAG_TAKE_HELPFUL_ABILITY_LIKE_CPP: u32 = 0x0000_0800;
+pub const PROC_FLAG_DEAL_HARMFUL_ABILITY_LIKE_CPP: u32 = 0x0000_1000;
+pub const PROC_FLAG_TAKE_HARMFUL_ABILITY_LIKE_CPP: u32 = 0x0000_2000;
+pub const PROC_FLAG_DEAL_HELPFUL_SPELL_LIKE_CPP: u32 = 0x0000_4000;
+pub const PROC_FLAG_TAKE_HELPFUL_SPELL_LIKE_CPP: u32 = 0x0000_8000;
+pub const PROC_FLAG_DEAL_HARMFUL_SPELL_LIKE_CPP: u32 = 0x0001_0000;
+pub const PROC_FLAG_TAKE_HARMFUL_SPELL_LIKE_CPP: u32 = 0x0002_0000;
+pub const PROC_FLAG_DEAL_HARMFUL_PERIODIC_LIKE_CPP: u32 = 0x0004_0000;
+pub const PROC_FLAG_TAKE_HARMFUL_PERIODIC_LIKE_CPP: u32 = 0x0008_0000;
+pub const PROC_FLAG_TAKE_ANY_DAMAGE_LIKE_CPP: u32 = 0x0010_0000;
+pub const PROC_FLAG_DEAL_HELPFUL_PERIODIC_LIKE_CPP: u32 = 0x0020_0000;
+pub const PROC_FLAG_MAIN_HAND_WEAPON_SWING_LIKE_CPP: u32 = 0x0040_0000;
+pub const PROC_FLAG_OFF_HAND_WEAPON_SWING_LIKE_CPP: u32 = 0x0080_0000;
+pub const PROC_FLAG_TAKE_HELPFUL_PERIODIC_LIKE_CPP: u32 = 0x8000_0000;
+pub const PROC_FLAG_2_CAST_SUCCESSFUL_LIKE_CPP: u32 = 0x0000_0004;
+pub const PROC_SPELL_TYPE_DAMAGE_LIKE_CPP: u32 = 0x0000_0001;
+pub const PROC_SPELL_TYPE_HEAL_LIKE_CPP: u32 = 0x0000_0002;
+pub const PROC_SPELL_TYPE_NO_DMG_HEAL_LIKE_CPP: u32 = 0x0000_0004;
+pub const PROC_SPELL_TYPE_MASK_ALL_LIKE_CPP: u32 = PROC_SPELL_TYPE_DAMAGE_LIKE_CPP
+    | PROC_SPELL_TYPE_HEAL_LIKE_CPP
+    | PROC_SPELL_TYPE_NO_DMG_HEAL_LIKE_CPP;
+pub const PROC_SPELL_PHASE_CAST_LIKE_CPP: u32 = 0x0000_0001;
+pub const PROC_SPELL_PHASE_HIT_LIKE_CPP: u32 = 0x0000_0002;
+pub const PROC_SPELL_PHASE_FINISH_LIKE_CPP: u32 = 0x0000_0004;
+pub const PROC_SPELL_PHASE_MASK_ALL_LIKE_CPP: u32 = PROC_SPELL_PHASE_CAST_LIKE_CPP
+    | PROC_SPELL_PHASE_HIT_LIKE_CPP
+    | PROC_SPELL_PHASE_FINISH_LIKE_CPP;
+pub const PROC_HIT_MASK_ALL_LIKE_CPP: u32 = 0x0007_FFFF;
+pub const PROC_ATTR_REQ_SPELLMOD_LIKE_CPP: u32 = 0x0000_0008;
+pub const PROC_ATTR_REQ_EXP_OR_HONOR_LIKE_CPP: u32 = 0x0000_0001;
+pub const PROC_ATTR_TRIGGERED_CAN_PROC_LIKE_CPP: u32 = 0x0000_0002;
+pub const PROC_ATTR_REQ_POWER_COST_LIKE_CPP: u32 = 0x0000_0004;
+pub const PROC_ATTR_USE_STACKS_FOR_CHARGES_LIKE_CPP: u32 = 0x0000_0010;
+pub const PROC_ATTR_REDUCE_PROC_60_LIKE_CPP: u32 = 0x0000_0080;
+pub const PROC_ATTR_ALL_ALLOWED_LIKE_CPP: u32 = PROC_ATTR_REQ_EXP_OR_HONOR_LIKE_CPP
+    | PROC_ATTR_TRIGGERED_CAN_PROC_LIKE_CPP
+    | PROC_ATTR_REQ_POWER_COST_LIKE_CPP
+    | PROC_ATTR_REQ_SPELLMOD_LIKE_CPP
+    | PROC_ATTR_USE_STACKS_FOR_CHARGES_LIKE_CPP
+    | PROC_ATTR_REDUCE_PROC_60_LIKE_CPP;
+pub const SPELL_PROC_FLAG_MASK_LIKE_CPP: u32 = PROC_FLAG_DEAL_MELEE_ABILITY_LIKE_CPP
+    | PROC_FLAG_TAKE_MELEE_ABILITY_LIKE_CPP
+    | PROC_FLAG_DEAL_RANGED_ATTACK_LIKE_CPP
+    | PROC_FLAG_TAKE_RANGED_ATTACK_LIKE_CPP
+    | PROC_FLAG_DEAL_RANGED_ABILITY_LIKE_CPP
+    | PROC_FLAG_TAKE_RANGED_ABILITY_LIKE_CPP
+    | PROC_FLAG_DEAL_HELPFUL_ABILITY_LIKE_CPP
+    | PROC_FLAG_TAKE_HELPFUL_ABILITY_LIKE_CPP
+    | PROC_FLAG_DEAL_HARMFUL_ABILITY_LIKE_CPP
+    | PROC_FLAG_TAKE_HARMFUL_ABILITY_LIKE_CPP
+    | PROC_FLAG_DEAL_HELPFUL_SPELL_LIKE_CPP
+    | PROC_FLAG_TAKE_HELPFUL_SPELL_LIKE_CPP
+    | PROC_FLAG_DEAL_HARMFUL_SPELL_LIKE_CPP
+    | PROC_FLAG_TAKE_HARMFUL_SPELL_LIKE_CPP
+    | PROC_FLAG_DEAL_HARMFUL_PERIODIC_LIKE_CPP
+    | PROC_FLAG_TAKE_HARMFUL_PERIODIC_LIKE_CPP
+    | PROC_FLAG_DEAL_HELPFUL_PERIODIC_LIKE_CPP
+    | PROC_FLAG_TAKE_HELPFUL_PERIODIC_LIKE_CPP;
+pub const DONE_HIT_PROC_FLAG_MASK_LIKE_CPP: u32 = PROC_FLAG_DEAL_MELEE_SWING_LIKE_CPP
+    | PROC_FLAG_DEAL_RANGED_ATTACK_LIKE_CPP
+    | PROC_FLAG_DEAL_MELEE_ABILITY_LIKE_CPP
+    | PROC_FLAG_DEAL_RANGED_ABILITY_LIKE_CPP
+    | PROC_FLAG_DEAL_HELPFUL_ABILITY_LIKE_CPP
+    | PROC_FLAG_DEAL_HARMFUL_ABILITY_LIKE_CPP
+    | PROC_FLAG_DEAL_HELPFUL_SPELL_LIKE_CPP
+    | PROC_FLAG_DEAL_HARMFUL_SPELL_LIKE_CPP
+    | PROC_FLAG_DEAL_HARMFUL_PERIODIC_LIKE_CPP
+    | PROC_FLAG_DEAL_HELPFUL_PERIODIC_LIKE_CPP
+    | PROC_FLAG_MAIN_HAND_WEAPON_SWING_LIKE_CPP
+    | PROC_FLAG_OFF_HAND_WEAPON_SWING_LIKE_CPP;
+pub const TAKEN_HIT_PROC_FLAG_MASK_LIKE_CPP: u32 = PROC_FLAG_TAKE_MELEE_SWING_LIKE_CPP
+    | PROC_FLAG_TAKE_RANGED_ATTACK_LIKE_CPP
+    | PROC_FLAG_TAKE_MELEE_ABILITY_LIKE_CPP
+    | PROC_FLAG_TAKE_RANGED_ABILITY_LIKE_CPP
+    | PROC_FLAG_TAKE_HELPFUL_ABILITY_LIKE_CPP
+    | PROC_FLAG_TAKE_HARMFUL_ABILITY_LIKE_CPP
+    | PROC_FLAG_TAKE_HELPFUL_SPELL_LIKE_CPP
+    | PROC_FLAG_TAKE_HARMFUL_SPELL_LIKE_CPP
+    | PROC_FLAG_TAKE_HARMFUL_PERIODIC_LIKE_CPP
+    | PROC_FLAG_TAKE_HELPFUL_PERIODIC_LIKE_CPP
+    | PROC_FLAG_TAKE_ANY_DAMAGE_LIKE_CPP;
+pub const REQ_SPELL_PHASE_PROC_FLAG_MASK_LIKE_CPP: u32 =
+    SPELL_PROC_FLAG_MASK_LIKE_CPP & DONE_HIT_PROC_FLAG_MASK_LIKE_CPP;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SpellProcRowLikeCpp {
+    pub spell_id: i32,
+    pub school_mask: u8,
+    pub spell_family_name: u16,
+    pub spell_family_mask: [u32; 4],
+    pub proc_flags: [u32; 2],
+    pub spell_type_mask: u32,
+    pub spell_phase_mask: u32,
+    pub hit_mask: u32,
+    pub attributes_mask: u32,
+    pub disable_effects_mask: u32,
+    pub procs_per_minute: f32,
+    pub chance: f32,
+    pub cooldown_ms: u32,
+    pub charges: u8,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SpellProcEntryLikeCpp {
+    pub school_mask: u8,
+    pub spell_family_name: u16,
+    pub spell_family_mask: [u32; 4],
+    pub proc_flags: [u32; 2],
+    pub spell_type_mask: u32,
+    pub spell_phase_mask: u32,
+    pub hit_mask: u32,
+    pub attributes_mask: u32,
+    pub disable_effects_mask: u32,
+    pub procs_per_minute: f32,
+    pub chance: f32,
+    pub cooldown_ms: u32,
+    pub charges: u32,
+}
+
+impl SpellProcEntryLikeCpp {
+    fn from_row_like_cpp(row: &SpellProcRowLikeCpp) -> Self {
+        Self {
+            school_mask: row.school_mask,
+            spell_family_name: row.spell_family_name,
+            spell_family_mask: row.spell_family_mask,
+            proc_flags: row.proc_flags,
+            spell_type_mask: row.spell_type_mask,
+            spell_phase_mask: row.spell_phase_mask,
+            hit_mask: row.hit_mask,
+            attributes_mask: row.attributes_mask,
+            disable_effects_mask: row.disable_effects_mask,
+            procs_per_minute: row.procs_per_minute,
+            chance: row.chance,
+            cooldown_ms: row.cooldown_ms,
+            charges: u32::from(row.charges),
+        }
+    }
+
+    pub fn proc_flags_any_like_cpp(&self) -> bool {
+        self.proc_flags[0] != 0 || self.proc_flags[1] != 0
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SpellProcSourceSpellInfoLikeCpp {
+    pub spell_id: u32,
+    pub difficulty: u32,
+    pub first_rank_spell_id: u32,
+    pub next_rank_spell_id: Option<u32>,
+    pub proc_flags: [u32; 2],
+    pub proc_charges: u32,
+    pub proc_chance: f32,
+    pub proc_cooldown_ms: u32,
+    pub effects: Vec<SpellEffectInfo>,
+}
+
+impl SpellProcSourceSpellInfoLikeCpp {
+    pub fn is_ranked_like_cpp(&self) -> bool {
+        self.first_rank_spell_id != self.spell_id || self.next_rank_spell_id.is_some()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct SpellProcKeyLikeCpp {
+    pub spell_id: u32,
+    pub difficulty: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpellProcLoadErrorKindLikeCpp {
+    SpellMissing,
+    AllRanksSpellNotRanked,
+    AllRanksSpellNotFirstRank,
+    DuplicateSpell,
+    InvalidSchoolMask,
+    NegativeChance,
+    NegativeProcsPerMinute,
+    MissingProcFlags,
+    InvalidSpellTypeMask,
+    SpellTypeMaskUnused,
+    MissingSpellPhaseMask,
+    InvalidSpellPhaseMask,
+    SpellPhaseMaskUnused,
+    InvalidHitMask,
+    HitMaskUnused,
+    DisabledEffectIsNotAura,
+    ReqSpellmodWithoutSpellmodAura,
+    InvalidAttributesMask,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SpellProcLoadErrorLikeCpp {
+    pub spell_id: u32,
+    pub difficulty: Option<u32>,
+    pub effect_index: Option<u32>,
+    pub kind: SpellProcLoadErrorKindLikeCpp,
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct SpellProcStoreLikeCpp {
+    pub proc_entries_by_spell_and_difficulty: BTreeMap<SpellProcKeyLikeCpp, SpellProcEntryLikeCpp>,
+}
+
+impl SpellProcStoreLikeCpp {
+    pub fn from_rows_like_cpp<I, SpellInfoById>(
+        rows: I,
+        mut spell_info_by_id: SpellInfoById,
+    ) -> SpellProcLoadOutcomeLikeCpp
+    where
+        I: IntoIterator<Item = SpellProcRowLikeCpp>,
+        SpellInfoById: FnMut(u32) -> Option<SpellProcSourceSpellInfoLikeCpp>,
+    {
+        let mut store = Self::default();
+        let mut errors = Vec::new();
+        let mut loaded_row_count = 0;
+
+        for row in rows {
+            let all_ranks = row.spell_id < 0;
+            let spell_id = row.spell_id.unsigned_abs();
+            let Some(mut spell_info) = spell_info_by_id(spell_id) else {
+                errors.push(SpellProcLoadErrorLikeCpp {
+                    spell_id,
+                    difficulty: None,
+                    effect_index: None,
+                    kind: SpellProcLoadErrorKindLikeCpp::SpellMissing,
+                });
+                continue;
+            };
+
+            if all_ranks {
+                if !spell_info.is_ranked_like_cpp() {
+                    errors.push(SpellProcLoadErrorLikeCpp {
+                        spell_id,
+                        difficulty: Some(spell_info.difficulty),
+                        effect_index: None,
+                        kind: SpellProcLoadErrorKindLikeCpp::AllRanksSpellNotRanked,
+                    });
+                }
+
+                if spell_info.first_rank_spell_id != spell_id {
+                    errors.push(SpellProcLoadErrorLikeCpp {
+                        spell_id,
+                        difficulty: Some(spell_info.difficulty),
+                        effect_index: None,
+                        kind: SpellProcLoadErrorKindLikeCpp::AllRanksSpellNotFirstRank,
+                    });
+                    continue;
+                }
+            }
+
+            loop {
+                let key = SpellProcKeyLikeCpp {
+                    spell_id: spell_info.spell_id,
+                    difficulty: spell_info.difficulty,
+                };
+
+                if store
+                    .proc_entries_by_spell_and_difficulty
+                    .contains_key(&key)
+                {
+                    errors.push(SpellProcLoadErrorLikeCpp {
+                        spell_id: spell_info.spell_id,
+                        difficulty: Some(spell_info.difficulty),
+                        effect_index: None,
+                        kind: SpellProcLoadErrorKindLikeCpp::DuplicateSpell,
+                    });
+                    break;
+                }
+
+                let mut entry = SpellProcEntryLikeCpp::from_row_like_cpp(&row);
+                apply_spell_proc_defaults_like_cpp(&mut entry, &spell_info);
+                validate_spell_proc_entry_like_cpp(&mut entry, &spell_info, &mut errors);
+                store
+                    .proc_entries_by_spell_and_difficulty
+                    .insert(key, entry);
+
+                if !all_ranks {
+                    break;
+                }
+
+                let Some(next_rank_spell_id) = spell_info.next_rank_spell_id else {
+                    break;
+                };
+                let Some(next_spell_info) = spell_info_by_id(next_rank_spell_id) else {
+                    break;
+                };
+                spell_info = next_spell_info;
+            }
+
+            loaded_row_count += 1;
+        }
+
+        SpellProcLoadOutcomeLikeCpp {
+            store,
+            loaded_row_count,
+            errors,
+        }
+    }
+
+    pub fn spell_proc_entry_like_cpp(
+        &self,
+        spell_id: u32,
+        difficulty: u32,
+    ) -> Option<&SpellProcEntryLikeCpp> {
+        self.proc_entries_by_spell_and_difficulty
+            .get(&SpellProcKeyLikeCpp {
+                spell_id,
+                difficulty,
+            })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SpellProcLoadOutcomeLikeCpp {
+    pub store: SpellProcStoreLikeCpp,
+    pub loaded_row_count: usize,
+    pub errors: Vec<SpellProcLoadErrorLikeCpp>,
+}
+
+fn apply_spell_proc_defaults_like_cpp(
+    entry: &mut SpellProcEntryLikeCpp,
+    spell_info: &SpellProcSourceSpellInfoLikeCpp,
+) {
+    if !entry.proc_flags_any_like_cpp() {
+        entry.proc_flags = spell_info.proc_flags;
+    }
+    if entry.charges == 0 {
+        entry.charges = spell_info.proc_charges;
+    }
+    if entry.chance == 0.0 && entry.procs_per_minute == 0.0 {
+        entry.chance = spell_info.proc_chance;
+    }
+    if entry.cooldown_ms == 0 {
+        entry.cooldown_ms = spell_info.proc_cooldown_ms;
+    }
+}
+
+fn validate_spell_proc_entry_like_cpp(
+    entry: &mut SpellProcEntryLikeCpp,
+    spell_info: &SpellProcSourceSpellInfoLikeCpp,
+    errors: &mut Vec<SpellProcLoadErrorLikeCpp>,
+) {
+    let mut push_error = |kind, effect_index| {
+        errors.push(SpellProcLoadErrorLikeCpp {
+            spell_id: spell_info.spell_id,
+            difficulty: Some(spell_info.difficulty),
+            effect_index,
+            kind,
+        });
+    };
+
+    if entry.school_mask & !SPELL_SCHOOL_MASK_ALL_LIKE_CPP != 0 {
+        push_error(SpellProcLoadErrorKindLikeCpp::InvalidSchoolMask, None);
+    }
+    if entry.chance < 0.0 {
+        push_error(SpellProcLoadErrorKindLikeCpp::NegativeChance, None);
+        entry.chance = 0.0;
+    }
+    if entry.procs_per_minute < 0.0 {
+        push_error(SpellProcLoadErrorKindLikeCpp::NegativeProcsPerMinute, None);
+        entry.procs_per_minute = 0.0;
+    }
+    if !entry.proc_flags_any_like_cpp() {
+        push_error(SpellProcLoadErrorKindLikeCpp::MissingProcFlags, None);
+    }
+    if entry.spell_type_mask & !PROC_SPELL_TYPE_MASK_ALL_LIKE_CPP != 0 {
+        push_error(SpellProcLoadErrorKindLikeCpp::InvalidSpellTypeMask, None);
+    }
+    if entry.spell_type_mask != 0 && entry.proc_flags[0] & SPELL_PROC_FLAG_MASK_LIKE_CPP == 0 {
+        push_error(SpellProcLoadErrorKindLikeCpp::SpellTypeMaskUnused, None);
+    }
+    if entry.spell_phase_mask == 0
+        && entry.proc_flags[0] & REQ_SPELL_PHASE_PROC_FLAG_MASK_LIKE_CPP != 0
+    {
+        push_error(SpellProcLoadErrorKindLikeCpp::MissingSpellPhaseMask, None);
+    }
+    if entry.spell_phase_mask & !PROC_SPELL_PHASE_MASK_ALL_LIKE_CPP != 0 {
+        push_error(SpellProcLoadErrorKindLikeCpp::InvalidSpellPhaseMask, None);
+    }
+    if entry.spell_phase_mask != 0
+        && entry.proc_flags[0] & REQ_SPELL_PHASE_PROC_FLAG_MASK_LIKE_CPP == 0
+    {
+        push_error(SpellProcLoadErrorKindLikeCpp::SpellPhaseMaskUnused, None);
+    }
+    if entry.spell_phase_mask == 0
+        && entry.proc_flags[0] & REQ_SPELL_PHASE_PROC_FLAG_MASK_LIKE_CPP == 0
+        && entry.proc_flags[1] & PROC_FLAG_2_CAST_SUCCESSFUL_LIKE_CPP != 0
+    {
+        entry.spell_phase_mask = PROC_SPELL_PHASE_CAST_LIKE_CPP;
+    }
+    if entry.hit_mask & !PROC_HIT_MASK_ALL_LIKE_CPP != 0 {
+        push_error(SpellProcLoadErrorKindLikeCpp::InvalidHitMask, None);
+    }
+    if entry.hit_mask != 0
+        && !(entry.proc_flags[0] & TAKEN_HIT_PROC_FLAG_MASK_LIKE_CPP != 0
+            || (entry.proc_flags[0] & DONE_HIT_PROC_FLAG_MASK_LIKE_CPP != 0
+                && (entry.spell_phase_mask == 0
+                    || entry.spell_phase_mask
+                        & (PROC_SPELL_PHASE_HIT_LIKE_CPP | PROC_SPELL_PHASE_FINISH_LIKE_CPP)
+                        != 0)))
+    {
+        push_error(SpellProcLoadErrorKindLikeCpp::HitMaskUnused, None);
+    }
+
+    for effect in &spell_info.effects {
+        if (entry.disable_effects_mask & (1u32 << effect.effect_index)) != 0
+            && !effect.is_aura_like_cpp()
+        {
+            push_error(
+                SpellProcLoadErrorKindLikeCpp::DisabledEffectIsNotAura,
+                Some(effect.effect_index),
+            );
+        }
+    }
+
+    if entry.attributes_mask & PROC_ATTR_REQ_SPELLMOD_LIKE_CPP != 0
+        && !spell_info.effects.iter().any(|effect| {
+            effect.is_aura_like_cpp()
+                && matches!(
+                    effect.effect_aura,
+                    aura_types::SPELL_AURA_ADD_PCT_MODIFIER
+                        | aura_types::SPELL_AURA_ADD_FLAT_MODIFIER
+                        | aura_types::SPELL_AURA_ADD_PCT_MODIFIER_BY_SPELL_LABEL
+                        | aura_types::SPELL_AURA_IGNORE_SPELL_COOLDOWN
+                )
+        })
+    {
+        push_error(
+            SpellProcLoadErrorKindLikeCpp::ReqSpellmodWithoutSpellmodAura,
+            None,
+        );
+    }
+
+    if entry.attributes_mask & !PROC_ATTR_ALL_ALLOWED_LIKE_CPP != 0 {
+        push_error(SpellProcLoadErrorKindLikeCpp::InvalidAttributesMask, None);
+        entry.attributes_mask &= PROC_ATTR_ALL_ALLOWED_LIKE_CPP;
+    }
 }
 
 fn infer_same_effect_stack_aura_types_like_cpp<SpellInfoById>(
@@ -4339,6 +4792,121 @@ mod tests {
         );
     }
 
+    #[test]
+    fn spell_proc_store_expands_negative_spell_id_to_all_ranks_like_cpp() {
+        let outcome = SpellProcStoreLikeCpp::from_rows_like_cpp(
+            [SpellProcRowLikeCpp {
+                spell_id: -100,
+                proc_flags: [PROC_FLAG_DEAL_MELEE_SWING_LIKE_CPP, 0],
+                chance: 25.0,
+                ..test_spell_proc_row_like_cpp(100)
+            }],
+            |spell_id| {
+                Some(match spell_id {
+                    100 => test_spell_proc_source_like_cpp(100, 100, Some(101)),
+                    101 => test_spell_proc_source_like_cpp(101, 100, None),
+                    _ => return None,
+                })
+            },
+        );
+
+        assert!(outcome.errors.is_empty());
+        assert_eq!(outcome.loaded_row_count, 1);
+        assert_eq!(
+            outcome
+                .store
+                .spell_proc_entry_like_cpp(100, 0)
+                .map(|entry| entry.chance),
+            Some(25.0)
+        );
+        assert_eq!(
+            outcome
+                .store
+                .spell_proc_entry_like_cpp(101, 0)
+                .map(|entry| entry.proc_flags),
+            Some([PROC_FLAG_DEAL_MELEE_SWING_LIKE_CPP, 0])
+        );
+    }
+
+    #[test]
+    fn spell_proc_store_applies_spellinfo_defaults_like_cpp() {
+        let outcome = SpellProcStoreLikeCpp::from_rows_like_cpp(
+            [SpellProcRowLikeCpp {
+                spell_id: 200,
+                ..test_spell_proc_row_like_cpp(200)
+            }],
+            |spell_id| {
+                let mut source = test_spell_proc_source_like_cpp(spell_id, spell_id, None);
+                source.proc_flags = [PROC_FLAG_TAKE_MELEE_SWING_LIKE_CPP, 0];
+                source.proc_charges = 3;
+                source.proc_chance = 12.5;
+                source.proc_cooldown_ms = 1500;
+                Some(source)
+            },
+        );
+
+        let entry = outcome.store.spell_proc_entry_like_cpp(200, 0).unwrap();
+        assert_eq!(entry.proc_flags, [PROC_FLAG_TAKE_MELEE_SWING_LIKE_CPP, 0]);
+        assert_eq!(entry.charges, 3);
+        assert_eq!(entry.chance, 12.5);
+        assert_eq!(entry.cooldown_ms, 1500);
+    }
+
+    #[test]
+    fn spell_proc_store_validates_and_sanitizes_like_cpp() {
+        let outcome = SpellProcStoreLikeCpp::from_rows_like_cpp(
+            [SpellProcRowLikeCpp {
+                spell_id: 300,
+                school_mask: 0x80,
+                proc_flags: [0, PROC_FLAG_2_CAST_SUCCESSFUL_LIKE_CPP],
+                spell_type_mask: PROC_SPELL_TYPE_MASK_ALL_LIKE_CPP << 1,
+                spell_phase_mask: PROC_SPELL_PHASE_MASK_ALL_LIKE_CPP << 1,
+                hit_mask: PROC_HIT_MASK_ALL_LIKE_CPP << 1,
+                attributes_mask: PROC_ATTR_ALL_ALLOWED_LIKE_CPP | 0x0000_0100,
+                disable_effects_mask: 0x1,
+                procs_per_minute: -1.0,
+                chance: -1.0,
+                ..test_spell_proc_row_like_cpp(300)
+            }],
+            |spell_id| {
+                let mut source = test_spell_proc_source_like_cpp(spell_id, spell_id, None);
+                source.effects = vec![SpellEffectInfo {
+                    effect_index: 0,
+                    effect: spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE,
+                    effect_aura: 0,
+                    ..SpellEffectInfo::default()
+                }];
+                Some(source)
+            },
+        );
+
+        let entry = outcome.store.spell_proc_entry_like_cpp(300, 0).unwrap();
+        assert_eq!(entry.chance, 0.0);
+        assert_eq!(entry.procs_per_minute, 0.0);
+        assert_eq!(entry.attributes_mask, PROC_ATTR_ALL_ALLOWED_LIKE_CPP);
+        assert_eq!(
+            outcome
+                .errors
+                .iter()
+                .map(|error| error.kind)
+                .collect::<Vec<_>>(),
+            vec![
+                SpellProcLoadErrorKindLikeCpp::InvalidSchoolMask,
+                SpellProcLoadErrorKindLikeCpp::NegativeChance,
+                SpellProcLoadErrorKindLikeCpp::NegativeProcsPerMinute,
+                SpellProcLoadErrorKindLikeCpp::InvalidSpellTypeMask,
+                SpellProcLoadErrorKindLikeCpp::SpellTypeMaskUnused,
+                SpellProcLoadErrorKindLikeCpp::InvalidSpellPhaseMask,
+                SpellProcLoadErrorKindLikeCpp::SpellPhaseMaskUnused,
+                SpellProcLoadErrorKindLikeCpp::InvalidHitMask,
+                SpellProcLoadErrorKindLikeCpp::HitMaskUnused,
+                SpellProcLoadErrorKindLikeCpp::DisabledEffectIsNotAura,
+                SpellProcLoadErrorKindLikeCpp::ReqSpellmodWithoutSpellmodAura,
+                SpellProcLoadErrorKindLikeCpp::InvalidAttributesMask,
+            ]
+        );
+    }
+
     fn learn_source(
         spell_id: u32,
         is_talent: bool,
@@ -4389,6 +4957,43 @@ mod tests {
             aura_type: None,
             display_flags: 0,
             requires_spell_focus: 0,
+            effects: Vec::new(),
+        }
+    }
+
+    fn test_spell_proc_row_like_cpp(spell_id: i32) -> SpellProcRowLikeCpp {
+        SpellProcRowLikeCpp {
+            spell_id,
+            school_mask: 0,
+            spell_family_name: 0,
+            spell_family_mask: [0; 4],
+            proc_flags: [0; 2],
+            spell_type_mask: 0,
+            spell_phase_mask: 0,
+            hit_mask: 0,
+            attributes_mask: 0,
+            disable_effects_mask: 0,
+            procs_per_minute: 0.0,
+            chance: 0.0,
+            cooldown_ms: 0,
+            charges: 0,
+        }
+    }
+
+    fn test_spell_proc_source_like_cpp(
+        spell_id: u32,
+        first_rank_spell_id: u32,
+        next_rank_spell_id: Option<u32>,
+    ) -> SpellProcSourceSpellInfoLikeCpp {
+        SpellProcSourceSpellInfoLikeCpp {
+            spell_id,
+            difficulty: 0,
+            first_rank_spell_id,
+            next_rank_spell_id,
+            proc_flags: [0; 2],
+            proc_charges: 0,
+            proc_chance: 0.0,
+            proc_cooldown_ms: 0,
             effects: Vec::new(),
         }
     }

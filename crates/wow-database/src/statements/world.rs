@@ -291,6 +291,8 @@ pub enum WorldStatements {
     SEL_SPELL_GROUP,
     /// C++ SpellMgr::LoadSpellGroupStackRules startup query.
     SEL_SPELL_GROUP_STACK_RULES,
+    /// C++ SpellMgr::LoadSpellProcs startup query.
+    SEL_SPELL_PROC,
     /// Load C++ ConditionMgr loot-template conditions.
     /// Args: SourceTypeOrReferenceId (i32), SourceGroup (u32), SourceEntry (u32).
     SEL_LOOT_TEMPLATE_CONDITION_ROWS,
@@ -890,6 +892,9 @@ impl StatementDef for WorldStatements {
             Self::SEL_SPELL_GROUP_STACK_RULES => {
                 "SELECT group_id, stack_rule FROM spell_group_stack_rules"
             }
+            Self::SEL_SPELL_PROC => {
+                "SELECT SpellId, SchoolMask, SpellFamilyName, SpellFamilyMask0, SpellFamilyMask1, SpellFamilyMask2, SpellFamilyMask3, ProcFlags, ProcFlags2, SpellTypeMask, SpellPhaseMask, HitMask, AttributesMask, DisableEffectsMask, ProcsPerMinute, Chance, Cooldown, Charges FROM spell_proc"
+            }
             Self::SEL_LOOT_TEMPLATE_CONDITION_ROWS => concat!(
                 "SELECT ElseGroup, ConditionTypeOrReference, ConditionTarget, ",
                 "ConditionValue1, ConditionValue2, ConditionValue3, ",
@@ -1259,6 +1264,17 @@ mod tests {
         assert_eq!(
             sql,
             "SELECT group_id, stack_rule FROM spell_group_stack_rules"
+        );
+        assert_eq!(sql.matches('?').count(), 0);
+    }
+
+    #[test]
+    fn spell_proc_statement_matches_cpp_sql_exactly() {
+        let sql = WorldStatements::SEL_SPELL_PROC.sql();
+
+        assert_eq!(
+            sql,
+            "SELECT SpellId, SchoolMask, SpellFamilyName, SpellFamilyMask0, SpellFamilyMask1, SpellFamilyMask2, SpellFamilyMask3, ProcFlags, ProcFlags2, SpellTypeMask, SpellPhaseMask, HitMask, AttributesMask, DisableEffectsMask, ProcsPerMinute, Chance, Cooldown, Charges FROM spell_proc"
         );
         assert_eq!(sql.matches('?').count(), 0);
     }
