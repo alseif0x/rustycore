@@ -2630,7 +2630,7 @@ async fn main() -> Result<ExitCode> {
     )
     .await
     .context(
-        "Failed to load C++ playerchoice/playerchoice_response/playerchoice_response_reward/playerchoice_response_reward_item/playerchoice_response_reward_currency/playerchoice_response_reward_faction rows",
+        "Failed to load C++ playerchoice/playerchoice_response/playerchoice_response_reward/playerchoice_response_reward_item/playerchoice_response_reward_currency/playerchoice_response_reward_faction/playerchoice_response_reward_item_choice rows",
     )?;
     for (choice_id, response_id) in &player_choice_outcome
         .report
@@ -2828,15 +2828,61 @@ async fn main() -> Result<ExitCode> {
             response_id
         );
     }
+    for (choice_id, response_id) in &player_choice_outcome
+        .report
+        .skipped_reward_item_choices_missing_choice
+    {
+        tracing::error!(
+            target: "sql.sql",
+            "Table `playerchoice_response_reward_item_choice` references non-existing ChoiceId: {} (ResponseId: {}), skipped",
+            choice_id,
+            response_id
+        );
+    }
+    for (choice_id, response_id) in &player_choice_outcome
+        .report
+        .skipped_reward_item_choices_missing_response
+    {
+        tracing::error!(
+            target: "sql.sql",
+            "Table `playerchoice_response_reward_item_choice` references non-existing ResponseId: {} for ChoiceId {}, skipped",
+            response_id,
+            choice_id
+        );
+    }
+    for (choice_id, response_id) in &player_choice_outcome
+        .report
+        .skipped_reward_item_choices_missing_reward
+    {
+        tracing::error!(
+            target: "sql.sql",
+            "Table `playerchoice_response_reward_item_choice` references non-existing player choice reward for ChoiceId {}, ResponseId: {}, skipped",
+            choice_id,
+            response_id
+        );
+    }
+    for (choice_id, response_id, item_id) in &player_choice_outcome
+        .report
+        .skipped_reward_item_choices_missing_item
+    {
+        tracing::error!(
+            target: "sql.sql",
+            "Table `playerchoice_response_reward_item_choice` references non-existing item {} for ChoiceId {}, ResponseId: {}, skipped",
+            item_id,
+            choice_id,
+            response_id
+        );
+    }
     let _player_choice_store = Arc::new(player_choice_outcome.store);
     info!(
-        "Loaded {} C++ player choices with {} responses, {} base rewards, {} reward items, {} reward currencies, and {} reward factions ({} skipped responses, {} skipped rewards, {} skipped reward items, {} skipped reward currencies, {} skipped reward factions, {} invalid reward refs; locales/reward entries pending)",
+        "Loaded {} C++ player choices with {} responses, {} base rewards, {} reward items, {} reward currencies, {} reward factions, and {} reward item choices ({} skipped responses, {} skipped rewards, {} skipped reward items, {} skipped reward currencies, {} skipped reward factions, {} skipped reward item choices, {} invalid reward refs; locales/reward entries pending)",
         player_choice_outcome.report.choice_rows_seen,
         player_choice_outcome.report.loaded_responses,
         player_choice_outcome.report.loaded_rewards,
         player_choice_outcome.report.loaded_reward_items,
         player_choice_outcome.report.loaded_reward_currencies,
         player_choice_outcome.report.loaded_reward_factions,
+        player_choice_outcome.report.loaded_reward_item_choices,
         player_choice_outcome
             .report
             .skipped_responses_missing_choice
@@ -2896,6 +2942,22 @@ async fn main() -> Result<ExitCode> {
             + player_choice_outcome
                 .report
                 .skipped_reward_factions_missing_faction
+                .len(),
+        player_choice_outcome
+            .report
+            .skipped_reward_item_choices_missing_choice
+            .len()
+            + player_choice_outcome
+                .report
+                .skipped_reward_item_choices_missing_response
+                .len()
+            + player_choice_outcome
+                .report
+                .skipped_reward_item_choices_missing_reward
+                .len()
+            + player_choice_outcome
+                .report
+                .skipped_reward_item_choices_missing_item
                 .len(),
         player_choice_outcome.report.invalid_reward_titles.len()
             + player_choice_outcome.report.invalid_reward_packages.len()
