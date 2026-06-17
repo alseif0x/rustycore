@@ -258,6 +258,7 @@ pub struct SessionResources {
     pub spell_target_position_store: Option<Arc<wow_data::SpellTargetPositionStoreLikeCpp>>,
     pub spell_totem_model_store: Option<Arc<wow_data::SpellTotemModelStoreLikeCpp>>,
     pub movie_store: Option<Arc<wow_data::MovieStore>>,
+    pub script_name_interner: Option<Arc<wow_data::ScriptNameInternerLikeCpp>>,
     pub gameobject_template_lifecycle_store:
         Option<Arc<wow_data::GameObjectTemplateLifecycleStoreLikeCpp>>,
     pub area_table_store: Option<Arc<wow_data::AreaTableStore>>,

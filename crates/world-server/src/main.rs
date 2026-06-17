@@ -1141,6 +1141,15 @@ async fn main() -> Result<ExitCode> {
         gameobject_template_lifecycle_store.len(),
         gameobject_override_lifecycle_store.len()
     );
+    let script_name_interner = Arc::new(wow_data::build_template_script_name_interner_like_cpp(
+        creature_template_lifecycle_store.as_ref(),
+        gameobject_template_lifecycle_store.as_ref(),
+    ));
+    info!(
+        "Built C++ ScriptNameContainer core from loaded template stores: {} names ({} DB-bound)",
+        script_name_interner.len_like_cpp(),
+        script_name_interner.all_db_script_names_like_cpp().len()
+    );
     let creature_damage_rates = wow_data::CreatureClassificationDamageRatesLikeCpp {
         normal: world_config_f32(&world_configs, "Rate.Creature.Damage.Normal", 1.0),
         elite: world_config_f32(&world_configs, "Rate.Creature.Damage.Elite", 1.0),
@@ -3136,6 +3145,7 @@ async fn main() -> Result<ExitCode> {
         spell_target_position_store: Some(Arc::clone(&spell_target_position_store)),
         spell_totem_model_store: Some(Arc::clone(&spell_totem_model_store)),
         movie_store: Some(Arc::clone(&movie_store)),
+        script_name_interner: Some(Arc::clone(&script_name_interner)),
         gameobject_template_lifecycle_store: Some(Arc::clone(&gameobject_template_lifecycle_store)),
         area_table_store: Some(Arc::clone(&area_table_store)),
         fishing_base_skill_store: Some(Arc::clone(&fishing_base_skill_store)),
@@ -9486,6 +9496,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.movie_store {
         session.set_movie_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.script_name_interner {
+        session.set_script_name_interner(Arc::clone(store));
     }
     if let Some(ref store) = resources.gameobject_template_lifecycle_store {
         session.set_gameobject_template_lifecycle_store(Arc::clone(store));

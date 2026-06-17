@@ -78,19 +78,20 @@ use wow_data::{
     PlayerConditionAuraLikeCpp, PlayerConditionContextLikeCpp, PlayerConditionCountLikeCpp,
     PlayerConditionPartyStatusLikeCpp, PlayerConditionQuestKillLikeCpp,
     PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp, PlayerConditionStore,
-    PlayerStatsStore, RandPropPointsStore, ServersideSpellInfoLikeCpp, ServersideSpellStoreLikeCpp,
-    SkillLineStore, SkillStore, SpellAreaLikeCpp, SpellAreaStoreLikeCpp, SpellAuraOptionsStore,
-    SpellCategoryStore, SpellChainStoreLikeCpp, SpellCustomAttributeStoreLikeCpp,
-    SpellDurationStore, SpellEnchantProcEntryLikeCpp, SpellEnchantProcStoreLikeCpp,
-    SpellGroupStackRuleLikeCpp, SpellGroupStackRuleStoreLikeCpp, SpellGroupStoreLikeCpp,
-    SpellItemEnchantmentStore, SpellLearnSkillNodeLikeCpp, SpellLearnSkillStoreLikeCpp,
-    SpellLearnSpellNodeLikeCpp, SpellLearnSpellStoreLikeCpp, SpellLinkedStoreLikeCpp,
-    SpellLinkedTypeLikeCpp, SpellMiscStore, SpellPetAuraStoreLikeCpp, SpellProcEntryLikeCpp,
-    SpellProcStoreLikeCpp, SpellRadiusStore, SpellRangeStore, SpellRequiredStoreLikeCpp,
-    SpellStore, SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp,
-    SpellTotemModelStoreLikeCpp, SummonPropertiesEntry, ToyStore, TransmogSetEntry,
-    TransmogSetItemStore, TrinityStringStoreLikeCpp, VEHICLE_SEAT_FLAG_CAN_ATTACK,
-    VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
+    PlayerStatsStore, RandPropPointsStore, ScriptIdLikeCpp, ScriptNameInternerLikeCpp,
+    ServersideSpellInfoLikeCpp, ServersideSpellStoreLikeCpp, SkillLineStore, SkillStore,
+    SpellAreaLikeCpp, SpellAreaStoreLikeCpp, SpellAuraOptionsStore, SpellCategoryStore,
+    SpellChainStoreLikeCpp, SpellCustomAttributeStoreLikeCpp, SpellDurationStore,
+    SpellEnchantProcEntryLikeCpp, SpellEnchantProcStoreLikeCpp, SpellGroupStackRuleLikeCpp,
+    SpellGroupStackRuleStoreLikeCpp, SpellGroupStoreLikeCpp, SpellItemEnchantmentStore,
+    SpellLearnSkillNodeLikeCpp, SpellLearnSkillStoreLikeCpp, SpellLearnSpellNodeLikeCpp,
+    SpellLearnSpellStoreLikeCpp, SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp, SpellMiscStore,
+    SpellPetAuraStoreLikeCpp, SpellProcEntryLikeCpp, SpellProcStoreLikeCpp, SpellRadiusStore,
+    SpellRangeStore, SpellRequiredStoreLikeCpp, SpellStore, SpellTargetPositionStoreLikeCpp,
+    SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp, SpellTotemModelStoreLikeCpp,
+    SummonPropertiesEntry, ToyStore, TransmogSetEntry, TransmogSetItemStore,
+    TrinityStringStoreLikeCpp, VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp,
+    VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
     calculate_battle_pet_stats_like_cpp, is_player_meeting_condition_like_cpp,
     progression_rewards::{
         ContentTuningStore, FactionEntry, FactionStore, FactionTemplateStore,
@@ -3911,6 +3912,7 @@ pub struct WorldSession {
     represented_support_bugs_enabled_like_cpp: bool,
     represented_support_complaints_enabled_like_cpp: bool,
     represented_support_suggestions_enabled_like_cpp: bool,
+    script_name_interner: Option<Arc<ScriptNameInternerLikeCpp>>,
     gameobject_template_lifecycle_store: Option<Arc<GameObjectTemplateLifecycleStoreLikeCpp>>,
     /// Currently active spell cast (if any). Set when a cast starts, cleared when it completes.
     pub(crate) active_spell_cast: Option<SpellCastState>,
@@ -5229,6 +5231,7 @@ impl WorldSession {
             represented_support_bugs_enabled_like_cpp: false,
             represented_support_complaints_enabled_like_cpp: false,
             represented_support_suggestions_enabled_like_cpp: false,
+            script_name_interner: None,
             gameobject_template_lifecycle_store: None,
             quest_store: None,
             quest_pool_store: None,
@@ -17332,6 +17335,23 @@ impl WorldSession {
 
     pub fn set_movie_store(&mut self, store: Arc<MovieStore>) {
         self.movie_store = Some(store);
+    }
+
+    pub fn set_script_name_interner(&mut self, store: Arc<ScriptNameInternerLikeCpp>) {
+        self.script_name_interner = Some(store);
+    }
+
+    pub(crate) fn script_name_like_cpp(&self, id: ScriptIdLikeCpp) -> &str {
+        self.script_name_interner
+            .as_ref()
+            .map(|store| store.get_script_name_like_cpp(id))
+            .unwrap_or("")
+    }
+
+    pub(crate) fn script_id_bound_in_database_like_cpp(&self, id: ScriptIdLikeCpp) -> bool {
+        self.script_name_interner
+            .as_ref()
+            .is_some_and(|store| store.is_script_database_bound_like_cpp(id))
     }
 
     pub fn set_chr_classes_store(&mut self, store: Arc<ChrClassesStore>) {
