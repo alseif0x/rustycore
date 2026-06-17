@@ -5,6 +5,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::{CreatureTemplateLifecycleStoreLikeCpp, GameObjectTemplateLifecycleStoreLikeCpp};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ScriptIdLikeCpp(pub u32);
 
@@ -120,6 +122,34 @@ impl ScriptNameInternerLikeCpp {
     }
 }
 
+pub fn build_template_script_name_interner_like_cpp(
+    creature_templates: &CreatureTemplateLifecycleStoreLikeCpp,
+    gameobject_templates: &GameObjectTemplateLifecycleStoreLikeCpp,
+) -> ScriptNameInternerLikeCpp {
+    let mut interner = ScriptNameInternerLikeCpp::new();
+    interner.reserve_like_cpp(creature_templates.len() + gameobject_templates.len() + 1);
+
+    let mut creature_script_names = creature_templates
+        .entries_like_cpp()
+        .map(|template| (template.entry, template.script_name.as_str()))
+        .collect::<Vec<_>>();
+    creature_script_names.sort_by_key(|(entry, _)| *entry);
+    for (_, script_name) in creature_script_names {
+        interner.get_script_id_like_cpp(script_name, true);
+    }
+
+    let mut gameobject_script_names = gameobject_templates
+        .entries_like_cpp()
+        .map(|template| (template.entry, template.script_name.as_str()))
+        .collect::<Vec<_>>();
+    gameobject_script_names.sort_by_key(|(entry, _)| *entry);
+    for (_, script_name) in gameobject_script_names {
+        interner.get_script_id_like_cpp(script_name, true);
+    }
+
+    interner
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -166,6 +196,123 @@ mod tests {
         assert_eq!(
             interner.all_db_script_names_like_cpp(),
             BTreeSet::from(["npc_from_db".to_string()])
+        );
+    }
+
+    #[test]
+    fn template_script_name_interner_collects_creature_and_gameobject_names_like_cpp() {
+        let creature_templates = CreatureTemplateLifecycleStoreLikeCpp::from_templates([
+            crate::CreatureTemplateLifecycleRecordLikeCpp {
+                entry: 100,
+                name: "Creature A".to_string(),
+                ai_name: String::new(),
+                script_name: "npc_shared".to_string(),
+                required_expansion: 0,
+                faction: 0,
+                npc_flags: 0,
+                speed_walk: 1.0,
+                speed_run: 1.0,
+                scale: 1.0,
+                classification: 0,
+                damage_school: 0,
+                unit_flags: 0,
+                unit_flags2: 0,
+                unit_flags3: 0,
+                creature_type: 0,
+                family: 0,
+                unit_class: 0,
+                vehicle_id: 0,
+                movement_type: 0,
+                ground_movement_type: 1,
+                swim_allowed: true,
+                flight_movement_type: 0,
+                flags_extra: 0,
+                string_id: String::new(),
+                regen_health: true,
+                spells: [0; crate::MAX_CREATURE_SPELLS_LIKE_CPP],
+                models: Vec::new(),
+            },
+            crate::CreatureTemplateLifecycleRecordLikeCpp {
+                entry: 101,
+                name: "Creature B".to_string(),
+                ai_name: String::new(),
+                script_name: String::new(),
+                required_expansion: 0,
+                faction: 0,
+                npc_flags: 0,
+                speed_walk: 1.0,
+                speed_run: 1.0,
+                scale: 1.0,
+                classification: 0,
+                damage_school: 0,
+                unit_flags: 0,
+                unit_flags2: 0,
+                unit_flags3: 0,
+                creature_type: 0,
+                family: 0,
+                unit_class: 0,
+                vehicle_id: 0,
+                movement_type: 0,
+                ground_movement_type: 1,
+                swim_allowed: true,
+                flight_movement_type: 0,
+                flags_extra: 0,
+                string_id: String::new(),
+                regen_health: true,
+                spells: [0; crate::MAX_CREATURE_SPELLS_LIKE_CPP],
+                models: Vec::new(),
+            },
+        ]);
+        let gameobject_templates = GameObjectTemplateLifecycleStoreLikeCpp::from_templates([
+            crate::GameObjectTemplateLifecycleRecordLikeCpp {
+                entry: 200,
+                go_type: 0,
+                display_id: 0,
+                name: "GameObject A".to_string(),
+                size: 1.0,
+                data: [0; wow_entities::MAX_GAMEOBJECT_DATA],
+                content_tuning_id: 0,
+                ai_name: String::new(),
+                script_name: "go_unique".to_string(),
+                string_id: String::new(),
+                addon: None,
+            },
+            crate::GameObjectTemplateLifecycleRecordLikeCpp {
+                entry: 201,
+                go_type: 0,
+                display_id: 0,
+                name: "GameObject B".to_string(),
+                size: 1.0,
+                data: [0; wow_entities::MAX_GAMEOBJECT_DATA],
+                content_tuning_id: 0,
+                ai_name: String::new(),
+                script_name: "npc_shared".to_string(),
+                string_id: String::new(),
+                addon: None,
+            },
+        ]);
+
+        let interner = build_template_script_name_interner_like_cpp(
+            &creature_templates,
+            &gameobject_templates,
+        );
+
+        assert_eq!(interner.get_script_name_like_cpp(ScriptIdLikeCpp::NONE), "");
+        assert_eq!(
+            interner.all_db_script_names_like_cpp(),
+            BTreeSet::from(["go_unique".to_string(), "npc_shared".to_string()])
+        );
+        assert_eq!(
+            interner
+                .find_by_name_like_cpp("npc_shared")
+                .map(|entry| entry.id),
+            Some(ScriptIdLikeCpp(1))
+        );
+        assert_eq!(
+            interner
+                .find_by_name_like_cpp("go_unique")
+                .map(|entry| entry.id),
+            Some(ScriptIdLikeCpp(2))
         );
     }
 }

@@ -291,7 +291,10 @@ pub use player_power::{
 };
 pub use player_stats::{PlayerLevelStats, PlayerStatsStore};
 pub use rand_prop_points::{RandPropPointsEntry, RandPropPointsStore};
-pub use script_name::{ScriptIdLikeCpp, ScriptNameEntryLikeCpp, ScriptNameInternerLikeCpp};
+pub use script_name::{
+    ScriptIdLikeCpp, ScriptNameEntryLikeCpp, ScriptNameInternerLikeCpp,
+    build_template_script_name_interner_like_cpp,
+};
 pub use skill::{
     MAX_CREATURE_SPELL_DATA_SLOT_LIKE_CPP, PetDefaultSpellCreatureTemplateLikeCpp,
     PetDefaultSpellEffectLikeCpp, PetDefaultSpellInfoLikeCpp, PetDefaultSpellStoreLikeCpp,
