@@ -9,7 +9,7 @@
 //! and supports teleportation destinations.
 
 use anyhow::Result;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use tracing::info;
 use wow_core::Position;
 use wow_database::{WorldDatabase, WorldStatements};
@@ -201,6 +201,23 @@ pub struct AreaTriggerScriptStoreLikeCpp {
 pub struct AreaTriggerScriptLoadOutcomeLikeCpp {
     pub store: AreaTriggerScriptStoreLikeCpp,
     pub report: AreaTriggerScriptLoadReportLikeCpp,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TavernAreaTriggerLoadReportLikeCpp {
+    pub rows_seen: usize,
+    pub loaded: usize,
+    pub skipped_missing_area_trigger: Vec<u32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct TavernAreaTriggerStoreLikeCpp {
+    trigger_ids: BTreeSet<u32>,
+}
+
+pub struct TavernAreaTriggerLoadOutcomeLikeCpp {
+    pub store: TavernAreaTriggerStoreLikeCpp,
+    pub report: TavernAreaTriggerLoadReportLikeCpp,
 }
 
 impl AreaTriggerStore {
@@ -408,6 +425,73 @@ impl AreaTriggerScriptStoreLikeCpp {
     }
 }
 
+impl TavernAreaTriggerStoreLikeCpp {
+    pub fn from_ids_like_cpp(
+        rows: impl IntoIterator<Item = u32>,
+        mut area_trigger_exists: impl FnMut(u32) -> bool,
+    ) -> TavernAreaTriggerLoadOutcomeLikeCpp {
+        let mut store = Self::default();
+        let mut rows_seen = 0;
+        let mut skipped_missing_area_trigger = Vec::new();
+
+        for trigger_id in rows {
+            rows_seen += 1;
+            if !area_trigger_exists(trigger_id) {
+                skipped_missing_area_trigger.push(trigger_id);
+                continue;
+            }
+            store.trigger_ids.insert(trigger_id);
+        }
+
+        TavernAreaTriggerLoadOutcomeLikeCpp {
+            report: TavernAreaTriggerLoadReportLikeCpp {
+                rows_seen,
+                loaded: store.len(),
+                skipped_missing_area_trigger,
+            },
+            store,
+        }
+    }
+
+    /// Loads C++ `ObjectMgr::LoadTavernAreaTriggers`.
+    ///
+    /// C++ anchors:
+    /// - `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:6610-6643`
+    /// - validates `id` against authoritative `sAreaTriggerStore`
+    /// - stores a set consumed by `ObjectMgr::IsTavernAreaTrigger`
+    pub async fn load_like_cpp(
+        db: &WorldDatabase,
+        area_trigger_store: &AreaTriggerStore,
+    ) -> Result<TavernAreaTriggerLoadOutcomeLikeCpp> {
+        let mut rows = Vec::new();
+        let mut result = db.direct_query("SELECT id FROM areatrigger_tavern").await?;
+        if !result.is_empty() {
+            loop {
+                rows.push(result.try_read::<u32>(0).unwrap_or(0));
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        Ok(Self::from_ids_like_cpp(rows, |trigger_id| {
+            area_trigger_store.contains_trigger_like_cpp(trigger_id)
+        }))
+    }
+
+    pub fn is_tavern_area_trigger_like_cpp(&self, trigger_id: u32) -> bool {
+        self.trigger_ids.contains(&trigger_id)
+    }
+
+    pub fn len(&self) -> usize {
+        self.trigger_ids.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.trigger_ids.is_empty()
+    }
+}
+
 #[cfg(test)]
 mod area_trigger_script_tests {
     use super::*;
@@ -495,5 +579,22 @@ mod area_trigger_script_tests {
             script_names.get_script_name_like_cpp(ScriptIdLikeCpp(2)),
             "second"
         );
+    }
+
+    #[test]
+    fn tavern_area_trigger_store_validates_ids_like_cpp() {
+        let mut area_triggers = AreaTriggerStore::new();
+        area_triggers.insert(trigger(10));
+
+        let outcome =
+            TavernAreaTriggerStoreLikeCpp::from_ids_like_cpp([10, 11, 10], |trigger_id| {
+                area_triggers.contains_trigger_like_cpp(trigger_id)
+            });
+
+        assert_eq!(outcome.report.rows_seen, 3);
+        assert_eq!(outcome.report.loaded, 1);
+        assert_eq!(outcome.report.skipped_missing_area_trigger, vec![11]);
+        assert!(outcome.store.is_tavern_area_trigger_like_cpp(10));
+        assert!(!outcome.store.is_tavern_area_trigger_like_cpp(11));
     }
 }

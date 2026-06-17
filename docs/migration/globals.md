@@ -471,7 +471,7 @@ Each `LoadXxx` is a sub-task. Ordered by typical TC startup order (which is itse
 - [ ] **#GLOB.36** `load_event_scripts` + `load_spell_scripts` + `load_spell_script_names` + `validate_spell_scripts`.
 - [ ] **#GLOB.37** `load_page_texts` + `_locales`.
 - [ ] **#GLOB.38** `load_npc_text`.
-- [ ] **#GLOB.39** `load_area_trigger_teleports` + `_tavern` + `_scripts`. (already partial in `wow-data/area_trigger.rs`)
+- [ ] **#GLOB.39** `load_area_trigger_teleports` + `_tavern` + `_scripts`. Teleport fallback plus represented `_tavern`/`_scripts` loaders exist in `wow-data/area_trigger.rs`; startup wiring waits for an authoritative `AreaTriggerStore` instead of the current teleport-only fallback.
 - [ ] **#GLOB.40** `load_access_requirements`.
 - [ ] **#GLOB.41** `load_graveyard_zones` + `load_world_safe_locs` + `get_closest_graveyard()`. (H — runs `Conditions` at lookup time; partial: `wow-data::GraveyardStore` has `graveyard_zone` row loading, duplicate/missing validation hooks, `FindGraveyardData`, and ConditionMgr attachment support; world-safe-loc DB2 and closest-graveyard gameplay remain open)
 - [ ] **#GLOB.42** `load_exploration_base_xp`.

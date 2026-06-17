@@ -86,7 +86,8 @@ pub use area::{
 pub use area_trigger::{
     AreaTriggerData, AreaTriggerScriptLoadOutcomeLikeCpp, AreaTriggerScriptLoadReportLikeCpp,
     AreaTriggerScriptRowLikeCpp, AreaTriggerScriptStoreLikeCpp, AreaTriggerStore,
-    AreaTriggerTeleport, TriggerShape, load_area_triggers,
+    AreaTriggerTeleport, TavernAreaTriggerLoadOutcomeLikeCpp, TavernAreaTriggerLoadReportLikeCpp,
+    TavernAreaTriggerStoreLikeCpp, TriggerShape, load_area_triggers,
 };
 pub use area_trigger_template::AreaTriggerTemplateStore;
 pub use battlemaster_list::{
