@@ -316,7 +316,8 @@ pub use phasing::{
 };
 pub use player_choice::{
     PlayerChoiceLikeCpp, PlayerChoiceLoadOutcomeLikeCpp, PlayerChoiceLoadReportLikeCpp,
-    PlayerChoiceResponseLikeCpp, PlayerChoiceResponseRowLikeCpp, PlayerChoiceRowLikeCpp,
+    PlayerChoiceResponseLikeCpp, PlayerChoiceResponseRewardLikeCpp,
+    PlayerChoiceResponseRewardRowLikeCpp, PlayerChoiceResponseRowLikeCpp, PlayerChoiceRowLikeCpp,
     PlayerChoiceStoreLikeCpp,
 };
 pub use player_condition::{

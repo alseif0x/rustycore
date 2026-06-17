@@ -344,6 +344,8 @@ pub enum WorldStatements {
     SEL_PLAYER_CHOICES,
     /// C++ `ObjectMgr::LoadPlayerChoices` response rows.
     SEL_PLAYER_CHOICE_RESPONSES,
+    /// C++ `ObjectMgr::LoadPlayerChoices` response reward rows.
+    SEL_PLAYER_CHOICE_RESPONSE_REWARDS,
     // Quest system
     SEL_QUEST_TEMPLATE,
     SEL_QUEST_OBJECTIVES,
@@ -1056,6 +1058,9 @@ impl StatementDef for WorldStatements {
             Self::SEL_PLAYER_CHOICE_RESPONSES => {
                 "SELECT ChoiceId, ResponseId, ResponseIdentifier, ChoiceArtFileId, Flags, WidgetSetID, UiTextureAtlasElementID, SoundKitID, GroupID, UiTextureKitID, Answer, Header, SubHeader, ButtonTooltip, Description, Confirmation, RewardQuestID FROM playerchoice_response ORDER BY `Index` ASC"
             }
+            Self::SEL_PLAYER_CHOICE_RESPONSE_REWARDS => {
+                "SELECT ChoiceId, ResponseId, TitleId, PackageId, SkillLineId, SkillPointCount, ArenaPointCount, HonorPointCount, Money, Xp FROM playerchoice_response_reward"
+            }
             Self::SEL_TRAINER_BY_CREATURE => {
                 "SELECT TrainerId FROM creature_trainer WHERE CreatureID = ?"
             }
@@ -1544,6 +1549,7 @@ mod tests {
     fn player_choice_statements_match_cpp_sql_exactly() {
         let choices_sql = WorldStatements::SEL_PLAYER_CHOICES.sql();
         let responses_sql = WorldStatements::SEL_PLAYER_CHOICE_RESPONSES.sql();
+        let rewards_sql = WorldStatements::SEL_PLAYER_CHOICE_RESPONSE_REWARDS.sql();
 
         assert_eq!(
             choices_sql,
@@ -1553,7 +1559,12 @@ mod tests {
             responses_sql,
             "SELECT ChoiceId, ResponseId, ResponseIdentifier, ChoiceArtFileId, Flags, WidgetSetID, UiTextureAtlasElementID, SoundKitID, GroupID, UiTextureKitID, Answer, Header, SubHeader, ButtonTooltip, Description, Confirmation, RewardQuestID FROM playerchoice_response ORDER BY `Index` ASC"
         );
+        assert_eq!(
+            rewards_sql,
+            "SELECT ChoiceId, ResponseId, TitleId, PackageId, SkillLineId, SkillPointCount, ArenaPointCount, HonorPointCount, Money, Xp FROM playerchoice_response_reward"
+        );
         assert_eq!(choices_sql.matches('?').count(), 0);
         assert_eq!(responses_sql.matches('?').count(), 0);
+        assert_eq!(rewards_sql.matches('?').count(), 0);
     }
 }

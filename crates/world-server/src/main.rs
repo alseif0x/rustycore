@@ -1166,31 +1166,6 @@ async fn main() -> Result<ExitCode> {
         scene_template_outcome.report.rows_seen,
         scene_template_outcome.report.cpp_logged_count_bug_like_cpp
     );
-    let player_choice_outcome =
-        wow_data::PlayerChoiceStoreLikeCpp::load_core_like_cpp(world_db.as_ref())
-            .await
-            .context("Failed to load C++ playerchoice/playerchoice_response rows")?;
-    for (choice_id, response_id) in &player_choice_outcome
-        .report
-        .skipped_responses_missing_choice
-    {
-        tracing::error!(
-            target: "sql.sql",
-            "Table `playerchoice_response` references non-existing ChoiceId: {} (ResponseId: {}), skipped",
-            choice_id,
-            response_id
-        );
-    }
-    let _player_choice_store = Arc::new(player_choice_outcome.store);
-    info!(
-        "Loaded {} C++ player choices with {} responses ({} skipped; rewards/locales pending)",
-        player_choice_outcome.report.choice_rows_seen,
-        player_choice_outcome.report.loaded_responses,
-        player_choice_outcome
-            .report
-            .skipped_responses_missing_choice
-            .len()
-    );
     let script_name_interner = Arc::new(script_name_interner);
     info!(
         "Built C++ ScriptNameContainer core from loaded template/scene stores: {} names ({} DB-bound)",
@@ -2634,6 +2609,111 @@ async fn main() -> Result<ExitCode> {
     let quest_package_item_store = Arc::new(
         wow_data::progression_rewards::QuestPackageItemStore::load(&data_dir, &locale)
             .context("Failed to load QuestPackageItem.db2 — check DataDir and DBC.Locale config")?,
+    );
+    let player_choice_outcome = wow_data::PlayerChoiceStoreLikeCpp::load_core_like_cpp(
+        world_db.as_ref(),
+        |title_id| char_titles_store.contains(title_id),
+        |package_id| {
+            quest_package_item_store
+                .quest_package_items_like_cpp(package_id)
+                .next()
+                .is_some()
+                || quest_package_item_store
+                    .quest_package_items_fallback_like_cpp(package_id)
+                    .next()
+                    .is_some()
+        },
+        |skill_line_id| skill_line_store.get(skill_line_id).is_some(),
+    )
+    .await
+    .context(
+        "Failed to load C++ playerchoice/playerchoice_response/playerchoice_response_reward rows",
+    )?;
+    for (choice_id, response_id) in &player_choice_outcome
+        .report
+        .skipped_responses_missing_choice
+    {
+        tracing::error!(
+            target: "sql.sql",
+            "Table `playerchoice_response` references non-existing ChoiceId: {} (ResponseId: {}), skipped",
+            choice_id,
+            response_id
+        );
+    }
+    for (choice_id, response_id) in &player_choice_outcome.report.skipped_rewards_missing_choice {
+        tracing::error!(
+            target: "sql.sql",
+            "Table `playerchoice_response_reward` references non-existing ChoiceId: {} (ResponseId: {}), skipped",
+            choice_id,
+            response_id
+        );
+    }
+    for (choice_id, response_id) in &player_choice_outcome
+        .report
+        .skipped_rewards_missing_response
+    {
+        tracing::error!(
+            target: "sql.sql",
+            "Table `playerchoice_response_reward` references non-existing ResponseId: {} for ChoiceId {}, skipped",
+            response_id,
+            choice_id
+        );
+    }
+    for (choice_id, response_id, title_id) in &player_choice_outcome.report.invalid_reward_titles {
+        tracing::error!(
+            target: "sql.sql",
+            "Table `playerchoice_response_reward` references non-existing Title {} for ChoiceId {}, ResponseId: {}, set to 0",
+            title_id,
+            choice_id,
+            response_id
+        );
+    }
+    for (choice_id, response_id, package_id) in
+        &player_choice_outcome.report.invalid_reward_packages
+    {
+        tracing::error!(
+            target: "sql.sql",
+            "Table `playerchoice_response_reward` references non-existing QuestPackage {} for ChoiceId {}, ResponseId: {}, set to 0",
+            package_id,
+            choice_id,
+            response_id
+        );
+    }
+    for (choice_id, response_id, skill_line_id) in
+        &player_choice_outcome.report.invalid_reward_skill_lines
+    {
+        tracing::error!(
+            target: "sql.sql",
+            "Table `playerchoice_response_reward` references non-existing SkillLine {} for ChoiceId {}, ResponseId: {}, set to 0",
+            skill_line_id,
+            choice_id,
+            response_id
+        );
+    }
+    let _player_choice_store = Arc::new(player_choice_outcome.store);
+    info!(
+        "Loaded {} C++ player choices with {} responses and {} base rewards ({} skipped responses, {} skipped rewards, {} invalid reward refs; locales/reward entries pending)",
+        player_choice_outcome.report.choice_rows_seen,
+        player_choice_outcome.report.loaded_responses,
+        player_choice_outcome.report.loaded_rewards,
+        player_choice_outcome
+            .report
+            .skipped_responses_missing_choice
+            .len(),
+        player_choice_outcome
+            .report
+            .skipped_rewards_missing_choice
+            .len()
+            + player_choice_outcome
+                .report
+                .skipped_rewards_missing_response
+                .len(),
+        player_choice_outcome.report.invalid_reward_titles.len()
+            + player_choice_outcome.report.invalid_reward_packages.len()
+            + player_choice_outcome
+                .report
+                .invalid_reward_skill_lines
+                .len()
     );
     let quest_faction_reward_store = Arc::new(
         wow_data::progression_rewards::QuestFactionRewardStore::load(&data_dir, &locale).context(
