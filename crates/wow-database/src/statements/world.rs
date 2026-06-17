@@ -407,6 +407,10 @@ pub enum WorldStatements {
     SEL_AREA_TRIGGER_TEMPLATE_IDS,
     /// C++ `AreaTriggerDataStore::LoadAreaTriggerTemplates` action rows.
     SEL_AREATRIGGER_TEMPLATE_ACTIONS,
+    /// C++ `AreaTriggerDataStore::LoadAreaTriggerTemplates` polygon vertex rows.
+    SEL_AREATRIGGER_CREATE_PROPERTIES_POLYGON_VERTICES,
+    /// C++ `AreaTriggerDataStore::LoadAreaTriggerTemplates` spline point rows.
+    SEL_AREATRIGGER_CREATE_PROPERTIES_SPLINE_POINTS,
     /// C++ `AreaTriggerDataStore::LoadAreaTriggerTemplates` template rows.
     SEL_AREATRIGGER_TEMPLATES,
 }
@@ -1153,6 +1157,12 @@ impl StatementDef for WorldStatements {
             Self::SEL_AREATRIGGER_TEMPLATE_ACTIONS => {
                 "SELECT AreaTriggerId, IsCustom, ActionType, ActionParam, TargetType FROM `areatrigger_template_actions`"
             }
+            Self::SEL_AREATRIGGER_CREATE_PROPERTIES_POLYGON_VERTICES => {
+                "SELECT AreaTriggerCreatePropertiesId, IsCustom, Idx, VerticeX, VerticeY, VerticeTargetX, VerticeTargetY FROM `areatrigger_create_properties_polygon_vertex` ORDER BY `AreaTriggerCreatePropertiesId`, `IsCustom`, `Idx`"
+            }
+            Self::SEL_AREATRIGGER_CREATE_PROPERTIES_SPLINE_POINTS => {
+                "SELECT AreaTriggerCreatePropertiesId, IsCustom, X, Y, Z FROM `areatrigger_create_properties_spline_point` ORDER BY `AreaTriggerCreatePropertiesId`, `IsCustom`, `Idx`"
+            }
             Self::SEL_AREATRIGGER_TEMPLATES => {
                 "SELECT Id, IsCustom, Flags FROM `areatrigger_template`"
             }
@@ -1703,6 +1713,10 @@ mod tests {
     #[test]
     fn areatrigger_template_loader_statements_match_cpp_sql_exactly() {
         let actions_sql = WorldStatements::SEL_AREATRIGGER_TEMPLATE_ACTIONS.sql();
+        let polygon_vertices_sql =
+            WorldStatements::SEL_AREATRIGGER_CREATE_PROPERTIES_POLYGON_VERTICES.sql();
+        let spline_points_sql =
+            WorldStatements::SEL_AREATRIGGER_CREATE_PROPERTIES_SPLINE_POINTS.sql();
         let templates_sql = WorldStatements::SEL_AREATRIGGER_TEMPLATES.sql();
 
         assert_eq!(
@@ -1710,10 +1724,20 @@ mod tests {
             "SELECT AreaTriggerId, IsCustom, ActionType, ActionParam, TargetType FROM `areatrigger_template_actions`"
         );
         assert_eq!(
+            polygon_vertices_sql,
+            "SELECT AreaTriggerCreatePropertiesId, IsCustom, Idx, VerticeX, VerticeY, VerticeTargetX, VerticeTargetY FROM `areatrigger_create_properties_polygon_vertex` ORDER BY `AreaTriggerCreatePropertiesId`, `IsCustom`, `Idx`"
+        );
+        assert_eq!(
+            spline_points_sql,
+            "SELECT AreaTriggerCreatePropertiesId, IsCustom, X, Y, Z FROM `areatrigger_create_properties_spline_point` ORDER BY `AreaTriggerCreatePropertiesId`, `IsCustom`, `Idx`"
+        );
+        assert_eq!(
             templates_sql,
             "SELECT Id, IsCustom, Flags FROM `areatrigger_template`"
         );
         assert_eq!(actions_sql.matches('?').count(), 0);
+        assert_eq!(polygon_vertices_sql.matches('?').count(), 0);
+        assert_eq!(spline_points_sql.matches('?').count(), 0);
         assert_eq!(templates_sql.matches('?').count(), 0);
     }
 }

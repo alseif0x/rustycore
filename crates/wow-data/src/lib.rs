@@ -108,7 +108,13 @@ pub use area_trigger::{
     TavernAreaTriggerLoadOutcomeLikeCpp, TavernAreaTriggerLoadReportLikeCpp,
     TavernAreaTriggerStoreLikeCpp, TriggerShape, load_area_triggers,
 };
-pub use area_trigger_template::AreaTriggerTemplateStore;
+pub use area_trigger_template::{
+    AreaTriggerActionLikeCpp, AreaTriggerIdLikeCpp, AreaTriggerPolygonVertexRowLikeCpp,
+    AreaTriggerPosition2LikeCpp, AreaTriggerPosition3LikeCpp, AreaTriggerSplinePointRowLikeCpp,
+    AreaTriggerTemplateActionRowLikeCpp, AreaTriggerTemplateLikeCpp,
+    AreaTriggerTemplateLoadOutcomeLikeCpp, AreaTriggerTemplateLoadReportLikeCpp,
+    AreaTriggerTemplateRowLikeCpp, AreaTriggerTemplateStore,
+};
 pub use battlemaster_list::{
     BATTLEGROUND_AA_LIKE_CPP, BATTLEGROUND_AB_LIKE_CPP, BATTLEGROUND_AV_LIKE_CPP,
     BATTLEGROUND_BFG_LIKE_CPP, BATTLEGROUND_EY_LIKE_CPP, BATTLEGROUND_IC_LIKE_CPP,

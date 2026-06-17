@@ -1692,14 +1692,31 @@ async fn main() -> Result<ExitCode> {
             param
         );
     }
+    for (create_properties_id, idx) in &area_trigger_template_outcome
+        .report
+        .invalid_partial_target_vertices
+    {
+        tracing::error!(
+            target: "sql.sql",
+            "Table `areatrigger_create_properties_polygon_vertex` has listed invalid target vertices (AreaTriggerCreatePropertiesId: ({},{}), Index: {}).",
+            create_properties_id.id,
+            u32::from(create_properties_id.is_custom),
+            idx
+        );
+    }
     let area_trigger_template_report = area_trigger_template_outcome.report;
     let area_trigger_template_store = Arc::new(area_trigger_template_outcome.store);
     info!(
-        "Loaded {} C++ area-trigger templates with {} actions from {} template rows / {} action rows ({} invalid actions skipped; create properties/spawns pending)",
+        "Loaded {} C++ area-trigger templates with {} actions, {} polygon vertices ({} targets), and {} spline points from {} template rows / {} action rows / {} polygon rows / {} spline rows ({} invalid rows skipped; create properties/spawns pending)",
         area_trigger_template_report.loaded_templates,
         area_trigger_template_report.loaded_actions,
+        area_trigger_template_report.loaded_polygon_vertices,
+        area_trigger_template_report.loaded_polygon_target_vertices,
+        area_trigger_template_report.loaded_spline_points,
         area_trigger_template_report.template_rows_seen,
         area_trigger_template_report.action_rows_seen,
+        area_trigger_template_report.polygon_vertex_rows_seen,
+        area_trigger_template_report.spline_point_rows_seen,
         area_trigger_template_report
             .skipped_actions_invalid_action_type
             .len()
@@ -1708,6 +1725,9 @@ async fn main() -> Result<ExitCode> {
                 .len()
             + area_trigger_template_report
                 .skipped_actions_invalid_teleport_world_safe_loc
+                .len()
+            + area_trigger_template_report
+                .invalid_partial_target_vertices
                 .len()
     );
 
