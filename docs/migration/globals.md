@@ -495,7 +495,7 @@ Each `LoadXxx` is a sub-task. Ordered by typical TC startup order (which is itse
 
 ### Phase E — DataStore companions
 
-- [ ] **#GLOB.60** Port `AreaTriggerDataStore` (template + create_properties + actions/spline/polygon). (H — already partly in `wow-data/area_trigger.rs`)
+- [~] **#GLOB.60** Port `AreaTriggerDataStore` (template + create_properties + actions/spline/polygon). 60A now represents the first C++ `AreaTriggerDataStore::LoadAreaTriggerTemplates` stage for `areatrigger_template_actions` + `areatrigger_template`: exact SQL, action type / target type validation, teleport-action `WorldSafeLoc` validation, template flags, actions moved into matching templates, startup loading/logging, and `GetAreaTriggerTemplate`/ConditionMgr key lookup semantics through `AreaTriggerTemplateStore`. Remaining: polygon vertices, spline points, `areatrigger_create_properties`, curve/shape validation, orbit info, static `areatrigger` spawns, map/cell index, and live AreaTrigger runtime consumption.
 - [ ] **#GLOB.61** Port `CharacterTemplateDataStore` (chargen presets). (M)
 - [ ] **#GLOB.62** Port `ConversationDataStore` (NPC dialog scripting). (H — ties into spell visuals & line timing)
 

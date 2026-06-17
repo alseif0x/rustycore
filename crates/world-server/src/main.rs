@@ -1650,14 +1650,65 @@ async fn main() -> Result<ExitCode> {
         "Loaded condition validation trainer id store: {} trainers",
         trainer_store.len()
     );
-    let area_trigger_template_store = Arc::new(
-        wow_data::AreaTriggerTemplateStore::load_like_cpp(world_db.as_ref())
+    let area_trigger_template_outcome =
+        wow_data::AreaTriggerTemplateStore::load_like_cpp(world_db.as_ref(), &world_safe_loc_store)
             .await
-            .context("Failed to load areatrigger_template keys for C++ ConditionMgr validation")?,
-    );
+            .context("Failed to load C++ areatrigger_template / areatrigger_template_actions")?;
+    for (area_trigger_id, action_type, param) in &area_trigger_template_outcome
+        .report
+        .skipped_actions_invalid_action_type
+    {
+        tracing::error!(
+            target: "sql.sql",
+            "Table `areatrigger_template_actions` has invalid ActionType {} for AreaTriggerId ({},{}) and Param {}",
+            action_type,
+            area_trigger_id.id,
+            u32::from(area_trigger_id.is_custom),
+            param
+        );
+    }
+    for (area_trigger_id, target_type, param) in &area_trigger_template_outcome
+        .report
+        .skipped_actions_invalid_target_type
+    {
+        tracing::error!(
+            target: "sql.sql",
+            "Table `areatrigger_template_actions` has invalid TargetType {} for AreaTriggerId ({},{}) and Param {}",
+            target_type,
+            area_trigger_id.id,
+            u32::from(area_trigger_id.is_custom),
+            param
+        );
+    }
+    for (area_trigger_id, param) in &area_trigger_template_outcome
+        .report
+        .skipped_actions_invalid_teleport_world_safe_loc
+    {
+        tracing::error!(
+            target: "sql.sql",
+            "Table `areatrigger_template_actions` has invalid entry for AreaTriggerId ({},{}) with TargetType=Teleport and Param ({}) not a valid world safe loc entry",
+            area_trigger_id.id,
+            u32::from(area_trigger_id.is_custom),
+            param
+        );
+    }
+    let area_trigger_template_report = area_trigger_template_outcome.report;
+    let area_trigger_template_store = Arc::new(area_trigger_template_outcome.store);
     info!(
-        "Loaded condition validation area-trigger template store: {} templates",
-        area_trigger_template_store.len()
+        "Loaded {} C++ area-trigger templates with {} actions from {} template rows / {} action rows ({} invalid actions skipped; create properties/spawns pending)",
+        area_trigger_template_report.loaded_templates,
+        area_trigger_template_report.loaded_actions,
+        area_trigger_template_report.template_rows_seen,
+        area_trigger_template_report.action_rows_seen,
+        area_trigger_template_report
+            .skipped_actions_invalid_action_type
+            .len()
+            + area_trigger_template_report
+                .skipped_actions_invalid_target_type
+                .len()
+            + area_trigger_template_report
+                .skipped_actions_invalid_teleport_world_safe_loc
+                .len()
     );
 
     let map_difficulty_store = Arc::new(

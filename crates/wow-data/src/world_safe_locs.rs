@@ -79,6 +79,13 @@ impl WorldSafeLocStore {
         (store, report)
     }
 
+    #[cfg(test)]
+    pub fn from_locs_for_test(locs: impl IntoIterator<Item = WorldSafeLoc>) -> Self {
+        Self {
+            by_id: locs.into_iter().map(|loc| (loc.id, loc)).collect(),
+        }
+    }
+
     fn load_rows_like_cpp(
         &mut self,
         rows: impl IntoIterator<Item = WorldSafeLocRow>,

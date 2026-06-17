@@ -405,6 +405,10 @@ pub enum WorldStatements {
     SEL_CONVERSATION_LINE_TEMPLATE_IDS,
     /// Load area-trigger template keys for C++ ConditionMgr source validation.
     SEL_AREA_TRIGGER_TEMPLATE_IDS,
+    /// C++ `AreaTriggerDataStore::LoadAreaTriggerTemplates` action rows.
+    SEL_AREATRIGGER_TEMPLATE_ACTIONS,
+    /// C++ `AreaTriggerDataStore::LoadAreaTriggerTemplates` template rows.
+    SEL_AREATRIGGER_TEMPLATES,
 }
 
 impl StatementDef for WorldStatements {
@@ -1146,6 +1150,12 @@ impl StatementDef for WorldStatements {
             Self::SEL_TRAINER_IDS => "SELECT Id FROM trainer",
             Self::SEL_CONVERSATION_LINE_TEMPLATE_IDS => "SELECT Id FROM conversation_line_template",
             Self::SEL_AREA_TRIGGER_TEMPLATE_IDS => "SELECT Id, IsCustom FROM areatrigger_template",
+            Self::SEL_AREATRIGGER_TEMPLATE_ACTIONS => {
+                "SELECT AreaTriggerId, IsCustom, ActionType, ActionParam, TargetType FROM `areatrigger_template_actions`"
+            }
+            Self::SEL_AREATRIGGER_TEMPLATES => {
+                "SELECT Id, IsCustom, Flags FROM `areatrigger_template`"
+            }
             Self::SEL_QUEST_TEMPLATE => concat!(
                 "SELECT qt.ID, qt.QuestType, qt.QuestLevel, qt.QuestMaxScalingLevel, qt.QuestPackageID, qt.MinLevel, qt.QuestSortID, ",
                 "qt.QuestInfoID, qt.SuggestedGroupNum, qt.RewardNextQuest, qt.RewardXPDifficulty, qt.RewardXPMultiplier, ",
@@ -1688,5 +1698,22 @@ mod tests {
         );
         assert_eq!(gameobject_sql.matches('?').count(), 0);
         assert_eq!(creature_sql.matches('?').count(), 0);
+    }
+
+    #[test]
+    fn areatrigger_template_loader_statements_match_cpp_sql_exactly() {
+        let actions_sql = WorldStatements::SEL_AREATRIGGER_TEMPLATE_ACTIONS.sql();
+        let templates_sql = WorldStatements::SEL_AREATRIGGER_TEMPLATES.sql();
+
+        assert_eq!(
+            actions_sql,
+            "SELECT AreaTriggerId, IsCustom, ActionType, ActionParam, TargetType FROM `areatrigger_template_actions`"
+        );
+        assert_eq!(
+            templates_sql,
+            "SELECT Id, IsCustom, Flags FROM `areatrigger_template`"
+        );
+        assert_eq!(actions_sql.matches('?').count(), 0);
+        assert_eq!(templates_sql.matches('?').count(), 0);
     }
 }
