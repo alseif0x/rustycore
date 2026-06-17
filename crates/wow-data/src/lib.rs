@@ -78,6 +78,7 @@ pub mod world_id_store;
 pub mod world_safe_locs;
 pub mod world_spawn_id_store;
 pub mod world_state_expression;
+pub mod xp;
 
 pub use access_requirement::{
     AccessRequirementLikeCpp, AccessRequirementLoadOutcomeLikeCpp,
@@ -445,3 +446,4 @@ pub use world_state_expression::{
     WorldStateExpressionTimeLikeCpp, WorldStateExpressionWorldState,
     is_meeting_world_state_expression_like_cpp,
 };
+pub use xp::{ExplorationBaseXpRowLikeCpp, ExplorationBaseXpStoreLikeCpp};

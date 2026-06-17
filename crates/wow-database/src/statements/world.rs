@@ -76,6 +76,8 @@ pub enum WorldStatements {
     SEL_REPUTATION_SPILLOVER_TEMPLATE,
     /// SELECT Experience FROM player_xp_for_level ORDER BY Level
     SEL_PLAYER_XP_FOR_LEVEL,
+    /// C++ ObjectMgr exploration base XP by area level.
+    SEL_EXPLORATION_BASE_XP,
     SEL_CREATURE_BY_ID,
     /// Creature template entry by spawn GUID (for vendor/trainer when not in visibility tracker).
     SEL_CREATURE_ENTRY_BY_GUID,
@@ -478,6 +480,7 @@ impl StatementDef for WorldStatements {
             Self::SEL_PLAYER_XP_FOR_LEVEL => {
                 "SELECT Level, Experience FROM player_xp_for_level ORDER BY Level"
             }
+            Self::SEL_EXPLORATION_BASE_XP => "SELECT level, basexp FROM exploration_basexp",
             Self::SEL_CREATURE_TEMPLATE => concat!(
                 "SELECT entry, KillCredit1, KillCredit2, name, femaleName, subname, TitleAlt, IconName, ",
                 "RequiredExpansion, VignetteID, faction, npcflag, speed_walk, speed_run, scale, Classification, ",
