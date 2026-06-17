@@ -348,6 +348,8 @@ pub enum WorldStatements {
     SEL_PLAYER_CHOICE_RESPONSE_REWARDS,
     /// C++ `ObjectMgr::LoadPlayerChoices` response reward item rows.
     SEL_PLAYER_CHOICE_RESPONSE_REWARD_ITEMS,
+    /// C++ `ObjectMgr::LoadPlayerChoices` response reward currency rows.
+    SEL_PLAYER_CHOICE_RESPONSE_REWARD_CURRENCIES,
     // Quest system
     SEL_QUEST_TEMPLATE,
     SEL_QUEST_OBJECTIVES,
@@ -1066,6 +1068,9 @@ impl StatementDef for WorldStatements {
             Self::SEL_PLAYER_CHOICE_RESPONSE_REWARD_ITEMS => {
                 "SELECT ChoiceId, ResponseId, ItemId, BonusListIDs, Quantity FROM playerchoice_response_reward_item ORDER BY `Index` ASC"
             }
+            Self::SEL_PLAYER_CHOICE_RESPONSE_REWARD_CURRENCIES => {
+                "SELECT ChoiceId, ResponseId, CurrencyId, Quantity FROM playerchoice_response_reward_currency ORDER BY `Index` ASC"
+            }
             Self::SEL_TRAINER_BY_CREATURE => {
                 "SELECT TrainerId FROM creature_trainer WHERE CreatureID = ?"
             }
@@ -1556,6 +1561,8 @@ mod tests {
         let responses_sql = WorldStatements::SEL_PLAYER_CHOICE_RESPONSES.sql();
         let rewards_sql = WorldStatements::SEL_PLAYER_CHOICE_RESPONSE_REWARDS.sql();
         let reward_items_sql = WorldStatements::SEL_PLAYER_CHOICE_RESPONSE_REWARD_ITEMS.sql();
+        let reward_currencies_sql =
+            WorldStatements::SEL_PLAYER_CHOICE_RESPONSE_REWARD_CURRENCIES.sql();
 
         assert_eq!(
             choices_sql,
@@ -1573,9 +1580,14 @@ mod tests {
             reward_items_sql,
             "SELECT ChoiceId, ResponseId, ItemId, BonusListIDs, Quantity FROM playerchoice_response_reward_item ORDER BY `Index` ASC"
         );
+        assert_eq!(
+            reward_currencies_sql,
+            "SELECT ChoiceId, ResponseId, CurrencyId, Quantity FROM playerchoice_response_reward_currency ORDER BY `Index` ASC"
+        );
         assert_eq!(choices_sql.matches('?').count(), 0);
         assert_eq!(responses_sql.matches('?').count(), 0);
         assert_eq!(rewards_sql.matches('?').count(), 0);
         assert_eq!(reward_items_sql.matches('?').count(), 0);
+        assert_eq!(reward_currencies_sql.matches('?').count(), 0);
     }
 }
