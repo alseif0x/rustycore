@@ -1648,6 +1648,7 @@ impl LoadedGridRespawnRecordsLikeCpp {
 pub struct LoadedGridAreaTriggerRecordsSummaryLikeCpp {
     pub grid_not_loaded: bool,
     pub metadata_entries: usize,
+    pub skipped_already_loaded: usize,
     pub skipped_should_not_spawn: usize,
     pub stale_index_entries: usize,
     pub skipped_difficulty_mismatch: usize,
@@ -13025,6 +13026,13 @@ where
         let mut plans = Vec::new();
         let mut summary = LoadedGridAreaTriggerRecordsSummaryLikeCpp::default();
         for spawn_id in spawn_ids {
+            if self
+                .get_area_trigger_by_spawn_id_like_cpp(spawn_id)
+                .is_some()
+            {
+                summary.skipped_already_loaded += 1;
+                continue;
+            }
             if !spawn_filter.should_be_spawned_on_grid_load(SpawnObjectType::AreaTrigger, spawn_id)
             {
                 summary.skipped_should_not_spawn += 1;
@@ -18964,6 +18972,39 @@ mod tests {
         assert_eq!(summary.skipped_should_not_spawn, 1);
         assert!(summary.loaded_grid_primary_records.is_empty());
         assert!(map.get_area_trigger_by_spawn_id_like_cpp(8802).is_none());
+    }
+
+    #[test]
+    fn loaded_grid_area_trigger_records_skip_already_loaded_spawn_like_cpp() {
+        let mut map = test_map();
+        let group = SpawnGroupTemplateData::legacy_group();
+        let spawn = spawn_data(SpawnObjectType::AreaTrigger, 8803, group);
+        let mut store = SpawnStore::new();
+        store.add_area_trigger_spawn(&spawn);
+        map.ensure_grid_loaded(&cell_from_world(0.0, 0.0));
+        map.add_map_object_record_to_map_like_cpp(
+            MapObjectRecord::new_area_trigger(test_area_trigger_for_spawn(8803, 880301)).unwrap(),
+        )
+        .unwrap();
+
+        let mut callback_calls = 0;
+        let summary = map.load_loaded_grid_area_trigger_records_like_cpp(
+            GridCoord::new(32, 32),
+            &store,
+            |_, _, _| {
+                callback_calls += 1;
+                Some(LoadedGridRespawnRecordsLikeCpp::primary_only(
+                    MapObjectRecord::new_area_trigger(test_area_trigger_for_spawn(8803, 880302))
+                        .unwrap(),
+                ))
+            },
+        );
+
+        assert_eq!(callback_calls, 0);
+        assert_eq!(summary.skipped_already_loaded, 1);
+        assert_eq!(summary.metadata_entries, 0);
+        assert!(summary.loaded_grid_primary_records.is_empty());
+        assert_eq!(map.area_trigger_spawn_id_store_count_like_cpp(8803), 1);
     }
 
     #[test]
