@@ -78,9 +78,10 @@ use wow_data::{
     PlayerConditionQuestKillLikeCpp, PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp,
     PlayerConditionStore, PlayerStatsStore, RandPropPointsStore, SkillLineStore, SkillStore,
     SpellAuraOptionsStore, SpellCategoryStore, SpellChainStoreLikeCpp, SpellDurationStore,
-    SpellGroupStoreLikeCpp, SpellItemEnchantmentStore, SpellMiscStore, SpellProcEntryLikeCpp,
-    SpellProcStoreLikeCpp, SpellRadiusStore, SpellRangeStore, SpellRequiredStoreLikeCpp,
-    SpellStore, SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp,
+    SpellGroupStackRuleLikeCpp, SpellGroupStackRuleStoreLikeCpp, SpellGroupStoreLikeCpp,
+    SpellItemEnchantmentStore, SpellMiscStore, SpellProcEntryLikeCpp, SpellProcStoreLikeCpp,
+    SpellRadiusStore, SpellRangeStore, SpellRequiredStoreLikeCpp, SpellStore,
+    SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp,
     SummonPropertiesEntry, ToyStore, TransmogSetEntry, TransmogSetItemStore,
     TrinityStringStoreLikeCpp, VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp,
     VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
@@ -3869,6 +3870,7 @@ pub struct WorldSession {
     spell_aura_options_store: Option<Arc<SpellAuraOptionsStore>>,
     spell_misc_store: Option<Arc<SpellMiscStore>>,
     spell_group_store: Option<Arc<SpellGroupStoreLikeCpp>>,
+    spell_group_stack_rule_store: Option<Arc<SpellGroupStackRuleStoreLikeCpp>>,
     spell_proc_store: Option<Arc<SpellProcStoreLikeCpp>>,
     spell_required_store: Option<Arc<SpellRequiredStoreLikeCpp>>,
     spell_threat_store: Option<Arc<SpellThreatStoreLikeCpp>>,
@@ -5174,6 +5176,7 @@ impl WorldSession {
             spell_aura_options_store: None,
             spell_misc_store: None,
             spell_group_store: None,
+            spell_group_stack_rule_store: None,
             spell_proc_store: None,
             spell_required_store: None,
             spell_threat_store: None,
@@ -16960,6 +16963,50 @@ impl WorldSession {
             .as_ref()
             .map(|store| store.set_of_spells_in_spell_group_like_cpp(group_id))
             .unwrap_or_default()
+    }
+
+    pub fn set_spell_group_stack_rule_store(
+        &mut self,
+        store: Arc<SpellGroupStackRuleStoreLikeCpp>,
+    ) {
+        self.spell_group_stack_rule_store = Some(store);
+    }
+
+    pub(crate) fn spell_group_stack_rule_like_cpp(
+        &self,
+        group_id: u32,
+    ) -> SpellGroupStackRuleLikeCpp {
+        self.spell_group_stack_rule_store
+            .as_ref()
+            .map(|store| store.spell_group_stack_rule_like_cpp(group_id))
+            .unwrap_or(SpellGroupStackRuleLikeCpp::Default)
+    }
+
+    pub(crate) fn same_effect_stack_rule_aura_types_like_cpp(
+        &self,
+        group_id: u32,
+    ) -> Option<&BTreeSet<i32>> {
+        self.spell_group_stack_rule_store
+            .as_ref()
+            .and_then(|store| store.same_effect_stack_rule_aura_types_like_cpp(group_id))
+    }
+
+    pub(crate) fn check_spell_group_stack_rules_like_cpp(
+        &self,
+        first_rank_spell_id_1: u32,
+        first_rank_spell_id_2: u32,
+    ) -> SpellGroupStackRuleLikeCpp {
+        let Some(stack_rules) = self.spell_group_stack_rule_store.as_ref() else {
+            return SpellGroupStackRuleLikeCpp::Default;
+        };
+        let Some(spell_groups) = self.spell_group_store.as_ref() else {
+            return SpellGroupStackRuleLikeCpp::Default;
+        };
+        stack_rules.check_spell_group_stack_rules_like_cpp(
+            spell_groups,
+            first_rank_spell_id_1,
+            first_rank_spell_id_2,
+        )
     }
 
     pub fn set_spell_proc_store(&mut self, store: Arc<SpellProcStoreLikeCpp>) {
@@ -41615,6 +41662,48 @@ mod tests {
         outcome.store
     }
 
+    fn test_spell_group_stack_rule_store_like_cpp(
+        spell_groups: &wow_data::SpellGroupStoreLikeCpp,
+    ) -> wow_data::SpellGroupStackRuleStoreLikeCpp {
+        let outcome = wow_data::SpellGroupStackRuleStoreLikeCpp::from_rows_like_cpp(
+            [
+                wow_data::SpellGroupStackRuleRowLikeCpp {
+                    group_id: 1001,
+                    stack_rule: wow_data::SpellGroupStackRuleLikeCpp::ExclusiveHighest as u8,
+                },
+                wow_data::SpellGroupStackRuleRowLikeCpp {
+                    group_id: 1002,
+                    stack_rule: wow_data::SpellGroupStackRuleLikeCpp::ExclusiveSameEffect as u8,
+                },
+            ],
+            spell_groups,
+            |spell_id| {
+                let mut spell = wow_data::SpellInfo {
+                    spell_id: spell_id as i32,
+                    cast_time_ms: 0,
+                    cooldown_ms: 0,
+                    recovery_time_ms: 0,
+                    effect_type: 0,
+                    effect_base_points: 0,
+                    effect_bonus_coefficient: 0.0,
+                    aura_type: None,
+                    display_flags: 0,
+                    requires_spell_focus: 0,
+                    effects: Vec::new(),
+                };
+                spell.effects.push(wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: 31,
+                    ..Default::default()
+                });
+                Some(spell)
+            },
+            |_| None,
+        );
+        outcome.store
+    }
+
     #[test]
     fn spell_proc_entry_prefers_exact_difficulty_like_cpp() {
         let (mut session, _, _) = make_session();
@@ -41822,6 +41911,47 @@ mod tests {
         );
         assert!(session.is_spell_member_of_spell_group_like_cpp(25, 1002));
         assert!(!session.is_spell_member_of_spell_group_like_cpp(10, 1002));
+    }
+
+    #[test]
+    fn spell_group_stack_rule_queries_default_without_store_like_cpp() {
+        let (session, _, _) = make_session();
+
+        assert_eq!(
+            session.spell_group_stack_rule_like_cpp(1001),
+            wow_data::SpellGroupStackRuleLikeCpp::Default
+        );
+        assert!(
+            session
+                .same_effect_stack_rule_aura_types_like_cpp(1002)
+                .is_none()
+        );
+        assert_eq!(
+            session.check_spell_group_stack_rules_like_cpp(10, 20),
+            wow_data::SpellGroupStackRuleLikeCpp::Default
+        );
+    }
+
+    #[test]
+    fn spell_group_stack_rule_queries_match_store_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let spell_groups = Arc::new(test_spell_group_store_like_cpp());
+        let stack_rules = Arc::new(test_spell_group_stack_rule_store_like_cpp(&spell_groups));
+        session.set_spell_group_store(Arc::clone(&spell_groups));
+        session.set_spell_group_stack_rule_store(stack_rules);
+
+        assert_eq!(
+            session.spell_group_stack_rule_like_cpp(1001),
+            wow_data::SpellGroupStackRuleLikeCpp::ExclusiveHighest
+        );
+        assert_eq!(
+            session.same_effect_stack_rule_aura_types_like_cpp(1002),
+            Some(&BTreeSet::from([31]))
+        );
+        assert_eq!(
+            session.check_spell_group_stack_rules_like_cpp(10, 20),
+            wow_data::SpellGroupStackRuleLikeCpp::ExclusiveHighest
+        );
     }
 
     fn install_create_map_difficulty_stores_like_cpp(

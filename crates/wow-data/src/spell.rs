@@ -2710,6 +2710,40 @@ pub struct SpellGroupStackRuleStoreLikeCpp {
 }
 
 impl SpellGroupStackRuleStoreLikeCpp {
+    pub async fn load_like_cpp(
+        db: &WorldDatabase,
+        spell_groups: &SpellGroupStoreLikeCpp,
+        spells: &SpellStore,
+        spell_chains: &SpellChainStoreLikeCpp,
+    ) -> Result<SpellGroupStackRuleLoadOutcomeLikeCpp> {
+        let stmt = db.prepare(WorldStatements::SEL_SPELL_GROUP_STACK_RULES);
+        let mut result = db.query(&stmt).await?;
+        let mut rows = Vec::new();
+
+        if !result.is_empty() {
+            loop {
+                rows.push(SpellGroupStackRuleRowLikeCpp {
+                    group_id: result.try_read::<u32>(0).unwrap_or(0),
+                    stack_rule: result.try_read::<u8>(1).unwrap_or(0),
+                });
+
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        Ok(Self::from_rows_like_cpp(
+            rows,
+            spell_groups,
+            |spell_id| spells.get(spell_id as i32).cloned(),
+            |spell_id| {
+                let next_spell_id = spell_chains.next_spell_in_chain_like_cpp(spell_id);
+                (next_spell_id != 0).then_some(next_spell_id)
+            },
+        ))
+    }
+
     pub fn from_rows_like_cpp<I, SpellInfoById, NextRankSpell>(
         rows: I,
         spell_groups: &SpellGroupStoreLikeCpp,

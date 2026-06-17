@@ -235,6 +235,7 @@ pub struct SessionResources {
     pub spell_class_options_store: Option<Arc<wow_data::SpellClassOptionsStore>>,
     pub spell_misc_store: Option<Arc<wow_data::SpellMiscStore>>,
     pub spell_group_store: Option<Arc<wow_data::SpellGroupStoreLikeCpp>>,
+    pub spell_group_stack_rule_store: Option<Arc<wow_data::SpellGroupStackRuleStoreLikeCpp>>,
     pub spell_procs_per_minute_store: Option<Arc<wow_data::SpellProcsPerMinuteStore>>,
     pub spell_proc_store: Option<Arc<wow_data::SpellProcStoreLikeCpp>>,
     pub spell_required_store: Option<Arc<wow_data::SpellRequiredStoreLikeCpp>>,
