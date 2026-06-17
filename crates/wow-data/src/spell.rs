@@ -518,6 +518,7 @@ pub struct SpellEffectInfo {
     pub effect: u32,
     pub effect_aura: i32,
     pub effect_base_points: i32,
+    pub effect_spell_class_mask: [u32; 4],
     pub effect_misc_value_1: i32,
     pub effect_misc_value_2: i32,
     pub effect_trigger_spell: i32,
@@ -3350,16 +3351,46 @@ pub struct SpellProcSourceSpellInfoLikeCpp {
     pub difficulty: u32,
     pub first_rank_spell_id: u32,
     pub next_rank_spell_id: Option<u32>,
+    pub spell_family_name: u16,
     pub proc_flags: [u32; 2],
     pub proc_charges: u32,
     pub proc_chance: f32,
     pub proc_cooldown_ms: u32,
+    pub proc_base_ppm: f32,
+    pub attributes3: u32,
     pub effects: Vec<SpellEffectInfo>,
 }
 
 impl SpellProcSourceSpellInfoLikeCpp {
     pub fn is_ranked_like_cpp(&self) -> bool {
         self.first_rank_spell_id != self.spell_id || self.next_rank_spell_id.is_some()
+    }
+
+    pub fn implicit_proc_source_like_cpp(&self) -> ImplicitSpellProcSourceLikeCpp {
+        ImplicitSpellProcSourceLikeCpp {
+            spell_id: self.spell_id,
+            difficulty: self.difficulty,
+            spell_family_name: self.spell_family_name,
+            proc_flags: self.proc_flags,
+            proc_chance: self.proc_chance,
+            proc_cooldown_ms: self.proc_cooldown_ms,
+            proc_charges: self.proc_charges,
+            proc_base_ppm: self.proc_base_ppm,
+            attributes3: self.attributes3,
+            effects: self
+                .effects
+                .iter()
+                .map(|effect| ImplicitSpellProcEffectLikeCpp {
+                    effect_index: effect.effect_index,
+                    is_effect: effect.effect != 0,
+                    is_aura: effect.is_aura_like_cpp(),
+                    aura_type: effect.effect_aura,
+                    spell_class_mask: effect.effect_spell_class_mask,
+                    calc_value: effect.calc_value_no_caster_like_cpp(),
+                    trigger_spell: u32::try_from(effect.effect_trigger_spell).unwrap_or(0),
+                })
+                .collect(),
+        }
     }
 }
 
@@ -4139,6 +4170,10 @@ impl SpellEffectInfo {
         )
     }
 
+    pub fn calc_value_no_caster_like_cpp(&self) -> i32 {
+        self.effect_base_points
+    }
+
     pub fn is_mounted_aura_like_cpp(&self) -> bool {
         self.effect == spell_effect_types::SPELL_EFFECT_APPLY_AURA
             && self.effect_aura == aura_types::SPELL_AURA_MOUNTED
@@ -4417,7 +4452,11 @@ SELECT
     CAST(COALESCE(se.EffectChainTargets, 0) AS SIGNED) as effect_chain_targets,
     CAST(COALESCE(se.ImplicitTarget1, 0) AS UNSIGNED) as implicit_target_1,
     CAST(COALESCE(se.ImplicitTarget2, 0) AS UNSIGNED) as implicit_target_2,
-    CAST(COALESCE(scr.RequiresSpellFocus, 0) AS UNSIGNED) as requires_spell_focus
+    CAST(COALESCE(scr.RequiresSpellFocus, 0) AS UNSIGNED) as requires_spell_focus,
+    CAST(COALESCE(se.EffectSpellClassMask1, 0) AS UNSIGNED) as effect_spell_class_mask_1,
+    CAST(COALESCE(se.EffectSpellClassMask2, 0) AS UNSIGNED) as effect_spell_class_mask_2,
+    CAST(COALESCE(se.EffectSpellClassMask3, 0) AS UNSIGNED) as effect_spell_class_mask_3,
+    CAST(COALESCE(se.EffectSpellClassMask4, 0) AS UNSIGNED) as effect_spell_class_mask_4
 FROM hotfixes.spell_misc sm
 LEFT JOIN hotfixes.spell_effect se 
     ON sm.ID = se.SpellID AND se.DifficultyID = 0
@@ -4448,6 +4487,12 @@ ORDER BY sm.ID, se.EffectIndex
                 let implicit_target_1: u32 = result.try_read(15).unwrap_or(0);
                 let implicit_target_2: u32 = result.try_read(16).unwrap_or(0);
                 let requires_spell_focus: u32 = result.try_read(17).unwrap_or(0);
+                let effect_spell_class_mask = [
+                    result.try_read(18).unwrap_or(0),
+                    result.try_read(19).unwrap_or(0),
+                    result.try_read(20).unwrap_or(0),
+                    result.try_read(21).unwrap_or(0),
+                ];
 
                 let spell_info = store.spells.entry(spell_id).or_insert_with(|| SpellInfo {
                     spell_id,
@@ -4469,6 +4514,7 @@ ORDER BY sm.ID, se.EffectIndex
                         effect: effect_type,
                         effect_aura: aura_type.unwrap_or(0),
                         effect_base_points,
+                        effect_spell_class_mask,
                         effect_misc_value_1,
                         effect_misc_value_2,
                         effect_trigger_spell,
@@ -7022,6 +7068,53 @@ mod tests {
     }
 
     #[test]
+    fn spell_proc_source_builds_implicit_source_from_spell_effects_like_cpp() {
+        let mut source = test_spell_proc_source_like_cpp(800, 800, None);
+        source.spell_family_name = 42;
+        source.proc_flags = [PROC_FLAG_DEAL_HARMFUL_SPELL_LIKE_CPP, 0];
+        source.proc_chance = 30.0;
+        source.proc_cooldown_ms = 500;
+        source.proc_charges = 2;
+        source.proc_base_ppm = 1.5;
+        source.attributes3 = attributes::SPELL_ATTR3_CAN_PROC_FROM_PROCS;
+        source.effects = vec![SpellEffectInfo {
+            effect_index: 1,
+            effect: spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: aura_types::SPELL_AURA_PROC_TRIGGER_SPELL,
+            effect_base_points: -100,
+            effect_spell_class_mask: [1, 2, 3, 4],
+            effect_trigger_spell: 900,
+            ..SpellEffectInfo::default()
+        }];
+
+        let implicit = source.implicit_proc_source_like_cpp();
+
+        assert_eq!(implicit.spell_id, 800);
+        assert_eq!(implicit.difficulty, 0);
+        assert_eq!(implicit.spell_family_name, 42);
+        assert_eq!(implicit.proc_flags, source.proc_flags);
+        assert_eq!(implicit.proc_chance, 30.0);
+        assert_eq!(implicit.proc_cooldown_ms, 500);
+        assert_eq!(implicit.proc_charges, 2);
+        assert_eq!(implicit.proc_base_ppm, 1.5);
+        assert_eq!(
+            implicit.attributes3,
+            attributes::SPELL_ATTR3_CAN_PROC_FROM_PROCS
+        );
+        assert_eq!(implicit.effects.len(), 1);
+        assert_eq!(implicit.effects[0].effect_index, 1);
+        assert!(implicit.effects[0].is_effect);
+        assert!(implicit.effects[0].is_aura);
+        assert_eq!(
+            implicit.effects[0].aura_type,
+            aura_types::SPELL_AURA_PROC_TRIGGER_SPELL
+        );
+        assert_eq!(implicit.effects[0].spell_class_mask, [1, 2, 3, 4]);
+        assert_eq!(implicit.effects[0].calc_value, -100);
+        assert_eq!(implicit.effects[0].trigger_spell, 900);
+    }
+
+    #[test]
     fn can_spell_trigger_proc_on_event_requires_proc_flag_overlap_like_cpp() {
         let mut entry = test_spell_proc_entry_like_cpp();
         entry.proc_flags = [0, PROC_FLAG_2_CAST_SUCCESSFUL_LIKE_CPP];
@@ -7489,10 +7582,13 @@ mod tests {
             difficulty: 0,
             first_rank_spell_id,
             next_rank_spell_id,
+            spell_family_name: 0,
             proc_flags: [0; 2],
             proc_charges: 0,
             proc_chance: 0.0,
             proc_cooldown_ms: 0,
+            proc_base_ppm: 0.0,
+            attributes3: 0,
             effects: Vec::new(),
         }
     }
