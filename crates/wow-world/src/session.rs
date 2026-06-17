@@ -24777,9 +24777,10 @@ impl WorldSession {
     }
 
     pub(crate) fn set_known_spells_like_cpp(&mut self, spells: Vec<i32>) {
-        self.known_spells = spells.clone();
+        self.known_spells = spells;
+        self.learn_account_mount_spells_like_cpp();
         if let Some(controller) = &mut self.player_controller {
-            controller.set_known_spells(spells);
+            controller.set_known_spells(self.known_spells.clone());
         }
     }
 
@@ -24788,6 +24789,27 @@ impl WorldSession {
             .into_iter()
             .map(|mount| (mount.spell_id, mount.flags))
             .collect();
+        self.learn_account_mount_spells_like_cpp();
+    }
+
+    fn learn_account_mount_spells_like_cpp(&mut self) -> usize {
+        let mut spell_ids: Vec<i32> = self.account_mounts_like_cpp.keys().copied().collect();
+        spell_ids.sort_unstable();
+        spell_ids.dedup();
+
+        let mut learned = 0usize;
+        for spell_id in spell_ids {
+            let Ok(spell_id_u32) = u32::try_from(spell_id) else {
+                continue;
+            };
+            if !self.represented_mount_source_spell_usable_like_cpp(spell_id_u32) {
+                continue;
+            }
+            let before = self.known_spells.len();
+            self.learn_known_spell_like_cpp(spell_id);
+            learned += usize::from(self.known_spells.len() != before);
+        }
+        learned
     }
 
     #[allow(dead_code)]
@@ -52313,6 +52335,66 @@ mod tests {
         assert!(session.represented_mount_source_spell_usable_like_cpp(100));
         assert!(!session.represented_mount_source_spell_usable_like_cpp(101));
         assert!(!session.represented_mount_source_spell_usable_like_cpp(999));
+    }
+
+    #[test]
+    fn account_mount_load_learns_usable_mount_spells_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.player_class = 1;
+        session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([
+            wow_data::MountEntry {
+                id: 1,
+                mount_type_id: 0,
+                flags: 0,
+                source_type_enum: 0,
+                source_spell_id: 100,
+                player_condition_id: 42,
+                mount_fly_ride_height: 0.0,
+                ui_model_scene_id: 0,
+            },
+            wow_data::MountEntry {
+                id: 2,
+                mount_type_id: 0,
+                flags: 0,
+                source_type_enum: 0,
+                source_spell_id: 101,
+                player_condition_id: 43,
+                mount_fly_ride_height: 0.0,
+                ui_model_scene_id: 0,
+            },
+        ])));
+        session.set_player_condition_store(Arc::new(wow_data::PlayerConditionStore::from_entries(
+            [
+                wow_data::PlayerConditionEntry {
+                    id: 42,
+                    class_mask: 1,
+                    ..Default::default()
+                },
+                wow_data::PlayerConditionEntry {
+                    id: 43,
+                    class_mask: 1 << 1,
+                    ..Default::default()
+                },
+            ],
+        )));
+
+        session.set_account_mounts_like_cpp(vec![
+            wow_packet::packets::misc::AccountMount {
+                spell_id: 100,
+                flags: 0,
+            },
+            wow_packet::packets::misc::AccountMount {
+                spell_id: 101,
+                flags: 0,
+            },
+        ]);
+        assert!(session.known_spells_like_cpp().contains(&100));
+        assert!(!session.known_spells_like_cpp().contains(&101));
+
+        session.set_known_spells_like_cpp(vec![635]);
+        assert!(session.known_spells_like_cpp().contains(&635));
+        assert!(session.known_spells_like_cpp().contains(&100));
+        assert!(!session.known_spells_like_cpp().contains(&101));
     }
 
     #[test]
