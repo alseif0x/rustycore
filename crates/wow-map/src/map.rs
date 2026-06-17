@@ -1645,6 +1645,19 @@ impl LoadedGridRespawnRecordsLikeCpp {
 }
 
 #[derive(Debug, Default, Clone, PartialEq)]
+pub struct LoadedGridAreaTriggerRecordsSummaryLikeCpp {
+    pub grid_not_loaded: bool,
+    pub metadata_entries: usize,
+    pub skipped_should_not_spawn: usize,
+    pub stale_index_entries: usize,
+    pub skipped_difficulty_mismatch: usize,
+    pub load_record_missing: usize,
+    pub pre_add_records_added: usize,
+    pub loaded_grid_primary_records: Vec<MapObjectRecord>,
+    pub add_to_map_errors: usize,
+}
+
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct ProcessRespawnsSafeSideEffectsSummaryLikeCpp {
     pub deleted_inactive_spawn_group: usize,
     pub deleted_live_object_blocker: usize,
@@ -12970,6 +12983,99 @@ where
         true
     }
 
+    pub fn load_loaded_grid_area_trigger_records_like_cpp<L>(
+        &mut self,
+        coord: GridCoord,
+        spawn_store: &SpawnStore,
+        mut load_record: L,
+    ) -> LoadedGridAreaTriggerRecordsSummaryLikeCpp
+    where
+        L: FnMut(&mut Self, SpawnObjectType, SpawnId) -> Option<LoadedGridRespawnRecordsLikeCpp>,
+    {
+        let Some(grid) = self.get_ngrid(coord) else {
+            return LoadedGridAreaTriggerRecordsSummaryLikeCpp {
+                grid_not_loaded: true,
+                ..Default::default()
+            };
+        };
+        if !grid.grid_object_data_loaded() {
+            return LoadedGridAreaTriggerRecordsSummaryLikeCpp {
+                grid_not_loaded: true,
+                ..Default::default()
+            };
+        }
+
+        let mut spawn_ids = Vec::new();
+        for x in 0..MAX_NUMBER_OF_CELLS {
+            for y in 0..MAX_NUMBER_OF_CELLS {
+                let Some(cell) = grid.get_grid_type(x, y) else {
+                    continue;
+                };
+                if let Some(cell_guids) = spawn_store.cell_object_guids(
+                    self.map_id,
+                    self.spawn_mode,
+                    cell.cell_coord().get_id(),
+                ) {
+                    spawn_ids.extend(cell_guids.area_triggers.iter().copied());
+                }
+            }
+        }
+
+        let spawn_filter = self.spawn_grid_load_state_like_cpp(spawn_store);
+        let mut plans = Vec::new();
+        let mut summary = LoadedGridAreaTriggerRecordsSummaryLikeCpp::default();
+        for spawn_id in spawn_ids {
+            if !spawn_filter.should_be_spawned_on_grid_load(SpawnObjectType::AreaTrigger, spawn_id)
+            {
+                summary.skipped_should_not_spawn += 1;
+                continue;
+            }
+            let Some(spawn_data) = spawn_store.spawn_data(SpawnObjectType::AreaTrigger, spawn_id)
+            else {
+                summary.stale_index_entries += 1;
+                continue;
+            };
+            if spawn_data.map_id != self.map_id {
+                summary.stale_index_entries += 1;
+                continue;
+            }
+            if !spawn_data.spawn_difficulties.contains(&self.spawn_mode) {
+                summary.skipped_difficulty_mismatch += 1;
+                continue;
+            }
+            summary.metadata_entries += 1;
+            plans.push(spawn_id);
+        }
+        drop(spawn_filter);
+
+        for spawn_id in plans {
+            let Some(records) = load_record(self, SpawnObjectType::AreaTrigger, spawn_id) else {
+                summary.load_record_missing += 1;
+                continue;
+            };
+            for pre_add_record in records.pre_add_records {
+                if self
+                    .add_map_object_record_to_map_like_cpp(pre_add_record)
+                    .is_ok()
+                {
+                    summary.pre_add_records_added += 1;
+                } else {
+                    summary.add_to_map_errors += 1;
+                }
+            }
+            let primary_record = records.primary_record;
+            let loaded_grid_primary_record = primary_record.clone();
+            match self.add_map_object_record_to_map_like_cpp(primary_record) {
+                Ok(_outcome) => summary
+                    .loaded_grid_primary_records
+                    .push(loaded_grid_primary_record),
+                Err(_error) => summary.add_to_map_errors += 1,
+            }
+        }
+
+        summary
+    }
+
     pub fn ensure_grid_loaded_for_active_object(
         &mut self,
         cell: &Cell,
@@ -18799,6 +18905,65 @@ mod tests {
             map.get_respawn_time_like_cpp(SpawnObjectType::AreaTrigger, 10),
             0
         );
+    }
+
+    #[test]
+    fn loaded_grid_area_trigger_records_callback_adds_map_owned_record_like_cpp() {
+        let mut map = test_map();
+        let group = SpawnGroupTemplateData::legacy_group();
+        let spawn = spawn_data(SpawnObjectType::AreaTrigger, 8801, group);
+        let mut store = SpawnStore::new();
+        store.add_area_trigger_spawn(&spawn);
+        map.ensure_grid_loaded(&cell_from_world(0.0, 0.0));
+
+        let mut calls = Vec::new();
+        let summary = map.load_loaded_grid_area_trigger_records_like_cpp(
+            GridCoord::new(32, 32),
+            &store,
+            |_, object_type, spawn_id| {
+                calls.push((object_type, spawn_id));
+                Some(LoadedGridRespawnRecordsLikeCpp::primary_only(
+                    MapObjectRecord::new_area_trigger(test_area_trigger_for_spawn(
+                        spawn_id, 880101,
+                    ))
+                    .unwrap(),
+                ))
+            },
+        );
+
+        assert_eq!(calls, vec![(SpawnObjectType::AreaTrigger, 8801)]);
+        assert!(!summary.grid_not_loaded);
+        assert_eq!(summary.metadata_entries, 1);
+        assert_eq!(summary.loaded_grid_primary_records.len(), 1);
+        assert_eq!(summary.add_to_map_errors, 0);
+        assert!(map.get_area_trigger_by_spawn_id_like_cpp(8801).is_some());
+        assert_eq!(map.area_trigger_spawn_id_store_count_like_cpp(8801), 1);
+    }
+
+    #[test]
+    fn loaded_grid_area_trigger_records_respect_spawn_grid_load_state_like_cpp() {
+        let mut map = test_map();
+        let manual = spawn_group(90, SpawnGroupFlags::MANUAL_SPAWN);
+        let spawn = spawn_data(SpawnObjectType::AreaTrigger, 8802, manual);
+        let mut store = SpawnStore::new();
+        store.add_area_trigger_spawn(&spawn);
+        map.ensure_grid_loaded(&cell_from_world(0.0, 0.0));
+
+        let mut callback_calls = 0;
+        let summary = map.load_loaded_grid_area_trigger_records_like_cpp(
+            GridCoord::new(32, 32),
+            &store,
+            |_, _, _| {
+                callback_calls += 1;
+                None
+            },
+        );
+
+        assert_eq!(callback_calls, 0);
+        assert_eq!(summary.metadata_entries, 0);
+        assert_eq!(summary.skipped_should_not_spawn, 1);
+        assert!(summary.loaded_grid_primary_records.is_empty());
+        assert!(map.get_area_trigger_by_spawn_id_like_cpp(8802).is_none());
     }
 
     #[test]
