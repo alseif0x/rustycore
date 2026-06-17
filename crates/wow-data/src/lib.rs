@@ -161,8 +161,9 @@ pub use gameobject_template::{
 };
 pub use gossip::{GossipConditionAttachmentReport, GossipMenu, GossipMenuItem, GossipStore};
 pub use graveyard::{
-    GraveyardConditionAttachmentReport, GraveyardData, GraveyardLoadReport, GraveyardStore,
-    GraveyardZoneRow,
+    ALLIANCE_GRAVEYARD_SAFE_LOC_ID_LIKE_CPP, GraveyardConditionAttachmentReport, GraveyardData,
+    GraveyardLoadReport, GraveyardLookupContextLikeCpp, GraveyardStore, GraveyardZoneRow,
+    HORDE_GRAVEYARD_SAFE_LOC_ID_LIKE_CPP, TEAM_ALLIANCE_LIKE_CPP, TEAM_HORDE_LIKE_CPP,
 };
 pub use hotfix_cache::{
     HotfixBlobCache, HotfixId, HotfixRecord, HotfixRecordStatus, build_hotfix_blob_cache,
