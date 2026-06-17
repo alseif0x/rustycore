@@ -317,10 +317,10 @@ pub use phasing::{
 pub use player_choice::{
     PlayerChoiceLikeCpp, PlayerChoiceLoadOutcomeLikeCpp, PlayerChoiceLoadReportLikeCpp,
     PlayerChoiceResponseLikeCpp, PlayerChoiceResponseRewardCurrencyRowLikeCpp,
-    PlayerChoiceResponseRewardEntryLikeCpp, PlayerChoiceResponseRewardItemLikeCpp,
-    PlayerChoiceResponseRewardItemRowLikeCpp, PlayerChoiceResponseRewardLikeCpp,
-    PlayerChoiceResponseRewardRowLikeCpp, PlayerChoiceResponseRowLikeCpp, PlayerChoiceRowLikeCpp,
-    PlayerChoiceStoreLikeCpp,
+    PlayerChoiceResponseRewardEntryLikeCpp, PlayerChoiceResponseRewardFactionRowLikeCpp,
+    PlayerChoiceResponseRewardItemLikeCpp, PlayerChoiceResponseRewardItemRowLikeCpp,
+    PlayerChoiceResponseRewardLikeCpp, PlayerChoiceResponseRewardRowLikeCpp,
+    PlayerChoiceResponseRowLikeCpp, PlayerChoiceRowLikeCpp, PlayerChoiceStoreLikeCpp,
 };
 pub use player_condition::{
     PlayerConditionAuraLikeCpp, PlayerConditionContextLikeCpp, PlayerConditionCountLikeCpp,
