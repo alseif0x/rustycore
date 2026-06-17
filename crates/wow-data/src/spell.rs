@@ -1234,6 +1234,186 @@ pub struct SpellLearnSkillLoadOutcomeLikeCpp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellRankEdgeLikeCpp {
+    pub spell_id: u32,
+    pub supercedes_spell_id: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellChainNodeLikeCpp {
+    pub prev_spell_id: Option<u32>,
+    pub next_spell_id: Option<u32>,
+    pub first_spell_id: u32,
+    pub last_spell_id: u32,
+    pub rank: u8,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SpellChainStoreLikeCpp {
+    pub chains_by_spell_id: BTreeMap<u32, SpellChainNodeLikeCpp>,
+}
+
+impl SpellChainStoreLikeCpp {
+    pub fn from_skill_line_ability_supercedes_like_cpp<I, SpellExists>(
+        rows: I,
+        mut spell_exists: SpellExists,
+    ) -> Self
+    where
+        I: IntoIterator<Item = SpellRankEdgeLikeCpp>,
+        SpellExists: FnMut(u32) -> bool,
+    {
+        let mut chain_next_by_spell_id = BTreeMap::new();
+        let mut has_prev = BTreeSet::new();
+
+        for row in rows {
+            if row.supercedes_spell_id == 0 {
+                continue;
+            }
+
+            if !spell_exists(row.supercedes_spell_id) || !spell_exists(row.spell_id) {
+                continue;
+            }
+
+            chain_next_by_spell_id.insert(row.supercedes_spell_id, row.spell_id);
+            has_prev.insert(row.spell_id);
+        }
+
+        let mut store = Self::default();
+        for (spell_id, next_spell_id) in chain_next_by_spell_id.clone() {
+            if has_prev.contains(&spell_id) {
+                continue;
+            }
+
+            let first_spell_id = spell_id;
+            store.chains_by_spell_id.insert(
+                spell_id,
+                SpellChainNodeLikeCpp {
+                    prev_spell_id: None,
+                    next_spell_id: Some(next_spell_id),
+                    first_spell_id,
+                    last_spell_id: next_spell_id,
+                    rank: 1,
+                },
+            );
+            store.chains_by_spell_id.insert(
+                next_spell_id,
+                SpellChainNodeLikeCpp {
+                    prev_spell_id: Some(first_spell_id),
+                    next_spell_id: None,
+                    first_spell_id,
+                    last_spell_id: next_spell_id,
+                    rank: 2,
+                },
+            );
+
+            let mut rank = 3;
+            let mut current_spell_id = next_spell_id;
+            while let Some(last_spell_id) = chain_next_by_spell_id.get(&current_spell_id).copied() {
+                if let Some(current_node) = store.chains_by_spell_id.get_mut(&current_spell_id) {
+                    current_node.next_spell_id = Some(last_spell_id);
+                }
+
+                store.chains_by_spell_id.insert(
+                    last_spell_id,
+                    SpellChainNodeLikeCpp {
+                        prev_spell_id: Some(current_spell_id),
+                        next_spell_id: None,
+                        first_spell_id,
+                        last_spell_id,
+                        rank,
+                    },
+                );
+                rank = rank.saturating_add(1);
+
+                let mut prev_to_update = Some(current_spell_id);
+                while let Some(prev_spell_id) = prev_to_update {
+                    prev_to_update = store
+                        .chains_by_spell_id
+                        .get(&prev_spell_id)
+                        .and_then(|node| node.prev_spell_id);
+                    if let Some(prev_node) = store.chains_by_spell_id.get_mut(&prev_spell_id) {
+                        prev_node.last_spell_id = last_spell_id;
+                    }
+                }
+
+                current_spell_id = last_spell_id;
+            }
+        }
+
+        store
+    }
+
+    pub fn spell_chain_node_like_cpp(&self, spell_id: u32) -> Option<&SpellChainNodeLikeCpp> {
+        self.chains_by_spell_id.get(&spell_id)
+    }
+
+    pub fn first_spell_in_chain_like_cpp(&self, spell_id: u32) -> u32 {
+        self.spell_chain_node_like_cpp(spell_id)
+            .map(|node| node.first_spell_id)
+            .unwrap_or(spell_id)
+    }
+
+    pub fn last_spell_in_chain_like_cpp(&self, spell_id: u32) -> u32 {
+        self.spell_chain_node_like_cpp(spell_id)
+            .map(|node| node.last_spell_id)
+            .unwrap_or(spell_id)
+    }
+
+    pub fn next_spell_in_chain_like_cpp(&self, spell_id: u32) -> u32 {
+        self.spell_chain_node_like_cpp(spell_id)
+            .and_then(|node| node.next_spell_id)
+            .unwrap_or(0)
+    }
+
+    pub fn prev_spell_in_chain_like_cpp(&self, spell_id: u32) -> u32 {
+        self.spell_chain_node_like_cpp(spell_id)
+            .and_then(|node| node.prev_spell_id)
+            .unwrap_or(0)
+    }
+
+    pub fn spell_rank_like_cpp(&self, spell_id: u32) -> u8 {
+        self.spell_chain_node_like_cpp(spell_id)
+            .map(|node| node.rank)
+            .unwrap_or(0)
+    }
+
+    pub fn spell_with_rank_like_cpp(&self, spell_id: u32, rank: u32, strict: bool) -> u32 {
+        let mut current_spell_id = spell_id;
+        let mut seen = BTreeSet::new();
+
+        loop {
+            let Some(node) = self.spell_chain_node_like_cpp(current_spell_id) else {
+                return if strict && rank > 1 {
+                    0
+                } else {
+                    current_spell_id
+                };
+            };
+
+            if u32::from(node.rank) == rank {
+                return current_spell_id;
+            }
+
+            let next = if u32::from(node.rank) < rank {
+                node.next_spell_id
+            } else {
+                node.prev_spell_id
+            };
+
+            let Some(next_spell_id) = next else {
+                return if strict { 0 } else { current_spell_id };
+            };
+
+            if !seen.insert(current_spell_id) {
+                return if strict { 0 } else { current_spell_id };
+            }
+
+            current_spell_id = next_spell_id;
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SpellGroupRowLikeCpp {
     pub group_id: u32,
     pub spell_id: i32,
@@ -4528,6 +4708,86 @@ mod tests {
                 maxvalue: 1,
             })
         );
+    }
+
+    #[test]
+    fn spell_chain_store_builds_rank_links_from_skill_line_supercedes_like_cpp() {
+        let store = SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(
+            [
+                SpellRankEdgeLikeCpp {
+                    spell_id: 3,
+                    supercedes_spell_id: 1,
+                },
+                SpellRankEdgeLikeCpp {
+                    spell_id: 4,
+                    supercedes_spell_id: 3,
+                },
+                SpellRankEdgeLikeCpp {
+                    spell_id: 5,
+                    supercedes_spell_id: 4,
+                },
+                SpellRankEdgeLikeCpp {
+                    spell_id: 999,
+                    supercedes_spell_id: 998,
+                },
+            ],
+            |spell_id| matches!(spell_id, 1 | 3 | 4 | 5),
+        );
+
+        assert_eq!(store.chains_by_spell_id.len(), 4);
+        assert_eq!(
+            store.spell_chain_node_like_cpp(1),
+            Some(&SpellChainNodeLikeCpp {
+                prev_spell_id: None,
+                next_spell_id: Some(3),
+                first_spell_id: 1,
+                last_spell_id: 5,
+                rank: 1,
+            })
+        );
+        assert_eq!(
+            store.spell_chain_node_like_cpp(4),
+            Some(&SpellChainNodeLikeCpp {
+                prev_spell_id: Some(3),
+                next_spell_id: Some(5),
+                first_spell_id: 1,
+                last_spell_id: 5,
+                rank: 3,
+            })
+        );
+        assert!(store.spell_chain_node_like_cpp(999).is_none());
+    }
+
+    #[test]
+    fn spell_chain_store_accessors_match_cpp_fallbacks() {
+        let store = SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(
+            [
+                SpellRankEdgeLikeCpp {
+                    spell_id: 20,
+                    supercedes_spell_id: 10,
+                },
+                SpellRankEdgeLikeCpp {
+                    spell_id: 30,
+                    supercedes_spell_id: 20,
+                },
+            ],
+            |spell_id| matches!(spell_id, 10 | 20 | 30),
+        );
+
+        assert_eq!(store.first_spell_in_chain_like_cpp(30), 10);
+        assert_eq!(store.last_spell_in_chain_like_cpp(10), 30);
+        assert_eq!(store.next_spell_in_chain_like_cpp(10), 20);
+        assert_eq!(store.prev_spell_in_chain_like_cpp(30), 20);
+        assert_eq!(store.spell_rank_like_cpp(20), 2);
+        assert_eq!(store.first_spell_in_chain_like_cpp(99), 99);
+        assert_eq!(store.last_spell_in_chain_like_cpp(99), 99);
+        assert_eq!(store.next_spell_in_chain_like_cpp(99), 0);
+        assert_eq!(store.prev_spell_in_chain_like_cpp(99), 0);
+        assert_eq!(store.spell_rank_like_cpp(99), 0);
+        assert_eq!(store.spell_with_rank_like_cpp(10, 3, true), 30);
+        assert_eq!(store.spell_with_rank_like_cpp(30, 1, true), 10);
+        assert_eq!(store.spell_with_rank_like_cpp(99, 2, true), 0);
+        assert_eq!(store.spell_with_rank_like_cpp(99, 2, false), 99);
     }
 
     #[test]

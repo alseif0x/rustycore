@@ -147,7 +147,7 @@ Todas las rutas relativas a `/home/server/woltk-trinity-legacy/`.
 | `SpellMgr::LoadSpellInfoStore` | Build SpellInfo de DB2 + override SQL | DB2 access, `spell_dbc` SQL |
 | `SpellMgr::LoadSpellProcs` | spell_proc → mSpellProcMap | `WorldDatabase.Query` |
 | `SpellMgr::LoadSpellTargetPositions` | spell_target_position → mSpellTargetPositions | `WorldDatabase.Query` |
-| `SpellMgr::LoadSpellChains` / `LoadSpellLearnSpells` / `LoadSpellRequired` | Dependencias y rangos | `WorldDatabase.Query` |
+| `SpellMgr::LoadSpellRanks` / `LoadSpellLearnSpells` / `LoadSpellRequired` | Dependencias y rangos; ranks derive from `SkillLineAbilityEntry::SupercedesSpell` in the current C++ tree | DB2 + `WorldDatabase.Query` |
 | `SpellInfo::GetMaxRange(bool positive, WorldObject const* caster, Spell* spell)` | Range final con mods de caster | `SpellRangeStore`, modifiers |
 | `SpellInfo::CheckTarget(WorldObject const* caster, WorldObject const* target, bool implicit)` | Validación target type/faction/aura state | Multiple |
 | `SpellInfo::IsPositive` / `IsTargetingArea` / `IsChanneled` / `IsAutoRepeatRangedSpell` | Predicates de uso muy frecuente | Bit reads on `AttributesEx*` |
@@ -164,7 +164,7 @@ Todas las rutas relativas a `/home/server/woltk-trinity-legacy/`.
 - `Movement` — EffectKnockBack, EffectJump, EffectCharge, `MotionMaster::MoveJump`, `MovementInfo` for interrupt-on-move
 - `Maps` — `Map::VisitNearbyCellsOf` (AoE target search), `Map::isInLineOfSight` (LoS checks)
 - `DataStores` — DB2 stores: `SpellNameStore`, `SpellEffectStore`, `SpellCooldownsStore`, `SpellInterruptsStore`, `SpellRangeStore`, `SpellRadiusStore`, `SpellCategoriesStore`, `SpellAuraOptionsStore`, `SpellCastTimesStore`, `SpellPowerStore`, `SpellMiscStore`, `SkillLineAbilityStore`
-- `Database (WorldDatabase)` — load spell_*, spell_proc, spell_chain
+- `Database (WorldDatabase)` — load spell_*, spell_proc, etc.; rank chains come from DB2 `SkillLineAbilityEntry::SupercedesSpell` in the current C++ tree
 - `Database (CharacterDatabase)` — persistencia de auras/cooldowns en `character_aura`, `character_spell_cooldown`
 - `Conditions` — `ConditionMgr::IsObjectMeetingNotGroupedConditions` (para condition-based targets)
 - `ScriptMgr` — `OnSpellCast`, `OnHit`, `OnApply`, `OnRemove` (SpellScript / AuraScript dispatch)
@@ -204,7 +204,7 @@ El módulo emite queries directamente vía `WorldDatabase.Query(...)` (no usa pr
 | `SELECT * FROM spell_enchant_proc_data` | Procs de enchant (chance, ppm) | world |
 | `SELECT * FROM spell_area` | Auras condicionales por zona/area/quest | world |
 | `SELECT * FROM spell_group` / `spell_group_stack_rules` | Reglas de stacking entre grupos de spells | world |
-| `SELECT * FROM spell_ranks` (legacy → spell_chain) | Cadenas de rangos | world |
+| DB2 `SkillLineAbilityEntry::SupercedesSpell` | Cadenas de rangos (`LoadSpellRanks`) | DB2 |
 | `SELECT * FROM spell_loot_template` | Loot disparado por cast (rare) | world |
 | `SELECT * FROM spell_script_names` | Mapping spellId → C++ ScriptName | world |
 | `SELECT * FROM spell_custom_attr` (legacy) → `SpellInfo::_LoadSpellSpecific` | CustomAttributes derivados | world |
@@ -344,7 +344,7 @@ El módulo emite queries directamente vía `WorldDatabase.Query(...)` (no usa pr
 15. **No AoE caps** (max affected targets) — falta SpellTargetRestrictions
 16. **No school separation** — todo daño es genérico
 17. **No dispel mechanics** — dispelMask + ICD no resueltos
-18. **No SpellMgr vivo** — `spell_required`, `spell_learn_spell`, `spell_threat`, `spell_target_position`, `spell_group`, `spell_group_stack_rules` y la mitad explícita SQL de `spell_proc` ya tienen stores representados en `wow-data` (target position además está cableado en world startup), pero no existe todavía una carga viva de `SpellMgr`; `spell_proc` sigue incompleto por la generación implícita desde auras y `spell_chain` sigue sin loader completo.
+18. **No SpellMgr vivo** — `spell_required`, `spell_learn_spell`, `spell_threat`, `spell_target_position`, `spell_group`, `spell_group_stack_rules`, `LoadSpellRanks`/rank chains y la mitad explícita SQL de `spell_proc` ya tienen stores representados en `wow-data` (target position además está cableado en world startup), pero no existe todavía una carga viva de `SpellMgr`; `spell_proc` sigue incompleto por la generación implícita desde auras y las cadenas de rango aún no parchean `SpellInfo::ChainEntry` real.
 19. **No SpellScript / AuraScript** — sin DSL para scripts
 20. **No Aura class real** — `AuraData` es POD para wire only, sin lifecycle (apply, tick, refresh, remove, expire)
 21. **No AuraEffect tick** — sin DoT/HoT damage por intervalo
@@ -440,7 +440,7 @@ Numerados para referencia desde `MIGRATION_ROADMAP.md`. Complejidad: **L** <1h, 
 - [ ] **#SPELLS.11** Crear `SpellMgr` singleton con `mSpellInfoMap: DashMap<u32, Arc<SpellInfo>>`, `get_spell_info`, `is_spell_valid` (M)
 - [ ] **#SPELLS.12** Cargar tabla `spell_proc` → `SpellProcEntry` y construir `mSpellProcMap`: query/store explícito representado (`SpellProcStoreLikeCpp`), pendiente generación implícita desde auras, wiring vivo y runtime. (M)
 - [ ] **#SPELLS.13** Cargar tabla `spell_target_position` → `mSpellTargetPositions` (L)
-- [ ] **#SPELLS.14** Cargar tablas `spell_required` + `spell_learn_spell` + `spell_chain` (rangos) (M)
+- [ ] **#SPELLS.14** Cargar `spell_required` + `spell_learn_spell` + rank chains (`LoadSpellRanks` desde DB2 `SkillLineAbilityEntry::SupercedesSpell`; represented store/accessors exist, live `SpellMgr` wiring pending) (M)
 - [ ] **#SPELLS.15** Cargar tabla `spell_threat` (override threat) (L)
 - [ ] **#SPELLS.16** Cargar tabla `spell_area` (auras condicionales por zone/quest) (M)
 - [ ] **#SPELLS.17** Cargar tabla `spell_group` + `spell_group_stack_rules`: ambas tienen query/store representados (`SpellGroupStoreLikeCpp`, `SpellGroupStackRuleStoreLikeCpp`), pero falta wiring al `SpellMgr` vivo y consumo en el runtime real de auras. (M)
@@ -648,7 +648,7 @@ Numerados para referencia desde `MIGRATION_ROADMAP.md`. Complejidad: **L** <1h, 
 
 **Auras implemented.** **0 of ~280 `AuraType` handlers.** No `HandlePeriodicDamage`, no `HandleAuraModStat`, no `HandleSchoolAbsorb`, no `HandleModConfuse`/`Fear`/`Stun`/`Silence`/`Root`, no `HandleShapeshift`, no `HandleProcTriggerSpell`, no `HandleCharm`. The packet `AuraData` is a wire shape with no lifecycle behind it: no `Aura::Create`, no `_ApplyForTarget`, no `Update` (so DoT/HoT never tick), no `Remove(AuraRemoveMode)`, no stacking via `TryRefreshStackOrCreate`, no persistence to `character_aura`. Sending `AuraUpdate` to a client desynchronizes the moment the aura should expire because there is no server tracker.
 
-**SpellMgr / SpellInfo / SpellHistory.** No live `SpellMgr` startup exists yet. Several represented DB2/SQL stores now exist in `wow-data` (`spell_required`, `spell_learn_spell`, `spell_threat`, `spell_target_position`, `spell_group`, `spell_group_stack_rules`, explicit `spell_proc` rows, etc.), but implicit proc-entry generation, `spell_chain`, `spell_area`, and `spell_script_names` still lack live loader coverage. The minimal `wow_data::SpellInfo` referenced from the handler exposes only a subset of the ~80 fields C++ `SpellInfo` carries.
+**SpellMgr / SpellInfo / SpellHistory.** No live `SpellMgr` startup exists yet. Several represented DB2/SQL stores now exist in `wow-data` (`spell_required`, `spell_learn_spell`, `spell_threat`, `spell_target_position`, `spell_group`, `spell_group_stack_rules`, explicit `spell_proc` rows, rank chains via `SkillLineAbilityEntry::SupercedesSpell`, etc.), but implicit proc-entry generation, live chain-entry patching, `spell_area`, and `spell_script_names` still lack live loader coverage. The minimal `wow_data::SpellInfo` referenced from the handler exposes only a subset of the ~80 fields C++ `SpellInfo` carries.
 
 **Cooldowns / GCD / charges.** A single global `last_spell_cast_time: Option<Instant>` plus per-spell `last_spell_cast_time_per_spell: HashMap<u32, Instant>` substitute for what C++ implements as three orthogonal axes: `_globalCooldowns: map<SpellSchool, time>` (per-school 1.5s GCD modulated by haste), `_categoryCooldowns: map<u32 cat, time>` (Hunter Aspects, Paladin Seals share a category cd), and `_categoryCharges: map<u32 cat, ChargeEntry>` (multi-cast spells like Mind Flay's 3 charges). The Rust collapse-everything-into-one-timer model will block legal casts (e.g. casting Holy Light right after Frost Bolt — different schools, should not share GCD) and allow illegal ones (casting two spells in the same category back-to-back). `SMSG_SPELL_COOLDOWN`, `SMSG_COOLDOWN_EVENT`, `SMSG_CLEAR_COOLDOWN`, `SMSG_MODIFY_COOLDOWN` are not emitted. Cooldown persistence to `character_spell_cooldown` does not exist, so all cooldowns reset at logout.
 
