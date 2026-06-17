@@ -76,6 +76,7 @@ pub mod trait_tree;
 pub mod trinity_string;
 pub mod ui_map;
 pub mod vehicle;
+pub mod vendor;
 pub mod wdc4;
 pub mod world_id_store;
 pub mod world_safe_locs;
@@ -449,6 +450,11 @@ pub use vehicle::{
     VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
     vehicle_seat_flags_can_enter_or_exit_like_cpp,
     vehicle_seat_flags_can_switch_from_seat_like_cpp,
+};
+pub use vendor::{
+    ITEM_VENDOR_TYPE_CURRENCY_LIKE_CPP, ITEM_VENDOR_TYPE_ITEM_LIKE_CPP,
+    NpcVendorLoadOutcomeLikeCpp, NpcVendorLoadReportLikeCpp, NpcVendorRowLikeCpp,
+    NpcVendorStoreLikeCpp, VendorItemDataLikeCpp, VendorItemLikeCpp,
 };
 pub use world_id_store::WorldIdStore;
 pub use world_safe_locs::{

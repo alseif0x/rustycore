@@ -27,6 +27,8 @@ pub enum WorldStatements {
     INS_NPC_VENDOR,
     DEL_NPC_VENDOR,
     SEL_NPC_VENDOR_REF,
+    /// C++ `ObjectMgr::LoadVendors` full startup query.
+    SEL_NPC_VENDORS_ALL,
     SEL_VENDOR_ITEMS,
     UPD_CREATURE_MOVEMENT_TYPE,
     UPD_CREATURE_FACTION,
@@ -405,6 +407,9 @@ impl StatementDef for WorldStatements {
             }
             Self::SEL_NPC_VENDOR_REF => {
                 "SELECT item, maxcount, incrtime, ExtendedCost, type, BonusListIDs, PlayerConditionID, IgnoreFiltering FROM npc_vendor WHERE entry = ? ORDER BY slot ASC"
+            }
+            Self::SEL_NPC_VENDORS_ALL => {
+                "SELECT entry, item, maxcount, incrtime, ExtendedCost, type, BonusListIDs, PlayerConditionID, IgnoreFiltering FROM npc_vendor ORDER BY entry, slot ASC"
             }
             // Cols: 0=item, 1=maxcount, 2=ExtendedCost, 3=type, 4=slot,
             //       5=BuyPrice, 6=SellPrice, 7=MaxDurability, 8=VendorStackCount,

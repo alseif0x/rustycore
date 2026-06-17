@@ -2417,6 +2417,59 @@ async fn main() -> Result<ExitCode> {
         game_tele_outcome.report.loaded_rows,
         game_tele_store.len()
     );
+    let npc_vendor_outcome = wow_data::NpcVendorStoreLikeCpp::load_like_cpp(world_db.as_ref())
+        .await
+        .context("Failed to load C++ NPC vendor item cache")?;
+    for (entry, item) in &npc_vendor_outcome
+        .report
+        .skipped_item_maxcount_without_incrtime
+    {
+        tracing::error!(
+            "Table `(game_event_)npc_vendor` has `maxcount` set for item {} of vendor (Entry: {}) but `incrtime`=0, ignoring",
+            item,
+            entry
+        );
+    }
+    for (entry, item) in &npc_vendor_outcome
+        .report
+        .skipped_item_incrtime_without_maxcount
+    {
+        tracing::error!(
+            "Table `(game_event_)npc_vendor` has `maxcount`=0 for item {} of vendor (Entry: {}) but `incrtime`<>0, ignoring",
+            item,
+            entry
+        );
+    }
+    for (entry, item) in &npc_vendor_outcome.report.skipped_currency_without_maxcount {
+        tracing::error!(
+            "Table `(game_event_)npc_vendor` has currency item {} with missing maxcount for vendor ({}), ignoring",
+            item,
+            entry
+        );
+    }
+    for (entry, item, extended_cost, vendor_type) in &npc_vendor_outcome.report.skipped_duplicates {
+        tracing::error!(
+            "Table `npc_vendor` has duplicate items {} (with extended cost {}, type {}) for vendor (Entry: {}), ignoring",
+            item,
+            extended_cost,
+            vendor_type,
+            entry
+        );
+    }
+    for (entry, reference_entry) in &npc_vendor_outcome.report.skipped_reference_cycles {
+        tracing::error!(
+            "Table `npc_vendor` has cyclic reference vendor {} while loading vendor {}, ignoring nested reference",
+            reference_entry,
+            entry
+        );
+    }
+    let npc_vendor_store = Arc::new(npc_vendor_outcome.store);
+    info!(
+        "Loaded {} C++ vendor items across {} NPC vendors ({} reference rows expanded)",
+        npc_vendor_outcome.report.loaded_items,
+        npc_vendor_store.len(),
+        npc_vendor_outcome.report.reference_rows_seen
+    );
 
     // Load player_xp_for_level table
     let player_xp_table = {
