@@ -14,6 +14,9 @@ use tracing::info;
 use wow_core::Position;
 use wow_database::{WorldDatabase, WorldStatements};
 
+use crate::quest::{
+    QUEST_FLAGS_COMPLETION_AREA_TRIGGER_LIKE_CPP, QUEST_OBJECTIVE_AREATRIGGER_LIKE_CPP, QuestStore,
+};
 use crate::{ScriptIdLikeCpp, ScriptNameInternerLikeCpp};
 
 /// Area trigger shape types (from AreaTriggerShapeType).
@@ -201,6 +204,32 @@ pub struct AreaTriggerScriptStoreLikeCpp {
 pub struct AreaTriggerScriptLoadOutcomeLikeCpp {
     pub store: AreaTriggerScriptStoreLikeCpp,
     pub report: AreaTriggerScriptLoadReportLikeCpp,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QuestAreaTriggerRowLikeCpp {
+    pub trigger_id: u32,
+    pub quest_id: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QuestAreaTriggerLoadReportLikeCpp {
+    pub rows_seen: usize,
+    pub loaded_from_relation: usize,
+    pub loaded_from_objectives: usize,
+    pub skipped_missing_area_trigger: Vec<u32>,
+    pub skipped_missing_quest: Vec<(u32, u32)>,
+    pub skipped_obsolete_quest: Vec<(u32, u32)>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct QuestAreaTriggerStoreLikeCpp {
+    quests_by_trigger_id: BTreeMap<u32, BTreeSet<u32>>,
+}
+
+pub struct QuestAreaTriggerLoadOutcomeLikeCpp {
+    pub store: QuestAreaTriggerStoreLikeCpp,
+    pub report: QuestAreaTriggerLoadReportLikeCpp,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -425,6 +454,124 @@ impl AreaTriggerScriptStoreLikeCpp {
     }
 }
 
+impl QuestAreaTriggerStoreLikeCpp {
+    pub fn from_rows_like_cpp(
+        rows: impl IntoIterator<Item = QuestAreaTriggerRowLikeCpp>,
+        mut area_trigger_exists: impl FnMut(u32) -> bool,
+        quest_store: &QuestStore,
+    ) -> QuestAreaTriggerLoadOutcomeLikeCpp {
+        let mut store = Self::default();
+        let mut rows_seen = 0;
+        let mut loaded_from_relation = 0;
+        let mut loaded_from_objectives = 0;
+        let mut skipped_missing_area_trigger = Vec::new();
+        let mut skipped_missing_quest = Vec::new();
+        let mut skipped_obsolete_quest = Vec::new();
+
+        for row in rows {
+            rows_seen += 1;
+            if !area_trigger_exists(row.trigger_id) {
+                skipped_missing_area_trigger.push(row.trigger_id);
+                continue;
+            }
+
+            let Some(quest) = quest_store.get(row.quest_id) else {
+                skipped_missing_quest.push((row.trigger_id, row.quest_id));
+                continue;
+            };
+
+            if (quest.flags & QUEST_FLAGS_COMPLETION_AREA_TRIGGER_LIKE_CPP) == 0
+                && !quest
+                    .objectives
+                    .iter()
+                    .any(|objective| objective.obj_type == QUEST_OBJECTIVE_AREATRIGGER_LIKE_CPP)
+            {
+                skipped_obsolete_quest.push((row.trigger_id, row.quest_id));
+                continue;
+            }
+
+            if store.insert_like_cpp(row.trigger_id, row.quest_id) {
+                loaded_from_relation += 1;
+            }
+        }
+
+        for objective in quest_store.objectives_like_cpp() {
+            if objective.obj_type == QUEST_OBJECTIVE_AREATRIGGER_LIKE_CPP {
+                // C++ inserts int32 ObjectID into an unordered_map<uint32, ...>.
+                // Keep the same cast instead of inventing validation here.
+                if store.insert_like_cpp(objective.object_id as u32, objective.quest_id) {
+                    loaded_from_objectives += 1;
+                }
+            }
+        }
+
+        QuestAreaTriggerLoadOutcomeLikeCpp {
+            report: QuestAreaTriggerLoadReportLikeCpp {
+                rows_seen,
+                loaded_from_relation,
+                loaded_from_objectives,
+                skipped_missing_area_trigger,
+                skipped_missing_quest,
+                skipped_obsolete_quest,
+            },
+            store,
+        }
+    }
+
+    /// Loads C++ `ObjectMgr::LoadQuestAreaTriggers`.
+    ///
+    /// C++ anchors:
+    /// - `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:6470-6532`
+    /// - validates relation rows against authoritative `sAreaTriggerStore` and loaded quests
+    /// - additionally indexes every `QUEST_OBJECTIVE_AREATRIGGER` objective by `ObjectID`
+    pub async fn load_like_cpp(
+        db: &WorldDatabase,
+        area_trigger_store: &AreaTriggerStore,
+        quest_store: &QuestStore,
+    ) -> Result<QuestAreaTriggerLoadOutcomeLikeCpp> {
+        let mut rows = Vec::new();
+        let mut result = db
+            .direct_query("SELECT id, quest FROM areatrigger_involvedrelation")
+            .await?;
+        if !result.is_empty() {
+            loop {
+                rows.push(QuestAreaTriggerRowLikeCpp {
+                    trigger_id: result.try_read::<u32>(0).unwrap_or(0),
+                    quest_id: result.try_read::<u32>(1).unwrap_or(0),
+                });
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        Ok(Self::from_rows_like_cpp(
+            rows,
+            |entry| area_trigger_store.contains_trigger_like_cpp(entry),
+            quest_store,
+        ))
+    }
+
+    fn insert_like_cpp(&mut self, trigger_id: u32, quest_id: u32) -> bool {
+        self.quests_by_trigger_id
+            .entry(trigger_id)
+            .or_default()
+            .insert(quest_id)
+    }
+
+    pub fn quests_for_area_trigger_like_cpp(&self, trigger_id: u32) -> Option<&BTreeSet<u32>> {
+        self.quests_by_trigger_id.get(&trigger_id)
+    }
+
+    pub fn len(&self) -> usize {
+        self.quests_by_trigger_id.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.quests_by_trigger_id.is_empty()
+    }
+}
+
 impl TavernAreaTriggerStoreLikeCpp {
     pub fn from_ids_like_cpp(
         rows: impl IntoIterator<Item = u32>,
@@ -495,6 +642,11 @@ impl TavernAreaTriggerStoreLikeCpp {
 #[cfg(test)]
 mod area_trigger_script_tests {
     use super::*;
+    use crate::quest::{
+        QUEST_ITEM_DROP_COUNT, QUEST_REWARD_CHOICES_COUNT, QUEST_REWARD_CURRENCY_COUNT,
+        QUEST_REWARD_DISPLAY_SPELL_COUNT, QUEST_REWARD_ITEM_COUNT, QUEST_REWARD_REPUTATIONS_COUNT,
+        QuestObjective, QuestTemplate,
+    };
 
     fn trigger(trigger_id: u32) -> AreaTriggerData {
         AreaTriggerData {
@@ -508,6 +660,95 @@ mod area_trigger_script_tests {
             yaw: 0.0,
             vertices: Vec::new(),
             teleport: None,
+        }
+    }
+
+    fn quest_template(quest_id: u32) -> QuestTemplate {
+        QuestTemplate {
+            id: quest_id,
+            quest_type: 2,
+            quest_level: 1,
+            quest_max_scaling_level: 0,
+            quest_package_id: 0,
+            min_level: 1,
+            quest_sort_id: 0,
+            quest_info_id: 0,
+            suggested_group_num: 0,
+            reward_next_quest: 0,
+            reward_xp_difficulty: 0,
+            reward_xp_multiplier: 1.0,
+            reward_money_difficulty: 0,
+            reward_money_multiplier: 1.0,
+            reward_bonus_money: 0,
+            reward_display_spell: [0; QUEST_REWARD_DISPLAY_SPELL_COUNT],
+            reward_spell: 0,
+            reward_honor: 0,
+            reward_title_id: 0,
+            reward_skill_line_id: 0,
+            reward_skill_points: 0,
+            reward_mail_template_id: 0,
+            reward_mail_delay_secs: 0,
+            reward_mail_sender_entry: 0,
+            reward_faction_ids: [0; QUEST_REWARD_REPUTATIONS_COUNT],
+            reward_faction_values: [0; QUEST_REWARD_REPUTATIONS_COUNT],
+            reward_faction_overrides: [0; QUEST_REWARD_REPUTATIONS_COUNT],
+            reward_faction_cap_in: [0; QUEST_REWARD_REPUTATIONS_COUNT],
+            reward_faction_flags: 0,
+            source_item_id: 0,
+            source_item_count: 0,
+            source_spell_id: 0,
+            limit_time_secs: 0,
+            expansion: 0,
+            flags: 0,
+            flags_ex: 0,
+            flags_ex2: 0,
+            special_flags: 0,
+            event_id_for_quest: 0,
+            reward_items: [0; QUEST_REWARD_ITEM_COUNT],
+            reward_amounts: [0; QUEST_REWARD_ITEM_COUNT],
+            reward_currencies: [0; QUEST_REWARD_CURRENCY_COUNT],
+            reward_currency_amounts: [0; QUEST_REWARD_CURRENCY_COUNT],
+            item_drop: [0; QUEST_ITEM_DROP_COUNT],
+            item_drop_quantity: [0; QUEST_ITEM_DROP_COUNT],
+            log_title: String::new(),
+            log_description: String::new(),
+            quest_description: String::new(),
+            area_description: String::new(),
+            quest_completion_log: String::new(),
+            objectives: Vec::new(),
+            allowable_races: 0,
+            allowable_classes: 0,
+            max_level: 0,
+            prev_quest_id: 0,
+            next_quest_id: 0,
+            exclusive_group: 0,
+            breadcrumb_for_quest_id: 0,
+            dependent_previous_quests: Vec::new(),
+            dependent_breadcrumb_quests: Vec::new(),
+            required_min_rep_faction: 0,
+            required_min_rep_value: 0,
+            required_max_rep_faction: 0,
+            required_max_rep_value: 0,
+            required_skill_id: 0,
+            required_skill_points: 0,
+            reward_choice_items: [(0, 0); QUEST_REWARD_CHOICES_COUNT],
+            reward_choice_item_types: [0; QUEST_REWARD_CHOICES_COUNT],
+        }
+    }
+
+    fn area_trigger_objective(quest_id: u32, trigger_id: i32) -> QuestObjective {
+        QuestObjective {
+            id: quest_id * 10,
+            quest_id,
+            obj_type: QUEST_OBJECTIVE_AREATRIGGER_LIKE_CPP,
+            order: 0,
+            storage_index: 0,
+            object_id: trigger_id,
+            amount: 1,
+            flags: 0,
+            flags2: 0,
+            progress_bar_weight: 0.0,
+            description: String::new(),
         }
     }
 
@@ -596,5 +837,71 @@ mod area_trigger_script_tests {
         assert_eq!(outcome.report.skipped_missing_area_trigger, vec![11]);
         assert!(outcome.store.is_tavern_area_trigger_like_cpp(10));
         assert!(!outcome.store.is_tavern_area_trigger_like_cpp(11));
+    }
+
+    #[test]
+    fn quest_area_trigger_store_validates_relation_rows_like_cpp() {
+        let mut area_triggers = AreaTriggerStore::new();
+        area_triggers.insert(trigger(10));
+        area_triggers.insert(trigger(11));
+        area_triggers.insert(trigger(12));
+
+        let mut flag_quest = quest_template(100);
+        flag_quest.flags |= QUEST_FLAGS_COMPLETION_AREA_TRIGGER_LIKE_CPP;
+        let mut objective_quest = quest_template(101);
+        objective_quest
+            .objectives
+            .push(area_trigger_objective(101, 12));
+        let obsolete_quest = quest_template(102);
+        let quest_store =
+            QuestStore::from_quests_like_cpp([flag_quest, objective_quest, obsolete_quest]);
+
+        let outcome = QuestAreaTriggerStoreLikeCpp::from_rows_like_cpp(
+            [
+                QuestAreaTriggerRowLikeCpp {
+                    trigger_id: 10,
+                    quest_id: 100,
+                },
+                QuestAreaTriggerRowLikeCpp {
+                    trigger_id: 11,
+                    quest_id: 999,
+                },
+                QuestAreaTriggerRowLikeCpp {
+                    trigger_id: 99,
+                    quest_id: 100,
+                },
+                QuestAreaTriggerRowLikeCpp {
+                    trigger_id: 10,
+                    quest_id: 102,
+                },
+                QuestAreaTriggerRowLikeCpp {
+                    trigger_id: 10,
+                    quest_id: 101,
+                },
+            ],
+            |trigger_id| area_triggers.contains_trigger_like_cpp(trigger_id),
+            &quest_store,
+        );
+
+        assert_eq!(outcome.report.rows_seen, 5);
+        assert_eq!(outcome.report.loaded_from_relation, 2);
+        assert_eq!(outcome.report.loaded_from_objectives, 1);
+        assert_eq!(outcome.report.skipped_missing_area_trigger, vec![99]);
+        assert_eq!(outcome.report.skipped_missing_quest, vec![(11, 999)]);
+        assert_eq!(outcome.report.skipped_obsolete_quest, vec![(10, 102)]);
+        assert_eq!(
+            outcome
+                .store
+                .quests_for_area_trigger_like_cpp(10)
+                .map(|quests| quests.iter().copied().collect::<Vec<_>>()),
+            Some(vec![100, 101])
+        );
+        assert_eq!(
+            outcome
+                .store
+                .quests_for_area_trigger_like_cpp(12)
+                .map(|quests| quests.iter().copied().collect::<Vec<_>>()),
+            Some(vec![101])
+        );
     }
 }

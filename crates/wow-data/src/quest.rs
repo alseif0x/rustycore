@@ -22,7 +22,9 @@ pub const QUEST_REWARD_DISPLAY_SPELL_COUNT: usize = 3;
 pub const QUEST_ITEM_DROP_COUNT: usize = 4;
 
 pub const QUEST_FLAGS_DAILY_LIKE_CPP: u32 = 0x0000_1000;
+pub const QUEST_FLAGS_COMPLETION_AREA_TRIGGER_LIKE_CPP: u32 = 0x0000_0004;
 pub const QUEST_FLAGS_HIDE_REWARD_POI_LIKE_CPP: u32 = 0x0000_0020;
+pub const QUEST_OBJECTIVE_AREATRIGGER_LIKE_CPP: u8 = 10;
 const QUEST_FLAGS_WEEKLY_LIKE_CPP: u32 = 0x0000_8000;
 pub const QUEST_FLAGS_EX_LEGENDARY_LIKE_CPP: u32 = 0x0000_0100;
 const QUEST_TYPE_TURNIN_LIKE_CPP: u8 = 0;
@@ -505,6 +507,12 @@ impl QuestStore {
             .values()
             .flat_map(|quest| quest.objectives.iter())
             .find(|objective| objective.id == objective_id)
+    }
+
+    pub fn objectives_like_cpp(&self) -> impl Iterator<Item = &QuestObjective> {
+        self.quests
+            .values()
+            .flat_map(|quest| quest.objectives.iter())
     }
 
     /// Get all quests a given NPC can offer.
