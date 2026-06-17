@@ -78,19 +78,19 @@ use wow_data::{
     PlayerConditionAuraLikeCpp, PlayerConditionContextLikeCpp, PlayerConditionCountLikeCpp,
     PlayerConditionPartyStatusLikeCpp, PlayerConditionQuestKillLikeCpp,
     PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp, PlayerConditionStore,
-    PlayerStatsStore, RandPropPointsStore, SkillLineStore, SkillStore, SpellAreaLikeCpp,
-    SpellAreaStoreLikeCpp, SpellAuraOptionsStore, SpellCategoryStore, SpellChainStoreLikeCpp,
-    SpellCustomAttributeStoreLikeCpp, SpellDurationStore, SpellEnchantProcEntryLikeCpp,
-    SpellEnchantProcStoreLikeCpp, SpellGroupStackRuleLikeCpp, SpellGroupStackRuleStoreLikeCpp,
-    SpellGroupStoreLikeCpp, SpellItemEnchantmentStore, SpellLearnSkillNodeLikeCpp,
-    SpellLearnSkillStoreLikeCpp, SpellLearnSpellNodeLikeCpp, SpellLearnSpellStoreLikeCpp,
-    SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp, SpellMiscStore, SpellPetAuraStoreLikeCpp,
-    SpellProcEntryLikeCpp, SpellProcStoreLikeCpp, SpellRadiusStore, SpellRangeStore,
-    SpellRequiredStoreLikeCpp, SpellStore, SpellTargetPositionStoreLikeCpp,
-    SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp, SpellTotemModelStoreLikeCpp,
-    SummonPropertiesEntry, ToyStore, TransmogSetEntry, TransmogSetItemStore,
-    TrinityStringStoreLikeCpp, VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp,
-    VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
+    PlayerStatsStore, RandPropPointsStore, ServersideSpellInfoLikeCpp, ServersideSpellStoreLikeCpp,
+    SkillLineStore, SkillStore, SpellAreaLikeCpp, SpellAreaStoreLikeCpp, SpellAuraOptionsStore,
+    SpellCategoryStore, SpellChainStoreLikeCpp, SpellCustomAttributeStoreLikeCpp,
+    SpellDurationStore, SpellEnchantProcEntryLikeCpp, SpellEnchantProcStoreLikeCpp,
+    SpellGroupStackRuleLikeCpp, SpellGroupStackRuleStoreLikeCpp, SpellGroupStoreLikeCpp,
+    SpellItemEnchantmentStore, SpellLearnSkillNodeLikeCpp, SpellLearnSkillStoreLikeCpp,
+    SpellLearnSpellNodeLikeCpp, SpellLearnSpellStoreLikeCpp, SpellLinkedStoreLikeCpp,
+    SpellLinkedTypeLikeCpp, SpellMiscStore, SpellPetAuraStoreLikeCpp, SpellProcEntryLikeCpp,
+    SpellProcStoreLikeCpp, SpellRadiusStore, SpellRangeStore, SpellRequiredStoreLikeCpp,
+    SpellStore, SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp,
+    SpellTotemModelStoreLikeCpp, SummonPropertiesEntry, ToyStore, TransmogSetEntry,
+    TransmogSetItemStore, TrinityStringStoreLikeCpp, VEHICLE_SEAT_FLAG_CAN_ATTACK,
+    VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
     calculate_battle_pet_stats_like_cpp, is_player_meeting_condition_like_cpp,
     progression_rewards::{
         ContentTuningStore, FactionEntry, FactionStore, FactionTemplateStore,
@@ -3882,6 +3882,7 @@ pub struct WorldSession {
     spell_pet_aura_store: Option<Arc<SpellPetAuraStoreLikeCpp>>,
     spell_area_store: Option<Arc<SpellAreaStoreLikeCpp>>,
     spell_custom_attribute_store: Option<Arc<SpellCustomAttributeStoreLikeCpp>>,
+    serverside_spell_store: Option<Arc<ServersideSpellStoreLikeCpp>>,
     spell_learn_skill_store: Option<Arc<SpellLearnSkillStoreLikeCpp>>,
     spell_learn_spell_store: Option<Arc<SpellLearnSpellStoreLikeCpp>>,
     pet_levelup_spell_store: Option<Arc<PetLevelupSpellStoreLikeCpp>>,
@@ -5199,6 +5200,7 @@ impl WorldSession {
             spell_pet_aura_store: None,
             spell_area_store: None,
             spell_custom_attribute_store: None,
+            serverside_spell_store: None,
             spell_learn_skill_store: None,
             spell_learn_spell_store: None,
             pet_levelup_spell_store: None,
@@ -17146,6 +17148,20 @@ impl WorldSession {
             .as_ref()
             .map(|store| store.attributes_for_spell_difficulty_like_cpp(spell_id, difficulty))
             .unwrap_or(0)
+    }
+
+    pub fn set_serverside_spell_store(&mut self, store: Arc<ServersideSpellStoreLikeCpp>) {
+        self.serverside_spell_store = Some(store);
+    }
+
+    pub(crate) fn serverside_spell_like_cpp(
+        &self,
+        spell_id: u32,
+        difficulty: u32,
+    ) -> Option<&ServersideSpellInfoLikeCpp> {
+        self.serverside_spell_store
+            .as_ref()
+            .and_then(|store| store.get_serverside_spell_like_cpp(spell_id, difficulty))
     }
 
     pub fn set_spell_learn_skill_store(&mut self, store: Arc<SpellLearnSkillStoreLikeCpp>) {
@@ -42091,6 +42107,78 @@ mod tests {
         outcome.store
     }
 
+    fn test_serverside_spell_store_like_cpp() -> wow_data::ServersideSpellStoreLikeCpp {
+        let outcome = wow_data::ServersideSpellStoreLikeCpp::from_rows_like_cpp(
+            [wow_data::ServersideSpellRowLikeCpp {
+                spell_id: 100,
+                difficulty_id: 0,
+                category_id: 0,
+                dispel: 0,
+                mechanic: 0,
+                attributes: 0,
+                attributes_ex: [0; 14],
+                stances: 0,
+                stances_not: 0,
+                targets: 0,
+                target_creature_type: 0,
+                requires_spell_focus: 0,
+                facing_caster_flags: 0,
+                caster_aura_state: 0,
+                target_aura_state: 0,
+                exclude_caster_aura_state: 0,
+                exclude_target_aura_state: 0,
+                caster_aura_spell: 0,
+                target_aura_spell: 0,
+                exclude_caster_aura_spell: 0,
+                exclude_target_aura_spell: 0,
+                caster_aura_type: 0,
+                target_aura_type: 0,
+                exclude_caster_aura_type: 0,
+                exclude_target_aura_type: 0,
+                casting_time_index: 0,
+                recovery_time: 0,
+                category_recovery_time: 0,
+                start_recovery_category: 0,
+                start_recovery_time: 0,
+                interrupt_flags: 0,
+                aura_interrupt_flags: [0; 2],
+                channel_interrupt_flags: [0; 2],
+                proc_flags: [0; 2],
+                proc_chance: 0,
+                proc_charges: 0,
+                proc_cooldown: 0,
+                proc_base_ppm: 0.0,
+                max_level: 0,
+                base_level: 0,
+                spell_level: 0,
+                duration_index: 0,
+                range_index: 0,
+                speed: 0.0,
+                launch_delay: 0.0,
+                stack_amount: 0,
+                equipped_item_class: 0,
+                equipped_item_sub_class_mask: 0,
+                equipped_item_inventory_type_mask: 0,
+                content_tuning_id: 0,
+                spell_name: "server spell".to_string(),
+                cone_angle: 0.0,
+                cone_width: 0.0,
+                max_target_level: 0,
+                max_affected_targets: 0,
+                spell_family_name: 0,
+                spell_family_flags: [0; 4],
+                dmg_class: 0,
+                prevention_type: 0,
+                area_group_id: 0,
+                school_mask: 0,
+                charge_category_id: 0,
+            }],
+            &wow_data::ServersideSpellEffectStoreLikeCpp::default(),
+            |_| false,
+        );
+        outcome.store
+    }
+
     fn test_spell_learn_skill_store_like_cpp() -> wow_data::SpellLearnSkillStoreLikeCpp {
         let outcome = wow_data::SpellLearnSkillStoreLikeCpp::from_spell_infos_like_cpp([
             wow_data::SpellLearnSkillSourceSpellInfoLikeCpp {
@@ -42695,6 +42783,29 @@ mod tests {
             session.spell_custom_attributes_for_difficulty_like_cpp(100, 1),
             0
         );
+    }
+
+    #[test]
+    fn serverside_spell_lookup_returns_none_without_store_like_cpp() {
+        let (session, _, _) = make_session();
+
+        assert!(session.serverside_spell_like_cpp(100, 0).is_none());
+    }
+
+    #[test]
+    fn serverside_spell_lookup_uses_exact_difficulty_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_serverside_spell_store(Arc::new(test_serverside_spell_store_like_cpp()));
+
+        assert_eq!(
+            session
+                .serverside_spell_like_cpp(100, 0)
+                .unwrap()
+                .row
+                .spell_name,
+            "server spell"
+        );
+        assert!(session.serverside_spell_like_cpp(100, 1).is_none());
     }
 
     #[test]

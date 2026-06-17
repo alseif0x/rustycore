@@ -2183,6 +2183,43 @@ async fn main() -> Result<ExitCode> {
             .context("Failed to load SpellRange.db2")?,
     );
     info!("Loaded {} spell range rows", spell_range_store.len());
+    let serverside_spell_effect_outcome =
+        wow_data::ServersideSpellEffectStoreLikeCpp::load_like_cpp(
+            world_db.as_ref(),
+            |spell_id| {
+                spell_store
+                    .get(i32::try_from(spell_id).unwrap_or(-1))
+                    .is_some()
+            },
+            |difficulty_id| difficulty_store.get(difficulty_id).is_some(),
+            |radius_id| spell_radius_store.get(radius_id).is_some(),
+        )
+        .await
+        .context("Failed to load C++ serverside_spell_effect rows")?;
+    let serverside_spell_effect_store = serverside_spell_effect_outcome.store;
+    info!(
+        "Loaded {} C++ serverside_spell_effect rows ({} validation errors; {} radius warnings)",
+        serverside_spell_effect_outcome.loaded_effect_count,
+        serverside_spell_effect_outcome.errors.len(),
+        serverside_spell_effect_outcome.warnings.len()
+    );
+    let serverside_spell_outcome = wow_data::ServersideSpellStoreLikeCpp::load_like_cpp(
+        world_db.as_ref(),
+        &serverside_spell_effect_store,
+        |spell_id| {
+            spell_store
+                .get(i32::try_from(spell_id).unwrap_or(-1))
+                .is_some()
+        },
+    )
+    .await
+    .context("Failed to load C++ serverside_spell rows")?;
+    let serverside_spell_store = Arc::new(serverside_spell_outcome.store);
+    info!(
+        "Loaded {} C++ serverside_spell rows ({} validation errors; authoritative SpellInfo insertion still pending)",
+        serverside_spell_outcome.loaded_spell_count,
+        serverside_spell_outcome.errors.len()
+    );
 
     // Load area trigger store (collision detection + teleportation)
     let area_trigger_store = Arc::new(
@@ -3083,6 +3120,7 @@ async fn main() -> Result<ExitCode> {
         spell_pet_aura_store: Some(Arc::clone(&spell_pet_aura_store)),
         spell_area_store: Some(Arc::clone(&spell_area_store)),
         spell_custom_attribute_store: Some(Arc::clone(&spell_custom_attribute_store)),
+        serverside_spell_store: Some(Arc::clone(&serverside_spell_store)),
         spell_learn_skill_store: Some(Arc::clone(&spell_learn_skill_store)),
         spell_learn_spell_store: Some(Arc::clone(&spell_learn_spell_store)),
         pet_levelup_spell_store: Some(Arc::clone(&pet_levelup_spell_store)),
@@ -9403,6 +9441,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.spell_custom_attribute_store {
         session.set_spell_custom_attribute_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.serverside_spell_store {
+        session.set_serverside_spell_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.spell_learn_skill_store {
         session.set_spell_learn_skill_store(Arc::clone(store));

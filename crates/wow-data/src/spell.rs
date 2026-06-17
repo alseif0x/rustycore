@@ -676,6 +676,77 @@ pub struct ServersideSpellEffectStoreLikeCpp {
 }
 
 impl ServersideSpellEffectStoreLikeCpp {
+    pub async fn load_like_cpp<RegularSpellExists, DifficultyExists, RadiusExists>(
+        db: &WorldDatabase,
+        regular_spell_exists: RegularSpellExists,
+        difficulty_exists: DifficultyExists,
+        radius_exists: RadiusExists,
+    ) -> Result<ServersideSpellEffectLoadOutcomeLikeCpp>
+    where
+        RegularSpellExists: FnMut(u32) -> bool,
+        DifficultyExists: FnMut(u32) -> bool,
+        RadiusExists: FnMut(u32) -> bool,
+    {
+        let mut result = db
+            .direct_query(WorldStatements::SEL_SERVERSIDE_SPELL_EFFECT.sql())
+            .await?;
+        let mut rows = Vec::new();
+
+        if !result.is_empty() {
+            loop {
+                rows.push(ServersideSpellEffectRowLikeCpp {
+                    spell_id: result.try_read::<u32>(0).unwrap_or(0),
+                    effect_index: result.try_read::<i32>(1).unwrap_or(0),
+                    difficulty_id: result.try_read::<u32>(2).unwrap_or(0),
+                    effect: result.try_read::<i32>(3).unwrap_or(0),
+                    effect_aura: result.try_read::<i32>(4).unwrap_or(0),
+                    effect_amplitude: result.try_read::<f32>(5).unwrap_or(0.0),
+                    effect_attributes: result.try_read::<i32>(6).unwrap_or(0),
+                    effect_aura_period: result.try_read::<i32>(7).unwrap_or(0),
+                    effect_bonus_coefficient: result.try_read::<f32>(8).unwrap_or(0.0),
+                    effect_chain_amplitude: result.try_read::<f32>(9).unwrap_or(0.0),
+                    effect_chain_targets: result.try_read::<i32>(10).unwrap_or(0),
+                    effect_item_type: result.try_read::<i32>(11).unwrap_or(0),
+                    effect_mechanic: result.try_read::<i32>(12).unwrap_or(0),
+                    effect_points_per_resource: result.try_read::<f32>(13).unwrap_or(0.0),
+                    effect_pos_facing: result.try_read::<f32>(14).unwrap_or(0.0),
+                    effect_real_points_per_level: result.try_read::<f32>(15).unwrap_or(0.0),
+                    effect_trigger_spell: result.try_read::<i32>(16).unwrap_or(0),
+                    bonus_coefficient_from_ap: result.try_read::<f32>(17).unwrap_or(0.0),
+                    pvp_multiplier: result.try_read::<f32>(18).unwrap_or(0.0),
+                    coefficient: result.try_read::<f32>(19).unwrap_or(0.0),
+                    variance: result.try_read::<f32>(20).unwrap_or(0.0),
+                    resource_coefficient: result.try_read::<f32>(21).unwrap_or(0.0),
+                    group_size_base_points_coefficient: result.try_read::<f32>(22).unwrap_or(0.0),
+                    effect_base_points: result.try_read::<f32>(23).unwrap_or(0.0),
+                    effect_misc_value_1: result.try_read::<i32>(24).unwrap_or(0),
+                    effect_misc_value_2: result.try_read::<i32>(25).unwrap_or(0),
+                    effect_radius_index_1: result.try_read::<u32>(26).unwrap_or(0),
+                    effect_radius_index_2: result.try_read::<u32>(27).unwrap_or(0),
+                    effect_spell_class_mask: [
+                        result.try_read::<i32>(28).unwrap_or(0),
+                        result.try_read::<i32>(29).unwrap_or(0),
+                        result.try_read::<i32>(30).unwrap_or(0),
+                        result.try_read::<i32>(31).unwrap_or(0),
+                    ],
+                    implicit_target_1: result.try_read::<i32>(32).unwrap_or(0),
+                    implicit_target_2: result.try_read::<i32>(33).unwrap_or(0),
+                });
+
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        Ok(Self::from_rows_like_cpp(
+            rows,
+            regular_spell_exists,
+            difficulty_exists,
+            radius_exists,
+        ))
+    }
+
     pub fn from_rows_like_cpp<I, RegularSpellExists, DifficultyExists, RadiusExists>(
         rows: I,
         mut regular_spell_exists: RegularSpellExists,
@@ -898,6 +969,128 @@ pub struct ServersideSpellStoreLikeCpp {
 }
 
 impl ServersideSpellStoreLikeCpp {
+    pub async fn load_like_cpp<RegularSpellExists>(
+        db: &WorldDatabase,
+        effects: &ServersideSpellEffectStoreLikeCpp,
+        regular_spell_exists: RegularSpellExists,
+    ) -> Result<ServersideSpellLoadOutcomeLikeCpp>
+    where
+        RegularSpellExists: FnMut(u32) -> bool,
+    {
+        let mut result = db
+            .direct_query(WorldStatements::SEL_SERVERSIDE_SPELL.sql())
+            .await?;
+        let mut rows = Vec::new();
+
+        if !result.is_empty() {
+            loop {
+                rows.push(ServersideSpellRowLikeCpp {
+                    spell_id: result.try_read::<u32>(0).unwrap_or(0),
+                    difficulty_id: result.try_read::<u32>(1).unwrap_or(0),
+                    category_id: result.try_read::<u32>(2).unwrap_or(0),
+                    dispel: result.try_read::<u32>(3).unwrap_or(0),
+                    mechanic: result.try_read::<u32>(4).unwrap_or(0),
+                    attributes: result.try_read::<u32>(5).unwrap_or(0),
+                    attributes_ex: [
+                        result.try_read::<u32>(6).unwrap_or(0),
+                        result.try_read::<u32>(7).unwrap_or(0),
+                        result.try_read::<u32>(8).unwrap_or(0),
+                        result.try_read::<u32>(9).unwrap_or(0),
+                        result.try_read::<u32>(10).unwrap_or(0),
+                        result.try_read::<u32>(11).unwrap_or(0),
+                        result.try_read::<u32>(12).unwrap_or(0),
+                        result.try_read::<u32>(13).unwrap_or(0),
+                        result.try_read::<u32>(14).unwrap_or(0),
+                        result.try_read::<u32>(15).unwrap_or(0),
+                        result.try_read::<u32>(16).unwrap_or(0),
+                        result.try_read::<u32>(17).unwrap_or(0),
+                        result.try_read::<u32>(18).unwrap_or(0),
+                        result.try_read::<u32>(19).unwrap_or(0),
+                    ],
+                    stances: result.try_read::<u64>(20).unwrap_or(0),
+                    stances_not: result.try_read::<u64>(21).unwrap_or(0),
+                    targets: result.try_read::<u32>(22).unwrap_or(0),
+                    target_creature_type: result.try_read::<u32>(23).unwrap_or(0),
+                    requires_spell_focus: result.try_read::<u32>(24).unwrap_or(0),
+                    facing_caster_flags: result.try_read::<u32>(25).unwrap_or(0),
+                    caster_aura_state: result.try_read::<u32>(26).unwrap_or(0),
+                    target_aura_state: result.try_read::<u32>(27).unwrap_or(0),
+                    exclude_caster_aura_state: result.try_read::<u32>(28).unwrap_or(0),
+                    exclude_target_aura_state: result.try_read::<u32>(29).unwrap_or(0),
+                    caster_aura_spell: result.try_read::<u32>(30).unwrap_or(0),
+                    target_aura_spell: result.try_read::<u32>(31).unwrap_or(0),
+                    exclude_caster_aura_spell: result.try_read::<u32>(32).unwrap_or(0),
+                    exclude_target_aura_spell: result.try_read::<u32>(33).unwrap_or(0),
+                    caster_aura_type: result.try_read::<i32>(34).unwrap_or(0),
+                    target_aura_type: result.try_read::<i32>(35).unwrap_or(0),
+                    exclude_caster_aura_type: result.try_read::<i32>(36).unwrap_or(0),
+                    exclude_target_aura_type: result.try_read::<i32>(37).unwrap_or(0),
+                    casting_time_index: result.try_read::<u32>(38).unwrap_or(0),
+                    recovery_time: result.try_read::<u32>(39).unwrap_or(0),
+                    category_recovery_time: result.try_read::<u32>(40).unwrap_or(0),
+                    start_recovery_category: result.try_read::<u32>(41).unwrap_or(0),
+                    start_recovery_time: result.try_read::<u32>(42).unwrap_or(0),
+                    interrupt_flags: result.try_read::<u32>(43).unwrap_or(0),
+                    aura_interrupt_flags: [
+                        result.try_read::<u32>(44).unwrap_or(0),
+                        result.try_read::<u32>(45).unwrap_or(0),
+                    ],
+                    channel_interrupt_flags: [
+                        result.try_read::<u32>(46).unwrap_or(0),
+                        result.try_read::<u32>(47).unwrap_or(0),
+                    ],
+                    proc_flags: [
+                        result.try_read::<u32>(48).unwrap_or(0),
+                        result.try_read::<u32>(49).unwrap_or(0),
+                    ],
+                    proc_chance: result.try_read::<u32>(50).unwrap_or(0),
+                    proc_charges: result.try_read::<u32>(51).unwrap_or(0),
+                    proc_cooldown: result.try_read::<u32>(52).unwrap_or(0),
+                    proc_base_ppm: result.try_read::<f32>(53).unwrap_or(0.0),
+                    max_level: result.try_read::<u32>(54).unwrap_or(0),
+                    base_level: result.try_read::<u32>(55).unwrap_or(0),
+                    spell_level: result.try_read::<u32>(56).unwrap_or(0),
+                    duration_index: result.try_read::<u32>(57).unwrap_or(0),
+                    range_index: result.try_read::<u32>(58).unwrap_or(0),
+                    speed: result.try_read::<f32>(59).unwrap_or(0.0),
+                    launch_delay: result.try_read::<f32>(60).unwrap_or(0.0),
+                    stack_amount: result.try_read::<u32>(61).unwrap_or(0),
+                    equipped_item_class: result.try_read::<i32>(62).unwrap_or(0),
+                    equipped_item_sub_class_mask: result.try_read::<i32>(63).unwrap_or(0),
+                    equipped_item_inventory_type_mask: result.try_read::<i32>(64).unwrap_or(0),
+                    content_tuning_id: result.try_read::<u32>(65).unwrap_or(0),
+                    spell_name: result.try_read::<String>(66).unwrap_or_default(),
+                    cone_angle: result.try_read::<f32>(67).unwrap_or(0.0),
+                    cone_width: result.try_read::<f32>(68).unwrap_or(0.0),
+                    max_target_level: result.try_read::<u32>(69).unwrap_or(0),
+                    max_affected_targets: result.try_read::<u32>(70).unwrap_or(0),
+                    spell_family_name: result.try_read::<u32>(71).unwrap_or(0),
+                    spell_family_flags: [
+                        result.try_read::<u32>(72).unwrap_or(0),
+                        result.try_read::<u32>(73).unwrap_or(0),
+                        result.try_read::<u32>(74).unwrap_or(0),
+                        result.try_read::<u32>(75).unwrap_or(0),
+                    ],
+                    dmg_class: result.try_read::<u32>(76).unwrap_or(0),
+                    prevention_type: result.try_read::<u32>(77).unwrap_or(0),
+                    area_group_id: result.try_read::<i32>(78).unwrap_or(0),
+                    school_mask: result.try_read::<u32>(79).unwrap_or(0),
+                    charge_category_id: result.try_read::<u32>(80).unwrap_or(0),
+                });
+
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        Ok(Self::from_rows_like_cpp(
+            rows,
+            effects,
+            regular_spell_exists,
+        ))
+    }
+
     pub fn from_rows_like_cpp<I, RegularSpellExists>(
         rows: I,
         effects: &ServersideSpellEffectStoreLikeCpp,
