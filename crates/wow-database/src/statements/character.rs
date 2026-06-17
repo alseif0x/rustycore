@@ -43,6 +43,9 @@ pub enum CharStatements {
     /// SELECT 1 FROM characters WHERE name = ?
     SEL_CHECK_NAME,
 
+    /// C++ `ObjectMgr::LoadReservedPlayersNames`.
+    SEL_RESERVED_NAMES,
+
     /// SELECT 1 FROM characters WHERE guid = ?
     SEL_CHECK_GUID,
 
@@ -1742,6 +1745,7 @@ impl StatementDef for CharStatements {
                  LEFT JOIN characters c ON cc.guid = c.guid WHERE c.deleteInfos_Account = ? AND c.deleteInfos_Name IS NOT NULL ORDER BY cc.guid, cc.chrCustomizationOptionID"
             }
             Self::SEL_CHECK_NAME => "SELECT 1 FROM characters WHERE name = ?",
+            Self::SEL_RESERVED_NAMES => "SELECT name FROM reserved_name",
             Self::SEL_CHECK_GUID => "SELECT 1 FROM characters WHERE guid = ?",
             Self::SEL_SUM_CHARS => {
                 "SELECT COUNT(guid) FROM characters WHERE account = ? AND deleteDate IS NULL"

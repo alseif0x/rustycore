@@ -481,7 +481,7 @@ Each `LoadXxx` is a sub-task. Ordered by typical TC startup order (which is itse
 - [~] **#GLOB.46** `load_points_of_interest` + `_locale`. `PointOfInterestStoreLikeCpp` and `PointOfInterestLocaleStoreLikeCpp` mirror C++ `LoadPointsOfInterest` / `LoadPointOfInterestLocales` (`points_of_interest`, `points_of_interest_locale`), including map-coordinate validation, duplicate-ID overwrite, invalid/enUS locale skip, and `GetPointOfInterest` / `GetPointOfInterestLocale` lookup semantics. Remaining: startup wiring and gossip/query packet consumption.
 - [~] **#GLOB.47** `load_npc_spell_click_spells`. `NpcSpellClickStoreLikeCpp` mirrors C++ `LoadNPCSpellClickSpells` (`npc_spellclick_spells`) with missing creature/spell validation, invalid-user-type logged-but-loaded semantics, multimap-style bounds lookup, startup wiring, and the C++ post-load `UNIT_NPC_FLAG_SPELLCLICK` removal for templates without spellclick data. Remaining: full runtime coverage for every `Unit::HandleSpellClick`/vehicle/script path.
 - [~] **#GLOB.48** `load_game_object_for_quests`. `GameObjectForQuestStoreLikeCpp` mirrors C++ `ObjectMgr::LoadGameObjectForQuests` as a derived index over `gameobject_template`, including questgiver, chest questID/quest-loot, generic questID, goober questID, and gathering-node quest-loot checks via gameobject loot templates. Startup now builds/logs the store after `LootTemplates_*`. Remaining: replace/adapt runtime `GameObject::ActivateToQuest` callers to consume this global index instead of recomputing from per-session represented state.
-- [ ] **#GLOB.49** `load_reserved_players_names` + `load_profanity_names` + `is_reserved_name(...)` + `is_profanity_name(...)`. (L each)
+- [~] **#GLOB.49** `load_reserved_players_names` + name profanity validators. `ReservedNameStoreLikeCpp` mirrors C++ `ObjectMgr::LoadReservedPlayersNames` / `IsReservedName` from character DB `reserved_name`, including case-insensitive lookup and startup loading/logging. Note: canonical C++ has no `ObjectMgr::LoadProfanityNames` / `IsProfanityName`; profanity checks are DB2/hotfix `NamesProfanity` validators built in `DB2Stores`, so that path remains separate. Remaining: wire reserved-name checks into character creation/rename/pet/guild validation and port DB2 name-validator checks.
 - [ ] **#GLOB.50** `load_game_tele`.
 - [ ] **#GLOB.51** `load_gossip_menu` + `load_gossip_menu_items` + `_locales` + `_addon`.
 - [ ] **#GLOB.52** `load_vendors` + `add_vendor_item` (online editor support) + persistence.
@@ -539,7 +539,7 @@ Each `LoadXxx` is a sub-task. Ordered by typical TC startup order (which is itse
 - [ ] Test: `get_closest_graveyard(loc, team, conditionObj)` returns the same row as TC for a known location/team
 - [ ] Test: `generate_creature_spawn_id` after restart never collides with any existing `creature.guid`
 - [ ] Test: `generate_auction_id` is monotonic and persists across restarts (uses `MAX(id) + 1`)
-- [ ] Test: `is_reserved_name("Arthas")` returns true (or whatever the wowchad seed says)
+- [~] Test: `is_reserved_name("Arthas")` returns true (or whatever the wowchad seed says). Unit coverage exists for case-insensitive lookup and duplicate-row count/store semantics; remaining DB parity test should use the seeded character DB.
 - [ ] Test: `get_quest_template(101)` returns `Wolf Across the Border` quest, with the correct objectives count
 - [ ] Test: `get_creature_template(NPC_ARTHAS)` exposes the right faction template, scale, classification
 - [ ] Test: `get_vendor_items(npc)` returns the same item list as the world DB

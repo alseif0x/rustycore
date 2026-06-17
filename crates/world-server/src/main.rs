@@ -2388,6 +2388,16 @@ async fn main() -> Result<ExitCode> {
         "Loaded {} C++ GameObjects for quests",
         gameobject_for_quest_store.len()
     );
+    let reserved_name_store = Arc::new(
+        wow_data::ReservedNameStoreLikeCpp::load_like_cpp(char_db.as_ref())
+            .await
+            .context("Failed to load C++ reserved player names")?,
+    );
+    info!(
+        "Loaded {} C++ reserved player names ({} unique)",
+        reserved_name_store.loaded_rows_like_cpp(),
+        reserved_name_store.len()
+    );
 
     // Load player_xp_for_level table
     let player_xp_table = {
