@@ -2281,21 +2281,43 @@ async fn main() -> Result<ExitCode> {
         spell_custom_attribute_outcome.applied_variant_count,
         spell_custom_attribute_outcome.errors.len()
     );
-    let access_requirement_store = Arc::new(
-        wow_data::AccessRequirementStoreLikeCpp::load_like_cpp(
-            world_db.as_ref(),
-            &map_store,
-            &map_difficulty_store,
-            &item_store,
-            quest_store.as_ref(),
-            achievement_store.as_ref(),
-        )
-        .await
-        .context("Failed to load C++ access_requirement rows")?,
-    );
+    let access_requirement_outcome = wow_data::AccessRequirementStoreLikeCpp::load_like_cpp(
+        world_db.as_ref(),
+        &map_store,
+        &map_difficulty_store,
+        &item_store,
+        quest_store.as_ref(),
+        achievement_store.as_ref(),
+    )
+    .await
+    .context("Failed to load C++ access_requirement rows")?;
+    let access_requirement_store = Arc::new(access_requirement_outcome.store);
     info!(
-        "Loaded {} C++ access requirement rows",
-        access_requirement_store.len()
+        "Loaded {} C++ access requirement rows ({} rows seen; {} map/difficulty skips; {} reference clears)",
+        access_requirement_outcome.report.loaded_rows,
+        access_requirement_outcome.report.rows_seen,
+        access_requirement_outcome.report.skipped_missing_map.len()
+            + access_requirement_outcome
+                .report
+                .skipped_missing_difficulty
+                .len(),
+        access_requirement_outcome.report.cleared_missing_item.len()
+            + access_requirement_outcome
+                .report
+                .cleared_missing_item2
+                .len()
+            + access_requirement_outcome
+                .report
+                .cleared_missing_quest_a
+                .len()
+            + access_requirement_outcome
+                .report
+                .cleared_missing_quest_h
+                .len()
+            + access_requirement_outcome
+                .report
+                .cleared_missing_achievement
+                .len()
     );
     let disable_mgr = Arc::new(
         load_disable_mgr_like_cpp(

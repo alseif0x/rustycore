@@ -78,7 +78,10 @@ pub mod world_safe_locs;
 pub mod world_spawn_id_store;
 pub mod world_state_expression;
 
-pub use access_requirement::{AccessRequirementLikeCpp, AccessRequirementStoreLikeCpp};
+pub use access_requirement::{
+    AccessRequirementLikeCpp, AccessRequirementLoadOutcomeLikeCpp,
+    AccessRequirementLoadReportLikeCpp, AccessRequirementRowLikeCpp, AccessRequirementStoreLikeCpp,
+};
 pub use area::{
     AREA_FLAG_ALLOW_HEARTH_AND_RESURRECT_FROM_AREA_LIKE_CPP, AreaTableEntry, AreaTableStore,
     FishingBaseSkillStoreLikeCpp,
