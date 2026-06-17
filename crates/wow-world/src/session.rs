@@ -78,10 +78,10 @@ use wow_data::{
     PlayerConditionQuestKillLikeCpp, PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp,
     PlayerConditionStore, PlayerStatsStore, RandPropPointsStore, SkillLineStore, SkillStore,
     SpellAuraOptionsStore, SpellCategoryStore, SpellDurationStore, SpellItemEnchantmentStore,
-    SpellMiscStore, SpellRadiusStore, SpellRangeStore, SpellStore, SpellTargetPositionStoreLikeCpp,
-    SummonPropertiesEntry, ToyStore, TransmogSetEntry, TransmogSetItemStore,
-    TrinityStringStoreLikeCpp, VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp,
-    VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
+    SpellMiscStore, SpellProcStoreLikeCpp, SpellRadiusStore, SpellRangeStore, SpellStore,
+    SpellTargetPositionStoreLikeCpp, SummonPropertiesEntry, ToyStore, TransmogSetEntry,
+    TransmogSetItemStore, TrinityStringStoreLikeCpp, VEHICLE_SEAT_FLAG_CAN_ATTACK,
+    VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
     calculate_battle_pet_stats_like_cpp, is_player_meeting_condition_like_cpp,
     progression_rewards::{
         ContentTuningStore, FactionEntry, FactionStore, FactionTemplateStore,
@@ -3865,6 +3865,7 @@ pub struct WorldSession {
     npc_spell_click_store: Option<Arc<NpcSpellClickStoreLikeCpp>>,
     spell_aura_options_store: Option<Arc<SpellAuraOptionsStore>>,
     spell_misc_store: Option<Arc<SpellMiscStore>>,
+    spell_proc_store: Option<Arc<SpellProcStoreLikeCpp>>,
     spell_duration_store: Option<Arc<SpellDurationStore>>,
     spell_radius_store: Option<Arc<SpellRadiusStore>>,
     spell_range_store: Option<Arc<SpellRangeStore>>,
@@ -5165,6 +5166,7 @@ impl WorldSession {
             npc_spell_click_store: None,
             spell_aura_options_store: None,
             spell_misc_store: None,
+            spell_proc_store: None,
             spell_duration_store: None,
             spell_radius_store: None,
             spell_range_store: None,
@@ -16882,6 +16884,14 @@ impl WorldSession {
 
     pub fn set_spell_misc_store(&mut self, store: Arc<SpellMiscStore>) {
         self.spell_misc_store = Some(store);
+    }
+
+    pub fn set_spell_proc_store(&mut self, store: Arc<SpellProcStoreLikeCpp>) {
+        self.spell_proc_store = Some(store);
+    }
+
+    pub(crate) fn spell_proc_store(&self) -> Option<&Arc<SpellProcStoreLikeCpp>> {
+        self.spell_proc_store.as_ref()
     }
 
     pub fn set_spell_duration_store(&mut self, store: Arc<SpellDurationStore>) {

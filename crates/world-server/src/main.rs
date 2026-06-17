@@ -9014,6 +9014,9 @@ async fn create_session(
     if let Some(ref store) = resources.spell_misc_store {
         session.set_spell_misc_store(Arc::clone(store));
     }
+    if let Some(ref store) = resources.spell_proc_store {
+        session.set_spell_proc_store(Arc::clone(store));
+    }
     if let Some(ref store) = resources.spell_duration_store {
         session.set_spell_duration_store(Arc::clone(store));
     }
