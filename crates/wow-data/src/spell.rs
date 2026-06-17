@@ -396,7 +396,10 @@ pub mod aura_types {
     pub const SPELL_AURA_HASTE_SPELLS: i32 = 73;
     pub const SPELL_AURA_MOUNTED: i32 = 78;
     pub const SPELL_AURA_MOD_DETECT_RANGE: i32 = 91;
+    pub const SPELL_AURA_MOD_MELEE_HASTE: i32 = 138;
+    pub const SPELL_AURA_MOD_RANGED_HASTE: i32 = 140;
     pub const SPELL_AURA_MOD_DETECTED_RANGE: i32 = 152;
+    pub const SPELL_AURA_MOD_MELEE_RANGED_HASTE: i32 = 192;
     pub const SPELL_AURA_PROVIDE_SPELL_FOCUS: i32 = 281;
     pub const SPELL_AURA_MOD_BATTLE_PET_XP_PCT: i32 = 420;
 }
@@ -1423,6 +1426,322 @@ pub struct SpellGroupLoadOutcomeLikeCpp {
     pub errors: Vec<SpellGroupLoadErrorLikeCpp>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(u8)]
+pub enum SpellGroupStackRuleLikeCpp {
+    Default = 0,
+    Exclusive = 1,
+    ExclusiveFromSameCaster = 2,
+    ExclusiveSameEffect = 3,
+    ExclusiveHighest = 4,
+}
+
+impl SpellGroupStackRuleLikeCpp {
+    pub const MAX_LIKE_CPP: u8 = 5;
+
+    pub const fn from_u8_like_cpp(value: u8) -> Option<Self> {
+        match value {
+            0 => Some(Self::Default),
+            1 => Some(Self::Exclusive),
+            2 => Some(Self::ExclusiveFromSameCaster),
+            3 => Some(Self::ExclusiveSameEffect),
+            4 => Some(Self::ExclusiveHighest),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellGroupStackRuleRowLikeCpp {
+    pub group_id: u32,
+    pub stack_rule: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpellGroupStackRuleLoadErrorKindLikeCpp {
+    StackRuleMissing,
+    GroupMissing,
+    SameEffectSpellMissing,
+    SameEffectSpellAuraMissing,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellGroupStackRuleLoadErrorLikeCpp {
+    pub row: SpellGroupStackRuleRowLikeCpp,
+    pub spell_id: Option<u32>,
+    pub kind: SpellGroupStackRuleLoadErrorKindLikeCpp,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SpellGroupStackRuleStoreLikeCpp {
+    pub stack_rule_by_group_id: BTreeMap<u32, SpellGroupStackRuleLikeCpp>,
+    pub same_effect_stack_by_group_id: BTreeMap<u32, BTreeSet<i32>>,
+}
+
+impl SpellGroupStackRuleStoreLikeCpp {
+    pub fn from_rows_like_cpp<I, SpellInfoById, NextRankSpell>(
+        rows: I,
+        spell_groups: &SpellGroupStoreLikeCpp,
+        mut spell_info_by_id: SpellInfoById,
+        mut next_rank_spell: NextRankSpell,
+    ) -> SpellGroupStackRuleLoadOutcomeLikeCpp
+    where
+        I: IntoIterator<Item = SpellGroupStackRuleRowLikeCpp>,
+        SpellInfoById: FnMut(u32) -> Option<SpellInfo>,
+        NextRankSpell: FnMut(u32) -> Option<u32>,
+    {
+        let mut store = Self::default();
+        let mut same_effect_groups = Vec::new();
+        let mut errors = Vec::new();
+        let mut loaded_row_count = 0;
+
+        for row in rows {
+            let Some(stack_rule) = SpellGroupStackRuleLikeCpp::from_u8_like_cpp(row.stack_rule)
+            else {
+                errors.push(SpellGroupStackRuleLoadErrorLikeCpp {
+                    row,
+                    spell_id: None,
+                    kind: SpellGroupStackRuleLoadErrorKindLikeCpp::StackRuleMissing,
+                });
+                continue;
+            };
+
+            if spell_groups
+                .spell_group_spell_map_bounds_like_cpp(row.group_id)
+                .is_empty()
+            {
+                errors.push(SpellGroupStackRuleLoadErrorLikeCpp {
+                    row,
+                    spell_id: None,
+                    kind: SpellGroupStackRuleLoadErrorKindLikeCpp::GroupMissing,
+                });
+                continue;
+            }
+
+            store
+                .stack_rule_by_group_id
+                .entry(row.group_id)
+                .or_insert(stack_rule);
+
+            if stack_rule == SpellGroupStackRuleLikeCpp::ExclusiveSameEffect {
+                same_effect_groups.push(row.group_id);
+            }
+
+            loaded_row_count += 1;
+        }
+
+        let mut same_effect_parsed_count = 0;
+        for group_id in same_effect_groups {
+            let spell_ids = spell_groups.set_of_spells_in_spell_group_like_cpp(group_id);
+            let aura_types =
+                infer_same_effect_stack_aura_types_like_cpp(&spell_ids, &mut spell_info_by_id);
+
+            for spell_id in spell_ids {
+                if !spell_rank_chain_has_any_aura_like_cpp(
+                    spell_id,
+                    &aura_types,
+                    &mut spell_info_by_id,
+                    &mut next_rank_spell,
+                ) {
+                    let kind = if spell_info_by_id(spell_id).is_some() {
+                        SpellGroupStackRuleLoadErrorKindLikeCpp::SameEffectSpellAuraMissing
+                    } else {
+                        SpellGroupStackRuleLoadErrorKindLikeCpp::SameEffectSpellMissing
+                    };
+                    errors.push(SpellGroupStackRuleLoadErrorLikeCpp {
+                        row: SpellGroupStackRuleRowLikeCpp {
+                            group_id,
+                            stack_rule: SpellGroupStackRuleLikeCpp::ExclusiveSameEffect as u8,
+                        },
+                        spell_id: Some(spell_id),
+                        kind,
+                    });
+                }
+            }
+
+            store
+                .same_effect_stack_by_group_id
+                .insert(group_id, aura_types);
+            same_effect_parsed_count += 1;
+        }
+
+        SpellGroupStackRuleLoadOutcomeLikeCpp {
+            store,
+            loaded_row_count,
+            same_effect_parsed_count,
+            errors,
+        }
+    }
+
+    pub fn spell_group_stack_rule_like_cpp(&self, group_id: u32) -> SpellGroupStackRuleLikeCpp {
+        self.stack_rule_by_group_id
+            .get(&group_id)
+            .copied()
+            .unwrap_or(SpellGroupStackRuleLikeCpp::Default)
+    }
+
+    pub fn same_effect_stack_rule_aura_types_like_cpp(
+        &self,
+        group_id: u32,
+    ) -> Option<&BTreeSet<i32>> {
+        self.same_effect_stack_by_group_id.get(&group_id)
+    }
+
+    pub fn check_spell_group_stack_rules_like_cpp(
+        &self,
+        spell_groups: &SpellGroupStoreLikeCpp,
+        first_rank_spell_id_1: u32,
+        first_rank_spell_id_2: u32,
+    ) -> SpellGroupStackRuleLikeCpp {
+        let mut common_groups = BTreeSet::new();
+
+        for group_id in spell_groups
+            .spell_spell_group_map_bounds_like_cpp(first_rank_spell_id_1, |spell_id| spell_id)
+        {
+            if spell_groups.is_spell_member_of_spell_group_like_cpp(
+                first_rank_spell_id_2,
+                *group_id,
+                |spell_id| spell_id,
+            ) {
+                let mut add = true;
+                for entry in spell_groups.spell_group_spell_map_bounds_like_cpp(*group_id) {
+                    if *entry < 0 {
+                        let nested_group_id = entry.unsigned_abs();
+                        if spell_groups.is_spell_member_of_spell_group_like_cpp(
+                            first_rank_spell_id_1,
+                            nested_group_id,
+                            |spell_id| spell_id,
+                        ) && spell_groups.is_spell_member_of_spell_group_like_cpp(
+                            first_rank_spell_id_2,
+                            nested_group_id,
+                            |spell_id| spell_id,
+                        ) {
+                            add = false;
+                            break;
+                        }
+                    }
+                }
+
+                if add {
+                    common_groups.insert(*group_id);
+                }
+            }
+        }
+
+        let mut rule = SpellGroupStackRuleLikeCpp::Default;
+        for group_id in common_groups {
+            rule = self.spell_group_stack_rule_like_cpp(group_id);
+            if rule != SpellGroupStackRuleLikeCpp::Default {
+                break;
+            }
+        }
+        rule
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpellGroupStackRuleLoadOutcomeLikeCpp {
+    pub store: SpellGroupStackRuleStoreLikeCpp,
+    pub loaded_row_count: usize,
+    pub same_effect_parsed_count: usize,
+    pub errors: Vec<SpellGroupStackRuleLoadErrorLikeCpp>,
+}
+
+fn infer_same_effect_stack_aura_types_like_cpp<SpellInfoById>(
+    spell_ids: &BTreeSet<u32>,
+    spell_info_by_id: &mut SpellInfoById,
+) -> BTreeSet<i32>
+where
+    SpellInfoById: FnMut(u32) -> Option<SpellInfo>,
+{
+    let mut frequency = BTreeMap::<i32, usize>::new();
+    let mut aura_order = Vec::<i32>::new();
+
+    for spell_id in spell_ids {
+        if let Some(spell_info) = spell_info_by_id(*spell_id) {
+            for effect in spell_info.effects() {
+                if !effect.is_aura_like_cpp() {
+                    continue;
+                }
+
+                let aura_type = normalize_same_effect_subgroup_aura_like_cpp(effect.effect_aura);
+                if !frequency.contains_key(&aura_type) {
+                    aura_order.push(aura_type);
+                }
+                *frequency.entry(aura_type).or_default() += 1;
+            }
+        }
+    }
+
+    let mut selected_aura_type = 0;
+    let mut selected_count = 0;
+    for aura_type in aura_order {
+        let current_count = frequency.get(&aura_type).copied().unwrap_or(0);
+        if current_count > selected_count {
+            selected_aura_type = aura_type;
+            selected_count = current_count;
+        }
+    }
+
+    if selected_aura_type == aura_types::SPELL_AURA_MOD_MELEE_HASTE {
+        BTreeSet::from([
+            aura_types::SPELL_AURA_MOD_MELEE_HASTE,
+            aura_types::SPELL_AURA_MOD_MELEE_RANGED_HASTE,
+            aura_types::SPELL_AURA_MOD_RANGED_HASTE,
+        ])
+    } else {
+        BTreeSet::from([selected_aura_type])
+    }
+}
+
+fn normalize_same_effect_subgroup_aura_like_cpp(aura_type: i32) -> i32 {
+    if matches!(
+        aura_type,
+        aura_types::SPELL_AURA_MOD_MELEE_HASTE
+            | aura_types::SPELL_AURA_MOD_MELEE_RANGED_HASTE
+            | aura_types::SPELL_AURA_MOD_RANGED_HASTE
+    ) {
+        aura_types::SPELL_AURA_MOD_MELEE_HASTE
+    } else {
+        aura_type
+    }
+}
+
+fn spell_rank_chain_has_any_aura_like_cpp<SpellInfoById, NextRankSpell>(
+    spell_id: u32,
+    aura_types: &BTreeSet<i32>,
+    spell_info_by_id: &mut SpellInfoById,
+    next_rank_spell: &mut NextRankSpell,
+) -> bool
+where
+    SpellInfoById: FnMut(u32) -> Option<SpellInfo>,
+    NextRankSpell: FnMut(u32) -> Option<u32>,
+{
+    let mut current_spell_id = Some(spell_id);
+    let mut seen = BTreeSet::new();
+
+    while let Some(spell_id) = current_spell_id {
+        if !seen.insert(spell_id) {
+            break;
+        }
+
+        let Some(spell_info) = spell_info_by_id(spell_id) else {
+            return false;
+        };
+
+        if aura_types
+            .iter()
+            .any(|aura_type| spell_info.has_aura_like_cpp(*aura_type))
+        {
+            return true;
+        }
+
+        current_spell_id = next_rank_spell(spell_id);
+    }
+
+    false
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SpellLearnSpellSqlRowLikeCpp {
     pub entry: u32,
@@ -1744,6 +2063,23 @@ impl SpellInfo {
 }
 
 impl SpellEffectInfo {
+    pub fn is_aura_like_cpp(&self) -> bool {
+        use spell_effect_types::*;
+        matches!(
+            self.effect,
+            SPELL_EFFECT_APPLY_AURA
+                | SPELL_EFFECT_APPLY_AREA_AURA_PARTY
+                | SPELL_EFFECT_APPLY_AREA_AURA_RAID
+                | SPELL_EFFECT_APPLY_AREA_AURA_FRIEND
+                | SPELL_EFFECT_APPLY_AREA_AURA_ENEMY
+                | SPELL_EFFECT_APPLY_AREA_AURA_PET
+                | SPELL_EFFECT_APPLY_AREA_AURA_OWNER
+                | SPELL_EFFECT_APPLY_AURA_ON_PET
+                | SPELL_EFFECT_APPLY_AREA_AURA_SUMMONS
+                | SPELL_EFFECT_APPLY_AREA_AURA_PARTY_NONRANDOM
+        )
+    }
+
     pub fn is_mounted_aura_like_cpp(&self) -> bool {
         self.effect == spell_effect_types::SPELL_EFFECT_APPLY_AURA
             && self.effect_aura == aura_types::SPELL_AURA_MOUNTED
@@ -3840,6 +4176,169 @@ mod tests {
         );
     }
 
+    #[test]
+    fn spell_group_stack_rule_store_validates_rows_like_cpp() {
+        let spell_groups = SpellGroupStoreLikeCpp::from_rows_like_cpp(
+            [SpellGroupRowLikeCpp {
+                group_id: 1001,
+                spell_id: 10,
+            }],
+            |spell_id| spell_id == 10,
+            |_| 1,
+        )
+        .store;
+
+        let outcome = SpellGroupStackRuleStoreLikeCpp::from_rows_like_cpp(
+            [
+                SpellGroupStackRuleRowLikeCpp {
+                    group_id: 1001,
+                    stack_rule: SpellGroupStackRuleLikeCpp::MAX_LIKE_CPP,
+                },
+                SpellGroupStackRuleRowLikeCpp {
+                    group_id: 1999,
+                    stack_rule: SpellGroupStackRuleLikeCpp::Exclusive as u8,
+                },
+                SpellGroupStackRuleRowLikeCpp {
+                    group_id: 1001,
+                    stack_rule: SpellGroupStackRuleLikeCpp::Exclusive as u8,
+                },
+            ],
+            &spell_groups,
+            |_| None,
+            |_| None,
+        );
+
+        assert_eq!(outcome.loaded_row_count, 1);
+        assert_eq!(
+            outcome
+                .errors
+                .iter()
+                .map(|error| error.kind)
+                .collect::<Vec<_>>(),
+            vec![
+                SpellGroupStackRuleLoadErrorKindLikeCpp::StackRuleMissing,
+                SpellGroupStackRuleLoadErrorKindLikeCpp::GroupMissing,
+            ]
+        );
+        assert_eq!(
+            outcome.store.spell_group_stack_rule_like_cpp(1001),
+            SpellGroupStackRuleLikeCpp::Exclusive
+        );
+        assert_eq!(
+            outcome.store.spell_group_stack_rule_like_cpp(1999),
+            SpellGroupStackRuleLikeCpp::Default
+        );
+    }
+
+    #[test]
+    fn spell_group_stack_rule_store_infers_same_effect_aura_group_like_cpp() {
+        let spell_groups = SpellGroupStoreLikeCpp::from_rows_like_cpp(
+            [
+                SpellGroupRowLikeCpp {
+                    group_id: 1001,
+                    spell_id: 10,
+                },
+                SpellGroupRowLikeCpp {
+                    group_id: 1001,
+                    spell_id: 20,
+                },
+                SpellGroupRowLikeCpp {
+                    group_id: 1001,
+                    spell_id: 30,
+                },
+            ],
+            |spell_id| matches!(spell_id, 10 | 20 | 30),
+            |_| 1,
+        )
+        .store;
+        let spells = BTreeMap::from([
+            (
+                10,
+                test_spell_info_with_aura(10, aura_types::SPELL_AURA_MOD_MELEE_HASTE),
+            ),
+            (
+                20,
+                test_spell_info_with_aura(20, aura_types::SPELL_AURA_MOD_MELEE_RANGED_HASTE),
+            ),
+            (30, test_spell_info_without_aura(30)),
+            (
+                31,
+                test_spell_info_with_aura(31, aura_types::SPELL_AURA_MOD_RANGED_HASTE),
+            ),
+        ]);
+
+        let outcome = SpellGroupStackRuleStoreLikeCpp::from_rows_like_cpp(
+            [SpellGroupStackRuleRowLikeCpp {
+                group_id: 1001,
+                stack_rule: SpellGroupStackRuleLikeCpp::ExclusiveSameEffect as u8,
+            }],
+            &spell_groups,
+            |spell_id| spells.get(&spell_id).cloned(),
+            |spell_id| if spell_id == 30 { Some(31) } else { None },
+        );
+
+        assert!(outcome.errors.is_empty());
+        assert_eq!(outcome.loaded_row_count, 1);
+        assert_eq!(outcome.same_effect_parsed_count, 1);
+        assert_eq!(
+            outcome
+                .store
+                .same_effect_stack_rule_aura_types_like_cpp(1001),
+            Some(&BTreeSet::from([
+                aura_types::SPELL_AURA_MOD_MELEE_HASTE,
+                aura_types::SPELL_AURA_MOD_MELEE_RANGED_HASTE,
+                aura_types::SPELL_AURA_MOD_RANGED_HASTE,
+            ])),
+            "C++ collapses the melee/ranged haste subgroup to its first aura before expanding it back"
+        );
+    }
+
+    #[test]
+    fn spell_group_stack_rule_store_checks_common_group_rules_like_cpp() {
+        let spell_groups = SpellGroupStoreLikeCpp::from_rows_like_cpp(
+            [
+                SpellGroupRowLikeCpp {
+                    group_id: 1001,
+                    spell_id: 10,
+                },
+                SpellGroupRowLikeCpp {
+                    group_id: 1001,
+                    spell_id: 20,
+                },
+                SpellGroupRowLikeCpp {
+                    group_id: 1002,
+                    spell_id: 30,
+                },
+            ],
+            |spell_id| matches!(spell_id, 10 | 20 | 30),
+            |_| 1,
+        )
+        .store;
+
+        let outcome = SpellGroupStackRuleStoreLikeCpp::from_rows_like_cpp(
+            [SpellGroupStackRuleRowLikeCpp {
+                group_id: 1001,
+                stack_rule: SpellGroupStackRuleLikeCpp::ExclusiveHighest as u8,
+            }],
+            &spell_groups,
+            |_| None,
+            |_| None,
+        );
+
+        assert_eq!(
+            outcome
+                .store
+                .check_spell_group_stack_rules_like_cpp(&spell_groups, 10, 20),
+            SpellGroupStackRuleLikeCpp::ExclusiveHighest
+        );
+        assert_eq!(
+            outcome
+                .store
+                .check_spell_group_stack_rules_like_cpp(&spell_groups, 10, 30),
+            SpellGroupStackRuleLikeCpp::Default
+        );
+    }
+
     fn learn_source(
         spell_id: u32,
         is_talent: bool,
@@ -3854,6 +4353,43 @@ mod tests {
             is_passive,
             has_skill_step_effect,
             learn_spell_effects,
+        }
+    }
+
+    fn test_spell_info_with_aura(spell_id: i32, aura_type: i32) -> SpellInfo {
+        SpellInfo {
+            spell_id,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_base_points: 0,
+            effect_bonus_coefficient: 0.0,
+            aura_type: Some(aura_type),
+            display_flags: 0,
+            requires_spell_focus: 0,
+            effects: vec![SpellEffectInfo {
+                effect_index: 0,
+                effect: spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_aura: aura_type,
+                ..SpellEffectInfo::default()
+            }],
+        }
+    }
+
+    fn test_spell_info_without_aura(spell_id: i32) -> SpellInfo {
+        SpellInfo {
+            spell_id,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: spell_effect_types::SPELL_EFFECT_NONE,
+            effect_base_points: 0,
+            effect_bonus_coefficient: 0.0,
+            aura_type: None,
+            display_flags: 0,
+            requires_spell_focus: 0,
+            effects: Vec::new(),
         }
     }
 

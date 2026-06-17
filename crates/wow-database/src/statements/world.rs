@@ -289,6 +289,8 @@ pub enum WorldStatements {
     SEL_SPELL_TARGET_POSITION,
     /// C++ SpellMgr::LoadSpellGroups startup query.
     SEL_SPELL_GROUP,
+    /// C++ SpellMgr::LoadSpellGroupStackRules startup query.
+    SEL_SPELL_GROUP_STACK_RULES,
     /// Load C++ ConditionMgr loot-template conditions.
     /// Args: SourceTypeOrReferenceId (i32), SourceGroup (u32), SourceEntry (u32).
     SEL_LOOT_TEMPLATE_CONDITION_ROWS,
@@ -885,6 +887,9 @@ impl StatementDef for WorldStatements {
                 "SELECT ID, EffectIndex, MapID, PositionX, PositionY, PositionZ, Orientation FROM spell_target_position"
             }
             Self::SEL_SPELL_GROUP => "SELECT id, spell_id FROM spell_group",
+            Self::SEL_SPELL_GROUP_STACK_RULES => {
+                "SELECT group_id, stack_rule FROM spell_group_stack_rules"
+            }
             Self::SEL_LOOT_TEMPLATE_CONDITION_ROWS => concat!(
                 "SELECT ElseGroup, ConditionTypeOrReference, ConditionTarget, ",
                 "ConditionValue1, ConditionValue2, ConditionValue3, ",
@@ -1244,6 +1249,17 @@ mod tests {
         let sql = WorldStatements::SEL_SPELL_GROUP.sql();
 
         assert_eq!(sql, "SELECT id, spell_id FROM spell_group");
+        assert_eq!(sql.matches('?').count(), 0);
+    }
+
+    #[test]
+    fn spell_group_stack_rules_statement_matches_cpp_sql_exactly() {
+        let sql = WorldStatements::SEL_SPELL_GROUP_STACK_RULES.sql();
+
+        assert_eq!(
+            sql,
+            "SELECT group_id, stack_rule FROM spell_group_stack_rules"
+        );
         assert_eq!(sql.matches('?').count(), 0);
     }
 }
