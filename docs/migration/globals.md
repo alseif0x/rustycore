@@ -444,7 +444,7 @@ Complejidad: **L** (low, <1h), **M** (med, 1-4h), **H** (high, 4-12h), **XL** (>
 Each `LoadXxx` is a sub-task. Ordered by typical TC startup order (which is itself the dependency order). All M unless noted.
 
 - [ ] **#GLOB.11** `load_trinity_strings` (i18n base). (L)
-- [ ] **#GLOB.12** `load_script_names` + `ScriptNameContainer` (interner). Core interner exists in `wow-data` and is built at startup from currently loaded creature/gameobject template script names; direct world-DB loader wiring for every C++ script-name source remains pending. (L)
+- [ ] **#GLOB.12** `load_script_names` + `ScriptNameContainer` (interner). Core interner exists in `wow-data` and is built at startup from currently loaded creature/gameobject template script names; `areatrigger_scripts` represented loading exists but waits for an authoritative AreaTrigger store before startup wiring; direct world-DB loader wiring for every C++ script-name source remains pending. (L)
 - [ ] **#GLOB.13** `load_instance_template`. (L)
 - [ ] **#GLOB.14** `load_creature_class_level_stats` (combat-stat baselines).
 - [ ] **#GLOB.15** `load_creature_template` (canonical entry table). (H — wide schema, many validations)

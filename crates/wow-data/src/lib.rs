@@ -84,7 +84,9 @@ pub use area::{
     FishingBaseSkillStoreLikeCpp,
 };
 pub use area_trigger::{
-    AreaTriggerData, AreaTriggerStore, AreaTriggerTeleport, TriggerShape, load_area_triggers,
+    AreaTriggerData, AreaTriggerScriptLoadOutcomeLikeCpp, AreaTriggerScriptLoadReportLikeCpp,
+    AreaTriggerScriptRowLikeCpp, AreaTriggerScriptStoreLikeCpp, AreaTriggerStore,
+    AreaTriggerTeleport, TriggerShape, load_area_triggers,
 };
 pub use area_trigger_template::AreaTriggerTemplateStore;
 pub use battlemaster_list::{

@@ -9,10 +9,12 @@
 //! and supports teleportation destinations.
 
 use anyhow::Result;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use tracing::info;
 use wow_core::Position;
 use wow_database::{WorldDatabase, WorldStatements};
+
+use crate::{ScriptIdLikeCpp, ScriptNameInternerLikeCpp};
 
 /// Area trigger shape types (from AreaTriggerShapeType).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -179,6 +181,28 @@ pub struct AreaTriggerStore {
     triggers_by_map: HashMap<u16, Vec<u32>>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AreaTriggerScriptRowLikeCpp {
+    pub entry: u32,
+    pub script_name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AreaTriggerScriptLoadReportLikeCpp {
+    pub loaded: usize,
+    pub skipped_missing_area_trigger: Vec<u32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct AreaTriggerScriptStoreLikeCpp {
+    scripts_by_trigger_id: BTreeMap<u32, ScriptIdLikeCpp>,
+}
+
+pub struct AreaTriggerScriptLoadOutcomeLikeCpp {
+    pub store: AreaTriggerScriptStoreLikeCpp,
+    pub report: AreaTriggerScriptLoadReportLikeCpp,
+}
+
 impl AreaTriggerStore {
     /// Create an empty store.
     pub fn new() -> Self {
@@ -213,6 +237,10 @@ impl AreaTriggerStore {
         self.triggers_by_id.get(&trigger_id)
     }
 
+    pub fn contains_trigger_like_cpp(&self, trigger_id: u32) -> bool {
+        self.triggers_by_id.contains_key(&trigger_id)
+    }
+
     /// Get all triggers for a specific map.
     pub fn get_triggers_for_map(&self, map_id: u16) -> Vec<&AreaTriggerData> {
         self.triggers_by_map
@@ -231,6 +259,10 @@ impl AreaTriggerStore {
             .into_iter()
             .filter(|t| t.contains(pos))
             .collect()
+    }
+
+    pub fn len(&self) -> usize {
+        self.triggers_by_id.len()
     }
 }
 
@@ -298,6 +330,170 @@ pub async fn load_area_triggers(db: &WorldDatabase) -> Result<AreaTriggerStore> 
         store.insert(trigger);
     }
 
-    info!("Loaded {} area triggers total", store.triggers_by_id.len());
+    info!("Loaded {} area triggers total", store.len());
     Ok(store)
+}
+
+impl AreaTriggerScriptStoreLikeCpp {
+    pub fn from_rows_like_cpp(
+        rows: impl IntoIterator<Item = AreaTriggerScriptRowLikeCpp>,
+        mut area_trigger_exists: impl FnMut(u32) -> bool,
+        script_names: &mut ScriptNameInternerLikeCpp,
+    ) -> AreaTriggerScriptLoadOutcomeLikeCpp {
+        let mut store = Self::default();
+        let mut skipped_missing_area_trigger = Vec::new();
+
+        for row in rows {
+            if !area_trigger_exists(row.entry) {
+                skipped_missing_area_trigger.push(row.entry);
+                continue;
+            }
+            let script_id = script_names.get_script_id_like_cpp(row.script_name, true);
+            store.scripts_by_trigger_id.insert(row.entry, script_id);
+        }
+
+        AreaTriggerScriptLoadOutcomeLikeCpp {
+            report: AreaTriggerScriptLoadReportLikeCpp {
+                loaded: store.len(),
+                skipped_missing_area_trigger,
+            },
+            store,
+        }
+    }
+
+    /// Loads C++ `ObjectMgr::LoadAreaTriggerScripts`.
+    ///
+    /// C++ anchors:
+    /// - `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:6653-6680`
+    /// - validates `entry` against the authoritative `sAreaTriggerStore`
+    /// - stores `entry -> GetScriptId(ScriptName)`
+    pub async fn load_like_cpp(
+        db: &WorldDatabase,
+        area_trigger_store: &AreaTriggerStore,
+        script_names: &mut ScriptNameInternerLikeCpp,
+    ) -> Result<AreaTriggerScriptLoadOutcomeLikeCpp> {
+        let mut rows = Vec::new();
+        let mut result = db
+            .direct_query("SELECT entry, ScriptName FROM areatrigger_scripts")
+            .await?;
+        if !result.is_empty() {
+            loop {
+                rows.push(AreaTriggerScriptRowLikeCpp {
+                    entry: result.try_read::<u32>(0).unwrap_or(0),
+                    script_name: result.try_read::<String>(1).unwrap_or_default(),
+                });
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        Ok(Self::from_rows_like_cpp(
+            rows,
+            |entry| area_trigger_store.contains_trigger_like_cpp(entry),
+            script_names,
+        ))
+    }
+
+    pub fn get_script_id_like_cpp(&self, trigger_id: u32) -> Option<ScriptIdLikeCpp> {
+        self.scripts_by_trigger_id.get(&trigger_id).copied()
+    }
+
+    pub fn len(&self) -> usize {
+        self.scripts_by_trigger_id.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.scripts_by_trigger_id.is_empty()
+    }
+}
+
+#[cfg(test)]
+mod area_trigger_script_tests {
+    use super::*;
+
+    fn trigger(trigger_id: u32) -> AreaTriggerData {
+        AreaTriggerData {
+            trigger_id,
+            map_id: 1,
+            pos: Position::default(),
+            shape: TriggerShape::Sphere,
+            radius: 5.0,
+            extents: [0.0; 3],
+            height: 5.0,
+            yaw: 0.0,
+            vertices: Vec::new(),
+            teleport: None,
+        }
+    }
+
+    #[test]
+    fn area_trigger_script_store_validates_trigger_and_interns_script_like_cpp() {
+        let mut area_triggers = AreaTriggerStore::new();
+        area_triggers.insert(trigger(10));
+        let mut script_names = ScriptNameInternerLikeCpp::new();
+
+        let outcome = AreaTriggerScriptStoreLikeCpp::from_rows_like_cpp(
+            [
+                AreaTriggerScriptRowLikeCpp {
+                    entry: 10,
+                    script_name: "at_valid".to_string(),
+                },
+                AreaTriggerScriptRowLikeCpp {
+                    entry: 11,
+                    script_name: "at_missing".to_string(),
+                },
+            ],
+            |entry| area_triggers.contains_trigger_like_cpp(entry),
+            &mut script_names,
+        );
+
+        assert_eq!(outcome.report.loaded, 1);
+        assert_eq!(outcome.report.skipped_missing_area_trigger, vec![11]);
+        assert_eq!(
+            outcome.store.get_script_id_like_cpp(10),
+            Some(ScriptIdLikeCpp(1))
+        );
+        assert_eq!(outcome.store.get_script_id_like_cpp(11), None);
+        assert_eq!(
+            script_names.get_script_name_like_cpp(ScriptIdLikeCpp(1)),
+            "at_valid"
+        );
+        assert!(script_names.is_script_database_bound_like_cpp(ScriptIdLikeCpp(1)));
+        assert!(script_names.find_by_name_like_cpp("at_missing").is_none());
+    }
+
+    #[test]
+    fn area_trigger_script_store_overwrites_duplicate_entry_like_cpp() {
+        let mut script_names = ScriptNameInternerLikeCpp::new();
+
+        let outcome = AreaTriggerScriptStoreLikeCpp::from_rows_like_cpp(
+            [
+                AreaTriggerScriptRowLikeCpp {
+                    entry: 10,
+                    script_name: "first".to_string(),
+                },
+                AreaTriggerScriptRowLikeCpp {
+                    entry: 10,
+                    script_name: "second".to_string(),
+                },
+            ],
+            |entry| entry == 10,
+            &mut script_names,
+        );
+
+        assert_eq!(outcome.report.loaded, 1);
+        assert_eq!(
+            outcome.store.get_script_id_like_cpp(10),
+            Some(ScriptIdLikeCpp(2))
+        );
+        assert_eq!(
+            script_names.get_script_name_like_cpp(ScriptIdLikeCpp(1)),
+            "first"
+        );
+        assert_eq!(
+            script_names.get_script_name_like_cpp(ScriptIdLikeCpp(2)),
+            "second"
+        );
+    }
 }
