@@ -4508,6 +4508,7 @@ async fn main() -> Result<ExitCode> {
         Arc::clone(&condition_store),
         Arc::clone(&char_db),
         loaded_grid_creature_respawn_caches.clone(),
+        Arc::clone(&area_trigger_template_store),
         game_event_scheduler,
         Arc::clone(&player_registry),
         Arc::clone(&battlemaster_list_typed_store),
@@ -9936,6 +9937,7 @@ fn spawn_canonical_map_update_loop(
     condition_store: Arc<wow_data::ConditionEntriesByTypeStore>,
     character_db: Arc<CharacterDatabase>,
     loaded_grid_creature_respawn_caches: LoadedGridCreatureRespawnCachesLikeCpp,
+    area_trigger_template_store: Arc<wow_data::AreaTriggerTemplateStore>,
     mut game_event_scheduler: CanonicalGameEventSchedulerLikeCpp,
     player_registry: Arc<PlayerRegistry>,
     battlemaster_list_store: Arc<wow_data::BattlemasterListStore>,
@@ -9963,7 +9965,7 @@ fn spawn_canonical_map_update_loop(
                 continue;
             }
 
-            let tick_summary = {
+            let (area_trigger_sweep_summary, tick_summary) = {
                 let Ok(mut manager) = map_manager.lock() else {
                     tracing::error!(
                         "Canonical MapManager mutex poisoned; stopping map update loop"
@@ -9976,16 +9978,45 @@ fn spawn_canonical_map_update_loop(
                     );
                     break;
                 };
-                canonical_map_update_tick_set_inactive_like_cpp(
+                let area_trigger_sweep_summary = load_loaded_grid_area_triggers_like_cpp(
                     &mut manager,
-                    Some(&legacy_map_manager),
-                    diff_ms,
-                    &mut respawn_condition_scheduler,
                     &canonical_spawn_metadata,
-                    condition_store.as_ref(),
-                    &loaded_grid_creature_respawn_caches,
+                    area_trigger_template_store.as_ref(),
+                );
+                (
+                    area_trigger_sweep_summary,
+                    canonical_map_update_tick_set_inactive_like_cpp(
+                        &mut manager,
+                        Some(&legacy_map_manager),
+                        diff_ms,
+                        &mut respawn_condition_scheduler,
+                        &canonical_spawn_metadata,
+                        condition_store.as_ref(),
+                        &loaded_grid_creature_respawn_caches,
+                    ),
                 )
             };
+
+            if area_trigger_sweep_summary.loaded_grid_primary_records > 0
+                || area_trigger_sweep_summary.load_record_missing > 0
+                || area_trigger_sweep_summary.add_to_map_errors > 0
+            {
+                debug!(
+                    maps_evaluated = area_trigger_sweep_summary.maps_evaluated,
+                    loaded_grids_evaluated = area_trigger_sweep_summary.loaded_grids_evaluated,
+                    metadata_entries = area_trigger_sweep_summary.metadata_entries,
+                    skipped_already_loaded = area_trigger_sweep_summary.skipped_already_loaded,
+                    skipped_should_not_spawn = area_trigger_sweep_summary.skipped_should_not_spawn,
+                    stale_index_entries = area_trigger_sweep_summary.stale_index_entries,
+                    skipped_difficulty_mismatch =
+                        area_trigger_sweep_summary.skipped_difficulty_mismatch,
+                    load_record_missing = area_trigger_sweep_summary.load_record_missing,
+                    loaded_grid_primary_records =
+                        area_trigger_sweep_summary.loaded_grid_primary_records,
+                    add_to_map_errors = area_trigger_sweep_summary.add_to_map_errors,
+                    "C++ ObjectGridLoader AreaTrigger loaded-grid sweep materialized canonical AreaTrigger records for already-loaded grids; ObjectAccessor/fanout/scripts/actions/dynamic-tree runtime remain pending"
+                );
+            }
 
             if game_event_scheduler.update(diff_ms) {
                 let current_time_secs = current_unix_time_secs_like_cpp();
