@@ -1421,6 +1421,11 @@ pub const SPELL_AREA_FLAG_IGNORE_AUTOCAST_ON_QUEST_STATUS_CHANGE_LIKE_CPP: u8 = 
 pub const GENDER_MALE_LIKE_CPP: u8 = 0;
 pub const GENDER_FEMALE_LIKE_CPP: u8 = 1;
 pub const GENDER_NONE_LIKE_CPP: u8 = 2;
+pub const SPELL_ATTR0_CU_SHARE_DAMAGE_LIKE_CPP: u32 = 0x0000_0008;
+pub const SPELL_ATTR0_CU_NO_INITIAL_THREAT_LIKE_CPP: u32 = 0x0000_0010;
+pub const SPELL_ATTR0_CU_CAN_CRIT_LIKE_CPP: u32 = 0x0000_0080;
+pub const SPELL_ATTR0_CU_DIRECT_DAMAGE_LIKE_CPP: u32 = 0x0000_0100;
+pub const SPELL_ATTR0_CU_IS_TALENT_LIKE_CPP: u32 = 0x0080_0000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SpellAreaRowLikeCpp {
@@ -1746,6 +1751,130 @@ pub struct SpellAreaLoadOutcomeLikeCpp {
     pub store: SpellAreaStoreLikeCpp,
     pub loaded_row_count: usize,
     pub errors: Vec<SpellAreaLoadErrorLikeCpp>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellCustomAttributeRowLikeCpp {
+    pub spell_id: u32,
+    pub attributes: u32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SpellCustomAttributeSourceSpellInfoLikeCpp {
+    pub spell_id: u32,
+    pub difficulty: u32,
+    pub effects: Vec<SpellEffectInfo>,
+}
+
+impl SpellCustomAttributeSourceSpellInfoLikeCpp {
+    fn has_effect_like_cpp(&self, effect_type: u32) -> bool {
+        self.effects
+            .iter()
+            .any(|effect| effect.effect == effect_type)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct SpellCustomAttributeKeyLikeCpp {
+    pub spell_id: u32,
+    pub difficulty: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpellCustomAttributeLoadErrorKindLikeCpp {
+    SpellMissing,
+    ShareDamageWithoutSchoolDamage,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellCustomAttributeLoadErrorLikeCpp {
+    pub spell_id: u32,
+    pub difficulty: Option<u32>,
+    pub kind: SpellCustomAttributeLoadErrorKindLikeCpp,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SpellCustomAttributeStoreLikeCpp {
+    pub attributes_by_spell_and_difficulty: BTreeMap<SpellCustomAttributeKeyLikeCpp, u32>,
+}
+
+impl SpellCustomAttributeStoreLikeCpp {
+    pub fn from_sql_rows_like_cpp<I, SpellInfosById>(
+        rows: I,
+        mut spell_infos_by_id: SpellInfosById,
+    ) -> SpellCustomAttributeLoadOutcomeLikeCpp
+    where
+        I: IntoIterator<Item = SpellCustomAttributeRowLikeCpp>,
+        SpellInfosById: FnMut(u32) -> Vec<SpellCustomAttributeSourceSpellInfoLikeCpp>,
+    {
+        let mut store = Self::default();
+        let mut loaded_row_count = 0;
+        let mut applied_variant_count = 0;
+        let mut errors = Vec::new();
+
+        for row in rows {
+            let spell_infos = spell_infos_by_id(row.spell_id);
+            if spell_infos.is_empty() {
+                errors.push(SpellCustomAttributeLoadErrorLikeCpp {
+                    spell_id: row.spell_id,
+                    difficulty: None,
+                    kind: SpellCustomAttributeLoadErrorKindLikeCpp::SpellMissing,
+                });
+                continue;
+            }
+
+            for spell_info in spell_infos {
+                if row.attributes & SPELL_ATTR0_CU_SHARE_DAMAGE_LIKE_CPP != 0
+                    && !spell_info
+                        .has_effect_like_cpp(spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE)
+                {
+                    errors.push(SpellCustomAttributeLoadErrorLikeCpp {
+                        spell_id: row.spell_id,
+                        difficulty: Some(spell_info.difficulty),
+                        kind: SpellCustomAttributeLoadErrorKindLikeCpp::ShareDamageWithoutSchoolDamage,
+                    });
+                    continue;
+                }
+
+                let key = SpellCustomAttributeKeyLikeCpp {
+                    spell_id: spell_info.spell_id,
+                    difficulty: spell_info.difficulty,
+                };
+                *store
+                    .attributes_by_spell_and_difficulty
+                    .entry(key)
+                    .or_default() |= row.attributes;
+                applied_variant_count += 1;
+            }
+
+            loaded_row_count += 1;
+        }
+
+        SpellCustomAttributeLoadOutcomeLikeCpp {
+            store,
+            loaded_row_count,
+            applied_variant_count,
+            errors,
+        }
+    }
+
+    pub fn attributes_for_spell_difficulty_like_cpp(&self, spell_id: u32, difficulty: u32) -> u32 {
+        self.attributes_by_spell_and_difficulty
+            .get(&SpellCustomAttributeKeyLikeCpp {
+                spell_id,
+                difficulty,
+            })
+            .copied()
+            .unwrap_or(0)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpellCustomAttributeLoadOutcomeLikeCpp {
+    pub store: SpellCustomAttributeStoreLikeCpp,
+    pub loaded_row_count: usize,
+    pub applied_variant_count: usize,
+    pub errors: Vec<SpellCustomAttributeLoadErrorLikeCpp>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -5300,6 +5429,137 @@ mod tests {
             vec![SpellAreaLoadErrorLikeCpp {
                 row: spell_to_aura,
                 kind: SpellAreaLoadErrorKindLikeCpp::AuraAutocastChain,
+            }]
+        );
+    }
+
+    fn custom_attr_source(
+        spell_id: u32,
+        difficulty: u32,
+        effect_type: u32,
+    ) -> SpellCustomAttributeSourceSpellInfoLikeCpp {
+        SpellCustomAttributeSourceSpellInfoLikeCpp {
+            spell_id,
+            difficulty,
+            effects: vec![SpellEffectInfo {
+                effect_index: 0,
+                effect: effect_type,
+                ..Default::default()
+            }],
+        }
+    }
+
+    #[test]
+    fn spell_custom_attribute_store_applies_sql_rows_per_difficulty_like_cpp() {
+        let outcome = SpellCustomAttributeStoreLikeCpp::from_sql_rows_like_cpp(
+            [
+                SpellCustomAttributeRowLikeCpp {
+                    spell_id: 100,
+                    attributes: SPELL_ATTR0_CU_CAN_CRIT_LIKE_CPP,
+                },
+                SpellCustomAttributeRowLikeCpp {
+                    spell_id: 100,
+                    attributes: SPELL_ATTR0_CU_DIRECT_DAMAGE_LIKE_CPP,
+                },
+            ],
+            |spell_id| {
+                (spell_id == 100)
+                    .then(|| {
+                        vec![
+                            custom_attr_source(
+                                100,
+                                0,
+                                spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE,
+                            ),
+                            custom_attr_source(100, 1, spell_effect_types::SPELL_EFFECT_HEAL),
+                        ]
+                    })
+                    .unwrap_or_default()
+            },
+        );
+
+        assert!(outcome.errors.is_empty());
+        assert_eq!(outcome.loaded_row_count, 2);
+        assert_eq!(outcome.applied_variant_count, 4);
+        assert_eq!(
+            outcome
+                .store
+                .attributes_for_spell_difficulty_like_cpp(100, 0),
+            SPELL_ATTR0_CU_CAN_CRIT_LIKE_CPP | SPELL_ATTR0_CU_DIRECT_DAMAGE_LIKE_CPP
+        );
+        assert_eq!(
+            outcome
+                .store
+                .attributes_for_spell_difficulty_like_cpp(100, 1),
+            SPELL_ATTR0_CU_CAN_CRIT_LIKE_CPP | SPELL_ATTR0_CU_DIRECT_DAMAGE_LIKE_CPP
+        );
+    }
+
+    #[test]
+    fn spell_custom_attribute_store_validates_missing_spell_like_cpp() {
+        let outcome = SpellCustomAttributeStoreLikeCpp::from_sql_rows_like_cpp(
+            [SpellCustomAttributeRowLikeCpp {
+                spell_id: 999,
+                attributes: SPELL_ATTR0_CU_CAN_CRIT_LIKE_CPP,
+            }],
+            |_| Vec::new(),
+        );
+
+        assert_eq!(outcome.loaded_row_count, 0);
+        assert_eq!(outcome.applied_variant_count, 0);
+        assert_eq!(
+            outcome.errors,
+            vec![SpellCustomAttributeLoadErrorLikeCpp {
+                spell_id: 999,
+                difficulty: None,
+                kind: SpellCustomAttributeLoadErrorKindLikeCpp::SpellMissing,
+            }]
+        );
+    }
+
+    #[test]
+    fn spell_custom_attribute_store_rejects_share_damage_without_school_damage_like_cpp() {
+        let outcome = SpellCustomAttributeStoreLikeCpp::from_sql_rows_like_cpp(
+            [SpellCustomAttributeRowLikeCpp {
+                spell_id: 100,
+                attributes: SPELL_ATTR0_CU_SHARE_DAMAGE_LIKE_CPP,
+            }],
+            |spell_id| {
+                (spell_id == 100)
+                    .then(|| {
+                        vec![
+                            custom_attr_source(
+                                100,
+                                0,
+                                spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE,
+                            ),
+                            custom_attr_source(100, 1, spell_effect_types::SPELL_EFFECT_HEAL),
+                        ]
+                    })
+                    .unwrap_or_default()
+            },
+        );
+
+        assert_eq!(outcome.loaded_row_count, 1);
+        assert_eq!(outcome.applied_variant_count, 1);
+        assert_eq!(
+            outcome
+                .store
+                .attributes_for_spell_difficulty_like_cpp(100, 0),
+            SPELL_ATTR0_CU_SHARE_DAMAGE_LIKE_CPP
+        );
+        assert_eq!(
+            outcome
+                .store
+                .attributes_for_spell_difficulty_like_cpp(100, 1),
+            0
+        );
+        assert_eq!(
+            outcome.errors,
+            vec![SpellCustomAttributeLoadErrorLikeCpp {
+                spell_id: 100,
+                difficulty: Some(1),
+                kind: SpellCustomAttributeLoadErrorKindLikeCpp::ShareDamageWithoutSchoolDamage,
             }]
         );
     }
