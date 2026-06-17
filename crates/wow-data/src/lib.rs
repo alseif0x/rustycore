@@ -55,6 +55,7 @@ pub mod phasing;
 pub mod player_condition;
 pub mod player_power;
 pub mod player_stats;
+pub mod poi;
 pub mod progression_rewards;
 pub mod quest;
 pub mod quest_xp;
@@ -307,6 +308,11 @@ pub use player_power::{
     ClassPowerIndexRecord, Db2PlayerPowerIndexResolver, PlayerClassPowerIndexStore,
 };
 pub use player_stats::{PlayerLevelStats, PlayerStatsStore};
+pub use poi::{
+    PointOfInterestLikeCpp, PointOfInterestLoadOutcomeLikeCpp, PointOfInterestLoadReportLikeCpp,
+    PointOfInterestLocaleLikeCpp, PointOfInterestLocaleRowLikeCpp,
+    PointOfInterestLocaleStoreLikeCpp, PointOfInterestRowLikeCpp, PointOfInterestStoreLikeCpp,
+};
 pub use rand_prop_points::{RandPropPointsEntry, RandPropPointsStore};
 pub use script_name::{
     ScriptIdLikeCpp, ScriptNameEntryLikeCpp, ScriptNameInternerLikeCpp,

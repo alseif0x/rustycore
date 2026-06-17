@@ -242,6 +242,10 @@ pub enum WorldStatements {
     SEL_MAIL_LOOT_TEMPLATE_ALL_ROWS,
     /// C++ ObjectMgr level-dependent mail rewards.
     SEL_MAIL_LEVEL_REWARDS,
+    /// C++ ObjectMgr points of interest.
+    SEL_POINTS_OF_INTEREST,
+    /// C++ ObjectMgr points of interest locale rows.
+    SEL_POINTS_OF_INTEREST_LOCALES,
     /// milling_loot_template rows for an herb item entry.
     /// Args: item ID (u32).
     SEL_MILLING_LOOT_TEMPLATE_ROWS,
@@ -838,6 +842,13 @@ impl StatementDef for WorldStatements {
             ),
             Self::SEL_MAIL_LEVEL_REWARDS => {
                 "SELECT level, raceMask, mailTemplateId, senderEntry FROM mail_level_reward"
+            }
+            Self::SEL_POINTS_OF_INTEREST => concat!(
+                "SELECT ID, PositionX, PositionY, PositionZ, Icon, Flags, Importance, Name, WMOGroupID ",
+                "FROM points_of_interest",
+            ),
+            Self::SEL_POINTS_OF_INTEREST_LOCALES => {
+                "SELECT ID, locale, Name FROM points_of_interest_locale"
             }
             Self::SEL_MILLING_LOOT_TEMPLATE_ROWS => concat!(
                 "SELECT Item, Reference, Chance, QuestRequired, LootMode, GroupId, MinCount, MaxCount ",
