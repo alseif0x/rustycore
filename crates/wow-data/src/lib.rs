@@ -45,6 +45,7 @@ pub mod item_random_properties;
 pub mod item_random_suffix;
 pub mod item_stats;
 pub mod lock;
+pub mod mail;
 pub mod map;
 pub mod maps_world;
 pub mod misc_generated;
@@ -229,6 +230,10 @@ pub use item_stats::{
     ItemRandomPropertyTemplateEntry, ItemSparseTemplateEntry, ItemStatEntry, ItemStatsStore,
 };
 pub use lock::{LockEntry, LockStore};
+pub use mail::{
+    MAX_LEVEL_LIKE_CPP, MailLevelRewardLikeCpp, MailLevelRewardLoadOutcomeLikeCpp,
+    MailLevelRewardLoadReportLikeCpp, MailLevelRewardRowLikeCpp, MailLevelRewardStoreLikeCpp,
+};
 pub use map::{
     MapDifficultyEntry, MapDifficultyStore, MapDifficultyXConditionEntry,
     MapDifficultyXConditionStore, MapEntry, MapStore,
