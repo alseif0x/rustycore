@@ -6268,10 +6268,57 @@ impl WorldSession {
             }
         }
 
+        // SatisfyQuestDay — Player.cpp:15393-15407 (CanTakeQuest term Player.cpp:14093-14102).
+        // DF (dungeon-finder) quests are gated by the DFQuests set; regular dailies by
+        // DailyQuestsCompleted. Mirrors the completion-push split at quest.rs:2973-2979
+        // and the exclusive-group peer pattern at quest.rs:5873-5879.
+        if quest.is_df_quest_like_cpp() {
+            if self.df_quests_like_cpp.contains(&quest.id) {
+                debug!(
+                    account = self.account_id,
+                    quest_id = quest.id,
+                    "CanTakeQuest: DF quest already completed"
+                );
+                return false;
+            }
+        } else if quest.is_daily_like_cpp()
+            && self.daily_quests_completed_like_cpp.contains(&quest.id)
+        {
+            debug!(
+                account = self.account_id,
+                quest_id = quest.id,
+                "CanTakeQuest: daily quest already completed"
+            );
+            return false;
+        }
+
+        // SatisfyQuestWeek — Player.cpp:15409-15418 (CanTakeQuest term Player.cpp:14093-14102).
+        if quest.is_weekly_like_cpp() && self.weekly_quests_completed_like_cpp.contains(&quest.id) {
+            debug!(
+                account = self.account_id,
+                quest_id = quest.id,
+                "CanTakeQuest: weekly quest on cooldown"
+            );
+            return false;
+        }
+
+        // SatisfyQuestMonth — Player.cpp:15445-15454 (CanTakeQuest term Player.cpp:14093-14102).
+        if quest.is_monthly_like_cpp() && self.monthly_quests_completed_like_cpp.contains(&quest.id)
+        {
+            debug!(
+                account = self.account_id,
+                quest_id = quest.id,
+                "CanTakeQuest: monthly quest on cooldown"
+            );
+            return false;
+        }
+
         // SatisfyQuestSeasonal — C++ Player::SatisfyQuestSeasonal
-        // Per C++ CanTakeQuest order (Player.cpp:14093-14102): Seasonal follows Month (gap) and
-        // precedes Conditions; the dependent cluster (prev_quest_id, DependentPreviousQuests,
-        // DependentBreadcrumbQuests) runs before this, as part of SatisfyQuestDependentQuests.
+        // Per C++ CanTakeQuest order (Player.cpp:14093-14102): Day/Week/Month (above) and
+        // Seasonal precede Conditions; the dependent cluster (prev_quest_id,
+        // DependentPreviousQuests, DependentBreadcrumbQuests) runs before this, as part of
+        // SatisfyQuestDependentQuests. SatisfyQuestTimed remains a separate gap:
+        // the session has no active-timed-quest set yet (see #QUESTS.15).
         if quest.is_seasonal_like_cpp() && !self.seasonal_quests_like_cpp.is_empty() {
             if let Some(bucket) = self
                 .seasonal_quests_like_cpp
@@ -6696,11 +6743,12 @@ mod tests {
     use wow_core::guid::HighGuid;
     use wow_core::{ObjectGuid, Position};
     use wow_data::quest::{
-        QUEST_FLAGS_DAILY_LIKE_CPP, QUEST_ITEM_DROP_COUNT, QUEST_REWARD_CHOICES_COUNT,
-        QUEST_REWARD_CURRENCY_COUNT, QUEST_REWARD_DISPLAY_SPELL_COUNT, QUEST_REWARD_ITEM_COUNT,
-        QUEST_REWARD_REPUTATIONS_COUNT, QUEST_SPECIAL_FLAGS_DF_QUEST_LIKE_CPP, QuestObjective,
-        QuestPoolMemberRowLikeCpp, QuestPoolSavedActiveRowLikeCpp, QuestPoolStoreLikeCpp,
-        QuestStore, QuestTemplate,
+        QUEST_FLAGS_DAILY_LIKE_CPP, QUEST_FLAGS_WEEKLY_LIKE_CPP, QUEST_ITEM_DROP_COUNT,
+        QUEST_REWARD_CHOICES_COUNT, QUEST_REWARD_CURRENCY_COUNT, QUEST_REWARD_DISPLAY_SPELL_COUNT,
+        QUEST_REWARD_ITEM_COUNT, QUEST_REWARD_REPUTATIONS_COUNT,
+        QUEST_SPECIAL_FLAGS_DF_QUEST_LIKE_CPP, QUEST_SPECIAL_FLAGS_MONTHLY_LIKE_CPP,
+        QuestObjective, QuestPoolMemberRowLikeCpp, QuestPoolSavedActiveRowLikeCpp,
+        QuestPoolStoreLikeCpp, QuestStore, QuestTemplate,
     };
     use wow_data::{
         AdventureMapPoiEntry, AdventureMapPoiStore, Condition, ConditionEntriesByTypeStore,
@@ -15504,6 +15552,103 @@ mod tests {
         session2.set_quest_store(Arc::new(store2));
         session2.expansion = 2;
         assert!(session2.can_take_quest(&quest2));
+    }
+
+    // ── SatisfyQuestDay / Week / Month tests ────────────────────────────────
+    // C++ Player::CanTakeQuest (Player.cpp:14093-14102) gates on
+    // SatisfyQuestDay && SatisfyQuestWeek && SatisfyQuestMonth. A daily/DF/weekly/
+    // monthly quest already on cooldown must not be re-acceptable.
+
+    #[test]
+    fn can_take_quest_blocks_daily_already_completed_like_cpp() {
+        // NEGATIVE: a daily quest already in DailyQuestsCompleted is blocked
+        // (C++ SatisfyQuestDay, Player.cpp:15393-15407).
+        let (mut session, _send_rx) = make_session();
+        let mut quest = quest_template(7600u32);
+        quest.flags = QUEST_FLAGS_DAILY_LIKE_CPP;
+        let store = QuestStore::from_quests_like_cpp([quest.clone()]);
+        session.set_quest_store(Arc::new(store));
+        session.daily_quests_completed_like_cpp.insert(quest.id);
+
+        assert!(!session.can_take_quest(&quest));
+    }
+
+    #[test]
+    fn can_take_quest_allows_daily_not_yet_completed_like_cpp() {
+        // POSITIVE: a daily quest not yet completed today is acceptable.
+        let (mut session, _send_rx) = make_session();
+        let mut quest = quest_template(7601u32);
+        quest.flags = QUEST_FLAGS_DAILY_LIKE_CPP;
+        let store = QuestStore::from_quests_like_cpp([quest.clone()]);
+        session.set_quest_store(Arc::new(store));
+
+        assert!(session.can_take_quest(&quest));
+    }
+
+    #[test]
+    fn can_take_quest_blocks_df_quest_already_completed_like_cpp() {
+        // NEGATIVE: a DF (dungeon-finder) quest already in DFQuests is blocked
+        // (C++ SatisfyQuestDay DFQuest branch, Player.cpp:15393-15407).
+        let (mut session, _send_rx) = make_session();
+        let mut quest = quest_template(7602u32);
+        quest.special_flags = QUEST_SPECIAL_FLAGS_DF_QUEST_LIKE_CPP;
+        let store = QuestStore::from_quests_like_cpp([quest.clone()]);
+        session.set_quest_store(Arc::new(store));
+        session.df_quests_like_cpp.insert(quest.id);
+
+        assert!(!session.can_take_quest(&quest));
+    }
+
+    #[test]
+    fn can_take_quest_blocks_weekly_already_completed_like_cpp() {
+        // NEGATIVE: a weekly quest already in the weekly cooldown set is blocked
+        // (C++ SatisfyQuestWeek, Player.cpp:15409-15418).
+        let (mut session, _send_rx) = make_session();
+        let mut quest = quest_template(7603u32);
+        quest.flags = QUEST_FLAGS_WEEKLY_LIKE_CPP;
+        let store = QuestStore::from_quests_like_cpp([quest.clone()]);
+        session.set_quest_store(Arc::new(store));
+        session.weekly_quests_completed_like_cpp.insert(quest.id);
+
+        assert!(!session.can_take_quest(&quest));
+    }
+
+    #[test]
+    fn can_take_quest_allows_weekly_not_yet_completed_like_cpp() {
+        // POSITIVE: a weekly quest not on cooldown is acceptable.
+        let (mut session, _send_rx) = make_session();
+        let mut quest = quest_template(7604u32);
+        quest.flags = QUEST_FLAGS_WEEKLY_LIKE_CPP;
+        let store = QuestStore::from_quests_like_cpp([quest.clone()]);
+        session.set_quest_store(Arc::new(store));
+
+        assert!(session.can_take_quest(&quest));
+    }
+
+    #[test]
+    fn can_take_quest_blocks_monthly_already_completed_like_cpp() {
+        // NEGATIVE: a monthly quest already in the monthly cooldown set is blocked
+        // (C++ SatisfyQuestMonth, Player.cpp:15445-15454).
+        let (mut session, _send_rx) = make_session();
+        let mut quest = quest_template(7605u32);
+        quest.special_flags = QUEST_SPECIAL_FLAGS_MONTHLY_LIKE_CPP;
+        let store = QuestStore::from_quests_like_cpp([quest.clone()]);
+        session.set_quest_store(Arc::new(store));
+        session.monthly_quests_completed_like_cpp.insert(quest.id);
+
+        assert!(!session.can_take_quest(&quest));
+    }
+
+    #[test]
+    fn can_take_quest_allows_monthly_not_yet_completed_like_cpp() {
+        // POSITIVE: a monthly quest not on cooldown is acceptable.
+        let (mut session, _send_rx) = make_session();
+        let mut quest = quest_template(7606u32);
+        quest.special_flags = QUEST_SPECIAL_FLAGS_MONTHLY_LIKE_CPP;
+        let store = QuestStore::from_quests_like_cpp([quest.clone()]);
+        session.set_quest_store(Arc::new(store));
+
+        assert!(session.can_take_quest(&quest));
     }
 
     // ── SatisfyQuestExclusiveGroup tests ────────────────────────────────────
