@@ -18,13 +18,18 @@
 
 use std::collections::BTreeMap;
 
+use crate::spawn_store_loader::AreaTriggerSpawnRuntimeRowLikeCpp;
 use wow_core::{ObjectGuid, Position, guid::HighGuid};
-use wow_data::AreaTriggerShapeInfoLikeCpp;
 use wow_data::area_trigger_template::AREATRIGGER_CREATE_PROPERTIES_FLAG_UNK3_LIKE_CPP;
+use wow_data::{
+    AreaTriggerCreatePropertiesLikeCpp, AreaTriggerIdLikeCpp, AreaTriggerShapeInfoLikeCpp,
+    AreaTriggerTemplateLikeCpp,
+};
 use wow_entities::{
     AREA_TRIGGER_FLAG_IS_SERVER_SIDE, AreaTrigger, AreaTriggerId, AreaTriggerShapeType,
     MapObjectRecord, VisualAnimValues,
 };
+use wow_map::{SpawnData, SpawnObjectType};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ResolvedAreaTriggerCreatePropertiesLikeCpp {
@@ -95,6 +100,25 @@ pub enum AreaTriggerLoadedGridResolveErrorLikeCpp {
     MissingCreateProperties {
         create_properties_id: AreaTriggerId,
     },
+    WrongSpawnObjectType {
+        spawn_id: u64,
+        object_type: SpawnObjectType,
+    },
+    MismatchedRuntimeSpawn {
+        expected_spawn_id: u64,
+        runtime_spawn_id: u64,
+    },
+    MismatchedCreatePropertiesId {
+        spawn_id: u64,
+        spawn_create_properties_id: u32,
+        runtime_create_properties_id: AreaTriggerIdLikeCpp,
+        create_properties_id: AreaTriggerIdLikeCpp,
+    },
+    MismatchedTemplateId {
+        create_properties_id: AreaTriggerIdLikeCpp,
+        expected_template_id: Option<AreaTriggerIdLikeCpp>,
+        template_id: Option<AreaTriggerIdLikeCpp>,
+    },
     InvalidMapObjectGuid {
         guid: ObjectGuid,
         expected_high: HighGuid,
@@ -103,6 +127,97 @@ pub enum AreaTriggerLoadedGridResolveErrorLikeCpp {
     },
     MapBinding(String),
     MapObjectRecord(String),
+}
+
+pub fn resolve_area_trigger_loaded_grid_inputs_from_spawn_data_like_cpp(
+    spawn: &SpawnData,
+    runtime_row: &AreaTriggerSpawnRuntimeRowLikeCpp,
+    create_properties: &AreaTriggerCreatePropertiesLikeCpp,
+    template: Option<&AreaTriggerTemplateLikeCpp>,
+    instance_id: u32,
+    add_to_map: bool,
+    spell_visual_id: i32,
+) -> Result<
+    (
+        ResolvedAreaTriggerCreatePropertiesLikeCpp,
+        ResolvedAreaTriggerSpawnLikeCpp,
+    ),
+    AreaTriggerLoadedGridResolveErrorLikeCpp,
+> {
+    if spawn.object_type != SpawnObjectType::AreaTrigger {
+        return Err(
+            AreaTriggerLoadedGridResolveErrorLikeCpp::WrongSpawnObjectType {
+                spawn_id: spawn.spawn_id,
+                object_type: spawn.object_type,
+            },
+        );
+    }
+    if runtime_row.spawn_id != spawn.spawn_id {
+        return Err(
+            AreaTriggerLoadedGridResolveErrorLikeCpp::MismatchedRuntimeSpawn {
+                expected_spawn_id: spawn.spawn_id,
+                runtime_spawn_id: runtime_row.spawn_id,
+            },
+        );
+    }
+    if spawn.id != runtime_row.create_properties_id.id
+        || create_properties.id != runtime_row.create_properties_id
+    {
+        return Err(
+            AreaTriggerLoadedGridResolveErrorLikeCpp::MismatchedCreatePropertiesId {
+                spawn_id: spawn.spawn_id,
+                spawn_create_properties_id: spawn.id,
+                runtime_create_properties_id: runtime_row.create_properties_id,
+                create_properties_id: create_properties.id,
+            },
+        );
+    }
+
+    let template_id = template.map(|template| template.id);
+    if create_properties.template_id != template_id {
+        return Err(
+            AreaTriggerLoadedGridResolveErrorLikeCpp::MismatchedTemplateId {
+                create_properties_id: create_properties.id,
+                expected_template_id: create_properties.template_id,
+                template_id,
+            },
+        );
+    }
+
+    Ok((
+        ResolvedAreaTriggerCreatePropertiesLikeCpp {
+            id: area_trigger_id_from_data_like_cpp(create_properties.id),
+            template_id: create_properties
+                .template_id
+                .map(area_trigger_id_from_data_like_cpp),
+            template_flags: template.map(|template| template.flags).unwrap_or(0),
+            flags: create_properties.flags,
+            anim_id: create_properties.anim_id,
+            anim_kit_id: create_properties.anim_kit_id,
+            decal_properties_id: create_properties.decal_properties_id,
+            shape: create_properties.shape.clone(),
+        },
+        ResolvedAreaTriggerSpawnLikeCpp {
+            spawn_id: spawn.spawn_id,
+            create_properties_id: area_trigger_id_from_data_like_cpp(
+                runtime_row.create_properties_id,
+            ),
+            map_id: spawn.map_id,
+            instance_id,
+            position: Position::new(
+                spawn.spawn_point.x,
+                spawn.spawn_point.y,
+                spawn.spawn_point.z,
+                spawn.spawn_point.orientation,
+            ),
+            spell_for_visuals: runtime_row.spell_for_visuals,
+            spell_visual_id,
+            add_to_map,
+            phase_use_flags: spawn.phase_use_flags,
+            phase_id: spawn.phase_id,
+            phase_group: spawn.phase_group,
+        },
+    ))
 }
 
 #[derive(Debug, Clone, Default)]
@@ -226,6 +341,13 @@ impl From<AreaTriggerId> for AreaTriggerIdKeyLikeCpp {
     }
 }
 
+fn area_trigger_id_from_data_like_cpp(id: AreaTriggerIdLikeCpp) -> AreaTriggerId {
+    AreaTriggerId {
+        id: id.id,
+        is_custom: id.is_custom,
+    }
+}
+
 pub fn area_trigger_shape_max_search_radius_like_cpp(shape: &AreaTriggerShapeInfoLikeCpp) -> f32 {
     match area_trigger_shape_type_like_cpp(shape.shape_type) {
         AreaTriggerShapeType::Sphere => shape.data[0].max(shape.data[1]),
@@ -288,7 +410,11 @@ fn validate_map_object_guid_like_cpp(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wow_data::{AreaTriggerPosition2LikeCpp, AreaTriggerShapeInfoLikeCpp};
+    use wow_data::{
+        AreaTriggerCreatePropertiesLikeCpp, AreaTriggerIdLikeCpp, AreaTriggerPosition2LikeCpp,
+        AreaTriggerShapeInfoLikeCpp, AreaTriggerTemplateLikeCpp, ScriptIdLikeCpp,
+    };
+    use wow_map::{SpawnGroupTemplateData, SpawnPosition};
 
     fn area_trigger_id(id: u32) -> AreaTriggerId {
         AreaTriggerId {
@@ -340,6 +466,74 @@ mod tests {
 
     fn area_trigger_guid(entry: u32) -> ObjectGuid {
         ObjectGuid::create_world_object(HighGuid::AreaTrigger, 0, 1, 571, 1, entry, 99)
+    }
+
+    fn data_area_trigger_id(id: u32) -> AreaTriggerIdLikeCpp {
+        AreaTriggerIdLikeCpp {
+            id,
+            is_custom: false,
+        }
+    }
+
+    fn spawn_data(object_type: SpawnObjectType) -> SpawnData {
+        SpawnData {
+            object_type,
+            spawn_id: 12345,
+            map_id: 571,
+            db_data: true,
+            spawn_group: SpawnGroupTemplateData::legacy_group(),
+            id: 2001,
+            spawn_point: SpawnPosition::new(1.0, 2.0, 3.0, 4.0),
+            phase_use_flags: 2,
+            phase_id: 33,
+            phase_group: 44,
+            terrain_swap_map: -1,
+            pool_id: 0,
+            spawn_time_secs: 0,
+            spawn_difficulties: Vec::new(),
+            script_id: 0,
+            string_id: String::new(),
+        }
+    }
+
+    fn runtime_row() -> AreaTriggerSpawnRuntimeRowLikeCpp {
+        AreaTriggerSpawnRuntimeRowLikeCpp {
+            spawn_id: 12345,
+            create_properties_id: data_area_trigger_id(2001),
+            spell_for_visuals: Some(6789),
+        }
+    }
+
+    fn data_create_properties(
+        template_id: Option<AreaTriggerIdLikeCpp>,
+    ) -> AreaTriggerCreatePropertiesLikeCpp {
+        AreaTriggerCreatePropertiesLikeCpp {
+            id: data_area_trigger_id(2001),
+            template_id,
+            flags: AREATRIGGER_CREATE_PROPERTIES_FLAG_UNK3_LIKE_CPP,
+            move_curve_id: 0,
+            scale_curve_id: 0,
+            morph_curve_id: 0,
+            facing_curve_id: 0,
+            anim_id: 11,
+            anim_kit_id: 22,
+            decal_properties_id: 77,
+            time_to_target: 0,
+            time_to_target_scale: 0,
+            shape: sphere_shape(6.0, 9.0),
+            spline_points: Vec::new(),
+            orbit_info: None,
+            script_id: ScriptIdLikeCpp(0),
+            script_name: String::new(),
+        }
+    }
+
+    fn data_template() -> AreaTriggerTemplateLikeCpp {
+        AreaTriggerTemplateLikeCpp {
+            id: data_area_trigger_id(9001),
+            flags: AREA_TRIGGER_FLAG_IS_SERVER_SIDE,
+            actions: Vec::new(),
+        }
     }
 
     #[test]
@@ -397,6 +591,135 @@ mod tests {
             }
         );
         assert!(area_trigger.is_ai_initialized());
+    }
+
+    #[test]
+    fn loaded_grid_area_trigger_inputs_from_spawn_data_match_cpp_load_from_db_metadata() {
+        let (properties, spawn) = resolve_area_trigger_loaded_grid_inputs_from_spawn_data_like_cpp(
+            &spawn_data(SpawnObjectType::AreaTrigger),
+            &runtime_row(),
+            &data_create_properties(Some(data_area_trigger_id(9001))),
+            Some(&data_template()),
+            7,
+            true,
+            4321,
+        )
+        .unwrap();
+
+        assert_eq!(properties.id, area_trigger_id(2001));
+        assert_eq!(properties.template_id, Some(area_trigger_id(9001)));
+        assert_eq!(properties.template_flags, AREA_TRIGGER_FLAG_IS_SERVER_SIDE);
+        assert_eq!(properties.guid_entry_like_cpp(), 9001);
+        assert_eq!(spawn.spawn_id, 12345);
+        assert_eq!(spawn.create_properties_id, area_trigger_id(2001));
+        assert_eq!(spawn.map_id, 571);
+        assert_eq!(spawn.instance_id, 7);
+        assert_eq!(spawn.position, Position::new(1.0, 2.0, 3.0, 4.0));
+        assert_eq!(spawn.spell_for_visuals, Some(6789));
+        assert_eq!(spawn.spell_visual_id, 4321);
+        assert!(spawn.add_to_map);
+        assert_eq!(spawn.phase_use_flags, 2);
+        assert_eq!(spawn.phase_id, 33);
+        assert_eq!(spawn.phase_group, 44);
+
+        let resolver = AreaTriggerLoadedGridLifecycleResolverLikeCpp::new([properties], [spawn]);
+        let resolved = resolver
+            .resolve_loaded_grid_area_trigger_like_cpp(12345, area_trigger_guid(9001))
+            .unwrap();
+        assert_eq!(
+            resolved.area_trigger.template_id(),
+            Some(area_trigger_id(9001))
+        );
+        assert_eq!(
+            resolved.area_trigger.create_properties_id(),
+            Some(area_trigger_id(2001))
+        );
+        assert!(resolved.db_phase_shift_requested);
+    }
+
+    #[test]
+    fn loaded_grid_area_trigger_inputs_without_template_use_zero_guid_entry_like_cpp() {
+        let (properties, spawn) = resolve_area_trigger_loaded_grid_inputs_from_spawn_data_like_cpp(
+            &spawn_data(SpawnObjectType::AreaTrigger),
+            &runtime_row(),
+            &data_create_properties(None),
+            None,
+            0,
+            false,
+            0,
+        )
+        .unwrap();
+
+        assert_eq!(properties.template_id, None);
+        assert_eq!(properties.template_flags, 0);
+        assert_eq!(properties.guid_entry_like_cpp(), 0);
+        assert!(!spawn.add_to_map);
+    }
+
+    #[test]
+    fn loaded_grid_area_trigger_inputs_reject_non_area_trigger_spawn_like_cpp() {
+        assert_eq!(
+            resolve_area_trigger_loaded_grid_inputs_from_spawn_data_like_cpp(
+                &spawn_data(SpawnObjectType::Creature),
+                &runtime_row(),
+                &data_create_properties(Some(data_area_trigger_id(9001))),
+                Some(&data_template()),
+                0,
+                true,
+                0,
+            )
+            .unwrap_err(),
+            AreaTriggerLoadedGridResolveErrorLikeCpp::WrongSpawnObjectType {
+                spawn_id: 12345,
+                object_type: SpawnObjectType::Creature,
+            }
+        );
+    }
+
+    #[test]
+    fn loaded_grid_area_trigger_inputs_reject_mismatched_template_like_cpp() {
+        assert_eq!(
+            resolve_area_trigger_loaded_grid_inputs_from_spawn_data_like_cpp(
+                &spawn_data(SpawnObjectType::AreaTrigger),
+                &runtime_row(),
+                &data_create_properties(Some(data_area_trigger_id(9001))),
+                None,
+                0,
+                true,
+                0,
+            )
+            .unwrap_err(),
+            AreaTriggerLoadedGridResolveErrorLikeCpp::MismatchedTemplateId {
+                create_properties_id: data_area_trigger_id(2001),
+                expected_template_id: Some(data_area_trigger_id(9001)),
+                template_id: None,
+            }
+        );
+    }
+
+    #[test]
+    fn loaded_grid_area_trigger_inputs_reject_mismatched_create_properties_like_cpp() {
+        let mut row = runtime_row();
+        row.create_properties_id = data_area_trigger_id(2222);
+
+        assert_eq!(
+            resolve_area_trigger_loaded_grid_inputs_from_spawn_data_like_cpp(
+                &spawn_data(SpawnObjectType::AreaTrigger),
+                &row,
+                &data_create_properties(Some(data_area_trigger_id(9001))),
+                Some(&data_template()),
+                0,
+                true,
+                0,
+            )
+            .unwrap_err(),
+            AreaTriggerLoadedGridResolveErrorLikeCpp::MismatchedCreatePropertiesId {
+                spawn_id: 12345,
+                spawn_create_properties_id: 2001,
+                runtime_create_properties_id: data_area_trigger_id(2222),
+                create_properties_id: data_area_trigger_id(2001),
+            }
+        );
     }
 
     #[test]
