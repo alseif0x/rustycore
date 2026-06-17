@@ -17,7 +17,7 @@ use std::f32::consts::TAU;
 
 use anyhow::Result;
 use tracing::info;
-use wow_database::{HotfixDatabase, StatementDef, WorldDatabase};
+use wow_database::{HotfixDatabase, StatementDef, WorldDatabase, WorldStatements};
 use wow_entities::PetAuraLikeCpp;
 
 use crate::{
@@ -3495,6 +3495,82 @@ pub struct SpellProcStoreLikeCpp {
 }
 
 impl SpellProcStoreLikeCpp {
+    pub async fn load_like_cpp(
+        db: &WorldDatabase,
+        spells: &SpellStore,
+        spell_chains: &SpellChainStoreLikeCpp,
+        spell_aura_options: &crate::spell_db2::SpellAuraOptionsStore,
+        spell_misc: &crate::spell_db2::SpellMiscStore,
+        spell_class_options: &crate::spell_db2::SpellClassOptionsStore,
+        spell_procs_per_minute: &crate::spell_db2::SpellProcsPerMinuteStore,
+    ) -> Result<SpellProcLoadOutcomeLikeCpp> {
+        let stmt = db.prepare(WorldStatements::SEL_SPELL_PROC);
+        let mut result = db.query(&stmt).await?;
+        let mut rows = Vec::new();
+
+        if !result.is_empty() {
+            loop {
+                rows.push(SpellProcRowLikeCpp {
+                    spell_id: result.try_read::<i32>(0).unwrap_or(0),
+                    school_mask: result.try_read::<u8>(1).unwrap_or(0),
+                    spell_family_name: result.try_read::<u16>(2).unwrap_or(0),
+                    spell_family_mask: [
+                        result.try_read::<u32>(3).unwrap_or(0),
+                        result.try_read::<u32>(4).unwrap_or(0),
+                        result.try_read::<u32>(5).unwrap_or(0),
+                        result.try_read::<u32>(6).unwrap_or(0),
+                    ],
+                    proc_flags: [
+                        result.try_read::<u32>(7).unwrap_or(0),
+                        result.try_read::<u32>(8).unwrap_or(0),
+                    ],
+                    spell_type_mask: result.try_read::<u32>(9).unwrap_or(0),
+                    spell_phase_mask: result.try_read::<u32>(10).unwrap_or(0),
+                    hit_mask: result.try_read::<u32>(11).unwrap_or(0),
+                    attributes_mask: result.try_read::<u32>(12).unwrap_or(0),
+                    disable_effects_mask: result.try_read::<u32>(13).unwrap_or(0),
+                    procs_per_minute: result.try_read::<f32>(14).unwrap_or(0.0),
+                    chance: result.try_read::<f32>(15).unwrap_or(0.0),
+                    cooldown_ms: result.try_read::<u32>(16).unwrap_or(0),
+                    charges: result.try_read::<u8>(17).unwrap_or(0),
+                });
+
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        let spell_infos = spells
+            .iter()
+            .filter_map(|spell| {
+                let spell_id = u32::try_from(spell.spell_id).ok()?;
+                SpellProcSourceSpellInfoLikeCpp::from_loaded_spell_like_cpp(
+                    spell_id,
+                    0,
+                    spells,
+                    spell_chains,
+                    spell_aura_options,
+                    spell_misc,
+                    spell_class_options,
+                    spell_procs_per_minute,
+                )
+            })
+            .collect::<Vec<_>>();
+
+        let spell_infos_by_id = spell_infos
+            .iter()
+            .cloned()
+            .map(|spell_info| (spell_info.spell_id, spell_info))
+            .collect::<BTreeMap<_, _>>();
+
+        Ok(Self::from_rows_and_spell_infos_like_cpp(
+            rows,
+            |spell_id| spell_infos_by_id.get(&spell_id).cloned(),
+            spell_infos,
+        ))
+    }
+
     pub fn from_rows_like_cpp<I, SpellInfoById>(
         rows: I,
         mut spell_info_by_id: SpellInfoById,
@@ -4641,6 +4717,10 @@ ORDER BY sm.ID, se.EffectIndex
     /// Look up a spell by ID.
     pub fn get(&self, spell_id: i32) -> Option<&SpellInfo> {
         self.spells.get(&spell_id)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &SpellInfo> {
+        self.spells.values()
     }
 
     pub fn implicit_target_conditions_like_cpp(
