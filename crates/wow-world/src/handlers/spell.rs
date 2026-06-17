@@ -2562,6 +2562,29 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn cancel_aura_empty_caster_matches_represented_mount_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        let caster_guid = ObjectGuid::create_player(1, 42);
+        let effect = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
+            effect_base_points: 77,
+            effect_misc_value_1: 0,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_mounted_aura_for_test_like_cpp(12_345, caster_guid, &effect)
+            .unwrap();
+
+        session
+            .handle_cancel_aura(cancel_aura_packet(12_345, ObjectGuid::EMPTY))
+            .await;
+
+        assert!(!session.player_mounted_like_cpp());
+    }
+
+    #[tokio::test]
     async fn cancel_empty_spell_handlers_stay_silent_without_runtime_slots_like_cpp() {
         let (mut session, send_rx) = make_session();
 
