@@ -12950,6 +12950,23 @@ where
             .is_some_and(NGrid::grid_object_data_loaded)
     }
 
+    pub fn loaded_grid_coords_like_cpp(&self) -> Vec<GridCoord> {
+        self.grids
+            .iter()
+            .enumerate()
+            .filter_map(|(index, grid)| {
+                grid.as_ref()
+                    .filter(|grid| grid.grid_object_data_loaded())
+                    .map(|_| {
+                        GridCoord::new(
+                            (index as u32) / MAX_NUMBER_OF_GRIDS,
+                            (index as u32) % MAX_NUMBER_OF_GRIDS,
+                        )
+                    })
+            })
+            .collect()
+    }
+
     pub fn ensure_grid_created(&mut self, coord: GridCoord) -> bool {
         let index = checked_grid_index(coord);
         if self.grids[index].is_some() {
@@ -32199,6 +32216,20 @@ mod tests {
 
         assert!(map.is_grid_loaded(GridCoord::new(2, 3)));
         assert_eq!(map.lifecycle().loads, 1);
+    }
+
+    #[test]
+    fn loaded_grid_coords_only_reports_object_data_loaded_grids_like_cpp() {
+        let mut map = test_map();
+        let created_only = GridCoord::new(2, 3);
+        let loaded_a = GridCoord::new(4, 5);
+        let loaded_b = GridCoord::new(4, 6);
+
+        assert!(map.ensure_grid_created(created_only));
+        assert!(map.ensure_grid_loaded(&cell_from_grid_center(loaded_b)));
+        assert!(map.ensure_grid_loaded(&cell_from_grid_center(loaded_a)));
+
+        assert_eq!(map.loaded_grid_coords_like_cpp(), vec![loaded_a, loaded_b]);
     }
 
     #[test]
