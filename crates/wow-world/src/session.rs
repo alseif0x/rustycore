@@ -78,11 +78,12 @@ use wow_data::{
     PlayerConditionQuestKillLikeCpp, PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp,
     PlayerConditionStore, PlayerStatsStore, RandPropPointsStore, SkillLineStore, SkillStore,
     SpellAuraOptionsStore, SpellCategoryStore, SpellDurationStore, SpellItemEnchantmentStore,
-    SpellMiscStore, SpellProcStoreLikeCpp, SpellRadiusStore, SpellRangeStore, SpellStore,
-    SpellTargetPositionStoreLikeCpp, SummonPropertiesEntry, ToyStore, TransmogSetEntry,
-    TransmogSetItemStore, TrinityStringStoreLikeCpp, VEHICLE_SEAT_FLAG_CAN_ATTACK,
-    VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
-    calculate_battle_pet_stats_like_cpp, is_player_meeting_condition_like_cpp,
+    SpellMiscStore, SpellProcEntryLikeCpp, SpellProcStoreLikeCpp, SpellRadiusStore,
+    SpellRangeStore, SpellStore, SpellTargetPositionStoreLikeCpp, SummonPropertiesEntry, ToyStore,
+    TransmogSetEntry, TransmogSetItemStore, TrinityStringStoreLikeCpp,
+    VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore,
+    VehicleTemplateStoreLikeCpp, calculate_battle_pet_stats_like_cpp,
+    is_player_meeting_condition_like_cpp,
     progression_rewards::{
         ContentTuningStore, FactionEntry, FactionStore, FactionTemplateStore,
         FriendshipRepReactionStore, ParagonReputationStore, QuestFactionRewardStore,
@@ -16892,6 +16893,20 @@ impl WorldSession {
 
     pub(crate) fn spell_proc_store(&self) -> Option<&Arc<SpellProcStoreLikeCpp>> {
         self.spell_proc_store.as_ref()
+    }
+
+    pub(crate) fn spell_proc_entry_like_cpp(
+        &self,
+        spell_id: u32,
+        difficulty: u32,
+    ) -> Option<&SpellProcEntryLikeCpp> {
+        let store = self.spell_proc_store.as_ref()?;
+        store.spell_proc_entry_with_fallback_like_cpp(spell_id, difficulty, |current_difficulty| {
+            self.difficulty_store
+                .as_ref()
+                .and_then(|difficulties| difficulties.get(current_difficulty))
+                .map(|difficulty| u32::from(difficulty.fallback_difficulty_id))
+        })
     }
 
     pub fn set_spell_duration_store(&mut self, store: Arc<SpellDurationStore>) {
@@ -41411,6 +41426,114 @@ mod tests {
             fallback_difficulty_id: 0,
             toggle_difficulty_id: 0,
         }
+    }
+
+    fn test_spell_proc_entry_like_cpp(chance: f32) -> wow_data::SpellProcEntryLikeCpp {
+        wow_data::SpellProcEntryLikeCpp {
+            school_mask: 0,
+            spell_family_name: 0,
+            spell_family_mask: [0; 4],
+            proc_flags: [1, 0],
+            spell_type_mask: 0,
+            spell_phase_mask: 0,
+            hit_mask: 0,
+            attributes_mask: 0,
+            disable_effects_mask: 0,
+            procs_per_minute: 0.0,
+            chance,
+            cooldown_ms: 0,
+            charges: 0,
+        }
+    }
+
+    #[test]
+    fn spell_proc_entry_prefers_exact_difficulty_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let mut entries = BTreeMap::new();
+        entries.insert(
+            wow_data::SpellProcKeyLikeCpp {
+                spell_id: 42,
+                difficulty: 1,
+            },
+            test_spell_proc_entry_like_cpp(25.0),
+        );
+        entries.insert(
+            wow_data::SpellProcKeyLikeCpp {
+                spell_id: 42,
+                difficulty: 2,
+            },
+            test_spell_proc_entry_like_cpp(75.0),
+        );
+        session.set_spell_proc_store(Arc::new(wow_data::SpellProcStoreLikeCpp {
+            proc_entries_by_spell_and_difficulty: entries,
+        }));
+        session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([
+            DifficultyEntry {
+                id: 2,
+                instance_type: 0,
+                flags: 0,
+                fallback_difficulty_id: 1,
+                toggle_difficulty_id: 0,
+            },
+            DifficultyEntry {
+                id: 1,
+                instance_type: 0,
+                flags: 0,
+                fallback_difficulty_id: 0,
+                toggle_difficulty_id: 0,
+            },
+        ])));
+
+        let entry = session
+            .spell_proc_entry_like_cpp(42, 2)
+            .expect("exact proc entry");
+
+        assert_eq!(entry.chance, 75.0);
+    }
+
+    #[test]
+    fn spell_proc_entry_walks_difficulty_fallback_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let mut entries = BTreeMap::new();
+        entries.insert(
+            wow_data::SpellProcKeyLikeCpp {
+                spell_id: 42,
+                difficulty: 1,
+            },
+            test_spell_proc_entry_like_cpp(25.0),
+        );
+        session.set_spell_proc_store(Arc::new(wow_data::SpellProcStoreLikeCpp {
+            proc_entries_by_spell_and_difficulty: entries,
+        }));
+        session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([
+            DifficultyEntry {
+                id: 3,
+                instance_type: 0,
+                flags: 0,
+                fallback_difficulty_id: 2,
+                toggle_difficulty_id: 0,
+            },
+            DifficultyEntry {
+                id: 2,
+                instance_type: 0,
+                flags: 0,
+                fallback_difficulty_id: 1,
+                toggle_difficulty_id: 0,
+            },
+            DifficultyEntry {
+                id: 1,
+                instance_type: 0,
+                flags: 0,
+                fallback_difficulty_id: 0,
+                toggle_difficulty_id: 0,
+            },
+        ])));
+
+        let entry = session
+            .spell_proc_entry_like_cpp(42, 3)
+            .expect("fallback proc entry");
+
+        assert_eq!(entry.chance, 25.0);
     }
 
     fn install_create_map_difficulty_stores_like_cpp(
