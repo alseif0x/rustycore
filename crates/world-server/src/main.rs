@@ -1166,12 +1166,6 @@ async fn main() -> Result<ExitCode> {
         scene_template_outcome.report.rows_seen,
         scene_template_outcome.report.cpp_logged_count_bug_like_cpp
     );
-    let script_name_interner = Arc::new(script_name_interner);
-    info!(
-        "Built C++ ScriptNameContainer core from loaded template/scene stores: {} names ({} DB-bound)",
-        script_name_interner.len_like_cpp(),
-        script_name_interner.all_db_script_names_like_cpp().len()
-    );
     let creature_damage_rates = wow_data::CreatureClassificationDamageRatesLikeCpp {
         normal: world_config_f32(&world_configs, "Rate.Creature.Damage.Normal", 1.0),
         elite: world_config_f32(&world_configs, "Rate.Creature.Damage.Elite", 1.0),
@@ -1650,10 +1644,16 @@ async fn main() -> Result<ExitCode> {
         "Loaded condition validation trainer id store: {} trainers",
         trainer_store.len()
     );
-    let area_trigger_template_outcome =
-        wow_data::AreaTriggerTemplateStore::load_like_cpp(world_db.as_ref(), &world_safe_loc_store)
-            .await
-            .context("Failed to load C++ areatrigger_template / areatrigger_template_actions")?;
+    let curve_store = wow_data::progression_rewards::CurveStore::load(&data_dir, &locale)
+        .context("Failed to load Curve.db2 for C++ curve validation")?;
+    let area_trigger_template_outcome = wow_data::AreaTriggerTemplateStore::load_like_cpp(
+        world_db.as_ref(),
+        &world_safe_loc_store,
+        |id| curve_store.get(id).is_some(),
+        |name| script_name_interner.get_script_id_like_cpp(name, true),
+    )
+    .await
+    .context("Failed to load C++ AreaTriggerDataStore template/create-properties rows")?;
     for (area_trigger_id, action_type, param) in &area_trigger_template_outcome
         .report
         .skipped_actions_invalid_action_type
@@ -1704,16 +1704,76 @@ async fn main() -> Result<ExitCode> {
             idx
         );
     }
+    for (create_properties_id, area_trigger_id) in &area_trigger_template_outcome
+        .report
+        .skipped_create_properties_invalid_template
+    {
+        tracing::error!(
+            target: "sql.sql",
+            "Table `areatrigger_create_properties` references invalid AreaTrigger (Id: {}, IsCustom: {}) for AreaTriggerCreatePropertiesId (Id: {}, IsCustom: {})",
+            area_trigger_id.id,
+            u32::from(area_trigger_id.is_custom),
+            create_properties_id.id,
+            u32::from(create_properties_id.is_custom)
+        );
+    }
+    for (create_properties_id, shape) in &area_trigger_template_outcome
+        .report
+        .skipped_create_properties_invalid_shape
+    {
+        tracing::error!(
+            target: "sql.sql",
+            "Table `areatrigger_create_properties` has listed AreaTriggerCreatePropertiesId (Id: {}, IsCustom: {}) with invalid shape {}.",
+            create_properties_id.id,
+            u32::from(create_properties_id.is_custom),
+            shape
+        );
+    }
+    for (area_trigger_id, create_properties_id, curve_field, curve_id) in
+        &area_trigger_template_outcome
+            .report
+            .corrected_create_properties_invalid_curves
+    {
+        let curve_name = match curve_field {
+            wow_data::AreaTriggerCurveFieldLikeCpp::Move => "MoveCurveId",
+            wow_data::AreaTriggerCurveFieldLikeCpp::Scale => "ScaleCurveId",
+            wow_data::AreaTriggerCurveFieldLikeCpp::Morph => "MorphCurveId",
+            wow_data::AreaTriggerCurveFieldLikeCpp::Facing => "FacingCurveId",
+        };
+        tracing::error!(
+            target: "sql.sql",
+            "Table `areatrigger_create_properties` has listed AreaTrigger (Id: {}, IsCustom: {}) for AreaTriggerCreatePropertiesId (Id: {}, IsCustom: {}) with invalid {} ({}), set to 0!",
+            area_trigger_id.id,
+            u32::from(area_trigger_id.is_custom),
+            create_properties_id.id,
+            u32::from(create_properties_id.is_custom),
+            curve_name,
+            curve_id
+        );
+    }
+    for create_properties_id in &area_trigger_template_outcome
+        .report
+        .invalid_polygon_target_vertex_counts
+    {
+        tracing::error!(
+            target: "sql.sql",
+            "Table `areatrigger_create_properties_polygon_vertex` has invalid target vertices, either all or none vertices must have a corresponding target vertex (AreaTriggerCreatePropertiesId: (Id: {}, IsCustom: {})).",
+            create_properties_id.id,
+            u32::from(create_properties_id.is_custom)
+        );
+    }
     let area_trigger_template_report = area_trigger_template_outcome.report;
     let area_trigger_template_store = Arc::new(area_trigger_template_outcome.store);
     info!(
-        "Loaded {} C++ area-trigger templates with {} actions, {} polygon vertices ({} targets), and {} spline points from {} template rows / {} action rows / {} polygon rows / {} spline rows ({} invalid rows skipped; create properties/spawns pending)",
+        "Loaded {} C++ area-trigger templates, {} create properties, {} actions, {} polygon vertices ({} targets), and {} spline points from {} template rows / {} create-property rows / {} action rows / {} polygon rows / {} spline rows ({} invalid rows skipped; orbit/spawns pending)",
         area_trigger_template_report.loaded_templates,
+        area_trigger_template_report.loaded_create_properties,
         area_trigger_template_report.loaded_actions,
         area_trigger_template_report.loaded_polygon_vertices,
         area_trigger_template_report.loaded_polygon_target_vertices,
         area_trigger_template_report.loaded_spline_points,
         area_trigger_template_report.template_rows_seen,
+        area_trigger_template_report.create_properties_rows_seen,
         area_trigger_template_report.action_rows_seen,
         area_trigger_template_report.polygon_vertex_rows_seen,
         area_trigger_template_report.spline_point_rows_seen,
@@ -1729,6 +1789,24 @@ async fn main() -> Result<ExitCode> {
             + area_trigger_template_report
                 .invalid_partial_target_vertices
                 .len()
+            + area_trigger_template_report
+                .skipped_create_properties_invalid_template
+                .len()
+            + area_trigger_template_report
+                .skipped_create_properties_invalid_shape
+                .len()
+            + area_trigger_template_report
+                .corrected_create_properties_invalid_curves
+                .len()
+            + area_trigger_template_report
+                .invalid_polygon_target_vertex_counts
+                .len()
+    );
+    let script_name_interner = Arc::new(script_name_interner);
+    info!(
+        "Built C++ ScriptNameContainer core from loaded template/scene/area-trigger stores: {} names ({} DB-bound)",
+        script_name_interner.len_like_cpp(),
+        script_name_interner.all_db_script_names_like_cpp().len()
     );
 
     let map_difficulty_store = Arc::new(
@@ -3200,8 +3278,6 @@ async fn main() -> Result<ExitCode> {
     let _player_choice_store = Arc::new(player_choice_outcome.store);
     let spell_visual_store = wow_data::SpellVisualStore::load(&data_dir, &locale)
         .context("Failed to load SpellVisual.db2 for C++ jump_charge_params validation")?;
-    let curve_store = wow_data::progression_rewards::CurveStore::load(&data_dir, &locale)
-        .context("Failed to load Curve.db2 for C++ jump_charge_params validation")?;
     let jump_charge_params_outcome = wow_data::JumpChargeParamsStoreLikeCpp::load_like_cpp(
         world_db.as_ref(),
         |id| spell_visual_store.get(id).is_some(),

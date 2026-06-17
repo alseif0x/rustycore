@@ -411,6 +411,8 @@ pub enum WorldStatements {
     SEL_AREATRIGGER_CREATE_PROPERTIES_POLYGON_VERTICES,
     /// C++ `AreaTriggerDataStore::LoadAreaTriggerTemplates` spline point rows.
     SEL_AREATRIGGER_CREATE_PROPERTIES_SPLINE_POINTS,
+    /// C++ `AreaTriggerDataStore::LoadAreaTriggerTemplates` create-properties rows.
+    SEL_AREATRIGGER_CREATE_PROPERTIES,
     /// C++ `AreaTriggerDataStore::LoadAreaTriggerTemplates` template rows.
     SEL_AREATRIGGER_TEMPLATES,
 }
@@ -1163,6 +1165,9 @@ impl StatementDef for WorldStatements {
             Self::SEL_AREATRIGGER_CREATE_PROPERTIES_SPLINE_POINTS => {
                 "SELECT AreaTriggerCreatePropertiesId, IsCustom, X, Y, Z FROM `areatrigger_create_properties_spline_point` ORDER BY `AreaTriggerCreatePropertiesId`, `IsCustom`, `Idx`"
             }
+            Self::SEL_AREATRIGGER_CREATE_PROPERTIES => {
+                "SELECT Id, IsCustom, AreaTriggerId, IsAreatriggerCustom, Flags, MoveCurveId, ScaleCurveId, MorphCurveId, FacingCurveId, AnimId, AnimKitId, DecalPropertiesId, TimeToTarget, TimeToTargetScale, Shape, ShapeData0, ShapeData1, ShapeData2, ShapeData3, ShapeData4, ShapeData5, ShapeData6, ShapeData7, ScriptName FROM `areatrigger_create_properties`"
+            }
             Self::SEL_AREATRIGGER_TEMPLATES => {
                 "SELECT Id, IsCustom, Flags FROM `areatrigger_template`"
             }
@@ -1717,6 +1722,7 @@ mod tests {
             WorldStatements::SEL_AREATRIGGER_CREATE_PROPERTIES_POLYGON_VERTICES.sql();
         let spline_points_sql =
             WorldStatements::SEL_AREATRIGGER_CREATE_PROPERTIES_SPLINE_POINTS.sql();
+        let create_properties_sql = WorldStatements::SEL_AREATRIGGER_CREATE_PROPERTIES.sql();
         let templates_sql = WorldStatements::SEL_AREATRIGGER_TEMPLATES.sql();
 
         assert_eq!(
@@ -1732,12 +1738,17 @@ mod tests {
             "SELECT AreaTriggerCreatePropertiesId, IsCustom, X, Y, Z FROM `areatrigger_create_properties_spline_point` ORDER BY `AreaTriggerCreatePropertiesId`, `IsCustom`, `Idx`"
         );
         assert_eq!(
+            create_properties_sql,
+            "SELECT Id, IsCustom, AreaTriggerId, IsAreatriggerCustom, Flags, MoveCurveId, ScaleCurveId, MorphCurveId, FacingCurveId, AnimId, AnimKitId, DecalPropertiesId, TimeToTarget, TimeToTargetScale, Shape, ShapeData0, ShapeData1, ShapeData2, ShapeData3, ShapeData4, ShapeData5, ShapeData6, ShapeData7, ScriptName FROM `areatrigger_create_properties`"
+        );
+        assert_eq!(
             templates_sql,
             "SELECT Id, IsCustom, Flags FROM `areatrigger_template`"
         );
         assert_eq!(actions_sql.matches('?').count(), 0);
         assert_eq!(polygon_vertices_sql.matches('?').count(), 0);
         assert_eq!(spline_points_sql.matches('?').count(), 0);
+        assert_eq!(create_properties_sql.matches('?').count(), 0);
         assert_eq!(templates_sql.matches('?').count(), 0);
     }
 }

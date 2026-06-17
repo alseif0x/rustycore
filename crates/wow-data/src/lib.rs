@@ -109,8 +109,10 @@ pub use area_trigger::{
     TavernAreaTriggerStoreLikeCpp, TriggerShape, load_area_triggers,
 };
 pub use area_trigger_template::{
-    AreaTriggerActionLikeCpp, AreaTriggerIdLikeCpp, AreaTriggerPolygonVertexRowLikeCpp,
-    AreaTriggerPosition2LikeCpp, AreaTriggerPosition3LikeCpp, AreaTriggerSplinePointRowLikeCpp,
+    AreaTriggerActionLikeCpp, AreaTriggerCreatePropertiesLikeCpp,
+    AreaTriggerCreatePropertiesRowLikeCpp, AreaTriggerCurveFieldLikeCpp, AreaTriggerIdLikeCpp,
+    AreaTriggerPolygonVertexRowLikeCpp, AreaTriggerPosition2LikeCpp, AreaTriggerPosition3LikeCpp,
+    AreaTriggerShapeInfoLikeCpp, AreaTriggerSplinePointRowLikeCpp,
     AreaTriggerTemplateActionRowLikeCpp, AreaTriggerTemplateLikeCpp,
     AreaTriggerTemplateLoadOutcomeLikeCpp, AreaTriggerTemplateLoadReportLikeCpp,
     AreaTriggerTemplateRowLikeCpp, AreaTriggerTemplateStore,
