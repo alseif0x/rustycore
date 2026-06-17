@@ -360,6 +360,8 @@ pub enum WorldStatements {
     SEL_PLAYER_CHOICE_LOCALES,
     /// C++ `ObjectMgr::LoadPlayerChoicesLocale` response locale rows.
     SEL_PLAYER_CHOICE_RESPONSE_LOCALES,
+    /// C++ `ObjectMgr::LoadJumpChargeParams`.
+    SEL_JUMP_CHARGE_PARAMS,
     // Quest system
     SEL_QUEST_TEMPLATE,
     SEL_QUEST_OBJECTIVES,
@@ -1096,6 +1098,9 @@ impl StatementDef for WorldStatements {
             Self::SEL_PLAYER_CHOICE_RESPONSE_LOCALES => {
                 "SELECT ChoiceID, ResponseID, locale, Answer, Header, SubHeader, ButtonTooltip, Description, Confirmation FROM playerchoice_response_locale"
             }
+            Self::SEL_JUMP_CHARGE_PARAMS => {
+                "SELECT id, speed, treatSpeedAsMoveTimeSeconds, jumpGravity, spellVisualId, progressCurveId, parabolicCurveId FROM jump_charge_params"
+            }
             Self::SEL_TRAINER_BY_CREATURE => {
                 "SELECT TrainerId FROM creature_trainer WHERE CreatureID = ?"
             }
@@ -1645,5 +1650,16 @@ mod tests {
         assert_eq!(maw_powers_sql.matches('?').count(), 0);
         assert_eq!(choice_locales_sql.matches('?').count(), 0);
         assert_eq!(response_locales_sql.matches('?').count(), 0);
+    }
+
+    #[test]
+    fn jump_charge_params_statement_matches_cpp_sql_exactly() {
+        let sql = WorldStatements::SEL_JUMP_CHARGE_PARAMS.sql();
+
+        assert_eq!(
+            sql,
+            "SELECT id, speed, treatSpeedAsMoveTimeSeconds, jumpGravity, spellVisualId, progressCurveId, parabolicCurveId FROM jump_charge_params"
+        );
+        assert_eq!(sql.matches('?').count(), 0);
     }
 }

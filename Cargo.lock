@@ -3188,6 +3188,7 @@ dependencies = [
  "wow-core",
  "wow-database",
  "wow-entities",
+ "wow-movement",
 ]
 
 [[package]]

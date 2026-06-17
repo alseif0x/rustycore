@@ -46,6 +46,7 @@ pub mod item_random_enchantment;
 pub mod item_random_properties;
 pub mod item_random_suffix;
 pub mod item_stats;
+pub mod jump_charge;
 pub mod lock;
 pub mod mail;
 pub mod map;
@@ -247,6 +248,11 @@ pub use item_random_properties::{ItemRandomPropertiesEntry, ItemRandomProperties
 pub use item_random_suffix::{ItemRandomSuffixEntry, ItemRandomSuffixStore};
 pub use item_stats::{
     ItemRandomPropertyTemplateEntry, ItemSparseTemplateEntry, ItemStatEntry, ItemStatsStore,
+};
+pub use jump_charge::{
+    JumpChargeParamsLoadOutcomeLikeCpp, JumpChargeParamsLoadReportLikeCpp,
+    JumpChargeParamsRowLikeCpp, JumpChargeParamsStoreLikeCpp, MOVEMENT_GRAVITY_LIKE_CPP,
+    SPEED_CHARGE_LIKE_CPP,
 };
 pub use lock::{LockEntry, LockStore};
 pub use mail::{
