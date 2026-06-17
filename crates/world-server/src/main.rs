@@ -2056,6 +2056,89 @@ async fn main() -> Result<ExitCode> {
         "Loaded {} items with stat modifiers from ItemSparse.db2",
         item_stats_store.len()
     );
+    let gameobject_quest_item_outcome = wow_data::GameObjectQuestItemStoreLikeCpp::load_like_cpp(
+        world_db.as_ref(),
+        |entry| gameobject_template_lifecycle_store.get(entry).is_some(),
+        |item_id| item_stats_store.sparse_template(item_id).is_some(),
+    )
+    .await
+    .context("Failed to load C++ gameobject_questitem rows")?;
+    for (entry, idx) in &gameobject_quest_item_outcome
+        .report
+        .skipped_missing_gameobject
+    {
+        tracing::error!(
+            target: "sql.sql",
+            "Table `gameobject_questitem` has data for nonexistent gameobject (entry: {}, idx: {}), skipped",
+            entry,
+            idx
+        );
+    }
+    for (entry, item_id, idx) in &gameobject_quest_item_outcome.report.skipped_missing_item {
+        tracing::error!(
+            target: "sql.sql",
+            "Table `gameobject_questitem` has nonexistent item (ID: {}) in gameobject (entry: {}, idx: {}), skipped",
+            item_id,
+            entry,
+            idx
+        );
+    }
+    info!(
+        "Loaded {} C++ gameobject quest items from {} rows ({} skipped)",
+        gameobject_quest_item_outcome.report.loaded_items,
+        gameobject_quest_item_outcome.report.rows_seen,
+        gameobject_quest_item_outcome
+            .report
+            .skipped_missing_gameobject
+            .len()
+            + gameobject_quest_item_outcome
+                .report
+                .skipped_missing_item
+                .len()
+    );
+    let _gameobject_quest_item_store = Arc::new(gameobject_quest_item_outcome.store);
+    let creature_quest_item_outcome = wow_data::CreatureQuestItemStoreLikeCpp::load_like_cpp(
+        world_db.as_ref(),
+        |entry| creature_template_lifecycle_store.get(entry).is_some(),
+        |item_id| item_stats_store.sparse_template(item_id).is_some(),
+    )
+    .await
+    .context("Failed to load C++ creature_questitem rows")?;
+    for (entry, difficulty, idx) in &creature_quest_item_outcome.report.skipped_missing_creature {
+        tracing::error!(
+            target: "sql.sql",
+            "Table `creature_questitem` has data for nonexistent creature (entry: {}, difficulty: {}, idx: {}), skipped",
+            entry,
+            difficulty,
+            idx
+        );
+    }
+    for (entry, difficulty, item_id, idx) in
+        &creature_quest_item_outcome.report.skipped_missing_item
+    {
+        tracing::error!(
+            target: "sql.sql",
+            "Table `creature_questitem` has nonexistent item (ID: {}) in creature (entry: {}, difficulty: {}, idx: {}), skipped",
+            item_id,
+            entry,
+            difficulty,
+            idx
+        );
+    }
+    info!(
+        "Loaded {} C++ creature quest items from {} rows ({} skipped; difficulty fallback lookup represented)",
+        creature_quest_item_outcome.report.loaded_items,
+        creature_quest_item_outcome.report.rows_seen,
+        creature_quest_item_outcome
+            .report
+            .skipped_missing_creature
+            .len()
+            + creature_quest_item_outcome
+                .report
+                .skipped_missing_item
+                .len()
+    );
+    let _creature_quest_item_store = Arc::new(creature_quest_item_outcome.store);
 
     // C++ global DB2 stores used by Item::CalculateDurabilityRepairCost.
     let durability_costs_store = Arc::new(

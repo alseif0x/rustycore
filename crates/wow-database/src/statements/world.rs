@@ -171,6 +171,10 @@ pub enum WorldStatements {
     SEL_GAMEOBJECT_TEMPLATE_LOCALE,
     /// C++ ObjectMgr gameobject quest item list by entry.
     SEL_GAMEOBJECT_QUEST_ITEMS,
+    /// C++ `ObjectMgr::LoadGameObjectQuestItems`.
+    SEL_GAMEOBJECT_QUEST_ITEM_ROWS,
+    /// C++ `ObjectMgr::LoadCreatureQuestItems`.
+    SEL_CREATURE_QUEST_ITEM_ROWS,
     /// Static page text by page ID.
     SEL_PAGE_TEXT,
     /// Localized static page text by page ID and locale.
@@ -798,6 +802,12 @@ impl StatementDef for WorldStatements {
             }
             Self::SEL_GAMEOBJECT_QUEST_ITEMS => {
                 "SELECT ItemId FROM gameobject_questitem WHERE GameObjectEntry = ? ORDER BY Idx ASC"
+            }
+            Self::SEL_GAMEOBJECT_QUEST_ITEM_ROWS => {
+                "SELECT GameObjectEntry, ItemId, Idx FROM gameobject_questitem ORDER BY Idx ASC"
+            }
+            Self::SEL_CREATURE_QUEST_ITEM_ROWS => {
+                "SELECT CreatureEntry, DifficultyID, ItemId, Idx FROM creature_questitem ORDER BY Idx ASC"
             }
             Self::SEL_PAGE_TEXT => {
                 "SELECT ID, `Text`, NextPageID, PlayerConditionID, Flags FROM page_text WHERE ID = ?"
@@ -1661,5 +1671,22 @@ mod tests {
             "SELECT id, speed, treatSpeedAsMoveTimeSeconds, jumpGravity, spellVisualId, progressCurveId, parabolicCurveId FROM jump_charge_params"
         );
         assert_eq!(sql.matches('?').count(), 0);
+    }
+
+    #[test]
+    fn quest_item_loader_statements_match_cpp_sql_exactly() {
+        let gameobject_sql = WorldStatements::SEL_GAMEOBJECT_QUEST_ITEM_ROWS.sql();
+        let creature_sql = WorldStatements::SEL_CREATURE_QUEST_ITEM_ROWS.sql();
+
+        assert_eq!(
+            gameobject_sql,
+            "SELECT GameObjectEntry, ItemId, Idx FROM gameobject_questitem ORDER BY Idx ASC"
+        );
+        assert_eq!(
+            creature_sql,
+            "SELECT CreatureEntry, DifficultyID, ItemId, Idx FROM creature_questitem ORDER BY Idx ASC"
+        );
+        assert_eq!(gameobject_sql.matches('?').count(), 0);
+        assert_eq!(creature_sql.matches('?').count(), 0);
     }
 }

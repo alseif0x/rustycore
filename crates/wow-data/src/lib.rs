@@ -62,6 +62,7 @@ pub mod player_stats;
 pub mod poi;
 pub mod progression_rewards;
 pub mod quest;
+pub mod quest_item;
 pub mod quest_xp;
 pub mod rand_prop_points;
 pub mod reputation;
@@ -346,6 +347,12 @@ pub use poi::{
     PointOfInterestLikeCpp, PointOfInterestLoadOutcomeLikeCpp, PointOfInterestLoadReportLikeCpp,
     PointOfInterestLocaleLikeCpp, PointOfInterestLocaleRowLikeCpp,
     PointOfInterestLocaleStoreLikeCpp, PointOfInterestRowLikeCpp, PointOfInterestStoreLikeCpp,
+};
+pub use quest_item::{
+    CreatureQuestItemLoadOutcomeLikeCpp, CreatureQuestItemLoadReportLikeCpp,
+    CreatureQuestItemRowLikeCpp, CreatureQuestItemStoreLikeCpp,
+    GameObjectQuestItemLoadOutcomeLikeCpp, GameObjectQuestItemLoadReportLikeCpp,
+    GameObjectQuestItemRowLikeCpp, GameObjectQuestItemStoreLikeCpp,
 };
 pub use rand_prop_points::{RandPropPointsEntry, RandPropPointsStore};
 pub use reserved_names::ReservedNameStoreLikeCpp;
