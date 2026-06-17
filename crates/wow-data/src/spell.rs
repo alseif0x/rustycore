@@ -2740,6 +2740,8 @@ pub struct SpellGroupStackRuleLoadOutcomeLikeCpp {
 }
 
 pub const SPELL_SCHOOL_MASK_ALL_LIKE_CPP: u8 = 0x7F;
+pub const PROC_FLAG_HEARTBEAT_LIKE_CPP: u32 = 0x0000_0001;
+pub const PROC_FLAG_KILL_LIKE_CPP: u32 = 0x0000_0002;
 pub const PROC_FLAG_DEAL_MELEE_SWING_LIKE_CPP: u32 = 0x0000_0004;
 pub const PROC_FLAG_TAKE_MELEE_SWING_LIKE_CPP: u32 = 0x0000_0008;
 pub const PROC_FLAG_DEAL_MELEE_ABILITY_LIKE_CPP: u32 = 0x0000_0010;
@@ -2776,6 +2778,9 @@ pub const PROC_SPELL_PHASE_FINISH_LIKE_CPP: u32 = 0x0000_0004;
 pub const PROC_SPELL_PHASE_MASK_ALL_LIKE_CPP: u32 = PROC_SPELL_PHASE_CAST_LIKE_CPP
     | PROC_SPELL_PHASE_HIT_LIKE_CPP
     | PROC_SPELL_PHASE_FINISH_LIKE_CPP;
+pub const PROC_HIT_NORMAL_LIKE_CPP: u32 = 0x0000_0001;
+pub const PROC_HIT_CRITICAL_LIKE_CPP: u32 = 0x0000_0002;
+pub const PROC_HIT_ABSORB_LIKE_CPP: u32 = 0x0000_0400;
 pub const PROC_HIT_MASK_ALL_LIKE_CPP: u32 = 0x0007_FFFF;
 pub const PROC_ATTR_REQ_SPELLMOD_LIKE_CPP: u32 = 0x0000_0008;
 pub const PROC_ATTR_REQ_EXP_OR_HONOR_LIKE_CPP: u32 = 0x0000_0001;
@@ -2832,6 +2837,7 @@ pub const TAKEN_HIT_PROC_FLAG_MASK_LIKE_CPP: u32 = PROC_FLAG_TAKE_MELEE_SWING_LI
     | PROC_FLAG_TAKE_ANY_DAMAGE_LIKE_CPP;
 pub const REQ_SPELL_PHASE_PROC_FLAG_MASK_LIKE_CPP: u32 =
     SPELL_PROC_FLAG_MASK_LIKE_CPP & DONE_HIT_PROC_FLAG_MASK_LIKE_CPP;
+pub const PROC_FLAG_DEATH_LIKE_CPP: u32 = 0x0100_0000;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SpellProcRowLikeCpp {
@@ -2890,6 +2896,128 @@ impl SpellProcEntryLikeCpp {
     pub fn proc_flags_any_like_cpp(&self) -> bool {
         self.proc_flags[0] != 0 || self.proc_flags[1] != 0
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellProcEventSpellInfoLikeCpp {
+    pub spell_family_name: u16,
+    pub spell_family_mask: [u32; 4],
+}
+
+impl SpellProcEventSpellInfoLikeCpp {
+    pub fn is_affected_like_cpp(&self, family_name: u16, family_mask: [u32; 4]) -> bool {
+        if family_name == 0 {
+            return true;
+        }
+
+        if family_name != self.spell_family_name {
+            return false;
+        }
+
+        if family_mask.iter().any(|mask| *mask != 0)
+            && !family_mask
+                .iter()
+                .zip(self.spell_family_mask.iter())
+                .any(|(required, actual)| required & actual != 0)
+        {
+            return false;
+        }
+
+        true
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellProcEventInfoLikeCpp {
+    pub type_mask: [u32; 2],
+    pub actor_is_player: bool,
+    pub action_target_exists: bool,
+    pub action_target_is_honor_or_xp: bool,
+    pub proc_spell_has_positive_power_cost: Option<bool>,
+    pub school_mask: u8,
+    pub spell_info: Option<SpellProcEventSpellInfoLikeCpp>,
+    pub spell_type_mask: u32,
+    pub spell_phase_mask: u32,
+    pub hit_mask: u32,
+}
+
+pub fn can_spell_trigger_proc_on_event_like_cpp(
+    proc_entry: &SpellProcEntryLikeCpp,
+    event_info: &SpellProcEventInfoLikeCpp,
+) -> bool {
+    if !proc_flags_intersect_like_cpp(event_info.type_mask, proc_entry.proc_flags) {
+        return false;
+    }
+
+    if proc_entry.attributes_mask & PROC_ATTR_REQ_EXP_OR_HONOR_LIKE_CPP != 0
+        && event_info.actor_is_player
+        && event_info.action_target_exists
+        && !event_info.action_target_is_honor_or_xp
+    {
+        return false;
+    }
+
+    if proc_entry.attributes_mask & PROC_ATTR_REQ_POWER_COST_LIKE_CPP != 0
+        && event_info.proc_spell_has_positive_power_cost != Some(true)
+    {
+        return false;
+    }
+
+    if event_info.type_mask[0]
+        & (PROC_FLAG_HEARTBEAT_LIKE_CPP | PROC_FLAG_KILL_LIKE_CPP | PROC_FLAG_DEATH_LIKE_CPP)
+        != 0
+    {
+        return true;
+    }
+
+    if proc_entry.school_mask != 0 && event_info.school_mask & proc_entry.school_mask == 0 {
+        return false;
+    }
+
+    if event_info.type_mask[0] & SPELL_PROC_FLAG_MASK_LIKE_CPP != 0 {
+        if let Some(event_spell_info) = event_info.spell_info {
+            if !event_spell_info
+                .is_affected_like_cpp(proc_entry.spell_family_name, proc_entry.spell_family_mask)
+            {
+                return false;
+            }
+        }
+
+        if proc_entry.spell_type_mask != 0
+            && event_info.spell_type_mask & proc_entry.spell_type_mask == 0
+        {
+            return false;
+        }
+    }
+
+    if event_info.type_mask[0] & REQ_SPELL_PHASE_PROC_FLAG_MASK_LIKE_CPP != 0
+        && event_info.spell_phase_mask & proc_entry.spell_phase_mask == 0
+    {
+        return false;
+    }
+
+    if event_info.type_mask[0] & TAKEN_HIT_PROC_FLAG_MASK_LIKE_CPP != 0
+        || (event_info.type_mask[0] & DONE_HIT_PROC_FLAG_MASK_LIKE_CPP != 0
+            && event_info.spell_phase_mask & PROC_SPELL_PHASE_CAST_LIKE_CPP == 0)
+    {
+        let mut hit_mask = proc_entry.hit_mask;
+        if hit_mask == 0 {
+            hit_mask = PROC_HIT_NORMAL_LIKE_CPP | PROC_HIT_CRITICAL_LIKE_CPP;
+            if event_info.type_mask[0] & TAKEN_HIT_PROC_FLAG_MASK_LIKE_CPP == 0 {
+                hit_mask |= PROC_HIT_ABSORB_LIKE_CPP;
+            }
+        }
+
+        if event_info.hit_mask & hit_mask == 0 {
+            return false;
+        }
+    }
+
+    true
+}
+
+fn proc_flags_intersect_like_cpp(lhs: [u32; 2], rhs: [u32; 2]) -> bool {
+    lhs[0] & rhs[0] != 0 || lhs[1] & rhs[1] != 0
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -6385,6 +6513,143 @@ mod tests {
         );
     }
 
+    #[test]
+    fn can_spell_trigger_proc_on_event_requires_proc_flag_overlap_like_cpp() {
+        let mut entry = test_spell_proc_entry_like_cpp();
+        entry.proc_flags = [0, PROC_FLAG_2_CAST_SUCCESSFUL_LIKE_CPP];
+        let mut event = test_spell_proc_event_like_cpp(PROC_FLAG_DEAL_MELEE_SWING_LIKE_CPP);
+
+        assert!(!can_spell_trigger_proc_on_event_like_cpp(&entry, &event));
+
+        event.type_mask = [0, PROC_FLAG_2_CAST_SUCCESSFUL_LIKE_CPP];
+        assert!(can_spell_trigger_proc_on_event_like_cpp(&entry, &event));
+    }
+
+    #[test]
+    fn can_spell_trigger_proc_on_event_checks_xp_honor_and_power_attrs_like_cpp() {
+        let mut entry = test_spell_proc_entry_like_cpp();
+        entry.proc_flags = [PROC_FLAG_KILL_LIKE_CPP, 0];
+        entry.attributes_mask = PROC_ATTR_REQ_EXP_OR_HONOR_LIKE_CPP;
+        let mut event = test_spell_proc_event_like_cpp(PROC_FLAG_KILL_LIKE_CPP);
+        event.actor_is_player = true;
+        event.action_target_exists = true;
+        event.action_target_is_honor_or_xp = false;
+
+        assert!(!can_spell_trigger_proc_on_event_like_cpp(&entry, &event));
+
+        event.action_target_is_honor_or_xp = true;
+        assert!(can_spell_trigger_proc_on_event_like_cpp(&entry, &event));
+
+        entry.attributes_mask = PROC_ATTR_REQ_POWER_COST_LIKE_CPP;
+        event.proc_spell_has_positive_power_cost = None;
+        assert!(!can_spell_trigger_proc_on_event_like_cpp(&entry, &event));
+
+        event.proc_spell_has_positive_power_cost = Some(false);
+        assert!(!can_spell_trigger_proc_on_event_like_cpp(&entry, &event));
+
+        event.proc_spell_has_positive_power_cost = Some(true);
+        assert!(can_spell_trigger_proc_on_event_like_cpp(&entry, &event));
+    }
+
+    #[test]
+    fn can_spell_trigger_proc_on_event_heartbeat_bypasses_later_masks_like_cpp() {
+        let mut entry = test_spell_proc_entry_like_cpp();
+        entry.proc_flags = [PROC_FLAG_HEARTBEAT_LIKE_CPP, 0];
+        entry.school_mask = 0x04;
+        entry.spell_family_name = 7;
+        entry.spell_family_mask = [0x10, 0, 0, 0];
+        entry.spell_phase_mask = PROC_SPELL_PHASE_HIT_LIKE_CPP;
+        entry.hit_mask = PROC_HIT_CRITICAL_LIKE_CPP;
+        let mut event = test_spell_proc_event_like_cpp(PROC_FLAG_HEARTBEAT_LIKE_CPP);
+        event.school_mask = 0x01;
+        event.spell_info = Some(SpellProcEventSpellInfoLikeCpp {
+            spell_family_name: 8,
+            spell_family_mask: [0, 0, 0, 0],
+        });
+        event.spell_phase_mask = PROC_SPELL_PHASE_CAST_LIKE_CPP;
+        event.hit_mask = PROC_HIT_NORMAL_LIKE_CPP;
+
+        assert!(can_spell_trigger_proc_on_event_like_cpp(&entry, &event));
+    }
+
+    #[test]
+    fn can_spell_trigger_proc_on_event_matches_school_family_and_type_like_cpp() {
+        let mut entry = test_spell_proc_entry_like_cpp();
+        entry.proc_flags = [PROC_FLAG_DEAL_HARMFUL_SPELL_LIKE_CPP, 0];
+        entry.school_mask = 0x04;
+        entry.spell_family_name = 11;
+        entry.spell_family_mask = [0x20, 0, 0, 0];
+        entry.spell_type_mask = PROC_SPELL_TYPE_DAMAGE_LIKE_CPP;
+        entry.spell_phase_mask = PROC_SPELL_PHASE_HIT_LIKE_CPP;
+        let mut event = test_spell_proc_event_like_cpp(PROC_FLAG_DEAL_HARMFUL_SPELL_LIKE_CPP);
+        event.school_mask = 0x01;
+        event.spell_info = Some(SpellProcEventSpellInfoLikeCpp {
+            spell_family_name: 11,
+            spell_family_mask: [0x20, 0, 0, 0],
+        });
+        event.spell_type_mask = PROC_SPELL_TYPE_DAMAGE_LIKE_CPP;
+        event.spell_phase_mask = PROC_SPELL_PHASE_HIT_LIKE_CPP;
+        event.hit_mask = PROC_HIT_NORMAL_LIKE_CPP;
+
+        assert!(!can_spell_trigger_proc_on_event_like_cpp(&entry, &event));
+
+        event.school_mask = 0x04;
+        assert!(can_spell_trigger_proc_on_event_like_cpp(&entry, &event));
+
+        event.spell_info = Some(SpellProcEventSpellInfoLikeCpp {
+            spell_family_name: 12,
+            spell_family_mask: [0x20, 0, 0, 0],
+        });
+        assert!(!can_spell_trigger_proc_on_event_like_cpp(&entry, &event));
+
+        event.spell_info = None;
+        assert!(
+            can_spell_trigger_proc_on_event_like_cpp(&entry, &event),
+            "C++ only checks SpellInfo::IsAffected when eventInfo.GetSpellInfo() exists"
+        );
+
+        event.spell_type_mask = PROC_SPELL_TYPE_HEAL_LIKE_CPP;
+        assert!(!can_spell_trigger_proc_on_event_like_cpp(&entry, &event));
+    }
+
+    #[test]
+    fn can_spell_trigger_proc_on_event_matches_phase_and_hit_defaults_like_cpp() {
+        let mut entry = test_spell_proc_entry_like_cpp();
+        entry.proc_flags = [PROC_FLAG_TAKE_MELEE_SWING_LIKE_CPP, 0];
+        entry.spell_phase_mask = PROC_SPELL_PHASE_HIT_LIKE_CPP;
+        entry.hit_mask = 0;
+        let mut event = test_spell_proc_event_like_cpp(PROC_FLAG_TAKE_MELEE_SWING_LIKE_CPP);
+        event.spell_phase_mask = 0;
+        event.hit_mask = PROC_HIT_ABSORB_LIKE_CPP;
+
+        assert!(!can_spell_trigger_proc_on_event_like_cpp(&entry, &event));
+
+        event.hit_mask = PROC_HIT_CRITICAL_LIKE_CPP;
+        assert!(can_spell_trigger_proc_on_event_like_cpp(&entry, &event));
+
+        entry.proc_flags = [PROC_FLAG_DEAL_MELEE_SWING_LIKE_CPP, 0];
+        event.type_mask = [PROC_FLAG_DEAL_MELEE_SWING_LIKE_CPP, 0];
+        event.hit_mask = PROC_HIT_ABSORB_LIKE_CPP;
+        assert!(can_spell_trigger_proc_on_event_like_cpp(&entry, &event));
+
+        event.spell_phase_mask = PROC_SPELL_PHASE_CAST_LIKE_CPP;
+        event.hit_mask = 0;
+        assert!(
+            can_spell_trigger_proc_on_event_like_cpp(&entry, &event),
+            "C++ skips done-hit HitMask checks during PROC_SPELL_PHASE_CAST"
+        );
+    }
+
+    #[test]
+    fn spell_proc_event_spell_info_is_affected_matches_cpp_zero_family_name() {
+        let event_spell = SpellProcEventSpellInfoLikeCpp {
+            spell_family_name: 3,
+            spell_family_mask: [0, 0, 0, 0],
+        };
+
+        assert!(event_spell.is_affected_like_cpp(0, [0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF]));
+    }
+
     fn learn_source(
         spell_id: u32,
         is_talent: bool,
@@ -6436,6 +6701,39 @@ mod tests {
             display_flags: 0,
             requires_spell_focus: 0,
             effects: Vec::new(),
+        }
+    }
+
+    fn test_spell_proc_entry_like_cpp() -> SpellProcEntryLikeCpp {
+        SpellProcEntryLikeCpp {
+            school_mask: 0,
+            spell_family_name: 0,
+            spell_family_mask: [0, 0, 0, 0],
+            proc_flags: [PROC_FLAG_DEAL_MELEE_SWING_LIKE_CPP, 0],
+            spell_type_mask: 0,
+            spell_phase_mask: PROC_SPELL_PHASE_CAST_LIKE_CPP,
+            hit_mask: 0,
+            attributes_mask: 0,
+            disable_effects_mask: 0,
+            procs_per_minute: 0.0,
+            chance: 0.0,
+            cooldown_ms: 0,
+            charges: 0,
+        }
+    }
+
+    fn test_spell_proc_event_like_cpp(type_mask: u32) -> SpellProcEventInfoLikeCpp {
+        SpellProcEventInfoLikeCpp {
+            type_mask: [type_mask, 0],
+            actor_is_player: false,
+            action_target_exists: false,
+            action_target_is_honor_or_xp: false,
+            proc_spell_has_positive_power_cost: None,
+            school_mask: SPELL_SCHOOL_MASK_ALL_LIKE_CPP,
+            spell_info: None,
+            spell_type_mask: PROC_SPELL_TYPE_MASK_ALL_LIKE_CPP,
+            spell_phase_mask: PROC_SPELL_PHASE_CAST_LIKE_CPP,
+            hit_mask: PROC_HIT_NORMAL_LIKE_CPP,
         }
     }
 

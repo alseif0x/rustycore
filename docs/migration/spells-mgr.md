@@ -326,7 +326,12 @@ Numbered for `MIGRATION_ROADMAP.md` cross-reference. Complexity: **L** <1h, **M*
 - [ ] **#SPELLMGR.13** Implement `LoadSpellGroupStackRules` (`spell_group_stack_rules` SQL): query + represented `wow-data` store/loader exist (`WorldStatements::SEL_SPELL_GROUP_STACK_RULES`, `SpellGroupStackRuleStoreLikeCpp`), including C++ stack-rule validation, missing-group skip, `mSpellGroupStack`, computed `mSpellSameEffectStack`, the hardcoded haste same-effect subgroup, rank-chain recheck, `GetSpellGroupStackRule`, and represented `CheckSpellGroupStackRules`. Live startup wiring and aura runtime consumption are still pending. (M)
 - [ ] **#SPELLMGR.14** Implement `LoadSpellProcs` (`spell_proc` SQL): represented query/store for explicit SQL rows exists (`WorldStatements::SEL_SPELL_PROC`, `SpellProcStoreLikeCpp`), including 18-column query, `SpellProcEntry`, negative `SpellId` rank-chain expansion, defaults from `SpellInfo`, duplicate handling and primary mask/value validation. Still pending: C++ implicit proc-entry generation from trigger auras after the SQL pass, fallback by difficulty in the live accessor, live startup wiring, and runtime `ProcEventInfo` dispatch. (M)
 - [ ] **#SPELLMGR.15** Define `SpellProcEntry` with `flag128 SpellFamilyMask` + `ProcFlagsInit ProcFlags` + 6 mask dimensions (M)
-- [ ] **#SPELLMGR.16** Implement `CanSpellTriggerProcOnEvent` static dispatcher (the central proc-condition AND across SchoolMask, SpellFamilyName, SpellFamilyMask, ProcFlags, SpellTypeMask, SpellPhaseMask, HitMask, AttributesMask) (M)
+- [x] **#SPELLMGR.16** Represent `CanSpellTriggerProcOnEvent` static dispatcher as
+  `wow_data::spell::can_spell_trigger_proc_on_event_like_cpp` (central proc-condition AND
+  across ProcFlags, AttributesMask, SchoolMask, SpellFamilyName/Mask, SpellTypeMask,
+  SpellPhaseMask and HitMask). C++-contrasted against `SpellMgr.cpp:511-585` and
+  `SpellInfo.cpp:1770-1783`; live `Unit::ProcSkillsAndAuras`/aura trigger runtime wiring is
+  still pending. (M)
 - [ ] **#SPELLMGR.17** Implement `LoadSpellThreats` (`spell_threat` SQL): query + represented `wow-data` store/loader exist (`WorldStatements::SEL_SPELL_THREATS`, `SpellThreatStoreLikeCpp`), including C++ skip for missing spells, duplicate overwrite semantics, and `GetSpellThreatEntry` fallback to first spell in rank chain via callback; live startup wiring and threat-runtime consumption are still pending (L)
 - [ ] **#SPELLMGR.18** Implement `LoadSkillLineAbilityMap` (DB2): represented index/accessor exists (`SkillStore::get_skill_line_ability_map_bounds_like_cpp`), preserving C++ `mSkillLineAbilityMap` grouping by `SkillLineAbilityEntry::Spell`, insertion order and duplicate multimap rows. Still pending: live `SpellMgr` startup ownership/API wiring. (L)
 - [ ] **#SPELLMGR.19** Implement `LoadSpellPetAuras` (`spell_pet_auras` SQL): query + represented `wow-data` store/loader exist (`WorldStatements::SEL_SPELL_PET_AURAS`, `SpellPetAuraStoreLikeCpp`), including C++ key `(spell << 8) + eff`, dummy-effect validation, `petEntry==0` wildcard, and duplicate-key `AddAura` semantics; live startup wiring against the authoritative `SpellInfo` cache is still pending. Before wiring, preserve C++ `SpellEffectInfo::CalcValue()` semantics for the source effect `damage` field, not just raw `EffectBasePoints`. (M)
@@ -374,7 +379,7 @@ Numbered for `MIGRATION_ROADMAP.md` cross-reference. Complexity: **L** <1h, **M*
 - [ ] Test: `LoadSpellProcs` with `SpellId = -id` applies the rule to every spell in the rank chain
 - [ ] Test: `LoadSpellGroupStackRules` for an `EXCLUSIVE_SAME_EFFECT` group correctly populates `mSpellSameEffectStack` derived map
 - [ ] Test: `LoadSpellAreas` populates all 5 indices (primary + quest-start/end + quest-end + aura + area) for a row with both a quest and an area trigger — represented `wow-data` unit coverage exists; live SpellMgr/runtime coverage pending.
-- [ ] Test: `CanSpellTriggerProcOnEvent` AND-matches every dimension; a procEntry with `SchoolMask=Fire` rejects an event with `SchoolMask=Frost`
+- [x] Test: `CanSpellTriggerProcOnEvent` AND-matches every dimension; a procEntry with `SchoolMask=Fire` rejects an event with `SchoolMask=Frost`
 - [ ] Test: `IsSpellValid` returns `Ok` for Pyroblast (spellId 11366); returns `Err` for a spell whose `EffectItemType` references a missing item template
 - [ ] Test: `GetSpellInfo(spellId, Difficulty::Heroic)` falls back to `Difficulty::None` when Heroic-keyed row is absent
 - [ ] Test: Boot load of full `world` DB completes; `mSpellInfoMap.len() == sSpellNameStore.size()` after `LoadSpellInfoStore`
@@ -482,7 +487,7 @@ Numbered for `MIGRATION_ROADMAP.md` cross-reference. Complexity: **L** <1h, **M*
 
 **`LoadSpellInfoCorrections` coverage.** The single largest function in the C++ source (~1,540 lines, ~1,500 hand-coded `ApplySpellFix` calls) has no Rust counterpart. Every individual correction (e.g. "spell X must have `SPELL_ATTR0_PASSIVE` because the DB2 entry is wrong") is missing. This means even after the loader skeleton is up, every fixed spell will revert to its broken DB2 default until ported one-by-one.
 
-**Proc validation absent.** `CanSpellTriggerProcOnEvent` (the central proc-condition AND across 6 mask dimensions) does not exist in Rust. The proc system per `spells.md` audit is fully absent.
+**Proc validation represented, runtime absent.** `CanSpellTriggerProcOnEvent` (the central proc-condition AND across proc flags, attributes, school, family, spell type, phase and hit masks) now exists as a pure represented matcher in `wow-data`. The live proc system remains absent: no `Unit::ProcSkillsAndAuras` integration, no aura trigger dispatch, no proc cooldown/charge consumption, and no live `SpellMgr` ownership path yet.
 
 **Singleton lifecycle absent.** No `SpellMgr::instance()` accessor, no `OnceCell`-backed initializer, no startup sequence in `world-server` calling the 30 loaders in the C++ `World.cpp:1861-2148` order.
 
