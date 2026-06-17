@@ -70,9 +70,57 @@ pub struct PhaseInfoStore {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PhaseNameStoreLikeCpp {
+    names_by_phase_id: HashMap<u32, String>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PhaseConditionAttachmentReport {
     pub attached_condition_count: usize,
     pub missing_phase_areas: Vec<ConditionId>,
+}
+
+impl PhaseNameStoreLikeCpp {
+    pub fn from_rows_like_cpp(rows: impl IntoIterator<Item = (u32, String)>) -> Self {
+        Self {
+            names_by_phase_id: rows.into_iter().collect(),
+        }
+    }
+
+    /// C++ `ObjectMgr::LoadPhaseNames`.
+    pub async fn load_like_cpp(db: &WorldDatabase) -> Result<Self> {
+        let stmt = db.prepare(WorldStatements::SEL_PHASE_NAMES);
+        let mut result = db.query(&stmt).await?;
+        if result.is_empty() {
+            return Ok(Self::default());
+        }
+
+        let mut rows = Vec::new();
+        loop {
+            rows.push((result.read(0), result.read_string(1)));
+            if !result.next_row() {
+                break;
+            }
+        }
+
+        Ok(Self::from_rows_like_cpp(rows))
+    }
+
+    /// C++ `ObjectMgr::GetPhaseName`.
+    pub fn get_phase_name_like_cpp(&self, phase_id: u32) -> &str {
+        self.names_by_phase_id
+            .get(&phase_id)
+            .map(String::as_str)
+            .unwrap_or("Unknown Name")
+    }
+
+    pub fn len(&self) -> usize {
+        self.names_by_phase_id.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.names_by_phase_id.is_empty()
+    }
 }
 
 impl PhaseInfoStore {
@@ -486,5 +534,23 @@ mod tests {
 
         assert_eq!(report.attached_condition_count, 0);
         assert_eq!(report.missing_phase_areas, vec![missing_id]);
+    }
+
+    #[test]
+    fn phase_name_store_overwrites_duplicate_ids_like_cpp() {
+        let store = PhaseNameStoreLikeCpp::from_rows_like_cpp([
+            (10, "Old".to_string()),
+            (10, "New".to_string()),
+        ]);
+
+        assert_eq!(store.len(), 1);
+        assert_eq!(store.get_phase_name_like_cpp(10), "New");
+    }
+
+    #[test]
+    fn phase_name_store_uses_cpp_unknown_fallback() {
+        let store = PhaseNameStoreLikeCpp::default();
+
+        assert_eq!(store.get_phase_name_like_cpp(99), "Unknown Name");
     }
 }

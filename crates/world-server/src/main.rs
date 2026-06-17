@@ -1035,6 +1035,12 @@ async fn main() -> Result<ExitCode> {
         phase_info_store.phase_info_count(),
         phase_info_store.phase_area_count()
     );
+    let phase_name_store = Arc::new(
+        wow_data::PhaseNameStoreLikeCpp::load_like_cpp(world_db.as_ref())
+            .await
+            .context("Failed to load C++ phase names")?,
+    );
+    info!("Loaded {} C++ phase names", phase_name_store.len());
     let terrain_swap_store = Arc::new(
         wow_data::load_terrain_swaps(world_db.as_ref(), &map_store, |phase_id| {
             ui_map_x_map_art_store.is_ui_map_phase(phase_id)

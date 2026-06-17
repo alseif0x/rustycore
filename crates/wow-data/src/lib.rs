@@ -304,7 +304,7 @@ pub use mount::{
 pub use phase::{PhaseEntry, PhaseGroupStore, PhaseStore, PhaseXPhaseGroupEntry};
 pub use phasing::{
     PhaseAreaInfo, PhaseConditionAttachmentReport, PhaseConditionContainer, PhaseInfoStore,
-    PhaseInfoStruct,
+    PhaseInfoStruct, PhaseNameStoreLikeCpp,
 };
 pub use player_condition::{
     PlayerConditionAuraLikeCpp, PlayerConditionContextLikeCpp, PlayerConditionCountLikeCpp,

@@ -336,6 +336,8 @@ pub enum WorldStatements {
     SEL_ITEM_RANDOM_ENCHANTMENT_TEMPLATE,
     /// Load all area trigger teleport destinations.
     SEL_AREA_TRIGGER_TELEPORT,
+    /// C++ `ObjectMgr::LoadPhaseNames`.
+    SEL_PHASE_NAMES,
     // Quest system
     SEL_QUEST_TEMPLATE,
     SEL_QUEST_OBJECTIVES,
@@ -1028,6 +1030,7 @@ impl StatementDef for WorldStatements {
             Self::SEL_AREA_TRIGGER_TELEPORT => {
                 "SELECT at.ID, wsl.MapID, wsl.LocX, wsl.LocY, wsl.LocZ, wsl.Facing FROM areatrigger_teleport at LEFT JOIN world_safe_locs wsl ON at.PortLocID = wsl.ID"
             }
+            Self::SEL_PHASE_NAMES => "SELECT `ID`, `Name` FROM `phase_name`",
             Self::SEL_TRAINER_BY_CREATURE => {
                 "SELECT TrainerId FROM creature_trainer WHERE CreatureID = ?"
             }
