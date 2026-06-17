@@ -22,6 +22,8 @@ pub enum WorldStatements {
     DEL_GRAVEYARD_ZONE,
     INS_GAME_TELE,
     DEL_GAME_TELE,
+    /// C++ `ObjectMgr::LoadGameTele` startup query.
+    SEL_GAME_TELE,
     INS_NPC_VENDOR,
     DEL_NPC_VENDOR,
     SEL_NPC_VENDOR_REF,
@@ -386,6 +388,9 @@ impl StatementDef for WorldStatements {
                 "INSERT INTO game_tele (id, position_x, position_y, position_z, orientation, map, name) VALUES (?, ?, ?, ?, ?, ?, ?)"
             }
             Self::DEL_GAME_TELE => "DELETE FROM game_tele WHERE name = ?",
+            Self::SEL_GAME_TELE => {
+                "SELECT id, position_x, position_y, position_z, orientation, map, name FROM game_tele"
+            }
             Self::INS_NPC_VENDOR => {
                 "INSERT INTO npc_vendor (entry, item, maxcount, incrtime, extendedcost, type) VALUES(?, ?, ?, ?, ?, ?)"
             }

@@ -24,6 +24,7 @@ pub mod disable_mgr;
 pub mod dungeon_encounter;
 pub mod entities_movement;
 pub mod game_tables;
+pub mod game_tele;
 pub mod gameobject_template;
 pub mod gossip;
 pub mod graveyard;
@@ -157,6 +158,10 @@ pub use entities_movement::{
 };
 pub use game_tables::{
     BattlePetXpEntryLikeCpp, BattlePetXpGameTableLikeCpp, battle_pet_xp_per_level_like_cpp,
+};
+pub use game_tele::{
+    GameTeleLikeCpp, GameTeleLoadOutcomeLikeCpp, GameTeleLoadReportLikeCpp, GameTeleRowLikeCpp,
+    GameTeleStoreLikeCpp,
 };
 pub use gameobject_template::{
     GameObjectForQuestStoreLikeCpp, GameObjectOverrideLifecycleRecordLikeCpp,

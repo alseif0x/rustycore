@@ -2398,6 +2398,22 @@ async fn main() -> Result<ExitCode> {
         reserved_name_store.loaded_rows_like_cpp(),
         reserved_name_store.len()
     );
+    let game_tele_outcome = wow_data::GameTeleStoreLikeCpp::load_like_cpp(world_db.as_ref())
+        .await
+        .context("Failed to load C++ game teleport locations")?;
+    for (id, name) in &game_tele_outcome.report.skipped_invalid_coordinates {
+        tracing::error!(
+            "Wrong position for id {} (name: {}) in `game_tele` table, ignoring.",
+            id,
+            name
+        );
+    }
+    let game_tele_store = Arc::new(game_tele_outcome.store);
+    info!(
+        "Loaded {} C++ GameTeleports ({} unique ids)",
+        game_tele_outcome.report.loaded_rows,
+        game_tele_store.len()
+    );
 
     // Load player_xp_for_level table
     let player_xp_table = {
