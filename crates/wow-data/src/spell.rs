@@ -518,6 +518,7 @@ pub struct SpellEffectInfo {
     pub effect: u32,
     pub effect_aura: i32,
     pub effect_base_points: i32,
+    pub effect_die_sides: i32,
     pub effect_spell_class_mask: [u32; 4],
     pub effect_misc_value_1: i32,
     pub effect_misc_value_2: i32,
@@ -4189,8 +4190,26 @@ impl SpellEffectInfo {
         )
     }
 
+    pub fn calc_value_no_caster_with_die_roll_like_cpp<F>(&self, mut roll_die: F) -> i32
+    where
+        F: FnMut(i32, i32) -> i32,
+    {
+        let mut value = self.effect_base_points;
+        match self.effect_die_sides {
+            0 => {}
+            1 => value += 1,
+            die_sides if die_sides > 1 => value += roll_die(1, die_sides),
+            die_sides => value += roll_die(die_sides, 1),
+        }
+        value
+    }
+
     pub fn calc_value_no_caster_like_cpp(&self) -> i32 {
-        self.effect_base_points
+        use rand::Rng;
+
+        self.calc_value_no_caster_with_die_roll_like_cpp(|min, max| {
+            rand::thread_rng().gen_range(min..=max)
+        })
     }
 
     pub fn is_mounted_aura_like_cpp(&self) -> bool {
@@ -4475,7 +4494,8 @@ SELECT
     CAST(COALESCE(se.EffectSpellClassMask1, 0) AS UNSIGNED) as effect_spell_class_mask_1,
     CAST(COALESCE(se.EffectSpellClassMask2, 0) AS UNSIGNED) as effect_spell_class_mask_2,
     CAST(COALESCE(se.EffectSpellClassMask3, 0) AS UNSIGNED) as effect_spell_class_mask_3,
-    CAST(COALESCE(se.EffectSpellClassMask4, 0) AS UNSIGNED) as effect_spell_class_mask_4
+    CAST(COALESCE(se.EffectSpellClassMask4, 0) AS UNSIGNED) as effect_spell_class_mask_4,
+    CAST(COALESCE(se.EffectDieSides, 0) AS SIGNED) as effect_die_sides
 FROM hotfixes.spell_misc sm
 LEFT JOIN hotfixes.spell_effect se 
     ON sm.ID = se.SpellID AND se.DifficultyID = 0
@@ -4512,6 +4532,7 @@ ORDER BY sm.ID, se.EffectIndex
                     result.try_read(20).unwrap_or(0),
                     result.try_read(21).unwrap_or(0),
                 ];
+                let effect_die_sides: i32 = result.try_read(22).unwrap_or(0);
 
                 let spell_info = store.spells.entry(spell_id).or_insert_with(|| SpellInfo {
                     spell_id,
@@ -4533,6 +4554,7 @@ ORDER BY sm.ID, se.EffectIndex
                         effect: effect_type,
                         effect_aura: aura_type.unwrap_or(0),
                         effect_base_points,
+                        effect_die_sides,
                         effect_spell_class_mask,
                         effect_misc_value_1,
                         effect_misc_value_2,
@@ -4773,6 +4795,55 @@ mod tests {
         assert_eq!(mounted.effect_base_points, 11);
         assert_eq!(mounted.effect_misc_value_1, 22);
         assert_eq!(mounted.effect_misc_value_2, 33);
+    }
+
+    #[test]
+    fn spell_effect_calc_value_no_caster_rolls_die_sides_like_cpp() {
+        let no_die = SpellEffectInfo {
+            effect_base_points: 10,
+            effect_die_sides: 0,
+            ..Default::default()
+        };
+        assert_eq!(
+            no_die.calc_value_no_caster_with_die_roll_like_cpp(|_, _| unreachable!()),
+            10
+        );
+
+        let one_sided = SpellEffectInfo {
+            effect_base_points: 10,
+            effect_die_sides: 1,
+            ..Default::default()
+        };
+        assert_eq!(
+            one_sided.calc_value_no_caster_with_die_roll_like_cpp(|_, _| unreachable!()),
+            11
+        );
+
+        let positive_range = SpellEffectInfo {
+            effect_base_points: 10,
+            effect_die_sides: 7,
+            ..Default::default()
+        };
+        assert_eq!(
+            positive_range.calc_value_no_caster_with_die_roll_like_cpp(|min, max| {
+                assert_eq!((min, max), (1, 7));
+                4
+            }),
+            14
+        );
+
+        let negative_range = SpellEffectInfo {
+            effect_base_points: 10,
+            effect_die_sides: -3,
+            ..Default::default()
+        };
+        assert_eq!(
+            negative_range.calc_value_no_caster_with_die_roll_like_cpp(|min, max| {
+                assert_eq!((min, max), (-3, 1));
+                -2
+            }),
+            8
+        );
     }
 
     #[test]
