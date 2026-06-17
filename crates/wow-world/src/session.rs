@@ -20511,6 +20511,16 @@ impl WorldSession {
         Ok(())
     }
 
+    #[cfg(test)]
+    pub(crate) fn apply_represented_mounted_aura_for_test_like_cpp(
+        &mut self,
+        spell_id: i32,
+        caster_guid: ObjectGuid,
+        effect: &wow_data::SpellEffectInfo,
+    ) -> Result<(), &'static str> {
+        self.apply_represented_mounted_aura_like_cpp(spell_id, caster_guid, effect)
+    }
+
     fn apply_represented_provide_spell_focus_aura_like_cpp(
         &mut self,
         spell_id: i32,
@@ -20998,6 +21008,40 @@ impl WorldSession {
                 // runtime.
                 (aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::Mounted))
                     .then_some(aura.slot)
+            })
+            .collect();
+
+        let removed = slots.len();
+        for slot in slots {
+            let _ = self.remove_aura(slot);
+        }
+        removed
+    }
+
+    pub(crate) fn remove_represented_cancelable_owned_aura_like_cpp(
+        &mut self,
+        spell_id: i32,
+        caster_guid: ObjectGuid,
+    ) -> usize {
+        let slots: Vec<u8> = self
+            .visible_auras
+            .values()
+            .filter_map(|aura| {
+                if aura.spell_id != spell_id {
+                    return None;
+                }
+                if !caster_guid.is_empty() && aura.caster_guid != caster_guid {
+                    return None;
+                }
+                // C++ checks SpellInfo before RemoveOwnedAura: no
+                // SPELL_ATTR0_NO_AURA_CANCEL, positive, and non-passive.
+                // Rust only applies this represented shortcut to effect types
+                // whose local runtime already models a player-cancelable aura.
+                matches!(
+                    aura.represented_effect,
+                    Some(RepresentedAuraEffectLikeCpp::Mounted)
+                )
+                .then_some(aura.slot)
             })
             .collect();
 
@@ -26721,6 +26765,11 @@ impl WorldSession {
     pub(crate) fn set_player_mounted_like_cpp(&mut self, mounted: bool) {
         self.player_mounted_like_cpp = mounted;
         self.player_mount_display_id_like_cpp = if mounted { 1 } else { 0 };
+    }
+
+    #[cfg(test)]
+    pub(crate) fn player_mounted_like_cpp(&self) -> bool {
+        self.player_mounted_like_cpp
     }
 
     #[cfg(test)]

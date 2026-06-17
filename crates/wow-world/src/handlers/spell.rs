@@ -1788,7 +1788,11 @@ impl WorldSession {
             account = self.account_id,
             spell_id = request.spell_id,
             caster_guid = ?request.caster_guid,
-            "CMSG_CANCEL_AURA parsed; full owned-aura cancellation runtime is not represented yet"
+            "CMSG_CANCEL_AURA parsed"
+        );
+        self.remove_represented_cancelable_owned_aura_like_cpp(
+            request.spell_id,
+            request.caster_guid,
         );
     }
 
@@ -2497,7 +2501,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn cancel_aura_parses_and_stays_silent_until_aura_runtime_exists() {
+    async fn cancel_aura_without_matching_represented_aura_stays_silent_like_cpp() {
         let (mut session, send_rx) = make_session();
         let caster_guid = ObjectGuid::create_player(1, 42);
 
@@ -2506,6 +2510,55 @@ mod tests {
             .await;
 
         assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn cancel_aura_removes_matching_represented_mount_aura_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let caster_guid = ObjectGuid::create_player(1, 42);
+        let effect = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
+            effect_base_points: 77,
+            effect_misc_value_1: 0,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_mounted_aura_for_test_like_cpp(12_345, caster_guid, &effect)
+            .unwrap();
+        assert!(session.player_mounted_like_cpp());
+
+        session
+            .handle_cancel_aura(cancel_aura_packet(12_345, caster_guid))
+            .await;
+
+        assert!(!session.player_mounted_like_cpp());
+        assert!(!send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn cancel_aura_preserves_represented_mount_from_other_caster_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        let caster_guid = ObjectGuid::create_player(1, 42);
+        let other_caster_guid = ObjectGuid::create_player(1, 43);
+        let effect = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
+            effect_base_points: 77,
+            effect_misc_value_1: 0,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_mounted_aura_for_test_like_cpp(12_345, caster_guid, &effect)
+            .unwrap();
+
+        session
+            .handle_cancel_aura(cancel_aura_packet(12_345, other_caster_guid))
+            .await;
+
+        assert!(session.player_mounted_like_cpp());
     }
 
     #[tokio::test]

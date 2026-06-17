@@ -1,3 +1,24 @@
+- `#NEXT.R8.ENTITIES.1001` — `CMSG_CANCEL_AURA` now removes matching
+  represented player-cancelable mounted auras by `spell_id` and caster GUID,
+  instead of only parsing/logging the packet (not manual-test-ready).
+  Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SpellHandler.cpp:272-297`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/SpellPackets.cpp:24-28`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:3604-3613`.
+  C++ reads `SpellID` + `CasterGUID`, validates `SpellInfo`
+  (`NO_AURA_CANCEL`, channeled branch, positive, non-passive), and then calls
+  `RemoveOwnedAura(spellId, casterGuid, 0, AURA_REMOVE_BY_CANCEL)`, where an
+  empty caster GUID is a wildcard. Rust now mirrors the represented
+  `RemoveOwnedAura` matching semantics for locally modeled player-cancelable
+  `Mounted` auras: spell id must match, non-empty caster must match, empty
+  caster matches any represented caster, and removal reuses `remove_aura`.
+  Coverage: targeted `wow-world` handler tests prove matching cancel removes
+  the represented mount aura, a different caster preserves it, and an unmatched
+  cancel stays silent. Boundary remains partial: full `SpellInfo` validation,
+  channeled-spell interrupt handling, generic owned aura cancellation,
+  non-mounted aura types, install/restart, bot, and live-client/manual
+  validation remain open.
 - `#NEXT.R8.ENTITIES.1000` — `CMSG_CANCEL_MOUNT_AURA` now removes represented
   mounted auras through the existing dismount cleanup path instead of parsing
   the packet as a no-op (not manual-test-ready). Source-of-truth:
