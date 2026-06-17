@@ -298,10 +298,26 @@ where
             }
 
             for spawn_id in &cell_guids.area_triggers {
-                if let Some(guid) = self.load_spawn_guid(SpawnObjectType::AreaTrigger, *spawn_id) {
-                    cell.grid_objects.area_triggers.insert(guid);
-                    counts.area_triggers += 1;
+                if !self
+                    .filter
+                    .should_spawn_on_grid_load(SpawnObjectType::AreaTrigger, *spawn_id)
+                {
+                    continue;
                 }
+                if self
+                    .spawn_store
+                    .spawn_data(SpawnObjectType::AreaTrigger, *spawn_id)
+                    .is_none()
+                {
+                    continue;
+                }
+                // C++ `ObjectGridLoader::Visit(AreaTriggerMapType&)` calls
+                // `AreaTrigger::LoadFromDB`, and `AreaTrigger::Create` then
+                // allocates `map->GenerateLowGuid<HighGuid::AreaTrigger>()`.
+                // This generic spawn-id -> ObjectGuid helper would use the DB
+                // spawn id as counter and create-properties id as entry, which
+                // is not a valid loaded AreaTrigger. A higher-level typed
+                // record loader must create and add the AreaTrigger instead.
             }
         }
 
@@ -467,14 +483,37 @@ mod tests {
                 gameobjects: 1,
                 creatures: 1,
                 corpses: 1,
-                area_triggers: 1,
+                area_triggers: 0,
             }
         );
         let cell = grid.get_grid_type(0, 0).unwrap();
         assert_eq!(cell.grid_objects.creatures.len(), 1);
         assert_eq!(cell.grid_objects.gameobjects.len(), 1);
-        assert_eq!(cell.grid_objects.area_triggers.len(), 1);
+        assert!(cell.grid_objects.area_triggers.is_empty());
         assert!(cell.world_objects.corpses.contains(&corpse_guid));
+    }
+
+    #[test]
+    fn load_n_does_not_fabricate_area_trigger_guid_without_typed_record_loader_like_cpp() {
+        let mut store = SpawnStore::new();
+        let area_trigger = spawn(SpawnObjectType::AreaTrigger, 300, 0.0, 0.0);
+        store.add_area_trigger_spawn(&area_trigger);
+
+        let corpses = CorpseCellStore::new();
+        let mut grid = NGrid::from_coords(32, 32, 1000, true);
+        let mut loader = ObjectGridLoader::new(&store, &corpses, 571, 1, 1, 1);
+
+        let counts = loader.load_n(&mut grid);
+
+        assert_eq!(counts.area_triggers, 0);
+        let cell = grid.get_grid_type(0, 0).unwrap();
+        assert!(cell.grid_objects.area_triggers.is_empty());
+        assert!(!cell.grid_objects.area_triggers.contains(&spawn_guid(
+            &area_trigger,
+            1,
+            1,
+            HighGuid::AreaTrigger,
+        )));
     }
 
     #[test]
