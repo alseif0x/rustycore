@@ -1278,10 +1278,39 @@ async fn main() -> Result<ExitCode> {
         creature_spawn_store.len(),
         gameobject_spawn_store.len()
     );
+    // Load SkillLineAbility.db2 + SkillRaceClassInfo.db2 for auto-learned spells and rank chains.
+    let skill_store = Arc::new(
+        wow_data::SkillStore::load(&data_dir, &locale)
+            .context("Failed to load SkillLineAbility/SkillRaceClassInfo DB2 files")?,
+    );
+    let skill_line_store = Arc::new(
+        wow_data::SkillLineStore::load(&data_dir, &locale)
+            .context("Failed to load SkillLine.db2")?,
+    );
     let mut spell_store = wow_data::SpellStore::load(&hotfix_db)
         .await
         .context("Failed to load SpellStore")?;
     info!("Loaded {} spells from SpellStore", spell_store.len());
+    let spell_chain_store = Arc::new(
+        wow_data::SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(
+            skill_store
+                .skill_line_abilities_like_cpp()
+                .iter()
+                .filter_map(|ability| {
+                    let spell_id = u32::try_from(ability.spell).ok()?;
+                    let supercedes_spell_id = u32::try_from(ability.supercedes_spell).ok()?;
+                    Some(wow_data::SpellRankEdgeLikeCpp {
+                        spell_id,
+                        supercedes_spell_id,
+                    })
+                }),
+            |spell_id| spell_store.get(spell_id as i32).is_some(),
+        ),
+    );
+    info!(
+        "Loaded {} represented C++ spell rank-chain nodes from SkillLineAbility::SupercedesSpell",
+        spell_chain_store.chains_by_spell_id.len()
+    );
     let spell_category_store = Arc::new(
         wow_data::SpellCategoryStore::load(&data_dir, &locale)
             .context("Failed to load SpellCategory.db2")?,
@@ -1298,11 +1327,27 @@ async fn main() -> Result<ExitCode> {
         "Loaded {} spell aura options rows",
         spell_aura_options_store.len()
     );
+    let spell_class_options_store = Arc::new(
+        wow_data::SpellClassOptionsStore::load(&data_dir, &locale)
+            .context("Failed to load SpellClassOptions.db2")?,
+    );
+    info!(
+        "Loaded {} spell class options rows",
+        spell_class_options_store.len()
+    );
     let spell_misc_store = Arc::new(
         wow_data::SpellMiscStore::load(&data_dir, &locale)
             .context("Failed to load SpellMisc.db2")?,
     );
     info!("Loaded {} spell misc rows", spell_misc_store.len());
+    let spell_procs_per_minute_store = Arc::new(
+        wow_data::SpellProcsPerMinuteStore::load(&data_dir, &locale)
+            .context("Failed to load SpellProcsPerMinute.db2")?,
+    );
+    info!(
+        "Loaded {} spell procs-per-minute rows",
+        spell_procs_per_minute_store.len()
+    );
     let spell_duration_store = Arc::new(
         wow_data::SpellDurationStore::load(&data_dir, &locale)
             .context("Failed to load SpellDuration.db2")?,
@@ -1903,16 +1948,6 @@ async fn main() -> Result<ExitCode> {
         Err(e) => tracing::warn!("HotfixBlobCache: failed to load hotfix_optional_data rows: {e}"),
     }
     let hotfix_blob_cache = Arc::new(hotfix_blob_cache);
-
-    // Load SkillLineAbility.db2 + SkillRaceClassInfo.db2 for auto-learned spells
-    let skill_store = Arc::new(
-        wow_data::SkillStore::load(&data_dir, &locale)
-            .context("Failed to load SkillLineAbility/SkillRaceClassInfo DB2 files")?,
-    );
-    let skill_line_store = Arc::new(
-        wow_data::SkillLineStore::load(&data_dir, &locale)
-            .context("Failed to load SkillLine.db2")?,
-    );
 
     // Load spell metadata (cast time, cooldown, effects, etc.) — Phase 2
     let spell_radius_store = Arc::new(
@@ -2668,11 +2703,14 @@ async fn main() -> Result<ExitCode> {
         hotfix_blob_cache: Some(Arc::clone(&hotfix_blob_cache)),
         skill_store: Some(Arc::clone(&skill_store)),
         skill_line_store: Some(Arc::clone(&skill_line_store)),
+        spell_chain_store: Some(Arc::clone(&spell_chain_store)),
         spell_store: Some(Arc::clone(&spell_store)),
         spell_category_store: Some(Arc::clone(&spell_category_store)),
         npc_spell_click_store: Some(Arc::clone(&npc_spell_click_store)),
         spell_aura_options_store: Some(Arc::clone(&spell_aura_options_store)),
+        spell_class_options_store: Some(Arc::clone(&spell_class_options_store)),
         spell_misc_store: Some(Arc::clone(&spell_misc_store)),
+        spell_procs_per_minute_store: Some(Arc::clone(&spell_procs_per_minute_store)),
         spell_duration_store: Some(Arc::clone(&spell_duration_store)),
         spell_radius_store: Some(Arc::clone(&spell_radius_store)),
         spell_range_store: Some(Arc::clone(&spell_range_store)),
