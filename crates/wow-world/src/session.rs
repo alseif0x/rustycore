@@ -78,14 +78,15 @@ use wow_data::{
     PlayerConditionQuestKillLikeCpp, PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp,
     PlayerConditionStore, PlayerStatsStore, RandPropPointsStore, SkillLineStore, SkillStore,
     SpellAuraOptionsStore, SpellCategoryStore, SpellChainStoreLikeCpp, SpellDurationStore,
-    SpellGroupStackRuleLikeCpp, SpellGroupStackRuleStoreLikeCpp, SpellGroupStoreLikeCpp,
-    SpellItemEnchantmentStore, SpellMiscStore, SpellProcEntryLikeCpp, SpellProcStoreLikeCpp,
-    SpellRadiusStore, SpellRangeStore, SpellRequiredStoreLikeCpp, SpellStore,
-    SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp,
-    SummonPropertiesEntry, ToyStore, TransmogSetEntry, TransmogSetItemStore,
-    TrinityStringStoreLikeCpp, VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp,
-    VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
-    calculate_battle_pet_stats_like_cpp, is_player_meeting_condition_like_cpp,
+    SpellEnchantProcEntryLikeCpp, SpellEnchantProcStoreLikeCpp, SpellGroupStackRuleLikeCpp,
+    SpellGroupStackRuleStoreLikeCpp, SpellGroupStoreLikeCpp, SpellItemEnchantmentStore,
+    SpellMiscStore, SpellProcEntryLikeCpp, SpellProcStoreLikeCpp, SpellRadiusStore,
+    SpellRangeStore, SpellRequiredStoreLikeCpp, SpellStore, SpellTargetPositionStoreLikeCpp,
+    SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp, SummonPropertiesEntry, ToyStore,
+    TransmogSetEntry, TransmogSetItemStore, TrinityStringStoreLikeCpp,
+    VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore,
+    VehicleTemplateStoreLikeCpp, calculate_battle_pet_stats_like_cpp,
+    is_player_meeting_condition_like_cpp,
     progression_rewards::{
         ContentTuningStore, FactionEntry, FactionStore, FactionTemplateStore,
         FriendshipRepReactionStore, ParagonReputationStore, QuestFactionRewardStore,
@@ -3294,6 +3295,7 @@ pub struct WorldSession {
 
     // Spell item enchantment store (SpellItemEnchantment.db2 data)
     spell_item_enchantment_store: Option<Arc<SpellItemEnchantmentStore>>,
+    spell_enchant_proc_store: Option<Arc<SpellEnchantProcStoreLikeCpp>>,
 
     // Hotfix blob cache: raw DB2 record bytes for DBReply responses
     hotfix_blob_cache: Option<Arc<HotfixBlobCache>>,
@@ -4874,6 +4876,7 @@ impl WorldSession {
             difficulty_store: None,
             lock_store: None,
             spell_item_enchantment_store: None,
+            spell_enchant_proc_store: None,
             hotfix_blob_cache: None,
             skill_store: None,
             skill_line_store: None,
@@ -16429,6 +16432,19 @@ impl WorldSession {
     /// Get the spell item enchantment store reference.
     pub fn spell_item_enchantment_store(&self) -> Option<&Arc<SpellItemEnchantmentStore>> {
         self.spell_item_enchantment_store.as_ref()
+    }
+
+    pub fn set_spell_enchant_proc_store(&mut self, store: Arc<SpellEnchantProcStoreLikeCpp>) {
+        self.spell_enchant_proc_store = Some(store);
+    }
+
+    pub(crate) fn spell_enchant_proc_event_like_cpp(
+        &self,
+        enchantment_id: u32,
+    ) -> Option<&SpellEnchantProcEntryLikeCpp> {
+        self.spell_enchant_proc_store
+            .as_ref()
+            .and_then(|store| store.get_spell_enchant_proc_event_like_cpp(enchantment_id))
     }
 
     /// C++ `SpellMgr::IsArenaAllowedEnchancment`.
@@ -88624,6 +88640,35 @@ mod tests {
                 ApplyEnchantmentEffectRef::unknown(250, 30, 9),
             ]
         );
+    }
+
+    #[test]
+    fn spell_enchant_proc_event_lookup_matches_cpp_store_like_cpp() {
+        let (mut session, _, _) = make_session();
+        assert!(session.spell_enchant_proc_event_like_cpp(900).is_none());
+
+        let mut entries = HashMap::new();
+        entries.insert(
+            900,
+            wow_data::SpellEnchantProcEntryLikeCpp {
+                chance: 12.5,
+                procs_per_minute: 1.2,
+                hit_mask: 0x10,
+                attributes_mask: 0x2,
+            },
+        );
+        session.set_spell_enchant_proc_store(Arc::new(wow_data::SpellEnchantProcStoreLikeCpp {
+            entries_by_enchant_id: entries,
+        }));
+
+        let entry = session
+            .spell_enchant_proc_event_like_cpp(900)
+            .expect("enchant proc entry");
+        assert_eq!(entry.chance, 12.5);
+        assert_eq!(entry.procs_per_minute, 1.2);
+        assert_eq!(entry.hit_mask, 0x10);
+        assert_eq!(entry.attributes_mask, 0x2);
+        assert!(session.spell_enchant_proc_event_like_cpp(901).is_none());
     }
 
     #[test]

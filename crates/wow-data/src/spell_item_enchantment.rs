@@ -11,6 +11,7 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use tracing::info;
 use wow_constants::SpellItemEnchantmentFlags;
+use wow_database::{WorldDatabase, WorldStatements};
 
 use crate::wdc4::Wdc4Reader;
 
@@ -150,6 +151,33 @@ pub struct SpellEnchantProcStoreLikeCpp {
 }
 
 impl SpellEnchantProcStoreLikeCpp {
+    pub async fn load_like_cpp(
+        db: &WorldDatabase,
+        enchantment_store: &SpellItemEnchantmentStore,
+    ) -> Result<SpellEnchantProcLoadOutcomeLikeCpp> {
+        let stmt = db.prepare(WorldStatements::SEL_SPELL_ENCHANT_PROC_DATA);
+        let mut result = db.query(&stmt).await?;
+        let mut rows = Vec::new();
+
+        if !result.is_empty() {
+            loop {
+                rows.push(SpellEnchantProcRowLikeCpp {
+                    enchant_id: result.try_read::<u32>(0).unwrap_or(0),
+                    chance: result.try_read::<f32>(1).unwrap_or(0.0),
+                    procs_per_minute: result.try_read::<f32>(2).unwrap_or(0.0),
+                    hit_mask: result.try_read::<u32>(3).unwrap_or(0),
+                    attributes_mask: result.try_read::<u32>(4).unwrap_or(0),
+                });
+
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        Ok(Self::from_rows_like_cpp(rows, enchantment_store))
+    }
+
     pub fn from_rows_like_cpp<I>(
         rows: I,
         enchantment_store: &SpellItemEnchantmentStore,

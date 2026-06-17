@@ -1923,6 +1923,18 @@ async fn main() -> Result<ExitCode> {
         "Loaded {} spell item enchantments from SpellItemEnchantment.db2",
         spell_item_enchantment_store.len()
     );
+    let spell_enchant_proc_outcome = wow_data::SpellEnchantProcStoreLikeCpp::load_like_cpp(
+        world_db.as_ref(),
+        spell_item_enchantment_store.as_ref(),
+    )
+    .await
+    .context("Failed to load C++ spell_enchant_proc_data rows")?;
+    let spell_enchant_proc_store = Arc::new(spell_enchant_proc_outcome.store);
+    info!(
+        "Loaded {} C++ spell_enchant_proc_data rows ({} missing enchantments)",
+        spell_enchant_proc_outcome.loaded_row_count,
+        spell_enchant_proc_outcome.errors.len()
+    );
 
     // Build hotfix blob cache — pre-loads raw DB2 record bytes and hotfix DB overlays for DBReply.
     let mut hotfix_blob_cache = wow_data::build_hotfix_blob_cache(&data_dir, &locale);
@@ -2769,6 +2781,7 @@ async fn main() -> Result<ExitCode> {
         difficulty_store: Some(Arc::clone(&difficulty_store)),
         lock_store: Some(Arc::clone(&lock_store)),
         spell_item_enchantment_store: Some(Arc::clone(&spell_item_enchantment_store)),
+        spell_enchant_proc_store: Some(Arc::clone(&spell_enchant_proc_store)),
         hotfix_blob_cache: Some(Arc::clone(&hotfix_blob_cache)),
         skill_store: Some(Arc::clone(&skill_store)),
         skill_line_store: Some(Arc::clone(&skill_line_store)),
@@ -9044,6 +9057,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.spell_item_enchantment_store {
         session.set_spell_item_enchantment_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.spell_enchant_proc_store {
+        session.set_spell_enchant_proc_store(Arc::clone(store));
     }
     if let Some(ref cache) = resources.hotfix_blob_cache {
         session.set_hotfix_blob_cache(Arc::clone(cache));
