@@ -59,6 +59,7 @@ pub mod quest;
 pub mod quest_xp;
 pub mod rand_prop_points;
 pub mod reputation;
+pub mod script_name;
 pub mod skill;
 pub mod skill_talent;
 pub mod spawn_group;
@@ -290,6 +291,7 @@ pub use player_power::{
 };
 pub use player_stats::{PlayerLevelStats, PlayerStatsStore};
 pub use rand_prop_points::{RandPropPointsEntry, RandPropPointsStore};
+pub use script_name::{ScriptIdLikeCpp, ScriptNameEntryLikeCpp, ScriptNameInternerLikeCpp};
 pub use skill::{
     MAX_CREATURE_SPELL_DATA_SLOT_LIKE_CPP, PetDefaultSpellCreatureTemplateLikeCpp,
     PetDefaultSpellEffectLikeCpp, PetDefaultSpellInfoLikeCpp, PetDefaultSpellStoreLikeCpp,

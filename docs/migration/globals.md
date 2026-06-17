@@ -324,7 +324,7 @@ There is **no central `ObjectMgr` analogue** — its responsibilities are split 
 **What's missing vs C++ (high level):**
 - ~115 of the ~120 `Load*` functions have no Rust analogue. Critical absentees: `LoadCreatureTemplate*` (server has no creature-template store at all — handlers fabricate stat data), `LoadGameObjectTemplate`, `LoadGameObjects` (no GO spawns), `LoadVendors`, `LoadTrainers`, `LoadGossipMenu*`, `LoadInstanceTemplate`, `LoadAreaTriggerTeleports`, `LoadAccessRequirements`, `LoadGraveyardZones` + `GetClosestGraveyard`, `LoadReputationOnKill`, `LoadNPCSpellClickSpells`, `LoadFactionChange*`, `LoadPhases`, `LoadSpawnGroups*`, `LoadCreatureClassLevelStats`, `LoadEquipmentTemplates`, every `Load*Locale` family (no i18n).
 - ID generators (`GenerateAuctionID`, `GenerateMailID`, `GeneratePetNumber`, `GenerateCreatureSpawnId`, `GenerateGameObjectSpawnId`, `GetGenerator<HighGuid>`) are missing — without these, server-allocated GUIDs collide.
-- No `ScriptNameContainer` interner ⇒ scripts referenced by name in the world DB cannot be resolved.
+- `ScriptNameInternerLikeCpp` exists in `wow-data` as the C++ `ScriptNameContainer` bidirectional name/id core (`""` is id 0; duplicate inserts keep the first DB-bound flag), but the world-DB loaders still do not populate template/script rows from `creature_template.ScriptName`, `gameobject_template.ScriptName`, `spell_script_names`, or `areatrigger_scripts`.
 - No `InitializeQueriesData` pre-build of cached query packets ⇒ each `CMSG_QUERY_*` would have to serialize on the fly.
 - No `SetHighestGuids` ⇒ post-restart GUIDs may overlap with persisted entities.
 - No global `Players` map for whole-server iteration (the `PlayerRegistry` is per-realm but does not iterate broadcasts in a thread-safe `RwLockReadGuard` like `HashMapHolder<Player>` does — it's a `DashMap`, which is fine but the access patterns differ).
@@ -444,7 +444,7 @@ Complejidad: **L** (low, <1h), **M** (med, 1-4h), **H** (high, 4-12h), **XL** (>
 Each `LoadXxx` is a sub-task. Ordered by typical TC startup order (which is itself the dependency order). All M unless noted.
 
 - [ ] **#GLOB.11** `load_trinity_strings` (i18n base). (L)
-- [ ] **#GLOB.12** `load_script_names` + `ScriptNameContainer` (interner). (L)
+- [ ] **#GLOB.12** `load_script_names` + `ScriptNameContainer` (interner). Core interner exists in `wow-data`; loader wiring from world-DB script-name columns remains pending. (L)
 - [ ] **#GLOB.13** `load_instance_template`. (L)
 - [ ] **#GLOB.14** `load_creature_class_level_stats` (combat-stat baselines).
 - [ ] **#GLOB.15** `load_creature_template` (canonical entry table). (H — wide schema, many validations)

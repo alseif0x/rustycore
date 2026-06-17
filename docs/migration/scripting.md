@@ -300,7 +300,7 @@ Numbering: `#SCRIPTING.N`. Complexity legend: **L** (<1h), **M** (1–4h), **H**
 - [ ] **#SCRIPTING.1** Define `trait ScriptObject` (just `fn name(&self) -> &str`) and a `ScriptId` newtype (`u32`). Decide: trait objects (`Box<dyn ScriptObject>`) vs `enum`-per-hook. Recommend trait objects + `inventory::submit!`. (M)
 - [ ] **#SCRIPTING.2** Build the per-hook static registry pattern. One example: `pub trait PlayerHook: Send + Sync { fn on_login(&self, /* ... */) {} … }` + `inventory::collect!(&'static dyn PlayerHook)` + a thin `ScriptMgr::on_player_login(...)` that iterates collected hooks. (M)
 - [ ] **#SCRIPTING.3** Replicate the macro layer: `register_creature_ai!`, `register_game_object_ai!`, `register_spell_script!`, `register_command_script!`. Macros expand to `inventory::submit!(MyAi as &dyn CreatureScript)`. Mirror C++ `RegisterCreatureAI(ai_name)` ergonomics. (H)
-- [ ] **#SCRIPTING.4** Implement the name→script-id lookup table loaded from `creature_template.ScriptName` / `gameobject_template.ScriptName` / `spell_script_names` / `areatrigger_scripts`. Goes in `wow-database` or `wow-data`; `wow-script` reads it. (M)
+- [ ] **#SCRIPTING.4** Implement the name→script-id lookup table loaded from `creature_template.ScriptName` / `gameobject_template.ScriptName` / `spell_script_names` / `areatrigger_scripts`. The C++ `ScriptNameContainer`-style interner now exists in `wow-data`; the DB loaders and `wow-script` consumers still need wiring. (M)
 
 ### Phase B — port the hook traits (one trait per C++ `*Script`)
 
