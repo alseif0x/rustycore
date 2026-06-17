@@ -23042,6 +23042,7 @@ impl WorldSession {
             return;
         };
 
+        self.exit_represented_vehicle_for_teleport_like_cpp();
         self.reset_teleport_movement_state_like_cpp();
 
         if self.player_class_like_cpp() == CLASS_DEATH_KNIGHT_LIKE_CPP
@@ -23166,6 +23167,17 @@ impl WorldSession {
             new_pos.y,
             new_pos.z
         );
+    }
+
+    fn exit_represented_vehicle_for_teleport_like_cpp(&mut self) -> bool {
+        if self.player_vehicle_seat_flags_like_cpp.is_none() {
+            return false;
+        }
+
+        self.player_vehicle_seat_flags_like_cpp = None;
+        self.player_vehicle_seat_id_like_cpp = None;
+        self.sync_player_registry_state_like_cpp();
+        true
     }
 
     fn reset_teleport_movement_state_like_cpp(&mut self) {
@@ -67529,6 +67541,62 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn teleport_to_expansion_abort_preserves_vehicle_state_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 829);
+        let registry = Arc::new(PlayerRegistry::default());
+        let destination = Position::new(100.0, 200.0, 30.0, 1.5);
+        session.expansion = 1;
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 870,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 2,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.set_player_registry(Arc::clone(&registry));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TeleportExpansionRejectVehicle".to_string(),
+            Position::new(10.0, 20.0, 30.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.player_vehicle_seat_flags_like_cpp = Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK);
+        session.player_vehicle_seat_id_like_cpp = Some(1004);
+        session.register_in_player_registry();
+
+        session.teleport_to(870, destination).await;
+
+        assert_eq!(
+            send_rx.try_recv().expect("SMSG_TRANSFER_ABORTED"),
+            wow_packet::packets::misc::TransferAborted {
+                map_id: 870,
+                arg: 2,
+                map_difficulty_x_condition_id: 0,
+                transfer_abort: TRANSFER_ABORT_INSUF_EXPAN_LVL_LIKE_CPP,
+            }
+            .to_bytes()
+        );
+        assert_eq!(
+            session.player_vehicle_seat_flags_like_cpp,
+            Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK),
+            "C++ returns from the expansion gate before Player::TeleportTo calls ExitVehicle"
+        );
+        assert_eq!(session.player_vehicle_seat_id_like_cpp, Some(1004));
+        let info = registry.get(&player_guid).expect("registered player");
+        assert!(info.in_vehicle);
+        assert_eq!(info.party_member_vehicle_seat, 1004);
+    }
+
+    #[tokio::test]
     async fn teleport_to_allows_target_map_when_session_expansion_matches_like_cpp() {
         let (mut session, _, send_rx) = make_session();
         let player_guid = ObjectGuid::create_player(1, 793);
@@ -70406,6 +70474,57 @@ mod tests {
             MovementFlag::ROOT | MovementFlag::CAN_FLY,
             "C++ Player::TeleportTo keeps only MOVEMENTFLAG_MASK_HAS_PLAYER_STATUS_OPCODE before the same-map branch"
         );
+        assert!(session.near_teleport_pending_like_cpp());
+    }
+
+    #[tokio::test]
+    async fn teleport_to_same_map_forces_vehicle_exit_before_near_teleport_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let registry = Arc::new(PlayerRegistry::default());
+        let player_guid = ObjectGuid::create_player(1, 830);
+        let source = Position::new(10.0, 20.0, 30.0, 0.0);
+        let destination = Position::new(119.0, 219.0, 49.0, 3.4);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 1,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.expansion = 1;
+        session.set_player_registry(Arc::clone(&registry));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "NearTeleportVehicleExit".to_string(),
+            source,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.player_vehicle_seat_flags_like_cpp = Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK);
+        session.player_vehicle_seat_id_like_cpp = Some(1004);
+        session.register_in_player_registry();
+
+        session.teleport_to(571, destination).await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::CancelCombat, ServerOpcodes::MoveTeleport]
+        );
+        assert!(
+            session.player_vehicle_seat_flags_like_cpp.is_none(),
+            "C++ Player::TeleportTo calls ExitVehicle directly; this is not gated by client seat-exit permissions"
+        );
+        assert!(session.player_vehicle_seat_id_like_cpp.is_none());
+        let info = registry.get(&player_guid).expect("registered player");
+        assert!(!info.in_vehicle);
+        assert_eq!(info.party_member_vehicle_seat, 0);
         assert!(session.near_teleport_pending_like_cpp());
     }
 

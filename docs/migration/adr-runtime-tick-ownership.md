@@ -1908,6 +1908,13 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   teleport, or DK escape abort. Remaining boundary is explicit: represented player
   `MovementInfo::jump`, `DisableSpline`, and `MotionMaster::Remove(EFFECT_MOTION_TYPE)` are not yet
   modeled in this Rust path.
+- 2026-06-17 — WotLK `Player::TeleportTo` represented vehicle-passenger exit
+  `#NEXT.RUNTIME.L3.031j81`: contrasted the direct `if (m_vehicle) ExitVehicle()` call before the
+  teleport movement reset (`Player.cpp:1282-1283`) and `Unit::ExitVehicle`'s passenger-side entry
+  point (`Unit.cpp:12069-12079`). Rust now clears represented vehicle passenger seat state and
+  republishes registry state at that same point, without using the client-requested vehicle-exit
+  seat permission gate. Remaining boundary: no real control-vehicle aura removal, `_ExitVehicle`
+  relocation spline, mounted-duel flee, or live vehicle base mutation.
 
 ## References
 

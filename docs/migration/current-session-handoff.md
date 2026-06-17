@@ -1,3 +1,20 @@
+- `#NEXT.RUNTIME.L3.031j81` — WotLK `Player::TeleportTo` now exits the
+  represented vehicle-passenger state before the common movement reset and
+  teleport branch selection (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:1282-1283`
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:12069-12079`.
+  C++ calls `ExitVehicle()` directly when `m_vehicle` is present, after the
+  disabled-map/battleground/expansion gates and before movement reset; this is
+  not the same as a client-requested vehicle exit seat-permission gate. Rust now
+  clears the represented passenger seat fields and republishes registry state at
+  that point. Coverage: targeted `wow-world` tests prove same-map teleport
+  forces vehicle exit even from a non-exit `CAN_ATTACK` seat before
+  `SMSG_MOVE_TELEPORT`, while the client-expansion abort still preserves
+  vehicle state because C++ returns before `ExitVehicle`. Boundary remains
+  partial: no real control-vehicle aura removal, `_ExitVehicle` relocation
+  spline, mounted-duel flee on vehicle exit, live vehicle base mutation,
+  transport passenger removal, install/restart, bot, or live-client/manual
+  validation.
 - `#NEXT.RUNTIME.L3.031j80` — WotLK `Player::TeleportTo` now applies the
   C++ common movement-state reset before both same-map and far-map teleport
   branches (not manual-test-ready). Source-of-truth:
