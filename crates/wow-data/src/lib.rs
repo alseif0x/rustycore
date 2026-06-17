@@ -158,9 +158,10 @@ pub use game_tables::{
     BattlePetXpEntryLikeCpp, BattlePetXpGameTableLikeCpp, battle_pet_xp_per_level_like_cpp,
 };
 pub use gameobject_template::{
-    GameObjectOverrideLifecycleRecordLikeCpp, GameObjectOverrideLifecycleStoreLikeCpp,
-    GameObjectTemplateAddonLifecycleRecordLikeCpp, GameObjectTemplateLifecycleRecordLikeCpp,
-    GameObjectTemplateLifecycleStoreLikeCpp, gameobject_template_lifecycle_record_like_cpp,
+    GameObjectForQuestStoreLikeCpp, GameObjectOverrideLifecycleRecordLikeCpp,
+    GameObjectOverrideLifecycleStoreLikeCpp, GameObjectTemplateAddonLifecycleRecordLikeCpp,
+    GameObjectTemplateLifecycleRecordLikeCpp, GameObjectTemplateLifecycleStoreLikeCpp,
+    gameobject_template_lifecycle_record_like_cpp,
 };
 pub use gossip::{GossipConditionAttachmentReport, GossipMenu, GossipMenuItem, GossipStore};
 pub use graveyard::{

@@ -1,8 +1,10 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use anyhow::Result;
 use wow_database::WorldDatabase;
-use wow_entities::{GameObjectTemplateLifecycleRecord, MAX_GAMEOBJECT_DATA};
+use wow_entities::{
+    GameObjectTemplateData, GameObjectTemplateLifecycleRecord, MAX_GAMEOBJECT_DATA,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct GameObjectTemplateAddonLifecycleRecordLikeCpp {
@@ -151,6 +153,68 @@ impl GameObjectTemplateLifecycleStoreLikeCpp {
     }
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct GameObjectForQuestStoreLikeCpp {
+    entries: HashSet<u32>,
+}
+
+impl GameObjectForQuestStoreLikeCpp {
+    /// C++ `ObjectMgr::LoadGameObjectForQuests` builds a derived entry set from
+    /// loaded `gameobject_template` rows and gameobject loot quest markers.
+    pub fn from_templates_like_cpp(
+        templates: &GameObjectTemplateLifecycleStoreLikeCpp,
+        mut have_quest_loot_for: impl FnMut(u32) -> bool,
+    ) -> Self {
+        let mut entries = HashSet::new();
+
+        for template in templates.entries_like_cpp() {
+            let template_data = GameObjectTemplateData::new(template.go_type, template.data);
+            let is_for_quest = match template.go_type {
+                wow_entities::GAMEOBJECT_TYPE_QUESTGIVER => true,
+                wow_entities::GAMEOBJECT_TYPE_CHEST => template_data
+                    .chest_loot_source_like_cpp()
+                    .is_some_and(|source| {
+                        source.chest_quest_id != 0
+                            || [source.loot_id, source.personal_loot_id, source.push_loot_id]
+                                .into_iter()
+                                .filter(|loot_id| *loot_id != 0)
+                                .any(&mut have_quest_loot_for)
+                    }),
+                wow_entities::GAMEOBJECT_TYPE_GENERIC => {
+                    template.data.get(5).copied().unwrap_or(0) > 0
+                }
+                wow_entities::GAMEOBJECT_TYPE_GOOBER => template_data
+                    .goober_use_source_like_cpp()
+                    .is_some_and(|source| source.quest_id > 0),
+                wow_entities::GAMEOBJECT_TYPE_GATHERING_NODE => template_data
+                    .gathering_node_use_source_like_cpp()
+                    .is_some_and(|source| {
+                        source.loot_id != 0 && have_quest_loot_for(source.loot_id)
+                    }),
+                _ => false,
+            };
+
+            if is_for_quest {
+                entries.insert(template.entry);
+            }
+        }
+
+        Self { entries }
+    }
+
+    pub fn is_game_object_for_quests_like_cpp(&self, entry: u32) -> bool {
+        self.entries.contains(&entry)
+    }
+
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+}
+
 /// Converts a DB-backed `gameobject_template` / `gameobject_template_addon`
 /// record into the entity lifecycle template consumed by represented
 /// GameObject creation paths that do not have a DB spawn row.
@@ -259,6 +323,26 @@ mod tests {
         }
     }
 
+    fn template_with_data(
+        entry: u32,
+        go_type: u32,
+        data: [u32; MAX_GAMEOBJECT_DATA],
+    ) -> GameObjectTemplateLifecycleRecordLikeCpp {
+        GameObjectTemplateLifecycleRecordLikeCpp {
+            entry,
+            go_type,
+            display_id: 0,
+            name: format!("go_{entry}"),
+            size: 1.0,
+            data,
+            content_tuning_id: 0,
+            ai_name: String::new(),
+            script_name: String::new(),
+            string_id: String::new(),
+            addon: None,
+        }
+    }
+
     #[test]
     fn gameobject_template_lifecycle_record_without_addon_uses_cpp_create_defaults() {
         let resolved = gameobject_template_lifecycle_record_like_cpp(&template(None));
@@ -295,5 +379,62 @@ mod tests {
         assert_eq!(resolved.world_effect_id, 77);
         assert_eq!(resolved.anim_kit_id, 9);
         assert_eq!(resolved.level, 80);
+    }
+
+    #[test]
+    fn gameobject_for_quest_store_matches_cpp_template_type_filters() {
+        let mut chest_quest_data = [0_u32; MAX_GAMEOBJECT_DATA];
+        // C++ `GameObjectTemplate::chest.questID` is `Data8`.
+        chest_quest_data[8] = 7000;
+        let mut chest_loot_data = [0_u32; MAX_GAMEOBJECT_DATA];
+        chest_loot_data[wow_entities::GAMEOBJECT_DATA_CHEST_LOOT] = 9000;
+        let mut generic_data = [0_u32; MAX_GAMEOBJECT_DATA];
+        generic_data[5] = 8000;
+        let mut goober_data = [0_u32; MAX_GAMEOBJECT_DATA];
+        goober_data[1] = 8100;
+        let mut gathering_data = [0_u32; MAX_GAMEOBJECT_DATA];
+        gathering_data[wow_entities::GAMEOBJECT_DATA_CHEST_LOOT] = 9100;
+
+        let templates = GameObjectTemplateLifecycleStoreLikeCpp::from_templates([
+            template_with_data(
+                100,
+                wow_entities::GAMEOBJECT_TYPE_QUESTGIVER,
+                [0; MAX_GAMEOBJECT_DATA],
+            ),
+            template_with_data(101, wow_entities::GAMEOBJECT_TYPE_CHEST, chest_quest_data),
+            template_with_data(102, wow_entities::GAMEOBJECT_TYPE_CHEST, chest_loot_data),
+            template_with_data(103, wow_entities::GAMEOBJECT_TYPE_GENERIC, generic_data),
+            template_with_data(104, wow_entities::GAMEOBJECT_TYPE_GOOBER, goober_data),
+            template_with_data(
+                105,
+                wow_entities::GAMEOBJECT_TYPE_GATHERING_NODE,
+                gathering_data,
+            ),
+            template_with_data(
+                106,
+                wow_entities::GAMEOBJECT_TYPE_CHEST,
+                [0; MAX_GAMEOBJECT_DATA],
+            ),
+            template_with_data(
+                107,
+                wow_entities::GAMEOBJECT_TYPE_DOOR,
+                [0; MAX_GAMEOBJECT_DATA],
+            ),
+        ]);
+
+        let store =
+            GameObjectForQuestStoreLikeCpp::from_templates_like_cpp(&templates, |loot_id| {
+                matches!(loot_id, 9000 | 9100)
+            });
+
+        for entry in [100, 101, 102, 103, 104, 105] {
+            assert!(
+                store.is_game_object_for_quests_like_cpp(entry),
+                "entry {entry} should match C++ LoadGameObjectForQuests"
+            );
+        }
+        assert!(!store.is_game_object_for_quests_like_cpp(106));
+        assert!(!store.is_game_object_for_quests_like_cpp(107));
+        assert_eq!(store.len(), 6);
     }
 }

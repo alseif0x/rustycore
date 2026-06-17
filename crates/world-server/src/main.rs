@@ -2372,6 +2372,22 @@ async fn main() -> Result<ExitCode> {
         loot_stores.len(),
         loaded_loot_templates
     );
+    let gameobject_for_quest_store = Arc::new(
+        wow_data::GameObjectForQuestStoreLikeCpp::from_templates_like_cpp(
+            gameobject_template_lifecycle_store.as_ref(),
+            |loot_id| {
+                loot_stores
+                    .get(&LootStoreKind::Gameobject)
+                    .is_some_and(|store| {
+                        store.have_quest_loot_for_like_cpp(loot_id, loot_stores.as_ref())
+                    })
+            },
+        ),
+    );
+    info!(
+        "Loaded {} C++ GameObjects for quests",
+        gameobject_for_quest_store.len()
+    );
 
     // Load player_xp_for_level table
     let player_xp_table = {
