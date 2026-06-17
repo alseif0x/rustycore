@@ -184,6 +184,98 @@ impl PetLevelupSpellStoreLikeCpp {
     }
 }
 
+/// Minimal C++ `SpellInfo` view used by `LoadPetFamilySpellsStore`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PetFamilySpellInfoLikeCpp {
+    pub id: u32,
+    pub is_passive: bool,
+}
+
+/// Minimal C++ `SpellLevelsEntry` view used by `LoadPetFamilySpellsStore`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PetFamilySpellLevelLikeCpp {
+    pub spell_id: i32,
+    pub difficulty_id: u32,
+    pub spell_level: i16,
+}
+
+/// Represented C++ `PetFamilySpellsStore` (`std::map<uint32, std::set<uint32>>`).
+#[derive(Debug, Clone, Default)]
+pub struct PetFamilySpellStoreLikeCpp {
+    spells_by_family: BTreeMap<u32, BTreeMap<u32, ()>>,
+}
+
+impl PetFamilySpellStoreLikeCpp {
+    /// C++ `SpellMgr::LoadPetFamilySpellsStore`, represented without live `SpellMgr`.
+    pub fn load_like_cpp(
+        skill_store: &SkillStore,
+        creature_families: impl IntoIterator<Item = CreatureFamilyEntry>,
+        spell_levels: impl IntoIterator<Item = PetFamilySpellLevelLikeCpp>,
+        mut spell_info: impl FnMut(i32) -> Option<PetFamilySpellInfoLikeCpp>,
+    ) -> Self {
+        let mut levels_by_spell = HashMap::new();
+        for levels in spell_levels {
+            if levels.difficulty_id == 0 {
+                levels_by_spell.insert(levels.spell_id, levels);
+            }
+        }
+
+        let creature_families: Vec<_> = creature_families.into_iter().collect();
+        let mut spells_by_family: BTreeMap<u32, BTreeMap<u32, ()>> = BTreeMap::new();
+
+        for skill_line in skill_store.skill_line_abilities_like_cpp() {
+            let Some(spell_info) = spell_info(skill_line.spell) else {
+                continue;
+            };
+
+            if levels_by_spell
+                .get(&skill_line.spell)
+                .is_some_and(|levels| levels.spell_level != 0)
+            {
+                continue;
+            }
+
+            if !spell_info.is_passive {
+                continue;
+            }
+
+            for creature_family in &creature_families {
+                if u16::try_from(creature_family.skill_line[0]).ok() != Some(skill_line.skill_line)
+                    && u16::try_from(creature_family.skill_line[1]).ok()
+                        != Some(skill_line.skill_line)
+                {
+                    continue;
+                }
+
+                if skill_line.acquire_method != SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP {
+                    continue;
+                }
+
+                spells_by_family
+                    .entry(creature_family.id)
+                    .or_default()
+                    .insert(spell_info.id, ());
+            }
+        }
+
+        Self { spells_by_family }
+    }
+
+    pub fn get_pet_family_spells_like_cpp(&self, pet_family: u32) -> Option<Vec<u32>> {
+        self.spells_by_family
+            .get(&pet_family)
+            .map(|spells| spells.keys().copied().collect())
+    }
+
+    pub fn family_count(&self) -> usize {
+        self.spells_by_family.len()
+    }
+
+    pub fn spell_count(&self) -> usize {
+        self.spells_by_family.values().map(BTreeMap::len).sum()
+    }
+}
+
 pub const MAX_CREATURE_SPELL_DATA_SLOT_LIKE_CPP: usize = 4;
 
 const SPELL_EFFECT_SUMMON_LIKE_CPP: u32 = 28;
@@ -326,6 +418,8 @@ fn load_pet_default_spells_helper_like_cpp(
 
 /// In-memory store for auto-learned spells from DBC data.
 pub struct SkillStore {
+    /// C++ `sSkillLineAbilityStore` row iteration, kept in load order for represented loaders.
+    abilities_like_cpp: Vec<SkillLineAbilityRecord>,
     /// SkillLineAbility records indexed by skill_line (the parent skill).
     abilities_by_skill: HashMap<u16, Vec<SkillLineAbilityRecord>>,
     /// C++ `SpellMgr::mSkillLineAbilityMap`, indexed by `SkillLineAbilityEntry::Spell`.
@@ -342,6 +436,7 @@ impl SkillStore {
     /// Build a minimal skill-line store for validation/tests.
     pub fn from_skill_lines_like_cpp(skill_ids: impl IntoIterator<Item = u16>) -> Self {
         Self {
+            abilities_like_cpp: Vec::new(),
             abilities_by_skill: skill_ids
                 .into_iter()
                 .map(|skill_id| (skill_id, Vec::new()))
@@ -360,9 +455,11 @@ impl SkillStore {
         let mut abilities_by_skill: HashMap<u16, Vec<SkillLineAbilityRecord>> = HashMap::new();
         let mut abilities_by_spell_like_cpp: HashMap<i32, Vec<SkillLineAbilityRecord>> =
             HashMap::new();
+        let mut abilities_like_cpp = Vec::new();
         let mut total_abilities = 0usize;
 
         for ability in abilities {
+            abilities_like_cpp.push(ability.clone());
             abilities_by_skill
                 .entry(ability.skill_line)
                 .or_default()
@@ -375,6 +472,7 @@ impl SkillStore {
         }
 
         Self {
+            abilities_like_cpp,
             abilities_by_skill,
             abilities_by_spell_like_cpp,
             starting_skills: HashMap::new(),
@@ -395,6 +493,7 @@ impl SkillStore {
         let mut abilities_by_skill: HashMap<u16, Vec<SkillLineAbilityRecord>> = HashMap::new();
         let mut abilities_by_spell_like_cpp: HashMap<i32, Vec<SkillLineAbilityRecord>> =
             HashMap::new();
+        let mut abilities_like_cpp = Vec::new();
         let mut total_abilities = 0usize;
 
         for (id, idx) in sla_reader.iter_records() {
@@ -429,6 +528,7 @@ impl SkillStore {
                 flags: sla_reader.get_field_i8(idx, 10),
                 num_skill_ups: sla_reader.get_field_i8(idx, 11),
             };
+            abilities_like_cpp.push(record.clone());
             abilities_by_skill
                 .entry(skill_line)
                 .or_default()
@@ -499,6 +599,7 @@ impl SkillStore {
         );
 
         Ok(Self {
+            abilities_like_cpp,
             abilities_by_skill,
             abilities_by_spell_like_cpp,
             starting_skills,
@@ -768,6 +869,11 @@ impl SkillStore {
         skill_id: u16,
     ) -> Option<&[SkillLineAbilityRecord]> {
         self.abilities_by_skill.get(&skill_id).map(Vec::as_slice)
+    }
+
+    /// C++ `sSkillLineAbilityStore` full row iteration.
+    pub fn skill_line_abilities_like_cpp(&self) -> &[SkillLineAbilityRecord] {
+        &self.abilities_like_cpp
     }
 
     /// Number of SkillRaceClassInfo records loaded.
@@ -1145,6 +1251,131 @@ mod tests {
 
         assert_eq!(store.count(), 0);
         assert!(store.get_pet_default_spells_entry_like_cpp(500).is_none());
+    }
+
+    #[test]
+    fn pet_family_spells_store_filters_like_cpp() {
+        let skill_store = SkillStore::from_skill_line_abilities_like_cpp([
+            pet_ability(
+                1,
+                10,
+                100,
+                SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP,
+            ),
+            pet_ability(
+                2,
+                20,
+                101,
+                SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP,
+            ),
+            pet_ability(3, 10, 102, 1),
+            pet_ability(
+                4,
+                10,
+                103,
+                SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP,
+            ),
+            pet_ability(
+                5,
+                10,
+                104,
+                SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP,
+            ),
+            pet_ability(
+                6,
+                99,
+                105,
+                SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP,
+            ),
+        ]);
+
+        let store = PetFamilySpellStoreLikeCpp::load_like_cpp(
+            &skill_store,
+            [creature_family(7, [10, 20]), creature_family(8, [30, 0])],
+            [
+                PetFamilySpellLevelLikeCpp {
+                    spell_id: 100,
+                    difficulty_id: 0,
+                    spell_level: 0,
+                },
+                PetFamilySpellLevelLikeCpp {
+                    spell_id: 101,
+                    difficulty_id: 1,
+                    spell_level: 80,
+                },
+                PetFamilySpellLevelLikeCpp {
+                    spell_id: 103,
+                    difficulty_id: 0,
+                    spell_level: 5,
+                },
+            ],
+            |spell_id| match spell_id {
+                100 | 101 | 103 | 105 => Some(PetFamilySpellInfoLikeCpp {
+                    id: spell_id as u32,
+                    is_passive: true,
+                }),
+                102 => Some(PetFamilySpellInfoLikeCpp {
+                    id: 102,
+                    is_passive: true,
+                }),
+                104 => Some(PetFamilySpellInfoLikeCpp {
+                    id: 104,
+                    is_passive: false,
+                }),
+                _ => None,
+            },
+        );
+
+        assert_eq!(
+            store.get_pet_family_spells_like_cpp(7),
+            Some(vec![100, 101]),
+            "difficulty-specific SpellLevels rows do not exclude the DIFFICULTY_NONE lookup"
+        );
+        assert_eq!(store.family_count(), 1);
+        assert_eq!(store.spell_count(), 2);
+        assert!(store.get_pet_family_spells_like_cpp(8).is_none());
+    }
+
+    #[test]
+    fn pet_family_spells_store_deduplicates_and_orders_like_cpp_set() {
+        let skill_store = SkillStore::from_skill_line_abilities_like_cpp([
+            pet_ability(
+                1,
+                10,
+                300,
+                SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP,
+            ),
+            pet_ability(
+                2,
+                10,
+                200,
+                SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP,
+            ),
+            pet_ability(
+                3,
+                10,
+                300,
+                SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP,
+            ),
+        ]);
+
+        let store = PetFamilySpellStoreLikeCpp::load_like_cpp(
+            &skill_store,
+            [creature_family(7, [10, 0])],
+            [],
+            |spell_id| {
+                Some(PetFamilySpellInfoLikeCpp {
+                    id: spell_id as u32,
+                    is_passive: true,
+                })
+            },
+        );
+
+        assert_eq!(
+            store.get_pet_family_spells_like_cpp(7),
+            Some(vec![200, 300]),
+            "C++ PetFamilySpellsSet is std::set<uint32>"
+        );
     }
 
     #[test]

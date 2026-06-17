@@ -293,7 +293,8 @@ pub use rand_prop_points::{RandPropPointsEntry, RandPropPointsStore};
 pub use skill::{
     MAX_CREATURE_SPELL_DATA_SLOT_LIKE_CPP, PetDefaultSpellCreatureTemplateLikeCpp,
     PetDefaultSpellEffectLikeCpp, PetDefaultSpellInfoLikeCpp, PetDefaultSpellStoreLikeCpp,
-    PetDefaultSpellsEntryLikeCpp, PetLevelupSpellInfoLikeCpp, PetLevelupSpellSetLikeCpp,
+    PetDefaultSpellsEntryLikeCpp, PetFamilySpellInfoLikeCpp, PetFamilySpellLevelLikeCpp,
+    PetFamilySpellStoreLikeCpp, PetLevelupSpellInfoLikeCpp, PetLevelupSpellSetLikeCpp,
     PetLevelupSpellStoreLikeCpp, SkillInfoEntry, SkillLineAbilityRecord, SkillStore,
 };
 pub use skill_talent::{
