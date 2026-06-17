@@ -3496,8 +3496,49 @@ impl SpellProcStoreLikeCpp {
         SpellProcLoadOutcomeLikeCpp {
             store,
             loaded_row_count,
+            generated_entry_count: 0,
             errors,
         }
+    }
+
+    pub fn from_rows_and_implicit_sources_like_cpp<I, SpellInfoById, ImplicitSources>(
+        rows: I,
+        spell_info_by_id: SpellInfoById,
+        implicit_sources: ImplicitSources,
+    ) -> SpellProcLoadOutcomeLikeCpp
+    where
+        I: IntoIterator<Item = SpellProcRowLikeCpp>,
+        SpellInfoById: FnMut(u32) -> Option<SpellProcSourceSpellInfoLikeCpp>,
+        ImplicitSources: IntoIterator<Item = ImplicitSpellProcSourceLikeCpp>,
+    {
+        let mut outcome = Self::from_rows_like_cpp(rows, spell_info_by_id);
+
+        for source in implicit_sources {
+            let key = SpellProcKeyLikeCpp {
+                spell_id: source.spell_id,
+                difficulty: source.difficulty,
+            };
+
+            if outcome
+                .store
+                .proc_entries_by_spell_and_difficulty
+                .contains_key(&key)
+            {
+                continue;
+            }
+
+            let Some(entry) = implicit_spell_proc_entry_like_cpp(&source) else {
+                continue;
+            };
+
+            outcome
+                .store
+                .proc_entries_by_spell_and_difficulty
+                .insert(key, entry);
+            outcome.generated_entry_count += 1;
+        }
+
+        outcome
     }
 
     pub fn spell_proc_entry_like_cpp(
@@ -3541,6 +3582,7 @@ impl SpellProcStoreLikeCpp {
 pub struct SpellProcLoadOutcomeLikeCpp {
     pub store: SpellProcStoreLikeCpp,
     pub loaded_row_count: usize,
+    pub generated_entry_count: usize,
     pub errors: Vec<SpellProcLoadErrorLikeCpp>,
 }
 
@@ -6895,6 +6937,88 @@ mod tests {
                 .is_none(),
             "C++ stops when sDifficultyStore.LookupEntry returns null"
         );
+    }
+
+    #[test]
+    fn spell_proc_store_generates_implicit_entries_after_sql_like_cpp() {
+        let mut implicit = test_implicit_spell_proc_source_like_cpp();
+        implicit.spell_id = 601;
+        implicit.proc_flags = [PROC_FLAG_DEAL_HARMFUL_SPELL_LIKE_CPP, 0];
+        implicit.proc_chance = 35.0;
+        implicit.effects = vec![test_implicit_proc_effect_like_cpp(
+            0,
+            aura_types::SPELL_AURA_PROC_TRIGGER_SPELL,
+            [0, 0, 0, 0],
+        )];
+
+        let outcome = SpellProcStoreLikeCpp::from_rows_and_implicit_sources_like_cpp(
+            [SpellProcRowLikeCpp {
+                spell_id: 600,
+                proc_flags: [PROC_FLAG_KILL_LIKE_CPP, 0],
+                chance: 10.0,
+                ..test_spell_proc_row_like_cpp(600)
+            }],
+            |spell_id| Some(test_spell_proc_source_like_cpp(spell_id, spell_id, None)),
+            [implicit],
+        );
+
+        assert!(outcome.errors.is_empty());
+        assert_eq!(outcome.loaded_row_count, 1);
+        assert_eq!(outcome.generated_entry_count, 1);
+        assert_eq!(
+            outcome
+                .store
+                .spell_proc_entry_like_cpp(600, 0)
+                .map(|entry| (entry.proc_flags, entry.chance)),
+            Some(([PROC_FLAG_KILL_LIKE_CPP, 0], 10.0))
+        );
+        assert_eq!(
+            outcome
+                .store
+                .spell_proc_entry_like_cpp(601, 0)
+                .map(|entry| (entry.proc_flags, entry.chance)),
+            Some(([PROC_FLAG_DEAL_HARMFUL_SPELL_LIKE_CPP, 0], 35.0))
+        );
+    }
+
+    #[test]
+    fn spell_proc_store_explicit_sql_suppresses_same_key_implicit_like_cpp() {
+        let mut duplicate_implicit = test_implicit_spell_proc_source_like_cpp();
+        duplicate_implicit.spell_id = 700;
+        duplicate_implicit.proc_flags = [PROC_FLAG_DEAL_HARMFUL_SPELL_LIKE_CPP, 0];
+        duplicate_implicit.proc_chance = 90.0;
+        duplicate_implicit.effects = vec![test_implicit_proc_effect_like_cpp(
+            0,
+            aura_types::SPELL_AURA_PROC_TRIGGER_SPELL,
+            [0, 0, 0, 0],
+        )];
+
+        let mut invalid_implicit = duplicate_implicit.clone();
+        invalid_implicit.spell_id = 701;
+        invalid_implicit.proc_flags = [0, 0];
+
+        let outcome = SpellProcStoreLikeCpp::from_rows_and_implicit_sources_like_cpp(
+            [SpellProcRowLikeCpp {
+                spell_id: 700,
+                proc_flags: [PROC_FLAG_KILL_LIKE_CPP, 0],
+                chance: 11.0,
+                ..test_spell_proc_row_like_cpp(700)
+            }],
+            |spell_id| Some(test_spell_proc_source_like_cpp(spell_id, spell_id, None)),
+            [duplicate_implicit, invalid_implicit],
+        );
+
+        assert!(outcome.errors.is_empty());
+        assert_eq!(outcome.loaded_row_count, 1);
+        assert_eq!(outcome.generated_entry_count, 0);
+        assert_eq!(
+            outcome
+                .store
+                .spell_proc_entry_like_cpp(700, 0)
+                .map(|entry| (entry.proc_flags, entry.chance)),
+            Some(([PROC_FLAG_KILL_LIKE_CPP, 0], 11.0))
+        );
+        assert!(outcome.store.spell_proc_entry_like_cpp(701, 0).is_none());
     }
 
     #[test]
