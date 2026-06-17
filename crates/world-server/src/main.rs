@@ -2197,6 +2197,20 @@ async fn main() -> Result<ExitCode> {
             .await
             .context("Failed to load quest store")?,
     );
+    let spell_area_outcome = wow_data::SpellAreaStoreLikeCpp::load_like_cpp(
+        world_db.as_ref(),
+        |spell_id| spell_store.get(spell_id as i32).is_some(),
+        |area_id| area_table_store.get(area_id).is_some(),
+        |quest_id| quest_store.get(quest_id).is_some(),
+    )
+    .await
+    .context("Failed to load C++ spell_area rows")?;
+    let spell_area_store = Arc::new(spell_area_outcome.store);
+    info!(
+        "Loaded {} C++ spell_area rows ({} validation issues; SpellInfo no-aura-cancel mutation still pending)",
+        spell_area_outcome.loaded_row_count,
+        spell_area_outcome.errors.len()
+    );
     let access_requirement_store = Arc::new(
         wow_data::AccessRequirementStoreLikeCpp::load_like_cpp(
             world_db.as_ref(),
@@ -3043,6 +3057,7 @@ async fn main() -> Result<ExitCode> {
         spell_group_stack_rule_store: Some(Arc::clone(&spell_group_stack_rule_store)),
         spell_linked_store: Some(Arc::clone(&spell_linked_store)),
         spell_pet_aura_store: Some(Arc::clone(&spell_pet_aura_store)),
+        spell_area_store: Some(Arc::clone(&spell_area_store)),
         spell_learn_skill_store: Some(Arc::clone(&spell_learn_skill_store)),
         spell_learn_spell_store: Some(Arc::clone(&spell_learn_spell_store)),
         pet_levelup_spell_store: Some(Arc::clone(&pet_levelup_spell_store)),
@@ -9357,6 +9372,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.spell_pet_aura_store {
         session.set_spell_pet_aura_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.spell_area_store {
+        session.set_spell_area_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.spell_learn_skill_store {
         session.set_spell_learn_skill_store(Arc::clone(store));

@@ -2173,6 +2173,46 @@ pub struct SpellAreaStoreLikeCpp {
 }
 
 impl SpellAreaStoreLikeCpp {
+    pub async fn load_like_cpp(
+        db: &WorldDatabase,
+        spell_exists: impl FnMut(u32) -> bool,
+        area_exists: impl FnMut(u32) -> bool,
+        quest_exists: impl FnMut(u32) -> bool,
+    ) -> Result<SpellAreaLoadOutcomeLikeCpp> {
+        let mut result = db
+            .direct_query(WorldStatements::SEL_SPELL_AREA.sql())
+            .await?;
+        let mut rows = Vec::new();
+
+        if !result.is_empty() {
+            loop {
+                rows.push(SpellAreaRowLikeCpp {
+                    spell_id: result.try_read::<u32>(0).unwrap_or(0),
+                    area_id: result.try_read::<u32>(1).unwrap_or(0),
+                    quest_start: result.try_read::<u32>(2).unwrap_or(0),
+                    quest_start_status: result.try_read::<u32>(3).unwrap_or(0),
+                    quest_end_status: result.try_read::<u32>(4).unwrap_or(0),
+                    quest_end: result.try_read::<u32>(5).unwrap_or(0),
+                    aura_spell: result.try_read::<i32>(6).unwrap_or(0),
+                    race_mask: result.try_read::<u64>(7).unwrap_or(0),
+                    gender: result.try_read::<u8>(8).unwrap_or(GENDER_NONE_LIKE_CPP),
+                    flags: result.try_read::<u8>(9).unwrap_or(0),
+                });
+
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        Ok(Self::from_rows_like_cpp(
+            rows,
+            spell_exists,
+            area_exists,
+            quest_exists,
+        ))
+    }
+
     pub fn from_rows_like_cpp<I, SpellExists, AreaExists, QuestExists>(
         rows: I,
         mut spell_exists: SpellExists,
