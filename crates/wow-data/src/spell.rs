@@ -2509,6 +2509,34 @@ pub struct SpellCustomAttributeStoreLikeCpp {
 }
 
 impl SpellCustomAttributeStoreLikeCpp {
+    pub async fn load_like_cpp<SpellInfosById>(
+        db: &WorldDatabase,
+        spell_infos_by_id: SpellInfosById,
+    ) -> Result<SpellCustomAttributeLoadOutcomeLikeCpp>
+    where
+        SpellInfosById: FnMut(u32) -> Vec<SpellCustomAttributeSourceSpellInfoLikeCpp>,
+    {
+        let mut result = db
+            .direct_query(WorldStatements::SEL_SPELL_CUSTOM_ATTR.sql())
+            .await?;
+        let mut rows = Vec::new();
+
+        if !result.is_empty() {
+            loop {
+                rows.push(SpellCustomAttributeRowLikeCpp {
+                    spell_id: result.try_read::<u32>(0).unwrap_or(0),
+                    attributes: result.try_read::<u32>(1).unwrap_or(0),
+                });
+
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        Ok(Self::from_sql_rows_like_cpp(rows, spell_infos_by_id))
+    }
+
     pub fn from_sql_rows_like_cpp<I, SpellInfosById>(
         rows: I,
         mut spell_infos_by_id: SpellInfosById,

@@ -2211,6 +2211,30 @@ async fn main() -> Result<ExitCode> {
         spell_area_outcome.loaded_row_count,
         spell_area_outcome.errors.len()
     );
+    let spell_custom_attribute_outcome =
+        wow_data::SpellCustomAttributeStoreLikeCpp::load_like_cpp(world_db.as_ref(), |spell_id| {
+            spell_store
+                .get(i32::try_from(spell_id).unwrap_or(-1))
+                .and_then(|spell| {
+                    u32::try_from(spell.spell_id).ok().map(|source_spell_id| {
+                        vec![wow_data::SpellCustomAttributeSourceSpellInfoLikeCpp {
+                            spell_id: source_spell_id,
+                            difficulty: 0,
+                            effects: spell.effects.clone(),
+                        }]
+                    })
+                })
+                .unwrap_or_default()
+        })
+        .await
+        .context("Failed to load C++ spell_custom_attr rows")?;
+    let spell_custom_attribute_store = Arc::new(spell_custom_attribute_outcome.store);
+    info!(
+        "Loaded {} C++ spell_custom_attr rows ({} applied variants; {} validation issues; derived AttributesCu pass still pending)",
+        spell_custom_attribute_outcome.loaded_row_count,
+        spell_custom_attribute_outcome.applied_variant_count,
+        spell_custom_attribute_outcome.errors.len()
+    );
     let access_requirement_store = Arc::new(
         wow_data::AccessRequirementStoreLikeCpp::load_like_cpp(
             world_db.as_ref(),
@@ -3058,6 +3082,7 @@ async fn main() -> Result<ExitCode> {
         spell_linked_store: Some(Arc::clone(&spell_linked_store)),
         spell_pet_aura_store: Some(Arc::clone(&spell_pet_aura_store)),
         spell_area_store: Some(Arc::clone(&spell_area_store)),
+        spell_custom_attribute_store: Some(Arc::clone(&spell_custom_attribute_store)),
         spell_learn_skill_store: Some(Arc::clone(&spell_learn_skill_store)),
         spell_learn_spell_store: Some(Arc::clone(&spell_learn_spell_store)),
         pet_levelup_spell_store: Some(Arc::clone(&pet_levelup_spell_store)),
@@ -9375,6 +9400,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.spell_area_store {
         session.set_spell_area_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.spell_custom_attribute_store {
+        session.set_spell_custom_attribute_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.spell_learn_skill_store {
         session.set_spell_learn_skill_store(Arc::clone(store));

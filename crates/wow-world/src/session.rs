@@ -80,16 +80,17 @@ use wow_data::{
     PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp, PlayerConditionStore,
     PlayerStatsStore, RandPropPointsStore, SkillLineStore, SkillStore, SpellAreaLikeCpp,
     SpellAreaStoreLikeCpp, SpellAuraOptionsStore, SpellCategoryStore, SpellChainStoreLikeCpp,
-    SpellDurationStore, SpellEnchantProcEntryLikeCpp, SpellEnchantProcStoreLikeCpp,
-    SpellGroupStackRuleLikeCpp, SpellGroupStackRuleStoreLikeCpp, SpellGroupStoreLikeCpp,
-    SpellItemEnchantmentStore, SpellLearnSkillNodeLikeCpp, SpellLearnSkillStoreLikeCpp,
-    SpellLearnSpellNodeLikeCpp, SpellLearnSpellStoreLikeCpp, SpellLinkedStoreLikeCpp,
-    SpellLinkedTypeLikeCpp, SpellMiscStore, SpellPetAuraStoreLikeCpp, SpellProcEntryLikeCpp,
-    SpellProcStoreLikeCpp, SpellRadiusStore, SpellRangeStore, SpellRequiredStoreLikeCpp,
-    SpellStore, SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp,
-    SpellTotemModelStoreLikeCpp, SummonPropertiesEntry, ToyStore, TransmogSetEntry,
-    TransmogSetItemStore, TrinityStringStoreLikeCpp, VEHICLE_SEAT_FLAG_CAN_ATTACK,
-    VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
+    SpellCustomAttributeStoreLikeCpp, SpellDurationStore, SpellEnchantProcEntryLikeCpp,
+    SpellEnchantProcStoreLikeCpp, SpellGroupStackRuleLikeCpp, SpellGroupStackRuleStoreLikeCpp,
+    SpellGroupStoreLikeCpp, SpellItemEnchantmentStore, SpellLearnSkillNodeLikeCpp,
+    SpellLearnSkillStoreLikeCpp, SpellLearnSpellNodeLikeCpp, SpellLearnSpellStoreLikeCpp,
+    SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp, SpellMiscStore, SpellPetAuraStoreLikeCpp,
+    SpellProcEntryLikeCpp, SpellProcStoreLikeCpp, SpellRadiusStore, SpellRangeStore,
+    SpellRequiredStoreLikeCpp, SpellStore, SpellTargetPositionStoreLikeCpp,
+    SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp, SpellTotemModelStoreLikeCpp,
+    SummonPropertiesEntry, ToyStore, TransmogSetEntry, TransmogSetItemStore,
+    TrinityStringStoreLikeCpp, VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp,
+    VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
     calculate_battle_pet_stats_like_cpp, is_player_meeting_condition_like_cpp,
     progression_rewards::{
         ContentTuningStore, FactionEntry, FactionStore, FactionTemplateStore,
@@ -3880,6 +3881,7 @@ pub struct WorldSession {
     spell_linked_store: Option<Arc<SpellLinkedStoreLikeCpp>>,
     spell_pet_aura_store: Option<Arc<SpellPetAuraStoreLikeCpp>>,
     spell_area_store: Option<Arc<SpellAreaStoreLikeCpp>>,
+    spell_custom_attribute_store: Option<Arc<SpellCustomAttributeStoreLikeCpp>>,
     spell_learn_skill_store: Option<Arc<SpellLearnSkillStoreLikeCpp>>,
     spell_learn_spell_store: Option<Arc<SpellLearnSpellStoreLikeCpp>>,
     pet_levelup_spell_store: Option<Arc<PetLevelupSpellStoreLikeCpp>>,
@@ -5196,6 +5198,7 @@ impl WorldSession {
             spell_linked_store: None,
             spell_pet_aura_store: None,
             spell_area_store: None,
+            spell_custom_attribute_store: None,
             spell_learn_skill_store: None,
             spell_learn_spell_store: None,
             pet_levelup_spell_store: None,
@@ -17125,6 +17128,24 @@ impl WorldSession {
             .as_ref()
             .map(|store| store.spell_area_for_area_map_bounds_like_cpp(area_id))
             .unwrap_or_default()
+    }
+
+    pub fn set_spell_custom_attribute_store(
+        &mut self,
+        store: Arc<SpellCustomAttributeStoreLikeCpp>,
+    ) {
+        self.spell_custom_attribute_store = Some(store);
+    }
+
+    pub(crate) fn spell_custom_attributes_for_difficulty_like_cpp(
+        &self,
+        spell_id: u32,
+        difficulty: u32,
+    ) -> u32 {
+        self.spell_custom_attribute_store
+            .as_ref()
+            .map(|store| store.attributes_for_spell_difficulty_like_cpp(spell_id, difficulty))
+            .unwrap_or(0)
     }
 
     pub fn set_spell_learn_skill_store(&mut self, store: Arc<SpellLearnSkillStoreLikeCpp>) {
@@ -42028,6 +42049,48 @@ mod tests {
         outcome.store
     }
 
+    fn test_spell_custom_attribute_store_like_cpp() -> wow_data::SpellCustomAttributeStoreLikeCpp {
+        let outcome = wow_data::SpellCustomAttributeStoreLikeCpp::from_sql_rows_like_cpp(
+            [
+                wow_data::SpellCustomAttributeRowLikeCpp {
+                    spell_id: 100,
+                    attributes: wow_data::SPELL_ATTR0_CU_CAN_CRIT_LIKE_CPP,
+                },
+                wow_data::SpellCustomAttributeRowLikeCpp {
+                    spell_id: 100,
+                    attributes: wow_data::SPELL_ATTR0_CU_DIRECT_DAMAGE_LIKE_CPP,
+                },
+            ],
+            |spell_id| {
+                (spell_id == 100)
+                    .then(|| {
+                        vec![
+                            wow_data::SpellCustomAttributeSourceSpellInfoLikeCpp {
+                                spell_id: 100,
+                                difficulty: 0,
+                                effects: vec![wow_data::SpellEffectInfo {
+                                    effect_index: 0,
+                                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE,
+                                    ..Default::default()
+                                }],
+                            },
+                            wow_data::SpellCustomAttributeSourceSpellInfoLikeCpp {
+                                spell_id: 100,
+                                difficulty: 2,
+                                effects: vec![wow_data::SpellEffectInfo {
+                                    effect_index: 0,
+                                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL,
+                                    ..Default::default()
+                                }],
+                            },
+                        ]
+                    })
+                    .unwrap_or_default()
+            },
+        );
+        outcome.store
+    }
+
     fn test_spell_learn_skill_store_like_cpp() -> wow_data::SpellLearnSkillStoreLikeCpp {
         let outcome = wow_data::SpellLearnSkillStoreLikeCpp::from_spell_infos_like_cpp([
             wow_data::SpellLearnSkillSourceSpellInfoLikeCpp {
@@ -42599,6 +42662,39 @@ mod tests {
             2
         );
         assert_eq!(session.spell_area_for_aura_map_bounds_like_cpp(40).len(), 1);
+    }
+
+    #[test]
+    fn spell_custom_attributes_return_zero_without_store_like_cpp() {
+        let (session, _, _) = make_session();
+
+        assert_eq!(
+            session.spell_custom_attributes_for_difficulty_like_cpp(100, 0),
+            0
+        );
+    }
+
+    #[test]
+    fn spell_custom_attributes_lookup_exact_difficulty_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_spell_custom_attribute_store(Arc::new(
+            test_spell_custom_attribute_store_like_cpp(),
+        ));
+
+        assert_eq!(
+            session.spell_custom_attributes_for_difficulty_like_cpp(100, 0),
+            wow_data::SPELL_ATTR0_CU_CAN_CRIT_LIKE_CPP
+                | wow_data::SPELL_ATTR0_CU_DIRECT_DAMAGE_LIKE_CPP
+        );
+        assert_eq!(
+            session.spell_custom_attributes_for_difficulty_like_cpp(100, 2),
+            wow_data::SPELL_ATTR0_CU_CAN_CRIT_LIKE_CPP
+                | wow_data::SPELL_ATTR0_CU_DIRECT_DAMAGE_LIKE_CPP
+        );
+        assert_eq!(
+            session.spell_custom_attributes_for_difficulty_like_cpp(100, 1),
+            0
+        );
     }
 
     #[test]
