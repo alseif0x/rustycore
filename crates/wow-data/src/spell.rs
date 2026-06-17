@@ -12,7 +12,7 @@
 //! - Effect type (heal, damage, apply aura, etc.)
 //! - Effect parameters (base points, bonus coefficients)
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::f32::consts::TAU;
 
 use anyhow::Result;
@@ -501,6 +501,8 @@ pub struct SpellTargetPositionStoreLikeCpp {
 pub const SPELL_AURA_DUMMY_LIKE_CPP: i32 = 0;
 pub const TARGET_UNIT_PET_LIKE_CPP: u32 = 5;
 pub const SKILL_DUAL_WIELD_LIKE_CPP: u16 = 118;
+pub const SPELL_GROUP_CORE_RANGE_MAX_LIKE_CPP: u32 = 5;
+pub const SPELL_GROUP_DB_RANGE_MIN_LIKE_CPP: u32 = 1000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SpellPetAuraRowLikeCpp {
@@ -1222,6 +1224,203 @@ impl SpellLearnSkillStoreLikeCpp {
 pub struct SpellLearnSkillLoadOutcomeLikeCpp {
     pub store: SpellLearnSkillStoreLikeCpp,
     pub dbc_loaded_row_count: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellGroupRowLikeCpp {
+    pub group_id: u32,
+    pub spell_id: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpellGroupLoadErrorKindLikeCpp {
+    CoreRangeGroupMissing,
+    ReferencedGroupMissing,
+    SpellMissing,
+    SpellNotFirstRank,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellGroupLoadErrorLikeCpp {
+    pub row: SpellGroupRowLikeCpp,
+    pub kind: SpellGroupLoadErrorKindLikeCpp,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SpellGroupStoreLikeCpp {
+    pub spell_entries_by_group_id: BTreeMap<u32, Vec<i32>>,
+    pub group_ids_by_spell_id: BTreeMap<u32, Vec<u32>>,
+}
+
+impl SpellGroupStoreLikeCpp {
+    pub fn from_rows_like_cpp<I, SpellExists, SpellRank>(
+        rows: I,
+        mut spell_exists: SpellExists,
+        mut spell_rank: SpellRank,
+    ) -> SpellGroupLoadOutcomeLikeCpp
+    where
+        I: IntoIterator<Item = SpellGroupRowLikeCpp>,
+        SpellExists: FnMut(u32) -> bool,
+        SpellRank: FnMut(u32) -> u32,
+    {
+        let mut store = Self::default();
+        let mut group_ids = BTreeSet::new();
+        let mut errors = Vec::new();
+
+        for row in rows {
+            if row.group_id <= SPELL_GROUP_DB_RANGE_MIN_LIKE_CPP
+                && row.group_id >= SPELL_GROUP_CORE_RANGE_MAX_LIKE_CPP
+            {
+                errors.push(SpellGroupLoadErrorLikeCpp {
+                    row,
+                    kind: SpellGroupLoadErrorKindLikeCpp::CoreRangeGroupMissing,
+                });
+                continue;
+            }
+
+            group_ids.insert(row.group_id);
+            store
+                .spell_entries_by_group_id
+                .entry(row.group_id)
+                .or_default()
+                .push(row.spell_id);
+        }
+
+        for (group_id, entries) in store.spell_entries_by_group_id.clone() {
+            let mut retained_entries = Vec::new();
+
+            for spell_id in entries {
+                let row = SpellGroupRowLikeCpp { group_id, spell_id };
+                if spell_id < 0 {
+                    if !group_ids.contains(&spell_id.unsigned_abs()) {
+                        errors.push(SpellGroupLoadErrorLikeCpp {
+                            row,
+                            kind: SpellGroupLoadErrorKindLikeCpp::ReferencedGroupMissing,
+                        });
+                        continue;
+                    }
+                } else {
+                    let spell_id_u32 = spell_id as u32;
+                    if !spell_exists(spell_id_u32) {
+                        errors.push(SpellGroupLoadErrorLikeCpp {
+                            row,
+                            kind: SpellGroupLoadErrorKindLikeCpp::SpellMissing,
+                        });
+                        continue;
+                    }
+
+                    if spell_rank(spell_id_u32) > 1 {
+                        errors.push(SpellGroupLoadErrorLikeCpp {
+                            row,
+                            kind: SpellGroupLoadErrorKindLikeCpp::SpellNotFirstRank,
+                        });
+                        continue;
+                    }
+                }
+
+                retained_entries.push(spell_id);
+            }
+
+            if retained_entries.is_empty() {
+                store.spell_entries_by_group_id.remove(&group_id);
+            } else {
+                store
+                    .spell_entries_by_group_id
+                    .insert(group_id, retained_entries);
+            }
+        }
+
+        let mut loaded_row_count = 0;
+        for group_id in group_ids {
+            let spells = store.set_of_spells_in_spell_group_like_cpp(group_id);
+            for spell_id in spells {
+                store
+                    .group_ids_by_spell_id
+                    .entry(spell_id)
+                    .or_default()
+                    .push(group_id);
+                loaded_row_count += 1;
+            }
+        }
+
+        SpellGroupLoadOutcomeLikeCpp {
+            store,
+            loaded_row_count,
+            errors,
+        }
+    }
+
+    pub fn spell_group_spell_map_bounds_like_cpp(&self, group_id: u32) -> &[i32] {
+        self.spell_entries_by_group_id
+            .get(&group_id)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+
+    pub fn spell_spell_group_map_bounds_like_cpp<FirstSpellInChain>(
+        &self,
+        spell_id: u32,
+        mut first_spell_in_chain: FirstSpellInChain,
+    ) -> &[u32]
+    where
+        FirstSpellInChain: FnMut(u32) -> u32,
+    {
+        let first_spell_id = first_spell_in_chain(spell_id);
+        self.group_ids_by_spell_id
+            .get(&first_spell_id)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+
+    pub fn is_spell_member_of_spell_group_like_cpp<FirstSpellInChain>(
+        &self,
+        spell_id: u32,
+        group_id: u32,
+        first_spell_in_chain: FirstSpellInChain,
+    ) -> bool
+    where
+        FirstSpellInChain: FnMut(u32) -> u32,
+    {
+        self.spell_spell_group_map_bounds_like_cpp(spell_id, first_spell_in_chain)
+            .contains(&group_id)
+    }
+
+    pub fn set_of_spells_in_spell_group_like_cpp(&self, group_id: u32) -> BTreeSet<u32> {
+        let mut found_spells = BTreeSet::new();
+        let mut used_groups = BTreeSet::new();
+        self.collect_spells_in_group_like_cpp(group_id, &mut found_spells, &mut used_groups);
+        found_spells
+    }
+
+    fn collect_spells_in_group_like_cpp(
+        &self,
+        group_id: u32,
+        found_spells: &mut BTreeSet<u32>,
+        used_groups: &mut BTreeSet<u32>,
+    ) {
+        if !used_groups.insert(group_id) {
+            return;
+        }
+
+        for spell_id in self.spell_group_spell_map_bounds_like_cpp(group_id) {
+            if *spell_id < 0 {
+                self.collect_spells_in_group_like_cpp(
+                    spell_id.unsigned_abs(),
+                    found_spells,
+                    used_groups,
+                );
+            } else {
+                found_spells.insert(*spell_id as u32);
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpellGroupLoadOutcomeLikeCpp {
+    pub store: SpellGroupStoreLikeCpp,
+    pub loaded_row_count: usize,
+    pub errors: Vec<SpellGroupLoadErrorLikeCpp>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -3539,6 +3738,105 @@ mod tests {
                 value: 1,
                 maxvalue: 1,
             })
+        );
+    }
+
+    #[test]
+    fn spell_group_store_validates_rows_like_cpp() {
+        let outcome = SpellGroupStoreLikeCpp::from_rows_like_cpp(
+            [
+                SpellGroupRowLikeCpp {
+                    group_id: 5,
+                    spell_id: 10,
+                },
+                SpellGroupRowLikeCpp {
+                    group_id: 1001,
+                    spell_id: 11,
+                },
+                SpellGroupRowLikeCpp {
+                    group_id: 1002,
+                    spell_id: 12,
+                },
+                SpellGroupRowLikeCpp {
+                    group_id: 1003,
+                    spell_id: -1999,
+                },
+            ],
+            |spell_id| matches!(spell_id, 12),
+            |spell_id| {
+                if spell_id == 12 { 2 } else { 1 }
+            },
+        );
+
+        assert_eq!(outcome.loaded_row_count, 0);
+        assert_eq!(
+            outcome
+                .errors
+                .iter()
+                .map(|error| error.kind)
+                .collect::<Vec<_>>(),
+            vec![
+                SpellGroupLoadErrorKindLikeCpp::CoreRangeGroupMissing,
+                SpellGroupLoadErrorKindLikeCpp::SpellMissing,
+                SpellGroupLoadErrorKindLikeCpp::SpellNotFirstRank,
+                SpellGroupLoadErrorKindLikeCpp::ReferencedGroupMissing,
+            ]
+        );
+    }
+
+    #[test]
+    fn spell_group_store_expands_nested_groups_like_cpp() {
+        let outcome = SpellGroupStoreLikeCpp::from_rows_like_cpp(
+            [
+                SpellGroupRowLikeCpp {
+                    group_id: 1001,
+                    spell_id: 10,
+                },
+                SpellGroupRowLikeCpp {
+                    group_id: 1001,
+                    spell_id: -1002,
+                },
+                SpellGroupRowLikeCpp {
+                    group_id: 1002,
+                    spell_id: 20,
+                },
+                SpellGroupRowLikeCpp {
+                    group_id: 1002,
+                    spell_id: 20,
+                },
+                SpellGroupRowLikeCpp {
+                    group_id: 1002,
+                    spell_id: -1001,
+                },
+            ],
+            |spell_id| matches!(spell_id, 10 | 20),
+            |_| 1,
+        );
+
+        assert!(outcome.errors.is_empty());
+        assert_eq!(
+            outcome.store.spell_group_spell_map_bounds_like_cpp(1001),
+            &[10, -1002]
+        );
+        assert_eq!(
+            outcome.store.set_of_spells_in_spell_group_like_cpp(1001),
+            BTreeSet::from([10, 20])
+        );
+        assert_eq!(
+            outcome.store.set_of_spells_in_spell_group_like_cpp(1002),
+            BTreeSet::from([10, 20])
+        );
+        assert!(
+            outcome
+                .store
+                .is_spell_member_of_spell_group_like_cpp(20, 1001, |spell_id| spell_id)
+        );
+        assert_eq!(
+            outcome
+                .store
+                .spell_spell_group_map_bounds_like_cpp(25, |_| 20),
+            &[1001, 1002],
+            "C++ GetSpellSpellGroupMapBounds first normalizes to GetFirstSpellInChain"
         );
     }
 

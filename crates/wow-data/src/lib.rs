@@ -307,8 +307,10 @@ pub use spawn_group::{
     SpawnGroupTemplateStore,
 };
 pub use spell::{
-    SKILL_DUAL_WIELD_LIKE_CPP, SPELL_AURA_DUMMY_LIKE_CPP, SpellEffectInfo, SpellInfo,
-    SpellLearnSkillEffectLikeCpp, SpellLearnSkillLoadOutcomeLikeCpp, SpellLearnSkillNodeLikeCpp,
+    SKILL_DUAL_WIELD_LIKE_CPP, SPELL_AURA_DUMMY_LIKE_CPP, SpellEffectInfo,
+    SpellGroupLoadErrorKindLikeCpp, SpellGroupLoadErrorLikeCpp, SpellGroupLoadOutcomeLikeCpp,
+    SpellGroupRowLikeCpp, SpellGroupStoreLikeCpp, SpellInfo, SpellLearnSkillEffectLikeCpp,
+    SpellLearnSkillLoadOutcomeLikeCpp, SpellLearnSkillNodeLikeCpp,
     SpellLearnSkillSourceSpellInfoLikeCpp, SpellLearnSkillStoreLikeCpp,
     SpellLearnSourceSpellInfoLikeCpp, SpellLearnSpellEffectLikeCpp,
     SpellLearnSpellLoadErrorKindLikeCpp, SpellLearnSpellLoadErrorLikeCpp,
