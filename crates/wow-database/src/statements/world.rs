@@ -194,6 +194,12 @@ pub enum WorldStatements {
     SEL_GOSSIP_MENU_OPTIONS,
     /// Load all C++ ObjectMgr gossip_menu_option condition keys.
     SEL_GOSSIP_MENU_OPTION_KEYS,
+    /// C++ `ObjectMgr::LoadGossipMenuItems` all rows.
+    SEL_GOSSIP_MENU_OPTIONS_ALL,
+    /// C++ `ObjectMgr::LoadGossipMenuItemsLocales`.
+    SEL_GOSSIP_MENU_OPTION_LOCALES,
+    /// C++ `ObjectMgr::LoadGossipMenuAddon`.
+    SEL_GOSSIP_MENU_ADDON,
     /// Localized text from broadcast_text_locale by ID and locale.
     SEL_BROADCAST_TEXT_LOCALE,
     /// Localized creature name/subname/title by entry and locale.
@@ -766,6 +772,17 @@ impl StatementDef for WorldStatements {
             ),
             Self::SEL_GOSSIP_MENU_OPTION_KEYS => {
                 "SELECT MenuID, OptionID FROM gossip_menu_option ORDER BY MenuID, OptionID"
+            }
+            Self::SEL_GOSSIP_MENU_OPTIONS_ALL => concat!(
+                "SELECT MenuID, GossipOptionID, OptionID, OptionNpc, OptionText, OptionBroadcastTextID, ",
+                "Language, Flags, ActionMenuID, ActionPoiID, GossipNpcOptionID, BoxCoded, BoxMoney, ",
+                "BoxText, BoxBroadcastTextID, SpellID, OverrideIconID FROM gossip_menu_option ORDER BY MenuID, OptionID"
+            ),
+            Self::SEL_GOSSIP_MENU_OPTION_LOCALES => {
+                "SELECT MenuID, OptionID, Locale, OptionText, BoxText FROM gossip_menu_option_locale"
+            }
+            Self::SEL_GOSSIP_MENU_ADDON => {
+                "SELECT MenuID, FriendshipFactionID FROM gossip_menu_addon"
             }
             Self::SEL_BROADCAST_TEXT_LOCALE => {
                 "SELECT Text_lang FROM hotfixes.broadcast_text_locale WHERE ID = ? AND locale = ?"

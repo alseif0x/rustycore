@@ -1061,10 +1061,13 @@ async fn main() -> Result<ExitCode> {
     let (mut gossip_store, gossip_load_report) =
         wow_data::GossipStore::load_like_cpp(world_db.as_ref())
             .await
-            .context("Failed to load C++ gossip_menu/gossip_menu_option condition keys")?;
+            .context("Failed to load C++ gossip_menu/gossip_menu_option stores")?;
     info!(
-        "Loaded {} gossip menu rows and {} gossip menu option keys",
-        gossip_load_report.menu_rows, gossip_load_report.menu_item_rows
+        "Loaded {} gossip menu rows, {} gossip menu option rows, {} gossip_menu_option locale keys, and {} gossip_menu_addon rows",
+        gossip_load_report.menu_rows,
+        gossip_load_report.menu_item_rows,
+        gossip_load_report.locale_entries,
+        gossip_load_report.addon_rows
     );
     let (spawn_group_store, spawn_group_report) =
         wow_data::SpawnGroupTemplateStore::load_like_cpp(world_db.as_ref())
