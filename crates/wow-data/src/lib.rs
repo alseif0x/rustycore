@@ -290,7 +290,10 @@ pub use player_power::{
 };
 pub use player_stats::{PlayerLevelStats, PlayerStatsStore};
 pub use rand_prop_points::{RandPropPointsEntry, RandPropPointsStore};
-pub use skill::{SkillInfoEntry, SkillStore};
+pub use skill::{
+    PetLevelupSpellInfoLikeCpp, PetLevelupSpellSetLikeCpp, PetLevelupSpellStoreLikeCpp,
+    SkillInfoEntry, SkillLineAbilityRecord, SkillStore,
+};
 pub use skill_talent::{
     GlyphBindableSpellEntry, GlyphBindableSpellStore, GlyphPropertiesEntry, GlyphPropertiesStore,
     GlyphRequiredSpecEntry, GlyphRequiredSpecStore, GlyphSlotEntry, GlyphSlotStore,

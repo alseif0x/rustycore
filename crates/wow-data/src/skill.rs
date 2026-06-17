@@ -8,12 +8,13 @@
 //! Determines which spells each race/class/level should auto-learn,
 //! replicating C#'s `LearnDefaultSkills()` → `LearnSkillRewardedSpells()`.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
 use anyhow::{Context, Result};
 use tracing::info;
 
+use crate::entities_movement::CreatureFamilyEntry;
 use crate::wdc4::Wdc4Reader;
 
 // ── Records ─────────────────────────────────────────────────────────
@@ -60,6 +61,127 @@ pub struct SkillInfoEntry {
     pub max_rank: u16,
     pub temp_bonus: i16,
     pub perm_bonus: u16,
+}
+
+/// Minimal C++ `SpellInfo` view used by `LoadPetLevelupSpellMap`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PetLevelupSpellInfoLikeCpp {
+    pub id: u32,
+    pub spell_level: u32,
+}
+
+/// Represented C++ `PetLevelupSpellSet` (`std::multimap<SpellLevel, SpellId>`).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PetLevelupSpellSetLikeCpp {
+    spells_by_level: BTreeMap<u32, Vec<u32>>,
+    count: usize,
+}
+
+impl PetLevelupSpellSetLikeCpp {
+    fn insert_like_cpp(&mut self, spell_level: u32, spell_id: u32) {
+        self.spells_by_level
+            .entry(spell_level)
+            .or_default()
+            .push(spell_id);
+        self.count += 1;
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.count == 0
+    }
+
+    pub fn len(&self) -> usize {
+        self.count
+    }
+
+    /// Iterate like C++ `std::multimap`: ordered by level, preserving duplicates.
+    pub fn iter(&self) -> impl Iterator<Item = (u32, u32)> + '_ {
+        self.spells_by_level
+            .iter()
+            .flat_map(|(level, spells)| spells.iter().map(move |spell| (*level, *spell)))
+    }
+}
+
+/// Represented C++ `SpellMgr::mPetLevelupSpellMap`.
+#[derive(Debug, Clone, Default)]
+pub struct PetLevelupSpellStoreLikeCpp {
+    spells_by_family: HashMap<u32, PetLevelupSpellSetLikeCpp>,
+    count: usize,
+}
+
+impl PetLevelupSpellStoreLikeCpp {
+    /// C++ `SpellMgr::LoadPetLevelupSpellMap`, represented without live `SpellMgr`.
+    ///
+    /// The callback is the future `GetSpellInfo(spell, DIFFICULTY_NONE)` seam.
+    pub fn load_like_cpp(
+        creature_families: impl IntoIterator<Item = CreatureFamilyEntry>,
+        skill_store: &SkillStore,
+        mut spell_info: impl FnMut(i32) -> Option<PetLevelupSpellInfoLikeCpp>,
+    ) -> Self {
+        let mut spells_by_family: HashMap<u32, PetLevelupSpellSetLikeCpp> = HashMap::new();
+        let mut count = 0usize;
+
+        for creature_family in creature_families {
+            for skill_line in creature_family.skill_line {
+                if skill_line <= 0 {
+                    continue;
+                }
+
+                let Ok(skill_line) = u16::try_from(skill_line) else {
+                    continue;
+                };
+
+                let Some(skill_line_abilities) =
+                    skill_store.skill_line_abilities_by_skill_like_cpp(skill_line)
+                else {
+                    continue;
+                };
+
+                for skill_line_ability in skill_line_abilities {
+                    if skill_line_ability.acquire_method
+                        != SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP
+                    {
+                        continue;
+                    }
+
+                    let Some(spell) = spell_info(skill_line_ability.spell) else {
+                        continue;
+                    };
+
+                    if spell.spell_level == 0 {
+                        continue;
+                    }
+
+                    spells_by_family
+                        .entry(creature_family.id)
+                        .or_default()
+                        .insert_like_cpp(spell.spell_level, spell.id);
+                    count += 1;
+                }
+            }
+        }
+
+        Self {
+            spells_by_family,
+            count,
+        }
+    }
+
+    /// C++ `SpellMgr::GetPetLevelupSpellList(petFamily)`.
+    pub fn get_pet_levelup_spell_list_like_cpp(
+        &self,
+        pet_family: u32,
+    ) -> Option<&PetLevelupSpellSetLikeCpp> {
+        self.spells_by_family.get(&pet_family)
+    }
+
+    pub fn count(&self) -> usize {
+        self.count
+    }
+
+    pub fn family_count(&self) -> usize {
+        self.spells_by_family.len()
+    }
 }
 
 // ── Store ───────────────────────────────────────────────────────────
@@ -502,6 +624,14 @@ impl SkillStore {
             .unwrap_or(&[])
     }
 
+    /// C++ `DB2Manager::GetSkillLineAbilitiesBySkill(skillId)`.
+    pub fn skill_line_abilities_by_skill_like_cpp(
+        &self,
+        skill_id: u16,
+    ) -> Option<&[SkillLineAbilityRecord]> {
+        self.abilities_by_skill.get(&skill_id).map(Vec::as_slice)
+    }
+
     /// Number of SkillRaceClassInfo records loaded.
     pub fn race_class_count(&self) -> usize {
         self.total_race_class
@@ -517,6 +647,8 @@ fn matches_race(mask: i64, race: u8) -> bool {
 fn matches_class(mask: i32, class: u8) -> bool {
     mask == 0 || (mask & (1i32 << (class as i32 - 1))) != 0
 }
+
+const SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP: i8 = 2;
 
 // ── Tests ────────────────────────────────────────────────────────────
 
@@ -553,6 +685,34 @@ mod tests {
             trivial_rank_low: 0,
             flags: 0,
             num_skill_ups: 0,
+        }
+    }
+
+    fn pet_ability(
+        id: u32,
+        skill_line: u16,
+        spell: i32,
+        acquire_method: i8,
+    ) -> SkillLineAbilityRecord {
+        SkillLineAbilityRecord {
+            acquire_method,
+            ..ability(id, skill_line, spell)
+        }
+    }
+
+    fn creature_family(id: u32, skill_line: [i16; 2]) -> CreatureFamilyEntry {
+        CreatureFamilyEntry {
+            id,
+            name: String::new(),
+            min_scale: 0.0,
+            min_scale_level: 0,
+            max_scale: 0.0,
+            max_scale_level: 0,
+            pet_food_mask: 0,
+            pet_talent_type: 0,
+            category_enum_id: 0,
+            icon_file_id: 0,
+            skill_line,
         }
     }
 
@@ -598,6 +758,120 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![10, 11],
             "C++ mSkillLineAbilityMap is a multimap and preserves every inserted row"
+        );
+    }
+
+    #[test]
+    fn pet_levelup_spell_map_filters_like_cpp() {
+        let skill_store = SkillStore::from_skill_line_abilities_like_cpp([
+            pet_ability(
+                1,
+                10,
+                1000,
+                SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP,
+            ),
+            pet_ability(2, 10, 1001, 1),
+            pet_ability(
+                3,
+                10,
+                1002,
+                SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP,
+            ),
+            pet_ability(
+                4,
+                10,
+                1003,
+                SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP,
+            ),
+            pet_ability(
+                5,
+                20,
+                2000,
+                SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP,
+            ),
+        ]);
+
+        let store = PetLevelupSpellStoreLikeCpp::load_like_cpp(
+            [creature_family(42, [10, 20]), creature_family(77, [0, 99])],
+            &skill_store,
+            |spell_id| match spell_id {
+                1000 => Some(PetLevelupSpellInfoLikeCpp {
+                    id: 1000,
+                    spell_level: 4,
+                }),
+                1002 => None,
+                1003 => Some(PetLevelupSpellInfoLikeCpp {
+                    id: 1003,
+                    spell_level: 0,
+                }),
+                2000 => Some(PetLevelupSpellInfoLikeCpp {
+                    id: 2000,
+                    spell_level: 7,
+                }),
+                _ => panic!("unexpected spell lookup {spell_id}"),
+            },
+        );
+
+        let pet_family_42 = store
+            .get_pet_levelup_spell_list_like_cpp(42)
+            .expect("family should have levelup spells");
+        assert_eq!(
+            pet_family_42.iter().collect::<Vec<_>>(),
+            vec![(4, 1000), (7, 2000)]
+        );
+        assert_eq!(store.count(), 2);
+        assert_eq!(store.family_count(), 1);
+        assert!(store.get_pet_levelup_spell_list_like_cpp(77).is_none());
+    }
+
+    #[test]
+    fn pet_levelup_spell_map_orders_like_cpp_multimap_by_spell_level() {
+        let skill_store = SkillStore::from_skill_line_abilities_like_cpp([
+            pet_ability(
+                1,
+                10,
+                3000,
+                SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP,
+            ),
+            pet_ability(
+                2,
+                10,
+                3001,
+                SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP,
+            ),
+            pet_ability(
+                3,
+                10,
+                3002,
+                SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP,
+            ),
+        ]);
+
+        let store = PetLevelupSpellStoreLikeCpp::load_like_cpp(
+            [creature_family(42, [10, 0])],
+            &skill_store,
+            |spell_id| {
+                let spell_level = match spell_id {
+                    3000 => 20,
+                    3001 => 10,
+                    3002 => 20,
+                    _ => unreachable!(),
+                };
+                Some(PetLevelupSpellInfoLikeCpp {
+                    id: spell_id as u32,
+                    spell_level,
+                })
+            },
+        );
+
+        assert_eq!(
+            store
+                .get_pet_levelup_spell_list_like_cpp(42)
+                .expect("family should have levelup spells")
+                .iter()
+                .collect::<Vec<_>>(),
+            vec![(10, 3001), (20, 3000), (20, 3002)],
+            "C++ PetLevelupSpellSet is a multimap keyed by SpellLevel"
         );
     }
 
