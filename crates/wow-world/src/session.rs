@@ -80,12 +80,13 @@ use wow_data::{
     SpellAuraOptionsStore, SpellCategoryStore, SpellChainStoreLikeCpp, SpellDurationStore,
     SpellEnchantProcEntryLikeCpp, SpellEnchantProcStoreLikeCpp, SpellGroupStackRuleLikeCpp,
     SpellGroupStackRuleStoreLikeCpp, SpellGroupStoreLikeCpp, SpellItemEnchantmentStore,
-    SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp, SpellMiscStore, SpellProcEntryLikeCpp,
-    SpellProcStoreLikeCpp, SpellRadiusStore, SpellRangeStore, SpellRequiredStoreLikeCpp,
-    SpellStore, SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp,
-    SpellTotemModelStoreLikeCpp, SummonPropertiesEntry, ToyStore, TransmogSetEntry,
-    TransmogSetItemStore, TrinityStringStoreLikeCpp, VEHICLE_SEAT_FLAG_CAN_ATTACK,
-    VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
+    SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp, SpellMiscStore, SpellPetAuraStoreLikeCpp,
+    SpellProcEntryLikeCpp, SpellProcStoreLikeCpp, SpellRadiusStore, SpellRangeStore,
+    SpellRequiredStoreLikeCpp, SpellStore, SpellTargetPositionStoreLikeCpp,
+    SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp, SpellTotemModelStoreLikeCpp,
+    SummonPropertiesEntry, ToyStore, TransmogSetEntry, TransmogSetItemStore,
+    TrinityStringStoreLikeCpp, VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp,
+    VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
     calculate_battle_pet_stats_like_cpp, is_player_meeting_condition_like_cpp,
     progression_rewards::{
         ContentTuningStore, FactionEntry, FactionStore, FactionTemplateStore,
@@ -120,8 +121,8 @@ use wow_entities::{
     Item, ItemCreateInfo, ItemDataUpdate, ItemLimitCategoryTemplate, ItemPosCount, ItemSlotRef,
     ItemStorageRef, ItemStorageTemplate, ItemValuesUpdate, MAX_BAG_SIZE, MAX_ITEM_SPELLS,
     MAX_MONEY_AMOUNT, MAX_POWERS, NULL_BAG, NULL_SLOT, ObjectAccessor, PLAYER_SLOT_END, Pet,
-    PetDeclinedNamesLikeCpp, PetSaveMode, PetSpellState, PetSpellType, PetStable, PetStableInfo,
-    PetType, PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerInventoryStorage,
+    PetAuraLikeCpp, PetDeclinedNamesLikeCpp, PetSaveMode, PetSpellState, PetSpellType, PetStable,
+    PetStableInfo, PetType, PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerInventoryStorage,
     PlayerItemTimeUpdate, QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE,
     REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, ReactState, SendNewItemDelivery,
     SendNewItemDisplayText, SendNewItemPlan, TYPEID_ITEM, UNIT_DATA_HEALTH_BIT, Unit,
@@ -3874,6 +3875,7 @@ pub struct WorldSession {
     spell_group_store: Option<Arc<SpellGroupStoreLikeCpp>>,
     spell_group_stack_rule_store: Option<Arc<SpellGroupStackRuleStoreLikeCpp>>,
     spell_linked_store: Option<Arc<SpellLinkedStoreLikeCpp>>,
+    spell_pet_aura_store: Option<Arc<SpellPetAuraStoreLikeCpp>>,
     spell_proc_store: Option<Arc<SpellProcStoreLikeCpp>>,
     spell_required_store: Option<Arc<SpellRequiredStoreLikeCpp>>,
     spell_threat_store: Option<Arc<SpellThreatStoreLikeCpp>>,
@@ -5183,6 +5185,7 @@ impl WorldSession {
             spell_group_store: None,
             spell_group_stack_rule_store: None,
             spell_linked_store: None,
+            spell_pet_aura_store: None,
             spell_proc_store: None,
             spell_required_store: None,
             spell_threat_store: None,
@@ -17042,6 +17045,20 @@ impl WorldSession {
             .as_ref()
             .and_then(|store| store.get_spell_linked_like_cpp(link_type, spell_id))
             .unwrap_or(&[])
+    }
+
+    pub fn set_spell_pet_aura_store(&mut self, store: Arc<SpellPetAuraStoreLikeCpp>) {
+        self.spell_pet_aura_store = Some(store);
+    }
+
+    pub(crate) fn pet_aura_like_cpp(
+        &self,
+        spell_id: u32,
+        effect_index: u8,
+    ) -> Option<&PetAuraLikeCpp> {
+        self.spell_pet_aura_store
+            .as_ref()
+            .and_then(|store| store.get_pet_aura_like_cpp(spell_id, effect_index))
     }
 
     pub fn set_spell_proc_store(&mut self, store: Arc<SpellProcStoreLikeCpp>) {
@@ -41804,6 +41821,37 @@ mod tests {
         outcome.store
     }
 
+    fn test_spell_pet_aura_store_like_cpp() -> wow_data::SpellPetAuraStoreLikeCpp {
+        let outcome = wow_data::SpellPetAuraStoreLikeCpp::load_spell_pet_auras_like_cpp(
+            [
+                wow_data::SpellPetAuraRowLikeCpp {
+                    spell_id: 77,
+                    effect_index: 2,
+                    pet_entry: 0,
+                    aura_id: 900,
+                },
+                wow_data::SpellPetAuraRowLikeCpp {
+                    spell_id: 77,
+                    effect_index: 2,
+                    pet_entry: 501,
+                    aura_id: 901,
+                },
+            ],
+            |_, _| {
+                wow_data::SpellPetAuraSourceLookupLikeCpp::Found(
+                    wow_data::SpellPetAuraSourceEffectLikeCpp {
+                        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_DUMMY,
+                        apply_aura_name: 0,
+                        target_a: wow_data::TARGET_UNIT_PET_LIKE_CPP,
+                        calc_value: 35,
+                    },
+                )
+            },
+            |_| true,
+        );
+        outcome.store
+    }
+
     #[test]
     fn spell_proc_entry_prefers_exact_difficulty_like_cpp() {
         let (mut session, _, _) = make_session();
@@ -42105,6 +42153,26 @@ mod tests {
         assert_eq!(session.model_for_totem_like_cpp(50, 8), 3000);
         assert_eq!(session.model_for_totem_like_cpp(50, 3), 0);
         assert_eq!(session.model_for_totem_like_cpp(51, 2), 0);
+    }
+
+    #[test]
+    fn spell_pet_aura_query_returns_none_without_store_like_cpp() {
+        let (session, _, _) = make_session();
+
+        assert!(session.pet_aura_like_cpp(77, 2).is_none());
+    }
+
+    #[test]
+    fn spell_pet_aura_query_matches_spell_effect_key_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_spell_pet_aura_store(Arc::new(test_spell_pet_aura_store_like_cpp()));
+
+        let aura = session.pet_aura_like_cpp(77, 2).expect("pet aura");
+        assert!(aura.remove_on_change_pet);
+        assert_eq!(aura.damage, 35);
+        assert_eq!(aura.aura_for_pet_entry_like_cpp(501), 901);
+        assert_eq!(aura.aura_for_pet_entry_like_cpp(502), 900);
+        assert!(session.pet_aura_like_cpp(77, 3).is_none());
     }
 
     fn install_create_map_difficulty_stores_like_cpp(

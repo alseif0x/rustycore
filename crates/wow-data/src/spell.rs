@@ -1069,6 +1069,53 @@ impl SpellPetAuraStoreLikeCpp {
             .get(&Self::key_like_cpp(spell_id, effect_index))
     }
 
+    pub async fn load_like_cpp(
+        db: &WorldDatabase,
+        spells: &SpellStore,
+    ) -> Result<SpellPetAuraLoadOutcomeLikeCpp> {
+        let stmt = db.prepare(WorldStatements::SEL_SPELL_PET_AURAS);
+        let mut result = db.query(&stmt).await?;
+        let mut rows = Vec::new();
+
+        if !result.is_empty() {
+            loop {
+                rows.push(SpellPetAuraRowLikeCpp {
+                    spell_id: result.try_read::<u32>(0).unwrap_or(0),
+                    effect_index: result.try_read::<u8>(1).unwrap_or(0),
+                    pet_entry: result.try_read::<u32>(2).unwrap_or(0),
+                    aura_id: result.try_read::<u32>(3).unwrap_or(0),
+                });
+
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        Ok(Self::load_spell_pet_auras_like_cpp(
+            rows,
+            |spell_id, effect_index| {
+                let Some(spell) = spells.get(spell_id as i32) else {
+                    return SpellPetAuraSourceLookupLikeCpp::SpellMissing;
+                };
+                let Some(effect) = spell
+                    .effects()
+                    .iter()
+                    .find(|effect| effect.effect_index == u32::from(effect_index))
+                else {
+                    return SpellPetAuraSourceLookupLikeCpp::EffectIndexMissing;
+                };
+                SpellPetAuraSourceLookupLikeCpp::Found(SpellPetAuraSourceEffectLikeCpp {
+                    effect: effect.effect,
+                    apply_aura_name: effect.effect_aura,
+                    target_a: effect.implicit_target_1,
+                    calc_value: effect.calc_value_no_caster_like_cpp(),
+                })
+            },
+            |aura_id| spells.get(aura_id as i32).is_some(),
+        ))
+    }
+
     pub fn load_spell_pet_auras_like_cpp<I, SourceEffect, AuraExists>(
         rows: I,
         mut source_effect_lookup: SourceEffect,

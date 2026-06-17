@@ -2472,6 +2472,16 @@ async fn main() -> Result<ExitCode> {
         spell_totem_model_outcome.loaded_row_count,
         spell_totem_model_outcome.errors.len()
     );
+    let spell_pet_aura_outcome =
+        wow_data::SpellPetAuraStoreLikeCpp::load_like_cpp(world_db.as_ref(), &spell_store)
+            .await
+            .context("Failed to load C++ spell_pet_auras rows")?;
+    let spell_pet_aura_store = Arc::new(spell_pet_aura_outcome.store);
+    info!(
+        "Loaded {} C++ spell_pet_auras rows ({} validation issues)",
+        spell_pet_aura_outcome.loaded_row_count,
+        spell_pet_aura_outcome.errors.len()
+    );
     let spell_store = Arc::new(spell_store);
 
     // Shared group registry and pending invites
@@ -2829,6 +2839,7 @@ async fn main() -> Result<ExitCode> {
         spell_group_store: Some(Arc::clone(&spell_group_store)),
         spell_group_stack_rule_store: Some(Arc::clone(&spell_group_stack_rule_store)),
         spell_linked_store: Some(Arc::clone(&spell_linked_store)),
+        spell_pet_aura_store: Some(Arc::clone(&spell_pet_aura_store)),
         spell_procs_per_minute_store: Some(Arc::clone(&spell_procs_per_minute_store)),
         spell_proc_store: Some(Arc::clone(&spell_proc_store)),
         spell_required_store: Some(Arc::clone(&spell_required_store)),
@@ -9135,6 +9146,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.spell_linked_store {
         session.set_spell_linked_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.spell_pet_aura_store {
+        session.set_spell_pet_aura_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.spell_proc_store {
         session.set_spell_proc_store(Arc::clone(store));
