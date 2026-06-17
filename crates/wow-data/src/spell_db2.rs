@@ -543,8 +543,11 @@ db2_store!(SpellVisualMissileStore, SpellVisualMissileEntry);
 db2_store!(SpellXSpellVisualStore, SpellXSpellVisualEntry);
 
 impl SpellAuraOptionsStore {
-    /// C++ `SpellInfo::ProcCharges`, hydrated from `SpellAuraOptionsEntry`.
-    pub fn proc_charges_like_cpp(&self, spell_id: u32, difficulty_id: u8) -> u8 {
+    pub fn entry_for_spell_difficulty_like_cpp(
+        &self,
+        spell_id: u32,
+        difficulty_id: u8,
+    ) -> Option<&SpellAuraOptionsEntry> {
         self.entries
             .values()
             .find(|entry| entry.spell_id == spell_id && entry.difficulty_id == difficulty_id)
@@ -553,6 +556,11 @@ impl SpellAuraOptionsStore {
                     .values()
                     .find(|entry| entry.spell_id == spell_id && entry.difficulty_id == 0)
             })
+    }
+
+    /// C++ `SpellInfo::ProcCharges`, hydrated from `SpellAuraOptionsEntry`.
+    pub fn proc_charges_like_cpp(&self, spell_id: u32, difficulty_id: u8) -> u8 {
+        self.entry_for_spell_difficulty_like_cpp(spell_id, difficulty_id)
             .map(|entry| entry.proc_charges.clamp(0, i32::from(u8::MAX)) as u8)
             .unwrap_or(0)
     }
@@ -666,6 +674,12 @@ impl SpellCategoryStore {
 }
 
 impl SpellClassOptionsStore {
+    pub fn entry_for_spell_like_cpp(&self, spell_id: u32) -> Option<&SpellClassOptionsEntry> {
+        self.entries
+            .values()
+            .find(|entry| u32::try_from(entry.spell_id).ok() == Some(spell_id))
+    }
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "SpellClassOptions.db2", |id, idx, r| {
             SpellClassOptionsEntry {
@@ -753,6 +767,23 @@ impl SpellPowerDifficultyStore {
                 order_index: r.get_field_u8(idx, 2),
             },
         )
+    }
+}
+
+impl SpellMiscStore {
+    pub fn entry_for_spell_difficulty_like_cpp(
+        &self,
+        spell_id: u32,
+        difficulty_id: u8,
+    ) -> Option<&SpellMiscEntry> {
+        self.entries
+            .values()
+            .find(|entry| entry.spell_id == spell_id && entry.difficulty_id == difficulty_id)
+            .or_else(|| {
+                self.entries
+                    .values()
+                    .find(|entry| entry.spell_id == spell_id && entry.difficulty_id == 0)
+            })
     }
 }
 

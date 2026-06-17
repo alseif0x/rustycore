@@ -3363,6 +3363,64 @@ pub struct SpellProcSourceSpellInfoLikeCpp {
 }
 
 impl SpellProcSourceSpellInfoLikeCpp {
+    pub fn from_loaded_spell_like_cpp(
+        spell_id: u32,
+        difficulty: u32,
+        spells: &SpellStore,
+        spell_chains: &SpellChainStoreLikeCpp,
+        spell_aura_options: &crate::spell_db2::SpellAuraOptionsStore,
+        spell_misc: &crate::spell_db2::SpellMiscStore,
+        spell_class_options: &crate::spell_db2::SpellClassOptionsStore,
+        spell_procs_per_minute: &crate::spell_db2::SpellProcsPerMinuteStore,
+    ) -> Option<Self> {
+        let spell = spells.get(i32::try_from(spell_id).ok()?)?;
+        let difficulty_id = u8::try_from(difficulty).unwrap_or(0);
+        let aura_options =
+            spell_aura_options.entry_for_spell_difficulty_like_cpp(spell_id, difficulty_id);
+        let spell_misc = spell_misc.entry_for_spell_difficulty_like_cpp(spell_id, difficulty_id);
+        let spell_class_options = spell_class_options.entry_for_spell_like_cpp(spell_id);
+
+        Some(Self {
+            spell_id,
+            difficulty,
+            first_rank_spell_id: spell_chains.first_spell_in_chain_like_cpp(spell_id),
+            next_rank_spell_id: match spell_chains.next_spell_in_chain_like_cpp(spell_id) {
+                0 => None,
+                next => Some(next),
+            },
+            spell_family_name: spell_class_options
+                .map(|entry| u16::from(entry.spell_class_set))
+                .unwrap_or(0),
+            proc_flags: aura_options
+                .map(|entry| {
+                    [
+                        entry.proc_type_mask[0] as u32,
+                        entry.proc_type_mask[1] as u32,
+                    ]
+                })
+                .unwrap_or([0, 0]),
+            proc_charges: aura_options
+                .map(|entry| entry.proc_charges as u32)
+                .unwrap_or(0),
+            proc_chance: aura_options
+                .map(|entry| f32::from(entry.proc_chance))
+                .unwrap_or(0.0),
+            proc_cooldown_ms: aura_options
+                .map(|entry| entry.proc_category_recovery as u32)
+                .unwrap_or(0),
+            proc_base_ppm: aura_options
+                .and_then(|entry| {
+                    spell_procs_per_minute.get(u32::from(entry.spell_procs_per_minute_id))
+                })
+                .map(|entry| entry.base_proc_rate)
+                .unwrap_or(0.0),
+            attributes3: spell_misc
+                .map(|entry| entry.attributes[3] as u32)
+                .unwrap_or(0),
+            effects: spell.effects().to_vec(),
+        })
+    }
+
     pub fn is_ranked_like_cpp(&self) -> bool {
         self.first_rank_spell_id != self.spell_id || self.next_rank_spell_id.is_some()
     }
@@ -7205,6 +7263,109 @@ mod tests {
     }
 
     #[test]
+    fn spell_proc_source_builds_from_loaded_spell_and_db2_stores_like_cpp() {
+        let mut spells = SpellStore::new();
+        spells.insert(
+            100,
+            SpellInfo {
+                spell_id: 100,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(aura_types::SPELL_AURA_PROC_TRIGGER_SPELL),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![SpellEffectInfo {
+                    effect_index: 0,
+                    effect: spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: aura_types::SPELL_AURA_PROC_TRIGGER_SPELL,
+                    effect_spell_class_mask: [10, 20, 30, 40],
+                    ..Default::default()
+                }],
+            },
+        );
+        spells.insert(101, test_spell_info_without_aura(101));
+
+        let chains = SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(
+            [SpellRankEdgeLikeCpp {
+                spell_id: 101,
+                supercedes_spell_id: 100,
+            }],
+            |spell_id| spells.get(spell_id as i32).is_some(),
+        );
+        let aura_options = crate::spell_db2::SpellAuraOptionsStore::from_entries([
+            test_spell_aura_options_entry_like_cpp(1, 100, 0, [1, 0], 10, 2, 300, 9),
+            test_spell_aura_options_entry_like_cpp(2, 100, 1, [-1, 7], 35, -2, -300, 42),
+        ]);
+        let misc = crate::spell_db2::SpellMiscStore::from_entries([
+            test_spell_misc_entry_like_cpp(1, 100, 0, 0x0100),
+            test_spell_misc_entry_like_cpp(2, 100, 1, attributes::SPELL_ATTR3_CAN_PROC_FROM_PROCS),
+        ]);
+        let class_options = crate::spell_db2::SpellClassOptionsStore::from_entries([
+            crate::spell_db2::SpellClassOptionsEntry {
+                id: 1,
+                spell_id: 100,
+                modal_next_spell: 0,
+                spell_class_set: 8,
+                spell_class_mask: [10, 20, 30, 40],
+            },
+        ]);
+        let ppm = crate::spell_db2::SpellProcsPerMinuteStore::from_entries([
+            crate::spell_db2::SpellProcsPerMinuteEntry {
+                id: 42,
+                base_proc_rate: 1.75,
+                flags: 0,
+            },
+        ]);
+
+        let source = SpellProcSourceSpellInfoLikeCpp::from_loaded_spell_like_cpp(
+            100,
+            1,
+            &spells,
+            &chains,
+            &aura_options,
+            &misc,
+            &class_options,
+            &ppm,
+        )
+        .unwrap();
+
+        assert_eq!(source.spell_id, 100);
+        assert_eq!(source.difficulty, 1);
+        assert_eq!(source.first_rank_spell_id, 100);
+        assert_eq!(source.next_rank_spell_id, Some(101));
+        assert_eq!(source.spell_family_name, 8);
+        assert_eq!(source.proc_flags, [u32::MAX, 7]);
+        assert_eq!(source.proc_chance, 35.0);
+        assert_eq!(source.proc_charges, u32::MAX - 1);
+        assert_eq!(source.proc_cooldown_ms, (-300_i32) as u32);
+        assert_eq!(source.proc_base_ppm, 1.75);
+        assert_eq!(
+            source.attributes3,
+            attributes::SPELL_ATTR3_CAN_PROC_FROM_PROCS
+        );
+        assert_eq!(source.effects.len(), 1);
+        assert_eq!(source.effects[0].effect_spell_class_mask, [10, 20, 30, 40]);
+
+        let fallback_source = SpellProcSourceSpellInfoLikeCpp::from_loaded_spell_like_cpp(
+            100,
+            2,
+            &spells,
+            &chains,
+            &aura_options,
+            &misc,
+            &class_options,
+            &ppm,
+        )
+        .unwrap();
+        assert_eq!(fallback_source.proc_flags, [1, 0]);
+        assert_eq!(fallback_source.attributes3, 0x0100);
+    }
+
+    #[test]
     fn spell_proc_store_generates_from_spell_infos_after_sql_like_cpp() {
         let mut generated = test_spell_proc_source_like_cpp(901, 901, None);
         generated.proc_flags = [PROC_FLAG_DEAL_HARMFUL_SPELL_LIKE_CPP, 0];
@@ -7687,6 +7848,56 @@ mod tests {
         let mut effect = test_implicit_proc_effect_like_cpp(effect_index, aura_type, [0, 0, 0, 0]);
         effect.calc_value = calc_value;
         effect
+    }
+
+    fn test_spell_aura_options_entry_like_cpp(
+        id: u32,
+        spell_id: u32,
+        difficulty_id: u8,
+        proc_type_mask: [i32; 2],
+        proc_chance: u8,
+        proc_charges: i32,
+        proc_category_recovery: i32,
+        spell_procs_per_minute_id: u16,
+    ) -> crate::spell_db2::SpellAuraOptionsEntry {
+        crate::spell_db2::SpellAuraOptionsEntry {
+            id,
+            difficulty_id,
+            cumulative_aura: 0,
+            proc_category_recovery,
+            proc_chance,
+            proc_charges,
+            spell_procs_per_minute_id,
+            proc_type_mask,
+            spell_id,
+        }
+    }
+
+    fn test_spell_misc_entry_like_cpp(
+        id: u32,
+        spell_id: u32,
+        difficulty_id: u8,
+        attributes3: u32,
+    ) -> crate::spell_db2::SpellMiscEntry {
+        let mut attributes = [0; 15];
+        attributes[3] = attributes3 as i32;
+        crate::spell_db2::SpellMiscEntry {
+            id,
+            attributes,
+            difficulty_id,
+            casting_time_index: 0,
+            duration_index: 0,
+            range_index: 0,
+            school_mask: 0,
+            speed: 0.0,
+            launch_delay: 0.0,
+            min_duration: 0.0,
+            spell_icon_file_data_id: 0,
+            active_icon_file_data_id: 0,
+            content_tuning_id: 0,
+            show_future_spell_player_condition_id: 0,
+            spell_id,
+        }
     }
 
     fn test_spell_proc_row_like_cpp(spell_id: i32) -> SpellProcRowLikeCpp {
