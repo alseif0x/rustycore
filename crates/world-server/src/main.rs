@@ -1150,12 +1150,25 @@ async fn main() -> Result<ExitCode> {
         gameobject_template_lifecycle_store.len(),
         gameobject_override_lifecycle_store.len()
     );
-    let script_name_interner = Arc::new(wow_data::build_template_script_name_interner_like_cpp(
+    let mut script_name_interner = wow_data::build_template_script_name_interner_like_cpp(
         creature_template_lifecycle_store.as_ref(),
         gameobject_template_lifecycle_store.as_ref(),
-    ));
+    );
+    let scene_template_outcome = wow_data::SceneTemplateStoreLikeCpp::load_like_cpp(
+        world_db.as_ref(),
+        &mut script_name_interner,
+    )
+    .await
+    .context("Failed to load C++ scene_template rows")?;
+    let _scene_template_store = Arc::new(scene_template_outcome.store);
     info!(
-        "Built C++ ScriptNameContainer core from loaded template stores: {} names ({} DB-bound)",
+        "Loaded {} C++ scene templates (C++ log-count bug would report {})",
+        scene_template_outcome.report.rows_seen,
+        scene_template_outcome.report.cpp_logged_count_bug_like_cpp
+    );
+    let script_name_interner = Arc::new(script_name_interner);
+    info!(
+        "Built C++ ScriptNameContainer core from loaded template/scene stores: {} names ({} DB-bound)",
         script_name_interner.len_like_cpp(),
         script_name_interner.all_db_script_names_like_cpp().len()
     );

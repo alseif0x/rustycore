@@ -338,6 +338,8 @@ pub enum WorldStatements {
     SEL_AREA_TRIGGER_TELEPORT,
     /// C++ `ObjectMgr::LoadPhaseNames`.
     SEL_PHASE_NAMES,
+    /// C++ `ObjectMgr::LoadSceneTemplates`.
+    SEL_SCENE_TEMPLATES,
     // Quest system
     SEL_QUEST_TEMPLATE,
     SEL_QUEST_OBJECTIVES,
@@ -1041,6 +1043,9 @@ impl StatementDef for WorldStatements {
                 "SELECT at.ID, wsl.MapID, wsl.LocX, wsl.LocY, wsl.LocZ, wsl.Facing FROM areatrigger_teleport at LEFT JOIN world_safe_locs wsl ON at.PortLocID = wsl.ID"
             }
             Self::SEL_PHASE_NAMES => "SELECT `ID`, `Name` FROM `phase_name`",
+            Self::SEL_SCENE_TEMPLATES => {
+                "SELECT SceneId, Flags, ScriptPackageID, Encrypted, ScriptName FROM scene_template"
+            }
             Self::SEL_TRAINER_BY_CREATURE => {
                 "SELECT TrainerId FROM creature_trainer WHERE CreatureID = ?"
             }
@@ -1512,5 +1517,16 @@ mod tests {
                     .count(),
             0
         );
+    }
+
+    #[test]
+    fn scene_templates_statement_matches_cpp_sql_exactly() {
+        let sql = WorldStatements::SEL_SCENE_TEMPLATES.sql();
+
+        assert_eq!(
+            sql,
+            "SELECT SceneId, Flags, ScriptPackageID, Encrypted, ScriptName FROM scene_template"
+        );
+        assert_eq!(sql.matches('?').count(), 0);
     }
 }

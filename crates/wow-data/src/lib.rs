@@ -64,6 +64,7 @@ pub mod quest_xp;
 pub mod rand_prop_points;
 pub mod reputation;
 pub mod reserved_names;
+pub mod scene_template;
 pub mod script_name;
 pub mod skill;
 pub mod skill_talent;
@@ -330,6 +331,10 @@ pub use poi::{
 };
 pub use rand_prop_points::{RandPropPointsEntry, RandPropPointsStore};
 pub use reserved_names::ReservedNameStoreLikeCpp;
+pub use scene_template::{
+    SceneTemplateLikeCpp, SceneTemplateLoadOutcomeLikeCpp, SceneTemplateLoadReportLikeCpp,
+    SceneTemplateRowLikeCpp, SceneTemplateStoreLikeCpp,
+};
 pub use script_name::{
     ScriptIdLikeCpp, ScriptNameEntryLikeCpp, ScriptNameInternerLikeCpp,
     build_template_script_name_interner_like_cpp,
