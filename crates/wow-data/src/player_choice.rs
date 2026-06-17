@@ -8,6 +8,7 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
+use wow_constants::shared::Locale;
 use wow_database::{WorldDatabase, WorldStatements};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -187,6 +188,42 @@ pub struct PlayerChoiceResponseMawPowerRowLikeCpp {
     pub max_stacks: i32,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerChoiceLocaleRowLikeCpp {
+    pub choice_id: i32,
+    pub locale: String,
+    pub question: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerChoiceResponseLocaleRowLikeCpp {
+    pub choice_id: i32,
+    pub response_id: i32,
+    pub locale: String,
+    pub answer: String,
+    pub header: String,
+    pub sub_header: String,
+    pub button_tooltip: String,
+    pub description: String,
+    pub confirmation: String,
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct PlayerChoiceResponseLocaleLikeCpp {
+    pub answer: HashMap<Locale, String>,
+    pub header: HashMap<Locale, String>,
+    pub sub_header: HashMap<Locale, String>,
+    pub button_tooltip: HashMap<Locale, String>,
+    pub description: HashMap<Locale, String>,
+    pub confirmation: HashMap<Locale, String>,
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct PlayerChoiceLocaleLikeCpp {
+    pub question: HashMap<Locale, String>,
+    pub responses: HashMap<i32, PlayerChoiceResponseLocaleLikeCpp>,
+}
+
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct PlayerChoiceLoadReportLikeCpp {
     pub choice_rows_seen: usize,
@@ -240,8 +277,23 @@ pub struct PlayerChoiceLoadReportLikeCpp {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct PlayerChoiceLocaleLoadReportLikeCpp {
+    pub choice_locale_rows_seen: usize,
+    /// C++ logs `_playerChoiceLocales.size()` after `playerchoice_locale`.
+    pub loaded_choice_locale_entries: usize,
+    pub response_locale_rows_seen: usize,
+    /// C++ `count`; increments per accepted `playerchoice_response_locale` row.
+    pub loaded_response_locale_rows: usize,
+    pub skipped_choice_locales_missing_choice: Vec<(i32, String)>,
+    /// C++ checks `_playerChoiceLocales`, not only `_playerChoices`, before response locales.
+    pub skipped_response_locales_missing_choice_locale: Vec<(i32, i32, String)>,
+    pub skipped_response_locales_missing_response: Vec<(i32, i32, String)>,
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct PlayerChoiceStoreLikeCpp {
     choices: HashMap<i32, PlayerChoiceLikeCpp>,
+    locales: HashMap<i32, PlayerChoiceLocaleLikeCpp>,
 }
 
 pub struct PlayerChoiceLoadOutcomeLikeCpp {
@@ -759,9 +811,95 @@ impl PlayerChoiceStoreLikeCpp {
         }
 
         PlayerChoiceLoadOutcomeLikeCpp {
-            store: Self { choices },
+            store: Self {
+                choices,
+                locales: HashMap::new(),
+            },
             report,
         }
+    }
+
+    pub fn load_locale_rows_like_cpp(
+        &mut self,
+        choice_locale_rows: impl IntoIterator<Item = PlayerChoiceLocaleRowLikeCpp>,
+        response_locale_rows: impl IntoIterator<Item = PlayerChoiceResponseLocaleRowLikeCpp>,
+    ) -> PlayerChoiceLocaleLoadReportLikeCpp {
+        self.locales.clear();
+        let mut report = PlayerChoiceLocaleLoadReportLikeCpp::default();
+
+        for row in choice_locale_rows {
+            report.choice_locale_rows_seen += 1;
+            if !self.choices.contains_key(&row.choice_id) {
+                report
+                    .skipped_choice_locales_missing_choice
+                    .push((row.choice_id, row.locale));
+                continue;
+            }
+
+            let Some(locale) = locale_from_name_like_cpp(&row.locale) else {
+                continue;
+            };
+            if locale == Locale::EnUS {
+                continue;
+            }
+
+            self.locales
+                .entry(row.choice_id)
+                .or_default()
+                .question
+                .insert(locale, row.question);
+        }
+        report.loaded_choice_locale_entries = self.locales.len();
+
+        for row in response_locale_rows {
+            report.response_locale_rows_seen += 1;
+            let Some(choice_locale) = self.locales.get_mut(&row.choice_id) else {
+                report.skipped_response_locales_missing_choice_locale.push((
+                    row.choice_id,
+                    row.response_id,
+                    row.locale,
+                ));
+                continue;
+            };
+
+            let Some(player_choice) = self.choices.get(&row.choice_id) else {
+                report.skipped_response_locales_missing_choice_locale.push((
+                    row.choice_id,
+                    row.response_id,
+                    row.locale,
+                ));
+                continue;
+            };
+            if player_choice
+                .get_response_like_cpp(row.response_id)
+                .is_none()
+            {
+                report.skipped_response_locales_missing_response.push((
+                    row.choice_id,
+                    row.response_id,
+                    row.locale,
+                ));
+                continue;
+            }
+
+            let Some(locale) = locale_from_name_like_cpp(&row.locale) else {
+                continue;
+            };
+            if locale == Locale::EnUS {
+                continue;
+            }
+
+            let data = choice_locale.responses.entry(row.response_id).or_default();
+            data.answer.insert(locale, row.answer);
+            data.header.insert(locale, row.header);
+            data.sub_header.insert(locale, row.sub_header);
+            data.button_tooltip.insert(locale, row.button_tooltip);
+            data.description.insert(locale, row.description);
+            data.confirmation.insert(locale, row.confirmation);
+            report.loaded_response_locale_rows += 1;
+        }
+
+        report
     }
 
     /// C++ `ObjectMgr::LoadPlayerChoices` core tables and base rewards.
@@ -998,9 +1136,69 @@ impl PlayerChoiceStoreLikeCpp {
         )
     }
 
+    /// C++ `ObjectMgr::LoadPlayerChoicesLocale`.
+    pub async fn load_locales_like_cpp(
+        &mut self,
+        db: &WorldDatabase,
+    ) -> Result<PlayerChoiceLocaleLoadReportLikeCpp> {
+        let mut choice_locale_result = db
+            .query(&db.prepare(WorldStatements::SEL_PLAYER_CHOICE_LOCALES))
+            .await?;
+        let mut choice_locale_rows = Vec::new();
+
+        if !choice_locale_result.is_empty() {
+            loop {
+                choice_locale_rows.push(PlayerChoiceLocaleRowLikeCpp {
+                    choice_id: choice_locale_result.read(0),
+                    locale: choice_locale_result.read_string(1),
+                    question: choice_locale_result.read_string(2),
+                });
+
+                if !choice_locale_result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        let mut response_locale_result = db
+            .query(&db.prepare(WorldStatements::SEL_PLAYER_CHOICE_RESPONSE_LOCALES))
+            .await?;
+        let mut response_locale_rows = Vec::new();
+
+        if !response_locale_result.is_empty() {
+            loop {
+                response_locale_rows.push(PlayerChoiceResponseLocaleRowLikeCpp {
+                    choice_id: response_locale_result.read(0),
+                    response_id: response_locale_result.read(1),
+                    locale: response_locale_result.read_string(2),
+                    answer: response_locale_result.read_string(3),
+                    header: response_locale_result.read_string(4),
+                    sub_header: response_locale_result.read_string(5),
+                    button_tooltip: response_locale_result.read_string(6),
+                    description: response_locale_result.read_string(7),
+                    confirmation: response_locale_result.read_string(8),
+                });
+
+                if !response_locale_result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        Ok(self.load_locale_rows_like_cpp(choice_locale_rows, response_locale_rows))
+    }
+
     /// C++ `ObjectMgr::GetPlayerChoice`.
     pub fn get_player_choice_like_cpp(&self, choice_id: i32) -> Option<&PlayerChoiceLikeCpp> {
         self.choices.get(&choice_id)
+    }
+
+    /// C++ `ObjectMgr::GetPlayerChoiceLocale`.
+    pub fn get_player_choice_locale_like_cpp(
+        &self,
+        choice_id: i32,
+    ) -> Option<&PlayerChoiceLocaleLikeCpp> {
+        self.locales.get(&choice_id)
     }
 
     pub fn len(&self) -> usize {
@@ -1016,6 +1214,24 @@ fn parse_bonus_list_ids_like_cpp(raw: &str) -> Vec<i32> {
     raw.split_whitespace()
         .filter_map(|token| token.parse::<i32>().ok())
         .collect()
+}
+
+fn locale_from_name_like_cpp(name: &str) -> Option<Locale> {
+    match name {
+        "enUS" => Some(Locale::EnUS),
+        "koKR" => Some(Locale::KoKR),
+        "frFR" => Some(Locale::FrFR),
+        "deDE" => Some(Locale::DeDE),
+        "zhCN" => Some(Locale::ZhCN),
+        "zhTW" => Some(Locale::ZhTW),
+        "esES" => Some(Locale::EsES),
+        "esMX" => Some(Locale::EsMX),
+        "ruRU" => Some(Locale::RuRU),
+        "none" => Some(Locale::None),
+        "ptBR" => Some(Locale::PtBR),
+        "itIT" => Some(Locale::ItIT),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
@@ -1132,6 +1348,32 @@ mod tests {
             rarity_color,
             spell_id: 22,
             max_stacks: 33,
+        }
+    }
+
+    fn choice_locale(choice_id: i32, locale: &str, question: &str) -> PlayerChoiceLocaleRowLikeCpp {
+        PlayerChoiceLocaleRowLikeCpp {
+            choice_id,
+            locale: locale.to_string(),
+            question: question.to_string(),
+        }
+    }
+
+    fn response_locale(
+        choice_id: i32,
+        response_id: i32,
+        locale: &str,
+    ) -> PlayerChoiceResponseLocaleRowLikeCpp {
+        PlayerChoiceResponseLocaleRowLikeCpp {
+            choice_id,
+            response_id,
+            locale: locale.to_string(),
+            answer: format!("answer {locale}"),
+            header: format!("header {locale}"),
+            sub_header: format!("sub {locale}"),
+            button_tooltip: format!("tip {locale}"),
+            description: format!("desc {locale}"),
+            confirmation: format!("confirm {locale}"),
         }
     }
 
@@ -1704,5 +1946,81 @@ mod tests {
             outcome.report.skipped_maw_powers_missing_response,
             [(1, 77)]
         );
+    }
+
+    #[test]
+    fn player_choices_load_locales_like_cpp() {
+        let mut outcome = PlayerChoiceStoreLikeCpp::from_rows_like_cpp(
+            [choice(1, "Question"), choice(2, "Question 2")],
+            [response(1, 10, 1), response(2, 20, 2)],
+        );
+
+        let report = outcome.store.load_locale_rows_like_cpp(
+            [
+                choice_locale(1, "esES", "Pregunta"),
+                choice_locale(1, "enUS", "Ignored"),
+                choice_locale(2, "bad", "Ignored"),
+            ],
+            [
+                response_locale(1, 10, "esES"),
+                response_locale(1, 10, "enUS"),
+            ],
+        );
+
+        assert_eq!(report.choice_locale_rows_seen, 3);
+        assert_eq!(report.loaded_choice_locale_entries, 1);
+        assert_eq!(report.response_locale_rows_seen, 2);
+        assert_eq!(report.loaded_response_locale_rows, 1);
+
+        let locale = outcome.store.get_player_choice_locale_like_cpp(1).unwrap();
+        assert_eq!(locale.question.get(&Locale::EsES).unwrap(), "Pregunta");
+        assert!(!locale.question.contains_key(&Locale::EnUS));
+        let response_locale = locale.responses.get(&10).unwrap();
+        assert_eq!(
+            response_locale.answer.get(&Locale::EsES).unwrap(),
+            "answer esES"
+        );
+        assert_eq!(
+            response_locale.header.get(&Locale::EsES).unwrap(),
+            "header esES"
+        );
+        assert_eq!(
+            response_locale.confirmation.get(&Locale::EsES).unwrap(),
+            "confirm esES"
+        );
+    }
+
+    #[test]
+    fn player_choices_skip_locales_with_missing_refs_like_cpp() {
+        let mut outcome = PlayerChoiceStoreLikeCpp::from_rows_like_cpp(
+            [choice(1, "Question"), choice(2, "Question 2")],
+            [response(1, 10, 1), response(2, 20, 2)],
+        );
+
+        let report = outcome.store.load_locale_rows_like_cpp(
+            [
+                choice_locale(99, "esES", "Missing"),
+                choice_locale(1, "esES", "Pregunta"),
+            ],
+            [
+                response_locale(2, 20, "esES"),
+                response_locale(1, 77, "esES"),
+                response_locale(1, 10, "esES"),
+            ],
+        );
+
+        assert_eq!(
+            report.skipped_choice_locales_missing_choice,
+            [(99, "esES".to_string())]
+        );
+        assert_eq!(
+            report.skipped_response_locales_missing_choice_locale,
+            [(2, 20, "esES".to_string())]
+        );
+        assert_eq!(
+            report.skipped_response_locales_missing_response,
+            [(1, 77, "esES".to_string())]
+        );
+        assert_eq!(report.loaded_response_locale_rows, 1);
     }
 }

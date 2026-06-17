@@ -356,6 +356,10 @@ pub enum WorldStatements {
     SEL_PLAYER_CHOICE_RESPONSE_REWARD_ITEM_CHOICES,
     /// C++ `ObjectMgr::LoadPlayerChoices` response Maw Power rows.
     SEL_PLAYER_CHOICE_RESPONSE_MAW_POWERS,
+    /// C++ `ObjectMgr::LoadPlayerChoicesLocale` choice locale rows.
+    SEL_PLAYER_CHOICE_LOCALES,
+    /// C++ `ObjectMgr::LoadPlayerChoicesLocale` response locale rows.
+    SEL_PLAYER_CHOICE_RESPONSE_LOCALES,
     // Quest system
     SEL_QUEST_TEMPLATE,
     SEL_QUEST_OBJECTIVES,
@@ -1086,6 +1090,12 @@ impl StatementDef for WorldStatements {
             Self::SEL_PLAYER_CHOICE_RESPONSE_MAW_POWERS => {
                 "SELECT ChoiceId, ResponseId, TypeArtFileID, Rarity, RarityColor, SpellID, MaxStacks FROM playerchoice_response_maw_power"
             }
+            Self::SEL_PLAYER_CHOICE_LOCALES => {
+                "SELECT ChoiceId, locale, Question FROM playerchoice_locale"
+            }
+            Self::SEL_PLAYER_CHOICE_RESPONSE_LOCALES => {
+                "SELECT ChoiceID, ResponseID, locale, Answer, Header, SubHeader, ButtonTooltip, Description, Confirmation FROM playerchoice_response_locale"
+            }
             Self::SEL_TRAINER_BY_CREATURE => {
                 "SELECT TrainerId FROM creature_trainer WHERE CreatureID = ?"
             }
@@ -1582,6 +1592,8 @@ mod tests {
         let reward_item_choices_sql =
             WorldStatements::SEL_PLAYER_CHOICE_RESPONSE_REWARD_ITEM_CHOICES.sql();
         let maw_powers_sql = WorldStatements::SEL_PLAYER_CHOICE_RESPONSE_MAW_POWERS.sql();
+        let choice_locales_sql = WorldStatements::SEL_PLAYER_CHOICE_LOCALES.sql();
+        let response_locales_sql = WorldStatements::SEL_PLAYER_CHOICE_RESPONSE_LOCALES.sql();
 
         assert_eq!(
             choices_sql,
@@ -1615,6 +1627,14 @@ mod tests {
             maw_powers_sql,
             "SELECT ChoiceId, ResponseId, TypeArtFileID, Rarity, RarityColor, SpellID, MaxStacks FROM playerchoice_response_maw_power"
         );
+        assert_eq!(
+            choice_locales_sql,
+            "SELECT ChoiceId, locale, Question FROM playerchoice_locale"
+        );
+        assert_eq!(
+            response_locales_sql,
+            "SELECT ChoiceID, ResponseID, locale, Answer, Header, SubHeader, ButtonTooltip, Description, Confirmation FROM playerchoice_response_locale"
+        );
         assert_eq!(choices_sql.matches('?').count(), 0);
         assert_eq!(responses_sql.matches('?').count(), 0);
         assert_eq!(rewards_sql.matches('?').count(), 0);
@@ -1623,5 +1643,7 @@ mod tests {
         assert_eq!(reward_factions_sql.matches('?').count(), 0);
         assert_eq!(reward_item_choices_sql.matches('?').count(), 0);
         assert_eq!(maw_powers_sql.matches('?').count(), 0);
+        assert_eq!(choice_locales_sql.matches('?').count(), 0);
+        assert_eq!(response_locales_sql.matches('?').count(), 0);
     }
 }

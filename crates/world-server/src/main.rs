@@ -2610,7 +2610,7 @@ async fn main() -> Result<ExitCode> {
         wow_data::progression_rewards::QuestPackageItemStore::load(&data_dir, &locale)
             .context("Failed to load QuestPackageItem.db2 — check DataDir and DBC.Locale config")?,
     );
-    let player_choice_outcome = wow_data::PlayerChoiceStoreLikeCpp::load_core_like_cpp(
+    let mut player_choice_outcome = wow_data::PlayerChoiceStoreLikeCpp::load_core_like_cpp(
         world_db.as_ref(),
         |title_id| char_titles_store.contains(title_id),
         |package_id| {
@@ -2895,9 +2895,8 @@ async fn main() -> Result<ExitCode> {
             choice_id
         );
     }
-    let _player_choice_store = Arc::new(player_choice_outcome.store);
     info!(
-        "Loaded {} C++ player choices with {} responses, {} base rewards, {} reward items, {} reward currencies, {} reward factions, {} reward item choices, and {} maw powers ({} skipped responses, {} skipped rewards, {} skipped reward items, {} skipped reward currencies, {} skipped reward factions, {} skipped reward item choices, {} skipped maw powers, {} invalid reward refs; locales/reward entries pending)",
+        "Loaded {} C++ player choices with {} responses, {} base rewards, {} reward items, {} reward currencies, {} reward factions, {} reward item choices, and {} maw powers ({} skipped responses, {} skipped rewards, {} skipped reward items, {} skipped reward currencies, {} skipped reward factions, {} skipped reward item choices, {} skipped maw powers, {} invalid reward refs; live DisplayPlayerChoice flow pending)",
         player_choice_outcome.report.choice_rows_seen,
         player_choice_outcome.report.loaded_responses,
         player_choice_outcome.report.loaded_rewards,
@@ -2997,6 +2996,54 @@ async fn main() -> Result<ExitCode> {
                 .invalid_reward_skill_lines
                 .len()
     );
+    let player_choice_locale_report = player_choice_outcome
+        .store
+        .load_locales_like_cpp(world_db.as_ref())
+        .await
+        .context("Failed to load C++ playerchoice_locale/playerchoice_response_locale rows")?;
+    for (choice_id, locale_name) in
+        &player_choice_locale_report.skipped_choice_locales_missing_choice
+    {
+        tracing::error!(
+            target: "sql.sql",
+            "Table `playerchoice_locale` references non-existing ChoiceId: {} for locale {}, skipped",
+            choice_id,
+            locale_name
+        );
+    }
+    for (choice_id, response_id, locale_name) in
+        &player_choice_locale_report.skipped_response_locales_missing_choice_locale
+    {
+        tracing::error!(
+            target: "sql.sql",
+            "Table `playerchoice_locale` references non-existing ChoiceId: {} for ResponseId {} locale {}, skipped",
+            choice_id,
+            response_id,
+            locale_name
+        );
+    }
+    for (choice_id, response_id, locale_name) in
+        &player_choice_locale_report.skipped_response_locales_missing_response
+    {
+        tracing::error!(
+            target: "sql.sql",
+            "Table `playerchoice_locale` references non-existing ResponseId: {} for ChoiceId {} locale {}, skipped",
+            response_id,
+            choice_id,
+            locale_name
+        );
+    }
+    info!(
+        "Loaded {} Player Choice locale strings ({} rows seen)",
+        player_choice_locale_report.loaded_choice_locale_entries,
+        player_choice_locale_report.choice_locale_rows_seen
+    );
+    info!(
+        "Loaded {} Player Choice Response locale strings ({} rows seen)",
+        player_choice_locale_report.loaded_response_locale_rows,
+        player_choice_locale_report.response_locale_rows_seen
+    );
+    let _player_choice_store = Arc::new(player_choice_outcome.store);
     let quest_faction_reward_store = Arc::new(
         wow_data::progression_rewards::QuestFactionRewardStore::load(&data_dir, &locale).context(
             "Failed to load QuestFactionReward.db2 — check DataDir and DBC.Locale config",
