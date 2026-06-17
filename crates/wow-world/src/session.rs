@@ -77,9 +77,10 @@ use wow_data::{
     PlayerConditionCountLikeCpp, PlayerConditionPartyStatusLikeCpp,
     PlayerConditionQuestKillLikeCpp, PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp,
     PlayerConditionStore, PlayerStatsStore, RandPropPointsStore, SkillLineStore, SkillStore,
-    SpellAuraOptionsStore, SpellCategoryStore, SpellDurationStore, SpellItemEnchantmentStore,
-    SpellMiscStore, SpellProcEntryLikeCpp, SpellProcStoreLikeCpp, SpellRadiusStore,
-    SpellRangeStore, SpellStore, SpellTargetPositionStoreLikeCpp, SummonPropertiesEntry, ToyStore,
+    SpellAuraOptionsStore, SpellCategoryStore, SpellChainStoreLikeCpp, SpellDurationStore,
+    SpellItemEnchantmentStore, SpellMiscStore, SpellProcEntryLikeCpp, SpellProcStoreLikeCpp,
+    SpellRadiusStore, SpellRangeStore, SpellStore, SpellTargetPositionStoreLikeCpp,
+    SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp, SummonPropertiesEntry, ToyStore,
     TransmogSetEntry, TransmogSetItemStore, TrinityStringStoreLikeCpp,
     VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore,
     VehicleTemplateStoreLikeCpp, calculate_battle_pet_stats_like_cpp,
@@ -3862,11 +3863,13 @@ pub struct WorldSession {
     // ── Spell casting ──────────────────────────────────────────────
     /// Spell store (metadata for all known spells: cast time, cooldown, effects, etc.)
     pub spell_store: Option<Arc<SpellStore>>,
+    spell_chain_store: Option<Arc<SpellChainStoreLikeCpp>>,
     spell_category_store: Option<Arc<SpellCategoryStore>>,
     npc_spell_click_store: Option<Arc<NpcSpellClickStoreLikeCpp>>,
     spell_aura_options_store: Option<Arc<SpellAuraOptionsStore>>,
     spell_misc_store: Option<Arc<SpellMiscStore>>,
     spell_proc_store: Option<Arc<SpellProcStoreLikeCpp>>,
+    spell_threat_store: Option<Arc<SpellThreatStoreLikeCpp>>,
     spell_duration_store: Option<Arc<SpellDurationStore>>,
     spell_radius_store: Option<Arc<SpellRadiusStore>>,
     spell_range_store: Option<Arc<SpellRangeStore>>,
@@ -5163,11 +5166,13 @@ impl WorldSession {
             movement_speed_ack_events_like_cpp: Vec::new(),
             visible_auras: HashMap::new(),
             spell_store: None,
+            spell_chain_store: None,
             spell_category_store: None,
             npc_spell_click_store: None,
             spell_aura_options_store: None,
             spell_misc_store: None,
             spell_proc_store: None,
+            spell_threat_store: None,
             spell_duration_store: None,
             spell_radius_store: None,
             spell_range_store: None,
@@ -16863,6 +16868,14 @@ impl WorldSession {
         self.spell_store.as_ref()
     }
 
+    pub fn set_spell_chain_store(&mut self, store: Arc<SpellChainStoreLikeCpp>) {
+        self.spell_chain_store = Some(store);
+    }
+
+    pub(crate) fn spell_chain_store(&self) -> Option<&Arc<SpellChainStoreLikeCpp>> {
+        self.spell_chain_store.as_ref()
+    }
+
     pub fn set_spell_category_store(&mut self, store: Arc<SpellCategoryStore>) {
         self.spell_category_store = Some(store);
     }
@@ -16906,6 +16919,23 @@ impl WorldSession {
                 .as_ref()
                 .and_then(|difficulties| difficulties.get(current_difficulty))
                 .map(|difficulty| u32::from(difficulty.fallback_difficulty_id))
+        })
+    }
+
+    pub fn set_spell_threat_store(&mut self, store: Arc<SpellThreatStoreLikeCpp>) {
+        self.spell_threat_store = Some(store);
+    }
+
+    pub(crate) fn spell_threat_entry_like_cpp(
+        &self,
+        spell_id: u32,
+    ) -> Option<&SpellThreatEntryLikeCpp> {
+        let store = self.spell_threat_store.as_ref()?;
+        store.get_spell_threat_entry_like_cpp(spell_id, |lookup_spell_id| {
+            self.spell_chain_store
+                .as_ref()
+                .map(|spell_chains| spell_chains.first_spell_in_chain_like_cpp(lookup_spell_id))
+                .unwrap_or(lookup_spell_id)
         })
     }
 
@@ -41446,6 +41476,14 @@ mod tests {
         }
     }
 
+    fn test_spell_threat_entry_like_cpp(flat_mod: i32) -> wow_data::SpellThreatEntryLikeCpp {
+        wow_data::SpellThreatEntryLikeCpp {
+            flat_mod,
+            pct_mod: 1.0,
+            ap_pct_mod: 0.0,
+        }
+    }
+
     #[test]
     fn spell_proc_entry_prefers_exact_difficulty_like_cpp() {
         let (mut session, _, _) = make_session();
@@ -41534,6 +41572,57 @@ mod tests {
             .expect("fallback proc entry");
 
         assert_eq!(entry.chance, 25.0);
+    }
+
+    #[test]
+    fn spell_threat_entry_prefers_exact_spell_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let mut entries = HashMap::new();
+        entries.insert(11, test_spell_threat_entry_like_cpp(11));
+        entries.insert(42, test_spell_threat_entry_like_cpp(42));
+        session.set_spell_threat_store(Arc::new(wow_data::SpellThreatStoreLikeCpp {
+            entries_by_spell_id: entries,
+        }));
+        session.set_spell_chain_store(Arc::new(
+            wow_data::SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(
+                [wow_data::SpellRankEdgeLikeCpp {
+                    spell_id: 42,
+                    supercedes_spell_id: 11,
+                }],
+                |_| true,
+            ),
+        ));
+
+        let entry = session
+            .spell_threat_entry_like_cpp(42)
+            .expect("exact threat entry");
+
+        assert_eq!(entry.flat_mod, 42);
+    }
+
+    #[test]
+    fn spell_threat_entry_falls_back_to_first_rank_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let mut entries = HashMap::new();
+        entries.insert(11, test_spell_threat_entry_like_cpp(11));
+        session.set_spell_threat_store(Arc::new(wow_data::SpellThreatStoreLikeCpp {
+            entries_by_spell_id: entries,
+        }));
+        session.set_spell_chain_store(Arc::new(
+            wow_data::SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(
+                [wow_data::SpellRankEdgeLikeCpp {
+                    spell_id: 42,
+                    supercedes_spell_id: 11,
+                }],
+                |_| true,
+            ),
+        ));
+
+        let entry = session
+            .spell_threat_entry_like_cpp(42)
+            .expect("first-rank threat entry");
+
+        assert_eq!(entry.flat_mod, 11);
     }
 
     fn install_create_map_difficulty_stores_like_cpp(

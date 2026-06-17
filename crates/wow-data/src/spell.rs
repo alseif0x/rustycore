@@ -1176,6 +1176,34 @@ pub struct SpellThreatStoreLikeCpp {
 }
 
 impl SpellThreatStoreLikeCpp {
+    pub async fn load_like_cpp(
+        db: &WorldDatabase,
+        spells: &SpellStore,
+    ) -> Result<SpellThreatLoadOutcomeLikeCpp> {
+        let stmt = db.prepare(WorldStatements::SEL_SPELL_THREATS);
+        let mut result = db.query(&stmt).await?;
+        let mut rows = Vec::new();
+
+        if !result.is_empty() {
+            loop {
+                rows.push(SpellThreatRowLikeCpp {
+                    spell_id: result.try_read::<u32>(0).unwrap_or(0),
+                    flat_mod: result.try_read::<i32>(1).unwrap_or(0),
+                    pct_mod: result.try_read::<f32>(2).unwrap_or(0.0),
+                    ap_pct_mod: result.try_read::<f32>(3).unwrap_or(0.0),
+                });
+
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        Ok(Self::from_rows_like_cpp(rows, |spell_id| {
+            spells.get(spell_id as i32).is_some()
+        }))
+    }
+
     pub fn from_rows_like_cpp<I, SpellExists>(
         rows: I,
         mut spell_exists: SpellExists,
