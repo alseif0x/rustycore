@@ -9475,6 +9475,72 @@ fn build_loaded_grid_gameobject_respawn_record_like_cpp(
     }
 }
 
+#[allow(dead_code)]
+fn build_loaded_grid_area_trigger_record_like_cpp(
+    map: &mut wow_map::Map,
+    object_type: wow_map::SpawnObjectType,
+    spawn_id: wow_map::SpawnId,
+    canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
+    area_trigger_template_store: &wow_data::AreaTriggerTemplateStore,
+) -> Option<wow_map::map::LoadedGridRespawnRecordsLikeCpp> {
+    if object_type != wow_map::SpawnObjectType::AreaTrigger {
+        return None;
+    }
+
+    let Some(spawn) = canonical_spawn_metadata
+        .spawn_store()
+        .spawn_data(object_type, spawn_id)
+    else {
+        debug!(
+            respawn_type = object_type as u8,
+            spawn_id, "C++ loaded-grid AreaTrigger load blocked: missing canonical SpawnData"
+        );
+        return None;
+    };
+    let Some(runtime_row) = canonical_spawn_metadata.area_trigger_runtime_row_like_cpp(spawn_id)
+    else {
+        debug!(
+            spawn_id,
+            create_properties_id = spawn.id,
+            "C++ loaded-grid AreaTrigger load blocked: missing DB-backed area trigger runtime row"
+        );
+        return None;
+    };
+    let Some(create_properties) = area_trigger_template_store
+        .get_create_properties_like_cpp(runtime_row.create_properties_id)
+    else {
+        debug!(
+            spawn_id,
+            create_properties_id = runtime_row.create_properties_id.id,
+            "C++ loaded-grid AreaTrigger load blocked: missing create-properties row"
+        );
+        return None;
+    };
+    let template = create_properties
+        .template_id
+        .and_then(|template_id| area_trigger_template_store.get_template_like_cpp(template_id));
+
+    match area_trigger_loaded_grid::build_loaded_grid_area_trigger_record_from_spawn_data_like_cpp(
+        map,
+        spawn,
+        runtime_row,
+        create_properties,
+        template,
+        0,
+    ) {
+        Ok(records) => Some(records),
+        Err(error) => {
+            debug!(
+                ?error,
+                spawn_id,
+                create_properties_id = runtime_row.create_properties_id.id,
+                "C++ loaded-grid AreaTrigger load blocked: failed to compose DB-backed LoadFromDB record"
+            );
+            None
+        }
+    }
+}
+
 fn canonical_map_update_tick_set_inactive_like_cpp(
     manager: &mut wow_map::MapManager,
     legacy_manager: Option<&SharedMapManager>,
@@ -11854,6 +11920,7 @@ mod tests {
         SHUTDOWN_EXIT_CODE_LIKE_CPP, WorldDbVersionLikeCpp, WorldRuntimeStateLikeCpp,
         WorldServerCliLikeCpp, WorldUpdateLoopStepOutcomeLikeCpp,
         apply_canonical_spawn_group_condition_update_loaded_grid_records_like_cpp,
+        build_loaded_grid_area_trigger_record_like_cpp,
         build_loaded_grid_creature_respawn_record_like_cpp,
         build_loaded_grid_creature_spawn_group_spawn_record_like_cpp,
         build_loaded_grid_gameobject_respawn_record_like_cpp,
@@ -12634,6 +12701,61 @@ mod tests {
                 wow_data::GameObjectOverrideLifecycleStoreLikeCpp::default(),
             ),
         }
+    }
+
+    fn area_trigger_template_store_for_loaded_grid_like_cpp(
+        create_properties_id: u32,
+        template_id: u32,
+    ) -> wow_data::AreaTriggerTemplateStore {
+        let map_store = wow_data::MapStore::from_entries([wow_data::MapEntry {
+            id: 571,
+            instance_type: 0,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+            flags2: 0,
+        }]);
+        let world_safe_locs = wow_data::WorldSafeLocStore::from_rows_like_cpp([], &map_store).0;
+        let mut shape_data =
+            [0.0; wow_data::area_trigger_template::MAX_AREATRIGGER_ENTITY_DATA_LIKE_CPP];
+        shape_data[0] = 4.0;
+        shape_data[1] = 7.0;
+
+        wow_data::AreaTriggerTemplateStore::from_rows_like_cpp(
+            [wow_data::AreaTriggerTemplateRowLikeCpp {
+                id: template_id,
+                is_custom: false,
+                flags: wow_data::area_trigger_template::AREATRIGGER_FLAG_IS_SERVER_SIDE_LIKE_CPP,
+            }],
+            [],
+            [],
+            [],
+            [wow_data::AreaTriggerCreatePropertiesRowLikeCpp {
+                id: create_properties_id,
+                is_custom: false,
+                area_trigger_id: template_id,
+                is_areatrigger_custom: false,
+                flags: wow_data::area_trigger_template::AREATRIGGER_CREATE_PROPERTIES_FLAG_UNK3_LIKE_CPP,
+                move_curve_id: 0,
+                scale_curve_id: 0,
+                morph_curve_id: 0,
+                facing_curve_id: 0,
+                anim_id: 11,
+                anim_kit_id: 22,
+                decal_properties_id: 77,
+                time_to_target: 0,
+                time_to_target_scale: 0,
+                shape: wow_data::area_trigger_template::AREATRIGGER_SHAPE_SPHERE_LIKE_CPP,
+                shape_data,
+                script_name: String::new(),
+            }],
+            [],
+            &world_safe_locs,
+            |_| true,
+            |_| wow_data::ScriptIdLikeCpp(0),
+        )
+        .store
     }
 
     static TEST_LOCK: Mutex<()> = Mutex::new(());
@@ -18997,6 +19119,82 @@ mmap.enablePathFinding = 0
                 .get_respawn_info_like_cpp(SpawnObjectType::Creature, 1)
                 .is_none()
         );
+    }
+
+    #[test]
+    fn loaded_grid_area_trigger_record_returns_area_trigger_record_like_cpp() {
+        let spawn_id = 88;
+        let create_properties_id = 2001;
+        let template_id = 9001;
+        let mut store = SpawnStore::new();
+        let spawn = SpawnData {
+            object_type: SpawnObjectType::AreaTrigger,
+            spawn_id,
+            map_id: 571,
+            db_data: true,
+            spawn_group: SpawnGroupTemplateData::default_group(),
+            id: create_properties_id,
+            spawn_point: SpawnPosition::new(1.0, 2.0, 3.0, 1.0),
+            phase_use_flags: 0,
+            phase_id: 0,
+            phase_group: 0,
+            terrain_swap_map: -1,
+            pool_id: 0,
+            spawn_time_secs: 0,
+            spawn_difficulties: vec![0],
+            script_id: 0,
+            string_id: String::new(),
+        };
+        store.add_area_trigger_spawn(&spawn);
+        let metadata =
+            super::spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(store, BTreeMap::new())
+                .with_area_trigger_runtime_rows_like_cpp(BTreeMap::from([(
+                    spawn_id,
+                    super::spawn_store_loader::AreaTriggerSpawnRuntimeRowLikeCpp {
+                        spawn_id,
+                        create_properties_id: wow_data::AreaTriggerIdLikeCpp {
+                            id: create_properties_id,
+                            is_custom: false,
+                        },
+                        spell_for_visuals: None,
+                    },
+                )]));
+        let template_store =
+            area_trigger_template_store_for_loaded_grid_like_cpp(create_properties_id, template_id);
+        let mut map = wow_map::Map::new(571, 0, 0, 60_000);
+
+        let record = build_loaded_grid_area_trigger_record_like_cpp(
+            &mut map,
+            SpawnObjectType::AreaTrigger,
+            spawn_id,
+            &metadata,
+            &template_store,
+        )
+        .expect("loaded-grid AreaTrigger builder should return loaded-grid records");
+        let area_trigger = record
+            .primary_record
+            .area_trigger()
+            .expect("builder should return a typed AreaTrigger MapObjectRecord");
+
+        assert_eq!(
+            record.primary_record.kind(),
+            wow_entities::AccessorObjectKind::AreaTrigger
+        );
+        assert_eq!(area_trigger.spawn_id(), spawn_id);
+        assert!(area_trigger.is_static_spawn());
+        assert_eq!(
+            area_trigger.world().guid().high_type(),
+            wow_core::guid::HighGuid::AreaTrigger
+        );
+        assert_eq!(u32::from(area_trigger.world().guid().map_id()), 571);
+        assert_eq!(area_trigger.world().guid().entry(), template_id);
+        assert_eq!(area_trigger.world().guid().counter(), 1);
+        assert_eq!(
+            area_trigger.create_properties_id().unwrap().id,
+            create_properties_id
+        );
+        assert_eq!(area_trigger.template_id().unwrap().id, template_id);
+        assert_eq!(area_trigger.data().spell_visual_id, 0);
     }
 
     #[test]
