@@ -86,10 +86,12 @@ pub use area::{
 pub use area_trigger::{
     AreaTriggerData, AreaTriggerScriptLoadOutcomeLikeCpp, AreaTriggerScriptLoadReportLikeCpp,
     AreaTriggerScriptRowLikeCpp, AreaTriggerScriptStoreLikeCpp, AreaTriggerStore,
-    AreaTriggerTeleport, QuestAreaTriggerLoadOutcomeLikeCpp, QuestAreaTriggerLoadReportLikeCpp,
-    QuestAreaTriggerRowLikeCpp, QuestAreaTriggerStoreLikeCpp, TavernAreaTriggerLoadOutcomeLikeCpp,
-    TavernAreaTriggerLoadReportLikeCpp, TavernAreaTriggerStoreLikeCpp, TriggerShape,
-    load_area_triggers,
+    AreaTriggerTeleport, AreaTriggerTeleportLoadOutcomeLikeCpp,
+    AreaTriggerTeleportLoadReportLikeCpp, AreaTriggerTeleportRowLikeCpp,
+    AreaTriggerTeleportStoreLikeCpp, QuestAreaTriggerLoadOutcomeLikeCpp,
+    QuestAreaTriggerLoadReportLikeCpp, QuestAreaTriggerRowLikeCpp, QuestAreaTriggerStoreLikeCpp,
+    TavernAreaTriggerLoadOutcomeLikeCpp, TavernAreaTriggerLoadReportLikeCpp,
+    TavernAreaTriggerStoreLikeCpp, TriggerShape, load_area_triggers,
 };
 pub use area_trigger_template::AreaTriggerTemplateStore;
 pub use battlemaster_list::{

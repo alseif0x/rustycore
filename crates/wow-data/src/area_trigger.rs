@@ -17,7 +17,7 @@ use wow_database::{WorldDatabase, WorldStatements};
 use crate::quest::{
     QUEST_FLAGS_COMPLETION_AREA_TRIGGER_LIKE_CPP, QUEST_OBJECTIVE_AREATRIGGER_LIKE_CPP, QuestStore,
 };
-use crate::{ScriptIdLikeCpp, ScriptNameInternerLikeCpp};
+use crate::{ScriptIdLikeCpp, ScriptNameInternerLikeCpp, WorldSafeLocStore};
 
 /// Area trigger shape types (from AreaTriggerShapeType).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -52,7 +52,7 @@ impl TriggerShape {
 }
 
 /// Area trigger teleport destination.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct AreaTriggerTeleport {
     pub id: u32,
     pub target_map: u32,
@@ -204,6 +204,30 @@ pub struct AreaTriggerScriptStoreLikeCpp {
 pub struct AreaTriggerScriptLoadOutcomeLikeCpp {
     pub store: AreaTriggerScriptStoreLikeCpp,
     pub report: AreaTriggerScriptLoadReportLikeCpp,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AreaTriggerTeleportRowLikeCpp {
+    pub trigger_id: u32,
+    pub port_loc_id: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AreaTriggerTeleportLoadReportLikeCpp {
+    pub rows_seen: usize,
+    pub loaded: usize,
+    pub skipped_missing_port_loc: Vec<AreaTriggerTeleportRowLikeCpp>,
+    pub skipped_missing_area_trigger: Vec<u32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct AreaTriggerTeleportStoreLikeCpp {
+    teleports_by_trigger_id: BTreeMap<u32, AreaTriggerTeleport>,
+}
+
+pub struct AreaTriggerTeleportLoadOutcomeLikeCpp {
+    pub store: AreaTriggerTeleportStoreLikeCpp,
+    pub report: AreaTriggerTeleportLoadReportLikeCpp,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -454,6 +478,99 @@ impl AreaTriggerScriptStoreLikeCpp {
     }
 }
 
+impl AreaTriggerTeleportStoreLikeCpp {
+    pub fn from_rows_like_cpp(
+        rows: impl IntoIterator<Item = AreaTriggerTeleportRowLikeCpp>,
+        mut area_trigger_exists: impl FnMut(u32) -> bool,
+        world_safe_locs: &WorldSafeLocStore,
+    ) -> AreaTriggerTeleportLoadOutcomeLikeCpp {
+        let mut store = Self::default();
+        let mut rows_seen = 0;
+        let mut skipped_missing_port_loc = Vec::new();
+        let mut skipped_missing_area_trigger = Vec::new();
+
+        for row in rows {
+            rows_seen += 1;
+
+            let Some(port_loc) = world_safe_locs.get(row.port_loc_id) else {
+                skipped_missing_port_loc.push(row);
+                continue;
+            };
+
+            if !area_trigger_exists(row.trigger_id) {
+                skipped_missing_area_trigger.push(row.trigger_id);
+                continue;
+            }
+
+            store.teleports_by_trigger_id.insert(
+                row.trigger_id,
+                AreaTriggerTeleport {
+                    id: row.trigger_id,
+                    target_map: port_loc.map_id,
+                    target_position: port_loc.position,
+                },
+            );
+        }
+
+        AreaTriggerTeleportLoadOutcomeLikeCpp {
+            report: AreaTriggerTeleportLoadReportLikeCpp {
+                rows_seen,
+                loaded: store.len(),
+                skipped_missing_port_loc,
+                skipped_missing_area_trigger,
+            },
+            store,
+        }
+    }
+
+    /// Loads C++ `ObjectMgr::LoadAreaTriggerTeleports`.
+    ///
+    /// C++ anchors:
+    /// - `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:7126-7180`
+    /// - queries `areatrigger_teleport(ID, PortLocID)`
+    /// - validates `PortLocID` through `GetWorldSafeLoc` before `sAreaTriggerStore`
+    /// - stores `AreaTriggerStruct` target map/position/orientation by trigger id
+    pub async fn load_like_cpp(
+        db: &WorldDatabase,
+        area_trigger_store: &AreaTriggerStore,
+        world_safe_locs: &WorldSafeLocStore,
+    ) -> Result<AreaTriggerTeleportLoadOutcomeLikeCpp> {
+        let mut rows = Vec::new();
+        let mut result = db
+            .direct_query("SELECT ID, PortLocID FROM areatrigger_teleport")
+            .await?;
+        if !result.is_empty() {
+            loop {
+                rows.push(AreaTriggerTeleportRowLikeCpp {
+                    trigger_id: result.try_read::<u32>(0).unwrap_or(0),
+                    port_loc_id: result.try_read::<u32>(1).unwrap_or(0),
+                });
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        Ok(Self::from_rows_like_cpp(
+            rows,
+            |trigger_id| area_trigger_store.contains_trigger_like_cpp(trigger_id),
+            world_safe_locs,
+        ))
+    }
+
+    pub fn get_area_trigger_like_cpp(&self, trigger_id: u32) -> Option<&AreaTriggerTeleport> {
+        self.teleports_by_trigger_id.get(&trigger_id)
+    }
+
+    pub fn len(&self) -> usize {
+        self.teleports_by_trigger_id.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.teleports_by_trigger_id.is_empty()
+    }
+}
+
 impl QuestAreaTriggerStoreLikeCpp {
     pub fn from_rows_like_cpp(
         rows: impl IntoIterator<Item = QuestAreaTriggerRowLikeCpp>,
@@ -647,6 +764,7 @@ mod area_trigger_script_tests {
         QUEST_REWARD_DISPLAY_SPELL_COUNT, QUEST_REWARD_ITEM_COUNT, QUEST_REWARD_REPUTATIONS_COUNT,
         QuestObjective, QuestTemplate,
     };
+    use crate::{MapEntry, MapStore, WorldSafeLocRow};
 
     fn trigger(trigger_id: u32) -> AreaTriggerData {
         AreaTriggerData {
@@ -752,6 +870,31 @@ mod area_trigger_script_tests {
         }
     }
 
+    fn world_safe_locs() -> WorldSafeLocStore {
+        let map_store = MapStore::from_entries([MapEntry {
+            id: 571,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            instance_type: 0,
+            expansion_id: 0,
+            flags1: 0,
+            flags2: 0,
+        }]);
+        let (store, report) = WorldSafeLocStore::from_rows_like_cpp(
+            [WorldSafeLocRow {
+                id: 50,
+                map_id: 571,
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+                facing_degrees: 90.0,
+            }],
+            &map_store,
+        );
+        assert_eq!(report.loaded, 1);
+        store
+    }
+
     #[test]
     fn area_trigger_script_store_validates_trigger_and_interns_script_like_cpp() {
         let mut area_triggers = AreaTriggerStore::new();
@@ -837,6 +980,51 @@ mod area_trigger_script_tests {
         assert_eq!(outcome.report.skipped_missing_area_trigger, vec![11]);
         assert!(outcome.store.is_tavern_area_trigger_like_cpp(10));
         assert!(!outcome.store.is_tavern_area_trigger_like_cpp(11));
+    }
+
+    #[test]
+    fn area_trigger_teleport_store_validates_port_loc_then_trigger_like_cpp() {
+        let mut area_triggers = AreaTriggerStore::new();
+        area_triggers.insert(trigger(10));
+        let world_safe_locs = world_safe_locs();
+
+        let outcome = AreaTriggerTeleportStoreLikeCpp::from_rows_like_cpp(
+            [
+                AreaTriggerTeleportRowLikeCpp {
+                    trigger_id: 10,
+                    port_loc_id: 50,
+                },
+                AreaTriggerTeleportRowLikeCpp {
+                    trigger_id: 11,
+                    port_loc_id: 51,
+                },
+                AreaTriggerTeleportRowLikeCpp {
+                    trigger_id: 12,
+                    port_loc_id: 50,
+                },
+            ],
+            |trigger_id| area_triggers.contains_trigger_like_cpp(trigger_id),
+            &world_safe_locs,
+        );
+
+        assert_eq!(outcome.report.rows_seen, 3);
+        assert_eq!(outcome.report.loaded, 1);
+        assert_eq!(
+            outcome.report.skipped_missing_port_loc,
+            vec![AreaTriggerTeleportRowLikeCpp {
+                trigger_id: 11,
+                port_loc_id: 51
+            }]
+        );
+        assert_eq!(outcome.report.skipped_missing_area_trigger, vec![12]);
+
+        let teleport = outcome.store.get_area_trigger_like_cpp(10).unwrap();
+        assert_eq!(teleport.id, 10);
+        assert_eq!(teleport.target_map, 571);
+        assert_eq!(teleport.target_position.x, 1.0);
+        assert_eq!(teleport.target_position.y, 2.0);
+        assert_eq!(teleport.target_position.z, 3.0);
+        assert_eq!(teleport.target_position.orientation, 90.0_f32.to_radians());
     }
 
     #[test]
