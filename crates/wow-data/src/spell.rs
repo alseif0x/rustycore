@@ -1509,6 +1509,43 @@ pub struct SpellTotemModelStoreLikeCpp {
 }
 
 impl SpellTotemModelStoreLikeCpp {
+    pub async fn load_like_cpp<SpellExists, RaceExists, DisplayExists>(
+        db: &WorldDatabase,
+        spell_exists: SpellExists,
+        race_exists: RaceExists,
+        display_exists: DisplayExists,
+    ) -> Result<SpellTotemModelLoadOutcomeLikeCpp>
+    where
+        SpellExists: FnMut(u32) -> bool,
+        RaceExists: FnMut(u8) -> bool,
+        DisplayExists: FnMut(u32) -> bool,
+    {
+        let stmt = db.prepare(WorldStatements::SEL_SPELL_TOTEM_MODEL);
+        let mut result = db.query(&stmt).await?;
+        let mut rows = Vec::new();
+
+        if !result.is_empty() {
+            loop {
+                rows.push(SpellTotemModelRowLikeCpp {
+                    spell_id: result.try_read::<u32>(0).unwrap_or(0),
+                    race_id: result.try_read::<u8>(1).unwrap_or(0),
+                    display_id: result.try_read::<u32>(2).unwrap_or(0),
+                });
+
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        Ok(Self::from_rows_like_cpp(
+            rows,
+            spell_exists,
+            race_exists,
+            display_exists,
+        ))
+    }
+
     pub fn from_rows_like_cpp<I, SpellExists, RaceExists, DisplayExists>(
         rows: I,
         mut spell_exists: SpellExists,

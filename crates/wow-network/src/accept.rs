@@ -228,6 +228,7 @@ pub struct SessionResources {
     pub hotfix_blob_cache: Option<Arc<wow_data::HotfixBlobCache>>,
     pub skill_store: Option<Arc<wow_data::SkillStore>>,
     pub skill_line_store: Option<Arc<wow_data::SkillLineStore>>,
+    pub chr_races_store: Option<Arc<wow_data::character_progression::ChrRacesStore>>,
     pub spell_chain_store: Option<Arc<wow_data::SpellChainStoreLikeCpp>>,
     pub spell_store: Option<Arc<wow_data::SpellStore>>,
     pub spell_category_store: Option<Arc<wow_data::SpellCategoryStore>>,
@@ -246,6 +247,7 @@ pub struct SessionResources {
     pub spell_radius_store: Option<Arc<wow_data::SpellRadiusStore>>,
     pub spell_range_store: Option<Arc<wow_data::SpellRangeStore>>,
     pub spell_target_position_store: Option<Arc<wow_data::SpellTargetPositionStoreLikeCpp>>,
+    pub spell_totem_model_store: Option<Arc<wow_data::SpellTotemModelStoreLikeCpp>>,
     pub movie_store: Option<Arc<wow_data::MovieStore>>,
     pub gameobject_template_lifecycle_store:
         Option<Arc<wow_data::GameObjectTemplateLifecycleStoreLikeCpp>>,

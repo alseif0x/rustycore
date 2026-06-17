@@ -83,9 +83,9 @@ use wow_data::{
     SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp, SpellMiscStore, SpellProcEntryLikeCpp,
     SpellProcStoreLikeCpp, SpellRadiusStore, SpellRangeStore, SpellRequiredStoreLikeCpp,
     SpellStore, SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp,
-    SummonPropertiesEntry, ToyStore, TransmogSetEntry, TransmogSetItemStore,
-    TrinityStringStoreLikeCpp, VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp,
-    VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
+    SpellTotemModelStoreLikeCpp, SummonPropertiesEntry, ToyStore, TransmogSetEntry,
+    TransmogSetItemStore, TrinityStringStoreLikeCpp, VEHICLE_SEAT_FLAG_CAN_ATTACK,
+    VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
     calculate_battle_pet_stats_like_cpp, is_player_meeting_condition_like_cpp,
     progression_rewards::{
         ContentTuningStore, FactionEntry, FactionStore, FactionTemplateStore,
@@ -3881,6 +3881,7 @@ pub struct WorldSession {
     spell_radius_store: Option<Arc<SpellRadiusStore>>,
     spell_range_store: Option<Arc<SpellRangeStore>>,
     spell_target_position_store: Option<Arc<SpellTargetPositionStoreLikeCpp>>,
+    spell_totem_model_store: Option<Arc<SpellTotemModelStoreLikeCpp>>,
     chr_classes_store: Option<Arc<ChrClassesStore>>,
     chr_races_store: Option<Arc<ChrRacesStore>>,
     cinematic_sequences_store: Option<Arc<CinematicSequencesStore>>,
@@ -5189,6 +5190,7 @@ impl WorldSession {
             spell_radius_store: None,
             spell_range_store: None,
             spell_target_position_store: None,
+            spell_totem_model_store: None,
             chr_classes_store: None,
             chr_races_store: None,
             cinematic_sequences_store: None,
@@ -17104,6 +17106,17 @@ impl WorldSession {
                 .map(|spell_chains| spell_chains.first_spell_in_chain_like_cpp(lookup_spell_id))
                 .unwrap_or(lookup_spell_id)
         })
+    }
+
+    pub fn set_spell_totem_model_store(&mut self, store: Arc<SpellTotemModelStoreLikeCpp>) {
+        self.spell_totem_model_store = Some(store);
+    }
+
+    pub(crate) fn model_for_totem_like_cpp(&self, spell_id: u32, race_id: u8) -> u32 {
+        self.spell_totem_model_store
+            .as_ref()
+            .map(|store| store.get_model_for_totem_like_cpp(spell_id, race_id))
+            .unwrap_or(0)
     }
 
     pub fn set_spell_duration_store(&mut self, store: Arc<SpellDurationStore>) {
@@ -41765,6 +41778,32 @@ mod tests {
         outcome.store
     }
 
+    fn test_spell_totem_model_store_like_cpp() -> wow_data::SpellTotemModelStoreLikeCpp {
+        let outcome = wow_data::SpellTotemModelStoreLikeCpp::from_rows_like_cpp(
+            [
+                wow_data::SpellTotemModelRowLikeCpp {
+                    spell_id: 50,
+                    race_id: 2,
+                    display_id: 1000,
+                },
+                wow_data::SpellTotemModelRowLikeCpp {
+                    spell_id: 50,
+                    race_id: 2,
+                    display_id: 2000,
+                },
+                wow_data::SpellTotemModelRowLikeCpp {
+                    spell_id: 50,
+                    race_id: 8,
+                    display_id: 3000,
+                },
+            ],
+            |_| true,
+            |_| true,
+            |_| true,
+        );
+        outcome.store
+    }
+
     #[test]
     fn spell_proc_entry_prefers_exact_difficulty_like_cpp() {
         let (mut session, _, _) = make_session();
@@ -42044,6 +42083,28 @@ mod tests {
                 .spell_linked_like_cpp(wow_data::SpellLinkedTypeLikeCpp::Hit, 10)
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn spell_totem_model_queries_return_zero_without_store_like_cpp() {
+        let (session, _, _) = make_session();
+
+        assert_eq!(session.model_for_totem_like_cpp(50, 2), 0);
+    }
+
+    #[test]
+    fn spell_totem_model_queries_match_spell_and_race_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_spell_totem_model_store(Arc::new(test_spell_totem_model_store_like_cpp()));
+
+        assert_eq!(
+            session.model_for_totem_like_cpp(50, 2),
+            2000,
+            "C++ std::map assignment exposes the last valid duplicate row"
+        );
+        assert_eq!(session.model_for_totem_like_cpp(50, 8), 3000);
+        assert_eq!(session.model_for_totem_like_cpp(50, 3), 0);
+        assert_eq!(session.model_for_totem_like_cpp(51, 2), 0);
     }
 
     fn install_create_map_difficulty_stores_like_cpp(

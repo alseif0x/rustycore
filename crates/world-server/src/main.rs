@@ -1287,6 +1287,14 @@ async fn main() -> Result<ExitCode> {
         wow_data::SkillLineStore::load(&data_dir, &locale)
             .context("Failed to load SkillLine.db2")?,
     );
+    let chr_races_store = Arc::new(
+        wow_data::character_progression::ChrRacesStore::load(&data_dir, &locale)
+            .context("Failed to load ChrRaces.db2")?,
+    );
+    info!(
+        "Loaded {} race rows from ChrRaces.db2",
+        chr_races_store.len()
+    );
     let mut spell_store = wow_data::SpellStore::load(&hotfix_db)
         .await
         .context("Failed to load SpellStore")?;
@@ -2450,6 +2458,20 @@ async fn main() -> Result<ExitCode> {
         spell_linked_outcome.errors.len(),
         spell_linked_outcome.warnings.len()
     );
+    let spell_totem_model_outcome = wow_data::SpellTotemModelStoreLikeCpp::load_like_cpp(
+        world_db.as_ref(),
+        |spell_id| spell_store.get(spell_id as i32).is_some(),
+        |race_id| chr_races_store.get(u32::from(race_id)).is_some(),
+        |display_id| creature_display_info_store.get(display_id).is_some(),
+    )
+    .await
+    .context("Failed to load C++ spell_totem_model rows")?;
+    let spell_totem_model_store = Arc::new(spell_totem_model_outcome.store);
+    info!(
+        "Loaded {} C++ spell_totem_model rows ({} validation issues)",
+        spell_totem_model_outcome.loaded_row_count,
+        spell_totem_model_outcome.errors.len()
+    );
     let spell_store = Arc::new(spell_store);
 
     // Shared group registry and pending invites
@@ -2796,6 +2818,7 @@ async fn main() -> Result<ExitCode> {
         hotfix_blob_cache: Some(Arc::clone(&hotfix_blob_cache)),
         skill_store: Some(Arc::clone(&skill_store)),
         skill_line_store: Some(Arc::clone(&skill_line_store)),
+        chr_races_store: Some(Arc::clone(&chr_races_store)),
         spell_chain_store: Some(Arc::clone(&spell_chain_store)),
         spell_store: Some(Arc::clone(&spell_store)),
         spell_category_store: Some(Arc::clone(&spell_category_store)),
@@ -2814,6 +2837,7 @@ async fn main() -> Result<ExitCode> {
         spell_radius_store: Some(Arc::clone(&spell_radius_store)),
         spell_range_store: Some(Arc::clone(&spell_range_store)),
         spell_target_position_store: Some(Arc::clone(&spell_target_position_store)),
+        spell_totem_model_store: Some(Arc::clone(&spell_totem_model_store)),
         movie_store: Some(Arc::clone(&movie_store)),
         gameobject_template_lifecycle_store: Some(Arc::clone(&gameobject_template_lifecycle_store)),
         area_table_store: Some(Arc::clone(&area_table_store)),
@@ -9082,6 +9106,9 @@ async fn create_session(
     if let Some(ref store) = resources.skill_line_store {
         session.set_skill_line_store(Arc::clone(store));
     }
+    if let Some(ref store) = resources.chr_races_store {
+        session.set_chr_races_store(Arc::clone(store));
+    }
     if let Some(ref store) = resources.spell_store {
         session.set_spell_store(Arc::clone(store));
     }
@@ -9129,6 +9156,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.spell_target_position_store {
         session.set_spell_target_position_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.spell_totem_model_store {
+        session.set_spell_totem_model_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.movie_store {
         session.set_movie_store(Arc::clone(store));
