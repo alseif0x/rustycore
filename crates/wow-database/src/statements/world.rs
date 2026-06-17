@@ -293,6 +293,8 @@ pub enum WorldStatements {
     SEL_SPELL_GROUP_STACK_RULES,
     /// C++ SpellMgr::LoadSpellProcs startup query.
     SEL_SPELL_PROC,
+    /// C++ SpellMgr::LoadSpellAreas startup query.
+    SEL_SPELL_AREA,
     /// Load C++ ConditionMgr loot-template conditions.
     /// Args: SourceTypeOrReferenceId (i32), SourceGroup (u32), SourceEntry (u32).
     SEL_LOOT_TEMPLATE_CONDITION_ROWS,
@@ -895,6 +897,9 @@ impl StatementDef for WorldStatements {
             Self::SEL_SPELL_PROC => {
                 "SELECT SpellId, SchoolMask, SpellFamilyName, SpellFamilyMask0, SpellFamilyMask1, SpellFamilyMask2, SpellFamilyMask3, ProcFlags, ProcFlags2, SpellTypeMask, SpellPhaseMask, HitMask, AttributesMask, DisableEffectsMask, ProcsPerMinute, Chance, Cooldown, Charges FROM spell_proc"
             }
+            Self::SEL_SPELL_AREA => {
+                "SELECT spell, area, quest_start, quest_start_status, quest_end_status, quest_end, aura_spell, racemask, gender, flags FROM spell_area"
+            }
             Self::SEL_LOOT_TEMPLATE_CONDITION_ROWS => concat!(
                 "SELECT ElseGroup, ConditionTypeOrReference, ConditionTarget, ",
                 "ConditionValue1, ConditionValue2, ConditionValue3, ",
@@ -1275,6 +1280,17 @@ mod tests {
         assert_eq!(
             sql,
             "SELECT SpellId, SchoolMask, SpellFamilyName, SpellFamilyMask0, SpellFamilyMask1, SpellFamilyMask2, SpellFamilyMask3, ProcFlags, ProcFlags2, SpellTypeMask, SpellPhaseMask, HitMask, AttributesMask, DisableEffectsMask, ProcsPerMinute, Chance, Cooldown, Charges FROM spell_proc"
+        );
+        assert_eq!(sql.matches('?').count(), 0);
+    }
+
+    #[test]
+    fn spell_area_statement_matches_cpp_sql_exactly() {
+        let sql = WorldStatements::SEL_SPELL_AREA.sql();
+
+        assert_eq!(
+            sql,
+            "SELECT spell, area, quest_start, quest_start_status, quest_end_status, quest_end, aura_spell, racemask, gender, flags FROM spell_area"
         );
         assert_eq!(sql.matches('?').count(), 0);
     }

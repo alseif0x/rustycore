@@ -20,7 +20,9 @@ use tracing::info;
 use wow_database::{HotfixDatabase, StatementDef, WorldDatabase};
 use wow_entities::PetAuraLikeCpp;
 
-use crate::{ConditionEntriesByTypeStore, ConditionsReference};
+use crate::{
+    ConditionEntriesByTypeStore, ConditionsReference, conditions::RACEMASK_ALL_PLAYABLE_LIKE_CPP,
+};
 
 /// Spell effect types (from SpellEffectType enum)
 pub mod spell_effect_types {
@@ -1411,6 +1413,339 @@ impl SpellChainStoreLikeCpp {
             current_spell_id = next_spell_id;
         }
     }
+}
+
+pub const SPELL_AREA_FLAG_AUTOCAST_LIKE_CPP: u8 = 0x1;
+pub const SPELL_AREA_FLAG_AUTOREMOVE_LIKE_CPP: u8 = 0x2;
+pub const SPELL_AREA_FLAG_IGNORE_AUTOCAST_ON_QUEST_STATUS_CHANGE_LIKE_CPP: u8 = 0x4;
+pub const GENDER_MALE_LIKE_CPP: u8 = 0;
+pub const GENDER_FEMALE_LIKE_CPP: u8 = 1;
+pub const GENDER_NONE_LIKE_CPP: u8 = 2;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellAreaRowLikeCpp {
+    pub spell_id: u32,
+    pub area_id: u32,
+    pub quest_start: u32,
+    pub quest_start_status: u32,
+    pub quest_end_status: u32,
+    pub quest_end: u32,
+    pub aura_spell: i32,
+    pub race_mask: u64,
+    pub gender: u8,
+    pub flags: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellAreaLikeCpp {
+    pub spell_id: u32,
+    pub area_id: u32,
+    pub quest_start: u32,
+    pub quest_end: u32,
+    pub aura_spell: i32,
+    pub race_mask: u64,
+    pub gender: u8,
+    pub quest_start_status: u32,
+    pub quest_end_status: u32,
+    pub flags: u8,
+}
+
+impl From<SpellAreaRowLikeCpp> for SpellAreaLikeCpp {
+    fn from(row: SpellAreaRowLikeCpp) -> Self {
+        Self {
+            spell_id: row.spell_id,
+            area_id: row.area_id,
+            quest_start: row.quest_start,
+            quest_end: row.quest_end,
+            aura_spell: row.aura_spell,
+            race_mask: row.race_mask,
+            gender: row.gender,
+            quest_start_status: row.quest_start_status,
+            quest_end_status: row.quest_end_status,
+            flags: row.flags,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpellAreaLoadErrorKindLikeCpp {
+    SpellMissing,
+    DuplicateSimilarRequirements,
+    AreaMissing,
+    QuestStartMissing,
+    QuestEndMissing,
+    AuraSpellMissing,
+    AuraSpellSelfRequirement,
+    AuraAutocastChain,
+    InvalidRaceMask,
+    InvalidGender,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellAreaLoadErrorLikeCpp {
+    pub row: SpellAreaRowLikeCpp,
+    pub kind: SpellAreaLoadErrorKindLikeCpp,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SpellAreaStoreLikeCpp {
+    areas: Vec<SpellAreaLikeCpp>,
+    area_indices_by_spell_id: BTreeMap<u32, Vec<usize>>,
+    area_indices_by_quest_start_or_end: BTreeMap<u32, Vec<usize>>,
+    area_indices_by_quest_end: BTreeMap<u32, Vec<usize>>,
+    area_indices_by_aura_spell: BTreeMap<u32, Vec<usize>>,
+    area_indices_by_area_id: BTreeMap<u32, Vec<usize>>,
+}
+
+impl SpellAreaStoreLikeCpp {
+    pub fn from_rows_like_cpp<I, SpellExists, AreaExists, QuestExists>(
+        rows: I,
+        mut spell_exists: SpellExists,
+        mut area_exists: AreaExists,
+        mut quest_exists: QuestExists,
+    ) -> SpellAreaLoadOutcomeLikeCpp
+    where
+        I: IntoIterator<Item = SpellAreaRowLikeCpp>,
+        SpellExists: FnMut(u32) -> bool,
+        AreaExists: FnMut(u32) -> bool,
+        QuestExists: FnMut(u32) -> bool,
+    {
+        let mut store = Self::default();
+        let mut errors = Vec::new();
+
+        for row in rows {
+            let spell_area = SpellAreaLikeCpp::from(row);
+
+            if !spell_exists(spell_area.spell_id) {
+                errors.push(SpellAreaLoadErrorLikeCpp {
+                    row,
+                    kind: SpellAreaLoadErrorKindLikeCpp::SpellMissing,
+                });
+                continue;
+            }
+
+            if store.has_similar_requirements_like_cpp(&spell_area) {
+                errors.push(SpellAreaLoadErrorLikeCpp {
+                    row,
+                    kind: SpellAreaLoadErrorKindLikeCpp::DuplicateSimilarRequirements,
+                });
+                continue;
+            }
+
+            if spell_area.area_id != 0 && !area_exists(spell_area.area_id) {
+                errors.push(SpellAreaLoadErrorLikeCpp {
+                    row,
+                    kind: SpellAreaLoadErrorKindLikeCpp::AreaMissing,
+                });
+                continue;
+            }
+
+            if spell_area.quest_start != 0 && !quest_exists(spell_area.quest_start) {
+                errors.push(SpellAreaLoadErrorLikeCpp {
+                    row,
+                    kind: SpellAreaLoadErrorKindLikeCpp::QuestStartMissing,
+                });
+                continue;
+            }
+
+            if spell_area.quest_end != 0 && !quest_exists(spell_area.quest_end) {
+                errors.push(SpellAreaLoadErrorLikeCpp {
+                    row,
+                    kind: SpellAreaLoadErrorKindLikeCpp::QuestEndMissing,
+                });
+                continue;
+            }
+
+            if spell_area.aura_spell != 0 {
+                let aura_spell_id = spell_area.aura_spell.unsigned_abs();
+                if !spell_exists(aura_spell_id) {
+                    errors.push(SpellAreaLoadErrorLikeCpp {
+                        row,
+                        kind: SpellAreaLoadErrorKindLikeCpp::AuraSpellMissing,
+                    });
+                    continue;
+                }
+
+                if aura_spell_id == spell_area.spell_id {
+                    errors.push(SpellAreaLoadErrorLikeCpp {
+                        row,
+                        kind: SpellAreaLoadErrorKindLikeCpp::AuraSpellSelfRequirement,
+                    });
+                    continue;
+                }
+
+                if spell_area.flags & SPELL_AREA_FLAG_AUTOCAST_LIKE_CPP != 0
+                    && spell_area.aura_spell > 0
+                    && store.has_autocast_aura_chain_like_cpp(&spell_area)
+                {
+                    errors.push(SpellAreaLoadErrorLikeCpp {
+                        row,
+                        kind: SpellAreaLoadErrorKindLikeCpp::AuraAutocastChain,
+                    });
+                    continue;
+                }
+            }
+
+            if spell_area.race_mask != 0
+                && (spell_area.race_mask & RACEMASK_ALL_PLAYABLE_LIKE_CPP) == 0
+            {
+                errors.push(SpellAreaLoadErrorLikeCpp {
+                    row,
+                    kind: SpellAreaLoadErrorKindLikeCpp::InvalidRaceMask,
+                });
+                continue;
+            }
+
+            if !matches!(
+                spell_area.gender,
+                GENDER_NONE_LIKE_CPP | GENDER_FEMALE_LIKE_CPP | GENDER_MALE_LIKE_CPP
+            ) {
+                errors.push(SpellAreaLoadErrorLikeCpp {
+                    row,
+                    kind: SpellAreaLoadErrorKindLikeCpp::InvalidGender,
+                });
+                continue;
+            }
+
+            store.insert_like_cpp(spell_area);
+        }
+
+        SpellAreaLoadOutcomeLikeCpp {
+            loaded_row_count: store.areas.len(),
+            store,
+            errors,
+        }
+    }
+
+    pub fn spell_area_map_bounds_like_cpp(&self, spell_id: u32) -> Vec<&SpellAreaLikeCpp> {
+        self.lookup_indices_like_cpp(&self.area_indices_by_spell_id, spell_id)
+    }
+
+    pub fn spell_area_for_quest_map_bounds_like_cpp(
+        &self,
+        quest_id: u32,
+    ) -> Vec<&SpellAreaLikeCpp> {
+        self.lookup_indices_like_cpp(&self.area_indices_by_quest_start_or_end, quest_id)
+    }
+
+    pub fn spell_area_for_quest_end_map_bounds_like_cpp(
+        &self,
+        quest_id: u32,
+    ) -> Vec<&SpellAreaLikeCpp> {
+        self.lookup_indices_like_cpp(&self.area_indices_by_quest_end, quest_id)
+    }
+
+    pub fn spell_area_for_aura_map_bounds_like_cpp(&self, spell_id: u32) -> Vec<&SpellAreaLikeCpp> {
+        self.lookup_indices_like_cpp(&self.area_indices_by_aura_spell, spell_id)
+    }
+
+    pub fn spell_area_for_area_map_bounds_like_cpp(&self, area_id: u32) -> Vec<&SpellAreaLikeCpp> {
+        self.lookup_indices_like_cpp(&self.area_indices_by_area_id, area_id)
+    }
+
+    pub fn areas_like_cpp(&self) -> &[SpellAreaLikeCpp] {
+        &self.areas
+    }
+
+    fn lookup_indices_like_cpp(
+        &self,
+        index: &BTreeMap<u32, Vec<usize>>,
+        key: u32,
+    ) -> Vec<&SpellAreaLikeCpp> {
+        index
+            .get(&key)
+            .into_iter()
+            .flat_map(|indices| indices.iter())
+            .filter_map(|idx| self.areas.get(*idx))
+            .collect()
+    }
+
+    fn has_similar_requirements_like_cpp(&self, spell_area: &SpellAreaLikeCpp) -> bool {
+        self.spell_area_map_bounds_like_cpp(spell_area.spell_id)
+            .into_iter()
+            .any(|existing| {
+                spell_area.spell_id == existing.spell_id
+                    && spell_area.area_id == existing.area_id
+                    && spell_area.quest_start == existing.quest_start
+                    && spell_area.aura_spell == existing.aura_spell
+                    && (spell_area.race_mask & existing.race_mask) != 0
+                    && spell_area.gender == existing.gender
+            })
+    }
+
+    fn has_autocast_aura_chain_like_cpp(&self, spell_area: &SpellAreaLikeCpp) -> bool {
+        self.spell_area_for_aura_map_bounds_like_cpp(spell_area.spell_id)
+            .into_iter()
+            .any(|existing| {
+                existing.flags & SPELL_AREA_FLAG_AUTOCAST_LIKE_CPP != 0 && existing.aura_spell > 0
+            })
+            || self
+                .spell_area_map_bounds_like_cpp(spell_area.aura_spell as u32)
+                .into_iter()
+                .any(|existing| {
+                    existing.flags & SPELL_AREA_FLAG_AUTOCAST_LIKE_CPP != 0
+                        && existing.aura_spell > 0
+                })
+    }
+
+    fn insert_like_cpp(&mut self, spell_area: SpellAreaLikeCpp) {
+        let idx = self.areas.len();
+        self.areas.push(spell_area);
+        self.area_indices_by_spell_id
+            .entry(spell_area.spell_id)
+            .or_default()
+            .push(idx);
+
+        if spell_area.area_id != 0 {
+            self.area_indices_by_area_id
+                .entry(spell_area.area_id)
+                .or_default()
+                .push(idx);
+        }
+
+        if spell_area.quest_start != 0 || spell_area.quest_end != 0 {
+            if spell_area.quest_start == spell_area.quest_end {
+                self.area_indices_by_quest_start_or_end
+                    .entry(spell_area.quest_start)
+                    .or_default()
+                    .push(idx);
+            } else {
+                if spell_area.quest_start != 0 {
+                    self.area_indices_by_quest_start_or_end
+                        .entry(spell_area.quest_start)
+                        .or_default()
+                        .push(idx);
+                }
+                if spell_area.quest_end != 0 {
+                    self.area_indices_by_quest_start_or_end
+                        .entry(spell_area.quest_end)
+                        .or_default()
+                        .push(idx);
+                }
+            }
+        }
+
+        if spell_area.quest_end != 0 {
+            self.area_indices_by_quest_end
+                .entry(spell_area.quest_end)
+                .or_default()
+                .push(idx);
+        }
+
+        if spell_area.aura_spell != 0 {
+            self.area_indices_by_aura_spell
+                .entry(spell_area.aura_spell.unsigned_abs())
+                .or_default()
+                .push(idx);
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpellAreaLoadOutcomeLikeCpp {
+    pub store: SpellAreaStoreLikeCpp,
+    pub loaded_row_count: usize,
+    pub errors: Vec<SpellAreaLoadErrorLikeCpp>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -4788,6 +5123,185 @@ mod tests {
         assert_eq!(store.spell_with_rank_like_cpp(30, 1, true), 10);
         assert_eq!(store.spell_with_rank_like_cpp(99, 2, true), 0);
         assert_eq!(store.spell_with_rank_like_cpp(99, 2, false), 99);
+    }
+
+    fn spell_area_row(spell_id: u32) -> SpellAreaRowLikeCpp {
+        SpellAreaRowLikeCpp {
+            spell_id,
+            area_id: 0,
+            quest_start: 0,
+            quest_start_status: 0,
+            quest_end_status: 0,
+            quest_end: 0,
+            aura_spell: 0,
+            race_mask: 0,
+            gender: GENDER_NONE_LIKE_CPP,
+            flags: 0,
+        }
+    }
+
+    #[test]
+    fn spell_area_store_populates_primary_and_secondary_indices_like_cpp() {
+        let mut row = spell_area_row(100);
+        row.area_id = 10;
+        row.quest_start = 20;
+        row.quest_start_status = 1 << 3;
+        row.quest_end = 30;
+        row.quest_end_status = 1 << 6;
+        row.aura_spell = -40;
+        row.race_mask = 1;
+        row.gender = GENDER_MALE_LIKE_CPP;
+        row.flags = SPELL_AREA_FLAG_AUTOCAST_LIKE_CPP;
+
+        let outcome = SpellAreaStoreLikeCpp::from_rows_like_cpp(
+            [row],
+            |spell_id| matches!(spell_id, 40 | 100),
+            |area_id| area_id == 10,
+            |quest_id| matches!(quest_id, 20 | 30),
+        );
+
+        assert!(outcome.errors.is_empty());
+        assert_eq!(outcome.loaded_row_count, 1);
+        assert_eq!(outcome.store.spell_area_map_bounds_like_cpp(100).len(), 1);
+        assert_eq!(
+            outcome
+                .store
+                .spell_area_for_area_map_bounds_like_cpp(10)
+                .len(),
+            1
+        );
+        assert_eq!(
+            outcome
+                .store
+                .spell_area_for_quest_map_bounds_like_cpp(20)
+                .len(),
+            1
+        );
+        assert_eq!(
+            outcome
+                .store
+                .spell_area_for_quest_map_bounds_like_cpp(30)
+                .len(),
+            1
+        );
+        assert_eq!(
+            outcome
+                .store
+                .spell_area_for_quest_end_map_bounds_like_cpp(30)
+                .len(),
+            1
+        );
+        assert_eq!(
+            outcome
+                .store
+                .spell_area_for_aura_map_bounds_like_cpp(40)
+                .len(),
+            1
+        );
+        assert_eq!(
+            outcome.store.areas_like_cpp()[0],
+            SpellAreaLikeCpp {
+                spell_id: 100,
+                area_id: 10,
+                quest_start: 20,
+                quest_end: 30,
+                aura_spell: -40,
+                race_mask: 1,
+                gender: GENDER_MALE_LIKE_CPP,
+                quest_start_status: 1 << 3,
+                quest_end_status: 1 << 6,
+                flags: SPELL_AREA_FLAG_AUTOCAST_LIKE_CPP,
+            }
+        );
+    }
+
+    #[test]
+    fn spell_area_store_validates_rows_like_cpp() {
+        let mut duplicate_first = spell_area_row(100);
+        duplicate_first.area_id = 10;
+        duplicate_first.quest_start = 20;
+        duplicate_first.aura_spell = 40;
+        duplicate_first.race_mask = 1;
+        duplicate_first.gender = GENDER_FEMALE_LIKE_CPP;
+
+        let duplicate_second = duplicate_first;
+        let mut missing_area = spell_area_row(100);
+        missing_area.area_id = 999;
+        let mut missing_start_quest = spell_area_row(100);
+        missing_start_quest.quest_start = 999;
+        let mut missing_end_quest = spell_area_row(100);
+        missing_end_quest.quest_end = 999;
+        let mut missing_aura = spell_area_row(100);
+        missing_aura.aura_spell = 999;
+        let mut self_aura = spell_area_row(100);
+        self_aura.aura_spell = 100;
+        let mut invalid_race = spell_area_row(100);
+        invalid_race.race_mask = 1_u64 << 62;
+        let mut invalid_gender = spell_area_row(100);
+        invalid_gender.gender = 3;
+
+        let outcome = SpellAreaStoreLikeCpp::from_rows_like_cpp(
+            [
+                duplicate_first,
+                duplicate_second,
+                missing_area,
+                missing_start_quest,
+                missing_end_quest,
+                missing_aura,
+                self_aura,
+                invalid_race,
+                invalid_gender,
+            ],
+            |spell_id| matches!(spell_id, 40 | 100),
+            |area_id| area_id == 10,
+            |quest_id| matches!(quest_id, 20 | 30),
+        );
+
+        assert_eq!(outcome.loaded_row_count, 1);
+        assert_eq!(
+            outcome
+                .errors
+                .iter()
+                .map(|error| error.kind)
+                .collect::<Vec<_>>(),
+            vec![
+                SpellAreaLoadErrorKindLikeCpp::DuplicateSimilarRequirements,
+                SpellAreaLoadErrorKindLikeCpp::AreaMissing,
+                SpellAreaLoadErrorKindLikeCpp::QuestStartMissing,
+                SpellAreaLoadErrorKindLikeCpp::QuestEndMissing,
+                SpellAreaLoadErrorKindLikeCpp::AuraSpellMissing,
+                SpellAreaLoadErrorKindLikeCpp::AuraSpellSelfRequirement,
+                SpellAreaLoadErrorKindLikeCpp::InvalidRaceMask,
+                SpellAreaLoadErrorKindLikeCpp::InvalidGender,
+            ]
+        );
+    }
+
+    #[test]
+    fn spell_area_store_rejects_autocast_aura_chains_like_cpp() {
+        let mut aura_to_spell = spell_area_row(200);
+        aura_to_spell.aura_spell = 100;
+        aura_to_spell.flags = SPELL_AREA_FLAG_AUTOCAST_LIKE_CPP;
+
+        let mut spell_to_aura = spell_area_row(100);
+        spell_to_aura.aura_spell = 200;
+        spell_to_aura.flags = SPELL_AREA_FLAG_AUTOCAST_LIKE_CPP;
+
+        let outcome = SpellAreaStoreLikeCpp::from_rows_like_cpp(
+            [aura_to_spell, spell_to_aura],
+            |spell_id| matches!(spell_id, 100 | 200),
+            |_| true,
+            |_| true,
+        );
+
+        assert_eq!(outcome.loaded_row_count, 1);
+        assert_eq!(
+            outcome.errors,
+            vec![SpellAreaLoadErrorLikeCpp {
+                row: spell_to_aura,
+                kind: SpellAreaLoadErrorKindLikeCpp::AuraAutocastChain,
+            }]
+        );
     }
 
     #[test]
