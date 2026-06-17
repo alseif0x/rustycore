@@ -1,5 +1,9 @@
 # RustyCore
 
+<p align="center">
+  <img src="assets/brand/rustycore-logo.svg" alt="RustyCore logo" width="760">
+</p>
+
 **WoW Wrath of the Lich King Classic (3.4.3.54261) server emulator written in Rust.**
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)

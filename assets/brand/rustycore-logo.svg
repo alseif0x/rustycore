@@ -1,0 +1,53 @@
+<svg width="1600" height="520" viewBox="0 0 1600 520" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">RustyCore logo</title>
+  <desc id="desc">RustyCore wordmark with a forged rust and steel core emblem.</desc>
+  <defs>
+    <radialGradient id="coreGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(258 260) rotate(90) scale(108)">
+      <stop offset="0" stop-color="#EAFBFF"/>
+      <stop offset="0.39" stop-color="#77D9F2"/>
+      <stop offset="1" stop-color="#0D2F3B"/>
+    </radialGradient>
+    <linearGradient id="rustFace" x1="138" y1="78" x2="379" y2="428" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#D87935"/>
+      <stop offset="0.48" stop-color="#A94D26"/>
+      <stop offset="1" stop-color="#54291F"/>
+    </linearGradient>
+    <linearGradient id="steelEdge" x1="82" y1="71" x2="433" y2="449" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#A9B0B1"/>
+      <stop offset="0.34" stop-color="#4F585C"/>
+      <stop offset="0.7" stop-color="#22282C"/>
+      <stop offset="1" stop-color="#788286"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1600" height="520" rx="96" fill="#11161A"/>
+
+  <g>
+    <path d="M258 47L418 140V326L258 419L98 326V140L258 47Z" fill="url(#steelEdge)"/>
+    <path d="M258 82L382 154V298L258 370L134 298V154L258 82Z" fill="url(#rustFace)"/>
+    <path d="M258 118L350 172V280L258 334L166 280V172L258 118Z" fill="#171E22" stroke="#0B1114" stroke-width="9"/>
+    <circle cx="258" cy="260" r="91" fill="#20282D" stroke="#859196" stroke-width="10"/>
+    <circle cx="258" cy="260" r="60" fill="url(#coreGlow)" stroke="#D8F6FF" stroke-opacity="0.62" stroke-width="6"/>
+
+    <path d="M258 152V196" stroke="#D87935" stroke-width="14" stroke-linecap="round"/>
+    <path d="M258 324V368" stroke="#D87935" stroke-width="14" stroke-linecap="round"/>
+    <path d="M166 206L202 227" stroke="#D87935" stroke-width="14" stroke-linecap="round"/>
+    <path d="M314 293L350 314" stroke="#D87935" stroke-width="14" stroke-linecap="round"/>
+    <path d="M166 314L202 293" stroke="#D87935" stroke-width="14" stroke-linecap="round"/>
+    <path d="M314 227L350 206" stroke="#D87935" stroke-width="14" stroke-linecap="round"/>
+
+    <path d="M214 260H158" stroke="#8FA0A7" stroke-width="10" stroke-linecap="round"/>
+    <path d="M358 260H302" stroke="#8FA0A7" stroke-width="10" stroke-linecap="round"/>
+    <path d="M258 216V160" stroke="#8FA0A7" stroke-width="10" stroke-linecap="round"/>
+    <path d="M258 360V304" stroke="#8FA0A7" stroke-width="10" stroke-linecap="round"/>
+    <circle cx="158" cy="260" r="11" fill="#77D9F2"/>
+    <circle cx="358" cy="260" r="11" fill="#77D9F2"/>
+    <circle cx="258" cy="160" r="11" fill="#77D9F2"/>
+    <circle cx="258" cy="360" r="11" fill="#77D9F2"/>
+  </g>
+
+  <text x="500" y="250" fill="#F3F5F5" font-size="132" font-family="Inter, Segoe UI, Arial, sans-serif" font-weight="800" letter-spacing="0">Rusty<tspan fill="#D87935">Core</tspan></text>
+  <text x="508" y="322" fill="#AEB9BD" font-size="34" font-family="Inter, Segoe UI, Arial, sans-serif" font-weight="500" letter-spacing="0">WoW WotLK Classic server emulator written in Rust</text>
+  <path d="M508 360H1096" stroke="#2D3940" stroke-width="4" stroke-linecap="round"/>
+  <path d="M508 360H714" stroke="#77D9F2" stroke-width="4" stroke-linecap="round"/>
+</svg>
