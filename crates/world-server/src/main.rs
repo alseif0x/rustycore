@@ -2513,6 +2513,36 @@ async fn main() -> Result<ExitCode> {
         trainer_data_store.creature_trainer_count_like_cpp()
     );
 
+    let faction_change_outcome = wow_data::FactionChangeStoreLikeCpp::load_like_cpp(
+        world_db.as_ref(),
+        |id| achievement_store.contains(id),
+        |id| quest_store.get(id).is_some(),
+        |id| faction_store.contains(id),
+        |id| spell_store.get(i32::try_from(id).unwrap_or(-1)).is_some(),
+        |id| char_titles_store.contains(id),
+    )
+    .await
+    .context("Failed to load C++ faction-change mapping stores")?;
+    for error in &faction_change_outcome.report.validation_errors {
+        tracing::error!("{}", error.cpp_message_like_cpp());
+    }
+    info!(
+        "Loaded C++ faction-change pairs: achievements {} rows/{} valid, spells {} rows/{} valid, quests {} rows/{} valid, items {} derived pending, reputations {} rows/{} valid, titles {} rows/{} valid ({} validation issues)",
+        faction_change_outcome.report.achievement_rows_seen,
+        faction_change_outcome.store.achievement_len(),
+        faction_change_outcome.report.spell_rows_seen,
+        faction_change_outcome.store.spell_len(),
+        faction_change_outcome.report.quest_rows_seen,
+        faction_change_outcome.store.quest_len(),
+        faction_change_outcome.report.item_rows_seen,
+        faction_change_outcome.report.reputation_rows_seen,
+        faction_change_outcome.store.reputation_len(),
+        faction_change_outcome.report.title_rows_seen,
+        faction_change_outcome.store.title_len(),
+        faction_change_outcome.report.validation_errors.len()
+    );
+    let _faction_change_store = Arc::new(faction_change_outcome.store);
+
     // Load player_xp_for_level table
     let player_xp_table = {
         let mut stmt = world_db.prepare(WorldStatements::SEL_PLAYER_XP_FOR_LEVEL);

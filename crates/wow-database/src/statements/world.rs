@@ -361,6 +361,16 @@ pub enum WorldStatements {
     SEL_TRAINER_LOCALES,
     /// C++ `ObjectMgr::LoadCreatureTrainers` full creature_trainer query.
     SEL_CREATURE_TRAINERS_ALL,
+    /// C++ `ObjectMgr::LoadFactionChangeAchievements` startup query.
+    SEL_FACTION_CHANGE_ACHIEVEMENTS,
+    /// C++ `ObjectMgr::LoadFactionChangeQuests` startup query.
+    SEL_FACTION_CHANGE_QUESTS,
+    /// C++ `ObjectMgr::LoadFactionChangeReputations` startup query.
+    SEL_FACTION_CHANGE_REPUTATIONS,
+    /// C++ `ObjectMgr::LoadFactionChangeSpells` startup query.
+    SEL_FACTION_CHANGE_SPELLS,
+    /// C++ `ObjectMgr::LoadFactionChangeTitles` startup query.
+    SEL_FACTION_CHANGE_TITLES,
     /// Load trainer IDs for C++ ConditionMgr source validation.
     SEL_TRAINER_IDS,
     /// Load conversation line template IDs for C++ ConditionMgr source validation.
@@ -1048,6 +1058,21 @@ impl StatementDef for WorldStatements {
             Self::SEL_CREATURE_TRAINERS_ALL => {
                 "SELECT CreatureID, TrainerID, MenuID, OptionID FROM creature_trainer"
             }
+            Self::SEL_FACTION_CHANGE_ACHIEVEMENTS => {
+                "SELECT alliance_id, horde_id FROM player_factionchange_achievement"
+            }
+            Self::SEL_FACTION_CHANGE_QUESTS => {
+                "SELECT alliance_id, horde_id FROM player_factionchange_quests"
+            }
+            Self::SEL_FACTION_CHANGE_REPUTATIONS => {
+                "SELECT alliance_id, horde_id FROM player_factionchange_reputations"
+            }
+            Self::SEL_FACTION_CHANGE_SPELLS => {
+                "SELECT alliance_id, horde_id FROM player_factionchange_spells"
+            }
+            Self::SEL_FACTION_CHANGE_TITLES => {
+                "SELECT alliance_id, horde_id FROM player_factionchange_titles"
+            }
             Self::SEL_TRAINER_IDS => "SELECT Id FROM trainer",
             Self::SEL_CONVERSATION_LINE_TEMPLATE_IDS => "SELECT Id FROM conversation_line_template",
             Self::SEL_AREA_TRIGGER_TEMPLATE_IDS => "SELECT Id, IsCustom FROM areatrigger_template",
@@ -1440,5 +1465,52 @@ mod tests {
             )
         );
         assert_eq!(sql.matches('?').count(), 0);
+    }
+
+    #[test]
+    fn faction_change_statements_match_cpp_sql_exactly() {
+        assert_eq!(
+            WorldStatements::SEL_FACTION_CHANGE_ACHIEVEMENTS.sql(),
+            "SELECT alliance_id, horde_id FROM player_factionchange_achievement"
+        );
+        assert_eq!(
+            WorldStatements::SEL_FACTION_CHANGE_QUESTS.sql(),
+            "SELECT alliance_id, horde_id FROM player_factionchange_quests"
+        );
+        assert_eq!(
+            WorldStatements::SEL_FACTION_CHANGE_REPUTATIONS.sql(),
+            "SELECT alliance_id, horde_id FROM player_factionchange_reputations"
+        );
+        assert_eq!(
+            WorldStatements::SEL_FACTION_CHANGE_SPELLS.sql(),
+            "SELECT alliance_id, horde_id FROM player_factionchange_spells"
+        );
+        assert_eq!(
+            WorldStatements::SEL_FACTION_CHANGE_TITLES.sql(),
+            "SELECT alliance_id, horde_id FROM player_factionchange_titles"
+        );
+        assert_eq!(
+            WorldStatements::SEL_FACTION_CHANGE_ACHIEVEMENTS
+                .sql()
+                .matches('?')
+                .count()
+                + WorldStatements::SEL_FACTION_CHANGE_QUESTS
+                    .sql()
+                    .matches('?')
+                    .count()
+                + WorldStatements::SEL_FACTION_CHANGE_REPUTATIONS
+                    .sql()
+                    .matches('?')
+                    .count()
+                + WorldStatements::SEL_FACTION_CHANGE_SPELLS
+                    .sql()
+                    .matches('?')
+                    .count()
+                + WorldStatements::SEL_FACTION_CHANGE_TITLES
+                    .sql()
+                    .matches('?')
+                    .count(),
+            0
+        );
     }
 }

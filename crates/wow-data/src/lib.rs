@@ -23,6 +23,7 @@ pub mod difficulty;
 pub mod disable_mgr;
 pub mod dungeon_encounter;
 pub mod entities_movement;
+pub mod faction_change;
 pub mod game_tables;
 pub mod game_tele;
 pub mod gameobject_template;
@@ -157,6 +158,11 @@ pub use entities_movement::{
     EmotesTextSoundStore, EmotesTextStore, GameObjectArtKitEntry, GameObjectArtKitStore,
     GameObjectDisplayInfoEntry, GameObjectDisplayInfoStore, GameObjectsEntry, GameObjectsStore,
     UnitConditionEntry, UnitConditionStore, UnitPowerBarEntry, UnitPowerBarStore,
+};
+pub use faction_change::{
+    FactionChangeLoadOutcomeLikeCpp, FactionChangeLoadReportLikeCpp, FactionChangePairKindLikeCpp,
+    FactionChangePairRowLikeCpp, FactionChangeSideLikeCpp, FactionChangeStoreLikeCpp,
+    FactionChangeValidationErrorLikeCpp,
 };
 pub use game_tables::{
     BattlePetXpEntryLikeCpp, BattlePetXpGameTableLikeCpp, battle_pet_xp_per_level_like_cpp,
