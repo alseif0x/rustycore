@@ -170,6 +170,7 @@ pub struct CreatureTemplateLifecycleRecordLikeCpp {
     pub unit_flags2: u32,
     pub unit_flags3: u32,
     pub creature_type: u32,
+    pub family: u32,
     pub unit_class: u8,
     pub vehicle_id: u32,
     pub movement_type: u8,
@@ -616,7 +617,7 @@ impl CreatureTemplateLifecycleStoreLikeCpp {
         let mut templates = HashMap::new();
         let mut result = db
             .direct_query(
-                "SELECT ct.entry, ct.name, ct.AIName, ct.ScriptName, ct.RequiredExpansion, ct.faction, ct.npcflag, ct.speed_walk, ct.speed_run, ct.scale, ct.Classification, ct.dmgschool, ct.unit_flags, ct.unit_flags2, ct.unit_flags3, ct.`type`, ct.unit_class, ct.VehicleId, ct.MovementType, COALESCE(ctm.Ground, 1), COALESCE(ctm.Swim, 1), COALESCE(ctm.Flight, 0), ct.flags_extra, ct.StringId, ct.RegenHealth FROM creature_template ct LEFT JOIN creature_template_movement ctm ON ct.entry = ctm.CreatureId",
+                "SELECT ct.entry, ct.name, ct.AIName, ct.ScriptName, ct.RequiredExpansion, ct.faction, ct.npcflag, ct.speed_walk, ct.speed_run, ct.scale, ct.Classification, ct.dmgschool, ct.unit_flags, ct.unit_flags2, ct.unit_flags3, ct.`type`, ct.family, ct.unit_class, ct.VehicleId, ct.MovementType, COALESCE(ctm.Ground, 1), COALESCE(ctm.Swim, 1), COALESCE(ctm.Flight, 0), ct.flags_extra, ct.StringId, ct.RegenHealth FROM creature_template ct LEFT JOIN creature_template_movement ctm ON ct.entry = ctm.CreatureId",
             )
             .await?;
         if !result.is_empty() {
@@ -638,18 +639,19 @@ impl CreatureTemplateLifecycleStoreLikeCpp {
                     unit_flags2: result.try_read::<u32>(13).unwrap_or(0),
                     unit_flags3: result.try_read::<u32>(14).unwrap_or(0),
                     creature_type: result.try_read::<u32>(15).unwrap_or(0),
-                    unit_class: result.try_read::<u8>(16).unwrap_or(0),
-                    vehicle_id: result.try_read::<u32>(17).unwrap_or(0),
-                    movement_type: result.try_read::<u8>(18).unwrap_or(0),
+                    family: result.try_read::<u32>(16).unwrap_or(0),
+                    unit_class: result.try_read::<u8>(17).unwrap_or(0),
+                    vehicle_id: result.try_read::<u32>(18).unwrap_or(0),
+                    movement_type: result.try_read::<u8>(19).unwrap_or(0),
                     ground_movement_type: result
-                        .try_read::<Option<u8>>(19)
+                        .try_read::<Option<u8>>(20)
                         .flatten()
                         .unwrap_or(CreatureGroundMovementType::Run as u8),
-                    swim_allowed: result.try_read::<Option<u8>>(20).flatten().unwrap_or(1) != 0,
-                    flight_movement_type: result.try_read::<Option<u8>>(21).flatten().unwrap_or(0),
-                    flags_extra: result.try_read::<u32>(22).unwrap_or(0),
-                    string_id: result.try_read::<String>(23).unwrap_or_default(),
-                    regen_health: result.try_read::<u8>(24).unwrap_or(0) != 0,
+                    swim_allowed: result.try_read::<Option<u8>>(21).flatten().unwrap_or(1) != 0,
+                    flight_movement_type: result.try_read::<Option<u8>>(22).flatten().unwrap_or(0),
+                    flags_extra: result.try_read::<u32>(23).unwrap_or(0),
+                    string_id: result.try_read::<String>(24).unwrap_or_default(),
+                    regen_health: result.try_read::<u8>(25).unwrap_or(0) != 0,
                     spells: [0; MAX_CREATURE_SPELLS_LIKE_CPP],
                     models: Vec::new(),
                 };
@@ -1316,6 +1318,7 @@ mod tests {
                 unit_flags2: 0x0000_0800,
                 unit_flags3: 0x0000_0002,
                 creature_type: 7,
+                family: 0,
                 unit_class: 2,
                 vehicle_id: 900,
                 movement_type: 1,
@@ -1385,6 +1388,7 @@ mod tests {
             unit_flags2: 0,
             unit_flags3: 0,
             creature_type: 0,
+            family: 0,
             unit_class: 1,
             vehicle_id: 0,
             movement_type: 0,
@@ -1425,6 +1429,7 @@ mod tests {
             unit_flags2: 0,
             unit_flags3: 0,
             creature_type: 0,
+            family: 0,
             unit_class: 0,
             vehicle_id: 0,
             movement_type: 0,
@@ -1466,6 +1471,7 @@ mod tests {
             unit_flags2: 0,
             unit_flags3: 0,
             creature_type: 0,
+            family: 0,
             unit_class: 0,
             vehicle_id: 0,
             movement_type: 0,
@@ -1526,6 +1532,7 @@ mod tests {
             unit_flags2: 0,
             unit_flags3: 0,
             creature_type: 0,
+            family: 0,
             unit_class: 0,
             vehicle_id: 0,
             movement_type: 0,
