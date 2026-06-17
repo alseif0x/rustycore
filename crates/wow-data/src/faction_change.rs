@@ -10,6 +10,9 @@ use std::collections::HashMap;
 use anyhow::Result;
 use wow_database::{WorldDatabase, WorldStatements};
 
+const ITEM_FLAG2_FACTION_HORDE_LIKE_CPP: u32 = 0x0000_0001;
+const ITEM_FLAG2_FACTION_ALLIANCE_LIKE_CPP: u32 = 0x0000_0002;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FactionChangePairKindLikeCpp {
     Achievement,
@@ -45,6 +48,13 @@ impl FactionChangePairKindLikeCpp {
 pub struct FactionChangePairRowLikeCpp {
     pub alliance_id: u32,
     pub horde_id: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FactionChangeItemTemplateLikeCpp {
+    pub item_id: u32,
+    pub other_faction_item_id: u32,
+    pub flags2: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -191,6 +201,20 @@ impl FactionChangeStoreLikeCpp {
         FactionChangeLoadOutcomeLikeCpp { store, report }
     }
 
+    pub fn with_item_templates_like_cpp(
+        mut self,
+        item_templates: impl IntoIterator<Item = FactionChangeItemTemplateLikeCpp>,
+        report: &mut FactionChangeLoadReportLikeCpp,
+    ) -> Self {
+        report.item_rows_seen = load_item_maps_like_cpp(
+            item_templates,
+            &mut self.items_alliance_to_horde,
+            &mut self.items_horde_to_alliance,
+        );
+        report.item_derivation_pending = false;
+        self
+    }
+
     /// C++ `ObjectMgr::LoadFactionChangeAchievements`, `LoadFactionChangeQuests`,
     /// `LoadFactionChangeReputations`, `LoadFactionChangeSpells`, and
     /// `LoadFactionChangeTitles`.
@@ -295,6 +319,32 @@ impl FactionChangeStoreLikeCpp {
     pub fn item_horde_to_alliance_len(&self) -> usize {
         self.items_horde_to_alliance.len()
     }
+}
+
+fn load_item_maps_like_cpp(
+    item_templates: impl IntoIterator<Item = FactionChangeItemTemplateLikeCpp>,
+    alliance_to_horde: &mut HashMap<u32, u32>,
+    horde_to_alliance: &mut HashMap<u32, u32>,
+) -> usize {
+    let mut count = 0;
+
+    for item in item_templates {
+        if item.other_faction_item_id == 0 {
+            continue;
+        }
+
+        if item.flags2 & ITEM_FLAG2_FACTION_HORDE_LIKE_CPP != 0 {
+            horde_to_alliance.insert(item.item_id, item.other_faction_item_id);
+        }
+
+        if item.flags2 & ITEM_FLAG2_FACTION_ALLIANCE_LIKE_CPP != 0 {
+            alliance_to_horde.insert(item.item_id, item.other_faction_item_id);
+        }
+
+        count += 1;
+    }
+
+    count
 }
 
 fn load_pair_map_like_cpp<Exists>(
@@ -462,5 +512,61 @@ mod tests {
         assert_eq!(outcome.report.item_rows_seen, 0);
         assert_eq!(outcome.store.item_alliance_to_horde_len(), 0);
         assert_eq!(outcome.store.item_horde_to_alliance_len(), 0);
+    }
+
+    #[test]
+    fn faction_change_items_are_derived_from_item_template_flags_like_cpp() {
+        let mut outcome = FactionChangeStoreLikeCpp::from_validated_rows_like_cpp(
+            [],
+            [],
+            [],
+            [],
+            [],
+            |_| true,
+            |_| true,
+            |_| true,
+            |_| true,
+            |_| true,
+        );
+        outcome.store = outcome.store.with_item_templates_like_cpp(
+            [
+                FactionChangeItemTemplateLikeCpp {
+                    item_id: 10,
+                    other_faction_item_id: 20,
+                    flags2: ITEM_FLAG2_FACTION_HORDE_LIKE_CPP,
+                },
+                FactionChangeItemTemplateLikeCpp {
+                    item_id: 30,
+                    other_faction_item_id: 40,
+                    flags2: ITEM_FLAG2_FACTION_ALLIANCE_LIKE_CPP,
+                },
+                FactionChangeItemTemplateLikeCpp {
+                    item_id: 50,
+                    other_faction_item_id: 60,
+                    flags2: ITEM_FLAG2_FACTION_HORDE_LIKE_CPP
+                        | ITEM_FLAG2_FACTION_ALLIANCE_LIKE_CPP,
+                },
+                FactionChangeItemTemplateLikeCpp {
+                    item_id: 70,
+                    other_faction_item_id: 0,
+                    flags2: ITEM_FLAG2_FACTION_HORDE_LIKE_CPP,
+                },
+                FactionChangeItemTemplateLikeCpp {
+                    item_id: 80,
+                    other_faction_item_id: 90,
+                    flags2: 0,
+                },
+            ],
+            &mut outcome.report,
+        );
+
+        assert!(!outcome.report.item_derivation_pending);
+        assert_eq!(outcome.report.item_rows_seen, 4);
+        assert_eq!(outcome.store.item_horde_to_alliance_like_cpp(10), Some(20));
+        assert_eq!(outcome.store.item_alliance_to_horde_like_cpp(30), Some(40));
+        assert_eq!(outcome.store.item_horde_to_alliance_like_cpp(50), Some(60));
+        assert_eq!(outcome.store.item_alliance_to_horde_like_cpp(50), Some(60));
+        assert_eq!(outcome.store.item_horde_to_alliance_like_cpp(70), None);
+        assert_eq!(outcome.store.item_alliance_to_horde_like_cpp(80), None);
     }
 }

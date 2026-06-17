@@ -160,9 +160,9 @@ pub use entities_movement::{
     UnitConditionEntry, UnitConditionStore, UnitPowerBarEntry, UnitPowerBarStore,
 };
 pub use faction_change::{
-    FactionChangeLoadOutcomeLikeCpp, FactionChangeLoadReportLikeCpp, FactionChangePairKindLikeCpp,
-    FactionChangePairRowLikeCpp, FactionChangeSideLikeCpp, FactionChangeStoreLikeCpp,
-    FactionChangeValidationErrorLikeCpp,
+    FactionChangeItemTemplateLikeCpp, FactionChangeLoadOutcomeLikeCpp,
+    FactionChangeLoadReportLikeCpp, FactionChangePairKindLikeCpp, FactionChangePairRowLikeCpp,
+    FactionChangeSideLikeCpp, FactionChangeStoreLikeCpp, FactionChangeValidationErrorLikeCpp,
 };
 pub use game_tables::{
     BattlePetXpEntryLikeCpp, BattlePetXpGameTableLikeCpp, battle_pet_xp_per_level_like_cpp,

@@ -77,6 +77,7 @@ pub struct ItemSparseTemplateEntry {
     pub price_variance: f32,
     pub price_random_value: f32,
     pub max_durability: u32,
+    pub other_faction_item_id: i32,
     pub limit_category: u16,
     pub instance_bound: u16,
     pub zone_bound: [u16; 2],
@@ -108,6 +109,11 @@ impl ItemSparseTemplateEntry {
 
     pub fn item_flags(&self) -> ItemFlags {
         ItemFlags::from_bits_retain(u64::from(self.flags[0]))
+    }
+
+    /// C++ `ItemTemplate::GetOtherFactionItemId`.
+    pub fn other_faction_item_id_like_cpp(&self) -> u32 {
+        self.other_faction_item_id as u32
     }
 }
 
@@ -422,6 +428,7 @@ impl ItemStatsStore {
             let mut price_variance_offset: usize = 0;
             let mut price_random_value_offset: usize = 0;
             let mut flags_offset: usize = 0;
+            let mut other_faction_item_id_offset: usize = 0;
             let mut max_durability_offset: usize = 0;
             let mut limit_category_offset: usize = 0;
             let mut instance_bound_offset: usize = 0;
@@ -474,6 +481,9 @@ impl ItemStatsStore {
                 }
                 if fi == 23 {
                     flags_offset = pos;
+                }
+                if fi == 24 {
+                    other_faction_item_id_offset = pos;
                 }
                 if fi == 28 {
                     max_durability_offset = pos;
@@ -565,6 +575,7 @@ impl ItemStatsStore {
                 && price_variance_offset + 4 <= record.len()
                 && price_random_value_offset + 4 <= record.len()
                 && flags_offset + 16 <= record.len()
+                && other_faction_item_id_offset + 4 <= record.len()
                 && max_durability_offset + 4 <= record.len()
                 && limit_category_offset + 2 <= record.len()
                 && instance_bound_offset + 2 <= record.len()
@@ -591,6 +602,7 @@ impl ItemStatsStore {
                         vendor_stack_count: read_u32(record, vendor_stack_count_offset),
                         price_variance: read_f32(record, price_variance_offset),
                         price_random_value: read_f32(record, price_random_value_offset),
+                        other_faction_item_id: read_i32(record, other_faction_item_id_offset),
                         max_durability: read_u32(record, max_durability_offset),
                         limit_category: read_u16(record, limit_category_offset),
                         instance_bound: read_u16(record, instance_bound_offset),
@@ -690,6 +702,15 @@ impl ItemStatsStore {
     /// Return the C++ `ItemSparseEntry` subset needed by `ItemTemplate` helpers.
     pub fn sparse_template(&self, item_id: u32) -> Option<&ItemSparseTemplateEntry> {
         self.sparse_templates.get(&item_id)
+    }
+
+    /// Iterate over the represented C++ `_itemTemplateStore` extended-data subset.
+    pub fn sparse_templates_like_cpp(
+        &self,
+    ) -> impl Iterator<Item = (u32, &ItemSparseTemplateEntry)> {
+        self.sparse_templates
+            .iter()
+            .map(|(&item_id, template)| (item_id, template))
     }
 
     /// Return the C++ `ItemSparseEntry` subset used by random-property generation.
@@ -835,6 +856,7 @@ mod tests {
             vendor_stack_count: 2,
             price_variance: 1.25,
             price_random_value: 0.75,
+            other_faction_item_id: 999,
             max_durability: 77,
             limit_category: 9,
             instance_bound: 11,
@@ -859,6 +881,7 @@ mod tests {
         assert_eq!(loaded.vendor_stack_count, 2);
         assert_eq!(loaded.price_variance, 1.25);
         assert_eq!(loaded.price_random_value, 0.75);
+        assert_eq!(loaded.other_faction_item_id_like_cpp(), 999);
         assert_eq!(loaded.instance_bound, 11);
         assert_eq!(loaded.zone_bound, [22, 33]);
         assert_eq!(loaded.required_expansion, 4);

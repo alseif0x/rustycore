@@ -2513,7 +2513,7 @@ async fn main() -> Result<ExitCode> {
         trainer_data_store.creature_trainer_count_like_cpp()
     );
 
-    let faction_change_outcome = wow_data::FactionChangeStoreLikeCpp::load_like_cpp(
+    let mut faction_change_outcome = wow_data::FactionChangeStoreLikeCpp::load_like_cpp(
         world_db.as_ref(),
         |id| achievement_store.contains(id),
         |id| quest_store.get(id).is_some(),
@@ -2523,11 +2523,23 @@ async fn main() -> Result<ExitCode> {
     )
     .await
     .context("Failed to load C++ faction-change mapping stores")?;
+    faction_change_outcome.store = faction_change_outcome.store.with_item_templates_like_cpp(
+        item_stats_store
+            .sparse_templates_like_cpp()
+            .map(
+                |(item_id, template)| wow_data::FactionChangeItemTemplateLikeCpp {
+                    item_id,
+                    other_faction_item_id: template.other_faction_item_id_like_cpp(),
+                    flags2: template.flags[1],
+                },
+            ),
+        &mut faction_change_outcome.report,
+    );
     for error in &faction_change_outcome.report.validation_errors {
         tracing::error!("{}", error.cpp_message_like_cpp());
     }
     info!(
-        "Loaded C++ faction-change pairs: achievements {} rows/{} valid, spells {} rows/{} valid, quests {} rows/{} valid, items {} derived pending, reputations {} rows/{} valid, titles {} rows/{} valid ({} validation issues)",
+        "Loaded C++ faction-change pairs: achievements {} rows/{} valid, spells {} rows/{} valid, quests {} rows/{} valid, items {} derived ({} Alliance->Horde, {} Horde->Alliance), reputations {} rows/{} valid, titles {} rows/{} valid ({} validation issues)",
         faction_change_outcome.report.achievement_rows_seen,
         faction_change_outcome.store.achievement_len(),
         faction_change_outcome.report.spell_rows_seen,
@@ -2535,6 +2547,8 @@ async fn main() -> Result<ExitCode> {
         faction_change_outcome.report.quest_rows_seen,
         faction_change_outcome.store.quest_len(),
         faction_change_outcome.report.item_rows_seen,
+        faction_change_outcome.store.item_alliance_to_horde_len(),
+        faction_change_outcome.store.item_horde_to_alliance_len(),
         faction_change_outcome.report.reputation_rows_seen,
         faction_change_outcome.store.reputation_len(),
         faction_change_outcome.report.title_rows_seen,
