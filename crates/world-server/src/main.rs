@@ -9541,6 +9541,70 @@ fn build_loaded_grid_area_trigger_record_like_cpp(
     }
 }
 
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+struct LoadedGridAreaTriggerLoadSummaryLikeCpp {
+    maps_evaluated: usize,
+    loaded_grids_evaluated: usize,
+    grid_not_loaded: usize,
+    metadata_entries: usize,
+    skipped_already_loaded: usize,
+    skipped_should_not_spawn: usize,
+    stale_index_entries: usize,
+    skipped_difficulty_mismatch: usize,
+    load_record_missing: usize,
+    pre_add_records_added: usize,
+    loaded_grid_primary_records: usize,
+    add_to_map_errors: usize,
+}
+
+impl LoadedGridAreaTriggerLoadSummaryLikeCpp {
+    fn accumulate(&mut self, grid: &wow_map::map::LoadedGridAreaTriggerRecordsSummaryLikeCpp) {
+        self.grid_not_loaded += usize::from(grid.grid_not_loaded);
+        self.metadata_entries += grid.metadata_entries;
+        self.skipped_already_loaded += grid.skipped_already_loaded;
+        self.skipped_should_not_spawn += grid.skipped_should_not_spawn;
+        self.stale_index_entries += grid.stale_index_entries;
+        self.skipped_difficulty_mismatch += grid.skipped_difficulty_mismatch;
+        self.load_record_missing += grid.load_record_missing;
+        self.pre_add_records_added += grid.pre_add_records_added;
+        self.loaded_grid_primary_records += grid.loaded_grid_primary_records.len();
+        self.add_to_map_errors += grid.add_to_map_errors;
+    }
+}
+
+#[allow(dead_code)]
+fn load_loaded_grid_area_triggers_like_cpp(
+    manager: &mut wow_map::MapManager,
+    canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
+    area_trigger_template_store: &wow_data::AreaTriggerTemplateStore,
+) -> LoadedGridAreaTriggerLoadSummaryLikeCpp {
+    let mut summary = LoadedGridAreaTriggerLoadSummaryLikeCpp::default();
+    manager.do_for_all_maps_mut(|managed_map| {
+        summary.maps_evaluated += 1;
+        let loaded_grid_coords = managed_map.map().loaded_grid_coords_like_cpp();
+        summary.loaded_grids_evaluated += loaded_grid_coords.len();
+        for coord in loaded_grid_coords {
+            let grid_summary = managed_map
+                .map_mut()
+                .load_loaded_grid_area_trigger_records_like_cpp(
+                    coord,
+                    canonical_spawn_metadata.spawn_store(),
+                    |map, object_type, spawn_id| {
+                        build_loaded_grid_area_trigger_record_like_cpp(
+                            map,
+                            object_type,
+                            spawn_id,
+                            canonical_spawn_metadata,
+                            area_trigger_template_store,
+                        )
+                    },
+                );
+            summary.accumulate(&grid_summary);
+        }
+    });
+    summary
+}
+
 fn canonical_map_update_tick_set_inactive_like_cpp(
     manager: &mut wow_map::MapManager,
     legacy_manager: Option<&SharedMapManager>,
@@ -11950,8 +12014,9 @@ mod tests {
         get_address_for_client_with_local_networks, half_max_core_stuck_time_like_cpp,
         install_canonical_spawn_group_initializer_like_cpp, kick_all_sessions_like_cpp,
         legacy_creature_aggro_config_like_cpp,
-        legacy_creature_global_runtime_enabled_from_config_like_cpp, load_world_config_from,
-        loot_drop_rates_like_cpp, materialize_game_event_quest_complete_db_bridge_like_cpp,
+        legacy_creature_global_runtime_enabled_from_config_like_cpp,
+        load_loaded_grid_area_triggers_like_cpp, load_world_config_from, loot_drop_rates_like_cpp,
+        materialize_game_event_quest_complete_db_bridge_like_cpp,
         materialize_game_event_world_event_state_db_bridge_like_cpp,
         max_core_stuck_time_ms_like_cpp, max_core_stuck_time_secs_like_cpp,
         min_world_update_time_ms_like_cpp, mmap_runtime_config_like_cpp,
@@ -19195,6 +19260,85 @@ mmap.enablePathFinding = 0
         );
         assert_eq!(area_trigger.template_id().unwrap().id, template_id);
         assert_eq!(area_trigger.data().spell_visual_id, 0);
+    }
+
+    #[test]
+    fn loaded_grid_area_trigger_loader_materializes_loaded_map_grid_like_cpp() {
+        let spawn_id = 89;
+        let create_properties_id = 2002;
+        let template_id = 9002;
+        let mut store = SpawnStore::new();
+        let spawn = SpawnData {
+            object_type: SpawnObjectType::AreaTrigger,
+            spawn_id,
+            map_id: 571,
+            db_data: true,
+            spawn_group: SpawnGroupTemplateData::default_group(),
+            id: create_properties_id,
+            spawn_point: SpawnPosition::new(1.0, 2.0, 3.0, 1.0),
+            phase_use_flags: 0,
+            phase_id: 0,
+            phase_group: 0,
+            terrain_swap_map: -1,
+            pool_id: 0,
+            spawn_time_secs: 0,
+            spawn_difficulties: vec![0],
+            script_id: 0,
+            string_id: String::new(),
+        };
+        store.add_area_trigger_spawn(&spawn);
+        let metadata =
+            super::spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(store, BTreeMap::new())
+                .with_area_trigger_runtime_rows_like_cpp(BTreeMap::from([(
+                    spawn_id,
+                    super::spawn_store_loader::AreaTriggerSpawnRuntimeRowLikeCpp {
+                        spawn_id,
+                        create_properties_id: wow_data::AreaTriggerIdLikeCpp {
+                            id: create_properties_id,
+                            is_custom: false,
+                        },
+                        spell_for_visuals: None,
+                    },
+                )]));
+        let template_store =
+            area_trigger_template_store_for_loaded_grid_like_cpp(create_properties_id, template_id);
+        let mut manager = wow_map::MapManager::default();
+        manager.create_world_map(571, 0);
+        manager
+            .find_map_mut(571, 0)
+            .expect("created map")
+            .map_mut()
+            .ensure_grid_loaded(&wow_map::map::cell_from_world(1.0, 2.0));
+
+        let summary =
+            load_loaded_grid_area_triggers_like_cpp(&mut manager, &metadata, &template_store);
+
+        assert_eq!(summary.maps_evaluated, 1);
+        assert_eq!(summary.loaded_grids_evaluated, 1);
+        assert_eq!(summary.grid_not_loaded, 0);
+        assert_eq!(summary.metadata_entries, 1);
+        assert_eq!(summary.loaded_grid_primary_records, 1);
+        assert_eq!(summary.add_to_map_errors, 0);
+        let area_trigger = manager
+            .find_map_mut(571, 0)
+            .expect("created map")
+            .map()
+            .get_area_trigger_by_spawn_id_like_cpp(spawn_id)
+            .expect("AreaTrigger should be materialized on the loaded grid");
+        assert_eq!(area_trigger.spawn_id(), spawn_id);
+        assert_eq!(area_trigger.template_id().unwrap().id, template_id);
+        assert_eq!(
+            area_trigger.world().guid().high_type(),
+            wow_core::guid::HighGuid::AreaTrigger
+        );
+
+        let second =
+            load_loaded_grid_area_triggers_like_cpp(&mut manager, &metadata, &template_store);
+        assert_eq!(second.maps_evaluated, 1);
+        assert_eq!(second.loaded_grids_evaluated, 1);
+        assert_eq!(second.metadata_entries, 0);
+        assert_eq!(second.loaded_grid_primary_records, 0);
+        assert_eq!(second.skipped_already_loaded, 1);
     }
 
     #[test]
