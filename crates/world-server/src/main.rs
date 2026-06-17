@@ -2439,6 +2439,17 @@ async fn main() -> Result<ExitCode> {
         spell_threat_outcome.loaded_row_count,
         spell_threat_outcome.errors.len()
     );
+    let spell_linked_outcome =
+        wow_data::SpellLinkedStoreLikeCpp::load_like_cpp(world_db.as_ref(), &spell_store)
+            .await
+            .context("Failed to load C++ spell_linked_spell rows")?;
+    let spell_linked_store = Arc::new(spell_linked_outcome.store);
+    info!(
+        "Loaded {} C++ spell_linked_spell rows ({} validation issues, {} warnings)",
+        spell_linked_outcome.loaded_row_count,
+        spell_linked_outcome.errors.len(),
+        spell_linked_outcome.warnings.len()
+    );
     let spell_store = Arc::new(spell_store);
 
     // Shared group registry and pending invites
@@ -2794,6 +2805,7 @@ async fn main() -> Result<ExitCode> {
         spell_misc_store: Some(Arc::clone(&spell_misc_store)),
         spell_group_store: Some(Arc::clone(&spell_group_store)),
         spell_group_stack_rule_store: Some(Arc::clone(&spell_group_stack_rule_store)),
+        spell_linked_store: Some(Arc::clone(&spell_linked_store)),
         spell_procs_per_minute_store: Some(Arc::clone(&spell_procs_per_minute_store)),
         spell_proc_store: Some(Arc::clone(&spell_proc_store)),
         spell_required_store: Some(Arc::clone(&spell_required_store)),
@@ -9093,6 +9105,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.spell_group_stack_rule_store {
         session.set_spell_group_stack_rule_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.spell_linked_store {
+        session.set_spell_linked_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.spell_proc_store {
         session.set_spell_proc_store(Arc::clone(store));

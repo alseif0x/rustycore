@@ -80,13 +80,13 @@ use wow_data::{
     SpellAuraOptionsStore, SpellCategoryStore, SpellChainStoreLikeCpp, SpellDurationStore,
     SpellEnchantProcEntryLikeCpp, SpellEnchantProcStoreLikeCpp, SpellGroupStackRuleLikeCpp,
     SpellGroupStackRuleStoreLikeCpp, SpellGroupStoreLikeCpp, SpellItemEnchantmentStore,
-    SpellMiscStore, SpellProcEntryLikeCpp, SpellProcStoreLikeCpp, SpellRadiusStore,
-    SpellRangeStore, SpellRequiredStoreLikeCpp, SpellStore, SpellTargetPositionStoreLikeCpp,
-    SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp, SummonPropertiesEntry, ToyStore,
-    TransmogSetEntry, TransmogSetItemStore, TrinityStringStoreLikeCpp,
-    VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore,
-    VehicleTemplateStoreLikeCpp, calculate_battle_pet_stats_like_cpp,
-    is_player_meeting_condition_like_cpp,
+    SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp, SpellMiscStore, SpellProcEntryLikeCpp,
+    SpellProcStoreLikeCpp, SpellRadiusStore, SpellRangeStore, SpellRequiredStoreLikeCpp,
+    SpellStore, SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp,
+    SummonPropertiesEntry, ToyStore, TransmogSetEntry, TransmogSetItemStore,
+    TrinityStringStoreLikeCpp, VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp,
+    VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
+    calculate_battle_pet_stats_like_cpp, is_player_meeting_condition_like_cpp,
     progression_rewards::{
         ContentTuningStore, FactionEntry, FactionStore, FactionTemplateStore,
         FriendshipRepReactionStore, ParagonReputationStore, QuestFactionRewardStore,
@@ -3873,6 +3873,7 @@ pub struct WorldSession {
     spell_misc_store: Option<Arc<SpellMiscStore>>,
     spell_group_store: Option<Arc<SpellGroupStoreLikeCpp>>,
     spell_group_stack_rule_store: Option<Arc<SpellGroupStackRuleStoreLikeCpp>>,
+    spell_linked_store: Option<Arc<SpellLinkedStoreLikeCpp>>,
     spell_proc_store: Option<Arc<SpellProcStoreLikeCpp>>,
     spell_required_store: Option<Arc<SpellRequiredStoreLikeCpp>>,
     spell_threat_store: Option<Arc<SpellThreatStoreLikeCpp>>,
@@ -5180,6 +5181,7 @@ impl WorldSession {
             spell_misc_store: None,
             spell_group_store: None,
             spell_group_stack_rule_store: None,
+            spell_linked_store: None,
             spell_proc_store: None,
             spell_required_store: None,
             spell_threat_store: None,
@@ -17023,6 +17025,21 @@ impl WorldSession {
             first_rank_spell_id_1,
             first_rank_spell_id_2,
         )
+    }
+
+    pub fn set_spell_linked_store(&mut self, store: Arc<SpellLinkedStoreLikeCpp>) {
+        self.spell_linked_store = Some(store);
+    }
+
+    pub(crate) fn spell_linked_like_cpp(
+        &self,
+        link_type: SpellLinkedTypeLikeCpp,
+        spell_id: u32,
+    ) -> &[i32] {
+        self.spell_linked_store
+            .as_ref()
+            .and_then(|store| store.get_spell_linked_like_cpp(link_type, spell_id))
+            .unwrap_or(&[])
     }
 
     pub fn set_spell_proc_store(&mut self, store: Arc<SpellProcStoreLikeCpp>) {
@@ -41720,6 +41737,34 @@ mod tests {
         outcome.store
     }
 
+    fn test_spell_linked_store_like_cpp() -> wow_data::SpellLinkedStoreLikeCpp {
+        let outcome = wow_data::SpellLinkedStoreLikeCpp::from_rows_like_cpp(
+            [
+                wow_data::SpellLinkedRowLikeCpp {
+                    spell_trigger: 10,
+                    spell_effect: 20,
+                    link_type: 0,
+                },
+                wow_data::SpellLinkedRowLikeCpp {
+                    spell_trigger: 10,
+                    spell_effect: -30,
+                    link_type: 0,
+                },
+                wow_data::SpellLinkedRowLikeCpp {
+                    spell_trigger: -40,
+                    spell_effect: 50,
+                    link_type: 1,
+                },
+            ],
+            |_| {
+                Some(wow_data::SpellLinkedSpellInfoLikeCpp {
+                    effect_calc_values_by_index: Vec::new(),
+                })
+            },
+        );
+        outcome.store
+    }
+
     #[test]
     fn spell_proc_entry_prefers_exact_difficulty_like_cpp() {
         let (mut session, _, _) = make_session();
@@ -41967,6 +42012,37 @@ mod tests {
         assert_eq!(
             session.check_spell_group_stack_rules_like_cpp(10, 20),
             wow_data::SpellGroupStackRuleLikeCpp::ExclusiveHighest
+        );
+    }
+
+    #[test]
+    fn spell_linked_queries_return_empty_without_store_like_cpp() {
+        let (session, _, _) = make_session();
+
+        assert!(
+            session
+                .spell_linked_like_cpp(wow_data::SpellLinkedTypeLikeCpp::Cast, 10)
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn spell_linked_queries_preserve_signed_effect_order_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_spell_linked_store(Arc::new(test_spell_linked_store_like_cpp()));
+
+        assert_eq!(
+            session.spell_linked_like_cpp(wow_data::SpellLinkedTypeLikeCpp::Cast, 10),
+            &[20, -30]
+        );
+        assert_eq!(
+            session.spell_linked_like_cpp(wow_data::SpellLinkedTypeLikeCpp::Remove, 40),
+            &[50]
+        );
+        assert!(
+            session
+                .spell_linked_like_cpp(wow_data::SpellLinkedTypeLikeCpp::Hit, 10)
+                .is_empty()
         );
     }
 
