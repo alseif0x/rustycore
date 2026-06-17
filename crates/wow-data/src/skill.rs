@@ -68,6 +68,8 @@ pub struct SkillInfoEntry {
 pub struct SkillStore {
     /// SkillLineAbility records indexed by skill_line (the parent skill).
     abilities_by_skill: HashMap<u16, Vec<SkillLineAbilityRecord>>,
+    /// C++ `SpellMgr::mSkillLineAbilityMap`, indexed by `SkillLineAbilityEntry::Spell`.
+    abilities_by_spell_like_cpp: HashMap<i32, Vec<SkillLineAbilityRecord>>,
     /// SkillRaceClassInfo records indexed by (race, class).
     starting_skills: HashMap<(u8, u8), Vec<SkillRaceClassInfoRecord>>,
     /// Total number of SkillLineAbility records loaded.
@@ -84,8 +86,39 @@ impl SkillStore {
                 .into_iter()
                 .map(|skill_id| (skill_id, Vec::new()))
                 .collect(),
+            abilities_by_spell_like_cpp: HashMap::new(),
             starting_skills: HashMap::new(),
             total_abilities: 0,
+            total_race_class: 0,
+        }
+    }
+
+    /// Build a represented C++ `sSkillLineAbilityStore` fixture.
+    pub fn from_skill_line_abilities_like_cpp(
+        abilities: impl IntoIterator<Item = SkillLineAbilityRecord>,
+    ) -> Self {
+        let mut abilities_by_skill: HashMap<u16, Vec<SkillLineAbilityRecord>> = HashMap::new();
+        let mut abilities_by_spell_like_cpp: HashMap<i32, Vec<SkillLineAbilityRecord>> =
+            HashMap::new();
+        let mut total_abilities = 0usize;
+
+        for ability in abilities {
+            abilities_by_skill
+                .entry(ability.skill_line)
+                .or_default()
+                .push(ability.clone());
+            abilities_by_spell_like_cpp
+                .entry(ability.spell)
+                .or_default()
+                .push(ability);
+            total_abilities += 1;
+        }
+
+        Self {
+            abilities_by_skill,
+            abilities_by_spell_like_cpp,
+            starting_skills: HashMap::new(),
+            total_abilities,
             total_race_class: 0,
         }
     }
@@ -100,6 +133,8 @@ impl SkillStore {
             .with_context(|| format!("failed to open {}", sla_path.display()))?;
 
         let mut abilities_by_skill: HashMap<u16, Vec<SkillLineAbilityRecord>> = HashMap::new();
+        let mut abilities_by_spell_like_cpp: HashMap<i32, Vec<SkillLineAbilityRecord>> =
+            HashMap::new();
         let mut total_abilities = 0usize;
 
         for (id, idx) in sla_reader.iter_records() {
@@ -136,6 +171,10 @@ impl SkillStore {
             };
             abilities_by_skill
                 .entry(skill_line)
+                .or_default()
+                .push(record.clone());
+            abilities_by_spell_like_cpp
+                .entry(record.spell)
                 .or_default()
                 .push(record);
             total_abilities += 1;
@@ -201,6 +240,7 @@ impl SkillStore {
 
         Ok(Self {
             abilities_by_skill,
+            abilities_by_spell_like_cpp,
             starting_skills,
             total_abilities,
             total_race_class,
@@ -451,6 +491,17 @@ impl SkillStore {
             .is_some_and(|skill_id| self.abilities_by_skill.contains_key(&skill_id))
     }
 
+    /// C++ `SpellMgr::GetSkillLineAbilityMapBounds(spell_id)`.
+    pub fn get_skill_line_ability_map_bounds_like_cpp(
+        &self,
+        spell_id: i32,
+    ) -> &[SkillLineAbilityRecord] {
+        self.abilities_by_spell_like_cpp
+            .get(&spell_id)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+
     /// Number of SkillRaceClassInfo records loaded.
     pub fn race_class_count(&self) -> usize {
         self.total_race_class
@@ -486,6 +537,68 @@ mod tests {
             return None;
         }
         Some(SkillStore::load(DATA_DIR, LOCALE).expect("failed to load SkillStore"))
+    }
+
+    fn ability(id: u32, skill_line: u16, spell: i32) -> SkillLineAbilityRecord {
+        SkillLineAbilityRecord {
+            id,
+            race_mask: 0,
+            skill_line,
+            spell,
+            min_skill_line_rank: 0,
+            class_mask: 0,
+            supercedes_spell: 0,
+            acquire_method: 0,
+            trivial_rank_high: 0,
+            trivial_rank_low: 0,
+            flags: 0,
+            num_skill_ups: 0,
+        }
+    }
+
+    #[test]
+    fn skill_line_ability_map_bounds_group_by_spell_like_cpp() {
+        let store = SkillStore::from_skill_line_abilities_like_cpp([
+            ability(1, 56, 585),
+            ability(2, 56, 2050),
+            ability(3, 78, 585),
+        ]);
+
+        let smite_bounds = store.get_skill_line_ability_map_bounds_like_cpp(585);
+        assert_eq!(smite_bounds.len(), 2);
+        assert_eq!(smite_bounds[0].id, 1);
+        assert_eq!(smite_bounds[1].id, 3);
+        assert_eq!(
+            store
+                .get_skill_line_ability_map_bounds_like_cpp(2050)
+                .iter()
+                .map(|ability| ability.id)
+                .collect::<Vec<_>>(),
+            vec![2]
+        );
+        assert!(
+            store
+                .get_skill_line_ability_map_bounds_like_cpp(999)
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn skill_line_ability_map_bounds_preserve_cpp_multimap_duplicates() {
+        let store = SkillStore::from_skill_line_abilities_like_cpp([
+            ability(10, 100, 777),
+            ability(11, 100, 777),
+        ]);
+
+        assert_eq!(
+            store
+                .get_skill_line_ability_map_bounds_like_cpp(777)
+                .iter()
+                .map(|ability| ability.id)
+                .collect::<Vec<_>>(),
+            vec![10, 11],
+            "C++ mSkillLineAbilityMap is a multimap and preserves every inserted row"
+        );
     }
 
     #[test]
