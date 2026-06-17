@@ -23042,6 +23042,8 @@ impl WorldSession {
             return;
         };
 
+        self.reset_teleport_movement_state_like_cpp();
+
         if self.player_class_like_cpp() == CLASS_DEATH_KNIGHT_LIKE_CPP
             && self.player_map_id_like_cpp() == DEATH_KNIGHT_START_MAP_LIKE_CPP
             && u32::from(self.player_map_id_like_cpp()) != new_map
@@ -23164,6 +23166,12 @@ impl WorldSession {
             new_pos.y,
             new_pos.z
         );
+    }
+
+    fn reset_teleport_movement_state_like_cpp(&mut self) {
+        self.player_movement_flags_like_cpp &= MovementFlag::MASK_HAS_PLAYER_STATUS_OPCODE;
+        // C++ also resets MovementInfo::jump, disables the player spline, and removes
+        // EFFECT_MOTION_TYPE here. Rust does not keep those player-side runtime states yet.
     }
 
     fn teleport_options_after_seamless_gate_like_cpp(
@@ -70188,6 +70196,66 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn teleport_to_dk_escape_abort_still_masks_movement_flags_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 828);
+        let destination = Position::new(104.0, 204.0, 34.0, 1.9);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 1,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.expansion = 1;
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TeleportDkRejectMovementReset".to_string(),
+            Position::new(10.0, 20.0, 30.0, 0.0),
+            DEATH_KNIGHT_START_MAP_LIKE_CPP,
+            1,
+            CLASS_DEATH_KNIGHT_LIKE_CPP,
+            58,
+            0,
+        ));
+        session.set_player_movement_flags_like_cpp(
+            MovementFlag::DISABLE_GRAVITY
+                | MovementFlag::HOVER
+                | MovementFlag::FORWARD
+                | MovementFlag::FALLING
+                | MovementFlag::FLYING,
+        );
+
+        session.teleport_to(571, destination).await;
+
+        assert_eq!(
+            send_rx.try_recv().expect("SMSG_TRANSFER_ABORTED"),
+            wow_packet::packets::misc::TransferAborted {
+                map_id: 571,
+                arg: 1,
+                map_difficulty_x_condition_id: 0,
+                transfer_abort: TRANSFER_ABORT_UNIQUE_MESSAGE_LIKE_CPP,
+            }
+            .to_bytes()
+        );
+        assert_eq!(
+            session.player_movement_flags_like_cpp(),
+            MovementFlag::DISABLE_GRAVITY | MovementFlag::HOVER,
+            "C++ resets movement flags before the far-branch DK escape abort"
+        );
+        assert!(
+            send_rx.try_recv().is_err(),
+            "C++ Player::TeleportTo returns before SMSG_TRANSFER_PENDING for unescaped DKs leaving map 609"
+        );
+        assert_eq!(session.pending_teleport, None);
+        assert_ne!(session.state, SessionState::Transfer);
+    }
+
+    #[tokio::test]
     async fn teleport_to_allows_death_knight_after_escape_spell_like_cpp() {
         let (mut session, _, send_rx) = make_session();
         let player_guid = ObjectGuid::create_player(1, 797);
@@ -70288,6 +70356,57 @@ mod tests {
         assert_eq!(session.pending_teleport, None);
         assert_ne!(session.state, SessionState::Transfer);
         assert_eq!(session.fall_information_like_cpp(), (0, source.z));
+    }
+
+    #[tokio::test]
+    async fn teleport_to_same_map_masks_movement_flags_before_near_teleport_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 827);
+        let source = Position::new(10.0, 20.0, 30.0, 0.0);
+        let destination = Position::new(119.0, 219.0, 49.0, 3.4);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 1,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.expansion = 1;
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "NearTeleportMovementReset".to_string(),
+            source,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_player_movement_flags_like_cpp(
+            MovementFlag::ROOT
+                | MovementFlag::CAN_FLY
+                | MovementFlag::FORWARD
+                | MovementFlag::FLYING
+                | MovementFlag::FALLING
+                | MovementFlag::SPLINE_ELEVATION,
+        );
+
+        session.teleport_to(571, destination).await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::CancelCombat, ServerOpcodes::MoveTeleport]
+        );
+        assert_eq!(
+            session.player_movement_flags_like_cpp(),
+            MovementFlag::ROOT | MovementFlag::CAN_FLY,
+            "C++ Player::TeleportTo keeps only MOVEMENTFLAG_MASK_HAS_PLAYER_STATUS_OPCODE before the same-map branch"
+        );
+        assert!(session.near_teleport_pending_like_cpp());
     }
 
     #[tokio::test]

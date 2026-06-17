@@ -1900,6 +1900,14 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   the represented account instance farm-limit probe to the key from either `CreateMapDecision::Create`
   or `Existing`, keeping teleport preflight read-only and returning `TRANSFER_ABORT_TOO_MANY_INSTANCES`
   before `SMSG_TRANSFER_PENDING` for new distinct instances over the hourly cap.
+- 2026-06-17 — WotLK `Player::TeleportTo` common movement-state reset
+  `#NEXT.RUNTIME.L3.031j80`: contrasted the C++ flag mask before same-map/far-map branching
+  (`Player.cpp:1274-1277`) and `MOVEMENTFLAG_MASK_HAS_PLAYER_STATUS_OPCODE` (`UnitDefines.h:405-407`).
+  Rust now masks represented player movement flags at the same point in `WorldSession::teleport_to`,
+  preserving only the player status-opcode flags before near teleport, far preflight, delayed
+  teleport, or DK escape abort. Remaining boundary is explicit: represented player
+  `MovementInfo::jump`, `DisableSpline`, and `MotionMaster::Remove(EFFECT_MOTION_TYPE)` are not yet
+  modeled in this Rust path.
 
 ## References
 

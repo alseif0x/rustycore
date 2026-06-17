@@ -1,3 +1,23 @@
+- `#NEXT.RUNTIME.L3.031j80` — WotLK `Player::TeleportTo` now applies the
+  C++ common movement-state reset before both same-map and far-map teleport
+  branches (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:1274-1277`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/UnitDefines.h:405-407`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Object/MovementInfo.h:134`.
+  C++ masks movement flags to `MOVEMENTFLAG_MASK_HAS_PLAYER_STATUS_OPCODE`
+  before the DK far-branch abort, `Map::PlayerCannotEnter`, delayed teleports,
+  same-map near teleport packet emission, or far-transfer setup. Rust now does
+  the same represented flag mask in `WorldSession::teleport_to`, preserving
+  `DISABLE_GRAVITY`, `ROOT`, `CAN_FLY`, `WATER_WALK`, `FALLING_SLOW`, `HOVER`,
+  and `DISABLE_COLLISION` while clearing transient moving/falling/flying/spline
+  flags. Coverage: targeted `wow-world` tests prove same-map near teleport
+  masks flags before `SMSG_MOVE_TELEPORT`, and the unescaped-DK abort still
+  masks flags while returning before `SMSG_TRANSFER_PENDING`. Boundary remains
+  partial: Rust has no represented player `MovementInfo::jump`, player
+  `DisableSpline`, or `MotionMaster::Remove(EFFECT_MOTION_TYPE)` state in this
+  teleport path yet, so those C++ reset side effects remain open alongside
+  transport/vehicle/duel cleanup, install/restart, bot, and live-client/manual
+  validation.
 - `#NEXT.RUNTIME.L3.031j79` — WotLK `Player::TeleportTo` now clears the
   selected target on accepted far teleports at the C++ `SetSelection(ObjectGuid::Empty)`
   point (not manual-test-ready). Source-of-truth:
