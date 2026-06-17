@@ -68,6 +68,7 @@ use wow_world::{
     entity_update_bridge::unit_values_update_to_packet,
 };
 
+mod area_trigger_loaded_grid;
 mod creature_loaded_grid;
 mod gameobject_loaded_grid;
 mod spawn_store_loader;
