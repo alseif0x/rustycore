@@ -351,6 +351,14 @@ pub enum WorldStatements {
     SEL_TRAINER_SPELLS,
     /// Load trainer type and greeting by trainer ID.
     SEL_TRAINER_INFO,
+    /// C++ `ObjectMgr::LoadTrainers` full trainer_spell query.
+    SEL_TRAINER_SPELLS_ALL,
+    /// C++ `ObjectMgr::LoadTrainers` full trainer query.
+    SEL_TRAINERS_ALL,
+    /// C++ `ObjectMgr::LoadTrainers` trainer_locale query.
+    SEL_TRAINER_LOCALES,
+    /// C++ `ObjectMgr::LoadCreatureTrainers` full creature_trainer query.
+    SEL_CREATURE_TRAINERS_ALL,
     /// Load trainer IDs for C++ ConditionMgr source validation.
     SEL_TRAINER_IDS,
     /// Load conversation line template IDs for C++ ConditionMgr source validation.
@@ -1029,6 +1037,14 @@ impl StatementDef for WorldStatements {
                  FROM trainer_spell WHERE TrainerId = ?"
             }
             Self::SEL_TRAINER_INFO => "SELECT Id, Type, Greeting FROM trainer WHERE Id = ?",
+            Self::SEL_TRAINER_SPELLS_ALL => {
+                "SELECT TrainerId, SpellId, MoneyCost, ReqSkillLine, ReqSkillRank, ReqAbility1, ReqAbility2, ReqAbility3, ReqLevel FROM trainer_spell"
+            }
+            Self::SEL_TRAINERS_ALL => "SELECT Id, Type, Greeting FROM trainer",
+            Self::SEL_TRAINER_LOCALES => "SELECT Id, locale, Greeting_lang FROM trainer_locale",
+            Self::SEL_CREATURE_TRAINERS_ALL => {
+                "SELECT CreatureID, TrainerID, MenuID, OptionID FROM creature_trainer"
+            }
             Self::SEL_TRAINER_IDS => "SELECT Id FROM trainer",
             Self::SEL_CONVERSATION_LINE_TEMPLATE_IDS => "SELECT Id FROM conversation_line_template",
             Self::SEL_AREA_TRIGGER_TEMPLATE_IDS => "SELECT Id, IsCustom FROM areatrigger_template",

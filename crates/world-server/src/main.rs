@@ -2470,6 +2470,42 @@ async fn main() -> Result<ExitCode> {
         npc_vendor_store.len(),
         npc_vendor_outcome.report.reference_rows_seen
     );
+    let trainer_data_outcome = wow_data::TrainerStoreLikeCpp::load_like_cpp(world_db.as_ref())
+        .await
+        .context("Failed to load C++ trainer cache")?;
+    for (trainer_id, spell_id) in &trainer_data_outcome.report.skipped_spells_missing_trainer {
+        tracing::error!(
+            "Table `trainer_spell` references non-existing trainer (TrainerId: {}) for SpellId {}, ignoring",
+            trainer_id,
+            spell_id
+        );
+    }
+    for (trainer_id, locale) in &trainer_data_outcome.report.skipped_locales_missing_trainer {
+        tracing::error!(
+            "Table `trainer_locale` references non-existing trainer (TrainerId: {}) for locale {}, ignoring",
+            trainer_id,
+            locale
+        );
+    }
+    for (creature_id, trainer_id, menu_id, option_id) in &trainer_data_outcome
+        .report
+        .skipped_creature_trainers_missing_trainer
+    {
+        tracing::error!(
+            "Table `creature_trainer` references non-existing trainer (TrainerID: {}) for CreatureID {} MenuID {} OptionID {}, ignoring",
+            trainer_id,
+            creature_id,
+            menu_id,
+            option_id
+        );
+    }
+    let trainer_data_store = Arc::new(trainer_data_outcome.store);
+    info!(
+        "Loaded {} C++ Trainers with {} trainer spells and {} creature trainer bindings",
+        trainer_data_store.len(),
+        trainer_data_store.spell_count_like_cpp(),
+        trainer_data_store.creature_trainer_count_like_cpp()
+    );
 
     // Load player_xp_for_level table
     let player_xp_table = {

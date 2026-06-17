@@ -72,6 +72,7 @@ pub mod spell_click;
 pub mod spell_db2;
 pub mod spell_item_enchantment;
 pub mod terrain_swap;
+pub mod trainer;
 pub mod trait_tree;
 pub mod trinity_string;
 pub mod ui_map;
@@ -438,6 +439,14 @@ pub use spell_item_enchantment::{
     SpellItemEnchantmentEntry, SpellItemEnchantmentStore,
 };
 pub use terrain_swap::{TerrainSwapInfo, TerrainSwapStore, load_terrain_swaps};
+pub use trainer::{
+    CreatureTrainerRowLikeCpp, TRAINER_SPELL_STATE_AVAILABLE_LIKE_CPP,
+    TRAINER_SPELL_STATE_KNOWN_LIKE_CPP, TRAINER_SPELL_STATE_UNAVAILABLE_LIKE_CPP,
+    TRAINER_TYPE_NONE_LIKE_CPP, TRAINER_TYPE_PET_LIKE_CPP, TRAINER_TYPE_TALENT_LIKE_CPP,
+    TRAINER_TYPE_TRADESKILL_LIKE_CPP, TrainerLikeCpp, TrainerLoadOutcomeLikeCpp,
+    TrainerLoadReportLikeCpp, TrainerLocaleRowLikeCpp, TrainerRowLikeCpp, TrainerSpellLikeCpp,
+    TrainerSpellRowLikeCpp, TrainerStoreLikeCpp,
+};
 pub use trinity_string::{
     LANG_LEVEL_MINREQUIRED_AND_ITEM_LIKE_CPP, LANG_LEVEL_MINREQUIRED_LIKE_CPP,
     TrinityStringEntryLikeCpp, TrinityStringStoreLikeCpp,
