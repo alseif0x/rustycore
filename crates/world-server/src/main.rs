@@ -1356,6 +1356,30 @@ async fn main() -> Result<ExitCode> {
         "Loaded {} represented C++ spell rank-chain nodes from SkillLineAbility::SupercedesSpell",
         spell_chain_store.chains_by_spell_id.len()
     );
+    let spell_learn_skill_outcome =
+        wow_data::SpellLearnSkillStoreLikeCpp::from_spell_infos_like_cpp(
+            spell_store.iter().filter_map(|spell| {
+                let spell_id = u32::try_from(spell.spell_id).ok()?;
+                Some(wow_data::SpellLearnSkillSourceSpellInfoLikeCpp {
+                    spell_id,
+                    difficulty_none: true,
+                    effects: spell
+                        .effects()
+                        .iter()
+                        .map(|effect| wow_data::SpellLearnSkillEffectLikeCpp {
+                            effect: effect.effect,
+                            misc_value: effect.effect_misc_value_1,
+                            calc_value: effect.calc_value_no_caster_like_cpp(),
+                        })
+                        .collect(),
+                })
+            }),
+        );
+    let spell_learn_skill_store = Arc::new(spell_learn_skill_outcome.store);
+    info!(
+        "Loaded {} C++ spell learn skill entries from represented SpellInfo effects",
+        spell_learn_skill_outcome.dbc_loaded_row_count
+    );
     let pet_levelup_spell_store = Arc::new(wow_data::PetLevelupSpellStoreLikeCpp::load_like_cpp(
         creature_family_store.entries_like_cpp(),
         skill_store.as_ref(),
@@ -3019,6 +3043,7 @@ async fn main() -> Result<ExitCode> {
         spell_group_stack_rule_store: Some(Arc::clone(&spell_group_stack_rule_store)),
         spell_linked_store: Some(Arc::clone(&spell_linked_store)),
         spell_pet_aura_store: Some(Arc::clone(&spell_pet_aura_store)),
+        spell_learn_skill_store: Some(Arc::clone(&spell_learn_skill_store)),
         spell_learn_spell_store: Some(Arc::clone(&spell_learn_spell_store)),
         pet_levelup_spell_store: Some(Arc::clone(&pet_levelup_spell_store)),
         pet_default_spell_store: Some(Arc::clone(&pet_default_spell_store)),
@@ -9332,6 +9357,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.spell_pet_aura_store {
         session.set_spell_pet_aura_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.spell_learn_skill_store {
+        session.set_spell_learn_skill_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.spell_learn_spell_store {
         session.set_spell_learn_spell_store(Arc::clone(store));
