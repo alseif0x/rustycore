@@ -5177,7 +5177,7 @@ FROM hotfixes.spell_misc sm
 LEFT JOIN hotfixes.spell_effect se 
     ON sm.ID = se.SpellID AND se.DifficultyID = 0
 LEFT JOIN hotfixes.spell_casting_requirements scr
-    ON sm.ID = scr.SpellID AND scr.DifficultyID = 0
+    ON sm.ID = scr.SpellID
 ORDER BY sm.ID, se.EffectIndex
         "#;
 

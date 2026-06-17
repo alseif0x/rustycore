@@ -7,8 +7,8 @@
 
 use std::collections::HashMap;
 
-use anyhow::Result;
-use wow_database::{WorldDatabase, WorldStatements};
+use anyhow::{Context, Result};
+use wow_database::{SqlResult, WorldDatabase, WorldStatements};
 
 const ITEM_FLAG2_FACTION_HORDE_LIKE_CPP: u32 = 0x0000_0001;
 const ITEM_FLAG2_FACTION_ALLIANCE_LIKE_CPP: u32 = 0x0000_0002;
@@ -394,8 +394,10 @@ async fn load_pair_rows_like_cpp(
     if !result.is_empty() {
         loop {
             rows.push(FactionChangePairRowLikeCpp {
-                alliance_id: result.read(0),
-                horde_id: result.read(1),
+                alliance_id: read_faction_change_id_like_cpp(&result, 0, statement)
+                    .context("failed to read faction-change alliance id")?,
+                horde_id: read_faction_change_id_like_cpp(&result, 1, statement)
+                    .context("failed to read faction-change horde id")?,
             });
 
             if !result.next_row() {
@@ -405,6 +407,22 @@ async fn load_pair_rows_like_cpp(
     }
 
     Ok(rows)
+}
+
+fn read_faction_change_id_like_cpp(
+    result: &SqlResult,
+    column: usize,
+    statement: WorldStatements,
+) -> Result<u32> {
+    if let Some(value) = result.try_read::<u32>(column) {
+        return Ok(value);
+    }
+
+    let value = result
+        .try_read::<i32>(column)
+        .with_context(|| format!("column {column} in {statement:?} is not an integer id"))?;
+    u32::try_from(value)
+        .with_context(|| format!("column {column} in {statement:?} is negative: {value}"))
 }
 
 #[cfg(test)]
