@@ -393,21 +393,65 @@ pub mod aura_types {
     pub const SPELL_AURA_SCHOOL_ABSORB: i32 = 1;
     pub const SPELL_AURA_SCHOOL_IMMUNITY: i32 = 2;
     pub const SPELL_AURA_DUMMY_ABSORB: i32 = 3;
+    pub const SPELL_AURA_MOD_CONFUSE: i32 = 5;
+    pub const SPELL_AURA_MOD_FEAR: i32 = 7;
+    pub const SPELL_AURA_MOD_THREAT: i32 = 10;
     pub const SPELL_AURA_MOD_TAUNT: i32 = 11;
+    pub const SPELL_AURA_MOD_STUN: i32 = 12;
+    pub const SPELL_AURA_MOD_DAMAGE_DONE: i32 = 13;
+    pub const SPELL_AURA_MOD_DAMAGE_TAKEN: i32 = 14;
+    pub const SPELL_AURA_MOD_STEALTH: i32 = 16;
+    pub const SPELL_AURA_MOD_INVISIBILITY: i32 = 18;
+    pub const SPELL_AURA_MOD_RESISTANCE: i32 = 22;
+    pub const SPELL_AURA_MOD_ROOT: i32 = 26;
+    pub const SPELL_AURA_REFLECT_SPELLS: i32 = 28;
     pub const SPELL_AURA_MODIFY_DAMAGE_PERCENT_TAKEN: i32 = 31;
+    pub const SPELL_AURA_DAMAGE_IMMUNITY: i32 = 40;
+    pub const SPELL_AURA_PROC_TRIGGER_SPELL: i32 = 42;
+    pub const SPELL_AURA_PROC_TRIGGER_DAMAGE: i32 = 43;
+    pub const SPELL_AURA_MOD_BLOCK_PERCENT: i32 = 51;
+    pub const SPELL_AURA_MOD_WEAPON_CRIT_PERCENT: i32 = 52;
+    pub const SPELL_AURA_MOD_HIT_CHANCE: i32 = 54;
+    pub const SPELL_AURA_TRANSFORM: i32 = 56;
+    pub const SPELL_AURA_MOD_SPELL_CRIT_CHANCE: i32 = 57;
+    pub const SPELL_AURA_MOD_CASTING_SPEED_NOT_STACK: i32 = 65;
+    pub const SPELL_AURA_MOD_POWER_COST_SCHOOL_PCT: i32 = 72;
     pub const SPELL_AURA_HASTE_SPELLS: i32 = 73;
+    pub const SPELL_AURA_MOD_POWER_COST_SCHOOL: i32 = 73;
+    pub const SPELL_AURA_REFLECT_SPELLS_SCHOOL: i32 = 74;
+    pub const SPELL_AURA_MECHANIC_IMMUNITY: i32 = 77;
     pub const SPELL_AURA_MOUNTED: i32 = 78;
+    pub const SPELL_AURA_MOD_DAMAGE_PERCENT_DONE: i32 = 79;
+    pub const SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN: i32 = 87;
     pub const SPELL_AURA_MOD_DETECT_RANGE: i32 = 91;
+    pub const SPELL_AURA_SPELL_MAGNET: i32 = 96;
+    pub const SPELL_AURA_MOD_ATTACK_POWER: i32 = 99;
     pub const SPELL_AURA_ADD_FLAT_MODIFIER: i32 = 107;
     pub const SPELL_AURA_ADD_PCT_MODIFIER: i32 = 108;
+    pub const SPELL_AURA_MOD_POWER_REGEN_PERCENT: i32 = 110;
+    pub const SPELL_AURA_INTERCEPT_MELEE_RANGED_ATTACKS: i32 = 111;
+    pub const SPELL_AURA_OVERRIDE_CLASS_SCRIPTS: i32 = 112;
+    pub const SPELL_AURA_MOD_MECHANIC_RESISTANCE: i32 = 117;
+    pub const SPELL_AURA_RANGED_ATTACK_POWER_ATTACKER_BONUS: i32 = 127;
     pub const SPELL_AURA_MOD_MELEE_HASTE: i32 = 138;
+    pub const SPELL_AURA_FORCE_REACTION: i32 = 139;
     pub const SPELL_AURA_MOD_RANGED_HASTE: i32 = 140;
     pub const SPELL_AURA_MOD_DETECTED_RANGE: i32 = 152;
+    pub const SPELL_AURA_MOD_ATTACK_POWER_PCT: i32 = 166;
+    pub const SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE: i32 = 184;
     pub const SPELL_AURA_MOD_MELEE_RANGED_HASTE: i32 = 192;
     pub const SPELL_AURA_ADD_PCT_MODIFIER_BY_SPELL_LABEL: i32 = 218;
+    pub const SPELL_AURA_MOD_DETAUNT: i32 = 221;
+    pub const SPELL_AURA_PERIODIC_DUMMY: i32 = 226;
+    pub const SPELL_AURA_PROC_TRIGGER_SPELL_WITH_VALUE: i32 = 231;
+    pub const SPELL_AURA_ABILITY_IGNORE_AURASTATE: i32 = 262;
+    pub const SPELL_AURA_MOD_SCHOOL_MASK_DAMAGE_FROM_CASTER: i32 = 270;
+    pub const SPELL_AURA_MOD_SPELL_DAMAGE_FROM_CASTER: i32 = 271;
     pub const SPELL_AURA_PROVIDE_SPELL_FOCUS: i32 = 281;
+    pub const SPELL_AURA_MOD_MELEE_HASTE_3: i32 = 319;
     pub const SPELL_AURA_IGNORE_SPELL_COOLDOWN: i32 = 383;
     pub const SPELL_AURA_MOD_BATTLE_PET_XP_PCT: i32 = 420;
+    pub const SPELL_AURA_MOD_ROOT_2: i32 = 455;
 }
 
 /// Selected `Targets` ids from C++ `SpellImplicitTargetInfo::_data`.
@@ -3018,6 +3062,111 @@ pub fn can_spell_trigger_proc_on_event_like_cpp(
 
 fn proc_flags_intersect_like_cpp(lhs: [u32; 2], rhs: [u32; 2]) -> bool {
     lhs[0] & rhs[0] != 0 || lhs[1] & rhs[1] != 0
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ImplicitProcAuraInfoLikeCpp {
+    pub spell_type_mask: u32,
+    pub triggered_can_proc: bool,
+}
+
+pub fn implicit_proc_aura_info_like_cpp(aura_type: i32) -> Option<ImplicitProcAuraInfoLikeCpp> {
+    if !implicit_proc_aura_can_trigger_like_cpp(aura_type) {
+        return None;
+    }
+
+    Some(ImplicitProcAuraInfoLikeCpp {
+        spell_type_mask: implicit_proc_aura_spell_type_mask_like_cpp(aura_type),
+        triggered_can_proc: implicit_proc_aura_is_always_triggered_like_cpp(aura_type),
+    })
+}
+
+fn implicit_proc_aura_can_trigger_like_cpp(aura_type: i32) -> bool {
+    matches!(
+        aura_type,
+        aura_types::SPELL_AURA_DUMMY
+            | aura_types::SPELL_AURA_PERIODIC_DUMMY
+            | aura_types::SPELL_AURA_MOD_CONFUSE
+            | aura_types::SPELL_AURA_MOD_THREAT
+            | aura_types::SPELL_AURA_MOD_STUN
+            | aura_types::SPELL_AURA_MOD_DAMAGE_DONE
+            | aura_types::SPELL_AURA_MOD_DAMAGE_TAKEN
+            | aura_types::SPELL_AURA_MOD_RESISTANCE
+            | aura_types::SPELL_AURA_MOD_STEALTH
+            | aura_types::SPELL_AURA_MOD_FEAR
+            | aura_types::SPELL_AURA_MOD_ROOT
+            | aura_types::SPELL_AURA_TRANSFORM
+            | aura_types::SPELL_AURA_REFLECT_SPELLS
+            | aura_types::SPELL_AURA_DAMAGE_IMMUNITY
+            | aura_types::SPELL_AURA_PROC_TRIGGER_SPELL
+            | aura_types::SPELL_AURA_PROC_TRIGGER_DAMAGE
+            | aura_types::SPELL_AURA_MOD_CASTING_SPEED_NOT_STACK
+            | aura_types::SPELL_AURA_SCHOOL_ABSORB
+            | aura_types::SPELL_AURA_MOD_POWER_COST_SCHOOL_PCT
+            | aura_types::SPELL_AURA_MOD_POWER_COST_SCHOOL
+            | aura_types::SPELL_AURA_REFLECT_SPELLS_SCHOOL
+            | aura_types::SPELL_AURA_MECHANIC_IMMUNITY
+            | aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN
+            | aura_types::SPELL_AURA_SPELL_MAGNET
+            | aura_types::SPELL_AURA_MOD_ATTACK_POWER
+            | aura_types::SPELL_AURA_MOD_POWER_REGEN_PERCENT
+            | aura_types::SPELL_AURA_INTERCEPT_MELEE_RANGED_ATTACKS
+            | aura_types::SPELL_AURA_OVERRIDE_CLASS_SCRIPTS
+            | aura_types::SPELL_AURA_MOD_MECHANIC_RESISTANCE
+            | aura_types::SPELL_AURA_RANGED_ATTACK_POWER_ATTACKER_BONUS
+            | aura_types::SPELL_AURA_MOD_MELEE_HASTE
+            | aura_types::SPELL_AURA_MOD_MELEE_HASTE_3
+            | aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE
+            | aura_types::SPELL_AURA_PROC_TRIGGER_SPELL_WITH_VALUE
+            | aura_types::SPELL_AURA_MOD_SCHOOL_MASK_DAMAGE_FROM_CASTER
+            | aura_types::SPELL_AURA_MOD_SPELL_DAMAGE_FROM_CASTER
+            | aura_types::SPELL_AURA_MOD_SPELL_CRIT_CHANCE
+            | aura_types::SPELL_AURA_ABILITY_IGNORE_AURASTATE
+            | aura_types::SPELL_AURA_MOD_INVISIBILITY
+            | aura_types::SPELL_AURA_FORCE_REACTION
+            | aura_types::SPELL_AURA_MOD_TAUNT
+            | aura_types::SPELL_AURA_MOD_DETAUNT
+            | aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_DONE
+            | aura_types::SPELL_AURA_MOD_ATTACK_POWER_PCT
+            | aura_types::SPELL_AURA_MOD_HIT_CHANCE
+            | aura_types::SPELL_AURA_MOD_WEAPON_CRIT_PERCENT
+            | aura_types::SPELL_AURA_MOD_BLOCK_PERCENT
+            | aura_types::SPELL_AURA_MOD_ROOT_2
+            | aura_types::SPELL_AURA_IGNORE_SPELL_COOLDOWN
+    )
+}
+
+fn implicit_proc_aura_is_always_triggered_like_cpp(aura_type: i32) -> bool {
+    matches!(
+        aura_type,
+        aura_types::SPELL_AURA_OVERRIDE_CLASS_SCRIPTS
+            | aura_types::SPELL_AURA_MOD_STEALTH
+            | aura_types::SPELL_AURA_MOD_CONFUSE
+            | aura_types::SPELL_AURA_MOD_FEAR
+            | aura_types::SPELL_AURA_MOD_ROOT
+            | aura_types::SPELL_AURA_MOD_STUN
+            | aura_types::SPELL_AURA_TRANSFORM
+            | aura_types::SPELL_AURA_MOD_INVISIBILITY
+            | aura_types::SPELL_AURA_SPELL_MAGNET
+            | aura_types::SPELL_AURA_SCHOOL_ABSORB
+            | aura_types::SPELL_AURA_MOD_ROOT_2
+    )
+}
+
+fn implicit_proc_aura_spell_type_mask_like_cpp(aura_type: i32) -> u32 {
+    match aura_type {
+        aura_types::SPELL_AURA_MOD_STEALTH => {
+            PROC_SPELL_TYPE_DAMAGE_LIKE_CPP | PROC_SPELL_TYPE_NO_DMG_HEAL_LIKE_CPP
+        }
+        aura_types::SPELL_AURA_MOD_CONFUSE
+        | aura_types::SPELL_AURA_MOD_FEAR
+        | aura_types::SPELL_AURA_MOD_ROOT
+        | aura_types::SPELL_AURA_MOD_ROOT_2
+        | aura_types::SPELL_AURA_MOD_STUN
+        | aura_types::SPELL_AURA_TRANSFORM
+        | aura_types::SPELL_AURA_MOD_INVISIBILITY => PROC_SPELL_TYPE_DAMAGE_LIKE_CPP,
+        _ => PROC_SPELL_TYPE_MASK_ALL_LIKE_CPP,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -6708,6 +6857,43 @@ mod tests {
         };
 
         assert!(event_spell.is_affected_like_cpp(0, [0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF]));
+    }
+
+    #[test]
+    fn implicit_proc_aura_info_matches_cpp_trigger_table() {
+        assert_eq!(
+            implicit_proc_aura_info_like_cpp(aura_types::SPELL_AURA_DUMMY),
+            Some(ImplicitProcAuraInfoLikeCpp {
+                spell_type_mask: PROC_SPELL_TYPE_MASK_ALL_LIKE_CPP,
+                triggered_can_proc: false,
+            })
+        );
+        assert_eq!(
+            implicit_proc_aura_info_like_cpp(aura_types::SPELL_AURA_SCHOOL_ABSORB),
+            Some(ImplicitProcAuraInfoLikeCpp {
+                spell_type_mask: PROC_SPELL_TYPE_MASK_ALL_LIKE_CPP,
+                triggered_can_proc: true,
+            })
+        );
+        assert_eq!(
+            implicit_proc_aura_info_like_cpp(aura_types::SPELL_AURA_MOD_STEALTH),
+            Some(ImplicitProcAuraInfoLikeCpp {
+                spell_type_mask: PROC_SPELL_TYPE_DAMAGE_LIKE_CPP
+                    | PROC_SPELL_TYPE_NO_DMG_HEAL_LIKE_CPP,
+                triggered_can_proc: true,
+            })
+        );
+        assert_eq!(
+            implicit_proc_aura_info_like_cpp(aura_types::SPELL_AURA_MOD_CONFUSE),
+            Some(ImplicitProcAuraInfoLikeCpp {
+                spell_type_mask: PROC_SPELL_TYPE_DAMAGE_LIKE_CPP,
+                triggered_can_proc: true,
+            })
+        );
+        assert_eq!(
+            implicit_proc_aura_info_like_cpp(aura_types::SPELL_AURA_MOUNTED),
+            None
+        );
     }
 
     fn learn_source(
