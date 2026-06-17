@@ -1105,7 +1105,7 @@ async fn main() -> Result<ExitCode> {
             .await
             .context("Failed to load creature_template classifications for C++ creature difficulty damage rates")?,
     );
-    let creature_template_lifecycle_store = Arc::new(
+    let mut creature_template_lifecycle_store = Arc::new(
         wow_data::CreatureTemplateLifecycleStoreLikeCpp::load_like_cpp(world_db.as_ref())
             .await
             .context("Failed to load DB-backed creature_template lifecycle rows for C++ Creature::LoadFromDB")?,
@@ -2646,8 +2646,19 @@ async fn main() -> Result<ExitCode> {
         .await
         .context("Failed to load C++ npc_spellclick_spells rows")?,
     );
+    let spellclick_templates_without_data = npc_spell_click_store
+        .templates_with_spellclick_flag_but_no_data_like_cpp(
+            creature_template_lifecycle_store
+                .entries_like_cpp()
+                .map(|template| (template.entry, template.npc_flags)),
+        );
+    let spellclick_template_flags_removed = Arc::make_mut(&mut creature_template_lifecycle_store)
+        .remove_npc_flag_for_entries_like_cpp(
+            spellclick_templates_without_data.iter().copied(),
+            wow_data::UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP,
+        );
     info!(
-        "Loaded {} C++ npc_spellclick_spells rows ({} missing creature templates, {} missing spells, {} invalid user types logged-but-loaded like C++)",
+        "Loaded {} C++ npc_spellclick_spells rows ({} missing creature templates, {} missing spells, {} invalid user types logged-but-loaded like C++, {} templates with UNIT_NPC_FLAG_SPELLCLICK but no data, {} flags removed)",
         npc_spell_click_store.len(),
         npc_spell_click_store
             .load_report_like_cpp()
@@ -2657,7 +2668,9 @@ async fn main() -> Result<ExitCode> {
             .skipped_missing_spell,
         npc_spell_click_store
             .load_report_like_cpp()
-            .invalid_user_type_logged_but_loaded_like_cpp
+            .invalid_user_type_logged_but_loaded_like_cpp,
+        spellclick_templates_without_data.len(),
+        spellclick_template_flags_removed
     );
     let spell_target_position_store = Arc::new(
         wow_data::SpellTargetPositionStoreLikeCpp::load_like_cpp(

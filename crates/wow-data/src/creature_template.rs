@@ -722,6 +722,27 @@ impl CreatureTemplateLifecycleStoreLikeCpp {
         self.templates.values()
     }
 
+    /// Applies C++ `ObjectMgr::LoadNPCSpellClickSpells` post-load fixup for
+    /// templates that carry `UNIT_NPC_FLAG_SPELLCLICK` without spellclick data.
+    pub fn remove_npc_flag_for_entries_like_cpp(
+        &mut self,
+        entries: impl IntoIterator<Item = u32>,
+        flag: u64,
+    ) -> usize {
+        let mut removed = 0;
+        for entry in entries {
+            let Some(template) = self.templates.get_mut(&entry) else {
+                continue;
+            };
+            if (template.npc_flags & flag) == 0 {
+                continue;
+            }
+            template.npc_flags &= !flag;
+            removed += 1;
+        }
+        removed
+    }
+
     pub fn len(&self) -> usize {
         self.templates.len()
     }
@@ -1294,6 +1315,41 @@ mod tests {
 
     use super::*;
 
+    fn creature_template_lifecycle_record_for_test(
+        entry: u32,
+    ) -> CreatureTemplateLifecycleRecordLikeCpp {
+        CreatureTemplateLifecycleRecordLikeCpp {
+            entry,
+            name: format!("template_{entry}"),
+            ai_name: String::new(),
+            script_name: String::new(),
+            required_expansion: 0,
+            faction: 35,
+            npc_flags: 0,
+            speed_walk: 1.0,
+            speed_run: 1.14286,
+            scale: 1.0,
+            classification: 0,
+            damage_school: wow_constants::spell::SpellSchools::Normal as u8,
+            unit_flags: 0,
+            unit_flags2: 0,
+            unit_flags3: 0,
+            creature_type: 0,
+            family: 0,
+            unit_class: 1,
+            vehicle_id: 0,
+            movement_type: 0,
+            ground_movement_type: CreatureGroundMovementType::Run as u8,
+            swim_allowed: true,
+            flight_movement_type: CreatureFlightMovementType::None as u8,
+            flags_extra: 0,
+            string_id: String::new(),
+            regen_health: true,
+            spells: [0; MAX_CREATURE_SPELLS_LIKE_CPP],
+            models: Vec::new(),
+        }
+    }
+
     #[test]
     fn creature_classification_store_maps_template_entries_like_cpp() {
         let store = CreatureTemplateClassificationStoreLikeCpp::from_entries([(100, 0), (101, 4)]);
@@ -1373,6 +1429,32 @@ mod tests {
         assert_eq!(template.flags_extra, 0x20);
         assert_eq!(template.string_id, "template_string");
         assert!(template.regen_health);
+    }
+
+    #[test]
+    fn creature_template_lifecycle_store_removes_npc_flag_for_entries_like_cpp() {
+        let spellclick_flag = 0x0100_0000_u64;
+        let other_flag = 0x2_u64;
+        let mut with_spellclick = creature_template_lifecycle_record_for_test(100);
+        with_spellclick.npc_flags = spellclick_flag | other_flag;
+        let mut without_spellclick = creature_template_lifecycle_record_for_test(101);
+        without_spellclick.npc_flags = other_flag;
+        let mut untouched = creature_template_lifecycle_record_for_test(102);
+        untouched.npc_flags = spellclick_flag | 0x4;
+
+        let mut store = CreatureTemplateLifecycleStoreLikeCpp::from_templates([
+            with_spellclick,
+            without_spellclick,
+            untouched,
+        ]);
+
+        assert_eq!(
+            store.remove_npc_flag_for_entries_like_cpp([100, 101, 999], spellclick_flag),
+            1
+        );
+        assert_eq!(store.get(100).unwrap().npc_flags, other_flag);
+        assert_eq!(store.get(101).unwrap().npc_flags, other_flag);
+        assert_eq!(store.get(102).unwrap().npc_flags, spellclick_flag | 0x4);
     }
 
     #[test]
