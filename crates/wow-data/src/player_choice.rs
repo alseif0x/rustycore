@@ -41,6 +41,14 @@ pub struct PlayerChoiceResponseRewardLikeCpp {
     pub honor_point_count: u32,
     pub money: u64,
     pub xp: u32,
+    pub items: Vec<PlayerChoiceResponseRewardItemLikeCpp>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerChoiceResponseRewardItemLikeCpp {
+    pub id: u32,
+    pub bonus_list_ids: Vec<i32>,
+    pub quantity: i32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -124,18 +132,34 @@ pub struct PlayerChoiceResponseRewardRowLikeCpp {
     pub xp: u32,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerChoiceResponseRewardItemRowLikeCpp {
+    pub choice_id: i32,
+    pub response_id: i32,
+    pub item_id: u32,
+    pub bonus_list_ids_raw: String,
+    pub quantity: i32,
+}
+
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct PlayerChoiceLoadReportLikeCpp {
     pub choice_rows_seen: usize,
     pub response_rows_seen: usize,
     pub reward_rows_seen: usize,
+    pub reward_item_rows_seen: usize,
     /// C++ `responseCount`; increments only for responses attached to an existing choice.
     pub loaded_responses: usize,
     /// C++ `rewardCount`; increments only for rewards attached to an existing response.
     pub loaded_rewards: usize,
+    /// C++ `itemRewardCount`.
+    pub loaded_reward_items: usize,
     pub skipped_responses_missing_choice: Vec<(i32, i32)>,
     pub skipped_rewards_missing_choice: Vec<(i32, i32)>,
     pub skipped_rewards_missing_response: Vec<(i32, i32)>,
+    pub skipped_reward_items_missing_choice: Vec<(i32, i32)>,
+    pub skipped_reward_items_missing_response: Vec<(i32, i32)>,
+    pub skipped_reward_items_missing_reward: Vec<(i32, i32)>,
+    pub skipped_reward_items_missing_item: Vec<(i32, i32, u32)>,
     pub invalid_reward_titles: Vec<(i32, i32, i32)>,
     pub invalid_reward_packages: Vec<(i32, i32, i32)>,
     pub invalid_reward_skill_lines: Vec<(i32, i32, i32)>,
@@ -158,10 +182,12 @@ impl PlayerChoiceStoreLikeCpp {
         choice_rows: impl IntoIterator<Item = PlayerChoiceRowLikeCpp>,
         response_rows: impl IntoIterator<Item = PlayerChoiceResponseRowLikeCpp>,
     ) -> PlayerChoiceLoadOutcomeLikeCpp {
-        Self::from_rows_and_rewards_like_cpp(
+        Self::from_rows_rewards_and_items_like_cpp(
             choice_rows,
             response_rows,
             [],
+            [],
+            |_| false,
             |_| false,
             |_| false,
             |_| false,
@@ -175,6 +201,28 @@ impl PlayerChoiceStoreLikeCpp {
         title_exists: impl Fn(u32) -> bool,
         quest_package_exists: impl Fn(u32) -> bool,
         skill_line_exists: impl Fn(u32) -> bool,
+    ) -> PlayerChoiceLoadOutcomeLikeCpp {
+        Self::from_rows_rewards_and_items_like_cpp(
+            choice_rows,
+            response_rows,
+            reward_rows,
+            [],
+            title_exists,
+            quest_package_exists,
+            skill_line_exists,
+            |_| false,
+        )
+    }
+
+    pub fn from_rows_rewards_and_items_like_cpp(
+        choice_rows: impl IntoIterator<Item = PlayerChoiceRowLikeCpp>,
+        response_rows: impl IntoIterator<Item = PlayerChoiceResponseRowLikeCpp>,
+        reward_rows: impl IntoIterator<Item = PlayerChoiceResponseRewardRowLikeCpp>,
+        reward_item_rows: impl IntoIterator<Item = PlayerChoiceResponseRewardItemRowLikeCpp>,
+        title_exists: impl Fn(u32) -> bool,
+        quest_package_exists: impl Fn(u32) -> bool,
+        skill_line_exists: impl Fn(u32) -> bool,
+        item_exists: impl Fn(u32) -> bool,
     ) -> PlayerChoiceLoadOutcomeLikeCpp {
         let mut choices = HashMap::new();
         let mut report = PlayerChoiceLoadReportLikeCpp {
@@ -260,6 +308,7 @@ impl PlayerChoiceStoreLikeCpp {
                 honor_point_count: row.honor_point_count,
                 money: row.money,
                 xp: row.xp,
+                items: Vec::new(),
             };
             report.loaded_rewards += 1;
 
@@ -304,6 +353,47 @@ impl PlayerChoiceStoreLikeCpp {
             response.reward = Some(reward);
         }
 
+        for row in reward_item_rows {
+            report.reward_item_rows_seen += 1;
+            let Some(choice) = choices.get_mut(&row.choice_id) else {
+                report
+                    .skipped_reward_items_missing_choice
+                    .push((row.choice_id, row.response_id));
+                continue;
+            };
+            let Some(response) = choice
+                .responses
+                .iter_mut()
+                .find(|response| response.response_id == row.response_id)
+            else {
+                report
+                    .skipped_reward_items_missing_response
+                    .push((row.choice_id, row.response_id));
+                continue;
+            };
+            let Some(reward) = response.reward.as_mut() else {
+                report
+                    .skipped_reward_items_missing_reward
+                    .push((row.choice_id, row.response_id));
+                continue;
+            };
+            if !item_exists(row.item_id) {
+                report.skipped_reward_items_missing_item.push((
+                    row.choice_id,
+                    row.response_id,
+                    row.item_id,
+                ));
+                continue;
+            }
+
+            reward.items.push(PlayerChoiceResponseRewardItemLikeCpp {
+                id: row.item_id,
+                bonus_list_ids: parse_bonus_list_ids_like_cpp(&row.bonus_list_ids_raw),
+                quantity: row.quantity,
+            });
+            report.loaded_reward_items += 1;
+        }
+
         PlayerChoiceLoadOutcomeLikeCpp {
             store: Self { choices },
             report,
@@ -312,13 +402,14 @@ impl PlayerChoiceStoreLikeCpp {
 
     /// C++ `ObjectMgr::LoadPlayerChoices` core tables and base rewards.
     ///
-    /// This slice intentionally stops before reward items/currency/faction/item
+    /// This slice intentionally stops before reward currency/faction/item
     /// choices, MawPower, locales, and live `DisplayPlayerChoice` packet wiring.
     pub async fn load_core_like_cpp(
         db: &WorldDatabase,
         title_exists: impl Fn(u32) -> bool,
         quest_package_exists: impl Fn(u32) -> bool,
         skill_line_exists: impl Fn(u32) -> bool,
+        item_exists: impl Fn(u32) -> bool,
     ) -> Result<PlayerChoiceLoadOutcomeLikeCpp> {
         let mut choice_result = db
             .query(&db.prepare(WorldStatements::SEL_PLAYER_CHOICES))
@@ -408,13 +499,36 @@ impl PlayerChoiceStoreLikeCpp {
             }
         }
 
-        Ok(Self::from_rows_and_rewards_like_cpp(
+        let mut reward_item_result = db
+            .query(&db.prepare(WorldStatements::SEL_PLAYER_CHOICE_RESPONSE_REWARD_ITEMS))
+            .await?;
+        let mut reward_items = Vec::new();
+
+        if !reward_item_result.is_empty() {
+            loop {
+                reward_items.push(PlayerChoiceResponseRewardItemRowLikeCpp {
+                    choice_id: reward_item_result.read(0),
+                    response_id: reward_item_result.read(1),
+                    item_id: reward_item_result.read(2),
+                    bonus_list_ids_raw: reward_item_result.read_string(3),
+                    quantity: reward_item_result.read(4),
+                });
+
+                if !reward_item_result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        Ok(Self::from_rows_rewards_and_items_like_cpp(
             choices,
             responses,
             rewards,
+            reward_items,
             title_exists,
             quest_package_exists,
             skill_line_exists,
+            item_exists,
         ))
     }
 
@@ -430,6 +544,12 @@ impl PlayerChoiceStoreLikeCpp {
     pub fn is_empty(&self) -> bool {
         self.choices.is_empty()
     }
+}
+
+fn parse_bonus_list_ids_like_cpp(raw: &str) -> Vec<i32> {
+    raw.split_whitespace()
+        .filter_map(|token| token.parse::<i32>().ok())
+        .collect()
 }
 
 #[cfg(test)]
@@ -488,6 +608,21 @@ mod tests {
             honor_point_count: 6,
             money: 7,
             xp: 8,
+        }
+    }
+
+    fn reward_item(
+        choice_id: i32,
+        response_id: i32,
+        item_id: u32,
+        bonus_list_ids_raw: &str,
+    ) -> PlayerChoiceResponseRewardItemRowLikeCpp {
+        PlayerChoiceResponseRewardItemRowLikeCpp {
+            choice_id,
+            response_id,
+            item_id,
+            bonus_list_ids_raw: bonus_list_ids_raw.to_string(),
+            quantity: 3,
         }
     }
 
@@ -593,6 +728,7 @@ mod tests {
         assert_eq!(reward.skill_point_count, 4);
         assert_eq!(reward.money, 7);
         assert_eq!(reward.xp, 8);
+        assert!(reward.items.is_empty());
     }
 
     #[test]
@@ -668,5 +804,79 @@ mod tests {
             .unwrap();
         assert_eq!(reward.title_id, 101);
         assert_eq!(reward.package_id, 201);
+    }
+
+    #[test]
+    fn player_choices_attach_reward_items_and_parse_bonus_lists_like_cpp() {
+        let outcome = PlayerChoiceStoreLikeCpp::from_rows_rewards_and_items_like_cpp(
+            [choice(1, "rewarded")],
+            [response(1, 10, 1)],
+            [reward(1, 10)],
+            [
+                reward_item(1, 10, 700, "7 bad -9 7 0x10 12"),
+                reward_item(1, 10, 701, ""),
+            ],
+            |_| true,
+            |_| true,
+            |_| true,
+            |item_id| item_id == 700 || item_id == 701,
+        );
+
+        assert_eq!(outcome.report.reward_item_rows_seen, 2);
+        assert_eq!(outcome.report.loaded_reward_items, 2);
+        let items = &outcome
+            .store
+            .get_player_choice_like_cpp(1)
+            .unwrap()
+            .get_response_like_cpp(10)
+            .unwrap()
+            .reward
+            .as_ref()
+            .unwrap()
+            .items;
+        assert_eq!(items[0].id, 700);
+        assert_eq!(items[0].bonus_list_ids, [7, -9, 7, 12]);
+        assert_eq!(items[0].quantity, 3);
+        assert_eq!(items[1].id, 701);
+        assert!(items[1].bonus_list_ids.is_empty());
+    }
+
+    #[test]
+    fn player_choices_skip_reward_items_with_missing_refs_like_cpp() {
+        let outcome = PlayerChoiceStoreLikeCpp::from_rows_rewards_and_items_like_cpp(
+            [choice(1, "rewarded"), choice(2, "no reward")],
+            [response(1, 10, 1), response(2, 20, 2)],
+            [reward(1, 10)],
+            [
+                reward_item(99, 10, 700, ""),
+                reward_item(1, 77, 700, ""),
+                reward_item(2, 20, 700, ""),
+                reward_item(1, 10, 999, ""),
+                reward_item(1, 10, 700, ""),
+            ],
+            |_| true,
+            |_| true,
+            |_| true,
+            |item_id| item_id == 700,
+        );
+
+        assert_eq!(outcome.report.reward_item_rows_seen, 5);
+        assert_eq!(outcome.report.loaded_reward_items, 1);
+        assert_eq!(
+            outcome.report.skipped_reward_items_missing_choice,
+            [(99, 10)]
+        );
+        assert_eq!(
+            outcome.report.skipped_reward_items_missing_response,
+            [(1, 77)]
+        );
+        assert_eq!(
+            outcome.report.skipped_reward_items_missing_reward,
+            [(2, 20)]
+        );
+        assert_eq!(
+            outcome.report.skipped_reward_items_missing_item,
+            [(1, 10, 999)]
+        );
     }
 }

@@ -2624,10 +2624,11 @@ async fn main() -> Result<ExitCode> {
                     .is_some()
         },
         |skill_line_id| skill_line_store.get(skill_line_id).is_some(),
+        |item_id| item_stats_store.sparse_template(item_id).is_some(),
     )
     .await
     .context(
-        "Failed to load C++ playerchoice/playerchoice_response/playerchoice_response_reward rows",
+        "Failed to load C++ playerchoice/playerchoice_response/playerchoice_response_reward/playerchoice_response_reward_item rows",
     )?;
     for (choice_id, response_id) in &player_choice_outcome
         .report
@@ -2690,12 +2691,58 @@ async fn main() -> Result<ExitCode> {
             response_id
         );
     }
+    for (choice_id, response_id) in &player_choice_outcome
+        .report
+        .skipped_reward_items_missing_choice
+    {
+        tracing::error!(
+            target: "sql.sql",
+            "Table `playerchoice_response_reward_item` references non-existing ChoiceId: {} (ResponseId: {}), skipped",
+            choice_id,
+            response_id
+        );
+    }
+    for (choice_id, response_id) in &player_choice_outcome
+        .report
+        .skipped_reward_items_missing_response
+    {
+        tracing::error!(
+            target: "sql.sql",
+            "Table `playerchoice_response_reward_item` references non-existing ResponseId: {} for ChoiceId {}, skipped",
+            response_id,
+            choice_id
+        );
+    }
+    for (choice_id, response_id) in &player_choice_outcome
+        .report
+        .skipped_reward_items_missing_reward
+    {
+        tracing::error!(
+            target: "sql.sql",
+            "Table `playerchoice_response_reward_item` references non-existing player choice reward for ChoiceId {}, ResponseId: {}, skipped",
+            choice_id,
+            response_id
+        );
+    }
+    for (choice_id, response_id, item_id) in &player_choice_outcome
+        .report
+        .skipped_reward_items_missing_item
+    {
+        tracing::error!(
+            target: "sql.sql",
+            "Table `playerchoice_response_reward_item` references non-existing item {} for ChoiceId {}, ResponseId: {}, skipped",
+            item_id,
+            choice_id,
+            response_id
+        );
+    }
     let _player_choice_store = Arc::new(player_choice_outcome.store);
     info!(
-        "Loaded {} C++ player choices with {} responses and {} base rewards ({} skipped responses, {} skipped rewards, {} invalid reward refs; locales/reward entries pending)",
+        "Loaded {} C++ player choices with {} responses, {} base rewards, and {} reward items ({} skipped responses, {} skipped rewards, {} skipped reward items, {} invalid reward refs; locales/reward entries pending)",
         player_choice_outcome.report.choice_rows_seen,
         player_choice_outcome.report.loaded_responses,
         player_choice_outcome.report.loaded_rewards,
+        player_choice_outcome.report.loaded_reward_items,
         player_choice_outcome
             .report
             .skipped_responses_missing_choice
@@ -2707,6 +2754,22 @@ async fn main() -> Result<ExitCode> {
             + player_choice_outcome
                 .report
                 .skipped_rewards_missing_response
+                .len(),
+        player_choice_outcome
+            .report
+            .skipped_reward_items_missing_choice
+            .len()
+            + player_choice_outcome
+                .report
+                .skipped_reward_items_missing_response
+                .len()
+            + player_choice_outcome
+                .report
+                .skipped_reward_items_missing_reward
+                .len()
+            + player_choice_outcome
+                .report
+                .skipped_reward_items_missing_item
                 .len(),
         player_choice_outcome.report.invalid_reward_titles.len()
             + player_choice_outcome.report.invalid_reward_packages.len()
