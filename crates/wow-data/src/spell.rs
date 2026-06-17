@@ -3572,6 +3572,25 @@ impl SpellProcStoreLikeCpp {
         outcome
     }
 
+    pub fn from_rows_and_spell_infos_like_cpp<I, SpellInfoById, SpellInfos>(
+        rows: I,
+        spell_info_by_id: SpellInfoById,
+        spell_infos: SpellInfos,
+    ) -> SpellProcLoadOutcomeLikeCpp
+    where
+        I: IntoIterator<Item = SpellProcRowLikeCpp>,
+        SpellInfoById: FnMut(u32) -> Option<SpellProcSourceSpellInfoLikeCpp>,
+        SpellInfos: IntoIterator<Item = SpellProcSourceSpellInfoLikeCpp>,
+    {
+        Self::from_rows_and_implicit_sources_like_cpp(
+            rows,
+            spell_info_by_id,
+            spell_infos
+                .into_iter()
+                .map(|spell_info| spell_info.implicit_proc_source_like_cpp()),
+        )
+    }
+
     pub fn spell_proc_entry_like_cpp(
         &self,
         spell_id: u32,
@@ -7112,6 +7131,52 @@ mod tests {
         assert_eq!(implicit.effects[0].spell_class_mask, [1, 2, 3, 4]);
         assert_eq!(implicit.effects[0].calc_value, -100);
         assert_eq!(implicit.effects[0].trigger_spell, 900);
+    }
+
+    #[test]
+    fn spell_proc_store_generates_from_spell_infos_after_sql_like_cpp() {
+        let mut generated = test_spell_proc_source_like_cpp(901, 901, None);
+        generated.proc_flags = [PROC_FLAG_DEAL_HARMFUL_SPELL_LIKE_CPP, 0];
+        generated.proc_chance = 45.0;
+        generated.effects = vec![SpellEffectInfo {
+            effect_index: 0,
+            effect: spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: aura_types::SPELL_AURA_PROC_TRIGGER_SPELL,
+            ..SpellEffectInfo::default()
+        }];
+
+        let mut explicit_duplicate = generated.clone();
+        explicit_duplicate.spell_id = 900;
+        explicit_duplicate.proc_chance = 95.0;
+
+        let outcome = SpellProcStoreLikeCpp::from_rows_and_spell_infos_like_cpp(
+            [SpellProcRowLikeCpp {
+                spell_id: 900,
+                proc_flags: [PROC_FLAG_KILL_LIKE_CPP, 0],
+                chance: 12.0,
+                ..test_spell_proc_row_like_cpp(900)
+            }],
+            |spell_id| Some(test_spell_proc_source_like_cpp(spell_id, spell_id, None)),
+            [explicit_duplicate, generated],
+        );
+
+        assert!(outcome.errors.is_empty());
+        assert_eq!(outcome.loaded_row_count, 1);
+        assert_eq!(outcome.generated_entry_count, 1);
+        assert_eq!(
+            outcome
+                .store
+                .spell_proc_entry_like_cpp(900, 0)
+                .map(|entry| (entry.proc_flags, entry.chance)),
+            Some(([PROC_FLAG_KILL_LIKE_CPP, 0], 12.0))
+        );
+        assert_eq!(
+            outcome
+                .store
+                .spell_proc_entry_like_cpp(901, 0)
+                .map(|entry| (entry.proc_flags, entry.chance)),
+            Some(([PROC_FLAG_DEAL_HARMFUL_SPELL_LIKE_CPP, 0], 45.0))
+        );
     }
 
     #[test]
