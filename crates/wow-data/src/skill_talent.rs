@@ -534,6 +534,16 @@ impl TalentStore {
             prereq_rank: std::array::from_fn(|i| r.get_array_element(idx, 13, i, 32) as i32),
         })
     }
+
+    pub fn talent_spell_ids_like_cpp(&self) -> impl Iterator<Item = u32> + '_ {
+        self.entries.values().flat_map(|entry| {
+            entry
+                .spell_rank
+                .iter()
+                .filter_map(|spell_rank| u32::try_from(*spell_rank).ok())
+                .filter(|spell_rank| *spell_rank != 0)
+        })
+    }
 }
 
 impl TalentTabStore {

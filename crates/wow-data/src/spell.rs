@@ -56,6 +56,9 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_SPELL_DEFENSE: u32 = 37;
     pub const SPELL_EFFECT_LANGUAGE: u32 = 39;
     pub const SPELL_EFFECT_DUAL_WIELD: u32 = 40;
+    /// C++ `SPELL_EFFECT_SKILL_STEP`; used by `SpellMgr::LoadSpellLearnSpells`
+    /// to mark dependent learn-spell rows as auto-learned.
+    pub const SPELL_EFFECT_SKILL_STEP: u32 = 44;
     pub const SPELL_EFFECT_PLAY_MOVIE: u32 = 45;
     pub const SPELL_EFFECT_SPAWN: u32 = 46;
     pub const SPELL_EFFECT_TRADE_SKILL: u32 = 47;
@@ -4291,6 +4294,47 @@ pub struct SpellLearnSpellStoreLikeCpp {
 }
 
 impl SpellLearnSpellStoreLikeCpp {
+    pub async fn load_like_cpp<SourceSpells, Db2Rows, SpellLookup, SpellExists>(
+        db: &WorldDatabase,
+        source_spells: SourceSpells,
+        db2_rows: Db2Rows,
+        mut spell_lookup: SpellLookup,
+        spell_exists: SpellExists,
+    ) -> Result<SpellLearnSpellLoadOutcomeLikeCpp>
+    where
+        SourceSpells: IntoIterator<Item = SpellLearnSourceSpellInfoLikeCpp>,
+        Db2Rows: IntoIterator<Item = crate::spell_db2::SpellLearnSpellEntry>,
+        SpellLookup: FnMut(u32) -> Option<SpellLearnSourceSpellInfoLikeCpp>,
+        SpellExists: FnMut(u32) -> bool,
+    {
+        let mut result = db
+            .direct_query(WorldStatements::SEL_SPELL_LEARN_SPELL.sql())
+            .await?;
+        let mut rows = Vec::new();
+
+        if !result.is_empty() {
+            loop {
+                rows.push(SpellLearnSpellSqlRowLikeCpp {
+                    entry: result.try_read::<u32>(0).unwrap_or(0),
+                    spell_id: result.try_read::<u32>(1).unwrap_or(0),
+                    active: result.try_read::<u8>(2).unwrap_or(0) != 0,
+                });
+
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        Ok(Self::from_sources_like_cpp(
+            rows,
+            source_spells,
+            db2_rows,
+            &mut spell_lookup,
+            spell_exists,
+        ))
+    }
+
     pub fn from_sources_like_cpp<SqlRows, SourceSpells, Db2Rows, SpellLookup, SpellExists>(
         sql_rows: SqlRows,
         source_spells: SourceSpells,

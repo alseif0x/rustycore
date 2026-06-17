@@ -1027,6 +1027,10 @@ impl SpellLearnSpellStore {
             }
         })
     }
+
+    pub fn entries_like_cpp(&self) -> impl Iterator<Item = &SpellLearnSpellEntry> {
+        self.entries.values()
+    }
 }
 
 impl SpellLevelsStore {

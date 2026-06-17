@@ -240,6 +240,7 @@ pub struct SessionResources {
     pub spell_group_stack_rule_store: Option<Arc<wow_data::SpellGroupStackRuleStoreLikeCpp>>,
     pub spell_linked_store: Option<Arc<wow_data::SpellLinkedStoreLikeCpp>>,
     pub spell_pet_aura_store: Option<Arc<wow_data::SpellPetAuraStoreLikeCpp>>,
+    pub spell_learn_spell_store: Option<Arc<wow_data::SpellLearnSpellStoreLikeCpp>>,
     pub pet_levelup_spell_store: Option<Arc<wow_data::PetLevelupSpellStoreLikeCpp>>,
     pub pet_default_spell_store: Option<Arc<wow_data::PetDefaultSpellStoreLikeCpp>>,
     pub pet_family_spell_store: Option<Arc<wow_data::PetFamilySpellStoreLikeCpp>>,

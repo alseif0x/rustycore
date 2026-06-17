@@ -1287,6 +1287,19 @@ async fn main() -> Result<ExitCode> {
         wow_data::SkillLineStore::load(&data_dir, &locale)
             .context("Failed to load SkillLine.db2")?,
     );
+    let talent_store = Arc::new(
+        wow_data::TalentStore::load(&data_dir, &locale).context("Failed to load Talent.db2")?,
+    );
+    let talent_spell_ids_like_cpp = Arc::new(
+        talent_store
+            .talent_spell_ids_like_cpp()
+            .collect::<HashSet<_>>(),
+    );
+    info!(
+        "Loaded {} talent rows and {} talent spell ranks from Talent.db2",
+        talent_store.len(),
+        talent_spell_ids_like_cpp.len()
+    );
     let chr_races_store = Arc::new(
         wow_data::character_progression::ChrRacesStore::load(&data_dir, &locale)
             .context("Failed to load ChrRaces.db2")?,
@@ -1310,6 +1323,14 @@ async fn main() -> Result<ExitCode> {
     info!(
         "Loaded {} spell level rows from SpellLevels.db2",
         spell_levels_store.len()
+    );
+    let spell_learn_spell_db2_store = Arc::new(
+        wow_data::SpellLearnSpellStore::load(&data_dir, &locale)
+            .context("Failed to load SpellLearnSpell.db2")?,
+    );
+    info!(
+        "Loaded {} SpellLearnSpell.db2 rows",
+        spell_learn_spell_db2_store.len()
     );
     let mut spell_store = wow_data::SpellStore::load(&hotfix_db)
         .await
@@ -1442,6 +1463,69 @@ async fn main() -> Result<ExitCode> {
         "Loaded {} pet family passive spells for {} families",
         pet_family_spell_store.spell_count(),
         pet_family_spell_store.family_count()
+    );
+    fn spell_learn_source_info_like_cpp(
+        spell: &wow_data::SpellInfo,
+        spell_misc_store: &wow_data::SpellMiscStore,
+        talent_spell_ids_like_cpp: &HashSet<u32>,
+    ) -> Option<wow_data::SpellLearnSourceSpellInfoLikeCpp> {
+        let spell_id = u32::try_from(spell.spell_id).ok()?;
+        Some(wow_data::SpellLearnSourceSpellInfoLikeCpp {
+            spell_id,
+            difficulty_none: true,
+            is_talent: talent_spell_ids_like_cpp.contains(&spell_id),
+            is_passive: spell_misc_store.is_passive_like_cpp(spell_id),
+            has_skill_step_effect: spell.effects().iter().any(|effect| {
+                effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_SKILL_STEP
+            }),
+            learn_spell_effects: spell
+                .effects()
+                .iter()
+                .filter(|effect| {
+                    effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_SPELL
+                })
+                .map(|effect| wow_data::SpellLearnSpellEffectLikeCpp {
+                    trigger_spell: u32::try_from(effect.effect_trigger_spell).unwrap_or(0),
+                    target_unit_pet: effect.implicit_target_1 == wow_data::TARGET_UNIT_PET_LIKE_CPP,
+                })
+                .collect(),
+        })
+    }
+
+    let spell_learn_source_infos_like_cpp = spell_store
+        .iter()
+        .filter_map(|spell| {
+            spell_learn_source_info_like_cpp(
+                spell,
+                spell_misc_store.as_ref(),
+                talent_spell_ids_like_cpp.as_ref(),
+            )
+        })
+        .collect::<Vec<_>>();
+    let spell_learn_spell_outcome = wow_data::SpellLearnSpellStoreLikeCpp::load_like_cpp(
+        world_db.as_ref(),
+        spell_learn_source_infos_like_cpp,
+        spell_learn_spell_db2_store.entries_like_cpp().cloned(),
+        |spell_id| {
+            let spell = spell_store.get(spell_id as i32)?;
+            spell_learn_source_info_like_cpp(
+                spell,
+                spell_misc_store.as_ref(),
+                talent_spell_ids_like_cpp.as_ref(),
+            )
+        },
+        |spell_id| spell_store.get(spell_id as i32).is_some(),
+    )
+    .await
+    .context("Failed to load C++ spell_learn_spell rows")?;
+    let spell_learn_spell_store = Arc::new(spell_learn_spell_outcome.store);
+    info!(
+        "Loaded {} C++ spell_learn_spell rows, {} auto-learn rows from SpellInfo/SpellLearnSpell.db2 ({} validation issues, {} warnings, sql empty: {})",
+        spell_learn_spell_outcome.sql_loaded_row_count,
+        spell_learn_spell_outcome.dbc_loaded_row_count,
+        spell_learn_spell_outcome.errors.len(),
+        spell_learn_spell_outcome.warnings.len(),
+        spell_learn_spell_outcome.sql_result_empty
     );
     let spell_procs_per_minute_store = Arc::new(
         wow_data::SpellProcsPerMinuteStore::load(&data_dir, &locale)
@@ -2935,6 +3019,7 @@ async fn main() -> Result<ExitCode> {
         spell_group_stack_rule_store: Some(Arc::clone(&spell_group_stack_rule_store)),
         spell_linked_store: Some(Arc::clone(&spell_linked_store)),
         spell_pet_aura_store: Some(Arc::clone(&spell_pet_aura_store)),
+        spell_learn_spell_store: Some(Arc::clone(&spell_learn_spell_store)),
         pet_levelup_spell_store: Some(Arc::clone(&pet_levelup_spell_store)),
         pet_default_spell_store: Some(Arc::clone(&pet_default_spell_store)),
         pet_family_spell_store: Some(Arc::clone(&pet_family_spell_store)),
@@ -9247,6 +9332,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.spell_pet_aura_store {
         session.set_spell_pet_aura_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.spell_learn_spell_store {
+        session.set_spell_learn_spell_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.pet_levelup_spell_store {
         session.set_pet_levelup_spell_store(Arc::clone(store));

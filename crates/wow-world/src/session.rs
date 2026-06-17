@@ -81,13 +81,14 @@ use wow_data::{
     PlayerStatsStore, RandPropPointsStore, SkillLineStore, SkillStore, SpellAuraOptionsStore,
     SpellCategoryStore, SpellChainStoreLikeCpp, SpellDurationStore, SpellEnchantProcEntryLikeCpp,
     SpellEnchantProcStoreLikeCpp, SpellGroupStackRuleLikeCpp, SpellGroupStackRuleStoreLikeCpp,
-    SpellGroupStoreLikeCpp, SpellItemEnchantmentStore, SpellLinkedStoreLikeCpp,
-    SpellLinkedTypeLikeCpp, SpellMiscStore, SpellPetAuraStoreLikeCpp, SpellProcEntryLikeCpp,
-    SpellProcStoreLikeCpp, SpellRadiusStore, SpellRangeStore, SpellRequiredStoreLikeCpp,
-    SpellStore, SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp,
-    SpellTotemModelStoreLikeCpp, SummonPropertiesEntry, ToyStore, TransmogSetEntry,
-    TransmogSetItemStore, TrinityStringStoreLikeCpp, VEHICLE_SEAT_FLAG_CAN_ATTACK,
-    VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
+    SpellGroupStoreLikeCpp, SpellItemEnchantmentStore, SpellLearnSpellNodeLikeCpp,
+    SpellLearnSpellStoreLikeCpp, SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp, SpellMiscStore,
+    SpellPetAuraStoreLikeCpp, SpellProcEntryLikeCpp, SpellProcStoreLikeCpp, SpellRadiusStore,
+    SpellRangeStore, SpellRequiredStoreLikeCpp, SpellStore, SpellTargetPositionStoreLikeCpp,
+    SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp, SpellTotemModelStoreLikeCpp,
+    SummonPropertiesEntry, ToyStore, TransmogSetEntry, TransmogSetItemStore,
+    TrinityStringStoreLikeCpp, VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp,
+    VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
     calculate_battle_pet_stats_like_cpp, is_player_meeting_condition_like_cpp,
     progression_rewards::{
         ContentTuningStore, FactionEntry, FactionStore, FactionTemplateStore,
@@ -3877,6 +3878,7 @@ pub struct WorldSession {
     spell_group_stack_rule_store: Option<Arc<SpellGroupStackRuleStoreLikeCpp>>,
     spell_linked_store: Option<Arc<SpellLinkedStoreLikeCpp>>,
     spell_pet_aura_store: Option<Arc<SpellPetAuraStoreLikeCpp>>,
+    spell_learn_spell_store: Option<Arc<SpellLearnSpellStoreLikeCpp>>,
     pet_levelup_spell_store: Option<Arc<PetLevelupSpellStoreLikeCpp>>,
     pet_default_spell_store: Option<Arc<PetDefaultSpellStoreLikeCpp>>,
     pet_family_spell_store: Option<Arc<PetFamilySpellStoreLikeCpp>>,
@@ -5190,6 +5192,7 @@ impl WorldSession {
             spell_group_stack_rule_store: None,
             spell_linked_store: None,
             spell_pet_aura_store: None,
+            spell_learn_spell_store: None,
             pet_levelup_spell_store: None,
             pet_default_spell_store: None,
             pet_family_spell_store: None,
@@ -17066,6 +17069,32 @@ impl WorldSession {
         self.spell_pet_aura_store
             .as_ref()
             .and_then(|store| store.get_pet_aura_like_cpp(spell_id, effect_index))
+    }
+
+    pub fn set_spell_learn_spell_store(&mut self, store: Arc<SpellLearnSpellStoreLikeCpp>) {
+        self.spell_learn_spell_store = Some(store);
+    }
+
+    pub(crate) fn spell_learn_spell_map_bounds_like_cpp(
+        &self,
+        spell_id: u32,
+    ) -> &[SpellLearnSpellNodeLikeCpp] {
+        self.spell_learn_spell_store
+            .as_ref()
+            .map(|store| store.get_spell_learn_spell_map_bounds_like_cpp(spell_id))
+            .unwrap_or(&[])
+    }
+
+    pub(crate) fn is_spell_learn_spell_like_cpp(&self, spell_id: u32) -> bool {
+        self.spell_learn_spell_store
+            .as_ref()
+            .is_some_and(|store| store.is_spell_learn_spell_like_cpp(spell_id))
+    }
+
+    pub(crate) fn is_spell_learn_to_spell_like_cpp(&self, spell_id1: u32, spell_id2: u32) -> bool {
+        self.spell_learn_spell_store
+            .as_ref()
+            .is_some_and(|store| store.is_spell_learn_to_spell_like_cpp(spell_id1, spell_id2))
     }
 
     pub fn set_pet_levelup_spell_store(&mut self, store: Arc<PetLevelupSpellStoreLikeCpp>) {
@@ -41895,6 +41924,40 @@ mod tests {
         outcome.store
     }
 
+    fn test_spell_learn_spell_store_like_cpp() -> wow_data::SpellLearnSpellStoreLikeCpp {
+        let outcome = wow_data::SpellLearnSpellStoreLikeCpp::from_sources_like_cpp(
+            [wow_data::SpellLearnSpellSqlRowLikeCpp {
+                entry: 10,
+                spell_id: 20,
+                active: true,
+            }],
+            [wow_data::SpellLearnSourceSpellInfoLikeCpp {
+                spell_id: 30,
+                difficulty_none: true,
+                is_talent: false,
+                is_passive: true,
+                has_skill_step_effect: false,
+                learn_spell_effects: vec![wow_data::SpellLearnSpellEffectLikeCpp {
+                    trigger_spell: 40,
+                    target_unit_pet: false,
+                }],
+            }],
+            std::iter::empty::<wow_data::SpellLearnSpellEntry>(),
+            |spell_id| {
+                Some(wow_data::SpellLearnSourceSpellInfoLikeCpp {
+                    spell_id,
+                    difficulty_none: true,
+                    is_talent: false,
+                    is_passive: false,
+                    has_skill_step_effect: false,
+                    learn_spell_effects: Vec::new(),
+                })
+            },
+            |_| true,
+        );
+        outcome.store
+    }
+
     fn test_pet_levelup_spell_store_like_cpp() -> wow_data::PetLevelupSpellStoreLikeCpp {
         let skill_store = wow_data::SkillStore::from_skill_line_abilities_like_cpp([
             wow_data::SkillLineAbilityRecord {
@@ -42357,6 +42420,35 @@ mod tests {
         assert_eq!(aura.aura_for_pet_entry_like_cpp(501), 901);
         assert_eq!(aura.aura_for_pet_entry_like_cpp(502), 900);
         assert!(session.pet_aura_like_cpp(77, 3).is_none());
+    }
+
+    #[test]
+    fn spell_learn_spell_queries_return_empty_without_store_like_cpp() {
+        let (session, _, _) = make_session();
+
+        assert!(session.spell_learn_spell_map_bounds_like_cpp(10).is_empty());
+        assert!(!session.is_spell_learn_spell_like_cpp(10));
+        assert!(!session.is_spell_learn_to_spell_like_cpp(10, 20));
+    }
+
+    #[test]
+    fn spell_learn_spell_queries_match_loaded_multimap_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_spell_learn_spell_store(Arc::new(test_spell_learn_spell_store_like_cpp()));
+
+        assert_eq!(
+            session.spell_learn_spell_map_bounds_like_cpp(10),
+            &[wow_data::SpellLearnSpellNodeLikeCpp {
+                spell: 20,
+                overrides_spell: 0,
+                active: true,
+                auto_learned: false,
+            }]
+        );
+        assert!(session.is_spell_learn_spell_like_cpp(10));
+        assert!(session.is_spell_learn_to_spell_like_cpp(10, 20));
+        assert!(session.is_spell_learn_to_spell_like_cpp(30, 40));
+        assert!(!session.is_spell_learn_to_spell_like_cpp(10, 21));
     }
 
     #[test]
