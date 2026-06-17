@@ -1357,6 +1357,39 @@ async fn main() -> Result<ExitCode> {
         pet_levelup_spell_store.count(),
         pet_levelup_spell_store.family_count()
     );
+    let pet_default_spell_store = Arc::new(wow_data::PetDefaultSpellStoreLikeCpp::load_like_cpp(
+        spell_store
+            .iter()
+            .map(|spell| wow_data::PetDefaultSpellInfoLikeCpp {
+                difficulty_none: true,
+                effects: spell
+                    .effects()
+                    .iter()
+                    .map(|effect| wow_data::PetDefaultSpellEffectLikeCpp {
+                        effect: effect.effect,
+                        misc_value: effect.effect_misc_value_1,
+                    })
+                    .collect(),
+            }),
+        creature_template_lifecycle_store
+            .entries_like_cpp()
+            .map(|template| {
+                let mut spells = [0; wow_data::MAX_CREATURE_SPELL_DATA_SLOT_LIKE_CPP];
+                spells.copy_from_slice(
+                    &template.spells[..wow_data::MAX_CREATURE_SPELL_DATA_SLOT_LIKE_CPP],
+                );
+                wow_data::PetDefaultSpellCreatureTemplateLikeCpp {
+                    entry: template.entry,
+                    family: template.family,
+                    spells,
+                }
+            }),
+        pet_levelup_spell_store.as_ref(),
+    ));
+    info!(
+        "Loaded {} summonable creature default spell templates",
+        pet_default_spell_store.count()
+    );
     let spell_category_store = Arc::new(
         wow_data::SpellCategoryStore::load(&data_dir, &locale)
             .context("Failed to load SpellCategory.db2")?,
@@ -2879,6 +2912,7 @@ async fn main() -> Result<ExitCode> {
         spell_linked_store: Some(Arc::clone(&spell_linked_store)),
         spell_pet_aura_store: Some(Arc::clone(&spell_pet_aura_store)),
         pet_levelup_spell_store: Some(Arc::clone(&pet_levelup_spell_store)),
+        pet_default_spell_store: Some(Arc::clone(&pet_default_spell_store)),
         spell_procs_per_minute_store: Some(Arc::clone(&spell_procs_per_minute_store)),
         spell_proc_store: Some(Arc::clone(&spell_proc_store)),
         spell_required_store: Some(Arc::clone(&spell_required_store)),
@@ -9191,6 +9225,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.pet_levelup_spell_store {
         session.set_pet_levelup_spell_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.pet_default_spell_store {
+        session.set_pet_default_spell_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.spell_proc_store {
         session.set_spell_proc_store(Arc::clone(store));

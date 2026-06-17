@@ -716,6 +716,12 @@ impl CreatureTemplateLifecycleStoreLikeCpp {
         self.templates.get(&entry)
     }
 
+    pub fn entries_like_cpp(
+        &self,
+    ) -> impl Iterator<Item = &CreatureTemplateLifecycleRecordLikeCpp> {
+        self.templates.values()
+    }
+
     pub fn len(&self) -> usize {
         self.templates.len()
     }

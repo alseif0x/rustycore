@@ -241,6 +241,7 @@ pub struct SessionResources {
     pub spell_linked_store: Option<Arc<wow_data::SpellLinkedStoreLikeCpp>>,
     pub spell_pet_aura_store: Option<Arc<wow_data::SpellPetAuraStoreLikeCpp>>,
     pub pet_levelup_spell_store: Option<Arc<wow_data::PetLevelupSpellStoreLikeCpp>>,
+    pub pet_default_spell_store: Option<Arc<wow_data::PetDefaultSpellStoreLikeCpp>>,
     pub spell_procs_per_minute_store: Option<Arc<wow_data::SpellProcsPerMinuteStore>>,
     pub spell_proc_store: Option<Arc<wow_data::SpellProcStoreLikeCpp>>,
     pub spell_required_store: Option<Arc<wow_data::SpellRequiredStoreLikeCpp>>,
