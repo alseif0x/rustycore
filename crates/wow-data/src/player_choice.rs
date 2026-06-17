@@ -29,6 +29,7 @@ pub struct PlayerChoiceResponseLikeCpp {
     pub confirmation: String,
     pub reward_quest_id: Option<u32>,
     pub reward: Option<PlayerChoiceResponseRewardLikeCpp>,
+    pub maw_power: Option<PlayerChoiceResponseMawPowerLikeCpp>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -58,6 +59,15 @@ pub struct PlayerChoiceResponseRewardItemLikeCpp {
 pub struct PlayerChoiceResponseRewardEntryLikeCpp {
     pub id: u32,
     pub quantity: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerChoiceResponseMawPowerLikeCpp {
+    pub type_art_file_id: i32,
+    pub rarity: Option<i32>,
+    pub rarity_color: Option<u32>,
+    pub spell_id: i32,
+    pub max_stacks: i32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -166,6 +176,17 @@ pub struct PlayerChoiceResponseRewardFactionRowLikeCpp {
     pub quantity: i32,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerChoiceResponseMawPowerRowLikeCpp {
+    pub choice_id: i32,
+    pub response_id: i32,
+    pub type_art_file_id: i32,
+    pub rarity: Option<i32>,
+    pub rarity_color: Option<u32>,
+    pub spell_id: i32,
+    pub max_stacks: i32,
+}
+
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct PlayerChoiceLoadReportLikeCpp {
     pub choice_rows_seen: usize,
@@ -175,6 +196,7 @@ pub struct PlayerChoiceLoadReportLikeCpp {
     pub reward_currency_rows_seen: usize,
     pub reward_faction_rows_seen: usize,
     pub reward_item_choice_rows_seen: usize,
+    pub maw_power_rows_seen: usize,
     /// C++ `responseCount`; increments only for responses attached to an existing choice.
     pub loaded_responses: usize,
     /// C++ `rewardCount`; increments only for rewards attached to an existing response.
@@ -187,6 +209,8 @@ pub struct PlayerChoiceLoadReportLikeCpp {
     pub loaded_reward_factions: usize,
     /// C++ `itemChoiceRewardCount`.
     pub loaded_reward_item_choices: usize,
+    /// C++ `mawPowersCount`.
+    pub loaded_maw_powers: usize,
     pub skipped_responses_missing_choice: Vec<(i32, i32)>,
     pub skipped_rewards_missing_choice: Vec<(i32, i32)>,
     pub skipped_rewards_missing_response: Vec<(i32, i32)>,
@@ -206,6 +230,8 @@ pub struct PlayerChoiceLoadReportLikeCpp {
     pub skipped_reward_item_choices_missing_response: Vec<(i32, i32)>,
     pub skipped_reward_item_choices_missing_reward: Vec<(i32, i32)>,
     pub skipped_reward_item_choices_missing_item: Vec<(i32, i32, u32)>,
+    pub skipped_maw_powers_missing_choice: Vec<(i32, i32)>,
+    pub skipped_maw_powers_missing_response: Vec<(i32, i32)>,
     pub invalid_reward_titles: Vec<(i32, i32, i32)>,
     pub invalid_reward_packages: Vec<(i32, i32, i32)>,
     pub invalid_reward_skill_lines: Vec<(i32, i32, i32)>,
@@ -330,6 +356,7 @@ impl PlayerChoiceStoreLikeCpp {
         reward_currency_rows: impl IntoIterator<Item = PlayerChoiceResponseRewardCurrencyRowLikeCpp>,
         reward_faction_rows: impl IntoIterator<Item = PlayerChoiceResponseRewardFactionRowLikeCpp>,
         reward_item_choice_rows: impl IntoIterator<Item = PlayerChoiceResponseRewardItemRowLikeCpp>,
+        maw_power_rows: impl IntoIterator<Item = PlayerChoiceResponseMawPowerRowLikeCpp>,
         title_exists: impl Fn(u32) -> bool,
         quest_package_exists: impl Fn(u32) -> bool,
         skill_line_exists: impl Fn(u32) -> bool,
@@ -345,6 +372,7 @@ impl PlayerChoiceStoreLikeCpp {
             reward_currency_rows,
             reward_faction_rows,
             reward_item_choice_rows,
+            maw_power_rows,
             title_exists,
             quest_package_exists,
             skill_line_exists,
@@ -376,6 +404,7 @@ impl PlayerChoiceStoreLikeCpp {
             reward_currency_rows,
             reward_faction_rows,
             [],
+            [],
             title_exists,
             quest_package_exists,
             skill_line_exists,
@@ -393,6 +422,7 @@ impl PlayerChoiceStoreLikeCpp {
         reward_currency_rows: impl IntoIterator<Item = PlayerChoiceResponseRewardCurrencyRowLikeCpp>,
         reward_faction_rows: impl IntoIterator<Item = PlayerChoiceResponseRewardFactionRowLikeCpp>,
         reward_item_choice_rows: impl IntoIterator<Item = PlayerChoiceResponseRewardItemRowLikeCpp>,
+        maw_power_rows: impl IntoIterator<Item = PlayerChoiceResponseMawPowerRowLikeCpp>,
         title_exists: impl Fn(u32) -> bool,
         quest_package_exists: impl Fn(u32) -> bool,
         skill_line_exists: impl Fn(u32) -> bool,
@@ -452,6 +482,7 @@ impl PlayerChoiceStoreLikeCpp {
                 confirmation: row.confirmation,
                 reward_quest_id: row.reward_quest_id,
                 reward: None,
+                maw_power: None,
             });
             report.loaded_responses += 1;
         }
@@ -698,6 +729,35 @@ impl PlayerChoiceStoreLikeCpp {
             report.loaded_reward_item_choices += 1;
         }
 
+        for row in maw_power_rows {
+            report.maw_power_rows_seen += 1;
+            let Some(choice) = choices.get_mut(&row.choice_id) else {
+                report
+                    .skipped_maw_powers_missing_choice
+                    .push((row.choice_id, row.response_id));
+                continue;
+            };
+            let Some(response) = choice
+                .responses
+                .iter_mut()
+                .find(|response| response.response_id == row.response_id)
+            else {
+                report
+                    .skipped_maw_powers_missing_response
+                    .push((row.choice_id, row.response_id));
+                continue;
+            };
+
+            response.maw_power = Some(PlayerChoiceResponseMawPowerLikeCpp {
+                type_art_file_id: row.type_art_file_id,
+                rarity: row.rarity,
+                rarity_color: row.rarity_color,
+                spell_id: row.spell_id,
+                max_stacks: row.max_stacks,
+            });
+            report.loaded_maw_powers += 1;
+        }
+
         PlayerChoiceLoadOutcomeLikeCpp {
             store: Self { choices },
             report,
@@ -706,8 +766,8 @@ impl PlayerChoiceStoreLikeCpp {
 
     /// C++ `ObjectMgr::LoadPlayerChoices` core tables and base rewards.
     ///
-    /// This slice intentionally stops before reward item choices, MawPower,
-    /// locales, and live `DisplayPlayerChoice` packet wiring.
+    /// This slice intentionally stops before locales and live
+    /// `DisplayPlayerChoice` packet wiring.
     pub async fn load_core_like_cpp(
         db: &WorldDatabase,
         title_exists: impl Fn(u32) -> bool,
@@ -887,6 +947,37 @@ impl PlayerChoiceStoreLikeCpp {
             }
         }
 
+        let mut maw_power_result = db
+            .query(&db.prepare(WorldStatements::SEL_PLAYER_CHOICE_RESPONSE_MAW_POWERS))
+            .await?;
+        let mut maw_powers = Vec::new();
+
+        if !maw_power_result.is_empty() {
+            loop {
+                maw_powers.push(PlayerChoiceResponseMawPowerRowLikeCpp {
+                    choice_id: maw_power_result.read(0),
+                    response_id: maw_power_result.read(1),
+                    type_art_file_id: maw_power_result.read(2),
+                    rarity: if maw_power_result.is_null(3) {
+                        None
+                    } else {
+                        Some(maw_power_result.read(3))
+                    },
+                    rarity_color: if maw_power_result.is_null(4) {
+                        None
+                    } else {
+                        Some(maw_power_result.read(4))
+                    },
+                    spell_id: maw_power_result.read(5),
+                    max_stacks: maw_power_result.read(6),
+                });
+
+                if !maw_power_result.next_row() {
+                    break;
+                }
+            }
+        }
+
         Ok(
             Self::from_rows_rewards_items_currencies_factions_and_item_choices_like_cpp(
                 choices,
@@ -896,6 +987,7 @@ impl PlayerChoiceStoreLikeCpp {
                 reward_currencies,
                 reward_factions,
                 reward_item_choices,
+                maw_powers,
                 title_exists,
                 quest_package_exists,
                 skill_line_exists,
@@ -1023,6 +1115,23 @@ mod tests {
             response_id,
             faction_id,
             quantity: 6,
+        }
+    }
+
+    fn maw_power(
+        choice_id: i32,
+        response_id: i32,
+        rarity: Option<i32>,
+        rarity_color: Option<u32>,
+    ) -> PlayerChoiceResponseMawPowerRowLikeCpp {
+        PlayerChoiceResponseMawPowerRowLikeCpp {
+            choice_id,
+            response_id,
+            type_art_file_id: 11,
+            rarity,
+            rarity_color,
+            spell_id: 22,
+            max_stacks: 33,
         }
     }
 
@@ -1449,6 +1558,7 @@ mod tests {
                     reward_item(1, 10, 700, "7 bad -9 7 0x10 12"),
                     reward_item(1, 10, 701, ""),
                 ],
+                [],
                 |_| true,
                 |_| true,
                 |_| true,
@@ -1493,6 +1603,7 @@ mod tests {
                     reward_item(1, 10, 999, ""),
                     reward_item(1, 10, 700, ""),
                 ],
+                [],
                 |_| true,
                 |_| true,
                 |_| true,
@@ -1518,6 +1629,80 @@ mod tests {
         assert_eq!(
             outcome.report.skipped_reward_item_choices_missing_item,
             [(1, 10, 999)]
+        );
+    }
+
+    #[test]
+    fn player_choices_attach_maw_power_like_cpp() {
+        let outcome =
+            PlayerChoiceStoreLikeCpp::from_rows_rewards_items_currencies_factions_and_item_choices_like_cpp(
+                [choice(1, "maw")],
+                [response(1, 10, 1)],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [
+                    maw_power(1, 10, Some(3), Some(0x00ff00)),
+                    maw_power(1, 10, None, None),
+                ],
+                |_| true,
+                |_| true,
+                |_| true,
+                |_| true,
+                |_| true,
+                |_| true,
+            );
+
+        assert_eq!(outcome.report.maw_power_rows_seen, 2);
+        assert_eq!(outcome.report.loaded_maw_powers, 2);
+        let maw_power = outcome
+            .store
+            .get_player_choice_like_cpp(1)
+            .unwrap()
+            .get_response_like_cpp(10)
+            .unwrap()
+            .maw_power
+            .as_ref()
+            .unwrap();
+        assert_eq!(maw_power.type_art_file_id, 11);
+        assert_eq!(maw_power.rarity, None);
+        assert_eq!(maw_power.rarity_color, None);
+        assert_eq!(maw_power.spell_id, 22);
+        assert_eq!(maw_power.max_stacks, 33);
+    }
+
+    #[test]
+    fn player_choices_skip_maw_power_with_missing_refs_like_cpp() {
+        let outcome =
+            PlayerChoiceStoreLikeCpp::from_rows_rewards_items_currencies_factions_and_item_choices_like_cpp(
+                [choice(1, "maw")],
+                [response(1, 10, 1)],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [
+                    maw_power(99, 10, Some(3), Some(0x00ff00)),
+                    maw_power(1, 77, Some(3), Some(0x00ff00)),
+                    maw_power(1, 10, Some(3), Some(0x00ff00)),
+                ],
+                |_| true,
+                |_| true,
+                |_| true,
+                |_| true,
+                |_| true,
+                |_| true,
+            );
+
+        assert_eq!(outcome.report.maw_power_rows_seen, 3);
+        assert_eq!(outcome.report.loaded_maw_powers, 1);
+        assert_eq!(outcome.report.skipped_maw_powers_missing_choice, [(99, 10)]);
+        assert_eq!(
+            outcome.report.skipped_maw_powers_missing_response,
+            [(1, 77)]
         );
     }
 }

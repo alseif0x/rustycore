@@ -2630,7 +2630,7 @@ async fn main() -> Result<ExitCode> {
     )
     .await
     .context(
-        "Failed to load C++ playerchoice/playerchoice_response/playerchoice_response_reward/playerchoice_response_reward_item/playerchoice_response_reward_currency/playerchoice_response_reward_faction/playerchoice_response_reward_item_choice rows",
+        "Failed to load C++ playerchoice/playerchoice_response/playerchoice_response_reward/playerchoice_response_reward_item/playerchoice_response_reward_currency/playerchoice_response_reward_faction/playerchoice_response_reward_item_choice/playerchoice_response_maw_power rows",
     )?;
     for (choice_id, response_id) in &player_choice_outcome
         .report
@@ -2873,9 +2873,31 @@ async fn main() -> Result<ExitCode> {
             response_id
         );
     }
+    for (choice_id, response_id) in &player_choice_outcome
+        .report
+        .skipped_maw_powers_missing_choice
+    {
+        tracing::error!(
+            target: "sql.sql",
+            "Table `playerchoice_response_maw_power` references non-existing ChoiceId: {} (ResponseId: {}), skipped",
+            choice_id,
+            response_id
+        );
+    }
+    for (choice_id, response_id) in &player_choice_outcome
+        .report
+        .skipped_maw_powers_missing_response
+    {
+        tracing::error!(
+            target: "sql.sql",
+            "Table `playerchoice_response_maw_power` references non-existing ResponseId: {} for ChoiceId {}, skipped",
+            response_id,
+            choice_id
+        );
+    }
     let _player_choice_store = Arc::new(player_choice_outcome.store);
     info!(
-        "Loaded {} C++ player choices with {} responses, {} base rewards, {} reward items, {} reward currencies, {} reward factions, and {} reward item choices ({} skipped responses, {} skipped rewards, {} skipped reward items, {} skipped reward currencies, {} skipped reward factions, {} skipped reward item choices, {} invalid reward refs; locales/reward entries pending)",
+        "Loaded {} C++ player choices with {} responses, {} base rewards, {} reward items, {} reward currencies, {} reward factions, {} reward item choices, and {} maw powers ({} skipped responses, {} skipped rewards, {} skipped reward items, {} skipped reward currencies, {} skipped reward factions, {} skipped reward item choices, {} skipped maw powers, {} invalid reward refs; locales/reward entries pending)",
         player_choice_outcome.report.choice_rows_seen,
         player_choice_outcome.report.loaded_responses,
         player_choice_outcome.report.loaded_rewards,
@@ -2883,6 +2905,7 @@ async fn main() -> Result<ExitCode> {
         player_choice_outcome.report.loaded_reward_currencies,
         player_choice_outcome.report.loaded_reward_factions,
         player_choice_outcome.report.loaded_reward_item_choices,
+        player_choice_outcome.report.loaded_maw_powers,
         player_choice_outcome
             .report
             .skipped_responses_missing_choice
@@ -2958,6 +2981,14 @@ async fn main() -> Result<ExitCode> {
             + player_choice_outcome
                 .report
                 .skipped_reward_item_choices_missing_item
+                .len(),
+        player_choice_outcome
+            .report
+            .skipped_maw_powers_missing_choice
+            .len()
+            + player_choice_outcome
+                .report
+                .skipped_maw_powers_missing_response
                 .len(),
         player_choice_outcome.report.invalid_reward_titles.len()
             + player_choice_outcome.report.invalid_reward_packages.len()

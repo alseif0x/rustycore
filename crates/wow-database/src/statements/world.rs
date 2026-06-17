@@ -354,6 +354,8 @@ pub enum WorldStatements {
     SEL_PLAYER_CHOICE_RESPONSE_REWARD_FACTIONS,
     /// C++ `ObjectMgr::LoadPlayerChoices` response reward item-choice rows.
     SEL_PLAYER_CHOICE_RESPONSE_REWARD_ITEM_CHOICES,
+    /// C++ `ObjectMgr::LoadPlayerChoices` response Maw Power rows.
+    SEL_PLAYER_CHOICE_RESPONSE_MAW_POWERS,
     // Quest system
     SEL_QUEST_TEMPLATE,
     SEL_QUEST_OBJECTIVES,
@@ -1081,6 +1083,9 @@ impl StatementDef for WorldStatements {
             Self::SEL_PLAYER_CHOICE_RESPONSE_REWARD_ITEM_CHOICES => {
                 "SELECT ChoiceId, ResponseId, ItemId, BonusListIDs, Quantity FROM playerchoice_response_reward_item_choice ORDER BY `Index` ASC"
             }
+            Self::SEL_PLAYER_CHOICE_RESPONSE_MAW_POWERS => {
+                "SELECT ChoiceId, ResponseId, TypeArtFileID, Rarity, RarityColor, SpellID, MaxStacks FROM playerchoice_response_maw_power"
+            }
             Self::SEL_TRAINER_BY_CREATURE => {
                 "SELECT TrainerId FROM creature_trainer WHERE CreatureID = ?"
             }
@@ -1576,6 +1581,7 @@ mod tests {
         let reward_factions_sql = WorldStatements::SEL_PLAYER_CHOICE_RESPONSE_REWARD_FACTIONS.sql();
         let reward_item_choices_sql =
             WorldStatements::SEL_PLAYER_CHOICE_RESPONSE_REWARD_ITEM_CHOICES.sql();
+        let maw_powers_sql = WorldStatements::SEL_PLAYER_CHOICE_RESPONSE_MAW_POWERS.sql();
 
         assert_eq!(
             choices_sql,
@@ -1605,6 +1611,10 @@ mod tests {
             reward_item_choices_sql,
             "SELECT ChoiceId, ResponseId, ItemId, BonusListIDs, Quantity FROM playerchoice_response_reward_item_choice ORDER BY `Index` ASC"
         );
+        assert_eq!(
+            maw_powers_sql,
+            "SELECT ChoiceId, ResponseId, TypeArtFileID, Rarity, RarityColor, SpellID, MaxStacks FROM playerchoice_response_maw_power"
+        );
         assert_eq!(choices_sql.matches('?').count(), 0);
         assert_eq!(responses_sql.matches('?').count(), 0);
         assert_eq!(rewards_sql.matches('?').count(), 0);
@@ -1612,5 +1622,6 @@ mod tests {
         assert_eq!(reward_currencies_sql.matches('?').count(), 0);
         assert_eq!(reward_factions_sql.matches('?').count(), 0);
         assert_eq!(reward_item_choices_sql.matches('?').count(), 0);
+        assert_eq!(maw_powers_sql.matches('?').count(), 0);
     }
 }
