@@ -418,6 +418,15 @@ pub mod implicit_targets {
     pub const TARGET_DEST_NEARBY_ENTRY_OR_DB: u32 = 142;
 }
 
+/// C++ `MAX_SPELL_EFFECTS` (`DBCEnums.h`).
+pub const MAX_SPELL_EFFECTS_LIKE_CPP: i32 = 32;
+/// C++ `TOTAL_SPELL_EFFECTS` (`SharedDefines.h`): last effect id 315 + sentinel.
+pub const TOTAL_SPELL_EFFECTS_LIKE_CPP: i32 = 316;
+/// C++ `TOTAL_AURAS` (`SpellAuraDefines.h`): last aura id 544 + sentinel.
+pub const TOTAL_AURAS_LIKE_CPP: i32 = 545;
+/// C++ `TOTAL_SPELL_TARGETS` (`SharedDefines.h`): last target id 152 + sentinel.
+pub const TOTAL_SPELL_TARGETS_LIKE_CPP: i32 = 153;
+
 pub mod attributes {
     /// C++ `SPELL_ATTR0_PASSIVE` (`SharedDefines.h`).
     pub const SPELL_ATTR0_PASSIVE: u32 = 0x0000_0040;
@@ -472,6 +481,279 @@ pub struct SpellEffectInfo {
     pub chain_targets: i32,
     pub implicit_target_1: u32,
     pub implicit_target_2: u32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ServersideSpellEffectRowLikeCpp {
+    pub spell_id: u32,
+    pub effect_index: i32,
+    pub difficulty_id: u32,
+    pub effect: i32,
+    pub effect_aura: i32,
+    pub effect_amplitude: f32,
+    pub effect_attributes: i32,
+    pub effect_aura_period: i32,
+    pub effect_bonus_coefficient: f32,
+    pub effect_chain_amplitude: f32,
+    pub effect_chain_targets: i32,
+    pub effect_item_type: i32,
+    pub effect_mechanic: i32,
+    pub effect_points_per_resource: f32,
+    pub effect_pos_facing: f32,
+    pub effect_real_points_per_level: f32,
+    pub effect_trigger_spell: i32,
+    pub bonus_coefficient_from_ap: f32,
+    pub pvp_multiplier: f32,
+    pub coefficient: f32,
+    pub variance: f32,
+    pub resource_coefficient: f32,
+    pub group_size_base_points_coefficient: f32,
+    pub effect_base_points: f32,
+    pub effect_misc_value_1: i32,
+    pub effect_misc_value_2: i32,
+    pub effect_radius_index_1: u32,
+    pub effect_radius_index_2: u32,
+    pub effect_spell_class_mask: [i32; 4],
+    pub implicit_target_1: i32,
+    pub implicit_target_2: i32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ServersideSpellEffectLikeCpp {
+    pub effect_index: i32,
+    pub difficulty_id: u32,
+    pub effect: i32,
+    pub effect_aura: i32,
+    pub effect_amplitude: f32,
+    pub effect_attributes: i32,
+    pub effect_aura_period: i32,
+    pub effect_bonus_coefficient: f32,
+    pub effect_chain_amplitude: f32,
+    pub effect_chain_targets: i32,
+    pub effect_item_type: i32,
+    pub effect_mechanic: i32,
+    pub effect_points_per_resource: f32,
+    pub effect_pos_facing: f32,
+    pub effect_real_points_per_level: f32,
+    pub effect_trigger_spell: i32,
+    pub bonus_coefficient_from_ap: f32,
+    pub pvp_multiplier: f32,
+    pub coefficient: f32,
+    pub variance: f32,
+    pub resource_coefficient: f32,
+    pub group_size_base_points_coefficient: f32,
+    pub effect_base_points: f32,
+    pub effect_misc_value: [i32; 2],
+    pub effect_radius_index: [u32; 2],
+    pub effect_spell_class_mask: [i32; 4],
+    pub implicit_target: [i32; 2],
+}
+
+impl ServersideSpellEffectRowLikeCpp {
+    pub fn into_effect_like_cpp(self) -> ServersideSpellEffectLikeCpp {
+        ServersideSpellEffectLikeCpp {
+            effect_index: self.effect_index,
+            difficulty_id: self.difficulty_id,
+            effect: self.effect,
+            effect_aura: self.effect_aura,
+            effect_amplitude: self.effect_amplitude,
+            effect_attributes: self.effect_attributes,
+            effect_aura_period: self.effect_aura_period,
+            effect_bonus_coefficient: self.effect_bonus_coefficient,
+            effect_chain_amplitude: self.effect_chain_amplitude,
+            effect_chain_targets: self.effect_chain_targets,
+            effect_item_type: self.effect_item_type,
+            effect_mechanic: self.effect_mechanic,
+            effect_points_per_resource: self.effect_points_per_resource,
+            effect_pos_facing: self.effect_pos_facing,
+            effect_real_points_per_level: self.effect_real_points_per_level,
+            effect_trigger_spell: self.effect_trigger_spell,
+            bonus_coefficient_from_ap: self.bonus_coefficient_from_ap,
+            pvp_multiplier: self.pvp_multiplier,
+            coefficient: self.coefficient,
+            variance: self.variance,
+            resource_coefficient: self.resource_coefficient,
+            group_size_base_points_coefficient: self.group_size_base_points_coefficient,
+            effect_base_points: self.effect_base_points,
+            effect_misc_value: [self.effect_misc_value_1, self.effect_misc_value_2],
+            effect_radius_index: [self.effect_radius_index_1, self.effect_radius_index_2],
+            effect_spell_class_mask: self.effect_spell_class_mask,
+            implicit_target: [self.implicit_target_1, self.implicit_target_2],
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct ServersideSpellEffectKeyLikeCpp {
+    pub spell_id: u32,
+    pub difficulty_id: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ServersideSpellEffectLoadErrorKindLikeCpp {
+    RegularSpellAlreadyLoaded,
+    DifficultyMissing,
+    EffectIndexOutOfRange,
+    EffectTypeOutOfRange,
+    AuraTypeOutOfRange,
+    ImplicitTarget1OutOfRange,
+    ImplicitTarget2OutOfRange,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ServersideSpellEffectLoadErrorLikeCpp {
+    pub row: ServersideSpellEffectRowLikeCpp,
+    pub kind: ServersideSpellEffectLoadErrorKindLikeCpp,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ServersideSpellEffectLoadWarningKindLikeCpp {
+    EffectRadius1Missing,
+    EffectRadius2Missing,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ServersideSpellEffectLoadWarningLikeCpp {
+    pub row: ServersideSpellEffectRowLikeCpp,
+    pub kind: ServersideSpellEffectLoadWarningKindLikeCpp,
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ServersideSpellEffectStoreLikeCpp {
+    pub effects_by_spell_and_difficulty:
+        BTreeMap<ServersideSpellEffectKeyLikeCpp, Vec<ServersideSpellEffectLikeCpp>>,
+}
+
+impl ServersideSpellEffectStoreLikeCpp {
+    pub fn from_rows_like_cpp<I, RegularSpellExists, DifficultyExists, RadiusExists>(
+        rows: I,
+        mut regular_spell_exists: RegularSpellExists,
+        mut difficulty_exists: DifficultyExists,
+        mut radius_exists: RadiusExists,
+    ) -> ServersideSpellEffectLoadOutcomeLikeCpp
+    where
+        I: IntoIterator<Item = ServersideSpellEffectRowLikeCpp>,
+        RegularSpellExists: FnMut(u32) -> bool,
+        DifficultyExists: FnMut(u32) -> bool,
+        RadiusExists: FnMut(u32) -> bool,
+    {
+        let mut store = Self::default();
+        let mut loaded_effect_count = 0;
+        let mut errors = Vec::new();
+        let mut warnings = Vec::new();
+
+        for row in rows {
+            if regular_spell_exists(row.spell_id) {
+                errors.push(ServersideSpellEffectLoadErrorLikeCpp {
+                    row,
+                    kind: ServersideSpellEffectLoadErrorKindLikeCpp::RegularSpellAlreadyLoaded,
+                });
+                continue;
+            }
+
+            if row.difficulty_id != 0 && !difficulty_exists(row.difficulty_id) {
+                errors.push(ServersideSpellEffectLoadErrorLikeCpp {
+                    row,
+                    kind: ServersideSpellEffectLoadErrorKindLikeCpp::DifficultyMissing,
+                });
+                continue;
+            }
+
+            if row.effect_index >= MAX_SPELL_EFFECTS_LIKE_CPP {
+                errors.push(ServersideSpellEffectLoadErrorLikeCpp {
+                    row,
+                    kind: ServersideSpellEffectLoadErrorKindLikeCpp::EffectIndexOutOfRange,
+                });
+                continue;
+            }
+
+            if row.effect >= TOTAL_SPELL_EFFECTS_LIKE_CPP {
+                errors.push(ServersideSpellEffectLoadErrorLikeCpp {
+                    row,
+                    kind: ServersideSpellEffectLoadErrorKindLikeCpp::EffectTypeOutOfRange,
+                });
+                continue;
+            }
+
+            if row.effect_aura >= TOTAL_AURAS_LIKE_CPP {
+                errors.push(ServersideSpellEffectLoadErrorLikeCpp {
+                    row,
+                    kind: ServersideSpellEffectLoadErrorKindLikeCpp::AuraTypeOutOfRange,
+                });
+                continue;
+            }
+
+            if row.implicit_target_1 >= TOTAL_SPELL_TARGETS_LIKE_CPP {
+                errors.push(ServersideSpellEffectLoadErrorLikeCpp {
+                    row,
+                    kind: ServersideSpellEffectLoadErrorKindLikeCpp::ImplicitTarget1OutOfRange,
+                });
+                continue;
+            }
+
+            if row.implicit_target_2 >= TOTAL_SPELL_TARGETS_LIKE_CPP {
+                errors.push(ServersideSpellEffectLoadErrorLikeCpp {
+                    row,
+                    kind: ServersideSpellEffectLoadErrorKindLikeCpp::ImplicitTarget2OutOfRange,
+                });
+                continue;
+            }
+
+            if row.effect_radius_index_1 != 0 && !radius_exists(row.effect_radius_index_1) {
+                warnings.push(ServersideSpellEffectLoadWarningLikeCpp {
+                    row: row.clone(),
+                    kind: ServersideSpellEffectLoadWarningKindLikeCpp::EffectRadius1Missing,
+                });
+            }
+
+            if row.effect_radius_index_2 != 0 && !radius_exists(row.effect_radius_index_2) {
+                warnings.push(ServersideSpellEffectLoadWarningLikeCpp {
+                    row: row.clone(),
+                    kind: ServersideSpellEffectLoadWarningKindLikeCpp::EffectRadius2Missing,
+                });
+            }
+
+            let key = ServersideSpellEffectKeyLikeCpp {
+                spell_id: row.spell_id,
+                difficulty_id: row.difficulty_id,
+            };
+            let effect = row.into_effect_like_cpp();
+            store
+                .effects_by_spell_and_difficulty
+                .entry(key)
+                .or_default()
+                .push(effect);
+            loaded_effect_count += 1;
+        }
+
+        ServersideSpellEffectLoadOutcomeLikeCpp {
+            store,
+            loaded_effect_count,
+            errors,
+            warnings,
+        }
+    }
+
+    pub fn effects_for_spell_difficulty_like_cpp(
+        &self,
+        spell_id: u32,
+        difficulty_id: u32,
+    ) -> Option<&[ServersideSpellEffectLikeCpp]> {
+        self.effects_by_spell_and_difficulty
+            .get(&ServersideSpellEffectKeyLikeCpp {
+                spell_id,
+                difficulty_id,
+            })
+            .map(Vec::as_slice)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ServersideSpellEffectLoadOutcomeLikeCpp {
+    pub store: ServersideSpellEffectStoreLikeCpp,
+    pub loaded_effect_count: usize,
+    pub errors: Vec<ServersideSpellEffectLoadErrorLikeCpp>,
+    pub warnings: Vec<ServersideSpellEffectLoadWarningLikeCpp>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -6285,5 +6567,157 @@ mod tests {
                 .is_empty(),
             "C++ silently skips SpellLearnSpell.db2 rows whose source spell is missing"
         );
+    }
+
+    fn serverside_effect_row(spell_id: u32, effect_index: i32) -> ServersideSpellEffectRowLikeCpp {
+        ServersideSpellEffectRowLikeCpp {
+            spell_id,
+            effect_index,
+            difficulty_id: 0,
+            effect: spell_effect_types::SPELL_EFFECT_APPLY_AURA as i32,
+            effect_aura: SPELL_AURA_DUMMY_LIKE_CPP,
+            effect_amplitude: 0.0,
+            effect_attributes: 0,
+            effect_aura_period: 0,
+            effect_bonus_coefficient: 0.0,
+            effect_chain_amplitude: 0.0,
+            effect_chain_targets: 0,
+            effect_item_type: 0,
+            effect_mechanic: 0,
+            effect_points_per_resource: 0.0,
+            effect_pos_facing: 0.0,
+            effect_real_points_per_level: 0.0,
+            effect_trigger_spell: 0,
+            bonus_coefficient_from_ap: 0.0,
+            pvp_multiplier: 0.0,
+            coefficient: 0.0,
+            variance: 0.0,
+            resource_coefficient: 0.0,
+            group_size_base_points_coefficient: 0.0,
+            effect_base_points: 1.0,
+            effect_misc_value_1: 0,
+            effect_misc_value_2: 0,
+            effect_radius_index_1: 0,
+            effect_radius_index_2: 0,
+            effect_spell_class_mask: [0, 0, 0, 0],
+            implicit_target_1: 0,
+            implicit_target_2: 0,
+        }
+    }
+
+    #[test]
+    fn serverside_spell_effect_store_groups_valid_effects_like_cpp() {
+        let mut heroic = serverside_effect_row(100, 1);
+        heroic.difficulty_id = 2;
+        heroic.effect_radius_index_1 = 7;
+        heroic.effect_radius_index_2 = 8;
+        heroic.effect_spell_class_mask = [1, 2, 3, 4];
+        heroic.implicit_target_1 = implicit_targets::TARGET_DEST_DB as i32;
+
+        let outcome = ServersideSpellEffectStoreLikeCpp::from_rows_like_cpp(
+            [heroic],
+            |_| false,
+            |difficulty| difficulty == 2,
+            |radius| matches!(radius, 7 | 8),
+        );
+
+        assert_eq!(outcome.loaded_effect_count, 1);
+        assert!(outcome.errors.is_empty());
+        assert!(outcome.warnings.is_empty());
+        let effects = outcome
+            .store
+            .effects_for_spell_difficulty_like_cpp(100, 2)
+            .expect("valid serverside effect should be staged");
+        assert_eq!(effects.len(), 1);
+        assert_eq!(effects[0].effect_index, 1);
+        assert_eq!(effects[0].effect_spell_class_mask, [1, 2, 3, 4]);
+        assert_eq!(
+            effects[0].implicit_target,
+            [implicit_targets::TARGET_DEST_DB as i32, 0]
+        );
+    }
+
+    #[test]
+    fn serverside_spell_effect_store_skips_invalid_rows_like_cpp() {
+        let mut regular_spell = serverside_effect_row(10, 0);
+        let mut missing_difficulty = serverside_effect_row(20, 0);
+        missing_difficulty.difficulty_id = 3;
+        let effect_index = serverside_effect_row(30, MAX_SPELL_EFFECTS_LIKE_CPP);
+        let mut effect_type = serverside_effect_row(40, 0);
+        effect_type.effect = TOTAL_SPELL_EFFECTS_LIKE_CPP;
+        let mut aura_type = serverside_effect_row(50, 0);
+        aura_type.effect_aura = TOTAL_AURAS_LIKE_CPP;
+        let mut target_a = serverside_effect_row(60, 0);
+        target_a.implicit_target_1 = TOTAL_SPELL_TARGETS_LIKE_CPP;
+        let mut target_b = serverside_effect_row(70, 0);
+        target_b.implicit_target_2 = TOTAL_SPELL_TARGETS_LIKE_CPP;
+        regular_spell.effect_base_points = 10.0;
+
+        let outcome = ServersideSpellEffectStoreLikeCpp::from_rows_like_cpp(
+            [
+                regular_spell,
+                missing_difficulty,
+                effect_index,
+                effect_type,
+                aura_type,
+                target_a,
+                target_b,
+            ],
+            |spell_id| spell_id == 10,
+            |_| false,
+            |_| true,
+        );
+
+        assert_eq!(outcome.loaded_effect_count, 0);
+        assert_eq!(
+            outcome
+                .errors
+                .iter()
+                .map(|error| error.kind)
+                .collect::<Vec<_>>(),
+            vec![
+                ServersideSpellEffectLoadErrorKindLikeCpp::RegularSpellAlreadyLoaded,
+                ServersideSpellEffectLoadErrorKindLikeCpp::DifficultyMissing,
+                ServersideSpellEffectLoadErrorKindLikeCpp::EffectIndexOutOfRange,
+                ServersideSpellEffectLoadErrorKindLikeCpp::EffectTypeOutOfRange,
+                ServersideSpellEffectLoadErrorKindLikeCpp::AuraTypeOutOfRange,
+                ServersideSpellEffectLoadErrorKindLikeCpp::ImplicitTarget1OutOfRange,
+                ServersideSpellEffectLoadErrorKindLikeCpp::ImplicitTarget2OutOfRange,
+            ]
+        );
+    }
+
+    #[test]
+    fn serverside_spell_effect_store_preserves_cpp_radius_warning_without_skip() {
+        let mut row = serverside_effect_row(100, -1);
+        row.effect_radius_index_1 = 77;
+        row.effect_radius_index_2 = 88;
+
+        let outcome = ServersideSpellEffectStoreLikeCpp::from_rows_like_cpp(
+            [row],
+            |_| false,
+            |_| true,
+            |_| false,
+        );
+
+        assert_eq!(outcome.loaded_effect_count, 1);
+        assert!(outcome.errors.is_empty());
+        assert_eq!(
+            outcome
+                .warnings
+                .iter()
+                .map(|warning| warning.kind)
+                .collect::<Vec<_>>(),
+            vec![
+                ServersideSpellEffectLoadWarningKindLikeCpp::EffectRadius1Missing,
+                ServersideSpellEffectLoadWarningKindLikeCpp::EffectRadius2Missing,
+            ]
+        );
+        let effects = outcome
+            .store
+            .effects_for_spell_difficulty_like_cpp(100, 0)
+            .expect("C++ still pushes effects with invalid radius rows");
+        assert_eq!(effects[0].effect_index, -1);
+        assert_eq!(effects[0].effect_radius_index, [77, 88]);
     }
 }

@@ -297,6 +297,10 @@ pub enum WorldStatements {
     SEL_SPELL_AREA,
     /// C++ SpellMgr::LoadSpellInfoCustomAttributes startup query.
     SEL_SPELL_CUSTOM_ATTR,
+    /// C++ SpellMgr::LoadSpellInfoServerside spell-effect startup query.
+    SEL_SERVERSIDE_SPELL_EFFECT,
+    /// C++ SpellMgr::LoadSpellInfoServerside spell startup query.
+    SEL_SERVERSIDE_SPELL,
     /// Load C++ ConditionMgr loot-template conditions.
     /// Args: SourceTypeOrReferenceId (i32), SourceGroup (u32), SourceEntry (u32).
     SEL_LOOT_TEMPLATE_CONDITION_ROWS,
@@ -903,6 +907,26 @@ impl StatementDef for WorldStatements {
                 "SELECT spell, area, quest_start, quest_start_status, quest_end_status, quest_end, aura_spell, racemask, gender, flags FROM spell_area"
             }
             Self::SEL_SPELL_CUSTOM_ATTR => "SELECT entry, attributes FROM spell_custom_attr",
+            Self::SEL_SERVERSIDE_SPELL_EFFECT => concat!(
+                "SELECT SpellID, EffectIndex, DifficultyID, Effect, EffectAura, EffectAmplitude, EffectAttributes, ",
+                "EffectAuraPeriod, EffectBonusCoefficient, EffectChainAmplitude, EffectChainTargets, EffectItemType, EffectMechanic, EffectPointsPerResource, ",
+                "EffectPosFacing, EffectRealPointsPerLevel, EffectTriggerSpell, BonusCoefficientFromAP, PvpMultiplier, Coefficient, Variance, ",
+                "ResourceCoefficient, GroupSizeBasePointsCoefficient, EffectBasePoints, EffectMiscValue1, EffectMiscValue2, EffectRadiusIndex1, ",
+                "EffectRadiusIndex2, EffectSpellClassMask1, EffectSpellClassMask2, EffectSpellClassMask3, EffectSpellClassMask4, ImplicitTarget1, ",
+                "ImplicitTarget2 FROM serverside_spell_effect"
+            ),
+            Self::SEL_SERVERSIDE_SPELL => concat!(
+                "SELECT Id, DifficultyID, CategoryId, Dispel, Mechanic, Attributes, AttributesEx, AttributesEx2, AttributesEx3, ",
+                "AttributesEx4, AttributesEx5, AttributesEx6, AttributesEx7, AttributesEx8, AttributesEx9, AttributesEx10, AttributesEx11, AttributesEx12, AttributesEx13, ",
+                "AttributesEx14, Stances, StancesNot, Targets, TargetCreatureType, RequiresSpellFocus, FacingCasterFlags, CasterAuraState, TargetAuraState, ",
+                "ExcludeCasterAuraState, ExcludeTargetAuraState, CasterAuraSpell, TargetAuraSpell, ExcludeCasterAuraSpell, ExcludeTargetAuraSpell, ",
+                "CasterAuraType, TargetAuraType, ExcludeCasterAuraType, ExcludeTargetAuraType, CastingTimeIndex, ",
+                "RecoveryTime, CategoryRecoveryTime, StartRecoveryCategory, StartRecoveryTime, InterruptFlags, AuraInterruptFlags1, AuraInterruptFlags2, ",
+                "ChannelInterruptFlags1, ChannelInterruptFlags2, ProcFlags, ProcFlags2, ProcChance, ProcCharges, ProcCooldown, ProcBasePPM, MaxLevel, BaseLevel, SpellLevel, ",
+                "DurationIndex, RangeIndex, Speed, LaunchDelay, StackAmount, EquippedItemClass, EquippedItemSubClassMask, EquippedItemInventoryTypeMask, ContentTuningId, ",
+                "SpellName, ConeAngle, ConeWidth, MaxTargetLevel, MaxAffectedTargets, SpellFamilyName, SpellFamilyFlags1, SpellFamilyFlags2, SpellFamilyFlags3, SpellFamilyFlags4, ",
+                "DmgClass, PreventionType, AreaGroupId, SchoolMask, ChargeCategoryId FROM serverside_spell"
+            ),
             Self::SEL_LOOT_TEMPLATE_CONDITION_ROWS => concat!(
                 "SELECT ElseGroup, ConditionTypeOrReference, ConditionTarget, ",
                 "ConditionValue1, ConditionValue2, ConditionValue3, ",
@@ -1303,6 +1327,46 @@ mod tests {
         let sql = WorldStatements::SEL_SPELL_CUSTOM_ATTR.sql();
 
         assert_eq!(sql, "SELECT entry, attributes FROM spell_custom_attr");
+        assert_eq!(sql.matches('?').count(), 0);
+    }
+
+    #[test]
+    fn serverside_spell_effect_statement_matches_cpp_sql_exactly() {
+        let sql = WorldStatements::SEL_SERVERSIDE_SPELL_EFFECT.sql();
+
+        assert_eq!(
+            sql,
+            concat!(
+                "SELECT SpellID, EffectIndex, DifficultyID, Effect, EffectAura, EffectAmplitude, EffectAttributes, ",
+                "EffectAuraPeriod, EffectBonusCoefficient, EffectChainAmplitude, EffectChainTargets, EffectItemType, EffectMechanic, EffectPointsPerResource, ",
+                "EffectPosFacing, EffectRealPointsPerLevel, EffectTriggerSpell, BonusCoefficientFromAP, PvpMultiplier, Coefficient, Variance, ",
+                "ResourceCoefficient, GroupSizeBasePointsCoefficient, EffectBasePoints, EffectMiscValue1, EffectMiscValue2, EffectRadiusIndex1, ",
+                "EffectRadiusIndex2, EffectSpellClassMask1, EffectSpellClassMask2, EffectSpellClassMask3, EffectSpellClassMask4, ImplicitTarget1, ",
+                "ImplicitTarget2 FROM serverside_spell_effect"
+            )
+        );
+        assert_eq!(sql.matches('?').count(), 0);
+    }
+
+    #[test]
+    fn serverside_spell_statement_matches_cpp_sql_exactly() {
+        let sql = WorldStatements::SEL_SERVERSIDE_SPELL.sql();
+
+        assert_eq!(
+            sql,
+            concat!(
+                "SELECT Id, DifficultyID, CategoryId, Dispel, Mechanic, Attributes, AttributesEx, AttributesEx2, AttributesEx3, ",
+                "AttributesEx4, AttributesEx5, AttributesEx6, AttributesEx7, AttributesEx8, AttributesEx9, AttributesEx10, AttributesEx11, AttributesEx12, AttributesEx13, ",
+                "AttributesEx14, Stances, StancesNot, Targets, TargetCreatureType, RequiresSpellFocus, FacingCasterFlags, CasterAuraState, TargetAuraState, ",
+                "ExcludeCasterAuraState, ExcludeTargetAuraState, CasterAuraSpell, TargetAuraSpell, ExcludeCasterAuraSpell, ExcludeTargetAuraSpell, ",
+                "CasterAuraType, TargetAuraType, ExcludeCasterAuraType, ExcludeTargetAuraType, CastingTimeIndex, ",
+                "RecoveryTime, CategoryRecoveryTime, StartRecoveryCategory, StartRecoveryTime, InterruptFlags, AuraInterruptFlags1, AuraInterruptFlags2, ",
+                "ChannelInterruptFlags1, ChannelInterruptFlags2, ProcFlags, ProcFlags2, ProcChance, ProcCharges, ProcCooldown, ProcBasePPM, MaxLevel, BaseLevel, SpellLevel, ",
+                "DurationIndex, RangeIndex, Speed, LaunchDelay, StackAmount, EquippedItemClass, EquippedItemSubClassMask, EquippedItemInventoryTypeMask, ContentTuningId, ",
+                "SpellName, ConeAngle, ConeWidth, MaxTargetLevel, MaxAffectedTargets, SpellFamilyName, SpellFamilyFlags1, SpellFamilyFlags2, SpellFamilyFlags3, SpellFamilyFlags4, ",
+                "DmgClass, PreventionType, AreaGroupId, SchoolMask, ChargeCategoryId FROM serverside_spell"
+            )
+        );
         assert_eq!(sql.matches('?').count(), 0);
     }
 }
