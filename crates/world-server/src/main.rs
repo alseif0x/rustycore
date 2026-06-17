@@ -10949,6 +10949,7 @@ async fn create_session(
             tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
         }
     }
+    session.save_disconnect_player_to_db_like_cpp().await;
     session
         .cleanup_shared_runtime_state_on_disconnect_like_cpp()
         .await;

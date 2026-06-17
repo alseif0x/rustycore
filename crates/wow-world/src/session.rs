@@ -17643,6 +17643,46 @@ impl WorldSession {
         }
     }
 
+    fn build_character_position_save_statement_like_cpp(
+        position: Position,
+        map_id: u16,
+        zone_id: u32,
+        guid_counter: u64,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::UPD_CHARACTER_POSITION.sql());
+        stmt.set_f32(0, position.x);
+        stmt.set_f32(1, position.y);
+        stmt.set_f32(2, position.z);
+        stmt.set_f32(3, position.orientation);
+        stmt.set_u16(4, map_id);
+        stmt.set_u16(5, zone_id as u16);
+        stmt.set_u64(6, guid_counter);
+        stmt
+    }
+
+    async fn save_player_position_like_cpp(&self) {
+        let (Some(guid), Some(position), Some(char_db)) = (
+            self.player_guid(),
+            self.player_position_like_cpp(),
+            self.char_db().map(Arc::clone),
+        ) else {
+            return;
+        };
+
+        let stmt = Self::build_character_position_save_statement_like_cpp(
+            position,
+            self.player_map_id_like_cpp(),
+            self.player_zone_id_like_cpp as u32,
+            guid.counter() as u64,
+        );
+        if let Err(err) = char_db.execute(&stmt).await {
+            warn!(
+                "Failed to save player position for guid {}: {err}",
+                guid.counter()
+            );
+        }
+    }
+
     pub(crate) async fn save_current_player_to_db_like_cpp(&mut self) {
         if self
             .sync_session_from_save_to_db_snapshot_like_cpp()
@@ -17650,6 +17690,7 @@ impl WorldSession {
         {
             return;
         }
+        self.save_player_position_like_cpp().await;
         self.save_player_level_xp_like_cpp().await;
         self.save_player_gold().await;
         self.save_player_difficulties_like_cpp().await;
@@ -19810,6 +19851,22 @@ impl WorldSession {
             self.close_active_loot_windows_like_cpp(player_guid);
         }
         self.cleanup_shared_runtime_state();
+    }
+
+    pub async fn save_disconnect_player_to_db_like_cpp(&mut self) {
+        if self.player_guid().is_none() {
+            return;
+        }
+
+        self.set_player_logout_like_cpp(true);
+        self.clear_buyback_on_logout().await;
+        self.save_current_player_to_db_like_cpp().await;
+        self.save_account_mounts_like_cpp().await;
+        self.save_account_toys_like_cpp().await;
+        self.save_account_heirlooms_like_cpp().await;
+        self.save_account_item_appearances_like_cpp().await;
+        self.save_account_transmog_illusions_like_cpp().await;
+        self.mark_character_offline().await;
     }
 
     /// Remove this session from the player registry.
@@ -77777,6 +77834,30 @@ mod tests {
         assert_eq!(session.player_level_like_cpp(), 42);
         assert_eq!(session.player_xp_like_cpp(), 1234);
         assert_eq!(session.player_gold_like_cpp(), 5678);
+    }
+
+    #[test]
+    fn character_position_save_statement_matches_cpp_bind_order() {
+        let guid = ObjectGuid::create_player(1, 5002);
+        let position = Position::new(101.0, 202.0, 303.0, 4.5);
+
+        let stmt = WorldSession::build_character_position_save_statement_like_cpp(
+            position,
+            571,
+            495,
+            guid.counter() as u64,
+        );
+
+        assert_eq!(stmt.sql(), CharStatements::UPD_CHARACTER_POSITION.sql());
+        assert!(matches!(stmt.params()[0], wow_database::SqlParam::F32(v) if v == 101.0));
+        assert!(matches!(stmt.params()[1], wow_database::SqlParam::F32(v) if v == 202.0));
+        assert!(matches!(stmt.params()[2], wow_database::SqlParam::F32(v) if v == 303.0));
+        assert!(matches!(stmt.params()[3], wow_database::SqlParam::F32(v) if v == 4.5));
+        assert!(matches!(stmt.params()[4], wow_database::SqlParam::U16(571)));
+        assert!(matches!(stmt.params()[5], wow_database::SqlParam::U16(495)));
+        assert!(
+            matches!(stmt.params()[6], wow_database::SqlParam::U64(v) if v == guid.counter() as u64)
+        );
     }
 
     #[test]

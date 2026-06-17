@@ -2980,7 +2980,7 @@ impl WorldSession {
     }
 
     /// Mark the current character as offline in the database.
-    async fn mark_character_offline(&self) {
+    pub(crate) async fn mark_character_offline(&self) {
         let guid = match self.player_guid() {
             Some(g) => g,
             None => return,
@@ -2998,7 +2998,7 @@ impl WorldSession {
         }
     }
 
-    async fn clear_buyback_on_logout(&mut self) {
+    pub(crate) async fn clear_buyback_on_logout(&mut self) {
         let guid = match self.player_guid() {
             Some(g) => g,
             None => return,
@@ -3045,7 +3045,7 @@ impl WorldSession {
         self.sync_object_accessor_player();
     }
 
-    async fn save_account_mounts_like_cpp(&self) {
+    pub(crate) async fn save_account_mounts_like_cpp(&self) {
         let Some(login_db) = self.login_db() else {
             return;
         };
@@ -3069,7 +3069,7 @@ impl WorldSession {
         }
     }
 
-    async fn save_account_toys_like_cpp(&self) {
+    pub(crate) async fn save_account_toys_like_cpp(&self) {
         let Some(login_db) = self.login_db() else {
             return;
         };
@@ -3091,7 +3091,7 @@ impl WorldSession {
         }
     }
 
-    async fn save_account_heirlooms_like_cpp(&self) {
+    pub(crate) async fn save_account_heirlooms_like_cpp(&self) {
         let Some(login_db) = self.login_db() else {
             return;
         };
@@ -3112,7 +3112,7 @@ impl WorldSession {
         }
     }
 
-    async fn save_account_item_appearances_like_cpp(&mut self) {
+    pub(crate) async fn save_account_item_appearances_like_cpp(&mut self) {
         let Some(login_db) = self.login_db().map(Arc::clone) else {
             return;
         };
@@ -3152,7 +3152,7 @@ impl WorldSession {
         }
     }
 
-    async fn save_account_transmog_illusions_like_cpp(&self) {
+    pub(crate) async fn save_account_transmog_illusions_like_cpp(&self) {
         let Some(login_db) = self.login_db().map(Arc::clone) else {
             return;
         };
