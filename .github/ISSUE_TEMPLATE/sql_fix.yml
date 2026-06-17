@@ -12,6 +12,11 @@ body:
         - Don't use database names
         - Don't use quotes around numbers
         - Make every INSERT runnable twice (DELETE before INSERT, even if row doesn't exist)
+        - Include explicit column names in INSERT statements
+        - Prefer UPDATE for small changes instead of DELETE + INSERT
+        - Do not hardcode world GUIDs unless the table requires a stable GUID key
+        - When deleting spawned data, match by both GUID and entry/id when possible
+        - Do not modify client-derived hotfix/WDB data without a verified source
         - Search for existing issues before submitting — if one exists, comment there instead
   - type: textarea
     id: description

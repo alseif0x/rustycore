@@ -1,0 +1,50 @@
+area:auth:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "crates/auth-server/**"
+          - "crates/wow-auth/**"
+          - "crates/wow-crypto/**"
+
+area:database:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "crates/wow-database/**"
+          - "sql/**"
+          - ".github/workflows/wow-database-live.yml"
+
+area:docs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "README.md"
+          - "docs/**"
+          - ".github/**"
+
+area:map-runtime:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "crates/wow-map/**"
+          - "crates/wow-world/src/map_manager.rs"
+          - "crates/world-server/src/main.rs"
+
+area:packets:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "crates/wow-packet/**"
+          - "crates/wow-constants/src/opcodes.rs"
+
+area:world:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "crates/wow-world/**"
+          - "crates/world-server/**"
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/workflows/**"
+
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "Cargo.toml"
+          - "Cargo.lock"

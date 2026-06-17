@@ -1,0 +1,68 @@
+name: Generic Issue
+description: Report an issue or suggestion that does not fit the other templates.
+labels: ["triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this form. Please include enough detail for someone else to reproduce or verify the issue.
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Describe the problem, suggestion, or question clearly.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+      description: What should happen instead? Link to a WotLK reference, TrinityCore source, wowdev.wiki, Wowhead, or sniff evidence if relevant.
+    validations:
+      required: false
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: |
+        1. Step 1, including creature/item/quest/spell IDs where relevant
+        2. Step 2
+        3. Step 3
+    validations:
+      required: false
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Auth / BNet
+        - World server
+        - Database / SQL
+        - Maps / visibility / movement
+        - Quests / spells / combat
+        - Packets / protocol
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: RustyCore commit hash
+      description: Output of `git rev-parse HEAD`, if you are running the server locally.
+    validations:
+      required: false
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      description: e.g. Ubuntu 24.04 x64, Windows 11 x64
+    validations:
+      required: false
+  - type: textarea
+    id: custom
+    attributes:
+      label: Local changes
+      description: List custom patches, database edits, or config changes. Write "None" if this is a clean checkout.
+    validations:
+      required: false
