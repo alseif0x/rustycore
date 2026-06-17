@@ -44,6 +44,12 @@
     <circle cx="358" cy="260" r="11" fill="#77D9F2"/>
     <circle cx="258" cy="160" r="11" fill="#77D9F2"/>
     <circle cx="258" cy="360" r="11" fill="#77D9F2"/>
+
+    <g transform="translate(324 132) rotate(24)" aria-label="red rust claw accent">
+      <path d="M27 78C10 64 4 42 12 24C19 8 35 0 52 2C42 16 40 31 48 42C56 52 71 53 86 45C83 63 71 78 53 84C43 88 34 86 27 78Z" fill="#C92A2A" stroke="#4A1414" stroke-width="6" stroke-linejoin="round"/>
+      <path d="M52 2C70 3 86 16 91 34C75 28 59 31 51 43C43 54 45 68 53 84" stroke="#F06A4F" stroke-width="6" stroke-linecap="round"/>
+      <path d="M24 65C30 73 40 77 53 72" stroke="#6F1D1D" stroke-width="5" stroke-linecap="round"/>
+    </g>
   </g>
 
   <text x="500" y="250" fill="#F3F5F5" font-size="132" font-family="Inter, Segoe UI, Arial, sans-serif" font-weight="800" letter-spacing="0">Rusty<tspan fill="#D87935">Core</tspan></text>

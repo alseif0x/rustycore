@@ -59,5 +59,11 @@
 
     <path d="M512 432L582 472V552L512 592L442 552V472L512 432Z" fill="#10171B" fill-opacity="0.64" stroke="#BDF4FF" stroke-width="8"/>
     <path d="M512 470L548 491V533L512 554L476 533V491L512 470Z" fill="#EAFBFF"/>
+
+    <g transform="translate(642 258) rotate(24)" aria-label="red rust claw accent">
+      <path d="M52 154C20 126 8 84 24 48C38 17 70 0 102 4C82 31 78 61 94 82C110 102 139 105 168 90C163 125 139 154 104 166C84 173 66 170 52 154Z" fill="#C92A2A" stroke="#4A1414" stroke-width="12" stroke-linejoin="round"/>
+      <path d="M102 4C137 6 169 31 178 67C146 55 116 61 99 84C84 105 88 133 104 166" stroke="#F06A4F" stroke-width="11" stroke-linecap="round"/>
+      <path d="M46 128C59 145 79 151 104 142" stroke="#6F1D1D" stroke-width="10" stroke-linecap="round"/>
+    </g>
   </g>
 </svg>

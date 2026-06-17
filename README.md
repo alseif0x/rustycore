@@ -9,6 +9,7 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Rust](https://img.shields.io/badge/Rust-1.85%2B-orange.svg)](https://www.rust-lang.org)
 [![Target](https://img.shields.io/badge/WotLK%20Classic-3.4.3.54261-blueviolet.svg)](#)
+[![Discord](https://img.shields.io/badge/Discord-Join%20the%20community-5865F2.svg)](https://discord.gg/mH6ACpGPb2)
 
 RustyCore is currently in the middle of a full C++ -> Rust port of a TrinityCore-style WotLK Classic server.
 
