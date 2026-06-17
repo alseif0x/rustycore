@@ -475,7 +475,7 @@ Each `LoadXxx` is a sub-task. Ordered by typical TC startup order (which is itse
 - [ ] **#GLOB.40** `load_access_requirements`. `AccessRequirementStoreLikeCpp` is wired at startup with C++-selected columns, map/difficulty row skips, and item/quest/achievement reference clearing; remaining work is runtime consumption parity in all instance-entry paths.
 - [ ] **#GLOB.41** `load_graveyard_zones` + `load_world_safe_locs` + `get_closest_graveyard()`. (H — runs `Conditions` at lookup time; partial: `wow-data::WorldSafeLocStore` and `GraveyardStore` are wired at startup, `graveyard_zone` duplicate/missing validation and ConditionMgr attachment exist, and `GetDefaultGraveyard`/`GetClosestGraveyardInZone` no-live-condition-object selection is represented. Remaining: terrain zone lookup, parent-area chain, live `conditionObject`/phase visibility, `MapEntry::CorpseMapID` source, and death/repop runtime consumption.)
 - [ ] **#GLOB.42** `load_exploration_base_xp`.
-- [ ] **#GLOB.43** `load_fishing_base_skill_level` + `load_skill_tiers`.
+- [~] **#GLOB.43** `load_fishing_base_skill_level` + `load_skill_tiers`. `FishingBaseSkillStoreLikeCpp` is wired for `skill_fishing_base_level`; `SkillTiersStoreLikeCpp` now mirrors C++ `ObjectMgr::LoadSkillTiers` from world SQL `skill_tiers` (`Value1..Value16`) and exposes `GetSkillTier`/`GetValueForTierIndex` semantics. Remaining: runtime skill/max-rank consumers.
 - [ ] **#GLOB.44** `load_mail_level_rewards`.
 - [~] **#GLOB.45** `load_reputation_reward_rate` + `load_reputation_on_kill` + `load_reputation_spillover_template`. (`reputation_reward_rate` reader/validation represented in `#NEXT.R8.ENTITIES.663`; on-kill and spillover templates remain open)
 - [ ] **#GLOB.46** `load_points_of_interest` + `_locale`.

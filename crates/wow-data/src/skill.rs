@@ -13,6 +13,7 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use tracing::info;
+use wow_database::{WorldDatabase, WorldStatements};
 
 use crate::entities_movement::CreatureFamilyEntry;
 use crate::wdc4::Wdc4Reader;
@@ -49,6 +50,101 @@ pub struct SkillRaceClassInfoRecord {
     pub availability: i8,
     pub min_level: i8,
     pub skill_tier_id: i16,
+}
+
+pub const MAX_SKILL_STEP_LIKE_CPP: usize = 16;
+
+/// C++ `SkillTiersEntry`, loaded by `ObjectMgr::LoadSkillTiers` from `world.skill_tiers`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SkillTiersEntryLikeCpp {
+    pub id: u32,
+    pub value: [u32; MAX_SKILL_STEP_LIKE_CPP],
+}
+
+impl SkillTiersEntryLikeCpp {
+    /// C++ `SkillTiersEntry::GetValueForTierIndex`.
+    pub fn get_value_for_tier_index_like_cpp(&self, mut tier_index: u32) -> u32 {
+        if tier_index as usize >= MAX_SKILL_STEP_LIKE_CPP {
+            tier_index = (MAX_SKILL_STEP_LIKE_CPP - 1) as u32;
+        }
+
+        while self.value[tier_index as usize] == 0 && tier_index > 0 {
+            tier_index -= 1;
+        }
+
+        self.value[tier_index as usize]
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SkillTiersRowLikeCpp {
+    pub id: u32,
+    pub value: [u32; MAX_SKILL_STEP_LIKE_CPP],
+}
+
+/// Represented C++ `ObjectMgr::_skillTiers`.
+#[derive(Debug, Clone, Default)]
+pub struct SkillTiersStoreLikeCpp {
+    tiers: HashMap<u32, SkillTiersEntryLikeCpp>,
+}
+
+impl SkillTiersStoreLikeCpp {
+    pub fn from_rows_like_cpp(rows: impl IntoIterator<Item = SkillTiersRowLikeCpp>) -> Self {
+        let mut tiers = HashMap::new();
+        for row in rows {
+            tiers.insert(
+                row.id,
+                SkillTiersEntryLikeCpp {
+                    id: row.id,
+                    value: row.value,
+                },
+            );
+        }
+
+        Self { tiers }
+    }
+
+    /// C++ `ObjectMgr::LoadSkillTiers`.
+    pub async fn load_like_cpp(db: &WorldDatabase) -> Result<Self> {
+        let stmt = db.prepare(WorldStatements::SEL_SKILL_TIERS);
+        let mut result = db.query(&stmt).await?;
+        let mut rows = Vec::new();
+
+        if !result.is_empty() {
+            loop {
+                let mut value = [0u32; MAX_SKILL_STEP_LIKE_CPP];
+                for (field_index, tier_value) in value.iter_mut().enumerate() {
+                    *tier_value = result.read(1 + field_index);
+                }
+
+                rows.push(SkillTiersRowLikeCpp {
+                    id: result.read(0),
+                    value,
+                });
+
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        let store = Self::from_rows_like_cpp(rows);
+        info!("Loaded {} skill max values", store.len());
+        Ok(store)
+    }
+
+    /// C++ `ObjectMgr::GetSkillTier`.
+    pub fn get_skill_tier_like_cpp(&self, skill_tier_id: u32) -> Option<&SkillTiersEntryLikeCpp> {
+        self.tiers.get(&skill_tier_id)
+    }
+
+    pub fn len(&self) -> usize {
+        self.tiers.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.tiers.is_empty()
+    }
 }
 
 /// A single skill slot entry for the player's SkillInfo update fields.
@@ -960,6 +1056,10 @@ mod tests {
         }
     }
 
+    fn skill_tier_row(id: u32, value: [u32; MAX_SKILL_STEP_LIKE_CPP]) -> SkillTiersRowLikeCpp {
+        SkillTiersRowLikeCpp { id, value }
+    }
+
     fn pet_default_template(
         entry: u32,
         family: u32,
@@ -970,6 +1070,46 @@ mod tests {
             family,
             spells,
         }
+    }
+
+    #[test]
+    fn skill_tiers_store_replaces_duplicate_ids_like_cpp() {
+        let store = SkillTiersStoreLikeCpp::from_rows_like_cpp([
+            skill_tier_row(12, [75, 150, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+            skill_tier_row(12, [1, 2, 3, 4, 5, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+        ]);
+
+        assert_eq!(store.len(), 1);
+        assert_eq!(
+            store
+                .get_skill_tier_like_cpp(12)
+                .expect("duplicate ID should leave one C++ map entry")
+                .value[5],
+            6,
+            "C++ _skillTiers[id] overwrites the existing entry for duplicate IDs"
+        );
+    }
+
+    #[test]
+    fn skill_tier_value_falls_back_to_previous_nonzero_like_cpp() {
+        let tier = SkillTiersEntryLikeCpp {
+            id: 1,
+            value: [75, 150, 225, 0, 0, 0, 450, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        };
+
+        assert_eq!(tier.get_value_for_tier_index_like_cpp(0), 75);
+        assert_eq!(tier.get_value_for_tier_index_like_cpp(3), 225);
+        assert_eq!(tier.get_value_for_tier_index_like_cpp(6), 450);
+    }
+
+    #[test]
+    fn skill_tier_value_clamps_large_index_like_cpp() {
+        let tier = SkillTiersEntryLikeCpp {
+            id: 1,
+            value: [75, 150, 225, 300, 375, 450, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        };
+
+        assert_eq!(tier.get_value_for_tier_index_like_cpp(99), 450);
     }
 
     fn summon_spell(

@@ -49,7 +49,7 @@ Todas las rutas relativas a `/home/server/woltk-trinity-legacy/`.
 | `src/server/game/Skills/SkillExtraItems.cpp` | 241 | In-memory stores keyed by spell id: `SkillExtraItemStore` (max-additional + chance), `SkillPerfectItemStore` (perfect-item entry + chance) |
 | `src/server/game/Handlers/SkillHandler.cpp` | 117 | Talent + glyph + `HandleUnlearnSkillOpcode`, `HandleTradeSkillSetFavorite`, `HandleConfirmRespecWipeOpcode` (mixed file) |
 | `src/server/game/Entities/Player/Player.cpp` (skill section) | massive | `LearnDefaultSkills`, `LearnSkillRewardedSpells`, `SetSkill`, `UpdateSkill`, `UpdateGatherSkill`, `UpdateCraftSkill`, `UpdateWeaponSkill`, `UpdateFishingSkill`, `GetSkillValue`, `GetMaxSkillValue`, `GetPureSkillValue`, `GetSkillTempBonusValue`, `GetSkillPermBonusValue`, `_LoadSkills`, `_SaveSkills` |
-| `src/server/game/DataStores/DB2Stores.cpp` | — | `sSkillLineStore` (SkillLine.db2), `sSkillLineAbilityStore` + `GetSkillLineAbilityMapBounds` (SkillLineAbility.db2), `sSkillRaceClassInfoStore` (SkillRaceClassInfo.db2), `sSkillTiersStore` (SkillTiers.db2) |
+| `src/server/game/DataStores/DB2Stores.cpp` | — | `sSkillLineStore` (SkillLine.db2), `sSkillLineAbilityStore` + `GetSkillLineAbilityMapBounds` (SkillLineAbility.db2), `sSkillRaceClassInfoStore` (SkillRaceClassInfo.db2) |
 
 ---
 
@@ -63,7 +63,7 @@ Todas las rutas relativas a `/home/server/woltk-trinity-legacy/`.
 | `SkillLineEntry` (DB2) | struct | `ID`, `CategoryID`, `DisplayName`, `Description`, `SpellIconFileID`, `AlternateVerb`, `MinLevel`, `MaxLevel` (per-tier), `ParentSkillLineID`, `ParentTierIndex`, `Flags`, `SpellBookSpellID` |
 | `SkillLineAbilityEntry` (DB2) | struct | `ID`, `RaceMask`, `SkillLine`, `Spell`, `MinSkillLineRank`, `ClassMask`, `SupercedesSpell`, `AcquireMethod` (0=None/1=OnSkillValue/2=OnSkillLearn), `TrivialSkillLineRankHigh/Low`, `Flags`, `NumSkillUps` |
 | `SkillRaceClassInfoEntry` (DB2) | struct | `ID`, `RaceMask`, `SkillID`, `ClassMask`, `Flags` (`SKILL_FLAG_UNLEARNABLE`, `SKILL_FLAG_NOT_TRAINABLE`, `SKILL_FLAG_MAXIMIZED`, …), `Availability` (1=at-creation), `MinLevel`, `SkillTierID` |
-| `SkillTiersEntry` (DB2) | struct | 16 elements `Cost[16]`, `Value[16]` per tier (e.g. apprentice=1-75, journeyman=75-150, expert=150-225, artisan=225-300, master=300-375, grand master=375-450 in WotLK) |
+| `SkillTiersEntry` (world SQL) | struct | 16 elements `Value[16]` per tier (e.g. apprentice=1-75, journeyman=75-150, expert=150-225, artisan=225-300, master=300-375, grand master=375-450 in WotLK) |
 | `SkillDiscoveryEntry` (POD) | struct | `{ uint32 spellId; uint32 reqSkillValue; float chance }` |
 | `SkillExtraItemEntry` (POD) | struct | `{ uint32 spellId; float additionalCreateChance; uint8 additionalMaxNum; uint32 requiredSpecialization }` |
 | `SkillPerfectItemEntry` (POD) | struct | `{ uint32 spellId; uint32 requiredSpecialization; float perfectCreateChance; uint32 perfectItemType }` |
@@ -81,7 +81,7 @@ Player-side per-skill data (in `PlayerStorage.cpp` / `Player.h`):
 | Symbol | Purpose | Calls into |
 |---|---|---|
 | `Player::LearnDefaultSkills()` | At character create / faction-change: iterate `sSkillRaceClassInfoStore` for race/class with `Availability=1`, call `LearnDefaultSkill` for each | DB2 lookup |
-| `Player::LearnDefaultSkill(rcInfo, skillValue)` | Compute starting rank/maxrank per `SkillTiersEntry` (or weapon skill = level×5), call `SetSkill` then `LearnSkillRewardedSpells` | `sSkillTiersStore`, `SetSkill`, `LearnSkillRewardedSpells` |
+| `Player::LearnDefaultSkill(rcInfo, skillValue)` | Compute starting rank/maxrank per `SkillTiersEntry` (or weapon skill = level×5), call `SetSkill` then `LearnSkillRewardedSpells` | `ObjectMgr::_skillTiers`, `SetSkill`, `LearnSkillRewardedSpells` |
 | `Player::LearnSkillRewardedSpells(skillId, skillValue, race)` | Iterate `SkillLineAbility` records for that skill, learn each spell whose `MinSkillLineRank <= skillValue` and race/class mask matches | `sSkillLineAbilityStore`, `LearnSpell` |
 | `Player::SetSkill(skillId, step, currentValue, maxValue)` | Find or allocate skill slot (one of 256 update-field slots); update SkillInfo fields; mark `SKILL_NEW`/`SKILL_CHANGED`; setting value=0 marks `SKILL_DELETED` and queues `LearnDefaultSkill` removal of associated spells | update fields, `mSkillStatus` |
 | `Player::UpdateSkill(skillId, chance)` | Generic "tick by 1 if roll succeeds" used for non-craft/non-gather skill increments | RNG, `SetSkill` |
@@ -113,7 +113,7 @@ Player-side per-skill data (in `PlayerStorage.cpp` / `Player.h`):
 
 **Depends on:**
 - `Entities/Player` — owns the per-player skill map, update fields, spell book.
-- `DataStores` — `sSkillLineStore`, `sSkillLineAbilityStore`, `sSkillRaceClassInfoStore`, `sSkillTiersStore`, `sSpellMgr->GetSkillLineAbilityMapBounds(spellId)`, `sSpellNameStore`.
+- `DataStores` / `ObjectMgr` — `sSkillLineStore`, `sSkillLineAbilityStore`, `sSkillRaceClassInfoStore`, `ObjectMgr::_skillTiers`, `sSpellMgr->GetSkillLineAbilityMapBounds(spellId)`, `sSpellNameStore`.
 - `Spells/SpellMgr` — to look up which spells back a skill ability and which spells are "explicit discovery" / `MECHANIC_DISCOVERY`.
 - `Database/CharacterDatabase` + `WorldDatabase` — `character_skills` (load/save), `skill_discovery_template`, `skill_extra_item_template`, `skill_perfect_item_template`.
 - `World/World` — `RATE_SKILL_DISCOVERY` rate, profession config (`CONFIG_MAX_PRIMARY_TRADE_SKILL`, default 2).
@@ -147,7 +147,7 @@ DB: `character` and `world`.
 | (world) `skill_extra_item_template` | Extra-item procs (`spellId, requiredSpecialization, additionalCreateChance, additionalMaxNum`) | world |
 | (world) `skill_perfect_item_template` | Perfect-item procs (`spellId, requiredSpecialization, perfectCreateChance, perfectItemType`) | world |
 | (world) `skill_fishing_base_level` | Per-area minimum skill required for fishing | world |
-| (world) `skill_tiers` | (rare; `SkillTiers.db2` is preferred) | world |
+| (world) `skill_tiers` | C++ `ObjectMgr::LoadSkillTiers`; canonical for this legacy tree | world |
 
 DBC/DB2 stores read by skills:
 
@@ -156,7 +156,7 @@ DBC/DB2 stores read by skills:
 | `SkillLine.db2` (`sSkillLineStore`) | All skill metadata | `Player`, GM commands |
 | `SkillLineAbility.db2` (`sSkillLineAbilityStore` + `SpellMgr::GetSkillLineAbilityMapBounds`) | Maps spell → skill, with rank/race/class requirements | `LearnSkillRewardedSpells`, `GetSkillDiscoverySpell`, `HandleUnlearnSkill` |
 | `SkillRaceClassInfo.db2` (`sSkillRaceClassInfoStore`) | Per-race/class skill availability, min level, tier | `LearnDefaultSkills`, `HandleUnlearnSkillOpcode` |
-| `SkillTiers.db2` (`sSkillTiersStore`) | Cost+value per skill tier (apprentice→grand master) | `LearnDefaultSkill` for max-rank computation |
+| `skill_tiers` (`ObjectMgr::_skillTiers`) | Value per skill tier (apprentice→grand master) | `LearnDefaultSkill` for max-rank computation |
 | `SpellName.db2` | Used by discovery validator to enumerate explicit-discovery spells | `LoadSkillDiscoveryTable` |
 
 ---
@@ -209,7 +209,7 @@ Note: in WoLK 3.4.3 most skill state propagation goes through **player update-fi
 - `character_skills` table prepared statements + load/save.
 - `SetSkill`, `UpdateSkill`, `UpdateCraftSkill`, `UpdateGatherSkill`, `UpdateWeaponSkill`, `UpdateFishingSkill`.
 - `GetSkillValue` / `GetMaxSkillValue` / `GetPureSkillValue` / `HasSkill` / `ModifySkillBonus`.
-- `SkillTiers.db2` reader (needed for max-rank step calc).
+- `skill_tiers` world-table runtime consumption (needed for max-rank step calc).
 - `skill_discovery_template` loader + `GetSkillDiscoverySpell` / `GetExplicitDiscoverySpell`.
 - `skill_extra_item_template` loader + `CanCreateExtraItems`.
 - `skill_perfect_item_template` loader + `CanCreatePerfectItem`.
@@ -269,7 +269,7 @@ Note: in WoLK 3.4.3 most skill state propagation goes through **player update-fi
 Numera los items para poder referenciarlos desde `MIGRATION_ROADMAP.md` sección 5.
 Complejidad: **L** (low, <1h), **M** (med, 1-4h), **H** (high, 4-12h), **XL** (>12h, splitear).
 
-- [ ] **#SKILLS.1** Add `SkillTiers.db2` reader to `crates/wow-data/src/skill.rs` exposing `Cost[16]`/`Value[16]` per tier id (M)
+- [~] **#SKILLS.1** Add C++ `skill_tiers` world-table representation to `crates/wow-data/src/skill.rs` exposing `Value[16]` per tier id. `SkillTiersStoreLikeCpp` and SQL statement exist; remaining work is wiring max-rank consumers into runtime skill state. (M)
 - [ ] **#SKILLS.2** Extend `SkillLine.db2` coverage beyond the represented reader now used by `GetProfessionSkillForExp` (#NEXT.R8.ENTITIES.325): wire all remaining skill metadata consumers (`CategoryID`, `ParentSkillLineID`, `ParentTierIndex`, flags) into canonical skill state/commands (M)
 - [ ] **#SKILLS.3** Define `SkillStatus` enum, `SkillStatusData { pos: u8, status: SkillStatus }`, `PlayerSkillState` per-session struct in `crates/wow-world/src/skill/state.rs` (M)
 - [ ] **#SKILLS.4** Implement update-field slot allocator: 256 slots in PlayerData::SkillInfo, find first free / reuse pos on `SetSkill` (M)
@@ -365,7 +365,7 @@ Complejidad: **L** (low, <1h), **M** (med, 1-4h), **H** (high, 4-12h), **XL** (>
 
 - **WoLK 3.4.3 specific**: max profession skill is 450 (Grand Master) for primary professions, 450 cooking, 450 first aid, 450 fishing. Riding skill cap is 300 (epic flying). Weapon skills cap at `5 * level` (so 400 at lvl 80).
 - **Skill update-field slot allocator** is critical: WoLK 3.4.3 reserves up to 256 slots in `PlayerData::SkillInfo` (4 fields per slot: ID/Step/Rank/MaxRank or similar). When a skill is `SKILL_DELETED`, its slot must be zero-cleared but not freed for reuse until `_SaveSkills` runs (allocator must respect "deleted but pending save" entries).
-- **`SkillTiersEntry` in WoLK** has 16 cost/value pairs, only first 6 are used (apprentice/journeyman/expert/artisan/master/grand master). Modern DB2 reserves more.
+- **`SkillTiersEntry` in this WoLK legacy** is loaded from world SQL `skill_tiers` and has 16 `Value` slots; only first 6 are normally used (apprentice/journeyman/expert/artisan/master/grand master). Do not port this as `SkillTiers.db2` unless the canonical C++ source changes.
 - **`SkillRaceClassInfo.SkillTierID = 0`** means "weapon skill" (or other no-tier). Compute max as `level * 5` instead of looking up tier value.
 - **`SkillLineAbility.AcquireMethod`**:
   - `0` = teach manually (trainer)
@@ -409,7 +409,7 @@ Complejidad: **L** (low, <1h), **M** (med, 1-4h), **H** (high, 4-12h), **XL** (>
 | `LoadSkillDiscoveryTable()` | `fn load_skill_discovery_table(world_db: &Database) -> Result<SkillDiscoveryStore>` | call once at world startup |
 | `WorldPackets::Spells::UnlearnSkill` | `pub struct UnlearnSkill { skill_line: u16 }` in `crates/wow-packet/src/packets/spell.rs` | already exists likely |
 | `WorldPackets::Spells::TradeSkillSetFavorite` | `pub struct TradeSkillSetFavorite { recipe_id: u32, is_favorite: bool }` | new |
-| `sSkillTiersStore.LookupEntry(tierId)` | `skill_tiers_store.get(tier_id) -> Option<&SkillTiersRecord>` | DB2 reader (#SKILLS.1) |
+| `sObjectMgr->GetSkillTier(tierId)` | `skill_tiers_store.get_skill_tier_like_cpp(tier_id) -> Option<&SkillTiersEntryLikeCpp>` | world SQL `skill_tiers` representation (#SKILLS.1) |
 
 ---
 
@@ -422,7 +422,7 @@ Complejidad: **L** (low, <1h), **M** (med, 1-4h), **H** (high, 4-12h), **XL** (>
 **Verdict: ⚠️ partial — confirmed, but slightly more complete than the doc claims.** Status header stays at "DB2 readers only", however **one** CMSG handler is wired and `character_skills` is read at login.
 
 **Inventory verified:**
-- `crates/wow-data/src/skill.rs` — reads `SkillLineAbility.db2` + `SkillRaceClassInfo.db2`. Public API: `load`, `starting_skill_info(race, class, level)`, `starting_spells(...)`, `racial_spells(race)`, `trade_skill_spells(skill_id, known_spells)`. `crates/wow-data/src/skill_talent.rs` also now reads `SkillLine.db2` for represented `GetProfessionSkillForExp` consumers (#NEXT.R8.ENTITIES.325). `SkillTiers.db2` reader remains absent.
+- `crates/wow-data/src/skill.rs` — reads `SkillLineAbility.db2` + `SkillRaceClassInfo.db2`, and represents C++ `ObjectMgr::_skillTiers` from world SQL `skill_tiers`. Public API: `load`, `starting_skill_info(race, class, level)`, `starting_spells(...)`, `racial_spells(race)`, `trade_skill_spells(skill_id, known_spells)`, `SkillTiersStoreLikeCpp`. `crates/wow-data/src/skill_talent.rs` also now reads `SkillLine.db2` for represented `GetProfessionSkillForExp` consumers (#NEXT.R8.ENTITIES.325).
 - `crates/wow-database/src/statements/character.rs` — has `SEL_CHARACTER_SKILLS`: `SELECT skill, value, max, professionSlot FROM character_skills WHERE guid = ?`. Note: represented consumers can read persisted `value`, but canonical `SkillStatus`, `max`, save/update and `professionSlot` behavior remain incomplete.
 - `crates/wow-world/src/handlers/character.rs:1483-1551` — at login: queries `SEL_CHARACTER_SKILLS`, builds `known_skill_ids: HashSet<u16>`, then calls `skill_store.starting_skill_info(race, class, level)` to populate `skill_info_tuples` for the SkillInfo update field array. So per-character skill **slots** are sent on the initial UpdateObject — but their `rank` / `max_rank` come from a hard-coded computation (`level * 5` for weapon-ish skills, tier defaults) rather than persisted DB values.
 - `crates/wow-world/src/handlers/character.rs:4466-4501` — `handle_show_trade_skill` IS implemented (the doc says it isn't). It returns `SMSG_SHOW_TRADE_SKILL_RESPONSE` with `skill_rank = level*5, skill_max_rank = level*5` and the known recipe spell IDs filtered by `trade_skill_spells`. Registered via `inventory::submit!` at `character.rs:411`.
@@ -438,7 +438,7 @@ Complejidad: **L** (low, <1h), **M** (med, 1-4h), **H** (high, 4-12h), **XL** (>
 - All skill-up / skill-modify functions: `set_skill`, `update_craft_skill`, `update_gather_skill`, `update_weapon_skill`, `update_fishing_skill`, `modify_skill_bonus`, `get_skill_value`, `get_pure_skill_value`, `get_max_skill_value`, `has_skill`.
 - `character_skills` write path: no `INS_CHAR_SKILLS`, `UPD_CHAR_SKILLS`, `DEL_CHARACTER_SKILL` prepared statements (verified).
 - `skill_discovery_template`, `skill_extra_item_template`, `skill_perfect_item_template` worldserver tables — none loaded. `skill_fishing_base_level` is loaded for represented fishing bobber rolls only (#NEXT.R8.ENTITIES.324).
-- `SkillTiers.db2` reader. `SkillLine.db2` is loaded for represented `GetProfessionSkillForExp` consumers only (#NEXT.R8.ENTITIES.325).
+- Runtime skill-state consumers for `SkillTiersStoreLikeCpp`. `SkillLine.db2` is loaded for represented `GetProfessionSkillForExp` consumers only (#NEXT.R8.ENTITIES.325).
 - Profession slot bookkeeping (max 2 primary).
 - `CMSG_UNLEARN_SKILL`, `CMSG_TRADE_SKILL_SET_FAVORITE` handlers.
 - Equip rejection on skill mismatch and lockpicking integration.

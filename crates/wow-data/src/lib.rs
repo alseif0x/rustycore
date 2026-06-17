@@ -307,11 +307,13 @@ pub use script_name::{
     build_template_script_name_interner_like_cpp,
 };
 pub use skill::{
-    MAX_CREATURE_SPELL_DATA_SLOT_LIKE_CPP, PetDefaultSpellCreatureTemplateLikeCpp,
-    PetDefaultSpellEffectLikeCpp, PetDefaultSpellInfoLikeCpp, PetDefaultSpellStoreLikeCpp,
-    PetDefaultSpellsEntryLikeCpp, PetFamilySpellInfoLikeCpp, PetFamilySpellLevelLikeCpp,
-    PetFamilySpellStoreLikeCpp, PetLevelupSpellInfoLikeCpp, PetLevelupSpellSetLikeCpp,
-    PetLevelupSpellStoreLikeCpp, SkillInfoEntry, SkillLineAbilityRecord, SkillStore,
+    MAX_CREATURE_SPELL_DATA_SLOT_LIKE_CPP, MAX_SKILL_STEP_LIKE_CPP,
+    PetDefaultSpellCreatureTemplateLikeCpp, PetDefaultSpellEffectLikeCpp,
+    PetDefaultSpellInfoLikeCpp, PetDefaultSpellStoreLikeCpp, PetDefaultSpellsEntryLikeCpp,
+    PetFamilySpellInfoLikeCpp, PetFamilySpellLevelLikeCpp, PetFamilySpellStoreLikeCpp,
+    PetLevelupSpellInfoLikeCpp, PetLevelupSpellSetLikeCpp, PetLevelupSpellStoreLikeCpp,
+    SkillInfoEntry, SkillLineAbilityRecord, SkillStore, SkillTiersEntryLikeCpp,
+    SkillTiersRowLikeCpp, SkillTiersStoreLikeCpp,
 };
 pub use skill_talent::{
     GlyphBindableSpellEntry, GlyphBindableSpellStore, GlyphPropertiesEntry, GlyphPropertiesStore,
