@@ -1038,6 +1038,16 @@ impl SpellLevelsStore {
             }
         })
     }
+
+    pub fn entry_for_spell_difficulty_like_cpp(
+        &self,
+        spell_id: u32,
+        difficulty_id: u8,
+    ) -> Option<&SpellLevelsEntry> {
+        self.entries
+            .values()
+            .find(|entry| entry.spell_id == spell_id && entry.difficulty_id == difficulty_id)
+    }
 }
 
 impl SpellMiscStore {

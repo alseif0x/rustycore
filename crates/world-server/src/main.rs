@@ -1295,6 +1295,22 @@ async fn main() -> Result<ExitCode> {
         "Loaded {} race rows from ChrRaces.db2",
         chr_races_store.len()
     );
+    let creature_family_store = Arc::new(
+        wow_data::CreatureFamilyStore::load(&data_dir, &locale)
+            .context("Failed to load CreatureFamily.db2")?,
+    );
+    info!(
+        "Loaded {} creature family rows from CreatureFamily.db2",
+        creature_family_store.len()
+    );
+    let spell_levels_store = Arc::new(
+        wow_data::SpellLevelsStore::load(&data_dir, &locale)
+            .context("Failed to load SpellLevels.db2")?,
+    );
+    info!(
+        "Loaded {} spell level rows from SpellLevels.db2",
+        spell_levels_store.len()
+    );
     let mut spell_store = wow_data::SpellStore::load(&hotfix_db)
         .await
         .context("Failed to load SpellStore")?;
@@ -1318,6 +1334,28 @@ async fn main() -> Result<ExitCode> {
     info!(
         "Loaded {} represented C++ spell rank-chain nodes from SkillLineAbility::SupercedesSpell",
         spell_chain_store.chains_by_spell_id.len()
+    );
+    let pet_levelup_spell_store = Arc::new(wow_data::PetLevelupSpellStoreLikeCpp::load_like_cpp(
+        creature_family_store.entries_like_cpp(),
+        skill_store.as_ref(),
+        |spell_id| {
+            let spell = spell_store.get(spell_id)?;
+            let spell_id = u32::try_from(spell.spell_id).ok()?;
+            let spell_level = spell_levels_store
+                .entry_for_spell_difficulty_like_cpp(spell_id, 0)
+                .map(|entry| u32::try_from(entry.spell_level).unwrap_or(0))
+                .unwrap_or(0);
+
+            Some(wow_data::PetLevelupSpellInfoLikeCpp {
+                id: spell_id,
+                spell_level,
+            })
+        },
+    ));
+    info!(
+        "Loaded {} pet levelup spells for {} families",
+        pet_levelup_spell_store.count(),
+        pet_levelup_spell_store.family_count()
     );
     let spell_category_store = Arc::new(
         wow_data::SpellCategoryStore::load(&data_dir, &locale)
@@ -2840,6 +2878,7 @@ async fn main() -> Result<ExitCode> {
         spell_group_stack_rule_store: Some(Arc::clone(&spell_group_stack_rule_store)),
         spell_linked_store: Some(Arc::clone(&spell_linked_store)),
         spell_pet_aura_store: Some(Arc::clone(&spell_pet_aura_store)),
+        pet_levelup_spell_store: Some(Arc::clone(&pet_levelup_spell_store)),
         spell_procs_per_minute_store: Some(Arc::clone(&spell_procs_per_minute_store)),
         spell_proc_store: Some(Arc::clone(&spell_proc_store)),
         spell_required_store: Some(Arc::clone(&spell_required_store)),
@@ -9149,6 +9188,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.spell_pet_aura_store {
         session.set_spell_pet_aura_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.pet_levelup_spell_store {
+        session.set_pet_levelup_spell_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.spell_proc_store {
         session.set_spell_proc_store(Arc::clone(store));

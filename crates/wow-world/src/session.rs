@@ -73,20 +73,20 @@ use wow_data::{
     ItemSpecOverrideStore, ItemStatsStore, ItemStore, LfgDungeonsStore, LockStore,
     MapDifficultyStore, MapDifficultyXConditionStore, MapStore, MountCapabilityStore, MountStore,
     MountTypeXCapabilityStore, MountXDisplayStore, MovieStore, NpcSpellClickStoreLikeCpp,
-    PhaseGroupStore, PhaseStore, PlayerConditionAuraLikeCpp, PlayerConditionContextLikeCpp,
-    PlayerConditionCountLikeCpp, PlayerConditionPartyStatusLikeCpp,
-    PlayerConditionQuestKillLikeCpp, PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp,
-    PlayerConditionStore, PlayerStatsStore, RandPropPointsStore, SkillLineStore, SkillStore,
-    SpellAuraOptionsStore, SpellCategoryStore, SpellChainStoreLikeCpp, SpellDurationStore,
-    SpellEnchantProcEntryLikeCpp, SpellEnchantProcStoreLikeCpp, SpellGroupStackRuleLikeCpp,
-    SpellGroupStackRuleStoreLikeCpp, SpellGroupStoreLikeCpp, SpellItemEnchantmentStore,
-    SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp, SpellMiscStore, SpellPetAuraStoreLikeCpp,
-    SpellProcEntryLikeCpp, SpellProcStoreLikeCpp, SpellRadiusStore, SpellRangeStore,
-    SpellRequiredStoreLikeCpp, SpellStore, SpellTargetPositionStoreLikeCpp,
-    SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp, SpellTotemModelStoreLikeCpp,
-    SummonPropertiesEntry, ToyStore, TransmogSetEntry, TransmogSetItemStore,
-    TrinityStringStoreLikeCpp, VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp,
-    VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
+    PetLevelupSpellSetLikeCpp, PetLevelupSpellStoreLikeCpp, PhaseGroupStore, PhaseStore,
+    PlayerConditionAuraLikeCpp, PlayerConditionContextLikeCpp, PlayerConditionCountLikeCpp,
+    PlayerConditionPartyStatusLikeCpp, PlayerConditionQuestKillLikeCpp,
+    PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp, PlayerConditionStore,
+    PlayerStatsStore, RandPropPointsStore, SkillLineStore, SkillStore, SpellAuraOptionsStore,
+    SpellCategoryStore, SpellChainStoreLikeCpp, SpellDurationStore, SpellEnchantProcEntryLikeCpp,
+    SpellEnchantProcStoreLikeCpp, SpellGroupStackRuleLikeCpp, SpellGroupStackRuleStoreLikeCpp,
+    SpellGroupStoreLikeCpp, SpellItemEnchantmentStore, SpellLinkedStoreLikeCpp,
+    SpellLinkedTypeLikeCpp, SpellMiscStore, SpellPetAuraStoreLikeCpp, SpellProcEntryLikeCpp,
+    SpellProcStoreLikeCpp, SpellRadiusStore, SpellRangeStore, SpellRequiredStoreLikeCpp,
+    SpellStore, SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp,
+    SpellTotemModelStoreLikeCpp, SummonPropertiesEntry, ToyStore, TransmogSetEntry,
+    TransmogSetItemStore, TrinityStringStoreLikeCpp, VEHICLE_SEAT_FLAG_CAN_ATTACK,
+    VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
     calculate_battle_pet_stats_like_cpp, is_player_meeting_condition_like_cpp,
     progression_rewards::{
         ContentTuningStore, FactionEntry, FactionStore, FactionTemplateStore,
@@ -3876,6 +3876,7 @@ pub struct WorldSession {
     spell_group_stack_rule_store: Option<Arc<SpellGroupStackRuleStoreLikeCpp>>,
     spell_linked_store: Option<Arc<SpellLinkedStoreLikeCpp>>,
     spell_pet_aura_store: Option<Arc<SpellPetAuraStoreLikeCpp>>,
+    pet_levelup_spell_store: Option<Arc<PetLevelupSpellStoreLikeCpp>>,
     spell_proc_store: Option<Arc<SpellProcStoreLikeCpp>>,
     spell_required_store: Option<Arc<SpellRequiredStoreLikeCpp>>,
     spell_threat_store: Option<Arc<SpellThreatStoreLikeCpp>>,
@@ -5186,6 +5187,7 @@ impl WorldSession {
             spell_group_stack_rule_store: None,
             spell_linked_store: None,
             spell_pet_aura_store: None,
+            pet_levelup_spell_store: None,
             spell_proc_store: None,
             spell_required_store: None,
             spell_threat_store: None,
@@ -17059,6 +17061,19 @@ impl WorldSession {
         self.spell_pet_aura_store
             .as_ref()
             .and_then(|store| store.get_pet_aura_like_cpp(spell_id, effect_index))
+    }
+
+    pub fn set_pet_levelup_spell_store(&mut self, store: Arc<PetLevelupSpellStoreLikeCpp>) {
+        self.pet_levelup_spell_store = Some(store);
+    }
+
+    pub(crate) fn pet_levelup_spell_list_like_cpp(
+        &self,
+        pet_family: u32,
+    ) -> Option<&PetLevelupSpellSetLikeCpp> {
+        self.pet_levelup_spell_store
+            .as_ref()
+            .and_then(|store| store.get_pet_levelup_spell_list_like_cpp(pet_family))
     }
 
     pub fn set_spell_proc_store(&mut self, store: Arc<SpellProcStoreLikeCpp>) {
@@ -41852,6 +41867,67 @@ mod tests {
         outcome.store
     }
 
+    fn test_pet_levelup_spell_store_like_cpp() -> wow_data::PetLevelupSpellStoreLikeCpp {
+        let skill_store = wow_data::SkillStore::from_skill_line_abilities_like_cpp([
+            wow_data::SkillLineAbilityRecord {
+                id: 1,
+                race_mask: 0,
+                skill_line: 10,
+                spell: 700,
+                min_skill_line_rank: 0,
+                class_mask: 0,
+                supercedes_spell: 0,
+                acquire_method: 2,
+                trivial_rank_high: 0,
+                trivial_rank_low: 0,
+                flags: 0,
+                num_skill_ups: 0,
+            },
+            wow_data::SkillLineAbilityRecord {
+                id: 2,
+                race_mask: 0,
+                skill_line: 10,
+                spell: 701,
+                min_skill_line_rank: 0,
+                class_mask: 0,
+                supercedes_spell: 0,
+                acquire_method: 2,
+                trivial_rank_high: 0,
+                trivial_rank_low: 0,
+                flags: 0,
+                num_skill_ups: 0,
+            },
+        ]);
+
+        wow_data::PetLevelupSpellStoreLikeCpp::load_like_cpp(
+            [wow_data::CreatureFamilyEntry {
+                id: 44,
+                name: String::new(),
+                min_scale: 0.0,
+                min_scale_level: 0,
+                max_scale: 0.0,
+                max_scale_level: 0,
+                pet_food_mask: 0,
+                pet_talent_type: 0,
+                category_enum_id: 0,
+                icon_file_id: 0,
+                skill_line: [10, 0],
+            }],
+            &skill_store,
+            |spell_id| match spell_id {
+                700 => Some(wow_data::PetLevelupSpellInfoLikeCpp {
+                    id: 700,
+                    spell_level: 20,
+                }),
+                701 => Some(wow_data::PetLevelupSpellInfoLikeCpp {
+                    id: 701,
+                    spell_level: 10,
+                }),
+                _ => None,
+            },
+        )
+    }
+
     #[test]
     fn spell_proc_entry_prefers_exact_difficulty_like_cpp() {
         let (mut session, _, _) = make_session();
@@ -42173,6 +42249,28 @@ mod tests {
         assert_eq!(aura.aura_for_pet_entry_like_cpp(501), 901);
         assert_eq!(aura.aura_for_pet_entry_like_cpp(502), 900);
         assert!(session.pet_aura_like_cpp(77, 3).is_none());
+    }
+
+    #[test]
+    fn pet_levelup_spell_list_returns_none_without_store_like_cpp() {
+        let (session, _, _) = make_session();
+
+        assert!(session.pet_levelup_spell_list_like_cpp(44).is_none());
+    }
+
+    #[test]
+    fn pet_levelup_spell_list_matches_family_multimap_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_pet_levelup_spell_store(Arc::new(test_pet_levelup_spell_store_like_cpp()));
+
+        let spells = session
+            .pet_levelup_spell_list_like_cpp(44)
+            .expect("pet levelup spell list");
+        assert_eq!(
+            spells.iter().collect::<Vec<_>>(),
+            vec![(10, 701), (20, 700)]
+        );
+        assert!(session.pet_levelup_spell_list_like_cpp(45).is_none());
     }
 
     fn install_create_map_difficulty_stores_like_cpp(
