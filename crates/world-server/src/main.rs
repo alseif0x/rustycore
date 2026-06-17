@@ -1840,13 +1840,6 @@ async fn main() -> Result<ExitCode> {
                 .corrected_orbit_invalid_floats
                 .len()
     );
-    let script_name_interner = Arc::new(script_name_interner);
-    info!(
-        "Built C++ ScriptNameContainer core from loaded template/scene/area-trigger stores: {} names ({} DB-bound)",
-        script_name_interner.len_like_cpp(),
-        script_name_interner.all_db_script_names_like_cpp().len()
-    );
-
     let map_difficulty_store = Arc::new(
         wow_data::MapDifficultyStore::load(&data_dir, &locale)
             .context("Failed to load MapDifficulty.db2 — check DataDir and DBC.Locale config")?,
@@ -1880,11 +1873,14 @@ async fn main() -> Result<ExitCode> {
             &map_store,
             &map_difficulty_store,
             &spawn_group_store,
+            area_trigger_template_store.as_ref(),
+            |spell_id| spell_store.get(spell_id as i32).is_some(),
+            |name| script_name_interner.get_script_id_like_cpp(name, true),
         )
         .await
         .context("Failed to load canonical SpawnStore metadata from world DB")?;
     info!(
-        "Loaded canonical SpawnStore metadata: creatures rows={} indexed={} event-managed={} empty-difficulty={} missing-map={}; formations rows={} loaded={} missing-leader={} missing-member={} duplicate-member={} pruned-missing-leader-self={}; gameobjects rows={} indexed={} event-managed={} empty-difficulty={} missing-map={}; areatriggers rows={} indexed={} empty-difficulty={} missing-map={}; poolmgr templates rows={} loaded={} creature-members loaded={}/{} gameobject-members loaded={}/{} pool-members loaded={}/{} relation-removals={} map-mismatches={} circular={} empty={} missing-map={} autospawn loaded={}/{} skipped-empty={} skipped-broken={} skipped-child={}; spawn-group rows={} assigned={} missing-spawn={} invalid-type={} missing-group={} map-mismatch={} duplicate={}; represented validations skipped: creature={} gameobject={} areatrigger={}",
+        "Loaded canonical SpawnStore metadata: creatures rows={} indexed={} event-managed={} empty-difficulty={} missing-map={}; formations rows={} loaded={} missing-leader={} missing-member={} duplicate-member={} pruned-missing-leader-self={}; gameobjects rows={} indexed={} event-managed={} empty-difficulty={} missing-map={}; areatriggers rows={} indexed={} empty-difficulty={} missing-map={} invalid-create-properties={} flags={} curves={} time={} orbit={} splines={} invalid-spell={}; poolmgr templates rows={} loaded={} creature-members loaded={}/{} gameobject-members loaded={}/{} pool-members loaded={}/{} relation-removals={} map-mismatches={} circular={} empty={} missing-map={} autospawn loaded={}/{} skipped-empty={} skipped-broken={} skipped-child={}; spawn-group rows={} assigned={} missing-spawn={} invalid-type={} missing-group={} map-mismatch={} duplicate={}; represented validations skipped: creature={} gameobject={} areatrigger={}",
         canonical_spawn_report.creature.rows,
         canonical_spawn_report.creature.indexed,
         canonical_spawn_report.creature.skipped_event,
@@ -1915,6 +1911,34 @@ async fn main() -> Result<ExitCode> {
             .area_trigger
             .skipped_empty_difficulties,
         canonical_spawn_report.area_trigger.skipped_missing_map,
+        canonical_spawn_report
+            .area_trigger
+            .skipped_invalid_create_properties
+            .len(),
+        canonical_spawn_report
+            .area_trigger
+            .skipped_nonzero_create_properties_flags
+            .len(),
+        canonical_spawn_report
+            .area_trigger
+            .skipped_create_properties_curves
+            .len(),
+        canonical_spawn_report
+            .area_trigger
+            .skipped_create_properties_time_to_target
+            .len(),
+        canonical_spawn_report
+            .area_trigger
+            .skipped_create_properties_orbit
+            .len(),
+        canonical_spawn_report
+            .area_trigger
+            .skipped_create_properties_splines
+            .len(),
+        canonical_spawn_report
+            .area_trigger
+            .corrected_invalid_spell_for_visuals
+            .len(),
         canonical_spawn_report.pool_mgr.template_rows,
         canonical_spawn_report.pool_mgr.templates_loaded,
         canonical_spawn_report.pool_mgr.creature_members.loaded,
@@ -1945,6 +1969,12 @@ async fn main() -> Result<ExitCode> {
         canonical_spawn_report.creature.validation_skipped,
         canonical_spawn_report.gameobject.validation_skipped,
         canonical_spawn_report.area_trigger.validation_skipped,
+    );
+    let script_name_interner = Arc::new(script_name_interner);
+    info!(
+        "Built C++ ScriptNameContainer core from loaded template/scene/area-trigger/spawn stores: {} names ({} DB-bound)",
+        script_name_interner.len_like_cpp(),
+        script_name_interner.all_db_script_names_like_cpp().len()
     );
     let (persisted_respawn_times, persisted_respawn_report) =
         load_persisted_respawn_times_like_cpp(&char_db, &canonical_spawn_metadata)
@@ -11966,6 +11996,7 @@ mod tests {
             active_quest_statuses: Default::default(),
             active_quest_objective_counts: Default::default(),
             rewarded_quests: Default::default(),
+            completed_achievements: Default::default(),
             daily_quests_completed: Default::default(),
             df_quests: Default::default(),
             faction_template_id: 0,
@@ -18074,6 +18105,7 @@ mmap.enablePathFinding = 0
                 active_quest_statuses: Default::default(),
                 active_quest_objective_counts: Default::default(),
                 rewarded_quests: Default::default(),
+                completed_achievements: Default::default(),
                 daily_quests_completed: Default::default(),
                 df_quests: Default::default(),
                 faction_template_id: 0,

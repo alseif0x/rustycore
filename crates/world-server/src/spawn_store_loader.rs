@@ -16,8 +16,8 @@
 //!   `ObjectMgr::LoadGameObjects` query fields, difficulties/event/pool.
 //! - `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:2676-2736`
 //!   validation tail and `AddGameobjectToGrid`.
-//! - `/home/server/woltk-trinity-legacy/src/server/game/Globals/AreaTriggerDataStore.cpp:312-419`
-//!   `LoadAreaTriggerSpawns` query/parse/index/default legacy group.
+//! - `/home/server/woltk-trinity-legacy/src/server/game/Globals/AreaTriggerDataStore.cpp:321-425`
+//!   `LoadAreaTriggerSpawns` query, create-properties validation, parse, and indexing.
 //! - Existing Rust DB statements:
 //!   `/home/server/rustycore/crates/wow-database/src/statements/world.rs:467-529`.
 //! - `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:2798-2862`
@@ -115,6 +115,13 @@ pub struct SpawnKindLoadReport {
     pub skipped_invalid_position: usize,
     pub validation_skipped: usize,
     pub script_id_unresolved: usize,
+    pub skipped_invalid_create_properties: Vec<(SpawnId, u32, bool)>,
+    pub skipped_nonzero_create_properties_flags: Vec<(SpawnId, u32, bool)>,
+    pub skipped_create_properties_curves: Vec<(SpawnId, u32, bool)>,
+    pub skipped_create_properties_time_to_target: Vec<(SpawnId, u32, bool)>,
+    pub skipped_create_properties_orbit: Vec<(SpawnId, u32, bool)>,
+    pub skipped_create_properties_splines: Vec<(SpawnId, u32, bool)>,
+    pub corrected_invalid_spell_for_visuals: Vec<(SpawnId, i32)>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -2149,6 +2156,7 @@ pub struct CanonicalSpawnMetadataLikeCpp {
     waypoint_paths: WaypointPathStoreLikeCpp,
     creature_runtime_rows: BTreeMap<SpawnId, CreatureSpawnRuntimeRowLikeCpp>,
     gameobject_runtime_rows: BTreeMap<SpawnId, GameObjectSpawnRuntimeRowLikeCpp>,
+    area_trigger_runtime_rows: BTreeMap<SpawnId, AreaTriggerSpawnRuntimeRowLikeCpp>,
     creature_formations: BTreeMap<SpawnId, CreatureFormationInfoLikeCpp>,
 }
 
@@ -2177,6 +2185,7 @@ impl CanonicalSpawnMetadataLikeCpp {
             waypoint_paths: WaypointPathStoreLikeCpp::default(),
             creature_runtime_rows: BTreeMap::new(),
             gameobject_runtime_rows: BTreeMap::new(),
+            area_trigger_runtime_rows: BTreeMap::new(),
             creature_formations: BTreeMap::new(),
         }
     }
@@ -3161,6 +3170,21 @@ impl CanonicalSpawnMetadataLikeCpp {
         self
     }
 
+    pub fn area_trigger_runtime_row_like_cpp(
+        &self,
+        spawn_id: SpawnId,
+    ) -> Option<&AreaTriggerSpawnRuntimeRowLikeCpp> {
+        self.area_trigger_runtime_rows.get(&spawn_id)
+    }
+
+    pub fn with_area_trigger_runtime_rows_like_cpp(
+        mut self,
+        rows: BTreeMap<SpawnId, AreaTriggerSpawnRuntimeRowLikeCpp>,
+    ) -> Self {
+        self.area_trigger_runtime_rows = rows;
+        self
+    }
+
     /// C++ shaped dependency for future `Map::InitSpawnGroupState` wiring.
     ///
     /// Mirrors the read side of
@@ -3230,6 +3254,13 @@ pub struct GameObjectSpawnRuntimeRowLikeCpp {
     pub spawn_time_secs: i32,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AreaTriggerSpawnRuntimeRowLikeCpp {
+    pub spawn_id: SpawnId,
+    pub create_properties_id: wow_data::AreaTriggerIdLikeCpp,
+    pub spell_for_visuals: Option<i32>,
+}
+
 #[derive(Debug, Clone)]
 struct CreatureSpawnRow {
     spawn_id: SpawnId,
@@ -3292,6 +3323,7 @@ struct GameObjectSpawnRow {
 struct AreaTriggerSpawnRow {
     spawn_id: SpawnId,
     create_properties_id: u32,
+    is_custom: bool,
     map_id: u32,
     spawn_difficulties: String,
     x: f32,
@@ -3301,6 +3333,7 @@ struct AreaTriggerSpawnRow {
     phase_use_flags: u8,
     phase_id: u32,
     phase_group: u32,
+    spell_for_visuals: Option<i32>,
     script_name: String,
 }
 
@@ -3533,10 +3566,14 @@ pub async fn load_canonical_spawn_store_like_cpp(
     map_store: &wow_data::MapStore,
     map_difficulty_store: &wow_data::MapDifficultyStore,
     spawn_group_store: &wow_data::SpawnGroupTemplateStore,
+    area_trigger_template_store: &wow_data::AreaTriggerTemplateStore,
+    mut area_trigger_spell_exists: impl FnMut(u32) -> bool,
+    mut script_id_for_name: impl FnMut(&str) -> wow_data::ScriptIdLikeCpp,
 ) -> Result<(CanonicalSpawnMetadataLikeCpp, CanonicalSpawnStoreLoadReport)> {
     let mut store = SpawnStore::new();
     let mut creature_runtime_rows = BTreeMap::new();
     let mut gameobject_runtime_rows = BTreeMap::new();
+    let mut area_trigger_runtime_rows = BTreeMap::new();
     let mut report = CanonicalSpawnStoreLoadReport::default();
 
     load_creature_spawns_like_cpp(
@@ -3562,8 +3599,18 @@ pub async fn load_canonical_spawn_store_like_cpp(
         &mut report,
     )
     .await?;
-    load_area_trigger_spawns_like_cpp(db, map_store, map_difficulty_store, &mut store, &mut report)
-        .await?;
+    load_area_trigger_spawns_like_cpp(
+        db,
+        map_store,
+        map_difficulty_store,
+        area_trigger_template_store,
+        &mut area_trigger_spell_exists,
+        &mut script_id_for_name,
+        &mut store,
+        &mut area_trigger_runtime_rows,
+        &mut report,
+    )
+    .await?;
 
     // C++ `ObjectMgr::LoadLinkedRespawn` runs after creature/gameobject data is canonical.
     let linked_respawns = load_linked_respawns_like_cpp(db, &store, map_store, &mut report).await?;
@@ -3647,6 +3694,7 @@ pub async fn load_canonical_spawn_store_like_cpp(
             .with_waypoint_paths_like_cpp(waypoint_paths)
             .with_creature_runtime_rows_like_cpp(creature_runtime_rows)
             .with_gameobject_runtime_rows_like_cpp(gameobject_runtime_rows)
+            .with_area_trigger_runtime_rows_like_cpp(area_trigger_runtime_rows)
             .with_creature_formations_like_cpp(creature_formations),
         report,
     ))
@@ -5096,7 +5144,11 @@ async fn load_area_trigger_spawns_like_cpp(
     db: &WorldDatabase,
     map_store: &wow_data::MapStore,
     map_difficulty_store: &wow_data::MapDifficultyStore,
+    area_trigger_template_store: &wow_data::AreaTriggerTemplateStore,
+    spell_exists: &mut impl FnMut(u32) -> bool,
+    script_id_for_name: &mut impl FnMut(&str) -> wow_data::ScriptIdLikeCpp,
     store: &mut SpawnStore,
+    area_trigger_runtime_rows: &mut BTreeMap<SpawnId, AreaTriggerSpawnRuntimeRowLikeCpp>,
     report: &mut CanonicalSpawnStoreLoadReport,
 ) -> Result<()> {
     let stmt = db.prepare(WorldStatements::SEL_AREATRIGGER_SPAWNS);
@@ -5109,6 +5161,7 @@ async fn load_area_trigger_spawns_like_cpp(
         let row = AreaTriggerSpawnRow {
             spawn_id: result.read(0),
             create_properties_id: result.read(1),
+            is_custom: result.read(2),
             map_id: result.read(3),
             spawn_difficulties: result.read(4),
             x: result.read(5),
@@ -5118,6 +5171,7 @@ async fn load_area_trigger_spawns_like_cpp(
             phase_use_flags: result.read(9),
             phase_id: read_unsigned_db_u32_like_cpp(&result, 10, "areatrigger.phaseid")?,
             phase_group: read_unsigned_db_u32_like_cpp(&result, 11, "areatrigger.phasegroup")?,
+            spell_for_visuals: result.try_read(12).unwrap_or(None),
             script_name: result.try_read(13).unwrap_or_default(),
         };
         report.area_trigger.rows += 1;
@@ -5125,6 +5179,10 @@ async fn load_area_trigger_spawns_like_cpp(
             &row,
             map_store,
             map_difficulty_store,
+            area_trigger_template_store,
+            spell_exists,
+            script_id_for_name,
+            area_trigger_runtime_rows,
             &mut report.area_trigger,
         ) {
             store.add_area_trigger_spawn(&spawn);
@@ -5650,8 +5708,76 @@ fn area_trigger_row_to_spawn_data_like_cpp(
     row: &AreaTriggerSpawnRow,
     map_store: &wow_data::MapStore,
     map_difficulty_store: &wow_data::MapDifficultyStore,
+    area_trigger_template_store: &wow_data::AreaTriggerTemplateStore,
+    spell_exists: &mut impl FnMut(u32) -> bool,
+    script_id_for_name: &mut impl FnMut(&str) -> wow_data::ScriptIdLikeCpp,
+    area_trigger_runtime_rows: &mut BTreeMap<SpawnId, AreaTriggerSpawnRuntimeRowLikeCpp>,
     report: &mut SpawnKindLoadReport,
 ) -> Option<SpawnData> {
+    let create_properties_id = wow_data::AreaTriggerIdLikeCpp {
+        id: row.create_properties_id,
+        is_custom: row.is_custom,
+    };
+    let Some(create_properties) =
+        area_trigger_template_store.get_create_properties_like_cpp(create_properties_id)
+    else {
+        report.skipped_invalid_create_properties.push((
+            row.spawn_id,
+            row.create_properties_id,
+            row.is_custom,
+        ));
+        return None;
+    };
+    if create_properties.flags
+        != wow_data::area_trigger_template::AREATRIGGER_CREATE_PROPERTIES_FLAG_NONE_LIKE_CPP
+    {
+        report.skipped_nonzero_create_properties_flags.push((
+            row.spawn_id,
+            row.create_properties_id,
+            row.is_custom,
+        ));
+        return None;
+    }
+    if create_properties.move_curve_id != 0
+        || create_properties.scale_curve_id != 0
+        || create_properties.morph_curve_id != 0
+        || create_properties.facing_curve_id != 0
+    {
+        report.skipped_create_properties_curves.push((
+            row.spawn_id,
+            row.create_properties_id,
+            row.is_custom,
+        ));
+        return None;
+    }
+    if create_properties.time_to_target != 0
+        || create_properties.time_to_target_scale != 0
+        || create_properties.facing_curve_id != 0
+        || create_properties.move_curve_id != 0
+    {
+        report.skipped_create_properties_time_to_target.push((
+            row.spawn_id,
+            row.create_properties_id,
+            row.is_custom,
+        ));
+        return None;
+    }
+    if create_properties.orbit_info.is_some() {
+        report.skipped_create_properties_orbit.push((
+            row.spawn_id,
+            row.create_properties_id,
+            row.is_custom,
+        ));
+        return None;
+    }
+    if create_properties.spline_points.len() >= 2 {
+        report.skipped_create_properties_splines.push((
+            row.spawn_id,
+            row.create_properties_id,
+            row.is_custom,
+        ));
+        return None;
+    }
     if map_store.get(row.map_id).is_none() {
         report.skipped_missing_map += 1;
         return None;
@@ -5672,10 +5798,26 @@ fn area_trigger_row_to_spawn_data_like_cpp(
         return None;
     }
 
-    report.validation_skipped += 1;
-    if !row.script_name.is_empty() {
-        report.script_id_unresolved += 1;
-    }
+    let spell_for_visuals = match row.spell_for_visuals {
+        Some(spell_id) if spell_id >= 0 && spell_exists(spell_id as u32) => Some(spell_id),
+        Some(spell_id) => {
+            report
+                .corrected_invalid_spell_for_visuals
+                .push((row.spawn_id, spell_id));
+            None
+        }
+        None => None,
+    };
+    let script_id = script_id_for_name(&row.script_name).0;
+
+    area_trigger_runtime_rows.insert(
+        row.spawn_id,
+        AreaTriggerSpawnRuntimeRowLikeCpp {
+            spawn_id: row.spawn_id,
+            create_properties_id,
+            spell_for_visuals,
+        },
+    );
 
     Some(SpawnData {
         object_type: SpawnObjectType::AreaTrigger,
@@ -5692,7 +5834,7 @@ fn area_trigger_row_to_spawn_data_like_cpp(
         pool_id: 0,
         spawn_time_secs: 0,
         spawn_difficulties: parsed.difficulties,
-        script_id: 0,
+        script_id,
         string_id: String::new(),
     })
 }
@@ -6247,6 +6389,7 @@ mod tests {
         AreaTriggerSpawnRow {
             spawn_id,
             create_properties_id: 789,
+            is_custom: false,
             map_id: 1,
             spawn_difficulties: difficulties.to_string(),
             x: 12.0,
@@ -6256,7 +6399,91 @@ mod tests {
             phase_use_flags: 0,
             phase_id: 0,
             phase_group: 0,
+            spell_for_visuals: None,
             script_name: String::new(),
+        }
+    }
+
+    fn world_safe_locs() -> wow_data::WorldSafeLocStore {
+        let maps = map_store(&[1]);
+        wow_data::WorldSafeLocStore::from_rows_like_cpp([], &maps).0
+    }
+
+    fn area_trigger_create_properties_row(
+        create_properties_id: u32,
+    ) -> wow_data::AreaTriggerCreatePropertiesRowLikeCpp {
+        wow_data::AreaTriggerCreatePropertiesRowLikeCpp {
+            id: create_properties_id,
+            is_custom: false,
+            area_trigger_id: 0,
+            is_areatrigger_custom: false,
+            flags:
+                wow_data::area_trigger_template::AREATRIGGER_CREATE_PROPERTIES_FLAG_NONE_LIKE_CPP,
+            move_curve_id: 0,
+            scale_curve_id: 0,
+            morph_curve_id: 0,
+            facing_curve_id: 0,
+            anim_id: 0,
+            anim_kit_id: 0,
+            decal_properties_id: 0,
+            time_to_target: 0,
+            time_to_target_scale: 0,
+            shape: wow_data::area_trigger_template::AREATRIGGER_SHAPE_SPHERE_LIKE_CPP,
+            shape_data: [0.0;
+                wow_data::area_trigger_template::MAX_AREATRIGGER_ENTITY_DATA_LIKE_CPP],
+            script_name: String::new(),
+        }
+    }
+
+    fn area_trigger_template_store_with(
+        create_properties_row: wow_data::AreaTriggerCreatePropertiesRowLikeCpp,
+        spline_points: impl IntoIterator<Item = wow_data::AreaTriggerSplinePointRowLikeCpp>,
+        orbit_rows: impl IntoIterator<Item = wow_data::AreaTriggerCreatePropertiesOrbitRowLikeCpp>,
+    ) -> wow_data::AreaTriggerTemplateStore {
+        wow_data::AreaTriggerTemplateStore::from_rows_like_cpp(
+            [],
+            [],
+            [],
+            spline_points,
+            [create_properties_row],
+            orbit_rows,
+            &world_safe_locs(),
+            |_| true,
+            |_| wow_data::ScriptIdLikeCpp(0),
+        )
+        .store
+    }
+
+    fn valid_area_trigger_template_store() -> wow_data::AreaTriggerTemplateStore {
+        area_trigger_template_store_with(area_trigger_create_properties_row(789), [], [])
+    }
+
+    fn area_trigger_spline_point(
+        create_properties_id: u32,
+        x: f32,
+    ) -> wow_data::AreaTriggerSplinePointRowLikeCpp {
+        wow_data::AreaTriggerSplinePointRowLikeCpp {
+            create_properties_id,
+            is_custom: false,
+            x,
+            y: 0.0,
+            z: 0.0,
+        }
+    }
+
+    fn area_trigger_orbit(
+        create_properties_id: u32,
+    ) -> wow_data::AreaTriggerCreatePropertiesOrbitRowLikeCpp {
+        wow_data::AreaTriggerCreatePropertiesOrbitRowLikeCpp {
+            create_properties_id,
+            is_custom: false,
+            start_delay: 0,
+            circle_radius: 1.0,
+            blend_from_radius: 0.0,
+            initial_angle: 0.0,
+            z_offset: 0.0,
+            counter_clockwise: false,
+            can_loop: false,
         }
     }
 
@@ -10426,6 +10653,8 @@ mod tests {
         let difficulties = map_difficulty_store(&[(1, 0)]);
         let mut report = SpawnKindLoadReport::default();
         let mut store = SpawnStore::new();
+        let area_trigger_templates = valid_area_trigger_template_store();
+        let mut area_trigger_runtime_rows = BTreeMap::new();
 
         let creature = creature_row_to_spawn_data_like_cpp(
             &creature_row(300, 0, "0"),
@@ -10445,6 +10674,10 @@ mod tests {
             &area_trigger_row(302, "0"),
             &maps,
             &difficulties,
+            &area_trigger_templates,
+            &mut |_| true,
+            &mut |_| wow_data::ScriptIdLikeCpp(0),
+            &mut area_trigger_runtime_rows,
             &mut report,
         )
         .unwrap();
@@ -10545,6 +10778,224 @@ mod tests {
             store
                 .cell_object_guids(1, 0, event_managed.cell_id())
                 .is_none_or(|cell| !cell.gameobjects.contains(&303))
+        );
+    }
+
+    #[test]
+    fn area_trigger_spawn_loads_cpp_validated_metadata_and_script_like_cpp() {
+        let maps = map_store(&[1]);
+        let difficulties = map_difficulty_store(&[(1, 0)]);
+        let area_trigger_templates = valid_area_trigger_template_store();
+        let mut row = area_trigger_row(302, "0");
+        row.script_name = "at_spawn_script".to_string();
+        row.spell_for_visuals = Some(1234);
+        let mut report = SpawnKindLoadReport::default();
+        let mut runtime_rows = BTreeMap::new();
+
+        let spawn = area_trigger_row_to_spawn_data_like_cpp(
+            &row,
+            &maps,
+            &difficulties,
+            &area_trigger_templates,
+            &mut |spell_id| spell_id == 1234,
+            &mut |name| {
+                assert_eq!(name, "at_spawn_script");
+                wow_data::ScriptIdLikeCpp(77)
+            },
+            &mut runtime_rows,
+            &mut report,
+        )
+        .expect("valid static area trigger spawn should load");
+
+        assert_eq!(spawn.object_type, SpawnObjectType::AreaTrigger);
+        assert_eq!(spawn.id, 789);
+        assert_eq!(spawn.script_id, 77);
+        assert_eq!(report.validation_skipped, 0);
+        assert_eq!(report.script_id_unresolved, 0);
+        assert!(report.corrected_invalid_spell_for_visuals.is_empty());
+        assert_eq!(
+            runtime_rows.get(&302),
+            Some(&AreaTriggerSpawnRuntimeRowLikeCpp {
+                spawn_id: 302,
+                create_properties_id: wow_data::AreaTriggerIdLikeCpp {
+                    id: 789,
+                    is_custom: false,
+                },
+                spell_for_visuals: Some(1234),
+            })
+        );
+    }
+
+    #[test]
+    fn area_trigger_spawn_resets_invalid_spell_for_visuals_like_cpp() {
+        let maps = map_store(&[1]);
+        let difficulties = map_difficulty_store(&[(1, 0)]);
+        let area_trigger_templates = valid_area_trigger_template_store();
+        let mut row = area_trigger_row(302, "0");
+        row.spell_for_visuals = Some(-7);
+        let mut report = SpawnKindLoadReport::default();
+        let mut runtime_rows = BTreeMap::new();
+
+        let spawn = area_trigger_row_to_spawn_data_like_cpp(
+            &row,
+            &maps,
+            &difficulties,
+            &area_trigger_templates,
+            &mut |_| false,
+            &mut |_| wow_data::ScriptIdLikeCpp(0),
+            &mut runtime_rows,
+            &mut report,
+        )
+        .expect("invalid SpellForVisuals is reset, not a skipped spawn");
+
+        assert_eq!(spawn.spawn_id, 302);
+        assert_eq!(report.corrected_invalid_spell_for_visuals, [(302, -7)]);
+        assert_eq!(runtime_rows.get(&302).unwrap().spell_for_visuals, None);
+    }
+
+    #[test]
+    fn area_trigger_spawn_skips_missing_create_properties_like_cpp() {
+        let maps = map_store(&[1]);
+        let difficulties = map_difficulty_store(&[(1, 0)]);
+        let area_trigger_templates =
+            area_trigger_template_store_with(area_trigger_create_properties_row(111), [], []);
+        let mut report = SpawnKindLoadReport::default();
+        let mut runtime_rows = BTreeMap::new();
+
+        let spawn = area_trigger_row_to_spawn_data_like_cpp(
+            &area_trigger_row(302, "0"),
+            &maps,
+            &difficulties,
+            &area_trigger_templates,
+            &mut |_| true,
+            &mut |_| wow_data::ScriptIdLikeCpp(0),
+            &mut runtime_rows,
+            &mut report,
+        );
+
+        assert!(spawn.is_none());
+        assert_eq!(
+            report.skipped_invalid_create_properties,
+            [(302, 789, false)]
+        );
+        assert!(runtime_rows.is_empty());
+    }
+
+    #[test]
+    fn area_trigger_spawn_skips_non_static_create_properties_like_cpp() {
+        let maps = map_store(&[1]);
+        let difficulties = map_difficulty_store(&[(1, 0)]);
+
+        let mut flags_row = area_trigger_create_properties_row(789);
+        flags_row.flags =
+            wow_data::area_trigger_template::AREATRIGGER_CREATE_PROPERTIES_FLAG_HAS_ATTACHED_LIKE_CPP;
+        let mut report = SpawnKindLoadReport::default();
+        let mut runtime_rows = BTreeMap::new();
+        assert!(
+            area_trigger_row_to_spawn_data_like_cpp(
+                &area_trigger_row(302, "0"),
+                &maps,
+                &difficulties,
+                &area_trigger_template_store_with(flags_row, [], []),
+                &mut |_| true,
+                &mut |_| wow_data::ScriptIdLikeCpp(0),
+                &mut runtime_rows,
+                &mut report,
+            )
+            .is_none()
+        );
+        assert_eq!(
+            report.skipped_nonzero_create_properties_flags,
+            [(302, 789, false)]
+        );
+
+        let mut curve_row = area_trigger_create_properties_row(789);
+        curve_row.move_curve_id = 44;
+        report = SpawnKindLoadReport::default();
+        runtime_rows.clear();
+        assert!(
+            area_trigger_row_to_spawn_data_like_cpp(
+                &area_trigger_row(303, "0"),
+                &maps,
+                &difficulties,
+                &area_trigger_template_store_with(curve_row, [], []),
+                &mut |_| true,
+                &mut |_| wow_data::ScriptIdLikeCpp(0),
+                &mut runtime_rows,
+                &mut report,
+            )
+            .is_none()
+        );
+        assert_eq!(report.skipped_create_properties_curves, [(303, 789, false)]);
+
+        let mut time_row = area_trigger_create_properties_row(789);
+        time_row.time_to_target = 1;
+        report = SpawnKindLoadReport::default();
+        runtime_rows.clear();
+        assert!(
+            area_trigger_row_to_spawn_data_like_cpp(
+                &area_trigger_row(304, "0"),
+                &maps,
+                &difficulties,
+                &area_trigger_template_store_with(time_row, [], []),
+                &mut |_| true,
+                &mut |_| wow_data::ScriptIdLikeCpp(0),
+                &mut runtime_rows,
+                &mut report,
+            )
+            .is_none()
+        );
+        assert_eq!(
+            report.skipped_create_properties_time_to_target,
+            [(304, 789, false)]
+        );
+
+        report = SpawnKindLoadReport::default();
+        runtime_rows.clear();
+        assert!(
+            area_trigger_row_to_spawn_data_like_cpp(
+                &area_trigger_row(305, "0"),
+                &maps,
+                &difficulties,
+                &area_trigger_template_store_with(
+                    area_trigger_create_properties_row(789),
+                    [],
+                    [area_trigger_orbit(789)]
+                ),
+                &mut |_| true,
+                &mut |_| wow_data::ScriptIdLikeCpp(0),
+                &mut runtime_rows,
+                &mut report,
+            )
+            .is_none()
+        );
+        assert_eq!(report.skipped_create_properties_orbit, [(305, 789, false)]);
+
+        report = SpawnKindLoadReport::default();
+        runtime_rows.clear();
+        assert!(
+            area_trigger_row_to_spawn_data_like_cpp(
+                &area_trigger_row(306, "0"),
+                &maps,
+                &difficulties,
+                &area_trigger_template_store_with(
+                    area_trigger_create_properties_row(789),
+                    [
+                        area_trigger_spline_point(789, 1.0),
+                        area_trigger_spline_point(789, 2.0)
+                    ],
+                    []
+                ),
+                &mut |_| true,
+                &mut |_| wow_data::ScriptIdLikeCpp(0),
+                &mut runtime_rows,
+                &mut report,
+            )
+            .is_none()
+        );
+        assert_eq!(
+            report.skipped_create_properties_splines,
+            [(306, 789, false)]
         );
     }
 

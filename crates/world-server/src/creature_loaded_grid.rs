@@ -774,6 +774,7 @@ mod tests {
                 unit_flags2: wow_constants::UnitFlags2::FEIGN_DEATH.bits(),
                 unit_flags3: wow_constants::UnitFlags3::AI_OBSTACLE.bits(),
                 creature_type: 0,
+                family: 0,
                 unit_class: 1,
                 vehicle_id,
                 movement_type: 1,
