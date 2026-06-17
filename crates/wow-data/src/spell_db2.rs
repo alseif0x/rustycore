@@ -238,9 +238,14 @@ pub struct SpellMiscEntry {
 }
 
 impl SpellMiscEntry {
+    /// C++ `SpellInfo::IsPassive`.
+    pub fn is_passive_like_cpp(&self) -> bool {
+        (self.attributes[0] as u32 & crate::spell::attributes::SPELL_ATTR0_PASSIVE) != 0
+    }
+
     /// C++ `SpellInfo::IsAutocastable`.
     pub fn is_autocastable_like_cpp(&self) -> bool {
-        (self.attributes[0] as u32 & crate::spell::attributes::SPELL_ATTR0_PASSIVE) == 0
+        !self.is_passive_like_cpp()
             && (self.attributes[1] as u32 & crate::spell::attributes::SPELL_ATTR1_NO_AUTOCAST_AI)
                 == 0
     }
@@ -1048,6 +1053,10 @@ impl SpellLevelsStore {
             .values()
             .find(|entry| entry.spell_id == spell_id && entry.difficulty_id == difficulty_id)
     }
+
+    pub fn entries_like_cpp(&self) -> impl Iterator<Item = &SpellLevelsEntry> {
+        self.entries.values()
+    }
 }
 
 impl SpellMiscStore {
@@ -1061,6 +1070,11 @@ impl SpellMiscStore {
     pub fn is_autocastable_like_cpp(&self, spell_id: u32) -> bool {
         self.get_by_spell_id(spell_id)
             .is_none_or(SpellMiscEntry::is_autocastable_like_cpp)
+    }
+
+    pub fn is_passive_like_cpp(&self, spell_id: u32) -> bool {
+        self.get_by_spell_id(spell_id)
+            .is_some_and(SpellMiscEntry::is_passive_like_cpp)
     }
 
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {

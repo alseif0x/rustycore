@@ -1419,6 +1419,30 @@ async fn main() -> Result<ExitCode> {
             .context("Failed to load SpellMisc.db2")?,
     );
     info!("Loaded {} spell misc rows", spell_misc_store.len());
+    let pet_family_spell_store = Arc::new(wow_data::PetFamilySpellStoreLikeCpp::load_like_cpp(
+        skill_store.as_ref(),
+        creature_family_store.entries_like_cpp(),
+        spell_levels_store
+            .entries_like_cpp()
+            .map(|entry| wow_data::PetFamilySpellLevelLikeCpp {
+                spell_id: i32::try_from(entry.spell_id).unwrap_or(0),
+                difficulty_id: u32::from(entry.difficulty_id),
+                spell_level: entry.spell_level,
+            }),
+        |spell_id| {
+            let spell = spell_store.get(spell_id)?;
+            let spell_id = u32::try_from(spell.spell_id).ok()?;
+            Some(wow_data::PetFamilySpellInfoLikeCpp {
+                id: spell_id,
+                is_passive: spell_misc_store.is_passive_like_cpp(spell_id),
+            })
+        },
+    ));
+    info!(
+        "Loaded {} pet family passive spells for {} families",
+        pet_family_spell_store.spell_count(),
+        pet_family_spell_store.family_count()
+    );
     let spell_procs_per_minute_store = Arc::new(
         wow_data::SpellProcsPerMinuteStore::load(&data_dir, &locale)
             .context("Failed to load SpellProcsPerMinute.db2")?,
@@ -2913,6 +2937,7 @@ async fn main() -> Result<ExitCode> {
         spell_pet_aura_store: Some(Arc::clone(&spell_pet_aura_store)),
         pet_levelup_spell_store: Some(Arc::clone(&pet_levelup_spell_store)),
         pet_default_spell_store: Some(Arc::clone(&pet_default_spell_store)),
+        pet_family_spell_store: Some(Arc::clone(&pet_family_spell_store)),
         spell_procs_per_minute_store: Some(Arc::clone(&spell_procs_per_minute_store)),
         spell_proc_store: Some(Arc::clone(&spell_proc_store)),
         spell_required_store: Some(Arc::clone(&spell_required_store)),
@@ -9228,6 +9253,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.pet_default_spell_store {
         session.set_pet_default_spell_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.pet_family_spell_store {
+        session.set_pet_family_spell_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.spell_proc_store {
         session.set_spell_proc_store(Arc::clone(store));
