@@ -3187,6 +3187,30 @@ impl SpellProcStoreLikeCpp {
                 difficulty,
             })
     }
+
+    pub fn spell_proc_entry_with_fallback_like_cpp<FallbackDifficulty>(
+        &self,
+        spell_id: u32,
+        difficulty: u32,
+        mut fallback_difficulty: FallbackDifficulty,
+    ) -> Option<&SpellProcEntryLikeCpp>
+    where
+        FallbackDifficulty: FnMut(u32) -> Option<u32>,
+    {
+        if let Some(entry) = self.spell_proc_entry_like_cpp(spell_id, difficulty) {
+            return Some(entry);
+        }
+
+        let mut current_difficulty = difficulty;
+        while let Some(next_difficulty) = fallback_difficulty(current_difficulty) {
+            if let Some(entry) = self.spell_proc_entry_like_cpp(spell_id, next_difficulty) {
+                return Some(entry);
+            }
+            current_difficulty = next_difficulty;
+        }
+
+        None
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -6514,6 +6538,42 @@ mod tests {
     }
 
     #[test]
+    fn spell_proc_store_lookup_uses_exact_difficulty_before_fallback_like_cpp() {
+        let store = test_spell_proc_store_with_entries_like_cpp([
+            (400, 1, [PROC_FLAG_DEATH_LIKE_CPP, 0]),
+            (400, 2, [PROC_FLAG_KILL_LIKE_CPP, 0]),
+        ]);
+
+        let entry = store
+            .spell_proc_entry_with_fallback_like_cpp(400, 2, |_| Some(1))
+            .unwrap();
+
+        assert_eq!(entry.proc_flags, [PROC_FLAG_KILL_LIKE_CPP, 0]);
+    }
+
+    #[test]
+    fn spell_proc_store_lookup_walks_difficulty_fallback_chain_like_cpp() {
+        let store =
+            test_spell_proc_store_with_entries_like_cpp([(500, 1, [PROC_FLAG_DEATH_LIKE_CPP, 0])]);
+
+        let entry = store
+            .spell_proc_entry_with_fallback_like_cpp(500, 3, |difficulty| match difficulty {
+                3 => Some(2),
+                2 => Some(1),
+                _ => None,
+            })
+            .unwrap();
+
+        assert_eq!(entry.proc_flags, [PROC_FLAG_DEATH_LIKE_CPP, 0]);
+        assert!(
+            store
+                .spell_proc_entry_with_fallback_like_cpp(500, 3, |_| None)
+                .is_none(),
+            "C++ stops when sDifficultyStore.LookupEntry returns null"
+        );
+    }
+
+    #[test]
     fn can_spell_trigger_proc_on_event_requires_proc_flag_overlap_like_cpp() {
         let mut entry = test_spell_proc_entry_like_cpp();
         entry.proc_flags = [0, PROC_FLAG_2_CAST_SUCCESSFUL_LIKE_CPP];
@@ -6735,6 +6795,24 @@ mod tests {
             spell_phase_mask: PROC_SPELL_PHASE_CAST_LIKE_CPP,
             hit_mask: PROC_HIT_NORMAL_LIKE_CPP,
         }
+    }
+
+    fn test_spell_proc_store_with_entries_like_cpp(
+        entries: impl IntoIterator<Item = (u32, u32, [u32; 2])>,
+    ) -> SpellProcStoreLikeCpp {
+        let mut store = SpellProcStoreLikeCpp::default();
+        for (spell_id, difficulty, proc_flags) in entries {
+            let mut entry = test_spell_proc_entry_like_cpp();
+            entry.proc_flags = proc_flags;
+            store.proc_entries_by_spell_and_difficulty.insert(
+                SpellProcKeyLikeCpp {
+                    spell_id,
+                    difficulty,
+                },
+                entry,
+            );
+        }
+        store
     }
 
     fn test_spell_proc_row_like_cpp(spell_id: i32) -> SpellProcRowLikeCpp {
