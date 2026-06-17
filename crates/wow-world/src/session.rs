@@ -78,9 +78,9 @@ use wow_data::{
     PlayerConditionQuestKillLikeCpp, PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp,
     PlayerConditionStore, PlayerStatsStore, RandPropPointsStore, SkillLineStore, SkillStore,
     SpellAuraOptionsStore, SpellCategoryStore, SpellChainStoreLikeCpp, SpellDurationStore,
-    SpellItemEnchantmentStore, SpellMiscStore, SpellProcEntryLikeCpp, SpellProcStoreLikeCpp,
-    SpellRadiusStore, SpellRangeStore, SpellRequiredStoreLikeCpp, SpellStore,
-    SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp,
+    SpellGroupStoreLikeCpp, SpellItemEnchantmentStore, SpellMiscStore, SpellProcEntryLikeCpp,
+    SpellProcStoreLikeCpp, SpellRadiusStore, SpellRangeStore, SpellRequiredStoreLikeCpp,
+    SpellStore, SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp,
     SummonPropertiesEntry, ToyStore, TransmogSetEntry, TransmogSetItemStore,
     TrinityStringStoreLikeCpp, VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp,
     VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
@@ -3868,6 +3868,7 @@ pub struct WorldSession {
     npc_spell_click_store: Option<Arc<NpcSpellClickStoreLikeCpp>>,
     spell_aura_options_store: Option<Arc<SpellAuraOptionsStore>>,
     spell_misc_store: Option<Arc<SpellMiscStore>>,
+    spell_group_store: Option<Arc<SpellGroupStoreLikeCpp>>,
     spell_proc_store: Option<Arc<SpellProcStoreLikeCpp>>,
     spell_required_store: Option<Arc<SpellRequiredStoreLikeCpp>>,
     spell_threat_store: Option<Arc<SpellThreatStoreLikeCpp>>,
@@ -5172,6 +5173,7 @@ impl WorldSession {
             npc_spell_click_store: None,
             spell_aura_options_store: None,
             spell_misc_store: None,
+            spell_group_store: None,
             spell_proc_store: None,
             spell_required_store: None,
             spell_threat_store: None,
@@ -16900,6 +16902,64 @@ impl WorldSession {
 
     pub fn set_spell_misc_store(&mut self, store: Arc<SpellMiscStore>) {
         self.spell_misc_store = Some(store);
+    }
+
+    pub fn set_spell_group_store(&mut self, store: Arc<SpellGroupStoreLikeCpp>) {
+        self.spell_group_store = Some(store);
+    }
+
+    pub(crate) fn spell_spell_group_map_bounds_like_cpp(&self, spell_id: u32) -> &[u32] {
+        self.spell_group_store
+            .as_ref()
+            .map(|store| {
+                store.spell_spell_group_map_bounds_like_cpp(spell_id, |lookup_spell_id| {
+                    self.spell_chain_store
+                        .as_ref()
+                        .map(|spell_chains| {
+                            spell_chains.first_spell_in_chain_like_cpp(lookup_spell_id)
+                        })
+                        .unwrap_or(lookup_spell_id)
+                })
+            })
+            .unwrap_or(&[])
+    }
+
+    pub(crate) fn spell_group_spell_map_bounds_like_cpp(&self, group_id: u32) -> &[i32] {
+        self.spell_group_store
+            .as_ref()
+            .map(|store| store.spell_group_spell_map_bounds_like_cpp(group_id))
+            .unwrap_or(&[])
+    }
+
+    pub(crate) fn is_spell_member_of_spell_group_like_cpp(
+        &self,
+        spell_id: u32,
+        group_id: u32,
+    ) -> bool {
+        self.spell_group_store
+            .as_ref()
+            .map(|store| {
+                store.is_spell_member_of_spell_group_like_cpp(
+                    spell_id,
+                    group_id,
+                    |lookup_spell_id| {
+                        self.spell_chain_store
+                            .as_ref()
+                            .map(|spell_chains| {
+                                spell_chains.first_spell_in_chain_like_cpp(lookup_spell_id)
+                            })
+                            .unwrap_or(lookup_spell_id)
+                    },
+                )
+            })
+            .unwrap_or(false)
+    }
+
+    pub(crate) fn set_of_spells_in_spell_group_like_cpp(&self, group_id: u32) -> BTreeSet<u32> {
+        self.spell_group_store
+            .as_ref()
+            .map(|store| store.set_of_spells_in_spell_group_like_cpp(group_id))
+            .unwrap_or_default()
     }
 
     pub fn set_spell_proc_store(&mut self, store: Arc<SpellProcStoreLikeCpp>) {
@@ -41533,6 +41593,28 @@ mod tests {
         outcome.store
     }
 
+    fn test_spell_group_store_like_cpp() -> wow_data::SpellGroupStoreLikeCpp {
+        let outcome = wow_data::SpellGroupStoreLikeCpp::from_rows_like_cpp(
+            [
+                wow_data::SpellGroupRowLikeCpp {
+                    group_id: 1001,
+                    spell_id: 10,
+                },
+                wow_data::SpellGroupRowLikeCpp {
+                    group_id: 1001,
+                    spell_id: -1002,
+                },
+                wow_data::SpellGroupRowLikeCpp {
+                    group_id: 1002,
+                    spell_id: 20,
+                },
+            ],
+            |_| true,
+            |_| 1,
+        );
+        outcome.store
+    }
+
     #[test]
     fn spell_proc_entry_prefers_exact_difficulty_like_cpp() {
         let (mut session, _, _) = make_session();
@@ -41692,6 +41774,54 @@ mod tests {
         assert_eq!(session.spells_requiring_spell_like_cpp(10), &[100, 101]);
         assert!(session.is_spell_requiring_spell_like_cpp(100, 10));
         assert!(!session.is_spell_requiring_spell_like_cpp(11, 100));
+    }
+
+    #[test]
+    fn spell_group_queries_return_empty_without_store_like_cpp() {
+        let (session, _, _) = make_session();
+
+        assert!(session.spell_spell_group_map_bounds_like_cpp(10).is_empty());
+        assert!(
+            session
+                .spell_group_spell_map_bounds_like_cpp(1001)
+                .is_empty()
+        );
+        assert!(!session.is_spell_member_of_spell_group_like_cpp(10, 1001));
+        assert!(
+            session
+                .set_of_spells_in_spell_group_like_cpp(1001)
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn spell_group_queries_expand_nested_and_normalize_ranks_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_spell_group_store(Arc::new(test_spell_group_store_like_cpp()));
+        session.set_spell_chain_store(Arc::new(
+            wow_data::SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(
+                [wow_data::SpellRankEdgeLikeCpp {
+                    spell_id: 25,
+                    supercedes_spell_id: 20,
+                }],
+                |_| true,
+            ),
+        ));
+
+        assert_eq!(
+            session.spell_group_spell_map_bounds_like_cpp(1001),
+            &[10, -1002]
+        );
+        assert_eq!(
+            session.set_of_spells_in_spell_group_like_cpp(1001),
+            BTreeSet::from([10, 20])
+        );
+        assert_eq!(
+            session.spell_spell_group_map_bounds_like_cpp(25),
+            &[1001, 1002]
+        );
+        assert!(session.is_spell_member_of_spell_group_like_cpp(25, 1002));
+        assert!(!session.is_spell_member_of_spell_group_like_cpp(10, 1002));
     }
 
     fn install_create_map_difficulty_stores_like_cpp(

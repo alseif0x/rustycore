@@ -2458,6 +2458,35 @@ pub struct SpellGroupStoreLikeCpp {
 }
 
 impl SpellGroupStoreLikeCpp {
+    pub async fn load_like_cpp(
+        db: &WorldDatabase,
+        spells: &SpellStore,
+        spell_chains: &SpellChainStoreLikeCpp,
+    ) -> Result<SpellGroupLoadOutcomeLikeCpp> {
+        let stmt = db.prepare(WorldStatements::SEL_SPELL_GROUP);
+        let mut result = db.query(&stmt).await?;
+        let mut rows = Vec::new();
+
+        if !result.is_empty() {
+            loop {
+                rows.push(SpellGroupRowLikeCpp {
+                    group_id: result.try_read::<u32>(0).unwrap_or(0),
+                    spell_id: result.try_read::<i32>(1).unwrap_or(0),
+                });
+
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        Ok(Self::from_rows_like_cpp(
+            rows,
+            |spell_id| spells.get(spell_id as i32).is_some(),
+            |spell_id| u32::from(spell_chains.spell_rank_like_cpp(spell_id)),
+        ))
+    }
+
     pub fn from_rows_like_cpp<I, SpellExists, SpellRank>(
         rows: I,
         mut spell_exists: SpellExists,
