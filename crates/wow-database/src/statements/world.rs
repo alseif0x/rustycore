@@ -340,6 +340,10 @@ pub enum WorldStatements {
     SEL_PHASE_NAMES,
     /// C++ `ObjectMgr::LoadSceneTemplates`.
     SEL_SCENE_TEMPLATES,
+    /// C++ `ObjectMgr::LoadPlayerChoices` base choice rows.
+    SEL_PLAYER_CHOICES,
+    /// C++ `ObjectMgr::LoadPlayerChoices` response rows.
+    SEL_PLAYER_CHOICE_RESPONSES,
     // Quest system
     SEL_QUEST_TEMPLATE,
     SEL_QUEST_OBJECTIVES,
@@ -1046,6 +1050,12 @@ impl StatementDef for WorldStatements {
             Self::SEL_SCENE_TEMPLATES => {
                 "SELECT SceneId, Flags, ScriptPackageID, Encrypted, ScriptName FROM scene_template"
             }
+            Self::SEL_PLAYER_CHOICES => {
+                "SELECT ChoiceId, UiTextureKitId, SoundKitId, CloseSoundKitId, Duration, Question, PendingChoiceText, HideWarboardHeader, KeepOpenAfterChoice FROM playerchoice"
+            }
+            Self::SEL_PLAYER_CHOICE_RESPONSES => {
+                "SELECT ChoiceId, ResponseId, ResponseIdentifier, ChoiceArtFileId, Flags, WidgetSetID, UiTextureAtlasElementID, SoundKitID, GroupID, UiTextureKitID, Answer, Header, SubHeader, ButtonTooltip, Description, Confirmation, RewardQuestID FROM playerchoice_response ORDER BY `Index` ASC"
+            }
             Self::SEL_TRAINER_BY_CREATURE => {
                 "SELECT TrainerId FROM creature_trainer WHERE CreatureID = ?"
             }
@@ -1528,5 +1538,22 @@ mod tests {
             "SELECT SceneId, Flags, ScriptPackageID, Encrypted, ScriptName FROM scene_template"
         );
         assert_eq!(sql.matches('?').count(), 0);
+    }
+
+    #[test]
+    fn player_choice_statements_match_cpp_sql_exactly() {
+        let choices_sql = WorldStatements::SEL_PLAYER_CHOICES.sql();
+        let responses_sql = WorldStatements::SEL_PLAYER_CHOICE_RESPONSES.sql();
+
+        assert_eq!(
+            choices_sql,
+            "SELECT ChoiceId, UiTextureKitId, SoundKitId, CloseSoundKitId, Duration, Question, PendingChoiceText, HideWarboardHeader, KeepOpenAfterChoice FROM playerchoice"
+        );
+        assert_eq!(
+            responses_sql,
+            "SELECT ChoiceId, ResponseId, ResponseIdentifier, ChoiceArtFileId, Flags, WidgetSetID, UiTextureAtlasElementID, SoundKitID, GroupID, UiTextureKitID, Answer, Header, SubHeader, ButtonTooltip, Description, Confirmation, RewardQuestID FROM playerchoice_response ORDER BY `Index` ASC"
+        );
+        assert_eq!(choices_sql.matches('?').count(), 0);
+        assert_eq!(responses_sql.matches('?').count(), 0);
     }
 }

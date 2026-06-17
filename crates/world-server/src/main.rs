@@ -1166,6 +1166,31 @@ async fn main() -> Result<ExitCode> {
         scene_template_outcome.report.rows_seen,
         scene_template_outcome.report.cpp_logged_count_bug_like_cpp
     );
+    let player_choice_outcome =
+        wow_data::PlayerChoiceStoreLikeCpp::load_core_like_cpp(world_db.as_ref())
+            .await
+            .context("Failed to load C++ playerchoice/playerchoice_response rows")?;
+    for (choice_id, response_id) in &player_choice_outcome
+        .report
+        .skipped_responses_missing_choice
+    {
+        tracing::error!(
+            target: "sql.sql",
+            "Table `playerchoice_response` references non-existing ChoiceId: {} (ResponseId: {}), skipped",
+            choice_id,
+            response_id
+        );
+    }
+    let _player_choice_store = Arc::new(player_choice_outcome.store);
+    info!(
+        "Loaded {} C++ player choices with {} responses ({} skipped; rewards/locales pending)",
+        player_choice_outcome.report.choice_rows_seen,
+        player_choice_outcome.report.loaded_responses,
+        player_choice_outcome
+            .report
+            .skipped_responses_missing_choice
+            .len()
+    );
     let script_name_interner = Arc::new(script_name_interner);
     info!(
         "Built C++ ScriptNameContainer core from loaded template/scene stores: {} names ({} DB-bound)",

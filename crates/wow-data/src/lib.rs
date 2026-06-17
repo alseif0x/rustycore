@@ -54,6 +54,7 @@ pub mod misc_generated;
 pub mod mount;
 pub mod phase;
 pub mod phasing;
+pub mod player_choice;
 pub mod player_condition;
 pub mod player_power;
 pub mod player_stats;
@@ -312,6 +313,11 @@ pub use phase::{PhaseEntry, PhaseGroupStore, PhaseStore, PhaseXPhaseGroupEntry};
 pub use phasing::{
     PhaseAreaInfo, PhaseConditionAttachmentReport, PhaseConditionContainer, PhaseInfoStore,
     PhaseInfoStruct, PhaseNameStoreLikeCpp,
+};
+pub use player_choice::{
+    PlayerChoiceLikeCpp, PlayerChoiceLoadOutcomeLikeCpp, PlayerChoiceLoadReportLikeCpp,
+    PlayerChoiceResponseLikeCpp, PlayerChoiceResponseRowLikeCpp, PlayerChoiceRowLikeCpp,
+    PlayerChoiceStoreLikeCpp,
 };
 pub use player_condition::{
     PlayerConditionAuraLikeCpp, PlayerConditionContextLikeCpp, PlayerConditionCountLikeCpp,
