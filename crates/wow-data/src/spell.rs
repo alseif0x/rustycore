@@ -476,6 +476,8 @@ pub mod attributes {
     pub const SPELL_ATTR0_PASSIVE: u32 = 0x0000_0040;
     /// C++ `SPELL_ATTR1_NO_AUTOCAST_AI` (`SharedDefines.h`).
     pub const SPELL_ATTR1_NO_AUTOCAST_AI: u32 = 0x0002_0000;
+    /// C++ `SPELL_ATTR3_CAN_PROC_FROM_PROCS` (`SharedDefines.h`).
+    pub const SPELL_ATTR3_CAN_PROC_FROM_PROCS: u32 = 0x0400_0000;
     /// C++ `SPELL_ATTR4_AURA_EXPIRES_OFFLINE` (`SharedDefines.h`).
     pub const SPELL_ATTR4_AURA_EXPIRES_OFFLINE: u32 = 0x0000_0004;
     pub const SPELL_ATTR4_USE_FACING_FROM_SPELL: u32 = 0x8000_0000;
@@ -2824,7 +2826,10 @@ pub const PROC_SPELL_PHASE_MASK_ALL_LIKE_CPP: u32 = PROC_SPELL_PHASE_CAST_LIKE_C
     | PROC_SPELL_PHASE_FINISH_LIKE_CPP;
 pub const PROC_HIT_NORMAL_LIKE_CPP: u32 = 0x0000_0001;
 pub const PROC_HIT_CRITICAL_LIKE_CPP: u32 = 0x0000_0002;
+pub const PROC_HIT_MISS_LIKE_CPP: u32 = 0x0000_0004;
+pub const PROC_HIT_BLOCK_LIKE_CPP: u32 = 0x0000_0040;
 pub const PROC_HIT_ABSORB_LIKE_CPP: u32 = 0x0000_0400;
+pub const PROC_HIT_REFLECT_LIKE_CPP: u32 = 0x0000_0800;
 pub const PROC_HIT_MASK_ALL_LIKE_CPP: u32 = 0x0007_FFFF;
 pub const PROC_ATTR_REQ_SPELLMOD_LIKE_CPP: u32 = 0x0000_0008;
 pub const PROC_ATTR_REQ_EXP_OR_HONOR_LIKE_CPP: u32 = 0x0000_0001;
@@ -2882,6 +2887,16 @@ pub const TAKEN_HIT_PROC_FLAG_MASK_LIKE_CPP: u32 = PROC_FLAG_TAKE_MELEE_SWING_LI
 pub const REQ_SPELL_PHASE_PROC_FLAG_MASK_LIKE_CPP: u32 =
     SPELL_PROC_FLAG_MASK_LIKE_CPP & DONE_HIT_PROC_FLAG_MASK_LIKE_CPP;
 pub const PROC_FLAG_DEATH_LIKE_CPP: u32 = 0x0100_0000;
+pub const CAN_PROC_FROM_PROCS_UNRESTRICTED_DONE_FLAGS_LIKE_CPP: u32 =
+    PROC_FLAG_DEAL_MELEE_ABILITY_LIKE_CPP
+        | PROC_FLAG_DEAL_RANGED_ATTACK_LIKE_CPP
+        | PROC_FLAG_DEAL_RANGED_ABILITY_LIKE_CPP
+        | PROC_FLAG_DEAL_HELPFUL_ABILITY_LIKE_CPP
+        | PROC_FLAG_DEAL_HARMFUL_ABILITY_LIKE_CPP
+        | PROC_FLAG_DEAL_HELPFUL_SPELL_LIKE_CPP
+        | PROC_FLAG_DEAL_HARMFUL_SPELL_LIKE_CPP
+        | PROC_FLAG_DEAL_HARMFUL_PERIODIC_LIKE_CPP
+        | PROC_FLAG_DEAL_HELPFUL_PERIODIC_LIKE_CPP;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SpellProcRowLikeCpp {
@@ -3167,6 +3182,166 @@ fn implicit_proc_aura_spell_type_mask_like_cpp(aura_type: i32) -> u32 {
         | aura_types::SPELL_AURA_MOD_INVISIBILITY => PROC_SPELL_TYPE_DAMAGE_LIKE_CPP,
         _ => PROC_SPELL_TYPE_MASK_ALL_LIKE_CPP,
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImplicitSpellProcEffectLikeCpp {
+    pub effect_index: u32,
+    pub is_effect: bool,
+    pub is_aura: bool,
+    pub aura_type: i32,
+    pub spell_class_mask: [u32; 4],
+    pub calc_value: i32,
+    pub trigger_spell: u32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ImplicitSpellProcSourceLikeCpp {
+    pub spell_id: u32,
+    pub difficulty: u32,
+    pub spell_family_name: u16,
+    pub proc_flags: [u32; 2],
+    pub proc_chance: f32,
+    pub proc_cooldown_ms: u32,
+    pub proc_charges: u32,
+    pub proc_base_ppm: f32,
+    pub attributes3: u32,
+    pub effects: Vec<ImplicitSpellProcEffectLikeCpp>,
+}
+
+pub fn implicit_spell_proc_entry_like_cpp(
+    spell_info: &ImplicitSpellProcSourceLikeCpp,
+) -> Option<SpellProcEntryLikeCpp> {
+    if spell_info.proc_flags[0] == 0 && spell_info.proc_flags[1] == 0 {
+        return None;
+    }
+
+    let mut add_trigger_flag = false;
+    let mut proc_spell_type_mask = 0;
+    let mut non_proc_mask = 0;
+
+    for effect in &spell_info.effects {
+        if !effect.is_effect || effect.aura_type == 0 {
+            continue;
+        }
+
+        let Some(proc_aura_info) = implicit_proc_aura_info_like_cpp(effect.aura_type) else {
+            non_proc_mask |= 1_u32.checked_shl(effect.effect_index).unwrap_or(0);
+            continue;
+        };
+
+        proc_spell_type_mask |= proc_aura_info.spell_type_mask;
+        add_trigger_flag |= proc_aura_info.triggered_can_proc;
+
+        if !add_trigger_flag
+            && spell_info.proc_flags[0] & TAKEN_HIT_PROC_FLAG_MASK_LIKE_CPP != 0
+            && matches!(
+                effect.aura_type,
+                aura_types::SPELL_AURA_PROC_TRIGGER_SPELL
+                    | aura_types::SPELL_AURA_PROC_TRIGGER_DAMAGE
+            )
+        {
+            add_trigger_flag = true;
+        }
+    }
+
+    if proc_spell_type_mask == 0 {
+        return None;
+    }
+
+    let mut proc_entry = SpellProcEntryLikeCpp {
+        school_mask: 0,
+        spell_family_name: 0,
+        spell_family_mask: [0, 0, 0, 0],
+        proc_flags: spell_info.proc_flags,
+        spell_type_mask: proc_spell_type_mask,
+        spell_phase_mask: PROC_SPELL_PHASE_HIT_LIKE_CPP,
+        hit_mask: 0,
+        attributes_mask: 0,
+        disable_effects_mask: non_proc_mask,
+        procs_per_minute: 0.0,
+        chance: spell_info.proc_chance,
+        cooldown_ms: spell_info.proc_cooldown_ms,
+        charges: spell_info.proc_charges,
+    };
+
+    for effect in &spell_info.effects {
+        if effect.is_effect && implicit_proc_aura_info_like_cpp(effect.aura_type).is_some() {
+            for (entry_mask, effect_mask) in proc_entry
+                .spell_family_mask
+                .iter_mut()
+                .zip(effect.spell_class_mask.iter())
+            {
+                *entry_mask |= *effect_mask;
+            }
+        }
+    }
+
+    if proc_entry.spell_family_mask.iter().any(|mask| *mask != 0) {
+        proc_entry.spell_family_name = spell_info.spell_family_name;
+    }
+
+    if proc_entry.proc_flags[0] & REQ_SPELL_PHASE_PROC_FLAG_MASK_LIKE_CPP == 0
+        && proc_entry.proc_flags[1] & PROC_FLAG_2_CAST_SUCCESSFUL_LIKE_CPP != 0
+    {
+        proc_entry.spell_phase_mask = PROC_SPELL_PHASE_CAST_LIKE_CPP;
+    }
+
+    let mut triggers_spell = false;
+    for effect in &spell_info.effects {
+        if !effect.is_aura {
+            continue;
+        }
+
+        match effect.aura_type {
+            aura_types::SPELL_AURA_REFLECT_SPELLS
+            | aura_types::SPELL_AURA_REFLECT_SPELLS_SCHOOL => {
+                proc_entry.hit_mask = PROC_HIT_REFLECT_LIKE_CPP;
+                break;
+            }
+            aura_types::SPELL_AURA_MOD_WEAPON_CRIT_PERCENT => {
+                proc_entry.hit_mask = PROC_HIT_CRITICAL_LIKE_CPP;
+                break;
+            }
+            aura_types::SPELL_AURA_MOD_BLOCK_PERCENT => {
+                proc_entry.hit_mask = PROC_HIT_BLOCK_LIKE_CPP;
+                break;
+            }
+            aura_types::SPELL_AURA_MOD_HIT_CHANCE => {
+                if effect.calc_value <= -100 {
+                    proc_entry.hit_mask = PROC_HIT_MISS_LIKE_CPP;
+                }
+                break;
+            }
+            aura_types::SPELL_AURA_PROC_TRIGGER_SPELL
+            | aura_types::SPELL_AURA_PROC_TRIGGER_SPELL_WITH_VALUE => {
+                triggers_spell = effect.trigger_spell != 0;
+                break;
+            }
+            _ => {}
+        }
+    }
+
+    if proc_entry.proc_flags[0] & PROC_FLAG_KILL_LIKE_CPP != 0 {
+        proc_entry.attributes_mask |= PROC_ATTR_REQ_EXP_OR_HONOR_LIKE_CPP;
+    }
+    if add_trigger_flag {
+        proc_entry.attributes_mask |= PROC_ATTR_TRIGGERED_CAN_PROC_LIKE_CPP;
+    }
+
+    if spell_info.attributes3 & attributes::SPELL_ATTR3_CAN_PROC_FROM_PROCS != 0
+        && proc_entry.spell_family_mask.iter().all(|mask| *mask == 0)
+        && proc_entry.chance >= 100.0
+        && spell_info.proc_base_ppm <= 0.0
+        && proc_entry.cooldown_ms == 0
+        && proc_entry.charges == 0
+        && proc_entry.proc_flags[0] & CAN_PROC_FROM_PROCS_UNRESTRICTED_DONE_FLAGS_LIKE_CPP != 0
+        && triggers_spell
+    {
+        return None;
+    }
+
+    Some(proc_entry)
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -6896,6 +7071,125 @@ mod tests {
         );
     }
 
+    #[test]
+    fn implicit_spell_proc_entry_matches_cpp_default_generation() {
+        let mut source = test_implicit_spell_proc_source_like_cpp();
+        source.proc_flags = [
+            PROC_FLAG_DEAL_HARMFUL_SPELL_LIKE_CPP | PROC_FLAG_KILL_LIKE_CPP,
+            0,
+        ];
+        source.spell_family_name = 42;
+        source.proc_chance = 25.0;
+        source.proc_cooldown_ms = 1500;
+        source.proc_charges = 3;
+        source.effects = vec![
+            test_implicit_proc_effect_like_cpp(
+                0,
+                aura_types::SPELL_AURA_PROC_TRIGGER_SPELL,
+                [0x10, 0, 0, 0],
+            ),
+            test_implicit_proc_effect_like_cpp(1, aura_types::SPELL_AURA_MOUNTED, [0, 0, 0, 0]),
+        ];
+
+        let entry = implicit_spell_proc_entry_like_cpp(&source).unwrap();
+
+        assert_eq!(entry.proc_flags, source.proc_flags);
+        assert_eq!(entry.spell_family_name, 42);
+        assert_eq!(entry.spell_family_mask, [0x10, 0, 0, 0]);
+        assert_eq!(entry.spell_type_mask, PROC_SPELL_TYPE_MASK_ALL_LIKE_CPP);
+        assert_eq!(entry.spell_phase_mask, PROC_SPELL_PHASE_HIT_LIKE_CPP);
+        assert_eq!(entry.disable_effects_mask, 1 << 1);
+        assert_eq!(entry.attributes_mask, PROC_ATTR_REQ_EXP_OR_HONOR_LIKE_CPP);
+        assert_eq!(entry.chance, 25.0);
+        assert_eq!(entry.cooldown_ms, 1500);
+        assert_eq!(entry.charges, 3);
+    }
+
+    #[test]
+    fn implicit_spell_proc_entry_sets_special_phase_and_hit_masks_like_cpp() {
+        let mut source = test_implicit_spell_proc_source_like_cpp();
+        source.proc_flags = [
+            PROC_FLAG_DEAL_MELEE_SWING_LIKE_CPP,
+            PROC_FLAG_2_CAST_SUCCESSFUL_LIKE_CPP,
+        ];
+        source.effects = vec![test_implicit_proc_effect_like_cpp(
+            0,
+            aura_types::SPELL_AURA_MOD_BLOCK_PERCENT,
+            [0, 0, 0, 0],
+        )];
+
+        let entry = implicit_spell_proc_entry_like_cpp(&source).unwrap();
+
+        assert_eq!(entry.spell_phase_mask, PROC_SPELL_PHASE_CAST_LIKE_CPP);
+        assert_eq!(entry.hit_mask, PROC_HIT_BLOCK_LIKE_CPP);
+
+        source.effects = vec![test_implicit_proc_effect_like_cpp(
+            0,
+            aura_types::SPELL_AURA_REFLECT_SPELLS,
+            [0, 0, 0, 0],
+        )];
+        assert_eq!(
+            implicit_spell_proc_entry_like_cpp(&source)
+                .unwrap()
+                .hit_mask,
+            PROC_HIT_REFLECT_LIKE_CPP
+        );
+
+        source.effects = vec![test_implicit_proc_effect_with_calc_like_cpp(
+            0,
+            aura_types::SPELL_AURA_MOD_HIT_CHANCE,
+            -100,
+        )];
+        assert_eq!(
+            implicit_spell_proc_entry_like_cpp(&source)
+                .unwrap()
+                .hit_mask,
+            PROC_HIT_MISS_LIKE_CPP
+        );
+    }
+
+    #[test]
+    fn implicit_spell_proc_entry_applies_taken_trigger_attr_and_skips_invalid_like_cpp() {
+        let mut source = test_implicit_spell_proc_source_like_cpp();
+        source.proc_flags = [PROC_FLAG_TAKE_HARMFUL_SPELL_LIKE_CPP, 0];
+        source.effects = vec![test_implicit_proc_effect_like_cpp(
+            0,
+            aura_types::SPELL_AURA_PROC_TRIGGER_DAMAGE,
+            [0, 0, 0, 0],
+        )];
+
+        let entry = implicit_spell_proc_entry_like_cpp(&source).unwrap();
+        assert_eq!(entry.attributes_mask, PROC_ATTR_TRIGGERED_CAN_PROC_LIKE_CPP);
+
+        source.proc_flags = [0, 0];
+        assert!(implicit_spell_proc_entry_like_cpp(&source).is_none());
+
+        source.proc_flags = [PROC_FLAG_DEAL_HARMFUL_SPELL_LIKE_CPP, 0];
+        source.effects = vec![test_implicit_proc_effect_like_cpp(
+            0,
+            aura_types::SPELL_AURA_MOUNTED,
+            [0, 0, 0, 0],
+        )];
+        assert!(implicit_spell_proc_entry_like_cpp(&source).is_none());
+    }
+
+    #[test]
+    fn implicit_spell_proc_entry_rejects_can_proc_from_procs_loop_like_cpp() {
+        let mut source = test_implicit_spell_proc_source_like_cpp();
+        source.proc_flags = [PROC_FLAG_DEAL_HARMFUL_SPELL_LIKE_CPP, 0];
+        source.proc_chance = 100.0;
+        source.attributes3 = attributes::SPELL_ATTR3_CAN_PROC_FROM_PROCS;
+        let mut effect = test_implicit_proc_effect_like_cpp(
+            0,
+            aura_types::SPELL_AURA_PROC_TRIGGER_SPELL,
+            [0, 0, 0, 0],
+        );
+        effect.trigger_spell = 123;
+        source.effects = vec![effect];
+
+        assert!(implicit_spell_proc_entry_like_cpp(&source).is_none());
+    }
+
     fn learn_source(
         spell_id: u32,
         is_talent: bool,
@@ -6999,6 +7293,47 @@ mod tests {
             );
         }
         store
+    }
+
+    fn test_implicit_spell_proc_source_like_cpp() -> ImplicitSpellProcSourceLikeCpp {
+        ImplicitSpellProcSourceLikeCpp {
+            spell_id: 1000,
+            difficulty: 0,
+            spell_family_name: 0,
+            proc_flags: [PROC_FLAG_DEAL_MELEE_SWING_LIKE_CPP, 0],
+            proc_chance: 0.0,
+            proc_cooldown_ms: 0,
+            proc_charges: 0,
+            proc_base_ppm: 0.0,
+            attributes3: 0,
+            effects: Vec::new(),
+        }
+    }
+
+    fn test_implicit_proc_effect_like_cpp(
+        effect_index: u32,
+        aura_type: i32,
+        spell_class_mask: [u32; 4],
+    ) -> ImplicitSpellProcEffectLikeCpp {
+        ImplicitSpellProcEffectLikeCpp {
+            effect_index,
+            is_effect: true,
+            is_aura: true,
+            aura_type,
+            spell_class_mask,
+            calc_value: 0,
+            trigger_spell: 0,
+        }
+    }
+
+    fn test_implicit_proc_effect_with_calc_like_cpp(
+        effect_index: u32,
+        aura_type: i32,
+        calc_value: i32,
+    ) -> ImplicitSpellProcEffectLikeCpp {
+        let mut effect = test_implicit_proc_effect_like_cpp(effect_index, aura_type, [0, 0, 0, 0]);
+        effect.calc_value = calc_value;
+        effect
     }
 
     fn test_spell_proc_row_like_cpp(spell_id: i32) -> SpellProcRowLikeCpp {
