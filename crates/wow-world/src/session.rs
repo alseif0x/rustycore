@@ -23575,6 +23575,7 @@ impl WorldSession {
                 .map(|map| map.instance_encounter_in_progress_like_cpp()),
             _ => None,
         };
+        let decision_key = create_map_decision_key_like_cpp(&decision);
         drop(manager);
 
         if let wow_map::CreateMapDecision::Existing {
@@ -23608,13 +23609,14 @@ impl WorldSession {
                     return Some((deny_reason as u32, 0, 0));
                 }
             }
+        }
 
-            if !map_entry.ignores_instance_farm_limit_like_cpp()
-                && !self.check_instance_count_probe_like_cpp(key.instance_id)
-                && self.player_is_alive_like_cpp()
-            {
-                return Some((TRANSFER_ABORT_TOO_MANY_INSTANCES_LIKE_CPP, 0, 0));
-            }
+        if !map_entry.ignores_instance_farm_limit_like_cpp()
+            && let Some(key) = decision_key
+            && !self.check_instance_count_probe_like_cpp(key.instance_id)
+            && self.player_is_alive_like_cpp()
+        {
+            return Some((TRANSFER_ABORT_TOO_MANY_INSTANCES_LIKE_CPP, 0, 0));
         }
 
         None
@@ -41591,6 +41593,16 @@ fn create_map_decision_difficulty_id_like_cpp(
     match decision {
         wow_map::CreateMapDecision::Existing { difficulty_id, .. }
         | wow_map::CreateMapDecision::Create { difficulty_id, .. } => Some(*difficulty_id),
+        wow_map::CreateMapDecision::Reject { .. } => None,
+    }
+}
+
+fn create_map_decision_key_like_cpp(
+    decision: &wow_map::CreateMapDecision,
+) -> Option<wow_map::MapKey> {
+    match decision {
+        wow_map::CreateMapDecision::Existing { key, .. }
+        | wow_map::CreateMapDecision::Create { key, .. } => Some(*key),
         wow_map::CreateMapDecision::Reject { .. } => None,
     }
 }
@@ -67269,6 +67281,57 @@ mod tests {
                 .expect("player registry snapshot")
                 .is_contested_pvp
         );
+        assert!(
+            canonical.lock().unwrap().find_map(631, 0).is_none(),
+            "teleport preflight must not create the target instance before the client transfer"
+        );
+    }
+
+    #[tokio::test]
+    async fn teleport_to_instance_rejects_new_instance_farm_limit_before_transfer_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 795);
+        let destination = Position::new(5795.0, 2095.0, 640.0, 3.5);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TeleportInstanceCap".to_string(),
+            Position::new(3700.0, 1500.0, 120.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.represented_raid_difficulty_id_like_cpp = 3;
+        session.set_max_instances_per_hour_like_cpp(5);
+        install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
+        for instance_id in 100..105 {
+            session
+                .represented_instance_reset_times_like_cpp
+                .insert(instance_id, u64::MAX);
+        }
+
+        session.teleport_to(631, destination).await;
+
+        assert_eq!(
+            send_rx.try_recv().expect("too many instances abort"),
+            wow_packet::packets::misc::TransferAborted {
+                map_id: 631,
+                arg: 0,
+                map_difficulty_x_condition_id: 0,
+                transfer_abort: TRANSFER_ABORT_TOO_MANY_INSTANCES_LIKE_CPP,
+            }
+            .to_bytes()
+        );
+        assert!(
+            send_rx.try_recv().is_err(),
+            "C++ Player::TeleportTo returns before SMSG_TRANSFER_PENDING when Map::PlayerCannotEnter rejects the instance cap"
+        );
+        assert_eq!(session.pending_teleport, None);
+        assert_ne!(session.state, SessionState::Transfer);
         assert!(
             canonical.lock().unwrap().find_map(631, 0).is_none(),
             "teleport preflight must not create the target instance before the client transfer"
