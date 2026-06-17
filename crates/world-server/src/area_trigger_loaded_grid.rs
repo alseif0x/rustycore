@@ -29,7 +29,7 @@ use wow_entities::{
     AREA_TRIGGER_FLAG_IS_SERVER_SIDE, AreaTrigger, AreaTriggerId, AreaTriggerShapeType,
     MapObjectRecord, VisualAnimValues,
 };
-use wow_map::{SpawnData, SpawnObjectType};
+use wow_map::{Map, SpawnData, SpawnObjectType, map::LoadedGridRespawnRecordsLikeCpp};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ResolvedAreaTriggerCreatePropertiesLikeCpp {
@@ -118,6 +118,24 @@ pub enum AreaTriggerLoadedGridResolveErrorLikeCpp {
         create_properties_id: AreaTriggerIdLikeCpp,
         expected_template_id: Option<AreaTriggerIdLikeCpp>,
         template_id: Option<AreaTriggerIdLikeCpp>,
+    },
+    MapMismatch {
+        spawn_id: u64,
+        spawn_map_id: u32,
+        spawn_instance_id: u32,
+        map_id: u32,
+        instance_id: u32,
+    },
+    MapIdOutOfRange {
+        spawn_id: u64,
+        map_id: u32,
+    },
+    MapOwnedLowGuidGeneration {
+        spawn_id: u64,
+        error: String,
+    },
+    MissingMapObjectRecord {
+        spawn_id: u64,
     },
     InvalidMapObjectGuid {
         guid: ObjectGuid,
@@ -217,6 +235,80 @@ pub fn resolve_area_trigger_loaded_grid_inputs_from_spawn_data_like_cpp(
             phase_id: spawn.phase_id,
             phase_group: spawn.phase_group,
         },
+    ))
+}
+
+pub fn build_loaded_grid_area_trigger_record_from_spawn_data_like_cpp(
+    map: &mut Map,
+    spawn: &SpawnData,
+    runtime_row: &AreaTriggerSpawnRuntimeRowLikeCpp,
+    create_properties: &AreaTriggerCreatePropertiesLikeCpp,
+    template: Option<&AreaTriggerTemplateLikeCpp>,
+    spell_visual_id: i32,
+) -> Result<LoadedGridRespawnRecordsLikeCpp, AreaTriggerLoadedGridResolveErrorLikeCpp> {
+    let (create_properties, spawn) =
+        resolve_area_trigger_loaded_grid_inputs_from_spawn_data_like_cpp(
+            spawn,
+            runtime_row,
+            create_properties,
+            template,
+            map.instance_id(),
+            true,
+            spell_visual_id,
+        )?;
+    build_loaded_grid_area_trigger_record_like_cpp(map, &create_properties, &spawn)
+}
+
+pub fn build_loaded_grid_area_trigger_record_like_cpp(
+    map: &mut Map,
+    create_properties: &ResolvedAreaTriggerCreatePropertiesLikeCpp,
+    spawn: &ResolvedAreaTriggerSpawnLikeCpp,
+) -> Result<LoadedGridRespawnRecordsLikeCpp, AreaTriggerLoadedGridResolveErrorLikeCpp> {
+    if map.map_id() != spawn.map_id || map.instance_id() != spawn.instance_id {
+        return Err(AreaTriggerLoadedGridResolveErrorLikeCpp::MapMismatch {
+            spawn_id: spawn.spawn_id,
+            spawn_map_id: spawn.map_id,
+            spawn_instance_id: spawn.instance_id,
+            map_id: map.map_id(),
+            instance_id: map.instance_id(),
+        });
+    }
+    let Ok(map_id) = u16::try_from(map.map_id()) else {
+        return Err(AreaTriggerLoadedGridResolveErrorLikeCpp::MapIdOutOfRange {
+            spawn_id: spawn.spawn_id,
+            map_id: map.map_id(),
+        });
+    };
+    let low = map
+        .generate_low_guid_like_cpp(HighGuid::AreaTrigger)
+        .map_err(
+            |error| AreaTriggerLoadedGridResolveErrorLikeCpp::MapOwnedLowGuidGeneration {
+                spawn_id: spawn.spawn_id,
+                error: format!("{error:?}"),
+            },
+        )?;
+    let map_object_guid = ObjectGuid::create_world_object(
+        HighGuid::AreaTrigger,
+        0,
+        1,
+        map_id,
+        1,
+        create_properties.guid_entry_like_cpp(),
+        low,
+    );
+    let resolver = AreaTriggerLoadedGridLifecycleResolverLikeCpp::new(
+        [create_properties.clone()],
+        [spawn.clone()],
+    );
+    let resolved =
+        resolver.resolve_loaded_grid_area_trigger_like_cpp(spawn.spawn_id, map_object_guid)?;
+    let primary_record = resolved.map_object_record.ok_or(
+        AreaTriggerLoadedGridResolveErrorLikeCpp::MissingMapObjectRecord {
+            spawn_id: spawn.spawn_id,
+        },
+    )?;
+    Ok(LoadedGridRespawnRecordsLikeCpp::primary_only(
+        primary_record,
     ))
 }
 
@@ -718,6 +810,63 @@ mod tests {
                 spawn_create_properties_id: 2001,
                 runtime_create_properties_id: data_area_trigger_id(2222),
                 create_properties_id: data_area_trigger_id(2001),
+            }
+        );
+    }
+
+    #[test]
+    fn loaded_grid_area_trigger_record_builder_uses_map_owned_low_guid_like_cpp() {
+        let mut map = Map::new(571, 7, 0, 60_000);
+        assert_eq!(
+            map.generate_low_guid_like_cpp(HighGuid::AreaTrigger)
+                .unwrap(),
+            1
+        );
+        let records = build_loaded_grid_area_trigger_record_from_spawn_data_like_cpp(
+            &mut map,
+            &spawn_data(SpawnObjectType::AreaTrigger),
+            &runtime_row(),
+            &data_create_properties(Some(data_area_trigger_id(9001))),
+            Some(&data_template()),
+            4321,
+        )
+        .unwrap();
+
+        assert!(records.pre_add_records.is_empty());
+        let area_trigger = records.primary_record.area_trigger().unwrap();
+        assert_eq!(area_trigger.world().guid().counter(), 2);
+        assert_eq!(area_trigger.world().guid().entry(), 9001);
+        assert_eq!(
+            area_trigger.world().guid().high_type(),
+            HighGuid::AreaTrigger
+        );
+        assert_eq!(u32::from(area_trigger.world().guid().map_id()), 571);
+        assert_eq!(area_trigger.spawn_id(), 12345);
+        assert_eq!(area_trigger.world().map_id(), 571);
+        assert_eq!(area_trigger.world().instance_id(), 7);
+    }
+
+    #[test]
+    fn loaded_grid_area_trigger_record_builder_rejects_wrong_map_like_cpp() {
+        let mut map = Map::new(1, 7, 0, 60_000);
+        let err = build_loaded_grid_area_trigger_record_from_spawn_data_like_cpp(
+            &mut map,
+            &spawn_data(SpawnObjectType::AreaTrigger),
+            &runtime_row(),
+            &data_create_properties(Some(data_area_trigger_id(9001))),
+            Some(&data_template()),
+            4321,
+        )
+        .unwrap_err();
+
+        assert_eq!(
+            err,
+            AreaTriggerLoadedGridResolveErrorLikeCpp::MapMismatch {
+                spawn_id: 12345,
+                spawn_map_id: 571,
+                spawn_instance_id: 7,
+                map_id: 1,
+                instance_id: 7,
             }
         );
     }
