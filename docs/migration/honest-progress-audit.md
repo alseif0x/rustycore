@@ -2,6 +2,11 @@
 
 **Date:** 2026-06-15 · **Base commit:** `develop` after `#NEXT.R8.ENTITIES.986`
 
+> **Drift note (2026-06-17):** this audit predates the latest R8 inventory rows
+> and must not be used as an exact current percentage. Rows through
+> `#NEXT.R8.ENTITIES.1000` are now recorded; a full percentage refresh still
+> requires a dedicated recount/audit pass.
+
 This document exists to prevent the headline `97.74%` from being read as "almost a
 finished, gap-free server." It records what the number actually measures, with three
 honest percentages instead of one.

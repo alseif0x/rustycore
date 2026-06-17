@@ -1,3 +1,54 @@
+- `#NEXT.R8.ENTITIES.1000` — `CMSG_CANCEL_MOUNT_AURA` now removes represented
+  mounted auras through the existing dismount cleanup path instead of parsing
+  the packet as a no-op (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SpellHandler.cpp:340-348`.
+  C++ handles the opcode by removing `SPELL_AURA_MOUNTED` applications when
+  their `SpellInfo` is cancelable, positive, and non-passive. Rust now connects
+  the handler to `remove_represented_mount_auras_cancelable_like_cpp`, which
+  removes represented `Mounted` aura slots and reuses `remove_aura` so mount
+  display, vehicle kit, pet-control, collision-height, unit-flag, and aura
+  update side effects stay in one place. Coverage: targeted `wow-world` test
+  proves a represented mounted aura is removed, the mounted flag is cleared,
+  and a second cancel removes nothing. Boundary remains partial: Rust
+  `AuraApplication` still does not carry full `SpellInfo` cancelability/passive
+  metadata, so this closes the represented player-cancelable mount path only;
+  no full aura runtime parity, install/restart, bot, or live-client/manual
+  validation.
+- `#NEXT.R8.ENTITIES.999` — WotLK account mount loading now learns usable
+  mount source spells on the represented player, so mounts loaded from
+  account-wide collection state are no longer rejected as unknown spells by the
+  cast path (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/CollectionMgr.cpp:324-380`.
+  C++ loads account mounts through `CollectionMgr::LoadAccountMounts` /
+  `LoadMounts` and calls `AddMount(..., learned=false)`, which teaches the
+  mount spell when the mount source spell is usable for the player and the
+  player does not already know it. Rust now mirrors that represented boundary
+  when account mounts are set or known spells are replaced, filtering through
+  the existing MountStore + PlayerCondition usability seam before calling
+  `learn_known_spell_like_cpp`. Coverage: targeted `wow-world` tests prove a
+  usable account mount spell becomes cast-known and the existing condition
+  filter still rejects unusable sources. Boundary remains partial: no live
+  `CollectionMgr` packet fanout/persistence proof beyond the existing account
+  collection save path, no full mount runtime parity, install/restart, bot, or
+  live-client/manual validation.
+- `#NEXT.R8.ENTITIES.998` — WotLK disconnect cleanup now saves the represented
+  player's current state, including the canonical character position update,
+  before session teardown (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:552-670`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:20611-20624`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/CharacterDatabase.cpp:481`.
+  C++ `WorldSession::LogoutPlayer(save=true)` calls `Player::SaveToDB` before
+  removing the player, and `Player::SavePositionInDB` binds map, zone,
+  position, orientation, taxi path, guid, and world instance to
+  `CHAR_UPD_CHARACTER_POSITION`. Rust now calls the represented disconnect-save
+  wrapper when the world-session loop exits, preserving logout/buyback cleanup,
+  account collection saves, offline marking, and the exact position bind order.
+  Coverage: targeted `wow-world` tests prove the position SQL bind order and
+  logout snapshot use canonical player state. Boundary remains partial:
+  complete C++ `Player::SaveToDB` parity is still open, including full
+  inventory/spells/quests/mail/social/pet/state persistence, install/restart,
+  bot, and live-client/manual validation.
 - `#NEXT.RUNTIME.L3.031j81` — WotLK `Player::TeleportTo` now exits the
   represented vehicle-passenger state before the common movement reset and
   teleport branch selection (not manual-test-ready). Source-of-truth:

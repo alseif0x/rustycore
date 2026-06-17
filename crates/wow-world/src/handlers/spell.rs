@@ -1846,8 +1846,7 @@ impl WorldSession {
                 "CancelMountAura parse failed: {error}"
             );
         }
-        // C++ removes positive, cancelable SPELL_AURA_MOUNTED applications.
-        // Full aura cancellation is left to the aura runtime slice.
+        self.remove_represented_mount_auras_cancelable_like_cpp();
     }
 
     /// Handle `CMSG_CANCEL_QUEUED_SPELL`.

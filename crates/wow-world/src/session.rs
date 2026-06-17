@@ -20986,6 +20986,28 @@ impl WorldSession {
         true
     }
 
+    pub(crate) fn remove_represented_mount_auras_cancelable_like_cpp(&mut self) -> usize {
+        let slots: Vec<u8> = self
+            .visible_auras
+            .values()
+            .filter_map(|aura| {
+                // C++ removes SPELL_AURA_MOUNTED only when its SpellInfo is
+                // cancelable, positive, and non-passive. Represented mounted
+                // auras currently model the positive player-cancelable mount
+                // path; full SpellInfo-backed filtering remains for the aura
+                // runtime.
+                (aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::Mounted))
+                    .then_some(aura.slot)
+            })
+            .collect();
+
+        let removed = slots.len();
+        for slot in slots {
+            let _ = self.remove_aura(slot);
+        }
+        removed
+    }
+
     pub(crate) fn remove_auras_with_interrupt_flags_like_cpp(
         &mut self,
         flags: u32,
@@ -52289,6 +52311,51 @@ mod tests {
                 .contains(UnitFlags::PLAYER_CONTROLLED | UnitFlags::MOUNT)
         );
         assert_eq!(session.mount_vehicle_create_requests_like_cpp, 1);
+    }
+
+    #[test]
+    fn cancel_mount_aura_removes_represented_mounted_aura_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let effect = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
+            effect_base_points: 77,
+            effect_misc_value_1: 0,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_mounted_aura_like_cpp(100, ObjectGuid::EMPTY, &effect)
+            .unwrap();
+
+        assert!(session.player_mounted_like_cpp);
+        assert!(
+            session
+                .player_unit_flags_like_cpp
+                .contains(UnitFlags::MOUNT)
+        );
+        assert!(session.visible_auras.values().any(|aura| {
+            aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::Mounted)
+        }));
+
+        assert_eq!(
+            session.remove_represented_mount_auras_cancelable_like_cpp(),
+            1
+        );
+
+        assert!(!session.player_mounted_like_cpp);
+        assert!(
+            !session
+                .player_unit_flags_like_cpp
+                .contains(UnitFlags::MOUNT)
+        );
+        assert!(!session.visible_auras.values().any(|aura| {
+            aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::Mounted)
+        }));
+        assert_eq!(
+            session.remove_represented_mount_auras_cancelable_like_cpp(),
+            0
+        );
     }
 
     #[test]
