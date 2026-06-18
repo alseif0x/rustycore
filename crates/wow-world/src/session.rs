@@ -3886,6 +3886,10 @@ pub struct WorldSession {
     forced_speed_changes_like_cpp: [u8; UnitMoveTypeLikeCpp::COUNT],
     /// C++ `Unit::m_speed_rate[MAX_MOVE_TYPE]` represented state for player-controlled movers.
     movement_speed_rates_like_cpp: [f32; UnitMoveTypeLikeCpp::COUNT],
+    /// C++ `Player::GetPet()->SetSpeedRate` propagation represented until pet Unit runtime owns it.
+    represented_pet_movement_speed_rates_like_cpp: [f32; UnitMoveTypeLikeCpp::COUNT],
+    /// Count of represented player speed changes propagated to the active pet.
+    represented_pet_speed_propagations_like_cpp: u32,
     /// Represented transport guard for speed ACK anticheat; C++ skips speed mismatch while on transport.
     player_on_transport_like_cpp: bool,
     /// C++ `Player::m_movementForceModMagnitudeChanges` represented state.
@@ -5246,6 +5250,8 @@ impl WorldSession {
             delayed_operations_processed_like_cpp: 0,
             forced_speed_changes_like_cpp: [0; UnitMoveTypeLikeCpp::COUNT],
             movement_speed_rates_like_cpp: [1.0; UnitMoveTypeLikeCpp::COUNT],
+            represented_pet_movement_speed_rates_like_cpp: [1.0; UnitMoveTypeLikeCpp::COUNT],
+            represented_pet_speed_propagations_like_cpp: 0,
             player_on_transport_like_cpp: false,
             movement_force_mod_magnitude_changes_like_cpp: 0,
             movement_force_mod_magnitude_like_cpp: 1.0,
@@ -25300,6 +25306,7 @@ impl WorldSession {
         if pet_guid.is_none() {
             self.represented_temporary_unsummoned_pet_number_like_cpp = 0;
             self.represented_old_pet_spell_like_cpp = 0;
+            self.represented_pet_movement_speed_rates_like_cpp = [1.0; UnitMoveTypeLikeCpp::COUNT];
         }
         self.represented_pet_react_state_like_cpp = react_state;
         self.represented_pet_command_state_like_cpp = command_state;
@@ -34754,6 +34761,27 @@ impl WorldSession {
         }
     }
 
+    fn propagate_represented_player_speed_to_pet_like_cpp(
+        &mut self,
+        move_type: UnitMoveTypeLikeCpp,
+        rate: f32,
+    ) {
+        if self.represented_pet_guid_like_cpp.is_none() || self.in_combat {
+            return;
+        }
+
+        let rate = rate.max(0.01);
+        let index = move_type.index();
+        if self.represented_pet_movement_speed_rates_like_cpp[index] == rate {
+            return;
+        }
+
+        self.represented_pet_movement_speed_rates_like_cpp[index] = rate;
+        self.represented_pet_speed_propagations_like_cpp = self
+            .represented_pet_speed_propagations_like_cpp
+            .saturating_add(1);
+    }
+
     fn set_player_movement_speed_rate_and_notify_like_cpp(
         &mut self,
         move_type: UnitMoveTypeLikeCpp,
@@ -34766,6 +34794,7 @@ impl WorldSession {
         }
 
         self.movement_speed_rates_like_cpp[index] = rate;
+        self.propagate_represented_player_speed_to_pet_like_cpp(move_type, rate);
 
         let Some(player_guid) = self.player_guid() else {
             return;
@@ -34999,6 +35028,19 @@ impl WorldSession {
         rate: f32,
     ) {
         self.movement_speed_rates_like_cpp[move_type.index()] = rate.max(0.01);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_pet_movement_speed_rate_like_cpp(
+        &self,
+        move_type: UnitMoveTypeLikeCpp,
+    ) -> f32 {
+        self.represented_pet_movement_speed_rates_like_cpp[move_type.index()]
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_pet_speed_propagations_like_cpp(&self) -> u32 {
+        self.represented_pet_speed_propagations_like_cpp
     }
 
     #[cfg(test)]
@@ -54072,6 +54114,56 @@ mod tests {
             drain_server_opcodes(&send_rx).contains(&ServerOpcodes::MoveSetRunSpeed),
             "C++ Unit::SetSpeedRate sends SMSG_MOVE_SET_RUN_SPEED when the mounted run rate changes"
         );
+    }
+
+    #[test]
+    fn represented_player_speed_change_propagates_to_active_pet_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let pet_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 7_001, 9_001);
+        session.set_represented_pet_mode_state_like_cpp(
+            Some(pet_guid),
+            wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
+            wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP,
+        );
+
+        session.set_player_movement_speed_rate_and_notify_like_cpp(UnitMoveTypeLikeCpp::Run, 2.0);
+
+        assert_eq!(
+            session.represented_pet_movement_speed_rate_like_cpp(UnitMoveTypeLikeCpp::Run),
+            2.0
+        );
+        assert_eq!(session.represented_pet_speed_propagations_like_cpp(), 1);
+
+        session.set_player_movement_speed_rate_and_notify_like_cpp(UnitMoveTypeLikeCpp::Run, 2.0);
+        assert_eq!(
+            session.represented_pet_speed_propagations_like_cpp(),
+            1,
+            "C++ Pet::SetSpeedRate returns early when the rate is unchanged"
+        );
+    }
+
+    #[test]
+    fn represented_player_speed_change_does_not_propagate_to_pet_in_combat_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let pet_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 7_001, 9_002);
+        session.set_represented_pet_mode_state_like_cpp(
+            Some(pet_guid),
+            wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
+            wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP,
+        );
+        session.in_combat = true;
+
+        session.set_player_movement_speed_rate_and_notify_like_cpp(UnitMoveTypeLikeCpp::Run, 2.0);
+
+        assert_eq!(
+            session.represented_pet_movement_speed_rate_like_cpp(UnitMoveTypeLikeCpp::Run),
+            1.0
+        );
+        assert_eq!(session.represented_pet_speed_propagations_like_cpp(), 0);
     }
 
     #[test]
