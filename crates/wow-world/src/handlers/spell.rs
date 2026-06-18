@@ -1866,9 +1866,7 @@ impl WorldSession {
                 "CancelGrowthAura parse failed: {error}"
             );
         }
-        // C++ removes positive, cancelable SPELL_AURA_MOD_SCALE applications.
-        // Rust visible aura slots do not yet carry enough SpellInfo-backed aura
-        // ownership to mutate this faithfully.
+        self.remove_represented_growth_auras_cancelable_like_cpp();
     }
 
     /// Handle `CMSG_CANCEL_MOUNT_AURA`.
@@ -2396,7 +2394,8 @@ mod tests {
         stored_loot_item_should_persist_like_cpp,
     };
     use crate::session::{
-        SessionPlayerController, SharedCanonicalMapManager, SpellCastMetadata, SpellCastState,
+        RepresentedAuraEffectLikeCpp, SessionPlayerController, SharedCanonicalMapManager,
+        SpellCastMetadata, SpellCastState,
     };
 
     fn make_session() -> (crate::session::WorldSession, flume::Receiver<Vec<u8>>) {
@@ -2918,6 +2917,38 @@ mod tests {
         Arc::new(spell_store)
     }
 
+    fn mod_scale_spell_store(spell_id: i32, no_aura_cancel: bool) -> Arc<wow_data::SpellStore> {
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: 50,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOD_SCALE),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_SCALE,
+                    effect_base_points: 50,
+                    ..Default::default()
+                }],
+            },
+        );
+        if no_aura_cancel {
+            let mut attributes = [0; 15];
+            attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_NO_AURA_CANCEL;
+            spell_store.insert_spell_misc_attributes_like_cpp(spell_id, attributes);
+        }
+        Arc::new(spell_store)
+    }
+
     fn drain_server_opcodes(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<ServerOpcodes> {
         let mut opcodes = Vec::new();
         while let Ok(bytes) = send_rx.try_recv() {
@@ -3379,6 +3410,53 @@ mod tests {
             .await;
 
         assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn cancel_growth_aura_removes_represented_mod_scale_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        session.set_player_guid(Some(player_guid));
+        session.set_spell_store(mod_scale_spell_store(12_345, false));
+
+        session
+            .execute_spell(12_345, player_guid)
+            .await
+            .expect("represented mod-scale aura should apply");
+        let _ = drain_server_opcodes(&send_rx);
+        assert!(session.visible_auras.values().any(|aura| {
+            aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::ModScale)
+        }));
+
+        session
+            .handle_cancel_growth_aura(WorldPacket::new_empty())
+            .await;
+
+        assert!(!session.visible_auras.values().any(|aura| {
+            aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::ModScale)
+        }));
+    }
+
+    #[tokio::test]
+    async fn cancel_growth_aura_no_aura_cancel_preserves_mod_scale_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        session.set_player_guid(Some(player_guid));
+        session.set_spell_store(mod_scale_spell_store(12_345, true));
+
+        session
+            .execute_spell(12_345, player_guid)
+            .await
+            .expect("represented no-aura-cancel mod-scale aura should apply");
+        let _ = drain_server_opcodes(&send_rx);
+
+        session
+            .handle_cancel_growth_aura(WorldPacket::new_empty())
+            .await;
+
+        assert!(session.visible_auras.values().any(|aura| {
+            aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::ModScale)
+        }));
     }
 
     #[tokio::test]

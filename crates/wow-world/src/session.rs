@@ -4657,6 +4657,7 @@ pub enum RepresentedAuraEffectLikeCpp {
     ModDetectRange,
     ModDetectedRange,
     ModFactionReputationGain,
+    ModScale,
     ModBattlePetXpPct,
     ModReputationGain,
     ProvideSpellFocus,
@@ -21005,22 +21006,37 @@ impl WorldSession {
     }
 
     pub(crate) fn remove_represented_mount_auras_cancelable_like_cpp(&mut self) -> usize {
+        self.remove_represented_cancelable_auras_by_effect_like_cpp(
+            RepresentedAuraEffectLikeCpp::Mounted,
+        )
+    }
+
+    pub(crate) fn remove_represented_growth_auras_cancelable_like_cpp(&mut self) -> usize {
+        self.remove_represented_cancelable_auras_by_effect_like_cpp(
+            RepresentedAuraEffectLikeCpp::ModScale,
+        )
+    }
+
+    fn remove_represented_cancelable_auras_by_effect_like_cpp(
+        &mut self,
+        represented_effect: RepresentedAuraEffectLikeCpp,
+    ) -> usize {
         let no_aura_cancel = wow_data::spell::attributes::SPELL_ATTR0_NO_AURA_CANCEL;
         let slots: Vec<u8> = self
             .visible_auras
             .values()
             .filter_map(|aura| {
                 // C++ removes SPELL_AURA_MOUNTED only when its SpellInfo is
-                // cancelable, positive, and non-passive. Represented mounted
-                // auras currently model the positive mount path; SpellMisc
-                // attributes now preserve the C++ no-player-cancel gate.
+                // cancelable, positive, and non-passive; the same predicate is
+                // used for SPELL_AURA_MOD_SCALE in CancelGrowthAura. These
+                // represented effects model positive player-cancelable paths;
+                // SpellMisc attributes preserve the C++ no-player-cancel gate.
                 if self.spell_store.as_ref().is_some_and(|store| {
                     store.has_attribute0_like_cpp(aura.spell_id, no_aura_cancel)
                 }) {
                     return None;
                 }
-                (aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::Mounted))
-                    .then_some(aura.slot)
+                (aura.represented_effect == Some(represented_effect)).then_some(aura.slot)
             })
             .collect();
 
@@ -21052,7 +21068,10 @@ impl WorldSession {
                 // whose local runtime already models a player-cancelable aura.
                 matches!(
                     aura.represented_effect,
-                    Some(RepresentedAuraEffectLikeCpp::Mounted)
+                    Some(
+                        RepresentedAuraEffectLikeCpp::Mounted
+                            | RepresentedAuraEffectLikeCpp::ModScale
+                    )
                 )
                 .then_some(aura.slot)
             })
@@ -38897,6 +38916,14 @@ impl WorldSession {
                         player_guid,
                         effect,
                         RepresentedAuraEffectLikeCpp::ModDetectedRange,
+                        30_000,
+                    )?;
+                } else if effect.effect_aura == wow_data::spell::aura_types::SPELL_AURA_MOD_SCALE {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::ModScale,
                         30_000,
                     )?;
                 } else if generic_apply_aura_rows_like_cpp == 1 && apply_aura_rows_like_cpp == 1 {

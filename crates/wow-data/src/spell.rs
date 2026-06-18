@@ -417,6 +417,7 @@ pub mod aura_types {
     pub const SPELL_AURA_MOD_HIT_CHANCE: i32 = 54;
     pub const SPELL_AURA_TRANSFORM: i32 = 56;
     pub const SPELL_AURA_MOD_SPELL_CRIT_CHANCE: i32 = 57;
+    pub const SPELL_AURA_MOD_SCALE: i32 = 61;
     pub const SPELL_AURA_MOD_CASTING_SPEED_NOT_STACK: i32 = 65;
     pub const SPELL_AURA_MOD_POWER_COST_SCHOOL_PCT: i32 = 72;
     pub const SPELL_AURA_HASTE_SPELLS: i32 = 73;
@@ -6076,6 +6077,7 @@ mod tests {
         );
 
         // C++ `SpellAuraDefines.h`: selected `AuraType` enum anchors.
+        assert_eq!(aura_types::SPELL_AURA_MOD_SCALE, 61);
         assert_eq!(aura_types::SPELL_AURA_MOD_DETECT_RANGE, 91);
         assert_eq!(aura_types::SPELL_AURA_MOD_DETECTED_RANGE, 152);
         assert_eq!(aura_types::SPELL_AURA_MOD_BATTLE_PET_XP_PCT, 420);

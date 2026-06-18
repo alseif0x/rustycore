@@ -1,3 +1,24 @@
+- `#NEXT.R8.ENTITIES.1012` — `CMSG_CANCEL_GROWTH_AURA` now removes
+  represented cancelable `SPELL_AURA_MOD_SCALE` auras instead of parsing the
+  opcode as a no-op (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SpellHandler.cpp:331-340`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraDefines.h:156`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:462`.
+  C++ removes player `SPELL_AURA_MOD_SCALE` applications when their
+  `SpellInfo` is cancelable, positive, and non-passive. Rust now anchors aura
+  type 61, represents apply-aura effect rows with
+  `RepresentedAuraEffectLikeCpp::ModScale`, wires `handle_cancel_growth_aura`
+  to remove that represented effect, and reuses the DB2-backed
+  `SPELL_ATTR0_NO_AURA_CANCEL` gate. `CMSG_CANCEL_AURA` also treats represented
+  `ModScale` as a bounded player-cancelable aura for spell-id/caster-guid
+  removal. Coverage: targeted `wow-data` constant test proves the aura enum
+  anchor, and targeted `wow-world` tests prove `CancelGrowthAura` removes a
+  represented scale aura while preserving `NO_AURA_CANCEL` scale auras.
+  Boundary remains partial: full `IsPositive`/`IsPassive` DB2 parity, generic
+  non-mounted/non-scale owned aura cancellation, `SPELL_AURA_MOD_SCALE_2`, the
+  separate `CMSG_CANCEL_MOD_SPEED_NO_CONTROL_AURAS` packet/opcode path,
+  install/restart, bot, and live-client/manual validation remain open.
 - `#NEXT.R8.ENTITIES.1011` — `CMSG_CANCEL_AURA` now honors the C++
   channeled-spell branch before normal owned-aura cancellation (not
   manual-test-ready). Source-of-truth:
