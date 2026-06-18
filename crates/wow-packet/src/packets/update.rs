@@ -3613,7 +3613,13 @@ fn write_movement_update(buf: &mut WorldPacket, guid: &ObjectGuid, mv: &Movement
     // MoveIndex
     buf.write_uint32(0);
 
-    // 7 conditional bits
+    // 9 conditional sub-bits, flushed to 2 bytes, before the 9 speeds.
+    // Empirically verified against the real 3.4.3.54261 client: it reads 9
+    // movement sub-bits here (the trailing HasAdvFlying + HasDriveStatus). With
+    // only 7 (or 8), flush_bits emits 1 byte instead of 2, so the speed block
+    // lands 1 byte early and the client reads garbage RunBack/FlightBack/TurnRate
+    // -> physics out-of-bounds write -> ERROR#132 at world entry. With 9, the
+    // client decodes Walk=2.5/Run=7.0/RunBack=4.5/Swim=4.722/... correctly.
     buf.write_bit(false); // HasStandingOnGameObjectGUID
     buf.write_bit(false); // HasTransport
     buf.write_bit(false); // HasFall
@@ -3621,9 +3627,11 @@ fn write_movement_update(buf: &mut WorldPacket, guid: &ObjectGuid, mv: &Movement
     buf.write_bit(false); // HeightChangeFailed
     buf.write_bit(false); // RemoteTimeValid
     buf.write_bit(false); // HasInertia
-    // Note: no FlushBits here — we continue writing after conditional blocks
+    buf.write_bit(false); // HasAdvFlying
+    buf.write_bit(false); // HasDriveStatus
+    buf.flush_bits();
 
-    // No transport, standing, inertia, advFlying, fall blocks (all bits false)
+    // No transport, standing, inertia, advFlying, fall, drive blocks (all bits false)
 
     // 9 movement speeds
     buf.write_float(mv.walk_speed);
