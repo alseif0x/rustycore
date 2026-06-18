@@ -89,7 +89,7 @@ use wow_data::{
     SpellPetAuraStoreLikeCpp, SpellProcEntryLikeCpp, SpellProcStoreLikeCpp, SpellRadiusStore,
     SpellRangeStore, SpellRequiredStoreLikeCpp, SpellShapeshiftFormStore, SpellStore,
     SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp,
-    SpellTotemModelStoreLikeCpp, SummonPropertiesEntry, ToyStore, TransmogSetEntry,
+    SpellTotemModelStoreLikeCpp, SummonPropertiesEntry, TalentStore, ToyStore, TransmogSetEntry,
     TransmogSetItemStore, TrinityStringStoreLikeCpp, VEHICLE_SEAT_FLAG_CAN_ATTACK,
     VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
     calculate_battle_pet_stats_like_cpp, is_player_meeting_condition_like_cpp,
@@ -3991,6 +3991,7 @@ pub struct WorldSession {
     // ── Spell casting ──────────────────────────────────────────────
     /// Spell store (metadata for all known spells: cast time, cooldown, effects, etc.)
     pub spell_store: Option<Arc<SpellStore>>,
+    talent_store: Option<Arc<TalentStore>>,
     glyph_properties_store: Option<Arc<GlyphPropertiesStore>>,
     spell_chain_store: Option<Arc<SpellChainStoreLikeCpp>>,
     spell_category_store: Option<Arc<SpellCategoryStore>>,
@@ -4054,6 +4055,7 @@ pub struct WorldSession {
     represented_character_spell_charges_loaded_like_cpp: bool,
     represented_active_talent_group_like_cpp: u8,
     represented_bonus_talent_groups_like_cpp: u8,
+    represented_talents_like_cpp: [BTreeMap<u32, u8>; MAX_SPECIALIZATIONS_LIKE_CPP],
     represented_glyphs_like_cpp: [[u16; wow_packet::packets::misc::MAX_GLYPH_SLOT_INDEX_LIKE_CPP];
         MAX_SPECIALIZATIONS_LIKE_CPP],
     represented_glyphs_loaded_like_cpp: bool,
@@ -5365,6 +5367,7 @@ impl WorldSession {
             movement_speed_ack_events_like_cpp: Vec::new(),
             visible_auras: HashMap::new(),
             spell_store: None,
+            talent_store: None,
             glyph_properties_store: None,
             spell_chain_store: None,
             spell_category_store: None,
@@ -5477,6 +5480,7 @@ impl WorldSession {
             represented_character_spell_charges_loaded_like_cpp: false,
             represented_active_talent_group_like_cpp: 0,
             represented_bonus_talent_groups_like_cpp: 0,
+            represented_talents_like_cpp: std::array::from_fn(|_| BTreeMap::new()),
             represented_glyphs_like_cpp: [[0;
                 wow_packet::packets::misc::MAX_GLYPH_SLOT_INDEX_LIKE_CPP];
                 MAX_SPECIALIZATIONS_LIKE_CPP],
@@ -17386,6 +17390,14 @@ impl WorldSession {
         self.spell_store.as_ref()
     }
 
+    pub fn set_talent_store(&mut self, store: Arc<TalentStore>) {
+        self.talent_store = Some(store);
+    }
+
+    pub(crate) fn talent_store(&self) -> Option<&Arc<TalentStore>> {
+        self.talent_store.as_ref()
+    }
+
     pub fn set_glyph_properties_store(&mut self, store: Arc<GlyphPropertiesStore>) {
         self.glyph_properties_store = Some(store);
     }
@@ -18250,6 +18262,70 @@ impl WorldSession {
             bonus_groups.min((MAX_SPECIALIZATIONS_LIKE_CPP - 1) as u8);
     }
 
+    pub(crate) fn reset_represented_talents_like_cpp(&mut self) {
+        for talents in &mut self.represented_talents_like_cpp {
+            talents.clear();
+        }
+    }
+
+    pub(crate) fn load_represented_talent_row_like_cpp(
+        &mut self,
+        talent_id: u32,
+        rank: u8,
+        talent_group: u8,
+    ) -> bool {
+        let talent_group_index = usize::from(talent_group);
+        if talent_group_index >= MAX_SPECIALIZATIONS_LIKE_CPP {
+            return false;
+        }
+
+        let Some(talent) = self
+            .talent_store()
+            .and_then(|store| store.get(talent_id))
+            .cloned()
+        else {
+            return false;
+        };
+
+        let rank_index = usize::from(rank);
+        let Some(spell_id) = talent.spell_rank.get(rank_index).copied() else {
+            return false;
+        };
+        if spell_id <= 0 {
+            return false;
+        }
+
+        if self
+            .spell_store()
+            .is_some_and(|store| store.get(spell_id).is_none())
+        {
+            return false;
+        }
+
+        self.represented_talents_like_cpp[talent_group_index].insert(talent_id, rank);
+        true
+    }
+
+    fn represented_talent_info_like_cpp(
+        &self,
+        talent_id: u32,
+        rank: u8,
+    ) -> Option<wow_packet::packets::misc::TalentInfoLikeCpp> {
+        let talent = self.talent_store()?.get(talent_id)?;
+        let spell_id = talent.spell_rank.get(usize::from(rank)).copied()?;
+        if spell_id <= 0 {
+            return None;
+        }
+        if self
+            .spell_store()
+            .is_some_and(|store| store.get(spell_id).is_none())
+        {
+            return None;
+        }
+
+        Some(wow_packet::packets::misc::TalentInfoLikeCpp { talent_id, rank })
+    }
+
     pub(crate) fn load_represented_glyph_row_like_cpp(
         &mut self,
         talent_group: u8,
@@ -18284,15 +18360,22 @@ impl WorldSession {
         let group_count = (1 + usize::from(self.represented_bonus_talent_groups_like_cpp))
             .min(MAX_SPECIALIZATIONS_LIKE_CPP);
         let mut groups = Vec::with_capacity(group_count);
-        for glyph_ids in self
+        for (group_index, glyph_ids) in self
             .represented_glyphs_like_cpp
             .iter()
             .take(group_count)
             .copied()
+            .enumerate()
         {
+            let talents = self.represented_talents_like_cpp[group_index]
+                .iter()
+                .filter_map(|(talent_id, rank)| {
+                    self.represented_talent_info_like_cpp(*talent_id, *rank)
+                })
+                .collect();
             groups.push(wow_packet::packets::misc::TalentGroupInfoLikeCpp {
                 spec_id: MAX_SPECIALIZATIONS_LIKE_CPP as u8,
-                talents: Vec::new(),
+                talents,
                 glyph_ids,
             });
         }
@@ -83863,6 +83946,112 @@ mod tests {
                 wow_database::SqlParam::I64(1_020),
             ]
         );
+    }
+
+    fn test_talent_entry_like_cpp(id: u32, rank: u8, spell_id: i32) -> wow_data::TalentEntry {
+        let mut spell_rank = [0; 9];
+        spell_rank[usize::from(rank)] = spell_id;
+        wow_data::TalentEntry {
+            id,
+            description: String::new(),
+            tier_id: 0,
+            flags: 0,
+            column_index: 0,
+            tab_id: 0,
+            class_id: 0,
+            spec_id: 0,
+            spell_id,
+            overrides_spell_id: 0,
+            required_spell_id: 0,
+            category_mask: [0; 2],
+            spell_rank,
+            prereq_talent: [0; 3],
+            prereq_rank: [0; 3],
+        }
+    }
+
+    fn test_spell_info_like_cpp(spell_id: i32) -> wow_data::SpellInfo {
+        wow_data::SpellInfo {
+            spell_id,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: 0,
+            effect_base_points: 0,
+            effect_bonus_coefficient: 0.0,
+            aura_type: None,
+            display_flags: 0,
+            requires_spell_focus: 0,
+            effects: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn character_talent_load_filters_invalid_rows_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_talent_store(Arc::new(wow_data::TalentStore::from_entries([
+            test_talent_entry_like_cpp(101, 2, 50_101),
+            test_talent_entry_like_cpp(102, 0, 0),
+            test_talent_entry_like_cpp(103, 0, 50_103),
+        ])));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(50_101, test_spell_info_like_cpp(50_101));
+        session.set_spell_store(Arc::new(spell_store));
+
+        assert!(session.load_represented_talent_row_like_cpp(101, 2, 0));
+        assert!(!session.load_represented_talent_row_like_cpp(999, 0, 0));
+        assert!(!session.load_represented_talent_row_like_cpp(101, 9, 0));
+        assert!(!session.load_represented_talent_row_like_cpp(101, 2, 4));
+        assert!(!session.load_represented_talent_row_like_cpp(102, 0, 0));
+        assert!(!session.load_represented_talent_row_like_cpp(103, 0, 0));
+
+        let packet = session.represented_update_talent_data_packet_like_cpp();
+        assert_eq!(
+            packet.groups[0].talents,
+            vec![wow_packet::packets::misc::TalentInfoLikeCpp {
+                talent_id: 101,
+                rank: 2,
+            }]
+        );
+    }
+
+    #[test]
+    fn update_talent_data_includes_loaded_talents_and_glyphs_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_talent_store(Arc::new(wow_data::TalentStore::from_entries([
+            test_talent_entry_like_cpp(101, 2, 50_101),
+            test_talent_entry_like_cpp(202, 1, 50_202),
+        ])));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(50_101, test_spell_info_like_cpp(50_101));
+        spell_store.insert(50_202, test_spell_info_like_cpp(50_202));
+        session.set_spell_store(Arc::new(spell_store));
+
+        session.set_represented_active_talent_group_like_cpp(1);
+        session.set_represented_bonus_talent_groups_like_cpp(1);
+        assert!(session.load_represented_talent_row_like_cpp(101, 2, 0));
+        assert!(session.load_represented_talent_row_like_cpp(202, 1, 1));
+        assert!(session.load_represented_glyph_row_like_cpp(1, 3, 456));
+
+        let packet = session.represented_update_talent_data_packet_like_cpp();
+
+        assert_eq!(packet.active_group, 1);
+        assert_eq!(packet.groups.len(), 2);
+        assert_eq!(
+            packet.groups[0].talents,
+            vec![wow_packet::packets::misc::TalentInfoLikeCpp {
+                talent_id: 101,
+                rank: 2,
+            }]
+        );
+        assert_eq!(
+            packet.groups[1].talents,
+            vec![wow_packet::packets::misc::TalentInfoLikeCpp {
+                talent_id: 202,
+                rank: 1,
+            }]
+        );
+        assert_eq!(packet.groups[1].glyph_ids[3], 456);
     }
 
     #[test]

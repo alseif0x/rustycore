@@ -1,3 +1,23 @@
+- `#NEXT.R8.ENTITIES.1066` — represented character talent load and
+  `UpdateTalentData` login surface now use `character_talent` instead of
+  serializing empty talent vectors (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26316-26363`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26397-26608`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26646-26656`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TalentPackets.cpp:34-82`.
+  Rust now wires `Talent.db2` into sessions, loads `character_talent`, filters
+  unknown talent ids, invalid groups/ranks, empty `SpellRank` entries, and
+  missing `SpellInfo` rows when the spell store is available, then serializes
+  the loaded `{ talentId, rank }` pairs into each C++ talent group alongside
+  the glyph ids closed in `#NEXT.R8.ENTITIES.1065`. Audit note: C++ trusts DB
+  enough to index `SpellRank[rank]`; Rust intentionally rejects out-of-range
+  ranks instead of panicking on corrupt rows. Coverage: focused `wow-world`
+  talent load/packet tests, focused `wow-packet` `UpdateTalentData` packet
+  tests, and compile checks. Boundary remains partial: `character_talent`
+  save, runtime learn/reset/respec mutation, exact `SpellMgr::IsSpellValid`
+  parity, unspent talent point calculation, live client validation, bot
+  validation, and manual validation remain open.
 - `#NEXT.R8.ENTITIES.1065` — represented character glyph load/save and
   login packet surface now use `character_glyphs` instead of hard-coded empty
   talent glyphs (not manual-test-ready). Source of truth:

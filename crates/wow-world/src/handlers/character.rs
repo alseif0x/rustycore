@@ -4356,6 +4356,49 @@ impl WorldSession {
         // Store final known_spells in session for later use (ShowTradeSkill, etc.)
         self.set_known_spells_like_cpp(known_spells.clone());
 
+        // ── Load talents from character_talent ──
+        // C++ `Player::_LoadTalents`: skip talent rows whose Talent.db2 entry
+        // cannot be resolved; AddTalent also rejects invalid rank/spell rows.
+        self.reset_represented_talents_like_cpp();
+        {
+            let mut talent_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_TALENTS);
+            talent_stmt.set_u64(0, guid.counter() as u64);
+            match char_db.query(&talent_stmt).await {
+                Ok(mut talent_result) => {
+                    let mut loaded = 0usize;
+                    let mut skipped = 0usize;
+                    if !talent_result.is_empty() {
+                        loop {
+                            let talent_id: u32 = talent_result.try_read(0).unwrap_or(0);
+                            let rank: u8 = talent_result.try_read(1).unwrap_or(0);
+                            let talent_group: u8 = talent_result.try_read(2).unwrap_or(0);
+                            if self.load_represented_talent_row_like_cpp(
+                                talent_id,
+                                rank,
+                                talent_group,
+                            ) {
+                                loaded += 1;
+                            } else {
+                                skipped += 1;
+                            }
+                            if !talent_result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    info!(
+                        loaded,
+                        skipped,
+                        player_guid = guid.counter(),
+                        "Loaded represented character talents like C++ Player::_LoadTalents"
+                    );
+                }
+                Err(e) => {
+                    warn!("Failed to load character talents for {:?}: {}", guid, e);
+                }
+            }
+        }
+
         // ── Load glyphs from character_glyphs ──
         // C++ `Player::_LoadGlyphs`: skip invalid talent group/slot and glyph ids
         // missing from GlyphProperties.db2.

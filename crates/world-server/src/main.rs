@@ -4194,6 +4194,7 @@ async fn main() -> Result<ExitCode> {
         hotfix_blob_cache: Some(Arc::clone(&hotfix_blob_cache)),
         skill_store: Some(Arc::clone(&skill_store)),
         skill_line_store: Some(Arc::clone(&skill_line_store)),
+        talent_store: Some(Arc::clone(&talent_store)),
         glyph_properties_store: Some(Arc::clone(&glyph_properties_store)),
         chr_races_store: Some(Arc::clone(&chr_races_store)),
         spell_chain_store: Some(Arc::clone(&spell_chain_store)),
@@ -10661,6 +10662,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.skill_line_store {
         session.set_skill_line_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.talent_store {
+        session.set_talent_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.glyph_properties_store {
         session.set_glyph_properties_store(Arc::clone(store));
