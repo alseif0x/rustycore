@@ -4559,3 +4559,13 @@ C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Globa
 Implemented Rust seam: `CreatureTemplateLifecycleRecordLikeCpp::normalize_like_cpp` now applies the same zero-speed defaults before records enter `CreatureTemplateLifecycleStoreLikeCpp`. This keeps loaded-grid/runtime consumers from building creature create data or Unit speed rates from zero template speeds.
 
 Validation evidence: `cargo fmt`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-data creature_template_lifecycle_normalizes_zero_speeds_like_cpp --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p wow-data`. Remaining gaps: this fixes loader normalization only; full live Unit-creature speed recompute, aura-driven speed updates for creatures, pet/minion owner-follow propagation, creature snare/daze immunity behavior, speed packet fanout, install/restart, bot validation, and live-client/manual validation remain open.
+
+### #NEXT.R8.ENTITIES.1052 — legacy SQL creature visibility speed normalization
+
+Status: bugfix-partial for direct SQL creature CREATE visibility paths; not full live `Unit::UpdateSpeed` creature parity and not manual-test-ready.
+
+C++ anchors contrasted: same as #1051, `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:1106-1114`, where `ObjectMgr::CheckCreatureTemplate` forces zero `speed_walk` and `speed_run` to `1.0f` and `1.14286f` after template load. Rust has newer loaded-grid paths through `CreatureTemplateLifecycleStoreLikeCpp`, but `crates/wow-world/src/handlers/character.rs` still had legacy SQL visibility/login paths reading `speed_walk`/`speed_run` directly and defaulting only on missing columns, not on DB zero values.
+
+Implemented Rust seam: both direct SQL creature visibility paths in `handlers/character.rs` now call local C++-named normalizers before building `CreatureCreateData`, preventing `speed_walk_rate=0.0` or `speed_run_rate=0.0` from being emitted when old direct SQL rows contain zero speeds.
+
+Validation evidence: `cargo fmt`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world sql_creature_template_speed_defaults_match_cpp_check_creature_template --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p wow-world`. Remaining gaps: this fixes direct create-data bypasses only; full live Unit-creature speed recompute, aura-driven speed updates for creatures, speed packet fanout, pet/minion owner-follow propagation, install/restart, bot validation, and live-client/manual validation remain open.

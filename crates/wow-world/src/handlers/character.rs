@@ -110,6 +110,14 @@ fn creature_movement_generator_type_from_db_like_cpp(
     }
 }
 
+fn normalize_creature_template_speed_walk_like_cpp(speed_walk: f32) -> f32 {
+    if speed_walk == 0.0 { 1.0 } else { speed_walk }
+}
+
+fn normalize_creature_template_speed_run_like_cpp(speed_run: f32) -> f32 {
+    if speed_run == 0.0 { 1.14286 } else { speed_run }
+}
+
 fn represented_go_state_from_i8_like_cpp(state: i8) -> Option<wow_entities::GoState> {
     match state {
         0 => Some(wow_entities::GoState::Active),
@@ -4436,8 +4444,11 @@ impl WorldSession {
             let unit_flags: u32 = result.try_read(13).unwrap_or(0);
             let unit_flags2: u32 = result.try_read(14).unwrap_or(0);
             let unit_flags3: u32 = result.try_read(15).unwrap_or(0);
-            let speed_walk: f32 = result.try_read(16).unwrap_or(1.0);
-            let speed_run: f32 = result.try_read(17).unwrap_or(1.14286);
+            let speed_walk: f32 =
+                normalize_creature_template_speed_walk_like_cpp(result.try_read(16).unwrap_or(1.0));
+            let speed_run: f32 = normalize_creature_template_speed_run_like_cpp(
+                result.try_read(17).unwrap_or(1.14286),
+            );
             let scale: f32 = result.try_read(18).unwrap_or(1.0);
             let unit_class: u8 = result.try_read(19).unwrap_or(1);
             let flags_extra: u32 = result.try_read(20).unwrap_or(0);
@@ -4898,8 +4909,11 @@ impl WorldSession {
                 let unit_flags: u32 = cr.try_read(13).unwrap_or(0);
                 let unit_flags2: u32 = cr.try_read(14).unwrap_or(0);
                 let unit_flags3: u32 = cr.try_read(15).unwrap_or(0);
-                let speed_walk: f32 = cr.try_read(16).unwrap_or(1.0);
-                let speed_run: f32 = cr.try_read(17).unwrap_or(1.14286);
+                let speed_walk: f32 =
+                    normalize_creature_template_speed_walk_like_cpp(cr.try_read(16).unwrap_or(1.0));
+                let speed_run: f32 = normalize_creature_template_speed_run_like_cpp(
+                    cr.try_read(17).unwrap_or(1.14286),
+                );
                 let scale: f32 = cr.try_read(18).unwrap_or(1.0);
                 let unit_class: u8 = cr.try_read(19).unwrap_or(1);
                 let flags_extra: u32 = cr.try_read(20).unwrap_or(0);
@@ -11342,6 +11356,14 @@ mod tests {
         CreatureLoot, LOOT_TYPE_CORPSE_LIKE_CPP, LootEntry, LootEntryFlags,
     };
     use wow_packet::packets::quest::quest_giver_status;
+
+    #[test]
+    fn sql_creature_template_speed_defaults_match_cpp_check_creature_template() {
+        assert_eq!(normalize_creature_template_speed_walk_like_cpp(0.0), 1.0);
+        assert_eq!(normalize_creature_template_speed_run_like_cpp(0.0), 1.14286);
+        assert_eq!(normalize_creature_template_speed_walk_like_cpp(0.75), 0.75);
+        assert_eq!(normalize_creature_template_speed_run_like_cpp(2.0), 2.0);
+    }
 
     fn make_session_with_send_capacity(
         capacity: usize,
