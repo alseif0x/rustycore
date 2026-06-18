@@ -1,3 +1,22 @@
+- `#NEXT.R8.ENTITIES.1083` — represented `CMSG_CONFIRM_RESPEC_WIPE` now
+  records the C++ untalent visual spell cast after successful
+  `Player::ResetTalents` and `SendTalentsInfoData` (not manual-test-ready).
+  Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SkillHandler.cpp:54-82`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3505-3562`.
+  C++ returns if `ResetTalents()` fails; otherwise it sends talents and calls
+  `unit->CastSpell(_player, 14867, true)`. Rust now records represented cast
+  evidence with trainer caster GUID, player target GUID, spell id `14867`, and
+  `triggered=true` immediately after the represented talent-data packet.
+  Coverage: `cargo fmt --all --check`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  confirm_respec --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo
+  check -p world-server`; `git diff --check`. Boundary remains partial: this is cast
+  evidence only, not full `Spell::CastSpell` execution/fanout; pet/spec/glyph
+  reset branches, trait override paths, full achievement/quest criteria manager
+  persistence, full runtime aura/cast ownership, live-client validation, bot
+  validation, and manual validation remain open.
 - `#NEXT.R8.ENTITIES.1082` — represented `CMSG_CONFIRM_RESPEC_WIPE` now
   removes fake-death before attempting `Player::ResetTalents`, matching the
   C++ handler order (not manual-test-ready). Source of truth:
@@ -12,7 +31,8 @@
   `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
   confirm_respec --lib`; `cargo fmt --all --check`;
   `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`.
-  Boundary remains partial: visual spell 14867 cast, pet/spec/glyph reset
+  Boundary remains partial: visual spell 14867 cast evidence was closed later by
+  `#NEXT.R8.ENTITIES.1083`; pet/spec/glyph reset
   branches, trait override paths, full achievement/quest criteria manager
   persistence, full runtime aura/cast ownership, live-client validation, bot
   validation, and manual validation remain open.
@@ -38,7 +58,8 @@
   --bin world-server`; `cargo fmt --all --check`;
   `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`.
   Boundary remains partial: fake-death aura removal was closed later by
-  `#NEXT.R8.ENTITIES.1082`; visual spell 14867 cast,
+  `#NEXT.R8.ENTITIES.1082`; visual spell 14867 cast evidence was closed later by
+  `#NEXT.R8.ENTITIES.1083`;
   pet/spec/glyph reset branches, trait override paths, full achievement/quest
   criteria manager persistence, full runtime aura/cast ownership,
   live-client validation, bot validation, and manual validation remain open.

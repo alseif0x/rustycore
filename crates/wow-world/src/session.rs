@@ -637,6 +637,16 @@ pub(crate) struct RepresentedConfirmRespecWipeLikeCpp {
     pub respec_type: u8,
 }
 
+/// Evidence for `unit->CastSpell(_player, 14867, true)` after talent reset.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedTalentRespecVisualSpellCastLikeCpp {
+    pub caster_guid: ObjectGuid,
+    pub target_guid: ObjectGuid,
+    pub spell_id: u32,
+    pub triggered: bool,
+    pub spell_runtime_unrepresented: bool,
+}
+
 /// Evidence for the two C++ `Player::ResetTalents` achievement criteria updates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedTalentRespecCriteriaEventLikeCpp {
@@ -3819,6 +3829,9 @@ pub struct WorldSession {
         Vec<RepresentedConfirmBarbersChoiceLikeCpp>,
     /// Represented accepted talent-respec wipe requests until Player::ResetTalents is canonical.
     represented_confirm_respec_wipe_requests_like_cpp: Vec<RepresentedConfirmRespecWipeLikeCpp>,
+    /// Represented `unit->CastSpell(_player, 14867, true)` after successful talent reset.
+    represented_talent_respec_visual_spell_casts_like_cpp:
+        Vec<RepresentedTalentRespecVisualSpellCastLikeCpp>,
     /// Represented `CriteriaType::MoneySpentOnRespecs` / `TotalRespecs` events.
     represented_talent_respec_criteria_events_like_cpp:
         Vec<RepresentedTalentRespecCriteriaEventLikeCpp>,
@@ -5324,6 +5337,7 @@ impl WorldSession {
             represented_alter_appearance_requests_like_cpp: Vec::new(),
             represented_confirm_barbers_choice_requests_like_cpp: Vec::new(),
             represented_confirm_respec_wipe_requests_like_cpp: Vec::new(),
+            represented_talent_respec_visual_spell_casts_like_cpp: Vec::new(),
             represented_talent_respec_criteria_events_like_cpp: Vec::new(),
             represented_equipment_sets_like_cpp: BTreeMap::new(),
             represented_equipment_sets_loaded_like_cpp: false,
@@ -36566,6 +36580,21 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedConfirmRespecWipeLikeCpp] {
         &self.represented_confirm_respec_wipe_requests_like_cpp
+    }
+
+    pub(crate) fn record_represented_talent_respec_visual_spell_cast_like_cpp(
+        &mut self,
+        cast: RepresentedTalentRespecVisualSpellCastLikeCpp,
+    ) {
+        self.represented_talent_respec_visual_spell_casts_like_cpp
+            .push(cast);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_talent_respec_visual_spell_casts_like_cpp(
+        &self,
+    ) -> &[RepresentedTalentRespecVisualSpellCastLikeCpp] {
+        &self.represented_talent_respec_visual_spell_casts_like_cpp
     }
 
     #[cfg(test)]

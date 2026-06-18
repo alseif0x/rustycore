@@ -13,10 +13,14 @@ use wow_packet::packets::talent::{
 };
 use wow_packet::{ClientPacket, WorldPacket};
 
-use crate::session::{RepresentedConfirmRespecWipeLikeCpp, WorldSession};
+use crate::session::{
+    RepresentedConfirmRespecWipeLikeCpp, RepresentedTalentRespecVisualSpellCastLikeCpp,
+    WorldSession,
+};
 
 const CONFIRM_RESPEC_WIPE_NPC_FLAGS_LIKE_CPP: u32 = NPCFlags1::TRAINER.bits();
 const MIN_TALENT_RESET_LEVEL_LIKE_CPP: u8 = 15;
+const UNTALENT_VISUAL_EFFECT_SPELL_ID_LIKE_CPP: u32 = 14_867;
 
 inventory::submit! {
     PacketHandlerEntry {
@@ -125,6 +129,17 @@ impl WorldSession {
         });
         if self.reset_represented_active_talents_like_cpp() {
             self.send_packet(&self.represented_update_talent_data_packet_like_cpp());
+            if let Some(player_guid) = self.player_guid() {
+                self.record_represented_talent_respec_visual_spell_cast_like_cpp(
+                    RepresentedTalentRespecVisualSpellCastLikeCpp {
+                        caster_guid: request.respec_master,
+                        target_guid: player_guid,
+                        spell_id: UNTALENT_VISUAL_EFFECT_SPELL_ID_LIKE_CPP,
+                        triggered: true,
+                        spell_runtime_unrepresented: true,
+                    },
+                );
+            }
         }
     }
 
@@ -561,6 +576,17 @@ mod tests {
                 respec_master: trainer,
                 respec_type: SPEC_RESET_TALENTS_LIKE_CPP,
             }]
+        );
+        assert_eq!(
+            session.represented_talent_respec_visual_spell_casts_like_cpp(),
+            &[RepresentedTalentRespecVisualSpellCastLikeCpp {
+                caster_guid: trainer,
+                target_guid: ObjectGuid::create_player(1, 42),
+                spell_id: UNTALENT_VISUAL_EFFECT_SPELL_ID_LIKE_CPP,
+                triggered: true,
+                spell_runtime_unrepresented: true,
+            }],
+            "C++ casts unit->CastSpell(_player, 14867, true) after SendTalentsInfoData"
         );
     }
 
@@ -1169,6 +1195,12 @@ mod tests {
             session
                 .represented_confirm_respec_wipe_requests_like_cpp()
                 .is_empty()
+        );
+        assert!(
+            session
+                .represented_talent_respec_visual_spell_casts_like_cpp()
+                .is_empty(),
+            "C++ returns before the 14867 visual cast when ResetTalents fails"
         );
         assert!(
             session.known_spells_like_cpp().contains(&50_101),
