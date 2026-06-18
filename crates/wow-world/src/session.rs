@@ -19934,10 +19934,17 @@ impl WorldSession {
     }
 
     pub async fn save_disconnect_player_to_db_like_cpp(&mut self) {
-        if self.player_guid().is_none() {
+        let Some(player_guid) = self.player_guid() else {
+            self.mark_login_account_offline_on_disconnect_like_cpp()
+                .await;
             return;
-        }
+        };
 
+        info!(
+            account = self.account_id,
+            guid = player_guid.counter(),
+            "Saving player on disconnect"
+        );
         self.set_player_logout_like_cpp(true);
         self.clear_buyback_on_logout().await;
         self.save_current_player_to_db_like_cpp().await;
@@ -19947,6 +19954,13 @@ impl WorldSession {
         self.save_account_item_appearances_like_cpp().await;
         self.save_account_transmog_illusions_like_cpp().await;
         self.mark_character_offline().await;
+        self.mark_login_account_offline_on_disconnect_like_cpp()
+            .await;
+        info!(
+            account = self.account_id,
+            guid = player_guid.counter(),
+            "Finished disconnect save"
+        );
     }
 
     /// Remove this session from the player registry.

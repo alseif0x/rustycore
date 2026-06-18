@@ -41,6 +41,7 @@ mod tests {
         assert!(!LoginStatements::UPD_BNET_LAST_LOGIN_INFO.sql().is_empty());
         assert!(!LoginStatements::DEL_EXPIRED_IP_BANS.sql().is_empty());
         assert!(!LoginStatements::INS_ACCOUNT.sql().is_empty());
+        assert!(!LoginStatements::UPD_ACCOUNT_OFFLINE.sql().is_empty());
     }
 
     #[test]
@@ -53,6 +54,14 @@ mod tests {
         );
         assert!(LoginStatements::INS_IP_BANNED.sql().contains("ip_banned"));
         assert!(LoginStatements::SEL_CHECK_PASSWORD.sql().contains("salt"));
+    }
+
+    #[test]
+    fn login_account_offline_statement_matches_cpp_destructor() {
+        assert_eq!(
+            LoginStatements::UPD_ACCOUNT_OFFLINE.sql(),
+            "UPDATE account SET online = 0 WHERE id = ?"
+        );
     }
 
     #[test]

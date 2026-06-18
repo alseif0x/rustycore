@@ -1,3 +1,18 @@
+- `#NEXT.R8.ENTITIES.1023` — disconnect teardown now mirrors the C++
+  `WorldSession` destructor account-online cleanup (not manual-test-ready).
+  Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:155-186,552-670`.
+  C++ calls `LogoutPlayer(true)` if a player is still attached, then marks
+  `auth.account.online = 0` when the session object is destroyed. Rust already
+  had a character disconnect-save path, but hard session teardown did not clear
+  the login account online flag per session. Rust now executes
+  `UPDATE account SET online = 0 WHERE id = ?` on disconnect, including the
+  no-current-player case, and logs successful character/account offline saves
+  so the next live test can verify the path after EOF. Coverage: targeted
+  `wow-database` SQL statement test plus affected-crate check. Boundary remains
+  partial: this is disconnect account-state cleanup and observability, not a
+  full `LogoutPlayer(true)` port, full `Player::SaveToDB`, install/restart, bot,
+  or live-client/manual validation claim.
 - `#NEXT.R8.ENTITIES.1022` — `CMSG_CAST_SPELL` parsing now matches the C++
   optional-currency layout used by `SpellCastRequest`: `SpellExtraCurrencyCost`
   is `CurrencyID` + `Count`, not the crafting-reagent shape with

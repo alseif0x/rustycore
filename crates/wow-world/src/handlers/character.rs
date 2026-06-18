@@ -2995,6 +2995,34 @@ impl WorldSession {
         stmt.set_u32(0, guid.counter() as u32);
         if let Err(e) = char_db.execute(&stmt).await {
             warn!("Failed to mark character offline: {e}");
+        } else {
+            info!("Marked character offline for guid {}", guid.counter());
+        }
+    }
+
+    /// Mark the account as offline in the login database when the whole
+    /// WorldSession is being destroyed, matching C++ `WorldSession::~WorldSession`.
+    pub(crate) async fn mark_login_account_offline_on_disconnect_like_cpp(&self) {
+        let Some(login_db) = self.login_db().map(Arc::clone) else {
+            warn!(
+                account = self.account_id,
+                "Disconnect account offline save skipped: login database unavailable"
+            );
+            return;
+        };
+
+        let mut stmt = login_db.prepare(LoginStatements::UPD_ACCOUNT_OFFLINE);
+        stmt.set_u32(0, self.account_id);
+        if let Err(error) = login_db.execute(&stmt).await {
+            warn!(
+                account = self.account_id,
+                "Failed to mark login account offline on disconnect: {error}"
+            );
+        } else {
+            info!(
+                account = self.account_id,
+                "Marked login account offline on disconnect"
+            );
         }
     }
 
