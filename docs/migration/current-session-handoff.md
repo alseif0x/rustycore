@@ -1,3 +1,21 @@
+- `#NEXT.R8.ENTITIES.1033` — normal `CMSG_MOVE_*` fanout now uses the
+  existing `SendIfVisibleLikeCpp` session-command rail instead of direct socket
+  writes to every same-map player (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MovementHandler.cpp:407-430`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Object/Object.cpp:1746-1764`.
+  C++ updates the mover position, builds `SMSG_MOVE_UPDATE`, then calls
+  `mover->SendMessageToSet(..., _player)`: skip the mover's own session,
+  visit receivers within `GetVisibilityRange()`, and let the receiver-side
+  visible-set gate decide final delivery. Rust now mirrors the existing
+  teleport fanout shape for normal movement: candidate routing requires
+  in-world same map/instance and `VISIBILITY_RADIUS`, then enqueues
+  `SendIfVisibleLikeCpp` with `try_send`; the receiver session applies
+  `client_visible_guids_like_cpp` before writing bytes. Coverage: movement
+  handler tests for sanitized `MoveUpdate` routing and outside-range rejection.
+  Boundary remains partial: no live two-client validation, exact phase/grid
+  visitor parity, transport/vehicle movement edge cases, install/restart, bot,
+  or manual client validation.
 - `#NEXT.R8.ENTITIES.1032` — represented login now seeds the session's
   zone/area state from the DB zone before gameplay casts can run (not
   manual-test-ready). Source-of-truth:

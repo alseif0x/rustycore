@@ -10,7 +10,7 @@
 //!   2. Sanitize movement flags like `Player::ValidateMovementInfo`
 //!   3. Validate: GUID must match the player, position must be finite
 //!   4. Update server-side player position
-//!   5. Broadcast SMSG_MOVE_UPDATE to nearby sessions (TODO: multi-session map)
+//!   5. Broadcast SMSG_MOVE_UPDATE to nearby visible sessions
 //!
 //! Reference: C++ `WorldSession::HandleMovementOpcode`.
 
@@ -231,24 +231,52 @@ impl WorldSession {
         // TODO: aggro proximity check re-enable once combat system is stable
         // self.check_creature_aggro().await;
 
-        // Broadcast movement to other players on the same map.
+        // C++ `mover->SendMessageToSet(moveUpdate.Write(), _player)` uses
+        // the mover visibility range and skips the mover's own session.
+        // Candidate routing is cheap here; the receiver session applies the
+        // final HaveAtClient gate through `SendIfVisibleLikeCpp`.
         if let (Some(guid), Some(registry)) = (self.player_guid(), self.player_registry()) {
-            use wow_core::ObjectGuid;
-            use wow_network::PlayerBroadcastInfo;
-
             let move_update = MoveUpdate { info };
-            let bytes = move_update.to_bytes();
-            let current_map_id = self.player_map_id_like_cpp();
+            let packet_bytes = move_update.to_bytes();
+            let map_id = self.player_map_id_like_cpp();
+            let instance_id = self
+                .current_canonical_player_map_key_like_cpp()
+                .map(|key| key.instance_id)
+                .unwrap_or(0);
+            let range_sq =
+                crate::map_manager::VISIBILITY_RADIUS * crate::map_manager::VISIBILITY_RADIUS;
 
-            for entry in registry.iter() {
-                let (other_guid, other_info): (&ObjectGuid, &PlayerBroadcastInfo) = entry.pair();
-                if *other_guid == guid {
-                    continue;
-                }
-                if other_info.map_id != current_map_id {
-                    continue;
-                }
-                let _ = other_info.send_tx.send(bytes.clone());
+            let candidates: Vec<_> = registry
+                .iter()
+                .filter_map(|entry| {
+                    let (other_guid, other_info) = entry.pair();
+                    if *other_guid == guid {
+                        return None;
+                    }
+                    if !other_info.is_in_world
+                        || other_info.map_id != map_id
+                        || other_info.instance_id != instance_id
+                    {
+                        return None;
+                    }
+                    let dx = other_info.position.x - pos.x;
+                    let dy = other_info.position.y - pos.y;
+                    if dx * dx + dy * dy > range_sq {
+                        return None;
+                    }
+                    Some(other_info.command_tx.clone())
+                })
+                .collect();
+
+            for command_tx in candidates {
+                let _ = command_tx.try_send(wow_network::SessionCommand::SendIfVisibleLikeCpp(
+                    wow_network::player_registry::SendIfVisibleLikeCppCommand {
+                        source_guid: guid,
+                        map_id,
+                        instance_id,
+                        packet_bytes: packet_bytes.clone(),
+                    },
+                ));
             }
         }
     }
@@ -1402,11 +1430,19 @@ mod tests {
         let registry = std::sync::Arc::new(wow_network::PlayerRegistry::default());
         let (self_tx, self_rx) = flume::bounded(1);
         let (other_tx, other_rx) = flume::bounded(1);
+        let (self_command_tx, self_command_rx) = flume::bounded(1);
+        let (other_command_tx, other_command_rx) = flume::bounded(1);
 
         session.set_player_guid(Some(guid));
         session.set_player_registry(std::sync::Arc::clone(&registry));
-        registry.insert(guid, broadcast_info(guid, self_tx));
-        registry.insert(other_guid, broadcast_info(other_guid, other_tx));
+        registry.insert(
+            guid,
+            broadcast_info_with_command(guid, self_tx, self_command_tx),
+        );
+        registry.insert(
+            other_guid,
+            broadcast_info_with_command(other_guid, other_tx, other_command_tx),
+        );
 
         let movement = MovementInfo {
             guid,
@@ -1424,7 +1460,18 @@ mod tests {
         session.handle_movement(inbound).await;
 
         assert!(self_rx.try_recv().is_err());
-        let bytes = other_rx.try_recv().expect("movement broadcast");
+        assert!(other_rx.try_recv().is_err());
+        assert!(self_command_rx.try_recv().is_err());
+        let command = other_command_rx
+            .try_recv()
+            .expect("visible movement command");
+        let wow_network::SessionCommand::SendIfVisibleLikeCpp(command) = command else {
+            panic!("expected SendIfVisibleLikeCpp movement command");
+        };
+        assert_eq!(command.source_guid, guid);
+        assert_eq!(command.map_id, 0);
+        assert_eq!(command.instance_id, 0);
+        let bytes = command.packet_bytes;
         let mut packet = wow_packet::WorldPacket::from_bytes(&bytes);
         assert_eq!(
             packet.server_opcode(),
@@ -1437,6 +1484,45 @@ mod tests {
             session.player_movement_flags_like_cpp(),
             MovementFlag::empty()
         );
+    }
+
+    #[tokio::test]
+    async fn handle_movement_does_not_broadcast_outside_visibility_range_like_cpp() {
+        let mut session = make_session();
+        let guid = ObjectGuid::create_player(1, 42);
+        let far_guid = ObjectGuid::create_player(1, 44);
+        let registry = std::sync::Arc::new(wow_network::PlayerRegistry::default());
+        let (self_tx, _self_rx) = flume::bounded(1);
+        let (far_tx, far_rx) = flume::bounded(1);
+        let (self_command_tx, self_command_rx) = flume::bounded(1);
+        let (far_command_tx, far_command_rx) = flume::bounded(1);
+
+        session.set_player_guid(Some(guid));
+        session.set_player_registry(std::sync::Arc::clone(&registry));
+        registry.insert(
+            guid,
+            broadcast_info_with_command(guid, self_tx, self_command_tx),
+        );
+        let mut far_info = broadcast_info_with_command(far_guid, far_tx, far_command_tx);
+        far_info.position =
+            wow_core::Position::new(crate::map_manager::VISIBILITY_RADIUS + 10.0, 0.0, 0.0, 0.0);
+        registry.insert(far_guid, far_info);
+
+        let movement = MovementInfo {
+            guid,
+            flags: MovementFlag::FORWARD,
+            position: wow_core::Position::ZERO,
+            ..MovementInfo::default()
+        };
+        let mut inbound = wow_packet::WorldPacket::new_empty();
+        inbound.write_uint16(ClientOpcodes::MoveHeartbeat as u16);
+        movement.write(&mut inbound);
+        inbound.read_uint16().expect("movement opcode");
+        session.handle_movement(inbound).await;
+
+        assert!(self_command_rx.try_recv().is_err());
+        assert!(far_command_rx.try_recv().is_err());
+        assert!(far_rx.try_recv().is_err());
     }
 
     #[tokio::test]
@@ -1705,6 +1791,14 @@ mod tests {
         send_tx: flume::Sender<Vec<u8>>,
     ) -> wow_network::PlayerBroadcastInfo {
         let (command_tx, _command_rx) = flume::bounded(1);
+        broadcast_info_with_command(guid, send_tx, command_tx)
+    }
+
+    fn broadcast_info_with_command(
+        guid: ObjectGuid,
+        send_tx: flume::Sender<Vec<u8>>,
+        command_tx: flume::Sender<wow_network::SessionCommand>,
+    ) -> wow_network::PlayerBroadcastInfo {
         wow_network::PlayerBroadcastInfo {
             map_id: 0,
             instance_id: 0,
