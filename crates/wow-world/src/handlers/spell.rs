@@ -2383,6 +2383,7 @@ fn add_loot_template_row_item_like_cpp<F>(
 #[cfg(test)]
 mod tests {
     use std::sync::{Arc, Mutex};
+    use std::time::Instant;
 
     use rand::{Rng, SeedableRng, rngs::StdRng};
 
@@ -2416,8 +2417,8 @@ mod tests {
         stored_loot_item_should_persist_like_cpp,
     };
     use crate::session::{
-        RepresentedAuraEffectLikeCpp, SessionPlayerController, SharedCanonicalMapManager,
-        SpellCastMetadata, SpellCastState,
+        AuraApplication, RepresentedAuraEffectLikeCpp, SessionPlayerController,
+        SharedCanonicalMapManager, SpellCastMetadata, SpellCastState,
     };
 
     fn make_session() -> (crate::session::WorldSession, flume::Receiver<Vec<u8>>) {
@@ -2920,6 +2921,80 @@ mod tests {
         Arc::new(spell_store)
     }
 
+    fn mounted_spell_store_with_active_shapeshift_aura(
+        mount_spell_id: i32,
+        shapeshift_spell_id: i32,
+        form_id: i32,
+    ) -> Arc<wow_data::SpellStore> {
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            mount_spell_id,
+            wow_data::SpellInfo {
+                spell_id: mount_spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: 77,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOUNTED),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
+                    effect_base_points: 77,
+                    ..Default::default()
+                }],
+            },
+        );
+        spell_store.insert(
+            shapeshift_spell_id,
+            wow_data::SpellInfo {
+                spell_id: shapeshift_spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOD_SHAPESHIFT),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_SHAPESHIFT,
+                    effect_misc_value_1: form_id,
+                    ..Default::default()
+                }],
+            },
+        );
+        Arc::new(spell_store)
+    }
+
+    fn active_shapeshift_aura_for_test(spell_id: i32, caster_guid: ObjectGuid) -> AuraApplication {
+        AuraApplication {
+            spell_id,
+            caster_guid,
+            slot: 0,
+            duration_total: 0,
+            duration_remaining: 0,
+            stack_count: 1,
+            aura_flags: 0x0000_0001,
+            effect_mask: 1,
+            aura_interrupt_flags: 0,
+            aura_interrupt_flags2: 0,
+            represented_effect: None,
+            represented_amount: 0,
+            represented_effect_amounts: Vec::new(),
+            represented_misc_value: None,
+            represented_multiplier: 1.0,
+            applied_at: Instant::now(),
+        }
+    }
+
     fn mounted_spell_store_with_no_aura_cancel(
         spell_id: i32,
         creature_entry: i32,
@@ -3099,6 +3174,17 @@ mod tests {
         let _ = packet.read_packed_guid().expect("cast id");
         let _ = packet.read_int32().expect("spell id");
         packet.read_int32().expect("reason")
+    }
+
+    fn mount_result_like_cpp(bytes: &[u8]) -> i32 {
+        let mut packet = WorldPacket::from_bytes(bytes);
+        assert_eq!(
+            packet.server_opcode(),
+            Some(ServerOpcodes::MountResult),
+            "expected MountResult packet"
+        );
+        let _ = packet.read_uint16().expect("opcode");
+        packet.read_int32().expect("result")
     }
 
     fn cancel_aura_packet(spell_id: i32, caster_guid: ObjectGuid) -> WorldPacket {
@@ -3949,6 +4035,103 @@ mod tests {
             cast_failed_reason_like_cpp(&packets[0]),
             SpellCastResult::NotHere as i32
         );
+    }
+
+    #[tokio::test]
+    async fn cast_mount_spell_in_disallowed_shapeshift_form_sends_mount_result_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 46);
+        let mount_spell_id = 12_349;
+        let shapeshift_spell_id = 22_349;
+        let form_id = 56;
+
+        install_canonical_player(&mut session, &canonical, player_guid);
+        session.set_known_spells_like_cpp(vec![mount_spell_id]);
+        session.set_spell_store(mounted_spell_store_with_active_shapeshift_aura(
+            mount_spell_id,
+            shapeshift_spell_id,
+            form_id,
+        ));
+        session.set_spell_shapeshift_form_store(Arc::new(
+            wow_data::SpellShapeshiftFormStore::from_entries([
+                wow_data::SpellShapeshiftFormEntry {
+                    id: form_id as u32,
+                    name: "Non Stance Form".to_string(),
+                    creature_type: 0,
+                    flags: 0,
+                    attack_icon_file_id: 0,
+                    bonus_action_bar: 0,
+                    combat_round_time: 0,
+                    damage_variance: 0.0,
+                    mount_type_id: 0,
+                    creature_display_id: [0; 4],
+                    preset_spell_id: [0; wow_data::MAX_SHAPESHIFT_SPELLS],
+                },
+            ]),
+        ));
+        session.visible_auras.insert(
+            0,
+            active_shapeshift_aura_for_test(shapeshift_spell_id, player_guid),
+        );
+
+        session
+            .handle_cast_spell(cast_spell_packet(mount_spell_id, player_guid))
+            .await;
+
+        assert!(!session.player_mounted_like_cpp());
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 1);
+        assert_eq!(mount_result_like_cpp(&packets[0]), 8);
+    }
+
+    #[tokio::test]
+    async fn cast_mount_spell_in_stance_shapeshift_form_is_allowed_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 47);
+        let mount_spell_id = 12_350;
+        let shapeshift_spell_id = 22_350;
+        let form_id = 57;
+
+        install_canonical_player(&mut session, &canonical, player_guid);
+        session.set_known_spells_like_cpp(vec![mount_spell_id]);
+        session.set_spell_store(mounted_spell_store_with_active_shapeshift_aura(
+            mount_spell_id,
+            shapeshift_spell_id,
+            form_id,
+        ));
+        session.set_spell_shapeshift_form_store(Arc::new(
+            wow_data::SpellShapeshiftFormStore::from_entries([
+                wow_data::SpellShapeshiftFormEntry {
+                    id: form_id as u32,
+                    name: "Stance Form".to_string(),
+                    creature_type: 0,
+                    flags: 0x0000_0001,
+                    attack_icon_file_id: 0,
+                    bonus_action_bar: 0,
+                    combat_round_time: 0,
+                    damage_variance: 0.0,
+                    mount_type_id: 0,
+                    creature_display_id: [0; 4],
+                    preset_spell_id: [0; wow_data::MAX_SHAPESHIFT_SPELLS],
+                },
+            ]),
+        ));
+        session.visible_auras.insert(
+            0,
+            active_shapeshift_aura_for_test(shapeshift_spell_id, player_guid),
+        );
+
+        session
+            .handle_cast_spell(cast_spell_packet(mount_spell_id, player_guid))
+            .await;
+
+        assert!(session.player_mounted_like_cpp());
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert!(!opcodes.contains(&ServerOpcodes::MountResult));
+        assert!(!opcodes.contains(&ServerOpcodes::CastFailed));
+        assert!(opcodes.contains(&ServerOpcodes::SpellGo));
     }
 
     #[tokio::test]

@@ -1,3 +1,24 @@
+- `#NEXT.R8.ENTITIES.1019` — represented mount casts now cover the C++
+  `Spell::CheckCast` disallowed shapeshift-form branch for active
+  `SPELL_AURA_MOD_SHAPESHIFT` auras (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Spell.cpp:4639-4651,6590-6620`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/SpellPackets.h:1012-1022`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/SpellPackets.cpp:1001-1007`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:8053-8066`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:8813-8852`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DBCEnums.h:1949-1970`.
+  C++ sends `SMSG_MOUNT_RESULT` with `MountResult::Shapeshifted = 8` before
+  returning `SPELL_FAILED_DONT_REPORT`, so no normal `SMSG_CAST_FAILED` should
+  be sent for this branch. Rust now serializes `MountResult`, detects active
+  represented shapeshift auras whose `SpellShapeshiftFormEntry` lacks the
+  `Stance` flag, sends result 8, and stops without `CastFailed`; stance forms
+  are explicitly allowed. Coverage: packet serializer test plus targeted
+  `wow-world` tests for disallowed and allowed stance forms. Boundary remains
+  partial: C++ transform-spell `ALLOW_WHILE_MOUNTED`, display/native-display,
+  CreatureDisplayInfoExtra/ModelData, and ChrRaces `CanMount` branches are not
+  represented yet; no full shapeshift apply/remove runtime, no full
+  vehicle/passenger mount parity, no install/restart, bot, or live-client/manual
+  validation.
 - `#NEXT.R8.ENTITIES.1018` — disconnect/logout save now again prefers
   the latest represented session movement map/position over a stale canonical
   typed `Player` position, while keeping canonical gameplay fields such as
@@ -39,9 +60,10 @@
   constant test and targeted `wow-world` cast test prove the missing-capability
   shapeshift mount-form branch sends `CastFailed(NotHere)`. Boundary remains
   partial: no full shapeshift aura apply/remove runtime, no form visual/action
-  bar/stat side effects, no represented `IsInDisallowedMountForm` /
-  `SendMountResult(Shapeshifted)` branch, no full vehicle/passenger mount
-  runtime parity, no install/restart, bot, or live-client/manual validation.
+  bar/stat side effects, `IsInDisallowedMountForm` is only represented for
+  active shapeshift-aura form flags (#NEXT.R8.ENTITIES.1019), no
+  transform/display/model/race branches, no full vehicle/passenger mount runtime
+  parity, no install/restart, bot, or live-client/manual validation.
 - `#NEXT.R8.ENTITIES.1016` — represented mount casts now run the C++
   `SPELL_AURA_MOUNTED` location/cast gates before `SMSG_SPELL_GO` instead of
   applying the mount aura whenever the source spell is known (not
@@ -60,12 +82,13 @@
   context before any `SpellGo` is sent. Coverage: targeted `wow-world` tests
   prove missing mount capability sends `CastFailed(NotHere)`, flying mount in
   water sends `CastFailed(OnlyAbovewater)`, and the existing known account mount
-  success path still applies the mounted aura. Boundary remains partial: no
-  represented `IsInDisallowedMountForm` / `SendMountResult(Shapeshifted)`
-  branch, no full shapeshift mount-type location gate, no full
-  battleground/flying/zone policy beyond the existing represented capability
-  context, no full vehicle/passenger mount runtime parity, no install/restart,
-  bot, or live-client/manual validation.
+  success path still applies the mounted aura. Boundary remains partial:
+  `IsInDisallowedMountForm` / `SendMountResult(Shapeshifted)` is only represented
+  for active shapeshift-aura form flags (#NEXT.R8.ENTITIES.1019), no full
+  shapeshift mount-type location gate, no full battleground/flying/zone policy
+  beyond the existing represented capability context, no full vehicle/passenger
+  mount runtime parity, no install/restart, bot, or live-client/manual
+  validation.
 - `#NEXT.R8.ENTITIES.1015` — logout/disconnect save snapshots now prefer
   the live canonical `Player` object's map/position when it exists, matching
   the C++ `Player::SaveToDB()` authority instead of trusting a potentially

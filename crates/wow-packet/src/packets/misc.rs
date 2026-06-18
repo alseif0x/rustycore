@@ -3301,6 +3301,24 @@ impl ServerPacket for AccountMountUpdate {
     }
 }
 
+// ── MountResult (SMSG 0x257b) ───────────────────────────────────────
+
+/// C++ `WorldPackets::Spells::MountResult`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MountResult {
+    pub result: i32,
+}
+
+impl ServerPacket for MountResult {
+    const OPCODE: ServerOpcodes = ServerOpcodes::MountResult;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_int32(self.result);
+    }
+}
+
+pub const MOUNT_RESULT_SHAPESHIFTED_LIKE_CPP: i32 = 8;
+
 // ── MountSpecial (CMSG 0x3280) / SpecialMountAnim (SMSG 0x269f) ─────
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -10164,6 +10182,24 @@ mod tests {
             i32::from_le_bytes([bytes[3], bytes[4], bytes[5], bytes[6]]),
             1
         );
+    }
+
+    #[test]
+    fn mount_result_writes_result_int32_like_cpp() {
+        let bytes = MountResult {
+            result: MOUNT_RESULT_SHAPESHIFTED_LIKE_CPP,
+        }
+        .to_bytes();
+
+        assert_eq!(
+            bytes[0..2],
+            (ServerOpcodes::MountResult as u16).to_le_bytes()
+        );
+        assert_eq!(
+            i32::from_le_bytes([bytes[2], bytes[3], bytes[4], bytes[5]]),
+            MOUNT_RESULT_SHAPESHIFTED_LIKE_CPP
+        );
+        assert_eq!(bytes.len(), 6);
     }
 
     #[test]

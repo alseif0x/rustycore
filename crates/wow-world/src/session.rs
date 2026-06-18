@@ -155,8 +155,9 @@ use wow_packet::packets::item::{
 use wow_packet::packets::misc::{
     AccountHeirloom, AccountHeirloomUpdate, AccountMount, AccountMountUpdate, AccountToy,
     AccountToyUpdate, BuyFailed, DungeonDifficultySet, EQUIP_ERR_NOT_ENOUGH_MONEY_LIKE_CPP,
-    NUM_ACCOUNT_DATA_TYPES, RaidDifficultySet, SellResponse, SetupCurrency, SetupCurrencyRecord,
-    TRADE_SLOT_COUNT_LIKE_CPP, TRADE_STATUS_ACCEPTED_LIKE_CPP, TRADE_STATUS_CANCELLED_LIKE_CPP,
+    MOUNT_RESULT_SHAPESHIFTED_LIKE_CPP, MountResult, NUM_ACCOUNT_DATA_TYPES, RaidDifficultySet,
+    SellResponse, SetupCurrency, SetupCurrencyRecord, TRADE_SLOT_COUNT_LIKE_CPP,
+    TRADE_STATUS_ACCEPTED_LIKE_CPP, TRADE_STATUS_CANCELLED_LIKE_CPP,
     TRADE_STATUS_STATE_CHANGED_LIKE_CPP, TRADE_STATUS_UNACCEPTED_LIKE_CPP, TradeStatus,
 };
 use wow_packet::packets::quest::{
@@ -2443,6 +2444,7 @@ const TOY_FLAG_HAS_FANFARE_LIKE_CPP: u32 = 0x02;
 const DAMAGE_FALL_LIKE_CPP: u8 = 2;
 const DAMAGE_FIRE_LIKE_CPP: u8 = 5;
 const DAMAGE_FALL_TO_VOID_LIKE_CPP: u8 = 6;
+const SPELL_SHAPESHIFT_FORM_FLAG_STANCE_LIKE_CPP: i32 = 0x0000_0001;
 pub(crate) const SPELL_DUEL_LIKE_CPP: u32 = 7266;
 pub(crate) const SPELL_MOUNTED_DUEL_LIKE_CPP: u32 = 62875;
 pub(crate) const SPELL_DUEL_BEG_LIKE_CPP: u32 = 7267;
@@ -4668,6 +4670,12 @@ pub enum RepresentedAuraEffectLikeCpp {
     ProvideSpellFocus,
     Stealth,
     WaterWalk,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RepresentedMountSpellCheckOutcomeLikeCpp {
+    CastFailed(SpellCastResult),
+    DontReport,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38602,20 +38610,31 @@ impl WorldSession {
             return Ok(());
         }
 
-        if let Some(reason) = self.check_represented_mount_spell_like_cpp(&spell_info) {
-            self.send_packet(&wow_packet::packets::spell::CastFailed {
-                cast_id,
-                spell_id,
-                reason: reason as i32,
-                fail_arg1: 0,
-                fail_arg2: 0,
-            });
-            debug!(
-                account = self.account_id,
-                spell_id = spell_id,
-                reason = reason as i32,
-                "Failing represented mount spell because C++ Spell::CheckCast rejected it"
-            );
+        if let Some(outcome) = self.check_represented_mount_spell_like_cpp(&spell_info) {
+            match outcome {
+                RepresentedMountSpellCheckOutcomeLikeCpp::CastFailed(reason) => {
+                    self.send_packet(&wow_packet::packets::spell::CastFailed {
+                        cast_id,
+                        spell_id,
+                        reason: reason as i32,
+                        fail_arg1: 0,
+                        fail_arg2: 0,
+                    });
+                    debug!(
+                        account = self.account_id,
+                        spell_id = spell_id,
+                        reason = reason as i32,
+                        "Failing represented mount spell because C++ Spell::CheckCast rejected it"
+                    );
+                }
+                RepresentedMountSpellCheckOutcomeLikeCpp::DontReport => {
+                    debug!(
+                        account = self.account_id,
+                        spell_id = spell_id,
+                        "Failing represented mount spell with C++ SPELL_FAILED_DONT_REPORT"
+                    );
+                }
+            }
             return Ok(());
         }
 
@@ -39542,7 +39561,7 @@ impl WorldSession {
     fn check_represented_mount_spell_like_cpp(
         &self,
         spell_info: &wow_data::SpellInfo,
-    ) -> Option<SpellCastResult> {
+    ) -> Option<RepresentedMountSpellCheckOutcomeLikeCpp> {
         for effect in spell_info.effects() {
             if effect.is_mod_shapeshift_aura_like_cpp() {
                 if let Some(form) = self.spell_shapeshift_form_store.as_ref().and_then(|store| {
@@ -39567,7 +39586,9 @@ impl WorldSession {
                             map_id = self.player_map_id_like_cpp(),
                             "Rejecting represented shapeshift mount form cast: no mount capability"
                         );
-                        return Some(SpellCastResult::NotHere);
+                        return Some(RepresentedMountSpellCheckOutcomeLikeCpp::CastFailed(
+                            SpellCastResult::NotHere,
+                        ));
                     }
                 }
             }
@@ -39587,7 +39608,22 @@ impl WorldSession {
                     spell_id = spell_info.spell_id,
                     "Rejecting represented flying mount cast while in water"
                 );
-                return Some(SpellCastResult::OnlyAbovewater);
+                return Some(RepresentedMountSpellCheckOutcomeLikeCpp::CastFailed(
+                    SpellCastResult::OnlyAbovewater,
+                ));
+            }
+
+            if let Some(form_id) = self.represented_disallowed_mount_form_like_cpp() {
+                self.send_packet(&MountResult {
+                    result: MOUNT_RESULT_SHAPESHIFTED_LIKE_CPP,
+                });
+                debug!(
+                    account = self.account_id,
+                    spell_id = spell_info.spell_id,
+                    form_id,
+                    "Rejecting represented mount cast: player is in a disallowed shapeshift form"
+                );
+                return Some(RepresentedMountSpellCheckOutcomeLikeCpp::DontReport);
             }
 
             let mut mount_type_id = u16::try_from(effect.effect_misc_value_2).unwrap_or_default();
@@ -39616,7 +39652,38 @@ impl WorldSession {
                     area_id = self.player_zone_area_like_cpp().1,
                     "Rejecting represented mount cast: no mount capability"
                 );
-                return Some(SpellCastResult::NotHere);
+                return Some(RepresentedMountSpellCheckOutcomeLikeCpp::CastFailed(
+                    SpellCastResult::NotHere,
+                ));
+            }
+        }
+
+        None
+    }
+
+    fn represented_disallowed_mount_form_like_cpp(&self) -> Option<u32> {
+        let spell_store = self.spell_store()?;
+        let shapeshift_form_store = self.spell_shapeshift_form_store.as_ref()?;
+
+        for aura in self.visible_auras.values() {
+            let Some(spell_info) = spell_store.get(aura.spell_id) else {
+                continue;
+            };
+
+            for effect in spell_info
+                .effects()
+                .iter()
+                .filter(|effect| effect.is_mod_shapeshift_aura_like_cpp())
+            {
+                let Ok(form_id) = u32::try_from(effect.effect_misc_value_1) else {
+                    continue;
+                };
+                let Some(form) = shapeshift_form_store.get(form_id) else {
+                    return Some(form_id);
+                };
+                if form.flags & SPELL_SHAPESHIFT_FORM_FLAG_STANCE_LIKE_CPP == 0 {
+                    return Some(form_id);
+                }
             }
         }
 
