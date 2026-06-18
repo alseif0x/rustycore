@@ -96,8 +96,8 @@ use wow_data::{
     is_player_meeting_condition_like_cpp,
     progression_rewards::{
         ContentTuningStore, FactionEntry, FactionStore, FactionTemplateStore,
-        FriendshipRepReactionStore, ParagonReputationStore, QuestFactionRewardStore,
-        QuestInfoStore, QuestPackageItemStore, QuestV2Store,
+        FriendshipRepReactionStore, NumTalentsAtLevelStore, ParagonReputationStore,
+        QuestFactionRewardStore, QuestInfoStore, QuestPackageItemStore, QuestV2Store,
     },
     reputation::{
         CreatureOnKillReputationStoreLikeCpp, RepSpilloverTemplateStoreLikeCpp,
@@ -2840,6 +2840,7 @@ pub(crate) struct SessionPlayerController {
     gender: u8,
     gold: u64,
     bank_bag_slot_count: u8,
+    character_points: i32,
     xp: u32,
     next_level_xp: u32,
     selection_guid: Option<ObjectGuid>,
@@ -2895,6 +2896,7 @@ impl SessionPlayerController {
             gender,
             gold: 0,
             bank_bag_slot_count: 0,
+            character_points: 0,
             xp: 0,
             next_level_xp: 400,
             selection_guid: None,
@@ -2950,6 +2952,10 @@ impl SessionPlayerController {
         self.bank_bag_slot_count
     }
 
+    pub(crate) fn character_points(&self) -> i32 {
+        self.character_points
+    }
+
     pub(crate) fn xp(&self) -> u32 {
         self.xp
     }
@@ -3002,6 +3008,10 @@ impl SessionPlayerController {
 
     fn set_bank_bag_slot_count(&mut self, count: u8) {
         self.bank_bag_slot_count = count;
+    }
+
+    fn set_character_points(&mut self, points: i32) {
+        self.character_points = points;
     }
 
     fn set_xp(&mut self, xp: u32) {
@@ -3558,6 +3568,8 @@ pub struct WorldSession {
     player_gold: u64,
     /// C++ `Player::GetBankBagSlotCount`, loaded from `characters.bankSlots`.
     player_bank_bag_slot_count_like_cpp: u8,
+    /// C++ `UF::ActivePlayerData::CharacterPoints`, recalculated by InitTalentForLevel/LearnTalent.
+    player_character_points_like_cpp: i32,
     represented_bank_bag_slot_flags_like_cpp: [u32; 7],
     represented_current_banker_guid_like_cpp: Option<ObjectGuid>,
     represented_bank_item_moves_like_cpp: Vec<RepresentedBankItemMoveLikeCpp>,
@@ -3995,6 +4007,7 @@ pub struct WorldSession {
     pub spell_store: Option<Arc<SpellStore>>,
     talent_store: Option<Arc<TalentStore>>,
     talent_tab_store: Option<Arc<TalentTabStore>>,
+    num_talents_at_level_store: Option<Arc<NumTalentsAtLevelStore>>,
     glyph_properties_store: Option<Arc<GlyphPropertiesStore>>,
     spell_chain_store: Option<Arc<SpellChainStoreLikeCpp>>,
     spell_category_store: Option<Arc<SpellCategoryStore>>,
@@ -5154,6 +5167,7 @@ impl WorldSession {
             level_played_time: 0,
             player_gold: 0,
             player_bank_bag_slot_count_like_cpp: 0,
+            player_character_points_like_cpp: 0,
             represented_bank_bag_slot_flags_like_cpp: [0; 7],
             represented_current_banker_guid_like_cpp: None,
             represented_bank_item_moves_like_cpp: Vec::new(),
@@ -5381,6 +5395,7 @@ impl WorldSession {
             spell_store: None,
             talent_store: None,
             talent_tab_store: None,
+            num_talents_at_level_store: None,
             glyph_properties_store: None,
             spell_chain_store: None,
             spell_category_store: None,
@@ -17421,6 +17436,15 @@ impl WorldSession {
         self.talent_tab_store.as_ref()
     }
 
+    pub fn set_num_talents_at_level_store(&mut self, store: Arc<NumTalentsAtLevelStore>) {
+        self.num_talents_at_level_store = Some(store);
+        self.refresh_represented_talent_points_like_cpp();
+    }
+
+    pub(crate) fn num_talents_at_level_store(&self) -> Option<&Arc<NumTalentsAtLevelStore>> {
+        self.num_talents_at_level_store.as_ref()
+    }
+
     pub fn set_glyph_properties_store(&mut self, store: Arc<GlyphPropertiesStore>) {
         self.glyph_properties_store = Some(store);
     }
@@ -18295,6 +18319,7 @@ impl WorldSession {
 
     pub(crate) fn mark_represented_talents_loaded_like_cpp(&mut self) {
         self.represented_talents_loaded_like_cpp = true;
+        self.refresh_represented_talent_points_like_cpp();
     }
 
     pub(crate) fn represented_talents_loaded_like_cpp(&self) -> bool {
@@ -18318,14 +18343,23 @@ impl WorldSession {
             return false;
         }
 
-        self.load_represented_talent_row_like_cpp(
+        let learned = self.load_represented_talent_row_like_cpp(
             talent_id,
             rank,
             self.represented_active_talent_group_like_cpp,
-        )
+        );
+        if learned {
+            self.refresh_represented_talent_points_like_cpp();
+        }
+        learned
     }
 
     fn validate_represented_talent_learn_like_cpp(&self, talent_id: u32, rank: u8) -> bool {
+        let available_points = self.player_character_points_like_cpp().max(0) as u32;
+        if available_points == 0 {
+            return false;
+        }
+
         let talent_group_index = usize::from(self.represented_active_talent_group_like_cpp);
         if talent_group_index >= MAX_SPECIALIZATIONS_LIKE_CPP {
             return false;
@@ -18340,6 +18374,12 @@ impl WorldSession {
             if *current_rank >= rank {
                 return false;
             }
+        }
+
+        let needed_talent_points =
+            self.represented_needed_talent_points_for_learn_like_cpp(talent_id, rank);
+        if needed_talent_points > available_points {
+            return false;
         }
 
         for (prereq_talent, prereq_rank) in talent.prereq_talent.iter().zip(talent.prereq_rank) {
@@ -18389,6 +18429,59 @@ impl WorldSession {
         }
 
         true
+    }
+
+    fn represented_needed_talent_points_for_learn_like_cpp(&self, talent_id: u32, rank: u8) -> u32 {
+        let talent_group_index = usize::from(self.represented_active_talent_group_like_cpp);
+        let Some(talents) = self.represented_talents_like_cpp.get(talent_group_index) else {
+            return u32::from(rank) + 1;
+        };
+        if let Some(current_rank) = talents.get(&talent_id) {
+            (i32::from(*current_rank) - i32::from(rank) + 1).max(0) as u32
+        } else {
+            u32::from(rank) + 1
+        }
+    }
+
+    fn represented_spent_talent_points_count_like_cpp(&self) -> u32 {
+        let talent_group_index = usize::from(self.represented_active_talent_group_like_cpp);
+        self.represented_talents_like_cpp
+            .get(talent_group_index)
+            .into_iter()
+            .flat_map(|talents| talents.iter())
+            .filter(|(talent_id, rank)| {
+                self.represented_talent_info_like_cpp(**talent_id, **rank)
+                    .is_some()
+            })
+            .map(|(_, rank)| u32::from(*rank) + 1)
+            .sum()
+    }
+
+    fn represented_quest_rewarded_talent_points_like_cpp(&self) -> u32 {
+        self.represented_quest_reward_talent_points_like_cpp
+            .iter()
+            .map(|reward| reward.points)
+            .sum()
+    }
+
+    fn represented_calculate_talents_points_like_cpp(&self) -> u32 {
+        let base_points = self
+            .num_talents_at_level_store()
+            .map(|store| {
+                store.num_talents_at_level_like_cpp(
+                    u32::from(self.player_level_like_cpp()),
+                    self.player_class_like_cpp(),
+                )
+            })
+            .unwrap_or(0);
+        base_points + self.represented_quest_rewarded_talent_points_like_cpp()
+    }
+
+    pub(crate) fn refresh_represented_talent_points_like_cpp(&mut self) {
+        let available = self
+            .represented_calculate_talents_points_like_cpp()
+            .saturating_sub(self.represented_spent_talent_points_count_like_cpp());
+        self.set_player_character_points_like_cpp(available.min(i32::MAX as u32) as i32);
     }
 
     pub(crate) fn load_represented_talent_row_like_cpp(
@@ -18575,7 +18668,7 @@ impl WorldSession {
         }
 
         wow_packet::packets::misc::UpdateTalentData {
-            unspent_talent_points: 0,
+            unspent_talent_points: self.player_character_points_like_cpp().max(0) as u32,
             active_group: self.represented_active_talent_group_like_cpp,
             groups,
             is_pet_talents: false,
@@ -26326,6 +26419,7 @@ impl WorldSession {
             controller.gender = gender;
         }
         self.initialize_reputation_mgr_like_cpp();
+        self.refresh_represented_talent_points_like_cpp();
     }
 
     pub(crate) fn attach_player_controller_like_cpp(
@@ -26333,6 +26427,7 @@ impl WorldSession {
         mut controller: SessionPlayerController,
     ) {
         controller.set_gold(self.player_gold);
+        controller.set_character_points(self.player_character_points_like_cpp);
         controller.set_xp(self.player_xp);
         controller.set_next_level_xp(self.player_next_level_xp);
         controller.set_selection_guid(self.selection_guid);
@@ -26416,6 +26511,7 @@ impl WorldSession {
         if let Some(controller) = &mut self.player_controller {
             controller.set_level(level);
         }
+        self.refresh_represented_talent_points_like_cpp();
     }
 
     #[cfg(test)]
@@ -26424,6 +26520,7 @@ impl WorldSession {
         if let Some(controller) = &mut self.player_controller {
             controller.class = class;
         }
+        self.refresh_represented_talent_points_like_cpp();
     }
 
     pub(crate) fn set_player_gold_like_cpp(&mut self, gold: u64) {
@@ -26437,6 +26534,13 @@ impl WorldSession {
         self.player_bank_bag_slot_count_like_cpp = count;
         if let Some(controller) = &mut self.player_controller {
             controller.set_bank_bag_slot_count(count);
+        }
+    }
+
+    pub(crate) fn set_player_character_points_like_cpp(&mut self, points: i32) {
+        self.player_character_points_like_cpp = points;
+        if let Some(controller) = &mut self.player_controller {
+            controller.set_character_points(points);
         }
     }
 
@@ -27365,6 +27469,13 @@ impl WorldSession {
             .as_ref()
             .map(SessionPlayerController::bank_bag_slot_count)
             .unwrap_or(self.player_bank_bag_slot_count_like_cpp)
+    }
+
+    pub(crate) fn player_character_points_like_cpp(&self) -> i32 {
+        self.player_controller
+            .as_ref()
+            .map(SessionPlayerController::character_points)
+            .unwrap_or(self.player_character_points_like_cpp)
     }
 
     pub(crate) fn player_xp_like_cpp(&self) -> u32 {

@@ -279,6 +279,17 @@ mod tests {
             },
         ])));
         session.set_player_class_like_cpp(1);
+        session.set_player_level_like_cpp(80);
+        session.set_num_talents_at_level_store(Arc::new(
+            wow_data::progression_rewards::NumTalentsAtLevelStore::from_entries([
+                wow_data::progression_rewards::NumTalentsAtLevelEntry {
+                    id: 80,
+                    num_talents: 71,
+                    num_talents_death_knight: 71,
+                    num_talents_demon_hunter: 71,
+                },
+            ]),
+        ));
 
         let mut spell_store = wow_data::SpellStore::new();
         for spell_id in spell_ids {
@@ -297,6 +308,17 @@ mod tests {
             }),
         )));
         session.set_player_class_like_cpp(1);
+        session.set_player_level_like_cpp(80);
+        session.set_num_talents_at_level_store(Arc::new(
+            wow_data::progression_rewards::NumTalentsAtLevelStore::from_entries([
+                wow_data::progression_rewards::NumTalentsAtLevelEntry {
+                    id: 80,
+                    num_talents: 71,
+                    num_talents_death_knight: 71,
+                    num_talents_demon_hunter: 71,
+                },
+            ]),
+        ));
 
         let mut spell_store = wow_data::SpellStore::new();
         for (_, _, spell_id) in talents {
@@ -414,6 +436,10 @@ mod tests {
                 rank: 2,
             }]
         );
+        assert_eq!(
+            packet.unspent_talent_points, 68,
+            "C++ LearnTalent recomputes CharacterPoints from CalculateTalentsPoints - spent talents"
+        );
     }
 
     #[tokio::test]
@@ -449,6 +475,34 @@ mod tests {
                     rank: 0,
                 },
             ]
+        );
+        assert_eq!(packet.unspent_talent_points, 69);
+    }
+
+    #[tokio::test]
+    async fn learn_talent_rejects_zero_character_points_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        install_test_talent_store(&mut session, &[(101, 0, 50_101)]);
+        session.mark_represented_talents_loaded_like_cpp();
+        session.set_player_character_points_like_cpp(0);
+
+        session
+            .handle_learn_talent(learn_talent_packet(101, 0))
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+        assert!(
+            session
+                .represented_update_talent_data_packet_like_cpp()
+                .groups[0]
+                .talents
+                .is_empty()
+        );
+        assert_eq!(
+            session
+                .represented_update_talent_data_packet_like_cpp()
+                .unspent_talent_points,
+            0
         );
     }
 

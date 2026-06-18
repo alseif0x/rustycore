@@ -588,6 +588,26 @@ impl NumTalentsAtLevelStore {
             }
         })
     }
+
+    pub fn num_talents_at_level_like_cpp(&self, level: u32, class_id: u8) -> u32 {
+        let entry = self.get(level).or_else(|| {
+            self.entries
+                .keys()
+                .max()
+                .and_then(|highest_level| self.get(*highest_level))
+        });
+
+        let Some(entry) = entry else {
+            return 0;
+        };
+
+        let points = match class_id {
+            6 => entry.num_talents_death_knight,
+            12 => entry.num_talents_demon_hunter,
+            _ => entry.num_talents,
+        };
+        points.max(0) as u32
+    }
 }
 
 impl ParagonReputationStore {
@@ -1054,6 +1074,29 @@ mod tests {
 
         assert_eq!(primary, vec![100]);
         assert_eq!(fallback, vec![200]);
+    }
+
+    #[test]
+    fn num_talents_at_level_matches_cpp_class_and_fallback_like_cpp() {
+        let store = NumTalentsAtLevelStore::from_entries([
+            NumTalentsAtLevelEntry {
+                id: 10,
+                num_talents: 1,
+                num_talents_death_knight: 0,
+                num_talents_demon_hunter: 3,
+            },
+            NumTalentsAtLevelEntry {
+                id: 80,
+                num_talents: 71,
+                num_talents_death_knight: 76,
+                num_talents_demon_hunter: 0,
+            },
+        ]);
+
+        assert_eq!(store.num_talents_at_level_like_cpp(10, 1), 1);
+        assert_eq!(store.num_talents_at_level_like_cpp(80, 6), 76);
+        assert_eq!(store.num_talents_at_level_like_cpp(90, 1), 71);
+        assert_eq!(store.num_talents_at_level_like_cpp(90, 12), 0);
     }
 
     #[test]

@@ -1,3 +1,29 @@
+- `#NEXT.R8.ENTITIES.1071` — represented `Player::LearnTalent` now enforces
+  C++ free talent points and recomputes `CharacterPoints` after successful
+  learns (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26042-26135`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:2344-2360`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26316-26364`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28688-28705`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Stores.cpp:2432-2450`.
+  Rust now loads `NumTalentsAtLevel.db2`, wires it into `WorldSession`,
+  mirrors `UF::ActivePlayerData::CharacterPoints` through
+  `SessionPlayerController`, rejects `LearnTalent` when no free points are
+  available or the C++ `neededTalentPoints` value exceeds available points,
+  computes base points from level/class plus represented quest reward talent
+  points, subtracts active-group spent talent ranks, and serializes
+  `UpdateTalentData.UnspentTalentPoints` from the represented active-player
+  field like C++ `SendTalentsInfoData`. The existing-rank upgrade cost mirrors
+  the inspected legacy expression `(currentRank - requestedRank) + 1`; if that
+  is later treated as a C++ bug, it must be fixed deliberately in both design
+  notes and behavior. Coverage: `cargo fmt --all --check`;
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world learn_talent --lib`;
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world character_talent --lib`;
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`.
+  Boundary remains partial: exact `SpellMgr::IsSpellValid` parity, real
+  resolved `CMSG_LEARN_TALENTS` dispatch, preview/pet talent handlers,
+  live-client validation, bot validation, and manual validation remain open.
 - `#NEXT.R8.ENTITIES.1070` — represented `Player::LearnTalent` now enforces
   C++ existing-rank, prereq-rank, and tier-spent gates before mutating the
   represented active talent group (not manual-test-ready). Source of truth:
@@ -12,9 +38,11 @@
   new reject/accept transitions, focused `wow-world character_talent` tests
   verify DB load/save still works with the TalentTab gate, and `world-server`
   compile verifies the data-store surface. Boundary remains partial:
-  represented `Player::LearnTalent` still needs character-points/free-point
-  spending, exact `SpellMgr::IsSpellValid` parity, talent-point recomputation,
-  live-client validation, bot validation, and manual validation.
+  represented `Player::LearnTalent` still needs exact `SpellMgr::IsSpellValid`
+  parity, real `CMSG_LEARN_TALENTS` opcode resolution/dispatch, preview/pet
+  talent handlers, live-client validation, bot validation, and manual
+  validation; character-points/free-point spending and talent-point
+  recomputation were closed later by `#NEXT.R8.ENTITIES.1071`.
 - `#NEXT.R8.ENTITIES.1069` — represented `Player::LearnTalent` now enforces
   the C++ `TalentTab` existence and class-mask gates before mutating the active
   represented talent group (not manual-test-ready). Source of truth:
