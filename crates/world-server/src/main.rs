@@ -1591,6 +1591,14 @@ async fn main() -> Result<ExitCode> {
             .context("Failed to load SpellDuration.db2")?,
     );
     info!("Loaded {} spell duration rows", spell_duration_store.len());
+    let spell_shapeshift_form_store = Arc::new(
+        wow_data::SpellShapeshiftFormStore::load(&data_dir, &locale)
+            .context("Failed to load SpellShapeshiftForm.db2")?,
+    );
+    info!(
+        "Loaded {} spell shapeshift form rows",
+        spell_shapeshift_form_store.len()
+    );
     let creature_addon_store = Arc::new(
         wow_data::CreatureAddonStoreLikeCpp::load_like_cpp(
             world_db.as_ref(),
@@ -4224,6 +4232,7 @@ async fn main() -> Result<ExitCode> {
         mount_capability_store: Some(Arc::clone(&mount_capability_store)),
         mount_type_x_capability_store: Some(Arc::clone(&mount_type_x_capability_store)),
         mount_x_display_store: Some(Arc::clone(&mount_x_display_store)),
+        spell_shapeshift_form_store: Some(Arc::clone(&spell_shapeshift_form_store)),
         vehicle_store: Some(Arc::clone(&vehicle_store)),
         vehicle_seat_store: Some(Arc::clone(&vehicle_seat_store)),
         vehicle_template_store: Some(Arc::clone(&vehicle_template_store)),
@@ -10784,6 +10793,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.mount_x_display_store {
         session.set_mount_x_display_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.spell_shapeshift_form_store {
+        session.set_spell_shapeshift_form_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.vehicle_store {
         session.set_vehicle_store(Arc::clone(store));

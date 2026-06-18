@@ -2893,6 +2893,33 @@ mod tests {
         Arc::new(spell_store)
     }
 
+    fn shapeshift_spell_store(spell_id: i32, form_id: i32) -> Arc<wow_data::SpellStore> {
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOD_SHAPESHIFT),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_SHAPESHIFT,
+                    effect_misc_value_1: form_id,
+                    ..Default::default()
+                }],
+            },
+        );
+        Arc::new(spell_store)
+    }
+
     fn mounted_spell_store_with_no_aura_cancel(
         spell_id: i32,
         creature_entry: i32,
@@ -3880,6 +3907,47 @@ mod tests {
         assert_eq!(
             cast_failed_reason_like_cpp(&packets[0]),
             SpellCastResult::OnlyAbovewater as i32
+        );
+    }
+
+    #[tokio::test]
+    async fn cast_shapeshift_mount_form_fails_not_here_without_capability_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 45);
+        let spell_id = 12_348;
+        let form_id = 55;
+
+        install_canonical_player(&mut session, &canonical, player_guid);
+        session.set_known_spells_like_cpp(vec![spell_id]);
+        session.set_spell_store(shapeshift_spell_store(spell_id, form_id));
+        session.set_spell_shapeshift_form_store(Arc::new(
+            wow_data::SpellShapeshiftFormStore::from_entries([
+                wow_data::SpellShapeshiftFormEntry {
+                    id: form_id as u32,
+                    name: "Mounted Form".to_string(),
+                    creature_type: 0,
+                    flags: 0,
+                    attack_icon_file_id: 0,
+                    bonus_action_bar: 0,
+                    combat_round_time: 0,
+                    damage_variance: 0.0,
+                    mount_type_id: 7,
+                    creature_display_id: [0; 4],
+                    preset_spell_id: [0; wow_data::MAX_SHAPESHIFT_SPELLS],
+                },
+            ]),
+        ));
+
+        session
+            .handle_cast_spell(cast_spell_packet(spell_id, player_guid))
+            .await;
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 1);
+        assert_eq!(
+            cast_failed_reason_like_cpp(&packets[0]),
+            SpellCastResult::NotHere as i32
         );
     }
 

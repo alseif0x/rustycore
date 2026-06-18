@@ -280,6 +280,7 @@ pub struct SessionResources {
     pub mount_capability_store: Option<Arc<wow_data::MountCapabilityStore>>,
     pub mount_type_x_capability_store: Option<Arc<wow_data::MountTypeXCapabilityStore>>,
     pub mount_x_display_store: Option<Arc<wow_data::MountXDisplayStore>>,
+    pub spell_shapeshift_form_store: Option<Arc<wow_data::SpellShapeshiftFormStore>>,
     pub vehicle_store: Option<Arc<wow_data::VehicleStore>>,
     pub vehicle_seat_store: Option<Arc<wow_data::VehicleSeatStore>>,
     pub vehicle_template_store: Option<Arc<wow_data::VehicleTemplateStoreLikeCpp>>,

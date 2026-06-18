@@ -1,3 +1,24 @@
+- `#NEXT.R8.ENTITIES.1017` — represented shapeshift mount-form casts now run
+  the C++ `SPELL_AURA_MOD_SHAPESHIFT` mount-type location gate before
+  `SMSG_SPELL_GO` (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellInfo.cpp:2110-2145`,
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Structure.h:3766-3779`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraDefines.h:131`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:7891-7987`.
+  C++ looks up `SpellShapeshiftFormEntry` from the shapeshift aura
+  `EffectMiscValue1`; when that form has a non-zero `MountTypeID`, the player
+  must pass `GetMountCapability(mountType)` or the cast fails with
+  `SPELL_FAILED_NOT_HERE`. Rust now loads `SpellShapeshiftForm.db2`, injects the
+  store into live sessions, anchors `SPELL_AURA_MOD_SHAPESHIFT = 36`, and
+  extends the represented mount `CheckCast` gate to reject shapeshift mount
+  forms before any `SpellGo` packet is sent. Coverage: targeted `wow-data`
+  constant test and targeted `wow-world` cast test prove the missing-capability
+  shapeshift mount-form branch sends `CastFailed(NotHere)`. Boundary remains
+  partial: no full shapeshift aura apply/remove runtime, no form visual/action
+  bar/stat side effects, no represented `IsInDisallowedMountForm` /
+  `SendMountResult(Shapeshifted)` branch, no full vehicle/passenger mount
+  runtime parity, no install/restart, bot, or live-client/manual validation.
 - `#NEXT.R8.ENTITIES.1016` — represented mount casts now run the C++
   `SPELL_AURA_MOUNTED` location/cast gates before `SMSG_SPELL_GO` instead of
   applying the mount aura whenever the source spell is known (not

@@ -87,11 +87,11 @@ use wow_data::{
     SpellLearnSkillNodeLikeCpp, SpellLearnSkillStoreLikeCpp, SpellLearnSpellNodeLikeCpp,
     SpellLearnSpellStoreLikeCpp, SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp, SpellMiscStore,
     SpellPetAuraStoreLikeCpp, SpellProcEntryLikeCpp, SpellProcStoreLikeCpp, SpellRadiusStore,
-    SpellRangeStore, SpellRequiredStoreLikeCpp, SpellStore, SpellTargetPositionStoreLikeCpp,
-    SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp, SpellTotemModelStoreLikeCpp,
-    SummonPropertiesEntry, ToyStore, TransmogSetEntry, TransmogSetItemStore,
-    TrinityStringStoreLikeCpp, VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp,
-    VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
+    SpellRangeStore, SpellRequiredStoreLikeCpp, SpellShapeshiftFormStore, SpellStore,
+    SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp,
+    SpellTotemModelStoreLikeCpp, SummonPropertiesEntry, ToyStore, TransmogSetEntry,
+    TransmogSetItemStore, TrinityStringStoreLikeCpp, VEHICLE_SEAT_FLAG_CAN_ATTACK,
+    VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
     calculate_battle_pet_stats_like_cpp, is_player_meeting_condition_like_cpp,
     progression_rewards::{
         ContentTuningStore, FactionEntry, FactionStore, FactionTemplateStore,
@@ -3354,6 +3354,7 @@ pub struct WorldSession {
     mount_capability_store: Option<Arc<MountCapabilityStore>>,
     mount_type_x_capability_store: Option<Arc<MountTypeXCapabilityStore>>,
     mount_x_display_store: Option<Arc<MountXDisplayStore>>,
+    spell_shapeshift_form_store: Option<Arc<SpellShapeshiftFormStore>>,
     vehicle_store: Option<Arc<VehicleStore>>,
     vehicle_seat_store: Option<Arc<VehicleSeatStore>>,
     vehicle_template_store: Option<Arc<VehicleTemplateStoreLikeCpp>>,
@@ -4937,6 +4938,7 @@ impl WorldSession {
             mount_capability_store: None,
             mount_type_x_capability_store: None,
             mount_x_display_store: None,
+            spell_shapeshift_form_store: None,
             vehicle_store: None,
             vehicle_seat_store: None,
             vehicle_template_store: None,
@@ -16782,6 +16784,10 @@ impl WorldSession {
         self.mount_x_display_store = Some(store);
     }
 
+    pub fn set_spell_shapeshift_form_store(&mut self, store: Arc<SpellShapeshiftFormStore>) {
+        self.spell_shapeshift_form_store = Some(store);
+    }
+
     pub fn set_vehicle_store(&mut self, store: Arc<VehicleStore>) {
         self.vehicle_store = Some(store);
     }
@@ -16811,6 +16817,11 @@ impl WorldSession {
     #[allow(dead_code)]
     pub(crate) fn mount_x_display_store(&self) -> Option<&Arc<MountXDisplayStore>> {
         self.mount_x_display_store.as_ref()
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn spell_shapeshift_form_store(&self) -> Option<&Arc<SpellShapeshiftFormStore>> {
+        self.spell_shapeshift_form_store.as_ref()
     }
 
     pub fn set_terrain_swap_store(&mut self, store: Arc<wow_data::TerrainSwapStore>) {
@@ -39523,6 +39534,25 @@ impl WorldSession {
         spell_info: &wow_data::SpellInfo,
     ) -> Option<SpellCastResult> {
         for effect in spell_info.effects() {
+            if effect.is_mod_shapeshift_aura_like_cpp() {
+                if let Some(form) = self.spell_shapeshift_form_store.as_ref().and_then(|store| {
+                    u32::try_from(effect.effect_misc_value_1)
+                        .ok()
+                        .and_then(|form_id| store.get(form_id))
+                }) {
+                    if form.mount_type_id != 0
+                        && self
+                            .represented_mount_capability_for_type_from_session_like_cpp(
+                                form.mount_type_id,
+                                None,
+                            )
+                            .is_none()
+                    {
+                        return Some(SpellCastResult::NotHere);
+                    }
+                }
+            }
+
             if !effect.is_mounted_aura_like_cpp() {
                 continue;
             }

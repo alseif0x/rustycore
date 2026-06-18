@@ -411,6 +411,7 @@ pub mod aura_types {
     pub const SPELL_AURA_MOD_INCREASE_SPEED: i32 = 31;
     pub const SPELL_AURA_MODIFY_DAMAGE_PERCENT_TAKEN: i32 = 31;
     pub const SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED: i32 = 32;
+    pub const SPELL_AURA_MOD_SHAPESHIFT: i32 = 36;
     pub const SPELL_AURA_DAMAGE_IMMUNITY: i32 = 40;
     pub const SPELL_AURA_PROC_TRIGGER_SPELL: i32 = 42;
     pub const SPELL_AURA_PROC_TRIGGER_DAMAGE: i32 = 43;
@@ -4910,6 +4911,11 @@ impl SpellEffectInfo {
             && self.effect_aura == aura_types::SPELL_AURA_MOUNTED
     }
 
+    pub fn is_mod_shapeshift_aura_like_cpp(&self) -> bool {
+        self.effect == spell_effect_types::SPELL_EFFECT_APPLY_AURA
+            && self.effect_aura == aura_types::SPELL_AURA_MOD_SHAPESHIFT
+    }
+
     pub fn is_provide_spell_focus_aura_like_cpp(&self) -> bool {
         self.effect == spell_effect_types::SPELL_EFFECT_APPLY_AURA
             && self.effect_aura == aura_types::SPELL_AURA_PROVIDE_SPELL_FOCUS
@@ -6086,6 +6092,7 @@ mod tests {
         // C++ `SpellAuraDefines.h`: selected `AuraType` enum anchors.
         assert_eq!(aura_types::SPELL_AURA_MOD_INCREASE_SPEED, 31);
         assert_eq!(aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED, 32);
+        assert_eq!(aura_types::SPELL_AURA_MOD_SHAPESHIFT, 36);
         assert_eq!(aura_types::SPELL_AURA_MOD_SCALE, 61);
         assert_eq!(aura_types::SPELL_AURA_MOUNTED, 78);
         assert_eq!(aura_types::SPELL_AURA_MOD_DETECT_RANGE, 91);
