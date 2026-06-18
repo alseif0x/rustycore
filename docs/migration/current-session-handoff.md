@@ -1,3 +1,24 @@
+- `#NEXT.R8.ENTITIES.1080` — represented `Player::ResetTalents` now records
+  the two C++ criteria updates for talent respecs (not manual-test-ready).
+  Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3505-3562`,
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DBCEnums.h:525-526`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Achievements/CriteriaHandler.cpp:1255-1256,1350-1366`.
+  Rust now records represented `MoneySpentOnRespecs(cost)` followed by
+  `TotalRespecs(1)` after represented `ModifyMoney`, matching the C++ order.
+  When `NoResetTalentsCost` is enabled, C++ still enters the final `!noCost`
+  block with `cost == 0`, so Rust records zero-cost criteria and updates
+  `TalentResetCost`/`TalentResetTime`; the events are skipped only when the
+  insufficient-money gate returns early. Coverage: focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world confirm_respec --lib`;
+  `cargo fmt --all --check`;
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`;
+  `git diff --check`. Boundary remains partial: trainer class matching, fake-death aura
+  removal, visual spell 14867 cast, pet/spec/glyph reset branches, trait
+  override paths, full achievement/quest criteria manager persistence,
+  full runtime aura/cast ownership, live-client validation, bot validation, and
+  manual validation remain open.
 - `#NEXT.R8.ENTITIES.1079` — represented `CMSG_CONFIRM_RESPEC_WIPE` now
   consumes C++ `CONFIG_NO_RESET_TALENT_COST` / `NoResetTalentsCost` for talent
   reset cost application (not manual-test-ready). Source of truth:
@@ -8,16 +29,18 @@
   and
   `/home/server/woltk-trinity-legacy/src/server/worldserver/worldserver.conf.dist:3420-3425`.
   Rust now resolves the flag through `WorldConfigSet`, carries it through
-  `SessionResources`, stores it on `WorldSession`, and skips represented money
-  checks plus `TalentResetCost` / `TalentResetTime` mutation when it is enabled,
-  matching the `!noCost && !sWorld->getBoolConfig(...)` C++ branch. Coverage:
+  `SessionResources`, stores it on `WorldSession`, and skips only the
+  represented money gate when it is enabled; C++ still applies the final
+  zero-cost reset accounting/time mutation because `noCost` is false for the
+  represented trainer reset path. Coverage:
   focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p
   wow-world confirm_respec_wipe_respects_no_reset_talent_cost_config_like_cpp
   --lib`; focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p
   world-server no_reset_talent_cost_uses_cpp_world_config_key`; `cargo fmt
   --all --check`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check
   -p world-server`; `git diff --check`. Boundary remains partial: confirm
-  visual cost display, criteria updates (`MoneySpentOnRespecs`, `TotalRespecs`),
+  visual cost display, criteria updates were closed later by
+  `#NEXT.R8.ENTITIES.1080`,
   trainer class matching, fake-death aura removal, visual spell 14867 cast,
   pet/spec/glyph reset branches, trait override paths, full runtime aura/cast
   ownership, live-client validation, bot validation, and manual validation
@@ -39,8 +62,8 @@
   character_talent_reset_state_save_statement_matches_cpp_bind_order --lib`;
   focused `cargo test -p wow-database character_save_statements_match_cpp_sql_exactly`.
   Boundary remains partial: this is a focused represented save seam rather than
-  full `CHAR_UPD_CHARACTER` bind-order parity, criteria updates
-  (`MoneySpentOnRespecs`, `TotalRespecs`), trainer class matching, fake-death aura removal, visual
+  full `CHAR_UPD_CHARACTER` bind-order parity, criteria updates were closed
+  later by `#NEXT.R8.ENTITIES.1080`, trainer class matching, fake-death aura removal, visual
   spell 14867 cast, pet/spec/glyph reset branches, trait override paths, full
   runtime aura/cast ownership, live-client validation, bot validation, and
   manual validation remain open.

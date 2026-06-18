@@ -163,7 +163,10 @@ mod tests {
     use wow_packet::packets::misc::BuyFailed;
     use wow_packet::packets::update::CreatureCreateData;
 
-    use crate::session::{AuraApplication, SPELL_AURA_INTERRUPT_FLAG2_CHANGE_TALENT_LIKE_CPP};
+    use crate::session::{
+        AuraApplication, RepresentedTalentRespecCriteriaEventLikeCpp,
+        SPELL_AURA_INTERRUPT_FLAG2_CHANGE_TALENT_LIKE_CPP,
+    };
 
     fn make_session_with_send_capacity(
         capacity: usize,
@@ -492,6 +495,14 @@ mod tests {
         assert_eq!(session.represented_talent_reset_cost_like_cpp(), 10_000);
         assert_ne!(session.represented_talent_reset_time_secs_like_cpp(), 0);
         assert_eq!(
+            session.represented_talent_respec_criteria_events_like_cpp(),
+            &[
+                RepresentedTalentRespecCriteriaEventLikeCpp::MoneySpentOnRespecs { amount: 10_000 },
+                RepresentedTalentRespecCriteriaEventLikeCpp::TotalRespecs { quantity: 1 },
+            ],
+            "C++ Player::ResetTalents updates money-spent and total-respec criteria after ModifyMoney"
+        );
+        assert_eq!(
             session.represented_confirm_respec_wipe_requests_like_cpp(),
             &[RepresentedConfirmRespecWipeLikeCpp {
                 respec_master: trainer,
@@ -534,13 +545,21 @@ mod tests {
         );
         assert_eq!(
             session.represented_talent_reset_cost_like_cpp(),
-            500_000,
-            "C++ skips TalentResetCost mutation when NoResetTalentsCost is enabled"
+            0,
+            "C++ SetTalentResetCost receives the zero cost when NoResetTalentsCost bypasses the money gate"
         );
-        assert_eq!(
+        assert_ne!(
             session.represented_talent_reset_time_secs_like_cpp(),
             123,
-            "C++ skips TalentResetTime mutation when NoResetTalentsCost is enabled"
+            "C++ still updates TalentResetTime inside the final !noCost block"
+        );
+        assert_eq!(
+            session.represented_talent_respec_criteria_events_like_cpp(),
+            &[
+                RepresentedTalentRespecCriteriaEventLikeCpp::MoneySpentOnRespecs { amount: 0 },
+                RepresentedTalentRespecCriteriaEventLikeCpp::TotalRespecs { quantity: 1 },
+            ],
+            "C++ still updates respec criteria inside the final !noCost block with cost zero"
         );
         assert_eq!(
             session.represented_confirm_respec_wipe_requests_like_cpp(),
@@ -1087,6 +1106,12 @@ mod tests {
         assert_eq!(session.player_gold_like_cpp(), 9_999);
         assert_eq!(session.represented_talent_reset_cost_like_cpp(), 0);
         assert_eq!(session.represented_talent_reset_time_secs_like_cpp(), 0);
+        assert!(
+            session
+                .represented_talent_respec_criteria_events_like_cpp()
+                .is_empty(),
+            "C++ returns before criteria updates when the money gate fails"
+        );
         assert!(
             session
                 .represented_confirm_respec_wipe_requests_like_cpp()

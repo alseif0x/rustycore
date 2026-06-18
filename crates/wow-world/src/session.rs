@@ -637,6 +637,13 @@ pub(crate) struct RepresentedConfirmRespecWipeLikeCpp {
     pub respec_type: u8,
 }
 
+/// Evidence for the two C++ `Player::ResetTalents` achievement criteria updates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RepresentedTalentRespecCriteriaEventLikeCpp {
+    MoneySpentOnRespecs { amount: u32 },
+    TotalRespecs { quantity: u32 },
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedAdventureMapStartQuestLikeCpp {
     pub quest_id: u32,
@@ -3811,6 +3818,9 @@ pub struct WorldSession {
         Vec<RepresentedConfirmBarbersChoiceLikeCpp>,
     /// Represented accepted talent-respec wipe requests until Player::ResetTalents is canonical.
     represented_confirm_respec_wipe_requests_like_cpp: Vec<RepresentedConfirmRespecWipeLikeCpp>,
+    /// Represented `CriteriaType::MoneySpentOnRespecs` / `TotalRespecs` events.
+    represented_talent_respec_criteria_events_like_cpp:
+        Vec<RepresentedTalentRespecCriteriaEventLikeCpp>,
     /// C++ `Player::_equipmentSets`, represented until DB-backed save/load is canonical.
     represented_equipment_sets_like_cpp: BTreeMap<u64, RepresentedEquipmentSetLikeCpp>,
     represented_equipment_sets_loaded_like_cpp: bool,
@@ -5313,6 +5323,7 @@ impl WorldSession {
             represented_alter_appearance_requests_like_cpp: Vec::new(),
             represented_confirm_barbers_choice_requests_like_cpp: Vec::new(),
             represented_confirm_respec_wipe_requests_like_cpp: Vec::new(),
+            represented_talent_respec_criteria_events_like_cpp: Vec::new(),
             represented_equipment_sets_like_cpp: BTreeMap::new(),
             represented_equipment_sets_loaded_like_cpp: false,
             represented_next_equipment_set_guid_like_cpp: 1,
@@ -20960,22 +20971,32 @@ impl WorldSession {
         &mut self,
         now_secs: u64,
     ) -> bool {
-        if self.no_reset_talent_cost_like_cpp {
-            return true;
-        }
-
-        let cost = u64::from(self.represented_next_reset_talents_cost_like_cpp(now_secs));
+        let cost = if self.no_reset_talent_cost_like_cpp {
+            0
+        } else {
+            u64::from(self.represented_next_reset_talents_cost_like_cpp(now_secs))
+        };
         let old_money = self.player_gold_like_cpp();
-        if old_money < cost {
+        if !self.no_reset_talent_cost_like_cpp && old_money < cost {
             self.send_buy_error(BuyResult::NotEnoughtMoney, None, 0);
             return false;
         }
 
         self.apply_player_money_change_like_cpp(old_money, old_money - cost)
             .await;
+        self.record_represented_talent_respec_criteria_like_cpp(cost as u32);
         self.represented_talent_reset_cost_like_cpp = cost as u32;
         self.represented_talent_reset_time_secs_like_cpp = now_secs;
         true
+    }
+
+    fn record_represented_talent_respec_criteria_like_cpp(&mut self, cost: u32) {
+        self.represented_talent_respec_criteria_events_like_cpp
+            .push(
+                RepresentedTalentRespecCriteriaEventLikeCpp::MoneySpentOnRespecs { amount: cost },
+            );
+        self.represented_talent_respec_criteria_events_like_cpp
+            .push(RepresentedTalentRespecCriteriaEventLikeCpp::TotalRespecs { quantity: 1 });
     }
 
     fn next_reset_talents_cost_like_cpp(
@@ -36542,6 +36563,13 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedConfirmRespecWipeLikeCpp] {
         &self.represented_confirm_respec_wipe_requests_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_talent_respec_criteria_events_like_cpp(
+        &self,
+    ) -> &[RepresentedTalentRespecCriteriaEventLikeCpp] {
+        &self.represented_talent_respec_criteria_events_like_cpp
     }
 
     pub(crate) fn record_represented_adventure_map_start_quest_like_cpp(
