@@ -133,6 +133,7 @@ impl WorldSession {
         if self.player_level_like_cpp() < MIN_TALENT_RESET_LEVEL_LIKE_CPP {
             return false;
         }
+        let player_class = self.player_class_like_cpp();
 
         if self.has_canonical_map_manager_like_cpp() {
             return self
@@ -141,11 +142,12 @@ impl WorldSession {
                     CONFIRM_RESPEC_WIPE_NPC_FLAGS_LIKE_CPP,
                     0,
                 )
-                .is_some();
+                .is_some_and(|creature| creature.trainer_class == player_class);
         }
 
         self.mutate_world_creature(respec_master, |creature| {
             (creature.npc_flags() & CONFIRM_RESPEC_WIPE_NPC_FLAGS_LIKE_CPP) != 0
+                && creature.trainer_class_like_cpp() == player_class
         })
         .unwrap_or(false)
     }
@@ -442,6 +444,15 @@ mod tests {
     }
 
     fn register_test_trainer(session: &mut WorldSession, guid: ObjectGuid, npc_flags: u32) {
+        register_test_trainer_with_class(session, guid, npc_flags, 1);
+    }
+
+    fn register_test_trainer_with_class(
+        session: &mut WorldSession,
+        guid: ObjectGuid,
+        npc_flags: u32,
+        trainer_class: u8,
+    ) {
         session.set_map_manager(Arc::new(RwLock::new(crate::map_manager::MapManager::new())));
         session.set_loaded_player_identity_like_cpp(0, 1, 1, 80, 0);
         session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
@@ -464,6 +475,13 @@ mod tests {
             0,
             0,
         );
+        session
+            .mutate_world_creature(guid, |creature| {
+                creature
+                    .creature
+                    .set_trainer_class_runtime_like_cpp(trainer_class);
+            })
+            .expect("test trainer exists");
     }
 
     #[tokio::test]
@@ -1237,6 +1255,30 @@ mod tests {
             session
                 .represented_confirm_respec_wipe_requests_like_cpp()
                 .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn confirm_respec_wipe_rejects_mismatched_trainer_class_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send_capacity(1);
+        let trainer = test_creature_guid(81);
+        register_test_trainer_with_class(&mut session, trainer, NPCFlags1::TRAINER.bits(), 2);
+        session.set_player_class_like_cpp(1);
+        session.mark_represented_talents_loaded_like_cpp();
+        session.set_player_gold_like_cpp(20_000);
+
+        session
+            .handle_confirm_respec_wipe(confirm_respec_wipe_packet(
+                trainer,
+                SPEC_RESET_TALENTS_LIKE_CPP,
+            ))
+            .await;
+
+        assert!(
+            session
+                .represented_confirm_respec_wipe_requests_like_cpp()
+                .is_empty(),
+            "C++ Creature::CanResetTalents requires player class to match creature_template.trainer_class"
         );
     }
 }

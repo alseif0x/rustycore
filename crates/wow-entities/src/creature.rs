@@ -123,6 +123,7 @@ pub struct CreatureAiOwnershipState {
     pub faction: u32,
     pub npc_flags: u32,
     pub npc_flags2: u32,
+    pub trainer_class: u8,
     pub unit_flags: u32,
     pub unit_flags2: u32,
     pub unit_flags3: u32,
@@ -164,6 +165,7 @@ impl Default for CreatureAiOwnershipState {
             faction: 0,
             npc_flags: 0,
             npc_flags2: 0,
+            trainer_class: 0,
             unit_flags: 0,
             unit_flags2: 0,
             unit_flags3: 0,
@@ -231,6 +233,7 @@ pub struct CreatureTemplateLifecycleRecord {
     pub script_name: String,
     pub required_expansion: u8,
     pub unit_class: u8,
+    pub trainer_class: u8,
     pub faction: u32,
     pub npc_flags: u64,
     pub display_id: u32,
@@ -424,6 +427,7 @@ pub struct CreatureLifecycleMetadata {
     pub script_name: String,
     pub required_expansion: u8,
     pub unit_class: u8,
+    pub trainer_class: u8,
     pub classification: u32,
     pub damage_school: u8,
     pub flags_extra: u32,
@@ -478,6 +482,7 @@ impl Default for CreatureLifecycleMetadata {
             script_name: String::new(),
             required_expansion: 0,
             unit_class: 0,
+            trainer_class: 0,
             classification: 0,
             damage_school: wow_constants::spell::SpellSchools::Normal as u8,
             flags_extra: 0,
@@ -1070,6 +1075,7 @@ impl Creature {
         self.ai_ownership.faction = template.faction;
         self.ai_ownership.npc_flags = template.npc_flags as u32;
         self.ai_ownership.npc_flags2 = (template.npc_flags >> 32) as u32;
+        self.ai_ownership.trainer_class = template.trainer_class;
         self.ai_ownership.unit_flags = template.unit_flags;
         self.ai_ownership.unit_flags2 = template.unit_flags2;
         self.ai_ownership.unit_flags3 = template.unit_flags3;
@@ -1097,6 +1103,7 @@ impl Creature {
             script_name: template.script_name.clone(),
             required_expansion: template.required_expansion,
             unit_class: template.unit_class,
+            trainer_class: template.trainer_class,
             classification: template.classification,
             damage_school: template.damage_school,
             flags_extra: template.flags_extra,
@@ -1925,6 +1932,15 @@ impl Creature {
             .set_unit_flags_like_cpp(UnitFlags::from_bits_truncate(unit_flags));
         self.set_display_id(display_id, true, None);
         self.set_faction(faction);
+    }
+
+    pub fn set_trainer_class_runtime_like_cpp(&mut self, trainer_class: u8) {
+        self.ai_ownership.trainer_class = trainer_class;
+        self.lifecycle_metadata.trainer_class = trainer_class;
+    }
+
+    pub const fn trainer_class_like_cpp(&self) -> u8 {
+        self.ai_ownership.trainer_class
     }
 
     pub fn set_npc_flags2_runtime_like_cpp(&mut self, npc_flags2: u32) {
@@ -4148,6 +4164,7 @@ mod tests {
             script_name: "npc_lifecycle_wolf".to_string(),
             required_expansion: 2,
             unit_class: 1,
+            trainer_class: 4,
             faction: 14,
             npc_flags: 0x1_0000_0040,
             display_id: 2001,

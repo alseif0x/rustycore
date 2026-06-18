@@ -899,6 +899,10 @@ impl WorldCreature {
         self.creature.ai_ownership().npc_flags2
     }
 
+    pub fn trainer_class_like_cpp(&self) -> u8 {
+        self.creature.trainer_class_like_cpp()
+    }
+
     pub fn npc_flags_mask_like_cpp(&self) -> u64 {
         (u64::from(self.npc_flags2()) << 32) | u64::from(self.npc_flags())
     }

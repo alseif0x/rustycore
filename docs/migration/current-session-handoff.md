@@ -1,3 +1,28 @@
+- `#NEXT.R8.ENTITIES.1081` — represented `Creature::CanResetTalents` now
+  enforces the C++ trainer-class match for `CMSG_CONFIRM_RESPEC_WIPE`
+  (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Creature/Creature.cpp:1311-1315`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SkillHandler.cpp:54-82`.
+  Rust now loads `creature_template.trainer_class`, carries it through
+  creature lifecycle records, loaded-grid template resolution, canonical/legacy
+  `WorldCreature` runtime metadata, represented NPC interaction access, and the
+  represented respec gate. This mirrors C++ `player->GetLevel() >= 15 &&
+  player->GetClass() == GetCreatureTemplate()->trainer_class`: a trainer with
+  the trainer NPC flag but a mismatched class now rejects the represented talent
+  reset before cost/money/talent mutation. Coverage: focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  confirm_respec --lib`; focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
+  cargo test -p wow-data
+  creature_template_lifecycle_store_preserves_cpp_field_mapping_and_vehicle_id
+  --lib`; focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p
+  world-server loaded_grid_db_backed_builder_maps_spawn_template_runtime_like_cpp
+  --bin world-server`; `cargo fmt --all --check`;
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`.
+  Boundary remains partial: fake-death aura removal, visual spell 14867 cast,
+  pet/spec/glyph reset branches, trait override paths, full achievement/quest
+  criteria manager persistence, full runtime aura/cast ownership,
+  live-client validation, bot validation, and manual validation remain open.
 - `#NEXT.R8.ENTITIES.1080` — represented `Player::ResetTalents` now records
   the two C++ criteria updates for talent respecs (not manual-test-ready).
   Source of truth:
@@ -14,8 +39,8 @@
   `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world confirm_respec --lib`;
   `cargo fmt --all --check`;
   `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`;
-  `git diff --check`. Boundary remains partial: trainer class matching, fake-death aura
-  removal, visual spell 14867 cast, pet/spec/glyph reset branches, trait
+  `git diff --check`. Boundary remains partial: trainer class matching was closed later
+  by `#NEXT.R8.ENTITIES.1081`; fake-death aura removal, visual spell 14867 cast, pet/spec/glyph reset branches, trait
   override paths, full achievement/quest criteria manager persistence,
   full runtime aura/cast ownership, live-client validation, bot validation, and
   manual validation remain open.

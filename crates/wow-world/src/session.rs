@@ -1536,6 +1536,7 @@ pub(crate) struct RepresentedCreatureAccessLikeCpp {
     pub position: wow_core::Position,
     pub npc_flags: u32,
     pub npc_flags2: u32,
+    pub trainer_class: u8,
     pub faction_template_id: u32,
 }
 
@@ -9487,6 +9488,7 @@ impl WorldSession {
             position: creature.unit().world().position(),
             npc_flags: creature.ai_ownership().npc_flags,
             npc_flags2: creature.ai_ownership().npc_flags2,
+            trainer_class: creature.trainer_class_like_cpp(),
             faction_template_id: creature.unit().data().faction_template.max(0) as u32,
         })
     }
@@ -10838,6 +10840,7 @@ impl WorldSession {
             position: creature.unit().world().position(),
             npc_flags: creature.ai_ownership().npc_flags,
             npc_flags2: creature.ai_ownership().npc_flags2,
+            trainer_class: creature.trainer_class_like_cpp(),
             faction_template_id: creature.unit().data().faction_template.max(0) as u32,
         })
     }
@@ -65837,6 +65840,7 @@ mod tests {
                 npc_flags: wow_constants::unit::NPCFlags1::TRAINER.bits(),
                 npc_flags2: 0,
                 faction_template_id: 35,
+                trainer_class: 0,
             })
         );
         assert_eq!(
@@ -65851,6 +65855,7 @@ mod tests {
                 npc_flags: wow_constants::unit::NPCFlags1::TRAINER.bits(),
                 npc_flags2: 0,
                 faction_template_id: 35,
+                trainer_class: 0,
             })
         );
         assert_eq!(
@@ -65865,6 +65870,7 @@ mod tests {
                 npc_flags: wow_constants::unit::NPCFlags1::TRAINER.bits(),
                 npc_flags2: 0,
                 faction_template_id: 35,
+                trainer_class: 0,
             })
         );
         session
@@ -65909,6 +65915,7 @@ mod tests {
                 npc_flags: wow_constants::unit::NPCFlags1::VENDOR.bits(),
                 npc_flags2: wow_constants::unit::NPCFlags2::TRADESKILL_NPC.bits(),
                 faction_template_id: 35,
+                trainer_class: 0,
             })
         );
 
@@ -66012,6 +66019,7 @@ mod tests {
                 npc_flags: wow_constants::unit::NPCFlags1::TRAINER.bits(),
                 npc_flags2: 0,
                 faction_template_id: 35,
+                trainer_class: 0,
             })
         );
 
@@ -68588,6 +68596,7 @@ mod tests {
                 unit_flags3: 0,
                 creature_type: 0,
                 family: 0,
+                trainer_class: 0,
                 unit_class: 1,
                 vehicle_id: 0,
                 movement_type: 0,
@@ -105653,6 +105662,7 @@ mod tests {
                     ai_name: String::new(),
                     script_name: String::new(),
                     required_expansion: 1,
+                    trainer_class: 0,
                     unit_class: 1,
                     faction: 14,
                     npc_flags: 0,
