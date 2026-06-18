@@ -4549,3 +4549,13 @@ C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entit
 Implemented Rust seam: represented player backward speed recompute now starts from rate `1.0`, applies the strongest represented `DecreaseSpeed` slow, applies the final represented `MinimumSpeed` floor if a recompute happens, and updates all three backward move types through the same `SetSpeedRate`-like forced-speed-change path as Run/Swim/Flight. Applying or removing represented `SPELL_AURA_MOD_DECREASE_SPEED` now recomputes backward speeds; opcode mapping now covers RunBack, SwimBack, and FlightBack.
 
 Validation evidence: `cargo fmt`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world represented_backward_speed --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p wow-world`. Remaining gaps: full `Unit::UpdateSpeed` parity still lacks Unit-creature template speed, creature snare/daze immunity behavior for normal-speed caps, pet/minion owner-follow speed propagation, controlled-unit vehicle owner flight-speed selection, TerrainMgr-derived area refresh, install/restart, bot validation, and live-client/manual validation.
+
+### #NEXT.R8.ENTITIES.1051 — creature-template zero speed normalization
+
+Status: bugfix-partial for DB creature-template speed normalization; not full live `Unit::UpdateSpeed` creature parity and not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:1106-1114` is `ObjectMgr::CheckCreatureTemplate`: if `CreatureTemplate::speed_walk == 0.0f`, C++ logs and forces `1.0f`; if `speed_run == 0.0f`, C++ logs and forces `1.14286f`. `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:8373-8378` then multiplies Unit-creature run/swim/flight speed rates by `GetCreatureTemplate()->speed_run`, so a missed loader default leaks into runtime speed.
+
+Implemented Rust seam: `CreatureTemplateLifecycleRecordLikeCpp::normalize_like_cpp` now applies the same zero-speed defaults before records enter `CreatureTemplateLifecycleStoreLikeCpp`. This keeps loaded-grid/runtime consumers from building creature create data or Unit speed rates from zero template speeds.
+
+Validation evidence: `cargo fmt`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-data creature_template_lifecycle_normalizes_zero_speeds_like_cpp --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p wow-data`. Remaining gaps: this fixes loader normalization only; full live Unit-creature speed recompute, aura-driven speed updates for creatures, pet/minion owner-follow propagation, creature snare/daze immunity behavior, speed packet fanout, install/restart, bot validation, and live-client/manual validation remain open.

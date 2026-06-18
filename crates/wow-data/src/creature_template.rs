@@ -764,6 +764,12 @@ impl CreatureTemplateLifecycleRecordLikeCpp {
         if self.damage_school >= MAX_SPELL_SCHOOL_LIKE_CPP {
             self.damage_school = wow_constants::spell::SpellSchools::Normal as u8;
         }
+        if self.speed_walk == 0.0 {
+            self.speed_walk = 1.0;
+        }
+        if self.speed_run == 0.0 {
+            self.speed_run = 1.14286;
+        }
         self.models = self
             .models
             .into_iter()
@@ -1496,6 +1502,52 @@ mod tests {
             CreatureFlightMovementType::None as u8
         );
         assert_eq!(invalid.required_expansion, 0);
+    }
+
+    #[test]
+    fn creature_template_lifecycle_normalizes_zero_speeds_like_cpp() {
+        let template = CreatureTemplateLifecycleRecordLikeCpp {
+            entry: 44,
+            name: "zero speeds".to_string(),
+            ai_name: String::new(),
+            script_name: String::new(),
+            required_expansion: 0,
+            faction: 35,
+            npc_flags: 0,
+            speed_walk: 0.0,
+            speed_run: 0.0,
+            scale: 1.0,
+            classification: 0,
+            damage_school: wow_constants::spell::SpellSchools::Normal as u8,
+            unit_flags: 0,
+            unit_flags2: 0,
+            unit_flags3: 0,
+            creature_type: 0,
+            family: 0,
+            unit_class: 1,
+            vehicle_id: 0,
+            movement_type: 0,
+            ground_movement_type: CreatureGroundMovementType::Run as u8,
+            swim_allowed: true,
+            flight_movement_type: CreatureFlightMovementType::None as u8,
+            flags_extra: 0,
+            string_id: String::new(),
+            regen_health: true,
+            spells: [0; MAX_CREATURE_SPELLS_LIKE_CPP],
+            models: Vec::new(),
+        };
+
+        let store = CreatureTemplateLifecycleStoreLikeCpp::from_templates([template]);
+        let normalized = store.get(44).expect("template row retained");
+
+        assert_eq!(
+            normalized.speed_walk, 1.0,
+            "C++ ObjectMgr::CheckCreatureTemplate forces zero speed_walk to 1.0"
+        );
+        assert_eq!(
+            normalized.speed_run, 1.14286,
+            "C++ ObjectMgr::CheckCreatureTemplate forces zero speed_run to 1.14286"
+        );
     }
 
     #[test]
