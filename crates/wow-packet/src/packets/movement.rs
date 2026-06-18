@@ -573,6 +573,24 @@ impl MoveSplineSetSpeed {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct MoveSetFlag {
+    pub opcode: ServerOpcodes,
+    pub mover_guid: ObjectGuid,
+    pub sequence_index: u32,
+}
+
+impl MoveSetFlag {
+    /// C++ `WorldPackets::Movement::MoveSetFlag` is opcode-selected by flag type.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut pkt = WorldPacket::new_server(self.opcode);
+        pkt.write_packed_guid(&self.mover_guid);
+        pkt.write_uint32(self.sequence_index);
+        pkt.flush_bits();
+        pkt.into_data()
+    }
+}
+
 /// C++ `MovementForceType`, stored as two bits on the wire.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MovementForceType {
@@ -2117,5 +2135,23 @@ mod tests {
         );
         assert!(bytes.len() > 6);
         assert_eq!(&bytes[bytes.len() - 4..], &14.0f32.to_le_bytes());
+    }
+
+    #[test]
+    fn move_set_flag_matches_cpp_opcode_and_tail() {
+        let guid = ObjectGuid::create_player(1, 42);
+        let bytes = MoveSetFlag {
+            opcode: ServerOpcodes::MoveSetCanFly,
+            mover_guid: guid,
+            sequence_index: 77,
+        }
+        .to_bytes();
+
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::MoveSetCanFly as u16
+        );
+        assert!(bytes.len() > 6);
+        assert_eq!(&bytes[bytes.len() - 4..], &77u32.to_le_bytes());
     }
 }

@@ -3597,6 +3597,8 @@ pub struct WorldSession {
     player_position: Option<wow_core::Position>,
     /// Last accepted player movement flags, mirroring C++ `Unit::m_movementInfo`.
     player_movement_flags_like_cpp: MovementFlag,
+    /// Represented C++ `MOVEMENTFLAG2_CAN_SWIM_TO_FLY_TRANS` server-controlled state.
+    represented_can_swim_to_fly_transition_like_cpp: bool,
     /// Represented `m_unitMovedByMe->GetVehicle()->GetVehicleInfo()->Flags & VEHICLE_FLAG_FIXED_POSITION`.
     represented_mover_fixed_position_vehicle_like_cpp: bool,
     /// Last terrain liquid status, mirroring C++ `WorldObject::m_liquidStatus`.
@@ -5116,6 +5118,7 @@ impl WorldSession {
             realm_send_tx: None,
             player_position: None,
             player_movement_flags_like_cpp: MovementFlag::NONE,
+            represented_can_swim_to_fly_transition_like_cpp: false,
             represented_mover_fixed_position_vehicle_like_cpp: false,
             player_liquid_status_like_cpp: 0,
             player_name: None,
@@ -21138,6 +21141,12 @@ impl WorldSession {
             position: self
                 .player_position_like_cpp()
                 .unwrap_or(wow_core::Position::ZERO),
+            flags: self.player_movement_flags_like_cpp,
+            flags2: if self.represented_can_swim_to_fly_transition_like_cpp {
+                wow_constants::movement::MovementFlag2::CAN_SWIM_TO_FLY_TRANS
+            } else {
+                wow_constants::movement::MovementFlag2::NONE
+            },
             time: self.player_movement_time_like_cpp(),
             ..wow_packet::packets::movement::MovementInfo::default()
         }
@@ -21234,6 +21243,9 @@ impl WorldSession {
                     | RepresentedAuraEffectLikeCpp::FlightSpeedNotStack
             )
         ) {
+            if aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::MountedFlightSpeed) {
+                self.update_represented_flight_flags_for_mounted_flight_aura_like_cpp(false);
+            }
             self.recompute_represented_flight_speed_rate_like_cpp();
         }
         if matches!(
@@ -25726,6 +25738,11 @@ impl WorldSession {
 
     pub(crate) fn player_movement_flags_like_cpp(&self) -> MovementFlag {
         self.player_movement_flags_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_can_swim_to_fly_transition_like_cpp(&self) -> bool {
+        self.represented_can_swim_to_fly_transition_like_cpp
     }
 
     pub(crate) fn player_liquid_status_like_cpp(&self) -> u32 {
@@ -34868,6 +34885,85 @@ impl WorldSession {
         }
     }
 
+    fn send_player_move_set_flag_like_cpp(&mut self, opcode: ServerOpcodes) {
+        use wow_packet::ServerPacket;
+
+        let Some(player_guid) = self.player_guid() else {
+            return;
+        };
+        let sequence_index = self.mount_vehicle_movement_sequence_like_cpp;
+        self.mount_vehicle_movement_sequence_like_cpp = self
+            .mount_vehicle_movement_sequence_like_cpp
+            .wrapping_add(1);
+
+        let self_packet = wow_packet::packets::movement::MoveSetFlag {
+            opcode,
+            mover_guid: player_guid,
+            sequence_index,
+        }
+        .to_bytes();
+        if self.send_tx.send(self_packet).is_err() {
+            warn!("Send channel closed for account {}", self.account_id);
+        }
+
+        let mut status = self.current_player_movement_info_like_cpp(player_guid);
+        status.time = self.player_movement_time_like_cpp();
+        self.broadcast_to_movement_set_like_cpp(
+            wow_packet::packets::movement::MoveUpdate { info: status }.to_bytes(),
+            false,
+        );
+    }
+
+    fn set_represented_can_fly_like_cpp(&mut self, enable: bool) -> bool {
+        let currently_enabled = self
+            .player_movement_flags_like_cpp
+            .contains(MovementFlag::CAN_FLY);
+        if enable == currently_enabled {
+            return false;
+        }
+
+        if enable {
+            self.player_movement_flags_like_cpp
+                .insert(MovementFlag::CAN_FLY);
+            self.player_movement_flags_like_cpp
+                .remove(MovementFlag::SWIMMING | MovementFlag::SPLINE_ELEVATION);
+        } else {
+            self.player_movement_flags_like_cpp
+                .remove(MovementFlag::CAN_FLY | MovementFlag::MASK_MOVING_FLY);
+        }
+
+        self.send_player_move_set_flag_like_cpp(if enable {
+            ServerOpcodes::MoveSetCanFly
+        } else {
+            ServerOpcodes::MoveUnsetCanFly
+        });
+        true
+    }
+
+    fn set_represented_can_swim_to_fly_transition_like_cpp(&mut self, enable: bool) -> bool {
+        if enable == self.represented_can_swim_to_fly_transition_like_cpp {
+            return false;
+        }
+
+        self.represented_can_swim_to_fly_transition_like_cpp = enable;
+        self.send_player_move_set_flag_like_cpp(if enable {
+            ServerOpcodes::MoveEnableTransitionBetweenSwimAndFly
+        } else {
+            ServerOpcodes::MoveDisableTransitionBetweenSwimAndFly
+        });
+        true
+    }
+
+    fn update_represented_flight_flags_for_mounted_flight_aura_like_cpp(&mut self, apply: bool) {
+        let should_enable = apply
+            || self.has_represented_aura_effect_like_cpp(RepresentedAuraEffectLikeCpp::Fly)
+            || self.has_represented_aura_effect_like_cpp(
+                RepresentedAuraEffectLikeCpp::MountedFlightSpeed,
+            );
+        self.set_represented_can_swim_to_fly_transition_like_cpp(should_enable);
+        self.set_represented_can_fly_like_cpp(should_enable);
+    }
+
     fn propagate_represented_player_speed_to_pet_like_cpp(
         &mut self,
         move_type: UnitMoveTypeLikeCpp,
@@ -40100,6 +40196,7 @@ impl WorldSession {
                         RepresentedAuraEffectLikeCpp::MountedFlightSpeed,
                         30_000,
                     )?;
+                    self.update_represented_flight_flags_for_mounted_flight_aura_like_cpp(true);
                     self.recompute_represented_mounted_speed_rates_like_cpp();
                 } else if effect.effect_aura
                     == wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_FLIGHT_SPEED
@@ -54515,6 +54612,122 @@ mod tests {
             (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Flight) - 8.4).abs()
                 < 0.0001,
             "C++ aura removal recomputes MOVE_FLIGHT and drops the removed vehicle-flight modifier"
+        );
+    }
+
+    #[tokio::test]
+    async fn represented_mounted_flight_speed_sets_can_fly_flags_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_map_position_like_cpp(571, Position::ZERO);
+        let spell_id = 20_031;
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura:
+                        wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED,
+                    effect_base_points: 60,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 725,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("mounted flight apply-aura row should execute");
+
+        assert!(
+            session
+                .player_movement_flags_like_cpp()
+                .contains(MovementFlag::CAN_FLY)
+        );
+        assert!(session.represented_can_swim_to_fly_transition_like_cpp());
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert!(
+            opcodes.contains(&ServerOpcodes::MoveEnableTransitionBetweenSwimAndFly),
+            "C++ mounted-flight aura enables swim-to-fly transition"
+        );
+        assert!(
+            opcodes.contains(&ServerOpcodes::MoveSetCanFly),
+            "C++ mounted-flight aura enables CanFly"
+        );
+    }
+
+    #[test]
+    fn represented_mounted_flight_speed_removal_unsets_can_fly_when_last_source_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let caster = ObjectGuid::create_player(1, 42);
+        let mounted_flight = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED,
+            effect_base_points: 60,
+            effect_index: 0,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_032,
+                caster,
+                &mounted_flight,
+                RepresentedAuraEffectLikeCpp::MountedFlightSpeed,
+                30_000,
+            )
+            .unwrap();
+        session.update_represented_flight_flags_for_mounted_flight_aura_like_cpp(true);
+        let slot = session
+            .visible_auras
+            .iter()
+            .find_map(|(&slot, aura)| {
+                (aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::MountedFlightSpeed))
+                    .then_some(slot)
+            })
+            .unwrap();
+        let _ = drain_server_opcodes(&send_rx);
+
+        session.remove_aura(slot).unwrap();
+
+        assert!(
+            !session
+                .player_movement_flags_like_cpp()
+                .contains(MovementFlag::CAN_FLY)
+        );
+        assert!(!session.represented_can_swim_to_fly_transition_like_cpp());
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert!(
+            opcodes.contains(&ServerOpcodes::MoveDisableTransitionBetweenSwimAndFly),
+            "C++ removes swim-to-fly transition when the last mounted-flight/fly aura is gone"
+        );
+        assert!(
+            opcodes.contains(&ServerOpcodes::MoveUnsetCanFly),
+            "C++ unsets CanFly when the last mounted-flight/fly aura is gone"
         );
     }
 
