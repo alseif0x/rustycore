@@ -21245,14 +21245,21 @@ impl WorldSession {
             aura.represented_effect,
             Some(
                 RepresentedAuraEffectLikeCpp::MountedFlightSpeed
+                    | RepresentedAuraEffectLikeCpp::Fly
                     | RepresentedAuraEffectLikeCpp::FlightSpeed
                     | RepresentedAuraEffectLikeCpp::VehicleFlightSpeed
                     | RepresentedAuraEffectLikeCpp::MountedFlightSpeedAlways
                     | RepresentedAuraEffectLikeCpp::FlightSpeedNotStack
             )
         ) {
-            if aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::MountedFlightSpeed) {
-                self.update_represented_flight_flags_for_mounted_flight_aura_like_cpp(false);
+            if matches!(
+                aura.represented_effect,
+                Some(
+                    RepresentedAuraEffectLikeCpp::MountedFlightSpeed
+                        | RepresentedAuraEffectLikeCpp::Fly
+                )
+            ) {
+                self.update_represented_flight_flags_for_flight_aura_like_cpp(false);
             }
             self.recompute_represented_flight_speed_rate_like_cpp();
         }
@@ -34938,6 +34945,9 @@ impl WorldSession {
         } else {
             self.player_movement_flags_like_cpp
                 .remove(MovementFlag::CAN_FLY | MovementFlag::MASK_MOVING_FLY);
+            if let Some(position) = self.player_position_like_cpp() {
+                self.set_fall_information_like_cpp(0, position.z);
+            }
         }
 
         self.send_player_move_set_flag_like_cpp(if enable {
@@ -34962,7 +34972,7 @@ impl WorldSession {
         true
     }
 
-    fn update_represented_flight_flags_for_mounted_flight_aura_like_cpp(&mut self, apply: bool) {
+    fn update_represented_flight_flags_for_flight_aura_like_cpp(&mut self, apply: bool) {
         let should_enable = apply
             || self.has_represented_aura_effect_like_cpp(RepresentedAuraEffectLikeCpp::Fly)
             || self.has_represented_aura_effect_like_cpp(
@@ -40204,8 +40214,17 @@ impl WorldSession {
                         RepresentedAuraEffectLikeCpp::MountedFlightSpeed,
                         30_000,
                     )?;
-                    self.update_represented_flight_flags_for_mounted_flight_aura_like_cpp(true);
+                    self.update_represented_flight_flags_for_flight_aura_like_cpp(true);
                     self.recompute_represented_mounted_speed_rates_like_cpp();
+                } else if effect.effect_aura == wow_data::spell::aura_types::SPELL_AURA_FLY {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::Fly,
+                        30_000,
+                    )?;
+                    self.update_represented_flight_flags_for_flight_aura_like_cpp(true);
                 } else if effect.effect_aura
                     == wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_FLIGHT_SPEED
                 {
@@ -54709,7 +54728,7 @@ mod tests {
                 30_000,
             )
             .unwrap();
-        session.update_represented_flight_flags_for_mounted_flight_aura_like_cpp(true);
+        session.update_represented_flight_flags_for_flight_aura_like_cpp(true);
         let slot = session
             .visible_auras
             .iter()
@@ -54736,6 +54755,191 @@ mod tests {
         assert!(
             opcodes.contains(&ServerOpcodes::MoveUnsetCanFly),
             "C++ unsets CanFly when the last mounted-flight/fly aura is gone"
+        );
+    }
+
+    #[tokio::test]
+    async fn represented_fly_aura_sets_can_fly_flags_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_map_position_like_cpp(571, Position::new(1.0, 2.0, 30.0, 0.0));
+        let spell_id = 20_033;
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_FLY,
+                    effect_base_points: 0,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 725,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("fly apply-aura row should execute");
+
+        assert!(
+            session
+                .player_movement_flags_like_cpp()
+                .contains(MovementFlag::CAN_FLY)
+        );
+        assert!(session.represented_can_swim_to_fly_transition_like_cpp());
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert!(
+            opcodes.contains(&ServerOpcodes::MoveEnableTransitionBetweenSwimAndFly),
+            "C++ HandleAuraAllowFlight enables swim-to-fly transition"
+        );
+        assert!(
+            opcodes.contains(&ServerOpcodes::MoveSetCanFly),
+            "C++ HandleAuraAllowFlight enables CanFly"
+        );
+    }
+
+    #[test]
+    fn represented_fly_aura_removal_unsets_can_fly_and_resets_fall_info_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        session.set_player_map_position_like_cpp(571, Position::new(1.0, 2.0, 44.0, 0.0));
+        session.set_fall_information_like_cpp(1_200, 80.0);
+        let caster = ObjectGuid::create_player(1, 42);
+        let fly = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_FLY,
+            effect_base_points: 0,
+            effect_index: 0,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_034,
+                caster,
+                &fly,
+                RepresentedAuraEffectLikeCpp::Fly,
+                30_000,
+            )
+            .unwrap();
+        session.update_represented_flight_flags_for_flight_aura_like_cpp(true);
+        let slot = session
+            .visible_auras
+            .iter()
+            .find_map(|(&slot, aura)| {
+                (aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::Fly)).then_some(slot)
+            })
+            .unwrap();
+        let _ = drain_server_opcodes(&send_rx);
+
+        session.remove_aura(slot).unwrap();
+
+        assert!(
+            !session
+                .player_movement_flags_like_cpp()
+                .contains(MovementFlag::CAN_FLY)
+        );
+        assert!(!session.represented_can_swim_to_fly_transition_like_cpp());
+        assert_eq!(session.fall_information_like_cpp(), (0, 44.0));
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert!(
+            opcodes.contains(&ServerOpcodes::MoveDisableTransitionBetweenSwimAndFly),
+            "C++ HandleAuraAllowFlight disables swim-to-fly transition on last flight source removal"
+        );
+        assert!(
+            opcodes.contains(&ServerOpcodes::MoveUnsetCanFly),
+            "C++ HandleAuraAllowFlight unsets CanFly and starts fall handling on last flight source removal"
+        );
+    }
+
+    #[test]
+    fn represented_fly_aura_removal_preserves_flags_when_mounted_flight_remains_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let caster = ObjectGuid::create_player(1, 42);
+        let fly = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_FLY,
+            effect_base_points: 0,
+            effect_index: 0,
+            ..Default::default()
+        };
+        let mounted_flight = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED,
+            effect_base_points: 60,
+            effect_index: 0,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_035,
+                caster,
+                &fly,
+                RepresentedAuraEffectLikeCpp::Fly,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_036,
+                caster,
+                &mounted_flight,
+                RepresentedAuraEffectLikeCpp::MountedFlightSpeed,
+                30_000,
+            )
+            .unwrap();
+        session.update_represented_flight_flags_for_flight_aura_like_cpp(true);
+        let fly_slot = session
+            .visible_auras
+            .iter()
+            .find_map(|(&slot, aura)| {
+                (aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::Fly)).then_some(slot)
+            })
+            .unwrap();
+        let _ = drain_server_opcodes(&send_rx);
+
+        session.remove_aura(fly_slot).unwrap();
+
+        assert!(
+            session
+                .player_movement_flags_like_cpp()
+                .contains(MovementFlag::CAN_FLY),
+            "C++ keeps CanFly while a mounted-flight aura is still present"
+        );
+        assert!(session.represented_can_swim_to_fly_transition_like_cpp());
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert!(
+            !opcodes.contains(&ServerOpcodes::MoveUnsetCanFly),
+            "C++ does not unset CanFly until the last SPELL_AURA_FLY/mounted-flight source is gone"
+        );
+        assert!(
+            !opcodes.contains(&ServerOpcodes::MoveDisableTransitionBetweenSwimAndFly),
+            "C++ keeps swim-to-fly transition while a mounted-flight aura remains"
         );
     }
 
