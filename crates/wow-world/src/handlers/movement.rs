@@ -1588,13 +1588,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn logout_save_snapshot_prefers_live_canonical_player_position_like_cpp() {
+    async fn logout_save_snapshot_prefers_latest_session_position_like_cpp() {
         let mut session = make_session();
         let canonical = Arc::new(Mutex::new(wow_map::MapManager::default()));
         let guid = ObjectGuid::create_player(1, 1043);
         let login_position = Position::new(1.0, 2.0, 3.0, 0.25);
-        let stale_session_position = Position::new(4.0, 5.0, 6.0, 0.5);
-        let live_canonical_position = Position::new(10.0, 20.0, 30.0, 1.0);
+        let latest_session_position = Position::new(4.0, 5.0, 6.0, 0.5);
+        let stale_canonical_position = Position::new(10.0, 20.0, 30.0, 1.0);
 
         canonical.lock().unwrap().create_world_map(571, 0);
         session.set_canonical_map_manager(Arc::clone(&canonical));
@@ -1620,22 +1620,22 @@ mod tests {
             0,
         ));
         let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
-        session.set_player_position_like_cpp(stale_session_position);
+        session.set_player_position_like_cpp(latest_session_position);
         session.mutate_canonical_player_like_cpp(|player| {
             player
                 .unit_mut()
                 .world_mut()
-                .relocate(live_canonical_position);
+                .relocate(stale_canonical_position);
         });
 
         let snapshot = session
             .sync_session_from_save_to_db_snapshot_like_cpp()
             .expect("save snapshot");
 
-        assert_eq!(snapshot.position, live_canonical_position);
+        assert_eq!(snapshot.position, latest_session_position);
         assert_eq!(
             session.player_position_like_cpp(),
-            Some(live_canonical_position)
+            Some(latest_session_position)
         );
     }
 
