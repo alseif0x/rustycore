@@ -421,6 +421,7 @@ pub mod aura_types {
     pub const SPELL_AURA_MOD_HIT_CHANCE: i32 = 54;
     pub const SPELL_AURA_TRANSFORM: i32 = 56;
     pub const SPELL_AURA_MOD_SPELL_CRIT_CHANCE: i32 = 57;
+    pub const SPELL_AURA_MOD_INCREASE_SWIM_SPEED: i32 = 58;
     pub const SPELL_AURA_MOD_SCALE: i32 = 61;
     pub const SPELL_AURA_MOD_CASTING_SPEED_NOT_STACK: i32 = 65;
     pub const SPELL_AURA_MOD_POWER_COST_SCHOOL_PCT: i32 = 72;
@@ -6112,6 +6113,7 @@ mod tests {
         assert_eq!(aura_types::SPELL_AURA_MOD_DECREASE_SPEED, 33);
         assert_eq!(aura_types::SPELL_AURA_MOD_SHAPESHIFT, 36);
         assert_eq!(aura_types::SPELL_AURA_TRANSFORM, 56);
+        assert_eq!(aura_types::SPELL_AURA_MOD_INCREASE_SWIM_SPEED, 58);
         assert_eq!(aura_types::SPELL_AURA_MOD_SCALE, 61);
         assert_eq!(aura_types::SPELL_AURA_MOUNTED, 78);
         assert_eq!(aura_types::SPELL_AURA_MOD_DETECT_RANGE, 91);

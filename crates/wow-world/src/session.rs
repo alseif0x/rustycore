@@ -4684,6 +4684,7 @@ pub enum RepresentedAuraEffectLikeCpp {
     Ghost,
     Invisibility,
     Mounted,
+    SwimSpeed,
     Speed,
     SpeedAlways,
     SpeedNotStack,
@@ -21227,6 +21228,12 @@ impl WorldSession {
         ) {
             self.recompute_represented_flight_speed_rate_like_cpp();
         }
+        if matches!(
+            aura.represented_effect,
+            Some(RepresentedAuraEffectLikeCpp::SwimSpeed)
+        ) {
+            self.recompute_represented_swim_speed_rate_like_cpp();
+        }
 
         // Send SMSG_AURA_UPDATE (removal)
         self.send_aura_update_removed(slot);
@@ -34602,6 +34609,13 @@ impl WorldSession {
         flight_always.max(flight_not_stack) * (1.0 + flight_mod.max(0) as f32 / 100.0)
     }
 
+    fn represented_swim_speed_rate_like_cpp(&self) -> f32 {
+        1.0 + self
+            .max_represented_aura_amount_like_cpp(RepresentedAuraEffectLikeCpp::SwimSpeed)
+            .max(0) as f32
+            / 100.0
+    }
+
     fn recompute_represented_run_speed_rate_like_cpp(&mut self) {
         self.set_player_movement_speed_rate_and_notify_like_cpp(
             UnitMoveTypeLikeCpp::Run,
@@ -34613,6 +34627,13 @@ impl WorldSession {
         self.set_player_movement_speed_rate_and_notify_like_cpp(
             UnitMoveTypeLikeCpp::Flight,
             self.represented_flight_speed_rate_like_cpp(),
+        );
+    }
+
+    fn recompute_represented_swim_speed_rate_like_cpp(&mut self) {
+        self.set_player_movement_speed_rate_and_notify_like_cpp(
+            UnitMoveTypeLikeCpp::Swim,
+            self.represented_swim_speed_rate_like_cpp(),
         );
     }
 
@@ -34632,6 +34653,10 @@ impl WorldSession {
             UnitMoveTypeLikeCpp::Flight => Some((
                 ServerOpcodes::MoveSetFlightSpeed,
                 ServerOpcodes::MoveUpdateFlightSpeed,
+            )),
+            UnitMoveTypeLikeCpp::Swim => Some((
+                ServerOpcodes::MoveSetSwimSpeed,
+                ServerOpcodes::MoveUpdateSwimSpeed,
             )),
             _ => None,
         }
@@ -39709,6 +39734,17 @@ impl WorldSession {
                         30_000,
                     )?;
                     self.recompute_represented_run_speed_rate_like_cpp();
+                } else if effect.effect_aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SWIM_SPEED
+                {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::SwimSpeed,
+                        30_000,
+                    )?;
+                    self.recompute_represented_swim_speed_rate_like_cpp();
                 } else if effect.effect_aura
                     == wow_data::spell::aura_types::SPELL_AURA_MOD_DECREASE_SPEED
                 {
@@ -54144,6 +54180,86 @@ mod tests {
             (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Flight) - 8.4).abs()
                 < 0.0001,
             "C++ aura removal recomputes MOVE_FLIGHT and drops the removed vehicle-flight modifier"
+        );
+    }
+
+    #[test]
+    fn represented_swim_speed_increase_updates_move_swim_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let caster = ObjectGuid::create_player(1, 42);
+        let swim = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SWIM_SPEED,
+            effect_base_points: 50,
+            effect_index: 0,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_029,
+                caster,
+                &swim,
+                RepresentedAuraEffectLikeCpp::SwimSpeed,
+                30_000,
+            )
+            .unwrap();
+        session.recompute_represented_swim_speed_rate_like_cpp();
+
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Swim) - 7.083333).abs()
+                < 0.0001,
+            "C++ MOVE_SWIM applies SPELL_AURA_MOD_INCREASE_SWIM_SPEED as AddPct on base swim speed"
+        );
+        assert!(
+            drain_server_opcodes(&send_rx).contains(&ServerOpcodes::MoveSetSwimSpeed),
+            "swim speed changes are observable through Unit::SetSpeedRate"
+        );
+    }
+
+    #[test]
+    fn represented_swim_speed_removal_recomputes_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let caster = ObjectGuid::create_player(1, 42);
+        let swim = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SWIM_SPEED,
+            effect_base_points: 50,
+            effect_index: 0,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_030,
+                caster,
+                &swim,
+                RepresentedAuraEffectLikeCpp::SwimSpeed,
+                30_000,
+            )
+            .unwrap();
+        session.recompute_represented_swim_speed_rate_like_cpp();
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Swim) - 7.083333).abs()
+                < 0.0001
+        );
+        let swim_slot = session
+            .visible_auras
+            .iter()
+            .find_map(|(&slot, aura)| {
+                (aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::SwimSpeed))
+                    .then_some(slot)
+            })
+            .unwrap();
+
+        session.remove_aura(swim_slot).unwrap();
+
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Swim) - 4.722222).abs()
+                < 0.0001,
+            "C++ aura removal recomputes MOVE_SWIM and drops the swim-speed modifier"
         );
     }
 
