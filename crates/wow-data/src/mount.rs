@@ -60,6 +60,26 @@ pub struct MountCapabilityStore {
     by_id: HashMap<u32, MountCapabilityEntry>,
 }
 
+/// Diagnostic-only reason for a failed C++ `Unit::GetMountCapability` pass.
+///
+/// Selection still returns only a capability or `None` to callers that do not
+/// need the reason. The reject value is used by runtime logs to distinguish
+/// data/config problems from normal C++ restrictions such as riding skill,
+/// area mount flags, map/area gates or required known spells.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MountCapabilityRejectLikeCpp {
+    EmptyMountType,
+    MissingMountTypeCapabilities,
+    MissingCapabilityRow,
+    RidingSkill,
+    AreaMountFlags,
+    LiquidState,
+    Map,
+    Area,
+    Aura,
+    KnownSpell,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MountCapabilityContextLikeCpp {
     pub riding_skill: u32,
@@ -325,19 +345,49 @@ impl MountCapabilityStore {
         HasAura: Fn(u32) -> bool,
         HasSpell: Fn(i32) -> bool,
     {
+        self.select_for_mount_type_with_reject_like_cpp(
+            type_store,
+            mount_type_id,
+            context,
+            area_matches,
+            has_aura,
+            has_spell,
+        )
+        .ok()
+    }
+
+    pub fn select_for_mount_type_with_reject_like_cpp<AreaMatches, HasAura, HasSpell>(
+        &self,
+        type_store: &MountTypeXCapabilityStore,
+        mount_type_id: u16,
+        context: &MountCapabilityContextLikeCpp,
+        area_matches: AreaMatches,
+        has_aura: HasAura,
+        has_spell: HasSpell,
+    ) -> Result<&MountCapabilityEntry, MountCapabilityRejectLikeCpp>
+    where
+        AreaMatches: Fn(u16) -> bool,
+        HasAura: Fn(u32) -> bool,
+        HasSpell: Fn(i32) -> bool,
+    {
         if mount_type_id == 0 {
-            return None;
+            return Err(MountCapabilityRejectLikeCpp::EmptyMountType);
         }
 
-        let capabilities = type_store.capabilities_for_mount_type_like_cpp(mount_type_id)?;
+        let capabilities = type_store
+            .capabilities_for_mount_type_like_cpp(mount_type_id)
+            .ok_or(MountCapabilityRejectLikeCpp::MissingMountTypeCapabilities)?;
+        let mut reject = None;
 
         for mount_type_capability in capabilities {
             let Some(capability) = self.get(u32::from(mount_type_capability.mount_capability_id))
             else {
+                reject = Some(MountCapabilityRejectLikeCpp::MissingCapabilityRow);
                 continue;
             };
 
             if context.riding_skill < u32::from(capability.req_riding_skill) {
+                reject = Some(MountCapabilityRejectLikeCpp::RidingSkill);
                 continue;
             }
 
@@ -345,21 +395,25 @@ impl MountCapabilityStore {
                 if capability.flags & MOUNT_CAPABILITY_FLAG_GROUND != 0
                     && context.mount_flags & AREA_MOUNT_FLAG_ALLOW_GROUND_MOUNTS == 0
                 {
+                    reject = Some(MountCapabilityRejectLikeCpp::AreaMountFlags);
                     continue;
                 }
                 if capability.flags & MOUNT_CAPABILITY_FLAG_FLYING != 0
                     && context.mount_flags & AREA_MOUNT_FLAG_ALLOW_FLYING_MOUNTS == 0
                 {
+                    reject = Some(MountCapabilityRejectLikeCpp::AreaMountFlags);
                     continue;
                 }
                 if capability.flags & MOUNT_CAPABILITY_FLAG_FLOAT != 0
                     && context.mount_flags & AREA_MOUNT_FLAG_ALLOW_SURFACE_SWIMMING_MOUNTS == 0
                 {
+                    reject = Some(MountCapabilityRejectLikeCpp::AreaMountFlags);
                     continue;
                 }
                 if capability.flags & MOUNT_CAPABILITY_FLAG_UNDERWATER != 0
                     && context.mount_flags & AREA_MOUNT_FLAG_ALLOW_UNDERWATER_SWIMMING_MOUNTS == 0
                 {
+                    reject = Some(MountCapabilityRejectLikeCpp::AreaMountFlags);
                     continue;
                 }
             }
@@ -367,16 +421,20 @@ impl MountCapabilityStore {
             if !context.is_submerged {
                 if !context.is_in_water {
                     if capability.flags & MOUNT_CAPABILITY_FLAG_GROUND == 0 {
+                        reject = Some(MountCapabilityRejectLikeCpp::LiquidState);
                         continue;
                     }
                 } else if capability.flags & MOUNT_CAPABILITY_FLAG_FLOAT == 0 {
+                    reject = Some(MountCapabilityRejectLikeCpp::LiquidState);
                     continue;
                 }
             } else if context.is_in_water {
                 if capability.flags & MOUNT_CAPABILITY_FLAG_UNDERWATER == 0 {
+                    reject = Some(MountCapabilityRejectLikeCpp::LiquidState);
                     continue;
                 }
             } else if capability.flags & MOUNT_CAPABILITY_FLAG_FLOAT == 0 {
+                reject = Some(MountCapabilityRejectLikeCpp::LiquidState);
                 continue;
             }
 
@@ -385,25 +443,29 @@ impl MountCapabilityStore {
                 && context.cosmetic_parent_map_id != i32::from(capability.req_map_id)
                 && context.parent_map_id != i32::from(capability.req_map_id)
             {
+                reject = Some(MountCapabilityRejectLikeCpp::Map);
                 continue;
             }
 
             if capability.req_area_id != 0 && !area_matches(capability.req_area_id) {
+                reject = Some(MountCapabilityRejectLikeCpp::Area);
                 continue;
             }
 
             if capability.req_spell_aura_id != 0 && !has_aura(capability.req_spell_aura_id) {
+                reject = Some(MountCapabilityRejectLikeCpp::Aura);
                 continue;
             }
 
             if capability.req_spell_known_id != 0 && !has_spell(capability.req_spell_known_id) {
+                reject = Some(MountCapabilityRejectLikeCpp::KnownSpell);
                 continue;
             }
 
-            return Some(capability);
+            return Ok(capability);
         }
 
-        None
+        Err(reject.unwrap_or(MountCapabilityRejectLikeCpp::MissingCapabilityRow))
     }
 
     pub fn len(&self) -> usize {
@@ -882,6 +944,35 @@ mod tests {
                     |_| true,
                 )
                 .is_none()
+        );
+        assert_eq!(
+            capabilities
+                .select_for_mount_type_with_reject_like_cpp(
+                    &type_caps,
+                    7,
+                    &context,
+                    |area_id| area_id == 77,
+                    |aura_id| aura_id == 123,
+                    |_| false,
+                )
+                .unwrap_err(),
+            MountCapabilityRejectLikeCpp::KnownSpell
+        );
+        assert_eq!(
+            capabilities
+                .select_for_mount_type_with_reject_like_cpp(
+                    &type_caps,
+                    7,
+                    &MountCapabilityContextLikeCpp {
+                        riding_skill: 10,
+                        ..context
+                    },
+                    |area_id| area_id == 77,
+                    |aura_id| aura_id == 123,
+                    |spell_id| spell_id == 456,
+                )
+                .unwrap_err(),
+            MountCapabilityRejectLikeCpp::RidingSkill
         );
     }
 }

@@ -1,3 +1,29 @@
+- `#NEXT.R8.ENTITIES.1061` — mount and disconnect-save triage instrumentation
+  added for the current live-client blockers (not manual-test-ready). Source
+  of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:7890-7985`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/CollectionMgr.cpp:330-408`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:19329-19635`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MovementHandler.cpp:312-430`.
+  Rust now exposes the C++-ordered `Unit::GetMountCapability` rejection reason
+  through represented mount checks, so a real client cast will say whether the
+  failure is riding skill, area mount flags, liquid state, map/area/aura,
+  known-spell, or missing data. Disconnect position persistence already had
+  movement->snapshot unit coverage; it now logs the affected row count and the
+  saved map/instance/zone/coordinates, so a live disconnect test can distinguish
+  "movement never reached session state" from "DB update affected zero rows" or
+  a normal successful save. Coverage: focused `wow-data` capability filter test,
+  focused `wow-world` mount-capability session-state test, and focused
+  movement->logout-save test. Boundary remains partial: no gameplay restriction
+  was relaxed, full `Player::SaveToDB` remains partial, transport/taxi/full
+  transaction/terrain-zone refresh gaps remain, and the mount/position fixes
+  still need live client validation against the server logs.
+- `#NEXT.R8.ENTITIES.1060` — represented `Player::SaveToDB` now persists
+  loaded `character_skills`, including Riding, across logout/disconnect saves.
+  This is the first half of the reported mount blocker: the skill gate should no
+  longer be erased by Rust save, but valid mount use still depends on account
+  mount spell data plus exact capability checks.
 - `#NEXT.R8.ENTITIES.1037` — disconnect/logout position save now persists
   `instance_id` with the focused Rust location update (not manual-test-ready).
   Source-of-truth:

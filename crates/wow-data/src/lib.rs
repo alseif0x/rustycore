@@ -322,8 +322,8 @@ pub use mount::{
     MOUNT_CAPABILITY_FLAG_FLOAT, MOUNT_CAPABILITY_FLAG_FLYING, MOUNT_CAPABILITY_FLAG_GROUND,
     MOUNT_CAPABILITY_FLAG_IGNORE_RESTRICTIONS, MOUNT_CAPABILITY_FLAG_UNDERWATER,
     MOUNT_FLAG_SELF_MOUNT, MountCapabilityContextLikeCpp, MountCapabilityEntry,
-    MountCapabilityStore, MountEntry, MountStore, MountTypeXCapabilityEntry,
-    MountTypeXCapabilityStore, MountXDisplayEntry, MountXDisplayStore,
+    MountCapabilityRejectLikeCpp, MountCapabilityStore, MountEntry, MountStore,
+    MountTypeXCapabilityEntry, MountTypeXCapabilityStore, MountXDisplayEntry, MountXDisplayStore,
 };
 pub use phase::{PhaseEntry, PhaseGroupStore, PhaseStore, PhaseXPhaseGroupEntry};
 pub use phasing::{

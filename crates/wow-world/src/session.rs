@@ -17865,11 +17865,47 @@ impl WorldSession {
             snapshot,
             self.player_zone_id_like_cpp as u32,
         );
-        if let Err(err) = char_db.execute(&stmt).await {
-            warn!(
-                "Failed to save player position for guid {}: {err}",
-                snapshot.guid.counter()
-            );
+        match char_db.execute(&stmt).await {
+            Ok(0) => {
+                warn!(
+                    guid = snapshot.guid.counter(),
+                    map_id = snapshot.map_id,
+                    instance_id = snapshot.instance_id,
+                    zone_id = self.player_zone_id_like_cpp,
+                    x = snapshot.position.x,
+                    y = snapshot.position.y,
+                    z = snapshot.position.z,
+                    orientation = snapshot.position.orientation,
+                    "Player::SaveToDB represented position save affected zero rows"
+                );
+            }
+            Ok(rows) => {
+                debug!(
+                    guid = snapshot.guid.counter(),
+                    rows,
+                    map_id = snapshot.map_id,
+                    instance_id = snapshot.instance_id,
+                    zone_id = self.player_zone_id_like_cpp,
+                    x = snapshot.position.x,
+                    y = snapshot.position.y,
+                    z = snapshot.position.z,
+                    orientation = snapshot.position.orientation,
+                    "Player::SaveToDB represented position saved"
+                );
+            }
+            Err(err) => {
+                warn!(
+                    guid = snapshot.guid.counter(),
+                    map_id = snapshot.map_id,
+                    instance_id = snapshot.instance_id,
+                    zone_id = self.player_zone_id_like_cpp,
+                    x = snapshot.position.x,
+                    y = snapshot.position.y,
+                    z = snapshot.position.z,
+                    orientation = snapshot.position.orientation,
+                    "Failed to save player position: {err}"
+                );
+            }
         }
     }
 
@@ -26275,17 +26311,26 @@ impl WorldSession {
     }
 
     #[allow(dead_code)]
-    pub(crate) fn represented_mount_capability_for_type_like_cpp(
+    fn represented_mount_capability_selection_for_type_like_cpp(
         &self,
         mount_type_id: u16,
         riding_skill: u32,
         mount_restriction_flags: Option<u8>,
         is_submerged: bool,
         is_in_water: bool,
-    ) -> Option<wow_data::MountCapabilityEntry> {
-        let capability_store = self.mount_capability_store.as_ref()?;
-        let type_store = self.mount_type_x_capability_store.as_ref()?;
-        let area_store = self.area_table_store.as_ref()?;
+    ) -> Result<wow_data::MountCapabilityEntry, wow_data::MountCapabilityRejectLikeCpp> {
+        let capability_store = self
+            .mount_capability_store
+            .as_ref()
+            .ok_or(wow_data::MountCapabilityRejectLikeCpp::MissingCapabilityRow)?;
+        let type_store = self
+            .mount_type_x_capability_store
+            .as_ref()
+            .ok_or(wow_data::MountCapabilityRejectLikeCpp::MissingMountTypeCapabilities)?;
+        let area_store = self
+            .area_table_store
+            .as_ref()
+            .ok_or(wow_data::MountCapabilityRejectLikeCpp::Area)?;
 
         let map_id = u32::from(self.player_map_id_like_cpp());
         let map = self.map_store.as_ref().and_then(|store| store.get(map_id));
@@ -26321,7 +26366,7 @@ impl WorldSession {
         };
 
         capability_store
-            .select_for_mount_type_like_cpp(
+            .select_for_mount_type_with_reject_like_cpp(
                 type_store,
                 mount_type_id,
                 &context,
@@ -26336,6 +26381,24 @@ impl WorldSession {
                 |spell_id| self.known_spells_like_cpp().contains(&spell_id),
             )
             .copied()
+    }
+
+    pub(crate) fn represented_mount_capability_for_type_like_cpp(
+        &self,
+        mount_type_id: u16,
+        riding_skill: u32,
+        mount_restriction_flags: Option<u8>,
+        is_submerged: bool,
+        is_in_water: bool,
+    ) -> Option<wow_data::MountCapabilityEntry> {
+        self.represented_mount_capability_selection_for_type_like_cpp(
+            mount_type_id,
+            riding_skill,
+            mount_restriction_flags,
+            is_submerged,
+            is_in_water,
+        )
+        .ok()
     }
 
     #[allow(dead_code)]
@@ -40794,13 +40857,17 @@ impl WorldSession {
                         .ok()
                         .and_then(|form_id| store.get(form_id))
                 }) {
+                    let (is_submerged, is_in_water) =
+                        self.represented_player_mount_liquid_state_like_cpp();
                     if form.mount_type_id != 0
-                        && self
-                            .represented_mount_capability_for_type_from_session_like_cpp(
+                        && let Err(reject_reason) = self
+                            .represented_mount_capability_selection_for_type_like_cpp(
                                 form.mount_type_id,
+                                u32::from(self.player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP)),
                                 None,
+                                is_submerged,
+                                is_in_water,
                             )
-                            .is_none()
                     {
                         debug!(
                             account = self.account_id,
@@ -40809,6 +40876,7 @@ impl WorldSession {
                             mount_type_id = form.mount_type_id,
                             riding_skill = self.player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP),
                             map_id = self.player_map_id_like_cpp(),
+                            ?reject_reason,
                             "Rejecting represented shapeshift mount form cast: no mount capability"
                         );
                         return Some(RepresentedMountSpellCheckOutcomeLikeCpp::CastFailed(
@@ -40860,26 +40928,34 @@ impl WorldSession {
                 mount_type_id = mount_entry.mount_type_id;
             }
 
-            if mount_type_id != 0
-                && self
-                    .represented_mount_capability_for_type_from_session_like_cpp(
+            if mount_type_id != 0 {
+                let (is_submerged, is_in_water) =
+                    self.represented_player_mount_liquid_state_like_cpp();
+                if let Err(reject_reason) = self
+                    .represented_mount_capability_selection_for_type_like_cpp(
                         mount_type_id,
+                        u32::from(self.player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP)),
                         None,
+                        is_submerged,
+                        is_in_water,
                     )
-                    .is_none()
-            {
-                debug!(
-                    account = self.account_id,
-                    spell_id = spell_info.spell_id,
-                    mount_type_id,
-                    riding_skill = self.player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP),
-                    map_id = self.player_map_id_like_cpp(),
-                    area_id = self.player_zone_area_like_cpp().1,
-                    "Rejecting represented mount cast: no mount capability"
-                );
-                return Some(RepresentedMountSpellCheckOutcomeLikeCpp::CastFailed(
-                    SpellCastResult::NotHere,
-                ));
+                {
+                    debug!(
+                        account = self.account_id,
+                        spell_id = spell_info.spell_id,
+                        mount_type_id,
+                        riding_skill = self.player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP),
+                        map_id = self.player_map_id_like_cpp(),
+                        area_id = self.player_zone_area_like_cpp().1,
+                        is_submerged,
+                        is_in_water,
+                        ?reject_reason,
+                        "Rejecting represented mount cast: no mount capability"
+                    );
+                    return Some(RepresentedMountSpellCheckOutcomeLikeCpp::CastFailed(
+                        SpellCastResult::NotHere,
+                    ));
+                }
             }
         }
 
@@ -56490,6 +56566,26 @@ mod tests {
             session
                 .represented_mount_capability_for_type_from_session_like_cpp(7, None)
                 .is_none()
+        );
+        assert_eq!(
+            session
+                .represented_mount_capability_selection_for_type_like_cpp(
+                    7,
+                    u32::from(session.player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP)),
+                    None,
+                    false,
+                    false,
+                )
+                .unwrap_err(),
+            wow_data::MountCapabilityRejectLikeCpp::RidingSkill
+        );
+        session.set_player_skill_values_like_cpp(HashMap::from([(SKILL_RIDING_LIKE_CPP, 75)]));
+        session.set_known_spells_like_cpp(vec![]);
+        assert_eq!(
+            session
+                .represented_mount_capability_selection_for_type_like_cpp(7, 75, None, false, false)
+                .unwrap_err(),
+            wow_data::MountCapabilityRejectLikeCpp::KnownSpell
         );
     }
 
