@@ -16916,6 +16916,7 @@ impl WorldSession {
 
     pub fn set_mount_store(&mut self, store: Arc<MountStore>) {
         self.mount_store = Some(store);
+        self.learn_account_mount_spells_like_cpp();
     }
 
     pub(crate) fn mount_store(&self) -> Option<&Arc<MountStore>> {
@@ -56477,6 +56478,49 @@ mod tests {
         assert!(session.known_spells_like_cpp().contains(&635));
         assert!(session.known_spells_like_cpp().contains(&100));
         assert!(session.known_spells_like_cpp().contains(&101));
+    }
+
+    #[test]
+    fn mount_store_injection_relearns_account_mount_spells_with_controller_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "MountedPlayer".to_string(),
+            Position::new(0.0, 0.0, 0.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([])));
+        session.set_account_mounts_like_cpp(vec![wow_packet::packets::misc::AccountMount {
+            spell_id: 100,
+            flags: 0,
+        }]);
+        assert!(
+            !session.known_spells_like_cpp().contains(&100),
+            "an unavailable Mount.db2 source spell must not become castable"
+        );
+
+        session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([
+            wow_data::MountEntry {
+                id: 1,
+                mount_type_id: 0,
+                flags: 0,
+                source_type_enum: 0,
+                source_spell_id: 100,
+                player_condition_id: 0,
+                mount_fly_ride_height: 0.0,
+                ui_model_scene_id: 0,
+            },
+        ])));
+
+        assert!(
+            session.known_spells_like_cpp().contains(&100),
+            "C++ CollectionMgr account mounts must be castable through Player::HasSpell after the mount store is available"
+        );
     }
 
     #[test]
