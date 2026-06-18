@@ -5,7 +5,7 @@
 
 //! Character handlers: enum, create, delete, and player login.
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::sync::Arc;
 
 use rand::Rng;
@@ -972,6 +972,65 @@ fn favorite_known_spells_for_send_like_cpp(
         .copied()
         .filter(|spell_id| favorite_spells.contains(spell_id))
         .collect()
+}
+
+fn unix_now_secs_like_cpp() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_secs() as i64)
+        .unwrap_or(0)
+}
+
+fn remaining_ms_from_unix_secs_like_cpp(end_unix_secs: i64, now_unix_secs: i64) -> Option<u32> {
+    let remaining_secs = end_unix_secs.checked_sub(now_unix_secs)?;
+    if remaining_secs <= 0 {
+        return None;
+    }
+
+    u32::try_from(remaining_secs.saturating_mul(1000)).ok()
+}
+
+fn spell_history_entry_from_db_like_cpp(
+    spell_id: u32,
+    item_id: u32,
+    cooldown_end_unix_secs: i64,
+    category_id: u32,
+    category_end_unix_secs: i64,
+    now_unix_secs: i64,
+) -> Option<SpellHistoryEntry> {
+    let cooldown_ms = remaining_ms_from_unix_secs_like_cpp(cooldown_end_unix_secs, now_unix_secs)?;
+    let category_ms =
+        remaining_ms_from_unix_secs_like_cpp(category_end_unix_secs, now_unix_secs).unwrap_or(0);
+
+    Some(SpellHistoryEntry {
+        spell_id,
+        item_id,
+        category: if category_ms > 0 { category_id } else { 0 },
+        recovery_time_ms: if cooldown_ms > category_ms {
+            cooldown_ms as i32
+        } else {
+            0
+        },
+        category_recovery_time_ms: category_ms as i32,
+        mod_rate: 1.0,
+        on_hold: false,
+    })
+}
+
+fn spell_charge_entry_from_db_like_cpp(
+    category_id: u32,
+    first_recharge_end_unix_secs: i64,
+    consumed_charges: u8,
+    now_unix_secs: i64,
+) -> Option<SpellChargeEntry> {
+    let next_recovery_time_ms =
+        remaining_ms_from_unix_secs_like_cpp(first_recharge_end_unix_secs, now_unix_secs)?;
+    Some(SpellChargeEntry {
+        category: category_id,
+        next_recovery_time_ms,
+        charge_mod_rate: 1.0,
+        consumed_charges,
+    })
 }
 
 fn vendor_buy_packet_quantity_to_cpp_count(quantity: i32) -> u32 {
@@ -4373,6 +4432,9 @@ impl WorldSession {
         let login_known_spells = self.login_known_spells_after_account_collections_like_cpp();
         let login_favorite_spells =
             favorite_known_spells_for_send_like_cpp(&login_known_spells, &favorite_spell_rows);
+        let (spell_history_entries, spell_charge_entries) = self
+            .load_character_spell_history_packets_like_cpp(&char_db, guid)
+            .await;
 
         self.send_login_sequence(
             guid,
@@ -4390,6 +4452,8 @@ impl WorldSession {
             combat,
             login_known_spells,
             login_favorite_spells,
+            spell_history_entries,
+            spell_charge_entries,
             action_buttons,
             skill_info_tuples,
             account_mounts,
@@ -10852,6 +10916,104 @@ impl WorldSession {
         }
     }
 
+    async fn load_character_spell_history_packets_like_cpp(
+        &self,
+        char_db: &wow_database::CharacterDatabase,
+        guid: ObjectGuid,
+    ) -> (Vec<SpellHistoryEntry>, Vec<SpellChargeEntry>) {
+        let now = unix_now_secs_like_cpp();
+        let guid_counter = guid.counter() as u64;
+        let mut history_entries = Vec::new();
+
+        let mut cooldown_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_SPELLCOOLDOWNS);
+        cooldown_stmt.set_u64(0, guid_counter);
+        match char_db.query(&cooldown_stmt).await {
+            Ok(mut cooldown_result) => {
+                if !cooldown_result.is_empty() {
+                    loop {
+                        let spell_id: u32 = cooldown_result.try_read(0).unwrap_or(0);
+                        let item_id: u32 = cooldown_result.try_read(1).unwrap_or(0);
+                        let cooldown_end: i64 = cooldown_result.try_read(2).unwrap_or(0);
+                        let category_id: u32 = cooldown_result.try_read(3).unwrap_or(0);
+                        let category_end: i64 = cooldown_result.try_read(4).unwrap_or(0);
+
+                        let spell_known_to_store = self.spell_store().is_none_or(|store| {
+                            i32::try_from(spell_id)
+                                .ok()
+                                .is_some_and(|id| store.get(id).is_some())
+                        });
+                        if spell_known_to_store {
+                            if let Some(entry) = spell_history_entry_from_db_like_cpp(
+                                spell_id,
+                                item_id,
+                                cooldown_end,
+                                category_id,
+                                category_end,
+                                now,
+                            ) {
+                                history_entries.push(entry);
+                            }
+                        }
+
+                        if !cooldown_result.next_row() {
+                            break;
+                        }
+                    }
+                }
+            }
+            Err(error) => {
+                warn!("Failed to load spell cooldowns for {:?}: {error}", guid);
+            }
+        }
+
+        let mut charges_by_category = BTreeMap::<u32, (i64, u8)>::new();
+        let mut charges_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_SPELL_CHARGES);
+        charges_stmt.set_u64(0, guid_counter);
+        match char_db.query(&charges_stmt).await {
+            Ok(mut charges_result) => {
+                if !charges_result.is_empty() {
+                    loop {
+                        let category_id: u32 = charges_result.try_read(0).unwrap_or(0);
+                        let recharge_end: i64 = charges_result.try_read(2).unwrap_or(0);
+                        let category_known_to_store = self
+                            .spell_category_store()
+                            .is_none_or(|store| store.get(category_id).is_some());
+                        if category_known_to_store && recharge_end > now {
+                            charges_by_category
+                                .entry(category_id)
+                                .and_modify(|(first_recharge_end, consumed_charges)| {
+                                    *first_recharge_end = (*first_recharge_end).min(recharge_end);
+                                    *consumed_charges = consumed_charges.saturating_add(1);
+                                })
+                                .or_insert((recharge_end, 1));
+                        }
+
+                        if !charges_result.next_row() {
+                            break;
+                        }
+                    }
+                }
+            }
+            Err(error) => {
+                warn!("Failed to load spell charges for {:?}: {error}", guid);
+            }
+        }
+
+        let charge_entries = charges_by_category
+            .into_iter()
+            .filter_map(|(category_id, (first_recharge_end, consumed_charges))| {
+                spell_charge_entry_from_db_like_cpp(
+                    category_id,
+                    first_recharge_end,
+                    consumed_charges,
+                    now,
+                )
+            })
+            .collect();
+
+        (history_entries, charge_entries)
+    }
+
     async fn load_account_mounts_like_cpp(&mut self) -> Vec<AccountMount> {
         self.set_account_mounts_like_cpp(Vec::new());
         let Some(login_db) = self.login_db() else {
@@ -11117,6 +11279,8 @@ impl WorldSession {
         combat: PlayerCombatStats,
         known_spells: Vec<i32>,
         favorite_spells: Vec<i32>,
+        spell_history_entries: Vec<SpellHistoryEntry>,
+        spell_charge_entries: Vec<SpellChargeEntry>,
         action_buttons: [i64; 180],
         skill_info: Vec<(u16, u16, u16, u16, u16, i16, u16)>,
         account_mounts: Vec<AccountMount>,
@@ -11183,11 +11347,15 @@ impl WorldSession {
         // 11. SendUnlearnSpells (empty)
         self.send_packet(&SendUnlearnSpells);
 
-        // 12. SendSpellHistory (empty — no cooldowns)
-        self.send_packet(&SendSpellHistory);
+        // 12. SendSpellHistory — C++ `SpellHistory::WritePacket`.
+        self.send_packet(&SendSpellHistory {
+            entries: spell_history_entries,
+        });
 
-        // 13. SendSpellCharges (empty)
-        self.send_packet(&SendSpellCharges);
+        // 13. SendSpellCharges — C++ `SpellHistory::WritePacket`.
+        self.send_packet(&SendSpellCharges {
+            entries: spell_charge_entries,
+        });
 
         // 14. ActiveGlyphs (empty with full update)
         self.send_packet(&ActiveGlyphs {
@@ -11585,6 +11753,57 @@ mod tests {
             favorite_known_spells_for_send_like_cpp(&[118, 635, 133], &favorites),
             vec![635],
             "C++ only marks favorite spells while iterating spells that are actually sent"
+        );
+    }
+
+    #[test]
+    fn spell_history_entry_from_db_splits_spell_and_category_cooldowns_like_cpp() {
+        let entry = spell_history_entry_from_db_like_cpp(133, 6948, 1_030, 12, 1_010, 1_000)
+            .expect("future cooldown should be serialized");
+
+        assert_eq!(entry.spell_id, 133);
+        assert_eq!(entry.item_id, 6948);
+        assert_eq!(entry.category, 12);
+        assert_eq!(entry.recovery_time_ms, 30_000);
+        assert_eq!(entry.category_recovery_time_ms, 10_000);
+        assert_eq!(entry.mod_rate, 1.0);
+        assert!(!entry.on_hold);
+    }
+
+    #[test]
+    fn spell_history_entry_omits_recovery_when_category_last_longer_like_cpp() {
+        let entry = spell_history_entry_from_db_like_cpp(133, 0, 1_005, 12, 1_010, 1_000)
+            .expect("future category cooldown should be serialized");
+
+        assert_eq!(entry.category, 12);
+        assert_eq!(entry.recovery_time_ms, 0);
+        assert_eq!(entry.category_recovery_time_ms, 10_000);
+    }
+
+    #[test]
+    fn spell_history_entry_skips_expired_cooldowns_like_cpp() {
+        assert_eq!(
+            spell_history_entry_from_db_like_cpp(133, 0, 1_000, 12, 1_010, 1_000),
+            None
+        );
+    }
+
+    #[test]
+    fn spell_charge_entry_uses_first_recharge_and_consumed_count_like_cpp() {
+        let entry = spell_charge_entry_from_db_like_cpp(42, 1_045, 2, 1_000)
+            .expect("future charge should be serialized");
+
+        assert_eq!(entry.category, 42);
+        assert_eq!(entry.next_recovery_time_ms, 45_000);
+        assert_eq!(entry.charge_mod_rate, 1.0);
+        assert_eq!(entry.consumed_charges, 2);
+    }
+
+    #[test]
+    fn spell_charge_entry_skips_expired_recharges_like_cpp() {
+        assert_eq!(
+            spell_charge_entry_from_db_like_cpp(42, 1_000, 1, 1_000),
+            None
         );
     }
 

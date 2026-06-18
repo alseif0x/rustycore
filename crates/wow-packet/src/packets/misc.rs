@@ -2761,27 +2761,86 @@ impl ServerPacket for SendUnlearnSpells {
 
 // ── SendSpellHistory (SMSG 0x2c28) ──────────────────────────────────
 
-/// Spell cooldown history. Empty for fresh characters.
-pub struct SendSpellHistory;
+/// One C++ `WorldPackets::Spells::SpellHistoryEntry`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SpellHistoryEntry {
+    pub spell_id: u32,
+    pub item_id: u32,
+    pub category: u32,
+    pub recovery_time_ms: i32,
+    pub category_recovery_time_ms: i32,
+    pub mod_rate: f32,
+    pub on_hold: bool,
+}
+
+/// Spell cooldown history.
+pub struct SendSpellHistory {
+    pub entries: Vec<SpellHistoryEntry>,
+}
+
+impl SendSpellHistory {
+    pub fn empty() -> Self {
+        Self {
+            entries: Vec::new(),
+        }
+    }
+}
 
 impl ServerPacket for SendSpellHistory {
     const OPCODE: ServerOpcodes = ServerOpcodes::SendSpellHistory;
 
     fn write(&self, pkt: &mut WorldPacket) {
-        pkt.write_int32(0); // Entries.Count
+        pkt.write_uint32(self.entries.len() as u32);
+        for entry in &self.entries {
+            pkt.write_uint32(entry.spell_id);
+            pkt.write_uint32(entry.item_id);
+            pkt.write_uint32(entry.category);
+            pkt.write_int32(entry.recovery_time_ms);
+            pkt.write_int32(entry.category_recovery_time_ms);
+            pkt.write_float(entry.mod_rate);
+            pkt.write_bit(false); // unused622_1
+            pkt.write_bit(false); // unused622_2
+            pkt.write_bit(entry.on_hold);
+            pkt.flush_bits();
+        }
     }
 }
 
 // ── SendSpellCharges (SMSG 0x2c2a) ──────────────────────────────────
 
-/// Spell charges. Empty for fresh characters.
-pub struct SendSpellCharges;
+/// One C++ `WorldPackets::Spells::SpellChargeEntry`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SpellChargeEntry {
+    pub category: u32,
+    pub next_recovery_time_ms: u32,
+    pub charge_mod_rate: f32,
+    pub consumed_charges: u8,
+}
+
+/// Spell charges.
+pub struct SendSpellCharges {
+    pub entries: Vec<SpellChargeEntry>,
+}
+
+impl SendSpellCharges {
+    pub fn empty() -> Self {
+        Self {
+            entries: Vec::new(),
+        }
+    }
+}
 
 impl ServerPacket for SendSpellCharges {
     const OPCODE: ServerOpcodes = ServerOpcodes::SendSpellCharges;
 
     fn write(&self, pkt: &mut WorldPacket) {
-        pkt.write_int32(0); // Entries.Count
+        pkt.write_uint32(self.entries.len() as u32);
+        for entry in &self.entries {
+            pkt.write_uint32(entry.category);
+            pkt.write_uint32(entry.next_recovery_time_ms);
+            pkt.write_float(entry.charge_mod_rate);
+            pkt.write_uint8(entry.consumed_charges);
+        }
     }
 }
 
@@ -9953,10 +10012,51 @@ mod tests {
 
     #[test]
     fn send_spell_history_empty() {
-        let pkt = SendSpellHistory;
+        let pkt = SendSpellHistory::empty();
         let bytes = pkt.to_bytes();
         // opcode(2) + int32(4) = 6
         assert_eq!(bytes.len(), 6);
+    }
+
+    #[test]
+    fn send_spell_history_with_entry_matches_cpp_layout() {
+        let pkt = SendSpellHistory {
+            entries: vec![SpellHistoryEntry {
+                spell_id: 133,
+                item_id: 6948,
+                category: 12,
+                recovery_time_ms: 30_000,
+                category_recovery_time_ms: 10_000,
+                mod_rate: 1.0,
+                on_hold: false,
+            }],
+        };
+        let bytes = pkt.to_bytes();
+        // opcode(2) + count(4) + entry(5*u32/i32 + f32 + 3 bits flushed to 1 byte) = 31
+        assert_eq!(bytes.len(), 31);
+    }
+
+    #[test]
+    fn send_spell_charges_empty() {
+        let pkt = SendSpellCharges::empty();
+        let bytes = pkt.to_bytes();
+        // opcode(2) + uint32(4) = 6
+        assert_eq!(bytes.len(), 6);
+    }
+
+    #[test]
+    fn send_spell_charges_with_entry_matches_cpp_layout() {
+        let pkt = SendSpellCharges {
+            entries: vec![SpellChargeEntry {
+                category: 42,
+                next_recovery_time_ms: 45_000,
+                charge_mod_rate: 1.0,
+                consumed_charges: 2,
+            }],
+        };
+        let bytes = pkt.to_bytes();
+        // opcode(2) + count(4) + category(4) + next(4) + mod_rate(4) + consumed(1) = 19
+        assert_eq!(bytes.len(), 19);
     }
 
     #[test]
