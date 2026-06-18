@@ -4687,6 +4687,7 @@ pub enum RepresentedAuraEffectLikeCpp {
     Speed,
     SpeedAlways,
     SpeedNotStack,
+    UseNormalMovementSpeed,
     DecreaseSpeed,
     MinimumSpeed,
     MinimumSpeedRate,
@@ -21202,6 +21203,7 @@ impl WorldSession {
                     | RepresentedAuraEffectLikeCpp::Speed
                     | RepresentedAuraEffectLikeCpp::SpeedAlways
                     | RepresentedAuraEffectLikeCpp::SpeedNotStack
+                    | RepresentedAuraEffectLikeCpp::UseNormalMovementSpeed
                     | RepresentedAuraEffectLikeCpp::DecreaseSpeed
                     | RepresentedAuraEffectLikeCpp::MinimumSpeed
                     | RepresentedAuraEffectLikeCpp::MinimumSpeedRate
@@ -34526,6 +34528,13 @@ impl WorldSession {
                 / 100.0;
 
         let mut speed = stack_bonus.max(not_stack_bonus) * (1.0 + main_mod.max(0) as f32 / 100.0);
+        let normal_speed_cap = self.max_represented_aura_amount_like_cpp(
+            RepresentedAuraEffectLikeCpp::UseNormalMovementSpeed,
+        ) as f32
+            / PLAYER_BASE_MOVE_SPEED_LIKE_CPP[UnitMoveTypeLikeCpp::Run.index()];
+        if normal_speed_cap > 0.0 && speed > normal_speed_cap {
+            speed = normal_speed_cap;
+        }
         let minimum_speed_rate = self
             .max_represented_aura_amount_like_cpp(RepresentedAuraEffectLikeCpp::MinimumSpeedRate)
             as f32
@@ -39682,6 +39691,17 @@ impl WorldSession {
                         player_guid,
                         effect,
                         RepresentedAuraEffectLikeCpp::DecreaseSpeed,
+                        30_000,
+                    )?;
+                    self.recompute_represented_run_speed_rate_like_cpp();
+                } else if effect.effect_aura
+                    == wow_data::spell::aura_types::SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED
+                {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::UseNormalMovementSpeed,
                         30_000,
                     )?;
                     self.recompute_represented_run_speed_rate_like_cpp();
@@ -54239,6 +54259,119 @@ mod tests {
             (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 14.0).abs()
                 < 0.0001,
             "C++ aura removal recomputes MOVE_RUN and drops the removed slow"
+        );
+    }
+
+    #[test]
+    fn represented_run_speed_use_normal_movement_speed_caps_before_slow_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let caster = ObjectGuid::create_player(1, 42);
+        let speed = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED,
+            effect_base_points: 200,
+            effect_index: 0,
+            ..Default::default()
+        };
+        let normal_cap = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED,
+            effect_base_points: 10,
+            effect_index: 1,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_020,
+                caster,
+                &speed,
+                RepresentedAuraEffectLikeCpp::Speed,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_021,
+                caster,
+                &normal_cap,
+                RepresentedAuraEffectLikeCpp::UseNormalMovementSpeed,
+                30_000,
+            )
+            .unwrap();
+        session.recompute_represented_run_speed_rate_like_cpp();
+
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 10.0).abs()
+                < 0.0001,
+            "C++ SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED caps MOVE_RUN before slow/min-speed floors"
+        );
+        assert!(
+            drain_server_opcodes(&send_rx).contains(&ServerOpcodes::MoveSetRunSpeed),
+            "normal-movement-speed cap changes are observable through Unit::SetSpeedRate"
+        );
+    }
+
+    #[test]
+    fn represented_run_speed_use_normal_movement_speed_removal_recomputes_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let caster = ObjectGuid::create_player(1, 42);
+        let speed = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED,
+            effect_base_points: 200,
+            effect_index: 0,
+            ..Default::default()
+        };
+        let normal_cap = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED,
+            effect_base_points: 10,
+            effect_index: 1,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_022,
+                caster,
+                &speed,
+                RepresentedAuraEffectLikeCpp::Speed,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_023,
+                caster,
+                &normal_cap,
+                RepresentedAuraEffectLikeCpp::UseNormalMovementSpeed,
+                30_000,
+            )
+            .unwrap();
+        session.recompute_represented_run_speed_rate_like_cpp();
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 10.0).abs()
+                < 0.0001
+        );
+        let normal_cap_slot = session
+            .visible_auras
+            .iter()
+            .find_map(|(&slot, aura)| {
+                (aura.represented_effect
+                    == Some(RepresentedAuraEffectLikeCpp::UseNormalMovementSpeed))
+                .then_some(slot)
+            })
+            .unwrap();
+
+        session.remove_aura(normal_cap_slot).unwrap();
+
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 21.0).abs()
+                < 0.0001,
+            "C++ aura removal recomputes MOVE_RUN and drops the normal-movement-speed cap"
         );
     }
 
