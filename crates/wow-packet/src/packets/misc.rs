@@ -3076,14 +3076,48 @@ impl ServerPacket for ActiveGlyphs {
 /// C++ `EQUIPMENT_SET_SLOTS` / `EQUIPMENT_SLOT_END`.
 pub const EQUIPMENT_SET_SLOTS_LIKE_CPP: usize = 19;
 
-/// Equipment set list. Empty for fresh characters.
-pub struct LoadEquipmentSet;
+/// C++ `WorldPackets::EquipmentSet::LoadEquipmentSet`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct LoadEquipmentSet {
+    pub sets: Vec<EquipmentSetDataLikeCpp>,
+}
 
 impl ServerPacket for LoadEquipmentSet {
     const OPCODE: ServerOpcodes = ServerOpcodes::LoadEquipmentSet;
 
     fn write(&self, pkt: &mut WorldPacket) {
-        pkt.write_int32(0); // SetData.Count
+        pkt.write_uint32(self.sets.len() as u32);
+
+        for set in &self.sets {
+            pkt.write_int32(set.set_type);
+            pkt.write_uint64(set.guid);
+            pkt.write_uint32(set.set_id);
+            pkt.write_uint32(set.ignore_mask);
+
+            for i in 0..EQUIPMENT_SET_SLOTS_LIKE_CPP {
+                pkt.write_guid(&set.pieces[i]);
+                pkt.write_int32(set.appearances[i]);
+            }
+
+            pkt.write_int32(set.enchants[0]);
+            pkt.write_int32(set.enchants[1]);
+            pkt.write_int32(set.secondary_shoulder_appearance_id);
+            pkt.write_int32(set.secondary_shoulder_slot);
+            pkt.write_int32(set.secondary_weapon_appearance_id);
+            pkt.write_int32(set.secondary_weapon_slot);
+
+            let has_spec_index = set.assigned_spec_index != -1;
+            pkt.write_bit(has_spec_index);
+            pkt.write_bits(set.set_name.len() as u32, 8);
+            pkt.write_bits(set.set_icon.len() as u32, 9);
+
+            if has_spec_index {
+                pkt.write_int32(set.assigned_spec_index);
+            }
+
+            pkt.write_string(&set.set_name);
+            pkt.write_string(&set.set_icon);
+        }
     }
 }
 
@@ -8413,6 +8447,61 @@ mod tests {
     }
 
     #[test]
+    fn load_equipment_set_writes_cpp_equipment_set_data_shape() {
+        let item_guid = ObjectGuid::create_item(1, 55);
+        let mut pieces = [ObjectGuid::EMPTY; EQUIPMENT_SET_SLOTS_LIKE_CPP];
+        pieces[0] = item_guid;
+        let mut appearances = [0; EQUIPMENT_SET_SLOTS_LIKE_CPP];
+        appearances[2] = 12;
+
+        let pkt = LoadEquipmentSet {
+            sets: vec![EquipmentSetDataLikeCpp {
+                set_type: 0,
+                guid: 0x0102_0304_0506_0708,
+                set_id: 7,
+                ignore_mask: 3,
+                pieces,
+                appearances,
+                enchants: [123, 456],
+                secondary_shoulder_appearance_id: 11,
+                secondary_shoulder_slot: 2,
+                secondary_weapon_appearance_id: 22,
+                secondary_weapon_slot: 16,
+                assigned_spec_index: 3,
+                set_name: "Tank".to_string(),
+                set_icon: "INV_01".to_string(),
+            }],
+        };
+        let bytes = pkt.to_bytes();
+        let mut body = WorldPacket::from_bytes(&bytes[2..]);
+
+        assert_eq!(u32::try_from(body.read_int32().unwrap()).unwrap(), 1);
+        assert_eq!(body.read_int32().unwrap(), 0);
+        assert_eq!(body.read_uint64().unwrap(), 0x0102_0304_0506_0708);
+        assert_eq!(body.read_uint32().unwrap(), 7);
+        assert_eq!(body.read_uint32().unwrap(), 3);
+        assert_eq!(body.read_guid().unwrap(), item_guid);
+        assert_eq!(body.read_int32().unwrap(), 0);
+        for i in 1..EQUIPMENT_SET_SLOTS_LIKE_CPP {
+            assert_eq!(body.read_guid().unwrap(), ObjectGuid::EMPTY);
+            assert_eq!(body.read_int32().unwrap(), if i == 2 { 12 } else { 0 });
+        }
+        assert_eq!(body.read_int32().unwrap(), 123);
+        assert_eq!(body.read_int32().unwrap(), 456);
+        assert_eq!(body.read_int32().unwrap(), 11);
+        assert_eq!(body.read_int32().unwrap(), 2);
+        assert_eq!(body.read_int32().unwrap(), 22);
+        assert_eq!(body.read_int32().unwrap(), 16);
+        assert!(body.read_bit().unwrap());
+        assert_eq!(body.read_bits(8).unwrap(), 4);
+        assert_eq!(body.read_bits(9).unwrap(), 6);
+        assert_eq!(body.read_int32().unwrap(), 3);
+        assert_eq!(body.read_string(4).unwrap(), "Tank");
+        assert_eq!(body.read_string(6).unwrap(), "INV_01");
+        assert_eq!(body.remaining(), 0);
+    }
+
+    #[test]
     fn delete_equipment_set_reads_cpp_uint64_id() {
         let mut pkt = WorldPacket::new_empty();
         pkt.write_uint64(0x0102_0304_0506_0708);
@@ -10184,7 +10273,7 @@ mod tests {
 
     #[test]
     fn load_equipment_set_empty() {
-        let pkt = LoadEquipmentSet;
+        let pkt = LoadEquipmentSet::default();
         let bytes = pkt.to_bytes();
         // opcode(2) + i32(4) = 6
         assert_eq!(bytes.len(), 6);

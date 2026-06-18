@@ -3782,6 +3782,7 @@ pub struct WorldSession {
     represented_confirm_respec_wipe_requests_like_cpp: Vec<RepresentedConfirmRespecWipeLikeCpp>,
     /// C++ `Player::_equipmentSets`, represented until DB-backed save/load is canonical.
     represented_equipment_sets_like_cpp: BTreeMap<u64, RepresentedEquipmentSetLikeCpp>,
+    represented_equipment_sets_loaded_like_cpp: bool,
     /// Represented stand-in for `ObjectMgr::GenerateEquipmentSetGuid`.
     represented_next_equipment_set_guid_like_cpp: u64,
     /// Represented accepted Adventure Map quest starts until AddQuestAndCheckCompletion is canonical.
@@ -5249,6 +5250,7 @@ impl WorldSession {
             represented_confirm_barbers_choice_requests_like_cpp: Vec::new(),
             represented_confirm_respec_wipe_requests_like_cpp: Vec::new(),
             represented_equipment_sets_like_cpp: BTreeMap::new(),
+            represented_equipment_sets_loaded_like_cpp: false,
             represented_next_equipment_set_guid_like_cpp: 1,
             represented_adventure_map_start_quest_requests_like_cpp: Vec::new(),
             taxi_node_map_ids_like_cpp: HashMap::new(),
@@ -5533,6 +5535,128 @@ impl WorldSession {
     ) {
         self.represented_equipment_sets_like_cpp
             .insert(guid, equipment_set);
+    }
+
+    pub(crate) fn clear_represented_equipment_sets_like_cpp(&mut self) {
+        self.represented_equipment_sets_like_cpp.clear();
+        self.represented_equipment_sets_loaded_like_cpp = false;
+        self.represented_next_equipment_set_guid_like_cpp = 1;
+    }
+
+    pub(crate) fn mark_represented_equipment_sets_loaded_like_cpp(&mut self) {
+        self.represented_equipment_sets_loaded_like_cpp = true;
+    }
+
+    pub(crate) fn load_represented_equipment_set_row_like_cpp(
+        &mut self,
+        guid: u64,
+        set_id: u32,
+        set_name: String,
+        set_icon: String,
+        ignore_mask: u32,
+        assigned_spec_index: i32,
+        pieces: [ObjectGuid; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
+    ) -> bool {
+        if set_id >= MAX_EQUIPMENT_SET_INDEX_LIKE_CPP {
+            return false;
+        }
+
+        let equipment_set = RepresentedEquipmentSetLikeCpp {
+            raw_set_type: RepresentedEquipmentSetTypeLikeCpp::Equipment.as_i32_like_cpp(),
+            set_type: RepresentedEquipmentSetTypeLikeCpp::Equipment,
+            guid,
+            set_id,
+            ignore_mask,
+            pieces,
+            appearances: [0; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
+            enchants: [0; 2],
+            secondary_shoulder_appearance_id: 0,
+            secondary_shoulder_slot: 0,
+            secondary_weapon_appearance_id: 0,
+            secondary_weapon_slot: 0,
+            assigned_spec_index,
+            set_name,
+            set_icon,
+            state: RepresentedEquipmentSetUpdateStateLikeCpp::Unchanged,
+        };
+        self.represented_next_equipment_set_guid_like_cpp = self
+            .represented_next_equipment_set_guid_like_cpp
+            .max(guid.saturating_add(1));
+        self.represented_equipment_sets_like_cpp
+            .insert(guid, equipment_set);
+        true
+    }
+
+    pub(crate) fn load_represented_transmog_outfit_row_like_cpp(
+        &mut self,
+        guid: u64,
+        set_id: u32,
+        set_name: String,
+        set_icon: String,
+        ignore_mask: u32,
+        appearances: [i32; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
+        enchants: [i32; 2],
+    ) -> bool {
+        if set_id >= MAX_EQUIPMENT_SET_INDEX_LIKE_CPP {
+            return false;
+        }
+
+        let equipment_set = RepresentedEquipmentSetLikeCpp {
+            raw_set_type: RepresentedEquipmentSetTypeLikeCpp::Transmog.as_i32_like_cpp(),
+            set_type: RepresentedEquipmentSetTypeLikeCpp::Transmog,
+            guid,
+            set_id,
+            ignore_mask,
+            pieces: [ObjectGuid::EMPTY; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
+            appearances,
+            enchants,
+            secondary_shoulder_appearance_id: 0,
+            secondary_shoulder_slot: 0,
+            secondary_weapon_appearance_id: 0,
+            secondary_weapon_slot: 0,
+            assigned_spec_index: -1,
+            set_name,
+            set_icon,
+            state: RepresentedEquipmentSetUpdateStateLikeCpp::Unchanged,
+        };
+        self.represented_next_equipment_set_guid_like_cpp = self
+            .represented_next_equipment_set_guid_like_cpp
+            .max(guid.saturating_add(1));
+        self.represented_equipment_sets_like_cpp
+            .insert(guid, equipment_set);
+        true
+    }
+
+    pub(crate) fn represented_load_equipment_set_packet_like_cpp(
+        &self,
+    ) -> wow_packet::packets::misc::LoadEquipmentSet {
+        let sets = self
+            .represented_equipment_sets_like_cpp
+            .values()
+            .filter(|equipment_set| {
+                equipment_set.state != RepresentedEquipmentSetUpdateStateLikeCpp::Deleted
+            })
+            .map(
+                |equipment_set| wow_packet::packets::misc::EquipmentSetDataLikeCpp {
+                    set_type: equipment_set.raw_set_type,
+                    guid: equipment_set.guid,
+                    set_id: equipment_set.set_id,
+                    ignore_mask: equipment_set.ignore_mask,
+                    pieces: equipment_set.pieces,
+                    appearances: equipment_set.appearances,
+                    enchants: equipment_set.enchants,
+                    secondary_shoulder_appearance_id: equipment_set
+                        .secondary_shoulder_appearance_id,
+                    secondary_shoulder_slot: equipment_set.secondary_shoulder_slot,
+                    secondary_weapon_appearance_id: equipment_set.secondary_weapon_appearance_id,
+                    secondary_weapon_slot: equipment_set.secondary_weapon_slot,
+                    assigned_spec_index: equipment_set.assigned_spec_index,
+                    set_name: equipment_set.set_name.clone(),
+                    set_icon: equipment_set.set_icon.clone(),
+                },
+            )
+            .collect();
+        wow_packet::packets::misc::LoadEquipmentSet { sets }
     }
 
     #[cfg(test)]
@@ -18063,6 +18187,7 @@ impl WorldSession {
         self.save_player_spell_cooldowns_like_cpp().await;
         self.save_player_spell_charges_like_cpp().await;
         self.save_player_action_buttons_like_cpp().await;
+        self.save_player_equipment_sets_like_cpp().await;
         self.save_instance_time_restrictions_like_cpp().await;
         self.save_played_time().await;
         self.save_reputation_to_db_like_cpp().await;
@@ -18258,6 +18383,154 @@ impl WorldSession {
         Some(statements)
     }
 
+    pub(crate) fn build_equipment_set_insert_statement_like_cpp(
+        player_guid_counter: u64,
+        equipment_set: &RepresentedEquipmentSetLikeCpp,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::INS_EQUIP_SET.sql());
+        stmt.set_u64(0, player_guid_counter);
+        stmt.set_u64(1, equipment_set.guid);
+        stmt.set_u32(2, equipment_set.set_id);
+        stmt.set_string(3, equipment_set.set_name.clone());
+        stmt.set_string(4, equipment_set.set_icon.clone());
+        stmt.set_u32(5, equipment_set.ignore_mask);
+        stmt.set_i32(6, equipment_set.assigned_spec_index);
+        for (offset, item_guid) in equipment_set.pieces.iter().enumerate() {
+            stmt.set_u64(7 + offset, item_guid.counter() as u64);
+        }
+        stmt
+    }
+
+    pub(crate) fn build_equipment_set_update_statement_like_cpp(
+        player_guid_counter: u64,
+        equipment_set: &RepresentedEquipmentSetLikeCpp,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::UPD_EQUIP_SET.sql());
+        stmt.set_string(0, equipment_set.set_name.clone());
+        stmt.set_string(1, equipment_set.set_icon.clone());
+        stmt.set_u32(2, equipment_set.ignore_mask);
+        stmt.set_i32(3, equipment_set.assigned_spec_index);
+        for (offset, item_guid) in equipment_set.pieces.iter().enumerate() {
+            stmt.set_u64(4 + offset, item_guid.counter() as u64);
+        }
+        stmt.set_u64(23, player_guid_counter);
+        stmt.set_u64(24, equipment_set.guid);
+        stmt.set_u32(25, equipment_set.set_id);
+        stmt
+    }
+
+    pub(crate) fn build_transmog_outfit_insert_statement_like_cpp(
+        player_guid_counter: u64,
+        equipment_set: &RepresentedEquipmentSetLikeCpp,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::INS_TRANSMOG_OUTFIT.sql());
+        stmt.set_u64(0, player_guid_counter);
+        stmt.set_u64(1, equipment_set.guid);
+        stmt.set_u32(2, equipment_set.set_id);
+        stmt.set_string(3, equipment_set.set_name.clone());
+        stmt.set_string(4, equipment_set.set_icon.clone());
+        stmt.set_u32(5, equipment_set.ignore_mask);
+        for (offset, appearance) in equipment_set.appearances.iter().enumerate() {
+            stmt.set_i32(6 + offset, *appearance);
+        }
+        stmt.set_i32(25, equipment_set.enchants[0]);
+        stmt.set_i32(26, equipment_set.enchants[1]);
+        stmt
+    }
+
+    pub(crate) fn build_transmog_outfit_update_statement_like_cpp(
+        player_guid_counter: u64,
+        equipment_set: &RepresentedEquipmentSetLikeCpp,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::UPD_TRANSMOG_OUTFIT.sql());
+        stmt.set_string(0, equipment_set.set_name.clone());
+        stmt.set_string(1, equipment_set.set_icon.clone());
+        stmt.set_u32(2, equipment_set.ignore_mask);
+        for (offset, appearance) in equipment_set.appearances.iter().enumerate() {
+            stmt.set_i32(3 + offset, *appearance);
+        }
+        stmt.set_i32(22, equipment_set.enchants[0]);
+        stmt.set_i32(23, equipment_set.enchants[1]);
+        stmt.set_u64(24, player_guid_counter);
+        stmt.set_u64(25, equipment_set.guid);
+        stmt.set_u32(26, equipment_set.set_id);
+        stmt
+    }
+
+    pub(crate) fn build_equipment_set_delete_statement_like_cpp(
+        equipment_set: &RepresentedEquipmentSetLikeCpp,
+    ) -> PreparedStatement {
+        let statement = match equipment_set.set_type {
+            RepresentedEquipmentSetTypeLikeCpp::Equipment => CharStatements::DEL_EQUIP_SET,
+            RepresentedEquipmentSetTypeLikeCpp::Transmog => CharStatements::DEL_TRANSMOG_OUTFIT,
+        };
+        let mut stmt = PreparedStatement::new(statement.sql());
+        stmt.set_u64(0, equipment_set.guid);
+        stmt
+    }
+
+    pub(crate) fn equipment_set_save_statements_like_cpp(
+        &self,
+        player_guid_counter: u64,
+    ) -> Option<Vec<PreparedStatement>> {
+        if !self.represented_equipment_sets_loaded_like_cpp {
+            return None;
+        }
+
+        let mut statements = Vec::new();
+        for equipment_set in self.represented_equipment_sets_like_cpp.values() {
+            let statement = match (equipment_set.state, equipment_set.set_type) {
+                (RepresentedEquipmentSetUpdateStateLikeCpp::Unchanged, _) => None,
+                (RepresentedEquipmentSetUpdateStateLikeCpp::Deleted, _) => Some(
+                    Self::build_equipment_set_delete_statement_like_cpp(equipment_set),
+                ),
+                (
+                    RepresentedEquipmentSetUpdateStateLikeCpp::New,
+                    RepresentedEquipmentSetTypeLikeCpp::Equipment,
+                ) => Some(Self::build_equipment_set_insert_statement_like_cpp(
+                    player_guid_counter,
+                    equipment_set,
+                )),
+                (
+                    RepresentedEquipmentSetUpdateStateLikeCpp::Changed,
+                    RepresentedEquipmentSetTypeLikeCpp::Equipment,
+                ) => Some(Self::build_equipment_set_update_statement_like_cpp(
+                    player_guid_counter,
+                    equipment_set,
+                )),
+                (
+                    RepresentedEquipmentSetUpdateStateLikeCpp::New,
+                    RepresentedEquipmentSetTypeLikeCpp::Transmog,
+                ) => Some(Self::build_transmog_outfit_insert_statement_like_cpp(
+                    player_guid_counter,
+                    equipment_set,
+                )),
+                (
+                    RepresentedEquipmentSetUpdateStateLikeCpp::Changed,
+                    RepresentedEquipmentSetTypeLikeCpp::Transmog,
+                ) => Some(Self::build_transmog_outfit_update_statement_like_cpp(
+                    player_guid_counter,
+                    equipment_set,
+                )),
+            };
+            if let Some(statement) = statement {
+                statements.push(statement);
+            }
+        }
+        Some(statements)
+    }
+
+    fn mark_equipment_sets_saved_like_cpp(&mut self) {
+        self.represented_equipment_sets_like_cpp
+            .retain(|_, equipment_set| {
+                if equipment_set.state == RepresentedEquipmentSetUpdateStateLikeCpp::Deleted {
+                    return false;
+                }
+                equipment_set.state = RepresentedEquipmentSetUpdateStateLikeCpp::Unchanged;
+                true
+            });
+    }
+
     async fn save_player_skills_like_cpp(&self) {
         if !self.player_skill_records_loaded_like_cpp() {
             warn!(
@@ -18311,6 +18584,39 @@ impl WorldSession {
                 "Failed to save represented player action buttons for guid {}: {err}",
                 guid.counter()
             );
+        }
+    }
+
+    async fn save_player_equipment_sets_like_cpp(&mut self) {
+        let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
+        else {
+            return;
+        };
+
+        let Some(statements) = self.equipment_set_save_statements_like_cpp(guid.counter() as u64)
+        else {
+            warn!(
+                account = self.account_id,
+                player_guid = ?self.player_guid(),
+                "Skipping represented equipment-set save because character_equipmentsets/character_transmog_outfits were not loaded coherently"
+            );
+            return;
+        };
+
+        if statements.is_empty() {
+            return;
+        }
+
+        let mut tx = SqlTransaction::new();
+        for statement in statements {
+            tx.append(statement);
+        }
+        match char_db.commit_transaction(tx).await {
+            Ok(()) => self.mark_equipment_sets_saved_like_cpp(),
+            Err(err) => warn!(
+                "Failed to save represented equipment sets for guid {}: {err}",
+                guid.counter()
+            ),
         }
     }
 
@@ -83138,6 +83444,137 @@ mod tests {
             CharStatements::DEL_CHAR_ACTION.sql(),
             "C++ RemoveActionButton persists by deleting changed/deleted buttons; represented Rust uses a coherent delete+insert snapshot"
         );
+    }
+
+    #[test]
+    fn equipment_set_save_requires_coherent_load_like_cpp() {
+        let (session, _, _) = make_session();
+
+        assert!(
+            session.equipment_set_save_statements_like_cpp(42).is_none(),
+            "Rust must not mutate equipment-set DB rows unless both equipment/transmog set tables were loaded coherently"
+        );
+    }
+
+    #[test]
+    fn equipment_set_save_builds_cpp_insert_update_delete_statements() {
+        let (mut session, _, _) = make_session();
+        session.mark_represented_equipment_sets_loaded_like_cpp();
+
+        let mut new_equipment = RepresentedEquipmentSetLikeCpp::equipment(
+            3,
+            1,
+            RepresentedEquipmentSetUpdateStateLikeCpp::New,
+        );
+        new_equipment.guid = 100;
+        new_equipment.set_name = "Tank".to_string();
+        new_equipment.set_icon = "INV_Shield".to_string();
+        new_equipment.ignore_mask = 7;
+        new_equipment.pieces[0] = ObjectGuid::create_item(1, 55);
+        session.insert_represented_equipment_set_like_cpp(100, new_equipment);
+
+        let mut changed_transmog = RepresentedEquipmentSetLikeCpp::transmog(
+            4,
+            -1,
+            RepresentedEquipmentSetUpdateStateLikeCpp::Changed,
+        );
+        changed_transmog.guid = 200;
+        changed_transmog.set_name = "Look".to_string();
+        changed_transmog.set_icon = "INV_Chest".to_string();
+        changed_transmog.ignore_mask = 9;
+        changed_transmog.appearances[0] = 11;
+        changed_transmog.enchants = [123, 456];
+        session.insert_represented_equipment_set_like_cpp(200, changed_transmog);
+
+        let mut deleted_equipment = RepresentedEquipmentSetLikeCpp::equipment(
+            5,
+            -1,
+            RepresentedEquipmentSetUpdateStateLikeCpp::Deleted,
+        );
+        deleted_equipment.guid = 300;
+        session.insert_represented_equipment_set_like_cpp(300, deleted_equipment);
+
+        let statements = session
+            .equipment_set_save_statements_like_cpp(42)
+            .expect("coherently loaded equipment sets should be saveable");
+
+        assert_eq!(statements.len(), 3);
+        assert_eq!(statements[0].sql(), CharStatements::INS_EQUIP_SET.sql());
+        assert_eq!(
+            &statements[0].params()[0..8],
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U64(100),
+                wow_database::SqlParam::U32(3),
+                wow_database::SqlParam::String("Tank".to_string()),
+                wow_database::SqlParam::String("INV_Shield".to_string()),
+                wow_database::SqlParam::U32(7),
+                wow_database::SqlParam::I32(1),
+                wow_database::SqlParam::U64(55),
+            ]
+        );
+
+        assert_eq!(
+            statements[1].sql(),
+            CharStatements::UPD_TRANSMOG_OUTFIT.sql()
+        );
+        assert_eq!(
+            &statements[1].params()[0..6],
+            &[
+                wow_database::SqlParam::String("Look".to_string()),
+                wow_database::SqlParam::String("INV_Chest".to_string()),
+                wow_database::SqlParam::U32(9),
+                wow_database::SqlParam::I32(11),
+                wow_database::SqlParam::I32(0),
+                wow_database::SqlParam::I32(0),
+            ]
+        );
+        assert_eq!(
+            &statements[1].params()[22..27],
+            &[
+                wow_database::SqlParam::I32(123),
+                wow_database::SqlParam::I32(456),
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U64(200),
+                wow_database::SqlParam::U32(4),
+            ]
+        );
+
+        assert_eq!(statements[2].sql(), CharStatements::DEL_EQUIP_SET.sql());
+        assert_eq!(statements[2].params(), &[wow_database::SqlParam::U64(300)]);
+    }
+
+    #[test]
+    fn equipment_set_save_marks_written_sets_unchanged_and_removes_deleted_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.mark_represented_equipment_sets_loaded_like_cpp();
+
+        let mut changed = RepresentedEquipmentSetLikeCpp::equipment(
+            7,
+            0,
+            RepresentedEquipmentSetUpdateStateLikeCpp::Changed,
+        );
+        changed.guid = 700;
+        session.insert_represented_equipment_set_like_cpp(700, changed);
+
+        let mut deleted = RepresentedEquipmentSetLikeCpp::transmog(
+            8,
+            -1,
+            RepresentedEquipmentSetUpdateStateLikeCpp::Deleted,
+        );
+        deleted.guid = 800;
+        session.insert_represented_equipment_set_like_cpp(800, deleted);
+
+        session.mark_equipment_sets_saved_like_cpp();
+
+        assert_eq!(
+            session
+                .represented_equipment_set_like_cpp(700)
+                .unwrap()
+                .state,
+            RepresentedEquipmentSetUpdateStateLikeCpp::Unchanged
+        );
+        assert!(session.represented_equipment_set_like_cpp(800).is_none());
     }
 
     #[test]

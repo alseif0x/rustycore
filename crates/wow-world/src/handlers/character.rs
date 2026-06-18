@@ -3997,6 +3997,107 @@ impl WorldSession {
         }
         self.sync_player_inventory_like_cpp();
 
+        // ── Load equipment sets / transmog outfits ──
+        // C++ `Player::_LoadEquipmentSets` and `_LoadTransmogOutfits` rebuild
+        // one shared `_equipmentSets` container before `SendEquipmentSetList`.
+        self.clear_represented_equipment_sets_like_cpp();
+        let mut equipment_sets_loaded = true;
+        {
+            let mut equipment_set_stmt =
+                char_db.prepare(CharStatements::SEL_CHARACTER_EQUIPMENTSETS);
+            equipment_set_stmt.set_u64(0, guid.counter() as u64);
+            match char_db.query(&equipment_set_stmt).await {
+                Ok(mut equipment_set_result) => {
+                    if !equipment_set_result.is_empty() {
+                        loop {
+                            let set_guid: u64 = equipment_set_result.try_read(0).unwrap_or(0);
+                            let set_id: u32 =
+                                u32::from(equipment_set_result.try_read::<u8>(1).unwrap_or(0));
+                            let set_name: String =
+                                equipment_set_result.try_read(2).unwrap_or_default();
+                            let set_icon: String =
+                                equipment_set_result.try_read(3).unwrap_or_default();
+                            let ignore_mask: u32 = equipment_set_result.try_read(4).unwrap_or(0);
+                            let assigned_spec_index: i32 =
+                                equipment_set_result.try_read(5).unwrap_or(-1);
+                            let mut pieces = [ObjectGuid::EMPTY;
+                                wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP];
+                            for (slot, piece) in pieces.iter_mut().enumerate() {
+                                let item_low_guid: u64 =
+                                    equipment_set_result.try_read(6 + slot).unwrap_or(0);
+                                if item_low_guid != 0 {
+                                    *piece =
+                                        ObjectGuid::create_item(realm_id, item_low_guid as i64);
+                                }
+                            }
+                            self.load_represented_equipment_set_row_like_cpp(
+                                set_guid,
+                                set_id,
+                                set_name,
+                                set_icon,
+                                ignore_mask,
+                                assigned_spec_index,
+                                pieces,
+                            );
+                            if !equipment_set_result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    equipment_sets_loaded = false;
+                    warn!("Failed to load equipment sets for {:?}: {}", guid, e);
+                }
+            }
+        }
+        {
+            let mut transmog_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_TRANSMOG_OUTFITS);
+            transmog_stmt.set_u64(0, guid.counter() as u64);
+            match char_db.query(&transmog_stmt).await {
+                Ok(mut transmog_result) => {
+                    if !transmog_result.is_empty() {
+                        loop {
+                            let set_guid: u64 = transmog_result.try_read(0).unwrap_or(0);
+                            let set_id: u32 =
+                                u32::from(transmog_result.try_read::<u8>(1).unwrap_or(0));
+                            let set_name: String = transmog_result.try_read(2).unwrap_or_default();
+                            let set_icon: String = transmog_result.try_read(3).unwrap_or_default();
+                            let ignore_mask: u32 = transmog_result.try_read(4).unwrap_or(0);
+                            let mut appearances =
+                                [0; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP];
+                            for (slot, appearance) in appearances.iter_mut().enumerate() {
+                                *appearance = transmog_result.try_read(5 + slot).unwrap_or(0);
+                            }
+                            let enchants = [
+                                transmog_result.try_read(24).unwrap_or(0),
+                                transmog_result.try_read(25).unwrap_or(0),
+                            ];
+                            self.load_represented_transmog_outfit_row_like_cpp(
+                                set_guid,
+                                set_id,
+                                set_name,
+                                set_icon,
+                                ignore_mask,
+                                appearances,
+                                enchants,
+                            );
+                            if !transmog_result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    equipment_sets_loaded = false;
+                    warn!("Failed to load transmog outfits for {:?}: {}", guid, e);
+                }
+            }
+        }
+        if equipment_sets_loaded {
+            self.mark_represented_equipment_sets_loaded_like_cpp();
+        }
+
         // ── Load character currencies from character_currency ──
         // C++ `Player::_LoadCurrency` skips rows not found in sCurrencyTypesStore.
         {
@@ -11398,8 +11499,8 @@ impl WorldSession {
         // 17. SetupCurrency (empty)
         self.send_packet(&SetupCurrency::empty());
 
-        // 18. LoadEquipmentSet (empty)
-        self.send_packet(&LoadEquipmentSet);
+        // 18. LoadEquipmentSet
+        self.send_packet(&self.represented_load_equipment_set_packet_like_cpp());
 
         // 19. AllAccountCriteria (empty)
         self.send_packet(&AllAccountCriteria);
