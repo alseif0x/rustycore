@@ -1944,8 +1944,9 @@ impl WorldSession {
             account = self.account_id,
             slot = request.slot,
             totem_guid = ?request.totem_guid,
-            "CMSG_TOTEM_DESTROYED parsed; player summon-slot totem runtime is not represented yet"
+            "CMSG_TOTEM_DESTROYED parsed"
         );
+        self.destroy_represented_totem_like_cpp(request.slot, request.totem_guid);
     }
 
     fn is_spell_disabled_for_player_like_cpp(&self, spell_id: i32) -> bool {
@@ -2346,7 +2347,7 @@ mod tests {
 
     use wow_constants::{BagFamilyMask, ItemContext, ItemFieldFlags, ItemFlags, ItemUpdateState};
     use wow_core::{ObjectGuid, Position, guid::HighGuid};
-    use wow_entities::{Item, ItemCreateInfo, MAX_ITEM_SPELLS, Player};
+    use wow_entities::{Creature, Item, ItemCreateInfo, MAX_ITEM_SPELLS, Player, UNIT_MASK_TOTEM};
     use wow_loot::{
         LootConditionRowLikeCpp, condition_compare_values_like_cpp,
         loot_conditions_allow_player_like_cpp_representable,
@@ -2441,6 +2442,90 @@ mod tests {
             0,
         ));
         add_canonical_test_player_on_map(canonical, player_guid, position, 571, 0);
+    }
+
+    fn add_canonical_test_creature_on_map(
+        canonical: &SharedCanonicalMapManager,
+        guid: ObjectGuid,
+        position: Position,
+        map_id: u32,
+        instance_id: u32,
+        is_totem: bool,
+    ) {
+        let mut creature = Creature::new(false);
+        creature.unit_mut().world_mut().object_mut().create(guid);
+        creature.unit_mut().world_mut().object_mut().set_entry(777);
+        creature
+            .unit_mut()
+            .world_mut()
+            .set_map(map_id, instance_id)
+            .unwrap();
+        creature.unit_mut().world_mut().relocate(position);
+        creature.unit_mut().world_mut().object_mut().add_to_world();
+        if is_totem {
+            creature.add_unit_type_mask_like_cpp(UNIT_MASK_TOTEM);
+        }
+
+        canonical
+            .lock()
+            .unwrap()
+            .find_map_mut(map_id, instance_id)
+            .unwrap()
+            .map_mut()
+            .insert_map_object_record(
+                wow_entities::MapObjectRecord::new_creature(creature).unwrap(),
+            )
+            .unwrap();
+    }
+
+    fn set_canonical_player_summon_slot(
+        canonical: &SharedCanonicalMapManager,
+        player_guid: ObjectGuid,
+        slot: usize,
+        guid: ObjectGuid,
+    ) {
+        canonical
+            .lock()
+            .unwrap()
+            .find_map_mut(571, 0)
+            .unwrap()
+            .map_mut()
+            .get_typed_player_mut(player_guid)
+            .unwrap()
+            .unit_mut()
+            .subsystems_mut()
+            .control
+            .set_summon_slot(slot, guid);
+    }
+
+    fn canonical_player_summon_slot(
+        canonical: &SharedCanonicalMapManager,
+        player_guid: ObjectGuid,
+        slot: usize,
+    ) -> ObjectGuid {
+        canonical
+            .lock()
+            .unwrap()
+            .find_map(571, 0)
+            .unwrap()
+            .map()
+            .get_typed_player(player_guid)
+            .unwrap()
+            .unit()
+            .subsystems()
+            .control
+            .summon_slots[slot]
+    }
+
+    fn canonical_creature_exists(canonical: &SharedCanonicalMapManager, guid: ObjectGuid) -> bool {
+        canonical
+            .lock()
+            .unwrap()
+            .find_map(571, 0)
+            .unwrap()
+            .map()
+            .get_typed_creature(guid)
+            .is_some()
     }
 
     fn install_active_spell_cast(
@@ -2911,15 +2996,150 @@ mod tests {
         assert!(send_rx.is_empty());
     }
 
+    fn install_canonical_totem_for_session(
+        session: &mut crate::session::WorldSession,
+        canonical: &SharedCanonicalMapManager,
+        slot: usize,
+        is_totem: bool,
+    ) -> (ObjectGuid, ObjectGuid) {
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let totem_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, slot as i64);
+        install_canonical_player(session, canonical, player_guid);
+        set_canonical_player_summon_slot(canonical, player_guid, slot, totem_guid);
+        add_canonical_test_creature_on_map(
+            canonical,
+            totem_guid,
+            Position::new(10.5, 20.5, 30.0, 0.0),
+            571,
+            0,
+            is_totem,
+        );
+        (player_guid, totem_guid)
+    }
+
     #[tokio::test]
-    async fn totem_destroyed_parses_and_stays_silent_until_totem_runtime_exists() {
+    async fn totem_destroyed_despawns_matching_totem_like_cpp() {
         let (mut session, send_rx) = make_session();
-        let totem_guid = ObjectGuid::create_player(1, 42);
+        let canonical = shared_canonical_map_manager();
+        let slot = wow_entities::UNIT_SUMMON_SLOT_TOTEM + 2;
+        let (player_guid, totem_guid) =
+            install_canonical_totem_for_session(&mut session, &canonical, slot, true);
 
         session
             .handle_totem_destroyed(totem_destroyed_packet(2, totem_guid))
             .await;
 
+        assert!(!canonical_creature_exists(&canonical, totem_guid));
+        assert_eq!(
+            canonical_player_summon_slot(&canonical, player_guid, slot),
+            ObjectGuid::EMPTY
+        );
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn totem_destroyed_empty_guid_matches_slot_totem_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let slot = wow_entities::UNIT_SUMMON_SLOT_TOTEM + 1;
+        let (player_guid, totem_guid) =
+            install_canonical_totem_for_session(&mut session, &canonical, slot, true);
+
+        session
+            .handle_totem_destroyed(totem_destroyed_packet(1, ObjectGuid::EMPTY))
+            .await;
+
+        assert!(!canonical_creature_exists(&canonical, totem_guid));
+        assert_eq!(
+            canonical_player_summon_slot(&canonical, player_guid, slot),
+            ObjectGuid::EMPTY
+        );
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn totem_destroyed_mismatched_guid_preserves_totem_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let slot = wow_entities::UNIT_SUMMON_SLOT_TOTEM;
+        let (player_guid, totem_guid) =
+            install_canonical_totem_for_session(&mut session, &canonical, slot, true);
+        let other_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 901);
+
+        session
+            .handle_totem_destroyed(totem_destroyed_packet(0, other_guid))
+            .await;
+
+        assert!(canonical_creature_exists(&canonical, totem_guid));
+        assert_eq!(
+            canonical_player_summon_slot(&canonical, player_guid, slot),
+            totem_guid
+        );
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn totem_destroyed_remote_control_preserves_totem_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let slot = wow_entities::UNIT_SUMMON_SLOT_TOTEM;
+        let (player_guid, totem_guid) =
+            install_canonical_totem_for_session(&mut session, &canonical, slot, true);
+        let controlled_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 902);
+        session.set_player_moved_unit_guid_like_cpp(controlled_guid);
+
+        session
+            .handle_totem_destroyed(totem_destroyed_packet(0, totem_guid))
+            .await;
+
+        assert!(canonical_creature_exists(&canonical, totem_guid));
+        assert_eq!(
+            canonical_player_summon_slot(&canonical, player_guid, slot),
+            totem_guid
+        );
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn totem_destroyed_out_of_range_slot_preserves_totem_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let slot = wow_entities::UNIT_SUMMON_SLOT_TOTEM;
+        let (player_guid, totem_guid) =
+            install_canonical_totem_for_session(&mut session, &canonical, slot, true);
+
+        session
+            .handle_totem_destroyed(totem_destroyed_packet(4, totem_guid))
+            .await;
+
+        assert!(canonical_creature_exists(&canonical, totem_guid));
+        assert_eq!(
+            canonical_player_summon_slot(&canonical, player_guid, slot),
+            totem_guid
+        );
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn totem_destroyed_non_totem_creature_preserves_slot_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let slot = wow_entities::UNIT_SUMMON_SLOT_TOTEM;
+        let (player_guid, totem_guid) =
+            install_canonical_totem_for_session(&mut session, &canonical, slot, false);
+
+        session
+            .handle_totem_destroyed(totem_destroyed_packet(0, totem_guid))
+            .await;
+
+        assert!(canonical_creature_exists(&canonical, totem_guid));
+        assert_eq!(
+            canonical_player_summon_slot(&canonical, player_guid, slot),
+            totem_guid
+        );
         assert!(send_rx.is_empty());
     }
 

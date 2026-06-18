@@ -4,7 +4,7 @@
 
 > **Drift note (2026-06-18):** this audit predates the latest R8 inventory rows
 > and must not be used as an exact current percentage. Rows through
-> `#NEXT.R8.ENTITIES.1005` are now recorded; a full percentage refresh still
+> `#NEXT.R8.ENTITIES.1006` are now recorded; a full percentage refresh still
 > requires a dedicated recount/audit pass.
 
 This document exists to prevent the headline `97.74%` from being read as "almost a

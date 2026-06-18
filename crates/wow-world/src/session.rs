@@ -34377,6 +34377,81 @@ impl WorldSession {
         interrupted
     }
 
+    pub(crate) fn destroy_represented_totem_like_cpp(
+        &mut self,
+        client_slot: u8,
+        requested_totem_guid: ObjectGuid,
+    ) -> bool {
+        let Some(player_guid) = self.player_guid() else {
+            return false;
+        };
+        if self.player_moved_unit_guid_like_cpp() != player_guid {
+            return false;
+        }
+
+        let slot_id = usize::from(client_slot).saturating_add(wow_entities::UNIT_SUMMON_SLOT_TOTEM);
+        if slot_id >= wow_entities::MAX_UNIT_TOTEM_SLOT {
+            return false;
+        }
+
+        let Some(manager) = self.canonical_map_manager.as_ref().map(Arc::clone) else {
+            return false;
+        };
+        let Ok(mut manager) = manager.lock() else {
+            return false;
+        };
+        let map_id = u32::from(self.player_map_id_like_cpp());
+        let mut instance_id = None;
+        manager.do_for_all_maps_with_map_id(map_id, |managed| {
+            if instance_id.is_none() && managed.map().get_typed_player(player_guid).is_some() {
+                instance_id = Some(managed.instance_id());
+            }
+        });
+        let Some(managed) = manager.find_map_mut(map_id, instance_id.unwrap_or(0)) else {
+            return false;
+        };
+        let map = managed.map_mut();
+        let Some(slot_totem_guid) = map
+            .get_typed_player(player_guid)
+            .map(|player| player.unit().subsystems().control.summon_slots[slot_id])
+        else {
+            return false;
+        };
+        if slot_totem_guid.is_empty() {
+            return false;
+        }
+
+        let matches_cpp_totem = map
+            .get_typed_creature(slot_totem_guid)
+            .is_some_and(|totem| {
+                totem.is_totem_unit_type_like_cpp()
+                    && (requested_totem_guid.is_empty() || totem.guid() == requested_totem_guid)
+            });
+        if !matches_cpp_totem {
+            return false;
+        }
+
+        let destroyed = match map.remove_from_map_like_cpp(slot_totem_guid, true) {
+            Ok(_) => true,
+            Err(wow_map::RemoveFromMapError::ObjectNotFound { .. }) => false,
+            Err(_) => false,
+        };
+        if !destroyed {
+            return false;
+        }
+
+        if let Some(player) = map.get_typed_player_mut(player_guid) {
+            let _ = player
+                .unit_mut()
+                .subsystems_mut()
+                .control
+                .clear_summon_slot(slot_id);
+        }
+        drop(manager);
+        self.sync_object_accessor_player();
+        true
+    }
+
     pub(crate) fn set_represented_pending_quest_sharing_like_cpp(
         &mut self,
         sender_guid: ObjectGuid,

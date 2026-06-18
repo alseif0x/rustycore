@@ -1,3 +1,27 @@
+- `#NEXT.R8.ENTITIES.1006` — `CMSG_TOTEM_DESTROYED` now destroys the
+  represented canonical player totem from the requested totem slot instead of
+  only parsing/logging the opcode (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SpellHandler.cpp:396-414`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TotemPackets.cpp:20-24`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:6102-6112`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Totem/Totem.cpp:112-116`.
+  C++ rejects remote-control state, translates the client slot by
+  `SUMMON_SLOT_TOTEM`, rejects slots `>= MAX_TOTEM_SLOT`, reads the player's
+  `m_SummonSlot`, checks `ObjectAccessor::GetCreature`, requires `IsTotem`, and
+  accepts either an empty requested GUID or an exact GUID match before
+  `DespawnOrUnsummon`; totem unsummon clears the owner's totem summon slot.
+  Rust now represents that canonical player branch by reading the typed
+  player's summon slot in the current canonical map instance, validating the
+  typed creature is a totem and the optional requested GUID matches, removing
+  the creature from the canonical map, and clearing the same player summon slot.
+  Coverage: targeted `wow-world` handler tests prove matching and empty-GUID
+  requests despawn and clear the slot, while mismatched GUID, remote-control
+  state, out-of-range slot, and non-totem creature requests preserve both the
+  creature and summon slot. Boundary remains partial: no full legacy
+  `TempSummon`/`Totem::DespawnOrUnsummon` lifecycle, no object update/fanout
+  packet delivery for nearby clients, no spell aura cleanup beyond existing map
+  removal behavior, install/restart, bot, or live-client/manual validation.
 - `#NEXT.R8.ENTITIES.1005` — `CMSG_CANCEL_CHANNELLING` now interrupts the
   represented canonical player `CURRENT_CHANNELED_SPELL` when the requested
   channel spell id matches, instead of only parsing/logging the opcode (not
