@@ -478,15 +478,10 @@ impl ClientPacket for CastSpellRequest {
         let reagents_count = pkt.read_uint32()? as usize;
         let removed_mods_count = pkt.read_uint32()? as usize;
 
-        // Optional currencies (each: 3 i32 + 1 optional byte via bit)
+        // C++ SpellExtraCurrencyCost: CurrencyID + Count.
         for _ in 0..currencies_count {
-            let _item = pkt.read_int32()?;
-            let _slot = pkt.read_int32()?;
-            let _qty = pkt.read_int32()?;
-            let has_extra = pkt.has_bit()?;
-            if has_extra {
-                let _u = pkt.read_uint8()?;
-            }
+            let _currency_id = pkt.read_int32()?;
+            let _count = pkt.read_int32()?;
         }
 
         // Bit section: SendCastFlags(5), hasMoveUpdate(1), weightCount(2), hasCraftingOrderID(1)
@@ -1071,6 +1066,37 @@ mod tests {
         assert_eq!(parsed.cast_id, cast_id);
         assert_eq!(parsed.misc, [30_000, 9]);
         assert_eq!(parsed.spell_id, 12_345);
+    }
+
+    #[test]
+    fn cast_spell_request_reads_optional_currency_cost_like_cpp() {
+        let cast_id = ObjectGuid::create_player(1, 88);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&cast_id);
+        pkt.write_int32(0);
+        pkt.write_int32(0);
+        pkt.write_int32(17_229);
+        SpellCastVisual::default().write(&mut pkt);
+        pkt.write_float(0.0);
+        pkt.write_float(0.0);
+        pkt.write_packed_guid(&ObjectGuid::EMPTY);
+        pkt.write_uint32(1);
+        pkt.write_uint32(0);
+        pkt.write_uint32(0);
+        pkt.write_int32(3_777);
+        pkt.write_int32(25);
+        pkt.write_bits(0, 5);
+        pkt.write_bit(false);
+        pkt.write_bits(0, 2);
+        pkt.write_bit(false);
+        pkt.flush_bits();
+        SpellTargetData::default().write(&mut pkt);
+        pkt.reset_read();
+
+        let parsed = CastSpellRequest::read(&mut pkt).unwrap();
+        assert_eq!(parsed.cast_id, cast_id);
+        assert_eq!(parsed.spell_id, 17_229);
+        assert_eq!(parsed.target, SpellTargetData::default());
     }
 
     #[test]

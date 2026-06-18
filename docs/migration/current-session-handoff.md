@@ -1,3 +1,17 @@
+- `#NEXT.R8.ENTITIES.1022` — `CMSG_CAST_SPELL` parsing now matches the C++
+  optional-currency layout used by `SpellCastRequest`: `SpellExtraCurrencyCost`
+  is `CurrencyID` + `Count`, not the crafting-reagent shape with
+  `Quantity`/optional byte bit (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/SpellPackets.cpp:198-211,216-261`
+  and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/SpellPackets.h:226-240,242-257`.
+  Live logs showed mount attempts failing before gameplay validation with
+  `Failed to parse CMSG_CAST_SPELL: read past end of packet`; the Rust parser
+  was consuming too much data when `OptionalCurrencies` was non-empty, which
+  desynced the subsequent SendCastFlags/target block. Coverage: targeted
+  `wow-packet` cast parser regression and the existing `wow-world` mount test
+  filter. Boundary remains partial: this is protocol layout parity only, not a
+  full Spell::CheckCast, aura runtime, vehicle/passenger mount parity,
+  install/restart, bot, or live-client/manual validation claim.
 - `#NEXT.R8.ENTITIES.1021` — represented mount casts now cover the C++
   `Unit::IsDisallowedMountForm` `GetTransformSpell()` allowance branch for
   represented active transform auras (not manual-test-ready). Source-of-truth:
