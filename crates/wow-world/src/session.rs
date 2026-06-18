@@ -34958,6 +34958,22 @@ impl WorldSession {
         true
     }
 
+    fn move_represented_player_fall_like_cpp(&mut self) -> bool {
+        if self
+            .player_movement_flags_like_cpp
+            .contains(MovementFlag::DISABLE_GRAVITY)
+        {
+            return false;
+        }
+
+        self.player_movement_flags_like_cpp
+            .insert(MovementFlag::FALLING);
+        if let Some(position) = self.player_position_like_cpp() {
+            self.set_fall_information_like_cpp(0, position.z);
+        }
+        true
+    }
+
     fn set_represented_can_swim_to_fly_transition_like_cpp(&mut self, enable: bool) -> bool {
         if enable == self.represented_can_swim_to_fly_transition_like_cpp {
             return false;
@@ -34979,7 +34995,10 @@ impl WorldSession {
                 RepresentedAuraEffectLikeCpp::MountedFlightSpeed,
             );
         self.set_represented_can_swim_to_fly_transition_like_cpp(should_enable);
-        self.set_represented_can_fly_like_cpp(should_enable);
+        let can_fly_changed = self.set_represented_can_fly_like_cpp(should_enable);
+        if !should_enable && can_fly_changed {
+            self.move_represented_player_fall_like_cpp();
+        }
     }
 
     fn propagate_represented_player_speed_to_pet_like_cpp(
@@ -54862,6 +54881,12 @@ mod tests {
                 .player_movement_flags_like_cpp()
                 .contains(MovementFlag::CAN_FLY)
         );
+        assert!(
+            session
+                .player_movement_flags_like_cpp()
+                .contains(MovementFlag::FALLING),
+            "C++ HandleAuraAllowFlight calls MotionMaster::MoveFall after the last flight source is removed"
+        );
         assert!(!session.represented_can_swim_to_fly_transition_like_cpp());
         assert_eq!(session.fall_information_like_cpp(), (0, 44.0));
         let opcodes = drain_server_opcodes(&send_rx);
@@ -54872,6 +54897,61 @@ mod tests {
         assert!(
             opcodes.contains(&ServerOpcodes::MoveUnsetCanFly),
             "C++ HandleAuraAllowFlight unsets CanFly and starts fall handling on last flight source removal"
+        );
+    }
+
+    #[test]
+    fn represented_fly_aura_removal_skips_move_fall_when_gravity_disabled_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        session.set_player_map_position_like_cpp(571, Position::new(1.0, 2.0, 44.0, 0.0));
+        session.set_player_movement_flags_like_cpp(MovementFlag::DISABLE_GRAVITY);
+        session.set_fall_information_like_cpp(1_200, 80.0);
+        let caster = ObjectGuid::create_player(1, 42);
+        let fly = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_FLY,
+            effect_base_points: 0,
+            effect_index: 0,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_037,
+                caster,
+                &fly,
+                RepresentedAuraEffectLikeCpp::Fly,
+                30_000,
+            )
+            .unwrap();
+        session.update_represented_flight_flags_for_flight_aura_like_cpp(true);
+        let slot = session
+            .visible_auras
+            .iter()
+            .find_map(|(&slot, aura)| {
+                (aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::Fly)).then_some(slot)
+            })
+            .unwrap();
+        let _ = drain_server_opcodes(&send_rx);
+
+        session.remove_aura(slot).unwrap();
+
+        assert!(
+            session
+                .player_movement_flags_like_cpp()
+                .contains(MovementFlag::DISABLE_GRAVITY)
+        );
+        assert!(
+            !session
+                .player_movement_flags_like_cpp()
+                .contains(MovementFlag::FALLING),
+            "C++ HandleAuraAllowFlight skips MotionMaster::MoveFall while IsGravityDisabled"
+        );
+        assert_eq!(
+            session.fall_information_like_cpp(),
+            (0, 44.0),
+            "C++ SetCanFly(false) still resets player fall information before the gravity guard"
         );
     }
 
