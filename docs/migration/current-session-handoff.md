@@ -1,3 +1,26 @@
+- `#NEXT.R8.ENTITIES.1065` — represented character glyph load/save and
+  login packet surface now use `character_glyphs` instead of hard-coded empty
+  talent glyphs (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:23499-23508`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26316-26363`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26596-26646`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TalentPackets.cpp:44-82,139-152`.
+  Rust now loads `character_glyphs`, filters invalid talent groups, glyph
+  slots, and `GlyphProperties.db2` misses, sends loaded glyph ids through
+  `UpdateTalentData`, saves the coherent represented glyph table by
+  delete+24 inserts like C++ `_SaveGlyphs`, and skips save if the table failed
+  to load. Important audit note: current
+  `/home/server/woltk-trinity-legacy` validates `talentGroup` but then calls
+  `SetGlyph(glyphSlot, glyphId)`, which writes only the active group; archived
+  TC refs (`/home/server/archived/woltk-trinity-core`) load into the row's
+  talent group. Rust intentionally follows the coherent row-group behavior to
+  avoid porting that legacy C++ bug. Coverage: focused `wow-packet` glyph
+  packet tests, focused `wow-world` glyph load/save/bonus-group tests, and
+  `world-server` check. Boundary remains partial: full talent loading/saving,
+  glyph bindable-spell mapping for non-empty `ActiveGlyphs`, runtime glyph
+  learn/remove mutation, live client validation, bot validation, and manual
+  validation remain open.
 - `#NEXT.R8.ENTITIES.1061` — mount and disconnect-save triage instrumentation
   added for the current live-client blockers (not manual-test-ready). Source
   of truth:

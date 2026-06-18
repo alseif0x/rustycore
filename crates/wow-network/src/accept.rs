@@ -228,6 +228,7 @@ pub struct SessionResources {
     pub hotfix_blob_cache: Option<Arc<wow_data::HotfixBlobCache>>,
     pub skill_store: Option<Arc<wow_data::SkillStore>>,
     pub skill_line_store: Option<Arc<wow_data::SkillLineStore>>,
+    pub glyph_properties_store: Option<Arc<wow_data::GlyphPropertiesStore>>,
     pub chr_races_store: Option<Arc<wow_data::character_progression::ChrRacesStore>>,
     pub spell_chain_store: Option<Arc<wow_data::SpellChainStoreLikeCpp>>,
     pub spell_store: Option<Arc<wow_data::SpellStore>>,

@@ -64,8 +64,8 @@ use wow_data::{
     CurrencyTypesStore, DISABLE_TYPE_BATTLEGROUND, DISABLE_TYPE_MAP, DifficultyStore,
     DisableMgrLikeCpp, DisableWorldObjectRefLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
     DurabilityQualityStore, FishingBaseSkillStoreLikeCpp, GameObjectDisplayInfoStore,
-    GameObjectTemplateLifecycleStoreLikeCpp, HeirloomEntry, HeirloomStore, HotfixBlobCache,
-    ImportPriceStores, ItemAppearanceStore, ItemClassStore, ItemCurrencyCostStore,
+    GameObjectTemplateLifecycleStoreLikeCpp, GlyphPropertiesStore, HeirloomEntry, HeirloomStore,
+    HotfixBlobCache, ImportPriceStores, ItemAppearanceStore, ItemClassStore, ItemCurrencyCostStore,
     ItemDisenchantLootStore, ItemEffectStore, ItemExtendedCostStore,
     ItemLimitCategoryConditionStore, ItemLimitCategoryStore, ItemModifiedAppearanceStore,
     ItemPriceBaseStore, ItemRandomEnchantmentTemplateStore, ItemRandomPropertiesStore,
@@ -182,6 +182,7 @@ const DEFAULT_VISIBILITY_DISTANCE_YARDS_LIKE_CPP: u32 = 100;
 const QUEST_OBJECTIVE_FLAG_KILL_PLAYERS_SAME_FACTION_LIKE_CPP: u32 = 0x0080;
 const QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP: u32 = 0x1;
 const MAX_GAMEOBJECT_SLOT_LIKE_CPP: usize = 4;
+pub(crate) const MAX_SPECIALIZATIONS_LIKE_CPP: usize = 4;
 const PLAYER_FLAGS_UBER_LIKE_CPP: u32 = 0x0008_0000;
 const PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP: u32 = 0x0000_0001;
 const PLAYER_FLAGS_AFK_LIKE_CPP: u32 = 0x0000_0002;
@@ -3990,6 +3991,7 @@ pub struct WorldSession {
     // ── Spell casting ──────────────────────────────────────────────
     /// Spell store (metadata for all known spells: cast time, cooldown, effects, etc.)
     pub spell_store: Option<Arc<SpellStore>>,
+    glyph_properties_store: Option<Arc<GlyphPropertiesStore>>,
     spell_chain_store: Option<Arc<SpellChainStoreLikeCpp>>,
     spell_category_store: Option<Arc<SpellCategoryStore>>,
     npc_spell_click_store: Option<Arc<NpcSpellClickStoreLikeCpp>>,
@@ -4050,6 +4052,11 @@ pub struct WorldSession {
     represented_character_spell_charges_like_cpp:
         BTreeMap<u32, Vec<RepresentedCharacterSpellChargeLikeCpp>>,
     represented_character_spell_charges_loaded_like_cpp: bool,
+    represented_active_talent_group_like_cpp: u8,
+    represented_bonus_talent_groups_like_cpp: u8,
+    represented_glyphs_like_cpp: [[u16; wow_packet::packets::misc::MAX_GLYPH_SLOT_INDEX_LIKE_CPP];
+        MAX_SPECIALIZATIONS_LIKE_CPP],
+    represented_glyphs_loaded_like_cpp: bool,
 
     // ── Quest system ───────────────────────────────────────────────
     /// Quest template store (loaded from world DB at startup).
@@ -5358,6 +5365,7 @@ impl WorldSession {
             movement_speed_ack_events_like_cpp: Vec::new(),
             visible_auras: HashMap::new(),
             spell_store: None,
+            glyph_properties_store: None,
             spell_chain_store: None,
             spell_category_store: None,
             npc_spell_click_store: None,
@@ -5467,6 +5475,12 @@ impl WorldSession {
             represented_character_spell_cooldowns_loaded_like_cpp: false,
             represented_character_spell_charges_like_cpp: BTreeMap::new(),
             represented_character_spell_charges_loaded_like_cpp: false,
+            represented_active_talent_group_like_cpp: 0,
+            represented_bonus_talent_groups_like_cpp: 0,
+            represented_glyphs_like_cpp: [[0;
+                wow_packet::packets::misc::MAX_GLYPH_SLOT_INDEX_LIKE_CPP];
+                MAX_SPECIALIZATIONS_LIKE_CPP],
+            represented_glyphs_loaded_like_cpp: false,
             loot_table: std::collections::HashMap::new(),
             active_loot_guid: ObjectGuid::EMPTY,
             active_loot_view_owners: std::collections::HashSet::new(),
@@ -17372,6 +17386,14 @@ impl WorldSession {
         self.spell_store.as_ref()
     }
 
+    pub fn set_glyph_properties_store(&mut self, store: Arc<GlyphPropertiesStore>) {
+        self.glyph_properties_store = Some(store);
+    }
+
+    pub(crate) fn glyph_properties_store(&self) -> Option<&Arc<GlyphPropertiesStore>> {
+        self.glyph_properties_store.as_ref()
+    }
+
     pub fn set_spell_chain_store(&mut self, store: Arc<SpellChainStoreLikeCpp>) {
         self.spell_chain_store = Some(store);
     }
@@ -18195,6 +18217,7 @@ impl WorldSession {
         self.save_player_gold().await;
         self.save_player_skills_like_cpp().await;
         self.save_player_difficulties_like_cpp().await;
+        self.save_player_glyphs_like_cpp().await;
         self.save_player_spell_cooldowns_like_cpp().await;
         self.save_player_spell_charges_like_cpp().await;
         self.save_player_action_buttons_like_cpp().await;
@@ -18204,6 +18227,140 @@ impl WorldSession {
         self.save_played_time().await;
         self.save_reputation_to_db_like_cpp().await;
         self.save_cuf_profiles_like_cpp().await;
+    }
+
+    pub(crate) fn reset_represented_glyphs_like_cpp(&mut self) {
+        self.represented_glyphs_like_cpp = [[0;
+            wow_packet::packets::misc::MAX_GLYPH_SLOT_INDEX_LIKE_CPP];
+            MAX_SPECIALIZATIONS_LIKE_CPP];
+        self.represented_glyphs_loaded_like_cpp = false;
+    }
+
+    pub(crate) fn mark_represented_glyphs_loaded_like_cpp(&mut self) {
+        self.represented_glyphs_loaded_like_cpp = true;
+    }
+
+    pub(crate) fn set_represented_active_talent_group_like_cpp(&mut self, active_group: u8) {
+        self.represented_active_talent_group_like_cpp =
+            active_group.min((MAX_SPECIALIZATIONS_LIKE_CPP - 1) as u8);
+    }
+
+    pub(crate) fn set_represented_bonus_talent_groups_like_cpp(&mut self, bonus_groups: u8) {
+        self.represented_bonus_talent_groups_like_cpp =
+            bonus_groups.min((MAX_SPECIALIZATIONS_LIKE_CPP - 1) as u8);
+    }
+
+    pub(crate) fn load_represented_glyph_row_like_cpp(
+        &mut self,
+        talent_group: u8,
+        glyph_slot: u8,
+        glyph_id: u16,
+    ) -> bool {
+        let talent_group_index = usize::from(talent_group);
+        if talent_group_index >= MAX_SPECIALIZATIONS_LIKE_CPP {
+            return false;
+        }
+
+        let glyph_slot_index = usize::from(glyph_slot);
+        if glyph_slot_index >= wow_packet::packets::misc::MAX_GLYPH_SLOT_INDEX_LIKE_CPP {
+            return false;
+        }
+
+        if glyph_id != 0
+            && self
+                .glyph_properties_store()
+                .is_some_and(|store| store.get(u32::from(glyph_id)).is_none())
+        {
+            return false;
+        }
+
+        self.represented_glyphs_like_cpp[talent_group_index][glyph_slot_index] = glyph_id;
+        true
+    }
+
+    pub(crate) fn represented_update_talent_data_packet_like_cpp(
+        &self,
+    ) -> wow_packet::packets::misc::UpdateTalentData {
+        let group_count = (1 + usize::from(self.represented_bonus_talent_groups_like_cpp))
+            .min(MAX_SPECIALIZATIONS_LIKE_CPP);
+        let mut groups = Vec::with_capacity(group_count);
+        for glyph_ids in self
+            .represented_glyphs_like_cpp
+            .iter()
+            .take(group_count)
+            .copied()
+        {
+            groups.push(wow_packet::packets::misc::TalentGroupInfoLikeCpp {
+                spec_id: MAX_SPECIALIZATIONS_LIKE_CPP as u8,
+                talents: Vec::new(),
+                glyph_ids,
+            });
+        }
+
+        wow_packet::packets::misc::UpdateTalentData {
+            unspent_talent_points: 0,
+            active_group: self.represented_active_talent_group_like_cpp,
+            groups,
+            is_pet_talents: false,
+        }
+    }
+
+    pub(crate) fn represented_active_glyphs_packet_like_cpp(
+        &self,
+    ) -> wow_packet::packets::misc::ActiveGlyphs {
+        // C++ maps active glyphs to bindable spell ids through GlyphBindableSpell.db2.
+        // That store is not session-wired yet, so this remains an intentionally empty
+        // full update while UpdateTalentData carries the loaded glyph ids.
+        wow_packet::packets::misc::ActiveGlyphs {
+            glyphs: Vec::new(),
+            is_full_update: true,
+        }
+    }
+
+    pub(crate) fn build_character_glyph_delete_statement_like_cpp(
+        guid_counter: u64,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::DEL_CHAR_GLYPHS.sql());
+        stmt.set_u64(0, guid_counter);
+        stmt
+    }
+
+    pub(crate) fn build_character_glyph_insert_statement_like_cpp(
+        guid_counter: u64,
+        talent_group: u8,
+        glyph_slot: u8,
+        glyph_id: u16,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::INS_CHAR_GLYPHS.sql());
+        stmt.set_u64(0, guid_counter);
+        stmt.set_u8(1, talent_group);
+        stmt.set_u8(2, glyph_slot);
+        stmt.set_u16(3, glyph_id);
+        stmt
+    }
+
+    pub(crate) fn character_glyph_save_statements_like_cpp(
+        &self,
+        guid_counter: u64,
+    ) -> Option<Vec<PreparedStatement>> {
+        if !self.represented_glyphs_loaded_like_cpp {
+            return None;
+        }
+
+        let mut statements = vec![Self::build_character_glyph_delete_statement_like_cpp(
+            guid_counter,
+        )];
+        for (talent_group, glyphs) in self.represented_glyphs_like_cpp.iter().enumerate() {
+            for (glyph_slot, glyph_id) in glyphs.iter().copied().enumerate() {
+                statements.push(Self::build_character_glyph_insert_statement_like_cpp(
+                    guid_counter,
+                    talent_group as u8,
+                    glyph_slot as u8,
+                    glyph_id,
+                ));
+            }
+        }
+        Some(statements)
     }
 
     pub(crate) fn build_character_spell_cooldown_delete_statement_like_cpp(
@@ -18595,6 +18752,34 @@ impl WorldSession {
         if let Err(err) = char_db.commit_transaction(tx).await {
             warn!(
                 "Failed to save represented player action buttons for guid {}: {err}",
+                guid.counter()
+            );
+        }
+    }
+
+    async fn save_player_glyphs_like_cpp(&self) {
+        let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
+        else {
+            return;
+        };
+
+        let Some(statements) = self.character_glyph_save_statements_like_cpp(guid.counter() as u64)
+        else {
+            warn!(
+                account = self.account_id,
+                player_guid = ?self.player_guid(),
+                "Skipping represented player glyph save because character_glyphs was not loaded coherently"
+            );
+            return;
+        };
+
+        let mut tx = SqlTransaction::new();
+        for statement in statements {
+            tx.append(statement);
+        }
+        if let Err(err) = char_db.commit_transaction(tx).await {
+            warn!(
+                "Failed to save represented player glyphs for guid {}: {err}",
                 guid.counter()
             );
         }
@@ -83677,6 +83862,93 @@ mod tests {
                 wow_database::SqlParam::I64(1_001),
                 wow_database::SqlParam::I64(1_020),
             ]
+        );
+    }
+
+    #[test]
+    fn character_glyph_save_requires_coherent_load_like_cpp() {
+        let (session, _, _) = make_session();
+
+        assert!(
+            session
+                .character_glyph_save_statements_like_cpp(42)
+                .is_none(),
+            "Rust must not emulate C++ _SaveGlyphs delete-all unless character_glyphs was loaded coherently"
+        );
+    }
+
+    #[test]
+    fn character_glyph_load_filters_invalid_rows_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_glyph_properties_store(Arc::new(wow_data::GlyphPropertiesStore::from_entries(
+            [wow_data::GlyphPropertiesEntry {
+                id: 123,
+                spell_id: 10,
+                glyph_type: 1,
+                glyph_exclusive_category_id: 0,
+                spell_icon_file_data_id: 0,
+                glyph_slot_flags: 0,
+            }],
+        )));
+
+        assert!(session.load_represented_glyph_row_like_cpp(0, 0, 123));
+        assert!(!session.load_represented_glyph_row_like_cpp(4, 0, 123));
+        assert!(!session.load_represented_glyph_row_like_cpp(0, 6, 123));
+        assert!(!session.load_represented_glyph_row_like_cpp(0, 1, 999));
+        session.mark_represented_glyphs_loaded_like_cpp();
+
+        let packet = session.represented_update_talent_data_packet_like_cpp();
+        assert_eq!(packet.groups[0].glyph_ids[0], 123);
+        assert_eq!(packet.groups[0].glyph_ids[1], 0);
+    }
+
+    #[test]
+    fn update_talent_data_uses_bonus_talent_group_count_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_represented_active_talent_group_like_cpp(1);
+        session.set_represented_bonus_talent_groups_like_cpp(1);
+        assert!(session.load_represented_glyph_row_like_cpp(1, 2, 321));
+
+        let packet = session.represented_update_talent_data_packet_like_cpp();
+
+        assert_eq!(packet.active_group, 1);
+        assert_eq!(packet.groups.len(), 2);
+        assert_eq!(packet.groups[1].glyph_ids[2], 321);
+    }
+
+    #[test]
+    fn character_glyph_save_deletes_and_reinserts_all_specs_slots_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.reset_represented_glyphs_like_cpp();
+        assert!(session.load_represented_glyph_row_like_cpp(0, 0, 123));
+        assert!(session.load_represented_glyph_row_like_cpp(3, 5, 456));
+        session.mark_represented_glyphs_loaded_like_cpp();
+
+        let statements = session
+            .character_glyph_save_statements_like_cpp(42)
+            .expect("loaded glyph state should be persisted");
+
+        assert_eq!(statements.len(), 1 + MAX_SPECIALIZATIONS_LIKE_CPP * 6);
+        assert_eq!(statements[0].sql(), CharStatements::DEL_CHAR_GLYPHS.sql());
+        assert_eq!(statements[0].params(), &[wow_database::SqlParam::U64(42)]);
+        assert_eq!(
+            statements[1].params(),
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U8(0),
+                wow_database::SqlParam::U8(0),
+                wow_database::SqlParam::U16(123),
+            ]
+        );
+        assert_eq!(
+            statements[24].params(),
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U8(3),
+                wow_database::SqlParam::U8(5),
+                wow_database::SqlParam::U16(456),
+            ],
+            "C++ _SaveGlyphs inserts every spec/slot, including zero glyph ids"
         );
     }
 

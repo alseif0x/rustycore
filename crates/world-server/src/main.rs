@@ -1324,15 +1324,20 @@ async fn main() -> Result<ExitCode> {
     let talent_store = Arc::new(
         wow_data::TalentStore::load(&data_dir, &locale).context("Failed to load Talent.db2")?,
     );
+    let glyph_properties_store = Arc::new(
+        wow_data::GlyphPropertiesStore::load(&data_dir, &locale)
+            .context("Failed to load GlyphProperties.db2")?,
+    );
     let talent_spell_ids_like_cpp = Arc::new(
         talent_store
             .talent_spell_ids_like_cpp()
             .collect::<HashSet<_>>(),
     );
     info!(
-        "Loaded {} talent rows and {} talent spell ranks from Talent.db2",
+        "Loaded {} talent rows, {} talent spell ranks, and {} glyph property rows from DB2",
         talent_store.len(),
-        talent_spell_ids_like_cpp.len()
+        talent_spell_ids_like_cpp.len(),
+        glyph_properties_store.len()
     );
     let chr_races_store = Arc::new(
         wow_data::character_progression::ChrRacesStore::load(&data_dir, &locale)
@@ -4189,6 +4194,7 @@ async fn main() -> Result<ExitCode> {
         hotfix_blob_cache: Some(Arc::clone(&hotfix_blob_cache)),
         skill_store: Some(Arc::clone(&skill_store)),
         skill_line_store: Some(Arc::clone(&skill_line_store)),
+        glyph_properties_store: Some(Arc::clone(&glyph_properties_store)),
         chr_races_store: Some(Arc::clone(&chr_races_store)),
         spell_chain_store: Some(Arc::clone(&spell_chain_store)),
         spell_store: Some(Arc::clone(&spell_store)),
@@ -10655,6 +10661,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.skill_line_store {
         session.set_skill_line_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.glyph_properties_store {
+        session.set_glyph_properties_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.chr_races_store {
         session.set_chr_races_store(Arc::clone(store));

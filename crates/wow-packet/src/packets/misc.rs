@@ -2712,30 +2712,79 @@ impl ServerPacket for InitWorldStates {
 
 // ── UpdateTalentData (SMSG 0x25d7) ──────────────────────────────────
 
-/// Talent data sent during login. Empty for fresh characters.
-pub struct UpdateTalentData;
+pub const MAX_GLYPH_SLOT_INDEX_LIKE_CPP: usize = 6;
+
+/// C++ `WorldPackets::Talent::TalentInfo`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TalentInfoLikeCpp {
+    pub talent_id: u32,
+    pub rank: u8,
+}
+
+/// C++ `WorldPackets::Talent::TalentGroupInfo`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TalentGroupInfoLikeCpp {
+    pub spec_id: u8,
+    pub talents: Vec<TalentInfoLikeCpp>,
+    pub glyph_ids: [u16; MAX_GLYPH_SLOT_INDEX_LIKE_CPP],
+}
+
+impl Default for TalentGroupInfoLikeCpp {
+    fn default() -> Self {
+        Self {
+            spec_id: 0,
+            talents: Vec::new(),
+            glyph_ids: [0; MAX_GLYPH_SLOT_INDEX_LIKE_CPP],
+        }
+    }
+}
+
+/// C++ `WorldPackets::Talent::UpdateTalentData`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UpdateTalentData {
+    pub unspent_talent_points: u32,
+    pub active_group: u8,
+    pub groups: Vec<TalentGroupInfoLikeCpp>,
+    pub is_pet_talents: bool,
+}
+
+impl Default for UpdateTalentData {
+    fn default() -> Self {
+        Self {
+            unspent_talent_points: 0,
+            active_group: 0,
+            groups: vec![TalentGroupInfoLikeCpp::default()],
+            is_pet_talents: false,
+        }
+    }
+}
 
 impl ServerPacket for UpdateTalentData {
     const OPCODE: ServerOpcodes = ServerOpcodes::UpdateTalentData;
 
     fn write(&self, pkt: &mut WorldPacket) {
-        pkt.write_int32(0); // UnspentTalentPoints
-        pkt.write_uint8(0); // ActiveGroup
-        pkt.write_int32(1); // TalentGroupInfos.Count (1 spec group)
+        pkt.write_uint32(self.unspent_talent_points); // UnspentTalentPoints
+        pkt.write_uint8(self.active_group); // ActiveGroup
+        pkt.write_uint32(self.groups.len() as u32); // TalentGroupInfos.Count
 
-        // TalentGroupInfo[0] — C# writes count twice (uint8 + uint32):
-        pkt.write_uint8(0); // (byte)Talents.Count
-        pkt.write_uint32(0); // (uint)Talents.Count
-        pkt.write_uint8(6); // (byte)MaxGlyphSlotIndex
-        pkt.write_uint32(6); // (uint)MaxGlyphSlotIndex
-        pkt.write_uint8(0); // SpecID = 0 (no spec)
-        // 0 talent entries
-        // 6 glyph entries (all 0):
-        for _ in 0..6 {
-            pkt.write_uint16(0);
+        for group in &self.groups {
+            pkt.write_uint8(group.talents.len() as u8);
+            pkt.write_uint32(group.talents.len() as u32);
+            pkt.write_uint8(group.glyph_ids.len() as u8);
+            pkt.write_uint32(group.glyph_ids.len() as u32);
+            pkt.write_uint8(group.spec_id);
+
+            for talent in &group.talents {
+                pkt.write_uint32(talent.talent_id);
+                pkt.write_uint8(talent.rank);
+            }
+
+            for glyph_id in group.glyph_ids {
+                pkt.write_uint16(glyph_id);
+            }
         }
 
-        pkt.write_bit(false); // IsPetTalents
+        pkt.write_bit(self.is_pet_talents);
         pkt.flush_bits();
     }
 }
@@ -3095,8 +3144,17 @@ impl ServerPacket for ContactList {
 
 // ── ActiveGlyphs (SMSG 0x2c51) ──────────────────────────────────────
 
-/// Active glyphs. Sent during login with IsFullUpdate=true.
+/// C++ `WorldPackets::Talent::GlyphBinding`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GlyphBindingLikeCpp {
+    pub spell_id: u32,
+    pub glyph_id: u16,
+}
+
+/// C++ `WorldPackets::Talent::ActiveGlyphs`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ActiveGlyphs {
+    pub glyphs: Vec<GlyphBindingLikeCpp>,
     pub is_full_update: bool,
 }
 
@@ -3104,7 +3162,11 @@ impl ServerPacket for ActiveGlyphs {
     const OPCODE: ServerOpcodes = ServerOpcodes::ActiveGlyphs;
 
     fn write(&self, pkt: &mut WorldPacket) {
-        pkt.write_int32(0); // Glyphs.Count
+        pkt.write_uint32(self.glyphs.len() as u32);
+        for glyph in &self.glyphs {
+            pkt.write_uint32(glyph.spell_id);
+            pkt.write_uint16(glyph.glyph_id);
+        }
         pkt.write_bit(self.is_full_update);
         pkt.flush_bits();
     }
@@ -10114,7 +10176,7 @@ mod tests {
 
     #[test]
     fn update_talent_data_empty() {
-        let pkt = UpdateTalentData;
+        let pkt = UpdateTalentData::default();
         let bytes = pkt.to_bytes();
         // opcode(2) + int32(4) + uint8(1) + int32(4) +
         // TalentGroupInfo: uint8(1)+uint32(4)+uint8(1)+uint32(4)+uint8(1)+6*uint16(12) +
@@ -10122,6 +10184,35 @@ mod tests {
         assert_eq!(bytes.len(), 35);
         let opcode = u16::from_le_bytes([bytes[0], bytes[1]]);
         assert_eq!(opcode, 0x25d7);
+    }
+
+    #[test]
+    fn update_talent_data_writes_glyph_ids_like_cpp() {
+        let mut group = TalentGroupInfoLikeCpp::default();
+        group.spec_id = 4;
+        group.glyph_ids = [101, 0, 202, 0, 0, 303];
+        let pkt = UpdateTalentData {
+            active_group: 2,
+            groups: vec![group],
+            ..UpdateTalentData::default()
+        };
+        let bytes = pkt.to_bytes();
+
+        assert_eq!(bytes[6], 2);
+        assert_eq!(bytes[21], 4); // C++ writes SpecID after glyph/talent counts.
+        let glyphs_start = 22;
+        assert_eq!(
+            u16::from_le_bytes([bytes[glyphs_start], bytes[glyphs_start + 1]]),
+            101
+        );
+        assert_eq!(
+            u16::from_le_bytes([bytes[glyphs_start + 4], bytes[glyphs_start + 5]]),
+            202
+        );
+        assert_eq!(
+            u16::from_le_bytes([bytes[glyphs_start + 10], bytes[glyphs_start + 11]]),
+            303
+        );
     }
 
     #[test]
@@ -10307,6 +10398,7 @@ mod tests {
     #[test]
     fn active_glyphs_empty() {
         let pkt = ActiveGlyphs {
+            glyphs: Vec::new(),
             is_full_update: true,
         };
         let bytes = pkt.to_bytes();
@@ -10314,6 +10406,24 @@ mod tests {
         assert_eq!(bytes.len(), 7);
         let opcode = u16::from_le_bytes([bytes[0], bytes[1]]);
         assert_eq!(opcode, 0x2c51);
+    }
+
+    #[test]
+    fn active_glyphs_writes_bindings_like_cpp() {
+        let pkt = ActiveGlyphs {
+            glyphs: vec![GlyphBindingLikeCpp {
+                spell_id: 12345,
+                glyph_id: 678,
+            }],
+            is_full_update: false,
+        };
+        let bytes = pkt.to_bytes();
+
+        assert_eq!(bytes.len(), 13);
+        assert_eq!(u16::from_le_bytes([bytes[0], bytes[1]]), 0x2c51);
+        assert_eq!(u32::from_le_bytes(bytes[2..6].try_into().unwrap()), 1);
+        assert_eq!(u32::from_le_bytes(bytes[6..10].try_into().unwrap()), 12345);
+        assert_eq!(u16::from_le_bytes(bytes[10..12].try_into().unwrap()), 678);
     }
 
     #[test]

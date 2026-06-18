@@ -3434,6 +3434,8 @@ impl WorldSession {
         self.set_player_gold_like_cpp(result.try_read::<u64>(8).unwrap_or(0));
         self.set_player_bank_bag_slot_count_like_cpp(result.try_read::<u8>(10).unwrap_or(0));
         self.set_player_xp_like_cpp(result.try_read::<u32>(7).unwrap_or(0));
+        self.set_represented_active_talent_group_like_cpp(result.try_read::<u8>(30).unwrap_or(0));
+        self.set_represented_bonus_talent_groups_like_cpp(result.try_read::<u8>(31).unwrap_or(0));
         self.set_player_guid(Some(guid));
         self.set_loaded_player_identity_like_cpp(map_id as u16, race, class, level, gender);
         // C++ recalculates zone/area from terrain after AddToMap
@@ -4353,6 +4355,50 @@ impl WorldSession {
 
         // Store final known_spells in session for later use (ShowTradeSkill, etc.)
         self.set_known_spells_like_cpp(known_spells.clone());
+
+        // ── Load glyphs from character_glyphs ──
+        // C++ `Player::_LoadGlyphs`: skip invalid talent group/slot and glyph ids
+        // missing from GlyphProperties.db2.
+        self.reset_represented_glyphs_like_cpp();
+        {
+            let mut glyph_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_GLYPHS);
+            glyph_stmt.set_u64(0, guid.counter() as u64);
+            match char_db.query(&glyph_stmt).await {
+                Ok(mut glyph_result) => {
+                    let mut loaded = 0usize;
+                    let mut skipped = 0usize;
+                    if !glyph_result.is_empty() {
+                        loop {
+                            let talent_group: u8 = glyph_result.try_read(0).unwrap_or(0);
+                            let glyph_slot: u8 = glyph_result.try_read(1).unwrap_or(0);
+                            let glyph_id: u16 = glyph_result.try_read(2).unwrap_or(0);
+                            if self.load_represented_glyph_row_like_cpp(
+                                talent_group,
+                                glyph_slot,
+                                glyph_id,
+                            ) {
+                                loaded += 1;
+                            } else {
+                                skipped += 1;
+                            }
+                            if !glyph_result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    self.mark_represented_glyphs_loaded_like_cpp();
+                    info!(
+                        loaded,
+                        skipped,
+                        player_guid = guid.counter(),
+                        "Loaded represented character glyphs like C++ Player::_LoadGlyphs"
+                    );
+                }
+                Err(e) => {
+                    warn!("Failed to load character glyphs for {:?}: {}", guid, e);
+                }
+            }
+        }
 
         // ── Load action buttons from character_action ──
         // Column types: button=tinyint unsigned, action=int unsigned, type=tinyint unsigned
@@ -11540,8 +11586,8 @@ impl WorldSession {
         self.send_packet(&SetProficiency::default_weapons(class));
         self.send_packet(&SetProficiency::default_armor(class));
 
-        // 9. UpdateTalentData (empty for fresh character)
-        self.send_packet(&UpdateTalentData);
+        // 9. UpdateTalentData — C++ `Player::SendTalentsInfoData`.
+        self.send_packet(&self.represented_update_talent_data_packet_like_cpp());
 
         // 10. SendKnownSpells — populated from character_spell table
         info!("Sending {} known spells for {:?}", known_spells.len(), guid);
@@ -11564,10 +11610,8 @@ impl WorldSession {
             entries: spell_charge_entries,
         });
 
-        // 14. ActiveGlyphs (empty with full update)
-        self.send_packet(&ActiveGlyphs {
-            is_full_update: true,
-        });
+        // 14. ActiveGlyphs — full update; bindable spell mapping is still pending.
+        self.send_packet(&self.represented_active_glyphs_packet_like_cpp());
 
         // 15. UpdateActionButtons — populated from character_action table
         self.send_packet(&UpdateActionButtons {
