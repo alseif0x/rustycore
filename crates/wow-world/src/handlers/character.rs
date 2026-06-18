@@ -3105,6 +3105,32 @@ impl WorldSession {
         }
     }
 
+    pub(crate) async fn save_account_mount_spells_to_character_like_cpp(&self) {
+        let (Some(player_guid), Some(char_db)) =
+            (self.player_guid(), self.char_db().map(Arc::clone))
+        else {
+            return;
+        };
+
+        for mount in self.account_mount_rows_like_cpp() {
+            if mount.spell_id <= 0 {
+                continue;
+            }
+
+            let mut stmt = char_db.prepare(CharStatements::INS_CHARACTER_SPELL);
+            stmt.set_u64(0, player_guid.counter() as u64);
+            stmt.set_i32(1, mount.spell_id);
+            if let Err(error) = char_db.execute(&stmt).await {
+                warn!(
+                    account = self.account_id,
+                    player_guid = player_guid.counter(),
+                    spell_id = mount.spell_id,
+                    "Failed to persist account mount spell to character_spell: {error}"
+                );
+            }
+        }
+    }
+
     pub(crate) async fn save_account_toys_like_cpp(&self) {
         let Some(login_db) = self.login_db() else {
             return;

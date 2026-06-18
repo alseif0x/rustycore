@@ -4,7 +4,7 @@
 
 > **Drift note (2026-06-18):** this audit predates the latest R8 inventory rows
 > and must not be used as an exact current percentage. Rows through
-> `#NEXT.R8.ENTITIES.1049` are now recorded; a full percentage refresh still
+> `#NEXT.R8.ENTITIES.1057` are now recorded; a full percentage refresh still
 > requires a dedicated recount/audit pass.
 
 This document exists to prevent the headline `97.90%` from being read as "almost a
@@ -13,27 +13,27 @@ honest percentages instead of one.
 
 ## Raw data (from `docs/migration/inventory/r8-entities-miniphase.tsv`)
 
-1048 rows total. Breakdown by `status` column:
+1049 rows total. Breakdown by `status` column:
 
 | status | rows | meaning |
 |---|---:|---|
 | `complete` | 419 | genuinely complete |
 | `represented-complete` | 191 | complete **within the "represented" per-session model** (not live runtime) |
 | `represented-partial` | 373 | **partial — carries documented open boundaries (gaps)** |
-| `bugfix-partial` | 23 | bugfix slice with explicit remaining boundaries |
+| `bugfix-partial` | 24 | bugfix slice with explicit remaining boundaries |
 | `reviewed-validated` | 17 | validated |
 | `pending` | 22 | not started |
 | other (`partial` / `represented` / `test-fixture-unblock`) | 3 | — |
 
-- **397 of the 1026 "addressed" rows (38.69%) are partial-boundary rows** (`represented-partial`, `bugfix-partial`, or `partial`) — each has open boundaries by definition.
+- **398 of the 1027 "addressed" rows (38.75%) are partial-boundary rows** (`represented-partial`, `bugfix-partial`, or `partial`) — each has open boundaries by definition.
 - **Many rows explicitly declare `manual-test-ready` / `install/restart` as OPEN** — this audit must not be read as real-client/server validation unless a row says that validation was performed.
 
 ## Three honest percentages (not one)
 
 | Metric | Value | Reading |
 |---|---:|---|
-| Items "addressed" (not `pending`) | **97.90%** (1026/1048) | the headline number — real but generous |
-| No declared partial gaps (`complete` + `represented` + `represented-complete` + `reviewed-validated` + `test-fixture-unblock`) | **60.02%** (629/1048) | items with no open boundary |
+| Items "addressed" (not `pending`) | **97.90%** (1027/1049) | the headline number — real but generous |
+| No declared partial gaps (`complete` + `represented` + `represented-complete` + `reviewed-validated` + `test-fixture-unblock`) | **59.96%** (629/1049) | items with no open boundary |
 | Live-runtime / manual-test-ready verified | **low / not globally quantified** | login/realm smoke has been exercised before, but most gameplay rows still explicitly lack live client/bot/manual validation |
 
 ## The two big caveats
@@ -52,7 +52,7 @@ honest percentages instead of one.
 ## Honest one-line status
 
 The bulk of the game logic is ported and contrasted against C++ in a per-session
-"represented" model (~60.02% with no declared partial gaps, ~97.90% of inventory rows touched).
+"represented" model (~59.96% with no declared partial gaps, ~97.90% of inventory rows touched).
 What remains is to convert represented-partial boundaries into live runtime behavior and
 verify them on a running server/client path. The live-runtime roadmap (steps 2-7) is the
 work that actually moves toward "no gaps"; closing more represented-partial items advances

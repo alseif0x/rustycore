@@ -17827,11 +17827,19 @@ impl WorldSession {
 
     pub(crate) async fn save_current_player_to_db_like_cpp(&mut self) {
         let Some(snapshot) = self.sync_session_from_save_to_db_snapshot_like_cpp() else {
+            warn!(
+                account = self.account_id,
+                player_guid = ?self.player_guid(),
+                has_session_position = self.player_position_like_cpp().is_some(),
+                has_canonical_map_manager = self.canonical_map_manager.is_some(),
+                "Skipping Player::SaveToDB represented save because no coherent player snapshot is available"
+            );
             return;
         };
         self.save_player_position_like_cpp(&snapshot).await;
         self.save_player_level_xp_like_cpp().await;
         self.save_player_gold().await;
+        self.save_account_mount_spells_to_character_like_cpp().await;
         self.save_player_difficulties_like_cpp().await;
         self.save_instance_time_restrictions_like_cpp().await;
         self.save_played_time().await;
