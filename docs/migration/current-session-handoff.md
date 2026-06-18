@@ -1,3 +1,20 @@
+- `#NEXT.R8.ENTITIES.1067` — represented `Player::SaveToDB` now persists
+  `character_talent` from the coherent represented talent snapshot (not
+  manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:19635-19650`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26798-26825`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/CharacterDatabase.cpp:578,614`.
+  Rust now follows the C++ save shape for represented talents: delete all
+  `character_talent` rows for the character and reinsert each loaded valid
+  `{ talentId, rank, talentGroup }` from all 4 specialization groups, directly
+  after glyph save in the represented save pipeline. If the `character_talent`
+  load failed, Rust skips the delete-all save instead of risking data loss from
+  an incoherent snapshot. Coverage: focused `wow-world character_talent`
+  load/save tests and compile checks. Boundary remains partial: runtime
+  learn/reset/respec mutation, exact `PLAYERSPELL_REMOVED` state transitions,
+  exact `SpellMgr::IsSpellValid` parity, unspent talent point calculation,
+  live client validation, bot validation, and manual validation remain open.
 - `#NEXT.R8.ENTITIES.1066` — represented character talent load and
   `UpdateTalentData` login surface now use `character_talent` instead of
   serializing empty talent vectors (not manual-test-ready). Source of truth:

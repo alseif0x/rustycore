@@ -4386,6 +4386,7 @@ impl WorldSession {
                             }
                         }
                     }
+                    self.mark_represented_talents_loaded_like_cpp();
                     info!(
                         loaded,
                         skipped,

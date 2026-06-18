@@ -4056,6 +4056,7 @@ pub struct WorldSession {
     represented_active_talent_group_like_cpp: u8,
     represented_bonus_talent_groups_like_cpp: u8,
     represented_talents_like_cpp: [BTreeMap<u32, u8>; MAX_SPECIALIZATIONS_LIKE_CPP],
+    represented_talents_loaded_like_cpp: bool,
     represented_glyphs_like_cpp: [[u16; wow_packet::packets::misc::MAX_GLYPH_SLOT_INDEX_LIKE_CPP];
         MAX_SPECIALIZATIONS_LIKE_CPP],
     represented_glyphs_loaded_like_cpp: bool,
@@ -5481,6 +5482,7 @@ impl WorldSession {
             represented_active_talent_group_like_cpp: 0,
             represented_bonus_talent_groups_like_cpp: 0,
             represented_talents_like_cpp: std::array::from_fn(|_| BTreeMap::new()),
+            represented_talents_loaded_like_cpp: false,
             represented_glyphs_like_cpp: [[0;
                 wow_packet::packets::misc::MAX_GLYPH_SLOT_INDEX_LIKE_CPP];
                 MAX_SPECIALIZATIONS_LIKE_CPP],
@@ -18230,6 +18232,7 @@ impl WorldSession {
         self.save_player_skills_like_cpp().await;
         self.save_player_difficulties_like_cpp().await;
         self.save_player_glyphs_like_cpp().await;
+        self.save_player_talents_like_cpp().await;
         self.save_player_spell_cooldowns_like_cpp().await;
         self.save_player_spell_charges_like_cpp().await;
         self.save_player_action_buttons_like_cpp().await;
@@ -18266,6 +18269,11 @@ impl WorldSession {
         for talents in &mut self.represented_talents_like_cpp {
             talents.clear();
         }
+        self.represented_talents_loaded_like_cpp = false;
+    }
+
+    pub(crate) fn mark_represented_talents_loaded_like_cpp(&mut self) {
+        self.represented_talents_loaded_like_cpp = true;
     }
 
     pub(crate) fn load_represented_talent_row_like_cpp(
@@ -18324,6 +18332,58 @@ impl WorldSession {
         }
 
         Some(wow_packet::packets::misc::TalentInfoLikeCpp { talent_id, rank })
+    }
+
+    pub(crate) fn build_character_talent_delete_statement_like_cpp(
+        guid_counter: u64,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::DEL_CHAR_TALENT.sql());
+        stmt.set_u64(0, guid_counter);
+        stmt
+    }
+
+    pub(crate) fn build_character_talent_insert_statement_like_cpp(
+        guid_counter: u64,
+        talent_id: u32,
+        rank: u8,
+        talent_group: u8,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::INS_CHAR_TALENT.sql());
+        stmt.set_u64(0, guid_counter);
+        stmt.set_u32(1, talent_id);
+        stmt.set_u8(2, rank);
+        stmt.set_u8(3, talent_group);
+        stmt
+    }
+
+    pub(crate) fn character_talent_save_statements_like_cpp(
+        &self,
+        guid_counter: u64,
+    ) -> Option<Vec<PreparedStatement>> {
+        if !self.represented_talents_loaded_like_cpp {
+            return None;
+        }
+
+        let mut statements = vec![Self::build_character_talent_delete_statement_like_cpp(
+            guid_counter,
+        )];
+        for (talent_group, talents) in self.represented_talents_like_cpp.iter().enumerate() {
+            for (talent_id, rank) in talents {
+                if self
+                    .represented_talent_info_like_cpp(*talent_id, *rank)
+                    .is_none()
+                {
+                    continue;
+                }
+                statements.push(Self::build_character_talent_insert_statement_like_cpp(
+                    guid_counter,
+                    *talent_id,
+                    *rank,
+                    talent_group as u8,
+                ));
+            }
+        }
+        Some(statements)
     }
 
     pub(crate) fn load_represented_glyph_row_like_cpp(
@@ -18863,6 +18923,35 @@ impl WorldSession {
         if let Err(err) = char_db.commit_transaction(tx).await {
             warn!(
                 "Failed to save represented player glyphs for guid {}: {err}",
+                guid.counter()
+            );
+        }
+    }
+
+    async fn save_player_talents_like_cpp(&self) {
+        let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
+        else {
+            return;
+        };
+
+        let Some(statements) =
+            self.character_talent_save_statements_like_cpp(guid.counter() as u64)
+        else {
+            warn!(
+                account = self.account_id,
+                player_guid = ?self.player_guid(),
+                "Skipping represented player talent save because character_talent was not loaded coherently"
+            );
+            return;
+        };
+
+        let mut tx = SqlTransaction::new();
+        for statement in statements {
+            tx.append(statement);
+        }
+        if let Err(err) = char_db.commit_transaction(tx).await {
+            warn!(
+                "Failed to save represented player talents for guid {}: {err}",
                 guid.counter()
             );
         }
@@ -84052,6 +84141,65 @@ mod tests {
             }]
         );
         assert_eq!(packet.groups[1].glyph_ids[3], 456);
+    }
+
+    #[test]
+    fn character_talent_save_requires_coherent_load_like_cpp() {
+        let (session, _, _) = make_session();
+
+        assert!(
+            session
+                .character_talent_save_statements_like_cpp(42)
+                .is_none(),
+            "Rust must not emulate C++ _SaveTalents delete-all unless character_talent was loaded coherently"
+        );
+    }
+
+    #[test]
+    fn character_talent_save_deletes_and_reinserts_loaded_talents_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_talent_store(Arc::new(wow_data::TalentStore::from_entries([
+            test_talent_entry_like_cpp(101, 2, 50_101),
+            test_talent_entry_like_cpp(202, 1, 50_202),
+            test_talent_entry_like_cpp(303, 0, 0),
+        ])));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(50_101, test_spell_info_like_cpp(50_101));
+        spell_store.insert(50_202, test_spell_info_like_cpp(50_202));
+        session.set_spell_store(Arc::new(spell_store));
+
+        session.reset_represented_talents_like_cpp();
+        assert!(session.load_represented_talent_row_like_cpp(101, 2, 0));
+        assert!(session.load_represented_talent_row_like_cpp(202, 1, 2));
+        assert!(!session.load_represented_talent_row_like_cpp(303, 0, 3));
+        session.mark_represented_talents_loaded_like_cpp();
+
+        let statements = session
+            .character_talent_save_statements_like_cpp(42)
+            .expect("loaded talent state should be persisted");
+
+        assert_eq!(statements.len(), 3);
+        assert_eq!(statements[0].sql(), CharStatements::DEL_CHAR_TALENT.sql());
+        assert_eq!(statements[0].params(), &[wow_database::SqlParam::U64(42)]);
+        assert_eq!(
+            statements[1].params(),
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U32(101),
+                wow_database::SqlParam::U8(2),
+                wow_database::SqlParam::U8(0),
+            ]
+        );
+        assert_eq!(
+            statements[2].params(),
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U32(202),
+                wow_database::SqlParam::U8(1),
+                wow_database::SqlParam::U8(2),
+            ],
+            "C++ _SaveTalents writes every non-removed talent with its talent group"
+        );
     }
 
     #[test]
