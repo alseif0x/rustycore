@@ -88,7 +88,7 @@ impl WorldSession {
     /// and queues a broadcast to nearby players.
     pub async fn handle_movement(&mut self, mut pkt: wow_packet::WorldPacket) {
         let opcode = pkt.client_opcode();
-        let mut info = match ClientPlayerMovement::read(&mut pkt) {
+        let info = match ClientPlayerMovement::read(&mut pkt) {
             Ok(m) => m,
             Err(e) => {
                 warn!(
@@ -99,6 +99,14 @@ impl WorldSession {
             }
         };
 
+        self.handle_movement_info_like_cpp(opcode, info.info).await;
+    }
+
+    pub(crate) async fn handle_movement_info_like_cpp(
+        &mut self,
+        opcode: Option<ClientOpcodes>,
+        mut info: MovementInfo,
+    ) {
         let Some(player_guid) = self.player_guid() else {
             warn!(
                 account = self.account_id,
@@ -109,7 +117,7 @@ impl WorldSession {
 
         // C++ calls Player::ValidateMovementInfo before rejecting mismatched
         // GUIDs or invalid positions, then broadcasts only the sanitized state.
-        let movement_validation = self.sanitize_movement_info_represented_like_cpp(&mut info.info);
+        let movement_validation = self.sanitize_movement_info_represented_like_cpp(&mut info);
         if !movement_validation.removed_flags.is_empty() {
             for rule in movement_validation
                 .stripped_rules
@@ -131,7 +139,7 @@ impl WorldSession {
             );
         }
 
-        if info.info.guid != player_guid {
+        if info.guid != player_guid {
             self.trace_anticheat_violation_like_cpp(
                 "HandleMovementOpcode.GuidMismatch",
                 opcode,
@@ -139,12 +147,12 @@ impl WorldSession {
             );
             warn!(
                 account = self.account_id,
-                "Movement GUID mismatch: expected {:?}, got {:?}", player_guid, info.info.guid
+                "Movement GUID mismatch: expected {:?}, got {:?}", player_guid, info.guid
             );
             return;
         }
 
-        let pos = info.info.position;
+        let pos = info.position;
         if !pos.is_valid_map_coord_like_cpp() {
             self.trace_anticheat_violation_like_cpp(
                 "HandleMovementOpcode.InvalidPosition",
@@ -158,7 +166,7 @@ impl WorldSession {
             return;
         }
 
-        if let Some(transport) = &info.info.transport {
+        if let Some(transport) = &info.transport {
             if self.player_position_like_cpp().is_some_and(|current| {
                 pos.distance_2d(&current) > wow_core::Position::GRID_SIZE_LIKE_CPP
             }) {
@@ -193,15 +201,15 @@ impl WorldSession {
             }
         }
 
-        self.apply_movement_side_effects_like_cpp(opcode, &info.info);
-        info.info.time = self.adjust_client_movement_time_like_cpp(info.info.time);
-        self.set_player_movement_time_like_cpp(info.info.time);
-        self.set_player_movement_flags_like_cpp(info.info.flags);
+        self.apply_movement_side_effects_like_cpp(opcode, &info);
+        info.time = self.adjust_client_movement_time_like_cpp(info.time);
+        self.set_player_movement_time_like_cpp(info.time);
+        self.set_player_movement_flags_like_cpp(info.flags);
 
         // Update server-side player position.
-        self.set_player_position_like_cpp(info.info.position);
+        self.set_player_position_like_cpp(info.position);
         let _ = self.mutate_canonical_player_like_cpp(|player| {
-            player.unit_mut().world_mut().relocate(info.info.position);
+            player.unit_mut().world_mut().relocate(info.position);
         });
         // Keep the broadcast registry in sync so chat range checks are accurate.
         self.update_registry_position();
@@ -228,7 +236,7 @@ impl WorldSession {
             use wow_core::ObjectGuid;
             use wow_network::PlayerBroadcastInfo;
 
-            let move_update = MoveUpdate { info: info.info };
+            let move_update = MoveUpdate { info };
             let bytes = move_update.to_bytes();
             let current_map_id = self.player_map_id_like_cpp();
 

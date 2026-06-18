@@ -17,6 +17,7 @@
 use wow_constants::{ClientOpcodes, ServerOpcodes};
 use wow_core::{ObjectGuid, Position};
 
+use crate::packets::movement::MovementInfo;
 use crate::world_packet::{PacketError, WorldPacket};
 use crate::{ClientPacket, ServerPacket};
 
@@ -456,6 +457,8 @@ pub struct CastSpellRequest {
     pub visual: SpellCastVisual,
     /// Cast target.
     pub target: SpellTargetData,
+    /// Optional movement status embedded in the cast request.
+    pub move_update: Option<MovementInfo>,
 }
 
 impl ClientPacket for CastSpellRequest {
@@ -507,20 +510,11 @@ impl ClientPacket for CastSpellRequest {
             skip_crafting_reagent(pkt)?;
         }
 
-        // Optional MoveUpdate (MovementInfo — many fields, skip via best-effort)
-        // We only reach this path if the player is moving while casting (rare).
-        // Parsing MovementInfo here is complex; we ignore it and stop reading.
-        if has_move_update {
-            // MoveInfo is at the end; anything after target is non-critical for
-            // our básicos implementation — just stop early.
-            return Ok(Self {
-                cast_id,
-                misc: [misc0, misc1],
-                spell_id,
-                visual,
-                target,
-            });
-        }
+        let move_update = if has_move_update {
+            Some(MovementInfo::read(pkt)?)
+        } else {
+            None
+        };
 
         // SpellWeights (each: ResetBitPos + Type(2 bits) + ID(i32) + Quantity(u32))
         for _ in 0..weight_count {
@@ -536,6 +530,7 @@ impl ClientPacket for CastSpellRequest {
             spell_id,
             visual,
             target,
+            move_update,
         })
     }
 }
@@ -1066,6 +1061,7 @@ mod tests {
         assert_eq!(parsed.cast_id, cast_id);
         assert_eq!(parsed.misc, [30_000, 9]);
         assert_eq!(parsed.spell_id, 12_345);
+        assert!(parsed.move_update.is_none());
     }
 
     #[test]
@@ -1097,6 +1093,54 @@ mod tests {
         assert_eq!(parsed.cast_id, cast_id);
         assert_eq!(parsed.spell_id, 17_229);
         assert_eq!(parsed.target, SpellTargetData::default());
+    }
+
+    #[test]
+    fn cast_spell_request_reads_move_update_before_weights_like_cpp() {
+        let cast_id = ObjectGuid::create_player(1, 89);
+        let mover_guid = ObjectGuid::create_player(1, 90);
+        let movement = MovementInfo {
+            guid: mover_guid,
+            time: 123_456,
+            position: Position::new(11.0, 22.0, 33.0, 1.25),
+            ..MovementInfo::default()
+        };
+
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&cast_id);
+        pkt.write_int32(0);
+        pkt.write_int32(0);
+        pkt.write_int32(17_229);
+        SpellCastVisual::default().write(&mut pkt);
+        pkt.write_float(0.0);
+        pkt.write_float(0.0);
+        pkt.write_packed_guid(&ObjectGuid::EMPTY);
+        pkt.write_uint32(0);
+        pkt.write_uint32(0);
+        pkt.write_uint32(0);
+        pkt.write_bits(0, 5);
+        pkt.write_bit(true);
+        pkt.write_bits(1, 2);
+        pkt.write_bit(false);
+        pkt.flush_bits();
+        SpellTargetData::default().write(&mut pkt);
+        movement.write(&mut pkt);
+        pkt.write_bits(2, 2);
+        pkt.flush_bits();
+        pkt.write_int32(377);
+        pkt.write_uint32(4);
+        pkt.reset_read();
+
+        let parsed = CastSpellRequest::read(&mut pkt).unwrap();
+        let parsed_movement = parsed
+            .move_update
+            .expect("move update must be read before spell weights");
+        assert_eq!(parsed.cast_id, cast_id);
+        assert_eq!(parsed.spell_id, 17_229);
+        assert_eq!(parsed_movement.guid, mover_guid);
+        assert_eq!(parsed_movement.time, movement.time);
+        assert_eq!(parsed_movement.position, movement.position);
+        assert!(pkt.is_empty());
     }
 
     #[test]

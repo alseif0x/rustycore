@@ -231,27 +231,10 @@ impl WorldSession {
             "CMSG_CAST_SPELL"
         );
 
-        // ── Validation: Known spell ─────────────────────────────────────
-        if !self.known_spells_like_cpp().contains(&spell_id) {
-            warn!(
-                account = self.account_id,
-                spell_id = spell_id,
-                "Cast attempt for unknown spell"
-            );
-            self.send_packet(&CastFailed {
-                cast_id,
-                spell_id,
-                reason: 2, // SpellCastResult::NotKnown
-                fail_arg1: 0,
-                fail_arg2: 0,
-            });
-            return;
-        }
-
         // ── Get spell info ──────────────────────────────────────────────
-        let spell_info: &wow_data::SpellInfo = match &self.spell_store {
+        let spell_info: wow_data::SpellInfo = match &self.spell_store {
             Some(store) => match store.get(spell_id) {
-                Some(info) => info,
+                Some(info) => info.clone(),
                 None => {
                     warn!(
                         account = self.account_id,
@@ -280,6 +263,32 @@ impl WorldSession {
                 return;
             }
         };
+
+        // C++ `WorldSession::HandleCastSpellOpcode` applies an embedded
+        // `MoveUpdate` through `HandleMovementOpcode(CMSG_MOVE_STOP, ...)`
+        // after validating the `SpellInfo` and before the spell cast request
+        // continues.
+        if let Some(move_update) = req.move_update.clone() {
+            self.handle_movement_info_like_cpp(Some(ClientOpcodes::MoveStop), move_update)
+                .await;
+        }
+
+        // ── Validation: Known spell ─────────────────────────────────────
+        if !self.known_spells_like_cpp().contains(&spell_id) {
+            warn!(
+                account = self.account_id,
+                spell_id = spell_id,
+                "Cast attempt for unknown spell"
+            );
+            self.send_packet(&CastFailed {
+                cast_id,
+                spell_id,
+                reason: 2, // SpellCastResult::NotKnown
+                fail_arg1: 0,
+                fail_arg2: 0,
+            });
+            return;
+        }
 
         // C++ `Spell::CheckCast`: disabled spells fail with
         // `SPELL_FAILED_SPELL_UNAVAILABLE` before cooldown/cast processing.
@@ -2405,6 +2414,7 @@ mod tests {
     };
     use wow_packet::WorldPacket;
     use wow_packet::packets::loot::{LootEntry, LootEntryFlags};
+    use wow_packet::packets::movement::MovementInfo;
     use wow_packet::packets::spell::{SpellCastVisual, SpellTargetData};
 
     use super::{
@@ -2778,6 +2788,14 @@ mod tests {
     }
 
     fn cast_spell_packet(spell_id: i32, caster_guid: ObjectGuid) -> WorldPacket {
+        cast_spell_packet_with_move_update(spell_id, caster_guid, None)
+    }
+
+    fn cast_spell_packet_with_move_update(
+        spell_id: i32,
+        caster_guid: ObjectGuid,
+        move_update: Option<MovementInfo>,
+    ) -> WorldPacket {
         let mut pkt = WorldPacket::new_empty();
         pkt.write_packed_guid(&caster_guid);
         pkt.write_int32(0);
@@ -2795,7 +2813,7 @@ mod tests {
         pkt.write_uint32(0);
         pkt.write_uint32(0);
         pkt.write_bits(0, 5);
-        pkt.write_bit(false);
+        pkt.write_bit(move_update.is_some());
         pkt.write_bits(0, 2);
         pkt.write_bit(false);
         pkt.flush_bits();
@@ -2805,6 +2823,9 @@ mod tests {
             ..SpellTargetData::default()
         }
         .write(&mut pkt);
+        if let Some(move_update) = move_update {
+            move_update.write(&mut pkt);
+        }
         pkt.reset_read();
         pkt
     }
@@ -4048,6 +4069,35 @@ mod tests {
 
         assert!(!canonical_pet_has_applied_aura(&canonical, pet_guid, aura));
         assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn cast_spell_applies_embedded_move_update_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let spell_id = 13_337;
+        let moved_position = Position::new(33.0, 44.0, 55.0, 1.25);
+        let move_update = MovementInfo {
+            guid: player_guid,
+            time: 12_345,
+            position: moved_position,
+            ..MovementInfo::default()
+        };
+
+        session.set_player_guid(Some(player_guid));
+        session.set_player_map_position_like_cpp(571, Position::new(10.0, 20.0, 30.0, 0.0));
+        session.set_known_spells_like_cpp(vec![spell_id]);
+        session.set_spell_store(basic_spell_store([spell_id]));
+
+        session
+            .handle_cast_spell(cast_spell_packet_with_move_update(
+                spell_id,
+                player_guid,
+                Some(move_update),
+            ))
+            .await;
+
+        assert_eq!(session.player_position_like_cpp(), Some(moved_position));
     }
 
     #[tokio::test]
