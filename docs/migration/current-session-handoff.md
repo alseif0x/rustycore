@@ -1,3 +1,26 @@
+- `#NEXT.R8.ENTITIES.1085` — represented `Player::ResetTalents`
+  now records the initial C++ script hook and removes
+  `AT_LOGIN_RESET_TALENTS` before the money gate (not manual-test-ready).
+  Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3505-3511,26563-26575`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:531-536`,
+  `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/CharacterDatabase.cpp:444-445`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CharacterHandler.cpp:1282-1293`.
+  C++ calls `sScriptMgr->OnPlayerTalentsReset(this, noCost)`, then
+  removes `AT_LOGIN_RESET_TALENTS` with `persist=true` if present, and only
+  afterwards enters the money gate. Rust now records represented script-hook
+  evidence with `no_cost=false`, clears only the reset-talents at-login bit,
+  and records the persistent DB statement boundary before represented cost
+  application. Coverage: `cargo fmt --all --check`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  confirm_respec --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo
+  check -p world-server`; `git diff --check`. Boundary remains partial:
+  `ScriptMgr` dispatch is represented evidence only, `CHAR_UPD_REM_AT_LOGIN_FLAG`
+  execution is represented rather than live DB execution, login-time
+  `ResetTalents(true)`/notification flow, remaining pet/spec/glyph reset
+  branches, trait override paths, full runtime aura/cast ownership,
+  live-client validation, bot validation, and manual validation remain open.
 - `#NEXT.R8.ENTITIES.1084` — represented `Player::ResetTalents` now
   performs the C++ active-pet removal branch before removing talents (not
   manual-test-ready). Source of truth:

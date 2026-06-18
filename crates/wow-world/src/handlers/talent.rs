@@ -21,6 +21,9 @@ use crate::session::{
 const CONFIRM_RESPEC_WIPE_NPC_FLAGS_LIKE_CPP: u32 = NPCFlags1::TRAINER.bits();
 const MIN_TALENT_RESET_LEVEL_LIKE_CPP: u8 = 15;
 const UNTALENT_VISUAL_EFFECT_SPELL_ID_LIKE_CPP: u32 = 14_867;
+#[cfg(test)]
+const AT_LOGIN_RENAME_LIKE_CPP: u16 = 0x001;
+const AT_LOGIN_RESET_TALENTS_LIKE_CPP: u16 = 0x004;
 
 inventory::submit! {
     PacketHandlerEntry {
@@ -119,6 +122,9 @@ impl WorldSession {
             return;
         }
 
+        self.record_represented_talent_reset_script_hook_like_cpp(false);
+        self.remove_represented_at_login_flag_like_cpp(AT_LOGIN_RESET_TALENTS_LIKE_CPP, true);
+
         if !self.apply_represented_talent_reset_cost_like_cpp().await {
             return;
         }
@@ -177,6 +183,9 @@ mod tests {
     use std::sync::{Arc, Mutex, RwLock};
 
     use super::*;
+    use crate::session::{
+        RepresentedAtLoginFlagRemovalLikeCpp, RepresentedTalentResetScriptHookLikeCpp,
+    };
     use wow_constants::BuyResult;
     use wow_constants::unit::UnitState;
     use wow_core::guid::HighGuid;
@@ -627,6 +636,17 @@ mod tests {
                 RepresentedTalentRespecCriteriaEventLikeCpp::TotalRespecs { quantity: 1 },
             ],
             "C++ Player::ResetTalents updates money-spent and total-respec criteria after ModifyMoney"
+        );
+        assert_eq!(
+            session.represented_talent_reset_script_hooks_like_cpp(),
+            &[RepresentedTalentResetScriptHookLikeCpp { no_cost: false }],
+            "C++ Player::ResetTalents starts with sScriptMgr->OnPlayerTalentsReset(this, noCost)"
+        );
+        assert!(
+            session
+                .represented_at_login_flag_removals_like_cpp()
+                .is_empty(),
+            "C++ only calls RemoveAtLoginFlag when AT_LOGIN_RESET_TALENTS is present"
         );
         assert_eq!(
             session.represented_confirm_respec_wipe_requests_like_cpp(),
@@ -1315,6 +1335,9 @@ mod tests {
         );
         session.set_represented_pet_stable_like_cpp(represented_current_pet_stable_like_cpp(43));
         session.set_player_gold_like_cpp(9_999);
+        session.set_represented_at_login_flags_like_cpp(
+            AT_LOGIN_RENAME_LIKE_CPP | AT_LOGIN_RESET_TALENTS_LIKE_CPP,
+        );
 
         session
             .handle_confirm_respec_wipe(confirm_respec_wipe_packet(
@@ -1339,6 +1362,25 @@ mod tests {
         assert_eq!(session.player_gold_like_cpp(), 9_999);
         assert_eq!(session.represented_talent_reset_cost_like_cpp(), 0);
         assert_eq!(session.represented_talent_reset_time_secs_like_cpp(), 0);
+        assert_eq!(
+            session.represented_talent_reset_script_hooks_like_cpp(),
+            &[RepresentedTalentResetScriptHookLikeCpp { no_cost: false }],
+            "C++ calls OnPlayerTalentsReset before the money gate"
+        );
+        assert_eq!(
+            session.represented_at_login_flags_like_cpp(),
+            AT_LOGIN_RENAME_LIKE_CPP,
+            "C++ removes only AT_LOGIN_RESET_TALENTS before the money gate"
+        );
+        assert_eq!(
+            session.represented_at_login_flag_removals_like_cpp(),
+            &[RepresentedAtLoginFlagRemovalLikeCpp {
+                flags: AT_LOGIN_RESET_TALENTS_LIKE_CPP,
+                persist: true,
+                db_statement_unrepresented: true,
+            }],
+            "C++ RemoveAtLoginFlag(AT_LOGIN_RESET_TALENTS, true) executes CHAR_UPD_REM_AT_LOGIN_FLAG before ResetTalents can fail"
+        );
         assert!(
             session
                 .represented_talent_respec_criteria_events_like_cpp()

@@ -637,6 +637,20 @@ pub(crate) struct RepresentedConfirmRespecWipeLikeCpp {
     pub respec_type: u8,
 }
 
+/// Evidence for C++ `sScriptMgr->OnPlayerTalentsReset(this, noCost)`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedTalentResetScriptHookLikeCpp {
+    pub no_cost: bool,
+}
+
+/// Evidence for C++ `RemoveAtLoginFlag(flags, persist=true)`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedAtLoginFlagRemovalLikeCpp {
+    pub flags: u16,
+    pub persist: bool,
+    pub db_statement_unrepresented: bool,
+}
+
 /// Evidence for `unit->CastSpell(_player, 14867, true)` after talent reset.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedTalentRespecVisualSpellCastLikeCpp {
@@ -3829,6 +3843,12 @@ pub struct WorldSession {
         Vec<RepresentedConfirmBarbersChoiceLikeCpp>,
     /// Represented accepted talent-respec wipe requests until Player::ResetTalents is canonical.
     represented_confirm_respec_wipe_requests_like_cpp: Vec<RepresentedConfirmRespecWipeLikeCpp>,
+    /// C++ `Player::m_atLoginFlags`, represented for reset-on-login side effects.
+    represented_at_login_flags_like_cpp: u16,
+    /// Represented `sScriptMgr->OnPlayerTalentsReset` calls until ScriptMgr is live.
+    represented_talent_reset_script_hooks_like_cpp: Vec<RepresentedTalentResetScriptHookLikeCpp>,
+    /// Represented persistent `RemoveAtLoginFlag` calls until direct character DB execution is live.
+    represented_at_login_flag_removals_like_cpp: Vec<RepresentedAtLoginFlagRemovalLikeCpp>,
     /// Represented `unit->CastSpell(_player, 14867, true)` after successful talent reset.
     represented_talent_respec_visual_spell_casts_like_cpp:
         Vec<RepresentedTalentRespecVisualSpellCastLikeCpp>,
@@ -5337,6 +5357,9 @@ impl WorldSession {
             represented_alter_appearance_requests_like_cpp: Vec::new(),
             represented_confirm_barbers_choice_requests_like_cpp: Vec::new(),
             represented_confirm_respec_wipe_requests_like_cpp: Vec::new(),
+            represented_at_login_flags_like_cpp: 0,
+            represented_talent_reset_script_hooks_like_cpp: Vec::new(),
+            represented_at_login_flag_removals_like_cpp: Vec::new(),
             represented_talent_respec_visual_spell_casts_like_cpp: Vec::new(),
             represented_talent_respec_criteria_events_like_cpp: Vec::new(),
             represented_equipment_sets_like_cpp: BTreeMap::new(),
@@ -36616,6 +36639,57 @@ impl WorldSession {
     ) {
         self.represented_confirm_respec_wipe_requests_like_cpp
             .push(request);
+    }
+
+    pub(crate) fn record_represented_talent_reset_script_hook_like_cpp(&mut self, no_cost: bool) {
+        self.represented_talent_reset_script_hooks_like_cpp
+            .push(RepresentedTalentResetScriptHookLikeCpp { no_cost });
+    }
+
+    pub(crate) fn remove_represented_at_login_flag_like_cpp(
+        &mut self,
+        flags: u16,
+        persist: bool,
+    ) -> bool {
+        if (self.represented_at_login_flags_like_cpp & flags) == 0 {
+            return false;
+        }
+
+        self.represented_at_login_flags_like_cpp &= !flags;
+        if persist {
+            self.represented_at_login_flag_removals_like_cpp.push(
+                RepresentedAtLoginFlagRemovalLikeCpp {
+                    flags,
+                    persist,
+                    db_statement_unrepresented: true,
+                },
+            );
+        }
+        true
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_represented_at_login_flags_like_cpp(&mut self, flags: u16) {
+        self.represented_at_login_flags_like_cpp = flags;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_at_login_flags_like_cpp(&self) -> u16 {
+        self.represented_at_login_flags_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_talent_reset_script_hooks_like_cpp(
+        &self,
+    ) -> &[RepresentedTalentResetScriptHookLikeCpp] {
+        &self.represented_talent_reset_script_hooks_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_at_login_flag_removals_like_cpp(
+        &self,
+    ) -> &[RepresentedAtLoginFlagRemovalLikeCpp] {
+        &self.represented_at_login_flag_removals_like_cpp
     }
 
     #[cfg(test)]
