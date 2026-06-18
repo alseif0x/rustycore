@@ -101,6 +101,24 @@ impl ClientPacket for CancelGrowthAura {
     }
 }
 
+/// C++ `WorldPackets::Spells::CancelModSpeedNoControlAuras`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CancelModSpeedNoControlAuras {
+    pub target_guid: ObjectGuid,
+}
+
+impl ClientPacket for CancelModSpeedNoControlAuras {
+    // The inspected 3.4.3 table marks this as the shared unresolved `0xBADD`
+    // placeholder. Route it from the existing 0xBADD opcode branch by payload
+    // shape and mover GUID until that table is resolved.
+    const OPCODE: ClientOpcodes = ClientOpcodes::SetLootSpecialization;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let target_guid = pkt.read_packed_guid()?;
+        Ok(Self { target_guid })
+    }
+}
+
 /// C++ `WorldPackets::Spells::CancelMountAura`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CancelMountAura;
@@ -871,6 +889,18 @@ mod tests {
         let parsed = CancelChannelling::read(&mut pkt).unwrap();
         assert_eq!(parsed.channel_spell, 12_345);
         assert_eq!(parsed.reason, 40);
+        assert!(pkt.is_empty());
+    }
+
+    #[test]
+    fn cancel_mod_speed_no_control_reads_cpp_target_guid() {
+        let target_guid = ObjectGuid::create_player(1, 77);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&target_guid);
+        pkt.reset_read();
+
+        let parsed = CancelModSpeedNoControlAuras::read(&mut pkt).unwrap();
+        assert_eq!(parsed.target_guid, target_guid);
         assert!(pkt.is_empty());
     }
 

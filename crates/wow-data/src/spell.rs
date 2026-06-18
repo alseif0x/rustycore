@@ -459,6 +459,7 @@ pub mod aura_types {
     pub const SPELL_AURA_MOD_SPELL_DAMAGE_FROM_CASTER: i32 = 271;
     pub const SPELL_AURA_PROVIDE_SPELL_FOCUS: i32 = 281;
     pub const SPELL_AURA_MOD_MELEE_HASTE_3: i32 = 319;
+    pub const SPELL_AURA_MOD_SPEED_NO_CONTROL: i32 = 373;
     pub const SPELL_AURA_IGNORE_SPELL_COOLDOWN: i32 = 383;
     pub const SPELL_AURA_MOD_BATTLE_PET_XP_PCT: i32 = 420;
     pub const SPELL_AURA_MOD_ROOT_2: i32 = 455;
@@ -6096,6 +6097,7 @@ mod tests {
             207
         );
         assert_eq!(aura_types::SPELL_AURA_MOD_MOUNTED_FLIGHT_SPEED_ALWAYS, 209);
+        assert_eq!(aura_types::SPELL_AURA_MOD_SPEED_NO_CONTROL, 373);
         assert_eq!(aura_types::SPELL_AURA_MOD_BATTLE_PET_XP_PCT, 420);
     }
 

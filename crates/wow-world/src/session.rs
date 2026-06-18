@@ -4661,6 +4661,7 @@ pub enum RepresentedAuraEffectLikeCpp {
     ModDetectedRange,
     ModFactionReputationGain,
     ModScale,
+    ModSpeedNoControl,
     ModBattlePetXpPct,
     ModReputationGain,
     ProvideSpellFocus,
@@ -21124,6 +21125,14 @@ impl WorldSession {
         )
     }
 
+    pub(crate) fn remove_represented_mod_speed_no_control_auras_cancelable_like_cpp(
+        &mut self,
+    ) -> usize {
+        self.remove_represented_cancelable_auras_by_effect_like_cpp(
+            RepresentedAuraEffectLikeCpp::ModSpeedNoControl,
+        )
+    }
+
     fn remove_represented_cancelable_auras_by_effect_like_cpp(
         &mut self,
         represented_effect: RepresentedAuraEffectLikeCpp,
@@ -21178,6 +21187,7 @@ impl WorldSession {
                     Some(
                         RepresentedAuraEffectLikeCpp::Mounted
                             | RepresentedAuraEffectLikeCpp::ModScale
+                            | RepresentedAuraEffectLikeCpp::ModSpeedNoControl
                     )
                 )
                 .then_some(aura.slot)
@@ -22259,9 +22269,17 @@ impl WorldSession {
                 // CMSG_CLEAR_RAID_MARKER (uint8 payload) and
                 // CMSG_SET_LOOT_SPECIALIZATION (uint32 payload), and this fork
                 // also assigns it to CMSG_SET_SAVED_INSTANCE_EXTEND
-                // (int32+uint32+bit payload). Rust keeps one enum variant and
+                // (int32+uint32+bit payload) and
+                // CMSG_CANCEL_MOD_SPEED_NO_CONTROL_AURAS (packed GUID payload).
+                // Rust keeps one enum variant and
                 // splits by payload length until the real opcode table is
                 // resolved.
+                if self
+                    .try_handle_cancel_mod_speed_no_control_auras_like_cpp(pkt.clone())
+                    .await
+                {
+                    return;
+                }
                 if pkt.remaining() == 1 {
                     self.handle_clear_raid_marker(pkt).await;
                 } else if pkt.remaining() == 4 {
@@ -39071,6 +39089,16 @@ impl WorldSession {
                         player_guid,
                         effect,
                         RepresentedAuraEffectLikeCpp::ModScale,
+                        30_000,
+                    )?;
+                } else if effect.effect_aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_SPEED_NO_CONTROL
+                {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::ModSpeedNoControl,
                         30_000,
                     )?;
                 } else if effect.effect_aura

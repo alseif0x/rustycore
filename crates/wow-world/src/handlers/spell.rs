@@ -47,8 +47,8 @@ use wow_packet::packets::loot::{
 use wow_packet::packets::pet::PetCancelAura;
 use wow_packet::packets::spell::{
     CancelAura, CancelAutoRepeatSpell, CancelCast, CancelChannelling, CancelGrowthAura,
-    CancelMountAura, CancelQueuedSpell, CastFailed, CastSpellRequest, OpenItem, SelfRes,
-    SpellCastVisual, SpellClick, SpellStartPkt,
+    CancelModSpeedNoControlAuras, CancelMountAura, CancelQueuedSpell, CastFailed, CastSpellRequest,
+    OpenItem, SelfRes, SpellCastVisual, SpellClick, SpellStartPkt,
 };
 use wow_packet::packets::totem::TotemDestroyed;
 
@@ -1869,6 +1869,28 @@ impl WorldSession {
         self.remove_represented_growth_auras_cancelable_like_cpp();
     }
 
+    /// Handle the represented `CMSG_CANCEL_MOD_SPEED_NO_CONTROL_AURAS`.
+    ///
+    /// The inspected opcode table assigns this packet to the shared unresolved
+    /// `0xBADD` value, so `WorldSession` probes this handler from that branch
+    /// and falls through to other 0xBADD packet shapes when the target does not
+    /// match C++ `Player::GetUnitBeingMoved()`.
+    pub async fn try_handle_cancel_mod_speed_no_control_auras_like_cpp(
+        &mut self,
+        mut pkt: wow_packet::WorldPacket,
+    ) -> bool {
+        let request = match CancelModSpeedNoControlAuras::read(&mut pkt) {
+            Ok(request) if pkt.is_empty() => request,
+            _ => return false,
+        };
+        if self.player_moved_unit_guid_like_cpp() != request.target_guid {
+            return false;
+        }
+
+        self.remove_represented_mod_speed_no_control_auras_cancelable_like_cpp();
+        true
+    }
+
     /// Handle `CMSG_CANCEL_MOUNT_AURA`.
     pub async fn handle_cancel_mount_aura(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = CancelMountAura::read(&mut pkt) {
@@ -2949,6 +2971,41 @@ mod tests {
         Arc::new(spell_store)
     }
 
+    fn mod_speed_no_control_spell_store(
+        spell_id: i32,
+        no_aura_cancel: bool,
+    ) -> Arc<wow_data::SpellStore> {
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: 50,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOD_SPEED_NO_CONTROL),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_SPEED_NO_CONTROL,
+                    effect_base_points: 50,
+                    ..Default::default()
+                }],
+            },
+        );
+        if no_aura_cancel {
+            let mut attributes = [0; 15];
+            attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_NO_AURA_CANCEL;
+            spell_store.insert_spell_misc_attributes_like_cpp(spell_id, attributes);
+        }
+        Arc::new(spell_store)
+    }
+
     fn drain_server_opcodes(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<ServerOpcodes> {
         let mut opcodes = Vec::new();
         while let Ok(bytes) = send_rx.try_recv() {
@@ -2963,6 +3020,13 @@ mod tests {
         let mut pkt = WorldPacket::new_empty();
         pkt.write_int32(spell_id);
         pkt.write_packed_guid(&caster_guid);
+        pkt.reset_read();
+        pkt
+    }
+
+    fn cancel_mod_speed_no_control_packet(target_guid: ObjectGuid) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&target_guid);
         pkt.reset_read();
         pkt
     }
@@ -3456,6 +3520,88 @@ mod tests {
 
         assert!(session.visible_auras.values().any(|aura| {
             aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::ModScale)
+        }));
+    }
+
+    #[tokio::test]
+    async fn cancel_mod_speed_no_control_removes_matching_mover_aura_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        session.set_player_guid(Some(player_guid));
+        session.set_spell_store(mod_speed_no_control_spell_store(12_345, false));
+
+        session
+            .execute_spell(12_345, player_guid)
+            .await
+            .expect("represented mod-speed-no-control aura should apply");
+        let _ = drain_server_opcodes(&send_rx);
+        assert!(session.visible_auras.values().any(|aura| {
+            aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::ModSpeedNoControl)
+        }));
+
+        assert!(
+            session
+                .try_handle_cancel_mod_speed_no_control_auras_like_cpp(
+                    cancel_mod_speed_no_control_packet(player_guid),
+                )
+                .await
+        );
+
+        assert!(!session.visible_auras.values().any(|aura| {
+            aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::ModSpeedNoControl)
+        }));
+    }
+
+    #[tokio::test]
+    async fn cancel_mod_speed_no_control_ignores_non_mover_guid_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let other_guid = ObjectGuid::create_player(1, 43);
+        session.set_player_guid(Some(player_guid));
+        session.set_spell_store(mod_speed_no_control_spell_store(12_345, false));
+
+        session
+            .execute_spell(12_345, player_guid)
+            .await
+            .expect("represented mod-speed-no-control aura should apply");
+        let _ = drain_server_opcodes(&send_rx);
+
+        assert!(
+            !session
+                .try_handle_cancel_mod_speed_no_control_auras_like_cpp(
+                    cancel_mod_speed_no_control_packet(other_guid),
+                )
+                .await
+        );
+
+        assert!(session.visible_auras.values().any(|aura| {
+            aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::ModSpeedNoControl)
+        }));
+    }
+
+    #[tokio::test]
+    async fn cancel_mod_speed_no_control_no_aura_cancel_preserves_aura_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        session.set_player_guid(Some(player_guid));
+        session.set_spell_store(mod_speed_no_control_spell_store(12_345, true));
+
+        session
+            .execute_spell(12_345, player_guid)
+            .await
+            .expect("represented no-aura-cancel mod-speed-no-control aura should apply");
+        let _ = drain_server_opcodes(&send_rx);
+
+        assert!(
+            session
+                .try_handle_cancel_mod_speed_no_control_auras_like_cpp(
+                    cancel_mod_speed_no_control_packet(player_guid),
+                )
+                .await
+        );
+
+        assert!(session.visible_auras.values().any(|aura| {
+            aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::ModSpeedNoControl)
         }));
     }
 

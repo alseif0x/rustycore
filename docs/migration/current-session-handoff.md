@@ -1,3 +1,29 @@
+- `#NEXT.R8.ENTITIES.1014` — represented
+  `CMSG_CANCEL_MOD_SPEED_NO_CONTROL_AURAS` now parses the C++ target GUID and
+  removes cancelable represented `SPELL_AURA_MOD_SPEED_NO_CONTROL` auras for
+  the current moved unit target (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/SpellPackets.cpp:36-39`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/SpellPackets.h:85-93`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SpellHandler.cpp:349-360`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraDefines.h:468`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:279`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:745`.
+  C++ reads `TargetGUID`, verifies it matches
+  `Player::GetUnitBeingMoved()`, then removes player
+  `SPELL_AURA_MOD_SPEED_NO_CONTROL` applications when their `SpellInfo` is
+  cancelable, positive, and non-passive. Rust now anchors aura type 373, adds
+  the packet parser, represents apply-aura effect rows with
+  `RepresentedAuraEffectLikeCpp::ModSpeedNoControl`, and routes the handler
+  from the existing shared unresolved `0xBADD` branch by packet shape plus
+  moved-unit GUID. Coverage: targeted `wow-data` constant test, targeted
+  `wow-packet` parser test, and targeted `wow-world` handler tests prove
+  matching mover removal, non-mover ignore, and `SPELL_ATTR0_NO_AURA_CANCEL`
+  preservation. Boundary remains partial: `0xBADD` is still a shared unresolved
+  table slot, full remote/charmed/vehicle moved-unit runtime is not present,
+  full `IsPositive`/`IsPassive` DB2 parity is not implemented beyond the
+  represented assumption, and there was no install/restart, bot, or live-client
+  validation.
 - `#NEXT.R8.ENTITIES.1013` — represented mount auras now apply and remove
   the C++ `MountCapabilityEntry::ModSpellAuraID` speed aura instead of only
   toggling the mounted visual/unit flag (not manual-test-ready). Source-of-truth:
