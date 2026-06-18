@@ -1,3 +1,26 @@
+- `#NEXT.R8.ENTITIES.1005` — `CMSG_CANCEL_CHANNELLING` now interrupts the
+  represented canonical player `CURRENT_CHANNELED_SPELL` when the requested
+  channel spell id matches, instead of only parsing/logging the opcode (not
+  manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SpellHandler.cpp:374-393`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:3008-3032`.
+  C++ resolves `_player->GetUnitBeingMoved()`, rejects remote-controlled
+  players, checks `SpellInfo`, rejects `SPELL_ATTR0_NO_AURA_CANCEL`, requires a
+  matching `CURRENT_CHANNELED_SPELL`, and calls `InterruptSpell`. Rust now
+  checks represented `SpellInfo` existence, represents the player-owned
+  channeled current-spell branch by checking the canonical typed player's
+  `CurrentSpellSlot::Channeled`, interrupts only on exact spell-id match, and
+  clears the session `active_spell_cast` mirror only when that canonical channel
+  was actually interrupted. Coverage: targeted `wow-world` tests prove matching
+  channel cancel clears the canonical channel and active-cast mirror, while
+  mismatched, zero spell, and missing-spellinfo requests preserve both states and
+  stay silent. Boundary remains partial: no moved creature/vehicle unit branch,
+  no remote-controlled player rejection beyond the represented player boundary,
+  no `SPELL_ATTR0_NO_AURA_CANCEL` validation because the minimal Rust
+  `SpellInfo` used here does not yet expose that attr0 bit, no channel
+  aura/dynamic-object cleanup, install/restart, bot, or live-client/manual
+  validation.
 - `#NEXT.R8.ENTITIES.1004` — login now sends account-mount-learned spells in
   the initial `SMSG_SEND_KNOWN_SPELLS` packet instead of using the pre-mount
   DB/DBC spell snapshot (not manual-test-ready). Source-of-truth:

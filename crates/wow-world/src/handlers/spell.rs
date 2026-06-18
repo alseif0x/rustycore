@@ -1821,12 +1821,21 @@ impl WorldSession {
             }
         };
 
+        if self
+            .spell_store()
+            .and_then(|store| store.get(request.channel_spell))
+            .is_none()
+        {
+            return;
+        }
+
         debug!(
             account = self.account_id,
             channel_spell = request.channel_spell,
             reason = request.reason,
-            "CMSG_CANCEL_CHANNELLING parsed; current channeled player spell runtime is not represented yet"
+            "CMSG_CANCEL_CHANNELLING parsed"
         );
+        self.interrupt_current_channeled_spell_like_cpp(request.channel_spell);
     }
 
     /// Handle `CMSG_CANCEL_GROWTH_AURA`.
@@ -2331,13 +2340,13 @@ fn add_loot_template_row_item_like_cpp<F>(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
 
     use rand::{Rng, SeedableRng, rngs::StdRng};
 
     use wow_constants::{BagFamilyMask, ItemContext, ItemFieldFlags, ItemFlags, ItemUpdateState};
-    use wow_core::{ObjectGuid, guid::HighGuid};
-    use wow_entities::{Item, ItemCreateInfo, MAX_ITEM_SPELLS};
+    use wow_core::{ObjectGuid, Position, guid::HighGuid};
+    use wow_entities::{Item, ItemCreateInfo, MAX_ITEM_SPELLS, Player};
     use wow_loot::{
         LootConditionRowLikeCpp, condition_compare_values_like_cpp,
         loot_conditions_allow_player_like_cpp_representable,
@@ -2358,7 +2367,9 @@ mod tests {
         roll_group_loot_row_like_cpp, stored_item_row_can_load_like_cpp_representable,
         stored_loot_item_should_persist_like_cpp,
     };
-    use crate::session::{SpellCastMetadata, SpellCastState};
+    use crate::session::{
+        SessionPlayerController, SharedCanonicalMapManager, SpellCastMetadata, SpellCastState,
+    };
 
     fn make_session() -> (crate::session::WorldSession, flume::Receiver<Vec<u8>>) {
         let (_pkt_tx, pkt_rx) = flume::bounded(100);
@@ -2379,6 +2390,57 @@ mod tests {
             ),
             send_rx,
         )
+    }
+
+    fn shared_canonical_map_manager() -> SharedCanonicalMapManager {
+        Arc::new(Mutex::new(wow_map::MapManager::default()))
+    }
+
+    fn add_canonical_test_player_on_map(
+        canonical: &SharedCanonicalMapManager,
+        guid: ObjectGuid,
+        position: Position,
+        map_id: u32,
+        instance_id: u32,
+    ) {
+        let mut player = Player::new(Some(1), false);
+        player.unit_mut().world_mut().object_mut().create(guid);
+        player.unit_mut().world_mut().set_name("SpellHandlerPlayer");
+        player
+            .unit_mut()
+            .world_mut()
+            .set_map(map_id, instance_id)
+            .unwrap();
+        player.unit_mut().world_mut().relocate(position);
+        player.unit_mut().world_mut().object_mut().add_to_world();
+
+        canonical
+            .lock()
+            .unwrap()
+            .create_world_map(map_id, instance_id)
+            .map_mut()
+            .insert_map_object_record(wow_entities::MapObjectRecord::new_player(player).unwrap())
+            .unwrap();
+    }
+
+    fn install_canonical_player(
+        session: &mut crate::session::WorldSession,
+        canonical: &SharedCanonicalMapManager,
+        player_guid: ObjectGuid,
+    ) {
+        let position = Position::new(10.0, 20.0, 30.0, 0.0);
+        session.set_canonical_map_manager(Arc::clone(canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "SpellHandlerPlayer".to_string(),
+            position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map(canonical, player_guid, position, 571, 0);
     }
 
     fn install_active_spell_cast(
@@ -2406,6 +2468,32 @@ mod tests {
         });
     }
 
+    fn install_canonical_channeled_spell(
+        session: &mut crate::session::WorldSession,
+        player_guid: ObjectGuid,
+        spell_id: u32,
+    ) -> wow_entities::CurrentSpellRef {
+        let spell = wow_entities::CurrentSpellRef::new(spell_id, Some(player_guid), None)
+            .with_state(wow_constants::SpellState::Delayed);
+        session.mutate_canonical_player_like_cpp(|player| {
+            player
+                .unit_mut()
+                .set_current_cast_spell(wow_entities::CurrentSpellSlot::Channeled, spell);
+        });
+        spell
+    }
+
+    fn canonical_channeled_spell_id(session: &mut crate::session::WorldSession) -> Option<u32> {
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player
+                    .unit()
+                    .current_spell(wow_entities::CurrentSpellSlot::Channeled)
+                    .map(|spell| spell.spell_id)
+            })
+            .flatten()
+    }
+
     fn cancel_cast_packet(cast_id: ObjectGuid, spell_id: u32) -> WorldPacket {
         let mut pkt = WorldPacket::new_empty();
         pkt.write_packed_guid(&cast_id);
@@ -2420,6 +2508,29 @@ mod tests {
         pkt.write_int32(reason);
         pkt.reset_read();
         pkt
+    }
+
+    fn basic_spell_store(spell_ids: impl IntoIterator<Item = i32>) -> Arc<wow_data::SpellStore> {
+        let mut spell_store = wow_data::SpellStore::new();
+        for spell_id in spell_ids {
+            spell_store.insert(
+                spell_id,
+                wow_data::SpellInfo {
+                    spell_id,
+                    cast_time_ms: 0,
+                    cooldown_ms: 0,
+                    recovery_time_ms: 0,
+                    effect_type: 0,
+                    effect_base_points: 0,
+                    effect_bonus_coefficient: 0.0,
+                    aura_type: None,
+                    display_flags: 0,
+                    requires_spell_focus: 0,
+                    effects: Vec::new(),
+                },
+            );
+        }
+        Arc::new(spell_store)
     }
 
     fn cancel_aura_packet(spell_id: i32, caster_guid: ObjectGuid) -> WorldPacket {
@@ -2513,13 +2624,109 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn cancel_channelling_parses_and_stays_silent_until_channel_runtime_exists() {
+    async fn cancel_channelling_interrupts_matching_player_channel_like_cpp() {
         let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 8);
+        install_canonical_player(&mut session, &canonical, player_guid);
+        session.set_spell_store(basic_spell_store([12_345]));
+        install_active_spell_cast(&mut session, 12_345, cast_id);
+        install_canonical_channeled_spell(&mut session, player_guid, 12_345);
 
         session
             .handle_cancel_channelling(cancel_channelling_packet(12_345, 40))
             .await;
 
+        assert_eq!(canonical_channeled_spell_id(&mut session), None);
+        assert!(session.active_spell_cast.is_none());
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn cancel_channelling_mismatched_spell_preserves_channel_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 9);
+        install_canonical_player(&mut session, &canonical, player_guid);
+        session.set_spell_store(basic_spell_store([67_890]));
+        install_active_spell_cast(&mut session, 12_345, cast_id);
+        let spell = install_canonical_channeled_spell(&mut session, player_guid, 12_345);
+
+        session
+            .handle_cancel_channelling(cancel_channelling_packet(67_890, 40))
+            .await;
+
+        assert_eq!(
+            canonical_channeled_spell_id(&mut session),
+            Some(spell.spell_id)
+        );
+        assert_eq!(
+            session
+                .active_spell_cast
+                .as_ref()
+                .map(|active_cast| active_cast.spell_id),
+            Some(12_345)
+        );
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn cancel_channelling_zero_spell_preserves_channel_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 10);
+        install_canonical_player(&mut session, &canonical, player_guid);
+        session.set_spell_store(basic_spell_store([12_345]));
+        install_active_spell_cast(&mut session, 12_345, cast_id);
+        let spell = install_canonical_channeled_spell(&mut session, player_guid, 12_345);
+
+        session
+            .handle_cancel_channelling(cancel_channelling_packet(0, 40))
+            .await;
+
+        assert_eq!(
+            canonical_channeled_spell_id(&mut session),
+            Some(spell.spell_id)
+        );
+        assert_eq!(
+            session
+                .active_spell_cast
+                .as_ref()
+                .map(|active_cast| active_cast.spell_id),
+            Some(12_345)
+        );
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn cancel_channelling_missing_spellinfo_preserves_channel_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 11);
+        install_canonical_player(&mut session, &canonical, player_guid);
+        session.set_spell_store(basic_spell_store([]));
+        install_active_spell_cast(&mut session, 12_345, cast_id);
+        let spell = install_canonical_channeled_spell(&mut session, player_guid, 12_345);
+
+        session
+            .handle_cancel_channelling(cancel_channelling_packet(12_345, 40))
+            .await;
+
+        assert_eq!(
+            canonical_channeled_spell_id(&mut session),
+            Some(spell.spell_id)
+        );
+        assert_eq!(
+            session
+                .active_spell_cast
+                .as_ref()
+                .map(|active_cast| active_cast.spell_id),
+            Some(12_345)
+        );
         assert!(send_rx.is_empty());
     }
 

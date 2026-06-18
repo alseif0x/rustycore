@@ -34341,6 +34341,42 @@ impl WorldSession {
         session_cast_interrupted || canonical_spells_interrupted
     }
 
+    pub(crate) fn interrupt_current_channeled_spell_like_cpp(&mut self, spell_id: i32) -> bool {
+        let Ok(spell_id) = u32::try_from(spell_id) else {
+            return false;
+        };
+        if spell_id == 0 {
+            return false;
+        }
+
+        let interrupted = self
+            .mutate_canonical_player_like_cpp(|player| {
+                let unit = player.unit_mut();
+                if unit
+                    .current_spell(wow_entities::CurrentSpellSlot::Channeled)
+                    .is_none_or(|current| current.spell_id != spell_id)
+                {
+                    return false;
+                }
+                unit.interrupt_spell(wow_entities::CurrentSpellSlot::Channeled, true, true)
+                    .is_some()
+            })
+            .unwrap_or(false);
+
+        if interrupted {
+            if self
+                .active_spell_cast
+                .as_ref()
+                .is_some_and(|active| active.spell_id == spell_id as i32)
+            {
+                self.active_spell_cast = None;
+            }
+            self.sync_object_accessor_player();
+        }
+
+        interrupted
+    }
+
     pub(crate) fn set_represented_pending_quest_sharing_like_cpp(
         &mut self,
         sender_guid: ObjectGuid,
