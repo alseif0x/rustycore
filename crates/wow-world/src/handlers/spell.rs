@@ -26,7 +26,7 @@ use tracing::{debug, info, warn};
 
 use wow_constants::{
     BagFamilyMask, ClientOpcodes, InventoryResult, ItemFieldFlags, ItemFlags, ItemUpdateState,
-    TypeId,
+    SpellCastResult, TypeId,
 };
 use wow_core::ObjectGuid;
 use wow_data::{DISABLE_TYPE_SPELL, DisableWorldObjectRefLikeCpp};
@@ -52,7 +52,7 @@ use wow_packet::packets::spell::{
 };
 use wow_packet::packets::totem::TotemDestroyed;
 
-use crate::session::WorldSession;
+use crate::session::{RepresentedPendingSpellCastRequestLikeCpp, WorldSession};
 
 const LOOT_MODE_DEFAULT_LIKE_CPP: u16 = 1;
 const MAX_NR_LOOT_ITEMS_LIKE_CPP: usize = 18;
@@ -308,31 +308,62 @@ impl WorldSession {
             return;
         }
 
-        // ── Validation: Cooldown ────────────────────────────────────────
-        // Check global cooldown (GCD)
-        if let Some(last_cast) = self.last_spell_cast_time {
-            let cooldown_ms = spell_info.effective_cooldown_ms();
-            let elapsed_ms = last_cast.elapsed().as_millis() as u32;
+        let mut spell_target = req.target.clone();
+        let target_guid = if !spell_target.unit.is_empty() {
+            spell_target.unit
+        } else {
+            spell_target.flags |= 0x2; // SpellCastTargetFlags::Unit
+            spell_target.unit = player_guid;
+            player_guid
+        };
 
-            if elapsed_ms < cooldown_ms {
+        // C++ `Player::CanRequestSpellCast` allows client spell queueing only
+        // inside the final 400 ms of global cooldown/cast completion. Outside
+        // that window, `HandleCastSpellOpcode` sends SPELL_FAILED_SPELL_IN_PROGRESS.
+        let remaining_gcd_ms = self.remaining_global_cooldown_ms_like_cpp(&spell_info);
+        if remaining_gcd_ms > 0 {
+            if !self.can_request_represented_spell_cast_like_cpp(&spell_info) {
                 debug!(
                     account = self.account_id,
                     spell_id = spell_id,
-                    remaining_ms = cooldown_ms - elapsed_ms,
-                    "Spell on global cooldown"
+                    remaining_ms = remaining_gcd_ms,
+                    "Spell request rejected outside C++ spell queue window"
                 );
                 self.send_packet(&CastFailed {
                     cast_id,
                     spell_id,
-                    reason: 10, // SpellCastResult::NotReady
+                    reason: SpellCastResult::SpellInProgress as i32,
                     fail_arg1: 0,
                     fail_arg2: 0,
                 });
                 return;
             }
+
+            self.request_represented_spell_cast_like_cpp(
+                RepresentedPendingSpellCastRequestLikeCpp {
+                    cast_id,
+                    spell_id,
+                    casting_unit_guid: player_guid,
+                    target_guid,
+                    target_data: spell_target,
+                    spell_visual: SpellCastVisual {
+                        spell_visual_id: req.visual.spell_visual_id,
+                        script_visual_id: 0,
+                    },
+                    metadata: crate::session::SpellCastMetadata {
+                        from_client: true,
+                        misc: req.misc,
+                        original_cast_id: cast_id,
+                        ..crate::session::SpellCastMetadata::default()
+                    },
+                },
+            );
+            return;
         }
 
-        // Check per-spell cooldown
+        // Check per-spell cooldown. C++ spell queueing is driven by global
+        // cooldown/current cast; represented per-spell cooldowns still fail
+        // closed until full SpellHistory parity is ported.
         if spell_info.recovery_time_ms > 0 {
             if let Some(last_spell_cast) = self.last_spell_cast_time_per_spell.get(&spell_id) {
                 let elapsed_ms = last_spell_cast.elapsed().as_millis() as u32;
@@ -348,7 +379,7 @@ impl WorldSession {
                     self.send_packet(&CastFailed {
                         cast_id,
                         spell_id,
-                        reason: 10, // SpellCastResult::NotReady
+                        reason: SpellCastResult::NotReady as i32,
                         fail_arg1: 0,
                         fail_arg2: 0,
                     });
@@ -356,15 +387,6 @@ impl WorldSession {
                 }
             }
         }
-
-        let mut spell_target = req.target.clone();
-        let target_guid = if !spell_target.unit.is_empty() {
-            spell_target.unit
-        } else {
-            spell_target.flags |= 0x2; // SpellCastTargetFlags::Unit
-            spell_target.unit = player_guid;
-            player_guid
-        };
 
         // ── Initiate cast or execute immediately ─────────────────────────
         if spell_info.has_cast_time() {
@@ -2756,6 +2778,17 @@ mod tests {
                 cast_id,
                 spell_id,
                 casting_unit_guid: ObjectGuid::create_player(1, 42),
+                target_guid: ObjectGuid::create_player(1, 42),
+                target_data: SpellTargetData {
+                    flags: 0x2,
+                    unit: ObjectGuid::create_player(1, 42),
+                    ..SpellTargetData::default()
+                },
+                spell_visual: SpellCastVisual {
+                    spell_visual_id: 0,
+                    script_visual_id: 0,
+                },
+                metadata: SpellCastMetadata::default(),
             });
     }
 
@@ -2864,6 +2897,30 @@ mod tests {
                 },
             );
         }
+        Arc::new(spell_store)
+    }
+
+    fn spell_store_with_global_cooldown(
+        spell_id: i32,
+        cooldown_ms: u32,
+    ) -> Arc<wow_data::SpellStore> {
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: Vec::new(),
+            },
+        );
         Arc::new(spell_store)
     }
 
@@ -4152,6 +4209,74 @@ mod tests {
             .await;
 
         assert_eq!(session.player_position_like_cpp(), Some(moved_position));
+    }
+
+    #[tokio::test]
+    async fn cast_spell_rejects_gcd_outside_spell_queue_window_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let spell_id = 13_338;
+        session.set_player_guid(Some(player_guid));
+        session.set_known_spells_like_cpp(vec![spell_id]);
+        session.set_spell_store(spell_store_with_global_cooldown(spell_id, 1_500));
+        session.last_spell_cast_time = Some(std::time::Instant::now());
+
+        session
+            .handle_cast_spell(cast_spell_packet(spell_id, player_guid))
+            .await;
+
+        assert!(
+            session
+                .represented_pending_spell_cast_request_like_cpp
+                .is_none()
+        );
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 1);
+        assert_eq!(
+            cast_failed_reason_like_cpp(&packets[0]),
+            SpellCastResult::SpellInProgress as i32,
+            "C++ HandleCastSpellOpcode sends SPELL_FAILED_SPELL_IN_PROGRESS when CanRequestSpellCast rejects the request"
+        );
+    }
+
+    #[tokio::test]
+    async fn cast_spell_queues_within_spell_queue_window_and_executes_after_gcd_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let spell_id = 13_339;
+        session.set_player_guid(Some(player_guid));
+        session.set_known_spells_like_cpp(vec![spell_id]);
+        session.set_spell_store(spell_store_with_global_cooldown(spell_id, 1_500));
+        session.last_spell_cast_time =
+            Some(std::time::Instant::now() - std::time::Duration::from_millis(1_200));
+
+        session
+            .handle_cast_spell(cast_spell_packet(spell_id, player_guid))
+            .await;
+
+        assert!(
+            session
+                .represented_pending_spell_cast_request_like_cpp
+                .as_ref()
+                .is_some_and(|pending| pending.spell_id == spell_id)
+        );
+        assert!(
+            send_rx.is_empty(),
+            "C++ RequestSpellCast only queues while GCD is still active"
+        );
+
+        session.last_spell_cast_time =
+            Some(std::time::Instant::now() - std::time::Duration::from_millis(1_500));
+        session.tick_pending_spell_cast_request_like_cpp().await;
+
+        assert!(
+            session
+                .represented_pending_spell_cast_request_like_cpp
+                .is_none()
+        );
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert!(opcodes.contains(&ServerOpcodes::SpellGo));
+        assert!(opcodes.contains(&ServerOpcodes::CooldownEvent));
     }
 
     #[tokio::test]

@@ -1,3 +1,23 @@
+- `#NEXT.R8.ENTITIES.1028` — `CMSG_CAST_SPELL` now uses the represented
+  pending spell cast request for the C++ spell queue window around global
+  cooldown (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SpellHandler.cpp:228-270`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:29101-29354`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:1559,1594`.
+  C++ rejects spell requests when `CanRequestSpellCast` sees more than 400 ms
+  remaining on global cooldown/current cast, queues them inside that final
+  window, and executes the pending request once `CanExecutePendingSpellCastRequest`
+  becomes true. Rust now exposes the same 400 ms GCD queue decision for the
+  represented player-caster path: requests outside the window fail with
+  `SPELL_FAILED_SPELL_IN_PROGRESS`, requests inside the window populate
+  `represented_pending_spell_cast_request_like_cpp`, and
+  `tick_pending_spell_cast_request_like_cpp` executes the queued request once
+  represented global cooldown reaches zero. Coverage: focused handler tests for
+  outside-window rejection and inside-window queue/execution. Boundary remains
+  partial: current cast remaining-time queueing, item-cast pending requests,
+  vehicle/creature casting units, full `Spell::prepare`, full `SpellHistory`,
+  install/restart, bot, and live-client/manual validation remain open.
 - `#NEXT.R8.ENTITIES.1027` — `CMSG_CANCEL_QUEUED_SPELL` now clears a
   represented pending spell cast request like C++ `Player::CancelPendingCastRequest`
   (not manual-test-ready). Source-of-truth:

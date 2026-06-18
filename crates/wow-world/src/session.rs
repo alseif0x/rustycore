@@ -3050,6 +3050,7 @@ impl SpellCastMetadata {
     }
 }
 
+const SPELL_QUEUE_TIME_WINDOW_LIKE_CPP_MS: u32 = 400;
 const SPELL_FAILED_DONT_REPORT_LIKE_CPP: i32 = 32;
 
 /// Spell casting state — tracks an in-progress spell cast with a timer.
@@ -3079,14 +3080,18 @@ pub struct SpellCastState {
 
 /// Minimal represented state for C++ `Player::_pendingSpellCastRequest`.
 ///
-/// Full request execution is still a later porting slice; this shape covers
-/// the fields C++ `CancelPendingCastRequest` needs to clear the queued button
-/// highlight without touching the currently active spell cast.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// This covers the represented player-caster queue path and the fields C++
+/// `CancelPendingCastRequest` needs to clear the queued button highlight
+/// without touching the currently active spell cast.
+#[derive(Debug, Clone)]
 pub(crate) struct RepresentedPendingSpellCastRequestLikeCpp {
     pub cast_id: ObjectGuid,
     pub spell_id: i32,
     pub casting_unit_guid: ObjectGuid,
+    pub target_guid: ObjectGuid,
+    pub target_data: SpellTargetData,
+    pub spell_visual: wow_packet::packets::spell::SpellCastVisual,
+    pub metadata: SpellCastMetadata,
 }
 
 /// C++ `WorldSession::_accountData[NUM_ACCOUNT_DATA_TYPES]` entry.
@@ -21545,6 +21550,7 @@ impl WorldSession {
             self.send_represented_capture_point_removed_from_last_update_like_cpp();
             self.send_represented_gameobject_visual_despawn_from_last_update_like_cpp();
             self.tick_active_spell_cast().await;
+            self.tick_pending_spell_cast_request_like_cpp().await;
             self.sync_represented_farsight_clear_from_canonical_like_cpp();
             self.send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp();
         }
@@ -34647,6 +34653,87 @@ impl WorldSession {
             fail_arg2: 0,
         });
         true
+    }
+
+    pub(crate) fn remaining_global_cooldown_ms_like_cpp(
+        &self,
+        spell_info: &wow_data::SpellInfo,
+    ) -> u32 {
+        let Some(last_cast) = self.last_spell_cast_time else {
+            return 0;
+        };
+        let cooldown_ms = spell_info.cooldown_ms;
+        let elapsed_ms = last_cast.elapsed().as_millis() as u32;
+        cooldown_ms.saturating_sub(elapsed_ms)
+    }
+
+    pub(crate) fn can_request_represented_spell_cast_like_cpp(
+        &self,
+        spell_info: &wow_data::SpellInfo,
+    ) -> bool {
+        self.remaining_global_cooldown_ms_like_cpp(spell_info)
+            <= SPELL_QUEUE_TIME_WINDOW_LIKE_CPP_MS
+    }
+
+    pub(crate) fn request_represented_spell_cast_like_cpp(
+        &mut self,
+        request: RepresentedPendingSpellCastRequestLikeCpp,
+    ) {
+        if self
+            .represented_pending_spell_cast_request_like_cpp
+            .is_some()
+        {
+            self.cancel_pending_spell_cast_request_like_cpp();
+        }
+        self.represented_pending_spell_cast_request_like_cpp = Some(request);
+    }
+
+    pub(crate) async fn tick_pending_spell_cast_request_like_cpp(&mut self) {
+        let Some(request) = self.represented_pending_spell_cast_request_like_cpp.clone() else {
+            return;
+        };
+        if Some(request.casting_unit_guid) != self.player_guid() {
+            self.cancel_pending_spell_cast_request_like_cpp();
+            return;
+        }
+        let Some(spell_info) = self
+            .spell_store()
+            .and_then(|store| store.get(request.spell_id))
+            .cloned()
+        else {
+            self.cancel_pending_spell_cast_request_like_cpp();
+            return;
+        };
+
+        if self.remaining_global_cooldown_ms_like_cpp(&spell_info) > 0 {
+            return;
+        }
+
+        self.represented_pending_spell_cast_request_like_cpp = None;
+        if let Err(error) = self
+            .execute_spell_with_visual_and_target_data_with_metadata(
+                request.spell_id,
+                request.target_guid,
+                request.cast_id,
+                request.spell_visual,
+                request.target_data,
+                request.metadata,
+            )
+            .await
+        {
+            warn!(
+                account = self.account_id,
+                spell_id = request.spell_id,
+                "Pending spell execution failed: {error}"
+            );
+            self.send_packet(&wow_packet::packets::spell::CastFailed {
+                cast_id: request.cast_id,
+                spell_id: request.spell_id,
+                reason: SpellCastResult::NotKnown as i32,
+                fail_arg1: 0,
+                fail_arg2: 0,
+            });
+        }
     }
 
     pub(crate) fn interrupt_non_melee_spells_for_far_teleport_like_cpp(&mut self) -> bool {
