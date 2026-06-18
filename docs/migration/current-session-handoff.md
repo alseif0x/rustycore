@@ -1,3 +1,24 @@
+- `#NEXT.R8.ENTITIES.1068` — represented runtime `CMSG_LEARN_TALENT` now
+  parses, dispatches, and mutates the coherent represented active talent group;
+  `CMSG_LEARN_TALENTS` has its C++ payload parser/handler covered but remains
+  deliberately unregistered because the inspected C++ opcode table still uses
+  the shared unresolved `0xBADD` placeholder (not manual-test-ready). Source of
+  truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SkillHandler.cpp:29-41`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TalentPackets.cpp:81-92`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TalentPackets.h:62-68,150-158`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26042-26123`.
+  Rust now reads `LearnTalent` as C++ `int32 TalentID` + `uint16
+  RequestedRank`, reads `LearnTalents` as `ReadBits(6)` + repeated `uint16`
+  talent ids, registers/dispatches only the resolved `CMSG_LEARN_TALENT`
+  opcode, applies successful learns to the represented active talent group, and
+  sends `UpdateTalentData` after each successful learn like
+  `SendTalentsInfoData`. Boundary remains partial:
+  full `Player::LearnTalent` validation still needs character-points,
+  `TalentTab` class mask, prereq/tier-spent checks, exact spell-validity,
+  talent-point recomputation, preview/pet talent handlers, live-client
+  validation, bot validation, and manual validation.
 - `#NEXT.R8.ENTITIES.1067` — represented `Player::SaveToDB` now persists
   `character_talent` from the coherent represented talent snapshot (not
   manual-test-ready). Source of truth:

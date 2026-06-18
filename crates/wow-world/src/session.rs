@@ -14373,6 +14373,7 @@ impl WorldSession {
             | ClientOpcodes::SaveGuildEmblem
             | ClientOpcodes::PetitionRenameGuild
             | ClientOpcodes::ConfirmRespecWipe
+            | ClientOpcodes::LearnTalent
             | ClientOpcodes::SetDungeonDifficulty
             | ClientOpcodes::SetRaidDifficulty
             | ClientOpcodes::SetPartyAssignment
@@ -18274,6 +18275,30 @@ impl WorldSession {
 
     pub(crate) fn mark_represented_talents_loaded_like_cpp(&mut self) {
         self.represented_talents_loaded_like_cpp = true;
+    }
+
+    pub(crate) fn represented_talents_loaded_like_cpp(&self) -> bool {
+        self.represented_talents_loaded_like_cpp
+    }
+
+    pub(crate) fn learn_represented_talent_like_cpp(
+        &mut self,
+        talent_id: u32,
+        requested_rank: u16,
+    ) -> bool {
+        if !self.represented_talents_loaded_like_cpp {
+            return false;
+        }
+
+        let Ok(rank) = u8::try_from(requested_rank) else {
+            return false;
+        };
+
+        self.load_represented_talent_row_like_cpp(
+            talent_id,
+            rank,
+            self.represented_active_talent_group_like_cpp,
+        )
     }
 
     pub(crate) fn load_represented_talent_row_like_cpp(
@@ -23140,6 +23165,9 @@ impl WorldSession {
             }
             ClientOpcodes::ConfirmRespecWipe => {
                 self.handle_confirm_respec_wipe(pkt).await;
+            }
+            ClientOpcodes::LearnTalent => {
+                self.handle_learn_talent(pkt).await;
             }
             ClientOpcodes::SetPlayerDeclinedNames => {
                 self.handle_set_player_declined_names(pkt).await;

@@ -8,7 +8,9 @@ use tracing::warn;
 use wow_constants::ClientOpcodes;
 use wow_constants::unit::NPCFlags1;
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
-use wow_packet::packets::talent::{ConfirmRespecWipe, SPEC_RESET_TALENTS_LIKE_CPP};
+use wow_packet::packets::talent::{
+    ConfirmRespecWipe, LearnTalent, LearnTalents, SPEC_RESET_TALENTS_LIKE_CPP,
+};
 use wow_packet::{ClientPacket, WorldPacket};
 
 use crate::session::{RepresentedConfirmRespecWipeLikeCpp, WorldSession};
@@ -25,7 +27,64 @@ inventory::submit! {
     }
 }
 
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::LearnTalent,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_learn_talent",
+    }
+}
+
 impl WorldSession {
+    /// Handle CMSG_LEARN_TALENT.
+    ///
+    /// C++ calls `Player::LearnTalent(TalentID, RequestedRank)` and sends
+    /// `SendTalentsInfoData()` only on success. Rust currently has the
+    /// represented talent snapshot and DB2 spell-rank validation, but not the
+    /// complete C++ point/prerequisite/talent-tab class validation runtime.
+    pub async fn handle_learn_talent(&mut self, mut packet: WorldPacket) {
+        let request = match LearnTalent::read(&mut packet) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!("Bad LearnTalent: {error}");
+                return;
+            }
+        };
+
+        if request.talent_id < 0 {
+            return;
+        }
+
+        if self.learn_represented_talent_like_cpp(request.talent_id as u32, request.requested_rank)
+        {
+            self.send_packet(&self.represented_update_talent_data_packet_like_cpp());
+        }
+    }
+
+    /// Parse the unresolved-placeholder CMSG_LEARN_TALENTS payload.
+    ///
+    /// C++ expands each `uint16` talent id into a `LearnTalent` request with
+    /// `RequestedRank = 0` and delegates to `HandleLearnTalentOpcode`.
+    /// The inspected C++ opcode table still uses the shared `0xBADD`
+    /// placeholder, so this handler is deliberately not registered for live
+    /// dispatch until the real client opcode is resolved.
+    pub async fn handle_learn_talents(&mut self, mut packet: WorldPacket) {
+        let request = match LearnTalents::read(&mut packet) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!("Bad LearnTalents: {error}");
+                return;
+            }
+        };
+
+        for talent_id in request.talent_ids {
+            if self.learn_represented_talent_like_cpp(u32::from(talent_id), 0) {
+                self.send_packet(&self.represented_update_talent_data_packet_like_cpp());
+            }
+        }
+    }
+
     /// Handle CMSG_CONFIRM_RESPEC_WIPE.
     ///
     /// C++ resolves `GetNPCIfCanInteractWith(..., UNIT_NPC_FLAG_TRAINER)`,
@@ -88,6 +147,7 @@ mod tests {
     use super::*;
     use wow_core::guid::HighGuid;
     use wow_core::{ObjectGuid, Position};
+    use wow_packet::ServerPacket;
     use wow_packet::packets::update::CreatureCreateData;
 
     fn make_session_with_send_capacity(
@@ -117,6 +177,75 @@ mod tests {
         packet.write_guid(&respec_master);
         packet.write_uint8(respec_type);
         packet
+    }
+
+    fn learn_talent_packet(talent_id: i32, requested_rank: u16) -> WorldPacket {
+        let mut packet = WorldPacket::new_empty();
+        packet.write_int32(talent_id);
+        packet.write_uint16(requested_rank);
+        packet
+    }
+
+    fn learn_talents_packet(talent_ids: &[u16]) -> WorldPacket {
+        let mut packet = WorldPacket::new_empty();
+        packet.write_bits(talent_ids.len() as u32, 6);
+        packet.flush_bits();
+        for talent_id in talent_ids {
+            packet.write_uint16(*talent_id);
+        }
+        packet
+    }
+
+    fn test_talent_entry_like_cpp(id: u32, rank: u8, spell_id: i32) -> wow_data::TalentEntry {
+        let mut spell_rank = [0; 9];
+        spell_rank[usize::from(rank)] = spell_id;
+        wow_data::TalentEntry {
+            id,
+            description: String::new(),
+            tier_id: 0,
+            flags: 0,
+            column_index: 0,
+            tab_id: 0,
+            class_id: 0,
+            spec_id: 0,
+            spell_id,
+            overrides_spell_id: 0,
+            required_spell_id: 0,
+            category_mask: [0; 2],
+            spell_rank,
+            prereq_talent: [0; 3],
+            prereq_rank: [0; 3],
+        }
+    }
+
+    fn test_spell_info_like_cpp(spell_id: i32) -> wow_data::SpellInfo {
+        wow_data::SpellInfo {
+            spell_id,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: 0,
+            effect_base_points: 0,
+            effect_bonus_coefficient: 0.0,
+            aura_type: None,
+            display_flags: 0,
+            requires_spell_focus: 0,
+            effects: Vec::new(),
+        }
+    }
+
+    fn install_test_talent_store(session: &mut WorldSession, talents: &[(u32, u8, i32)]) {
+        session.set_talent_store(Arc::new(wow_data::TalentStore::from_entries(
+            talents.iter().map(|(talent_id, rank, spell_id)| {
+                test_talent_entry_like_cpp(*talent_id, *rank, *spell_id)
+            }),
+        )));
+
+        let mut spell_store = wow_data::SpellStore::new();
+        for (_, _, spell_id) in talents {
+            spell_store.insert(*spell_id, test_spell_info_like_cpp(*spell_id));
+        }
+        session.set_spell_store(Arc::new(spell_store));
     }
 
     fn test_creature_guid(counter: u32) -> ObjectGuid {
@@ -197,6 +326,93 @@ mod tests {
                 respec_type: SPEC_RESET_TALENTS_LIKE_CPP,
             }]
         );
+    }
+
+    #[tokio::test]
+    async fn learn_talent_updates_represented_active_group_and_sends_talents_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        install_test_talent_store(&mut session, &[(101, 2, 50_101)]);
+        session.mark_represented_talents_loaded_like_cpp();
+        session.set_represented_active_talent_group_like_cpp(1);
+        session.set_represented_bonus_talent_groups_like_cpp(1);
+
+        session
+            .handle_learn_talent(learn_talent_packet(101, 2))
+            .await;
+
+        let sent = send_rx
+            .try_recv()
+            .expect("C++ sends SendTalentsInfoData after successful LearnTalent");
+        assert_eq!(
+            sent,
+            session
+                .represented_update_talent_data_packet_like_cpp()
+                .to_bytes()
+        );
+        let packet = session.represented_update_talent_data_packet_like_cpp();
+        assert_eq!(
+            packet.groups[1].talents,
+            vec![wow_packet::packets::misc::TalentInfoLikeCpp {
+                talent_id: 101,
+                rank: 2,
+            }]
+        );
+    }
+
+    #[tokio::test]
+    async fn learn_talents_delegates_each_id_as_rank_zero_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(2);
+        install_test_talent_store(&mut session, &[(101, 0, 50_101), (202, 0, 50_202)]);
+        session.mark_represented_talents_loaded_like_cpp();
+
+        session
+            .handle_learn_talents(learn_talents_packet(&[101, 202]))
+            .await;
+
+        let first = send_rx
+            .try_recv()
+            .expect("first C++ delegated LearnTalent should send talent data");
+        let second = send_rx
+            .try_recv()
+            .expect("second C++ delegated LearnTalent should send talent data");
+        assert!(!first.is_empty());
+        assert!(!second.is_empty());
+        assert!(send_rx.try_recv().is_err());
+
+        let packet = session.represented_update_talent_data_packet_like_cpp();
+        assert_eq!(
+            packet.groups[0].talents,
+            vec![
+                wow_packet::packets::misc::TalentInfoLikeCpp {
+                    talent_id: 101,
+                    rank: 0,
+                },
+                wow_packet::packets::misc::TalentInfoLikeCpp {
+                    talent_id: 202,
+                    rank: 0,
+                },
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn learn_talent_rejects_unloaded_snapshot_without_sending_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        install_test_talent_store(&mut session, &[(101, 0, 50_101)]);
+
+        session
+            .handle_learn_talent(learn_talent_packet(101, 0))
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+        assert!(
+            session
+                .represented_update_talent_data_packet_like_cpp()
+                .groups[0]
+                .talents
+                .is_empty()
+        );
+        assert!(!session.represented_talents_loaded_like_cpp());
     }
 
     #[tokio::test]
