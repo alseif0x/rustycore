@@ -2783,6 +2783,19 @@ impl RepresentedCharacterSpellCooldownLikeCpp {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedCharacterSpellChargeLikeCpp {
+    pub category_id: u32,
+    pub recharge_start_unix_secs: i64,
+    pub recharge_end_unix_secs: i64,
+}
+
+impl RepresentedCharacterSpellChargeLikeCpp {
+    fn is_active_at_like_cpp(&self, now_unix_secs: i64) -> bool {
+        self.recharge_end_unix_secs > now_unix_secs
+    }
+}
+
 #[allow(dead_code)]
 fn represented_skill_records_from_values_like_cpp(
     skill_values: &HashMap<u16, u16>,
@@ -4026,6 +4039,9 @@ pub struct WorldSession {
     represented_character_spell_cooldowns_like_cpp:
         HashMap<u32, RepresentedCharacterSpellCooldownLikeCpp>,
     represented_character_spell_cooldowns_loaded_like_cpp: bool,
+    represented_character_spell_charges_like_cpp:
+        BTreeMap<u32, Vec<RepresentedCharacterSpellChargeLikeCpp>>,
+    represented_character_spell_charges_loaded_like_cpp: bool,
 
     // ── Quest system ───────────────────────────────────────────────
     /// Quest template store (loaded from world DB at startup).
@@ -5434,6 +5450,8 @@ impl WorldSession {
             last_spell_cast_time_per_spell: HashMap::new(),
             represented_character_spell_cooldowns_like_cpp: HashMap::new(),
             represented_character_spell_cooldowns_loaded_like_cpp: false,
+            represented_character_spell_charges_like_cpp: BTreeMap::new(),
+            represented_character_spell_charges_loaded_like_cpp: false,
             loot_table: std::collections::HashMap::new(),
             active_loot_guid: ObjectGuid::EMPTY,
             active_loot_view_owners: std::collections::HashSet::new(),
@@ -12933,6 +12951,51 @@ impl WorldSession {
         );
     }
 
+    pub(crate) fn reset_represented_character_spell_charges_like_cpp(&mut self) {
+        self.represented_character_spell_charges_like_cpp.clear();
+        self.represented_character_spell_charges_loaded_like_cpp = false;
+    }
+
+    pub(crate) fn mark_represented_character_spell_charges_loaded_like_cpp(&mut self) {
+        self.represented_character_spell_charges_loaded_like_cpp = true;
+    }
+
+    pub(crate) fn record_loaded_character_spell_charge_like_cpp(
+        &mut self,
+        category_id: u32,
+        recharge_start_unix_secs: i64,
+        recharge_end_unix_secs: i64,
+    ) {
+        self.represented_character_spell_charges_like_cpp
+            .entry(category_id)
+            .or_default()
+            .push(RepresentedCharacterSpellChargeLikeCpp {
+                category_id,
+                recharge_start_unix_secs,
+                recharge_end_unix_secs,
+            });
+    }
+
+    fn restore_represented_character_spell_charge_like_cpp(&mut self, category_id: u32) -> bool {
+        if !self.represented_character_spell_charges_loaded_like_cpp {
+            return false;
+        }
+        let Some(charges) = self
+            .represented_character_spell_charges_like_cpp
+            .get_mut(&category_id)
+        else {
+            return false;
+        };
+        if charges.pop().is_none() {
+            return false;
+        }
+        if charges.is_empty() {
+            self.represented_character_spell_charges_like_cpp
+                .remove(&category_id);
+        }
+        true
+    }
+
     /// C++ `CollectionMgr::AddToy` / `UpdateAccountToys`.
     pub(crate) fn add_account_toy_like_cpp(
         &mut self,
@@ -17996,6 +18059,7 @@ impl WorldSession {
         self.save_player_skills_like_cpp().await;
         self.save_player_difficulties_like_cpp().await;
         self.save_player_spell_cooldowns_like_cpp().await;
+        self.save_player_spell_charges_like_cpp().await;
         self.save_instance_time_restrictions_like_cpp().await;
         self.save_played_time().await;
         self.save_reputation_to_db_like_cpp().await;
@@ -18044,6 +18108,54 @@ impl WorldSession {
         statements.extend(cooldowns.into_iter().map(|cooldown| {
             Self::build_character_spell_cooldown_insert_statement_like_cpp(guid_counter, cooldown)
         }));
+        Some(statements)
+    }
+
+    pub(crate) fn build_character_spell_charge_delete_statement_like_cpp(
+        guid_counter: u64,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::DEL_CHAR_SPELL_CHARGES.sql());
+        stmt.set_u64(0, guid_counter);
+        stmt
+    }
+
+    pub(crate) fn build_character_spell_charge_insert_statement_like_cpp(
+        guid_counter: u64,
+        charge: RepresentedCharacterSpellChargeLikeCpp,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::INS_CHAR_SPELL_CHARGES.sql());
+        stmt.set_u64(0, guid_counter);
+        stmt.set_u32(1, charge.category_id);
+        stmt.set_i64(2, charge.recharge_start_unix_secs);
+        stmt.set_i64(3, charge.recharge_end_unix_secs);
+        stmt
+    }
+
+    pub(crate) fn character_spell_charge_save_statements_like_cpp(
+        &self,
+        guid_counter: u64,
+        now_unix_secs: i64,
+    ) -> Option<Vec<PreparedStatement>> {
+        if !self.represented_character_spell_charges_loaded_like_cpp {
+            return None;
+        }
+
+        let mut statements =
+            vec![Self::build_character_spell_charge_delete_statement_like_cpp(guid_counter)];
+        for charges in self.represented_character_spell_charges_like_cpp.values() {
+            statements.extend(
+                charges
+                    .iter()
+                    .copied()
+                    .filter(|charge| charge.is_active_at_like_cpp(now_unix_secs))
+                    .map(|charge| {
+                        Self::build_character_spell_charge_insert_statement_like_cpp(
+                            guid_counter,
+                            charge,
+                        )
+                    }),
+            );
+        }
         Some(statements)
     }
 
@@ -18138,6 +18250,35 @@ impl WorldSession {
         if let Err(err) = char_db.commit_transaction(tx).await {
             warn!(
                 "Failed to save represented player spell cooldowns for guid {}: {err}",
+                guid.counter()
+            );
+        }
+    }
+
+    async fn save_player_spell_charges_like_cpp(&self) {
+        let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
+        else {
+            return;
+        };
+
+        let Some(statements) =
+            self.character_spell_charge_save_statements_like_cpp(guid.counter() as u64, unix_now())
+        else {
+            warn!(
+                account = self.account_id,
+                player_guid = ?self.player_guid(),
+                "Skipping represented player spell charge save because character_spell_charges was not loaded coherently"
+            );
+            return;
+        };
+
+        let mut tx = SqlTransaction::new();
+        for statement in statements {
+            tx.append(statement);
+        }
+        if let Err(err) = char_db.commit_transaction(tx).await {
+            warn!(
+                "Failed to save represented player spell charges for guid {}: {err}",
                 guid.counter()
             );
         }
@@ -43232,17 +43373,27 @@ impl WorldSession {
             return 0;
         }
 
-        self.mutate_canonical_player_like_cpp(|player| {
-            let history = &mut player.unit_mut().subsystems_mut().spells.history;
-            let mut restored = 0;
-            for _ in 0..damage {
-                if history.restore_charge(charge_category_id) {
-                    restored += 1;
+        let restored = self
+            .mutate_canonical_player_like_cpp(|player| {
+                let history = &mut player.unit_mut().subsystems_mut().spells.history;
+                let mut restored = 0;
+                for _ in 0..damage {
+                    if history.restore_charge(charge_category_id) {
+                        restored += 1;
+                    }
                 }
+                restored
+            })
+            .unwrap_or(0);
+
+        let mut represented_restored = 0;
+        for _ in 0..damage {
+            if self.restore_represented_character_spell_charge_like_cpp(charge_category_id) {
+                represented_restored += 1;
             }
-            restored
-        })
-        .unwrap_or(0)
+        }
+
+        restored.max(represented_restored)
     }
 
     fn current_map_is_dungeon_like_cpp(&self) -> bool {
@@ -82687,6 +82838,122 @@ mod tests {
             statements[0].sql(),
             CharStatements::DEL_CHAR_SPELL_COOLDOWNS.sql(),
             "C++ SpellHistory::SaveToDB deletes existing rows before inserting active runtime cooldowns"
+        );
+    }
+
+    #[test]
+    fn character_spell_charge_save_requires_coherent_load_like_cpp() {
+        let (session, _, _) = make_session();
+
+        assert!(
+            session
+                .character_spell_charge_save_statements_like_cpp(42, 1_000)
+                .is_none(),
+            "Rust must not emulate C++ SpellHistory::SaveToDB charge delete-all unless character_spell_charges was loaded coherently"
+        );
+    }
+
+    #[test]
+    fn character_spell_charge_save_deletes_and_reinserts_active_rows_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.reset_represented_character_spell_charges_like_cpp();
+        session.record_loaded_character_spell_charge_like_cpp(12, 1_001, 1_030);
+        session.record_loaded_character_spell_charge_like_cpp(7, 1_002, 1_020);
+        session.record_loaded_character_spell_charge_like_cpp(7, 1_003, 1_040);
+        session.record_loaded_character_spell_charge_like_cpp(20, 900, 1_000);
+        session.mark_represented_character_spell_charges_loaded_like_cpp();
+
+        let statements = session
+            .character_spell_charge_save_statements_like_cpp(42, 1_000)
+            .expect("loaded charge state should be persisted");
+
+        assert_eq!(statements.len(), 4);
+        assert_eq!(
+            statements[0].sql(),
+            CharStatements::DEL_CHAR_SPELL_CHARGES.sql()
+        );
+        assert!(matches!(
+            statements[0].params()[0],
+            wow_database::SqlParam::U64(42)
+        ));
+
+        assert_eq!(
+            statements[1].sql(),
+            CharStatements::INS_CHAR_SPELL_CHARGES.sql()
+        );
+        assert_eq!(
+            statements[1].params(),
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U32(7),
+                wow_database::SqlParam::I64(1_002),
+                wow_database::SqlParam::I64(1_020),
+            ]
+        );
+        assert_eq!(
+            statements[2].params(),
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U32(7),
+                wow_database::SqlParam::I64(1_003),
+                wow_database::SqlParam::I64(1_040),
+            ]
+        );
+        assert_eq!(
+            statements[3].params(),
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U32(12),
+                wow_database::SqlParam::I64(1_001),
+                wow_database::SqlParam::I64(1_030),
+            ]
+        );
+    }
+
+    #[test]
+    fn character_spell_charge_save_keeps_delete_when_all_rows_expired_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.record_loaded_character_spell_charge_like_cpp(7, 900, 999);
+        session.mark_represented_character_spell_charges_loaded_like_cpp();
+
+        let statements = session
+            .character_spell_charge_save_statements_like_cpp(42, 1_000)
+            .expect("loaded charge state should still clear expired rows");
+
+        assert_eq!(statements.len(), 1);
+        assert_eq!(
+            statements[0].sql(),
+            CharStatements::DEL_CHAR_SPELL_CHARGES.sql(),
+            "C++ SpellHistory::SaveToDB deletes existing charge rows before inserting active runtime charges"
+        );
+    }
+
+    #[test]
+    fn represented_spell_charge_restore_pops_last_charge_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        session.set_player_guid(Some(player_guid));
+        session.record_loaded_character_spell_charge_like_cpp(7, 1_001, 1_020);
+        session.record_loaded_character_spell_charge_like_cpp(7, 1_002, 1_040);
+        session.mark_represented_character_spell_charges_loaded_like_cpp();
+
+        assert_eq!(
+            session.apply_modify_spell_charges_effect_like_cpp(1, 7, player_guid),
+            1
+        );
+
+        let statements = session
+            .character_spell_charge_save_statements_like_cpp(42, 1_000)
+            .expect("loaded charge state should be persisted");
+        assert_eq!(statements.len(), 2);
+        assert_eq!(
+            statements[1].params(),
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U32(7),
+                wow_database::SqlParam::I64(1_001),
+                wow_database::SqlParam::I64(1_020),
+            ]
         );
     }
 

@@ -10977,6 +10977,7 @@ impl WorldSession {
         }
 
         let mut charges_by_category = BTreeMap::<u32, (i64, u8)>::new();
+        self.reset_represented_character_spell_charges_like_cpp();
         let mut charges_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_SPELL_CHARGES);
         charges_stmt.set_u64(0, guid_counter);
         match char_db.query(&charges_stmt).await {
@@ -10984,11 +10985,17 @@ impl WorldSession {
                 if !charges_result.is_empty() {
                     loop {
                         let category_id: u32 = charges_result.try_read(0).unwrap_or(0);
+                        let recharge_start: i64 = charges_result.try_read(1).unwrap_or(0);
                         let recharge_end: i64 = charges_result.try_read(2).unwrap_or(0);
                         let category_known_to_store = self
                             .spell_category_store()
                             .is_none_or(|store| store.get(category_id).is_some());
                         if category_known_to_store && recharge_end > now {
+                            self.record_loaded_character_spell_charge_like_cpp(
+                                category_id,
+                                recharge_start,
+                                recharge_end,
+                            );
                             charges_by_category
                                 .entry(category_id)
                                 .and_modify(|(first_recharge_end, consumed_charges)| {
@@ -11003,6 +11010,7 @@ impl WorldSession {
                         }
                     }
                 }
+                self.mark_represented_character_spell_charges_loaded_like_cpp();
             }
             Err(error) => {
                 warn!("Failed to load spell charges for {:?}: {error}", guid);
