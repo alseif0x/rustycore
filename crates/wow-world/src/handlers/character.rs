@@ -3312,6 +3312,12 @@ impl WorldSession {
         self.set_player_xp_like_cpp(result.try_read::<u32>(7).unwrap_or(0));
         self.set_player_guid(Some(guid));
         self.set_loaded_player_identity_like_cpp(map_id as u16, race, class, level, gender);
+        // C++ recalculates zone/area from terrain after AddToMap
+        // (`Player::SendInitialPacketsAfterAddToMap`). Until the Rust terrain
+        // runtime can resolve subzones, seed both from the DB zone so
+        // area-dependent checks (notably mount capability flags) do not run
+        // against the zero/default area.
+        self.set_player_zone_area_like_cpp(zone as u32, zone as u32);
         self.set_represented_guild_id_like_cpp(result.try_read::<u64>(11).unwrap_or(0));
         self.load_represented_player_difficulties_like_cpp(
             result.try_read::<u32>(44).unwrap_or(0),

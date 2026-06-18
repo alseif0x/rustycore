@@ -1,3 +1,19 @@
+- `#NEXT.R8.ENTITIES.1032` — represented login now seeds the session's
+  zone/area state from the DB zone before gameplay casts can run (not
+  manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:23579-23581`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:7891-7988`.
+  C++ adds the player to the map, resolves `GetZoneAndAreaId`, then calls
+  `UpdateZone`, and `Unit::GetMountCapability` reads the current area mount
+  flags when validating mounted spells. Rust already sent the DB zone in login
+  packets, but left the represented session zone/area at `0/0`; ground mounts
+  with a non-zero `MountTypeID` could then fail capability checks with
+  `SPELL_FAILED_NOT_HERE`. Rust now seeds `(zone, area)` as `(db_zone, db_zone)`
+  until TerrainMgr/subzone resolution is ported. Coverage: focused mount
+  capability regression test. Boundary remains partial: exact terrain-backed
+  C++ subzone resolution, install/restart, bot, and live-client/manual
+  validation remain open.
 - `#NEXT.R8.ENTITIES.1031` — timed logout completion now preserves the loaded
   represented player identity until the session loop reaches the disconnect
   save path (not manual-test-ready). Source-of-truth:

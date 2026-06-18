@@ -34274,7 +34274,6 @@ impl WorldSession {
         &self.move_spline_done_taxi_events_like_cpp
     }
 
-    #[cfg(test)]
     pub(crate) fn set_player_zone_area_like_cpp(&mut self, zone_id: u32, area_id: u32) {
         self.player_zone_id_like_cpp = zone_id;
         self.player_area_id_like_cpp = area_id;
@@ -53806,6 +53805,63 @@ mod tests {
             session
                 .represented_mount_capability_for_type_from_session_like_cpp(7, None)
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn represented_mount_capability_uses_login_zone_area_fallback_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.current_map_id = 571;
+        session.set_player_skill_values_like_cpp(HashMap::from([(SKILL_RIDING_LIKE_CPP, 75)]));
+        session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
+            wow_data::AreaTableEntry {
+                id: 1519,
+                continent_id: 0,
+                parent_area_id: 0,
+                mount_flags: i32::from(wow_data::AREA_MOUNT_FLAG_ALLOW_GROUND_MOUNTS),
+                flags: 0,
+            },
+        ])));
+        session.set_mount_capability_store(Arc::new(wow_data::MountCapabilityStore::from_entries(
+            [wow_data::MountCapabilityEntry {
+                id: 11,
+                flags: wow_data::MOUNT_CAPABILITY_FLAG_GROUND,
+                req_riding_skill: 75,
+                req_area_id: 0,
+                req_spell_aura_id: 0,
+                req_spell_known_id: 0,
+                mod_spell_aura_id: 1001,
+                req_map_id: -1,
+            }],
+        )));
+        session.set_mount_type_x_capability_store(Arc::new(
+            wow_data::MountTypeXCapabilityStore::from_entries([
+                wow_data::MountTypeXCapabilityEntry {
+                    id: 2,
+                    mount_type_id: 7,
+                    mount_capability_id: 11,
+                    order_index: 1,
+                },
+            ]),
+        ));
+
+        assert_eq!(session.player_zone_area_like_cpp(), (0, 0));
+        assert!(
+            session
+                .represented_mount_capability_for_type_from_session_like_cpp(7, None)
+                .is_none()
+        );
+
+        // C++ resolves the exact area from terrain after adding the player to
+        // the map. Rust currently seeds the represented runtime from the DB
+        // zone until TerrainMgr parity exists; using the zone as area is still
+        // closer than evaluating mount restrictions against area 0.
+        session.set_player_zone_area_like_cpp(1519, 1519);
+        assert_eq!(
+            session
+                .represented_mount_capability_for_type_from_session_like_cpp(7, None)
+                .map(|capability| capability.id),
+            Some(11)
         );
     }
 
