@@ -4687,6 +4687,7 @@ pub enum RepresentedAuraEffectLikeCpp {
     Speed,
     SpeedAlways,
     SpeedNotStack,
+    DecreaseSpeed,
     MountedSpeed,
     MountedSpeedAlways,
     MountedSpeedNotStack,
@@ -21199,6 +21200,7 @@ impl WorldSession {
                     | RepresentedAuraEffectLikeCpp::Speed
                     | RepresentedAuraEffectLikeCpp::SpeedAlways
                     | RepresentedAuraEffectLikeCpp::SpeedNotStack
+                    | RepresentedAuraEffectLikeCpp::DecreaseSpeed
                     | RepresentedAuraEffectLikeCpp::MountedSpeedAlways
                     | RepresentedAuraEffectLikeCpp::MountedSpeedNotStack
             )
@@ -34472,6 +34474,19 @@ impl WorldSession {
             .unwrap_or(0)
     }
 
+    fn max_negative_represented_aura_amount_like_cpp(
+        &self,
+        effect: RepresentedAuraEffectLikeCpp,
+    ) -> i32 {
+        self.visible_auras
+            .values()
+            .filter(|aura| aura.represented_effect == Some(effect))
+            .map(|aura| aura.represented_amount)
+            .filter(|amount| *amount < 0)
+            .min()
+            .unwrap_or(0)
+    }
+
     fn total_represented_aura_amount_multiplier_like_cpp(
         &self,
         effect: RepresentedAuraEffectLikeCpp,
@@ -34506,7 +34521,15 @@ impl WorldSession {
                 .max(0) as f32
                 / 100.0;
 
-        stack_bonus.max(not_stack_bonus) * (1.0 + main_mod.max(0) as f32 / 100.0)
+        let mut speed = stack_bonus.max(not_stack_bonus) * (1.0 + main_mod.max(0) as f32 / 100.0);
+        let slow = self.max_negative_represented_aura_amount_like_cpp(
+            RepresentedAuraEffectLikeCpp::DecreaseSpeed,
+        );
+        if slow < 0 {
+            speed *= 1.0 + slow as f32 / 100.0;
+        }
+
+        speed
     }
 
     fn represented_flight_speed_rate_like_cpp(&self) -> f32 {
@@ -39630,6 +39653,17 @@ impl WorldSession {
                         player_guid,
                         effect,
                         RepresentedAuraEffectLikeCpp::Speed,
+                        30_000,
+                    )?;
+                    self.recompute_represented_run_speed_rate_like_cpp();
+                } else if effect.effect_aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_DECREASE_SPEED
+                {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::DecreaseSpeed,
                         30_000,
                     )?;
                     self.recompute_represented_run_speed_rate_like_cpp();
@@ -54040,6 +54074,131 @@ mod tests {
             (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 10.5).abs()
                 < 0.0001,
             "C++ dismount recomputes MOVE_RUN with the still-active non-mounted speed auras"
+        );
+    }
+
+    #[test]
+    fn represented_run_speed_applies_cpp_strongest_slow_after_positive_bonus_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let caster = ObjectGuid::create_player(1, 42);
+        let speed = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED,
+            effect_base_points: 100,
+            effect_index: 0,
+            ..Default::default()
+        };
+        let weak_slow = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_DECREASE_SPEED,
+            effect_base_points: -20,
+            effect_index: 1,
+            ..Default::default()
+        };
+        let strong_slow = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_DECREASE_SPEED,
+            effect_base_points: -40,
+            effect_index: 2,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_005,
+                caster,
+                &speed,
+                RepresentedAuraEffectLikeCpp::Speed,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_006,
+                caster,
+                &weak_slow,
+                RepresentedAuraEffectLikeCpp::DecreaseSpeed,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_007,
+                caster,
+                &strong_slow,
+                RepresentedAuraEffectLikeCpp::DecreaseSpeed,
+                30_000,
+            )
+            .unwrap();
+        session.recompute_represented_run_speed_rate_like_cpp();
+
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 8.4).abs() < 0.0001,
+            "C++ Unit::UpdateSpeed applies strongest SPELL_AURA_MOD_DECREASE_SPEED after positive speed bonuses"
+        );
+        assert!(
+            drain_server_opcodes(&send_rx).contains(&ServerOpcodes::MoveSetRunSpeed),
+            "slow-driven run-speed changes are observable through Unit::SetSpeedRate"
+        );
+    }
+
+    #[test]
+    fn represented_run_speed_slow_removal_recomputes_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let caster = ObjectGuid::create_player(1, 42);
+        let speed = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED,
+            effect_base_points: 100,
+            effect_index: 0,
+            ..Default::default()
+        };
+        let slow = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_DECREASE_SPEED,
+            effect_base_points: -50,
+            effect_index: 1,
+            ..Default::default()
+        };
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_008,
+                caster,
+                &speed,
+                RepresentedAuraEffectLikeCpp::Speed,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_009,
+                caster,
+                &slow,
+                RepresentedAuraEffectLikeCpp::DecreaseSpeed,
+                30_000,
+            )
+            .unwrap();
+        session.recompute_represented_run_speed_rate_like_cpp();
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 7.0).abs() < 0.0001
+        );
+        let slow_slot = session
+            .visible_auras
+            .iter()
+            .find_map(|(&slot, aura)| {
+                (aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::DecreaseSpeed))
+                    .then_some(slot)
+            })
+            .unwrap();
+
+        session.remove_aura(slow_slot).unwrap();
+
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 14.0).abs()
+                < 0.0001,
+            "C++ aura removal recomputes MOVE_RUN and drops the removed slow"
         );
     }
 
