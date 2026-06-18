@@ -49,8 +49,8 @@ use wow_constants::unit::{
 use wow_constants::{
     BagFamilyMask, BuyResult, ClientOpcodes, InventoryResult, InventoryType, ItemBondingType,
     ItemClass, ItemContext, ItemEnchantmentType, ItemFlags, ItemFlags2, ItemFlags3, ItemQuality,
-    ItemSubClassArmor, ItemSubClassWeapon, SellResult, SpellCastResult, SpellItemEnchantmentFlags,
-    TypeId, UnitState,
+    ItemSubClassArmor, ItemSubClassWeapon, SellResult, ServerOpcodes, SpellCastResult,
+    SpellItemEnchantmentFlags, TypeId, UnitState,
 };
 use wow_core::{ObjectGuid, ObjectGuidGenerator, Position, guid::HighGuid};
 use wow_data::character_progression::{ChrClassesStore, ChrRacesStore};
@@ -34471,10 +34471,85 @@ impl WorldSession {
             RepresentedAuraEffectLikeCpp::MountedFlightSpeedAlways,
         );
 
-        self.movement_speed_rates_like_cpp[UnitMoveTypeLikeCpp::Run.index()] =
-            (1.0 + run_mod.max(0) as f32 / 100.0) * run_always;
-        self.movement_speed_rates_like_cpp[UnitMoveTypeLikeCpp::Flight.index()] =
-            (1.0 + flight_mod.max(0) as f32 / 100.0) * flight_always;
+        self.set_player_movement_speed_rate_and_notify_like_cpp(
+            UnitMoveTypeLikeCpp::Run,
+            (1.0 + run_mod.max(0) as f32 / 100.0) * run_always,
+        );
+        self.set_player_movement_speed_rate_and_notify_like_cpp(
+            UnitMoveTypeLikeCpp::Flight,
+            (1.0 + flight_mod.max(0) as f32 / 100.0) * flight_always,
+        );
+    }
+
+    fn player_movement_speed_opcodes_like_cpp(
+        move_type: UnitMoveTypeLikeCpp,
+    ) -> Option<(ServerOpcodes, ServerOpcodes)> {
+        match move_type {
+            UnitMoveTypeLikeCpp::Run => Some((
+                ServerOpcodes::MoveSetRunSpeed,
+                ServerOpcodes::MoveUpdateRunSpeed,
+            )),
+            UnitMoveTypeLikeCpp::Flight => Some((
+                ServerOpcodes::MoveSetFlightSpeed,
+                ServerOpcodes::MoveUpdateFlightSpeed,
+            )),
+            _ => None,
+        }
+    }
+
+    fn set_player_movement_speed_rate_and_notify_like_cpp(
+        &mut self,
+        move_type: UnitMoveTypeLikeCpp,
+        rate: f32,
+    ) {
+        let rate = rate.max(0.01);
+        let index = move_type.index();
+        if self.movement_speed_rates_like_cpp[index] == rate {
+            return;
+        }
+
+        self.movement_speed_rates_like_cpp[index] = rate;
+
+        let Some(player_guid) = self.player_guid() else {
+            return;
+        };
+        let Some((set_opcode, update_opcode)) =
+            Self::player_movement_speed_opcodes_like_cpp(move_type)
+        else {
+            return;
+        };
+
+        self.forced_speed_changes_like_cpp[index] =
+            self.forced_speed_changes_like_cpp[index].saturating_add(1);
+
+        let speed = self.player_movement_speed_like_cpp(move_type);
+        let sequence_index = self.mount_vehicle_movement_sequence_like_cpp;
+        self.mount_vehicle_movement_sequence_like_cpp = self
+            .mount_vehicle_movement_sequence_like_cpp
+            .wrapping_add(1);
+
+        let self_packet = wow_packet::packets::movement::MoveSetSpeed {
+            opcode: set_opcode,
+            mover_guid: player_guid,
+            sequence_index,
+            speed,
+        }
+        .to_bytes();
+        if self.send_tx.send(self_packet).is_err() {
+            warn!("Send channel closed for account {}", self.account_id);
+        }
+
+        let mut status = self.current_player_movement_info_like_cpp(player_guid);
+        status.time = self.player_movement_time_like_cpp();
+        self.broadcast_to_movement_set_like_cpp(
+            wow_packet::packets::movement::MoveUpdateSpeed {
+                opcode: update_opcode,
+                status,
+                speed,
+            }
+            .to_bytes(),
+            false,
+        );
     }
 
     pub(crate) fn trace_anticheat_violation_like_cpp(
@@ -34653,6 +34728,11 @@ impl WorldSession {
         count: u8,
     ) {
         self.forced_speed_changes_like_cpp[move_type.index()] = count;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn forced_speed_changes_like_cpp(&self, move_type: UnitMoveTypeLikeCpp) -> u8 {
+        self.forced_speed_changes_like_cpp[move_type.index()]
     }
 
     #[cfg(test)]
@@ -53536,7 +53616,8 @@ mod tests {
 
     #[test]
     fn represented_mount_capability_applies_mounted_speed_aura_like_cpp() {
-        let (mut session, _, _) = make_session();
+        let (mut session, _, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
         session.set_mount_capability_store(Arc::new(wow_data::MountCapabilityStore::from_entries(
             [wow_data::MountCapabilityEntry {
                 id: 77,
@@ -53593,11 +53674,20 @@ mod tests {
             (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 14.0).abs()
                 < 0.0001
         );
+        assert_eq!(
+            session.forced_speed_changes_like_cpp(UnitMoveTypeLikeCpp::Run),
+            1
+        );
+        assert!(
+            drain_server_opcodes(&send_rx).contains(&ServerOpcodes::MoveSetRunSpeed),
+            "C++ Unit::SetSpeedRate sends SMSG_MOVE_SET_RUN_SPEED when the mounted run rate changes"
+        );
     }
 
     #[test]
     fn represented_mount_removal_removes_capability_speed_aura_like_cpp() {
-        let (mut session, _, _) = make_session();
+        let (mut session, _, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
         session.set_mount_capability_store(Arc::new(wow_data::MountCapabilityStore::from_entries(
             [wow_data::MountCapabilityEntry {
                 id: 77,
@@ -53644,6 +53734,7 @@ mod tests {
         session
             .apply_represented_mounted_aura_like_cpp(100, ObjectGuid::EMPTY, &effect)
             .unwrap();
+        let _ = drain_server_opcodes(&send_rx);
         let mounted_slot = session
             .visible_auras
             .values()
@@ -53662,6 +53753,14 @@ mod tests {
         assert_eq!(
             session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run),
             7.0
+        );
+        assert_eq!(
+            session.forced_speed_changes_like_cpp(UnitMoveTypeLikeCpp::Run),
+            2
+        );
+        assert!(
+            drain_server_opcodes(&send_rx).contains(&ServerOpcodes::MoveSetRunSpeed),
+            "C++ Unit::SetSpeedRate sends SMSG_MOVE_SET_RUN_SPEED when dismount restores run speed"
         );
     }
 
