@@ -1,3 +1,25 @@
+- `#NEXT.R8.ENTITIES.1010` — represented cancellation paths now honor C++
+  `SPELL_ATTR0_NO_AURA_CANCEL` for DB2-backed spells (not manual-test-ready).
+  Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellInfo.cpp:1167-1182`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:462`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SpellHandler.cpp:272-386`.
+  C++ hydrates `SpellInfo::Attributes` from `SpellMiscEntry::Attributes[0]`
+  and rejects voluntary cancellation when `SPELL_ATTR0_NO_AURA_CANCEL` is set
+  in `HandleCancelAuraOpcode`, `HandleCancelMountAuraOpcode`, and
+  `HandleCancelChanneling`. Rust now keeps `SpellMisc.db2` attributes in
+  `SpellStore`, exposes the bounded `HasAttribute` attr0 gate, and applies it
+  to represented mounted aura removal and current channeled spell interruption.
+  Coverage: targeted `wow-data` test proves DB2 attributes survive the
+  SpellStore DB2 loader; `wow-world` tests prove no-aura-cancel spells preserve
+  represented mount auras, `CancelMountAura` preserves mounted state, and
+  `CancelChannelling` preserves the current channel/active cast. Boundary
+  remains partial: only attr0 no-aura-cancel consumers in the current
+  represented cancel/mount/channel paths are wired; full SpellInfo attribute
+  exposure, `IsPositive`/`IsPassive` from all DB2 sources, channeled display-flag
+  parity, growth/speed-no-control aura cancellation, install/restart, bot, and
+  live-client/manual validation remain open.
 - `#NEXT.R8.ENTITIES.1009` — `SpellStore` startup now loads the C++ spell-data
   base from `SpellMisc.db2` and `SpellEffect.db2`, then overlays SQL hotfix
   rows, so account mount source spells that exist in DB2 but not in

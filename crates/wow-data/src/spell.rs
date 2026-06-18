@@ -477,6 +477,8 @@ pub const TOTAL_SPELL_TARGETS_LIKE_CPP: i32 = 153;
 pub mod attributes {
     /// C++ `SPELL_ATTR0_PASSIVE` (`SharedDefines.h`).
     pub const SPELL_ATTR0_PASSIVE: u32 = 0x0000_0040;
+    /// C++ `SPELL_ATTR0_NO_AURA_CANCEL` (`SharedDefines.h`).
+    pub const SPELL_ATTR0_NO_AURA_CANCEL: u32 = 0x8000_0000;
     /// C++ `SPELL_ATTR1_NO_AUTOCAST_AI` (`SharedDefines.h`).
     pub const SPELL_ATTR1_NO_AUTOCAST_AI: u32 = 0x0002_0000;
     /// C++ `SPELL_ATTR3_CAN_PROC_FROM_PROCS` (`SharedDefines.h`).
@@ -5117,6 +5119,7 @@ const fn implicit_target_category_accepts_conditions_like_cpp(target: u32) -> bo
 #[derive(Default)]
 pub struct SpellStore {
     spells: HashMap<i32, SpellInfo>,
+    spell_misc_attributes: HashMap<i32, [u32; 15]>,
     implicit_target_conditions: HashMap<(i32, u32), ConditionsReference>,
 }
 
@@ -5125,6 +5128,7 @@ impl SpellStore {
     pub fn new() -> Self {
         Self {
             spells: HashMap::new(),
+            spell_misc_attributes: HashMap::new(),
             implicit_target_conditions: HashMap::new(),
         }
     }
@@ -5200,6 +5204,12 @@ impl SpellStore {
         Self::hydrate_primary_effect_like_cpp(entry);
     }
 
+    fn merge_spell_misc_attributes_like_cpp(&mut self, incoming: HashMap<i32, [u32; 15]>) {
+        for (spell_id, attributes) in incoming {
+            self.spell_misc_attributes.insert(spell_id, attributes);
+        }
+    }
+
     /// Load base spell data from DB2 and overlay SQL hotfix rows.
     ///
     /// C++ builds `SpellInfo` primarily from `sSpellEffectStore` and
@@ -5221,6 +5231,7 @@ impl SpellStore {
         for spell in hotfix_store.spells.into_values() {
             store.merge_spell_info_like_cpp(spell);
         }
+        store.merge_spell_misc_attributes_like_cpp(hotfix_store.spell_misc_attributes);
 
         info!(
             "Loaded {} spells from SpellMisc/SpellEffect DB2 with hotfix overlay",
@@ -5246,6 +5257,9 @@ impl SpellStore {
                 .spells
                 .entry(spell_id)
                 .or_insert_with(|| Self::empty_spell_info_like_cpp(spell_id));
+            store
+                .spell_misc_attributes
+                .insert(spell_id, misc.attributes.map(|attribute| attribute as u32));
         }
 
         for effect in spell_effect_store.entries_like_cpp() {
@@ -5404,6 +5418,13 @@ ORDER BY sm.ID, se.EffectIndex
         self.spells.get(&spell_id)
     }
 
+    /// C++ `SpellInfo::HasAttribute` for attributes hydrated from `SpellMisc.db2`.
+    pub fn has_attribute0_like_cpp(&self, spell_id: i32, attribute: u32) -> bool {
+        self.spell_misc_attributes
+            .get(&spell_id)
+            .is_some_and(|attributes| attributes[0] & attribute != 0)
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = &SpellInfo> {
         self.spells.values()
     }
@@ -5457,6 +5478,11 @@ ORDER BY sm.ID, se.EffectIndex
         self.spells.insert(spell_id, info);
     }
 
+    #[allow(dead_code)]
+    pub fn insert_spell_misc_attributes_like_cpp(&mut self, spell_id: i32, attributes: [u32; 15]) {
+        self.spell_misc_attributes.insert(spell_id, attributes);
+    }
+
     /// Get the total number of loaded spells.
     pub fn len(&self) -> usize {
         self.spells.len()
@@ -5483,10 +5509,9 @@ mod tests {
     #[test]
     fn spell_store_db2_loader_keeps_mount_aura_spells_like_cpp() {
         let spell_id = 32_243;
-        let misc_store =
-            crate::spell_db2::SpellMiscStore::from_entries([test_spell_misc_entry_like_cpp(
-                1, spell_id, 0, 0,
-            )]);
+        let mut misc = test_spell_misc_entry_like_cpp(1, spell_id, 0, 0);
+        misc.attributes[0] = attributes::SPELL_ATTR0_NO_AURA_CANCEL as i32;
+        let misc_store = crate::spell_db2::SpellMiscStore::from_entries([misc]);
         let effect_store = crate::spell_db2::SpellEffectDb2Store::from_entries([
             crate::spell_db2::SpellEffectDb2Entry {
                 id: 1,
@@ -5535,6 +5560,9 @@ mod tests {
                 .effects
                 .iter()
                 .any(SpellEffectInfo::is_mounted_aura_like_cpp)
+        );
+        assert!(
+            store.has_attribute0_like_cpp(spell_id as i32, attributes::SPELL_ATTR0_NO_AURA_CANCEL)
         );
     }
 

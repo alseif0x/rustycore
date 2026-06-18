@@ -1790,6 +1790,17 @@ impl WorldSession {
             caster_guid = ?request.caster_guid,
             "CMSG_CANCEL_AURA parsed"
         );
+        let Some(spell_store) = self.spell_store() else {
+            return;
+        };
+        if spell_store.get(request.spell_id).is_none()
+            || spell_store.has_attribute0_like_cpp(
+                request.spell_id,
+                wow_data::spell::attributes::SPELL_ATTR0_NO_AURA_CANCEL,
+            )
+        {
+            return;
+        }
         self.remove_represented_cancelable_owned_aura_like_cpp(
             request.spell_id,
             request.caster_guid,
@@ -1821,10 +1832,15 @@ impl WorldSession {
             }
         };
 
-        if self
-            .spell_store()
-            .and_then(|store| store.get(request.channel_spell))
-            .is_none()
+        let Some(spell_store) = self.spell_store() else {
+            return;
+        };
+
+        if spell_store.get(request.channel_spell).is_none()
+            || spell_store.has_attribute0_like_cpp(
+                request.channel_spell,
+                wow_data::spell::attributes::SPELL_ATTR0_NO_AURA_CANCEL,
+            )
         {
             return;
         }
@@ -2815,6 +2831,40 @@ mod tests {
         Arc::new(spell_store)
     }
 
+    fn mounted_spell_store_with_no_aura_cancel(
+        spell_id: i32,
+        creature_entry: i32,
+    ) -> Arc<wow_data::SpellStore> {
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: 77,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOUNTED),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
+                    effect_base_points: 77,
+                    effect_misc_value_1: creature_entry,
+                    ..Default::default()
+                }],
+            },
+        );
+        let mut attributes = [0; 15];
+        attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_NO_AURA_CANCEL;
+        spell_store.insert_spell_misc_attributes_like_cpp(spell_id, attributes);
+        Arc::new(spell_store)
+    }
+
     fn drain_server_opcodes(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<ServerOpcodes> {
         let mut opcodes = Vec::new();
         while let Ok(bytes) = send_rx.try_recv() {
@@ -2965,6 +3015,35 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn cancel_channelling_no_aura_cancel_spell_preserves_channel_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 12);
+        install_canonical_player(&mut session, &canonical, player_guid);
+        session.set_spell_store(mounted_spell_store_with_no_aura_cancel(12_345, 0));
+        install_active_spell_cast(&mut session, 12_345, cast_id);
+        let spell = install_canonical_channeled_spell(&mut session, player_guid, 12_345);
+
+        session
+            .handle_cancel_channelling(cancel_channelling_packet(12_345, 40))
+            .await;
+
+        assert_eq!(
+            canonical_channeled_spell_id(&mut session),
+            Some(spell.spell_id)
+        );
+        assert_eq!(
+            session
+                .active_spell_cast
+                .as_ref()
+                .map(|active_cast| active_cast.spell_id),
+            Some(12_345)
+        );
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
     async fn cancel_channelling_zero_spell_preserves_channel_like_cpp() {
         let (mut session, send_rx) = make_session();
         let canonical = shared_canonical_map_manager();
@@ -3068,6 +3147,7 @@ mod tests {
         session
             .apply_represented_mounted_aura_for_test_like_cpp(12_345, caster_guid, &effect)
             .unwrap();
+        session.set_spell_store(mounted_spell_store(12_345, 0));
         assert!(session.player_mounted_like_cpp());
 
         session
@@ -3076,6 +3156,32 @@ mod tests {
 
         assert!(!session.player_mounted_like_cpp());
         assert!(!send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn cancel_aura_no_aura_cancel_spell_preserves_represented_mount_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let caster_guid = ObjectGuid::create_player(1, 42);
+        let effect = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
+            effect_base_points: 77,
+            effect_misc_value_1: 0,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_mounted_aura_for_test_like_cpp(12_345, caster_guid, &effect)
+            .unwrap();
+        session.set_spell_store(mounted_spell_store_with_no_aura_cancel(12_345, 0));
+        let _ = drain_server_opcodes(&send_rx);
+
+        session
+            .handle_cancel_aura(cancel_aura_packet(12_345, caster_guid))
+            .await;
+
+        assert!(session.player_mounted_like_cpp());
+        assert!(send_rx.is_empty());
     }
 
     #[tokio::test]
@@ -3094,6 +3200,7 @@ mod tests {
         session
             .apply_represented_mounted_aura_for_test_like_cpp(12_345, caster_guid, &effect)
             .unwrap();
+        session.set_spell_store(mounted_spell_store(12_345, 0));
 
         session
             .handle_cancel_aura(cancel_aura_packet(12_345, other_caster_guid))
@@ -3117,6 +3224,7 @@ mod tests {
         session
             .apply_represented_mounted_aura_for_test_like_cpp(12_345, caster_guid, &effect)
             .unwrap();
+        session.set_spell_store(mounted_spell_store(12_345, 0));
 
         session
             .handle_cancel_aura(cancel_aura_packet(12_345, ObjectGuid::EMPTY))
@@ -3139,6 +3247,32 @@ mod tests {
             .handle_cancel_mount_aura(WorldPacket::new_empty())
             .await;
 
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn cancel_mount_aura_no_aura_cancel_spell_preserves_mount_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let caster_guid = ObjectGuid::create_player(1, 42);
+        let effect = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
+            effect_base_points: 77,
+            effect_misc_value_1: 0,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_mounted_aura_for_test_like_cpp(12_345, caster_guid, &effect)
+            .unwrap();
+        session.set_spell_store(mounted_spell_store_with_no_aura_cancel(12_345, 0));
+        let _ = drain_server_opcodes(&send_rx);
+
+        session
+            .handle_cancel_mount_aura(WorldPacket::new_empty())
+            .await;
+
+        assert!(session.player_mounted_like_cpp());
         assert!(send_rx.is_empty());
     }
 

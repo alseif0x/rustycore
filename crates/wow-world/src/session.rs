@@ -21005,15 +21005,20 @@ impl WorldSession {
     }
 
     pub(crate) fn remove_represented_mount_auras_cancelable_like_cpp(&mut self) -> usize {
+        let no_aura_cancel = wow_data::spell::attributes::SPELL_ATTR0_NO_AURA_CANCEL;
         let slots: Vec<u8> = self
             .visible_auras
             .values()
             .filter_map(|aura| {
                 // C++ removes SPELL_AURA_MOUNTED only when its SpellInfo is
                 // cancelable, positive, and non-passive. Represented mounted
-                // auras currently model the positive player-cancelable mount
-                // path; full SpellInfo-backed filtering remains for the aura
-                // runtime.
+                // auras currently model the positive mount path; SpellMisc
+                // attributes now preserve the C++ no-player-cancel gate.
+                if self.spell_store.as_ref().is_some_and(|store| {
+                    store.has_attribute0_like_cpp(aura.spell_id, no_aura_cancel)
+                }) {
+                    return None;
+                }
                 (aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::Mounted))
                     .then_some(aura.slot)
             })
