@@ -11374,7 +11374,7 @@ mod tests {
     }
 
     #[test]
-    fn login_known_spells_include_account_mounts_learned_like_cpp() {
+    fn login_known_spells_include_account_mounts_even_when_use_condition_fails_like_cpp() {
         let (mut session, _send_rx) = make_session_with_send_capacity(8);
         session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
         session.set_known_spells_like_cpp(vec![635]);
@@ -11429,7 +11429,10 @@ mod tests {
         let login_spells = session.login_known_spells_after_account_collections_like_cpp();
         assert!(login_spells.contains(&635));
         assert!(login_spells.contains(&100));
-        assert!(!login_spells.contains(&101));
+        assert!(
+            login_spells.contains(&101),
+            "C++ CollectionMgr::AddMount stores/learns the mount before evaluating PlayerCondition; the condition applies to using it"
+        );
     }
 
     #[test]

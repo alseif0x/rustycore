@@ -1,3 +1,19 @@
+- `#NEXT.R8.ENTITIES.1036` — account-mount learning now matches C++
+  `CollectionMgr::LoadAccountMounts` / `AddMount` ordering for valid
+  `Mount.db2` source spells (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/CollectionMgr.cpp:330-386`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraEffects.cpp:2581-2665`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:7891-8018`.
+  C++ stores/keeps the account mount before applying the comment-backed rule
+  that `PlayerConditionID` only applies to using it. Rust now keeps every valid
+  account mount source spell as a known spell during login/load and leaves
+  `represented_mount_source_spell_usable_like_cpp` as the cast/capability gate
+  before mounted-aura execution. Coverage: focused mount-spell/account-mount
+  tests. Boundary remains partial: live-client mount validation, exact
+  terrain/subzone capability parity, vehicle/passenger behavior, complete aura
+  runtime/persistence, install/restart, bot, and manual client validation remain
+  open.
 - `#NEXT.R8.ENTITIES.1035` — player CREATE/DESTROY registry visibility seams
   no longer broadcast blindly to every same-map session (not manual-test-ready).
   Source-of-truth:

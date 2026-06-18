@@ -25188,7 +25188,11 @@ impl WorldSession {
             let Ok(spell_id_u32) = u32::try_from(spell_id) else {
                 continue;
             };
-            if !self.represented_mount_source_spell_usable_like_cpp(spell_id_u32) {
+            if !self.mount_store.as_ref().is_none_or(|store| {
+                store
+                    .get_by_source_spell_id_like_cpp(spell_id_u32)
+                    .is_some()
+            }) {
                 continue;
             }
             let before = self.known_spells.len();
@@ -53742,7 +53746,7 @@ mod tests {
     }
 
     #[test]
-    fn account_mount_load_learns_usable_mount_spells_like_cpp() {
+    fn account_mount_load_learns_mount_spells_before_use_condition_like_cpp() {
         let (mut session, _, _) = make_session();
         session.player_class = 1;
         session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([
@@ -53793,12 +53797,15 @@ mod tests {
             },
         ]);
         assert!(session.known_spells_like_cpp().contains(&100));
-        assert!(!session.known_spells_like_cpp().contains(&101));
+        assert!(
+            session.known_spells_like_cpp().contains(&101),
+            "C++ CollectionMgr::AddMount stores/learns mounts before PlayerCondition; that condition applies to using the mount"
+        );
 
         session.set_known_spells_like_cpp(vec![635]);
         assert!(session.known_spells_like_cpp().contains(&635));
         assert!(session.known_spells_like_cpp().contains(&100));
-        assert!(!session.known_spells_like_cpp().contains(&101));
+        assert!(session.known_spells_like_cpp().contains(&101));
     }
 
     #[test]
