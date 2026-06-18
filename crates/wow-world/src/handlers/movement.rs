@@ -1880,12 +1880,21 @@ mod tests {
         let registry = std::sync::Arc::new(wow_network::PlayerRegistry::default());
         let (self_tx, self_rx) = flume::bounded(1);
         let (other_tx, other_rx) = flume::bounded(1);
+        let (self_command_tx, self_command_rx) = flume::bounded(1);
+        let (other_command_tx, other_command_rx) = flume::bounded(1);
 
         session.set_player_guid(Some(guid));
         session.set_player_registry(std::sync::Arc::clone(&registry));
+        session.set_player_position_like_cpp(wow_core::Position::ZERO);
         session.set_player_movement_time_like_cpp(100);
-        registry.insert(guid, broadcast_info(guid, self_tx));
-        registry.insert(other_guid, broadcast_info(other_guid, other_tx));
+        registry.insert(
+            guid,
+            broadcast_info_with_command(guid, self_tx, self_command_tx),
+        );
+        registry.insert(
+            other_guid,
+            broadcast_info_with_command(other_guid, other_tx, other_command_tx),
+        );
 
         session
             .handle_move_time_skipped(wow_packet::packets::movement::MoveTimeSkipped {
@@ -1895,7 +1904,16 @@ mod tests {
             .await;
 
         assert!(self_rx.try_recv().is_err());
-        let bytes = other_rx.try_recv().unwrap();
+        assert!(other_rx.try_recv().is_err());
+        assert!(self_command_rx.try_recv().is_err());
+        let command = other_command_rx
+            .try_recv()
+            .expect("visible movement-set command");
+        let wow_network::SessionCommand::SendIfVisibleLikeCpp(command) = command else {
+            panic!("expected SendIfVisibleLikeCpp move-skip-time command");
+        };
+        assert_eq!(command.source_guid, guid);
+        let bytes = command.packet_bytes;
         let pkt = wow_packet::WorldPacket::from_bytes(&bytes);
         assert_eq!(
             pkt.server_opcode(),

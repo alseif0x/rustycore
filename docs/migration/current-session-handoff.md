@@ -1,3 +1,20 @@
+- `#NEXT.R8.ENTITIES.1034` — the shared
+  `broadcast_to_movement_set_like_cpp` helper now routes movement-set packets
+  through `SendIfVisibleLikeCpp` instead of direct same-map socket writes (not
+  manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Grids/Notifiers/GridNotifiers.h:157-191`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Grids/Notifiers/GridNotifiersImpl.h:38-46`,
+  and the movement ACK callers in
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MovementHandler.cpp:552-742`.
+  C++ `MessageDistDeliverer` skips the source object, checks distance, and then
+  applies `HaveAtClient` before packet delivery. Rust now requires a source
+  position, filters in-world same map/instance players inside
+  `VISIBILITY_RADIUS`, and enqueues non-blocking `SendIfVisibleLikeCpp`
+  commands for the receiver-side visible-set gate. Coverage: focused
+  `MoveTimeSkipped` command-routing test plus the movement handler fanout
+  suite. Boundary remains partial: exact phase/shared-vision/grid visitor
+  semantics, mounted special animation caller audit, live multi-client
+  validation, install/restart, bot, and manual client validation remain open.
 - `#NEXT.R8.ENTITIES.1033` — normal `CMSG_MOVE_*` fanout now uses the
   existing `SendIfVisibleLikeCpp` session-command rail instead of direct socket
   writes to every same-map player (not manual-test-ready). Source-of-truth:

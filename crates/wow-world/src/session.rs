@@ -138,6 +138,7 @@ use wow_entities::{
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus, build_dispatch_table};
 use wow_loot::{LootStoreKind, LootStores};
 use wow_map::coords::SIZE_OF_GRID_CELL;
+use wow_network::player_registry::SendIfVisibleLikeCppCommand;
 use wow_network::session_mgr::{InstanceLink, SessionManager};
 use wow_network::{
     ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp,
@@ -19370,21 +19371,54 @@ impl WorldSession {
         self.player_registry.as_ref()
     }
 
-    pub(crate) fn broadcast_to_movement_set_like_cpp(&self, bytes: Vec<u8>, include_self: bool) {
+    pub(crate) fn broadcast_to_movement_set_like_cpp(&self, bytes: Vec<u8>, _include_self: bool) {
         let (Some(guid), Some(registry)) = (self.player_guid(), self.player_registry()) else {
             return;
         };
-        let current_map_id = self.player_map_id_like_cpp();
+        let Some(source_position) = self.player_position_like_cpp() else {
+            return;
+        };
+        let map_id = self.player_map_id_like_cpp();
+        let instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let range_sq =
+            crate::map_manager::VISIBILITY_RADIUS * crate::map_manager::VISIBILITY_RADIUS;
 
-        for entry in registry.iter() {
-            let (other_guid, other_info): (&ObjectGuid, &PlayerBroadcastInfo) = entry.pair();
-            if !include_self && *other_guid == guid {
-                continue;
-            }
-            if other_info.map_id != current_map_id {
-                continue;
-            }
-            let _ = other_info.send_tx.send(bytes.clone());
+        let candidates: Vec<_> = registry
+            .iter()
+            .filter_map(|entry| {
+                let (other_guid, other_info): (&ObjectGuid, &PlayerBroadcastInfo) = entry.pair();
+                // C++ `MessageDistDeliverer::SendPacket` never sends to the
+                // source object itself, even for the bool-self overload.
+                if *other_guid == guid {
+                    return None;
+                }
+                if !other_info.is_in_world
+                    || other_info.map_id != map_id
+                    || other_info.instance_id != instance_id
+                {
+                    return None;
+                }
+                let dx = other_info.position.x - source_position.x;
+                let dy = other_info.position.y - source_position.y;
+                if dx * dx + dy * dy > range_sq {
+                    return None;
+                }
+                Some(other_info.command_tx.clone())
+            })
+            .collect();
+
+        for command_tx in candidates {
+            let _ = command_tx.try_send(SessionCommand::SendIfVisibleLikeCpp(
+                SendIfVisibleLikeCppCommand {
+                    source_guid: guid,
+                    map_id,
+                    instance_id,
+                    packet_bytes: bytes.clone(),
+                },
+            ));
         }
     }
 
