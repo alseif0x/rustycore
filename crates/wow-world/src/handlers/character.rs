@@ -11193,15 +11193,24 @@ impl WorldSession {
             return Vec::new();
         };
 
+        let bnet_account_id = self.battlenet_account_id();
+        if bnet_account_id == 0 {
+            warn!(
+                account = self.account_id,
+                "Skipping account mount load because the game account is not linked to a Battle.net account"
+            );
+            return Vec::new();
+        }
+
         let mut stmt = login_db.prepare(LoginStatements::SEL_ACCOUNT_MOUNTS);
-        stmt.set_u32(0, self.battlenet_account_id());
+        stmt.set_u32(0, bnet_account_id);
 
         let mut result = match login_db.query(&stmt).await {
             Ok(result) => result,
             Err(e) => {
                 warn!(
                     account = self.account_id,
-                    bnet_account = self.battlenet_account_id(),
+                    bnet_account = bnet_account_id,
                     "Failed to load account mounts: {e}"
                 );
                 return Vec::new();
@@ -11209,13 +11218,28 @@ impl WorldSession {
         };
 
         if result.is_empty() {
+            info!(
+                account = self.account_id,
+                bnet_account = bnet_account_id,
+                "Loaded 0 account mounts from battlenet_account_mounts"
+            );
             return Vec::new();
         }
 
         let mut mounts = Vec::new();
+        let mut skipped_invalid_spell_id = 0usize;
+        let mut skipped_missing_mount_db2 = 0usize;
         loop {
             let spell_id = result.try_read::<i32>(0).unwrap_or(0);
             let flags = result.try_read::<u8>(1).unwrap_or(0);
+            if spell_id <= 0 {
+                skipped_invalid_spell_id += 1;
+                if !result.next_row() {
+                    break;
+                }
+                continue;
+            }
+
             let has_mount = spell_id > 0
                 && self.mount_store().is_none_or(|store| {
                     store
@@ -11224,6 +11248,8 @@ impl WorldSession {
                 });
             if has_mount {
                 mounts.push(AccountMount { spell_id, flags });
+            } else {
+                skipped_missing_mount_db2 += 1;
             }
 
             if !result.next_row() {
@@ -11231,6 +11257,14 @@ impl WorldSession {
             }
         }
 
+        info!(
+            account = self.account_id,
+            bnet_account = bnet_account_id,
+            loaded = mounts.len(),
+            skipped_invalid_spell_id,
+            skipped_missing_mount_db2,
+            "Loaded represented account mounts like C++ CollectionMgr"
+        );
         self.set_account_mounts_like_cpp(mounts.clone());
         mounts
     }
