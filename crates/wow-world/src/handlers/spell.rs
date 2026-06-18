@@ -321,12 +321,14 @@ impl WorldSession {
         // inside the final 400 ms of global cooldown/cast completion. Outside
         // that window, `HandleCastSpellOpcode` sends SPELL_FAILED_SPELL_IN_PROGRESS.
         let remaining_gcd_ms = self.remaining_global_cooldown_ms_like_cpp(&spell_info);
-        if remaining_gcd_ms > 0 {
+        let remaining_active_cast_ms = self.remaining_active_spell_cast_ms_like_cpp();
+        if remaining_gcd_ms > 0 || remaining_active_cast_ms > 0 {
             if !self.can_request_represented_spell_cast_like_cpp(&spell_info) {
                 debug!(
                     account = self.account_id,
                     spell_id = spell_id,
-                    remaining_ms = remaining_gcd_ms,
+                    remaining_gcd_ms = remaining_gcd_ms,
+                    remaining_active_cast_ms = remaining_active_cast_ms,
                     "Spell request rejected outside C++ spell queue window"
                 );
                 self.send_packet(&CastFailed {
@@ -4267,6 +4269,78 @@ mod tests {
 
         session.last_spell_cast_time =
             Some(std::time::Instant::now() - std::time::Duration::from_millis(1_500));
+        session.tick_pending_spell_cast_request_like_cpp().await;
+
+        assert!(
+            session
+                .represented_pending_spell_cast_request_like_cpp
+                .is_none()
+        );
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert!(opcodes.contains(&ServerOpcodes::SpellGo));
+        assert!(opcodes.contains(&ServerOpcodes::CooldownEvent));
+    }
+
+    #[tokio::test]
+    async fn cast_spell_rejects_active_cast_outside_spell_queue_window_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let active_cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 20);
+        let queued_spell_id = 13_340;
+        session.set_player_guid(Some(player_guid));
+        session.set_known_spells_like_cpp(vec![12_345, queued_spell_id]);
+        session.set_spell_store(basic_spell_store([12_345, queued_spell_id]));
+        install_active_spell_cast(&mut session, 12_345, active_cast_id);
+
+        session
+            .handle_cast_spell(cast_spell_packet(queued_spell_id, player_guid))
+            .await;
+
+        assert!(
+            session
+                .represented_pending_spell_cast_request_like_cpp
+                .is_none()
+        );
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 1);
+        assert_eq!(
+            cast_failed_reason_like_cpp(&packets[0]),
+            SpellCastResult::SpellInProgress as i32
+        );
+    }
+
+    #[tokio::test]
+    async fn cast_spell_queues_near_active_cast_finish_and_executes_after_cast_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let active_cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 21);
+        let queued_spell_id = 13_341;
+        session.set_player_guid(Some(player_guid));
+        session.set_known_spells_like_cpp(vec![12_345, queued_spell_id]);
+        session.set_spell_store(basic_spell_store([12_345, queued_spell_id]));
+        install_active_spell_cast(&mut session, 12_345, active_cast_id);
+        if let Some(active) = session.active_spell_cast.as_mut() {
+            active.cast_start_time =
+                std::time::Instant::now() - std::time::Duration::from_millis(29_700);
+        }
+
+        session
+            .handle_cast_spell(cast_spell_packet(queued_spell_id, player_guid))
+            .await;
+
+        assert!(
+            session
+                .represented_pending_spell_cast_request_like_cpp
+                .as_ref()
+                .is_some_and(|pending| pending.spell_id == queued_spell_id)
+        );
+        assert!(send_rx.is_empty());
+
+        if let Some(active) = session.active_spell_cast.as_mut() {
+            active.cast_start_time =
+                std::time::Instant::now() - std::time::Duration::from_millis(30_000);
+        }
+        session.tick_active_spell_cast().await;
         session.tick_pending_spell_cast_request_like_cpp().await;
 
         assert!(

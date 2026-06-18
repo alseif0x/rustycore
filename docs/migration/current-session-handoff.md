@@ -1,3 +1,21 @@
+- `#NEXT.R8.ENTITIES.1029` — represented spell queueing now also honors the
+  C++ active-cast remaining-time window (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:29127-29143`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SpellHandler.cpp:228-270`.
+  C++ `Player::CanRequestSpellCast` rejects a new spell when either global
+  cooldown or the current melee/generic spell has more than 400 ms remaining,
+  and allows queueing inside that final window. Rust now computes represented
+  `active_spell_cast` remaining time, includes it in
+  `can_request_represented_spell_cast_like_cpp`, rejects requests outside that
+  window with `SPELL_FAILED_SPELL_IN_PROGRESS`, and keeps pending requests from
+  executing until both represented GCD and active cast are clear. Coverage:
+  focused handler tests for active-cast outside-window rejection and
+  near-finish queue/execution after `tick_active_spell_cast`. Boundary remains
+  partial: channeled spell exception, separate melee/generic spell slots,
+  item-cast pending requests, vehicle/creature casting units, full `Spell::prepare`,
+  full `SpellHistory`, install/restart, bot, and live-client/manual validation
+  remain open.
 - `#NEXT.R8.ENTITIES.1028` — `CMSG_CAST_SPELL` now uses the represented
   pending spell cast request for the C++ spell queue window around global
   cooldown (not manual-test-ready). Source-of-truth:

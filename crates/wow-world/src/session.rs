@@ -34667,12 +34667,21 @@ impl WorldSession {
         cooldown_ms.saturating_sub(elapsed_ms)
     }
 
+    pub(crate) fn remaining_active_spell_cast_ms_like_cpp(&self) -> u32 {
+        let Some(active_cast) = self.active_spell_cast.as_ref() else {
+            return 0;
+        };
+        let elapsed_ms = active_cast.cast_start_time.elapsed().as_millis() as u32;
+        active_cast.cast_time_ms.saturating_sub(elapsed_ms)
+    }
+
     pub(crate) fn can_request_represented_spell_cast_like_cpp(
         &self,
         spell_info: &wow_data::SpellInfo,
     ) -> bool {
         self.remaining_global_cooldown_ms_like_cpp(spell_info)
             <= SPELL_QUEUE_TIME_WINDOW_LIKE_CPP_MS
+            && self.remaining_active_spell_cast_ms_like_cpp() <= SPELL_QUEUE_TIME_WINDOW_LIKE_CPP_MS
     }
 
     pub(crate) fn request_represented_spell_cast_like_cpp(
@@ -34706,6 +34715,9 @@ impl WorldSession {
         };
 
         if self.remaining_global_cooldown_ms_like_cpp(&spell_info) > 0 {
+            return;
+        }
+        if self.remaining_active_spell_cast_ms_like_cpp() > 0 {
             return;
         }
 
