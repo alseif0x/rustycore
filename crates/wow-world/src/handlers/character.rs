@@ -4001,19 +4001,32 @@ impl WorldSession {
         // racials, worn armor type). This matches C# behavior where
         // LearnSkillRewardedSpells() only runs for skills the character actually has.
         let mut known_skill_ids = std::collections::HashSet::<u16>::new();
-        let mut skill_values = std::collections::HashMap::<u16, u16>::new();
+        let mut skill_records =
+            std::collections::HashMap::<u16, crate::session::RepresentedPlayerSkillLikeCpp>::new();
+        let mut loaded_skill_records_like_cpp = false;
         {
             let mut skill_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_SKILLS);
             skill_stmt.set_u64(0, guid.counter() as u64);
             match char_db.query(&skill_stmt).await {
                 Ok(mut skill_result) => {
+                    loaded_skill_records_like_cpp = true;
                     if !skill_result.is_empty() {
                         loop {
                             let skill_id: u16 = skill_result.try_read(0).unwrap_or(0);
                             let skill_value: u16 = skill_result.try_read(1).unwrap_or(0);
+                            let skill_max: u16 = skill_result.try_read(2).unwrap_or(skill_value);
+                            let profession_slot: i8 = skill_result.try_read(3).unwrap_or(-1);
                             if skill_id > 0 {
                                 known_skill_ids.insert(skill_id);
-                                skill_values.insert(skill_id, skill_value);
+                                skill_records.insert(
+                                    skill_id,
+                                    crate::session::RepresentedPlayerSkillLikeCpp {
+                                        skill_id,
+                                        value: skill_value,
+                                        max: skill_max,
+                                        profession_slot,
+                                    },
+                                );
                             }
                             if !skill_result.next_row() {
                                 break;
@@ -4031,7 +4044,9 @@ impl WorldSession {
                 }
             }
         }
-        self.set_player_skill_values_like_cpp(skill_values);
+        if loaded_skill_records_like_cpp {
+            self.set_player_skill_records_like_cpp(skill_records);
+        }
 
         // ── Merge DBC auto-learned spells + build SkillInfo ──
         // Only supplement from DBC if character has NO spells in DB (new character).

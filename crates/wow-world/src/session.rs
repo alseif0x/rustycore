@@ -2760,6 +2760,43 @@ fn represented_pet_aura_slot_like_cpp(index: usize) -> Option<u8> {
     u8::try_from(index).ok().filter(|slot| *slot < u8::MAX)
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedPlayerSkillLikeCpp {
+    pub skill_id: u16,
+    pub value: u16,
+    pub max: u16,
+    pub profession_slot: i8,
+}
+
+#[allow(dead_code)]
+fn represented_skill_records_from_values_like_cpp(
+    skill_values: &HashMap<u16, u16>,
+) -> HashMap<u16, RepresentedPlayerSkillLikeCpp> {
+    skill_values
+        .iter()
+        .map(|(&skill_id, &value)| {
+            (
+                skill_id,
+                RepresentedPlayerSkillLikeCpp {
+                    skill_id,
+                    value,
+                    max: value,
+                    profession_slot: -1,
+                },
+            )
+        })
+        .collect()
+}
+
+fn represented_skill_values_from_records_like_cpp(
+    skill_records: &HashMap<u16, RepresentedPlayerSkillLikeCpp>,
+) -> HashMap<u16, u16> {
+    skill_records
+        .iter()
+        .map(|(&skill_id, record)| (skill_id, record.value))
+        .collect()
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct SessionPlayerController {
     guid: ObjectGuid,
@@ -2777,6 +2814,7 @@ pub(crate) struct SessionPlayerController {
     selection_guid: Option<ObjectGuid>,
     known_spells: Vec<i32>,
     skill_values: HashMap<u16, u16>,
+    skill_records: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
     currencies: HashMap<u32, PlayerCurrency>,
     inventory: SessionPlayerInventoryRuntime,
 }
@@ -2831,6 +2869,7 @@ impl SessionPlayerController {
             selection_guid: None,
             known_spells: Vec::new(),
             skill_values: HashMap::new(),
+            skill_records: HashMap::new(),
             currencies: HashMap::new(),
             inventory: SessionPlayerInventoryRuntime::default(),
         }
@@ -2901,6 +2940,10 @@ impl SessionPlayerController {
         &self.skill_values
     }
 
+    pub(crate) fn skill_records(&self) -> &HashMap<u16, RepresentedPlayerSkillLikeCpp> {
+        &self.skill_records
+    }
+
     pub(crate) fn currencies(&self) -> &HashMap<u32, PlayerCurrency> {
         &self.currencies
     }
@@ -2946,8 +2989,9 @@ impl SessionPlayerController {
         self.known_spells = spells;
     }
 
-    fn set_skill_values(&mut self, skill_values: HashMap<u16, u16>) {
-        self.skill_values = skill_values;
+    fn set_skill_records(&mut self, skill_records: HashMap<u16, RepresentedPlayerSkillLikeCpp>) {
+        self.skill_values = represented_skill_values_from_records_like_cpp(&skill_records);
+        self.skill_records = skill_records;
     }
 
     fn learn_spell(&mut self, spell_id: i32) {
@@ -3412,6 +3456,8 @@ pub struct WorldSession {
     pub(crate) pass_on_group_loot: bool,
     pub(crate) represented_enchanting_skill: u16,
     player_skill_values_like_cpp: HashMap<u16, u16>,
+    player_skill_records_like_cpp: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
+    player_skill_records_loaded_like_cpp: bool,
     represented_gray_level_script_overrides_like_cpp: HashMap<u8, u8>,
 
     // Realm ID for GUID creation
@@ -5013,6 +5059,8 @@ impl WorldSession {
             pass_on_group_loot: false,
             represented_enchanting_skill: 0,
             player_skill_values_like_cpp: HashMap::new(),
+            player_skill_records_like_cpp: HashMap::new(),
+            player_skill_records_loaded_like_cpp: false,
             represented_gray_level_script_overrides_like_cpp: HashMap::new(),
             realm_id: 1,
             realm_region: 1,
@@ -17840,10 +17888,78 @@ impl WorldSession {
         self.save_player_level_xp_like_cpp().await;
         self.save_player_gold().await;
         self.save_account_mount_spells_to_character_like_cpp().await;
+        self.save_player_skills_like_cpp().await;
         self.save_player_difficulties_like_cpp().await;
         self.save_instance_time_restrictions_like_cpp().await;
         self.save_played_time().await;
         self.save_reputation_to_db_like_cpp().await;
+    }
+
+    pub(crate) fn build_character_skill_delete_all_statement_like_cpp(
+        guid_counter: u64,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::DEL_CHAR_SKILLS.sql());
+        stmt.set_u64(0, guid_counter);
+        stmt
+    }
+
+    pub(crate) fn build_character_skill_insert_statement_like_cpp(
+        guid_counter: u64,
+        skill: RepresentedPlayerSkillLikeCpp,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::INS_CHAR_SKILLS.sql());
+        stmt.set_u64(0, guid_counter);
+        stmt.set_u16(1, skill.skill_id);
+        stmt.set_u16(2, skill.value);
+        stmt.set_u16(3, skill.max);
+        stmt.set_i8(4, skill.profession_slot);
+        stmt
+    }
+
+    pub(crate) fn character_skill_save_statements_like_cpp(
+        &self,
+        guid_counter: u64,
+    ) -> Vec<PreparedStatement> {
+        let mut statements = vec![Self::build_character_skill_delete_all_statement_like_cpp(
+            guid_counter,
+        )];
+        let mut skills: Vec<RepresentedPlayerSkillLikeCpp> = self
+            .player_skill_records_like_cpp()
+            .values()
+            .copied()
+            .collect();
+        skills.sort_by_key(|skill| skill.skill_id);
+        statements.extend(skills.into_iter().map(|skill| {
+            Self::build_character_skill_insert_statement_like_cpp(guid_counter, skill)
+        }));
+        statements
+    }
+
+    async fn save_player_skills_like_cpp(&self) {
+        if !self.player_skill_records_loaded_like_cpp() {
+            warn!(
+                account = self.account_id,
+                player_guid = ?self.player_guid(),
+                "Skipping represented player skill save because character_skills were not loaded coherently"
+            );
+            return;
+        }
+
+        let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
+        else {
+            return;
+        };
+
+        let mut tx = SqlTransaction::new();
+        for statement in self.character_skill_save_statements_like_cpp(guid.counter() as u64) {
+            tx.append(statement);
+        }
+        if let Err(err) = char_db.commit_transaction(tx).await {
+            warn!(
+                "Failed to save represented player skills for guid {}: {err}",
+                guid.counter()
+            );
+        }
     }
 
     async fn save_player_difficulties_like_cpp(&self) {
@@ -25638,11 +25754,32 @@ impl WorldSession {
         true
     }
 
+    #[allow(dead_code)]
     pub(crate) fn set_player_skill_values_like_cpp(&mut self, skill_values: HashMap<u16, u16>) {
+        let skill_records = represented_skill_records_from_values_like_cpp(&skill_values);
         self.player_skill_values_like_cpp = skill_values.clone();
+        self.player_skill_records_like_cpp = skill_records.clone();
+        self.player_skill_records_loaded_like_cpp = true;
         if let Some(controller) = &mut self.player_controller {
-            controller.set_skill_values(skill_values);
+            controller.set_skill_records(skill_records);
         }
+    }
+
+    pub(crate) fn set_player_skill_records_like_cpp(
+        &mut self,
+        skill_records: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
+    ) {
+        self.player_skill_values_like_cpp =
+            represented_skill_values_from_records_like_cpp(&skill_records);
+        self.player_skill_records_like_cpp = skill_records.clone();
+        self.player_skill_records_loaded_like_cpp = true;
+        if let Some(controller) = &mut self.player_controller {
+            controller.set_skill_records(skill_records);
+        }
+    }
+
+    pub(crate) fn player_skill_records_loaded_like_cpp(&self) -> bool {
+        self.player_skill_records_loaded_like_cpp
     }
 
     pub(crate) fn learn_known_spell_like_cpp(&mut self, spell_id: i32) {
@@ -25848,6 +25985,15 @@ impl WorldSession {
             .as_ref()
             .map(SessionPlayerController::skill_values)
             .unwrap_or(&self.player_skill_values_like_cpp)
+    }
+
+    pub(crate) fn player_skill_records_like_cpp(
+        &self,
+    ) -> &HashMap<u16, RepresentedPlayerSkillLikeCpp> {
+        self.player_controller
+            .as_ref()
+            .map(SessionPlayerController::skill_records)
+            .unwrap_or(&self.player_skill_records_like_cpp)
     }
 
     pub(crate) fn player_skill_value_like_cpp(&self, skill_id: u16) -> u16 {
@@ -82049,6 +82195,106 @@ mod tests {
         assert!(matches!(stmt.params()[6], wow_database::SqlParam::U16(210)));
         assert!(
             matches!(stmt.params()[7], wow_database::SqlParam::U64(v) if v == guid.counter() as u64)
+        );
+    }
+
+    #[test]
+    fn set_player_skill_values_builds_represented_skill_records_for_tests_like_cpp() {
+        let (mut session, _, _) = make_session();
+
+        assert!(!session.player_skill_records_loaded_like_cpp());
+        session.set_player_skill_values_like_cpp(HashMap::from([(762, 75), (333, 150)]));
+
+        assert!(session.player_skill_records_loaded_like_cpp());
+        let riding = session.player_skill_records_like_cpp().get(&762).unwrap();
+        assert_eq!(
+            *riding,
+            RepresentedPlayerSkillLikeCpp {
+                skill_id: 762,
+                value: 75,
+                max: 75,
+                profession_slot: -1,
+            }
+        );
+        assert_eq!(session.player_skill_value_like_cpp(333), 150);
+    }
+
+    #[test]
+    fn character_skill_save_statements_preserve_loaded_riding_skill_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_player_skill_records_like_cpp(HashMap::from([
+            (
+                333,
+                RepresentedPlayerSkillLikeCpp {
+                    skill_id: 333,
+                    value: 150,
+                    max: 225,
+                    profession_slot: 0,
+                },
+            ),
+            (
+                762,
+                RepresentedPlayerSkillLikeCpp {
+                    skill_id: 762,
+                    value: 75,
+                    max: 75,
+                    profession_slot: -1,
+                },
+            ),
+        ]));
+
+        let statements = session.character_skill_save_statements_like_cpp(42);
+
+        assert_eq!(statements.len(), 3);
+        assert_eq!(statements[0].sql(), CharStatements::DEL_CHAR_SKILLS.sql());
+        assert!(matches!(
+            statements[0].params()[0],
+            wow_database::SqlParam::U64(42)
+        ));
+
+        assert_eq!(statements[1].sql(), CharStatements::INS_CHAR_SKILLS.sql());
+        assert!(matches!(
+            statements[1].params()[0],
+            wow_database::SqlParam::U64(42)
+        ));
+        assert!(matches!(
+            statements[1].params()[1],
+            wow_database::SqlParam::U16(333)
+        ));
+        assert!(matches!(
+            statements[1].params()[2],
+            wow_database::SqlParam::U16(150)
+        ));
+        assert!(matches!(
+            statements[1].params()[3],
+            wow_database::SqlParam::U16(225)
+        ));
+        assert!(matches!(
+            statements[1].params()[4],
+            wow_database::SqlParam::I8(0)
+        ));
+
+        assert_eq!(statements[2].sql(), CharStatements::INS_CHAR_SKILLS.sql());
+        assert!(matches!(
+            statements[2].params()[1],
+            wow_database::SqlParam::U16(762)
+        ));
+        assert!(matches!(
+            statements[2].params()[2],
+            wow_database::SqlParam::U16(75)
+        ));
+        assert!(matches!(
+            statements[2].params()[3],
+            wow_database::SqlParam::U16(75)
+        ));
+        assert!(matches!(
+            statements[2].params()[4],
+            wow_database::SqlParam::I8(-1)
+        ));
+        assert_eq!(
+            CharStatements::INS_CHAR_SKILLS.sql(),
+            "INSERT INTO character_skills (guid, skill, value, max, professionSlot) VALUES (?, ?, ?, ?, ?)",
+            "C++ Player::SaveToDB delegates to _SaveSkills; represented Rust preserves value/max/professionSlot so Riding survives logout saves"
         );
     }
 
