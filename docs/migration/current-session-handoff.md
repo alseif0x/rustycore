@@ -1,3 +1,28 @@
+- `#NEXT.R8.ENTITIES.1077` — represented `CMSG_CONFIRM_RESPEC_WIPE` now
+  mirrors the C++ `Player::ResetTalents` money gate and reset-cost mutation
+  before removing talents (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SkillHandler.cpp:54-82`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3472-3503`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3505-3562`,
+  `/home/server/woltk-trinity-legacy/src/common/Common.h:33-34`, and
+  `/home/server/woltk-trinity-legacy/src/server/worldserver/worldserver.conf.dist:3420-3425`.
+  Rust now computes `GetNextResetTalentsCost` with the exact 1g/5g/10g,
+  +5g capped at 50g, and -5g-per-30-day-month minimum-10g branches, rejects
+  insufficient money with `BUY_ERR_NOT_ENOUGHT_MONEY` before `RemoveTalent`,
+  deducts represented player money on success, and stores represented
+  `TalentResetCost` / `TalentResetTime` for the next reset. Coverage:
+  `cargo fmt --all`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  confirm_respec --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  represented_next_reset_talents_cost_matches_cpp_branches --lib`. Boundary
+  remains partial: `CONFIG_NO_RESET_TALENT_COST` is represented by the C++
+  default false only, criteria updates (`MoneySpentOnRespecs`, `TotalRespecs`),
+  DB load/save of `resettalents_cost` / `resettalents_time`, trainer class
+  matching, fake-death aura removal, immediate DB transaction save, visual spell
+  14867 cast, pet/spec/glyph reset branches, trait override paths, full runtime
+  aura/cast ownership, live-client validation, bot validation, and manual
+  validation remain open.
 - `#NEXT.R8.ENTITIES.1076` — represented `CMSG_CONFIRM_RESPEC_WIPE` now runs a
   bounded `Player::ResetTalents -> RemoveTalent` side-effect seam for the
   active talent group after the represented trainer/level gates pass (not
@@ -14,10 +39,11 @@
   represented reset. Coverage: `cargo fmt --all --check`; focused
   `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
   confirm_respec --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo
-  test -p wow-world learn_talent --lib`. Boundary remains partial: trainer
-  class matching, fake-death aura removal, money/cost/criteria mutation,
-  immediate DB transaction save, visual spell 14867 cast, pet/spec/glyph reset
-  branches, trait override paths, full runtime aura/cast ownership,
+  test -p wow-world learn_talent --lib`. Boundary remains partial: represented
+  money/cost mutation was closed later by `#NEXT.R8.ENTITIES.1077`, but trainer
+  class matching, fake-death aura removal, criteria mutation, immediate DB
+  transaction save, visual spell 14867 cast, pet/spec/glyph reset branches,
+  trait override paths, full runtime aura/cast ownership,
   live-client validation, bot validation, and manual validation remain open.
 - `#NEXT.R8.ENTITIES.1075` — represented player spell casts now consume the
   represented `Player::m_overrideSpells` map through a C++-ordered

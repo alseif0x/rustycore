@@ -90,8 +90,8 @@ impl WorldSession {
     /// C++ resolves `GetNPCIfCanInteractWith(..., UNIT_NPC_FLAG_TRAINER)`,
     /// accepts only `SPEC_RESET_TALENTS`, checks `Creature::CanResetTalents`,
     /// then runs `Player::ResetTalents`, sends talent data, and casts the
-    /// visual spell. Rust keeps this as represented state until talent reset,
-    /// trainer-class matching, costs, and visual cast runtime are canonical.
+    /// visual spell. Rust keeps this as represented state until trainer-class
+    /// matching, criteria/DB persistence, and visual cast runtime are canonical.
     pub async fn handle_confirm_respec_wipe(&mut self, mut packet: WorldPacket) {
         let request = match ConfirmRespecWipe::read(&mut packet) {
             Ok(request) => request,
@@ -106,6 +106,14 @@ impl WorldSession {
         }
 
         if !self.represented_can_confirm_respec_wipe_like_cpp(request.respec_master) {
+            return;
+        }
+
+        if !self.represented_talents_loaded_like_cpp() {
+            return;
+        }
+
+        if !self.apply_represented_talent_reset_cost_like_cpp().await {
             return;
         }
 
@@ -148,9 +156,11 @@ mod tests {
     use std::sync::{Arc, RwLock};
 
     use super::*;
+    use wow_constants::BuyResult;
     use wow_core::guid::HighGuid;
     use wow_core::{ObjectGuid, Position};
     use wow_packet::ServerPacket;
+    use wow_packet::packets::misc::BuyFailed;
     use wow_packet::packets::update::CreatureCreateData;
 
     use crate::session::{AuraApplication, SPELL_AURA_INTERRUPT_FLAG2_CHANGE_TALENT_LIKE_CPP};
@@ -455,9 +465,11 @@ mod tests {
 
     #[tokio::test]
     async fn confirm_respec_wipe_records_talent_reset_with_trainer_like_cpp() {
-        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        let (mut session, send_rx) = make_session_with_send_capacity(2);
         let trainer = test_creature_guid(77);
         register_test_trainer(&mut session, trainer, NPCFlags1::TRAINER.bits());
+        session.mark_represented_talents_loaded_like_cpp();
+        session.set_player_gold_like_cpp(20_000);
 
         session
             .handle_confirm_respec_wipe(confirm_respec_wipe_packet(
@@ -466,7 +478,19 @@ mod tests {
             ))
             .await;
 
+        let reset_update = send_rx
+            .try_recv()
+            .expect("C++ sends SendTalentsInfoData after successful ResetTalents");
+        assert_eq!(
+            reset_update,
+            session
+                .represented_update_talent_data_packet_like_cpp()
+                .to_bytes()
+        );
         assert!(send_rx.try_recv().is_err());
+        assert_eq!(session.player_gold_like_cpp(), 10_000);
+        assert_eq!(session.represented_talent_reset_cost_like_cpp(), 10_000);
+        assert_ne!(session.represented_talent_reset_time_secs_like_cpp(), 0);
         assert_eq!(
             session.represented_confirm_respec_wipe_requests_like_cpp(),
             &[RepresentedConfirmRespecWipeLikeCpp {
@@ -914,6 +938,7 @@ mod tests {
         register_test_trainer(&mut session, trainer, NPCFlags1::TRAINER.bits());
         install_test_talent_entries_with_tab_class_mask(&mut session, vec![talent], 1);
         session.mark_represented_talents_loaded_like_cpp();
+        session.set_player_gold_like_cpp(20_000);
 
         session
             .handle_learn_talent(learn_talent_packet(101, 0))
@@ -967,6 +992,115 @@ mod tests {
             "C++ ResetTalents removes talents from the active group"
         );
         assert_eq!(packet.unspent_talent_points, 71);
+    }
+
+    #[tokio::test]
+    async fn confirm_respec_wipe_rejects_without_money_before_removing_talents_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(3);
+        let trainer = test_creature_guid(89);
+        let mut talent = test_talent_entry_like_cpp(101, 0, 50_101);
+        talent.spell_id = 70_101;
+        talent.overrides_spell_id = 60_101;
+        register_test_trainer(&mut session, trainer, NPCFlags1::TRAINER.bits());
+        install_test_talent_entries_with_tab_class_mask(&mut session, vec![talent], 1);
+        session.mark_represented_talents_loaded_like_cpp();
+
+        session
+            .handle_learn_talent(learn_talent_packet(101, 0))
+            .await;
+        let _learn_update = send_rx
+            .try_recv()
+            .expect("C++ sends SendTalentsInfoData after LearnTalent");
+        session.set_player_gold_like_cpp(9_999);
+
+        session
+            .handle_confirm_respec_wipe(confirm_respec_wipe_packet(
+                trainer,
+                SPEC_RESET_TALENTS_LIKE_CPP,
+            ))
+            .await;
+
+        let buy_failed = send_rx
+            .try_recv()
+            .expect("C++ SendBuyError(BUY_ERR_NOT_ENOUGHT_MONEY) rejects ResetTalents");
+        assert_eq!(
+            buy_failed,
+            BuyFailed {
+                vendor_guid: ObjectGuid::EMPTY,
+                muid: 0,
+                reason: BuyResult::NotEnoughtMoney,
+            }
+            .to_bytes()
+        );
+        assert!(send_rx.try_recv().is_err());
+        assert_eq!(session.player_gold_like_cpp(), 9_999);
+        assert_eq!(session.represented_talent_reset_cost_like_cpp(), 0);
+        assert_eq!(session.represented_talent_reset_time_secs_like_cpp(), 0);
+        assert!(
+            session
+                .represented_confirm_respec_wipe_requests_like_cpp()
+                .is_empty()
+        );
+        assert!(
+            session.known_spells_like_cpp().contains(&50_101),
+            "C++ checks money before RemoveTalent"
+        );
+        assert!(
+            session
+                .represented_override_spells_like_cpp()
+                .get(&60_101)
+                .is_some_and(|overrides| overrides.contains(&70_101)),
+            "C++ keeps override spells when ResetTalents returns false"
+        );
+    }
+
+    #[test]
+    fn represented_next_reset_talents_cost_matches_cpp_branches() {
+        let (mut session, _send_rx) = make_session_with_send_capacity(1);
+        let month = 30 * 24 * 60 * 60;
+        let now = 10 * month;
+
+        session.set_represented_talent_reset_state_like_cpp(0, now);
+        assert_eq!(
+            session.represented_next_reset_talents_cost_like_cpp(now),
+            10_000
+        );
+
+        session.set_represented_talent_reset_state_like_cpp(10_000, now);
+        assert_eq!(
+            session.represented_next_reset_talents_cost_like_cpp(now),
+            50_000
+        );
+
+        session.set_represented_talent_reset_state_like_cpp(50_000, now);
+        assert_eq!(
+            session.represented_next_reset_talents_cost_like_cpp(now),
+            100_000
+        );
+
+        session.set_represented_talent_reset_state_like_cpp(100_000, now);
+        assert_eq!(
+            session.represented_next_reset_talents_cost_like_cpp(now),
+            150_000
+        );
+
+        session.set_represented_talent_reset_state_like_cpp(500_000, now);
+        assert_eq!(
+            session.represented_next_reset_talents_cost_like_cpp(now),
+            500_000
+        );
+
+        session.set_represented_talent_reset_state_like_cpp(500_000, now - month);
+        assert_eq!(
+            session.represented_next_reset_talents_cost_like_cpp(now),
+            450_000
+        );
+
+        session.set_represented_talent_reset_state_like_cpp(100_000, 0);
+        assert_eq!(
+            session.represented_next_reset_talents_cost_like_cpp(now),
+            100_000
+        );
     }
 
     #[tokio::test]

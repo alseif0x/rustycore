@@ -175,6 +175,8 @@ const QUEST_OBJECTIVE_CURRENCY_LIKE_CPP: u8 = 4;
 const QUEST_OBJECTIVE_MIN_REPUTATION_LIKE_CPP: u8 = 6;
 const QUEST_OBJECTIVE_MAX_REPUTATION_LIKE_CPP: u8 = 7;
 const QUEST_OBJECTIVE_MONEY_LIKE_CPP: u8 = 8;
+const COPPER_PER_GOLD_LIKE_CPP: u32 = 10_000;
+const TALENT_RESET_MONTH_SECS_LIKE_CPP: u64 = 30 * 24 * 60 * 60;
 const QUEST_OBJECTIVE_PLAYERKILLS_LIKE_CPP: u8 = 9;
 const QUEST_OBJECTIVE_HAVE_CURRENCY_LIKE_CPP: u8 = 16;
 const QUEST_OBJECTIVE_OBTAIN_CURRENCY_LIKE_CPP: u8 = 17;
@@ -3570,6 +3572,10 @@ pub struct WorldSession {
     /// Player's current money in copper (1 gold = 10,000 copper).
     /// Loaded from `characters.money` on login; saved on logout + buy/sell.
     player_gold: u64,
+    /// C++ `Player::m_resetTalentsCost`, represented until character DB load/save owns it.
+    represented_talent_reset_cost_like_cpp: u32,
+    /// C++ `Player::m_resetTalentsTime`, represented as Unix seconds.
+    represented_talent_reset_time_secs_like_cpp: u64,
     /// C++ `Player::GetBankBagSlotCount`, loaded from `characters.bankSlots`.
     player_bank_bag_slot_count_like_cpp: u8,
     /// C++ `UF::ActivePlayerData::CharacterPoints`, recalculated by InitTalentForLevel/LearnTalent.
@@ -5174,6 +5180,8 @@ impl WorldSession {
             total_played_time: 0,
             level_played_time: 0,
             player_gold: 0,
+            represented_talent_reset_cost_like_cpp: 0,
+            represented_talent_reset_time_secs_like_cpp: 0,
             player_bank_bag_slot_count_like_cpp: 0,
             player_character_points_like_cpp: 0,
             represented_bank_bag_slot_flags_like_cpp: [0; 7],
@@ -20893,6 +20901,67 @@ impl WorldSession {
             .await;
     }
 
+    pub(crate) fn represented_next_reset_talents_cost_like_cpp(&self, now_secs: u64) -> u32 {
+        Self::next_reset_talents_cost_like_cpp(
+            self.represented_talent_reset_cost_like_cpp,
+            self.represented_talent_reset_time_secs_like_cpp,
+            now_secs,
+        )
+    }
+
+    pub(crate) async fn apply_represented_talent_reset_cost_like_cpp(&mut self) -> bool {
+        let now_secs = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        self.apply_represented_talent_reset_cost_at_like_cpp(now_secs)
+            .await
+    }
+
+    pub(crate) async fn apply_represented_talent_reset_cost_at_like_cpp(
+        &mut self,
+        now_secs: u64,
+    ) -> bool {
+        let cost = u64::from(self.represented_next_reset_talents_cost_like_cpp(now_secs));
+        let old_money = self.player_gold_like_cpp();
+        if old_money < cost {
+            self.send_buy_error(BuyResult::NotEnoughtMoney, None, 0);
+            return false;
+        }
+
+        self.apply_player_money_change_like_cpp(old_money, old_money - cost)
+            .await;
+        self.represented_talent_reset_cost_like_cpp = cost as u32;
+        self.represented_talent_reset_time_secs_like_cpp = now_secs;
+        true
+    }
+
+    fn next_reset_talents_cost_like_cpp(
+        reset_cost: u32,
+        reset_time_secs: u64,
+        now_secs: u64,
+    ) -> u32 {
+        let gold = COPPER_PER_GOLD_LIKE_CPP;
+        if reset_cost < gold {
+            return gold;
+        }
+        if reset_cost < 5 * gold {
+            return 5 * gold;
+        }
+        if reset_cost < 10 * gold {
+            return 10 * gold;
+        }
+
+        let months = now_secs.saturating_sub(reset_time_secs) / TALENT_RESET_MONTH_SECS_LIKE_CPP;
+        if months > 0 {
+            let reduced = i64::from(reset_cost)
+                - i64::try_from(5 * u64::from(gold) * months).unwrap_or(i64::MAX);
+            return reduced.max(i64::from(10 * gold)) as u32;
+        }
+
+        reset_cost.saturating_add(5 * gold).min(50 * gold)
+    }
+
     pub(crate) async fn currency_changed_like_cpp(&mut self, currency_id: u32, change: i32) {
         self.enqueue_represented_quest_objective_progress_like_cpp(
             RepresentedQuestObjectiveProgressEventLikeCpp::CurrencyChanged {
@@ -26693,6 +26762,15 @@ impl WorldSession {
         }
     }
 
+    pub(crate) fn set_represented_talent_reset_state_like_cpp(
+        &mut self,
+        reset_cost: u32,
+        reset_time_secs: u64,
+    ) {
+        self.represented_talent_reset_cost_like_cpp = reset_cost;
+        self.represented_talent_reset_time_secs_like_cpp = reset_time_secs;
+    }
+
     pub(crate) fn set_player_bank_bag_slot_count_like_cpp(&mut self, count: u8) {
         self.player_bank_bag_slot_count_like_cpp = count;
         if let Some(controller) = &mut self.player_controller {
@@ -27688,6 +27766,14 @@ impl WorldSession {
             .as_ref()
             .map(SessionPlayerController::gold)
             .unwrap_or(self.player_gold)
+    }
+
+    pub(crate) fn represented_talent_reset_cost_like_cpp(&self) -> u32 {
+        self.represented_talent_reset_cost_like_cpp
+    }
+
+    pub(crate) fn represented_talent_reset_time_secs_like_cpp(&self) -> u64 {
+        self.represented_talent_reset_time_secs_like_cpp
     }
 
     pub(crate) fn player_bank_bag_slot_count_like_cpp(&self) -> u8 {
