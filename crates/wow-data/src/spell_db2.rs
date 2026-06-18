@@ -880,6 +880,10 @@ impl SpellReagentsCurrencyStore {
 }
 
 impl SpellEffectDb2Store {
+    pub fn entries_like_cpp(&self) -> impl Iterator<Item = &SpellEffectDb2Entry> {
+        self.entries.values()
+    }
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "SpellEffect.db2", |id, idx, r| {
             SpellEffectDb2Entry {
@@ -1064,6 +1068,10 @@ impl SpellLevelsStore {
 }
 
 impl SpellMiscStore {
+    pub fn entries_like_cpp(&self) -> impl Iterator<Item = &SpellMiscEntry> {
+        self.entries.values()
+    }
+
     pub fn get_by_spell_id(&self, spell_id: u32) -> Option<&SpellMiscEntry> {
         self.entries
             .values()

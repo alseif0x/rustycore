@@ -5129,6 +5129,148 @@ impl SpellStore {
         }
     }
 
+    fn empty_spell_info_like_cpp(spell_id: i32) -> SpellInfo {
+        SpellInfo {
+            spell_id,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: 0,
+            effect_base_points: 0,
+            effect_bonus_coefficient: 0.0,
+            aura_type: None,
+            display_flags: 0,
+            requires_spell_focus: 0,
+            effects: Vec::new(),
+        }
+    }
+
+    fn spell_effect_from_db2_like_cpp(
+        effect: &crate::spell_db2::SpellEffectDb2Entry,
+    ) -> SpellEffectInfo {
+        SpellEffectInfo {
+            effect_index: u32::try_from(effect.effect_index).unwrap_or(0),
+            effect: effect.effect,
+            effect_aura: i32::from(effect.effect_aura),
+            effect_base_points: effect.effect_base_points,
+            effect_die_sides: effect.effect_die_sides,
+            effect_spell_class_mask: effect.effect_spell_class_mask,
+            effect_misc_value_1: effect.effect_misc_value[0],
+            effect_misc_value_2: effect.effect_misc_value[1],
+            effect_trigger_spell: effect.effect_trigger_spell,
+            effect_radius_index_1: effect.effect_radius_index[0],
+            position_facing: effect.effect_pos_facing,
+            chain_targets: effect.effect_chain_targets,
+            implicit_target_1: u32::try_from(effect.implicit_target[0]).unwrap_or(0),
+            implicit_target_2: u32::try_from(effect.implicit_target[1]).unwrap_or(0),
+        }
+    }
+
+    fn hydrate_primary_effect_like_cpp(info: &mut SpellInfo) {
+        info.effects.sort_by_key(|effect| effect.effect_index);
+        if let Some(primary) = info.effects.iter().find(|effect| effect.effect != 0) {
+            info.effect_type = primary.effect;
+            info.effect_base_points = primary.effect_base_points;
+            info.effect_bonus_coefficient = 0.0;
+            info.aura_type = Some(primary.effect_aura);
+        }
+    }
+
+    fn merge_spell_info_like_cpp(&mut self, mut incoming: SpellInfo) {
+        Self::hydrate_primary_effect_like_cpp(&mut incoming);
+        let entry = self
+            .spells
+            .entry(incoming.spell_id)
+            .or_insert_with(|| Self::empty_spell_info_like_cpp(incoming.spell_id));
+        entry.cast_time_ms = incoming.cast_time_ms;
+        entry.cooldown_ms = incoming.cooldown_ms;
+        entry.recovery_time_ms = incoming.recovery_time_ms;
+        entry.requires_spell_focus = incoming.requires_spell_focus;
+        entry.display_flags = incoming.display_flags;
+
+        if !incoming.effects.is_empty() {
+            for hotfix_effect in incoming.effects {
+                entry
+                    .effects
+                    .retain(|effect| effect.effect_index != hotfix_effect.effect_index);
+                entry.effects.push(hotfix_effect);
+            }
+        }
+
+        Self::hydrate_primary_effect_like_cpp(entry);
+    }
+
+    /// Load base spell data from DB2 and overlay SQL hotfix rows.
+    ///
+    /// C++ builds `SpellInfo` primarily from `sSpellEffectStore` and
+    /// `sSpellMiscStore` (`SpellMgr::LoadSpellInfoStore`) and then applies
+    /// hotfix data through the DB2 hotfix pipeline. Mount spells commonly
+    /// exist only in `SpellEffect.db2`/`SpellMisc.db2`, so a hotfix-only
+    /// loader makes account mounts fail as unknown or effectless spells.
+    pub async fn load_with_db2_and_hotfixes(
+        data_dir: &str,
+        locale: &str,
+        hotfix_db: &HotfixDatabase,
+    ) -> Result<Self> {
+        let spell_misc_store = crate::spell_db2::SpellMiscStore::load(data_dir, locale)?;
+        let spell_effect_store = crate::spell_db2::SpellEffectDb2Store::load(data_dir, locale)?;
+        let mut store =
+            Self::from_spell_db2_stores_like_cpp(&spell_misc_store, &spell_effect_store);
+
+        let hotfix_store = Self::load(hotfix_db).await?;
+        for spell in hotfix_store.spells.into_values() {
+            store.merge_spell_info_like_cpp(spell);
+        }
+
+        info!(
+            "Loaded {} spells from SpellMisc/SpellEffect DB2 with hotfix overlay",
+            store.spells.len()
+        );
+        Ok(store)
+    }
+
+    fn from_spell_db2_stores_like_cpp(
+        spell_misc_store: &crate::spell_db2::SpellMiscStore,
+        spell_effect_store: &crate::spell_db2::SpellEffectDb2Store,
+    ) -> Self {
+        let mut store = Self::new();
+
+        for misc in spell_misc_store.entries_like_cpp() {
+            if misc.difficulty_id != 0 {
+                continue;
+            }
+            let Ok(spell_id) = i32::try_from(misc.spell_id) else {
+                continue;
+            };
+            store
+                .spells
+                .entry(spell_id)
+                .or_insert_with(|| Self::empty_spell_info_like_cpp(spell_id));
+        }
+
+        for effect in spell_effect_store.entries_like_cpp() {
+            if effect.difficulty_id != 0 || effect.effect == 0 {
+                continue;
+            }
+            let Ok(spell_id) = i32::try_from(effect.spell_id) else {
+                continue;
+            };
+            let spell = store
+                .spells
+                .entry(spell_id)
+                .or_insert_with(|| Self::empty_spell_info_like_cpp(spell_id));
+            spell
+                .effects
+                .push(Self::spell_effect_from_db2_like_cpp(effect));
+        }
+
+        for spell in store.spells.values_mut() {
+            Self::hydrate_primary_effect_like_cpp(spell);
+        }
+
+        store
+    }
+
     /// Load spell data from hotfixes database.
     ///
     /// Queries `hotfixes.spell_misc` (cast time, cooldowns) and
@@ -5336,6 +5478,64 @@ mod tests {
     fn test_spell_store_creation() {
         let store = SpellStore::new();
         assert!(store.is_empty(), "new store should be empty");
+    }
+
+    #[test]
+    fn spell_store_db2_loader_keeps_mount_aura_spells_like_cpp() {
+        let spell_id = 32_243;
+        let misc_store =
+            crate::spell_db2::SpellMiscStore::from_entries([test_spell_misc_entry_like_cpp(
+                1, spell_id, 0, 0,
+            )]);
+        let effect_store = crate::spell_db2::SpellEffectDb2Store::from_entries([
+            crate::spell_db2::SpellEffectDb2Entry {
+                id: 1,
+                difficulty_id: 0,
+                effect_index: 0,
+                effect: spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_amplitude: 0.0,
+                effect_attributes: 0,
+                effect_aura: aura_types::SPELL_AURA_MOUNTED as i16,
+                effect_aura_period: 0,
+                effect_base_points: 77,
+                effect_bonus_coefficient: 0.0,
+                effect_chain_amplitude: 0.0,
+                effect_chain_targets: 0,
+                effect_die_sides: 0,
+                effect_item_type: 0,
+                effect_mechanic: 0,
+                effect_points_per_resource: 0.0,
+                effect_pos_facing: 0.0,
+                effect_real_points_per_level: 0.0,
+                effect_trigger_spell: 0,
+                bonus_coefficient_from_ap: 0.0,
+                pvp_multiplier: 0.0,
+                coefficient: 0.0,
+                variance: 0.0,
+                resource_coefficient: 0.0,
+                group_size_base_points_coefficient: 0.0,
+                effect_misc_value: [23966, 0],
+                effect_radius_index: [0, 0],
+                effect_spell_class_mask: [0, 0, 0, 0],
+                implicit_target: [0, 0],
+                spell_id,
+            },
+        ]);
+
+        let store = SpellStore::from_spell_db2_stores_like_cpp(&misc_store, &effect_store);
+        let spell = store.get(spell_id as i32).expect("mount spell loaded");
+
+        assert_eq!(
+            spell.effect_type,
+            spell_effect_types::SPELL_EFFECT_APPLY_AURA
+        );
+        assert_eq!(spell.aura_type, Some(aura_types::SPELL_AURA_MOUNTED));
+        assert!(
+            spell
+                .effects
+                .iter()
+                .any(SpellEffectInfo::is_mounted_aura_like_cpp)
+        );
     }
 
     #[test]

@@ -1358,9 +1358,10 @@ async fn main() -> Result<ExitCode> {
         "Loaded {} SpellLearnSpell.db2 rows",
         spell_learn_spell_db2_store.len()
     );
-    let mut spell_store = wow_data::SpellStore::load(&hotfix_db)
-        .await
-        .context("Failed to load SpellStore")?;
+    let mut spell_store =
+        wow_data::SpellStore::load_with_db2_and_hotfixes(&data_dir, &locale, &hotfix_db)
+            .await
+            .context("Failed to load SpellStore")?;
     info!("Loaded {} spells from SpellStore", spell_store.len());
     let spell_chain_store = Arc::new(
         wow_data::SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(

@@ -2361,7 +2361,7 @@ mod tests {
     };
     use wow_packet::WorldPacket;
     use wow_packet::packets::loot::{LootEntry, LootEntryFlags};
-    use wow_packet::packets::spell::SpellTargetData;
+    use wow_packet::packets::spell::{SpellCastVisual, SpellTargetData};
 
     use super::{
         ITEM_FLAGS_CU_FOLLOW_LOOT_RULES_LIKE_CPP, ITEM_FLAGS_CU_IGNORE_QUEST_STATUS_LIKE_CPP,
@@ -2732,6 +2732,38 @@ mod tests {
         pkt
     }
 
+    fn cast_spell_packet(spell_id: i32, caster_guid: ObjectGuid) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&caster_guid);
+        pkt.write_int32(0);
+        pkt.write_int32(0);
+        pkt.write_int32(spell_id);
+        SpellCastVisual {
+            spell_visual_id: 0,
+            script_visual_id: 0,
+        }
+        .write(&mut pkt);
+        pkt.write_float(0.0);
+        pkt.write_float(0.0);
+        pkt.write_packed_guid(&ObjectGuid::EMPTY);
+        pkt.write_uint32(0);
+        pkt.write_uint32(0);
+        pkt.write_uint32(0);
+        pkt.write_bits(0, 5);
+        pkt.write_bit(false);
+        pkt.write_bits(0, 2);
+        pkt.write_bit(false);
+        pkt.flush_bits();
+        SpellTargetData {
+            flags: 0x2,
+            unit: caster_guid,
+            ..SpellTargetData::default()
+        }
+        .write(&mut pkt);
+        pkt.reset_read();
+        pkt
+    }
+
     fn basic_spell_store(spell_ids: impl IntoIterator<Item = i32>) -> Arc<wow_data::SpellStore> {
         let mut spell_store = wow_data::SpellStore::new();
         for spell_id in spell_ids {
@@ -2753,6 +2785,44 @@ mod tests {
             );
         }
         Arc::new(spell_store)
+    }
+
+    fn mounted_spell_store(spell_id: i32, creature_entry: i32) -> Arc<wow_data::SpellStore> {
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: 77,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOUNTED),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
+                    effect_base_points: 77,
+                    effect_misc_value_1: creature_entry,
+                    ..Default::default()
+                }],
+            },
+        );
+        Arc::new(spell_store)
+    }
+
+    fn drain_server_opcodes(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<ServerOpcodes> {
+        let mut opcodes = Vec::new();
+        while let Ok(bytes) = send_rx.try_recv() {
+            if let Some(opcode) = WorldPacket::from_bytes(&bytes).server_opcode() {
+                opcodes.push(opcode);
+            }
+        }
+        opcodes
     }
 
     fn cancel_aura_packet(spell_id: i32, caster_guid: ObjectGuid) -> WorldPacket {
@@ -3140,6 +3210,57 @@ mod tests {
 
         assert!(!canonical_pet_has_applied_aura(&canonical, pet_guid, aura));
         assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn cast_known_account_mount_spell_applies_mounted_aura_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let spell_id = 12345;
+
+        install_canonical_player(&mut session, &canonical, player_guid);
+        session.set_known_spells_like_cpp(vec![spell_id]);
+        session.set_spell_store(mounted_spell_store(spell_id, 0));
+        session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([
+            wow_data::MountEntry {
+                id: 7,
+                mount_type_id: 0,
+                flags: 0,
+                source_type_enum: 0,
+                source_spell_id: spell_id,
+                player_condition_id: 0,
+                mount_fly_ride_height: 0.0,
+                ui_model_scene_id: 0,
+            },
+        ])));
+        session.set_mount_x_display_store(Arc::new(wow_data::MountXDisplayStore::from_entries([
+            wow_data::MountXDisplayEntry {
+                id: 1,
+                creature_display_info_id: 4321,
+                player_condition_id: 0,
+                mount_id: 7,
+            },
+        ])));
+
+        session
+            .handle_cast_spell(cast_spell_packet(spell_id, player_guid))
+            .await;
+
+        assert!(session.player_mounted_like_cpp());
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert!(opcodes.contains(&ServerOpcodes::SpellGo));
+        assert!(opcodes.contains(&ServerOpcodes::AuraUpdate));
+        assert!(opcodes.contains(&ServerOpcodes::UpdateObject));
+
+        let manager = canonical.lock().unwrap();
+        let player = manager
+            .find_map(571, 0)
+            .unwrap()
+            .map()
+            .get_typed_player(player_guid)
+            .unwrap();
+        assert_eq!(player.unit().data().mount_display_id, 4321);
     }
 
     #[tokio::test]

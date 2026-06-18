@@ -1,3 +1,28 @@
+- `#NEXT.R8.ENTITIES.1009` — `SpellStore` startup now loads the C++ spell-data
+  base from `SpellMisc.db2` and `SpellEffect.db2`, then overlays SQL hotfix
+  rows, so account mount source spells that exist in DB2 but not in
+  `hotfixes.spell_misc` / `hotfixes.spell_effect` can be cast and reach the
+  represented Mounted aura path (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellMgr.cpp:2485-2561`,
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Stores.cpp:289,299`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/CollectionMgr.cpp:324-386`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraEffects.cpp:2581-2659`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:7826-7864`.
+  C++ builds `SpellInfo` from DB2 stores before hotfixes; Rust previously used
+  the hotfix SQL spell rows only, which left real account mount spells unknown
+  or effectless when the SQL hotfix tables did not contain those spell ids. Rust
+  now hydrates represented `SpellInfo` effects from DB2 difficulty 0, keeps the
+  existing hotfix loader as an overlay, and wires `world-server` startup to the
+  DB2+hotfix loader. Coverage: targeted `wow-data` test proves a DB2-only mount
+  aura spell is loaded; targeted `wow-world` cast test proves a known account
+  mount spell applies the represented mounted aura, emits SpellGo/AuraUpdate/
+  UpdateObject, and syncs the canonical Player mount display. The full mount
+  focused suite passes. Boundary remains partial: no full
+  `SpellMgr::LoadSpellInfoStore` parity for every DB2 side table/cast-time/
+  cooldown/class-mask nuance, no full `Spell::CheckCast` environment
+  restrictions, no full vehicle/passenger mount runtime parity, no
+  install/restart, bot, or live-client/manual validation.
 - `#NEXT.R8.ENTITIES.1008` — accepted `CMSG_MOVE_*` packets now synchronize
   the canonical map-owned Player position as well as the session/registry
   position, so disconnect/logout save snapshots persist the last accepted
