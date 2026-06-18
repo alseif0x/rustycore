@@ -4689,6 +4689,7 @@ pub enum RepresentedAuraEffectLikeCpp {
     SpeedNotStack,
     DecreaseSpeed,
     MinimumSpeed,
+    MinimumSpeedRate,
     MountedSpeed,
     MountedSpeedAlways,
     MountedSpeedNotStack,
@@ -21203,6 +21204,7 @@ impl WorldSession {
                     | RepresentedAuraEffectLikeCpp::SpeedNotStack
                     | RepresentedAuraEffectLikeCpp::DecreaseSpeed
                     | RepresentedAuraEffectLikeCpp::MinimumSpeed
+                    | RepresentedAuraEffectLikeCpp::MinimumSpeedRate
                     | RepresentedAuraEffectLikeCpp::MountedSpeedAlways
                     | RepresentedAuraEffectLikeCpp::MountedSpeedNotStack
             )
@@ -34524,6 +34526,13 @@ impl WorldSession {
                 / 100.0;
 
         let mut speed = stack_bonus.max(not_stack_bonus) * (1.0 + main_mod.max(0) as f32 / 100.0);
+        let minimum_speed_rate = self
+            .max_represented_aura_amount_like_cpp(RepresentedAuraEffectLikeCpp::MinimumSpeedRate)
+            as f32
+            / PLAYER_BASE_MOVE_SPEED_LIKE_CPP[UnitMoveTypeLikeCpp::Run.index()];
+        if speed < minimum_speed_rate {
+            speed = minimum_speed_rate;
+        }
         let slow = self.max_negative_represented_aura_amount_like_cpp(
             RepresentedAuraEffectLikeCpp::DecreaseSpeed,
         );
@@ -39684,6 +39693,17 @@ impl WorldSession {
                         player_guid,
                         effect,
                         RepresentedAuraEffectLikeCpp::MinimumSpeed,
+                        30_000,
+                    )?;
+                    self.recompute_represented_run_speed_rate_like_cpp();
+                } else if effect.effect_aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_MINIMUM_SPEED_RATE
+                {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::MinimumSpeedRate,
                         30_000,
                     )?;
                     self.recompute_represented_run_speed_rate_like_cpp();
@@ -54362,6 +54382,115 @@ mod tests {
         assert!(
             (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 2.8).abs() < 0.0001,
             "C++ aura removal recomputes MOVE_RUN and drops the removed minimum-speed floor"
+        );
+    }
+
+    #[test]
+    fn represented_run_speed_minimum_speed_rate_floor_applies_before_slow_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let caster = ObjectGuid::create_player(1, 42);
+        let slow = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_DECREASE_SPEED,
+            effect_base_points: -50,
+            effect_index: 0,
+            ..Default::default()
+        };
+        let minimum_rate = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_MINIMUM_SPEED_RATE,
+            effect_base_points: 10,
+            effect_index: 1,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_016,
+                caster,
+                &slow,
+                RepresentedAuraEffectLikeCpp::DecreaseSpeed,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_017,
+                caster,
+                &minimum_rate,
+                RepresentedAuraEffectLikeCpp::MinimumSpeedRate,
+                30_000,
+            )
+            .unwrap();
+        session.recompute_represented_run_speed_rate_like_cpp();
+
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 5.0).abs() < 0.0001,
+            "C++ SPELL_AURA_MOD_MINIMUM_SPEED_RATE floors MOVE_RUN before the strongest slow"
+        );
+        assert!(
+            drain_server_opcodes(&send_rx).contains(&ServerOpcodes::MoveSetRunSpeed),
+            "minimum-speed-rate changes are observable through Unit::SetSpeedRate"
+        );
+    }
+
+    #[test]
+    fn represented_run_speed_minimum_speed_rate_removal_recomputes_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let caster = ObjectGuid::create_player(1, 42);
+        let slow = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_DECREASE_SPEED,
+            effect_base_points: -50,
+            effect_index: 0,
+            ..Default::default()
+        };
+        let minimum_rate = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_MINIMUM_SPEED_RATE,
+            effect_base_points: 10,
+            effect_index: 1,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_018,
+                caster,
+                &slow,
+                RepresentedAuraEffectLikeCpp::DecreaseSpeed,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_019,
+                caster,
+                &minimum_rate,
+                RepresentedAuraEffectLikeCpp::MinimumSpeedRate,
+                30_000,
+            )
+            .unwrap();
+        session.recompute_represented_run_speed_rate_like_cpp();
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 5.0).abs() < 0.0001
+        );
+        let minimum_rate_slot = session
+            .visible_auras
+            .iter()
+            .find_map(|(&slot, aura)| {
+                (aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::MinimumSpeedRate))
+                    .then_some(slot)
+            })
+            .unwrap();
+
+        session.remove_aura(minimum_rate_slot).unwrap();
+
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 3.5).abs() < 0.0001,
+            "C++ aura removal recomputes MOVE_RUN and drops the pre-slow minimum-speed-rate floor"
         );
     }
 
