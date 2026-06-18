@@ -1,3 +1,27 @@
+- `#NEXT.R8.ENTITIES.1075` — represented player spell casts now consume the
+  represented `Player::m_overrideSpells` map through a C++-ordered
+  `Player::GetCastSpellInfo` seam (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28590-28615`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:29194-29205`.
+  Rust keeps the original requested spell for the active/known-spell gate, then
+  resolves the effective spell from represented overrides before disabled,
+  cooldown, cast-time, pending-cast, and `SMSG_SPELL_GO` handling. Invalid
+  override targets fall back to the original spell like C++
+  `sSpellMgr->GetSpellInfo(...) == nullptr`. Coverage: `cargo fmt --all
+  --check`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  cast_spell_uses_represented_override_spell_info_like_cpp --lib`;
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  cast_spell_falls_back_when_represented_override_missing_like_cpp --lib`.
+  Boundary remains partial: override removal from `RemoveTalent`/respec/trait
+  paths is still open, Rust uses deterministic `BTreeSet` iteration for
+  represented overrides while C++ stores an unordered set, full
+  `Unit::GetCastSpellInfo` / trigger-flag mutation is not represented, exact
+  create-item/reagent spell validity, full runtime aura ownership/cast
+  side-effects, real resolved `CMSG_LEARN_TALENTS` dispatch, preview/pet talent
+  handlers, live-client validation, bot validation, and manual validation
+  remain open.
 - `#NEXT.R8.ENTITIES.1074` — represented `Player::LearnTalent` now mirrors
   the C++ `Player::AddTalent` `AddOverrideSpell` side effect for active talent
   learns (not manual-test-ready). Source of truth:
@@ -10,10 +34,10 @@
   learned active talent has `OverridesSpellID`. Coverage:
   `cargo fmt --all --check`; focused
   `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world learn_talent --lib`.
-  Boundary remains partial: cast-time resolution via `Player::GetCastSpellInfo`
-  is not wired to consume this represented map yet, `RemoveTalent`/respec
-  override removal is still open, exact create-item/reagent spell validity, full
-  runtime aura ownership/cast side-effects, real resolved `CMSG_LEARN_TALENTS`
+  Boundary remains partial: cast-time `Player::GetCastSpellInfo` consumption was
+  closed later by `#NEXT.R8.ENTITIES.1075`, but `RemoveTalent`/respec override
+  removal is still open, exact create-item/reagent spell validity, full runtime
+  aura ownership/cast side-effects, real resolved `CMSG_LEARN_TALENTS`
   dispatch, preview/pet talent handlers, live-client validation, bot
   validation, and manual validation remain open.
 - `#NEXT.R8.ENTITIES.1073` — represented `Player::LearnTalent` now mirrors

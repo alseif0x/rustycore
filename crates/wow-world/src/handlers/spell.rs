@@ -220,30 +220,30 @@ impl WorldSession {
             }
         };
 
-        let spell_id = req.spell_id;
+        let original_spell_id = req.spell_id;
         let cast_id = req.cast_id;
 
         debug!(
             account = self.account_id,
-            spell_id = spell_id,
+            spell_id = original_spell_id,
             cast_id = ?cast_id,
             target = ?req.target.unit,
             "CMSG_CAST_SPELL"
         );
 
         // ── Get spell info ──────────────────────────────────────────────
-        let spell_info: wow_data::SpellInfo = match &self.spell_store {
-            Some(store) => match store.get(spell_id) {
+        let original_spell_info: wow_data::SpellInfo = match &self.spell_store {
+            Some(store) => match store.get(original_spell_id) {
                 Some(info) => info.clone(),
                 None => {
                     warn!(
                         account = self.account_id,
-                        spell_id = spell_id,
+                        spell_id = original_spell_id,
                         "Spell not found in store"
                     );
                     self.send_packet(&CastFailed {
                         cast_id,
-                        spell_id,
+                        spell_id: original_spell_id,
                         reason: 2,
                         fail_arg1: 0,
                         fail_arg2: 0,
@@ -255,7 +255,7 @@ impl WorldSession {
                 warn!(account = self.account_id, "No spell store available");
                 self.send_packet(&CastFailed {
                     cast_id,
-                    spell_id,
+                    spell_id: original_spell_id,
                     reason: 2,
                     fail_arg1: 0,
                     fail_arg2: 0,
@@ -274,29 +274,35 @@ impl WorldSession {
         }
 
         // ── Validation: Known spell ─────────────────────────────────────
-        if !self.known_spells_like_cpp().contains(&spell_id) {
+        if !self.known_spells_like_cpp().contains(&original_spell_id) {
             let account_mount_rows = self.account_mount_rows_like_cpp();
             warn!(
                 account = self.account_id,
-                spell_id = spell_id,
+                spell_id = original_spell_id,
                 known_spell_count = self.known_spells_like_cpp().len(),
                 account_mount_count = account_mount_rows.len(),
                 has_account_mount = account_mount_rows
                     .iter()
-                    .any(|mount| mount.spell_id == spell_id),
+                    .any(|mount| mount.spell_id == original_spell_id),
                 riding_skill =
                     self.player_skill_value_like_cpp(crate::session::SKILL_RIDING_LIKE_CPP),
                 "Cast attempt for unknown spell"
             );
             self.send_packet(&CastFailed {
                 cast_id,
-                spell_id,
+                spell_id: original_spell_id,
                 reason: 2, // SpellCastResult::NotKnown
                 fail_arg1: 0,
                 fail_arg2: 0,
             });
             return;
         }
+
+        // C++ `Player::GetCastSpellInfo` resolves player override spells
+        // after the active/known-spell check. Invalid override targets fall
+        // back to the originally requested SpellInfo.
+        let spell_info = self.represented_cast_spell_info_like_cpp(&original_spell_info);
+        let spell_id = spell_info.spell_id;
 
         // C++ `Spell::CheckCast`: disabled spells fail with
         // `SPELL_FAILED_SPELL_UNAVAILABLE` before cooldown/cast processing.
@@ -3471,6 +3477,21 @@ mod tests {
         (cast_id, spell_id, reason)
     }
 
+    fn spell_go_spell_id_like_cpp(bytes: &[u8]) -> i32 {
+        let mut packet = WorldPacket::from_bytes(bytes);
+        assert_eq!(
+            packet.server_opcode(),
+            Some(ServerOpcodes::SpellGo),
+            "expected SpellGo packet"
+        );
+        let _ = packet.read_uint16().expect("opcode");
+        let _ = packet.read_packed_guid().expect("caster");
+        let _ = packet.read_packed_guid().expect("caster unit");
+        let _ = packet.read_packed_guid().expect("cast id");
+        let _ = packet.read_packed_guid().expect("original cast id");
+        packet.read_int32().expect("spell id")
+    }
+
     fn mount_result_like_cpp(bytes: &[u8]) -> i32 {
         let mut packet = WorldPacket::from_bytes(bytes);
         assert_eq!(
@@ -4275,6 +4296,57 @@ mod tests {
             .await;
 
         assert_eq!(session.player_position_like_cpp(), Some(moved_position));
+    }
+
+    #[tokio::test]
+    async fn cast_spell_uses_represented_override_spell_info_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let original_spell_id = 13_347;
+        let override_spell_id = 13_348;
+
+        session.set_player_guid(Some(player_guid));
+        session.set_known_spells_like_cpp(vec![original_spell_id]);
+        session.set_spell_store(basic_spell_store([original_spell_id, override_spell_id]));
+        session.add_represented_override_spell_like_cpp(original_spell_id, override_spell_id);
+
+        session
+            .handle_cast_spell(cast_spell_packet(original_spell_id, player_guid))
+            .await;
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 2);
+        assert_eq!(
+            spell_go_spell_id_like_cpp(&packets[0]),
+            override_spell_id,
+            "C++ Player::GetCastSpellInfo resolves m_overrideSpells after the original spell known check"
+        );
+    }
+
+    #[tokio::test]
+    async fn cast_spell_falls_back_when_represented_override_missing_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let original_spell_id = 13_349;
+        let missing_override_spell_id = 13_350;
+
+        session.set_player_guid(Some(player_guid));
+        session.set_known_spells_like_cpp(vec![original_spell_id]);
+        session.set_spell_store(basic_spell_store([original_spell_id]));
+        session
+            .add_represented_override_spell_like_cpp(original_spell_id, missing_override_spell_id);
+
+        session
+            .handle_cast_spell(cast_spell_packet(original_spell_id, player_guid))
+            .await;
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 2);
+        assert_eq!(
+            spell_go_spell_id_like_cpp(&packets[0]),
+            original_spell_id,
+            "C++ Player::GetCastSpellInfo ignores override entries whose SpellInfo cannot be resolved"
+        );
     }
 
     #[tokio::test]

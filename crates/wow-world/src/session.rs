@@ -27460,6 +27460,26 @@ impl WorldSession {
             .insert(new_spell_id);
     }
 
+    pub(crate) fn represented_cast_spell_info_like_cpp(
+        &self,
+        spell_info: &wow_data::SpellInfo,
+    ) -> wow_data::SpellInfo {
+        if let Some(overrides) = self
+            .represented_override_spells_like_cpp
+            .get(&spell_info.spell_id)
+        {
+            if let Some(store) = self.spell_store() {
+                for new_spell_id in overrides {
+                    if let Some(new_info) = store.get(*new_spell_id) {
+                        return new_info.clone();
+                    }
+                }
+            }
+        }
+
+        spell_info.clone()
+    }
+
     #[cfg(test)]
     pub(crate) fn represented_override_spells_like_cpp(&self) -> &HashMap<i32, BTreeSet<i32>> {
         &self.represented_override_spells_like_cpp
