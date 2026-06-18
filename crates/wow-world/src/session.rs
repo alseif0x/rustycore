@@ -17880,7 +17880,7 @@ impl WorldSession {
                 );
             }
             Ok(rows) => {
-                debug!(
+                info!(
                     guid = snapshot.guid.counter(),
                     rows,
                     map_id = snapshot.map_id,
@@ -40869,7 +40869,7 @@ impl WorldSession {
                                 is_in_water,
                             )
                     {
-                        debug!(
+                        info!(
                             account = self.account_id,
                             spell_id = spell_info.spell_id,
                             form_id = effect.effect_misc_value_1,
@@ -40896,7 +40896,7 @@ impl WorldSession {
                     wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED,
                 )
             {
-                debug!(
+                info!(
                     account = self.account_id,
                     spell_id = spell_info.spell_id,
                     "Rejecting represented flying mount cast while in water"
@@ -40910,7 +40910,7 @@ impl WorldSession {
                 self.send_packet(&MountResult {
                     result: MOUNT_RESULT_SHAPESHIFTED_LIKE_CPP,
                 });
-                debug!(
+                info!(
                     account = self.account_id,
                     spell_id = spell_info.spell_id,
                     disallowed_source_id,
@@ -40940,7 +40940,7 @@ impl WorldSession {
                         is_in_water,
                     )
                 {
-                    debug!(
+                    info!(
                         account = self.account_id,
                         spell_id = spell_info.spell_id,
                         mount_type_id,
@@ -40956,6 +40956,17 @@ impl WorldSession {
                         SpellCastResult::NotHere,
                     ));
                 }
+                info!(
+                    account = self.account_id,
+                    spell_id = spell_info.spell_id,
+                    mount_type_id,
+                    riding_skill = self.player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP),
+                    map_id = self.player_map_id_like_cpp(),
+                    area_id = self.player_zone_area_like_cpp().1,
+                    is_submerged,
+                    is_in_water,
+                    "Represented mount cast passed C++ mount capability check"
+                );
             }
         }
 
