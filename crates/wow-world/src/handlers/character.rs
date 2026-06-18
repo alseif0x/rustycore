@@ -4206,6 +4206,7 @@ impl WorldSession {
         // Column types: button=tinyint unsigned, action=int unsigned, type=tinyint unsigned
         let mut action_buttons = [0i64; 180];
         let mut action_count = 0u32;
+        self.reset_represented_action_buttons_like_cpp();
         {
             let mut action_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_ACTIONS_SPEC);
             action_stmt.set_u64(0, guid.counter() as u64);
@@ -4219,6 +4220,7 @@ impl WorldSession {
                             let action: u32 = action_result.try_read(1).unwrap_or(0);
                             let btn_type: u8 = action_result.try_read(2).unwrap_or(0);
                             if (button as usize) < 180 && action > 0 {
+                                self.record_loaded_action_button_like_cpp(button, action, btn_type);
                                 action_buttons[button as usize] =
                                     wow_packet::packets::misc::UpdateActionButtons::pack_button(
                                         action as i32,
@@ -4231,6 +4233,7 @@ impl WorldSession {
                             }
                         }
                     }
+                    self.mark_represented_action_buttons_loaded_like_cpp();
                     info!("Loaded {} action buttons for {:?}", action_count, guid);
                 }
                 Err(e) => {

@@ -3760,6 +3760,7 @@ pub struct WorldSession {
     active_player_multi_action_bars_like_cpp: u8,
     /// C++ `Player::m_actionButtons` represented as packed action-button data.
     represented_action_buttons_like_cpp: [u32; wow_packet::packets::misc::MAX_ACTION_BUTTONS],
+    represented_action_buttons_loaded_like_cpp: bool,
     /// C++ `Player::_advancedCombatLoggingEnabled`; consumed when combat-log fanout selects full/basic payloads.
     advanced_combat_logging_enabled_like_cpp: bool,
     /// C++ `Player::GetUnitBeingMoved()` represented GUID.
@@ -5237,6 +5238,7 @@ impl WorldSession {
             active_player_transport_server_time_like_cpp: 0,
             active_player_multi_action_bars_like_cpp: 0,
             represented_action_buttons_like_cpp: [0; wow_packet::packets::misc::MAX_ACTION_BUTTONS],
+            represented_action_buttons_loaded_like_cpp: false,
             advanced_combat_logging_enabled_like_cpp: false,
             player_moved_unit_guid_like_cpp: ObjectGuid::EMPTY,
             movement_visibility_refresh_requests_like_cpp: 0,
@@ -18060,6 +18062,7 @@ impl WorldSession {
         self.save_player_difficulties_like_cpp().await;
         self.save_player_spell_cooldowns_like_cpp().await;
         self.save_player_spell_charges_like_cpp().await;
+        self.save_player_action_buttons_like_cpp().await;
         self.save_instance_time_restrictions_like_cpp().await;
         self.save_played_time().await;
         self.save_reputation_to_db_like_cpp().await;
@@ -18199,6 +18202,62 @@ impl WorldSession {
         statements
     }
 
+    pub(crate) fn build_character_action_delete_all_statement_like_cpp(
+        guid_counter: u64,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::DEL_CHAR_ACTION.sql());
+        stmt.set_u64(0, guid_counter);
+        stmt
+    }
+
+    pub(crate) fn build_character_action_insert_statement_like_cpp(
+        guid_counter: u64,
+        button: u8,
+        packed_action: u32,
+    ) -> Option<PreparedStatement> {
+        if packed_action == 0 {
+            return None;
+        }
+
+        let mut stmt = PreparedStatement::new(CharStatements::INS_CHAR_ACTION.sql());
+        stmt.set_u64(0, guid_counter);
+        stmt.set_u8(1, 0);
+        stmt.set_i32(2, 0);
+        stmt.set_u8(3, button);
+        stmt.set_u32(4, action_button_action_like_cpp(packed_action));
+        stmt.set_u8(5, action_button_type_like_cpp(packed_action));
+        Some(stmt)
+    }
+
+    pub(crate) fn character_action_button_save_statements_like_cpp(
+        &self,
+        guid_counter: u64,
+    ) -> Option<Vec<PreparedStatement>> {
+        if !self.represented_action_buttons_loaded_like_cpp {
+            return None;
+        }
+
+        let mut statements = vec![Self::build_character_action_delete_all_statement_like_cpp(
+            guid_counter,
+        )];
+        statements.extend(
+            self.represented_action_buttons_like_cpp
+                .iter()
+                .enumerate()
+                .filter_map(|(button, packed_action)| {
+                    let Ok(button) = u8::try_from(button) else {
+                        return None;
+                    };
+                    Self::build_character_action_insert_statement_like_cpp(
+                        guid_counter,
+                        button,
+                        *packed_action,
+                    )
+                }),
+        );
+        Some(statements)
+    }
+
     async fn save_player_skills_like_cpp(&self) {
         if !self.player_skill_records_loaded_like_cpp() {
             warn!(
@@ -18221,6 +18280,35 @@ impl WorldSession {
         if let Err(err) = char_db.commit_transaction(tx).await {
             warn!(
                 "Failed to save represented player skills for guid {}: {err}",
+                guid.counter()
+            );
+        }
+    }
+
+    async fn save_player_action_buttons_like_cpp(&self) {
+        let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
+        else {
+            return;
+        };
+
+        let Some(statements) =
+            self.character_action_button_save_statements_like_cpp(guid.counter() as u64)
+        else {
+            warn!(
+                account = self.account_id,
+                player_guid = ?self.player_guid(),
+                "Skipping represented player action-button save because character_action was not loaded coherently"
+            );
+            return;
+        };
+
+        let mut tx = SqlTransaction::new();
+        for statement in statements {
+            tx.append(statement);
+        }
+        if let Err(err) = char_db.commit_transaction(tx).await {
+            warn!(
+                "Failed to save represented player action buttons for guid {}: {err}",
                 guid.counter()
             );
         }
@@ -34117,6 +34205,28 @@ impl WorldSession {
         self.represented_action_buttons_like_cpp[button] =
             make_action_button_like_cpp(action, action_type);
         true
+    }
+
+    pub(crate) fn reset_represented_action_buttons_like_cpp(&mut self) {
+        self.represented_action_buttons_like_cpp =
+            [0; wow_packet::packets::misc::MAX_ACTION_BUTTONS];
+        self.represented_action_buttons_loaded_like_cpp = false;
+    }
+
+    pub(crate) fn mark_represented_action_buttons_loaded_like_cpp(&mut self) {
+        self.represented_action_buttons_loaded_like_cpp = true;
+    }
+
+    pub(crate) fn record_loaded_action_button_like_cpp(
+        &mut self,
+        index: u8,
+        action: u32,
+        action_type: u8,
+    ) -> bool {
+        self.represented_set_action_button_like_cpp(
+            index,
+            make_action_button_like_cpp(action, action_type),
+        )
     }
 
     #[cfg(test)]
@@ -82954,6 +83064,79 @@ mod tests {
                 wow_database::SqlParam::I64(1_001),
                 wow_database::SqlParam::I64(1_020),
             ]
+        );
+    }
+
+    #[test]
+    fn character_action_button_save_requires_coherent_load_like_cpp() {
+        let (session, _, _) = make_session();
+
+        assert!(
+            session
+                .character_action_button_save_statements_like_cpp(42)
+                .is_none(),
+            "Rust must not delete character_action unless the represented action buttons were loaded coherently"
+        );
+    }
+
+    #[test]
+    fn character_action_button_save_deletes_and_reinserts_non_empty_buttons_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.reset_represented_action_buttons_like_cpp();
+        assert!(session.record_loaded_action_button_like_cpp(7, 12_345, 0x80));
+        assert!(session.record_loaded_action_button_like_cpp(2, 1_337, 0x40));
+        session.mark_represented_action_buttons_loaded_like_cpp();
+
+        let statements = session
+            .character_action_button_save_statements_like_cpp(42)
+            .expect("loaded action buttons should be persisted");
+
+        assert_eq!(statements.len(), 3);
+        assert_eq!(statements[0].sql(), CharStatements::DEL_CHAR_ACTION.sql());
+        assert_eq!(statements[0].params(), &[wow_database::SqlParam::U64(42)]);
+
+        assert_eq!(statements[1].sql(), CharStatements::INS_CHAR_ACTION.sql());
+        assert_eq!(
+            statements[1].params(),
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U8(0),
+                wow_database::SqlParam::I32(0),
+                wow_database::SqlParam::U8(2),
+                wow_database::SqlParam::U32(1_337),
+                wow_database::SqlParam::U8(0x40),
+            ]
+        );
+        assert_eq!(
+            statements[2].params(),
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U8(0),
+                wow_database::SqlParam::I32(0),
+                wow_database::SqlParam::U8(7),
+                wow_database::SqlParam::U32(12_345),
+                wow_database::SqlParam::U8(0x80),
+            ]
+        );
+    }
+
+    #[test]
+    fn character_action_button_save_reflects_represented_set_action_button_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.reset_represented_action_buttons_like_cpp();
+        session.mark_represented_action_buttons_loaded_like_cpp();
+        assert!(session.represented_set_action_button_like_cpp(9, 1_337 | (0x40 << 24)));
+        assert!(session.represented_set_action_button_like_cpp(9, 0));
+
+        let statements = session
+            .character_action_button_save_statements_like_cpp(42)
+            .expect("loaded action buttons should be persisted");
+
+        assert_eq!(statements.len(), 1);
+        assert_eq!(
+            statements[0].sql(),
+            CharStatements::DEL_CHAR_ACTION.sql(),
+            "C++ RemoveActionButton persists by deleting changed/deleted buttons; represented Rust uses a coherent delete+insert snapshot"
         );
     }
 
