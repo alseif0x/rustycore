@@ -479,6 +479,12 @@ pub mod attributes {
     pub const SPELL_ATTR0_PASSIVE: u32 = 0x0000_0040;
     /// C++ `SPELL_ATTR0_NO_AURA_CANCEL` (`SharedDefines.h`).
     pub const SPELL_ATTR0_NO_AURA_CANCEL: u32 = 0x8000_0000;
+
+    /// C++ `SPELL_ATTR1_IS_CHANNELLED` (`SharedDefines.h`).
+    pub const SPELL_ATTR1_IS_CHANNELLED: u32 = 0x0000_0004;
+
+    /// C++ `SPELL_ATTR1_IS_SELF_CHANNELLED` (`SharedDefines.h`).
+    pub const SPELL_ATTR1_IS_SELF_CHANNELLED: u32 = 0x0000_0040;
     /// C++ `SPELL_ATTR1_NO_AUTOCAST_AI` (`SharedDefines.h`).
     pub const SPELL_ATTR1_NO_AUTOCAST_AI: u32 = 0x0002_0000;
     /// C++ `SPELL_ATTR3_CAN_PROC_FROM_PROCS` (`SharedDefines.h`).
@@ -5425,6 +5431,21 @@ ORDER BY sm.ID, se.EffectIndex
             .is_some_and(|attributes| attributes[0] & attribute != 0)
     }
 
+    /// C++ `SpellInfo::HasAttribute(SpellAttr1)` for attributes hydrated from `SpellMisc.db2`.
+    pub fn has_attribute1_like_cpp(&self, spell_id: i32, attribute: u32) -> bool {
+        self.spell_misc_attributes
+            .get(&spell_id)
+            .is_some_and(|attributes| attributes[1] & attribute != 0)
+    }
+
+    /// C++ `SpellInfo::IsChanneled`.
+    pub fn is_channeled_like_cpp(&self, spell_id: i32) -> bool {
+        self.has_attribute1_like_cpp(
+            spell_id,
+            attributes::SPELL_ATTR1_IS_CHANNELLED | attributes::SPELL_ATTR1_IS_SELF_CHANNELLED,
+        )
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = &SpellInfo> {
         self.spells.values()
     }
@@ -5564,6 +5585,23 @@ mod tests {
         assert!(
             store.has_attribute0_like_cpp(spell_id as i32, attributes::SPELL_ATTR0_NO_AURA_CANCEL)
         );
+    }
+
+    #[test]
+    fn spell_store_db2_loader_keeps_channeled_spell_attr1_like_cpp() {
+        let spell_id = 51_588;
+        let mut misc = test_spell_misc_entry_like_cpp(1, spell_id, 0, 0);
+        misc.attributes[1] = attributes::SPELL_ATTR1_IS_CHANNELLED as i32;
+        let misc_store = crate::spell_db2::SpellMiscStore::from_entries([misc]);
+        let effect_store = crate::spell_db2::SpellEffectDb2Store::from_entries([]);
+
+        let store = SpellStore::from_spell_db2_stores_like_cpp(&misc_store, &effect_store);
+
+        assert!(
+            store.has_attribute1_like_cpp(spell_id as i32, attributes::SPELL_ATTR1_IS_CHANNELLED)
+        );
+        assert!(store.is_channeled_like_cpp(spell_id as i32));
+        assert!(!store.is_channeled_like_cpp(99_999));
     }
 
     #[test]

@@ -1,3 +1,26 @@
+- `#NEXT.R8.ENTITIES.1011` — `CMSG_CANCEL_AURA` now honors the C++
+  channeled-spell branch before normal owned-aura cancellation (not
+  manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SpellHandler.cpp:272-297`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellInfo.cpp:1694-1697`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:467-470`.
+  C++ rejects missing `SpellInfo`, rejects `SPELL_ATTR0_NO_AURA_CANCEL`, then
+  for `SpellInfo::IsChanneled()` interrupts the current
+  `CURRENT_CHANNELED_SPELL` only when its spell id matches the cancelled spell
+  and returns without running the normal `RemoveOwnedAura` path. Rust now
+  exposes `SpellStore::HasAttribute(SpellAttr1)` / `is_channeled_like_cpp`
+  from DB2-backed `SpellMisc.Attributes[1]`, checks that branch in
+  `handle_cancel_aura`, and reuses the represented canonical-player
+  `interrupt_current_channeled_spell_like_cpp` path. Coverage: targeted
+  `wow-data` test proves attr1 channeled data survives the DB2 SpellStore
+  loader; targeted `wow-world` `cancel_aura` tests prove matching channeled
+  cancel clears the canonical channeled spell and active-cast mirror,
+  mismatched current channel is preserved, and `NO_AURA_CANCEL` still wins
+  before the channeled branch. Boundary remains partial: generic non-mounted
+  owned aura cancellation, full `IsPositive`/`IsPassive` DB2 parity,
+  growth/speed-no-control aura cancellation, install/restart, bot, and
+  live-client/manual validation remain open.
 - `#NEXT.R8.ENTITIES.1010` — represented cancellation paths now honor C++
   `SPELL_ATTR0_NO_AURA_CANCEL` for DB2-backed spells (not manual-test-ready).
   Source-of-truth:
