@@ -1,3 +1,27 @@
+- `#NEXT.R8.ENTITIES.1013` — represented mount auras now apply and remove
+  the C++ `MountCapabilityEntry::ModSpellAuraID` speed aura instead of only
+  toggling the mounted visual/unit flag (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraEffects.cpp:2580-2648`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:7826-7872`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:8300-8360`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraDefines.h:127,225`.
+  C++ `HandleAuraMounted` calls `target->CastSpell(target,
+  mountCapability->ModSpellAuraID, this)` while applying the mount and removes
+  that same spell on dismount; `Unit::UpdateSpeed(MOVE_RUN/MOVE_FLIGHT)` then
+  uses mounted-speed aura types. Rust now anchors those aura ids, casts the
+  represented speed aura from `MountCapabilityStore` during represented mount
+  apply, recalculates represented run/flight speed rates, and removes the
+  capability speed aura when the mounted aura is removed. Coverage: targeted
+  `wow-data` constants test, targeted `wow-world` represented mount tests, and
+  movement-speed ACK tests pass. Boundary remains partial: no full
+  `Unit::UpdateSpeed` packet/fanout parity, no mounted non-stack speed branch,
+  no full mount/vehicle/passenger runtime parity, no install/restart, bot, or
+  live-client/manual validation. The disconnect-position save path was already
+  represented in `#NEXT.R8.ENTITIES.1008`; if the live server still fails to
+  persist location, the next step is DB/server tracing of the existing
+  `save_disconnect_player_to_db_like_cpp` path rather than adding duplicate save
+  logic.
 - `#NEXT.R8.ENTITIES.1012` — `CMSG_CANCEL_GROWTH_AURA` now removes
   represented cancelable `SPELL_AURA_MOD_SCALE` auras instead of parsing the
   opcode as a no-op (not manual-test-ready). Source-of-truth:

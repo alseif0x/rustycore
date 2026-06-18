@@ -408,7 +408,9 @@ pub mod aura_types {
     pub const SPELL_AURA_MOD_RESISTANCE: i32 = 22;
     pub const SPELL_AURA_MOD_ROOT: i32 = 26;
     pub const SPELL_AURA_REFLECT_SPELLS: i32 = 28;
+    pub const SPELL_AURA_MOD_INCREASE_SPEED: i32 = 31;
     pub const SPELL_AURA_MODIFY_DAMAGE_PERCENT_TAKEN: i32 = 31;
+    pub const SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED: i32 = 32;
     pub const SPELL_AURA_DAMAGE_IMMUNITY: i32 = 40;
     pub const SPELL_AURA_PROC_TRIGGER_SPELL: i32 = 42;
     pub const SPELL_AURA_PROC_TRIGGER_DAMAGE: i32 = 43;
@@ -437,13 +439,17 @@ pub mod aura_types {
     pub const SPELL_AURA_OVERRIDE_CLASS_SCRIPTS: i32 = 112;
     pub const SPELL_AURA_MOD_MECHANIC_RESISTANCE: i32 = 117;
     pub const SPELL_AURA_RANGED_ATTACK_POWER_ATTACKER_BONUS: i32 = 127;
+    pub const SPELL_AURA_MOD_MOUNTED_SPEED_ALWAYS: i32 = 130;
     pub const SPELL_AURA_MOD_MELEE_HASTE: i32 = 138;
     pub const SPELL_AURA_FORCE_REACTION: i32 = 139;
     pub const SPELL_AURA_MOD_RANGED_HASTE: i32 = 140;
     pub const SPELL_AURA_MOD_DETECTED_RANGE: i32 = 152;
     pub const SPELL_AURA_MOD_ATTACK_POWER_PCT: i32 = 166;
+    pub const SPELL_AURA_MOD_MOUNTED_SPEED_NOT_STACK: i32 = 172;
     pub const SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE: i32 = 184;
     pub const SPELL_AURA_MOD_MELEE_RANGED_HASTE: i32 = 192;
+    pub const SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED: i32 = 207;
+    pub const SPELL_AURA_MOD_MOUNTED_FLIGHT_SPEED_ALWAYS: i32 = 209;
     pub const SPELL_AURA_ADD_PCT_MODIFIER_BY_SPELL_LABEL: i32 = 218;
     pub const SPELL_AURA_MOD_DETAUNT: i32 = 221;
     pub const SPELL_AURA_PERIODIC_DUMMY: i32 = 226;
@@ -6077,9 +6083,19 @@ mod tests {
         );
 
         // C++ `SpellAuraDefines.h`: selected `AuraType` enum anchors.
+        assert_eq!(aura_types::SPELL_AURA_MOD_INCREASE_SPEED, 31);
+        assert_eq!(aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED, 32);
         assert_eq!(aura_types::SPELL_AURA_MOD_SCALE, 61);
+        assert_eq!(aura_types::SPELL_AURA_MOUNTED, 78);
         assert_eq!(aura_types::SPELL_AURA_MOD_DETECT_RANGE, 91);
+        assert_eq!(aura_types::SPELL_AURA_MOD_MOUNTED_SPEED_ALWAYS, 130);
         assert_eq!(aura_types::SPELL_AURA_MOD_DETECTED_RANGE, 152);
+        assert_eq!(aura_types::SPELL_AURA_MOD_MOUNTED_SPEED_NOT_STACK, 172);
+        assert_eq!(
+            aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED,
+            207
+        );
+        assert_eq!(aura_types::SPELL_AURA_MOD_MOUNTED_FLIGHT_SPEED_ALWAYS, 209);
         assert_eq!(aura_types::SPELL_AURA_MOD_BATTLE_PET_XP_PCT, 420);
     }
 

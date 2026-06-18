@@ -4652,7 +4652,10 @@ pub enum RepresentedAuraEffectLikeCpp {
     Ghost,
     Invisibility,
     Mounted,
+    MountedSpeed,
+    MountedSpeedAlways,
     MountedFlightSpeed,
+    MountedFlightSpeedAlways,
     ModifyFallDamagePct,
     ModDetectRange,
     ModDetectedRange,
@@ -20513,11 +20516,102 @@ impl WorldSession {
         self.send_movement_set_collision_height_like_cpp(
             wow_packet::packets::movement::UPDATE_COLLISION_HEIGHT_REASON_MOUNT_LIKE_CPP,
         );
+        self.apply_represented_mount_capability_speed_aura_like_cpp(
+            effect.effect_base_points,
+            caster_guid,
+        );
 
         self.send_aura_update_applied(spell_id, slot, caster_guid, 0, 0x0000_0001);
         self.send_represented_mount_unit_update_like_cpp(display_id);
 
         Ok(())
+    }
+
+    fn apply_represented_mount_capability_speed_aura_like_cpp(
+        &mut self,
+        mount_capability_id: i32,
+        caster_guid: ObjectGuid,
+    ) {
+        let Some(mod_spell_aura_id) =
+            self.represented_mount_capability_mod_spell_like_cpp(mount_capability_id)
+        else {
+            return;
+        };
+
+        let Some(spell_info) = self
+            .spell_store()
+            .and_then(|store| store.get(mod_spell_aura_id))
+            .cloned()
+        else {
+            return;
+        };
+
+        for effect in spell_info.effects().iter().filter(|effect| {
+            effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA
+        }) {
+            let represented_effect = match effect.effect_aura {
+                aura if aura == wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED => {
+                    RepresentedAuraEffectLikeCpp::MountedSpeed
+                }
+                aura if aura == wow_data::spell::aura_types::SPELL_AURA_MOD_MOUNTED_SPEED_ALWAYS => {
+                    RepresentedAuraEffectLikeCpp::MountedSpeedAlways
+                }
+                aura if aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED =>
+                {
+                    RepresentedAuraEffectLikeCpp::MountedFlightSpeed
+                }
+                aura if aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_MOUNTED_FLIGHT_SPEED_ALWAYS =>
+                {
+                    RepresentedAuraEffectLikeCpp::MountedFlightSpeedAlways
+                }
+                _ => continue,
+            };
+
+            if self
+                .apply_represented_aura_modifier_like_cpp(
+                    mod_spell_aura_id,
+                    caster_guid,
+                    effect,
+                    represented_effect,
+                    0,
+                )
+                .is_ok()
+            {
+                self.recompute_represented_mounted_speed_rates_like_cpp();
+            }
+        }
+    }
+
+    fn represented_mount_capability_mod_spell_like_cpp(
+        &self,
+        mount_capability_id: i32,
+    ) -> Option<i32> {
+        u32::try_from(mount_capability_id)
+            .ok()
+            .and_then(|id| self.mount_capability_store.as_ref()?.get(id))
+            .map(|capability| capability.mod_spell_aura_id)
+            .filter(|spell_id| *spell_id > 0)
+    }
+
+    fn remove_represented_mount_capability_speed_auras_like_cpp(
+        &mut self,
+        mount_capability_id: i32,
+    ) {
+        let Some(mod_spell_aura_id) =
+            self.represented_mount_capability_mod_spell_like_cpp(mount_capability_id)
+        else {
+            return;
+        };
+        let slots: Vec<u8> = self
+            .visible_auras
+            .values()
+            .filter_map(|aura| (aura.spell_id == mod_spell_aura_id).then_some(aura.slot))
+            .collect();
+        for slot in slots {
+            let _ = self.remove_aura(slot);
+        }
     }
 
     #[cfg(test)]
@@ -20898,6 +20992,7 @@ impl WorldSession {
         if aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::Mounted) {
             let was_mounted = self.player_mounted_like_cpp;
             let vehicle_id = self.player_mount_vehicle_id_like_cpp;
+            let mount_capability_id = aura.represented_amount;
             self.player_mount_display_id_like_cpp = 0;
             self.player_mount_vehicle_id_like_cpp = 0;
             if let Some(vehicle_kit) = self.player_mount_vehicle_kit_like_cpp.as_mut() {
@@ -20931,6 +21026,18 @@ impl WorldSession {
                 );
             }
             self.send_represented_mount_unit_update_like_cpp(0);
+            self.remove_represented_mount_capability_speed_auras_like_cpp(mount_capability_id);
+        }
+        if matches!(
+            aura.represented_effect,
+            Some(
+                RepresentedAuraEffectLikeCpp::MountedSpeed
+                    | RepresentedAuraEffectLikeCpp::MountedSpeedAlways
+                    | RepresentedAuraEffectLikeCpp::MountedFlightSpeed
+                    | RepresentedAuraEffectLikeCpp::MountedFlightSpeedAlways
+            )
+        ) {
+            self.recompute_represented_mounted_speed_rates_like_cpp();
         }
 
         // Send SMSG_AURA_UPDATE (removal)
@@ -34135,6 +34242,46 @@ impl WorldSession {
             * self.movement_speed_rates_like_cpp[move_type.index()]
     }
 
+    fn max_represented_aura_amount_like_cpp(&self, effect: RepresentedAuraEffectLikeCpp) -> i32 {
+        self.visible_auras
+            .values()
+            .filter(|aura| aura.represented_effect == Some(effect))
+            .map(|aura| aura.represented_amount)
+            .filter(|amount| *amount > 0)
+            .max()
+            .unwrap_or(0)
+    }
+
+    fn total_represented_aura_amount_multiplier_like_cpp(
+        &self,
+        effect: RepresentedAuraEffectLikeCpp,
+    ) -> f32 {
+        self.visible_auras
+            .values()
+            .filter(|aura| aura.represented_effect == Some(effect))
+            .fold(1.0, |multiplier, aura| {
+                multiplier * (1.0 + aura.represented_amount.max(0) as f32 / 100.0)
+            })
+    }
+
+    fn recompute_represented_mounted_speed_rates_like_cpp(&mut self) {
+        let run_mod =
+            self.max_represented_aura_amount_like_cpp(RepresentedAuraEffectLikeCpp::MountedSpeed);
+        let run_always = self.total_represented_aura_amount_multiplier_like_cpp(
+            RepresentedAuraEffectLikeCpp::MountedSpeedAlways,
+        );
+        let flight_mod = self
+            .max_represented_aura_amount_like_cpp(RepresentedAuraEffectLikeCpp::MountedFlightSpeed);
+        let flight_always = self.total_represented_aura_amount_multiplier_like_cpp(
+            RepresentedAuraEffectLikeCpp::MountedFlightSpeedAlways,
+        );
+
+        self.movement_speed_rates_like_cpp[UnitMoveTypeLikeCpp::Run.index()] =
+            (1.0 + run_mod.max(0) as f32 / 100.0) * run_always;
+        self.movement_speed_rates_like_cpp[UnitMoveTypeLikeCpp::Flight.index()] =
+            (1.0 + flight_mod.max(0) as f32 / 100.0) * flight_always;
+    }
+
     pub(crate) fn trace_anticheat_violation_like_cpp(
         &self,
         rule: &'static str,
@@ -38926,6 +39073,50 @@ impl WorldSession {
                         RepresentedAuraEffectLikeCpp::ModScale,
                         30_000,
                     )?;
+                } else if effect.effect_aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED
+                {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::MountedSpeed,
+                        30_000,
+                    )?;
+                    self.recompute_represented_mounted_speed_rates_like_cpp();
+                } else if effect.effect_aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_MOUNTED_SPEED_ALWAYS
+                {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::MountedSpeedAlways,
+                        30_000,
+                    )?;
+                    self.recompute_represented_mounted_speed_rates_like_cpp();
+                } else if effect.effect_aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED
+                {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::MountedFlightSpeed,
+                        30_000,
+                    )?;
+                    self.recompute_represented_mounted_speed_rates_like_cpp();
+                } else if effect.effect_aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_MOUNTED_FLIGHT_SPEED_ALWAYS
+                {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::MountedFlightSpeedAlways,
+                        30_000,
+                    )?;
+                    self.recompute_represented_mounted_speed_rates_like_cpp();
                 } else if generic_apply_aura_rows_like_cpp == 1 && apply_aura_rows_like_cpp == 1 {
                     self.apply_aura_with_effect_mask_like_cpp(
                         spell_id,
@@ -52607,6 +52798,137 @@ mod tests {
                 .contains(UnitFlags::PLAYER_CONTROLLED | UnitFlags::MOUNT)
         );
         assert_eq!(session.mount_vehicle_create_requests_like_cpp, 1);
+    }
+
+    #[test]
+    fn represented_mount_capability_applies_mounted_speed_aura_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_mount_capability_store(Arc::new(wow_data::MountCapabilityStore::from_entries(
+            [wow_data::MountCapabilityEntry {
+                id: 77,
+                flags: wow_data::MOUNT_CAPABILITY_FLAG_GROUND,
+                req_riding_skill: 0,
+                req_area_id: 0,
+                req_spell_aura_id: 0,
+                req_spell_known_id: 0,
+                mod_spell_aura_id: 12_346,
+                req_map_id: 0,
+            }],
+        )));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            12_346,
+            wow_data::SpellInfo {
+                spell_id: 12_346,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED,
+                    effect_base_points: 100,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+        let effect = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
+            effect_base_points: 77,
+            effect_misc_value_1: 0,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_mounted_aura_like_cpp(100, ObjectGuid::EMPTY, &effect)
+            .unwrap();
+
+        assert!(session.visible_auras.values().any(|aura| {
+            aura.spell_id == 12_346
+                && aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::MountedSpeed)
+                && aura.represented_amount == 100
+        }));
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 14.0).abs()
+                < 0.0001
+        );
+    }
+
+    #[test]
+    fn represented_mount_removal_removes_capability_speed_aura_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_mount_capability_store(Arc::new(wow_data::MountCapabilityStore::from_entries(
+            [wow_data::MountCapabilityEntry {
+                id: 77,
+                flags: wow_data::MOUNT_CAPABILITY_FLAG_GROUND,
+                req_riding_skill: 0,
+                req_area_id: 0,
+                req_spell_aura_id: 0,
+                req_spell_known_id: 0,
+                mod_spell_aura_id: 12_346,
+                req_map_id: 0,
+            }],
+        )));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            12_346,
+            wow_data::SpellInfo {
+                spell_id: 12_346,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED,
+                    effect_base_points: 100,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+        let effect = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
+            effect_base_points: 77,
+            effect_misc_value_1: 0,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_mounted_aura_like_cpp(100, ObjectGuid::EMPTY, &effect)
+            .unwrap();
+        let mounted_slot = session
+            .visible_auras
+            .values()
+            .find_map(|aura| {
+                (aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::Mounted))
+                    .then_some(aura.slot)
+            })
+            .unwrap();
+
+        session.remove_aura(mounted_slot).unwrap();
+
+        assert!(!session.visible_auras.values().any(|aura| {
+            aura.spell_id == 12_346
+                || aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::MountedSpeed)
+        }));
+        assert_eq!(
+            session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run),
+            7.0
+        );
     }
 
     #[test]
