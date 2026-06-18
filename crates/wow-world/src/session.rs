@@ -34761,12 +34761,122 @@ impl WorldSession {
         }
     }
 
+    fn creature_movement_spline_speed_opcode_like_cpp(
+        move_type: UnitMoveTypeLikeCpp,
+    ) -> Option<ServerOpcodes> {
+        match move_type {
+            UnitMoveTypeLikeCpp::Walk => Some(ServerOpcodes::MoveSplineSetWalkSpeed),
+            UnitMoveTypeLikeCpp::Run => Some(ServerOpcodes::MoveSplineSetRunSpeed),
+            UnitMoveTypeLikeCpp::RunBack => Some(ServerOpcodes::MoveSplineSetRunBackSpeed),
+            UnitMoveTypeLikeCpp::Swim => Some(ServerOpcodes::MoveSplineSetSwimSpeed),
+            UnitMoveTypeLikeCpp::SwimBack => Some(ServerOpcodes::MoveSplineSetSwimBackSpeed),
+            UnitMoveTypeLikeCpp::TurnRate => Some(ServerOpcodes::MoveSplineSetTurnRate),
+            UnitMoveTypeLikeCpp::Flight => Some(ServerOpcodes::MoveSplineSetFlightSpeed),
+            UnitMoveTypeLikeCpp::FlightBack => Some(ServerOpcodes::MoveSplineSetFlightBackSpeed),
+            UnitMoveTypeLikeCpp::PitchRate => Some(ServerOpcodes::MoveSplineSetPitchRate),
+        }
+    }
+
+    fn represented_pet_position_like_cpp(&self, pet_guid: ObjectGuid) -> Option<Position> {
+        let map_id = u32::from(self.player_map_id_like_cpp());
+        let instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
+        let managed = manager.find_map(map_id, instance_id)?;
+        Some(
+            managed
+                .map()
+                .map_object_record(pet_guid)?
+                .object()
+                .position(),
+        )
+    }
+
+    fn send_represented_pet_spline_speed_like_cpp(
+        &self,
+        pet_guid: ObjectGuid,
+        move_type: UnitMoveTypeLikeCpp,
+        rate: f32,
+    ) {
+        let Some(opcode) = Self::creature_movement_spline_speed_opcode_like_cpp(move_type) else {
+            return;
+        };
+        let packet_bytes = wow_packet::packets::movement::MoveSplineSetSpeed {
+            opcode,
+            mover_guid: pet_guid,
+            speed: PLAYER_BASE_MOVE_SPEED_LIKE_CPP[move_type.index()] * rate,
+        }
+        .to_bytes();
+        let map_id = self.player_map_id_like_cpp();
+        let instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+
+        if self.client_visible_guids_like_cpp.contains(&pet_guid)
+            && self.send_tx.send(packet_bytes.clone()).is_err()
+        {
+            warn!("Send channel closed for account {}", self.account_id);
+        }
+
+        let (Some(player_guid), Some(registry)) = (self.player_guid(), self.player_registry())
+        else {
+            return;
+        };
+        let Some(source_position) = self
+            .represented_pet_position_like_cpp(pet_guid)
+            .or_else(|| self.player_position_like_cpp())
+        else {
+            return;
+        };
+        let range_sq =
+            crate::map_manager::VISIBILITY_RADIUS * crate::map_manager::VISIBILITY_RADIUS;
+
+        let candidates: Vec<_> = registry
+            .iter()
+            .filter_map(|entry| {
+                let (other_guid, other_info): (&ObjectGuid, &PlayerBroadcastInfo) = entry.pair();
+                if *other_guid == player_guid {
+                    return None;
+                }
+                if !other_info.is_in_world
+                    || other_info.map_id != map_id
+                    || other_info.instance_id != instance_id
+                {
+                    return None;
+                }
+                let dx = other_info.position.x - source_position.x;
+                let dy = other_info.position.y - source_position.y;
+                if dx * dx + dy * dy > range_sq {
+                    return None;
+                }
+                Some(other_info.command_tx.clone())
+            })
+            .collect();
+
+        for command_tx in candidates {
+            let _ = command_tx.try_send(SessionCommand::SendIfVisibleLikeCpp(
+                SendIfVisibleLikeCppCommand {
+                    source_guid: pet_guid,
+                    map_id,
+                    instance_id,
+                    packet_bytes: packet_bytes.clone(),
+                },
+            ));
+        }
+    }
+
     fn propagate_represented_player_speed_to_pet_like_cpp(
         &mut self,
         move_type: UnitMoveTypeLikeCpp,
         rate: f32,
     ) {
-        if self.represented_pet_guid_like_cpp.is_none() || self.in_combat {
+        let Some(pet_guid) = self.represented_pet_guid_like_cpp else {
+            return;
+        };
+        if self.in_combat {
             return;
         }
 
@@ -34780,6 +34890,7 @@ impl WorldSession {
         self.represented_pet_speed_propagations_like_cpp = self
             .represented_pet_speed_propagations_like_cpp
             .saturating_add(1);
+        self.send_represented_pet_spline_speed_like_cpp(pet_guid, move_type, rate);
     }
 
     fn set_player_movement_speed_rate_and_notify_like_cpp(
@@ -54118,10 +54229,11 @@ mod tests {
 
     #[test]
     fn represented_player_speed_change_propagates_to_active_pet_like_cpp() {
-        let (mut session, _, _send_rx) = make_session();
+        let (mut session, _, send_rx) = make_session();
         session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
         let pet_guid =
             ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 7_001, 9_001);
+        session.client_visible_guids_like_cpp.insert(pet_guid);
         session.set_represented_pet_mode_state_like_cpp(
             Some(pet_guid),
             wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
@@ -54135,6 +54247,15 @@ mod tests {
             2.0
         );
         assert_eq!(session.represented_pet_speed_propagations_like_cpp(), 1);
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert!(
+            opcodes.contains(&ServerOpcodes::MoveSplineSetRunSpeed),
+            "C++ Pet::SetSpeedRate sends SMSG_MOVE_SPLINE_SET_RUN_SPEED for the pet"
+        );
+        assert!(
+            opcodes.contains(&ServerOpcodes::MoveSetRunSpeed),
+            "C++ player SetSpeedRate still sends the player-controlled mover speed packet"
+        );
 
         session.set_player_movement_speed_rate_and_notify_like_cpp(UnitMoveTypeLikeCpp::Run, 2.0);
         assert_eq!(
@@ -54164,6 +54285,35 @@ mod tests {
             1.0
         );
         assert_eq!(session.represented_pet_speed_propagations_like_cpp(), 0);
+    }
+
+    #[test]
+    fn represented_player_speed_change_does_not_send_pet_spline_when_pet_not_visible_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let pet_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 7_001, 9_003);
+        session.set_represented_pet_mode_state_like_cpp(
+            Some(pet_guid),
+            wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
+            wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP,
+        );
+
+        session.set_player_movement_speed_rate_and_notify_like_cpp(UnitMoveTypeLikeCpp::Run, 2.0);
+
+        assert_eq!(
+            session.represented_pet_movement_speed_rate_like_cpp(UnitMoveTypeLikeCpp::Run),
+            2.0
+        );
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert!(
+            !opcodes.contains(&ServerOpcodes::MoveSplineSetRunSpeed),
+            "C++ SendMessageToSet only reaches sessions that have the pet at client"
+        );
+        assert!(
+            opcodes.contains(&ServerOpcodes::MoveSetRunSpeed),
+            "the player's own speed update is independent from pet visibility"
+        );
     }
 
     #[test]
