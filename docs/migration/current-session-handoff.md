@@ -1,3 +1,26 @@
+- `#NEXT.R8.ENTITIES.1018` — disconnect/logout save now again prefers
+  the latest represented session movement map/position over a stale canonical
+  typed `Player` position, while keeping canonical gameplay fields such as
+  level, XP, and money (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:552-670`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:19318,19329`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:19480-19520`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:20611-20624`.
+  C++ has a single live `Player` object, so `Player::SaveToDB()` naturally
+  writes the latest accepted movement position. Rust still has split state:
+  movement packets update the represented session first and the canonical typed
+  player can lag. The save snapshot now explicitly models that split instead
+  of blindly trusting stale canonical coordinates. Coverage: the targeted
+  `logout_save_snapshot_prefers_latest_session_position_like_cpp` regression
+  test failed before this fix and passes now. Boundary remains partial: no full
+  `Player::SaveToDB` port, no far-teleport/transport/instance persistence
+  parity, no install/restart, bot, or live-client/manual validation. Mount
+  usability was also instrumented in this slice: represented mount rejection
+  branches now log account, spell, mount type/form, riding skill, map, area, or
+  water context so the next live-client attempt can identify whether the issue
+  is DB riding skill, mount capability/area data, water state, or packet flow;
+  this is diagnostic only, not a claim that live mounts are fixed.
 - `#NEXT.R8.ENTITIES.1017` — represented shapeshift mount-form casts now run
   the C++ `SPELL_AURA_MOD_SHAPESHIFT` mount-type location gate before
   `SMSG_SPELL_GO` (not manual-test-ready). Source-of-truth:

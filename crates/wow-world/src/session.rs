@@ -5879,11 +5879,21 @@ impl WorldSession {
                 let Some(player) = managed.map().get_typed_player(guid) else {
                     return;
                 };
+                // Rust still has split player state: movement packets update
+                // the represented session first, while the canonical Player
+                // may lag. C++ has one live Player object, so logout save sees
+                // the latest movement position. Prefer the represented
+                // session position when available, but keep canonical gameplay
+                // fields that only the typed Player may have updated.
+                let map_id = self.player_map_id_like_cpp();
+                let position = self
+                    .player_position_like_cpp()
+                    .unwrap_or_else(|| player.unit().world().position());
 
                 snapshot = Some(PlayerSaveToDbSnapshotLikeCpp {
                     guid,
-                    map_id: managed.map_id().try_into().unwrap_or(u16::MAX),
-                    position: player.unit().world().position(),
+                    map_id,
+                    position,
                     level: player.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8,
                     xp: player.active_data().xp.max(0) as u32,
                     money: player.active_data().coinage,
@@ -39548,6 +39558,15 @@ impl WorldSession {
                             )
                             .is_none()
                     {
+                        debug!(
+                            account = self.account_id,
+                            spell_id = spell_info.spell_id,
+                            form_id = effect.effect_misc_value_1,
+                            mount_type_id = form.mount_type_id,
+                            riding_skill = self.player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP),
+                            map_id = self.player_map_id_like_cpp(),
+                            "Rejecting represented shapeshift mount form cast: no mount capability"
+                        );
                         return Some(SpellCastResult::NotHere);
                     }
                 }
@@ -39563,6 +39582,11 @@ impl WorldSession {
                     wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED,
                 )
             {
+                debug!(
+                    account = self.account_id,
+                    spell_id = spell_info.spell_id,
+                    "Rejecting represented flying mount cast while in water"
+                );
                 return Some(SpellCastResult::OnlyAbovewater);
             }
 
@@ -39583,6 +39607,15 @@ impl WorldSession {
                     )
                     .is_none()
             {
+                debug!(
+                    account = self.account_id,
+                    spell_id = spell_info.spell_id,
+                    mount_type_id,
+                    riding_skill = self.player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP),
+                    map_id = self.player_map_id_like_cpp(),
+                    area_id = self.player_zone_area_like_cpp().1,
+                    "Rejecting represented mount cast: no mount capability"
+                );
                 return Some(SpellCastResult::NotHere);
             }
         }
