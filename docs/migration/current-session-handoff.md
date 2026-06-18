@@ -1,3 +1,23 @@
+- `#NEXT.R8.ENTITIES.1015` — logout/disconnect save snapshots now prefer
+  the live canonical `Player` object's map/position when it exists, matching
+  the C++ `Player::SaveToDB()` authority instead of trusting a potentially
+  stale session-local position first (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:552-641`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:19329-19402`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:20611-20623`.
+  C++ logs the player out, keeps the player object alive through save, and
+  writes `GetMapId()` plus `GetPositionX/Y/Z/O()` from that object unless a
+  teleport destination overrides it. Rust now scans canonical maps for the
+  typed player during `current_player_save_to_db_snapshot_like_cpp`; when
+  present, that object's map id, position, level, XP, and money become the
+  snapshot and are mirrored back into session state before issuing the
+  existing DB position/character saves. Coverage: targeted `wow-world` movement
+  regression test proves a stale session position is overwritten by the live
+  canonical player position before logout save. Boundary remains partial: no
+  full far-teleport destination save parity, no instance-id/difficulty
+  persistence expansion beyond existing save fields, no install/restart, bot,
+  or live-client/manual validation.
 - `#NEXT.R8.ENTITIES.1014` — represented
   `CMSG_CANCEL_MOD_SPEED_NO_CONTROL_AURAS` now parses the C++ target GUID and
   removes cancelable represented `SPELL_AURA_MOD_SPEED_NO_CONTROL` auras for

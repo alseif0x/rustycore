@@ -5868,21 +5868,28 @@ impl WorldSession {
         let guid = self.player_guid()?;
         if let Some(manager) = self.canonical_map_manager.as_ref()
             && let Ok(manager) = manager.lock()
-            && let Some(map) = manager.find_map(u32::from(self.player_map_id_like_cpp()), 0)
-            && let Some(player) = map.map().get_typed_player(guid)
         {
-            let map_id = self.player_map_id_like_cpp();
-            let position = self
-                .player_position_like_cpp()
-                .unwrap_or_else(|| player.unit().world().position());
-            return Some(PlayerSaveToDbSnapshotLikeCpp {
-                guid,
-                map_id,
-                position,
-                level: player.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8,
-                xp: player.active_data().xp.max(0) as u32,
-                money: player.active_data().coinage,
+            let mut snapshot = None;
+            manager.do_for_all_maps(|managed| {
+                if snapshot.is_some() {
+                    return;
+                }
+                let Some(player) = managed.map().get_typed_player(guid) else {
+                    return;
+                };
+
+                snapshot = Some(PlayerSaveToDbSnapshotLikeCpp {
+                    guid,
+                    map_id: managed.map_id().try_into().unwrap_or(u16::MAX),
+                    position: player.unit().world().position(),
+                    level: player.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8,
+                    xp: player.active_data().xp.max(0) as u32,
+                    money: player.active_data().coinage,
+                });
             });
+            if snapshot.is_some() {
+                return snapshot;
+            }
         }
 
         Some(PlayerSaveToDbSnapshotLikeCpp {
