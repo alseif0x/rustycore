@@ -2768,6 +2768,21 @@ pub(crate) struct RepresentedPlayerSkillLikeCpp {
     pub profession_slot: i8,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedCharacterSpellCooldownLikeCpp {
+    pub spell_id: u32,
+    pub item_id: u32,
+    pub cooldown_end_unix_secs: i64,
+    pub category_id: u32,
+    pub category_end_unix_secs: i64,
+}
+
+impl RepresentedCharacterSpellCooldownLikeCpp {
+    fn is_active_at_like_cpp(&self, now_unix_secs: i64) -> bool {
+        self.cooldown_end_unix_secs > now_unix_secs || self.category_end_unix_secs > now_unix_secs
+    }
+}
+
 #[allow(dead_code)]
 fn represented_skill_records_from_values_like_cpp(
     skill_values: &HashMap<u16, u16>,
@@ -4008,6 +4023,9 @@ pub struct WorldSession {
     /// Per-spell cooldown tracking: spell_id → last cast time.
     /// Used to enforce spell-specific cooldown timers.
     pub(crate) last_spell_cast_time_per_spell: HashMap<i32, Instant>,
+    represented_character_spell_cooldowns_like_cpp:
+        HashMap<u32, RepresentedCharacterSpellCooldownLikeCpp>,
+    represented_character_spell_cooldowns_loaded_like_cpp: bool,
 
     // ── Quest system ───────────────────────────────────────────────
     /// Quest template store (loaded from world DB at startup).
@@ -5414,6 +5432,8 @@ impl WorldSession {
             represented_pending_spell_cast_request_like_cpp: None,
             last_spell_cast_time: None,
             last_spell_cast_time_per_spell: HashMap::new(),
+            represented_character_spell_cooldowns_like_cpp: HashMap::new(),
+            represented_character_spell_cooldowns_loaded_like_cpp: false,
             loot_table: std::collections::HashMap::new(),
             active_loot_guid: ObjectGuid::EMPTY,
             active_loot_view_owners: std::collections::HashSet::new(),
@@ -12864,6 +12884,55 @@ impl WorldSession {
         (elapsed_ms < cooldown_ms).then_some(cooldown_ms - elapsed_ms)
     }
 
+    pub(crate) fn reset_represented_character_spell_cooldowns_like_cpp(&mut self) {
+        self.represented_character_spell_cooldowns_like_cpp.clear();
+        self.represented_character_spell_cooldowns_loaded_like_cpp = false;
+    }
+
+    pub(crate) fn mark_represented_character_spell_cooldowns_loaded_like_cpp(&mut self) {
+        self.represented_character_spell_cooldowns_loaded_like_cpp = true;
+    }
+
+    pub(crate) fn record_loaded_character_spell_cooldown_like_cpp(
+        &mut self,
+        spell_id: u32,
+        item_id: u32,
+        cooldown_end_unix_secs: i64,
+        category_id: u32,
+        category_end_unix_secs: i64,
+    ) {
+        self.represented_character_spell_cooldowns_like_cpp.insert(
+            spell_id,
+            RepresentedCharacterSpellCooldownLikeCpp {
+                spell_id,
+                item_id,
+                cooldown_end_unix_secs,
+                category_id,
+                category_end_unix_secs,
+            },
+        );
+    }
+
+    fn record_cast_character_spell_cooldown_like_cpp(&mut self, spell_id: i32, cooldown_ms: u32) {
+        if !self.represented_character_spell_cooldowns_loaded_like_cpp || cooldown_ms == 0 {
+            return;
+        }
+        let Ok(spell_id) = u32::try_from(spell_id) else {
+            return;
+        };
+        let cooldown_secs = i64::from(cooldown_ms.saturating_add(999) / 1_000);
+        if cooldown_secs == 0 {
+            return;
+        }
+        self.record_loaded_character_spell_cooldown_like_cpp(
+            spell_id,
+            0,
+            unix_now().saturating_add(cooldown_secs),
+            0,
+            0,
+        );
+    }
+
     /// C++ `CollectionMgr::AddToy` / `UpdateAccountToys`.
     pub(crate) fn add_account_toy_like_cpp(
         &mut self,
@@ -17926,9 +17995,56 @@ impl WorldSession {
         self.save_player_gold().await;
         self.save_player_skills_like_cpp().await;
         self.save_player_difficulties_like_cpp().await;
+        self.save_player_spell_cooldowns_like_cpp().await;
         self.save_instance_time_restrictions_like_cpp().await;
         self.save_played_time().await;
         self.save_reputation_to_db_like_cpp().await;
+    }
+
+    pub(crate) fn build_character_spell_cooldown_delete_statement_like_cpp(
+        guid_counter: u64,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::DEL_CHAR_SPELL_COOLDOWNS.sql());
+        stmt.set_u64(0, guid_counter);
+        stmt
+    }
+
+    pub(crate) fn build_character_spell_cooldown_insert_statement_like_cpp(
+        guid_counter: u64,
+        cooldown: RepresentedCharacterSpellCooldownLikeCpp,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::INS_CHAR_SPELL_COOLDOWN.sql());
+        stmt.set_u64(0, guid_counter);
+        stmt.set_u32(1, cooldown.spell_id);
+        stmt.set_u32(2, cooldown.item_id);
+        stmt.set_i64(3, cooldown.cooldown_end_unix_secs);
+        stmt.set_u32(4, cooldown.category_id);
+        stmt.set_i64(5, cooldown.category_end_unix_secs);
+        stmt
+    }
+
+    pub(crate) fn character_spell_cooldown_save_statements_like_cpp(
+        &self,
+        guid_counter: u64,
+        now_unix_secs: i64,
+    ) -> Option<Vec<PreparedStatement>> {
+        if !self.represented_character_spell_cooldowns_loaded_like_cpp {
+            return None;
+        }
+
+        let mut statements =
+            vec![Self::build_character_spell_cooldown_delete_statement_like_cpp(guid_counter)];
+        let mut cooldowns: Vec<RepresentedCharacterSpellCooldownLikeCpp> = self
+            .represented_character_spell_cooldowns_like_cpp
+            .values()
+            .copied()
+            .filter(|cooldown| cooldown.is_active_at_like_cpp(now_unix_secs))
+            .collect();
+        cooldowns.sort_by_key(|cooldown| cooldown.spell_id);
+        statements.extend(cooldowns.into_iter().map(|cooldown| {
+            Self::build_character_spell_cooldown_insert_statement_like_cpp(guid_counter, cooldown)
+        }));
+        Some(statements)
     }
 
     pub(crate) fn build_character_skill_delete_all_statement_like_cpp(
@@ -17993,6 +18109,35 @@ impl WorldSession {
         if let Err(err) = char_db.commit_transaction(tx).await {
             warn!(
                 "Failed to save represented player skills for guid {}: {err}",
+                guid.counter()
+            );
+        }
+    }
+
+    async fn save_player_spell_cooldowns_like_cpp(&self) {
+        let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
+        else {
+            return;
+        };
+
+        let Some(statements) = self
+            .character_spell_cooldown_save_statements_like_cpp(guid.counter() as u64, unix_now())
+        else {
+            warn!(
+                account = self.account_id,
+                player_guid = ?self.player_guid(),
+                "Skipping represented player spell cooldown save because character_spell_cooldown was not loaded coherently"
+            );
+            return;
+        };
+
+        let mut tx = SqlTransaction::new();
+        for statement in statements {
+            tx.append(statement);
+        }
+        if let Err(err) = char_db.commit_transaction(tx).await {
+            warn!(
+                "Failed to save represented player spell cooldowns for guid {}: {err}",
                 guid.counter()
             );
         }
@@ -40589,6 +40734,10 @@ impl WorldSession {
         // Set per-spell cooldown
         self.last_spell_cast_time_per_spell
             .insert(spell_id, Instant::now());
+        self.record_cast_character_spell_cooldown_like_cpp(
+            spell_id,
+            spell_info.recovery_time_ms.max(spell_info.cooldown_ms),
+        );
 
         // Notify client so action bar shows the cooldown animation
         use wow_packet::packets::spell::CooldownEvent;
@@ -43503,14 +43652,20 @@ impl WorldSession {
             self.teleport_to(homebind.map_id, homebind.position).await;
         }
 
-        let Some(spell_store) = self.spell_store.as_deref() else {
+        let Some(hearthstone_cooldown_ms) = self
+            .spell_store
+            .as_deref()
+            .and_then(|store| store.get(HEARTHSTONE_SPELL_ID_LIKE_CPP))
+            .map(|spell_info| spell_info.recovery_time_ms.max(spell_info.cooldown_ms))
+        else {
             return;
         };
-        if spell_store.get(HEARTHSTONE_SPELL_ID_LIKE_CPP).is_none() {
-            return;
-        }
         self.last_spell_cast_time_per_spell
             .insert(HEARTHSTONE_SPELL_ID_LIKE_CPP, Instant::now());
+        self.record_cast_character_spell_cooldown_like_cpp(
+            HEARTHSTONE_SPELL_ID_LIKE_CPP,
+            hearthstone_cooldown_ms,
+        );
         self.send_packet(&wow_packet::packets::spell::CooldownEvent {
             spell_id: HEARTHSTONE_SPELL_ID_LIKE_CPP,
             is_pet: false,
@@ -82450,6 +82605,88 @@ mod tests {
             CharStatements::INS_CHAR_SKILLS.sql(),
             "INSERT INTO character_skills (guid, skill, value, max, professionSlot) VALUES (?, ?, ?, ?, ?)",
             "C++ Player::SaveToDB delegates to _SaveSkills; represented Rust preserves value/max/professionSlot so Riding survives logout saves"
+        );
+    }
+
+    #[test]
+    fn character_spell_cooldown_save_requires_coherent_load_like_cpp() {
+        let (session, _, _) = make_session();
+
+        assert!(
+            session
+                .character_spell_cooldown_save_statements_like_cpp(42, 1_000)
+                .is_none(),
+            "Rust must not emulate C++ SpellHistory::SaveToDB delete-all unless the character_spell_cooldown runtime was loaded coherently"
+        );
+    }
+
+    #[test]
+    fn character_spell_cooldown_save_deletes_and_reinserts_active_rows_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.reset_represented_character_spell_cooldowns_like_cpp();
+        session.record_loaded_character_spell_cooldown_like_cpp(200, 0, 1_030, 0, 0);
+        session.record_loaded_character_spell_cooldown_like_cpp(100, 6948, 1_010, 12, 1_020);
+        session.record_loaded_character_spell_cooldown_like_cpp(300, 0, 1_000, 0, 1_000);
+        session.mark_represented_character_spell_cooldowns_loaded_like_cpp();
+
+        let statements = session
+            .character_spell_cooldown_save_statements_like_cpp(42, 1_000)
+            .expect("loaded cooldown state should be persisted");
+
+        assert_eq!(statements.len(), 3);
+        assert_eq!(
+            statements[0].sql(),
+            CharStatements::DEL_CHAR_SPELL_COOLDOWNS.sql()
+        );
+        assert!(matches!(
+            statements[0].params()[0],
+            wow_database::SqlParam::U64(42)
+        ));
+
+        assert_eq!(
+            statements[1].sql(),
+            CharStatements::INS_CHAR_SPELL_COOLDOWN.sql()
+        );
+        assert_eq!(
+            statements[1].params(),
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U32(100),
+                wow_database::SqlParam::U32(6948),
+                wow_database::SqlParam::I64(1_010),
+                wow_database::SqlParam::U32(12),
+                wow_database::SqlParam::I64(1_020),
+            ]
+        );
+
+        assert_eq!(
+            statements[2].params(),
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U32(200),
+                wow_database::SqlParam::U32(0),
+                wow_database::SqlParam::I64(1_030),
+                wow_database::SqlParam::U32(0),
+                wow_database::SqlParam::I64(0),
+            ]
+        );
+    }
+
+    #[test]
+    fn character_spell_cooldown_save_keeps_delete_when_all_rows_expired_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.record_loaded_character_spell_cooldown_like_cpp(100, 0, 999, 0, 999);
+        session.mark_represented_character_spell_cooldowns_loaded_like_cpp();
+
+        let statements = session
+            .character_spell_cooldown_save_statements_like_cpp(42, 1_000)
+            .expect("loaded cooldown state should still clear expired rows");
+
+        assert_eq!(statements.len(), 1);
+        assert_eq!(
+            statements[0].sql(),
+            CharStatements::DEL_CHAR_SPELL_COOLDOWNS.sql(),
+            "C++ SpellHistory::SaveToDB deletes existing rows before inserting active runtime cooldowns"
         );
     }
 

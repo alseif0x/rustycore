@@ -10918,13 +10918,14 @@ impl WorldSession {
     }
 
     async fn load_character_spell_history_packets_like_cpp(
-        &self,
+        &mut self,
         char_db: &wow_database::CharacterDatabase,
         guid: ObjectGuid,
     ) -> (Vec<SpellHistoryEntry>, Vec<SpellChargeEntry>) {
         let now = unix_now_secs_like_cpp();
         let guid_counter = guid.counter() as u64;
         let mut history_entries = Vec::new();
+        self.reset_represented_character_spell_cooldowns_like_cpp();
 
         let mut cooldown_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_SPELLCOOLDOWNS);
         cooldown_stmt.set_u64(0, guid_counter);
@@ -10952,6 +10953,13 @@ impl WorldSession {
                                 category_end,
                                 now,
                             ) {
+                                self.record_loaded_character_spell_cooldown_like_cpp(
+                                    spell_id,
+                                    item_id,
+                                    cooldown_end,
+                                    category_id,
+                                    category_end,
+                                );
                                 history_entries.push(entry);
                             }
                         }
@@ -10961,6 +10969,7 @@ impl WorldSession {
                         }
                     }
                 }
+                self.mark_represented_character_spell_cooldowns_loaded_like_cpp();
             }
             Err(error) => {
                 warn!("Failed to load spell cooldowns for {:?}: {error}", guid);
