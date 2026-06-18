@@ -1,3 +1,20 @@
+- `#NEXT.R8.ENTITIES.1070` — represented `Player::LearnTalent` now enforces
+  C++ existing-rank, prereq-rank, and tier-spent gates before mutating the
+  represented active talent group (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26068-26110`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Structure.h:3915-3932`.
+  Rust now separates gameplay learn validation from DB row load, so
+  `character_talent` loading stays order-independent while live
+  `CMSG_LEARN_TALENT` rejects already-known/higher ranks, unmet prereq talent
+  ranks, and higher-tier talents without the required 5 points per lower tier
+  in the same tree. Coverage: focused `wow-world learn_talent` tests cover the
+  new reject/accept transitions, focused `wow-world character_talent` tests
+  verify DB load/save still works with the TalentTab gate, and `world-server`
+  compile verifies the data-store surface. Boundary remains partial:
+  represented `Player::LearnTalent` still needs character-points/free-point
+  spending, exact `SpellMgr::IsSpellValid` parity, talent-point recomputation,
+  live-client validation, bot validation, and manual validation.
 - `#NEXT.R8.ENTITIES.1069` — represented `Player::LearnTalent` now enforces
   the C++ `TalentTab` existence and class-mask gates before mutating the active
   represented talent group (not manual-test-ready). Source of truth:
@@ -12,9 +29,9 @@
   tab, wrong class, unloaded snapshot, and out-of-range rank rejections;
   `world-server` compile verifies the new DB2 store wiring. Boundary remains
   partial: represented `Player::LearnTalent` still needs character-points,
-  existing-rank upgrade semantics, prereq/tier-spent checks, exact
-  `SpellMgr::IsSpellValid` parity, talent-point recomputation, live-client
-  validation, bot validation, and manual validation.
+  exact `SpellMgr::IsSpellValid` parity, talent-point recomputation,
+  live-client validation, bot validation, and manual validation; existing-rank,
+  prereq, and tier-spent gates were closed later by `#NEXT.R8.ENTITIES.1070`.
 - `#NEXT.R8.ENTITIES.1068` — represented runtime `CMSG_LEARN_TALENT` now
   parses, dispatches, and mutates the coherent represented active talent group;
   `CMSG_LEARN_TALENTS` has its C++ payload parser/handler covered but remains
@@ -33,10 +50,10 @@
   sends `UpdateTalentData` after each successful learn like
   `SendTalentsInfoData`. Boundary remains partial:
   full `Player::LearnTalent` validation still needs character-points,
-  prereq/tier-spent checks, exact spell-validity, talent-point recomputation,
-  preview/pet talent handlers, live-client validation, bot validation, and
-  manual validation; `TalentTab` class-mask gates were closed later by
-  `#NEXT.R8.ENTITIES.1069`.
+  exact spell-validity, talent-point recomputation, preview/pet talent
+  handlers, live-client validation, bot validation, and manual validation;
+  `TalentTab` class-mask gates were closed later by `#NEXT.R8.ENTITIES.1069`,
+  and existing-rank/prereq/tier gates by `#NEXT.R8.ENTITIES.1070`.
 - `#NEXT.R8.ENTITIES.1067` — represented `Player::SaveToDB` now persists
   `character_talent` from the coherent represented talent snapshot (not
   manual-test-ready). Source of truth:

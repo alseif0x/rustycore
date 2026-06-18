@@ -243,11 +243,29 @@ mod tests {
         talents: &[(u32, u8, i32)],
         class_mask: i32,
     ) {
-        session.set_talent_store(Arc::new(wow_data::TalentStore::from_entries(
-            talents.iter().map(|(talent_id, rank, spell_id)| {
-                test_talent_entry_like_cpp(*talent_id, *rank, *spell_id)
-            }),
-        )));
+        install_test_talent_entries_with_tab_class_mask(
+            session,
+            talents
+                .iter()
+                .map(|(talent_id, rank, spell_id)| {
+                    test_talent_entry_like_cpp(*talent_id, *rank, *spell_id)
+                })
+                .collect::<Vec<_>>(),
+            class_mask,
+        );
+    }
+
+    fn install_test_talent_entries_with_tab_class_mask(
+        session: &mut WorldSession,
+        talents: Vec<wow_data::TalentEntry>,
+        class_mask: i32,
+    ) {
+        let spell_ids = talents
+            .iter()
+            .flat_map(|talent| talent.spell_rank)
+            .filter(|spell_id| *spell_id > 0)
+            .collect::<Vec<_>>();
+        session.set_talent_store(Arc::new(wow_data::TalentStore::from_entries(talents)));
         session.set_talent_tab_store(Arc::new(wow_data::TalentTabStore::from_entries([
             wow_data::TalentTabEntry {
                 id: 0,
@@ -263,8 +281,8 @@ mod tests {
         session.set_player_class_like_cpp(1);
 
         let mut spell_store = wow_data::SpellStore::new();
-        for (_, _, spell_id) in talents {
-            spell_store.insert(*spell_id, test_spell_info_like_cpp(*spell_id));
+        for spell_id in spell_ids {
+            spell_store.insert(spell_id, test_spell_info_like_cpp(spell_id));
         }
         session.set_spell_store(Arc::new(spell_store));
     }
@@ -511,6 +529,101 @@ mod tests {
                 .groups[0]
                 .talents
                 .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn learn_talent_rejects_known_or_higher_rank_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        install_test_talent_store(&mut session, &[(101, 1, 50_101)]);
+        session.mark_represented_talents_loaded_like_cpp();
+        assert!(session.load_represented_talent_row_like_cpp(101, 1, 0));
+
+        session
+            .handle_learn_talent(learn_talent_packet(101, 0))
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+        assert_eq!(
+            session
+                .represented_update_talent_data_packet_like_cpp()
+                .groups[0]
+                .talents,
+            vec![wow_packet::packets::misc::TalentInfoLikeCpp {
+                talent_id: 101,
+                rank: 1,
+            }]
+        );
+    }
+
+    #[tokio::test]
+    async fn learn_talent_enforces_prereq_rank_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        let prereq = test_talent_entry_like_cpp(101, 1, 50_101);
+        let mut dependent = test_talent_entry_like_cpp(202, 0, 50_202);
+        dependent.prereq_talent[0] = 101;
+        dependent.prereq_rank[0] = 1;
+        install_test_talent_entries_with_tab_class_mask(&mut session, vec![prereq, dependent], 1);
+        session.mark_represented_talents_loaded_like_cpp();
+
+        session
+            .handle_learn_talent(learn_talent_packet(202, 0))
+            .await;
+        assert!(send_rx.try_recv().is_err());
+
+        assert!(session.load_represented_talent_row_like_cpp(101, 1, 0));
+        session
+            .handle_learn_talent(learn_talent_packet(202, 0))
+            .await;
+
+        let sent = send_rx
+            .try_recv()
+            .expect("C++ accepts dependent talent once prereq rank is known");
+        assert!(!sent.is_empty());
+        assert!(
+            session
+                .represented_update_talent_data_packet_like_cpp()
+                .groups[0]
+                .talents
+                .contains(&wow_packet::packets::misc::TalentInfoLikeCpp {
+                    talent_id: 202,
+                    rank: 0,
+                })
+        );
+    }
+
+    #[tokio::test]
+    async fn learn_talent_enforces_tier_spent_points_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        let filler = test_talent_entry_like_cpp(101, 4, 50_101);
+        let mut tier_one = test_talent_entry_like_cpp(202, 0, 50_202);
+        tier_one.tier_id = 1;
+        install_test_talent_entries_with_tab_class_mask(&mut session, vec![filler, tier_one], 1);
+        session.mark_represented_talents_loaded_like_cpp();
+
+        session
+            .handle_learn_talent(learn_talent_packet(202, 0))
+            .await;
+        assert!(send_rx.try_recv().is_err());
+
+        assert!(session.load_represented_talent_row_like_cpp(101, 4, 0));
+        session
+            .handle_learn_talent(learn_talent_packet(202, 0))
+            .await;
+
+        let sent = send_rx
+            .try_recv()
+            .expect("C++ accepts tier-one talent after five points in the tree");
+        assert!(!sent.is_empty());
+        assert!(
+            session
+                .represented_update_talent_data_packet_like_cpp()
+                .groups[0]
+                .talents
+                .contains(&wow_packet::packets::misc::TalentInfoLikeCpp {
+                    talent_id: 202,
+                    rank: 0,
+                })
         );
     }
 

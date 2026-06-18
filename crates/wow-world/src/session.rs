@@ -184,6 +184,7 @@ const QUEST_OBJECTIVE_FLAG_KILL_PLAYERS_SAME_FACTION_LIKE_CPP: u32 = 0x0080;
 const QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP: u32 = 0x1;
 const MAX_GAMEOBJECT_SLOT_LIKE_CPP: usize = 4;
 pub(crate) const MAX_SPECIALIZATIONS_LIKE_CPP: usize = 4;
+const NEEDED_TALENT_POINT_PER_TIER_LIKE_CPP: u32 = 5;
 const PLAYER_FLAGS_UBER_LIKE_CPP: u32 = 0x0008_0000;
 const PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP: u32 = 0x0000_0001;
 const PLAYER_FLAGS_AFK_LIKE_CPP: u32 = 0x0000_0002;
@@ -18313,11 +18314,81 @@ impl WorldSession {
             return false;
         };
 
+        if !self.validate_represented_talent_learn_like_cpp(talent_id, rank) {
+            return false;
+        }
+
         self.load_represented_talent_row_like_cpp(
             talent_id,
             rank,
             self.represented_active_talent_group_like_cpp,
         )
+    }
+
+    fn validate_represented_talent_learn_like_cpp(&self, talent_id: u32, rank: u8) -> bool {
+        let talent_group_index = usize::from(self.represented_active_talent_group_like_cpp);
+        if talent_group_index >= MAX_SPECIALIZATIONS_LIKE_CPP {
+            return false;
+        }
+
+        let Some(talent) = self.talent_store().and_then(|store| store.get(talent_id)) else {
+            return false;
+        };
+
+        let talents = &self.represented_talents_like_cpp[talent_group_index];
+        if let Some(current_rank) = talents.get(&talent_id) {
+            if *current_rank >= rank {
+                return false;
+            }
+        }
+
+        for (prereq_talent, prereq_rank) in talent.prereq_talent.iter().zip(talent.prereq_rank) {
+            let Ok(prereq_talent_id) = u32::try_from(*prereq_talent) else {
+                return false;
+            };
+            if prereq_talent_id == 0 {
+                continue;
+            }
+
+            let Ok(required_rank) = u8::try_from(prereq_rank) else {
+                return false;
+            };
+            if talents
+                .get(&prereq_talent_id)
+                .is_none_or(|known_rank| *known_rank < required_rank)
+            {
+                return false;
+            }
+        }
+
+        if talent.tier_id > 0 {
+            let Some(talent_store) = self.talent_store() else {
+                return false;
+            };
+            let spent_points = talent_store
+                .iter()
+                .filter(|entry| entry.tab_id == talent.tab_id)
+                .filter_map(|entry| {
+                    talents
+                        .get(&entry.id)
+                        .map(|rank| {
+                            entry
+                                .spell_rank
+                                .get(usize::from(*rank))
+                                .copied()
+                                .unwrap_or(0)
+                        })
+                        .filter(|spell_id| *spell_id != 0)
+                        .map(|_| u32::from(talents[&entry.id]) + 1)
+                })
+                .sum::<u32>();
+
+            if spent_points < u32::from(talent.tier_id) * NEEDED_TALENT_POINT_PER_TIER_LIKE_CPP {
+                return false;
+            }
+        }
+
+        true
     }
 
     pub(crate) fn load_represented_talent_row_like_cpp(
@@ -84141,6 +84212,22 @@ mod tests {
         }
     }
 
+    fn install_test_talent_tab_store_like_cpp(session: &mut WorldSession) {
+        session.set_talent_tab_store(Arc::new(wow_data::TalentTabStore::from_entries([
+            wow_data::TalentTabEntry {
+                id: 0,
+                name: String::new(),
+                background_file: String::new(),
+                order_index: 0,
+                race_mask: 0,
+                class_mask: 1,
+                pet_talent_mask: 0,
+                spell_icon_id: 0,
+            },
+        ])));
+        session.set_player_class_like_cpp(1);
+    }
+
     #[test]
     fn character_talent_load_filters_invalid_rows_like_cpp() {
         let (mut session, _, _) = make_session();
@@ -84152,6 +84239,7 @@ mod tests {
         let mut spell_store = wow_data::SpellStore::new();
         spell_store.insert(50_101, test_spell_info_like_cpp(50_101));
         session.set_spell_store(Arc::new(spell_store));
+        install_test_talent_tab_store_like_cpp(&mut session);
 
         assert!(session.load_represented_talent_row_like_cpp(101, 2, 0));
         assert!(!session.load_represented_talent_row_like_cpp(999, 0, 0));
@@ -84181,6 +84269,7 @@ mod tests {
         spell_store.insert(50_101, test_spell_info_like_cpp(50_101));
         spell_store.insert(50_202, test_spell_info_like_cpp(50_202));
         session.set_spell_store(Arc::new(spell_store));
+        install_test_talent_tab_store_like_cpp(&mut session);
 
         session.set_represented_active_talent_group_like_cpp(1);
         session.set_represented_bonus_talent_groups_like_cpp(1);
@@ -84233,6 +84322,7 @@ mod tests {
         spell_store.insert(50_101, test_spell_info_like_cpp(50_101));
         spell_store.insert(50_202, test_spell_info_like_cpp(50_202));
         session.set_spell_store(Arc::new(spell_store));
+        install_test_talent_tab_store_like_cpp(&mut session);
 
         session.reset_represented_talents_like_cpp();
         assert!(session.load_represented_talent_row_like_cpp(101, 2, 0));

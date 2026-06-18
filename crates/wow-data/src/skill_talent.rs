@@ -544,6 +544,10 @@ impl TalentStore {
                 .filter(|spell_rank| *spell_rank != 0)
         })
     }
+
+    pub fn iter(&self) -> impl Iterator<Item = &TalentEntry> {
+        self.entries.values()
+    }
 }
 
 impl TalentTabStore {
