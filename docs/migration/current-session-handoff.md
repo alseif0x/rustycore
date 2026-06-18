@@ -1,3 +1,22 @@
+- `#NEXT.R8.ENTITIES.1021` — represented mount casts now cover the C++
+  `Unit::IsDisallowedMountForm` `GetTransformSpell()` allowance branch for
+  represented active transform auras (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:8813-8852`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraEffects.cpp:1945-1948,2129-2130`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.h:1529-1530`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:455`.
+  C++ checks the current transform spell first and returns mount-allowed when
+  that spell has `SPELL_ATTR0_ALLOW_WHILE_MOUNTED`, before checking shapeshift
+  form or transformed display/model/race. Rust now anchors that attr0 bit,
+  detects active represented `SPELL_AURA_TRANSFORM` auras as the session-local
+  transform spell source, and allows the mount cast in that case even when the
+  transformed display would otherwise be rejected. Coverage: targeted
+  `wow-data` constant test, targeted `wow-world` allow-while-mounted transform
+  test, transformed-display regressions, and affected-crate `cargo check`.
+  Boundary remains partial: no full C++ transform apply/remove lifecycle,
+  `m_transformSpell` priority/replacement semantics, display update/fanout
+  parity, vehicle/passenger mount parity, install/restart, bot, or
+  live-client/manual validation.
 - `#NEXT.R8.ENTITIES.1020` — represented mount casts now cover the C++
   `Unit::IsDisallowedMountForm` transformed-display/model/race branch after the
   active shapeshift-form gate (not manual-test-ready). Source-of-truth:
@@ -14,9 +33,9 @@
   `SMSG_MOUNT_RESULT` shapeshifted for the disallowed transformed-display case,
   and allows the model/race-permitted case. Coverage: targeted `wow-data`,
   `wow-packet`, and `wow-world` tests plus affected-crate `cargo check`.
-  Boundary remains partial: C++ `GetTransformSpell()` and
-  `SPELL_ATTR0_ALLOW_WHILE_MOUNTED` are still not represented, and there is no
-  full transform apply/remove runtime, vehicle/passenger mount parity,
+  Boundary remains partial: transform-spell `ALLOW_WHILE_MOUNTED` is represented
+  by `#NEXT.R8.ENTITIES.1021`, but there is still no full transform apply/remove
+  runtime, vehicle/passenger mount parity,
   install/restart, bot, or live-client/manual validation.
 - `#NEXT.R8.ENTITIES.1019` — represented mount casts now cover the C++
   `Spell::CheckCast` disallowed shapeshift-form branch for active

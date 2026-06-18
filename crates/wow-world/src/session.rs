@@ -39693,6 +39693,10 @@ impl WorldSession {
     }
 
     fn represented_disallowed_mount_form_like_cpp(&self) -> Option<u32> {
+        if self.represented_transform_spell_allows_mount_like_cpp() {
+            return None;
+        }
+
         if let (Some(spell_store), Some(shapeshift_form_store)) = (
             self.spell_store(),
             self.spell_shapeshift_form_store.as_ref(),
@@ -39763,6 +39767,27 @@ impl WorldSession {
         }
 
         None
+    }
+
+    fn represented_transform_spell_allows_mount_like_cpp(&self) -> bool {
+        let Some(spell_store) = self.spell_store() else {
+            return false;
+        };
+
+        self.visible_auras.values().any(|aura| {
+            let Some(spell_info) = spell_store.get(aura.spell_id) else {
+                return false;
+            };
+            let is_transform_spell = spell_info.effects().iter().any(|effect| {
+                effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA
+                    && effect.effect_aura == wow_data::spell::aura_types::SPELL_AURA_TRANSFORM
+            });
+            is_transform_spell
+                && spell_store.has_attribute0_like_cpp(
+                    aura.spell_id,
+                    wow_data::spell::attributes::SPELL_ATTR0_ALLOW_WHILE_MOUNTED,
+                )
+        })
     }
 
     async fn apply_effect_teleport_units_like_cpp(

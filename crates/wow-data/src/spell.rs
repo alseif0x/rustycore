@@ -486,6 +486,8 @@ pub const TOTAL_SPELL_TARGETS_LIKE_CPP: i32 = 153;
 pub mod attributes {
     /// C++ `SPELL_ATTR0_PASSIVE` (`SharedDefines.h`).
     pub const SPELL_ATTR0_PASSIVE: u32 = 0x0000_0040;
+    /// C++ `SPELL_ATTR0_ALLOW_WHILE_MOUNTED` (`SharedDefines.h`).
+    pub const SPELL_ATTR0_ALLOW_WHILE_MOUNTED: u32 = 0x0100_0000;
     /// C++ `SPELL_ATTR0_NO_AURA_CANCEL` (`SharedDefines.h`).
     pub const SPELL_ATTR0_NO_AURA_CANCEL: u32 = 0x8000_0000;
 
@@ -6093,6 +6095,7 @@ mod tests {
         assert_eq!(aura_types::SPELL_AURA_MOD_INCREASE_SPEED, 31);
         assert_eq!(aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED, 32);
         assert_eq!(aura_types::SPELL_AURA_MOD_SHAPESHIFT, 36);
+        assert_eq!(aura_types::SPELL_AURA_TRANSFORM, 56);
         assert_eq!(aura_types::SPELL_AURA_MOD_SCALE, 61);
         assert_eq!(aura_types::SPELL_AURA_MOUNTED, 78);
         assert_eq!(aura_types::SPELL_AURA_MOD_DETECT_RANGE, 91);
@@ -6106,6 +6109,9 @@ mod tests {
         assert_eq!(aura_types::SPELL_AURA_MOD_MOUNTED_FLIGHT_SPEED_ALWAYS, 209);
         assert_eq!(aura_types::SPELL_AURA_MOD_SPEED_NO_CONTROL, 373);
         assert_eq!(aura_types::SPELL_AURA_MOD_BATTLE_PET_XP_PCT, 420);
+
+        // C++ `SharedDefines.h`: selected SpellAttr0 anchors.
+        assert_eq!(attributes::SPELL_ATTR0_ALLOW_WHILE_MOUNTED, 0x0100_0000);
     }
 
     #[test]

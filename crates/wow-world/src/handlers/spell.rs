@@ -2974,6 +2974,63 @@ mod tests {
         Arc::new(spell_store)
     }
 
+    fn mounted_spell_store_with_transform_spell(
+        mount_spell_id: i32,
+        transform_spell_id: i32,
+        allow_while_mounted: bool,
+    ) -> Arc<wow_data::SpellStore> {
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            mount_spell_id,
+            wow_data::SpellInfo {
+                spell_id: mount_spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: 77,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOUNTED),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
+                    effect_base_points: 77,
+                    ..Default::default()
+                }],
+            },
+        );
+        spell_store.insert(
+            transform_spell_id,
+            wow_data::SpellInfo {
+                spell_id: transform_spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_TRANSFORM),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_TRANSFORM,
+                    ..Default::default()
+                }],
+            },
+        );
+        if allow_while_mounted {
+            let mut attributes = [0; 15];
+            attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_ALLOW_WHILE_MOUNTED;
+            spell_store.insert_spell_misc_attributes_like_cpp(transform_spell_id, attributes);
+        }
+        Arc::new(spell_store)
+    }
+
     fn active_shapeshift_aura_for_test(spell_id: i32, caster_guid: ObjectGuid) -> AuraApplication {
         AuraApplication {
             spell_id,
@@ -4284,6 +4341,50 @@ mod tests {
         let packets = drain_server_packet_bytes(&send_rx);
         assert_eq!(packets.len(), 1);
         assert_eq!(mount_result_like_cpp(&packets[0]), 8);
+    }
+
+    #[tokio::test]
+    async fn cast_mount_spell_with_mountable_transform_spell_is_allowed_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 50);
+        let mount_spell_id = 12_353;
+        let transform_spell_id = 22_353;
+        let transformed_display_id = 88_003;
+
+        install_canonical_player(&mut session, &canonical, player_guid);
+        set_canonical_player_display_for_test(
+            &canonical,
+            player_guid,
+            transformed_display_id,
+            false,
+        );
+        session.set_known_spells_like_cpp(vec![mount_spell_id]);
+        session.set_spell_store(mounted_spell_store_with_transform_spell(
+            mount_spell_id,
+            transform_spell_id,
+            true,
+        ));
+        set_transformed_display_mount_check_stores_for_test(
+            &mut session,
+            transformed_display_id,
+            0,
+            0,
+        );
+        session.visible_auras.insert(
+            0,
+            active_shapeshift_aura_for_test(transform_spell_id, player_guid),
+        );
+
+        session
+            .handle_cast_spell(cast_spell_packet(mount_spell_id, player_guid))
+            .await;
+
+        assert!(session.player_mounted_like_cpp());
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert!(!opcodes.contains(&ServerOpcodes::MountResult));
+        assert!(!opcodes.contains(&ServerOpcodes::CastFailed));
+        assert!(opcodes.contains(&ServerOpcodes::SpellGo));
     }
 
     #[tokio::test]
