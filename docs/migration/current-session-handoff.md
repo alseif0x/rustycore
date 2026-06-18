@@ -1,3 +1,23 @@
+- `#NEXT.R8.ENTITIES.1026` — `CMSG_CAST_SPELL` now parses and applies
+  the optional embedded `MoveUpdate` like C++ (not manual-test-ready).
+  Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/SpellPackets.cpp:216-261`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SpellHandler.cpp:228-270`.
+  C++ reads `SpellCastRequest::MoveUpdate` before `SpellWeights`, then
+  `WorldSession::HandleCastSpellOpcode` applies it via
+  `HandleMovementOpcode(CMSG_MOVE_STOP, *MoveUpdate)` after `SpellInfo`
+  validation and before the cast request continues. Rust now stores
+  `CastSpellRequest::move_update`, parses it before spell weights, extracts
+  movement handling into `handle_movement_info_like_cpp`, and applies the
+  embedded movement from `handle_cast_spell` through the same movement path.
+  Coverage: focused `wow-packet` parser tests prove the move update is read
+  before weights, focused `wow-world` handler test proves the embedded movement
+  updates the session position, plus affected-crate checks. Boundary remains
+  partial: this is CMSG cast/movement parity only; full `Spell` engine,
+  complete `Spell::CheckCast`, multi-session movement fanout/runtime map
+  ownership, install/restart, bot, and live-client/manual validation remain
+  open.
 - `#NEXT.R8.ENTITIES.1025` — represented
   `CMSG_CLIENT_PORT_GRAVEYARD` now parses the C++ empty packet through the
   shared unresolved `0xBADD` slot and applies the C++ alive/ghost gates before
