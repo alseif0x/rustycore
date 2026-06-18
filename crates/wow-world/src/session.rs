@@ -20206,6 +20206,7 @@ impl WorldSession {
         self.save_account_item_appearances_like_cpp().await;
         self.save_account_transmog_illusions_like_cpp().await;
         self.mark_character_offline().await;
+        self.mark_character_account_offline_like_cpp().await;
         self.mark_login_account_offline_on_disconnect_like_cpp()
             .await;
         info!(

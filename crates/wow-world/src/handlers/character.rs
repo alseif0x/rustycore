@@ -26,7 +26,7 @@ use wow_data::{
 };
 use wow_database::{
     CharStatements, CharacterDatabase, LoginStatements, PreparedStatement, SqlTransaction,
-    WorldDatabase, WorldStatements,
+    StatementDef, WorldDatabase, WorldStatements,
 };
 use wow_entities::{
     BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_START, GAMEOBJECT_TYPE_FISHING_HOLE,
@@ -3000,6 +3000,7 @@ impl WorldSession {
         // Send LogoutComplete → client returns to character select
         self.set_state(crate::session::SessionState::Authed);
         self.send_packet(&LogoutComplete);
+        self.mark_character_account_offline_like_cpp().await;
         self.set_player_guid(None);
 
         // Clear inventory state
@@ -3083,6 +3084,43 @@ impl WorldSession {
             warn!("Failed to mark character offline: {e}");
         } else {
             info!("Marked character offline for guid {}", guid.counter());
+        }
+    }
+
+    pub(crate) fn build_character_account_offline_statement_like_cpp(
+        account_id: u32,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::UPD_ACCOUNT_ONLINE.sql());
+        stmt.set_u32(0, account_id);
+        stmt
+    }
+
+    /// Trinity marks every character for the active account offline after
+    /// `SMSG_LOGOUT_COMPLETE` because one account can only have one online
+    /// character.  See C++ `WorldSession::LogoutPlayer`.
+    pub(crate) async fn mark_character_account_offline_like_cpp(&self) {
+        let Some(char_db) = self.char_db().map(Arc::clone) else {
+            warn!(
+                account = self.account_id,
+                "Character account offline save skipped: character database unavailable"
+            );
+            return;
+        };
+
+        let stmt = Self::build_character_account_offline_statement_like_cpp(self.account_id);
+        match char_db.execute(&stmt).await {
+            Ok(rows) => {
+                info!(
+                    account = self.account_id,
+                    rows, "Marked character account offline like C++"
+                );
+            }
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "Failed to mark character account offline like C++: {error}"
+                );
+            }
         }
     }
 
@@ -11781,6 +11819,14 @@ mod tests {
             WorldSession::account_mount_spells_are_session_dependent_like_cpp(),
             "C++ CollectionMgr::AddMount calls Player::LearnSpell(spellId, true); Player::_SaveSpells skips dependent spells, so account mounts must not be persisted into character_spell"
         );
+    }
+
+    #[test]
+    fn logout_marks_all_account_characters_offline_like_cpp() {
+        let stmt = WorldSession::build_character_account_offline_statement_like_cpp(42);
+
+        assert_eq!(stmt.sql(), CharStatements::UPD_ACCOUNT_ONLINE.sql());
+        assert_eq!(stmt.params(), &[wow_database::SqlParam::U32(42)]);
     }
 
     #[test]
