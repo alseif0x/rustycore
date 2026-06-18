@@ -948,6 +948,7 @@ pub(crate) struct RepresentedLootRollState {
 pub(crate) struct PlayerSaveToDbSnapshotLikeCpp {
     pub guid: ObjectGuid,
     pub map_id: u16,
+    pub instance_id: u32,
     pub position: Position,
     pub level: u8,
     pub xp: u32,
@@ -5924,12 +5925,13 @@ impl WorldSession {
                 // typed Player. Treat the canonical Player as the save source
                 // whenever it exists, and use the session fields only as the
                 // pre-canonical fallback below.
-                let map_id = self.player_map_id_like_cpp();
                 let position = player.unit().world().position();
 
                 snapshot = Some(PlayerSaveToDbSnapshotLikeCpp {
                     guid,
-                    map_id,
+                    map_id: u16::try_from(managed.map_id())
+                        .unwrap_or_else(|_| self.player_map_id_like_cpp()),
+                    instance_id: managed.instance_id(),
                     position,
                     level: player.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8,
                     xp: player.active_data().xp.max(0) as u32,
@@ -5944,6 +5946,10 @@ impl WorldSession {
         Some(PlayerSaveToDbSnapshotLikeCpp {
             guid,
             map_id: self.player_map_id_like_cpp(),
+            instance_id: self
+                .current_canonical_player_map_key_like_cpp()
+                .map(|key| key.instance_id)
+                .unwrap_or(0),
             position: self.player_position_like_cpp()?,
             level: self.player_level_like_cpp(),
             xp: self.player_xp_like_cpp(),
@@ -17751,6 +17757,7 @@ impl WorldSession {
     fn build_character_position_save_statement_like_cpp(
         position: Position,
         map_id: u16,
+        instance_id: u32,
         zone_id: u32,
         guid_counter: u64,
     ) -> PreparedStatement {
@@ -17760,8 +17767,9 @@ impl WorldSession {
         stmt.set_f32(2, position.z);
         stmt.set_f32(3, position.orientation);
         stmt.set_u16(4, map_id);
-        stmt.set_u16(5, zone_id as u16);
-        stmt.set_u64(6, guid_counter);
+        stmt.set_u32(5, instance_id);
+        stmt.set_u16(6, zone_id as u16);
+        stmt.set_u64(7, guid_counter);
         stmt
     }
 
@@ -17777,6 +17785,9 @@ impl WorldSession {
         let stmt = Self::build_character_position_save_statement_like_cpp(
             position,
             self.player_map_id_like_cpp(),
+            self.current_canonical_player_map_key_like_cpp()
+                .map(|key| key.instance_id)
+                .unwrap_or(0),
             self.player_zone_id_like_cpp as u32,
             guid.counter() as u64,
         );
@@ -79483,6 +79494,7 @@ mod tests {
             PlayerSaveToDbSnapshotLikeCpp {
                 guid: player_guid,
                 map_id: 571,
+                instance_id: 0,
                 position: saved_position,
                 level: 42,
                 xp: 1234,
@@ -79549,6 +79561,7 @@ mod tests {
         let stmt = WorldSession::build_character_position_save_statement_like_cpp(
             position,
             571,
+            9001,
             495,
             guid.counter() as u64,
         );
@@ -79559,9 +79572,13 @@ mod tests {
         assert!(matches!(stmt.params()[2], wow_database::SqlParam::F32(v) if v == 303.0));
         assert!(matches!(stmt.params()[3], wow_database::SqlParam::F32(v) if v == 4.5));
         assert!(matches!(stmt.params()[4], wow_database::SqlParam::U16(571)));
-        assert!(matches!(stmt.params()[5], wow_database::SqlParam::U16(495)));
+        assert!(matches!(
+            stmt.params()[5],
+            wow_database::SqlParam::U32(9001)
+        ));
+        assert!(matches!(stmt.params()[6], wow_database::SqlParam::U16(495)));
         assert!(
-            matches!(stmt.params()[6], wow_database::SqlParam::U64(v) if v == guid.counter() as u64)
+            matches!(stmt.params()[7], wow_database::SqlParam::U64(v) if v == guid.counter() as u64)
         );
     }
 

@@ -2262,7 +2262,7 @@ impl StatementDef for CharStatements {
                 "UPDATE character_social SET note = ? WHERE guid = ? AND friend = ?"
             }
             Self::UPD_CHARACTER_POSITION => {
-                "UPDATE characters SET position_x = ?, position_y = ?, position_z = ?, orientation = ?, map = ?, zone = ?, trans_x = 0, trans_y = 0, trans_z = 0, transguid = 0, taxi_path = '', cinematic = 1 WHERE guid = ?"
+                "UPDATE characters SET position_x = ?, position_y = ?, position_z = ?, orientation = ?, map = ?, instance_id = ?, zone = ?, trans_x = 0, trans_y = 0, trans_z = 0, transguid = 0, taxi_path = '', cinematic = 1 WHERE guid = ?"
             }
             Self::UPD_CHARACTER_POSITION_BY_MAPID => {
                 "UPDATE characters SET position_x = ?, position_y = ?, position_z = ?, orientation = ?, map = ?, zone = ?, trans_x = 0, trans_y = 0, trans_z = 0, transguid = 0, taxi_path = '', cinematic = 1 WHERE guid = ? AND map = ?"
@@ -4118,7 +4118,7 @@ mod tests {
     }
 
     #[test]
-    fn character_maintenance_social_and_position_statements_match_cpp_sql_exactly() {
+    fn character_maintenance_social_and_position_statements_are_pinned() {
         assert_eq!(
             CharStatements::UPD_GROUP_DIFFICULTY.sql(),
             "UPDATE `groups` SET difficulty = ? WHERE guid = ?"
@@ -4197,7 +4197,7 @@ mod tests {
         );
         assert_eq!(
             CharStatements::UPD_CHARACTER_POSITION.sql(),
-            "UPDATE characters SET position_x = ?, position_y = ?, position_z = ?, orientation = ?, map = ?, zone = ?, trans_x = 0, trans_y = 0, trans_z = 0, transguid = 0, taxi_path = '', cinematic = 1 WHERE guid = ?"
+            "UPDATE characters SET position_x = ?, position_y = ?, position_z = ?, orientation = ?, map = ?, instance_id = ?, zone = ?, trans_x = 0, trans_y = 0, trans_z = 0, transguid = 0, taxi_path = '', cinematic = 1 WHERE guid = ?"
         );
         assert_eq!(
             CharStatements::UPD_CHARACTER_POSITION_BY_MAPID.sql(),

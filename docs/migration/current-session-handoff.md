@@ -1,3 +1,20 @@
+- `#NEXT.R8.ENTITIES.1037` — disconnect/logout position save now persists
+  `instance_id` with the focused Rust location update (not manual-test-ready).
+  Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:552-641`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:19318-19630`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/CharacterDatabase.cpp:429-482`.
+  C++ logout calls `Player::SaveToDB` while the live player still exists, and
+  the full `CHAR_UPD_CHARACTER` save persists map, `instance_id`, difficulties,
+  position, orientation, and zone together. Rust still uses a focused
+  represented save instead of the full character update, but that focused
+  location statement now includes `instance_id` and the logout snapshot carries
+  the canonical map instance when available. Coverage: focused logout-save
+  snapshot tests plus the pinned character-position statement test. Boundary
+  remains partial: full `Player::SaveToDB` parity, teleport-delayed save,
+  transport offsets, full transaction coverage, install/restart, bot, and live
+  manual disconnect validation remain open.
 - `#NEXT.R8.ENTITIES.1036` — account-mount learning now matches C++
   `CollectionMgr::LoadAccountMounts` / `AddMount` ordering for valid
   `Mount.db2` source spells (not manual-test-ready). Source-of-truth:
