@@ -1,3 +1,21 @@
+- `#NEXT.R8.ENTITIES.1027` — `CMSG_CANCEL_QUEUED_SPELL` now clears a
+  represented pending spell cast request like C++ `Player::CancelPendingCastRequest`
+  (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SpellHandler.cpp:228-270`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:29101-29126`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellCastRequest.h:33-43`.
+  C++ keeps the queued spell request separate from the current spell slot, and
+  cancelling the queued spell sends `SMSG_CAST_FAILED` for the pending request
+  with `SPELL_FAILED_DONT_REPORT` before clearing only that pending pointer.
+  Rust now has a minimal represented `Player::_pendingSpellCastRequest` shape
+  on `WorldSession`, `handle_cancel_queued_spell` cancels that queue without
+  touching `active_spell_cast`, and focused tests verify the exact CastFailed
+  cast id/spell id/reason plus the silent no-pending case. Boundary remains
+  partial: `handle_cast_spell` still does not create/execute the pending
+  request via C++ `RequestSpellCast`/`ExecutePendingSpellCastRequest`,
+  item-cast pending requests are not represented, and there is no install,
+  restart, bot, or live-client/manual validation claim.
 - `#NEXT.R8.ENTITIES.1026` — `CMSG_CAST_SPELL` now parses and applies
   the optional embedded `MoveUpdate` like C++ (not manual-test-ready).
   Source-of-truth:

@@ -1924,8 +1924,9 @@ impl WorldSession {
             return;
         }
         // C++ cancels `Player::CancelPendingCastRequest`, not the current
-        // non-melee spell. Rust does not yet represent that pending request
-        // queue separately, so do not clear `active_spell_cast` here.
+        // non-melee spell. The represented queue is separate from
+        // `active_spell_cast`, so this keeps casts already in progress alive.
+        self.cancel_pending_spell_cast_request_like_cpp();
     }
 
     /// Handle `CMSG_SELF_RES`.
@@ -2430,8 +2431,8 @@ mod tests {
         stored_loot_item_should_persist_like_cpp,
     };
     use crate::session::{
-        AuraApplication, RepresentedAuraEffectLikeCpp, SessionPlayerController,
-        SharedCanonicalMapManager, SpellCastMetadata, SpellCastState,
+        AuraApplication, RepresentedAuraEffectLikeCpp, RepresentedPendingSpellCastRequestLikeCpp,
+        SessionPlayerController, SharedCanonicalMapManager, SpellCastMetadata, SpellCastState,
     };
 
     fn make_session() -> (crate::session::WorldSession, flume::Receiver<Vec<u8>>) {
@@ -2743,6 +2744,19 @@ mod tests {
             },
             metadata: SpellCastMetadata::default(),
         });
+    }
+
+    fn install_pending_spell_cast_request(
+        session: &mut crate::session::WorldSession,
+        spell_id: i32,
+        cast_id: ObjectGuid,
+    ) {
+        session.represented_pending_spell_cast_request_like_cpp =
+            Some(RepresentedPendingSpellCastRequestLikeCpp {
+                cast_id,
+                spell_id,
+                casting_unit_guid: ObjectGuid::create_player(1, 42),
+            });
     }
 
     fn install_canonical_channeled_spell(
@@ -3375,6 +3389,20 @@ mod tests {
         packet.read_int32().expect("reason")
     }
 
+    fn cast_failed_fields_like_cpp(bytes: &[u8]) -> (ObjectGuid, i32, i32) {
+        let mut packet = WorldPacket::from_bytes(bytes);
+        assert_eq!(
+            packet.server_opcode(),
+            Some(ServerOpcodes::CastFailed),
+            "expected CastFailed packet"
+        );
+        let _ = packet.read_uint16().expect("opcode");
+        let cast_id = packet.read_packed_guid().expect("cast id");
+        let spell_id = packet.read_int32().expect("spell id");
+        let reason = packet.read_int32().expect("reason");
+        (cast_id, spell_id, reason)
+    }
+
     fn mount_result_like_cpp(bytes: &[u8]) -> i32 {
         let mut packet = WorldPacket::from_bytes(bytes);
         assert_eq!(
@@ -3620,10 +3648,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn cancel_queued_spell_does_not_clear_current_active_cast_like_cpp() {
-        let (mut session, _send_rx) = make_session();
-        let cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 7);
-        install_active_spell_cast(&mut session, 12_345, cast_id);
+    async fn cancel_queued_spell_clears_only_pending_request_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let active_cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 7);
+        let pending_cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 8);
+        install_active_spell_cast(&mut session, 12_345, active_cast_id);
+        install_pending_spell_cast_request(&mut session, 67_890, pending_cast_id);
 
         session
             .handle_cancel_queued_spell(WorldPacket::new_empty())
@@ -3636,6 +3666,30 @@ mod tests {
                 .map(|active_cast| active_cast.spell_id),
             Some(12_345)
         );
+        assert!(
+            session
+                .represented_pending_spell_cast_request_like_cpp
+                .is_none()
+        );
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 1);
+        assert_eq!(
+            cast_failed_fields_like_cpp(&packets[0]),
+            (pending_cast_id, 67_890, 32),
+            "C++ Player::CancelPendingCastRequest sends SPELL_FAILED_DONT_REPORT for the queued request"
+        );
+    }
+
+    #[tokio::test]
+    async fn cancel_queued_spell_without_pending_request_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_cancel_queued_spell(WorldPacket::new_empty())
+            .await;
+
+        assert!(send_rx.is_empty());
     }
 
     #[tokio::test]

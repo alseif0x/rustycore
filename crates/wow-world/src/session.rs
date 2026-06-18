@@ -3050,6 +3050,8 @@ impl SpellCastMetadata {
     }
 }
 
+const SPELL_FAILED_DONT_REPORT_LIKE_CPP: i32 = 32;
+
 /// Spell casting state — tracks an in-progress spell cast with a timer.
 ///
 /// Used for spells with cast time > 0. When the player initiates a cast,
@@ -3073,6 +3075,18 @@ pub struct SpellCastState {
     pub spell_visual: wow_packet::packets::spell::SpellCastVisual,
     /// C++ `Spell` metadata that must survive delayed completion.
     pub metadata: SpellCastMetadata,
+}
+
+/// Minimal represented state for C++ `Player::_pendingSpellCastRequest`.
+///
+/// Full request execution is still a later porting slice; this shape covers
+/// the fields C++ `CancelPendingCastRequest` needs to clear the queued button
+/// highlight without touching the currently active spell cast.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RepresentedPendingSpellCastRequestLikeCpp {
+    pub cast_id: ObjectGuid,
+    pub spell_id: i32,
+    pub casting_unit_guid: ObjectGuid,
 }
 
 /// C++ `WorldSession::_accountData[NUM_ACCOUNT_DATA_TYPES]` entry.
@@ -3925,6 +3939,11 @@ pub struct WorldSession {
     gameobject_template_lifecycle_store: Option<Arc<GameObjectTemplateLifecycleStoreLikeCpp>>,
     /// Currently active spell cast (if any). Set when a cast starts, cleared when it completes.
     pub(crate) active_spell_cast: Option<SpellCastState>,
+    /// C++ `Player::_pendingSpellCastRequest`, represented separately from
+    /// `active_spell_cast` so cancel queued spell does not interrupt a cast
+    /// already in progress.
+    pub(crate) represented_pending_spell_cast_request_like_cpp:
+        Option<RepresentedPendingSpellCastRequestLikeCpp>,
     /// Last time a spell was executed (used to enforce global cooldown timers).
     pub(crate) last_spell_cast_time: Option<Instant>,
     /// Per-spell cooldown tracking: spell_id → last cast time.
@@ -5316,6 +5335,7 @@ impl WorldSession {
             represented_quest_complete_status_updates_like_cpp: Vec::new(),
             represented_push_quest_to_party_outcomes_like_cpp: Vec::new(),
             active_spell_cast: None,
+            represented_pending_spell_cast_request_like_cpp: None,
             last_spell_cast_time: None,
             last_spell_cast_time_per_spell: HashMap::new(),
             loot_table: std::collections::HashMap::new(),
@@ -34612,6 +34632,21 @@ impl WorldSession {
 
     pub(crate) fn interrupt_non_melee_spell_cast_for_loot_like_cpp(&mut self) -> bool {
         self.active_spell_cast.take().is_some()
+    }
+
+    pub(crate) fn cancel_pending_spell_cast_request_like_cpp(&mut self) -> bool {
+        let Some(request) = self.represented_pending_spell_cast_request_like_cpp.take() else {
+            return false;
+        };
+
+        self.send_packet(&wow_packet::packets::spell::CastFailed {
+            cast_id: request.cast_id,
+            spell_id: request.spell_id,
+            reason: SPELL_FAILED_DONT_REPORT_LIKE_CPP,
+            fail_arg1: 0,
+            fail_arg2: 0,
+        });
+        true
     }
 
     pub(crate) fn interrupt_non_melee_spells_for_far_teleport_like_cpp(&mut self) -> bool {
