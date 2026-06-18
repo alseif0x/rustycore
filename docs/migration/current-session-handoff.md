@@ -1,3 +1,21 @@
+- `#NEXT.R8.ENTITIES.1024` — `CMSG_CANCEL_AURA` now covers the
+  represented non-channeled `RemoveOwnedAura` branch for single-effect generic
+  owned auras (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SpellHandler.cpp:272-297`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:462`.
+  C++ returns for missing `SpellInfo`, `SPELL_ATTR0_NO_AURA_CANCEL`,
+  channeled spell handling, non-positive spells, and passive spells before
+  removing the owned aura by spell id and caster GUID. Rust now exposes
+  `SpellStore::is_passive_like_cpp`, keeps the passive gate in the packet
+  handler, and makes the represented remove helper enforce the missing-spell,
+  no-aura-cancel, channeled, passive, spell-id, and caster-GUID gates before it
+  removes a single-effect generic represented aura. Coverage: focused
+  `generic_owned_aura_cancel` tests and the broader `cancel_aura` test filter.
+  Boundary remains partial: full `SpellInfo::IsPositive()` DB2 parity is still
+  not represented, full `Aura`/`AuraApplication` remove-mode side effects are
+  not ported, multi-effect generic aura grouping remains open, and there is no
+  install/restart, bot, or live-client/manual validation claim.
 - `#NEXT.R8.ENTITIES.1023` — disconnect teardown now mirrors the C++
   `WorldSession` destructor account-online cleanup (not manual-test-ready).
   Source-of-truth:

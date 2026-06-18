@@ -1805,6 +1805,9 @@ impl WorldSession {
             self.interrupt_current_channeled_spell_like_cpp(request.spell_id);
             return;
         }
+        if spell_store.is_passive_like_cpp(request.spell_id) {
+            return;
+        }
         self.remove_represented_cancelable_owned_aura_like_cpp(
             request.spell_id,
             request.caster_guid,

@@ -5454,6 +5454,12 @@ ORDER BY sm.ID, se.EffectIndex
             .is_some_and(|attributes| attributes[1] & attribute != 0)
     }
 
+    /// C++ `SpellInfo::IsPassive`, for the represented paths that currently
+    /// only need the `SPELL_ATTR0_PASSIVE` gate.
+    pub fn is_passive_like_cpp(&self, spell_id: i32) -> bool {
+        self.has_attribute0_like_cpp(spell_id, attributes::SPELL_ATTR0_PASSIVE)
+    }
+
     /// C++ `SpellInfo::IsChanneled`.
     pub fn is_channeled_like_cpp(&self, spell_id: i32) -> bool {
         self.has_attribute1_like_cpp(

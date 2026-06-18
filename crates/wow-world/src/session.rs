@@ -21249,6 +21249,20 @@ impl WorldSession {
         spell_id: i32,
         caster_guid: ObjectGuid,
     ) -> usize {
+        let Some(spell_store) = self.spell_store.as_ref() else {
+            return 0;
+        };
+        if spell_store.get(spell_id).is_none()
+            || spell_store.has_attribute0_like_cpp(
+                spell_id,
+                wow_data::spell::attributes::SPELL_ATTR0_NO_AURA_CANCEL,
+            )
+            || spell_store.is_channeled_like_cpp(spell_id)
+            || spell_store.is_passive_like_cpp(spell_id)
+        {
+            return 0;
+        }
+
         let slots: Vec<u8> = self
             .visible_auras
             .values()
@@ -21261,16 +21275,18 @@ impl WorldSession {
                 }
                 // C++ checks SpellInfo before RemoveOwnedAura: no
                 // SPELL_ATTR0_NO_AURA_CANCEL, positive, and non-passive.
-                // Rust only applies this represented shortcut to effect types
-                // whose local runtime already models a player-cancelable aura.
-                matches!(
-                    aura.represented_effect,
-                    Some(
-                        RepresentedAuraEffectLikeCpp::Mounted
-                            | RepresentedAuraEffectLikeCpp::ModScale
-                            | RepresentedAuraEffectLikeCpp::ModSpeedNoControl
-                    )
-                )
+                // Full SpellInfo::IsPositive is not represented yet; allow
+                // the locally materialized positive/cancelable aura shapes,
+                // including the single-effect generic represented aura.
+                (aura.represented_effect.is_none()
+                    || matches!(
+                        aura.represented_effect,
+                        Some(
+                            RepresentedAuraEffectLikeCpp::Mounted
+                                | RepresentedAuraEffectLikeCpp::ModScale
+                                | RepresentedAuraEffectLikeCpp::ModSpeedNoControl
+                        )
+                    ))
                 .then_some(aura.slot)
             })
             .collect();
@@ -52618,6 +52634,128 @@ mod tests {
                 ServerOpcodes::CooldownEvent
             ]
         );
+    }
+
+    #[tokio::test]
+    async fn generic_owned_aura_cancel_removes_single_effect_row_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 728_i32;
+        let player_guid = ObjectGuid::create_player(1, 7033);
+        session.set_player_guid(Some(player_guid));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_DUMMY,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: spell_id as u32,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("single represented generic apply-aura effect row should execute");
+        let _ = drain_server_opcodes(&send_rx);
+
+        let removed =
+            session.remove_represented_cancelable_owned_aura_like_cpp(spell_id, player_guid);
+
+        assert_eq!(removed, 1);
+        assert!(
+            !session
+                .visible_auras
+                .values()
+                .any(|aura| aura.spell_id == spell_id)
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::AuraUpdate]
+        );
+    }
+
+    #[tokio::test]
+    async fn generic_owned_aura_cancel_preserves_passive_spell_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 729_i32;
+        let player_guid = ObjectGuid::create_player(1, 7034);
+        session.set_player_guid(Some(player_guid));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_DUMMY,
+                    ..Default::default()
+                }],
+            },
+        );
+        let mut attributes = [0; 15];
+        attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_PASSIVE;
+        spell_store.insert_spell_misc_attributes_like_cpp(spell_id, attributes);
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: spell_id as u32,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("single represented generic apply-aura effect row should execute");
+        let _ = drain_server_opcodes(&send_rx);
+
+        let removed =
+            session.remove_represented_cancelable_owned_aura_like_cpp(spell_id, player_guid);
+
+        assert_eq!(removed, 0);
+        assert!(
+            session
+                .visible_auras
+                .values()
+                .any(|aura| aura.spell_id == spell_id)
+        );
+        assert!(send_rx.is_empty());
     }
 
     #[tokio::test]
