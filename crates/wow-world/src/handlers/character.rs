@@ -955,6 +955,25 @@ fn player_money_gain_like_cpp(current_money: u64, amount: u64) -> Option<u64> {
     }
 }
 
+fn active_known_spell_for_send_like_cpp(spell_id: u32, active: u8, disabled: u8) -> Option<i32> {
+    if spell_id > 0 && active != 0 && disabled == 0 {
+        i32::try_from(spell_id).ok()
+    } else {
+        None
+    }
+}
+
+fn favorite_known_spells_for_send_like_cpp(
+    known_spells: &[i32],
+    favorite_spells: &HashSet<i32>,
+) -> Vec<i32> {
+    known_spells
+        .iter()
+        .copied()
+        .filter(|spell_id| favorite_spells.contains(spell_id))
+        .collect()
+}
+
 fn vendor_buy_packet_quantity_to_cpp_count(quantity: i32) -> u32 {
     u32::from((quantity as u8).max(1))
 }
@@ -3970,6 +3989,7 @@ impl WorldSession {
         // ── Load known spells from character_spell ──
         // Column types: spell=int unsigned, active=tinyint unsigned, disabled=tinyint unsigned
         let mut known_spells: Vec<i32> = Vec::new();
+        let mut favorite_spell_rows: HashSet<i32> = HashSet::new();
         {
             let mut spell_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_SPELL);
             spell_stmt.set_u64(0, guid.counter() as u64);
@@ -3979,9 +3999,11 @@ impl WorldSession {
                         loop {
                             let spell_id: u32 = spell_result.try_read(0).unwrap_or(0);
                             let active: u8 = spell_result.try_read(1).unwrap_or(1);
-                            let _disabled: u8 = spell_result.try_read(2).unwrap_or(0);
-                            if spell_id > 0 && active != 0 {
-                                known_spells.push(spell_id as i32);
+                            let disabled: u8 = spell_result.try_read(2).unwrap_or(0);
+                            if let Some(spell_id) =
+                                active_known_spell_for_send_like_cpp(spell_id, active, disabled)
+                            {
+                                known_spells.push(spell_id);
                             }
                             if !spell_result.next_row() {
                                 break;
@@ -3992,6 +4014,32 @@ impl WorldSession {
                 }
                 Err(e) => {
                     warn!("Failed to load spells for {:?}: {}", guid, e);
+                }
+            }
+
+            let mut favorite_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_SPELL_FAVORITES);
+            favorite_stmt.set_u64(0, guid.counter() as u64);
+            match char_db.query(&favorite_stmt).await {
+                Ok(mut favorite_result) => {
+                    if !favorite_result.is_empty() {
+                        loop {
+                            let spell_id: u32 = favorite_result.try_read(0).unwrap_or(0);
+                            if let Ok(spell_id) = i32::try_from(spell_id) {
+                                favorite_spell_rows.insert(spell_id);
+                            }
+                            if !favorite_result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    info!(
+                        "Loaded {} DB favorite spells for {:?}",
+                        favorite_spell_rows.len(),
+                        guid
+                    );
+                }
+                Err(e) => {
+                    warn!("Failed to load favorite spells for {:?}: {}", guid, e);
                 }
             }
         }
@@ -4323,6 +4371,8 @@ impl WorldSession {
         self.load_instance_time_restrictions_like_cpp().await;
         self.load_player_account_data_like_cpp(guid).await;
         let login_known_spells = self.login_known_spells_after_account_collections_like_cpp();
+        let login_favorite_spells =
+            favorite_known_spells_for_send_like_cpp(&login_known_spells, &favorite_spell_rows);
 
         self.send_login_sequence(
             guid,
@@ -4339,6 +4389,7 @@ impl WorldSession {
             item_creates,
             combat,
             login_known_spells,
+            login_favorite_spells,
             action_buttons,
             skill_info_tuples,
             account_mounts,
@@ -11065,6 +11116,7 @@ impl WorldSession {
         item_creates: Vec<wow_packet::packets::update::ItemCreateData>,
         combat: PlayerCombatStats,
         known_spells: Vec<i32>,
+        favorite_spells: Vec<i32>,
         action_buttons: [i64; 180],
         skill_info: Vec<(u16, u16, u16, u16, u16, i16, u16)>,
         account_mounts: Vec<AccountMount>,
@@ -11125,7 +11177,7 @@ impl WorldSession {
         self.send_packet(&SendKnownSpells {
             initial_login: true,
             known_spells,
-            favorite_spells: Vec::new(),
+            favorite_spells,
         });
 
         // 11. SendUnlearnSpells (empty)
@@ -11506,6 +11558,33 @@ mod tests {
         assert!(
             login_spells.contains(&101),
             "C++ CollectionMgr::AddMount stores/learns the mount before evaluating PlayerCondition; the condition applies to using it"
+        );
+    }
+
+    #[test]
+    fn send_known_spells_filters_disabled_and_inactive_like_cpp() {
+        assert_eq!(active_known_spell_for_send_like_cpp(118, 1, 0), Some(118));
+        assert_eq!(
+            active_known_spell_for_send_like_cpp(118, 0, 0),
+            None,
+            "C++ Player::SendKnownSpells skips inactive spells"
+        );
+        assert_eq!(
+            active_known_spell_for_send_like_cpp(118, 1, 1),
+            None,
+            "C++ Player::SendKnownSpells skips disabled spells"
+        );
+        assert_eq!(active_known_spell_for_send_like_cpp(0, 1, 0), None);
+    }
+
+    #[test]
+    fn send_known_spells_favorites_are_subset_of_sent_spells_like_cpp() {
+        let favorites = HashSet::from([635, 999]);
+
+        assert_eq!(
+            favorite_known_spells_for_send_like_cpp(&[118, 635, 133], &favorites),
+            vec![635],
+            "C++ only marks favorite spells while iterating spells that are actually sent"
         );
     }
 

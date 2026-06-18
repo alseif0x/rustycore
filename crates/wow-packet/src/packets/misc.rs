@@ -9944,11 +9944,11 @@ mod tests {
         let pkt = SendKnownSpells {
             initial_login: true,
             known_spells: vec![6603, 78, 2457],
-            favorite_spells: vec![],
+            favorite_spells: vec![2457],
         };
         let bytes = pkt.to_bytes();
-        // opcode(2) + bit(flush)(1) + count(4) + fav_count(4) + 3*i32(12) = 23
-        assert_eq!(bytes.len(), 23);
+        // opcode(2) + bit(flush)(1) + count(4) + fav_count(4) + 4*i32(16) = 27
+        assert_eq!(bytes.len(), 27);
     }
 
     #[test]
