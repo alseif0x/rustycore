@@ -275,9 +275,17 @@ impl WorldSession {
 
         // ── Validation: Known spell ─────────────────────────────────────
         if !self.known_spells_like_cpp().contains(&spell_id) {
+            let account_mount_rows = self.account_mount_rows_like_cpp();
             warn!(
                 account = self.account_id,
                 spell_id = spell_id,
+                known_spell_count = self.known_spells_like_cpp().len(),
+                account_mount_count = account_mount_rows.len(),
+                has_account_mount = account_mount_rows
+                    .iter()
+                    .any(|mount| mount.spell_id == spell_id),
+                riding_skill =
+                    self.player_skill_value_like_cpp(crate::session::SKILL_RIDING_LIKE_CPP),
                 "Cast attempt for unknown spell"
             );
             self.send_packet(&CastFailed {

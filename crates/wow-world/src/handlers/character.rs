@@ -26,7 +26,7 @@ use wow_data::{
 };
 use wow_database::{
     CharStatements, CharacterDatabase, LoginStatements, PreparedStatement, SqlTransaction,
-    StatementDef, WorldDatabase, WorldStatements,
+    WorldDatabase, WorldStatements,
 };
 use wow_entities::{
     BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_START, GAMEOBJECT_TYPE_FISHING_HOLE,
@@ -3181,43 +3181,6 @@ impl WorldSession {
                 );
             }
         }
-    }
-
-    pub(crate) async fn save_account_mount_spells_to_character_like_cpp(&self) {
-        let (Some(player_guid), Some(char_db)) =
-            (self.player_guid(), self.char_db().map(Arc::clone))
-        else {
-            return;
-        };
-
-        for mount in self.account_mount_rows_like_cpp() {
-            if mount.spell_id <= 0 {
-                continue;
-            }
-
-            let stmt = Self::build_account_mount_spell_save_statement_like_cpp(
-                player_guid.counter() as u64,
-                mount.spell_id,
-            );
-            if let Err(error) = char_db.execute(&stmt).await {
-                warn!(
-                    account = self.account_id,
-                    player_guid = player_guid.counter(),
-                    spell_id = mount.spell_id,
-                    "Failed to persist account mount spell to character_spell: {error}"
-                );
-            }
-        }
-    }
-
-    pub(crate) fn build_account_mount_spell_save_statement_like_cpp(
-        player_guid: u64,
-        spell_id: i32,
-    ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::INS_CHARACTER_SPELL.sql());
-        stmt.set_u64(0, player_guid);
-        stmt.set_i32(1, spell_id);
-        stmt
     }
 
     pub(crate) async fn save_account_toys_like_cpp(&self) {
@@ -11808,19 +11771,15 @@ mod tests {
     }
 
     #[test]
-    fn account_mount_spell_save_statement_matches_cpp_learn_spell_persistence() {
-        let stmt = WorldSession::build_account_mount_spell_save_statement_like_cpp(42, 64_658);
-
-        assert_eq!(stmt.sql(), CharStatements::INS_CHARACTER_SPELL.sql());
-        assert!(matches!(stmt.params()[0], wow_database::SqlParam::U64(42)));
-        assert!(matches!(
-            stmt.params()[1],
-            wow_database::SqlParam::I32(64_658)
-        ));
+    fn account_mount_spells_are_dependent_and_not_saved_to_character_spell_like_cpp() {
         assert_eq!(
             CharStatements::INS_CHARACTER_SPELL.sql(),
             "INSERT IGNORE INTO character_spell (guid, spell, active, disabled) VALUES (?, ?, 1, 0)",
-            "C++ CollectionMgr::AddMount reaches Player::LearnSpell; represented account mounts persist through the same character_spell insert seam"
+            "trainer/regular learned spells still use the character_spell insert seam"
+        );
+        assert!(
+            WorldSession::account_mount_spells_are_session_dependent_like_cpp(),
+            "C++ CollectionMgr::AddMount calls Player::LearnSpell(spellId, true); Player::_SaveSpells skips dependent spells, so account mounts must not be persisted into character_spell"
         );
     }
 

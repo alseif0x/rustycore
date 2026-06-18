@@ -17924,7 +17924,6 @@ impl WorldSession {
         self.save_player_position_like_cpp(&snapshot).await;
         self.save_player_level_xp_like_cpp().await;
         self.save_player_gold().await;
-        self.save_account_mount_spells_to_character_like_cpp().await;
         self.save_player_skills_like_cpp().await;
         self.save_player_difficulties_like_cpp().await;
         self.save_instance_time_restrictions_like_cpp().await;
@@ -25456,6 +25455,10 @@ impl WorldSession {
             learned += usize::from(self.known_spells.len() != before);
         }
         learned
+    }
+
+    pub(crate) const fn account_mount_spells_are_session_dependent_like_cpp() -> bool {
+        true
     }
 
     #[allow(dead_code)]
