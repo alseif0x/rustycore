@@ -4228,6 +4228,7 @@ impl WorldSession {
         self.load_completed_achievements_like_cpp().await;
         self.load_instance_time_restrictions_like_cpp().await;
         self.load_player_account_data_like_cpp(guid).await;
+        let login_known_spells = self.login_known_spells_after_account_collections_like_cpp();
 
         self.send_login_sequence(
             guid,
@@ -4243,7 +4244,7 @@ impl WorldSession {
             inv_slots,
             item_creates,
             combat,
-            known_spells,
+            login_known_spells,
             action_buttons,
             skill_info_tuples,
             account_mounts,
@@ -4253,6 +4254,10 @@ impl WorldSession {
         let mut online_stmt = char_db.prepare(CharStatements::UPD_CHAR_ONLINE);
         online_stmt.set_u32(0, guid.counter() as u32);
         let _ = char_db.execute(&online_stmt).await;
+    }
+
+    fn login_known_spells_after_account_collections_like_cpp(&self) -> Vec<i32> {
+        self.known_spells_like_cpp().to_vec()
     }
 
     /// Fallback: skip ConnectTo and trigger direct login on the realm socket.
@@ -11332,6 +11337,65 @@ mod tests {
         session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
         session.set_player_position_like_cpp(Position::new(10.0, 0.0, 0.0, 0.0));
         (session, send_rx)
+    }
+
+    #[test]
+    fn login_known_spells_include_account_mounts_learned_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send_capacity(8);
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_known_spells_like_cpp(vec![635]);
+        session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([
+            wow_data::MountEntry {
+                id: 1,
+                mount_type_id: 0,
+                flags: 0,
+                source_type_enum: 0,
+                source_spell_id: 100,
+                player_condition_id: 42,
+                mount_fly_ride_height: 0.0,
+                ui_model_scene_id: 0,
+            },
+            wow_data::MountEntry {
+                id: 2,
+                mount_type_id: 0,
+                flags: 0,
+                source_type_enum: 0,
+                source_spell_id: 101,
+                player_condition_id: 43,
+                mount_fly_ride_height: 0.0,
+                ui_model_scene_id: 0,
+            },
+        ])));
+        session.set_player_condition_store(Arc::new(wow_data::PlayerConditionStore::from_entries(
+            [
+                wow_data::PlayerConditionEntry {
+                    id: 42,
+                    class_mask: 1,
+                    ..Default::default()
+                },
+                wow_data::PlayerConditionEntry {
+                    id: 43,
+                    class_mask: 1 << 1,
+                    ..Default::default()
+                },
+            ],
+        )));
+
+        session.set_account_mounts_like_cpp(vec![
+            AccountMount {
+                spell_id: 100,
+                flags: 0,
+            },
+            AccountMount {
+                spell_id: 101,
+                flags: 0,
+            },
+        ]);
+
+        let login_spells = session.login_known_spells_after_account_collections_like_cpp();
+        assert!(login_spells.contains(&635));
+        assert!(login_spells.contains(&100));
+        assert!(!login_spells.contains(&101));
     }
 
     #[test]

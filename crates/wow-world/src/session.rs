@@ -5866,10 +5866,14 @@ impl WorldSession {
             && let Some(map) = manager.find_map(u32::from(self.player_map_id_like_cpp()), 0)
             && let Some(player) = map.map().get_typed_player(guid)
         {
+            let map_id = self.player_map_id_like_cpp();
+            let position = self
+                .player_position_like_cpp()
+                .unwrap_or_else(|| player.unit().world().position());
             return Some(PlayerSaveToDbSnapshotLikeCpp {
                 guid,
-                map_id: player.unit().world().map_id() as u16,
-                position: player.unit().world().position(),
+                map_id,
+                position,
                 level: player.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8,
                 xp: player.active_data().xp.max(0) as u32,
                 money: player.active_data().coinage,
@@ -78051,6 +78055,59 @@ mod tests {
         assert_eq!(session.player_level_like_cpp(), 42);
         assert_eq!(session.player_xp_like_cpp(), 1234);
         assert_eq!(session.player_gold_like_cpp(), 5678);
+    }
+
+    #[test]
+    fn logout_save_snapshot_prefers_latest_session_position_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 71);
+        let login_position = Position::new(10.0, 20.0, 30.0, 0.0);
+        let moved_position = Position::new(44.0, 55.0, 66.0, 1.25);
+
+        canonical.lock().unwrap().create_world_map(571, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "Mover".to_string(),
+            login_position,
+            571,
+            1,
+            3,
+            10,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.unit_mut().world_mut().relocate(login_position);
+                player.unit_mut().set_level(42);
+                player.set_xp(1234);
+                player.set_money(5678);
+            })
+            .unwrap();
+
+        session.set_player_position_like_cpp(moved_position);
+
+        let snapshot = session
+            .sync_session_from_save_to_db_snapshot_like_cpp()
+            .unwrap();
+        assert_eq!(snapshot.position, moved_position);
+        assert_eq!(snapshot.map_id, 571);
+        assert_eq!(snapshot.level, 42);
+        assert_eq!(snapshot.xp, 1234);
+        assert_eq!(snapshot.money, 5678);
     }
 
     #[test]

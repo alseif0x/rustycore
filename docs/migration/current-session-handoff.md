@@ -1,3 +1,43 @@
+- `#NEXT.R8.ENTITIES.1004` — login now sends account-mount-learned spells in
+  the initial `SMSG_SEND_KNOWN_SPELLS` packet instead of using the pre-mount
+  DB/DBC spell snapshot (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/CollectionMgr.cpp:324-386`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:6059-6066`.
+  C++ `CollectionMgr::AddMount(..., learned=false)` inserts the account mount
+  and teaches `mount->SourceSpellID` when the mount is usable for the player;
+  the loaded player then owns that spell during login. Rust already learned
+  usable account mount spells into the represented session, but
+  `send_login_sequence` still received the stale `known_spells` local captured
+  before account mounts were applied, so the client could see the mount
+  collection while not receiving the castable mount spell in the login spell
+  list. Rust now builds login known spells from `self.known_spells_like_cpp()`
+  after account collections mutate the session. Coverage: targeted
+  `wow-world` test proves a usable account mount spell is included in the
+  login-known spell list and an unusable condition-filtered mount is not.
+  Boundary remains partial: full live-client mount validation, mount
+  `Spell::CheckCast` environment restrictions, full vehicle/passenger mount
+  runtime parity, install/restart, bot, and manual validation remain open.
+- `#NEXT.R8.ENTITIES.1003` — disconnect save now prefers the latest
+  represented session movement position over a stale canonical `Player`
+  position when building the `CHAR_UPD_CHARACTER_POSITION` snapshot (not
+  manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:552-670`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:20611-20624`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/CharacterDatabase.cpp:481`.
+  C++ has one live `Player` object whose position is updated by movement and
+  then saved by `Player::SaveToDB`/`SavePositionInDB` during logout. Rust has a
+  split runtime: movement packets update the represented session immediately,
+  while the canonical typed `Player` can lag behind. The previous snapshot
+  preferred canonical position, which could write the login/old coordinates on
+  disconnect. Rust now keeps canonical level/xp/money when present but uses the
+  latest represented session map/position for the position save. Coverage:
+  targeted `wow-world` test proves a moved represented session saves the moved
+  coordinates even when the canonical player remains at the login position.
+  Boundary remains partial: full `Player::SaveToDB` parity, canonical movement
+  sync, transport/taxi/instance positioning, install/restart, bot, and manual
+  validation remain open.
 - `#NEXT.R8.ENTITIES.1002` — `CMSG_SELF_RES` now consumes represented
   `ActivePlayerData::SelfResSpells` entries and delegates the accepted spell to
   the existing represented spell-effect runtime instead of only parsing/logging
