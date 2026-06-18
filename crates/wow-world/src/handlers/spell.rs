@@ -1923,8 +1923,9 @@ impl WorldSession {
             account = self.account_id,
             pet_guid = ?request.pet_guid,
             spell_id = request.spell_id,
-            "CMSG_PET_CANCEL_AURA parsed; guardian/charmed pet aura runtime is not represented yet"
+            "CMSG_PET_CANCEL_AURA parsed"
         );
+        self.cancel_represented_pet_aura_like_cpp(request.pet_guid, request.spell_id);
     }
 
     /// Handle `CMSG_TOTEM_DESTROYED`.
@@ -2345,9 +2346,15 @@ mod tests {
 
     use rand::{Rng, SeedableRng, rngs::StdRng};
 
-    use wow_constants::{BagFamilyMask, ItemContext, ItemFieldFlags, ItemFlags, ItemUpdateState};
+    use wow_constants::{
+        BagFamilyMask, DeathState, ItemContext, ItemFieldFlags, ItemFlags, ItemUpdateState,
+        ServerOpcodes,
+    };
     use wow_core::{ObjectGuid, Position, guid::HighGuid};
-    use wow_entities::{Creature, Item, ItemCreateInfo, MAX_ITEM_SPELLS, Player, UNIT_MASK_TOTEM};
+    use wow_entities::{
+        AppliedAuraRef, Creature, Item, ItemCreateInfo, MAX_ITEM_SPELLS, Pet, PetType, Player,
+        UNIT_MASK_TOTEM,
+    };
     use wow_loot::{
         LootConditionRowLikeCpp, condition_compare_values_like_cpp,
         loot_conditions_allow_player_like_cpp_representable,
@@ -2444,6 +2451,59 @@ mod tests {
         add_canonical_test_player_on_map(canonical, player_guid, position, 571, 0);
     }
 
+    fn add_canonical_test_pet_on_map(
+        canonical: &SharedCanonicalMapManager,
+        owner_guid: ObjectGuid,
+        pet_guid: ObjectGuid,
+        spell_id: u32,
+        alive: bool,
+    ) {
+        let mut pet = Pet::new(owner_guid, PetType::Hunter);
+        pet.creature_mut()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .create(pet_guid);
+        pet.creature_mut()
+            .unit_mut()
+            .world_mut()
+            .set_map(571, 0)
+            .unwrap();
+        pet.creature_mut()
+            .unit_mut()
+            .world_mut()
+            .relocate(Position::new(10.5, 20.5, 30.0, 0.0));
+        pet.creature_mut()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .add_to_world();
+        pet.creature_mut().unit_mut().set_max_health(100);
+        pet.creature_mut()
+            .unit_mut()
+            .set_health(if alive { 100 } else { 0 });
+        if !alive {
+            pet.creature_mut()
+                .unit_mut()
+                .set_death_state(DeathState::Dead);
+        }
+        let aura = AppliedAuraRef::new(spell_id, ObjectGuid::EMPTY, 0, 0x1);
+        pet.creature_mut()
+            .unit_mut()
+            .subsystems_mut()
+            .auras
+            .add_applied(aura);
+
+        canonical
+            .lock()
+            .unwrap()
+            .find_map_mut(571, 0)
+            .unwrap()
+            .map_mut()
+            .insert_map_object_record(wow_entities::MapObjectRecord::new_pet(pet).unwrap())
+            .unwrap();
+    }
+
     fn add_canonical_test_creature_on_map(
         canonical: &SharedCanonicalMapManager,
         guid: ObjectGuid,
@@ -2476,6 +2536,83 @@ mod tests {
                 wow_entities::MapObjectRecord::new_creature(creature).unwrap(),
             )
             .unwrap();
+    }
+
+    fn set_canonical_player_pet_guid(
+        canonical: &SharedCanonicalMapManager,
+        player_guid: ObjectGuid,
+        pet_guid: ObjectGuid,
+    ) {
+        canonical
+            .lock()
+            .unwrap()
+            .find_map_mut(571, 0)
+            .unwrap()
+            .map_mut()
+            .get_typed_player_mut(player_guid)
+            .unwrap()
+            .unit_mut()
+            .subsystems_mut()
+            .control
+            .set_pet_guid(pet_guid);
+    }
+
+    fn set_canonical_player_charmed_guid(
+        canonical: &SharedCanonicalMapManager,
+        player_guid: ObjectGuid,
+        charmed_guid: ObjectGuid,
+    ) {
+        canonical
+            .lock()
+            .unwrap()
+            .find_map_mut(571, 0)
+            .unwrap()
+            .map_mut()
+            .get_typed_player_mut(player_guid)
+            .unwrap()
+            .unit_mut()
+            .subsystems_mut()
+            .control
+            .charmed_guid = Some(charmed_guid);
+    }
+
+    fn canonical_pet_has_applied_aura(
+        canonical: &SharedCanonicalMapManager,
+        pet_guid: ObjectGuid,
+        aura: AppliedAuraRef,
+    ) -> bool {
+        canonical
+            .lock()
+            .unwrap()
+            .find_map(571, 0)
+            .unwrap()
+            .map()
+            .get_typed_pet(pet_guid)
+            .unwrap()
+            .creature()
+            .unit()
+            .subsystems()
+            .auras
+            .has_applied(aura)
+    }
+
+    fn canonical_creature_has_applied_aura(
+        canonical: &SharedCanonicalMapManager,
+        creature_guid: ObjectGuid,
+        aura: AppliedAuraRef,
+    ) -> bool {
+        canonical
+            .lock()
+            .unwrap()
+            .find_map(571, 0)
+            .unwrap()
+            .map()
+            .get_typed_creature(creature_guid)
+            .unwrap()
+            .unit()
+            .subsystems()
+            .auras
+            .has_applied(aura)
     }
 
     fn set_canonical_player_summon_slot(
@@ -2985,14 +3122,141 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn pet_cancel_aura_parses_and_stays_silent_until_pet_runtime_exists() {
+    async fn pet_cancel_aura_removes_owned_pet_aura_like_cpp() {
         let (mut session, send_rx) = make_session();
-        let pet_guid = ObjectGuid::create_player(1, 42);
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let pet_guid = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 571, 0, 777, 42);
+        let spell_id = 12_345;
+        let aura = AppliedAuraRef::new(spell_id, ObjectGuid::EMPTY, 0, 0x1);
+        install_canonical_player(&mut session, &canonical, player_guid);
+        session.set_spell_store(basic_spell_store([spell_id as i32]));
+        set_canonical_player_pet_guid(&canonical, player_guid, pet_guid);
+        add_canonical_test_pet_on_map(&canonical, player_guid, pet_guid, spell_id, true);
 
         session
-            .handle_pet_cancel_aura(pet_cancel_aura_packet(pet_guid, 12_345))
+            .handle_pet_cancel_aura(pet_cancel_aura_packet(pet_guid, spell_id))
             .await;
 
+        assert!(!canonical_pet_has_applied_aura(&canonical, pet_guid, aura));
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn pet_cancel_aura_missing_spellinfo_preserves_pet_aura_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let pet_guid = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 571, 0, 777, 43);
+        let spell_id = 12_346;
+        let aura = AppliedAuraRef::new(spell_id, ObjectGuid::EMPTY, 0, 0x1);
+        install_canonical_player(&mut session, &canonical, player_guid);
+        session.set_spell_store(basic_spell_store([]));
+        set_canonical_player_pet_guid(&canonical, player_guid, pet_guid);
+        add_canonical_test_pet_on_map(&canonical, player_guid, pet_guid, spell_id, true);
+
+        session
+            .handle_pet_cancel_aura(pet_cancel_aura_packet(pet_guid, spell_id))
+            .await;
+
+        assert!(canonical_pet_has_applied_aura(&canonical, pet_guid, aura));
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn pet_cancel_aura_non_owned_pet_preserves_aura_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let other_player_guid = ObjectGuid::create_player(1, 43);
+        let pet_guid = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 571, 0, 777, 44);
+        let spell_id = 12_347;
+        let aura = AppliedAuraRef::new(spell_id, ObjectGuid::EMPTY, 0, 0x1);
+        install_canonical_player(&mut session, &canonical, player_guid);
+        session.set_spell_store(basic_spell_store([spell_id as i32]));
+        add_canonical_test_pet_on_map(&canonical, other_player_guid, pet_guid, spell_id, true);
+
+        session
+            .handle_pet_cancel_aura(pet_cancel_aura_packet(pet_guid, spell_id))
+            .await;
+
+        assert!(canonical_pet_has_applied_aura(&canonical, pet_guid, aura));
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn pet_cancel_aura_dead_pet_sends_feedback_and_preserves_aura_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let pet_guid = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 571, 0, 777, 45);
+        let spell_id = 12_348;
+        let aura = AppliedAuraRef::new(spell_id, ObjectGuid::EMPTY, 0, 0x1);
+        install_canonical_player(&mut session, &canonical, player_guid);
+        session.set_spell_store(basic_spell_store([spell_id as i32]));
+        set_canonical_player_pet_guid(&canonical, player_guid, pet_guid);
+        add_canonical_test_pet_on_map(&canonical, player_guid, pet_guid, spell_id, false);
+
+        session
+            .handle_pet_cancel_aura(pet_cancel_aura_packet(pet_guid, spell_id))
+            .await;
+
+        assert!(canonical_pet_has_applied_aura(&canonical, pet_guid, aura));
+        let bytes = send_rx.try_recv().expect("pet action feedback");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::PetActionFeedback as u16
+        );
+        assert_eq!(&bytes[2..6], &0i32.to_le_bytes());
+        assert_eq!(
+            bytes[6],
+            wow_packet::packets::pet::PET_ACTION_FEEDBACK_DEAD_LIKE_CPP
+        );
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn pet_cancel_aura_removes_charmed_creature_aura_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let creature_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 46);
+        let spell_id = 12_349;
+        let aura = AppliedAuraRef::new(spell_id, ObjectGuid::EMPTY, 0, 0x1);
+        install_canonical_player(&mut session, &canonical, player_guid);
+        session.set_spell_store(basic_spell_store([spell_id as i32]));
+        set_canonical_player_charmed_guid(&canonical, player_guid, creature_guid);
+        add_canonical_test_creature_on_map(
+            &canonical,
+            creature_guid,
+            Position::new(11.0, 21.0, 30.0, 0.0),
+            571,
+            0,
+            false,
+        );
+        {
+            let mut guard = canonical.lock().unwrap();
+            let creature = guard
+                .find_map_mut(571, 0)
+                .unwrap()
+                .map_mut()
+                .get_typed_creature_mut(creature_guid)
+                .unwrap();
+            creature.unit_mut().set_max_health(100);
+            creature.unit_mut().set_health(100);
+            creature.unit_mut().subsystems_mut().auras.add_applied(aura);
+        }
+
+        session
+            .handle_pet_cancel_aura(pet_cancel_aura_packet(creature_guid, spell_id))
+            .await;
+
+        assert!(!canonical_creature_has_applied_aura(
+            &canonical,
+            creature_guid,
+            aura
+        ));
         assert!(send_rx.is_empty());
     }
 

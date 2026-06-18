@@ -34452,6 +34452,87 @@ impl WorldSession {
         true
     }
 
+    pub(crate) fn cancel_represented_pet_aura_like_cpp(
+        &mut self,
+        pet_guid: ObjectGuid,
+        spell_id: u32,
+    ) -> bool {
+        if self
+            .spell_store()
+            .and_then(|store| store.get(spell_id as i32))
+            .is_none()
+        {
+            return false;
+        }
+
+        let Some(player_guid) = self.player_guid() else {
+            return false;
+        };
+        let Some(manager) = self.canonical_map_manager.as_ref().map(Arc::clone) else {
+            return false;
+        };
+        let Ok(mut manager) = manager.lock() else {
+            return false;
+        };
+        let map_id = u32::from(self.player_map_id_like_cpp());
+        let mut instance_id = None;
+        manager.do_for_all_maps_with_map_id(map_id, |managed| {
+            if instance_id.is_none() && managed.map().get_typed_player(player_guid).is_some() {
+                instance_id = Some(managed.instance_id());
+            }
+        });
+        let Some(managed) = manager.find_map_mut(map_id, instance_id.unwrap_or(0)) else {
+            return false;
+        };
+        let map = managed.map_mut();
+        let owned_or_charmed = map.get_typed_player(player_guid).is_some_and(|player| {
+            let control = &player.unit().subsystems().control;
+            control.pet_guid() == pet_guid || control.charmed_guid == Some(pet_guid)
+        });
+        if !owned_or_charmed {
+            return false;
+        }
+
+        if let Some(pet) = map.get_typed_pet_mut(pet_guid) {
+            if !pet.creature().is_alive() {
+                drop(manager);
+                self.send_packet(&wow_packet::packets::pet::PetActionFeedback {
+                    spell_id: 0,
+                    response: wow_packet::packets::pet::PET_ACTION_FEEDBACK_DEAD_LIKE_CPP,
+                });
+                return false;
+            }
+            let removed = !pet
+                .creature_mut()
+                .unit_mut()
+                .subsystems_mut()
+                .auras
+                .remove_auras_due_to_spell_like_cpp(spell_id, ObjectGuid::EMPTY, 0)
+                .is_empty();
+            return removed;
+        }
+
+        if let Some(creature) = map.get_typed_creature_mut(pet_guid) {
+            if !creature.is_alive() {
+                drop(manager);
+                self.send_packet(&wow_packet::packets::pet::PetActionFeedback {
+                    spell_id: 0,
+                    response: wow_packet::packets::pet::PET_ACTION_FEEDBACK_DEAD_LIKE_CPP,
+                });
+                return false;
+            }
+            let removed = !creature
+                .unit_mut()
+                .subsystems_mut()
+                .auras
+                .remove_auras_due_to_spell_like_cpp(spell_id, ObjectGuid::EMPTY, 0)
+                .is_empty();
+            return removed;
+        }
+
+        false
+    }
+
     pub(crate) fn set_represented_pending_quest_sharing_like_cpp(
         &mut self,
         sender_guid: ObjectGuid,

@@ -1,3 +1,29 @@
+- `#NEXT.R8.ENTITIES.1007` — `CMSG_PET_CANCEL_AURA` now validates
+  represented SpellInfo, canonical guardian-pet/charmed ownership, alive state,
+  and removes represented owned auras from canonical Pet/Creature records
+  instead of only parsing/logging the opcode (not manual-test-ready).
+  Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SpellHandler.cpp:300-328`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/SpellPackets.cpp:41-45`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/SpellPackets.h:95-103`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:9867-9876`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/PetPackets.cpp:176-182`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Pet/PetDefines.h:82-88`.
+  C++ checks SpellInfo, resolves `ObjectAccessor::GetCreatureOrPetOrVehicle`,
+  requires `GetGuardianPet()` or `GetCharmed()`, sends
+  `SMSG_PET_ACTION_FEEDBACK` Dead/0 when the pet is dead, then calls
+  `RemoveOwnedAura(spellId, ObjectGuid::Empty, 0, AURA_REMOVE_BY_CANCEL)`.
+  Rust now represents that bounded branch through canonical map Pet/Creature
+  records: player `control.pet_guid`/`charmed_guid` ownership gate,
+  `PetActionFeedback` serializer, and aura subsystem removal. Coverage:
+  targeted `wow-packet` feedback payload test and `wow-world` handler tests
+  prove owned pet aura removal, missing SpellInfo preserve, non-owned preserve,
+  dead feedback+preserve, and charmed creature aura removal. Boundary remains
+  partial: no full ObjectAccessor live lookup/fanout, no aura
+  scripts/procs/recalculation/update packets beyond represented aura
+  subsystem, no generic vehicle-specific payload beyond typed Creature branch,
+  no install/restart, bot, or live-client/manual validation.
 - `#NEXT.R8.ENTITIES.1006` — `CMSG_TOTEM_DESTROYED` now destroys the
   represented canonical player totem from the requested totem slot instead of
   only parsing/logging the opcode (not manual-test-ready). Source-of-truth:
