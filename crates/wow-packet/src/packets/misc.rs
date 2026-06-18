@@ -4712,6 +4712,28 @@ impl ClientPacket for RepopRequest {
     }
 }
 
+/// C++ `WorldPackets::Misc::PortGraveyard`: empty packet.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PortGraveyard;
+
+impl ClientPacket for PortGraveyard {
+    // The inspected TrinityCore 3.4.3 opcode table uses the shared unresolved
+    // `0xBADD` placeholder. Route it from the existing 0xBADD slot by empty
+    // payload shape in `WorldSession`.
+    const OPCODE: ClientOpcodes = ClientOpcodes::SetLootSpecialization;
+
+    fn read(packet: &mut WorldPacket) -> Result<Self, PacketError> {
+        if packet.is_empty() {
+            Ok(Self)
+        } else {
+            Err(PacketError::ReadPastEnd {
+                wanted: 0,
+                available: packet.remaining(),
+            })
+        }
+    }
+}
+
 /// C++ `WorldPackets::Misc::ReclaimCorpse`: full raw corpse GUID.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ReclaimCorpse {
@@ -7752,6 +7774,21 @@ mod tests {
 
         assert!(parsed.check_instance);
         assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn port_graveyard_reads_empty_packet_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+
+        let parsed = PortGraveyard::read(&mut pkt).unwrap();
+
+        assert_eq!(parsed, PortGraveyard);
+        assert_eq!(pkt.remaining(), 0);
+
+        let mut non_empty = WorldPacket::new_empty();
+        non_empty.write_uint8(1);
+        non_empty.reset_read();
+        assert!(PortGraveyard::read(&mut non_empty).is_err());
     }
 
     #[test]

@@ -22367,12 +22367,19 @@ impl WorldSession {
                 // CMSG_SET_LOOT_SPECIALIZATION (uint32 payload), and this fork
                 // also assigns it to CMSG_SET_SAVED_INSTANCE_EXTEND
                 // (int32+uint32+bit payload) and
-                // CMSG_CANCEL_MOD_SPEED_NO_CONTROL_AURAS (packed GUID payload).
+                // CMSG_CANCEL_MOD_SPEED_NO_CONTROL_AURAS (packed GUID payload)
+                // plus CMSG_CLIENT_PORT_GRAVEYARD (empty payload).
                 // Rust keeps one enum variant and
                 // splits by payload length until the real opcode table is
                 // resolved.
                 if self
                     .try_handle_cancel_mod_speed_no_control_auras_like_cpp(pkt.clone())
+                    .await
+                {
+                    return;
+                }
+                if self
+                    .try_handle_client_port_graveyard_like_cpp(pkt.clone())
                     .await
                 {
                     return;

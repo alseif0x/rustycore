@@ -69,7 +69,7 @@ use wow_packet::packets::misc::{
     GuildBankUpdateTab, GuildBankWithdrawMoney, GuildCommandResult, GuildSetAchievementTracking,
     IgnoreTrade, LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify,
     MAX_ACCOUNT_DATA_SIZE_LIKE_CPP, MountSetFavorite, MountSpecial, NUM_ACCOUNT_DATA_TYPES,
-    ObjectUpdateFailed, ObjectUpdateRescued, QueryArenaTeam, QueryBattlePetName,
+    ObjectUpdateFailed, ObjectUpdateRescued, PortGraveyard, QueryArenaTeam, QueryBattlePetName,
     QueryBattlePetNameResponse, QueryPetition, QueryPetitionResponse, RatedPvpInfo, ReclaimCorpse,
     RepopRequest, RequestAccountData, RequestBattlefieldStatus, RequestCemeteryListResponse,
     ResurrectResponse, SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags,
@@ -2239,6 +2239,28 @@ impl crate::session::WorldSession {
         self.set_player_ghost_flag_like_cpp(true);
         self.represented_repop_at_graveyard_count =
             self.represented_repop_at_graveyard_count.saturating_add(1);
+    }
+
+    /// CMSG_CLIENT_PORT_GRAVEYARD — manually teleport ghost to graveyard.
+    /// C++ ref: `WorldSession::HandlePortGraveyard`.
+    pub async fn try_handle_client_port_graveyard_like_cpp(
+        &mut self,
+        mut pkt: wow_packet::WorldPacket,
+    ) -> bool {
+        if PortGraveyard::read(&mut pkt).is_err() {
+            return false;
+        }
+
+        if self.player_is_alive_like_cpp() || !self.player_has_ghost_flag_like_cpp() {
+            return true;
+        }
+
+        // C++ calls `Player::RepopAtGraveyard()`. Rust still represents the
+        // graveyard selection/teleport runtime as a counter seam shared with
+        // release and instance-lock decline paths.
+        self.represented_repop_at_graveyard_count =
+            self.represented_repop_at_graveyard_count.saturating_add(1);
+        true
     }
 
     /// CMSG_RECLAIM_CORPSE — resurrect at corpse.
@@ -6971,6 +6993,10 @@ mod tests {
         pkt
     }
 
+    fn port_graveyard_packet() -> WorldPacket {
+        WorldPacket::new_empty()
+    }
+
     fn reclaim_corpse_packet(corpse_guid: ObjectGuid) -> WorldPacket {
         let mut pkt = WorldPacket::new_empty();
         pkt.write_bytes(&corpse_guid.to_raw_bytes());
@@ -7480,6 +7506,80 @@ mod tests {
             .await;
         assert_eq!(session.represented_repop_at_graveyard_count, 0);
         assert!(session.player_has_ghost_flag_like_cpp());
+    }
+
+    #[tokio::test]
+    async fn client_port_graveyard_dead_ghost_repops_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager_for_misc_test();
+        let player_guid = ObjectGuid::create_player(1, 4301);
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_player_on_map_for_misc_test(
+            &canonical,
+            player_guid,
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            0,
+        );
+        session.set_player_alive_like_cpp(false);
+        session.set_player_ghost_flag_like_cpp(true);
+
+        let handled = session
+            .try_handle_client_port_graveyard_like_cpp(port_graveyard_packet())
+            .await;
+
+        assert!(handled);
+        assert!(!session.player_is_alive_like_cpp());
+        assert!(session.player_has_ghost_flag_like_cpp());
+        assert_eq!(session.represented_repop_at_graveyard_count, 1);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn client_port_graveyard_alive_or_not_ghost_returns_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        let canonical = shared_canonical_map_manager_for_misc_test();
+        let player_guid = ObjectGuid::create_player(1, 4302);
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_player_on_map_for_misc_test(
+            &canonical,
+            player_guid,
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            0,
+        );
+
+        session.set_player_alive_like_cpp(true);
+        assert!(
+            session
+                .try_handle_client_port_graveyard_like_cpp(port_graveyard_packet())
+                .await
+        );
+        assert_eq!(session.represented_repop_at_graveyard_count, 0);
+        assert!(session.player_is_alive_like_cpp());
+
+        session.set_player_alive_like_cpp(false);
+        session.set_player_ghost_flag_like_cpp(false);
+        assert!(
+            session
+                .try_handle_client_port_graveyard_like_cpp(port_graveyard_packet())
+                .await
+        );
+        assert_eq!(session.represented_repop_at_graveyard_count, 0);
+        assert!(!session.player_has_ghost_flag_like_cpp());
+
+        let mut non_empty = WorldPacket::new_empty();
+        non_empty.write_uint8(1);
+        non_empty.reset_read();
+        assert!(
+            !session
+                .try_handle_client_port_graveyard_like_cpp(non_empty)
+                .await
+        );
     }
 
     #[tokio::test]

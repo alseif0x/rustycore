@@ -1,3 +1,22 @@
+- `#NEXT.R8.ENTITIES.1025` — represented
+  `CMSG_CLIENT_PORT_GRAVEYARD` now parses the C++ empty packet through the
+  shared unresolved `0xBADD` slot and applies the C++ alive/ghost gates before
+  the represented `RepopAtGraveyard` seam (not manual-test-ready).
+  Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:360-365`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.h:356-362`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:353`.
+  C++ returns unless the player is dead and has `PLAYER_FLAGS_GHOST`, then
+  calls `Player::RepopAtGraveyard()`. Rust now models the empty packet as
+  `PortGraveyard`, routes it from the existing `0xBADD` branch by zero-length
+  payload, and increments the existing represented graveyard-repop counter only
+  for dead ghost players. Coverage: focused `wow-packet` parser test and
+  focused `wow-world` handler tests for dead-ghost repop, alive/not-ghost
+  no-op, and non-empty payload fallthrough. Boundary remains partial: shared
+  `0xBADD` remains unresolved globally, full graveyard selection/teleport,
+  corpse runtime, arena rejection, DB persistence, install/restart, bot, and
+  live-client/manual validation remain open.
 - `#NEXT.R8.ENTITIES.1024` — `CMSG_CANCEL_AURA` now covers the
   represented non-channeled `RemoveOwnedAura` branch for single-effect generic
   owned auras (not manual-test-ready). Source-of-truth:
