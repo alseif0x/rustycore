@@ -234,6 +234,16 @@ mod tests {
         }
     }
 
+    fn test_learn_spell_info_like_cpp(spell_id: i32, trigger_spell: i32) -> wow_data::SpellInfo {
+        let mut spell = test_spell_info_like_cpp(spell_id);
+        spell.effects = vec![wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_SPELL,
+            effect_trigger_spell: trigger_spell,
+            ..wow_data::SpellEffectInfo::default()
+        }];
+        spell
+    }
+
     fn install_test_talent_store(session: &mut WorldSession, talents: &[(u32, u8, i32)]) {
         install_test_talent_store_with_tab_class_mask(session, talents, 1);
     }
@@ -295,6 +305,39 @@ mod tests {
         for spell_id in spell_ids {
             spell_store.insert(spell_id, test_spell_info_like_cpp(spell_id));
         }
+        session.set_spell_store(Arc::new(spell_store));
+    }
+
+    fn install_test_talent_entries_with_spell_store_like_cpp(
+        session: &mut WorldSession,
+        talents: Vec<wow_data::TalentEntry>,
+        spell_store: wow_data::SpellStore,
+    ) {
+        session.set_talent_store(Arc::new(wow_data::TalentStore::from_entries(talents)));
+        session.set_talent_tab_store(Arc::new(wow_data::TalentTabStore::from_entries([
+            wow_data::TalentTabEntry {
+                id: 0,
+                name: String::new(),
+                background_file: String::new(),
+                order_index: 0,
+                race_mask: 0,
+                class_mask: 1,
+                pet_talent_mask: 0,
+                spell_icon_id: 0,
+            },
+        ])));
+        session.set_player_class_like_cpp(1);
+        session.set_player_level_like_cpp(80);
+        session.set_num_talents_at_level_store(Arc::new(
+            wow_data::progression_rewards::NumTalentsAtLevelStore::from_entries([
+                wow_data::progression_rewards::NumTalentsAtLevelEntry {
+                    id: 80,
+                    num_talents: 71,
+                    num_talents_death_knight: 71,
+                    num_talents_demon_hunter: 71,
+                },
+            ]),
+        ));
         session.set_spell_store(Arc::new(spell_store));
     }
 
@@ -679,6 +722,107 @@ mod tests {
                     rank: 0,
                 })
         );
+    }
+
+    #[tokio::test]
+    async fn learn_talent_rejects_invalid_learn_spell_trigger_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        let talent = test_talent_entry_like_cpp(101, 0, 50_101);
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(50_101, test_learn_spell_info_like_cpp(50_101, 60_101));
+        install_test_talent_entries_with_spell_store_like_cpp(
+            &mut session,
+            vec![talent],
+            spell_store,
+        );
+        session.mark_represented_talents_loaded_like_cpp();
+
+        session
+            .handle_learn_talent(learn_talent_packet(101, 0))
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+        assert!(
+            session
+                .represented_update_talent_data_packet_like_cpp()
+                .groups[0]
+                .talents
+                .is_empty(),
+            "C++ SpellMgr::IsSpellValid rejects SPELL_EFFECT_LEARN_SPELL when TriggerSpell is missing"
+        );
+        assert!(!session.known_spells_like_cpp().contains(&50_101));
+    }
+
+    #[tokio::test]
+    async fn learn_talent_learns_active_talent_spell_and_trigger_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        let talent = test_talent_entry_like_cpp(101, 0, 50_101);
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(50_101, test_learn_spell_info_like_cpp(50_101, 60_101));
+        spell_store.insert(60_101, test_spell_info_like_cpp(60_101));
+        install_test_talent_entries_with_spell_store_like_cpp(
+            &mut session,
+            vec![talent],
+            spell_store,
+        );
+        session.mark_represented_talents_loaded_like_cpp();
+
+        session
+            .handle_learn_talent(learn_talent_packet(101, 0))
+            .await;
+
+        assert!(
+            !send_rx
+                .try_recv()
+                .expect("C++ sends talent data after AddTalent succeeds")
+                .is_empty()
+        );
+        assert!(session.known_spells_like_cpp().contains(&50_101));
+        assert!(
+            session.known_spells_like_cpp().contains(&60_101),
+            "C++ Player::AddTalent learns the talent spell, whose LearnSpell effect teaches TriggerSpell"
+        );
+    }
+
+    #[tokio::test]
+    async fn learn_talent_upgrade_removes_previous_rank_spell_and_trigger_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        let mut talent = test_talent_entry_like_cpp(101, 0, 50_101);
+        talent.spell_rank[1] = 50_102;
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(50_101, test_learn_spell_info_like_cpp(50_101, 60_101));
+        spell_store.insert(60_101, test_spell_info_like_cpp(60_101));
+        spell_store.insert(50_102, test_learn_spell_info_like_cpp(50_102, 60_102));
+        spell_store.insert(60_102, test_spell_info_like_cpp(60_102));
+        install_test_talent_entries_with_spell_store_like_cpp(
+            &mut session,
+            vec![talent],
+            spell_store,
+        );
+        session.mark_represented_talents_loaded_like_cpp();
+
+        session
+            .handle_learn_talent(learn_talent_packet(101, 0))
+            .await;
+        assert!(!send_rx.try_recv().expect("rank 0 learn sends").is_empty());
+        assert!(session.known_spells_like_cpp().contains(&50_101));
+        assert!(session.known_spells_like_cpp().contains(&60_101));
+
+        session
+            .handle_learn_talent(learn_talent_packet(101, 1))
+            .await;
+
+        assert!(!send_rx.try_recv().expect("rank 1 learn sends").is_empty());
+        assert!(
+            !session.known_spells_like_cpp().contains(&50_101),
+            "C++ Player::AddTalent removes the previous rank spell before learning the new rank"
+        );
+        assert!(
+            !session.known_spells_like_cpp().contains(&60_101),
+            "C++ Player::AddTalent removes direct LearnSpell triggers from the previous rank"
+        );
+        assert!(session.known_spells_like_cpp().contains(&50_102));
+        assert!(session.known_spells_like_cpp().contains(&60_102));
     }
 
     #[tokio::test]

@@ -1,3 +1,25 @@
+- `#NEXT.R8.ENTITIES.1072` — represented `Player::LearnTalent` now mirrors
+  the first `Player::AddTalent` spell side effects and the representable
+  `SpellMgr::IsSpellValid` learn-spell branch (not manual-test-ready). Source
+  of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:2644-2690`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:2966-2971`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellMgr.cpp:140-230`.
+  Rust now recursively rejects talent spells whose
+  `SPELL_EFFECT_LEARN_SPELL` trigger chain points at a missing spell, learns
+  the active talent spell into the represented known-spell set, learns direct
+  `SPELL_EFFECT_LEARN_SPELL` triggers for that spell, and on rank upgrades
+  removes the previous rank spell plus its direct learn-spell triggers before
+  learning the new rank. Coverage: `cargo fmt --all`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world learn_talent --lib`.
+  Boundary remains partial: `SpellMgr::IsSpellValid` create-item,
+  create-loot, `ItemType`, reagent, and full item-template branches are not
+  closed because the represented `SpellInfo` surface does not yet carry all
+  required C++ data; full runtime `LearnSpell` cast side effects, override
+  spells, aura interruption, real resolved `CMSG_LEARN_TALENTS` dispatch,
+  preview/pet talent handlers, live-client validation, bot validation, and
+  manual validation remain open.
 - `#NEXT.R8.ENTITIES.1071` — represented `Player::LearnTalent` now enforces
   C++ free talent points and recomputes `CharacterPoints` after successful
   learns (not manual-test-ready). Source of truth:
@@ -21,9 +43,11 @@
   `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world learn_talent --lib`;
   `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world character_talent --lib`;
   `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`.
-  Boundary remains partial: exact `SpellMgr::IsSpellValid` parity, real
-  resolved `CMSG_LEARN_TALENTS` dispatch, preview/pet talent handlers,
-  live-client validation, bot validation, and manual validation remain open.
+  Boundary remains partial: `SpellMgr::IsSpellValid` learn-spell recursion and
+  first `AddTalent` spell side effects were closed later by
+  `#NEXT.R8.ENTITIES.1072`, but exact create-item/reagent parity, real resolved
+  `CMSG_LEARN_TALENTS` dispatch, preview/pet talent handlers, live-client
+  validation, bot validation, and manual validation remain open.
 - `#NEXT.R8.ENTITIES.1070` — represented `Player::LearnTalent` now enforces
   C++ existing-rank, prereq-rank, and tier-spent gates before mutating the
   represented active talent group (not manual-test-ready). Source of truth:

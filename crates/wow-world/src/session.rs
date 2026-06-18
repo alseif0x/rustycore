@@ -3041,6 +3041,10 @@ impl SessionPlayerController {
         }
     }
 
+    fn remove_spell(&mut self, spell_id: i32) {
+        self.known_spells.retain(|known| *known != spell_id);
+    }
+
     fn set_currencies(&mut self, currencies: HashMap<u32, PlayerCurrency>) {
         self.currencies = currencies;
     }
@@ -18343,12 +18347,19 @@ impl WorldSession {
             return false;
         }
 
-        let learned = self.load_represented_talent_row_like_cpp(
-            talent_id,
-            rank,
-            self.represented_active_talent_group_like_cpp,
-        );
+        let talent_group = self.represented_active_talent_group_like_cpp;
+        let previous_rank = self
+            .represented_talents_like_cpp
+            .get(usize::from(talent_group))
+            .and_then(|talents| talents.get(&talent_id).copied());
+        let learned = self.load_represented_talent_row_like_cpp(talent_id, rank, talent_group);
         if learned {
+            self.apply_represented_active_talent_spell_side_effects_like_cpp(
+                talent_id,
+                previous_rank,
+                rank,
+                talent_group,
+            );
             self.refresh_represented_talent_points_like_cpp();
         }
         learned
@@ -18530,10 +18541,7 @@ impl WorldSession {
             return false;
         }
 
-        if self
-            .spell_store()
-            .is_some_and(|store| store.get(spell_id).is_none())
-        {
+        if !self.represented_spell_valid_for_talent_like_cpp(spell_id) {
             return false;
         }
 
@@ -18551,14 +18559,109 @@ impl WorldSession {
         if spell_id <= 0 {
             return None;
         }
-        if self
-            .spell_store()
-            .is_some_and(|store| store.get(spell_id).is_none())
-        {
+        if !self.represented_spell_valid_for_talent_like_cpp(spell_id) {
             return None;
         }
 
         Some(wow_packet::packets::misc::TalentInfoLikeCpp { talent_id, rank })
+    }
+
+    fn represented_spell_valid_for_talent_like_cpp(&self, spell_id: i32) -> bool {
+        let Some(spell_store) = self.spell_store() else {
+            return true;
+        };
+        Self::represented_spell_valid_for_talent_with_seen_like_cpp(
+            spell_store,
+            spell_id,
+            &mut HashSet::new(),
+        )
+    }
+
+    fn represented_spell_valid_for_talent_with_seen_like_cpp(
+        spell_store: &wow_data::SpellStore,
+        spell_id: i32,
+        seen: &mut HashSet<i32>,
+    ) -> bool {
+        if !seen.insert(spell_id) {
+            return true;
+        }
+
+        let Some(spell_info) = spell_store.get(spell_id) else {
+            return false;
+        };
+
+        spell_info.effects().iter().all(|effect| {
+            if effect.effect != wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_SPELL {
+                return true;
+            }
+            if effect.effect_trigger_spell <= 0 {
+                return false;
+            }
+            Self::represented_spell_valid_for_talent_with_seen_like_cpp(
+                spell_store,
+                effect.effect_trigger_spell,
+                seen,
+            )
+        })
+    }
+
+    fn apply_represented_active_talent_spell_side_effects_like_cpp(
+        &mut self,
+        talent_id: u32,
+        previous_rank: Option<u8>,
+        rank: u8,
+        talent_group: u8,
+    ) {
+        if self.represented_active_talent_group_like_cpp != talent_group {
+            return;
+        }
+
+        if let Some(previous_rank) = previous_rank {
+            if let Some(previous_spell_id) =
+                self.represented_talent_spell_id_like_cpp(talent_id, previous_rank)
+            {
+                self.remove_known_spell_like_cpp(previous_spell_id);
+                for trigger_spell in
+                    self.represented_direct_learn_spell_triggers_like_cpp(previous_spell_id)
+                {
+                    self.remove_known_spell_like_cpp(trigger_spell);
+                }
+            }
+        }
+
+        if let Some(spell_id) = self.represented_talent_spell_id_like_cpp(talent_id, rank) {
+            self.learn_known_spell_like_cpp(spell_id);
+            for trigger_spell in self.represented_direct_learn_spell_triggers_like_cpp(spell_id) {
+                self.learn_known_spell_like_cpp(trigger_spell);
+            }
+        }
+    }
+
+    fn represented_talent_spell_id_like_cpp(&self, talent_id: u32, rank: u8) -> Option<i32> {
+        self.talent_store()?
+            .get(talent_id)?
+            .spell_rank
+            .get(usize::from(rank))
+            .copied()
+            .filter(|spell_id| *spell_id > 0)
+    }
+
+    fn represented_direct_learn_spell_triggers_like_cpp(&self, spell_id: i32) -> Vec<i32> {
+        self.spell_store()
+            .and_then(|store| store.get(spell_id))
+            .map(|spell_info| {
+                spell_info
+                    .effects()
+                    .iter()
+                    .filter(|effect| {
+                        effect.effect
+                            == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_SPELL
+                            && effect.effect_trigger_spell > 0
+                    })
+                    .map(|effect| effect.effect_trigger_spell)
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 
     pub(crate) fn build_character_talent_delete_statement_like_cpp(
@@ -27308,6 +27411,13 @@ impl WorldSession {
         }
         if let Some(controller) = &mut self.player_controller {
             controller.learn_spell(spell_id);
+        }
+    }
+
+    pub(crate) fn remove_known_spell_like_cpp(&mut self, spell_id: i32) {
+        self.known_spells.retain(|known| *known != spell_id);
+        if let Some(controller) = &mut self.player_controller {
+            controller.remove_spell(spell_id);
         }
     }
 
