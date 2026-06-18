@@ -1,3 +1,25 @@
+- `#NEXT.R8.ENTITIES.1002` — `CMSG_SELF_RES` now consumes represented
+  `ActivePlayerData::SelfResSpells` entries and delegates the accepted spell to
+  the existing represented spell-effect runtime instead of only parsing/logging
+  the opcode (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SpellHandler.cpp:416-430`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:24763-24786`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:2753-2760`.
+  C++ silently returns when the requested spell is not present in
+  `SelfResSpells`, when `SpellInfo` is missing, or when prevent-resurrection
+  aura rules block the spell; otherwise it casts the self-res spell on the
+  player and removes that spell from `SelfResSpells`. Rust now represents the
+  `SelfResSpells` set on `WorldSession`, checks membership before casting,
+  calls `execute_spell(spell_id, player_guid)` so `SPELL_EFFECT_SELF_RESURRECT`
+  handles health/power updates, and removes the represented entry only after a
+  successful cast. Coverage: targeted `wow-world` handler tests prove unlisted
+  spells stay silent, listed spells resurrect and are removed, and missing
+  `SpellInfo` keeps the represented self-res spell. Boundary remains partial:
+  no update-field fanout for `ActivePlayerData::SelfResSpells`, no
+  `InitializeSelfResurrectionSpells` aura/passive/cooldown population, no
+  `SPELL_AURA_PREVENT_RESURRECTION` / `SPELL_ATTR7_BYPASS_NO_RESURRECT_AURA`
+  gate, install/restart, bot, or live-client/manual validation.
 - `#NEXT.R8.ENTITIES.1001` — `CMSG_CANCEL_AURA` now removes matching
   represented player-cancelable mounted auras by `spell_id` and caster GUID,
   instead of only parsing/logging the packet (not manual-test-ready).

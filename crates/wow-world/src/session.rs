@@ -3842,6 +3842,9 @@ pub struct WorldSession {
     /// that initiate teleport and must apply after WorldPortResponse.
     represented_delayed_resurrection_after_teleport_like_cpp:
         Option<RepresentedResurrectionRequestLikeCpp>,
+    /// C++ `ActivePlayerData::SelfResSpells`, represented until update-field
+    /// ownership is canonical.
+    represented_self_res_spells_like_cpp: BTreeSet<i32>,
     /// C++ `CONFIG_CAST_UNSTUCK` represented until World config is injected into spell effects.
     represented_cast_unstuck_enabled_like_cpp: bool,
     /// C++ `Player::GetDeathTimer()` represented for `Spell::EffectStuck`.
@@ -5178,6 +5181,7 @@ impl WorldSession {
             represented_homebind_like_cpp: None,
             represented_resurrection_request_like_cpp: None,
             represented_delayed_resurrection_after_teleport_like_cpp: None,
+            represented_self_res_spells_like_cpp: BTreeSet::new(),
             represented_cast_unstuck_enabled_like_cpp: true,
             represented_death_timer_active_like_cpp: false,
             move_teleport_ack_events_like_cpp: Vec::new(),
@@ -26860,6 +26864,21 @@ impl WorldSession {
         };
 
         self.apply_represented_resurrection_health_like_cpp(request.health);
+    }
+
+    pub(crate) fn add_represented_self_res_spell_like_cpp(&mut self, spell_id: i32) {
+        if spell_id != 0 {
+            self.represented_self_res_spells_like_cpp.insert(spell_id);
+        }
+    }
+
+    pub(crate) fn remove_represented_self_res_spell_like_cpp(&mut self, spell_id: i32) -> bool {
+        self.represented_self_res_spells_like_cpp.remove(&spell_id)
+    }
+
+    pub(crate) fn has_represented_self_res_spell_like_cpp(&self, spell_id: i32) -> bool {
+        self.represented_self_res_spells_like_cpp
+            .contains(&spell_id)
     }
 
     #[cfg(test)]

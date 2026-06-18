@@ -1880,8 +1880,21 @@ impl WorldSession {
         debug!(
             account = self.account_id,
             spell_id = request.spell_id,
-            "CMSG_SELF_RES parsed; SelfResSpells active-player runtime is not represented yet"
+            "CMSG_SELF_RES parsed"
         );
+        if !self.has_represented_self_res_spell_like_cpp(request.spell_id) {
+            return;
+        }
+        let Some(player_guid) = self.player_guid() else {
+            return;
+        };
+        if self
+            .execute_spell(request.spell_id, player_guid)
+            .await
+            .is_ok()
+        {
+            self.remove_represented_self_res_spell_like_cpp(request.spell_id);
+        }
     }
 
     /// Handle `CMSG_PET_CANCEL_AURA`.
@@ -2318,6 +2331,8 @@ fn add_loot_template_row_item_like_cpp<F>(
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use rand::{Rng, SeedableRng, rngs::StdRng};
 
     use wow_constants::{BagFamilyMask, ItemContext, ItemFieldFlags, ItemFlags, ItemUpdateState};
@@ -2420,6 +2435,33 @@ mod tests {
         pkt.write_int32(spell_id);
         pkt.reset_read();
         pkt
+    }
+
+    fn self_res_spell_store(spell_id: i32) -> Arc<wow_data::SpellStore> {
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_SELF_RESURRECT,
+                    effect_base_points: -35,
+                    effect_misc_value_1: 77,
+                    ..Default::default()
+                }],
+            },
+        );
+        Arc::new(spell_store)
     }
 
     fn pet_cancel_aura_packet(pet_guid: ObjectGuid, spell_id: u32) -> WorldPacket {
@@ -2602,11 +2644,51 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn self_res_parses_and_stays_silent_until_self_res_runtime_exists() {
+    async fn self_res_unlisted_spell_stays_silent_like_cpp() {
         let (mut session, send_rx) = make_session();
+        let spell_id = 20_000;
 
-        session.handle_self_res(int32_spell_packet(20_000)).await;
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 20_000)));
+        session.set_spell_store(self_res_spell_store(spell_id));
+        session.set_player_health_like_cpp(0, 100);
 
+        session.handle_self_res(int32_spell_packet(spell_id)).await;
+
+        assert!(!session.player_is_alive_like_cpp());
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn self_res_listed_spell_casts_and_removes_self_res_spell_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let spell_id = 20_001;
+
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 20_001)));
+        session.set_spell_store(self_res_spell_store(spell_id));
+        session.set_player_health_like_cpp(0, 100);
+        session.add_represented_self_res_spell_like_cpp(spell_id);
+
+        session.handle_self_res(int32_spell_packet(spell_id)).await;
+
+        assert!(session.player_is_alive_like_cpp());
+        assert_eq!(session.player_health_like_cpp(), 35);
+        assert!(!session.has_represented_self_res_spell_like_cpp(spell_id));
+        assert!(!send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn self_res_missing_spell_info_keeps_self_res_spell_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let spell_id = 20_002;
+
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 20_002)));
+        session.set_player_health_like_cpp(0, 100);
+        session.add_represented_self_res_spell_like_cpp(spell_id);
+
+        session.handle_self_res(int32_spell_packet(spell_id)).await;
+
+        assert!(!session.player_is_alive_like_cpp());
+        assert!(session.has_represented_self_res_spell_like_cpp(spell_id));
         assert!(send_rx.is_empty());
     }
 
