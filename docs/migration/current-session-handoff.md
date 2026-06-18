@@ -1,3 +1,26 @@
+- `#NEXT.R8.ENTITIES.1078` — represented login/save now persists
+  `Player::SetTalentResetCost` / `SetTalentResetTime` state for talent respec
+  pricing (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:17080-17192`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:17661-17662`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:19409-19410`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:19539-19540`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/CharacterDatabase.cpp:95-96,431-439`.
+  Rust now reads `resettalents_cost` / `resettalents_time` from the C++
+  `SEL_CHARACTER` column order during login and saves the represented fields
+  through a focused `UPD_CHAR_TALENT_RESET_STATE` statement during represented
+  `Player::SaveToDB`. Coverage: `cargo fmt --all --check`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  character_talent_reset_state_save_statement_matches_cpp_bind_order --lib`;
+  focused `cargo test -p wow-database character_save_statements_match_cpp_sql_exactly`.
+  Boundary remains partial: this is a focused represented save seam rather than
+  full `CHAR_UPD_CHARACTER` bind-order parity, criteria updates
+  (`MoneySpentOnRespecs`, `TotalRespecs`), `CONFIG_NO_RESET_TALENT_COST`
+  runtime config wiring, trainer class matching, fake-death aura removal, visual
+  spell 14867 cast, pet/spec/glyph reset branches, trait override paths, full
+  runtime aura/cast ownership, live-client validation, bot validation, and
+  manual validation remain open.
 - `#NEXT.R8.ENTITIES.1077` — represented `CMSG_CONFIRM_RESPEC_WIPE` now
   mirrors the C++ `Player::ResetTalents` money gate and reset-cost mutation
   before removing talents (not manual-test-ready). Source of truth:
@@ -17,8 +40,9 @@
   `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
   represented_next_reset_talents_cost_matches_cpp_branches --lib`. Boundary
   remains partial: `CONFIG_NO_RESET_TALENT_COST` is represented by the C++
-  default false only, criteria updates (`MoneySpentOnRespecs`, `TotalRespecs`),
-  DB load/save of `resettalents_cost` / `resettalents_time`, trainer class
+  default false only, DB load/save of `resettalents_cost` /
+  `resettalents_time` was closed later by `#NEXT.R8.ENTITIES.1078`, but
+  criteria updates (`MoneySpentOnRespecs`, `TotalRespecs`), trainer class
   matching, fake-death aura removal, immediate DB transaction save, visual spell
   14867 cast, pet/spec/glyph reset branches, trait override paths, full runtime
   aura/cast ownership, live-client validation, bot validation, and manual

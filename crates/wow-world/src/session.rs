@@ -18192,6 +18192,36 @@ impl WorldSession {
         }
     }
 
+    fn build_character_talent_reset_state_save_statement_like_cpp(
+        reset_cost: u32,
+        reset_time_secs: u64,
+        guid_counter: u64,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::UPD_CHAR_TALENT_RESET_STATE.sql());
+        stmt.set_u32(0, reset_cost);
+        stmt.set_u64(1, reset_time_secs);
+        stmt.set_u64(2, guid_counter);
+        stmt
+    }
+
+    async fn save_player_talent_reset_state_like_cpp(&self) {
+        let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
+        else {
+            return;
+        };
+        let stmt = Self::build_character_talent_reset_state_save_statement_like_cpp(
+            self.represented_talent_reset_cost_like_cpp,
+            self.represented_talent_reset_time_secs_like_cpp,
+            guid.counter() as u64,
+        );
+        if let Err(err) = char_db.execute(&stmt).await {
+            warn!(
+                "Failed to save represented talent reset state for guid {}: {err}",
+                guid.counter()
+            );
+        }
+    }
+
     fn build_character_position_save_statement_like_cpp(
         position: Position,
         map_id: u16,
@@ -18291,6 +18321,7 @@ impl WorldSession {
         self.save_player_position_like_cpp(&snapshot).await;
         self.save_player_level_xp_like_cpp().await;
         self.save_player_gold().await;
+        self.save_player_talent_reset_state_like_cpp().await;
         self.save_player_skills_like_cpp().await;
         self.save_player_difficulties_like_cpp().await;
         self.save_player_glyphs_like_cpp().await;
@@ -84296,6 +84327,33 @@ mod tests {
         assert!(matches!(stmt.params()[6], wow_database::SqlParam::U16(210)));
         assert!(
             matches!(stmt.params()[7], wow_database::SqlParam::U64(v) if v == guid.counter() as u64)
+        );
+    }
+
+    #[test]
+    fn character_talent_reset_state_save_statement_matches_cpp_bind_order() {
+        let guid = ObjectGuid::create_player(1, 5004);
+
+        let stmt = WorldSession::build_character_talent_reset_state_save_statement_like_cpp(
+            150_000,
+            1_723_456_789,
+            guid.counter() as u64,
+        );
+
+        assert_eq!(
+            stmt.sql(),
+            CharStatements::UPD_CHAR_TALENT_RESET_STATE.sql()
+        );
+        assert!(matches!(
+            stmt.params()[0],
+            wow_database::SqlParam::U32(150_000)
+        ));
+        assert!(matches!(
+            stmt.params()[1],
+            wow_database::SqlParam::U64(1_723_456_789)
+        ));
+        assert!(
+            matches!(stmt.params()[2], wow_database::SqlParam::U64(v) if v == guid.counter() as u64)
         );
     }
 

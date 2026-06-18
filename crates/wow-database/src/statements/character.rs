@@ -1173,6 +1173,9 @@ pub enum CharStatements {
 
     /// UPDATE characters SET money = ? WHERE guid = ?
     UPD_CHAR_MONEY,
+    /// C++ `CHAR_UPD_CHARACTER` persists these fields in the full save.
+    /// UPDATE characters SET resettalents_cost = ?, resettalents_time = ? WHERE guid = ?
+    UPD_CHAR_TALENT_RESET_STATE,
     /// UPDATE characters SET xp = ? WHERE guid = ?
     UPD_CHAR_XP,
     /// UPDATE characters SET level = ?, xp = ? WHERE guid = ?
@@ -2734,6 +2737,9 @@ impl StatementDef for CharStatements {
             Self::UPD_CHAR_XP => "UPDATE characters SET xp = ? WHERE guid = ?",
             Self::UPD_CHAR_LEVEL => "UPDATE characters SET level = ?, xp = ? WHERE guid = ?",
             Self::UPD_CHAR_MONEY => "UPDATE characters SET money = ? WHERE guid = ?",
+            Self::UPD_CHAR_TALENT_RESET_STATE => {
+                "UPDATE characters SET resettalents_cost = ?, resettalents_time = ? WHERE guid = ?"
+            }
             Self::UPD_CHAR_DIFFICULTIES => {
                 "UPDATE characters SET dungeonDifficulty = ?, raidDifficulty = ?, legacyRaidDifficulty = ? WHERE guid = ?"
             }
@@ -3443,6 +3449,10 @@ mod tests {
         assert_eq!(
             CharStatements::UPD_CHARACTER.sql(),
             "UPDATE characters SET name=?,race=?,class=?,gender=?,level=?,xp=?,money=?,inventorySlots=?,bankSlots=?,restState=?,playerFlags=?,playerFlagsEx=?,map=?,instance_id=?,dungeonDifficulty=?,raidDifficulty=?,legacyRaidDifficulty=?,position_x=?,position_y=?,position_z=?,orientation=?,trans_x=?,trans_y=?,trans_z=?,trans_o=?,transguid=?,taximask=?,cinematic=?,totaltime=?,leveltime=?,rest_bonus=?,logout_time=?,is_logout_resting=?,resettalents_cost=?,resettalents_time=?,numRespecs=?,activeTalentGroup=?,bonusTalentGroups=?,extra_flags=?,summonedPetNumber=?,at_login=?,zone=?,death_expire_time=?,taxi_path=?,totalKills=?,todayKills=?,yesterdayKills=?,chosenTitle=?,watchedFaction=?,drunk=?,health=?,power1=?,power2=?,power3=?,power4=?,power5=?,power6=?,power7=?,power8=?,power9=?,power10=?,latency=?,lootSpecId=?,exploredZones=?,equipmentCache=?,knownTitles=?,actionBars=?,online=?,honor=?,honorLevel=?,honorRestState=?,honorRestBonus=?,lastLoginBuild=? WHERE guid=?"
+        );
+        assert_eq!(
+            CharStatements::UPD_CHAR_TALENT_RESET_STATE.sql(),
+            "UPDATE characters SET resettalents_cost = ?, resettalents_time = ? WHERE guid = ?"
         );
         assert_eq!(
             CharStatements::UPD_ADD_AT_LOGIN_FLAG.sql(),
