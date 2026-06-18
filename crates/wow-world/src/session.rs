@@ -35981,14 +35981,18 @@ impl WorldSession {
         self.update_visibility().await;
     }
 
-    /// Complete the logout: send LogoutComplete and mark session for disconnect.
+    /// Complete timed logout.
+    ///
+    /// C++ `WorldSession::LogoutPlayer(true)` saves while `_player` still
+    /// exists, then removes the player from the world. Keep the represented
+    /// player identity alive until the session loop runs the disconnect-save
+    /// path; clearing it here would make the later save a no-op.
     fn complete_logout(&mut self) {
         use wow_packet::packets::misc::LogoutComplete;
 
         info!("Logout complete for account {}", self.account_id);
         self.send_packet(&LogoutComplete);
-        self.set_player_guid(None);
-        self.state = SessionState::Authed;
+        self.state = SessionState::Disconnecting;
     }
 
     /// Kick the session (mark as disconnecting).
@@ -81223,6 +81227,26 @@ mod tests {
         session.socket_timeout_deadline_like_cpp = Instant::now() - Duration::from_secs(1);
 
         assert_eq!(session.update(100), 0);
+        assert!(session.is_disconnecting());
+    }
+
+    #[test]
+    fn timed_logout_preserves_player_until_disconnect_save_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let guid = ObjectGuid::create_player(1, 77);
+        session.set_player_guid(Some(guid));
+        session.set_state(SessionState::LoggedIn);
+        session.logout_time = Some(Instant::now() - Duration::from_secs(1));
+
+        session.update(100);
+
+        let packet = send_rx.try_recv().expect("LogoutComplete packet");
+        let mut packet = WorldPacket::from_bytes(&packet);
+        assert_eq!(
+            packet.read_uint16().unwrap(),
+            wow_constants::ServerOpcodes::LogoutComplete as u16
+        );
+        assert_eq!(session.player_guid(), Some(guid));
         assert!(session.is_disconnecting());
     }
 

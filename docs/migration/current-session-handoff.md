@@ -1,3 +1,20 @@
+- `#NEXT.R8.ENTITIES.1031` — timed logout completion now preserves the loaded
+  represented player identity until the session loop reaches the disconnect
+  save path (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:244-279`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:552-641`.
+  C++ `WorldSession::LogoutPlayer(true)` saves while `_player` still exists
+  and only removes/clears the player afterwards. Rust `complete_logout()` no
+  longer clears `player_guid` or returns the session to `Authed`; it sends
+  `SMSG_LOGOUT_COMPLETE` and marks the session `Disconnecting`, letting the
+  existing `save_disconnect_player_to_db_like_cpp()` persist live position,
+  level/xp, money, difficulties, played time, reputation, and account
+  collections with the player still loaded. Coverage: focused timed-logout
+  regression test plus existing movement/logout-save snapshot and disconnect
+  cleanup tests. Boundary remains partial: full C++ character-select-after-
+  logout semantics are still represented as disconnect-first, and live-client/
+  bot validation remains open.
 - `#NEXT.R8.ENTITIES.1030` — `CMSG_CANCEL_CAST` now also cancels the represented
   pending spell cast request after interrupting the matching active cast, like
   C++ (not manual-test-ready). Source-of-truth:
