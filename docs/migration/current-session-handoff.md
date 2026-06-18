@@ -1,3 +1,20 @@
+- `#NEXT.R8.ENTITIES.1008` — accepted `CMSG_MOVE_*` packets now synchronize
+  the canonical map-owned Player position as well as the session/registry
+  position, so disconnect/logout save snapshots persist the last accepted
+  movement instead of falling back to a stale canonical login position (not
+  manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MovementHandler.cpp:312-430`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:19329-19630`.
+  C++ stores movement into the live mover via `mover->UpdatePosition` and
+  later `Player::SaveToDB` reads `GetPositionX/Y/Z/O`; Rust now mirrors that
+  ownership by relocating the canonical typed Player after a movement packet
+  passes GUID/position/transport validation and before logout snapshot/save.
+  Coverage: targeted `wow-world` movement test proves accepted movement
+  updates the canonical Player and the save snapshot uses the moved position.
+  Boundary remains partial: no transport/taxi/teleport position save parity,
+  no full monolithic `CHAR_UPD_CHARACTER`, no install/restart, bot, or
+  live-client/manual validation.
 - `#NEXT.R8.ENTITIES.1007` — `CMSG_PET_CANCEL_AURA` now validates
   represented SpellInfo, canonical guardian-pet/charmed ownership, alive state,
   and removes represented owned auras from canonical Pet/Creature records

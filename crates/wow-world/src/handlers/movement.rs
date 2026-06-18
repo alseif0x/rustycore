@@ -12,7 +12,7 @@
 //!   4. Update server-side player position
 //!   5. Broadcast SMSG_MOVE_UPDATE to nearby sessions (TODO: multi-session map)
 //!
-//! Reference: C# Game/Handlers/MovementHandler.cs
+//! Reference: C++ `WorldSession::HandleMovementOpcode`.
 
 use tracing::{trace, warn};
 
@@ -200,6 +200,9 @@ impl WorldSession {
 
         // Update server-side player position.
         self.set_player_position_like_cpp(info.info.position);
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().world_mut().relocate(info.info.position);
+        });
         // Keep the broadcast registry in sync so chat range checks are accurate.
         self.update_registry_position();
         trace!(
@@ -527,12 +530,13 @@ mod tests {
     use crate::session::{
         AuraApplication, MoveSplineDoneTaxiActionLikeCpp, MoveTeleportAckActionLikeCpp,
         MovementSpeedAckActionLikeCpp, RepresentedAuraEffectLikeCpp,
-        RepresentedTaxiFlightNodeLikeCpp, UnitMoveTypeLikeCpp,
+        RepresentedTaxiFlightNodeLikeCpp, SessionPlayerController, UnitMoveTypeLikeCpp,
     };
+    use std::sync::{Arc, Mutex};
     use wow_constants::ServerOpcodes;
     use wow_constants::movement::MovementFlag;
     use wow_constants::unit::UnitFlags;
-    use wow_core::ObjectGuid;
+    use wow_core::{ObjectGuid, Position};
 
     fn make_session() -> WorldSession {
         make_session_with_send_rx().0
@@ -1424,6 +1428,68 @@ mod tests {
         assert_eq!(
             session.player_movement_flags_like_cpp(),
             MovementFlag::empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn handle_movement_syncs_canonical_player_position_for_logout_save_like_cpp() {
+        let mut session = make_session();
+        let canonical = Arc::new(Mutex::new(wow_map::MapManager::default()));
+        let guid = ObjectGuid::create_player(1, 1042);
+        let login_position = Position::new(1.0, 2.0, 3.0, 0.25);
+        let moved_position = Position::new(10.0, 20.0, 30.0, 1.0);
+
+        canonical.lock().unwrap().create_world_map(571, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            guid,
+            "MovementSaver".to_string(),
+            login_position,
+            571,
+            1,
+            3,
+            10,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+
+        let movement = MovementInfo {
+            guid,
+            flags: MovementFlag::FORWARD,
+            position: moved_position,
+            ..MovementInfo::default()
+        };
+        let mut inbound = wow_packet::WorldPacket::new_empty();
+        inbound.write_uint16(ClientOpcodes::MoveHeartbeat as u16);
+        movement.write(&mut inbound);
+        inbound.read_uint16().expect("movement opcode");
+        session.handle_movement(inbound).await;
+
+        let canonical_position = canonical
+            .lock()
+            .unwrap()
+            .find_map(571, 0)
+            .and_then(|map| map.map().get_typed_player(guid))
+            .map(|player| player.unit().world().position())
+            .expect("canonical player");
+        assert_eq!(canonical_position, moved_position);
+        assert_eq!(
+            session
+                .sync_session_from_save_to_db_snapshot_like_cpp()
+                .unwrap()
+                .position,
+            moved_position
         );
     }
 
