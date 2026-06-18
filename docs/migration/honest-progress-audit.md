@@ -31,8 +31,8 @@ honest percentages instead of one.
 
 | Metric | Value | Reading |
 |---|---:|---|
-| Items "addressed" (not `pending`) | **97.75%** (956/978) | the headline number — real but generous |
-| No declared partial gaps (`complete` + `represented` + `represented-complete` + `reviewed-validated` + `test-fixture-unblock`) | **64.31%** (629/978) | items with no open boundary |
+| Items "addressed" (not `pending`) | **97.75%** (957/979) | the headline number — real but generous |
+| No declared partial gaps (`complete` + `represented` + `represented-complete` + `reviewed-validated` + `test-fixture-unblock`) | **64.25%** (629/979) | items with no open boundary |
 | Live-runtime / manual-test-ready verified | **low / not globally quantified** | login/realm smoke has been exercised before, but most gameplay rows still explicitly lack live client/bot/manual validation |
 
 ## The two big caveats
@@ -46,12 +46,12 @@ honest percentages instead of one.
    dispatch AI/combat (`CreatureRuntimeUpdateContext::default()`, no `match` on the plan).
 
 2. **This is ONE miniphase (R8-entities).** The full port also has the r7-l1/l2/l3
-   infra/packets/maps miniphases and more. 971 R8 rows are not "the whole server".
+   infra/packets/maps miniphases and more. 979 R8 rows are not "the whole server".
 
 ## Honest one-line status
 
 The bulk of the game logic is ported and contrasted against C++ in a per-session
-"represented" model (~64.31% with no declared partial gaps, ~97.75% of inventory rows touched).
+"represented" model (~64.25% with no declared partial gaps, ~97.75% of inventory rows touched).
 What remains is to convert represented-partial boundaries into live runtime behavior and
 verify them on a running server/client path. The live-runtime roadmap (steps 2-7) is the
 work that actually moves toward "no gaps"; closing more represented-partial items advances
