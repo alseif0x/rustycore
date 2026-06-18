@@ -1,3 +1,24 @@
+- `#NEXT.R8.ENTITIES.1076` — represented `CMSG_CONFIRM_RESPEC_WIPE` now runs a
+  bounded `Player::ResetTalents -> RemoveTalent` side-effect seam for the
+  active talent group after the represented trainer/level gates pass (not
+  manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SkillHandler.cpp:54-82`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:2694-2718`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3505-3562`.
+  Rust now removes active-group represented talents, removes the active talent
+  spell plus direct `SPELL_EFFECT_LEARN_SPELL` triggers, removes the matching
+  represented override-spell pair via `RemoveOverrideSpell`, refreshes
+  `CharacterPoints`, keeps coherent talent-save state loaded, records the
+  accepted respec request, and sends `UpdateTalentData` after a successful
+  represented reset. Coverage: `cargo fmt --all --check`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  confirm_respec --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo
+  test -p wow-world learn_talent --lib`. Boundary remains partial: trainer
+  class matching, fake-death aura removal, money/cost/criteria mutation,
+  immediate DB transaction save, visual spell 14867 cast, pet/spec/glyph reset
+  branches, trait override paths, full runtime aura/cast ownership,
+  live-client validation, bot validation, and manual validation remain open.
 - `#NEXT.R8.ENTITIES.1075` — represented player spell casts now consume the
   represented `Player::m_overrideSpells` map through a C++-ordered
   `Player::GetCastSpellInfo` seam (not manual-test-ready). Source of truth:
@@ -14,9 +35,10 @@
   cast_spell_uses_represented_override_spell_info_like_cpp --lib`;
   `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
   cast_spell_falls_back_when_represented_override_missing_like_cpp --lib`.
-  Boundary remains partial: override removal from `RemoveTalent`/respec/trait
-  paths is still open, Rust uses deterministic `BTreeSet` iteration for
-  represented overrides while C++ stores an unordered set, full
+  Boundary remains partial: represented `RemoveTalent`/respec override removal
+  was closed later by `#NEXT.R8.ENTITIES.1076`, but trait override paths remain
+  open, Rust uses deterministic `BTreeSet` iteration for represented overrides
+  while C++ stores an unordered set, full
   `Unit::GetCastSpellInfo` / trigger-flag mutation is not represented, exact
   create-item/reagent spell validity, full runtime aura ownership/cast
   side-effects, real resolved `CMSG_LEARN_TALENTS` dispatch, preview/pet talent
@@ -35,11 +57,13 @@
   `cargo fmt --all --check`; focused
   `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world learn_talent --lib`.
   Boundary remains partial: cast-time `Player::GetCastSpellInfo` consumption was
-  closed later by `#NEXT.R8.ENTITIES.1075`, but `RemoveTalent`/respec override
-  removal is still open, exact create-item/reagent spell validity, full runtime
-  aura ownership/cast side-effects, real resolved `CMSG_LEARN_TALENTS`
-  dispatch, preview/pet talent handlers, live-client validation, bot
-  validation, and manual validation remain open.
+  closed later by `#NEXT.R8.ENTITIES.1075`, and represented
+  `RemoveTalent`/respec override removal was closed later by
+  `#NEXT.R8.ENTITIES.1076`, but trait override paths, exact
+  create-item/reagent spell validity, full runtime aura ownership/cast
+  side-effects, real resolved `CMSG_LEARN_TALENTS` dispatch, preview/pet talent
+  handlers, live-client validation, bot validation, and manual validation remain
+  open.
 - `#NEXT.R8.ENTITIES.1073` — represented `Player::LearnTalent` now mirrors
   the C++ `Player::AddTalent(..., learning=true)` `ChangeTalent` aura
   interruption side effect (not manual-test-ready). Source of truth:

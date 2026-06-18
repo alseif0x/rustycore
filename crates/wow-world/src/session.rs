@@ -18326,6 +18326,26 @@ impl WorldSession {
         self.represented_talents_loaded_like_cpp = false;
     }
 
+    pub(crate) fn reset_represented_active_talents_like_cpp(&mut self) -> bool {
+        if !self.represented_talents_loaded_like_cpp {
+            return false;
+        }
+
+        let talent_group = self.represented_active_talent_group_like_cpp;
+        let talent_group_index = usize::from(talent_group);
+        if talent_group_index >= MAX_SPECIALIZATIONS_LIKE_CPP {
+            return false;
+        }
+
+        let active_talents =
+            std::mem::take(&mut self.represented_talents_like_cpp[talent_group_index]);
+        for (talent_id, rank) in active_talents {
+            self.remove_represented_active_talent_side_effects_like_cpp(talent_id, rank);
+        }
+        self.refresh_represented_talent_points_like_cpp();
+        true
+    }
+
     pub(crate) fn mark_represented_talents_loaded_like_cpp(&mut self) {
         self.represented_talents_loaded_like_cpp = true;
         self.refresh_represented_talent_points_like_cpp();
@@ -18651,6 +18671,21 @@ impl WorldSession {
             0,
             SPELL_AURA_INTERRUPT_FLAG2_CHANGE_TALENT_LIKE_CPP,
         );
+    }
+
+    fn remove_represented_active_talent_side_effects_like_cpp(&mut self, talent_id: u32, rank: u8) {
+        if let Some(spell_id) = self.represented_talent_spell_id_like_cpp(talent_id, rank) {
+            self.remove_known_spell_like_cpp(spell_id);
+            for trigger_spell in self.represented_direct_learn_spell_triggers_like_cpp(spell_id) {
+                self.remove_known_spell_like_cpp(trigger_spell);
+            }
+        }
+
+        if let Some((overriden_spell_id, new_spell_id)) =
+            self.represented_talent_override_spell_pair_like_cpp(talent_id)
+        {
+            self.remove_represented_override_spell_like_cpp(overriden_spell_id, new_spell_id);
+        }
     }
 
     fn represented_talent_spell_id_like_cpp(&self, talent_id: u32, rank: u8) -> Option<i32> {
@@ -27458,6 +27493,23 @@ impl WorldSession {
             .entry(overriden_spell_id)
             .or_default()
             .insert(new_spell_id);
+    }
+
+    pub(crate) fn remove_represented_override_spell_like_cpp(
+        &mut self,
+        overriden_spell_id: i32,
+        new_spell_id: i32,
+    ) {
+        if let Some(overrides) = self
+            .represented_override_spells_like_cpp
+            .get_mut(&overriden_spell_id)
+        {
+            overrides.remove(&new_spell_id);
+            if overrides.is_empty() {
+                self.represented_override_spells_like_cpp
+                    .remove(&overriden_spell_id);
+            }
+        }
     }
 
     pub(crate) fn represented_cast_spell_info_like_cpp(

@@ -113,6 +113,9 @@ impl WorldSession {
             respec_master: request.respec_master,
             respec_type: request.respec_type,
         });
+        if self.reset_represented_active_talents_like_cpp() {
+            self.send_packet(&self.represented_update_talent_data_packet_like_cpp());
+        }
     }
 
     fn represented_can_confirm_respec_wipe_like_cpp(
@@ -899,6 +902,71 @@ mod tests {
             overrides.contains(&70_101),
             "C++ AddOverrideSpell stores overridden spell id -> replacement talent SpellID"
         );
+    }
+
+    #[tokio::test]
+    async fn confirm_respec_wipe_resets_active_talents_and_removes_overrides_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(3);
+        let trainer = test_creature_guid(88);
+        let mut talent = test_talent_entry_like_cpp(101, 0, 50_101);
+        talent.spell_id = 70_101;
+        talent.overrides_spell_id = 60_101;
+        register_test_trainer(&mut session, trainer, NPCFlags1::TRAINER.bits());
+        install_test_talent_entries_with_tab_class_mask(&mut session, vec![talent], 1);
+        session.mark_represented_talents_loaded_like_cpp();
+
+        session
+            .handle_learn_talent(learn_talent_packet(101, 0))
+            .await;
+        let _learn_update = send_rx
+            .try_recv()
+            .expect("C++ sends SendTalentsInfoData after LearnTalent");
+        assert!(session.known_spells_like_cpp().contains(&50_101));
+        assert!(
+            session
+                .represented_override_spells_like_cpp()
+                .get(&60_101)
+                .is_some_and(|overrides| overrides.contains(&70_101))
+        );
+
+        session
+            .handle_confirm_respec_wipe(confirm_respec_wipe_packet(
+                trainer,
+                SPEC_RESET_TALENTS_LIKE_CPP,
+            ))
+            .await;
+
+        let reset_update = send_rx
+            .try_recv()
+            .expect("C++ sends SendTalentsInfoData after successful ResetTalents");
+        assert!(send_rx.try_recv().is_err());
+        assert_eq!(
+            session.represented_confirm_respec_wipe_requests_like_cpp(),
+            &[RepresentedConfirmRespecWipeLikeCpp {
+                respec_master: trainer,
+                respec_type: SPEC_RESET_TALENTS_LIKE_CPP,
+            }]
+        );
+        assert!(
+            !session.known_spells_like_cpp().contains(&50_101),
+            "C++ RemoveTalent removes the active talent spell"
+        );
+        assert!(
+            session.represented_override_spells_like_cpp().is_empty(),
+            "C++ RemoveTalent calls RemoveOverrideSpell for OverridesSpellID"
+        );
+        assert_eq!(
+            reset_update,
+            session
+                .represented_update_talent_data_packet_like_cpp()
+                .to_bytes()
+        );
+        let packet = session.represented_update_talent_data_packet_like_cpp();
+        assert!(
+            packet.groups[0].talents.is_empty(),
+            "C++ ResetTalents removes talents from the active group"
+        );
+        assert_eq!(packet.unspent_talent_points, 71);
     }
 
     #[tokio::test]
