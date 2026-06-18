@@ -1,3 +1,27 @@
+- `#NEXT.R8.ENTITIES.1016` — represented mount casts now run the C++
+  `SPELL_AURA_MOUNTED` location/cast gates before `SMSG_SPELL_GO` instead of
+  applying the mount aura whenever the source spell is known (not
+  manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellInfo.cpp:2110-2145`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Spell.cpp:6588-6610`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:1552,1579`.
+  C++ `SpellInfo::CheckLocation` resolves `MountEntry::MountTypeID` from the
+  source spell, falls back to `EffectMiscValueB`, and rejects the cast with
+  `SPELL_FAILED_NOT_HERE` when `Player::GetMountCapability(mountType)` fails;
+  `Spell::CheckCast` also rejects flying-mount spells while the caster is in
+  water with `SPELL_FAILED_ONLY_ABOVEWATER`. Rust now mirrors those two
+  represented gates in `execute_spell_with_visual_and_target_data_with_metadata`
+  using the existing `MountStore` and represented `MountCapabilityStore`
+  context before any `SpellGo` is sent. Coverage: targeted `wow-world` tests
+  prove missing mount capability sends `CastFailed(NotHere)`, flying mount in
+  water sends `CastFailed(OnlyAbovewater)`, and the existing known account mount
+  success path still applies the mounted aura. Boundary remains partial: no
+  represented `IsInDisallowedMountForm` / `SendMountResult(Shapeshifted)`
+  branch, no full shapeshift mount-type location gate, no full
+  battleground/flying/zone policy beyond the existing represented capability
+  context, no full vehicle/passenger mount runtime parity, no install/restart,
+  bot, or live-client/manual validation.
 - `#NEXT.R8.ENTITIES.1015` — logout/disconnect save snapshots now prefer
   the live canonical `Player` object's map/position when it exists, matching
   the C++ `Player::SaveToDB()` authority instead of trusting a potentially

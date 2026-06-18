@@ -38581,6 +38581,23 @@ impl WorldSession {
             return Ok(());
         }
 
+        if let Some(reason) = self.check_represented_mount_spell_like_cpp(&spell_info) {
+            self.send_packet(&wow_packet::packets::spell::CastFailed {
+                cast_id,
+                spell_id,
+                reason: reason as i32,
+                fail_arg1: 0,
+                fail_arg2: 0,
+            });
+            debug!(
+                account = self.account_id,
+                spell_id = spell_id,
+                reason = reason as i32,
+                "Failing represented mount spell because C++ Spell::CheckCast rejected it"
+            );
+            return Ok(());
+        }
+
         if self.represented_gameobject_summon_missing_nearby_entry_destination_like_cpp(
             spell_id,
             &spell_info,
@@ -39493,6 +39510,50 @@ impl WorldSession {
                 {
                     return Some(SpellCastResult::BadTargets);
                 }
+            }
+        }
+
+        None
+    }
+
+    /// C++ `SpellInfo::CheckLocation` aura limitation plus
+    /// `Spell::CheckCast` per-effect water gate for represented mount spells.
+    fn check_represented_mount_spell_like_cpp(
+        &self,
+        spell_info: &wow_data::SpellInfo,
+    ) -> Option<SpellCastResult> {
+        for effect in spell_info.effects() {
+            if !effect.is_mounted_aura_like_cpp() {
+                continue;
+            }
+
+            let (_, is_in_water) = self.represented_player_mount_liquid_state_like_cpp();
+            if is_in_water
+                && spell_info.has_aura_like_cpp(
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED,
+                )
+            {
+                return Some(SpellCastResult::OnlyAbovewater);
+            }
+
+            let mut mount_type_id = u16::try_from(effect.effect_misc_value_2).unwrap_or_default();
+            if let Some(mount_entry) = self.mount_store.as_ref().and_then(|store| {
+                u32::try_from(spell_info.spell_id)
+                    .ok()
+                    .and_then(|spell_id| store.get_by_source_spell_id_like_cpp(spell_id))
+            }) {
+                mount_type_id = mount_entry.mount_type_id;
+            }
+
+            if mount_type_id != 0
+                && self
+                    .represented_mount_capability_for_type_from_session_like_cpp(
+                        mount_type_id,
+                        None,
+                    )
+                    .is_none()
+            {
+                return Some(SpellCastResult::NotHere);
             }
         }
 

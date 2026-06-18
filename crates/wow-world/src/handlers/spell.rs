@@ -2388,7 +2388,7 @@ mod tests {
 
     use wow_constants::{
         BagFamilyMask, DeathState, ItemContext, ItemFieldFlags, ItemFlags, ItemUpdateState,
-        ServerOpcodes,
+        ServerOpcodes, SpellCastResult,
     };
     use wow_core::{ObjectGuid, Position, guid::HighGuid};
     use wow_entities::{
@@ -2856,6 +2856,43 @@ mod tests {
         Arc::new(spell_store)
     }
 
+    fn mounted_flying_spell_store(spell_id: i32, creature_entry: i32) -> Arc<wow_data::SpellStore> {
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: 77,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOUNTED),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![
+                    wow_data::SpellEffectInfo {
+                        effect_index: 0,
+                        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                        effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
+                        effect_base_points: 77,
+                        effect_misc_value_1: creature_entry,
+                        ..Default::default()
+                    },
+                    wow_data::SpellEffectInfo {
+                        effect_index: 1,
+                        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                        effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED,
+                        effect_base_points: 280,
+                        ..Default::default()
+                    },
+                ],
+            },
+        );
+        Arc::new(spell_store)
+    }
+
     fn mounted_spell_store_with_no_aura_cancel(
         spell_id: i32,
         creature_entry: i32,
@@ -3014,6 +3051,27 @@ mod tests {
             }
         }
         opcodes
+    }
+
+    fn drain_server_packet_bytes(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<Vec<u8>> {
+        let mut packets = Vec::new();
+        while let Ok(bytes) = send_rx.try_recv() {
+            packets.push(bytes);
+        }
+        packets
+    }
+
+    fn cast_failed_reason_like_cpp(bytes: &[u8]) -> i32 {
+        let mut packet = WorldPacket::from_bytes(bytes);
+        assert_eq!(
+            packet.server_opcode(),
+            Some(ServerOpcodes::CastFailed),
+            "expected CastFailed packet"
+        );
+        let _ = packet.read_uint16().expect("opcode");
+        let _ = packet.read_packed_guid().expect("cast id");
+        let _ = packet.read_int32().expect("spell id");
+        packet.read_int32().expect("reason")
     }
 
     fn cancel_aura_packet(spell_id: i32, caster_guid: ObjectGuid) -> WorldPacket {
@@ -3750,6 +3808,79 @@ mod tests {
             .get_typed_player(player_guid)
             .unwrap();
         assert_eq!(player.unit().data().mount_display_id, 4321);
+    }
+
+    #[tokio::test]
+    async fn cast_mount_spell_fails_not_here_without_mount_capability_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 43);
+        let spell_id = 12_346;
+
+        install_canonical_player(&mut session, &canonical, player_guid);
+        session.set_known_spells_like_cpp(vec![spell_id]);
+        session.set_spell_store(mounted_spell_store(spell_id, 1234));
+        session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([
+            wow_data::MountEntry {
+                id: 8,
+                mount_type_id: 7,
+                flags: 0,
+                source_type_enum: 0,
+                source_spell_id: spell_id,
+                player_condition_id: 0,
+                mount_fly_ride_height: 0.0,
+                ui_model_scene_id: 0,
+            },
+        ])));
+
+        session
+            .handle_cast_spell(cast_spell_packet(spell_id, player_guid))
+            .await;
+
+        assert!(!session.player_mounted_like_cpp());
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 1);
+        assert_eq!(
+            cast_failed_reason_like_cpp(&packets[0]),
+            SpellCastResult::NotHere as i32
+        );
+    }
+
+    #[tokio::test]
+    async fn cast_flying_mount_spell_fails_only_abovewater_in_water_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 44);
+        let spell_id = 12_347;
+
+        install_canonical_player(&mut session, &canonical, player_guid);
+        session.set_known_spells_like_cpp(vec![spell_id]);
+        session.set_player_liquid_status_like_cpp(crate::session::LIQUID_MAP_IN_WATER_LIKE_CPP);
+        session.set_spell_store(mounted_flying_spell_store(spell_id, 1234));
+        session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([
+            wow_data::MountEntry {
+                id: 9,
+                mount_type_id: 0,
+                flags: 0,
+                source_type_enum: 0,
+                source_spell_id: spell_id,
+                player_condition_id: 0,
+                mount_fly_ride_height: 0.0,
+                ui_model_scene_id: 0,
+            },
+        ])));
+
+        session
+            .handle_cast_spell(cast_spell_packet(spell_id, player_guid))
+            .await;
+
+        assert!(!session.player_mounted_like_cpp());
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 1);
+        assert_eq!(
+            cast_failed_reason_like_cpp(&packets[0]),
+            SpellCastResult::OnlyAbovewater as i32
+        );
     }
 
     #[tokio::test]
