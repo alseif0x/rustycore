@@ -453,7 +453,9 @@ pub mod aura_types {
     pub const SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE: i32 = 184;
     pub const SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED: i32 = 191;
     pub const SPELL_AURA_MOD_MELEE_RANGED_HASTE: i32 = 192;
+    pub const SPELL_AURA_MOD_INCREASE_VEHICLE_FLIGHT_SPEED: i32 = 206;
     pub const SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED: i32 = 207;
+    pub const SPELL_AURA_MOD_INCREASE_FLIGHT_SPEED: i32 = 208;
     pub const SPELL_AURA_MOD_MOUNTED_FLIGHT_SPEED_ALWAYS: i32 = 209;
     pub const SPELL_AURA_MOD_FLIGHT_SPEED_NOT_STACK: i32 = 211;
     pub const SPELL_AURA_ADD_PCT_MODIFIER_BY_SPELL_LABEL: i32 = 218;
@@ -6123,6 +6125,11 @@ mod tests {
             207
         );
         assert_eq!(aura_types::SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED, 191);
+        assert_eq!(
+            aura_types::SPELL_AURA_MOD_INCREASE_VEHICLE_FLIGHT_SPEED,
+            206
+        );
+        assert_eq!(aura_types::SPELL_AURA_MOD_INCREASE_FLIGHT_SPEED, 208);
         assert_eq!(aura_types::SPELL_AURA_MOD_MOUNTED_FLIGHT_SPEED_ALWAYS, 209);
         assert_eq!(aura_types::SPELL_AURA_MOD_FLIGHT_SPEED_NOT_STACK, 211);
         assert_eq!(aura_types::SPELL_AURA_MOD_MINIMUM_SPEED, 305);

@@ -4694,6 +4694,8 @@ pub enum RepresentedAuraEffectLikeCpp {
     MountedSpeed,
     MountedSpeedAlways,
     MountedSpeedNotStack,
+    FlightSpeed,
+    VehicleFlightSpeed,
     MountedFlightSpeed,
     MountedFlightSpeedAlways,
     FlightSpeedNotStack,
@@ -21217,6 +21219,8 @@ impl WorldSession {
             aura.represented_effect,
             Some(
                 RepresentedAuraEffectLikeCpp::MountedFlightSpeed
+                    | RepresentedAuraEffectLikeCpp::FlightSpeed
+                    | RepresentedAuraEffectLikeCpp::VehicleFlightSpeed
                     | RepresentedAuraEffectLikeCpp::MountedFlightSpeedAlways
                     | RepresentedAuraEffectLikeCpp::FlightSpeedNotStack
             )
@@ -34505,6 +34509,14 @@ impl WorldSession {
             })
     }
 
+    fn total_represented_aura_amount_like_cpp(&self, effect: RepresentedAuraEffectLikeCpp) -> i32 {
+        self.visible_auras
+            .values()
+            .filter(|aura| aura.represented_effect == Some(effect))
+            .map(|aura| aura.represented_amount)
+            .sum()
+    }
+
     fn represented_run_speed_rate_like_cpp(&self) -> f32 {
         let (main_mod_effect, stack_effect, not_stack_effect) = if self.player_mounted_like_cpp {
             (
@@ -34560,11 +34572,25 @@ impl WorldSession {
     }
 
     fn represented_flight_speed_rate_like_cpp(&self) -> f32 {
-        let flight_mod = self
-            .max_represented_aura_amount_like_cpp(RepresentedAuraEffectLikeCpp::MountedFlightSpeed);
-        let flight_always = self.total_represented_aura_amount_multiplier_like_cpp(
-            RepresentedAuraEffectLikeCpp::MountedFlightSpeedAlways,
-        );
+        let (flight_mod, flight_always) = if self.player_mounted_like_cpp {
+            (
+                self.max_represented_aura_amount_like_cpp(
+                    RepresentedAuraEffectLikeCpp::MountedFlightSpeed,
+                ),
+                self.total_represented_aura_amount_multiplier_like_cpp(
+                    RepresentedAuraEffectLikeCpp::MountedFlightSpeedAlways,
+                ),
+            )
+        } else {
+            (
+                self.total_represented_aura_amount_like_cpp(
+                    RepresentedAuraEffectLikeCpp::FlightSpeed,
+                ) + self.total_represented_aura_amount_like_cpp(
+                    RepresentedAuraEffectLikeCpp::VehicleFlightSpeed,
+                ),
+                1.0,
+            )
+        };
         let flight_not_stack = 1.0
             + self
                 .max_represented_aura_amount_like_cpp(
@@ -39793,6 +39819,28 @@ impl WorldSession {
                         30_000,
                     )?;
                     self.recompute_represented_mounted_speed_rates_like_cpp();
+                } else if effect.effect_aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_FLIGHT_SPEED
+                {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::FlightSpeed,
+                        30_000,
+                    )?;
+                    self.recompute_represented_flight_speed_rate_like_cpp();
+                } else if effect.effect_aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_VEHICLE_FLIGHT_SPEED
+                {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::VehicleFlightSpeed,
+                        30_000,
+                    )?;
+                    self.recompute_represented_flight_speed_rate_like_cpp();
                 } else if effect.effect_aura
                     == wow_data::spell::aura_types::SPELL_AURA_MOD_MOUNTED_FLIGHT_SPEED_ALWAYS
                 {
@@ -53968,6 +54016,134 @@ mod tests {
         assert!(
             drain_server_opcodes(&send_rx).contains(&ServerOpcodes::MoveSetRunSpeed),
             "not-stack mounted speed changes are client-visible through Unit::SetSpeedRate"
+        );
+    }
+
+    #[test]
+    fn represented_non_mounted_flight_speed_sums_cpp_flight_modifiers_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let caster = ObjectGuid::create_player(1, 42);
+        let flight = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_FLIGHT_SPEED,
+            effect_base_points: 20,
+            effect_index: 0,
+            ..Default::default()
+        };
+        let vehicle_flight = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_VEHICLE_FLIGHT_SPEED,
+            effect_base_points: 30,
+            effect_index: 1,
+            ..Default::default()
+        };
+        let not_stack = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_FLIGHT_SPEED_NOT_STACK,
+            effect_base_points: 100,
+            effect_index: 2,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_024,
+                caster,
+                &flight,
+                RepresentedAuraEffectLikeCpp::FlightSpeed,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_025,
+                caster,
+                &vehicle_flight,
+                RepresentedAuraEffectLikeCpp::VehicleFlightSpeed,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_026,
+                caster,
+                &not_stack,
+                RepresentedAuraEffectLikeCpp::FlightSpeedNotStack,
+                30_000,
+            )
+            .unwrap();
+        session.recompute_represented_flight_speed_rate_like_cpp();
+
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Flight) - 21.0).abs()
+                < 0.0001,
+            "C++ MOVE_FLIGHT non-mounted branch sums flight and vehicle-flight mods after max(not-stack, stack)"
+        );
+        assert!(
+            drain_server_opcodes(&send_rx).contains(&ServerOpcodes::MoveSetFlightSpeed),
+            "non-mounted flight speed changes are observable through Unit::SetSpeedRate"
+        );
+    }
+
+    #[test]
+    fn represented_non_mounted_flight_speed_removal_recomputes_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let caster = ObjectGuid::create_player(1, 42);
+        let flight = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_FLIGHT_SPEED,
+            effect_base_points: 20,
+            effect_index: 0,
+            ..Default::default()
+        };
+        let vehicle_flight = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_VEHICLE_FLIGHT_SPEED,
+            effect_base_points: 30,
+            effect_index: 1,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_027,
+                caster,
+                &flight,
+                RepresentedAuraEffectLikeCpp::FlightSpeed,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_028,
+                caster,
+                &vehicle_flight,
+                RepresentedAuraEffectLikeCpp::VehicleFlightSpeed,
+                30_000,
+            )
+            .unwrap();
+        session.recompute_represented_flight_speed_rate_like_cpp();
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Flight) - 10.5).abs()
+                < 0.0001
+        );
+        let vehicle_flight_slot = session
+            .visible_auras
+            .iter()
+            .find_map(|(&slot, aura)| {
+                (aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::VehicleFlightSpeed))
+                    .then_some(slot)
+            })
+            .unwrap();
+
+        session.remove_aura(vehicle_flight_slot).unwrap();
+
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Flight) - 8.4).abs()
+                < 0.0001,
+            "C++ aura removal recomputes MOVE_FLIGHT and drops the removed vehicle-flight modifier"
         );
     }
 
