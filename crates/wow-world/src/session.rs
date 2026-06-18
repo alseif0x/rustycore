@@ -17785,40 +17785,41 @@ impl WorldSession {
         stmt
     }
 
-    async fn save_player_position_like_cpp(&self) {
-        let (Some(guid), Some(position), Some(char_db)) = (
-            self.player_guid(),
-            self.player_position_like_cpp(),
-            self.char_db().map(Arc::clone),
-        ) else {
+    fn build_character_position_save_statement_from_snapshot_like_cpp(
+        snapshot: &PlayerSaveToDbSnapshotLikeCpp,
+        zone_id: u32,
+    ) -> PreparedStatement {
+        Self::build_character_position_save_statement_like_cpp(
+            snapshot.position,
+            snapshot.map_id,
+            snapshot.instance_id,
+            zone_id,
+            snapshot.guid.counter() as u64,
+        )
+    }
+
+    async fn save_player_position_like_cpp(&self, snapshot: &PlayerSaveToDbSnapshotLikeCpp) {
+        let Some(char_db) = self.char_db().map(Arc::clone) else {
             return;
         };
 
-        let stmt = Self::build_character_position_save_statement_like_cpp(
-            position,
-            self.player_map_id_like_cpp(),
-            self.current_canonical_player_map_key_like_cpp()
-                .map(|key| key.instance_id)
-                .unwrap_or(0),
+        let stmt = Self::build_character_position_save_statement_from_snapshot_like_cpp(
+            snapshot,
             self.player_zone_id_like_cpp as u32,
-            guid.counter() as u64,
         );
         if let Err(err) = char_db.execute(&stmt).await {
             warn!(
                 "Failed to save player position for guid {}: {err}",
-                guid.counter()
+                snapshot.guid.counter()
             );
         }
     }
 
     pub(crate) async fn save_current_player_to_db_like_cpp(&mut self) {
-        if self
-            .sync_session_from_save_to_db_snapshot_like_cpp()
-            .is_none()
-        {
+        let Some(snapshot) = self.sync_session_from_save_to_db_snapshot_like_cpp() else {
             return;
-        }
-        self.save_player_position_like_cpp().await;
+        };
+        self.save_player_position_like_cpp(&snapshot).await;
         self.save_player_level_xp_like_cpp().await;
         self.save_player_gold().await;
         self.save_player_difficulties_like_cpp().await;
@@ -26104,7 +26105,17 @@ impl WorldSession {
             area_store
                 .get(area_id)
                 .map(|area| area.mount_flags as u8)
-                .unwrap_or(0)
+                .unwrap_or_else(|| {
+                    if area_id == 0 {
+                        // C++ reaches this check after TerrainMgr resolved the
+                        // player's area. Until Rust has that full terrain bridge,
+                        // an area 0 placeholder should not make ordinary ground
+                        // mounts fail SPELL_FAILED_NOT_HERE.
+                        wow_data::AREA_MOUNT_FLAG_ALLOW_GROUND_MOUNTS
+                    } else {
+                        0
+                    }
+                })
         });
         let context = wow_data::MountCapabilityContextLikeCpp {
             riding_skill,
@@ -55478,10 +55489,12 @@ mod tests {
         ));
 
         assert_eq!(session.player_zone_area_like_cpp(), (0, 0));
-        assert!(
+        assert_eq!(
             session
                 .represented_mount_capability_for_type_from_session_like_cpp(7, None)
-                .is_none()
+                .map(|capability| capability.id),
+            Some(11),
+            "Rust uses a ground-mount fallback for represented area 0 until TerrainMgr can resolve C++ area ids"
         );
 
         // C++ resolves the exact area from terrain after adding the player to
@@ -81097,6 +81110,39 @@ mod tests {
             wow_database::SqlParam::U32(9001)
         ));
         assert!(matches!(stmt.params()[6], wow_database::SqlParam::U16(495)));
+        assert!(
+            matches!(stmt.params()[7], wow_database::SqlParam::U64(v) if v == guid.counter() as u64)
+        );
+    }
+
+    #[test]
+    fn character_position_save_uses_captured_snapshot_map_instance_like_cpp() {
+        let guid = ObjectGuid::create_player(1, 5003);
+        let snapshot = PlayerSaveToDbSnapshotLikeCpp {
+            guid,
+            map_id: 632,
+            instance_id: 12_345,
+            position: Position::new(11.0, 22.0, 33.0, 1.5),
+            level: 80,
+            xp: 0,
+            money: 42,
+        };
+
+        let stmt = WorldSession::build_character_position_save_statement_from_snapshot_like_cpp(
+            &snapshot, 210,
+        );
+
+        assert_eq!(stmt.sql(), CharStatements::UPD_CHARACTER_POSITION.sql());
+        assert!(matches!(stmt.params()[0], wow_database::SqlParam::F32(v) if v == 11.0));
+        assert!(matches!(stmt.params()[1], wow_database::SqlParam::F32(v) if v == 22.0));
+        assert!(matches!(stmt.params()[2], wow_database::SqlParam::F32(v) if v == 33.0));
+        assert!(matches!(stmt.params()[3], wow_database::SqlParam::F32(v) if v == 1.5));
+        assert!(matches!(stmt.params()[4], wow_database::SqlParam::U16(632)));
+        assert!(matches!(
+            stmt.params()[5],
+            wow_database::SqlParam::U32(12_345)
+        ));
+        assert!(matches!(stmt.params()[6], wow_database::SqlParam::U16(210)));
         assert!(
             matches!(stmt.params()[7], wow_database::SqlParam::U64(v) if v == guid.counter() as u64)
         );

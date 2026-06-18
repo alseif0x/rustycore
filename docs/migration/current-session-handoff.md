@@ -4519,3 +4519,23 @@ C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entit
 Implemented Rust seam: represented forward speed recomputation now shares the C++ common adjustment helper for Run, Swim, and Flight. `SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED` caps all three represented forward speeds, `SPELL_AURA_MOD_MINIMUM_SPEED_RATE` remains run-only, strongest `SPELL_AURA_MOD_DECREASE_SPEED` applies to all three, and the final `SPELL_AURA_MOD_MINIMUM_SPEED` floor applies after slow math. Applying `DecreaseSpeed` or `UseNormalMovementSpeed` now recomputes represented forward speeds together; removal recomputes Swim/Flight for those shared effects.
 
 Validation evidence: `cargo fmt`; `cargo test -p wow-world represented_forward_speed --lib`; `cargo test -p wow-world represented_swim_speed --lib`. Remaining gaps: backward move types, creature template speed, creature snare/daze immunity behavior, pet/minion owner-follow propagation, controlled-unit vehicle owner path, fly/can-transition flags, install/restart, bot validation, live-client validation, and manual client validation remain open.
+
+### #NEXT.R8.ENTITIES.1048 — logout position save snapshot binding
+
+Status: bugfix-partial for represented logout position persistence; not full `Player::SaveToDB` parity and not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:552-641` calls `Player::SaveToDB()` while the player still exists during logout; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:19318-19635` saves map, instance, position, orientation, zone, transport, taxi path, health/powers and many other character tables from the live `Player`; `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MovementHandler.cpp:312-430` updates `m_movementInfo`/position before broadcast so later logout save reads the latest mover state.
+
+Implemented Rust seam: `save_current_player_to_db_like_cpp` still captures the canonical-player/session fallback snapshot first, but position persistence now builds `UPD_CHARACTER_POSITION` directly from that captured `PlayerSaveToDbSnapshotLikeCpp` instead of recomputing map/instance/position pieces after syncing the session. This keeps the saved `map_id`, `instance_id`, and position as one coherent tuple from the same live snapshot, closer to C++'s one-Player `SaveToDB` read.
+
+Validation evidence: `cargo fmt`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world character_position_save --lib`. Remaining gaps: full C++ `Player::SaveToDB` is still partial in Rust (inventory/items/auras/quests/action bars/talents/spell history/cooldowns/full transactions are not closed by this slice), terrain-derived zone refresh is still incomplete, and this has not yet been validated with the live client/bot disconnect path.
+
+### #NEXT.R8.ENTITIES.1049 — represented ground mount area-zero fallback
+
+Status: bugfix-partial for represented mount use when Rust has not resolved a real area id; not full `Unit::GetMountCapability` runtime parity and not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:7891-7981` selects mount capability from riding skill, AreaTable mount flags, water state, map, required area, aura, and known spell; `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellInfo.cpp:2118-2142` rejects mounted/shapeshift mount casts with `SPELL_FAILED_NOT_HERE` only when `GetMountCapability` fails; `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraEffects.cpp:2581-2665` applies the mounted aura and speed capability on success.
+
+Implemented Rust seam: represented mount capability selection still enforces riding skill, DB2 mount type/capability order, real AreaTable rows, map/aura/known-spell gates, and water state. The only changed branch is `area_id == 0` with no AreaTable row: Rust now treats that as an unresolved TerrainMgr placeholder and grants ordinary ground-mount area flags, so a missing terrain-derived area does not make normal ground mounts fail `SPELL_FAILED_NOT_HERE`. When login/movement has a real area row, Rust continues to use that row's flags.
+
+Validation evidence: `cargo fmt`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world represented_mount_capability_uses_login_zone_area_fallback_like_cpp --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world cast_known_account_mount_spell_applies_mounted_aura_like_cpp --lib`. Remaining gaps: no full TerrainMgr `GetZoneAndAreaId`, exact liquid/vmap refresh, flying-area resolution, riding skill learning/persistence, bot validation, or live-client/manual validation yet.
