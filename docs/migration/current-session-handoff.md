@@ -1,3 +1,27 @@
+- `#NEXT.R8.ENTITIES.1079` — represented `CMSG_CONFIRM_RESPEC_WIPE` now
+  consumes C++ `CONFIG_NO_RESET_TALENT_COST` / `NoResetTalentsCost` for talent
+  reset cost application (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/World/World.cpp:1579`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellEffects.cpp:2271`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:13764`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3515`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/worldserver/worldserver.conf.dist:3420-3425`.
+  Rust now resolves the flag through `WorldConfigSet`, carries it through
+  `SessionResources`, stores it on `WorldSession`, and skips represented money
+  checks plus `TalentResetCost` / `TalentResetTime` mutation when it is enabled,
+  matching the `!noCost && !sWorld->getBoolConfig(...)` C++ branch. Coverage:
+  focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p
+  wow-world confirm_respec_wipe_respects_no_reset_talent_cost_config_like_cpp
+  --lib`; focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p
+  world-server no_reset_talent_cost_uses_cpp_world_config_key`; `cargo fmt
+  --all --check`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check
+  -p world-server`; `git diff --check`. Boundary remains partial: confirm
+  visual cost display, criteria updates (`MoneySpentOnRespecs`, `TotalRespecs`),
+  trainer class matching, fake-death aura removal, visual spell 14867 cast,
+  pet/spec/glyph reset branches, trait override paths, full runtime aura/cast
+  ownership, live-client validation, bot validation, and manual validation
+  remain open.
 - `#NEXT.R8.ENTITIES.1078` — represented login/save now persists
   `Player::SetTalentResetCost` / `SetTalentResetTime` state for talent respec
   pricing (not manual-test-ready). Source of truth:
@@ -16,8 +40,7 @@
   focused `cargo test -p wow-database character_save_statements_match_cpp_sql_exactly`.
   Boundary remains partial: this is a focused represented save seam rather than
   full `CHAR_UPD_CHARACTER` bind-order parity, criteria updates
-  (`MoneySpentOnRespecs`, `TotalRespecs`), `CONFIG_NO_RESET_TALENT_COST`
-  runtime config wiring, trainer class matching, fake-death aura removal, visual
+  (`MoneySpentOnRespecs`, `TotalRespecs`), trainer class matching, fake-death aura removal, visual
   spell 14867 cast, pet/spec/glyph reset branches, trait override paths, full
   runtime aura/cast ownership, live-client validation, bot validation, and
   manual validation remain open.
@@ -39,9 +62,10 @@
   confirm_respec --lib`; focused
   `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
   represented_next_reset_talents_cost_matches_cpp_branches --lib`. Boundary
-  remains partial: `CONFIG_NO_RESET_TALENT_COST` is represented by the C++
-  default false only, DB load/save of `resettalents_cost` /
-  `resettalents_time` was closed later by `#NEXT.R8.ENTITIES.1078`, but
+  remains partial: DB load/save of `resettalents_cost` /
+  `resettalents_time` was closed later by `#NEXT.R8.ENTITIES.1078`, and
+  `CONFIG_NO_RESET_TALENT_COST` wiring was closed later by
+  `#NEXT.R8.ENTITIES.1079`, but
   criteria updates (`MoneySpentOnRespecs`, `TotalRespecs`), trainer class
   matching, fake-death aura removal, immediate DB transaction save, visual spell
   14867 cast, pet/spec/glyph reset branches, trait override paths, full runtime

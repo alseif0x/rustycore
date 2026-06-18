@@ -322,6 +322,8 @@ pub struct SessionResources {
     pub repair_cost_rate: f32,
     /// C++ `CONFIG_RESET_SCHEDULE_{HOUR,WEEK_DAY}` for instance lock expiry.
     pub reset_schedule: wow_instances::ResetSchedule,
+    /// C++ `CONFIG_NO_RESET_TALENT_COST` / `NoResetTalentsCost`.
+    pub no_reset_talent_cost: bool,
     /// C++ `CONFIG_SUPPORT_ENABLED` / `Support.Enabled`.
     pub support_enabled: bool,
     /// C++ `CONFIG_SUPPORT_BUGS_ENABLED` / `Support.BugsEnabled`.

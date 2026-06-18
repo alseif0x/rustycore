@@ -4241,6 +4241,8 @@ pub struct WorldSession {
     repair_cost_rate_like_cpp: f32,
     /// C++ `CONFIG_RESET_SCHEDULE_{HOUR,WEEK_DAY}` consumed by `InstanceLockMgr::GetNextResetTime`.
     reset_schedule_like_cpp: wow_instances::ResetSchedule,
+    /// C++ `CONFIG_NO_RESET_TALENT_COST` represented switch.
+    no_reset_talent_cost_like_cpp: bool,
     /// C++ `ReputationMgr` per-player state foundation.
     reputation_mgr_like_cpp: ReputationMgrLikeCpp,
     /// C++ `ActivePlayerData::WatchedFactionIndex` represented state.
@@ -5545,6 +5547,7 @@ impl WorldSession {
             reputation_rates: ReputationRatesLikeCpp::default(),
             repair_cost_rate_like_cpp: 1.0,
             reset_schedule_like_cpp: wow_instances::ResetSchedule::default(),
+            no_reset_talent_cost_like_cpp: false,
             reputation_mgr_like_cpp: ReputationMgrLikeCpp::new_like_cpp(),
             watched_faction_index_like_cpp: -1,
             enable_ae_loot_like_cpp: false,
@@ -13778,6 +13781,10 @@ impl WorldSession {
         self.reset_schedule_like_cpp = schedule;
     }
 
+    pub fn set_no_reset_talent_cost_like_cpp(&mut self, no_cost: bool) {
+        self.no_reset_talent_cost_like_cpp = no_cost;
+    }
+
     pub(crate) const fn reset_schedule_like_cpp(&self) -> wow_instances::ResetSchedule {
         self.reset_schedule_like_cpp
     }
@@ -20953,6 +20960,10 @@ impl WorldSession {
         &mut self,
         now_secs: u64,
     ) -> bool {
+        if self.no_reset_talent_cost_like_cpp {
+            return true;
+        }
+
         let cost = u64::from(self.represented_next_reset_talents_cost_like_cpp(now_secs));
         let old_money = self.player_gold_like_cpp();
         if old_money < cost {

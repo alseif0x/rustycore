@@ -501,6 +501,57 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn confirm_respec_wipe_respects_no_reset_talent_cost_config_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(2);
+        let trainer = test_creature_guid(78);
+        register_test_trainer(&mut session, trainer, NPCFlags1::TRAINER.bits());
+        session.mark_represented_talents_loaded_like_cpp();
+        session.set_no_reset_talent_cost_like_cpp(true);
+        session.set_player_gold_like_cpp(0);
+        session.set_represented_talent_reset_state_like_cpp(500_000, 123);
+
+        session
+            .handle_confirm_respec_wipe(confirm_respec_wipe_packet(
+                trainer,
+                SPEC_RESET_TALENTS_LIKE_CPP,
+            ))
+            .await;
+
+        let reset_update = send_rx
+            .try_recv()
+            .expect("C++ ResetTalents skips money checks when CONFIG_NO_RESET_TALENT_COST is true");
+        assert_eq!(
+            reset_update,
+            session
+                .represented_update_talent_data_packet_like_cpp()
+                .to_bytes()
+        );
+        assert!(send_rx.try_recv().is_err());
+        assert_eq!(
+            session.player_gold_like_cpp(),
+            0,
+            "C++ no-cost reset does not modify player money"
+        );
+        assert_eq!(
+            session.represented_talent_reset_cost_like_cpp(),
+            500_000,
+            "C++ skips TalentResetCost mutation when NoResetTalentsCost is enabled"
+        );
+        assert_eq!(
+            session.represented_talent_reset_time_secs_like_cpp(),
+            123,
+            "C++ skips TalentResetTime mutation when NoResetTalentsCost is enabled"
+        );
+        assert_eq!(
+            session.represented_confirm_respec_wipe_requests_like_cpp(),
+            &[RepresentedConfirmRespecWipeLikeCpp {
+                respec_master: trainer,
+                respec_type: SPEC_RESET_TALENTS_LIKE_CPP,
+            }]
+        );
+    }
+
+    #[tokio::test]
     async fn learn_talent_updates_represented_active_group_and_sends_talents_like_cpp() {
         let (mut session, send_rx) = make_session_with_send_capacity(1);
         install_test_talent_store(&mut session, &[(101, 2, 50_101)]);

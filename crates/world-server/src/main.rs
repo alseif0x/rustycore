@@ -4290,6 +4290,11 @@ async fn main() -> Result<ExitCode> {
         reputation_rates: reputation_rates_like_cpp(&world_configs),
         repair_cost_rate: repair_cost_rate_like_cpp(&world_configs),
         reset_schedule: reset_schedule_like_cpp(&world_configs),
+        no_reset_talent_cost: world_config_bool(
+            &world_configs,
+            "CONFIG_NO_RESET_TALENT_COST",
+            false,
+        ),
         support_enabled: world_config_bool(&world_configs, "CONFIG_SUPPORT_ENABLED", true),
         support_bugs_enabled: world_config_bool(
             &world_configs,
@@ -10915,6 +10920,7 @@ async fn create_session(
     session.set_reputation_rates_like_cpp(resources.reputation_rates);
     session.set_repair_cost_rate_like_cpp(resources.repair_cost_rate);
     session.set_reset_schedule_like_cpp(resources.reset_schedule);
+    session.set_no_reset_talent_cost_like_cpp(resources.no_reset_talent_cost);
     session.set_represented_support_enabled_like_cpp(resources.support_enabled);
     session.set_represented_support_bugs_enabled_like_cpp(resources.support_bugs_enabled);
     session
@@ -15505,6 +15511,19 @@ ResetSchedule.WeekDay = 5
 
         let configs = wow_config::load_world_config_values();
         assert!(!world_config_bool(&configs, "CONFIG_ADDON_CHANNEL", true));
+    }
+
+    #[test]
+    fn no_reset_talent_cost_uses_cpp_world_config_key() {
+        let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+        wow_config::load_config_from_str("NoResetTalentsCost = 1\n").expect("config should load");
+
+        let configs = wow_config::load_world_config_values();
+        assert!(world_config_bool(
+            &configs,
+            "CONFIG_NO_RESET_TALENT_COST",
+            false
+        ));
     }
 
     #[test]
