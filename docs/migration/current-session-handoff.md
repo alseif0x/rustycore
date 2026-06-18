@@ -1,3 +1,22 @@
+- `#NEXT.R8.ENTITIES.1084` — represented `Player::ResetTalents` now
+  performs the C++ active-pet removal branch before removing talents (not
+  manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:20871-20939,3505-3562`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Pet/PetDefines.h:40-48`.
+  C++ checks the money gate, then calls
+  `RemovePet(nullptr, PET_SAVE_NOT_IN_SLOT, true)` before iterating the active
+  talent map. Rust now clears represented active-pet state, resets
+  `PetStable::CurrentPetIndex`, and removes the typed pet from the canonical
+  map when present; failed money gates leave the pet untouched. Coverage:
+  `cargo fmt --all --check`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  confirm_respec --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo
+  check -p world-server`; `git diff --check`. Boundary remains partial: reagent return,
+  exact `Pet::SavePetToDB`, pet spell packet/group update side effects,
+  pet/spec/glyph reset branches beyond the active-pet removal, trait override
+  paths, full runtime aura/cast ownership, live-client validation, bot
+  validation, and manual validation remain open.
 - `#NEXT.R8.ENTITIES.1083` — represented `CMSG_CONFIRM_RESPEC_WIPE` now
   records the C++ untalent visual spell cast after successful
   `Player::ResetTalents` and `SendTalentsInfoData` (not manual-test-ready).
@@ -13,8 +32,9 @@
   `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
   confirm_respec --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo
   check -p world-server`; `git diff --check`. Boundary remains partial: this is cast
-  evidence only, not full `Spell::CastSpell` execution/fanout; pet/spec/glyph
-  reset branches, trait override paths, full achievement/quest criteria manager
+  evidence only, not full `Spell::CastSpell` execution/fanout; active-pet
+  removal was closed later by `#NEXT.R8.ENTITIES.1084`, while remaining
+  pet/spec/glyph reset branches, trait override paths, full achievement/quest criteria manager
   persistence, full runtime aura/cast ownership, live-client validation, bot
   validation, and manual validation remain open.
 - `#NEXT.R8.ENTITIES.1082` — represented `CMSG_CONFIRM_RESPEC_WIPE` now

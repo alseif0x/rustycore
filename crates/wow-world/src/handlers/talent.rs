@@ -123,6 +123,8 @@ impl WorldSession {
             return;
         }
 
+        self.remove_represented_pet_not_in_slot_like_cpp();
+
         self.record_represented_confirm_respec_wipe_like_cpp(RepresentedConfirmRespecWipeLikeCpp {
             respec_master: request.respec_master,
             respec_type: request.respec_type,
@@ -179,6 +181,7 @@ mod tests {
     use wow_constants::unit::UnitState;
     use wow_core::guid::HighGuid;
     use wow_core::{ObjectGuid, Position};
+    use wow_entities::{PetStable, PetStableInfo, PetType};
     use wow_packet::ServerPacket;
     use wow_packet::packets::misc::BuyFailed;
     use wow_packet::packets::update::CreatureCreateData;
@@ -532,6 +535,61 @@ mod tests {
                 wow_entities::MapObjectRecord::new_creature(creature).unwrap(),
             )
             .unwrap();
+    }
+
+    fn add_canonical_test_pet_like_cpp(
+        canonical: &Arc<Mutex<wow_map::MapManager>>,
+        guid: ObjectGuid,
+        owner_guid: ObjectGuid,
+        position: Position,
+    ) {
+        let mut pet = wow_entities::Pet::new(owner_guid, PetType::Hunter);
+        pet.creature_mut()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .create(guid);
+        pet.creature_mut()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .set_entry(500);
+        pet.creature_mut()
+            .unit_mut()
+            .world_mut()
+            .set_map(0, 0)
+            .unwrap();
+        pet.creature_mut().unit_mut().world_mut().relocate(position);
+        pet.creature_mut()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .add_to_world();
+
+        canonical
+            .lock()
+            .unwrap()
+            .find_map_mut(0, 0)
+            .expect("canonical map")
+            .map_mut()
+            .insert_map_object_record(wow_entities::MapObjectRecord::new_pet(pet).unwrap())
+            .unwrap();
+    }
+
+    fn represented_current_pet_stable_like_cpp(pet_number: u32) -> PetStable {
+        PetStable {
+            current_pet_index: Some(0),
+            active_pets: vec![Some(PetStableInfo {
+                pet_number,
+                creature_id: 500,
+                pet_type: PetType::Hunter,
+                health: 100,
+                level: 80,
+                ..PetStableInfo::default()
+            })],
+            stabled_pets: Vec::new(),
+            unslotted_pets: Vec::new(),
+        }
     }
 
     #[tokio::test]
@@ -1144,9 +1202,99 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn confirm_respec_wipe_removes_active_pet_not_in_slot_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(3);
+        let canonical = Arc::new(Mutex::new(wow_map::MapManager::default()));
+        let trainer = test_creature_guid(91);
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let pet_guid = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 0, 0, 500, 42);
+        let position = Position::new(0.0, 0.0, 0.0, 0.0);
+        register_test_trainer(&mut session, trainer, NPCFlags1::TRAINER.bits());
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TalentPetRemove".to_string(),
+            position,
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session
+            .ensure_canonical_world_map_for_current_player_like_cpp()
+            .expect("canonical player map");
+        add_canonical_test_trainer_like_cpp(
+            &canonical,
+            trainer,
+            Position::new(1.0, 0.0, 0.0, 0.0),
+            NPCFlags1::TRAINER.bits(),
+            1,
+        );
+        add_canonical_test_pet_like_cpp(&canonical, pet_guid, player_guid, position);
+        session.set_represented_pet_mode_state_like_cpp(
+            Some(pet_guid),
+            wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
+            wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP,
+        );
+        session.set_represented_pet_stable_like_cpp(represented_current_pet_stable_like_cpp(42));
+        session.mark_represented_talents_loaded_like_cpp();
+        session.set_player_gold_like_cpp(20_000);
+
+        session
+            .handle_confirm_respec_wipe(confirm_respec_wipe_packet(
+                trainer,
+                SPEC_RESET_TALENTS_LIKE_CPP,
+            ))
+            .await;
+
+        let _reset_update = send_rx
+            .try_recv()
+            .expect("C++ sends SendTalentsInfoData after successful ResetTalents");
+        assert!(send_rx.try_recv().is_err());
+        assert_eq!(
+            session.represented_pet_guid_like_cpp(),
+            None,
+            "C++ ResetTalents calls RemovePet(nullptr, PET_SAVE_NOT_IN_SLOT, true)"
+        );
+        assert_eq!(
+            session.represented_pet_stable_current_index_like_cpp(),
+            None,
+            "C++ Player::RemovePet resets PetStable::CurrentPetIndex for PET_SAVE_NOT_IN_SLOT"
+        );
+        assert_eq!(
+            session.represented_temporary_unsummoned_pet_number_like_cpp(),
+            0,
+            "C++ talent reset does not use the temporary-unsummoned pet slot"
+        );
+        let manager = canonical.lock().unwrap();
+        assert!(
+            manager
+                .find_map(0, 0)
+                .unwrap()
+                .map()
+                .get_typed_pet(pet_guid)
+                .is_none(),
+            "C++ Player::RemovePet adds the live pet object to removal"
+        );
+    }
+
+    #[tokio::test]
     async fn confirm_respec_wipe_rejects_without_money_before_removing_talents_like_cpp() {
         let (mut session, send_rx) = make_session_with_send_capacity(3);
         let trainer = test_creature_guid(89);
+        let pet_guid = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 0, 0, 500, 43);
         let mut talent = test_talent_entry_like_cpp(101, 0, 50_101);
         talent.spell_id = 70_101;
         talent.overrides_spell_id = 60_101;
@@ -1160,6 +1308,12 @@ mod tests {
         let _learn_update = send_rx
             .try_recv()
             .expect("C++ sends SendTalentsInfoData after LearnTalent");
+        session.set_represented_pet_mode_state_like_cpp(
+            Some(pet_guid),
+            wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
+            wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP,
+        );
+        session.set_represented_pet_stable_like_cpp(represented_current_pet_stable_like_cpp(43));
         session.set_player_gold_like_cpp(9_999);
 
         session
@@ -1205,6 +1359,16 @@ mod tests {
         assert!(
             session.known_spells_like_cpp().contains(&50_101),
             "C++ checks money before RemoveTalent"
+        );
+        assert_eq!(
+            session.represented_pet_guid_like_cpp(),
+            Some(pet_guid),
+            "C++ returns before RemovePet when ResetTalents fails the money gate"
+        );
+        assert_eq!(
+            session.represented_pet_stable_current_index_like_cpp(),
+            Some(0),
+            "C++ leaves the current pet slot untouched when ResetTalents returns false"
         );
         assert!(
             session

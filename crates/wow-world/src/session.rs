@@ -27301,6 +27301,49 @@ impl WorldSession {
         self.represented_pet_stable_like_cpp = stable;
     }
 
+    /// C++ `Player::RemovePet(nullptr, PET_SAVE_NOT_IN_SLOT, true)`.
+    ///
+    /// Represented boundary: clears the active represented pet link, resets
+    /// `PetStable::CurrentPetIndex`, and removes the live typed pet from the
+    /// canonical map if present. Reagent return and exact `Pet::SavePetToDB`
+    /// remain owned by the future full pet/inventory persistence runtime.
+    pub(crate) fn remove_represented_pet_not_in_slot_like_cpp(&mut self) {
+        let pet_guid = self.represented_pet_guid_like_cpp;
+        if let Some(pet_guid) = pet_guid
+            && let Some(manager) = self.canonical_map_manager.as_ref().map(Arc::clone)
+            && let Ok(mut manager) = manager.lock()
+        {
+            let mut removed = false;
+            manager.do_for_all_maps_mut(|managed| {
+                if removed {
+                    return;
+                }
+                match managed.map_mut().remove_from_map_like_cpp(pet_guid, false) {
+                    Ok(_) => removed = true,
+                    Err(wow_map::RemoveFromMapError::ObjectNotFound { .. }) => {}
+                    Err(_) => {}
+                }
+            });
+        }
+
+        if self.represented_pet_guid_like_cpp.is_some() {
+            self.represented_pet_guid_like_cpp = None;
+            self.represented_pet_created_by_spell_like_cpp = 0;
+            self.represented_pet_react_state_like_cpp =
+                wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP;
+            self.represented_pet_command_state_like_cpp =
+                wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP;
+            self.temporary_mount_pet_react_state_like_cpp = None;
+            self.represented_pet_movement_speed_rates_like_cpp = [1.0; UnitMoveTypeLikeCpp::COUNT];
+        }
+        self.represented_pet_stable_like_cpp.current_pet_index = None;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_pet_stable_current_index_like_cpp(&self) -> Option<u32> {
+        self.represented_pet_stable_like_cpp.current_pet_index
+    }
+
     pub(crate) fn load_represented_pet_stable_rows_like_cpp(
         &mut self,
         summoned_pet_number: u32,
