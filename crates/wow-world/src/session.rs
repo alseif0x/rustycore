@@ -4686,8 +4686,10 @@ pub enum RepresentedAuraEffectLikeCpp {
     Mounted,
     MountedSpeed,
     MountedSpeedAlways,
+    MountedSpeedNotStack,
     MountedFlightSpeed,
     MountedFlightSpeedAlways,
+    FlightSpeedNotStack,
     ModifyFallDamagePct,
     ModDetectRange,
     ModDetectedRange,
@@ -20708,6 +20710,11 @@ impl WorldSession {
                     RepresentedAuraEffectLikeCpp::MountedSpeedAlways
                 }
                 aura if aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_MOUNTED_SPEED_NOT_STACK =>
+                {
+                    RepresentedAuraEffectLikeCpp::MountedSpeedNotStack
+                }
+                aura if aura
                     == wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED =>
                 {
                     RepresentedAuraEffectLikeCpp::MountedFlightSpeed
@@ -20716,6 +20723,9 @@ impl WorldSession {
                     == wow_data::spell::aura_types::SPELL_AURA_MOD_MOUNTED_FLIGHT_SPEED_ALWAYS =>
                 {
                     RepresentedAuraEffectLikeCpp::MountedFlightSpeedAlways
+                }
+                aura if aura == wow_data::spell::aura_types::SPELL_AURA_MOD_FLIGHT_SPEED_NOT_STACK => {
+                    RepresentedAuraEffectLikeCpp::FlightSpeedNotStack
                 }
                 _ => continue,
             };
@@ -21184,8 +21194,10 @@ impl WorldSession {
             Some(
                 RepresentedAuraEffectLikeCpp::MountedSpeed
                     | RepresentedAuraEffectLikeCpp::MountedSpeedAlways
+                    | RepresentedAuraEffectLikeCpp::MountedSpeedNotStack
                     | RepresentedAuraEffectLikeCpp::MountedFlightSpeed
                     | RepresentedAuraEffectLikeCpp::MountedFlightSpeedAlways
+                    | RepresentedAuraEffectLikeCpp::FlightSpeedNotStack
             )
         ) {
             self.recompute_represented_mounted_speed_rates_like_cpp();
@@ -34465,19 +34477,33 @@ impl WorldSession {
         let run_always = self.total_represented_aura_amount_multiplier_like_cpp(
             RepresentedAuraEffectLikeCpp::MountedSpeedAlways,
         );
+        let run_not_stack = 1.0
+            + self
+                .max_represented_aura_amount_like_cpp(
+                    RepresentedAuraEffectLikeCpp::MountedSpeedNotStack,
+                )
+                .max(0) as f32
+                / 100.0;
         let flight_mod = self
             .max_represented_aura_amount_like_cpp(RepresentedAuraEffectLikeCpp::MountedFlightSpeed);
         let flight_always = self.total_represented_aura_amount_multiplier_like_cpp(
             RepresentedAuraEffectLikeCpp::MountedFlightSpeedAlways,
         );
+        let flight_not_stack = 1.0
+            + self
+                .max_represented_aura_amount_like_cpp(
+                    RepresentedAuraEffectLikeCpp::FlightSpeedNotStack,
+                )
+                .max(0) as f32
+                / 100.0;
 
         self.set_player_movement_speed_rate_and_notify_like_cpp(
             UnitMoveTypeLikeCpp::Run,
-            (1.0 + run_mod.max(0) as f32 / 100.0) * run_always,
+            run_always.max(run_not_stack) * (1.0 + run_mod.max(0) as f32 / 100.0),
         );
         self.set_player_movement_speed_rate_and_notify_like_cpp(
             UnitMoveTypeLikeCpp::Flight,
-            (1.0 + flight_mod.max(0) as f32 / 100.0) * flight_always,
+            flight_always.max(flight_not_stack) * (1.0 + flight_mod.max(0) as f32 / 100.0),
         );
     }
 
@@ -39581,6 +39607,17 @@ impl WorldSession {
                     )?;
                     self.recompute_represented_mounted_speed_rates_like_cpp();
                 } else if effect.effect_aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_MOUNTED_SPEED_NOT_STACK
+                {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::MountedSpeedNotStack,
+                        30_000,
+                    )?;
+                    self.recompute_represented_mounted_speed_rates_like_cpp();
+                } else if effect.effect_aura
                     == wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED
                 {
                     self.apply_represented_aura_modifier_like_cpp(
@@ -39599,6 +39636,17 @@ impl WorldSession {
                         player_guid,
                         effect,
                         RepresentedAuraEffectLikeCpp::MountedFlightSpeedAlways,
+                        30_000,
+                    )?;
+                    self.recompute_represented_mounted_speed_rates_like_cpp();
+                } else if effect.effect_aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_FLIGHT_SPEED_NOT_STACK
+                {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::FlightSpeedNotStack,
                         30_000,
                     )?;
                     self.recompute_represented_mounted_speed_rates_like_cpp();
@@ -53681,6 +53729,80 @@ mod tests {
         assert!(
             drain_server_opcodes(&send_rx).contains(&ServerOpcodes::MoveSetRunSpeed),
             "C++ Unit::SetSpeedRate sends SMSG_MOVE_SET_RUN_SPEED when the mounted run rate changes"
+        );
+    }
+
+    #[test]
+    fn represented_mount_speed_uses_cpp_not_stack_bonus_order_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        session.set_mount_capability_store(Arc::new(wow_data::MountCapabilityStore::from_entries(
+            [wow_data::MountCapabilityEntry {
+                id: 77,
+                flags: wow_data::MOUNT_CAPABILITY_FLAG_GROUND,
+                req_riding_skill: 0,
+                req_area_id: 0,
+                req_spell_aura_id: 0,
+                req_spell_known_id: 0,
+                mod_spell_aura_id: 12_347,
+                req_map_id: 0,
+            }],
+        )));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            12_347,
+            wow_data::SpellInfo {
+                spell_id: 12_347,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![
+                    wow_data::SpellEffectInfo {
+                        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                        effect_aura:
+                            wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED,
+                        effect_base_points: 60,
+                        effect_index: 0,
+                        ..Default::default()
+                    },
+                    wow_data::SpellEffectInfo {
+                        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                        effect_aura:
+                            wow_data::spell::aura_types::SPELL_AURA_MOD_MOUNTED_SPEED_NOT_STACK,
+                        effect_base_points: 150,
+                        effect_index: 1,
+                        ..Default::default()
+                    },
+                ],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+        let effect = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
+            effect_base_points: 77,
+            effect_misc_value_1: 0,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_mounted_aura_like_cpp(100, ObjectGuid::EMPTY, &effect)
+            .unwrap();
+
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 28.0).abs()
+                < 0.0001,
+            "C++ Unit::UpdateSpeed uses max(stack_bonus, non_stack_bonus) before AddPct(main_speed_mod)"
+        );
+        assert!(
+            drain_server_opcodes(&send_rx).contains(&ServerOpcodes::MoveSetRunSpeed),
+            "not-stack mounted speed changes are client-visible through Unit::SetSpeedRate"
         );
     }
 
