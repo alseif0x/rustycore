@@ -274,6 +274,7 @@ pub struct SessionResources {
     pub battlemaster_list_store: Option<Arc<wow_data::BattlemasterListStore>>,
     pub creature_template_mount_store: Option<Arc<wow_data::CreatureTemplateMountStoreLikeCpp>>,
     pub creature_display_info_store: Option<Arc<wow_data::CreatureDisplayInfoStore>>,
+    pub creature_display_info_extra_store: Option<Arc<wow_data::CreatureDisplayInfoExtraStore>>,
     pub gameobject_display_info_store: Option<Arc<wow_data::GameObjectDisplayInfoStore>>,
     pub creature_model_data_store: Option<Arc<wow_data::CreatureModelDataStore>>,
     pub mount_store: Option<Arc<wow_data::MountStore>>,

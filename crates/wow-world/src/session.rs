@@ -59,10 +59,10 @@ use wow_data::{
     BankBagSlotPricesStore, BattlePetBreedQualityStore, BattlePetBreedStateStore,
     BattlePetSpeciesStateStore, BattlePetSpeciesStore, BattlePetXpGameTableLikeCpp,
     BattlemasterListStore, ChrSpecializationStore, CinematicSequencesStore,
-    ConditionEntriesByTypeStore, CreatureDisplayInfoStore, CreatureModelDataStore,
-    CreatureTemplateMountStoreLikeCpp, CurrencyTypesEntry, CurrencyTypesStore,
-    DISABLE_TYPE_BATTLEGROUND, DISABLE_TYPE_MAP, DifficultyStore, DisableMgrLikeCpp,
-    DisableWorldObjectRefLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
+    ConditionEntriesByTypeStore, CreatureDisplayInfoExtraStore, CreatureDisplayInfoStore,
+    CreatureModelDataStore, CreatureTemplateMountStoreLikeCpp, CurrencyTypesEntry,
+    CurrencyTypesStore, DISABLE_TYPE_BATTLEGROUND, DISABLE_TYPE_MAP, DifficultyStore,
+    DisableMgrLikeCpp, DisableWorldObjectRefLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
     DurabilityQualityStore, FishingBaseSkillStoreLikeCpp, GameObjectDisplayInfoStore,
     GameObjectTemplateLifecycleStoreLikeCpp, HeirloomEntry, HeirloomStore, HotfixBlobCache,
     ImportPriceStores, ItemAppearanceStore, ItemClassStore, ItemCurrencyCostStore,
@@ -2445,6 +2445,8 @@ const DAMAGE_FALL_LIKE_CPP: u8 = 2;
 const DAMAGE_FIRE_LIKE_CPP: u8 = 5;
 const DAMAGE_FALL_TO_VOID_LIKE_CPP: u8 = 6;
 const SPELL_SHAPESHIFT_FORM_FLAG_STANCE_LIKE_CPP: i32 = 0x0000_0001;
+const CREATURE_MODEL_DATA_FLAG_CAN_MOUNT_WHILE_TRANSFORMED_AS_THIS_LIKE_CPP: u32 = 0x0000_0080;
+const CHR_RACES_FLAG_CAN_MOUNT_LIKE_CPP: i32 = 0x0000_0004;
 pub(crate) const SPELL_DUEL_LIKE_CPP: u32 = 7266;
 pub(crate) const SPELL_MOUNTED_DUEL_LIKE_CPP: u32 = 62875;
 pub(crate) const SPELL_DUEL_BEG_LIKE_CPP: u32 = 7267;
@@ -3350,6 +3352,7 @@ pub struct WorldSession {
     championing_faction_like_cpp: u32,
     creature_template_mount_store: Option<Arc<CreatureTemplateMountStoreLikeCpp>>,
     creature_display_info_store: Option<Arc<CreatureDisplayInfoStore>>,
+    creature_display_info_extra_store: Option<Arc<CreatureDisplayInfoExtraStore>>,
     gameobject_display_info_store: Option<Arc<GameObjectDisplayInfoStore>>,
     creature_model_data_store: Option<Arc<CreatureModelDataStore>>,
     mount_store: Option<Arc<MountStore>>,
@@ -4940,6 +4943,7 @@ impl WorldSession {
             championing_faction_like_cpp: 0,
             creature_template_mount_store: None,
             creature_display_info_store: None,
+            creature_display_info_extra_store: None,
             gameobject_display_info_store: None,
             creature_model_data_store: None,
             mount_store: None,
@@ -6090,6 +6094,26 @@ impl WorldSession {
                     .map()
                     .get_typed_player(guid)
                     .map(|player| player.has_player_flag(flag));
+            }
+        });
+        result
+    }
+
+    fn canonical_player_display_ids_like_cpp(&self) -> Option<(u32, u32)> {
+        let guid = self.player_guid()?;
+        let map_id = u32::from(self.player_map_id_like_cpp());
+        let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
+        let manager = manager.lock().ok()?;
+        let mut result = None;
+        manager.do_for_all_maps_with_map_id(map_id, |managed| {
+            if result.is_none() {
+                result = managed.map().get_typed_player(guid).map(|player| {
+                    let data = player.unit().data();
+                    (
+                        u32::try_from(data.display_id).unwrap_or_default(),
+                        u32::try_from(data.native_display_id).unwrap_or_default(),
+                    )
+                });
             }
         });
         result
@@ -16768,6 +16792,13 @@ impl WorldSession {
 
     pub fn set_creature_display_info_store(&mut self, store: Arc<CreatureDisplayInfoStore>) {
         self.creature_display_info_store = Some(store);
+    }
+
+    pub fn set_creature_display_info_extra_store(
+        &mut self,
+        store: Arc<CreatureDisplayInfoExtraStore>,
+    ) {
+        self.creature_display_info_extra_store = Some(store);
     }
 
     pub fn set_gameobject_display_info_store(&mut self, store: Arc<GameObjectDisplayInfoStore>) {
@@ -39613,14 +39644,14 @@ impl WorldSession {
                 ));
             }
 
-            if let Some(form_id) = self.represented_disallowed_mount_form_like_cpp() {
+            if let Some(disallowed_source_id) = self.represented_disallowed_mount_form_like_cpp() {
                 self.send_packet(&MountResult {
                     result: MOUNT_RESULT_SHAPESHIFTED_LIKE_CPP,
                 });
                 debug!(
                     account = self.account_id,
                     spell_id = spell_info.spell_id,
-                    form_id,
+                    disallowed_source_id,
                     "Rejecting represented mount cast: player is in a disallowed shapeshift form"
                 );
                 return Some(RepresentedMountSpellCheckOutcomeLikeCpp::DontReport);
@@ -39662,28 +39693,72 @@ impl WorldSession {
     }
 
     fn represented_disallowed_mount_form_like_cpp(&self) -> Option<u32> {
-        let spell_store = self.spell_store()?;
-        let shapeshift_form_store = self.spell_shapeshift_form_store.as_ref()?;
-
-        for aura in self.visible_auras.values() {
-            let Some(spell_info) = spell_store.get(aura.spell_id) else {
-                continue;
-            };
-
-            for effect in spell_info
-                .effects()
-                .iter()
-                .filter(|effect| effect.is_mod_shapeshift_aura_like_cpp())
-            {
-                let Ok(form_id) = u32::try_from(effect.effect_misc_value_1) else {
+        if let (Some(spell_store), Some(shapeshift_form_store)) = (
+            self.spell_store(),
+            self.spell_shapeshift_form_store.as_ref(),
+        ) {
+            for aura in self.visible_auras.values() {
+                let Some(spell_info) = spell_store.get(aura.spell_id) else {
                     continue;
                 };
-                let Some(form) = shapeshift_form_store.get(form_id) else {
-                    return Some(form_id);
-                };
-                if form.flags & SPELL_SHAPESHIFT_FORM_FLAG_STANCE_LIKE_CPP == 0 {
-                    return Some(form_id);
+
+                for effect in spell_info
+                    .effects()
+                    .iter()
+                    .filter(|effect| effect.is_mod_shapeshift_aura_like_cpp())
+                {
+                    let Ok(form_id) = u32::try_from(effect.effect_misc_value_1) else {
+                        continue;
+                    };
+                    let Some(form) = shapeshift_form_store.get(form_id) else {
+                        return Some(form_id);
+                    };
+                    if form.flags & SPELL_SHAPESHIFT_FORM_FLAG_STANCE_LIKE_CPP == 0 {
+                        return Some(form_id);
+                    }
                 }
+            }
+        }
+
+        let (display_id, native_display_id) = self.canonical_player_display_ids_like_cpp()?;
+        if display_id == 0 || display_id == native_display_id {
+            return None;
+        }
+
+        let Some(display_store) = self.creature_display_info_store.as_ref() else {
+            return None;
+        };
+        let Some(display_extra_store) = self.creature_display_info_extra_store.as_ref() else {
+            return None;
+        };
+        let Some(display) = display_store.get(display_id) else {
+            return Some(display_id);
+        };
+        let Ok(display_extra_id) = u32::try_from(display.extended_display_info_id) else {
+            return Some(display_id);
+        };
+        let Some(display_extra) = display_extra_store.get(display_extra_id) else {
+            return Some(display_id);
+        };
+
+        if let (Some(model_store), Some(chr_races_store)) = (
+            self.creature_model_data_store.as_ref(),
+            self.chr_races_store.as_ref(),
+        ) {
+            let model_cannot_mount =
+                model_store
+                    .get(u32::from(display.model_id))
+                    .is_some_and(|model| {
+                        model.flags
+                            & CREATURE_MODEL_DATA_FLAG_CAN_MOUNT_WHILE_TRANSFORMED_AS_THIS_LIKE_CPP
+                            == 0
+                    });
+            let race_cannot_mount = u32::try_from(display_extra.display_race_id)
+                .ok()
+                .and_then(|race_id| chr_races_store.get(race_id))
+                .is_some_and(|race| race.flags & CHR_RACES_FLAG_CAN_MOUNT_LIKE_CPP == 0);
+            if model_cannot_mount && race_cannot_mount {
+                return Some(display_id);
             }
         }
 
@@ -52761,11 +52836,13 @@ mod tests {
                 wow_data::CreatureDisplayInfoEntry {
                     id: native_display_id,
                     model_id: 100,
+                    extended_display_info_id: 0,
                     creature_model_scale: 1.2,
                 },
                 wow_data::CreatureDisplayInfoEntry {
                     id: 4321,
                     model_id: 200,
+                    extended_display_info_id: 0,
                     creature_model_scale: 1.5,
                 },
             ]),
@@ -52774,12 +52851,14 @@ mod tests {
             wow_data::CreatureModelDataStore::from_entries([
                 wow_data::CreatureModelDataEntry {
                     id: 100,
+                    flags: 0,
                     collision_height: 2.0,
                     model_scale: 1.1,
                     mount_height: 0.0,
                 },
                 wow_data::CreatureModelDataEntry {
                     id: 200,
+                    flags: 0,
                     collision_height: 0.0,
                     model_scale: 1.0,
                     mount_height: 4.0,
@@ -53607,11 +53686,13 @@ mod tests {
                 wow_data::CreatureDisplayInfoEntry {
                     id: native_display_id,
                     model_id: 100,
+                    extended_display_info_id: 0,
                     creature_model_scale: 1.2,
                 },
                 wow_data::CreatureDisplayInfoEntry {
                     id: 4321,
                     model_id: 200,
+                    extended_display_info_id: 0,
                     creature_model_scale: 1.5,
                 },
             ]),
@@ -53620,12 +53701,14 @@ mod tests {
             wow_data::CreatureModelDataStore::from_entries([
                 wow_data::CreatureModelDataEntry {
                     id: 100,
+                    flags: 0,
                     collision_height: 2.0,
                     model_scale: 1.1,
                     mount_height: 0.0,
                 },
                 wow_data::CreatureModelDataEntry {
                     id: 200,
+                    flags: 0,
                     collision_height: 0.0,
                     model_scale: 1.0,
                     mount_height: 4.0,

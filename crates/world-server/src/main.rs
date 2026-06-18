@@ -1230,6 +1230,14 @@ async fn main() -> Result<ExitCode> {
         "Loaded {} creature display info rows",
         creature_display_info_store.len()
     );
+    let creature_display_info_extra_store = Arc::new(
+        wow_data::CreatureDisplayInfoExtraStore::load(&data_dir, &locale)
+            .context("Failed to load CreatureDisplayInfoExtra.db2")?,
+    );
+    info!(
+        "Loaded {} creature display info extra rows",
+        creature_display_info_extra_store.len()
+    );
     let emotes_store = Arc::new(
         wow_data::EmotesStore::load(&data_dir, &locale).context("Failed to load Emotes.db2")?,
     );
@@ -4226,6 +4234,7 @@ async fn main() -> Result<ExitCode> {
         battlemaster_list_store: Some(Arc::clone(&battlemaster_list_typed_store)),
         creature_template_mount_store: Some(Arc::clone(&creature_template_mount_store)),
         creature_display_info_store: Some(Arc::clone(&creature_display_info_store)),
+        creature_display_info_extra_store: Some(Arc::clone(&creature_display_info_extra_store)),
         gameobject_display_info_store: Some(Arc::clone(&gameobject_display_info_store)),
         creature_model_data_store: Some(Arc::clone(&creature_model_data_store)),
         mount_store: Some(Arc::clone(&mount_store)),
@@ -10775,6 +10784,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.creature_display_info_store {
         session.set_creature_display_info_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.creature_display_info_extra_store {
+        session.set_creature_display_info_extra_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.gameobject_display_info_store {
         session.set_gameobject_display_info_store(Arc::clone(store));

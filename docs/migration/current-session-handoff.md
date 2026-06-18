@@ -1,3 +1,23 @@
+- `#NEXT.R8.ENTITIES.1020` — represented mount casts now cover the C++
+  `Unit::IsDisallowedMountForm` transformed-display/model/race branch after the
+  active shapeshift-form gate (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:8813-8852`,
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Structure.h:919-1012`,
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2LoadInfo.h:1258-1270`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DBCEnums.h:267-276,385-393`.
+  C++ allows native display, rejects missing display/display-extra rows, then
+  rejects transformed models only when `CreatureModelDataFlags::CanMountWhileTransformedAsThis`
+  is absent and the transformed race also lacks `ChrRacesFlag::CanMount`.
+  Rust now persists `CreatureDisplayInfo::ExtendedDisplayInfoID` and
+  `CreatureModelData::Flags`, loads/injects `CreatureDisplayInfoExtra.db2`,
+  reads canonical typed-player display/native-display IDs, sends
+  `SMSG_MOUNT_RESULT` shapeshifted for the disallowed transformed-display case,
+  and allows the model/race-permitted case. Coverage: targeted `wow-data`,
+  `wow-packet`, and `wow-world` tests plus affected-crate `cargo check`.
+  Boundary remains partial: C++ `GetTransformSpell()` and
+  `SPELL_ATTR0_ALLOW_WHILE_MOUNTED` are still not represented, and there is no
+  full transform apply/remove runtime, vehicle/passenger mount parity,
+  install/restart, bot, or live-client/manual validation.
 - `#NEXT.R8.ENTITIES.1019` — represented mount casts now cover the C++
   `Spell::CheckCast` disallowed shapeshift-form branch for active
   `SPELL_AURA_MOD_SHAPESHIFT` auras (not manual-test-ready). Source-of-truth:

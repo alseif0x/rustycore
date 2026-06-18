@@ -2995,6 +2995,124 @@ mod tests {
         }
     }
 
+    fn set_canonical_player_display_for_test(
+        canonical: &SharedCanonicalMapManager,
+        player_guid: ObjectGuid,
+        display_id: u32,
+        set_native: bool,
+    ) {
+        let mut manager = canonical.lock().unwrap();
+        let player = manager
+            .find_map_mut(571, 0)
+            .unwrap()
+            .map_mut()
+            .get_typed_player_mut(player_guid)
+            .unwrap();
+        player.unit_mut().set_display_id(display_id, set_native);
+    }
+
+    fn creature_display_info_extra_for_test(
+        id: u32,
+        display_race_id: i8,
+    ) -> wow_data::CreatureDisplayInfoExtraEntry {
+        wow_data::CreatureDisplayInfoExtraEntry {
+            id,
+            display_race_id,
+            display_sex_id: 0,
+            display_class_id: 0,
+            skin_id: 0,
+            face_id: 0,
+            hair_style_id: 0,
+            hair_color_id: 0,
+            facial_hair_id: 0,
+            flags: 0,
+            bake_material_resources_id: 0,
+            hd_bake_material_resources_id: 0,
+            custom_display_option: [0; 3],
+        }
+    }
+
+    fn chr_races_entry_for_test(
+        id: u32,
+        flags: i32,
+    ) -> wow_data::character_progression::ChrRacesEntry {
+        wow_data::character_progression::ChrRacesEntry {
+            id,
+            client_prefix: String::new(),
+            client_file_string: String::new(),
+            name: String::new(),
+            flags,
+            male_display_id: 0,
+            female_display_id: 0,
+            high_res_male_display_id: 0,
+            high_res_female_display_id: 0,
+            res_sickness_spell_id: 0,
+            splash_sound_id: 0,
+            create_screen_file_data_id: 0,
+            select_screen_file_data_id: 0,
+            low_res_screen_file_data_id: 0,
+            altered_form_start_visual_kit_id: [0; 3],
+            altered_form_finish_visual_kit_id: [0; 3],
+            heritage_armor_achievement_id: 0,
+            starting_level: 1,
+            ui_display_order: 0,
+            playable_race_bit: 0,
+            female_skeleton_file_data_id: 0,
+            male_skeleton_file_data_id: 0,
+            helmet_anim_scaling_race_id: 0,
+            transmogrify_disabled_slot_mask: 0,
+            faction_id: 0,
+            cinematic_sequence_id: 0,
+            base_language: 0,
+            creature_type: 0,
+            alliance: 0,
+            race_related: 0,
+            unaltered_visual_race_id: 0,
+            default_class_id: 0,
+            neutral_race_id: 0,
+        }
+    }
+
+    fn set_transformed_display_mount_check_stores_for_test(
+        session: &mut crate::session::WorldSession,
+        transformed_display_id: u32,
+        model_flags: u32,
+        race_flags: i32,
+    ) {
+        let display_extra_id = 91;
+        let model_id = 92;
+        let race_id = 7;
+        session.set_creature_display_info_store(Arc::new(
+            wow_data::CreatureDisplayInfoStore::from_entries([
+                wow_data::CreatureDisplayInfoEntry {
+                    id: transformed_display_id,
+                    model_id,
+                    extended_display_info_id: display_extra_id,
+                    creature_model_scale: 1.0,
+                },
+            ]),
+        ));
+        session.set_creature_display_info_extra_store(Arc::new(
+            wow_data::CreatureDisplayInfoExtraStore::from_entries([
+                creature_display_info_extra_for_test(display_extra_id as u32, race_id),
+            ]),
+        ));
+        session.set_creature_model_data_store(Arc::new(
+            wow_data::CreatureModelDataStore::from_entries([wow_data::CreatureModelDataEntry {
+                id: u32::from(model_id),
+                flags: model_flags,
+                collision_height: 2.0,
+                model_scale: 1.0,
+                mount_height: 0.0,
+            }]),
+        ));
+        session.set_chr_races_store(Arc::new(
+            wow_data::character_progression::ChrRacesStore::from_entries([
+                chr_races_entry_for_test(u32::from(race_id as u8), race_flags),
+            ]),
+        ));
+    }
+
     fn mounted_spell_store_with_no_aura_cancel(
         spell_id: i32,
         creature_entry: i32,
@@ -4121,6 +4239,75 @@ mod tests {
         session.visible_auras.insert(
             0,
             active_shapeshift_aura_for_test(shapeshift_spell_id, player_guid),
+        );
+
+        session
+            .handle_cast_spell(cast_spell_packet(mount_spell_id, player_guid))
+            .await;
+
+        assert!(session.player_mounted_like_cpp());
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert!(!opcodes.contains(&ServerOpcodes::MountResult));
+        assert!(!opcodes.contains(&ServerOpcodes::CastFailed));
+        assert!(opcodes.contains(&ServerOpcodes::SpellGo));
+    }
+
+    #[tokio::test]
+    async fn cast_mount_spell_in_disallowed_transformed_display_sends_mount_result_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 48);
+        let mount_spell_id = 12_351;
+        let transformed_display_id = 88_001;
+
+        install_canonical_player(&mut session, &canonical, player_guid);
+        set_canonical_player_display_for_test(
+            &canonical,
+            player_guid,
+            transformed_display_id,
+            false,
+        );
+        session.set_known_spells_like_cpp(vec![mount_spell_id]);
+        session.set_spell_store(mounted_spell_store(mount_spell_id, 0));
+        set_transformed_display_mount_check_stores_for_test(
+            &mut session,
+            transformed_display_id,
+            0,
+            0,
+        );
+
+        session
+            .handle_cast_spell(cast_spell_packet(mount_spell_id, player_guid))
+            .await;
+
+        assert!(!session.player_mounted_like_cpp());
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 1);
+        assert_eq!(mount_result_like_cpp(&packets[0]), 8);
+    }
+
+    #[tokio::test]
+    async fn cast_mount_spell_in_mountable_transformed_model_is_allowed_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 49);
+        let mount_spell_id = 12_352;
+        let transformed_display_id = 88_002;
+
+        install_canonical_player(&mut session, &canonical, player_guid);
+        set_canonical_player_display_for_test(
+            &canonical,
+            player_guid,
+            transformed_display_id,
+            false,
+        );
+        session.set_known_spells_like_cpp(vec![mount_spell_id]);
+        session.set_spell_store(mounted_spell_store(mount_spell_id, 0));
+        set_transformed_display_mount_check_stores_for_test(
+            &mut session,
+            transformed_display_id,
+            0x0000_0080,
+            0,
         );
 
         session
