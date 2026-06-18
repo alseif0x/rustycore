@@ -1,3 +1,23 @@
+- `#NEXT.R8.ENTITIES.1035` — player CREATE/DESTROY registry visibility seams
+  no longer broadcast blindly to every same-map session (not manual-test-ready).
+  Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:23193-23225`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:23285-23312`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3586-3607`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Object/Object.cpp:237-245`.
+  C++ `Player::UpdateVisibilityOf` creates objects only when `CanSeeOrDetect`
+  passes, and destroys/out-of-ranges only when the target was at the receiver's
+  client. Rust now applies the bounded candidate part for player login/logout:
+  CREATE-to-others and receive-existing-players require in-world same
+  map/instance and `VISIBILITY_RADIUS` before direct CREATE delivery; DESTROY
+  enqueues `SendIfVisibleLikeCpp` so the receiver's session applies
+  `HaveAtClient` before sending the destroy `UpdateObject`. Coverage: focused
+  tests for create skip outside range, destroy command routing, and receiving
+  only nearby existing players. Boundary remains partial: full
+  `Player::UpdateObjectVisibility`, `CanSeeOrDetect`, phase/shared-vision,
+  farsight, exact cell traversal, `m_clientGUIDs` ownership, live two-client
+  validation, install/restart, bot, and manual client validation remain open.
 - `#NEXT.R8.ENTITIES.1034` — the shared
   `broadcast_to_movement_set_like_cpp` helper now routes movement-set packets
   through `SendIfVisibleLikeCpp` instead of direct same-map socket writes (not

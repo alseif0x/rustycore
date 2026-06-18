@@ -38369,7 +38369,7 @@ impl WorldSession {
             .unwrap_or(RuntimeTickOwner::Session)
     }
 
-    /// Broadcast the newly logged-in player's CREATE block to all other players on the same map.
+    /// Broadcast the newly logged-in player's CREATE block to nearby players on the same map.
     ///
     /// Called after login is complete. Iterates through all players in the registry
     /// who are on the same map, creates an UpdateObject with the new player's CREATE block,
@@ -38390,6 +38390,12 @@ impl WorldSession {
             return;
         };
         let map_id = self.player_map_id_like_cpp();
+        let instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let range_sq =
+            crate::map_manager::VISIBILITY_RADIUS * crate::map_manager::VISIBILITY_RADIUS;
         let race = self.player_race_like_cpp();
         let class = self.player_class_like_cpp();
         let gender = self.player_gender_like_cpp();
@@ -38434,21 +38440,31 @@ impl WorldSession {
         // Count players to broadcast to
         let mut broadcast_count = 0;
 
-        // Iterate through all players in the registry on the same map
+        // Iterate through visible player candidates. C++ `Player::UpdateVisibilityOf`
+        // creates objects only when `CanSeeOrDetect` passes; Rust does the
+        // bounded candidate part here and leaves exact phase/shared-vision
+        // parity for the full visibility runtime.
         for entry in registry.iter() {
             let (other_guid, broadcast_info) = entry.pair();
             // Don't send to ourselves
             if *other_guid == guid {
                 continue;
             }
-            // Only send to players on the same map
-            if broadcast_info.map_id != map_id {
+            if !broadcast_info.is_in_world
+                || broadcast_info.map_id != map_id
+                || broadcast_info.instance_id != instance_id
+            {
+                continue;
+            }
+            let dx = broadcast_info.position.x - pos.x;
+            let dy = broadcast_info.position.y - pos.y;
+            if dx * dx + dy * dy > range_sq {
                 continue;
             }
 
             broadcast_count += 1;
 
-            if let Err(_) = broadcast_info.send_tx.send(bytes.clone()) {
+            if let Err(_) = broadcast_info.send_tx.try_send(bytes.clone()) {
                 debug!("Failed to broadcast CreatePlayer to {:?}", other_guid);
             } else {
                 trace!("Broadcast CreatePlayer {:?} to {:?}", guid, other_guid);
@@ -38474,7 +38490,16 @@ impl WorldSession {
         let Some(registry) = &self.player_registry else {
             return;
         };
+        let Some(pos) = self.player_position_like_cpp() else {
+            return;
+        };
         let map_id = self.player_map_id_like_cpp();
+        let instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let range_sq =
+            crate::map_manager::VISIBILITY_RADIUS * crate::map_manager::VISIBILITY_RADIUS;
 
         let destroy = UpdateObject::destroy_objects(vec![guid], map_id);
         let bytes = destroy.to_bytes();
@@ -38485,10 +38510,26 @@ impl WorldSession {
             if *other_guid == guid {
                 continue;
             }
-            if info.map_id != map_id {
+            if !info.is_in_world || info.map_id != map_id || info.instance_id != instance_id {
                 continue;
             }
-            if info.send_tx.send(bytes.clone()).is_ok() {
+            let dx = info.position.x - pos.x;
+            let dy = info.position.y - pos.y;
+            if dx * dx + dy * dy > range_sq {
+                continue;
+            }
+            if info
+                .command_tx
+                .try_send(SessionCommand::SendIfVisibleLikeCpp(
+                    SendIfVisibleLikeCppCommand {
+                        source_guid: guid,
+                        map_id,
+                        instance_id,
+                        packet_bytes: bytes.clone(),
+                    },
+                ))
+                .is_ok()
+            {
                 count += 1;
             }
         }
@@ -38513,7 +38554,16 @@ impl WorldSession {
         let Some(registry) = &self.player_registry else {
             return;
         };
+        let Some(pos) = self.player_position_like_cpp() else {
+            return;
+        };
         let map_id = self.player_map_id_like_cpp();
+        let instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let range_sq =
+            crate::map_manager::VISIBILITY_RADIUS * crate::map_manager::VISIBILITY_RADIUS;
 
         let empty_inv_slots = [ObjectGuid::EMPTY; 141];
         let empty_skills = Vec::new();
@@ -38525,8 +38575,18 @@ impl WorldSession {
         for entry in registry.iter() {
             let (other_guid, broadcast_info) = entry.pair();
 
-            // Skip self and players on different maps
-            if *other_guid == guid || broadcast_info.map_id != map_id {
+            // Skip self and players outside this session's bounded visibility
+            // candidate set.
+            if *other_guid == guid
+                || !broadcast_info.is_in_world
+                || broadcast_info.map_id != map_id
+                || broadcast_info.instance_id != instance_id
+            {
+                continue;
+            }
+            let dx = broadcast_info.position.x - pos.x;
+            let dy = broadcast_info.position.y - pos.y;
+            if dx * dx + dy * dy > range_sq {
                 continue;
             }
 
@@ -65215,6 +65275,14 @@ mod tests {
 
     fn broadcast_info(guid: ObjectGuid, send_tx: flume::Sender<Vec<u8>>) -> PlayerBroadcastInfo {
         let (command_tx, _command_rx) = flume::bounded(1);
+        broadcast_info_with_command(guid, send_tx, command_tx)
+    }
+
+    fn broadcast_info_with_command(
+        guid: ObjectGuid,
+        send_tx: flume::Sender<Vec<u8>>,
+        command_tx: flume::Sender<SessionCommand>,
+    ) -> PlayerBroadcastInfo {
         PlayerBroadcastInfo {
             map_id: 0,
             instance_id: 0,
@@ -65286,6 +65354,103 @@ mod tests {
             lifetime_max_rank: 0,
             honor_level: 0,
         }
+    }
+
+    #[test]
+    fn create_player_broadcast_skips_out_of_visibility_range_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 42);
+        let nearby_guid = ObjectGuid::create_player(1, 43);
+        let far_guid = ObjectGuid::create_player(1, 44);
+        let registry = Arc::new(PlayerRegistry::default());
+        let (nearby_tx, nearby_rx) = flume::bounded(1);
+        let (far_tx, far_rx) = flume::bounded(1);
+
+        session.set_player_guid(Some(guid));
+        session.set_player_registry(Arc::clone(&registry));
+        session.set_player_position_like_cpp(Position::ZERO);
+
+        registry.insert(nearby_guid, broadcast_info(nearby_guid, nearby_tx));
+        let mut far_info = broadcast_info(far_guid, far_tx);
+        far_info.position =
+            Position::new(crate::map_manager::VISIBILITY_RADIUS + 1.0, 0.0, 0.0, 0.0);
+        registry.insert(far_guid, far_info);
+
+        session.broadcast_create_player_to_others();
+
+        let bytes = nearby_rx.try_recv().expect("nearby player create");
+        let pkt = WorldPacket::from_bytes(&bytes);
+        assert_eq!(pkt.server_opcode(), Some(ServerOpcodes::UpdateObject));
+        assert!(far_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn destroy_player_broadcast_uses_visible_command_gate_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 42);
+        let nearby_guid = ObjectGuid::create_player(1, 43);
+        let far_guid = ObjectGuid::create_player(1, 44);
+        let registry = Arc::new(PlayerRegistry::default());
+        let (nearby_tx, nearby_rx) = flume::bounded(1);
+        let (nearby_command_tx, nearby_command_rx) = flume::bounded(1);
+        let (far_tx, far_rx) = flume::bounded(1);
+        let (far_command_tx, far_command_rx) = flume::bounded(1);
+
+        session.set_player_guid(Some(guid));
+        session.set_player_registry(Arc::clone(&registry));
+        session.set_player_position_like_cpp(Position::ZERO);
+
+        registry.insert(
+            nearby_guid,
+            broadcast_info_with_command(nearby_guid, nearby_tx, nearby_command_tx),
+        );
+        let mut far_info = broadcast_info_with_command(far_guid, far_tx, far_command_tx);
+        far_info.position =
+            Position::new(crate::map_manager::VISIBILITY_RADIUS + 1.0, 0.0, 0.0, 0.0);
+        registry.insert(far_guid, far_info);
+
+        session.broadcast_destroy_player_to_others();
+
+        assert!(nearby_rx.try_recv().is_err());
+        let command = nearby_command_rx
+            .try_recv()
+            .expect("nearby visible destroy command");
+        let SessionCommand::SendIfVisibleLikeCpp(command) = command else {
+            panic!("expected SendIfVisibleLikeCpp destroy command");
+        };
+        assert_eq!(command.source_guid, guid);
+        let pkt = WorldPacket::from_bytes(&command.packet_bytes);
+        assert_eq!(pkt.server_opcode(), Some(ServerOpcodes::UpdateObject));
+        assert!(far_rx.try_recv().is_err());
+        assert!(far_command_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn receive_other_players_on_map_skips_out_of_visibility_range_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let guid = ObjectGuid::create_player(1, 42);
+        let nearby_guid = ObjectGuid::create_player(1, 43);
+        let far_guid = ObjectGuid::create_player(1, 44);
+        let registry = Arc::new(PlayerRegistry::default());
+        let (nearby_tx, _nearby_rx) = flume::bounded(1);
+        let (far_tx, _far_rx) = flume::bounded(1);
+
+        session.set_player_guid(Some(guid));
+        session.set_player_registry(Arc::clone(&registry));
+        session.set_player_position_like_cpp(Position::ZERO);
+
+        registry.insert(nearby_guid, broadcast_info(nearby_guid, nearby_tx));
+        let mut far_info = broadcast_info(far_guid, far_tx);
+        far_info.position =
+            Position::new(crate::map_manager::VISIBILITY_RADIUS + 1.0, 0.0, 0.0, 0.0);
+        registry.insert(far_guid, far_info);
+
+        session.receive_other_players_on_map();
+
+        let bytes = send_rx.try_recv().expect("nearby player create to self");
+        let pkt = WorldPacket::from_bytes(&bytes);
+        assert_eq!(pkt.server_opcode(), Some(ServerOpcodes::UpdateObject));
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[test]
