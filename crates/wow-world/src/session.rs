@@ -21234,6 +21234,16 @@ impl WorldSession {
         ) {
             self.recompute_represented_swim_speed_rate_like_cpp();
         }
+        if matches!(
+            aura.represented_effect,
+            Some(
+                RepresentedAuraEffectLikeCpp::DecreaseSpeed
+                    | RepresentedAuraEffectLikeCpp::UseNormalMovementSpeed
+            )
+        ) {
+            self.recompute_represented_swim_speed_rate_like_cpp();
+            self.recompute_represented_flight_speed_rate_like_cpp();
+        }
 
         // Send SMSG_AURA_UPDATE (removal)
         self.send_aura_update_removed(slot);
@@ -34546,20 +34556,30 @@ impl WorldSession {
                 .max(0) as f32
                 / 100.0;
 
-        let mut speed = stack_bonus.max(not_stack_bonus) * (1.0 + main_mod.max(0) as f32 / 100.0);
+        let speed = stack_bonus.max(not_stack_bonus) * (1.0 + main_mod.max(0) as f32 / 100.0);
+        self.apply_represented_forward_speed_adjustments_like_cpp(UnitMoveTypeLikeCpp::Run, speed)
+    }
+
+    fn apply_represented_forward_speed_adjustments_like_cpp(
+        &self,
+        move_type: UnitMoveTypeLikeCpp,
+        mut speed: f32,
+    ) -> f32 {
         let normal_speed_cap = self.max_represented_aura_amount_like_cpp(
             RepresentedAuraEffectLikeCpp::UseNormalMovementSpeed,
         ) as f32
-            / PLAYER_BASE_MOVE_SPEED_LIKE_CPP[UnitMoveTypeLikeCpp::Run.index()];
+            / PLAYER_BASE_MOVE_SPEED_LIKE_CPP[move_type.index()];
         if normal_speed_cap > 0.0 && speed > normal_speed_cap {
             speed = normal_speed_cap;
         }
-        let minimum_speed_rate = self
-            .max_represented_aura_amount_like_cpp(RepresentedAuraEffectLikeCpp::MinimumSpeedRate)
-            as f32
-            / PLAYER_BASE_MOVE_SPEED_LIKE_CPP[UnitMoveTypeLikeCpp::Run.index()];
-        if speed < minimum_speed_rate {
-            speed = minimum_speed_rate;
+        if move_type == UnitMoveTypeLikeCpp::Run {
+            let minimum_speed_rate = self.max_represented_aura_amount_like_cpp(
+                RepresentedAuraEffectLikeCpp::MinimumSpeedRate,
+            ) as f32
+                / PLAYER_BASE_MOVE_SPEED_LIKE_CPP[move_type.index()];
+            if speed < minimum_speed_rate {
+                speed = minimum_speed_rate;
+            }
         }
         let slow = self.max_negative_represented_aura_amount_like_cpp(
             RepresentedAuraEffectLikeCpp::DecreaseSpeed,
@@ -34574,7 +34594,6 @@ impl WorldSession {
         if speed < minimum_speed {
             speed = minimum_speed;
         }
-
         speed
     }
 
@@ -34606,14 +34625,20 @@ impl WorldSession {
                 .max(0) as f32
                 / 100.0;
 
-        flight_always.max(flight_not_stack) * (1.0 + flight_mod.max(0) as f32 / 100.0)
+        let speed = flight_always.max(flight_not_stack) * (1.0 + flight_mod.max(0) as f32 / 100.0);
+        self.apply_represented_forward_speed_adjustments_like_cpp(
+            UnitMoveTypeLikeCpp::Flight,
+            speed,
+        )
     }
 
     fn represented_swim_speed_rate_like_cpp(&self) -> f32 {
-        1.0 + self
-            .max_represented_aura_amount_like_cpp(RepresentedAuraEffectLikeCpp::SwimSpeed)
-            .max(0) as f32
-            / 100.0
+        let speed = 1.0
+            + self
+                .max_represented_aura_amount_like_cpp(RepresentedAuraEffectLikeCpp::SwimSpeed)
+                .max(0) as f32
+                / 100.0;
+        self.apply_represented_forward_speed_adjustments_like_cpp(UnitMoveTypeLikeCpp::Swim, speed)
     }
 
     fn recompute_represented_run_speed_rate_like_cpp(&mut self) {
@@ -34639,6 +34664,12 @@ impl WorldSession {
 
     fn recompute_represented_mounted_speed_rates_like_cpp(&mut self) {
         self.recompute_represented_run_speed_rate_like_cpp();
+        self.recompute_represented_flight_speed_rate_like_cpp();
+    }
+
+    fn recompute_represented_forward_speed_rates_like_cpp(&mut self) {
+        self.recompute_represented_run_speed_rate_like_cpp();
+        self.recompute_represented_swim_speed_rate_like_cpp();
         self.recompute_represented_flight_speed_rate_like_cpp();
     }
 
@@ -39755,7 +39786,7 @@ impl WorldSession {
                         RepresentedAuraEffectLikeCpp::DecreaseSpeed,
                         30_000,
                     )?;
-                    self.recompute_represented_run_speed_rate_like_cpp();
+                    self.recompute_represented_forward_speed_rates_like_cpp();
                 } else if effect.effect_aura
                     == wow_data::spell::aura_types::SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED
                 {
@@ -39766,7 +39797,7 @@ impl WorldSession {
                         RepresentedAuraEffectLikeCpp::UseNormalMovementSpeed,
                         30_000,
                     )?;
-                    self.recompute_represented_run_speed_rate_like_cpp();
+                    self.recompute_represented_forward_speed_rates_like_cpp();
                 } else if effect.effect_aura
                     == wow_data::spell::aura_types::SPELL_AURA_MOD_MINIMUM_SPEED
                 {
@@ -54260,6 +54291,161 @@ mod tests {
             (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Swim) - 4.722222).abs()
                 < 0.0001,
             "C++ aura removal recomputes MOVE_SWIM and drops the swim-speed modifier"
+        );
+    }
+
+    #[test]
+    fn represented_forward_speed_slow_applies_to_swim_and_flight_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let caster = ObjectGuid::create_player(1, 42);
+        let swim = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SWIM_SPEED,
+            effect_base_points: 200,
+            effect_index: 0,
+            ..Default::default()
+        };
+        let flight = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_FLIGHT_SPEED,
+            effect_base_points: 200,
+            effect_index: 1,
+            ..Default::default()
+        };
+        let slow = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_DECREASE_SPEED,
+            effect_base_points: -50,
+            effect_index: 2,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_031,
+                caster,
+                &swim,
+                RepresentedAuraEffectLikeCpp::SwimSpeed,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_032,
+                caster,
+                &flight,
+                RepresentedAuraEffectLikeCpp::FlightSpeed,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_033,
+                caster,
+                &slow,
+                RepresentedAuraEffectLikeCpp::DecreaseSpeed,
+                30_000,
+            )
+            .unwrap();
+        session.recompute_represented_forward_speed_rates_like_cpp();
+
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Swim) - 7.083333).abs()
+                < 0.0001,
+            "C++ applies the strongest SPELL_AURA_MOD_DECREASE_SPEED after MOVE_SWIM positive speed math"
+        );
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Flight) - 10.5).abs()
+                < 0.0001,
+            "C++ applies the strongest SPELL_AURA_MOD_DECREASE_SPEED after MOVE_FLIGHT positive speed math"
+        );
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert!(opcodes.contains(&ServerOpcodes::MoveSetSwimSpeed));
+        assert!(opcodes.contains(&ServerOpcodes::MoveSetFlightSpeed));
+    }
+
+    #[test]
+    fn represented_forward_speed_cap_and_minimum_floor_apply_to_swim_and_flight_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let caster = ObjectGuid::create_player(1, 42);
+        let swim = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SWIM_SPEED,
+            effect_base_points: 200,
+            effect_index: 0,
+            ..Default::default()
+        };
+        let flight = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_FLIGHT_SPEED,
+            effect_base_points: 200,
+            effect_index: 1,
+            ..Default::default()
+        };
+        let normal_cap = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED,
+            effect_base_points: 1,
+            effect_index: 2,
+            ..Default::default()
+        };
+        let minimum = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_MINIMUM_SPEED,
+            effect_base_points: 80,
+            effect_index: 3,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_034,
+                caster,
+                &swim,
+                RepresentedAuraEffectLikeCpp::SwimSpeed,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_035,
+                caster,
+                &flight,
+                RepresentedAuraEffectLikeCpp::FlightSpeed,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_036,
+                caster,
+                &normal_cap,
+                RepresentedAuraEffectLikeCpp::UseNormalMovementSpeed,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_037,
+                caster,
+                &minimum,
+                RepresentedAuraEffectLikeCpp::MinimumSpeed,
+                30_000,
+            )
+            .unwrap();
+        session.recompute_represented_forward_speed_rates_like_cpp();
+
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Swim) - 3.7777777).abs()
+                < 0.0001,
+            "C++ applies SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED before the final minimum-speed floor for MOVE_SWIM"
+        );
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Flight) - 5.6).abs()
+                < 0.0001,
+            "C++ applies SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED before the final minimum-speed floor for MOVE_FLIGHT"
         );
     }
 
