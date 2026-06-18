@@ -4098,6 +4098,57 @@ impl WorldSession {
             self.mark_represented_equipment_sets_loaded_like_cpp();
         }
 
+        // ── Load compact unit-frame profiles ──
+        // C++ `Player::_LoadCUFProfiles` fills `_CUFProfiles[id]`, then
+        // `WorldSession::SendLoadCUFProfiles` sends only occupied slots. The
+        // legacy fork checks `id > MAX_CUF_PROFILES`, but the backing array has
+        // length MAX_CUF_PROFILES; Rust rejects `id >= MAX` to avoid the OOB
+        // bug while preserving valid row semantics.
+        self.clear_represented_cuf_profiles_like_cpp();
+        {
+            let mut cuf_stmt = char_db.prepare(CharStatements::SEL_CHAR_CUF_PROFILES);
+            cuf_stmt.set_u64(0, guid.counter() as u64);
+            match char_db.query(&cuf_stmt).await {
+                Ok(mut cuf_result) => {
+                    if !cuf_result.is_empty() {
+                        loop {
+                            let id: u8 = cuf_result.try_read(0).unwrap_or(0);
+                            let profile = wow_packet::packets::misc::CufProfile {
+                                profile_name: cuf_result.try_read(1).unwrap_or_default(),
+                                frame_height: cuf_result.try_read(2).unwrap_or(0),
+                                frame_width: cuf_result.try_read(3).unwrap_or(0),
+                                sort_by: cuf_result.try_read(4).unwrap_or(0),
+                                health_text: cuf_result.try_read(5).unwrap_or(0),
+                                bool_options: cuf_result.try_read(6).unwrap_or(0),
+                                top_point: cuf_result.try_read(7).unwrap_or(0),
+                                bottom_point: cuf_result.try_read(8).unwrap_or(0),
+                                left_point: cuf_result.try_read(9).unwrap_or(0),
+                                top_offset: cuf_result.try_read(10).unwrap_or(0),
+                                bottom_offset: cuf_result.try_read(11).unwrap_or(0),
+                                left_offset: cuf_result.try_read(12).unwrap_or(0),
+                            };
+                            if !self.load_represented_cuf_profile_like_cpp(id, profile) {
+                                warn!(
+                                    player_guid = guid.counter(),
+                                    id,
+                                    max_profiles =
+                                        wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP,
+                                    "Skipping invalid CUF profile id"
+                                );
+                            }
+                            if !cuf_result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    self.mark_represented_cuf_profiles_loaded_like_cpp();
+                }
+                Err(e) => {
+                    warn!("Failed to load CUF profiles for {:?}: {}", guid, e);
+                }
+            }
+        }
+
         // ── Load character currencies from character_currency ──
         // C++ `Player::_LoadCurrency` skips rows not found in sCurrencyTypesStore.
         {
@@ -11618,8 +11669,8 @@ impl WorldSession {
         // 27. InitWorldStates (zone state variables — empty for now)
         self.send_packet(&InitWorldStates::new(map_id, zone_id));
 
-        // 28. LoadCufProfiles (empty — no saved profiles)
-        self.send_packet(&LoadCufProfiles::empty());
+        // 28. LoadCufProfiles
+        self.send_packet(&self.represented_load_cuf_profiles_packet_like_cpp());
 
         // 29. AuraUpdate (empty — no auras on fresh character)
         self.send_packet(&AuraUpdate::empty_for(guid));

@@ -3655,6 +3655,7 @@ pub struct WorldSession {
     account_mounts_like_cpp: HashMap<i32, u8>,
     /// C++ `Player::_CUFProfiles`, represented until full player save/load owns it.
     cuf_profiles_like_cpp: Vec<Option<wow_packet::packets::misc::CufProfile>>,
+    cuf_profiles_loaded_like_cpp: bool,
 
     // ── Dual-connection (realm + instance) ───────────────────────
     // After ConnectTo completes, the session uses the instance socket for
@@ -5198,6 +5199,7 @@ impl WorldSession {
             known_spells: Vec::new(),
             account_mounts_like_cpp: HashMap::new(),
             cuf_profiles_like_cpp: vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP],
+            cuf_profiles_loaded_like_cpp: false,
             realm_packet_rx: None,
             realm_send_tx: None,
             player_position: None,
@@ -18191,6 +18193,7 @@ impl WorldSession {
         self.save_instance_time_restrictions_like_cpp().await;
         self.save_played_time().await;
         self.save_reputation_to_db_like_cpp().await;
+        self.save_cuf_profiles_like_cpp().await;
     }
 
     pub(crate) fn build_character_spell_cooldown_delete_statement_like_cpp(
@@ -18617,6 +18620,34 @@ impl WorldSession {
                 "Failed to save represented equipment sets for guid {}: {err}",
                 guid.counter()
             ),
+        }
+    }
+
+    async fn save_cuf_profiles_like_cpp(&self) {
+        let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
+        else {
+            return;
+        };
+
+        let Some(statements) = self.cuf_profile_save_statements_like_cpp(guid.counter() as u64)
+        else {
+            warn!(
+                account = self.account_id,
+                player_guid = ?self.player_guid(),
+                "Skipping represented CUF profile save because character_cuf_profiles was not loaded coherently"
+            );
+            return;
+        };
+
+        let mut tx = SqlTransaction::new();
+        for statement in statements {
+            tx.append(statement);
+        }
+        if let Err(err) = char_db.commit_transaction(tx).await {
+            warn!(
+                "Failed to save represented CUF profiles for guid {}: {err}",
+                guid.counter()
+            );
         }
     }
 
@@ -34649,6 +34680,112 @@ impl WorldSession {
             *slot = None;
         }
         true
+    }
+
+    pub(crate) fn clear_represented_cuf_profiles_like_cpp(&mut self) {
+        self.cuf_profiles_like_cpp =
+            vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP];
+        self.cuf_profiles_loaded_like_cpp = false;
+    }
+
+    pub(crate) fn mark_represented_cuf_profiles_loaded_like_cpp(&mut self) {
+        self.cuf_profiles_loaded_like_cpp = true;
+    }
+
+    pub(crate) fn load_represented_cuf_profile_like_cpp(
+        &mut self,
+        id: u8,
+        profile: wow_packet::packets::misc::CufProfile,
+    ) -> bool {
+        let index = usize::from(id);
+        if index >= wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP {
+            return false;
+        }
+
+        if self.cuf_profiles_like_cpp.len() != wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP
+        {
+            self.cuf_profiles_like_cpp =
+                vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP];
+        }
+        self.cuf_profiles_like_cpp[index] = Some(profile);
+        true
+    }
+
+    pub(crate) fn represented_load_cuf_profiles_packet_like_cpp(
+        &self,
+    ) -> wow_packet::packets::misc::LoadCufProfiles {
+        wow_packet::packets::misc::LoadCufProfiles {
+            profiles: self
+                .cuf_profiles_like_cpp
+                .iter()
+                .filter_map(Clone::clone)
+                .collect(),
+        }
+    }
+
+    pub(crate) fn build_cuf_profile_replace_statement_like_cpp(
+        guid_counter: u64,
+        id: u8,
+        profile: &wow_packet::packets::misc::CufProfile,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::REP_CHAR_CUF_PROFILES.sql());
+        stmt.set_u64(0, guid_counter);
+        stmt.set_u8(1, id);
+        stmt.set_string(2, profile.profile_name.clone());
+        stmt.set_u16(3, profile.frame_height);
+        stmt.set_u16(4, profile.frame_width);
+        stmt.set_u8(5, profile.sort_by);
+        stmt.set_u8(6, profile.health_text);
+        stmt.set_u32(7, profile.bool_options);
+        stmt.set_u8(8, profile.top_point);
+        stmt.set_u8(9, profile.bottom_point);
+        stmt.set_u8(10, profile.left_point);
+        stmt.set_u16(11, profile.top_offset);
+        stmt.set_u16(12, profile.bottom_offset);
+        stmt.set_u16(13, profile.left_offset);
+        stmt
+    }
+
+    pub(crate) fn build_cuf_profile_delete_statement_like_cpp(
+        guid_counter: u64,
+        id: u8,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::DEL_CHAR_CUF_PROFILES_BY_ID.sql());
+        stmt.set_u64(0, guid_counter);
+        stmt.set_u8(1, id);
+        stmt
+    }
+
+    pub(crate) fn cuf_profile_save_statements_like_cpp(
+        &self,
+        guid_counter: u64,
+    ) -> Option<Vec<PreparedStatement>> {
+        if !self.cuf_profiles_loaded_like_cpp {
+            return None;
+        }
+
+        let mut statements =
+            Vec::with_capacity(wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP);
+        for id in 0..wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP {
+            let id = id as u8;
+            if let Some(profile) = self
+                .cuf_profiles_like_cpp
+                .get(usize::from(id))
+                .and_then(Option::as_ref)
+            {
+                statements.push(Self::build_cuf_profile_replace_statement_like_cpp(
+                    guid_counter,
+                    id,
+                    profile,
+                ));
+            } else {
+                statements.push(Self::build_cuf_profile_delete_statement_like_cpp(
+                    guid_counter,
+                    id,
+                ));
+            }
+        }
+        Some(statements)
     }
 
     #[cfg(test)]
@@ -83575,6 +83712,113 @@ mod tests {
             RepresentedEquipmentSetUpdateStateLikeCpp::Unchanged
         );
         assert!(session.represented_equipment_set_like_cpp(800).is_none());
+    }
+
+    fn cuf_profile_for_save_test(name: &str, height: u16) -> wow_packet::packets::misc::CufProfile {
+        wow_packet::packets::misc::CufProfile {
+            profile_name: name.to_string(),
+            frame_height: height,
+            frame_width: 120,
+            sort_by: 1,
+            health_text: 2,
+            top_point: 3,
+            bottom_point: 4,
+            left_point: 5,
+            top_offset: 6,
+            bottom_offset: 7,
+            left_offset: 8,
+            bool_options: 0b10101,
+        }
+    }
+
+    #[test]
+    fn cuf_profile_save_requires_coherent_load_like_cpp() {
+        let (session, _, _) = make_session();
+
+        assert!(
+            session.cuf_profile_save_statements_like_cpp(42).is_none(),
+            "Rust must not mutate character_cuf_profiles unless CUF profiles were loaded coherently"
+        );
+    }
+
+    #[test]
+    fn cuf_profile_save_replaces_present_and_deletes_missing_slots_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.clear_represented_cuf_profiles_like_cpp();
+        assert!(
+            session.load_represented_cuf_profile_like_cpp(1, cuf_profile_for_save_test("Raid", 72))
+        );
+        session.mark_represented_cuf_profiles_loaded_like_cpp();
+
+        let statements = session
+            .cuf_profile_save_statements_like_cpp(42)
+            .expect("loaded CUF profiles should be persisted");
+
+        assert_eq!(
+            statements.len(),
+            wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP
+        );
+        assert_eq!(
+            statements[0].sql(),
+            CharStatements::DEL_CHAR_CUF_PROFILES_BY_ID.sql()
+        );
+        assert_eq!(
+            statements[0].params(),
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U8(0),
+            ]
+        );
+
+        assert_eq!(
+            statements[1].sql(),
+            CharStatements::REP_CHAR_CUF_PROFILES.sql()
+        );
+        assert_eq!(
+            statements[1].params(),
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U8(1),
+                wow_database::SqlParam::String("Raid".to_string()),
+                wow_database::SqlParam::U16(72),
+                wow_database::SqlParam::U16(120),
+                wow_database::SqlParam::U8(1),
+                wow_database::SqlParam::U8(2),
+                wow_database::SqlParam::U32(0b10101),
+                wow_database::SqlParam::U8(3),
+                wow_database::SqlParam::U8(4),
+                wow_database::SqlParam::U8(5),
+                wow_database::SqlParam::U16(6),
+                wow_database::SqlParam::U16(7),
+                wow_database::SqlParam::U16(8),
+            ]
+        );
+
+        assert_eq!(
+            statements[4].params(),
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U8(4),
+            ]
+        );
+    }
+
+    #[test]
+    fn cuf_profile_loader_rejects_cpp_oob_id_bug() {
+        let (mut session, _, _) = make_session();
+        session.clear_represented_cuf_profiles_like_cpp();
+
+        assert!(!session.load_represented_cuf_profile_like_cpp(
+            wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP as u8,
+            cuf_profile_for_save_test("Invalid", 99)
+        ));
+        assert!(
+            session
+                .represented_load_cuf_profiles_packet_like_cpp()
+                .profiles
+                .is_empty(),
+            "C++ checks id > MAX_CUF_PROFILES before indexing an array of MAX_CUF_PROFILES; Rust rejects id == MAX to avoid the legacy OOB bug"
+        );
     }
 
     #[test]
