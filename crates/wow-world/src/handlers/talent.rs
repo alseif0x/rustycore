@@ -878,6 +878,30 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn learn_talent_adds_override_spell_pair_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(2);
+        let mut talent = test_talent_entry_like_cpp(101, 0, 50_101);
+        talent.spell_id = 70_101;
+        talent.overrides_spell_id = 60_101;
+        install_test_talent_entries_with_tab_class_mask(&mut session, vec![talent], 1);
+        session.mark_represented_talents_loaded_like_cpp();
+
+        session
+            .handle_learn_talent(learn_talent_packet(101, 0))
+            .await;
+
+        assert!(send_rx.try_recv().is_ok());
+        let overrides = session
+            .represented_override_spells_like_cpp()
+            .get(&60_101)
+            .expect("C++ Player::AddTalent calls AddOverrideSpell when OverridesSpellID is set");
+        assert!(
+            overrides.contains(&70_101),
+            "C++ AddOverrideSpell stores overridden spell id -> replacement talent SpellID"
+        );
+    }
+
+    #[tokio::test]
     async fn confirm_respec_wipe_rejects_non_talent_reset_like_cpp() {
         let (mut session, _send_rx) = make_session_with_send_capacity(1);
         let trainer = test_creature_guid(78);

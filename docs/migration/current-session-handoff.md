@@ -1,3 +1,21 @@
+- `#NEXT.R8.ENTITIES.1074` — represented `Player::LearnTalent` now mirrors
+  the C++ `Player::AddTalent` `AddOverrideSpell` side effect for active talent
+  learns (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:2644-2690`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28590-28615`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:1778-1780`.
+  Rust now represents `Player::m_overrideSpells` as a per-session
+  `overridenSpellId -> replacement SpellID` set and records the pair when a
+  learned active talent has `OverridesSpellID`. Coverage:
+  `cargo fmt --all --check`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world learn_talent --lib`.
+  Boundary remains partial: cast-time resolution via `Player::GetCastSpellInfo`
+  is not wired to consume this represented map yet, `RemoveTalent`/respec
+  override removal is still open, exact create-item/reagent spell validity, full
+  runtime aura ownership/cast side-effects, real resolved `CMSG_LEARN_TALENTS`
+  dispatch, preview/pet talent handlers, live-client validation, bot
+  validation, and manual validation remain open.
 - `#NEXT.R8.ENTITIES.1073` — represented `Player::LearnTalent` now mirrors
   the C++ `Player::AddTalent(..., learning=true)` `ChangeTalent` aura
   interruption side effect (not manual-test-ready). Source of truth:
@@ -10,11 +28,11 @@
   `aura_interrupt_flags2` bit after a successful runtime talent learn, while
   unrelated auras survive. Coverage: `cargo fmt --all --check`; focused
   `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world learn_talent --lib`.
-  Boundary remains partial: override spell registration, exact
-  create-item/reagent spell validity, full runtime aura ownership/cast
-  side-effects, real resolved `CMSG_LEARN_TALENTS` dispatch, preview/pet talent
-  handlers, live-client validation, bot validation, and manual validation
-  remain open.
+  Boundary remains partial: exact create-item/reagent spell validity, full
+  runtime aura ownership/cast side-effects, real resolved `CMSG_LEARN_TALENTS`
+  dispatch, preview/pet talent handlers, live-client validation, bot
+  validation, and manual validation remain open. Override spell registration
+  was closed later by `#NEXT.R8.ENTITIES.1074`.
 - `#NEXT.R8.ENTITIES.1072` — represented `Player::LearnTalent` now mirrors
   the first `Player::AddTalent` spell side effects and the representable
   `SpellMgr::IsSpellValid` learn-spell branch (not manual-test-ready). Source

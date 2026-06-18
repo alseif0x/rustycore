@@ -3975,6 +3975,9 @@ pub struct WorldSession {
     /// C++ `ActivePlayerData::SelfResSpells`, represented until update-field
     /// ownership is canonical.
     represented_self_res_spells_like_cpp: BTreeSet<i32>,
+    /// C++ `Player::m_overrideSpells`, represented until active player spell
+    /// cast resolution owns override lookup.
+    represented_override_spells_like_cpp: HashMap<i32, BTreeSet<i32>>,
     /// C++ `CONFIG_CAST_UNSTUCK` represented until World config is injected into spell effects.
     represented_cast_unstuck_enabled_like_cpp: bool,
     /// C++ `Player::GetDeathTimer()` represented for `Spell::EffectStuck`.
@@ -5383,6 +5386,7 @@ impl WorldSession {
             represented_resurrection_request_like_cpp: None,
             represented_delayed_resurrection_after_teleport_like_cpp: None,
             represented_self_res_spells_like_cpp: BTreeSet::new(),
+            represented_override_spells_like_cpp: HashMap::new(),
             represented_cast_unstuck_enabled_like_cpp: true,
             represented_death_timer_active_like_cpp: false,
             move_teleport_ack_events_like_cpp: Vec::new(),
@@ -18637,6 +18641,12 @@ impl WorldSession {
             }
         }
 
+        if let Some((overriden_spell_id, new_spell_id)) =
+            self.represented_talent_override_spell_pair_like_cpp(talent_id)
+        {
+            self.add_represented_override_spell_like_cpp(overriden_spell_id, new_spell_id);
+        }
+
         self.remove_auras_with_interrupt_flags_like_cpp(
             0,
             SPELL_AURA_INTERRUPT_FLAG2_CHANGE_TALENT_LIKE_CPP,
@@ -18650,6 +18660,15 @@ impl WorldSession {
             .get(usize::from(rank))
             .copied()
             .filter(|spell_id| *spell_id > 0)
+    }
+
+    fn represented_talent_override_spell_pair_like_cpp(
+        &self,
+        talent_id: u32,
+    ) -> Option<(i32, i32)> {
+        let talent = self.talent_store()?.get(talent_id)?;
+        (talent.overrides_spell_id > 0 && talent.spell_id > 0)
+            .then_some((talent.overrides_spell_id, talent.spell_id))
     }
 
     fn represented_direct_learn_spell_triggers_like_cpp(&self, spell_id: i32) -> Vec<i32> {
@@ -27425,6 +27444,25 @@ impl WorldSession {
         if let Some(controller) = &mut self.player_controller {
             controller.remove_spell(spell_id);
         }
+    }
+
+    pub(crate) fn add_represented_override_spell_like_cpp(
+        &mut self,
+        overriden_spell_id: i32,
+        new_spell_id: i32,
+    ) {
+        if overriden_spell_id <= 0 || new_spell_id <= 0 {
+            return;
+        }
+        self.represented_override_spells_like_cpp
+            .entry(overriden_spell_id)
+            .or_default()
+            .insert(new_spell_id);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_override_spells_like_cpp(&self) -> &HashMap<i32, BTreeSet<i32>> {
+        &self.represented_override_spells_like_cpp
     }
 
     pub(crate) fn sync_player_currencies_like_cpp(&mut self) {
