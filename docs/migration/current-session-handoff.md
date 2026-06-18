@@ -1,3 +1,21 @@
+- `#NEXT.R8.ENTITIES.1030` — `CMSG_CANCEL_CAST` now also cancels the represented
+  pending spell cast request after interrupting the matching active cast, like
+  C++ (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SpellHandler.cpp:258-270`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:29112-29126`.
+  C++ `WorldSession::HandleCancelCastOpcode` calls
+  `Player::CancelPendingCastRequest()` only after `IsNonMeleeSpellCast(false)`
+  succeeds and the interrupt path runs. Rust now mirrors that represented
+  ordering: mismatched/no-active cancel-cast requests leave pending unchanged,
+  while matching active-cast cancellation clears `active_spell_cast`, cancels
+  the represented pending request, and emits the pending request's
+  `SMSG_CAST_FAILED` with `SPELL_FAILED_DONT_REPORT`. Coverage: focused
+  `cancel_cast` tests for matching cancel, mismatch preservation, pending
+  cancellation, and pending preservation on mismatch. Boundary remains partial:
+  full current-spell slot parity, canonical `Unit::InterruptNonMeleeSpells`
+  integration, vehicle/creature casting units, install/restart, bot, and
+  live-client/manual validation remain open.
 - `#NEXT.R8.ENTITIES.1029` — represented spell queueing now also honors the
   C++ active-cast remaining-time window (not manual-test-ready). Source-of-truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:29127-29143`

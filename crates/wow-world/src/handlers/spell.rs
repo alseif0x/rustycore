@@ -1802,6 +1802,7 @@ impl WorldSession {
         }
 
         self.active_spell_cast = None;
+        self.cancel_pending_spell_cast_request_like_cpp();
     }
 
     /// Handle `CMSG_CANCEL_AURA` — player requests removing a cancelable owned aura.
@@ -3552,6 +3553,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn cancel_cast_also_cancels_pending_spell_request_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let active_cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 7);
+        let pending_cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 8);
+        install_active_spell_cast(&mut session, 12_345, active_cast_id);
+        install_pending_spell_cast_request(&mut session, 67_890, pending_cast_id);
+
+        session
+            .handle_cancel_cast(cancel_cast_packet(active_cast_id, 12_345))
+            .await;
+
+        assert!(session.active_spell_cast.is_none());
+        assert!(
+            session
+                .represented_pending_spell_cast_request_like_cpp
+                .is_none()
+        );
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 1);
+        assert_eq!(
+            cast_failed_fields_like_cpp(&packets[0]),
+            (pending_cast_id, 67_890, 32),
+            "C++ HandleCancelCastOpcode calls Player::CancelPendingCastRequest after interrupting"
+        );
+    }
+
+    #[tokio::test]
     async fn cancel_cast_mismatched_spell_preserves_active_cast_like_cpp() {
         let (mut session, _send_rx) = make_session();
         let cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 7);
@@ -3568,6 +3596,34 @@ mod tests {
                 .map(|active_cast| active_cast.spell_id),
             Some(12_345)
         );
+    }
+
+    #[tokio::test]
+    async fn cancel_cast_mismatch_preserves_pending_spell_request_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let active_cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 7);
+        let pending_cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 8);
+        install_active_spell_cast(&mut session, 12_345, active_cast_id);
+        install_pending_spell_cast_request(&mut session, 67_890, pending_cast_id);
+
+        session
+            .handle_cancel_cast(cancel_cast_packet(active_cast_id, 54_321))
+            .await;
+
+        assert_eq!(
+            session
+                .active_spell_cast
+                .as_ref()
+                .map(|active_cast| active_cast.spell_id),
+            Some(12_345)
+        );
+        assert!(
+            session
+                .represented_pending_spell_cast_request_like_cpp
+                .as_ref()
+                .is_some_and(|pending| pending.cast_id == pending_cast_id)
+        );
+        assert!(send_rx.is_empty());
     }
 
     #[tokio::test]
