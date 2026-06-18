@@ -78,8 +78,9 @@ use wow_packet::packets::misc::{
     SpecialMountAnim, StandStateChange, SubmitUserFeedback, SupportTicketSubmitBug,
     SupportTicketSubmitComplaint, SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
     TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TaxiNodeStatusPkt, ToggleDifficulty, TogglePvp,
-    ToyClearFanfare, UnacceptTrade, UpdateAccountData, UseToy, UserClientUpdateAccountData,
-    ViolenceLevel, compress_account_data_like_cpp, decompress_account_data_like_cpp,
+    ToyClearFanfare, TutorialSetFlag, UnacceptTrade, UpdateAccountData, UseToy,
+    UserClientUpdateAccountData, ViolenceLevel, compress_account_data_like_cpp,
+    decompress_account_data_like_cpp,
 };
 use wow_packet::packets::pet::DismissCritter;
 use wow_packet::packets::reputation::{
@@ -753,6 +754,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_save_cuf_profiles",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::Tutorial,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_tutorial",
     }
 }
 
@@ -3342,6 +3352,26 @@ impl crate::session::WorldSession {
             );
         }
     }
+
+    pub async fn handle_tutorial(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match TutorialSetFlag::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(account = self.account_id, "Tutorial parse failed: {error}");
+                return;
+            }
+        };
+
+        if !self.apply_tutorial_action_like_cpp(packet.action, packet.tutorial_bit) {
+            warn!(
+                account = self.account_id,
+                action = packet.action,
+                tutorial_bit = packet.tutorial_bit,
+                "CMSG_TUTORIAL ignored invalid action or TutorialBit like C++"
+            );
+        }
+    }
+
     pub async fn handle_guild_set_achievement_tracking(
         &mut self,
         mut pkt: wow_packet::WorldPacket,

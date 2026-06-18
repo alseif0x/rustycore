@@ -1675,14 +1675,23 @@ impl ServerPacket for AccountDataTimes {
     }
 }
 
-// ── TutorialFlags (SMSG 0x27be) ─────────────────────────────────────
+// ── Tutorial (CMSG 0x36e4 / SMSG 0x27be) ────────────────────────────
 
 /// Tutorial flags. All 0xFFFFFFFF means all tutorials are shown/completed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TutorialFlags {
     pub tutorial_data: [u32; 8],
 }
 
 impl TutorialFlags {
+    /// C++ `WorldSession::LoadTutorialsData` defaults to zeroes when no
+    /// account_tutorial row exists.
+    pub fn none_shown() -> Self {
+        Self {
+            tutorial_data: [0; 8],
+        }
+    }
+
     /// All tutorials shown (client won't display any tutorial pop-ups).
     pub fn all_shown() -> Self {
         Self {
@@ -1698,6 +1707,36 @@ impl ServerPacket for TutorialFlags {
         for val in &self.tutorial_data {
             pkt.write_uint32(*val);
         }
+    }
+}
+
+pub const TUTORIAL_ACTION_UPDATE_LIKE_CPP: u8 = 0;
+pub const TUTORIAL_ACTION_CLEAR_LIKE_CPP: u8 = 1;
+pub const TUTORIAL_ACTION_RESET_LIKE_CPP: u8 = 2;
+
+/// C++ `WorldPackets::Misc::TutorialSetFlag`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TutorialSetFlag {
+    pub action: u8,
+    pub tutorial_bit: Option<u32>,
+}
+
+impl ClientPacket for TutorialSetFlag {
+    const OPCODE: ClientOpcodes = ClientOpcodes::Tutorial;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        pkt.skip_opcode();
+        let action = pkt.read_bits(2)? as u8;
+        let tutorial_bit = if action == TUTORIAL_ACTION_UPDATE_LIKE_CPP {
+            Some(pkt.read_uint32()?)
+        } else {
+            None
+        };
+
+        Ok(Self {
+            action,
+            tutorial_bit,
+        })
     }
 }
 
@@ -9818,6 +9857,12 @@ mod tests {
     }
 
     #[test]
+    fn tutorial_flags_none_shown_matches_cpp_default() {
+        let pkt = TutorialFlags::none_shown();
+        assert_eq!(pkt.tutorial_data, [0; 8]);
+    }
+
+    #[test]
     fn feature_system_status_serializes() {
         let pkt = FeatureSystemStatus::default_wotlk();
         let bytes = pkt.to_bytes();
@@ -10536,6 +10581,34 @@ mod tests {
         assert_eq!(profile.bottom_offset, 8);
         assert_eq!(profile.left_offset, 9);
         assert_eq!(profile.bool_options, (1 << 0) | (1 << 5) | (1 << 26));
+    }
+
+    #[test]
+    fn tutorial_set_flag_reads_update_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(ClientOpcodes::Tutorial as u16);
+        pkt.write_bits(TUTORIAL_ACTION_UPDATE_LIKE_CPP as u32, 2);
+        pkt.write_uint32(37);
+
+        let mut packet = WorldPacket::from_bytes(pkt.data());
+        let parsed = TutorialSetFlag::read(&mut packet).expect("valid CMSG_TUTORIAL update");
+
+        assert_eq!(parsed.action, TUTORIAL_ACTION_UPDATE_LIKE_CPP);
+        assert_eq!(parsed.tutorial_bit, Some(37));
+    }
+
+    #[test]
+    fn tutorial_set_flag_reads_clear_without_bit_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(ClientOpcodes::Tutorial as u16);
+        pkt.write_bits(TUTORIAL_ACTION_CLEAR_LIKE_CPP as u32, 2);
+        pkt.flush_bits();
+
+        let mut packet = WorldPacket::from_bytes(pkt.data());
+        let parsed = TutorialSetFlag::read(&mut packet).expect("valid CMSG_TUTORIAL clear");
+
+        assert_eq!(parsed.action, TUTORIAL_ACTION_CLEAR_LIKE_CPP);
+        assert_eq!(parsed.tutorial_bit, None);
     }
 
     #[test]

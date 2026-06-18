@@ -3578,6 +3578,11 @@ pub struct WorldSession {
     player_controller: Option<SessionPlayerController>,
     /// C++ `WorldSession::_accountData`, represented in-memory until DB load/save is wired.
     account_data_like_cpp: [AccountDataLikeCpp; NUM_ACCOUNT_DATA_TYPES],
+    /// C++ `WorldSession::_tutorials`, account-scoped tutorial completion flags.
+    tutorials_like_cpp: [u32; 8],
+    tutorials_loaded_from_db_like_cpp: bool,
+    tutorials_loaded_coherently_like_cpp: bool,
+    tutorials_changed_like_cpp: bool,
 
     /// Pending creature spawn request (set during login, processed async).
     pub(crate) pending_creature_spawn: Option<PendingCreatureSpawn>,
@@ -5146,6 +5151,10 @@ impl WorldSession {
             player_guid: None,
             player_controller: None,
             account_data_like_cpp: default_account_data_like_cpp(),
+            tutorials_like_cpp: [0; 8],
+            tutorials_loaded_from_db_like_cpp: false,
+            tutorials_loaded_coherently_like_cpp: false,
+            tutorials_changed_like_cpp: false,
             pending_creature_spawn: None,
             pending_creature_kill_loot_like_cpp: Vec::new(),
             pending_creature_kill_rewards_like_cpp: Vec::new(),
@@ -18190,6 +18199,7 @@ impl WorldSession {
         self.save_player_spell_charges_like_cpp().await;
         self.save_player_action_buttons_like_cpp().await;
         self.save_player_equipment_sets_like_cpp().await;
+        self.save_tutorials_data_like_cpp().await;
         self.save_instance_time_restrictions_like_cpp().await;
         self.save_played_time().await;
         self.save_reputation_to_db_like_cpp().await;
@@ -23644,6 +23654,9 @@ impl WorldSession {
             ClientOpcodes::SaveCufProfiles => {
                 self.handle_save_cuf_profiles(pkt).await;
             }
+            ClientOpcodes::Tutorial => {
+                self.handle_tutorial(pkt).await;
+            }
             ClientOpcodes::GuildSetAchievementTracking => {
                 self.handle_guild_set_achievement_tracking(pkt).await;
             }
@@ -25430,7 +25443,7 @@ impl WorldSession {
         );
 
         // 7. TutorialFlags
-        self.send_packet(&TutorialFlags::all_shown());
+        self.send_packet(&self.tutorial_flags_packet_like_cpp());
 
         // 8. ConnectionStatus (State=1, SuppressNotification=true)
         // C# BattlenetPackets.cs: ConnectionStatus has no ConnectionType override,
@@ -25491,6 +25504,163 @@ impl WorldSession {
         account_data.time = time;
         account_data.data = data;
         true
+    }
+
+    pub(crate) fn tutorial_flags_packet_like_cpp(
+        &self,
+    ) -> wow_packet::packets::misc::TutorialFlags {
+        wow_packet::packets::misc::TutorialFlags {
+            tutorial_data: self.tutorials_like_cpp,
+        }
+    }
+
+    pub(crate) fn load_tutorials_data_values_like_cpp(&mut self, values: Option<[u32; 8]>) {
+        self.tutorials_like_cpp = values.unwrap_or([0; 8]);
+        self.tutorials_loaded_from_db_like_cpp = values.is_some();
+        self.tutorials_loaded_coherently_like_cpp = true;
+        self.tutorials_changed_like_cpp = false;
+    }
+
+    pub async fn load_tutorials_data_like_cpp(&mut self) {
+        self.tutorials_like_cpp = [0; 8];
+        self.tutorials_loaded_from_db_like_cpp = false;
+        self.tutorials_loaded_coherently_like_cpp = false;
+        self.tutorials_changed_like_cpp = false;
+
+        let Some(char_db) = self.char_db().map(Arc::clone) else {
+            warn!(
+                account = self.account_id,
+                "LoadTutorialsData skipped: character database unavailable"
+            );
+            return;
+        };
+
+        let mut stmt = char_db.prepare(CharStatements::SEL_TUTORIALS);
+        stmt.set_u32(0, self.account_id);
+        let result = match char_db.query(&stmt).await {
+            Ok(result) => result,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "LoadTutorialsData query failed: {error}"
+                );
+                return;
+            }
+        };
+
+        if result.is_empty() {
+            self.load_tutorials_data_values_like_cpp(None);
+            return;
+        }
+
+        let mut tutorials = [0u32; 8];
+        for (index, tutorial) in tutorials.iter_mut().enumerate() {
+            *tutorial = result.try_read::<u32>(index).unwrap_or(0);
+        }
+        self.load_tutorials_data_values_like_cpp(Some(tutorials));
+    }
+
+    pub(crate) fn set_tutorial_int_like_cpp(&mut self, index: usize, value: u32) -> bool {
+        let Some(current) = self.tutorials_like_cpp.get_mut(index) else {
+            return false;
+        };
+
+        if *current != value {
+            *current = value;
+            self.tutorials_changed_like_cpp = true;
+        }
+        true
+    }
+
+    pub(crate) fn apply_tutorial_action_like_cpp(
+        &mut self,
+        action: u8,
+        tutorial_bit: Option<u32>,
+    ) -> bool {
+        match action {
+            wow_packet::packets::misc::TUTORIAL_ACTION_UPDATE_LIKE_CPP => {
+                let Some(tutorial_bit) = tutorial_bit else {
+                    return false;
+                };
+                let index = (tutorial_bit >> 5) as usize;
+                if index >= self.tutorials_like_cpp.len() {
+                    return false;
+                }
+                let flag = self.tutorials_like_cpp[index] | (1u32 << (tutorial_bit & 0x1F));
+                self.set_tutorial_int_like_cpp(index, flag)
+            }
+            wow_packet::packets::misc::TUTORIAL_ACTION_CLEAR_LIKE_CPP => {
+                for index in 0..self.tutorials_like_cpp.len() {
+                    self.set_tutorial_int_like_cpp(index, u32::MAX);
+                }
+                true
+            }
+            wow_packet::packets::misc::TUTORIAL_ACTION_RESET_LIKE_CPP => {
+                for index in 0..self.tutorials_like_cpp.len() {
+                    self.set_tutorial_int_like_cpp(index, 0);
+                }
+                true
+            }
+            _ => false,
+        }
+    }
+
+    pub(crate) fn tutorial_save_statement_like_cpp(
+        &self,
+        account_id: u32,
+    ) -> Option<PreparedStatement> {
+        if !self.tutorials_changed_like_cpp || !self.tutorials_loaded_coherently_like_cpp {
+            return None;
+        }
+
+        let mut stmt = PreparedStatement::new(if self.tutorials_loaded_from_db_like_cpp {
+            CharStatements::UPD_TUTORIALS.sql()
+        } else {
+            CharStatements::INS_TUTORIALS.sql()
+        });
+        for (index, value) in self.tutorials_like_cpp.iter().copied().enumerate() {
+            stmt.set_u32(index, value);
+        }
+        stmt.set_u32(self.tutorials_like_cpp.len(), account_id);
+        Some(stmt)
+    }
+
+    async fn save_tutorials_data_like_cpp(&mut self) {
+        if !self.tutorials_changed_like_cpp {
+            return;
+        }
+
+        let Some(char_db) = self.char_db().map(Arc::clone) else {
+            warn!(
+                account = self.account_id,
+                "Skipping SaveTutorialsData because character database is unavailable"
+            );
+            return;
+        };
+
+        let Some(stmt) = self.tutorial_save_statement_like_cpp(self.account_id) else {
+            warn!(
+                account = self.account_id,
+                "Skipping SaveTutorialsData because tutorial data was not loaded coherently"
+            );
+            return;
+        };
+
+        let was_insert = !self.tutorials_loaded_from_db_like_cpp;
+        let mut tx = SqlTransaction::new();
+        tx.append(stmt);
+        match char_db.commit_transaction(tx).await {
+            Ok(()) => {
+                if was_insert {
+                    self.tutorials_loaded_from_db_like_cpp = true;
+                }
+                self.tutorials_changed_like_cpp = false;
+            }
+            Err(error) => warn!(
+                account = self.account_id,
+                "SaveTutorialsData failed: {error}"
+            ),
+        }
     }
 
     pub async fn load_global_account_data_like_cpp(&mut self) {
@@ -83800,6 +83970,93 @@ mod tests {
                 wow_database::SqlParam::U64(42),
                 wow_database::SqlParam::U8(4),
             ]
+        );
+    }
+
+    #[test]
+    fn tutorial_flags_default_to_zeroes_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.load_tutorials_data_values_like_cpp(None);
+
+        assert_eq!(
+            session.tutorial_flags_packet_like_cpp().tutorial_data,
+            [0; 8],
+            "C++ LoadTutorialsData zeroes _tutorials when account_tutorial has no row"
+        );
+        assert!(session.tutorial_save_statement_like_cpp(77).is_none());
+    }
+
+    #[test]
+    fn tutorial_update_builds_insert_statement_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.load_tutorials_data_values_like_cpp(None);
+
+        assert!(session.apply_tutorial_action_like_cpp(
+            wow_packet::packets::misc::TUTORIAL_ACTION_UPDATE_LIKE_CPP,
+            Some(37)
+        ));
+        let stmt = session
+            .tutorial_save_statement_like_cpp(77)
+            .expect("changed tutorial flags should save");
+
+        assert_eq!(stmt.sql(), CharStatements::INS_TUTORIALS.sql());
+        assert_eq!(stmt.params().len(), 9);
+        assert_eq!(stmt.params()[0], wow_database::SqlParam::U32(0));
+        assert_eq!(stmt.params()[1], wow_database::SqlParam::U32(1 << 5));
+        assert_eq!(stmt.params()[8], wow_database::SqlParam::U32(77));
+    }
+
+    #[test]
+    fn tutorial_loaded_row_builds_update_statement_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.load_tutorials_data_values_like_cpp(Some([0, 1, 2, 3, 4, 5, 6, 7]));
+
+        assert!(session.apply_tutorial_action_like_cpp(
+            wow_packet::packets::misc::TUTORIAL_ACTION_UPDATE_LIKE_CPP,
+            Some(64)
+        ));
+        let stmt = session
+            .tutorial_save_statement_like_cpp(88)
+            .expect("changed tutorial flags should save");
+
+        assert_eq!(stmt.sql(), CharStatements::UPD_TUTORIALS.sql());
+        assert_eq!(stmt.params()[0], wow_database::SqlParam::U32(0));
+        assert_eq!(stmt.params()[2], wow_database::SqlParam::U32(3));
+        assert_eq!(stmt.params()[8], wow_database::SqlParam::U32(88));
+    }
+
+    #[test]
+    fn tutorial_clear_and_reset_match_cpp_actions() {
+        let (mut session, _, _) = make_session();
+        session.load_tutorials_data_values_like_cpp(Some([1, 2, 3, 4, 5, 6, 7, 8]));
+
+        assert!(session.apply_tutorial_action_like_cpp(
+            wow_packet::packets::misc::TUTORIAL_ACTION_CLEAR_LIKE_CPP,
+            None
+        ));
+        assert_eq!(
+            session.tutorial_flags_packet_like_cpp().tutorial_data,
+            [u32::MAX; 8]
+        );
+
+        assert!(session.apply_tutorial_action_like_cpp(
+            wow_packet::packets::misc::TUTORIAL_ACTION_RESET_LIKE_CPP,
+            None
+        ));
+        assert_eq!(
+            session.tutorial_flags_packet_like_cpp().tutorial_data,
+            [0; 8]
+        );
+    }
+
+    #[test]
+    fn tutorial_save_requires_coherent_load_like_cpp() {
+        let (mut session, _, _) = make_session();
+
+        assert!(session.set_tutorial_int_like_cpp(0, 1));
+        assert!(
+            session.tutorial_save_statement_like_cpp(77).is_none(),
+            "Rust must not insert/update account_tutorial after a failed or skipped load"
         );
     }
 
