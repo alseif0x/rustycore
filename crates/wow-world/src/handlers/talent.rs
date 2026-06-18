@@ -109,6 +109,8 @@ impl WorldSession {
             return;
         }
 
+        self.remove_represented_feign_death_if_needed_like_cpp();
+
         if !self.represented_talents_loaded_like_cpp() {
             return;
         }
@@ -155,10 +157,11 @@ impl WorldSession {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{Arc, RwLock};
+    use std::sync::{Arc, Mutex, RwLock};
 
     use super::*;
     use wow_constants::BuyResult;
+    use wow_constants::unit::UnitState;
     use wow_core::guid::HighGuid;
     use wow_core::{ObjectGuid, Position};
     use wow_packet::ServerPacket;
@@ -166,8 +169,8 @@ mod tests {
     use wow_packet::packets::update::CreatureCreateData;
 
     use crate::session::{
-        AuraApplication, RepresentedTalentRespecCriteriaEventLikeCpp,
-        SPELL_AURA_INTERRUPT_FLAG2_CHANGE_TALENT_LIKE_CPP,
+        AuraApplication, RepresentedAuraEffectLikeCpp, RepresentedTalentRespecCriteriaEventLikeCpp,
+        SPELL_AURA_INTERRUPT_FLAG2_CHANGE_TALENT_LIKE_CPP, SessionPlayerController,
     };
 
     fn make_session_with_send_capacity(
@@ -482,6 +485,38 @@ mod tests {
                     .set_trainer_class_runtime_like_cpp(trainer_class);
             })
             .expect("test trainer exists");
+    }
+
+    fn add_canonical_test_trainer_like_cpp(
+        canonical: &Arc<Mutex<wow_map::MapManager>>,
+        guid: ObjectGuid,
+        position: Position,
+        npc_flags: u32,
+        trainer_class: u8,
+    ) {
+        let mut creature = wow_entities::Creature::new(false);
+        creature.unit_mut().world_mut().object_mut().create(guid);
+        creature.unit_mut().world_mut().object_mut().set_entry(123);
+        creature.unit_mut().world_mut().set_map(0, 0).unwrap();
+        creature.unit_mut().world_mut().relocate(position);
+        creature.unit_mut().world_mut().set_combat_reach(1.0);
+        creature.unit_mut().set_level(80);
+        creature.unit_mut().set_max_health(100);
+        creature.unit_mut().set_health(100);
+        creature.set_ai_identity_runtime(1, 35, npc_flags, 0);
+        creature.set_trainer_class_runtime_like_cpp(trainer_class);
+        creature.unit_mut().world_mut().object_mut().add_to_world();
+
+        canonical
+            .lock()
+            .unwrap()
+            .find_map_mut(0, 0)
+            .expect("canonical map")
+            .map_mut()
+            .insert_map_object_record(
+                wow_entities::MapObjectRecord::new_creature(creature).unwrap(),
+            )
+            .unwrap();
     }
 
     #[tokio::test]
@@ -1145,6 +1180,99 @@ mod tests {
                 .get(&60_101)
                 .is_some_and(|overrides| overrides.contains(&70_101)),
             "C++ keeps override spells when ResetTalents returns false"
+        );
+    }
+
+    #[tokio::test]
+    async fn confirm_respec_wipe_removes_feign_death_before_reset_talents_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(4);
+        let trainer = test_creature_guid(90);
+        let feign_slot = 7;
+        register_test_trainer(&mut session, trainer, NPCFlags1::TRAINER.bits());
+        let canonical = Arc::new(Mutex::new(wow_map::MapManager::default()));
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            ObjectGuid::create_player(1, 42),
+            "TalentTester".to_string(),
+            Position::new(0.0, 0.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.mark_represented_talents_loaded_like_cpp();
+        session.set_player_gold_like_cpp(9_999);
+        session
+            .ensure_canonical_world_map_for_current_player_like_cpp()
+            .expect("canonical player map");
+        add_canonical_test_trainer_like_cpp(
+            &canonical,
+            trainer,
+            Position::new(1.0, 0.0, 0.0, 0.0),
+            NPCFlags1::TRAINER.bits(),
+            1,
+        );
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.unit_mut().add_unit_state(UnitState::DIED.bits());
+            })
+            .expect("canonical player");
+        let mut feign_death = visible_aura(feign_slot, 0);
+        feign_death.spell_id = 5384;
+        feign_death.represented_effect = Some(RepresentedAuraEffectLikeCpp::FeignDeath);
+        session.visible_auras.insert(feign_slot, feign_death);
+
+        session
+            .handle_confirm_respec_wipe(confirm_respec_wipe_packet(
+                trainer,
+                SPEC_RESET_TALENTS_LIKE_CPP,
+            ))
+            .await;
+
+        let _aura_removed = send_rx
+            .try_recv()
+            .expect("C++ removes fake death before ResetTalents can fail");
+        let buy_failed = send_rx
+            .try_recv()
+            .expect("C++ then sends the insufficient-money ResetTalents failure");
+        assert_eq!(
+            buy_failed,
+            BuyFailed {
+                vendor_guid: ObjectGuid::EMPTY,
+                muid: 0,
+                reason: BuyResult::NotEnoughtMoney,
+            }
+            .to_bytes()
+        );
+        assert!(send_rx.try_recv().is_err());
+        assert!(!session.visible_auras.contains_key(&feign_slot));
+        assert_eq!(
+            session
+                .mutate_canonical_player_like_cpp(|player| {
+                    player.unit().has_unit_state(UnitState::DIED.bits())
+                })
+                .expect("canonical player"),
+            false,
+            "C++ RemoveAurasByType(SPELL_AURA_FEIGN_DEATH) clears UNIT_STATE_DIED before ResetTalents"
+        );
+        assert_eq!(session.player_gold_like_cpp(), 9_999);
+        assert!(
+            session
+                .represented_confirm_respec_wipe_requests_like_cpp()
+                .is_empty(),
+            "C++ returns from failed ResetTalents before recording the accepted represented reset"
         );
     }
 

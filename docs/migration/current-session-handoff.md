@@ -1,3 +1,21 @@
+- `#NEXT.R8.ENTITIES.1082` — represented `CMSG_CONFIRM_RESPEC_WIPE` now
+  removes fake-death before attempting `Player::ResetTalents`, matching the
+  C++ handler order (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SkillHandler.cpp:54-82`.
+  C++ checks `UNIT_STATE_DIED`, calls
+  `RemoveAurasByType(SPELL_AURA_FEIGN_DEATH)`, and only then calls
+  `ResetTalents`; therefore fake-death is removed even when `ResetTalents`
+  later returns false. Rust now calls the existing represented
+  `remove_represented_feign_death_if_needed_like_cpp` seam immediately after
+  the trainer/type/class gate and before represented talent-load/cost/reset
+  gates. Coverage: focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  confirm_respec --lib`; `cargo fmt --all --check`;
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`.
+  Boundary remains partial: visual spell 14867 cast, pet/spec/glyph reset
+  branches, trait override paths, full achievement/quest criteria manager
+  persistence, full runtime aura/cast ownership, live-client validation, bot
+  validation, and manual validation remain open.
 - `#NEXT.R8.ENTITIES.1081` — represented `Creature::CanResetTalents` now
   enforces the C++ trainer-class match for `CMSG_CONFIRM_RESPEC_WIPE`
   (not manual-test-ready). Source of truth:
@@ -19,7 +37,8 @@
   world-server loaded_grid_db_backed_builder_maps_spawn_template_runtime_like_cpp
   --bin world-server`; `cargo fmt --all --check`;
   `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`.
-  Boundary remains partial: fake-death aura removal, visual spell 14867 cast,
+  Boundary remains partial: fake-death aura removal was closed later by
+  `#NEXT.R8.ENTITIES.1082`; visual spell 14867 cast,
   pet/spec/glyph reset branches, trait override paths, full achievement/quest
   criteria manager persistence, full runtime aura/cast ownership,
   live-client validation, bot validation, and manual validation remain open.
