@@ -141,13 +141,13 @@ impl MountStore {
         for (id, idx) in reader.iter_records() {
             entries.push(MountEntry {
                 id,
-                mount_type_id: reader.get_field_u16(idx, 3),
-                flags: reader.get_field_u16(idx, 4),
-                source_type_enum: reader.get_field_i8(idx, 5),
-                source_spell_id: reader.get_field_i32(idx, 6),
-                player_condition_id: reader.get_field_u32(idx, 7),
-                mount_fly_ride_height: f32::from_bits(reader.get_field_u32(idx, 8)),
-                ui_model_scene_id: reader.get_field_i32(idx, 9),
+                mount_type_id: reader.get_field_u16(idx, 4),
+                flags: reader.get_field_u16(idx, 5),
+                source_type_enum: reader.get_field_i8(idx, 6),
+                source_spell_id: reader.get_field_i32(idx, 7),
+                player_condition_id: reader.get_field_u32(idx, 8),
+                mount_fly_ride_height: reader.get_field_f32(idx, 9),
+                ui_model_scene_id: reader.get_field_i32(idx, 10),
             });
         }
 
@@ -770,6 +770,45 @@ mod tests {
         let store =
             MountXDisplayStore::load(data_dir, locale).expect("failed to load MountXDisplay.db2");
         assert!(store.by_id.values().any(|display| display.mount_id != 0));
+    }
+
+    #[test]
+    fn load_real_account_mounts_resolves_source_spells_and_capabilities_when_fixture_exists() {
+        let data_dir = "/home/server/woltk-server-core/Data";
+        let locale = "enUS";
+        let path = Path::new(data_dir)
+            .join("dbc")
+            .join(locale)
+            .join("Mount.db2");
+        if !path.exists() {
+            eprintln!("Skipping test: Mount.db2 not found");
+            return;
+        }
+
+        let mounts = MountStore::load(data_dir, locale).expect("failed to load Mount.db2");
+        let capabilities = MountCapabilityStore::load(data_dir, locale)
+            .expect("failed to load MountCapability.db2");
+        let type_capabilities = MountTypeXCapabilityStore::load(data_dir, locale)
+            .expect("failed to load MountTypeXCapability.db2");
+
+        for source_spell_id in [17229, 32243, 64658] {
+            let mount = mounts
+                .get_by_source_spell_id_like_cpp(source_spell_id)
+                .unwrap_or_else(|| panic!("missing Mount.db2 source spell {source_spell_id}"));
+            assert_ne!(
+                mount.mount_type_id, 0,
+                "mount spell {source_spell_id} resolved to a mount without type"
+            );
+            assert!(
+                type_capabilities
+                    .capabilities_for_mount_type_like_cpp(mount.mount_type_id)
+                    .is_some_and(|entries| entries.iter().any(|entry| capabilities
+                        .get(u32::from(entry.mount_capability_id))
+                        .is_some())),
+                "mount spell {source_spell_id} type {} has no usable capability",
+                mount.mount_type_id
+            );
+        }
     }
 
     #[test]

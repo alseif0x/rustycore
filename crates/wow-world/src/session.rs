@@ -5891,16 +5891,15 @@ impl WorldSession {
                 let Some(player) = managed.map().get_typed_player(guid) else {
                     return;
                 };
-                // Rust still has split player state: movement packets update
-                // the represented session first, while the canonical Player
-                // may lag. C++ has one live Player object, so logout save sees
-                // the latest movement position. Prefer the represented
-                // session position when available, but keep canonical gameplay
-                // fields that only the typed Player may have updated.
+                // C++ has one live Player object, and Player::SaveToDB reads
+                // position from that object. Rust still has split session and
+                // canonical player state; normal movement updates both, while
+                // other player runtime changes may only touch the canonical
+                // typed Player. Treat the canonical Player as the save source
+                // whenever it exists, and use the session fields only as the
+                // pre-canonical fallback below.
                 let map_id = self.player_map_id_like_cpp();
-                let position = self
-                    .player_position_like_cpp()
-                    .unwrap_or_else(|| player.unit().world().position());
+                let position = player.unit().world().position();
 
                 snapshot = Some(PlayerSaveToDbSnapshotLikeCpp {
                     guid,
@@ -79097,7 +79096,7 @@ mod tests {
     }
 
     #[test]
-    fn logout_save_snapshot_prefers_latest_session_position_like_cpp() {
+    fn logout_save_snapshot_falls_back_to_session_position_without_canonical_player_like_cpp() {
         let (mut session, _, _) = make_session();
         let canonical = shared_canonical_map_manager();
         let player_guid = ObjectGuid::create_player(1, 71);
@@ -79127,16 +79126,9 @@ mod tests {
             10,
             0,
         ));
-        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
-        session
-            .mutate_canonical_player_like_cpp(|player| {
-                player.unit_mut().world_mut().relocate(login_position);
-                player.unit_mut().set_level(42);
-                player.set_xp(1234);
-                player.set_money(5678);
-            })
-            .unwrap();
-
+        session.set_player_level_like_cpp(42);
+        session.set_player_xp_like_cpp(1234);
+        session.set_player_gold_like_cpp(5678);
         session.set_player_position_like_cpp(moved_position);
 
         let snapshot = session
