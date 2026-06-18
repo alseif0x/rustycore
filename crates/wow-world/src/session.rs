@@ -89,10 +89,11 @@ use wow_data::{
     SpellPetAuraStoreLikeCpp, SpellProcEntryLikeCpp, SpellProcStoreLikeCpp, SpellRadiusStore,
     SpellRangeStore, SpellRequiredStoreLikeCpp, SpellShapeshiftFormStore, SpellStore,
     SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp,
-    SpellTotemModelStoreLikeCpp, SummonPropertiesEntry, TalentStore, ToyStore, TransmogSetEntry,
-    TransmogSetItemStore, TrinityStringStoreLikeCpp, VEHICLE_SEAT_FLAG_CAN_ATTACK,
-    VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
-    calculate_battle_pet_stats_like_cpp, is_player_meeting_condition_like_cpp,
+    SpellTotemModelStoreLikeCpp, SummonPropertiesEntry, TalentStore, TalentTabStore, ToyStore,
+    TransmogSetEntry, TransmogSetItemStore, TrinityStringStoreLikeCpp,
+    VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore,
+    VehicleTemplateStoreLikeCpp, calculate_battle_pet_stats_like_cpp,
+    is_player_meeting_condition_like_cpp,
     progression_rewards::{
         ContentTuningStore, FactionEntry, FactionStore, FactionTemplateStore,
         FriendshipRepReactionStore, ParagonReputationStore, QuestFactionRewardStore,
@@ -3992,6 +3993,7 @@ pub struct WorldSession {
     /// Spell store (metadata for all known spells: cast time, cooldown, effects, etc.)
     pub spell_store: Option<Arc<SpellStore>>,
     talent_store: Option<Arc<TalentStore>>,
+    talent_tab_store: Option<Arc<TalentTabStore>>,
     glyph_properties_store: Option<Arc<GlyphPropertiesStore>>,
     spell_chain_store: Option<Arc<SpellChainStoreLikeCpp>>,
     spell_category_store: Option<Arc<SpellCategoryStore>>,
@@ -4933,6 +4935,14 @@ fn player_class_mask_for_transmog_like_cpp(class_id: u8) -> u32 {
     }
 }
 
+fn player_class_mask_for_talent_like_cpp(class_id: u8) -> Option<u32> {
+    if class_id == 0 || class_id > 32 {
+        None
+    } else {
+        Some(1_u32 << u32::from(class_id - 1))
+    }
+}
+
 fn player_class_by_armor_subclass_like_cpp(subclass: u32) -> u32 {
     match subclass {
         x if x == ItemSubClassArmor::Miscellaneous as u32 => 0x0FFF,
@@ -5369,6 +5379,7 @@ impl WorldSession {
             visible_auras: HashMap::new(),
             spell_store: None,
             talent_store: None,
+            talent_tab_store: None,
             glyph_properties_store: None,
             spell_chain_store: None,
             spell_category_store: None,
@@ -17401,6 +17412,14 @@ impl WorldSession {
         self.talent_store.as_ref()
     }
 
+    pub fn set_talent_tab_store(&mut self, store: Arc<TalentTabStore>) {
+        self.talent_tab_store = Some(store);
+    }
+
+    pub(crate) fn talent_tab_store(&self) -> Option<&Arc<TalentTabStore>> {
+        self.talent_tab_store.as_ref()
+    }
+
     pub fn set_glyph_properties_store(&mut self, store: Arc<GlyphPropertiesStore>) {
         self.glyph_properties_store = Some(store);
     }
@@ -18319,6 +18338,25 @@ impl WorldSession {
         else {
             return false;
         };
+
+        let Some(talent_tab) = self
+            .talent_tab_store()
+            .and_then(|store| store.get(u32::from(talent.tab_id)))
+        else {
+            return false;
+        };
+
+        let Some(class_mask) = player_class_mask_for_talent_like_cpp(self.player_class_like_cpp())
+        else {
+            return false;
+        };
+
+        let Ok(talent_class_mask) = u32::try_from(talent_tab.class_mask) else {
+            return false;
+        };
+        if (class_mask & talent_class_mask) == 0 {
+            return false;
+        }
 
         let rank_index = usize::from(rank);
         let Some(spell_id) = talent.spell_rank.get(rank_index).copied() else {

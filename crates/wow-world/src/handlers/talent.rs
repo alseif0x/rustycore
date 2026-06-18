@@ -41,8 +41,8 @@ impl WorldSession {
     ///
     /// C++ calls `Player::LearnTalent(TalentID, RequestedRank)` and sends
     /// `SendTalentsInfoData()` only on success. Rust currently has the
-    /// represented talent snapshot and DB2 spell-rank validation, but not the
-    /// complete C++ point/prerequisite/talent-tab class validation runtime.
+    /// represented talent snapshot plus DB2 spell-rank and talent-tab class
+    /// validation, but not the complete C++ point/prerequisite/tier runtime.
     pub async fn handle_learn_talent(&mut self, mut packet: WorldPacket) {
         let request = match LearnTalent::read(&mut packet) {
             Ok(request) => request,
@@ -235,11 +235,50 @@ mod tests {
     }
 
     fn install_test_talent_store(session: &mut WorldSession, talents: &[(u32, u8, i32)]) {
+        install_test_talent_store_with_tab_class_mask(session, talents, 1);
+    }
+
+    fn install_test_talent_store_with_tab_class_mask(
+        session: &mut WorldSession,
+        talents: &[(u32, u8, i32)],
+        class_mask: i32,
+    ) {
         session.set_talent_store(Arc::new(wow_data::TalentStore::from_entries(
             talents.iter().map(|(talent_id, rank, spell_id)| {
                 test_talent_entry_like_cpp(*talent_id, *rank, *spell_id)
             }),
         )));
+        session.set_talent_tab_store(Arc::new(wow_data::TalentTabStore::from_entries([
+            wow_data::TalentTabEntry {
+                id: 0,
+                name: String::new(),
+                background_file: String::new(),
+                order_index: 0,
+                race_mask: 0,
+                class_mask,
+                pet_talent_mask: 0,
+                spell_icon_id: 0,
+            },
+        ])));
+        session.set_player_class_like_cpp(1);
+
+        let mut spell_store = wow_data::SpellStore::new();
+        for (_, _, spell_id) in talents {
+            spell_store.insert(*spell_id, test_spell_info_like_cpp(*spell_id));
+        }
+        session.set_spell_store(Arc::new(spell_store));
+    }
+
+    fn install_test_talent_store_without_tab(
+        session: &mut WorldSession,
+        talents: &[(u32, u8, i32)],
+    ) {
+        session.set_talent_store(Arc::new(wow_data::TalentStore::from_entries(
+            talents.iter().map(|(talent_id, rank, spell_id)| {
+                test_talent_entry_like_cpp(*talent_id, *rank, *spell_id)
+            }),
+        )));
+        session.set_player_class_like_cpp(1);
 
         let mut spell_store = wow_data::SpellStore::new();
         for (_, _, spell_id) in talents {
@@ -413,6 +452,66 @@ mod tests {
                 .is_empty()
         );
         assert!(!session.represented_talents_loaded_like_cpp());
+    }
+
+    #[tokio::test]
+    async fn learn_talent_rejects_missing_talent_tab_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        install_test_talent_store_without_tab(&mut session, &[(101, 0, 50_101)]);
+        session.mark_represented_talents_loaded_like_cpp();
+
+        session
+            .handle_learn_talent(learn_talent_packet(101, 0))
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+        assert!(
+            session
+                .represented_update_talent_data_packet_like_cpp()
+                .groups[0]
+                .talents
+                .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn learn_talent_rejects_wrong_class_talent_tab_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        install_test_talent_store_with_tab_class_mask(&mut session, &[(101, 0, 50_101)], 1 << 1);
+        session.mark_represented_talents_loaded_like_cpp();
+
+        session
+            .handle_learn_talent(learn_talent_packet(101, 0))
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+        assert!(
+            session
+                .represented_update_talent_data_packet_like_cpp()
+                .groups[0]
+                .talents
+                .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn learn_talent_rejects_rank_outside_cpp_max_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        install_test_talent_store(&mut session, &[(101, 0, 50_101)]);
+        session.mark_represented_talents_loaded_like_cpp();
+
+        session
+            .handle_learn_talent(learn_talent_packet(101, 9))
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+        assert!(
+            session
+                .represented_update_talent_data_packet_like_cpp()
+                .groups[0]
+                .talents
+                .is_empty()
+        );
     }
 
     #[tokio::test]

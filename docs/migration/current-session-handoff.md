@@ -1,3 +1,20 @@
+- `#NEXT.R8.ENTITIES.1069` — represented `Player::LearnTalent` now enforces
+  the C++ `TalentTab` existence and class-mask gates before mutating the active
+  represented talent group (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26042-26067`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Stores.cpp:322`.
+  Rust now loads `TalentTab.db2`, wires `TalentTabStore` into world sessions,
+  rejects missing talent tabs, rejects talents whose tab `ClassMask` does not
+  intersect the player's C++ class mask, and continues to reject out-of-range
+  requested ranks / empty spell ranks before sending `UpdateTalentData`.
+  Coverage: focused `wow-world learn_talent` tests cover success plus missing
+  tab, wrong class, unloaded snapshot, and out-of-range rank rejections;
+  `world-server` compile verifies the new DB2 store wiring. Boundary remains
+  partial: represented `Player::LearnTalent` still needs character-points,
+  existing-rank upgrade semantics, prereq/tier-spent checks, exact
+  `SpellMgr::IsSpellValid` parity, talent-point recomputation, live-client
+  validation, bot validation, and manual validation.
 - `#NEXT.R8.ENTITIES.1068` — represented runtime `CMSG_LEARN_TALENT` now
   parses, dispatches, and mutates the coherent represented active talent group;
   `CMSG_LEARN_TALENTS` has its C++ payload parser/handler covered but remains
@@ -16,9 +33,10 @@
   sends `UpdateTalentData` after each successful learn like
   `SendTalentsInfoData`. Boundary remains partial:
   full `Player::LearnTalent` validation still needs character-points,
-  `TalentTab` class mask, prereq/tier-spent checks, exact spell-validity,
-  talent-point recomputation, preview/pet talent handlers, live-client
-  validation, bot validation, and manual validation.
+  prereq/tier-spent checks, exact spell-validity, talent-point recomputation,
+  preview/pet talent handlers, live-client validation, bot validation, and
+  manual validation; `TalentTab` class-mask gates were closed later by
+  `#NEXT.R8.ENTITIES.1069`.
 - `#NEXT.R8.ENTITIES.1067` — represented `Player::SaveToDB` now persists
   `character_talent` from the coherent represented talent snapshot (not
   manual-test-ready). Source of truth:
@@ -4797,4 +4815,4 @@ C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entit
 
 Implemented Rust seam: `SendSpellHistory` and `SendSpellCharges` now carry entry vectors with C++ packet field order instead of hard-coded empty counts. Character login queries `character_spell_cooldown` and `character_spell_charges`, skips expired rows, skips unknown spell/category rows when the corresponding stores are available, converts future cooldowns into C++ `SpellHistoryEntry` fields, groups charges by category with the earliest recharge end and consumed count, and passes those packets through the existing login sequence at the C++ position.
 
-Validation evidence: `cargo fmt --all --check`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-packet send_spell --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world spell_history_entry --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world spell_charge_entry --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p wow-world`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`; `git diff --check`. Remaining gaps: no runtime `SpellHistory` owner/state map yet, no cooldown/charge mutation, no `SpellHistory::SaveToDB` persistence on logout/save, no `OnHold` cooldown support, no pet spell history, no live-client/bot/manual validation, and stale R3 prepared-statement docs still need a separate reconciliation pass because the Rust statements now exist.
+Validation evidence: `cargo fmt --all --check`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-packet send_spell --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world spell_history_entry --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world spell_charge_entry --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p wow-world`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`; `git diff --check`. Later code now also persists represented `character_spell_cooldown` and `character_spell_charges` during `save_current_player_to_db_like_cpp` when the corresponding tables were loaded coherently. Remaining gaps: no full runtime `SpellHistory` owner/state map yet, no `OnHold` cooldown support, no pet spell history save parity, no live-client/bot/manual validation, and stale R3 prepared-statement docs still need a separate reconciliation pass because the Rust statements now exist.
