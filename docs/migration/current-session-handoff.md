@@ -1,3 +1,20 @@
+- `#NEXT.R8.ENTITIES.1073` — represented `Player::LearnTalent` now mirrors
+  the C++ `Player::AddTalent(..., learning=true)` `ChangeTalent` aura
+  interruption side effect (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:2644-2690`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellDefines.h:111-128`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:4076-4109`.
+  Rust now defines `SPELL_AURA_INTERRUPT_FLAG2_CHANGE_TALENT_LIKE_CPP =
+  0x00004000` and removes represented visible auras carrying that
+  `aura_interrupt_flags2` bit after a successful runtime talent learn, while
+  unrelated auras survive. Coverage: `cargo fmt --all --check`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world learn_talent --lib`.
+  Boundary remains partial: override spell registration, exact
+  create-item/reagent spell validity, full runtime aura ownership/cast
+  side-effects, real resolved `CMSG_LEARN_TALENTS` dispatch, preview/pet talent
+  handlers, live-client validation, bot validation, and manual validation
+  remain open.
 - `#NEXT.R8.ENTITIES.1072` — represented `Player::LearnTalent` now mirrors
   the first `Player::AddTalent` spell side effects and the representable
   `SpellMgr::IsSpellValid` learn-spell branch (not manual-test-ready). Source
@@ -17,9 +34,10 @@
   create-loot, `ItemType`, reagent, and full item-template branches are not
   closed because the represented `SpellInfo` surface does not yet carry all
   required C++ data; full runtime `LearnSpell` cast side effects, override
-  spells, aura interruption, real resolved `CMSG_LEARN_TALENTS` dispatch,
-  preview/pet talent handlers, live-client validation, bot validation, and
-  manual validation remain open.
+  spells, real resolved `CMSG_LEARN_TALENTS` dispatch, preview/pet talent
+  handlers, live-client validation, bot validation, and manual validation remain
+  open. `ChangeTalent` aura interruption was closed later by
+  `#NEXT.R8.ENTITIES.1073`.
 - `#NEXT.R8.ENTITIES.1071` — represented `Player::LearnTalent` now enforces
   C++ free talent points and recomputes `CharacterPoints` after successful
   learns (not manual-test-ready). Source of truth:

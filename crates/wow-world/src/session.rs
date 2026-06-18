@@ -4734,6 +4734,7 @@ pub(crate) const SPELL_AURA_INTERRUPT_FLAG_MOVING_OR_TURNING_LIKE_CPP: u32 =
     SPELL_AURA_INTERRUPT_FLAG_MOVING_LIKE_CPP | SPELL_AURA_INTERRUPT_FLAG_TURNING_LIKE_CPP;
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG_LANDING_OR_FLIGHT_LIKE_CPP: u32 = 0x0200_0000;
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG2_JUMP_LIKE_CPP: u32 = 0x0000_0020;
+pub(crate) const SPELL_AURA_INTERRUPT_FLAG2_CHANGE_TALENT_LIKE_CPP: u32 = 0x0000_4000;
 pub(crate) const PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP: u32 = 0x0000_8000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -18635,6 +18636,11 @@ impl WorldSession {
                 self.learn_known_spell_like_cpp(trigger_spell);
             }
         }
+
+        self.remove_auras_with_interrupt_flags_like_cpp(
+            0,
+            SPELL_AURA_INTERRUPT_FLAG2_CHANGE_TALENT_LIKE_CPP,
+        );
     }
 
     fn represented_talent_spell_id_like_cpp(&self, talent_id: u32, rank: u8) -> Option<i32> {

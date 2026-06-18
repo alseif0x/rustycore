@@ -150,6 +150,8 @@ mod tests {
     use wow_packet::ServerPacket;
     use wow_packet::packets::update::CreatureCreateData;
 
+    use crate::session::{AuraApplication, SPELL_AURA_INTERRUPT_FLAG2_CHANGE_TALENT_LIKE_CPP};
+
     fn make_session_with_send_capacity(
         capacity: usize,
     ) -> (WorldSession, flume::Receiver<Vec<u8>>) {
@@ -372,6 +374,27 @@ mod tests {
 
     fn test_creature_guid(counter: u32) -> ObjectGuid {
         ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, counter, 1)
+    }
+
+    fn visible_aura(slot: u8, flags2: u32) -> AuraApplication {
+        AuraApplication {
+            spell_id: 90_000 + i32::from(slot),
+            caster_guid: ObjectGuid::EMPTY,
+            slot,
+            duration_total: 0,
+            duration_remaining: 0,
+            stack_count: 1,
+            aura_flags: 0,
+            effect_mask: 1,
+            aura_interrupt_flags: 0,
+            aura_interrupt_flags2: flags2,
+            represented_effect: None,
+            represented_amount: 0,
+            represented_effect_amounts: Vec::new(),
+            represented_misc_value: None,
+            represented_multiplier: 1.0,
+            applied_at: std::time::Instant::now(),
+        }
     }
 
     fn test_creature_create_data(guid: ObjectGuid, npc_flags: u32) -> CreatureCreateData {
@@ -823,6 +846,35 @@ mod tests {
         );
         assert!(session.known_spells_like_cpp().contains(&50_102));
         assert!(session.known_spells_like_cpp().contains(&60_102));
+    }
+
+    #[tokio::test]
+    async fn learn_talent_removes_change_talent_interrupt_auras_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(4);
+        install_test_talent_store(&mut session, &[(101, 0, 50_101)]);
+        session.mark_represented_talents_loaded_like_cpp();
+        session.visible_auras.insert(
+            1,
+            visible_aura(1, SPELL_AURA_INTERRUPT_FLAG2_CHANGE_TALENT_LIKE_CPP),
+        );
+        session.visible_auras.insert(2, visible_aura(2, 0));
+
+        session
+            .handle_learn_talent(learn_talent_packet(101, 0))
+            .await;
+
+        assert!(
+            send_rx.try_recv().is_ok(),
+            "C++ sends updates after successful AddTalent and aura removal"
+        );
+        assert!(
+            !session.visible_auras.contains_key(&1),
+            "C++ Player::AddTalent(learning=true) removes ChangeTalent interrupt auras"
+        );
+        assert!(
+            session.visible_auras.contains_key(&2),
+            "unrelated auras survive ChangeTalent interrupt removal"
+        );
     }
 
     #[tokio::test]
