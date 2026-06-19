@@ -45873,6 +45873,30 @@ impl WorldSession {
         let Some(player_map_key) = self.current_canonical_player_map_key_like_cpp() else {
             return None;
         };
+        let has_implicit_conditions =
+            implicit_conditions.is_some_and(|conditions| !conditions.is_empty());
+        let caster_object = if has_implicit_conditions {
+            self.build_condition_player_object_like_cpp()
+        } else {
+            None
+        };
+        let player_unit_snapshot = self.condition_player_unit_snapshot_like_cpp();
+        let player_snapshot = self.condition_player_snapshot_like_cpp();
+        let player_condition_context = if has_implicit_conditions {
+            Some(self.represented_player_condition_context_like_cpp())
+        } else {
+            None
+        };
+        let player_condition_store = if has_implicit_conditions {
+            self.player_condition_store.as_ref().cloned()
+        } else {
+            None
+        };
+        let area_table_store = if has_implicit_conditions {
+            self.area_table_store.as_ref().cloned()
+        } else {
+            None
+        };
         let Some(manager) = &self.canonical_map_manager else {
             return None;
         };
@@ -45886,14 +45910,6 @@ impl WorldSession {
             map.map()
                 .nearby_cell_guids_like_cpp(caster_position.x, caster_position.y, range);
         let mut best: Option<(f32, Position)> = None;
-        let caster_object = if implicit_conditions.is_some_and(|conditions| !conditions.is_empty())
-        {
-            self.build_condition_player_object_like_cpp()
-        } else {
-            None
-        };
-        let player_unit_snapshot = self.condition_player_unit_snapshot_like_cpp();
-        let player_snapshot = self.condition_player_snapshot_like_cpp();
 
         for guid in nearby
             .world
@@ -45930,6 +45946,9 @@ impl WorldSession {
                     caster_object.as_ref(),
                     player_unit_snapshot,
                     player_snapshot,
+                    player_condition_store.as_deref(),
+                    player_condition_context.as_ref(),
+                    area_table_store.as_deref(),
                 )
             {
                 best = Some((distance, position));
@@ -45954,6 +45973,9 @@ impl WorldSession {
                     caster_object.as_ref(),
                     player_unit_snapshot,
                     player_snapshot,
+                    player_condition_store.as_deref(),
+                    player_condition_context.as_ref(),
+                    area_table_store.as_deref(),
                 )
             {
                 best = Some((distance, position));
@@ -45971,6 +45993,9 @@ impl WorldSession {
         caster_object: Option<&WorldObject>,
         player_unit_snapshot: crate::conditions::ConditionUnitSnapshot,
         player_snapshot: crate::conditions::ConditionPlayerSnapshot,
+        player_condition_store: Option<&wow_data::PlayerConditionStore>,
+        player_condition_context: Option<&RepresentedPlayerConditionContextLikeCpp>,
+        area_table_store: Option<&wow_data::AreaTableStore>,
     ) -> bool {
         let Some(conditions) = implicit_conditions.filter(|conditions| !conditions.is_empty())
         else {
@@ -45982,7 +46007,6 @@ impl WorldSession {
 
         // C++ `WorldObjectSpellTargetCheck` builds `ConditionSourceInfo(nullptr, caster)`
         // and then assigns the tested target to condition slot 0.
-        let player_condition_context = self.represented_player_condition_context_like_cpp();
         let mut source_info = crate::conditions::ConditionSourceInfo::from_targets(
             Some(candidate),
             caster_object,
@@ -45993,11 +46017,10 @@ impl WorldSession {
         }
         source_info.set_unit_target_snapshot(1, player_unit_snapshot);
         source_info.set_player_target_snapshot(1, player_snapshot);
-        if let Some(store) = self.player_condition_store.as_ref() {
-            source_info.set_player_condition_store(store.as_ref());
-            source_info.set_player_condition_context(1, player_condition_context.as_context(self));
+        if let (Some(store), Some(context)) = (player_condition_store, player_condition_context) {
+            source_info.set_player_condition_store(store);
+            source_info.set_player_condition_context(1, context.as_context(self));
         }
-        let area_table_store = self.area_table_store.as_ref().cloned();
 
         crate::conditions::is_object_meet_to_conditions_like_cpp(
             &mut source_info,
@@ -46008,7 +46031,7 @@ impl WorldSession {
                     condition,
                     source_info,
                     |area_id, required_area_id| {
-                        area_table_store.as_ref().is_some_and(|store| {
+                        area_table_store.is_some_and(|store| {
                             store.is_in_area_like_cpp(area_id, required_area_id)
                         })
                     },
@@ -48420,7 +48443,7 @@ mod tests {
         flume::Receiver<Vec<u8>>,
     ) {
         let (pkt_tx, pkt_rx) = flume::bounded(100);
-        let (send_tx, send_rx) = flume::bounded(100);
+        let (send_tx, send_rx) = flume::unbounded();
 
         let mut session = WorldSession::new(
             1,

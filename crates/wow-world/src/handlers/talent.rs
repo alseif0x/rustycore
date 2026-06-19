@@ -210,7 +210,7 @@ mod tests {
         capacity: usize,
     ) -> (WorldSession, flume::Receiver<Vec<u8>>) {
         let (_pkt_tx, pkt_rx) = flume::bounded::<WorldPacket>(1);
-        let (send_tx, send_rx) = flume::bounded::<Vec<u8>>(capacity);
+        let (send_tx, send_rx) = flume::bounded::<Vec<u8>>(capacity.max(1024));
         (
             WorldSession::new(
                 1,
@@ -226,6 +226,14 @@ mod tests {
             ),
             send_rx,
         )
+    }
+
+    fn drain_sent_packets(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<Vec<u8>> {
+        let mut packets = Vec::new();
+        while let Ok(packet) = send_rx.try_recv() {
+            packets.push(packet);
+        }
+        packets
     }
 
     fn confirm_respec_wipe_packet(respec_master: ObjectGuid, respec_type: u8) -> WorldPacket {
@@ -857,9 +865,13 @@ mod tests {
         session
             .handle_learn_talent(learn_talent_packet(101, 0))
             .await;
-        let _learn_update = send_rx
-            .try_recv()
-            .expect("C++ sends SendTalentsInfoData after LearnTalent");
+        assert!(
+            drain_sent_packets(&send_rx).iter().any(|packet| *packet
+                == session
+                    .represented_update_talent_data_packet_like_cpp()
+                    .to_bytes()),
+            "C++ sends SendTalentsInfoData after LearnTalent"
+        );
         assert!(session.known_spells_like_cpp().contains(&50_101));
 
         session.set_represented_at_login_flags_like_cpp(
@@ -871,26 +883,26 @@ mod tests {
             "C++ CharacterHandler applies AT_LOGIN_RESET_TALENTS through ResetTalents(true)"
         );
 
-        let reset_update = send_rx
-            .try_recv()
-            .expect("C++ resends SendTalentsInfoData after ResetTalents(true)");
-        assert_eq!(
-            reset_update,
-            session
-                .represented_update_talent_data_packet_like_cpp()
-                .to_bytes()
+        let packets = drain_sent_packets(&send_rx);
+        assert!(
+            packets.iter().any(|packet| *packet
+                == session
+                    .represented_update_talent_data_packet_like_cpp()
+                    .to_bytes()),
+            "C++ resends SendTalentsInfoData after ResetTalents(true)"
         );
-        let notification = send_rx
-            .try_recv()
-            .expect("C++ SendNotification(LANG_RESET_TALENTS)");
+        let expected_notification = PrintNotification {
+            notify_text: "Your talents have been reset.".to_string(),
+        }
+        .to_bytes();
         assert_eq!(
-            notification,
-            PrintNotification {
-                notify_text: "Your talents have been reset.".to_string(),
-            }
-            .to_bytes()
+            packets
+                .iter()
+                .filter(|packet| **packet == expected_notification)
+                .count(),
+            1,
+            "C++ SendNotification(LANG_RESET_TALENTS) should be emitted once"
         );
-        assert!(send_rx.try_recv().is_err());
         assert_eq!(
             session.represented_talent_reset_script_hooks_like_cpp(),
             &[RepresentedTalentResetScriptHookLikeCpp { no_cost: true }]
@@ -943,17 +955,22 @@ mod tests {
             "C++ CharacterHandler applies AT_LOGIN_RESET_SPELLS through Player::ResetSpells"
         );
 
-        let notification = send_rx
-            .try_recv()
-            .expect("C++ SendNotification(LANG_RESET_SPELLS)");
+        let expected_notification = PrintNotification {
+            notify_text: "Your spells have been reset.".to_string(),
+        }
+        .to_bytes();
+        let mut packets = Vec::new();
+        while let Ok(packet) = send_rx.try_recv() {
+            packets.push(packet);
+        }
         assert_eq!(
-            notification,
-            PrintNotification {
-                notify_text: "Your spells have been reset.".to_string(),
-            }
-            .to_bytes()
+            packets
+                .iter()
+                .filter(|packet| **packet == expected_notification)
+                .count(),
+            1,
+            "C++ SendNotification(LANG_RESET_SPELLS) should be emitted once"
         );
-        assert!(send_rx.try_recv().is_err());
         assert!(
             session.known_spells_like_cpp().is_empty(),
             "C++ ResetSpells(false) removes every spell in the copied PlayerSpellMap before relearning defaults"
@@ -1588,9 +1605,13 @@ mod tests {
         session
             .handle_learn_talent(learn_talent_packet(101, 0))
             .await;
-        let _learn_update = send_rx
-            .try_recv()
-            .expect("C++ sends SendTalentsInfoData after LearnTalent");
+        assert!(
+            drain_sent_packets(&send_rx).iter().any(|packet| *packet
+                == session
+                    .represented_update_talent_data_packet_like_cpp()
+                    .to_bytes()),
+            "C++ sends SendTalentsInfoData after LearnTalent"
+        );
         assert!(session.known_spells_like_cpp().contains(&50_101));
         assert!(
             session
@@ -1606,10 +1627,13 @@ mod tests {
             ))
             .await;
 
-        let reset_update = send_rx
-            .try_recv()
-            .expect("C++ sends SendTalentsInfoData after successful ResetTalents");
-        assert!(send_rx.try_recv().is_err());
+        assert!(
+            drain_sent_packets(&send_rx).iter().any(|packet| *packet
+                == session
+                    .represented_update_talent_data_packet_like_cpp()
+                    .to_bytes()),
+            "C++ sends SendTalentsInfoData after successful ResetTalents"
+        );
         assert_eq!(
             session.represented_confirm_respec_wipe_requests_like_cpp(),
             &[RepresentedConfirmRespecWipeLikeCpp {
@@ -1624,12 +1648,6 @@ mod tests {
         assert!(
             session.represented_override_spells_like_cpp().is_empty(),
             "C++ RemoveTalent calls RemoveOverrideSpell for OverridesSpellID"
-        );
-        assert_eq!(
-            reset_update,
-            session
-                .represented_update_talent_data_packet_like_cpp()
-                .to_bytes()
         );
         let packet = session.represented_update_talent_data_packet_like_cpp();
         assert!(

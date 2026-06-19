@@ -761,7 +761,7 @@ inventory::submit! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::Tutorial,
         status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
+        processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_tutorial",
     }
 }
