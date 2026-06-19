@@ -78,8 +78,9 @@ use wow_data::{
     PetLevelupSpellStoreLikeCpp, PhaseGroupStore, PhaseStore, PlayerConditionAuraLikeCpp,
     PlayerConditionContextLikeCpp, PlayerConditionCountLikeCpp, PlayerConditionPartyStatusLikeCpp,
     PlayerConditionQuestKillLikeCpp, PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp,
-    PlayerConditionStore, PlayerCreateInfoCastSpellStoreLikeCpp, PlayerStatsStore,
-    RandPropPointsStore, ScriptIdLikeCpp, ScriptNameInternerLikeCpp, ServersideSpellInfoLikeCpp,
+    PlayerConditionStore, PlayerCreateInfoCastSpellStoreLikeCpp,
+    PlayerCreateInfoCustomSpellStoreLikeCpp, PlayerStatsStore, RandPropPointsStore,
+    ScriptIdLikeCpp, ScriptNameInternerLikeCpp, ServersideSpellInfoLikeCpp,
     ServersideSpellStoreLikeCpp, SkillLineStore, SkillStore, SpellAreaLikeCpp,
     SpellAreaStoreLikeCpp, SpellAuraOptionsStore, SpellCategoryStore, SpellChainStoreLikeCpp,
     SpellCustomAttributeStoreLikeCpp, SpellDurationStore, SpellEnchantProcEntryLikeCpp,
@@ -3337,7 +3338,9 @@ pub struct WorldSession {
     max_instances_per_hour_like_cpp: u32,
     start_all_explored_like_cpp: bool,
     start_all_reputation_like_cpp: bool,
+    start_all_spells_like_cpp: bool,
     player_create_cast_spell_store_like_cpp: Option<Arc<PlayerCreateInfoCastSpellStoreLikeCpp>>,
+    player_create_custom_spell_store_like_cpp: Option<Arc<PlayerCreateInfoCustomSpellStoreLikeCpp>>,
     pub build: u32,
     pub session_key: Vec<u8>,
     pub locale: String,
@@ -5151,7 +5154,9 @@ impl WorldSession {
             max_instances_per_hour_like_cpp: 5,
             start_all_explored_like_cpp: false,
             start_all_reputation_like_cpp: false,
+            start_all_spells_like_cpp: false,
             player_create_cast_spell_store_like_cpp: None,
+            player_create_custom_spell_store_like_cpp: None,
             build,
             session_key,
             locale,
@@ -13944,6 +13949,13 @@ impl WorldSession {
         self.player_create_cast_spell_store_like_cpp = Some(store);
     }
 
+    pub fn set_player_create_custom_spell_store_like_cpp(
+        &mut self,
+        store: Arc<PlayerCreateInfoCustomSpellStoreLikeCpp>,
+    ) {
+        self.player_create_custom_spell_store_like_cpp = Some(store);
+    }
+
     /// Set the item stats store for this session.
     pub fn set_item_stats_store(&mut self, store: Arc<ItemStatsStore>) {
         self.item_stats_store = Some(store);
@@ -14007,12 +14019,20 @@ impl WorldSession {
         self.start_all_reputation_like_cpp = enabled;
     }
 
+    pub fn set_start_all_spells_like_cpp(&mut self, enabled: bool) {
+        self.start_all_spells_like_cpp = enabled;
+    }
+
     pub(crate) fn start_all_explored_like_cpp(&self) -> bool {
         self.start_all_explored_like_cpp
     }
 
     pub(crate) fn start_all_reputation_like_cpp(&self) -> bool {
         self.start_all_reputation_like_cpp
+    }
+
+    pub(crate) fn start_all_spells_like_cpp(&self) -> bool {
+        self.start_all_spells_like_cpp
     }
 
     pub(crate) const fn reset_schedule_like_cpp(&self) -> wow_instances::ResetSchedule {
@@ -18955,6 +18975,47 @@ impl WorldSession {
         }
 
         cast_count
+    }
+
+    /// Represented C++ `Player::LearnCustomSpells` / `CONFIG_START_ALL_SPELLS`.
+    ///
+    /// C++ calls `AddSpell` while the player is not in world, so the full port
+    /// still needs character_spell persistence semantics. This represented slice
+    /// mirrors the login spell snapshot: configured custom spells are included in
+    /// `INITIAL_SPELLS` without duplicating spells already loaded from DB/DBC.
+    pub(crate) fn apply_represented_start_all_spells_like_cpp(
+        &self,
+        known_spells: &mut Vec<i32>,
+    ) -> usize {
+        if !self.start_all_spells_like_cpp() {
+            return 0;
+        }
+
+        let spells = self
+            .player_create_custom_spell_store_like_cpp
+            .as_ref()
+            .map(|store| {
+                store
+                    .custom_spells_like_cpp(
+                        self.player_race_like_cpp(),
+                        self.player_class_like_cpp(),
+                    )
+                    .to_vec()
+            })
+            .unwrap_or_default();
+
+        let mut applied = 0usize;
+        for spell_id in spells {
+            let Ok(spell_id) = i32::try_from(spell_id) else {
+                continue;
+            };
+            if !known_spells.contains(&spell_id) {
+                known_spells.push(spell_id);
+                applied += 1;
+            }
+        }
+
+        applied
     }
 
     pub(crate) fn apply_represented_first_login_reputation_like_cpp(&mut self) -> usize {
@@ -76066,6 +76127,26 @@ mod tests {
         ])
     }
 
+    fn player_create_custom_spell_store_like_cpp() -> PlayerCreateInfoCustomSpellStoreLikeCpp {
+        PlayerCreateInfoCustomSpellStoreLikeCpp::from_rows_like_cpp([
+            wow_data::PlayerCreateInfoCustomSpellRowLikeCpp {
+                race_mask: 1,
+                class_mask: 1,
+                spell_id: 80_001,
+            },
+            wow_data::PlayerCreateInfoCustomSpellRowLikeCpp {
+                race_mask: 1,
+                class_mask: 1,
+                spell_id: 80_002,
+            },
+            wow_data::PlayerCreateInfoCustomSpellRowLikeCpp {
+                race_mask: 2,
+                class_mask: 1,
+                spell_id: 80_003,
+            },
+        ])
+    }
+
     fn first_login_noop_spell_store_like_cpp(
         spell_ids: impl IntoIterator<Item = i32>,
     ) -> SpellStore {
@@ -76157,6 +76238,48 @@ mod tests {
             entries.push(entry);
         }
         FactionStore::from_entries(entries)
+    }
+
+    #[test]
+    fn start_all_spells_applies_custom_player_create_spells_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        session.set_loaded_player_identity_like_cpp(0, 1, 1, 1, 0);
+        session.set_player_create_custom_spell_store_like_cpp(Arc::new(
+            player_create_custom_spell_store_like_cpp(),
+        ));
+        let mut known_spells = vec![80_001];
+
+        assert_eq!(
+            session.apply_represented_start_all_spells_like_cpp(&mut known_spells),
+            0,
+            "C++ Player::LearnCustomSpells is gated by CONFIG_START_ALL_SPELLS"
+        );
+        assert_eq!(known_spells, vec![80_001]);
+
+        session.set_start_all_spells_like_cpp(true);
+        assert_eq!(
+            session.apply_represented_start_all_spells_like_cpp(&mut known_spells),
+            1,
+            "C++ AddSpell semantics do not duplicate an already known spell"
+        );
+        assert_eq!(known_spells, vec![80_001, 80_002]);
+    }
+
+    #[test]
+    fn start_all_spells_uses_loaded_race_class_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        session.set_loaded_player_identity_like_cpp(0, 2, 1, 1, 0);
+        session.set_player_create_custom_spell_store_like_cpp(Arc::new(
+            player_create_custom_spell_store_like_cpp(),
+        ));
+        session.set_start_all_spells_like_cpp(true);
+        let mut known_spells = Vec::new();
+
+        assert_eq!(
+            session.apply_represented_start_all_spells_like_cpp(&mut known_spells),
+            1
+        );
+        assert_eq!(known_spells, vec![80_003]);
     }
 
     #[test]
@@ -76331,12 +76454,15 @@ mod tests {
 
         assert!(!session.start_all_explored_like_cpp());
         assert!(!session.start_all_reputation_like_cpp());
+        assert!(!session.start_all_spells_like_cpp());
 
         session.set_start_all_explored_like_cpp(true);
         session.set_start_all_reputation_like_cpp(true);
+        session.set_start_all_spells_like_cpp(true);
 
         assert!(session.start_all_explored_like_cpp());
         assert!(session.start_all_reputation_like_cpp());
+        assert!(session.start_all_spells_like_cpp());
     }
 
     #[test]

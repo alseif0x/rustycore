@@ -1,3 +1,29 @@
+- `#NEXT.R8.ENTITIES.1111` — represented `PlayerStart.AllSpells` /
+  `playercreateinfo_spell_custom` login snapshot application is now wired (not
+  manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:4004-4056`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:23784-23805`,
+  `/home/server/woltk-trinity-legacy/src/server/game/World/World.cpp:1564-1566`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/worldserver/worldserver.conf.dist:3344-3352`.
+  C++ loads `playercreateinfo_spell_custom`, validates playable race/class
+  masks, attaches spells to `PlayerInfo::customSpells`, and
+  `Player::LearnCustomSpells` applies them only when
+  `CONFIG_START_ALL_SPELLS` / `PlayerStart.AllSpells` is enabled. Rust now
+  loads that table into `PlayerCreateInfoCustomSpellStoreLikeCpp`, wires the
+  config through `SessionResources`, and appends matching custom spells to the
+  represented login known-spell snapshot after DBC default/racial spells.
+  Coverage planned for this slice: `cargo fmt --all`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-data
+  player_create_custom_spell --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  start_all_spells --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
+  cargo check -p world-server`; `cargo fmt --all --check`; and
+  `git diff --check`. Boundary remains partial: C++ `AddSpell` persistence into
+  `character_spell`, full `ObjectMgr::_playerInfo` ownership, SpellMgr validity,
+  live-client/bot/manual validation, and full `Player::Create` / `ResetSpells`
+  parity remain open.
+
 - `#NEXT.R8.ENTITIES.1110` — represented first-login
   `PlayerInfo::castSpells[Player::GetCreateMode()]` is now wired before
   first-login map exploration/reputation branches (not manual-test-ready).

@@ -199,6 +199,8 @@ pub struct SessionResources {
     pub item_limit_category_condition_store: Option<Arc<wow_data::ItemLimitCategoryConditionStore>>,
     pub player_create_cast_spell_store:
         Option<Arc<wow_data::PlayerCreateInfoCastSpellStoreLikeCpp>>,
+    pub player_create_custom_spell_store:
+        Option<Arc<wow_data::PlayerCreateInfoCustomSpellStoreLikeCpp>>,
     pub player_stats: Option<Arc<wow_data::PlayerStatsStore>>,
     pub item_stats_store: Option<Arc<wow_data::ItemStatsStore>>,
     pub durability_costs_store: Option<Arc<wow_data::DurabilityCostsStore>>,
@@ -339,6 +341,8 @@ pub struct SessionResources {
     pub start_all_explored: bool,
     /// C++ `CONFIG_START_ALL_REP` / `PlayerStart.AllReputation`.
     pub start_all_reputation: bool,
+    /// C++ `CONFIG_START_ALL_SPELLS` / `PlayerStart.AllSpells`.
+    pub start_all_spells: bool,
     /// C++ `CONFIG_SUPPORT_ENABLED` / `Support.Enabled`.
     pub support_enabled: bool,
     /// C++ `CONFIG_SUPPORT_BUGS_ENABLED` / `Support.BugsEnabled`.

@@ -4401,6 +4401,15 @@ impl WorldSession {
             }
             info!("Loaded {} skill slots for {:?}", skill_entries.len(), guid);
         }
+        let custom_spell_count =
+            self.apply_represented_start_all_spells_like_cpp(&mut known_spells);
+        if custom_spell_count > 0 {
+            info!(
+                player_guid = guid.counter(),
+                custom_spell_count,
+                "Applied represented C++ Player::LearnCustomSpells / CONFIG_START_ALL_SPELLS"
+            );
+        }
 
         // Store final known_spells in session for later use (ShowTradeSkill, etc.)
         self.set_known_spells_like_cpp(known_spells.clone());

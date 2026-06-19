@@ -44,6 +44,26 @@ pub struct PlayerCreateInfoCastSpellStoreLikeCpp {
     load_report: PlayerCreateInfoCastSpellLoadReportLikeCpp,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerCreateInfoCustomSpellRowLikeCpp {
+    pub race_mask: u64,
+    pub class_mask: u32,
+    pub spell_id: u32,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PlayerCreateInfoCustomSpellLoadReportLikeCpp {
+    pub loaded_assignments: usize,
+    pub skipped_invalid_race_mask: usize,
+    pub skipped_invalid_class_mask: usize,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct PlayerCreateInfoCustomSpellStoreLikeCpp {
+    spells_by_key: HashMap<(u8, u8), Vec<u32>>,
+    load_report: PlayerCreateInfoCustomSpellLoadReportLikeCpp,
+}
+
 impl PlayerCreateInfoCastSpellStoreLikeCpp {
     pub fn from_rows_like_cpp(
         rows: impl IntoIterator<Item = PlayerCreateInfoCastSpellRowLikeCpp>,
@@ -129,6 +149,85 @@ impl PlayerCreateInfoCastSpellStoreLikeCpp {
     }
 
     pub fn load_report_like_cpp(&self) -> &PlayerCreateInfoCastSpellLoadReportLikeCpp {
+        &self.load_report
+    }
+}
+
+impl PlayerCreateInfoCustomSpellStoreLikeCpp {
+    pub fn from_rows_like_cpp(
+        rows: impl IntoIterator<Item = PlayerCreateInfoCustomSpellRowLikeCpp>,
+    ) -> Self {
+        let mut spells_by_key = HashMap::<(u8, u8), Vec<u32>>::new();
+        let mut load_report = PlayerCreateInfoCustomSpellLoadReportLikeCpp::default();
+
+        for row in rows {
+            if row.race_mask != 0 && row.race_mask & RACEMASK_ALL_PLAYABLE_LIKE_CPP == 0 {
+                load_report.skipped_invalid_race_mask += 1;
+                continue;
+            }
+
+            if row.class_mask != 0 && row.class_mask & CLASSMASK_ALL_PLAYABLE_LIKE_CPP == 0 {
+                load_report.skipped_invalid_class_mask += 1;
+                continue;
+            }
+
+            for race in RACE_HUMAN_LIKE_CPP..MAX_RACES_LIKE_CPP {
+                if row.race_mask != 0 && row.race_mask & race_mask_bit_like_cpp(race) == 0 {
+                    continue;
+                }
+
+                for class in CLASS_WARRIOR_LIKE_CPP..MAX_CLASSES_LIKE_CPP {
+                    if row.class_mask != 0 && row.class_mask & class_mask_bit_like_cpp(class) == 0 {
+                        continue;
+                    }
+
+                    spells_by_key
+                        .entry((race, class))
+                        .or_default()
+                        .push(row.spell_id);
+                    load_report.loaded_assignments += 1;
+                }
+            }
+        }
+
+        Self {
+            spells_by_key,
+            load_report,
+        }
+    }
+
+    pub async fn load_like_cpp(world_db: &WorldDatabase) -> Result<Self> {
+        let stmt = world_db.prepare(WorldStatements::SEL_PLAYER_CREATEINFO_CUSTOM_SPELL);
+        let mut result = world_db
+            .query(&stmt)
+            .await
+            .context("Failed to query playercreateinfo_spell_custom")?;
+        let mut rows = Vec::new();
+
+        if !result.is_empty() {
+            loop {
+                rows.push(PlayerCreateInfoCustomSpellRowLikeCpp {
+                    race_mask: result.try_read::<u64>(0).unwrap_or(0),
+                    class_mask: result.try_read::<u32>(1).unwrap_or(0),
+                    spell_id: result.try_read::<u32>(2).unwrap_or(0),
+                });
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        Ok(Self::from_rows_like_cpp(rows))
+    }
+
+    pub fn custom_spells_like_cpp(&self, race: u8, class: u8) -> &[u32] {
+        self.spells_by_key
+            .get(&(race, class))
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+
+    pub fn load_report_like_cpp(&self) -> &PlayerCreateInfoCustomSpellLoadReportLikeCpp {
         &self.load_report
     }
 }
@@ -222,5 +321,52 @@ mod tests {
             }
         );
         assert!(store.cast_spells_like_cpp(1, 1, 0).is_empty());
+    }
+
+    #[test]
+    fn player_create_custom_spell_expands_masks_like_cpp() {
+        let store = PlayerCreateInfoCustomSpellStoreLikeCpp::from_rows_like_cpp([
+            PlayerCreateInfoCustomSpellRowLikeCpp {
+                race_mask: race_mask_bit_like_cpp(1) | race_mask_bit_like_cpp(2),
+                class_mask: class_mask_bit_like_cpp(1),
+                spell_id: 100,
+            },
+            PlayerCreateInfoCustomSpellRowLikeCpp {
+                race_mask: 0,
+                class_mask: 0,
+                spell_id: 200,
+            },
+        ]);
+
+        assert_eq!(store.custom_spells_like_cpp(1, 1), &[100, 200]);
+        assert_eq!(store.custom_spells_like_cpp(2, 1), &[100, 200]);
+        assert_eq!(store.custom_spells_like_cpp(3, 1), &[200]);
+        assert_eq!(store.custom_spells_like_cpp(77, 13), &[200]);
+    }
+
+    #[test]
+    fn player_create_custom_spell_rejects_invalid_rows_like_cpp() {
+        let store = PlayerCreateInfoCustomSpellStoreLikeCpp::from_rows_like_cpp([
+            PlayerCreateInfoCustomSpellRowLikeCpp {
+                race_mask: 1_u64 << 62,
+                class_mask: 0,
+                spell_id: 100,
+            },
+            PlayerCreateInfoCustomSpellRowLikeCpp {
+                race_mask: 0,
+                class_mask: 1_u32 << 31,
+                spell_id: 101,
+            },
+        ]);
+
+        assert_eq!(
+            *store.load_report_like_cpp(),
+            PlayerCreateInfoCustomSpellLoadReportLikeCpp {
+                skipped_invalid_race_mask: 1,
+                skipped_invalid_class_mask: 1,
+                ..PlayerCreateInfoCustomSpellLoadReportLikeCpp::default()
+            }
+        );
+        assert!(store.custom_spells_like_cpp(1, 1).is_empty());
     }
 }

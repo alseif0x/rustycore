@@ -190,6 +190,8 @@ pub enum WorldStatements {
     SEL_PLAYER_CREATEINFO_ACTION,
     /// C++ `ObjectMgr::LoadPlayerInfo` playercreateinfo_cast_spell startup query.
     SEL_PLAYER_CREATEINFO_CAST_SPELL,
+    /// C++ `ObjectMgr::LoadPlayerInfo` playercreateinfo_spell_custom startup query.
+    SEL_PLAYER_CREATEINFO_CUSTOM_SPELL,
     /// Gossip MenuID for a creature entry (creature_template_gossip).
     SEL_CREATURE_GOSSIP_MENU,
     /// Gossip menu text ID (gossip_menu).
@@ -809,6 +811,9 @@ impl StatementDef for WorldStatements {
             }
             Self::SEL_PLAYER_CREATEINFO_CAST_SPELL => {
                 "SELECT raceMask, classMask, spell, createMode FROM playercreateinfo_cast_spell"
+            }
+            Self::SEL_PLAYER_CREATEINFO_CUSTOM_SPELL => {
+                "SELECT racemask, classmask, Spell FROM playercreateinfo_spell_custom"
             }
             Self::SEL_GAMEOBJECT_TEMPLATE_BY_ENTRY => concat!(
                 "SELECT entry, type, displayId, name, IconName, castBarCaption, unk1, ",

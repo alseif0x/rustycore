@@ -354,6 +354,8 @@ pub use player_create::{
     PLAYER_CREATE_MODE_MAX_LIKE_CPP, PLAYER_CREATE_MODE_NORMAL_LIKE_CPP,
     PLAYER_CREATE_MODE_NPE_LIKE_CPP, PlayerCreateInfoCastSpellLoadReportLikeCpp,
     PlayerCreateInfoCastSpellRowLikeCpp, PlayerCreateInfoCastSpellStoreLikeCpp,
+    PlayerCreateInfoCustomSpellLoadReportLikeCpp, PlayerCreateInfoCustomSpellRowLikeCpp,
+    PlayerCreateInfoCustomSpellStoreLikeCpp,
 };
 pub use player_power::{
     ClassPowerIndexRecord, Db2PlayerPowerIndexResolver, PlayerClassPowerIndexStore,
