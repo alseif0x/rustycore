@@ -18744,6 +18744,7 @@ impl WorldSession {
         for spell_id in spells {
             self.remove_known_spell_like_cpp(spell_id);
         }
+        self.apply_represented_quest_rewarded_spells_like_cpp();
         self.send_notification_like_cpp(self.reset_spells_notification_text_like_cpp());
         true
     }
@@ -19051,6 +19052,91 @@ impl WorldSession {
         }
 
         applied
+    }
+
+    /// Represented C++ `Player::LearnQuestRewardedSpells`.
+    ///
+    /// C++ casts each rewarded quest's `RewardSpell` only when that spell exists,
+    /// has a missing `SPELL_EFFECT_LEARN_SPELL` trigger, and the first learned
+    /// spell is tied to `SKILL_LINE_ABILITY_REWARDED_FROM_QUEST` when it is not
+    /// already known. This represented slice applies only the resulting direct
+    /// learned-spell side effect; full `CastSpell` runtime semantics remain in
+    /// the spell-system roadmap.
+    pub(crate) fn apply_represented_quest_rewarded_spells_like_cpp(&mut self) -> usize {
+        let Some(quest_store) = self.quest_store.clone() else {
+            return 0;
+        };
+
+        let mut quest_ids = self.rewarded_quests.iter().copied().collect::<Vec<_>>();
+        quest_ids.sort_unstable();
+
+        let mut learned = 0usize;
+        for quest_id in quest_ids {
+            let Some(quest) = quest_store.get(quest_id) else {
+                continue;
+            };
+            for spell_id in self.represented_quest_rewarded_spell_triggers_like_cpp(quest) {
+                self.learn_known_spell_like_cpp(spell_id);
+                learned += 1;
+            }
+        }
+
+        learned
+    }
+
+    fn represented_quest_rewarded_spell_triggers_like_cpp(
+        &self,
+        quest: &wow_data::quest::QuestTemplate,
+    ) -> Vec<i32> {
+        if quest.reward_spell == 0 {
+            return Vec::new();
+        }
+
+        let Ok(reward_spell_id) = i32::try_from(quest.reward_spell) else {
+            return Vec::new();
+        };
+
+        let Some(spell_info) = self
+            .spell_store()
+            .and_then(|store| store.get(reward_spell_id))
+        else {
+            return Vec::new();
+        };
+
+        let missing_learn_triggers = spell_info
+            .effects()
+            .iter()
+            .filter(|effect| {
+                effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_SPELL
+                    && effect.effect_trigger_spell > 0
+                    && !self
+                        .known_spells_like_cpp()
+                        .contains(&effect.effect_trigger_spell)
+            })
+            .map(|effect| effect.effect_trigger_spell)
+            .collect::<Vec<_>>();
+
+        if missing_learn_triggers.is_empty() || spell_info.effects().is_empty() {
+            return Vec::new();
+        }
+
+        let learned_0 = spell_info.effects()[0].effect_trigger_spell;
+        if learned_0 > 0
+            && !self.known_spells_like_cpp().contains(&learned_0)
+            && !self.skill_store().is_some_and(|store| {
+                store
+                    .get_skill_line_ability_map_bounds_like_cpp(learned_0)
+                    .iter()
+                    .any(|ability| {
+                        ability.acquire_method
+                            == wow_data::skill::SKILL_LINE_ABILITY_REWARDED_FROM_QUEST_LIKE_CPP
+                    })
+            })
+        {
+            return Vec::new();
+        }
+
+        missing_learn_triggers
     }
 
     pub(crate) fn apply_represented_first_login_reputation_like_cpp(&mut self) -> usize {

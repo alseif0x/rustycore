@@ -1,3 +1,32 @@
+- `#NEXT.R8.ENTITIES.1115` — represented `Player::ResetSpells` now re-applies
+  bounded quest-rewarded learned spells after removing the copied
+  `PlayerSpellMap`, matching the C++ `LearnQuestRewardedSpells()` call order
+  (not manual-test-ready, not full `CastSpell` runtime). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:23733-23781`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:23863-23932`.
+  C++ skips quests without `RewardSpell`, skips missing spell info, requires a
+  missing `SPELL_EFFECT_LEARN_SPELL` trigger, and, when effect 0's trigger is
+  missing, requires a `SkillLineAbility` row with
+  `SKILL_LINE_ABILITY_REWARDED_FROM_QUEST` before casting the reward spell.
+  Rust now applies the represented direct learn-spell side effect during login
+  spell reset for rewarded quests already in `rewarded_quests`, clears removed
+  spell evidence when the rewarded spell is relearned, and rejects the
+  non-rewarded-skill ability case. Coverage planned for this slice:
+  `cargo fmt --all`; focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
+  cargo test -p wow-world login_spell_reset --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  login_at_login_reset_spells_removes_known_spells_and_notifies_like_cpp
+  --lib`; focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p
+  wow-world character_spell_save_plan --lib`;
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`;
+  `cargo fmt --all --check`; and `git diff --check`. Boundary remains partial:
+  exact `CastSpell` aura/removal behavior including `RewardSpell=-1`,
+  multi-effect runtime ordering beyond direct `LEARN_SPELL`, full
+  `PlayerSpellMap` state ownership, logout DB persistence, default/custom skill
+  relearn parity, SpellMgr validity cleanup, live-client/bot/manual validation,
+  and full `Player::Create` / `ResetSpells` parity remain open.
+
 - `#NEXT.R8.ENTITIES.1114` — represented `AT_LOGIN_RESET_SPELLS` now keeps
   C++ `PLAYERSPELL_REMOVED` evidence for normal loaded spells so the
   represented `_SaveSpells` plan can delete their `character_spell` rows (not

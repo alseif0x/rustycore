@@ -299,6 +299,99 @@ mod tests {
         spell
     }
 
+    fn test_quest_template_like_cpp(id: u32) -> wow_data::quest::QuestTemplate {
+        wow_data::quest::QuestTemplate {
+            id,
+            quest_type: 0,
+            quest_level: 1,
+            quest_max_scaling_level: 0,
+            quest_package_id: 0,
+            min_level: 1,
+            quest_sort_id: 0,
+            quest_info_id: 0,
+            suggested_group_num: 0,
+            reward_next_quest: 0,
+            reward_xp_difficulty: 0,
+            reward_xp_multiplier: 1.0,
+            reward_money_difficulty: 0,
+            reward_money_multiplier: 1.0,
+            reward_bonus_money: 0,
+            reward_display_spell: [0; wow_data::quest::QUEST_REWARD_DISPLAY_SPELL_COUNT],
+            reward_spell: 0,
+            reward_honor: 0,
+            reward_title_id: 0,
+            reward_skill_line_id: 0,
+            reward_skill_points: 0,
+            reward_mail_template_id: 0,
+            reward_mail_delay_secs: 0,
+            reward_mail_sender_entry: 0,
+            reward_faction_ids: [0; wow_data::quest::QUEST_REWARD_REPUTATIONS_COUNT],
+            reward_faction_values: [0; wow_data::quest::QUEST_REWARD_REPUTATIONS_COUNT],
+            reward_faction_overrides: [0; wow_data::quest::QUEST_REWARD_REPUTATIONS_COUNT],
+            reward_faction_cap_in: [0; wow_data::quest::QUEST_REWARD_REPUTATIONS_COUNT],
+            reward_faction_flags: 0,
+            source_item_id: 0,
+            source_item_count: 0,
+            source_spell_id: 0,
+            limit_time_secs: 0,
+            expansion: 0,
+            flags: 0,
+            flags_ex: 0,
+            flags_ex2: 0,
+            special_flags: 0,
+            event_id_for_quest: 0,
+            reward_items: [0; wow_data::quest::QUEST_REWARD_ITEM_COUNT],
+            reward_amounts: [0; wow_data::quest::QUEST_REWARD_ITEM_COUNT],
+            reward_currencies: [0; wow_data::quest::QUEST_REWARD_CURRENCY_COUNT],
+            reward_currency_amounts: [0; wow_data::quest::QUEST_REWARD_CURRENCY_COUNT],
+            item_drop: [0; wow_data::quest::QUEST_ITEM_DROP_COUNT],
+            item_drop_quantity: [0; wow_data::quest::QUEST_ITEM_DROP_COUNT],
+            log_title: String::new(),
+            log_description: String::new(),
+            quest_description: String::new(),
+            area_description: String::new(),
+            quest_completion_log: String::new(),
+            objectives: Vec::new(),
+            allowable_races: 0,
+            allowable_classes: 0,
+            max_level: 0,
+            prev_quest_id: 0,
+            next_quest_id: 0,
+            exclusive_group: 0,
+            breadcrumb_for_quest_id: 0,
+            dependent_previous_quests: Vec::new(),
+            dependent_breadcrumb_quests: Vec::new(),
+            required_min_rep_faction: 0,
+            required_min_rep_value: 0,
+            required_max_rep_faction: 0,
+            required_max_rep_value: 0,
+            required_skill_id: 0,
+            required_skill_points: 0,
+            reward_choice_items: [(0, 0); wow_data::quest::QUEST_REWARD_CHOICES_COUNT],
+            reward_choice_item_types: [0; wow_data::quest::QUEST_REWARD_CHOICES_COUNT],
+        }
+    }
+
+    fn test_rewarded_skill_ability_like_cpp(
+        spell_id: i32,
+        acquire_method: i8,
+    ) -> wow_data::skill::SkillLineAbilityRecord {
+        wow_data::skill::SkillLineAbilityRecord {
+            id: 1,
+            race_mask: 0,
+            skill_line: 777,
+            spell: spell_id,
+            min_skill_line_rank: 0,
+            class_mask: 0,
+            supercedes_spell: 0,
+            acquire_method,
+            trivial_rank_high: 0,
+            trivial_rank_low: 0,
+            flags: 0,
+            num_skill_ups: 0,
+        }
+    }
+
     fn install_test_talent_store(session: &mut WorldSession, talents: &[(u32, u8, i32)]) {
         install_test_talent_store_with_tab_class_mask(session, talents, 1);
     }
@@ -873,6 +966,100 @@ mod tests {
                 persist: true,
                 db_statement_unrepresented: true,
             }]
+        );
+    }
+
+    #[tokio::test]
+    async fn login_spell_reset_relearns_quest_rewarded_spells_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(2);
+        let quest_id = 7001;
+        let reward_spell_id = 9001;
+        let learned_spell_id = 9101;
+
+        let mut reward_spell = test_learn_spell_info_like_cpp(reward_spell_id, learned_spell_id);
+        reward_spell.effects[0].effect_index = 0;
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(reward_spell_id, reward_spell);
+        session.set_spell_store(Arc::new(spell_store));
+        session.set_skill_store(Arc::new(
+            wow_data::SkillStore::from_skill_line_abilities_like_cpp([
+                test_rewarded_skill_ability_like_cpp(
+                    learned_spell_id,
+                    wow_data::skill::SKILL_LINE_ABILITY_REWARDED_FROM_QUEST_LIKE_CPP,
+                ),
+            ]),
+        ));
+
+        let mut quest = test_quest_template_like_cpp(quest_id);
+        quest.reward_spell = reward_spell_id as u32;
+        session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
+            [quest],
+        )));
+        session.rewarded_quests.insert(quest_id);
+        session.set_known_spells_like_cpp(vec![118, learned_spell_id]);
+        session.set_represented_at_login_flags_like_cpp(AT_LOGIN_RESET_SPELLS_LIKE_CPP);
+
+        assert!(
+            session.apply_represented_login_spell_reset_if_needed_like_cpp(),
+            "C++ ResetSpells calls LearnQuestRewardedSpells after removing the copied PlayerSpellMap"
+        );
+        let _notification = send_rx
+            .try_recv()
+            .expect("C++ still notifies after ResetSpells");
+
+        assert_eq!(
+            session.known_spells_like_cpp(),
+            &[learned_spell_id],
+            "C++ LearnQuestRewardedSpells casts the reward spell when it teaches a missing quest-rewarded ability"
+        );
+        let spell_save_statements = WorldSession::character_spell_save_statements_like_cpp(
+            42,
+            session.represented_player_spell_rows_like_cpp(),
+        );
+        assert_eq!(spell_save_statements.len(), 1);
+        assert_eq!(
+            spell_save_statements[0].params()[0],
+            wow_database::SqlParam::I32(118),
+            "the represented removed evidence is cleared for the quest-rewarded spell relearned by ResetSpells"
+        );
+    }
+
+    #[tokio::test]
+    async fn login_spell_reset_skips_quest_reward_spell_without_rewarded_skill_ability_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(2);
+        let quest_id = 7002;
+        let reward_spell_id = 9002;
+        let learned_spell_id = 9102;
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            reward_spell_id,
+            test_learn_spell_info_like_cpp(reward_spell_id, learned_spell_id),
+        );
+        session.set_spell_store(Arc::new(spell_store));
+        session.set_skill_store(Arc::new(
+            wow_data::SkillStore::from_skill_line_abilities_like_cpp([
+                test_rewarded_skill_ability_like_cpp(learned_spell_id, 1),
+            ]),
+        ));
+
+        let mut quest = test_quest_template_like_cpp(quest_id);
+        quest.reward_spell = reward_spell_id as u32;
+        session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
+            [quest],
+        )));
+        session.rewarded_quests.insert(quest_id);
+        session.set_known_spells_like_cpp(vec![learned_spell_id]);
+        session.set_represented_at_login_flags_like_cpp(AT_LOGIN_RESET_SPELLS_LIKE_CPP);
+
+        assert!(session.apply_represented_login_spell_reset_if_needed_like_cpp());
+        let _notification = send_rx
+            .try_recv()
+            .expect("C++ still notifies after ResetSpells");
+
+        assert!(
+            session.known_spells_like_cpp().is_empty(),
+            "C++ LearnQuestRewardedSpells requires SKILL_LINE_ABILITY_REWARDED_FROM_QUEST for missing first learned spell"
         );
     }
 

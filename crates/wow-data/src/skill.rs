@@ -38,6 +38,9 @@ pub struct SkillLineAbilityRecord {
     pub num_skill_ups: i8,
 }
 
+/// C++ `SKILL_LINE_ABILITY_REWARDED_FROM_QUEST`.
+pub const SKILL_LINE_ABILITY_REWARDED_FROM_QUEST_LIKE_CPP: i8 = 4;
+
 /// A single record from SkillRaceClassInfo.db2.
 #[derive(Debug, Clone)]
 pub struct SkillRaceClassInfoRecord {
