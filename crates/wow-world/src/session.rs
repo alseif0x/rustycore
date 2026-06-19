@@ -3818,6 +3818,8 @@ pub struct WorldSession {
     player_max_health_like_cpp: u32,
     /// Represented `Unit::m_movementInfo.time` for client movement ACK side effects.
     player_movement_time_like_cpp: u32,
+    /// Represented `Unit::m_movementInfo.jump`, reset by `Player::TeleportTo`.
+    player_movement_jump_like_cpp: wow_packet::packets::movement::JumpInfo,
     /// C++ `Player::m_lastFallTime`.
     last_fall_time_like_cpp: u32,
     /// C++ `Player::m_lastFallZ`.
@@ -5386,6 +5388,7 @@ impl WorldSession {
             player_health_like_cpp: 100,
             player_max_health_like_cpp: 100,
             player_movement_time_like_cpp: 0,
+            player_movement_jump_like_cpp: wow_packet::packets::movement::JumpInfo::default(),
             last_fall_time_like_cpp: 0,
             last_fall_z_like_cpp: 0.0,
             fall_damage_events_like_cpp: Vec::new(),
@@ -26067,8 +26070,9 @@ impl WorldSession {
 
     fn reset_teleport_movement_state_like_cpp(&mut self) {
         self.player_movement_flags_like_cpp &= MovementFlag::MASK_HAS_PLAYER_STATUS_OPCODE;
-        // C++ also resets MovementInfo::jump, disables the player spline, and removes
-        // EFFECT_MOTION_TYPE here. Rust does not keep those player-side runtime states yet.
+        self.player_movement_jump_like_cpp = wow_packet::packets::movement::JumpInfo::default();
+        // C++ also disables the player spline and removes EFFECT_MOTION_TYPE here.
+        // Rust does not keep those player-side runtime states yet.
     }
 
     fn teleport_options_after_seamless_gate_like_cpp(
@@ -27388,6 +27392,13 @@ impl WorldSession {
 
     pub(crate) fn set_player_movement_flags_like_cpp(&mut self, flags: MovementFlag) {
         self.player_movement_flags_like_cpp = flags;
+    }
+
+    pub(crate) fn set_player_movement_jump_like_cpp(
+        &mut self,
+        jump: wow_packet::packets::movement::JumpInfo,
+    ) {
+        self.player_movement_jump_like_cpp = jump;
     }
 
     pub(crate) fn set_represented_mover_fixed_position_vehicle_like_cpp(&mut self, fixed: bool) {
@@ -37472,6 +37483,11 @@ impl WorldSession {
 
     pub(crate) fn player_movement_time_like_cpp(&self) -> u32 {
         self.player_movement_time_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn player_movement_jump_like_cpp(&self) -> &wow_packet::packets::movement::JumpInfo {
+        &self.player_movement_jump_like_cpp
     }
 
     pub(crate) fn latest_movement_ack_adjusted_time_like_cpp(&self) -> Option<u32> {
@@ -78033,6 +78049,14 @@ mod tests {
                 | MovementFlag::FALLING
                 | MovementFlag::FLYING,
         );
+        session.set_player_movement_jump_like_cpp(wow_packet::packets::movement::JumpInfo {
+            fall_time: 1_500,
+            z_speed: 4.25,
+            has_direction: true,
+            sin_angle: 0.25,
+            cos_angle: 0.75,
+            xy_speed: 6.5,
+        });
 
         session.teleport_to(571, destination).await;
 
@@ -78050,6 +78074,11 @@ mod tests {
             session.player_movement_flags_like_cpp(),
             MovementFlag::DISABLE_GRAVITY | MovementFlag::HOVER,
             "C++ resets movement flags before the far-branch DK escape abort"
+        );
+        assert_eq!(
+            session.player_movement_jump_like_cpp().fall_time,
+            0,
+            "C++ Player::TeleportTo calls MovementInfo::ResetJump before the DK escape abort"
         );
         assert!(
             send_rx.try_recv().is_err(),
@@ -78198,6 +78227,14 @@ mod tests {
                 | MovementFlag::FALLING
                 | MovementFlag::SPLINE_ELEVATION,
         );
+        session.set_player_movement_jump_like_cpp(wow_packet::packets::movement::JumpInfo {
+            fall_time: 2_250,
+            z_speed: 8.0,
+            has_direction: true,
+            sin_angle: 0.4,
+            cos_angle: 0.6,
+            xy_speed: 7.0,
+        });
 
         session.teleport_to(571, destination).await;
 
@@ -78209,6 +78246,11 @@ mod tests {
             session.player_movement_flags_like_cpp(),
             MovementFlag::ROOT | MovementFlag::CAN_FLY,
             "C++ Player::TeleportTo keeps only MOVEMENTFLAG_MASK_HAS_PLAYER_STATUS_OPCODE before the same-map branch"
+        );
+        assert_eq!(
+            session.player_movement_jump_like_cpp().fall_time,
+            0,
+            "C++ Player::TeleportTo resets MovementInfo::jump before the same-map branch"
         );
         assert!(session.near_teleport_pending_like_cpp());
     }

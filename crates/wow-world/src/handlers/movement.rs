@@ -205,6 +205,7 @@ impl WorldSession {
         info.time = self.adjust_client_movement_time_like_cpp(info.time);
         self.set_player_movement_time_like_cpp(info.time);
         self.set_player_movement_flags_like_cpp(info.flags);
+        self.set_player_movement_jump_like_cpp(info.jump.clone());
 
         // Update server-side player position.
         self.set_player_position_like_cpp(info.position);
@@ -696,6 +697,39 @@ mod tests {
             UnitStandStateType::Stand
         );
         assert_eq!(session.temporary_pet_unsummon_requests_like_cpp(), 1);
+    }
+
+    #[tokio::test]
+    async fn accepted_movement_updates_represented_jump_info_like_cpp() {
+        let mut session = make_session();
+        let guid = ObjectGuid::create_player(1, 44);
+        session.set_player_guid(Some(guid));
+        session.set_player_position_like_cpp(wow_core::Position::new(1.0, 2.0, 3.0, 0.0));
+
+        let mut info = MovementInfo {
+            guid,
+            time: 2_000,
+            position: wow_core::Position::new(10.0, 20.0, 30.0, 1.0),
+            ..MovementInfo::default()
+        };
+        info.jump.fall_time = 1_234;
+        info.jump.z_speed = 6.25;
+        info.jump.has_direction = true;
+        info.jump.sin_angle = 0.1;
+        info.jump.cos_angle = 0.9;
+        info.jump.xy_speed = 7.5;
+
+        session
+            .handle_movement_info_like_cpp(Some(ClientOpcodes::MoveJump), info)
+            .await;
+
+        let jump = session.player_movement_jump_like_cpp();
+        assert_eq!(jump.fall_time, 1_234);
+        assert_eq!(jump.z_speed, 6.25);
+        assert!(jump.has_direction);
+        assert_eq!(jump.sin_angle, 0.1);
+        assert_eq!(jump.cos_angle, 0.9);
+        assert_eq!(jump.xy_speed, 7.5);
     }
 
     #[test]

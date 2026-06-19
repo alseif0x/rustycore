@@ -1,3 +1,22 @@
+- `#NEXT.R8.ENTITIES.1101` — represented `Player::TeleportTo` now mirrors the
+  C++ `MovementInfo::ResetJump()` side effect in the common teleport pre-branch
+  (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:1286-1289`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:622-626`.
+  Rust now stores accepted `MovementInfo::jump` as represented
+  `Unit::m_movementInfo.jump` when movement packets are accepted, then resets
+  that jump state alongside the existing C++ movement-flag mask before same-map
+  near teleport, far teleport, delayed-branch setup, or the early DK escape
+  abort. Coverage: `cargo fmt --all --check`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  accepted_movement_updates_represented_jump_info_like_cpp --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  teleport_to_ --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo
+  check -p world-server`; `git diff --check`. Boundary remains partial: C++
+  `DisableSpline()` and `MotionMaster::Remove(EFFECT_MOTION_TYPE)` still require
+  player-side MoveSpline/MotionMaster runtime ownership; live-client/bot
+  validation, install/restart validation, and manual validation remain open.
 - `#NEXT.R8.ENTITIES.1099` — represented `Player::UpdateArea` /
   `Player::UpdateZone` criteria side effects are now ported for the represented
   zone/area state (not manual-test-ready). Source of truth:
