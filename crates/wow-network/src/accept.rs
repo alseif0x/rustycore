@@ -309,6 +309,12 @@ pub struct SessionResources {
         Option<Arc<wow_data::reputation::RepSpilloverTemplateStoreLikeCpp>>,
     /// XP required per level: index = level (1-based), value = xp_needed.
     pub player_xp_table: Option<Arc<Vec<u32>>>,
+    /// C++ `ObjectMgr::_baseXPTable` used by area exploration XP.
+    pub exploration_base_xp_store: Option<Arc<wow_data::ExplorationBaseXpStoreLikeCpp>>,
+    /// C++ `sWorld->getRate(RATE_XP_EXPLORE)`.
+    pub exploration_xp_rate: f32,
+    /// C++ `CONFIG_MIN_DISCOVERED_SCALED_XP_RATIO`.
+    pub min_discovered_scaled_xp_ratio: u32,
     /// Shared registry of all active player sessions (for broadcast).
     pub player_registry: Option<Arc<PlayerRegistry>>,
     /// Session -> world-server bridge for C++ GameEventMgr::HandleQuestComplete.

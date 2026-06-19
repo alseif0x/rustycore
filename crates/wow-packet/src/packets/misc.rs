@@ -12600,6 +12600,48 @@ impl ServerPacket for LogXpGain {
     }
 }
 
+// ── SMSG_EXPLORATION_EXPERIENCE ─────────────────────────────────────────────
+
+/// Area discovery XP notification.
+/// C++ `WorldPackets::Misc::ExplorationExperience::Write`.
+pub struct ExplorationExperience {
+    pub area_id: i32,
+    pub experience: i32,
+}
+
+impl ServerPacket for ExplorationExperience {
+    const OPCODE: ServerOpcodes = ServerOpcodes::ExplorationExperience;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_int32(self.area_id);
+        pkt.write_int32(self.experience);
+    }
+}
+
+#[cfg(test)]
+mod exploration_experience_tests {
+    use super::*;
+
+    #[test]
+    fn exploration_experience_writes_area_then_xp_like_cpp() {
+        let bytes = ExplorationExperience {
+            area_id: 9_001,
+            experience: 345,
+        }
+        .to_bytes();
+
+        let mut pkt = WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            pkt.server_opcode(),
+            Some(ServerOpcodes::ExplorationExperience)
+        );
+        pkt.skip_opcode();
+        assert_eq!(pkt.read_int32().unwrap(), 9_001);
+        assert_eq!(pkt.read_int32().unwrap(), 345);
+        assert_eq!(pkt.remaining(), 0);
+    }
+}
+
 // ── SMSG_LEVELUP_INFO ────────────────────────────────────────────────────────
 
 /// "Ding!" level-up popup with stat deltas.

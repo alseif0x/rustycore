@@ -187,7 +187,8 @@ Int	CONFIG_MAX_PRIMARY_TRADE_SKILL	server/game/World/World.h:281	MaxPrimaryTrade
 Int	CONFIG_MIN_PETITION_SIGNS	server/game/World/World.h:282	MinPetitionSigns	Int	server/game/World/World.cpp:1136	4		missing_in_rust	-
 Int	CONFIG_MIN_QUEST_SCALED_XP_RATIO	server/game/World/World.h:283	MinQuestScaledXPRatio	Int	server/game/World/World.cpp:867	0		missing_in_rust	-
 Int	CONFIG_MIN_CREATURE_SCALED_XP_RATIO	server/game/World/World.h:284	MinCreatureScaledXPRatio	Int	server/game/World/World.cpp:874	0		missing_in_rust	-
-Int	CONFIG_MIN_DISCOVERED_SCALED_XP_RATIO	server/game/World/World.h:285	MinDiscoveredScaledXPRatio	Int	server/game/World/World.cpp:881	0		missing_in_rust	-
+Int	CONFIG_MIN_DISCOVERED_SCALED_XP_RATIO	server/game/World/World.h:285	MinDiscoveredScaledXPRatio	Int	server/game/World/World.cpp:881	0		represented	consumed by represented area exploration XP reward calculation
+Float	RATE_XP_EXPLORE	server/game/World/World.h:487	Rate.XP.Explore	Float	server/game/World/World.cpp:649	1.0		represented	consumed by represented area exploration XP reward calculation
 Int	CONFIG_GM_LOGIN_STATE	server/game/World/World.h:286	GM.LoginState	Int	server/game/World/World.cpp:1143	2		missing_in_rust	-
 Int	CONFIG_GM_VISIBLE_STATE	server/game/World/World.h:287	GM.Visible	Int	server/game/World/World.cpp:1144	2		missing_in_rust	-
 Int	CONFIG_GM_CHAT	server/game/World/World.h:288	GM.Chat	Int	server/game/World/World.cpp:1145	2		missing_in_rust	-

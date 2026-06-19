@@ -1492,7 +1492,7 @@ LoginDatabaseInfo = "127.0.0.1;3306;trinity;trinity;auth"
     #[test]
     fn test_world_config_registry_covers_cpp_inventory() {
         let registry = world_config_registry();
-        assert_eq!(registry.len(), 341);
+        assert_eq!(registry.len(), 343);
         assert_eq!(
             registry
                 .iter()
@@ -1505,7 +1505,7 @@ LoginDatabaseInfo = "127.0.0.1;3306;trinity;trinity;auth"
                 .iter()
                 .filter(|entry| entry.kind == WorldConfigKind::Float)
                 .count(),
-            38
+            40
         );
         assert_eq!(
             registry
@@ -1528,6 +1528,15 @@ LoginDatabaseInfo = "127.0.0.1;3306;trinity;trinity;auth"
         assert_eq!(creature_aggro.key.as_deref(), Some("Rate.Creature.Aggro"));
         assert_eq!(
             creature_aggro.default_value.as_ref(),
+            Some(&WorldConfigValue::Float(1.0))
+        );
+        let xp_explore = registry
+            .iter()
+            .find(|entry| entry.enum_name == "RATE_XP_EXPLORE")
+            .expect("RATE_XP_EXPLORE must be represented");
+        assert_eq!(xp_explore.key.as_deref(), Some("Rate.XP.Explore"));
+        assert_eq!(
+            xp_explore.default_value.as_ref(),
             Some(&WorldConfigValue::Float(1.0))
         );
     }

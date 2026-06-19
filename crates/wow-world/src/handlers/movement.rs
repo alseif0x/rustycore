@@ -212,7 +212,8 @@ impl WorldSession {
             player.unit_mut().world_mut().relocate(info.position);
         });
         let (_, area_id) = self.player_zone_area_like_cpp();
-        self.check_area_explore_and_outdoor_represented_like_cpp(area_id);
+        self.check_area_explore_and_outdoor_represented_like_cpp(area_id)
+            .await;
         // Keep the broadcast registry in sync so chat range checks are accurate.
         self.update_registry_position();
         trace!(

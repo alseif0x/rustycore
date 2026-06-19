@@ -63,34 +63,34 @@ use wow_data::{
     CreatureModelDataStore, CreatureTemplateMountStoreLikeCpp, CurrencyTypesEntry,
     CurrencyTypesStore, DISABLE_TYPE_BATTLEGROUND, DISABLE_TYPE_MAP, DifficultyStore,
     DisableMgrLikeCpp, DisableWorldObjectRefLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
-    DurabilityQualityStore, FishingBaseSkillStoreLikeCpp, GameObjectDisplayInfoStore,
-    GameObjectTemplateLifecycleStoreLikeCpp, GlyphPropertiesStore, HeirloomEntry, HeirloomStore,
-    HotfixBlobCache, ImportPriceStores, ItemAppearanceStore, ItemClassStore, ItemCurrencyCostStore,
-    ItemDisenchantLootStore, ItemEffectStore, ItemExtendedCostStore,
-    ItemLimitCategoryConditionStore, ItemLimitCategoryStore, ItemModifiedAppearanceStore,
-    ItemPriceBaseStore, ItemRandomEnchantmentTemplateStore, ItemRandomPropertiesStore,
-    ItemRandomPropertyTemplateEntry, ItemRandomSuffixStore, ItemSearchNameStore,
-    ItemSpecOverrideStore, ItemStatsStore, ItemStore, LfgDungeonsStore, LockStore,
-    MapDifficultyStore, MapDifficultyXConditionStore, MapStore, MountCapabilityStore, MountStore,
-    MountTypeXCapabilityStore, MountXDisplayStore, MovieStore, NpcSpellClickStoreLikeCpp,
-    PetDefaultSpellStoreLikeCpp, PetDefaultSpellsEntryLikeCpp, PetFamilySpellStoreLikeCpp,
-    PetLevelupSpellSetLikeCpp, PetLevelupSpellStoreLikeCpp, PhaseGroupStore, PhaseStore,
-    PlayerConditionAuraLikeCpp, PlayerConditionContextLikeCpp, PlayerConditionCountLikeCpp,
-    PlayerConditionPartyStatusLikeCpp, PlayerConditionQuestKillLikeCpp,
-    PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp, PlayerConditionStore,
-    PlayerStatsStore, RandPropPointsStore, ScriptIdLikeCpp, ScriptNameInternerLikeCpp,
-    ServersideSpellInfoLikeCpp, ServersideSpellStoreLikeCpp, SkillLineStore, SkillStore,
-    SpellAreaLikeCpp, SpellAreaStoreLikeCpp, SpellAuraOptionsStore, SpellCategoryStore,
-    SpellChainStoreLikeCpp, SpellCustomAttributeStoreLikeCpp, SpellDurationStore,
-    SpellEnchantProcEntryLikeCpp, SpellEnchantProcStoreLikeCpp, SpellGroupStackRuleLikeCpp,
-    SpellGroupStackRuleStoreLikeCpp, SpellGroupStoreLikeCpp, SpellItemEnchantmentStore,
-    SpellLearnSkillNodeLikeCpp, SpellLearnSkillStoreLikeCpp, SpellLearnSpellNodeLikeCpp,
-    SpellLearnSpellStoreLikeCpp, SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp, SpellMiscStore,
-    SpellPetAuraStoreLikeCpp, SpellProcEntryLikeCpp, SpellProcStoreLikeCpp, SpellRadiusStore,
-    SpellRangeStore, SpellRequiredStoreLikeCpp, SpellShapeshiftFormStore, SpellStore,
-    SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp,
-    SpellTotemModelStoreLikeCpp, SummonPropertiesEntry, TalentStore, TalentTabStore, ToyStore,
-    TransmogSetEntry, TransmogSetItemStore, TrinityStringStoreLikeCpp,
+    DurabilityQualityStore, ExplorationBaseXpStoreLikeCpp, FishingBaseSkillStoreLikeCpp,
+    GameObjectDisplayInfoStore, GameObjectTemplateLifecycleStoreLikeCpp, GlyphPropertiesStore,
+    HeirloomEntry, HeirloomStore, HotfixBlobCache, ImportPriceStores, ItemAppearanceStore,
+    ItemClassStore, ItemCurrencyCostStore, ItemDisenchantLootStore, ItemEffectStore,
+    ItemExtendedCostStore, ItemLimitCategoryConditionStore, ItemLimitCategoryStore,
+    ItemModifiedAppearanceStore, ItemPriceBaseStore, ItemRandomEnchantmentTemplateStore,
+    ItemRandomPropertiesStore, ItemRandomPropertyTemplateEntry, ItemRandomSuffixStore,
+    ItemSearchNameStore, ItemSpecOverrideStore, ItemStatsStore, ItemStore, LfgDungeonsStore,
+    LockStore, MapDifficultyStore, MapDifficultyXConditionStore, MapStore, MountCapabilityStore,
+    MountStore, MountTypeXCapabilityStore, MountXDisplayStore, MovieStore,
+    NpcSpellClickStoreLikeCpp, PetDefaultSpellStoreLikeCpp, PetDefaultSpellsEntryLikeCpp,
+    PetFamilySpellStoreLikeCpp, PetLevelupSpellSetLikeCpp, PetLevelupSpellStoreLikeCpp,
+    PhaseGroupStore, PhaseStore, PlayerConditionAuraLikeCpp, PlayerConditionContextLikeCpp,
+    PlayerConditionCountLikeCpp, PlayerConditionPartyStatusLikeCpp,
+    PlayerConditionQuestKillLikeCpp, PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp,
+    PlayerConditionStore, PlayerStatsStore, RandPropPointsStore, ScriptIdLikeCpp,
+    ScriptNameInternerLikeCpp, ServersideSpellInfoLikeCpp, ServersideSpellStoreLikeCpp,
+    SkillLineStore, SkillStore, SpellAreaLikeCpp, SpellAreaStoreLikeCpp, SpellAuraOptionsStore,
+    SpellCategoryStore, SpellChainStoreLikeCpp, SpellCustomAttributeStoreLikeCpp,
+    SpellDurationStore, SpellEnchantProcEntryLikeCpp, SpellEnchantProcStoreLikeCpp,
+    SpellGroupStackRuleLikeCpp, SpellGroupStackRuleStoreLikeCpp, SpellGroupStoreLikeCpp,
+    SpellItemEnchantmentStore, SpellLearnSkillNodeLikeCpp, SpellLearnSkillStoreLikeCpp,
+    SpellLearnSpellNodeLikeCpp, SpellLearnSpellStoreLikeCpp, SpellLinkedStoreLikeCpp,
+    SpellLinkedTypeLikeCpp, SpellMiscStore, SpellPetAuraStoreLikeCpp, SpellProcEntryLikeCpp,
+    SpellProcStoreLikeCpp, SpellRadiusStore, SpellRangeStore, SpellRequiredStoreLikeCpp,
+    SpellShapeshiftFormStore, SpellStore, SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp,
+    SpellThreatStoreLikeCpp, SpellTotemModelStoreLikeCpp, SummonPropertiesEntry, TalentStore,
+    TalentTabStore, ToyStore, TransmogSetEntry, TransmogSetItemStore, TrinityStringStoreLikeCpp,
     VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore,
     VehicleTemplateStoreLikeCpp, calculate_battle_pet_stats_like_cpp,
     is_player_meeting_condition_like_cpp,
@@ -4156,6 +4156,9 @@ pub struct WorldSession {
     pub(crate) quest_package_item_store: Option<Arc<QuestPackageItemStore>>,
     pub(crate) quest_faction_reward_store: Option<Arc<QuestFactionRewardStore>>,
     pub(crate) player_xp_table: Option<Arc<Vec<u32>>>,
+    pub(crate) exploration_base_xp_store: Option<Arc<ExplorationBaseXpStoreLikeCpp>>,
+    pub(crate) exploration_xp_rate_like_cpp: f32,
+    pub(crate) min_discovered_scaled_xp_ratio_like_cpp: u32,
     /// Active quests for this player: quest_id → status.
     pub(crate) player_quests: HashMap<u32, crate::handlers::quest::PlayerQuestStatus>,
     /// Quests the player has already been rewarded for (non-repeatable quests cannot be re-taken).
@@ -5274,6 +5277,9 @@ impl WorldSession {
             player_xp: 0,
             player_next_level_xp: 400,
             player_xp_table: None,
+            exploration_base_xp_store: None,
+            exploration_xp_rate_like_cpp: 1.0,
+            min_discovered_scaled_xp_ratio_like_cpp: 0,
             selection_guid: None,
             player_guid: None,
             player_controller: None,
@@ -18600,9 +18606,9 @@ impl WorldSession {
     /// Represented C++ `Player::CheckAreaExploreAndOutdoor` discovery branch.
     ///
     /// This slice covers `AreaTableEntry::AreaBit`, `AddExploredZones`, the player-values update,
-    /// and the `CriteriaType::RevealWorldMapOverlay` side effect. Exploration XP and
-    /// indoor/outdoor aura removal remain separate runtime gaps.
-    pub(crate) fn check_area_explore_and_outdoor_represented_like_cpp(
+    /// `CriteriaType::RevealWorldMapOverlay`, and the exploration XP branch. Indoor/outdoor aura
+    /// removal remains a separate runtime gap.
+    pub(crate) async fn check_area_explore_and_outdoor_represented_like_cpp(
         &mut self,
         area_id: u32,
     ) -> bool {
@@ -18646,6 +18652,35 @@ impl WorldSession {
             player.values_update(true)
         }) {
             self.send_player_values_update_like_cpp(&update);
+        }
+
+        if area_entry.exploration_level > 0 {
+            use wow_packet::packets::misc::ExplorationExperience;
+
+            let max_level = max_level_for_expansion_like_cpp(self.server_expansion_like_cpp);
+            let xp = if self.player_level_like_cpp() >= max_level {
+                0
+            } else {
+                self.exploration_base_xp_store
+                    .as_ref()
+                    .map(|store| {
+                        store.exploration_xp_reward_like_cpp(
+                            self.player_level_like_cpp(),
+                            area_entry.exploration_level,
+                            self.exploration_xp_rate_like_cpp,
+                            self.min_discovered_scaled_xp_ratio_like_cpp,
+                        )
+                    })
+                    .unwrap_or(0)
+            };
+
+            if xp != 0 {
+                self.give_xp(xp, ObjectGuid::EMPTY, false).await;
+            }
+            self.send_packet(&ExplorationExperience {
+                area_id: area_id as i32,
+                experience: xp as i32,
+            });
         }
 
         true
@@ -19936,17 +19971,21 @@ impl WorldSession {
         }
     }
 
-    /// Give XP to the player, leveling up if threshold reached.
-    /// C# ref: Player.GiveXP(xp, victim)
-    pub(crate) async fn give_xp(&mut self, xp: u32, victim: wow_core::ObjectGuid, is_kill: bool) {
-        use wow_packet::ServerPacket;
+    /// Apply XP to the live session state, leveling up if threshold reached.
+    /// C++ `Player::GiveXP` visible side effects; persistence is handled by async wrappers.
+    pub(crate) fn give_xp_runtime_like_cpp(
+        &mut self,
+        xp: u32,
+        victim: wow_core::ObjectGuid,
+        is_kill: bool,
+    ) -> bool {
         use wow_packet::packets::misc::{LevelUpInfo, LogXpGain};
 
         if xp == 0 {
-            return;
+            return false;
         }
         if self.player_level_like_cpp() >= 80 {
-            return;
+            return false;
         } // max level
 
         // Send floating XP text — C# LogXPGain
@@ -19984,8 +20023,20 @@ impl WorldSession {
 
             self.set_player_level_like_cpp(new_level);
             self.refresh_next_level_xp();
+        }
 
-            // Persist new level to DB
+        true
+    }
+
+    /// Give XP to the player, leveling up if threshold reached.
+    /// C# ref: Player.GiveXP(xp, victim)
+    pub(crate) async fn give_xp(&mut self, xp: u32, victim: wow_core::ObjectGuid, is_kill: bool) {
+        let old_level = self.player_level_like_cpp();
+        if !self.give_xp_runtime_like_cpp(xp, victim, is_kill) {
+            return;
+        }
+
+        if self.player_level_like_cpp() != old_level {
             if let Some(guid) = self.player_guid() {
                 let char_db = self.char_db().map(Arc::clone);
                 if let Some(db) = char_db {
@@ -21440,6 +21491,21 @@ impl WorldSession {
     pub fn set_player_xp_table(&mut self, table: Arc<Vec<u32>>) {
         self.player_xp_table = Some(table);
         self.refresh_next_level_xp();
+    }
+
+    pub fn set_exploration_base_xp_store_like_cpp(
+        &mut self,
+        store: Arc<ExplorationBaseXpStoreLikeCpp>,
+    ) {
+        self.exploration_base_xp_store = Some(store);
+    }
+
+    pub fn set_exploration_xp_rate_like_cpp(&mut self, rate: f32) {
+        self.exploration_xp_rate_like_cpp = rate.max(0.0);
+    }
+
+    pub fn set_min_discovered_scaled_xp_ratio_like_cpp(&mut self, ratio: u32) {
+        self.min_discovered_scaled_xp_ratio_like_cpp = ratio.min(100);
     }
 
     /// Update player_next_level_xp from the table based on current level.
@@ -85264,8 +85330,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn check_area_explore_marks_block_sends_update_and_records_criteria_like_cpp() {
+    #[tokio::test]
+    async fn check_area_explore_marks_block_sends_update_and_records_criteria_like_cpp() {
         let (mut session, _, send_rx) = make_session();
         let player_guid = ObjectGuid::create_player(1, 0xE202);
         session.ensure_login_player_controller_like_cpp(
@@ -85293,7 +85359,11 @@ mod tests {
         session.set_canonical_map_manager(Arc::clone(&canonical));
         insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
 
-        assert!(session.check_area_explore_and_outdoor_represented_like_cpp(9_001));
+        assert!(
+            session
+                .check_area_explore_and_outdoor_represented_like_cpp(9_001)
+                .await
+        );
         assert_eq!(
             session
                 .represented_explored_zones_db_string_like_cpp()
@@ -85321,7 +85391,11 @@ mod tests {
             "C++ SetUpdateFieldFlagValue must be visible to the player through UpdateObject"
         );
 
-        assert!(!session.check_area_explore_and_outdoor_represented_like_cpp(9_001));
+        assert!(
+            !session
+                .check_area_explore_and_outdoor_represented_like_cpp(9_001)
+                .await
+        );
         assert!(send_rx.try_recv().is_err());
         assert_eq!(
             session.represented_reveal_world_map_overlay_criteria_like_cpp(),
@@ -85330,8 +85404,130 @@ mod tests {
         );
     }
 
-    #[test]
-    fn check_area_explore_rejects_missing_and_invalid_area_bits_like_cpp() {
+    #[tokio::test]
+    async fn check_area_explore_awards_exploration_xp_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 0xE204);
+        session.ensure_login_player_controller_like_cpp(
+            player_guid,
+            "ExplorerXp".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            1,
+            1,
+            10,
+            0,
+        );
+        session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
+            wow_data::AreaTableEntry {
+                id: 9_004,
+                continent_id: 571,
+                parent_area_id: 0,
+                area_bit: 66,
+                exploration_level: 12,
+                mount_flags: 0,
+                flags: 0,
+            },
+        ])));
+        session.set_exploration_base_xp_store_like_cpp(Arc::new(
+            ExplorationBaseXpStoreLikeCpp::from_rows_like_cpp([
+                wow_data::ExplorationBaseXpRowLikeCpp {
+                    level: 12,
+                    base_xp: 120,
+                },
+            ]),
+        ));
+        session.set_exploration_xp_rate_like_cpp(1.5);
+        session.set_min_discovered_scaled_xp_ratio_like_cpp(0);
+
+        assert!(
+            session
+                .check_area_explore_and_outdoor_represented_like_cpp(9_004)
+                .await
+        );
+        assert_eq!(session.player_xp_like_cpp(), 180);
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert!(packets.iter().any(|bytes| {
+            wow_packet::WorldPacket::from_bytes(bytes).server_opcode()
+                == Some(ServerOpcodes::LogXpGain)
+        }));
+        let exploration = packets
+            .iter()
+            .find(|bytes| {
+                wow_packet::WorldPacket::from_bytes(bytes).server_opcode()
+                    == Some(ServerOpcodes::ExplorationExperience)
+            })
+            .expect("C++ sends SMSG_EXPLORATION_EXPERIENCE after GiveXP");
+        let mut pkt = wow_packet::WorldPacket::from_bytes(exploration);
+        pkt.skip_opcode();
+        assert_eq!(pkt.read_int32().unwrap(), 9_004);
+        assert_eq!(pkt.read_int32().unwrap(), 180);
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[tokio::test]
+    async fn check_area_explore_max_level_sends_zero_exploration_xp_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 0xE205);
+        session.ensure_login_player_controller_like_cpp(
+            player_guid,
+            "ExplorerMax".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        );
+        session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
+            wow_data::AreaTableEntry {
+                id: 9_005,
+                continent_id: 571,
+                parent_area_id: 0,
+                area_bit: 67,
+                exploration_level: 12,
+                mount_flags: 0,
+                flags: 0,
+            },
+        ])));
+        session.set_exploration_base_xp_store_like_cpp(Arc::new(
+            ExplorationBaseXpStoreLikeCpp::from_rows_like_cpp([
+                wow_data::ExplorationBaseXpRowLikeCpp {
+                    level: 12,
+                    base_xp: 120,
+                },
+            ]),
+        ));
+
+        assert!(
+            session
+                .check_area_explore_and_outdoor_represented_like_cpp(9_005)
+                .await
+        );
+        assert_eq!(session.player_xp_like_cpp(), 0);
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert!(!packets.iter().any(|bytes| {
+            wow_packet::WorldPacket::from_bytes(bytes).server_opcode()
+                == Some(ServerOpcodes::LogXpGain)
+        }));
+        let exploration = packets
+            .iter()
+            .find(|bytes| {
+                wow_packet::WorldPacket::from_bytes(bytes).server_opcode()
+                    == Some(ServerOpcodes::ExplorationExperience)
+            })
+            .expect("C++ sends SMSG_EXPLORATION_EXPERIENCE with zero at max level");
+        let mut pkt = wow_packet::WorldPacket::from_bytes(exploration);
+        pkt.skip_opcode();
+        assert_eq!(pkt.read_int32().unwrap(), 9_005);
+        assert_eq!(pkt.read_int32().unwrap(), 0);
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[tokio::test]
+    async fn check_area_explore_rejects_missing_and_invalid_area_bits_like_cpp() {
         let (mut session, _, send_rx) = make_session();
         session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
             wow_data::AreaTableEntry {
@@ -85354,10 +85550,26 @@ mod tests {
             },
         ])));
 
-        assert!(!session.check_area_explore_and_outdoor_represented_like_cpp(0));
-        assert!(!session.check_area_explore_and_outdoor_represented_like_cpp(123_456));
-        assert!(!session.check_area_explore_and_outdoor_represented_like_cpp(9_002));
-        assert!(!session.check_area_explore_and_outdoor_represented_like_cpp(9_003));
+        assert!(
+            !session
+                .check_area_explore_and_outdoor_represented_like_cpp(0)
+                .await
+        );
+        assert!(
+            !session
+                .check_area_explore_and_outdoor_represented_like_cpp(123_456)
+                .await
+        );
+        assert!(
+            !session
+                .check_area_explore_and_outdoor_represented_like_cpp(9_002)
+                .await
+        );
+        assert!(
+            !session
+                .check_area_explore_and_outdoor_represented_like_cpp(9_003)
+                .await
+        );
         assert!(
             session
                 .represented_explored_zones_db_string_like_cpp()

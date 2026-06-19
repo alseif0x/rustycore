@@ -2905,7 +2905,7 @@ async fn main() -> Result<ExitCode> {
 
     // Load player_xp_for_level table
     let player_xp_table = {
-        let mut stmt = world_db.prepare(WorldStatements::SEL_PLAYER_XP_FOR_LEVEL);
+        let stmt = world_db.prepare(WorldStatements::SEL_PLAYER_XP_FOR_LEVEL);
         let mut table = vec![0u32; 82]; // index = level, 0=unused, 81=max
         if let Ok(result) = world_db.query(&stmt).await {
             let mut r = result;
@@ -2922,6 +2922,8 @@ async fn main() -> Result<ExitCode> {
         }
         Arc::new(table)
     };
+    let exploration_base_xp_store =
+        Arc::new(wow_data::ExplorationBaseXpStoreLikeCpp::load_like_cpp(&world_db).await?);
 
     // Load QuestXP.db2 for accurate XP rewards
     let dbc_path = format!("{}/dbc/{}", data_dir, locale);
@@ -4282,6 +4284,13 @@ async fn main() -> Result<ExitCode> {
         creature_onkill_reputation_store: Some(Arc::clone(&creature_onkill_reputation_store)),
         reputation_spillover_template_store: Some(Arc::clone(&reputation_spillover_template_store)),
         player_xp_table: Some(Arc::clone(&player_xp_table)),
+        exploration_base_xp_store: Some(Arc::clone(&exploration_base_xp_store)),
+        exploration_xp_rate: world_config_f32(&world_configs, "RATE_XP_EXPLORE", 1.0),
+        min_discovered_scaled_xp_ratio: world_config_u32(
+            &world_configs,
+            "CONFIG_MIN_DISCOVERED_SCALED_XP_RATIO",
+            0,
+        ),
         player_registry: Some(Arc::clone(&player_registry)),
         game_event_quest_complete_tx: Some(game_event_quest_complete_tx),
         group_registry: Some(Arc::clone(&group_registry)),
@@ -10912,6 +10921,11 @@ async fn create_session(
     if let Some(ref table) = resources.player_xp_table {
         session.set_player_xp_table(Arc::clone(table));
     }
+    if let Some(ref store) = resources.exploration_base_xp_store {
+        session.set_exploration_base_xp_store_like_cpp(Arc::clone(store));
+    }
+    session.set_exploration_xp_rate_like_cpp(resources.exploration_xp_rate);
+    session.set_min_discovered_scaled_xp_ratio_like_cpp(resources.min_discovered_scaled_xp_ratio);
     if let Some(ref registry) = resources.player_registry {
         session.set_player_registry(Arc::clone(registry));
     }
