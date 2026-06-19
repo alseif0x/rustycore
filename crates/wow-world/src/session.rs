@@ -29221,6 +29221,7 @@ impl WorldSession {
         self.represented_override_spells_like_cpp.remove(&spell_id);
 
         self.cleanup_removed_spell_titan_grip_like_cpp(spell_id);
+        self.cleanup_removed_spell_dual_wield_like_cpp(spell_id);
 
         if let Some(controller) = &mut self.player_controller {
             controller.remove_spell(spell_id);
@@ -29267,6 +29268,27 @@ impl WorldSession {
 
         let _ = self.mutate_canonical_player_like_cpp(|player| {
             player.set_can_titan_grip(false, 0);
+        });
+    }
+
+    fn cleanup_removed_spell_dual_wield_like_cpp(&mut self, spell_id: i32) {
+        let Some(spell_store) = self.spell_store() else {
+            return;
+        };
+        let Some(spell_info) = spell_store.get(spell_id) else {
+            return;
+        };
+        if !spell_store.is_passive_like_cpp(spell_id)
+            || !spell_info
+                .has_effect_like_cpp(wow_data::spell::spell_effect_types::SPELL_EFFECT_DUAL_WIELD)
+        {
+            return;
+        }
+
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            if player.unit().can_dual_wield_like_cpp() {
+                player.unit_mut().set_can_dual_wield_like_cpp(false);
+            }
         });
     }
 
@@ -49388,6 +49410,78 @@ mod tests {
                 .values()
                 .any(|aura| aura.spell_id == penalty_spell_id),
             "C++ RemoveSpell removes m_titanGripPenaltySpellId auras before SetCanTitanGrip(false)"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_clears_dual_wield_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let spell_id = 775_i32;
+        let player_guid = ObjectGuid::create_player(1, 155);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "RemoveDualWield".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        let _ = session.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_can_dual_wield_like_cpp(true);
+        });
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_DUAL_WIELD,
+                    ..Default::default()
+                }],
+            },
+        );
+        let mut attributes = [0_u32; 15];
+        attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_PASSIVE;
+        spell_store.insert_spell_misc_attributes_like_cpp(spell_id, attributes);
+        session.set_spell_store(Arc::new(spell_store));
+        session.set_known_spells_like_cpp(vec![spell_id]);
+
+        session.remove_known_spell_like_cpp(spell_id);
+
+        assert_eq!(
+            session.mutate_canonical_player_like_cpp(|player| {
+                player.unit().can_dual_wield_like_cpp()
+            }),
+            Some(false),
+            "C++ Player::RemoveSpell clears m_canDualWield when the removed spell is passive and has SPELL_EFFECT_DUAL_WIELD"
         );
     }
 
