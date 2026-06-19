@@ -1,3 +1,32 @@
+- `#NEXT.R8.ENTITIES.1110` — represented first-login
+  `PlayerInfo::castSpells[Player::GetCreateMode()]` is now wired before
+  first-login map exploration/reputation branches (not manual-test-ready).
+  Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CharacterHandler.cpp:1296-1310`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:4066-4111`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.h:610-663`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/RaceMask.h:77-151`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:160-177`.
+  C++ loads `playercreateinfo_cast_spell`, validates playable race/class masks
+  plus `PlayerCreateMode`, stores spells per `(race, class, createMode)`, then
+  on `AT_LOGIN_FIRST` casts the selected list before `CONFIG_START_ALL_EXPLORED`
+  and `CONFIG_START_ALL_REP`. Rust now loads that table into
+  `PlayerCreateInfoCastSpellStoreLikeCpp`, mirrors the Trinity `RaceMask`
+  remapping and class mask constants, injects the store through
+  `SessionResources`, hydrates `characters.createMode`, and calls the
+  represented spell executor in the same first-login order. Coverage:
+  `cargo fmt --all`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-data
+  player_create_cast_spell --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  first_login_cast_spells --lib`. Remaining before commit:
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`
+  and `git diff --check`. Boundary remains partial: the casts use the current
+  represented spell executor, not full triggered `Unit::CastSpell` /
+  `Spell::prepare` parity, full `ObjectMgr::PlayerInfo` ownership is not
+  completed by this slice, and live-client/bot/manual validation remains open.
+
 - `#NEXT.R8.ENTITIES.1109` — represented account toy/heirloom persistence now
   uses C++-style LoginDatabase transactions for the final represented
   collections (not manual-test-ready). Source of truth:

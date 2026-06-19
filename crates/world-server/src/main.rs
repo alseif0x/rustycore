@@ -2305,6 +2305,21 @@ async fn main() -> Result<ExitCode> {
             .context("Failed to load player_levelstats")?,
     );
     info!("Loaded {} player level stat entries", player_stats.len());
+    let player_create_cast_spell_store = Arc::new(
+        wow_data::PlayerCreateInfoCastSpellStoreLikeCpp::load_like_cpp(&world_db)
+            .await
+            .context("Failed to load playercreateinfo_cast_spell")?,
+    );
+    let player_create_cast_spell_report = player_create_cast_spell_store
+        .load_report_like_cpp()
+        .clone();
+    info!(
+        loaded_assignments = player_create_cast_spell_report.loaded_assignments,
+        skipped_invalid_race_mask = player_create_cast_spell_report.skipped_invalid_race_mask,
+        skipped_invalid_class_mask = player_create_cast_spell_report.skipped_invalid_class_mask,
+        skipped_invalid_create_mode = player_create_cast_spell_report.skipped_invalid_create_mode,
+        "Loaded C++ player create cast spell assignments"
+    );
 
     // Load item stat modifiers from ItemSparse.db2 (gear bonuses: STR, AGI, STA, etc.)
     let item_stats_store = Arc::new(
@@ -4189,6 +4204,7 @@ async fn main() -> Result<ExitCode> {
         item_price_base_store: Some(Arc::clone(&item_price_base_store)),
         item_limit_category_store: Some(Arc::clone(&item_limit_category_store)),
         item_limit_category_condition_store: Some(Arc::clone(&item_limit_category_condition_store)),
+        player_create_cast_spell_store: Some(Arc::clone(&player_create_cast_spell_store)),
         player_stats: Some(Arc::clone(&player_stats)),
         item_stats_store: Some(Arc::clone(&item_stats_store)),
         durability_costs_store: Some(Arc::clone(&durability_costs_store)),
@@ -10629,6 +10645,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.item_limit_category_condition_store {
         session.set_item_limit_category_condition_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.player_create_cast_spell_store {
+        session.set_player_create_cast_spell_store_like_cpp(Arc::clone(store));
     }
     if let Some(ref store) = resources.player_stats {
         session.set_player_stats(Arc::clone(store));

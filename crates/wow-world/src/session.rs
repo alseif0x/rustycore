@@ -78,19 +78,20 @@ use wow_data::{
     PetLevelupSpellStoreLikeCpp, PhaseGroupStore, PhaseStore, PlayerConditionAuraLikeCpp,
     PlayerConditionContextLikeCpp, PlayerConditionCountLikeCpp, PlayerConditionPartyStatusLikeCpp,
     PlayerConditionQuestKillLikeCpp, PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp,
-    PlayerConditionStore, PlayerStatsStore, RandPropPointsStore, ScriptIdLikeCpp,
-    ScriptNameInternerLikeCpp, ServersideSpellInfoLikeCpp, ServersideSpellStoreLikeCpp,
-    SkillLineStore, SkillStore, SpellAreaLikeCpp, SpellAreaStoreLikeCpp, SpellAuraOptionsStore,
-    SpellCategoryStore, SpellChainStoreLikeCpp, SpellCustomAttributeStoreLikeCpp,
-    SpellDurationStore, SpellEnchantProcEntryLikeCpp, SpellEnchantProcStoreLikeCpp,
-    SpellGroupStackRuleLikeCpp, SpellGroupStackRuleStoreLikeCpp, SpellGroupStoreLikeCpp,
-    SpellItemEnchantmentStore, SpellLearnSkillNodeLikeCpp, SpellLearnSkillStoreLikeCpp,
-    SpellLearnSpellNodeLikeCpp, SpellLearnSpellStoreLikeCpp, SpellLinkedStoreLikeCpp,
-    SpellLinkedTypeLikeCpp, SpellMiscStore, SpellPetAuraStoreLikeCpp, SpellProcEntryLikeCpp,
-    SpellProcStoreLikeCpp, SpellRadiusStore, SpellRangeStore, SpellRequiredStoreLikeCpp,
-    SpellShapeshiftFormStore, SpellStore, SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp,
-    SpellThreatStoreLikeCpp, SpellTotemModelStoreLikeCpp, SummonPropertiesEntry, TalentStore,
-    TalentTabStore, ToyStore, TransmogSetEntry, TransmogSetItemStore, TrinityStringStoreLikeCpp,
+    PlayerConditionStore, PlayerCreateInfoCastSpellStoreLikeCpp, PlayerStatsStore,
+    RandPropPointsStore, ScriptIdLikeCpp, ScriptNameInternerLikeCpp, ServersideSpellInfoLikeCpp,
+    ServersideSpellStoreLikeCpp, SkillLineStore, SkillStore, SpellAreaLikeCpp,
+    SpellAreaStoreLikeCpp, SpellAuraOptionsStore, SpellCategoryStore, SpellChainStoreLikeCpp,
+    SpellCustomAttributeStoreLikeCpp, SpellDurationStore, SpellEnchantProcEntryLikeCpp,
+    SpellEnchantProcStoreLikeCpp, SpellGroupStackRuleLikeCpp, SpellGroupStackRuleStoreLikeCpp,
+    SpellGroupStoreLikeCpp, SpellItemEnchantmentStore, SpellLearnSkillNodeLikeCpp,
+    SpellLearnSkillStoreLikeCpp, SpellLearnSpellNodeLikeCpp, SpellLearnSpellStoreLikeCpp,
+    SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp, SpellMiscStore, SpellPetAuraStoreLikeCpp,
+    SpellProcEntryLikeCpp, SpellProcStoreLikeCpp, SpellRadiusStore, SpellRangeStore,
+    SpellRequiredStoreLikeCpp, SpellShapeshiftFormStore, SpellStore,
+    SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp,
+    SpellTotemModelStoreLikeCpp, SummonPropertiesEntry, TalentStore, TalentTabStore, ToyStore,
+    TransmogSetEntry, TransmogSetItemStore, TrinityStringStoreLikeCpp,
     VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore,
     VehicleTemplateStoreLikeCpp, calculate_battle_pet_stats_like_cpp,
     is_player_meeting_condition_like_cpp,
@@ -3336,6 +3337,7 @@ pub struct WorldSession {
     max_instances_per_hour_like_cpp: u32,
     start_all_explored_like_cpp: bool,
     start_all_reputation_like_cpp: bool,
+    player_create_cast_spell_store_like_cpp: Option<Arc<PlayerCreateInfoCastSpellStoreLikeCpp>>,
     pub build: u32,
     pub session_key: Vec<u8>,
     pub locale: String,
@@ -3751,6 +3753,8 @@ pub struct WorldSession {
     player_level: u8,
     /// Gender of the currently logged-in character (set at login).
     player_gender: u8,
+    /// C++ `Player::m_createMode`, loaded from `characters.createMode`.
+    player_create_mode_like_cpp: u8,
     /// C++ ActivePlayerData::LootSpecID represented session state.
     loot_specialization_id: u32,
     /// All known spell IDs for the logged-in character (DB + DBC merged).
@@ -5147,6 +5151,7 @@ impl WorldSession {
             max_instances_per_hour_like_cpp: 5,
             start_all_explored_like_cpp: false,
             start_all_reputation_like_cpp: false,
+            player_create_cast_spell_store_like_cpp: None,
             build,
             session_key,
             locale,
@@ -5378,6 +5383,7 @@ impl WorldSession {
             player_class: 0,
             player_level: 0,
             player_gender: 0,
+            player_create_mode_like_cpp: wow_data::PLAYER_CREATE_MODE_NORMAL_LIKE_CPP,
             loot_specialization_id: 0,
             known_spells: Vec::new(),
             account_mounts_like_cpp: HashMap::new(),
@@ -13931,6 +13937,13 @@ impl WorldSession {
         self.player_stats.as_ref()
     }
 
+    pub fn set_player_create_cast_spell_store_like_cpp(
+        &mut self,
+        store: Arc<PlayerCreateInfoCastSpellStoreLikeCpp>,
+    ) {
+        self.player_create_cast_spell_store_like_cpp = Some(store);
+    }
+
     /// Set the item stats store for this session.
     pub fn set_item_stats_store(&mut self, store: Arc<ItemStatsStore>) {
         self.item_stats_store = Some(store);
@@ -18904,6 +18917,44 @@ impl WorldSession {
         {
             self.represented_explored_zones_like_cpp = blocks;
         }
+    }
+
+    /// Represented C++ first-login `PlayerInfo::castSpells[GetCreateMode()]`.
+    ///
+    /// C++ executes these casts after clearing `AT_LOGIN_FIRST` and before
+    /// `CONFIG_START_ALL_EXPLORED` / `CONFIG_START_ALL_REP`. This slice uses the
+    /// represented spell executor; full triggered-cast semantics still depend on
+    /// the remaining Spell runtime port.
+    pub(crate) async fn apply_represented_first_login_cast_spells_like_cpp(&mut self) -> usize {
+        let Some(player_guid) = self.player_guid() else {
+            return 0;
+        };
+        let spells = self
+            .player_create_cast_spell_store_like_cpp
+            .as_ref()
+            .map(|store| {
+                store
+                    .cast_spells_like_cpp(
+                        self.player_race_like_cpp(),
+                        self.player_class_like_cpp(),
+                        self.player_create_mode_like_cpp(),
+                    )
+                    .to_vec()
+            })
+            .unwrap_or_default();
+
+        let mut cast_count = 0usize;
+        for spell_id in spells {
+            if self
+                .execute_spell(spell_id as i32, player_guid)
+                .await
+                .is_ok()
+            {
+                cast_count += 1;
+            }
+        }
+
+        cast_count
     }
 
     pub(crate) fn apply_represented_first_login_reputation_like_cpp(&mut self) -> usize {
@@ -27528,6 +27579,10 @@ impl WorldSession {
         self.refresh_represented_talent_points_like_cpp();
     }
 
+    pub(crate) fn set_player_create_mode_like_cpp(&mut self, create_mode: u8) {
+        self.player_create_mode_like_cpp = create_mode;
+    }
+
     pub(crate) fn set_player_gold_like_cpp(&mut self, gold: u64) {
         self.player_gold = gold;
         if let Some(controller) = &mut self.player_controller {
@@ -28673,6 +28728,10 @@ impl WorldSession {
             .as_ref()
             .map(SessionPlayerController::class)
             .unwrap_or(self.player_class)
+    }
+
+    pub(crate) fn player_create_mode_like_cpp(&self) -> u8 {
+        self.player_create_mode_like_cpp
     }
 
     pub(crate) fn player_level_like_cpp(&self) -> u8 {
@@ -75985,6 +76044,103 @@ mod tests {
                 .is_empty(),
             "C++ calls RemoveAtLoginFlag(AT_LOGIN_FIRST) with persist=false"
         );
+    }
+
+    fn first_login_cast_spell_store_like_cpp(
+        normal_spell: u32,
+        npe_spell: u32,
+    ) -> PlayerCreateInfoCastSpellStoreLikeCpp {
+        PlayerCreateInfoCastSpellStoreLikeCpp::from_rows_like_cpp([
+            wow_data::PlayerCreateInfoCastSpellRowLikeCpp {
+                race_mask: 1,
+                class_mask: 1,
+                spell_id: normal_spell,
+                create_mode: wow_data::PLAYER_CREATE_MODE_NORMAL_LIKE_CPP as i8,
+            },
+            wow_data::PlayerCreateInfoCastSpellRowLikeCpp {
+                race_mask: 1,
+                class_mask: 1,
+                spell_id: npe_spell,
+                create_mode: wow_data::PLAYER_CREATE_MODE_NPE_LIKE_CPP as i8,
+            },
+        ])
+    }
+
+    fn first_login_noop_spell_store_like_cpp(
+        spell_ids: impl IntoIterator<Item = i32>,
+    ) -> SpellStore {
+        let mut store = SpellStore::new();
+        for spell_id in spell_ids {
+            store.insert(
+                spell_id,
+                wow_data::SpellInfo {
+                    spell_id,
+                    cast_time_ms: 0,
+                    cooldown_ms: 0,
+                    recovery_time_ms: 0,
+                    effect_type: 0,
+                    effect_base_points: 0,
+                    effect_bonus_coefficient: 0.0,
+                    aura_type: None,
+                    display_flags: 0,
+                    requires_spell_focus: 0,
+                    effects: Vec::new(),
+                },
+            );
+        }
+        store
+    }
+
+    #[tokio::test]
+    async fn first_login_cast_spells_use_player_create_mode_before_other_first_login_work_like_cpp()
+    {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 0xC501);
+        session.player_guid = Some(player_guid);
+        session.set_loaded_player_identity_like_cpp(0, 1, 1, 1, 0);
+        session.set_player_create_mode_like_cpp(wow_data::PLAYER_CREATE_MODE_NPE_LIKE_CPP);
+        session.set_player_create_cast_spell_store_like_cpp(Arc::new(
+            first_login_cast_spell_store_like_cpp(70_001, 70_002),
+        ));
+        session.set_spell_store(Arc::new(first_login_noop_spell_store_like_cpp([
+            70_001, 70_002,
+        ])));
+
+        let cast_count = session
+            .apply_represented_first_login_cast_spells_like_cpp()
+            .await;
+
+        assert_eq!(
+            cast_count, 1,
+            "C++ indexes PlayerInfo::castSpells with Player::GetCreateMode"
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent],
+            "first-login cast spells execute through the represented spell path before explored/reputation branches"
+        );
+    }
+
+    #[tokio::test]
+    async fn first_login_cast_spells_noop_without_store_or_player_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        assert_eq!(
+            session
+                .apply_represented_first_login_cast_spells_like_cpp()
+                .await,
+            0
+        );
+        assert!(send_rx.try_recv().is_err());
+
+        session.player_guid = Some(ObjectGuid::create_player(1, 0xC502));
+        session.set_loaded_player_identity_like_cpp(0, 1, 1, 1, 0);
+        assert_eq!(
+            session
+                .apply_represented_first_login_cast_spells_like_cpp()
+                .await,
+            0
+        );
+        assert!(send_rx.try_recv().is_err());
     }
 
     fn first_login_reputation_faction_store_like_cpp() -> FactionStore {

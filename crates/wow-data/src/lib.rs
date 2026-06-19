@@ -57,6 +57,7 @@ pub mod phase;
 pub mod phasing;
 pub mod player_choice;
 pub mod player_condition;
+pub mod player_create;
 pub mod player_power;
 pub mod player_stats;
 pub mod poi;
@@ -348,6 +349,11 @@ pub use player_condition::{
     PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp, PlayerConditionStore,
     is_player_meeting_condition_like_cpp, player_condition_compare_like_cpp,
     player_condition_logic_like_cpp,
+};
+pub use player_create::{
+    PLAYER_CREATE_MODE_MAX_LIKE_CPP, PLAYER_CREATE_MODE_NORMAL_LIKE_CPP,
+    PLAYER_CREATE_MODE_NPE_LIKE_CPP, PlayerCreateInfoCastSpellLoadReportLikeCpp,
+    PlayerCreateInfoCastSpellRowLikeCpp, PlayerCreateInfoCastSpellStoreLikeCpp,
 };
 pub use player_power::{
     ClassPowerIndexRecord, Db2PlayerPowerIndexResolver, PlayerClassPowerIndexStore,

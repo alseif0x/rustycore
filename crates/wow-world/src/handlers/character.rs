@@ -3432,7 +3432,7 @@ impl WorldSession {
         let gender: u8 = result.read(5);
         let level: u8 = result.read(6);
         // C++ CHAR_SEL_CHARACTER column order:
-        // 7=xp, 8=money, 14..18=position/map/orientation, 23..24=played time,
+        // 7=xp, 8=money, 14..18=position/map/orientation, 21=createMode, 23..24=played time,
         // 28=resettalents_cost, 29=resettalents_time, 39=at_login, 40=zone.
         let zone: i32 = result.try_read::<u16>(40).unwrap_or(0) as i32; // smallint unsigned
         let map_id: i32 = result.try_read::<u16>(17).unwrap_or(0) as i32; // smallint unsigned
@@ -3456,6 +3456,7 @@ impl WorldSession {
         );
         self.set_represented_active_talent_group_like_cpp(result.try_read::<u8>(30).unwrap_or(0));
         self.set_represented_bonus_talent_groups_like_cpp(result.try_read::<u8>(31).unwrap_or(0));
+        self.set_player_create_mode_like_cpp(result.try_read::<u8>(21).unwrap_or(0));
         self.set_represented_at_login_flags_like_cpp(result.try_read::<u16>(39).unwrap_or(0));
         self.load_represented_explored_zones_like_cpp(&result.read_string(64));
         self.set_player_guid(Some(guid));
@@ -4764,6 +4765,8 @@ impl WorldSession {
         self.apply_represented_login_spell_reset_if_needed_like_cpp();
         self.apply_represented_login_talent_reset_if_needed_like_cpp();
         if self.apply_represented_first_login_flag_if_needed_like_cpp() {
+            self.apply_represented_first_login_cast_spells_like_cpp()
+                .await;
             self.apply_represented_first_login_explored_zones_like_cpp();
             self.apply_represented_first_login_reputation_like_cpp();
         }
