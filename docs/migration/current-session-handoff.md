@@ -1,3 +1,21 @@
+- `#NEXT.R8.ENTITIES.1133` — represented `AutoUnequipOffhandIfNeed` now
+  syncs the canonical player storage/update-field model for the C++
+  `RemoveItem` + `StoreItem` branches. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11559-11635`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11271-11302`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Container/Bag.cpp:160-170`.
+  Rust clears the canonical offhand `InvSlot` and `VisibleItems` value when the
+  represented offhand item is removed, sets the canonical backpack `InvSlot`
+  for direct destinations, stores the child guid in canonical equipped-bag
+  storage for bag destinations, and clears the canonical offhand slot before
+  the mail-fallback delink path. Coverage: `cargo fmt`; `cargo fmt --check`;
+  `cargo test -p wow-world remove_known_spell --lib`; `cargo check -p
+  world-server`; `git diff --check`. Boundary remains partial: actual
+  `UpdateObject` packet emission/fanout from this branch, stat recalculation,
+  item mod/enchantment duration hooks, DB inventory slot updates, DB delete/save
+  transaction, real mail draft/send fallback, live-client/bot/manual validation,
+  and full `Player::RemoveSpell` parity remain open.
+
 - `#NEXT.R8.ENTITIES.1132` — represented `AutoUnequipOffhandIfNeed` now
   follows the C++ `Bag::StoreItem` branch when `CanStoreItem` selects a
   represented equipped bag destination. Source of truth:
@@ -14,7 +32,8 @@
   slot updates, DB delete/save transaction, real mail draft/send fallback, item
   update queue, quest/refund/temp appearance cleanup, packets/stat recalculation,
   live-client/bot/manual validation, and full `Player::RemoveSpell` parity
-  remain open.
+  remain open. Canonical `InvSlot`/`VisibleItems` sync for these branches is
+  closed by `#NEXT.R8.ENTITIES.1133`.
 
 - `#NEXT.R8.ENTITIES.1131` — represented `AutoUnequipOffhandIfNeed` now
   runs the C++ `CanStoreItem(NULL_BAG, NULL_SLOT, off_dest, offItem, false)`

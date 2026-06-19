@@ -6220,6 +6220,29 @@ impl WorldSession {
         })
     }
 
+    fn sync_canonical_direct_inventory_move_like_cpp(
+        &mut self,
+        src: u8,
+        dst_bag: u8,
+        dst_slot: u8,
+        item_guid: ObjectGuid,
+    ) {
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            let _ = player.remove_top_level_item(src);
+            if dst_bag == INVENTORY_SLOT_BAG_0 {
+                let _ = player.store_top_level_item(dst_slot, item_guid);
+            } else {
+                let _ = player.store_bag_item(dst_bag, dst_slot, item_guid);
+            }
+        });
+    }
+
+    fn sync_canonical_direct_inventory_remove_like_cpp(&mut self, src: u8) {
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            let _ = player.remove_top_level_item(src);
+        });
+    }
+
     pub(crate) fn use_represented_equipment_set_like_cpp(
         &mut self,
         request: &wow_packet::packets::misc::UseEquipmentSet,
@@ -29459,12 +29482,19 @@ impl WorldSession {
                 bag,
                 slot,
             ) {
+                self.sync_canonical_direct_inventory_move_like_cpp(
+                    EQUIPMENT_SLOT_OFFHAND,
+                    bag,
+                    slot,
+                    offhand_item.guid,
+                );
                 stored_destination = Some((bag, slot));
                 needs_mail_fallback = false;
             }
         }
         if needs_mail_fallback {
             self.remove_inventory_item_like_cpp(EQUIPMENT_SLOT_OFFHAND);
+            self.sync_canonical_direct_inventory_remove_like_cpp(EQUIPMENT_SLOT_OFFHAND);
             self.update_inventory_item_object_like_cpp(offhand_item.guid, |item| {
                 item.set_container_guid(ObjectGuid::EMPTY);
                 item.set_slot(NULL_SLOT);
@@ -49770,6 +49800,17 @@ mod tests {
         let canonical = shared_canonical_map_manager();
         canonical.lock().unwrap().create_world_map(0, 0);
         session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
             player_guid,
             "RemoveDualWieldOffhand".to_string(),
@@ -49783,6 +49824,15 @@ mod tests {
         let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
         let _ = session.mutate_canonical_player_like_cpp(|player| {
             player.unit_mut().set_can_dual_wield_like_cpp(true);
+            let _ = player.visualize_item(
+                EQUIPMENT_SLOT_OFFHAND,
+                offhand_guid,
+                VisibleItemValues {
+                    item_id: offhand_item_id as i32,
+                    item_appearance_mod_id: 0,
+                    item_visual: 0,
+                },
+            );
         });
         install_remove_spell_offhand_templates_like_cpp(
             &mut session,
@@ -49855,6 +49905,21 @@ mod tests {
                 .map(|item| item.guid),
             Some(offhand_guid),
             "represented StoreItem moves the offhand item to the selected backpack slot"
+        );
+        assert_eq!(
+            session.canonical_player_snapshot_like_cpp(|player| {
+                (
+                    player.active_data().inv_slots[EQUIPMENT_SLOT_OFFHAND as usize],
+                    player.active_data().inv_slots[INVENTORY_SLOT_ITEM_START as usize],
+                    player.data().visible_items[EQUIPMENT_SLOT_OFFHAND as usize],
+                )
+            }),
+            Some((
+                ObjectGuid::EMPTY,
+                offhand_guid,
+                VisibleItemValues::default()
+            )),
+            "C++ RemoveItem clears offhand InvSlot/VisibleItem and StoreItem sets the backpack InvSlot"
         );
     }
 
@@ -50062,7 +50127,31 @@ mod tests {
         let filler_item_id = 30_006_u32;
         let offhand_guid = ObjectGuid::create_item(1, 30_005);
         let player_guid = ObjectGuid::create_player(1, 159);
-        session.set_player_guid(Some(player_guid));
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "RemoveOffhandFallback".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
         install_remove_spell_offhand_templates_like_cpp(
             &mut session,
             &[
@@ -50089,6 +50178,18 @@ mod tests {
             offhand_item_id,
             InventoryType::WeaponOffhand,
         );
+        let _ = session.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_can_dual_wield_like_cpp(false);
+            let _ = player.visualize_item(
+                EQUIPMENT_SLOT_OFFHAND,
+                offhand_guid,
+                VisibleItemValues {
+                    item_id: offhand_item_id as i32,
+                    item_appearance_mod_id: 0,
+                    item_visual: 0,
+                },
+            );
+        });
         for offset in 0..INVENTORY_DEFAULT_SIZE {
             let slot = INVENTORY_SLOT_ITEM_START + offset;
             let guid = ObjectGuid::create_item(1, 40_000 + i64::from(offset));
@@ -50126,6 +50227,16 @@ mod tests {
             .expect("mail fallback keeps the standalone item object represented");
         assert_eq!(runtime_item.container_guid(), ObjectGuid::EMPTY);
         assert_eq!(runtime_item.slot(), NULL_SLOT);
+        assert_eq!(
+            session.canonical_player_snapshot_like_cpp(|player| {
+                (
+                    player.active_data().inv_slots[EQUIPMENT_SLOT_OFFHAND as usize],
+                    player.data().visible_items[EQUIPMENT_SLOT_OFFHAND as usize],
+                )
+            }),
+            Some((ObjectGuid::EMPTY, VisibleItemValues::default())),
+            "C++ MoveItemFromInventory clears offhand InvSlot/VisibleItem before mail fallback"
+        );
     }
 
     #[test]
@@ -50137,7 +50248,31 @@ mod tests {
         let offhand_guid = ObjectGuid::create_item(1, 30_007);
         let bag_guid = ObjectGuid::create_item(1, 30_009);
         let player_guid = ObjectGuid::create_player(1, 160);
-        session.set_player_guid(Some(player_guid));
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "RemoveOffhandBagStore".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
         install_remove_spell_offhand_templates_like_cpp(
             &mut session,
             &[
@@ -50172,6 +50307,20 @@ mod tests {
             bag_item_id,
             InventoryType::Bag,
         );
+        let _ = session.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_can_dual_wield_like_cpp(false);
+            let _ = player.visualize_item(
+                EQUIPMENT_SLOT_OFFHAND,
+                offhand_guid,
+                VisibleItemValues {
+                    item_id: offhand_item_id as i32,
+                    item_appearance_mod_id: 0,
+                    item_visual: 0,
+                },
+            );
+            let _ = player.store_top_level_item(INVENTORY_SLOT_BAG_START, bag_guid);
+            let _ = player.register_bag_storage(INVENTORY_SLOT_BAG_START, bag_guid, 4);
+        });
         for offset in 0..INVENTORY_DEFAULT_SIZE {
             let slot = INVENTORY_SLOT_ITEM_START + offset;
             let guid = ObjectGuid::create_item(1, 41_000 + i64::from(offset));
@@ -50217,6 +50366,26 @@ mod tests {
         assert_eq!(runtime_item.container_guid(), bag_guid);
         assert_eq!(runtime_item.bag_slot(), INVENTORY_SLOT_BAG_START);
         assert_eq!(runtime_item.slot(), 0);
+        assert_eq!(
+            session.canonical_player_snapshot_like_cpp(|player| {
+                (
+                    player.active_data().inv_slots[EQUIPMENT_SLOT_OFFHAND as usize],
+                    player.data().visible_items[EQUIPMENT_SLOT_OFFHAND as usize],
+                    player
+                        .inventory()
+                        .bags
+                        .get(INVENTORY_SLOT_BAG_START as usize)
+                        .and_then(Option::as_ref)
+                        .and_then(|bag| bag.item_by_pos(0)),
+                )
+            }),
+            Some((
+                ObjectGuid::EMPTY,
+                VisibleItemValues::default(),
+                Some(offhand_guid)
+            )),
+            "C++ RemoveItem clears offhand InvSlot/VisibleItem and Bag::StoreItem stores the child item in the equipped bag"
+        );
     }
 
     #[test]
