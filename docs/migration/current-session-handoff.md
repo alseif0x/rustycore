@@ -1,3 +1,21 @@
+- `#NEXT.R8.ENTITIES.1132` — represented `AutoUnequipOffhandIfNeed` now
+  follows the C++ `Bag::StoreItem` branch when `CanStoreItem` selects a
+  represented equipped bag destination. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:24621-24628`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11271-11302`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Container/Bag.cpp:160-170`.
+  Rust now moves an existing direct-inventory item from
+  `EQUIPMENT_SLOT_OFFHAND` to a supported `(bag, slot)` destination by removing
+  the direct slot and updating the runtime item object's `contained_in`, bag
+  slot, and inner slot, so `GetItemByPos(bag, slot)` resolves it afterward.
+  Coverage: `cargo fmt`; `cargo fmt --check`; `cargo test -p wow-world
+  remove_known_spell --lib`; `cargo check -p world-server`; `git diff
+  --check`. Boundary remains partial: stack-merge destinations, DB inventory
+  slot updates, DB delete/save transaction, real mail draft/send fallback, item
+  update queue, quest/refund/temp appearance cleanup, packets/stat recalculation,
+  live-client/bot/manual validation, and full `Player::RemoveSpell` parity
+  remain open.
+
 - `#NEXT.R8.ENTITIES.1131` — represented `AutoUnequipOffhandIfNeed` now
   runs the C++ `CanStoreItem(NULL_BAG, NULL_SLOT, off_dest, offItem, false)`
   storage branch for the existing offhand item before falling back to removal.
@@ -15,7 +33,8 @@
   `StoreItem`, DB inventory slot updates, DB delete/save transaction, real
   mail draft/send fallback, item update queue, quest/refund/temp appearance
   cleanup, packets/stat recalculation, live-client/bot/manual validation, and
-  full `Player::RemoveSpell` parity remain open.
+  full `Player::RemoveSpell` parity remain open. Represented equipped-bag
+  storage is closed by `#NEXT.R8.ENTITIES.1132`.
 
 - `#NEXT.R8.ENTITIES.1130` — represented `Player::RemoveSpell` now consumes
   the C++ `CONFIG_OFFHAND_CHECK_AT_SPELL_UNLEARN` /

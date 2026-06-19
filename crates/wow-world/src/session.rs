@@ -6182,6 +6182,44 @@ impl WorldSession {
         true
     }
 
+    pub(crate) fn move_represented_direct_inventory_item_to_pos_like_cpp(
+        &mut self,
+        src: u8,
+        dst_bag: u8,
+        dst_slot: u8,
+    ) -> bool {
+        if dst_bag == INVENTORY_SLOT_BAG_0 {
+            return self.move_represented_direct_inventory_item_like_cpp(src, dst_slot);
+        }
+        if !is_represented_bag_slot(dst_bag)
+            || self.get_inventory_item_by_pos(dst_bag, dst_slot).is_some()
+        {
+            return false;
+        }
+
+        let Some(src_item) = self.inventory_items_like_cpp().get(&src).cloned() else {
+            return false;
+        };
+        let Some(bag_item) = self.inventory_items_like_cpp().get(&dst_bag).cloned() else {
+            return false;
+        };
+        if !self
+            .inventory_item_objects_like_cpp()
+            .contains_key(&src_item.guid)
+            || !self
+                .inventory_item_objects_like_cpp()
+                .contains_key(&bag_item.guid)
+        {
+            return false;
+        }
+
+        self.remove_inventory_item_like_cpp(src);
+        self.update_inventory_item_object_like_cpp(src_item.guid, |item| {
+            item.set_slot(dst_slot);
+            item.set_container_guid_and_slot(bag_item.guid, dst_bag);
+        })
+    }
+
     pub(crate) fn use_represented_equipment_set_like_cpp(
         &mut self,
         request: &wow_packet::packets::misc::UseEquipmentSet,
@@ -29416,10 +29454,11 @@ impl WorldSession {
             && let Some(destination) = destinations.first()
         {
             let [bag, slot] = destination.pos.to_be_bytes();
-            if bag == INVENTORY_SLOT_BAG_0
-                && self
-                    .move_represented_direct_inventory_item_like_cpp(EQUIPMENT_SLOT_OFFHAND, slot)
-            {
+            if self.move_represented_direct_inventory_item_to_pos_like_cpp(
+                EQUIPMENT_SLOT_OFFHAND,
+                bag,
+                slot,
+            ) {
                 stored_destination = Some((bag, slot));
                 needs_mail_fallback = false;
             }
@@ -49608,7 +49647,11 @@ mod tests {
                             allowable_class: -1,
                             required_expansion: 0,
                             bonding: ItemBondingType::None as u8,
-                            container_slots: 0,
+                            container_slots: if inventory_type == InventoryType::Bag {
+                                4
+                            } else {
+                                0
+                            },
                             inventory_type: inventory_type as i8,
                         },
                     )
@@ -50083,6 +50126,97 @@ mod tests {
             .expect("mail fallback keeps the standalone item object represented");
         assert_eq!(runtime_item.container_guid(), ObjectGuid::EMPTY);
         assert_eq!(runtime_item.slot(), NULL_SLOT);
+    }
+
+    #[test]
+    fn remove_known_spell_auto_unequip_stores_offhand_in_represented_bag_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let offhand_item_id = 30_007_u32;
+        let filler_item_id = 30_008_u32;
+        let bag_item_id = 30_009_u32;
+        let offhand_guid = ObjectGuid::create_item(1, 30_007);
+        let bag_guid = ObjectGuid::create_item(1, 30_009);
+        let player_guid = ObjectGuid::create_player(1, 160);
+        session.set_player_guid(Some(player_guid));
+        install_remove_spell_offhand_templates_like_cpp(
+            &mut session,
+            &[
+                (
+                    offhand_item_id,
+                    InventoryType::WeaponOffhand,
+                    0,
+                    ItemClass::Weapon,
+                    ItemSubClassWeapon::Axe as u8,
+                ),
+                (
+                    filler_item_id,
+                    InventoryType::NonEquip,
+                    0,
+                    ItemClass::Consumable,
+                    0,
+                ),
+                (bag_item_id, InventoryType::Bag, 0, ItemClass::Container, 0),
+            ],
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_OFFHAND,
+            offhand_guid,
+            offhand_item_id,
+            InventoryType::WeaponOffhand,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            INVENTORY_SLOT_BAG_START,
+            bag_guid,
+            bag_item_id,
+            InventoryType::Bag,
+        );
+        for offset in 0..INVENTORY_DEFAULT_SIZE {
+            let slot = INVENTORY_SLOT_ITEM_START + offset;
+            let guid = ObjectGuid::create_item(1, 41_000 + i64::from(offset));
+            equip_represented_test_item_like_cpp(
+                &mut session,
+                slot,
+                guid,
+                filler_item_id,
+                InventoryType::NonEquip,
+            );
+        }
+
+        assert!(session.represented_auto_unequip_offhand_if_need_like_cpp(false));
+
+        assert_eq!(
+            session.represented_auto_unequip_offhand_requests_like_cpp(),
+            &[RepresentedAutoUnequipOffhandLikeCpp {
+                item_guid: offhand_guid,
+                item_entry: offhand_item_id,
+                reason: RepresentedAutoUnequipOffhandReasonLikeCpp::LostDualWield,
+                stored_destination: Some((INVENTORY_SLOT_BAG_START, 0)),
+                needs_mail_fallback: false,
+            }],
+            "C++ StoreItem stores the offhand item inside an equipped bag when backpack slots are full"
+        );
+        assert!(
+            !session
+                .inventory_items_like_cpp()
+                .contains_key(&EQUIPMENT_SLOT_OFFHAND),
+            "C++ RemoveItem removes the direct offhand slot before Bag::StoreItem"
+        );
+        assert_eq!(
+            session
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_START, 0)
+                .map(|item| item.guid),
+            Some(offhand_guid),
+            "represented Bag::StoreItem lookup resolves the moved offhand item"
+        );
+        let runtime_item = session
+            .inventory_item_objects_like_cpp()
+            .get(&offhand_guid)
+            .expect("stored bag item remains a runtime item object");
+        assert_eq!(runtime_item.container_guid(), bag_guid);
+        assert_eq!(runtime_item.bag_slot(), INVENTORY_SLOT_BAG_START);
+        assert_eq!(runtime_item.slot(), 0);
     }
 
     #[test]
