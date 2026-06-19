@@ -1,3 +1,26 @@
+- `#NEXT.R8.ENTITIES.1158` — represented `PlayerData::AvgItemLevel[0]`
+  and `[1]` now have the C++ `Player::UpdateItemLevelAreaBasedScaling`
+  `pvpActivity` branch represented for PvP item-level activation. Source of
+  truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28738-28755`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26171-26174`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:1053`.
+  C++ activates `_usePvpItemLevels` when the current map is a battleground or
+  arena, when `MapEntry::Flags[1] & 0x40` is set, or when aura
+  `SPELL_PVP_RULES_ENABLED` (`134735`) is present. Rust now names that map
+  flag, detects the represented PvP-rules aura from `visible_auras`, updates
+  the represented `Player::IsUsingPvpItemLevels` flag, and therefore
+  activates/deactivates represented `PVPItem.db2` item-level bonuses before
+  average item-level calculations. Coverage: `cargo test -p wow-data
+  map_entry_classification_matches_cpp_helpers --lib`, `cargo test -p wow-world
+  represented_item_level_area_scaling --lib`, and `cargo test -p wow-world
+  represented_item_level --lib`. Boundary remains partial: this does not yet
+  execute C++ `_RemoveAllItemMods` / `_ApplyAllItemMods`, preserve live health
+  percentage around item-mod reapplication, propagate update fields, emit/fanout
+  packets, persist state, perform live-client/bot manual validation, implement
+  player-level-to-item-level curves, or close full condition-runtime parity.
+
 - `#NEXT.R8.ENTITIES.1157` — represented `PlayerData::AvgItemLevel[0]`
   and `[1]` now consume the represented PvP item-level bonus branch of C++
   `Item::GetItemLevel(Player const*)` when represented

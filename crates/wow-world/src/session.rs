@@ -218,6 +218,7 @@ const PLAYER_FLAGS_IN_PVP_LIKE_CPP: u32 = 0x0000_0200;
 const PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP: u32 = 0x0002_0000;
 const PLAYER_FLAGS_PVP_TIMER_LIKE_CPP: u32 = 0x0004_0000;
 const PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP: u32 = 0x0800_0000;
+const SPELL_PVP_RULES_ENABLED_LIKE_CPP: i32 = 134_735;
 const LANG_RESET_SPELLS_LIKE_CPP: u32 = 215;
 const LANG_RESET_TALENTS_LIKE_CPP: u32 = 216;
 const LANG_RESET_SPELLS_TEXT_LIKE_CPP: &str = "Your spells have been reset.";
@@ -14175,6 +14176,32 @@ impl WorldSession {
 
     pub(crate) fn set_represented_using_pvp_item_levels_like_cpp(&mut self, active: bool) {
         self.represented_using_pvp_item_levels_like_cpp = active;
+    }
+
+    pub(crate) fn represented_using_pvp_item_levels_like_cpp(&self) -> bool {
+        self.represented_using_pvp_item_levels_like_cpp
+    }
+
+    fn represented_has_pvp_rules_enabled_like_cpp(&self) -> bool {
+        self.visible_auras
+            .values()
+            .any(|aura| aura.spell_id == SPELL_PVP_RULES_ENABLED_LIKE_CPP)
+    }
+
+    pub(crate) fn update_represented_item_level_area_based_scaling_like_cpp(&mut self) -> bool {
+        let map_pvp_activity = self
+            .map_store()
+            .and_then(|store| store.get(u32::from(self.player_map_id_like_cpp())))
+            .is_some_and(|entry| {
+                entry.is_battleground_or_arena() || entry.activates_pvp_item_levels_like_cpp()
+            });
+        let pvp_activity = map_pvp_activity || self.represented_has_pvp_rules_enabled_like_cpp();
+        if self.represented_using_pvp_item_levels_like_cpp == pvp_activity {
+            return false;
+        }
+
+        self.represented_using_pvp_item_levels_like_cpp = pvp_activity;
+        true
     }
 
     pub fn set_item_spec_override_store(&mut self, store: Arc<ItemSpecOverrideStore>) {
@@ -51974,10 +52001,11 @@ mod tests {
         );
     }
 
-    #[test]
-    fn represented_item_level_applies_pvp_item_level_bonus_when_active_like_cpp() {
-        let (mut session, _, _send_rx) = make_session();
-        let item_id = 30_054_u32;
+    fn install_represented_pvp_item_level_fixture_like_cpp(
+        session: &mut WorldSession,
+        item_id: u32,
+        pvp_delta: u8,
+    ) {
         session.set_item_stats_store(Arc::new(
             ItemStatsStore::from_sparse_and_random_property_templates(
                 [(
@@ -51997,8 +52025,111 @@ mod tests {
         session.set_pvp_item_store(Arc::new(PvpItemStore::from_entries([PvpItemEntry {
             id: 1,
             item_id: item_id as i32,
-            item_level_delta: 25,
+            item_level_delta: pvp_delta,
         }])));
+    }
+
+    fn represented_item_level_area_map_like_cpp(
+        map_id: u32,
+        instance_type: i8,
+        flags2: u32,
+    ) -> wow_data::map::MapEntry {
+        wow_data::map::MapEntry {
+            id: map_id,
+            instance_type,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+            flags2,
+        }
+    }
+
+    #[test]
+    fn represented_item_level_area_scaling_activates_on_battleground_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_154_u32;
+        install_represented_pvp_item_level_fixture_like_cpp(&mut session, item_id, 25);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            represented_item_level_area_map_like_cpp(489, wow_data::map::MAP_BATTLEGROUND, 0),
+        ])));
+        session.set_player_map_position_like_cpp(489, Position::ZERO);
+
+        assert!(session.update_represented_item_level_area_based_scaling_like_cpp());
+        assert!(session.represented_using_pvp_item_levels_like_cpp());
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(125)
+        );
+    }
+
+    #[test]
+    fn represented_item_level_area_scaling_activates_on_map_flag_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_155_u32;
+        install_represented_pvp_item_level_fixture_like_cpp(&mut session, item_id, 15);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            represented_item_level_area_map_like_cpp(
+                30_155,
+                wow_data::map::MAP_COMMON,
+                wow_data::map::MAP_FLAG2_ACTIVATES_PVP_ITEM_LEVELS_LIKE_CPP,
+            ),
+        ])));
+        session.set_player_map_position_like_cpp(30_155, Position::ZERO);
+
+        assert!(session.update_represented_item_level_area_based_scaling_like_cpp());
+        assert!(session.represented_using_pvp_item_levels_like_cpp());
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(115)
+        );
+    }
+
+    #[test]
+    fn represented_item_level_area_scaling_activates_on_pvp_rules_aura_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_156_u32;
+        install_represented_pvp_item_level_fixture_like_cpp(&mut session, item_id, 30);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            represented_item_level_area_map_like_cpp(30_156, wow_data::map::MAP_COMMON, 0),
+        ])));
+        session.set_player_map_position_like_cpp(30_156, Position::ZERO);
+        session
+            .visible_auras
+            .insert(1, test_visible_aura(1, SPELL_PVP_RULES_ENABLED_LIKE_CPP));
+
+        assert!(session.update_represented_item_level_area_based_scaling_like_cpp());
+        assert!(session.represented_using_pvp_item_levels_like_cpp());
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(130)
+        );
+    }
+
+    #[test]
+    fn represented_item_level_area_scaling_deactivates_without_activity_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_157_u32;
+        install_represented_pvp_item_level_fixture_like_cpp(&mut session, item_id, 20);
+        session.set_represented_using_pvp_item_levels_like_cpp(true);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            represented_item_level_area_map_like_cpp(30_157, wow_data::map::MAP_COMMON, 0),
+        ])));
+        session.set_player_map_position_like_cpp(30_157, Position::ZERO);
+
+        assert!(session.update_represented_item_level_area_based_scaling_like_cpp());
+        assert!(!session.represented_using_pvp_item_levels_like_cpp());
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(100)
+        );
+    }
+
+    #[test]
+    fn represented_item_level_applies_pvp_item_level_bonus_when_active_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_054_u32;
+        install_represented_pvp_item_level_fixture_like_cpp(&mut session, item_id, 25);
 
         assert_eq!(
             session.represented_item_level_like_cpp(item_id, None),
