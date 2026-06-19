@@ -121,32 +121,32 @@ use wow_database::{
     SqlTransaction, StatementDef, WorldDatabase,
 };
 use wow_entities::{
-    AccessorObjectKind, ActiveState, ApplyEnchantmentArgs, ApplyEnchantmentEffectRef,
-    ApplyEnchantmentPlan, ApplyEnchantmentRandomSuffixRef, ApplyEnchantmentTemplateRef,
-    BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_COUNT, BUYBACK_SLOT_END,
-    BUYBACK_SLOT_START, BagTemplateRef, CanEquipItemArgs, CanEquipUniqueItemArgs, CanStoreItemArgs,
-    CanUnequipItemArgs, CanUseItemArgs, CanUseItemTemplateArgs, EQUIPMENT_SLOT_BACK,
-    EQUIPMENT_SLOT_BODY, EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_END, EQUIPMENT_SLOT_FEET,
-    EQUIPMENT_SLOT_FINGER1, EQUIPMENT_SLOT_FINGER2, EQUIPMENT_SLOT_HANDS, EQUIPMENT_SLOT_HEAD,
-    EQUIPMENT_SLOT_LEGS, EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_NECK, EQUIPMENT_SLOT_OFFHAND,
-    EQUIPMENT_SLOT_SHOULDERS, EQUIPMENT_SLOT_TABARD, EQUIPMENT_SLOT_TRINKET1,
-    EQUIPMENT_SLOT_TRINKET2, EQUIPMENT_SLOT_WAIST, EQUIPMENT_SLOT_WRISTS, EquippedGemRef,
-    GAMEOBJECT_TYPE_GUILD_BANK, GameObject, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0,
-    INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS,
-    ITEM_DATA_CONTAINED_IN_BIT, ITEM_DATA_DURABILITY_BIT, Item, ItemCreateInfo, ItemDataUpdate,
-    ItemLimitCategoryTemplate, ItemPosCount, ItemSlotRef, ItemStorageRef, ItemStorageTemplate,
-    ItemValuesUpdate, MAX_BAG_SIZE, MAX_ITEM_SPELLS, MAX_MONEY_AMOUNT, MAX_POWERS,
-    MovementGeneratorKind, MovementSlot, NULL_BAG, NULL_SLOT, ObjectAccessor,
-    PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP, PLAYER_SLOT_END, Pet, PetAuraLikeCpp,
-    PetDeclinedNamesLikeCpp, PetSaveMode, PetSpellState, PetSpellType, PetStable, PetStableInfo,
-    PetType, PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerInventoryStorage,
+    AccessorObjectKind, ActiveState, ApplyEnchantmentArgs, ApplyEnchantmentEffectAction,
+    ApplyEnchantmentEffectRef, ApplyEnchantmentPlan, ApplyEnchantmentRandomSuffixRef,
+    ApplyEnchantmentTemplateRef, BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_COUNT,
+    BUYBACK_SLOT_END, BUYBACK_SLOT_START, BagTemplateRef, CanEquipItemArgs, CanEquipUniqueItemArgs,
+    CanStoreItemArgs, CanUnequipItemArgs, CanUseItemArgs, CanUseItemTemplateArgs,
+    EQUIPMENT_SLOT_BACK, EQUIPMENT_SLOT_BODY, EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_END,
+    EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_FINGER1, EQUIPMENT_SLOT_FINGER2, EQUIPMENT_SLOT_HANDS,
+    EQUIPMENT_SLOT_HEAD, EQUIPMENT_SLOT_LEGS, EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_NECK,
+    EQUIPMENT_SLOT_OFFHAND, EQUIPMENT_SLOT_SHOULDERS, EQUIPMENT_SLOT_TABARD,
+    EQUIPMENT_SLOT_TRINKET1, EQUIPMENT_SLOT_TRINKET2, EQUIPMENT_SLOT_WAIST, EQUIPMENT_SLOT_WRISTS,
+    EquippedGemRef, GAMEOBJECT_TYPE_GUILD_BANK, GameObject, INVENTORY_DEFAULT_SIZE,
+    INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
+    INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS, ITEM_DATA_CONTAINED_IN_BIT,
+    ITEM_DATA_DURABILITY_BIT, Item, ItemCreateInfo, ItemDataUpdate, ItemLimitCategoryTemplate,
+    ItemPosCount, ItemSlotRef, ItemStorageRef, ItemStorageTemplate, ItemValuesUpdate, MAX_BAG_SIZE,
+    MAX_ITEM_SPELLS, MAX_MONEY_AMOUNT, MAX_POWERS, MovementGeneratorKind, MovementSlot, NULL_BAG,
+    NULL_SLOT, ObjectAccessor, PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP, PLAYER_SLOT_END, Pet,
+    PetAuraLikeCpp, PetDeclinedNamesLikeCpp, PetSaveMode, PetSpellState, PetSpellType, PetStable,
+    PetStableInfo, PetType, PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerInventoryStorage,
     PlayerItemTimeUpdate, QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE,
     REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, ReactState, SendNewItemDelivery,
     SendNewItemDisplayText, SendNewItemPlan, SocketedGemUniqueRef, TYPEID_CONTAINER, TYPEID_ITEM,
     TitanGripPenaltyAction, UNIT_DATA_HEALTH_BIT, Unit, UnitDataUpdate, UnitDataValues,
     UnitVisibilityDetectionStateLikeCpp, UpdateMask, Vehicle, VehicleAccessory, VisibleItemValues,
     WorldObject, explored_zones_db_string_from_blocks_like_cpp, is_bag_pos,
-    is_equipment_packed_pos, is_inventory_pos, make_item_pos,
+    is_equipment_packed_pos, is_inventory_pos, item_stat_bonus_actions_like_cpp, make_item_pos,
     parse_explored_zones_db_string_like_cpp,
 };
 use wow_entities::{
@@ -1709,6 +1709,13 @@ pub(crate) struct RepresentedItemModsReapplyEventLikeCpp {
     pub item_guid: ObjectGuid,
     pub slot: u8,
     pub apply: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RepresentedItemBonusActionLikeCpp {
+    pub item_guid: ObjectGuid,
+    pub slot: u8,
+    pub action: ApplyEnchantmentEffectAction,
 }
 
 const CR_ARMOR_PENETRATION_LIKE_CPP: u8 = 24;
@@ -3765,6 +3772,7 @@ pub struct WorldSession {
     buyback_timestamp: [i64; BUYBACK_SLOT_COUNT],
     current_buyback_slot: u8,
     represented_item_mod_reapply_events_like_cpp: Vec<RepresentedItemModsReapplyEventLikeCpp>,
+    represented_item_bonus_actions_like_cpp: Vec<RepresentedItemBonusActionLikeCpp>,
     represented_combat_stat_recalculations_like_cpp: Vec<RepresentedCombatStatRecalculationLikeCpp>,
     represented_titan_grip_penalty_actions_like_cpp: Vec<TitanGripPenaltyAction>,
     represented_avg_equipped_item_level_updates_like_cpp: Vec<f32>,
@@ -5475,6 +5483,7 @@ impl WorldSession {
             buyback_timestamp: [0; BUYBACK_SLOT_COUNT],
             current_buyback_slot: BUYBACK_SLOT_START,
             represented_item_mod_reapply_events_like_cpp: Vec::new(),
+            represented_item_bonus_actions_like_cpp: Vec::new(),
             represented_combat_stat_recalculations_like_cpp: Vec::new(),
             represented_titan_grip_penalty_actions_like_cpp: Vec::new(),
             represented_avg_equipped_item_level_updates_like_cpp: Vec::new(),
@@ -14238,14 +14247,49 @@ impl WorldSession {
         targets: &[(u8, ObjectGuid)],
         apply: bool,
     ) {
-        self.represented_item_mod_reapply_events_like_cpp
-            .extend(targets.iter().map(|(slot, item_guid)| {
-                RepresentedItemModsReapplyEventLikeCpp {
-                    item_guid: *item_guid,
-                    slot: *slot,
-                    apply,
-                }
-            }));
+        for (slot, item_guid) in targets {
+            self.record_represented_item_mods_like_cpp(*item_guid, *slot, apply);
+        }
+    }
+
+    fn record_represented_item_mods_like_cpp(
+        &mut self,
+        item_guid: ObjectGuid,
+        slot: u8,
+        apply: bool,
+    ) {
+        self.represented_item_mod_reapply_events_like_cpp.push(
+            RepresentedItemModsReapplyEventLikeCpp {
+                item_guid,
+                slot,
+                apply,
+            },
+        );
+
+        let Some(item_entry) = self
+            .inventory_item_objects_like_cpp()
+            .get(&item_guid)
+            .map(|item| item.object().entry())
+        else {
+            return;
+        };
+        let Some(stat_entry) = self
+            .item_stats_store
+            .as_ref()
+            .and_then(|store| store.get(item_entry))
+        else {
+            return;
+        };
+
+        self.represented_item_bonus_actions_like_cpp.extend(
+            item_stat_bonus_actions_like_cpp(&stat_entry.stats, apply)
+                .into_iter()
+                .map(|action| RepresentedItemBonusActionLikeCpp {
+                    item_guid,
+                    slot,
+                    action,
+                }),
+        );
     }
 
     fn restore_represented_health_pct_after_item_mod_scaling_like_cpp(
@@ -15453,13 +15497,7 @@ impl WorldSession {
             if let Some(slot) = equipped_slot
                 && was_broken
             {
-                self.represented_item_mod_reapply_events_like_cpp.push(
-                    RepresentedItemModsReapplyEventLikeCpp {
-                        item_guid,
-                        slot,
-                        apply: true,
-                    },
-                );
+                self.record_represented_item_mods_like_cpp(item_guid, slot, true);
             }
             self.sync_object_accessor_player();
         }
@@ -32865,6 +32903,13 @@ impl WorldSession {
     }
 
     #[cfg(test)]
+    pub(crate) fn represented_item_bonus_actions_like_cpp(
+        &self,
+    ) -> &[RepresentedItemBonusActionLikeCpp] {
+        &self.represented_item_bonus_actions_like_cpp
+    }
+
+    #[cfg(test)]
     pub(crate) fn represented_combat_stat_recalculations_like_cpp(
         &self,
     ) -> &[RepresentedCombatStatRecalculationLikeCpp] {
@@ -49150,6 +49195,7 @@ fn default_available_classes() -> Vec<wow_packet::packets::auth::RaceClassAvaila
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wow_constants::ItemModType;
     use wow_constants::{
         BagFamilyMask, ConditionSourceType, ConditionType, EnchantmentSlot, InventoryResult,
         InventoryType, ItemBondingType, ItemClass, ItemContext, ItemFieldFlags, ItemFlags,
@@ -49157,7 +49203,6 @@ mod tests {
         SpellItemEnchantmentFlags, UnitDynFlags, UnitFlags,
     };
     use wow_core::{Position, guid::HighGuid};
-    use wow_data::PvpItemEntry;
     use wow_data::{
         ChrSpecializationEntry, ChrSpecializationStore, Condition, DifficultyEntry,
         DifficultyStore, DurabilityCostsEntry, DurabilityCostsStore, DurabilityQualityEntry,
@@ -49183,6 +49228,7 @@ mod tests {
         },
         reputation::ReputationFlagsLikeCpp,
     };
+    use wow_data::{ItemStatEntry, PvpItemEntry};
     use wow_entities::{
         AccessorObjectRef, ApplyEnchantmentDurationAction, ApplyEnchantmentResult,
         BANK_SLOT_BAG_START, BANK_SLOT_ITEM_START, CharmType, EQUIPMENT_SLOT_CHEST,
@@ -103695,7 +103741,25 @@ mod tests {
             inventory_type: inventory_type as i8,
         };
         session.set_item_stats_store(Arc::new(
-            ItemStatsStore::from_sparse_and_random_property_templates(
+            ItemStatsStore::from_stats_sparse_and_random_property_templates(
+                [(
+                    100,
+                    ItemStatEntry {
+                        stats: [
+                            (ItemModType::Strength as i8, 12),
+                            (ItemModType::HitRating as i8, 5),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                        ],
+                        armor: 0,
+                    },
+                )],
                 [
                     (100, sparse(InventoryType::Weapon, 50)),
                     (101, sparse(InventoryType::Chest, 13)),
@@ -103819,6 +103883,56 @@ mod tests {
             }],
             "C++ DurabilityRepairAll delegates each item to DurabilityRepair, which reapplies item mods when an equipped item was broken before repair"
         );
+        assert_eq!(
+            session.represented_item_bonus_actions_like_cpp(),
+            &[
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid: weapon_guid,
+                    slot: EQUIPMENT_SLOT_MAINHAND,
+                    action: ApplyEnchantmentEffectAction::UnitModifier {
+                        unit_mod: wow_entities::ApplyEnchantmentUnitMod::StatStrength,
+                        modifier: wow_entities::ApplyEnchantmentUnitModifier::BaseValue,
+                        amount: 12,
+                        apply: true,
+                    },
+                },
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid: weapon_guid,
+                    slot: EQUIPMENT_SLOT_MAINHAND,
+                    action: ApplyEnchantmentEffectAction::UpdateStatBuffMod(
+                        wow_constants::Stats::Strength,
+                    ),
+                },
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid: weapon_guid,
+                    slot: EQUIPMENT_SLOT_MAINHAND,
+                    action: ApplyEnchantmentEffectAction::RatingModifier {
+                        rating: wow_entities::ApplyEnchantmentCombatRating::HitMelee,
+                        amount: 5,
+                        apply: true,
+                    },
+                },
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid: weapon_guid,
+                    slot: EQUIPMENT_SLOT_MAINHAND,
+                    action: ApplyEnchantmentEffectAction::RatingModifier {
+                        rating: wow_entities::ApplyEnchantmentCombatRating::HitRanged,
+                        amount: 5,
+                        apply: true,
+                    },
+                },
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid: weapon_guid,
+                    slot: EQUIPMENT_SLOT_MAINHAND,
+                    action: ApplyEnchantmentEffectAction::RatingModifier {
+                        rating: wow_entities::ApplyEnchantmentCombatRating::HitSpell,
+                        amount: 5,
+                        apply: true,
+                    },
+                },
+            ],
+            "C++ _ApplyItemMods calls _ApplyItemBonuses before equip spells/auras/enchantments"
+        );
 
         session.set_player_gold_like_cpp(10);
         session
@@ -103924,7 +104038,25 @@ mod tests {
             inventory_type: inventory_type as i8,
         };
         session.set_item_stats_store(Arc::new(
-            ItemStatsStore::from_sparse_and_random_property_templates(
+            ItemStatsStore::from_stats_sparse_and_random_property_templates(
+                [(
+                    100,
+                    ItemStatEntry {
+                        stats: [
+                            (ItemModType::Strength as i8, 12),
+                            (ItemModType::HitRating as i8, 5),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                        ],
+                        armor: 0,
+                    },
+                )],
                 [
                     (100, sparse(InventoryType::Weapon, 50)),
                     (101, sparse(InventoryType::Chest, 13)),
@@ -104106,6 +104238,11 @@ mod tests {
                 apply: true,
             }],
             "C++ guild-bank repair also calls DurabilityRepair for each selected item before the final guild withdrawal"
+        );
+        assert_eq!(
+            session.represented_item_bonus_actions_like_cpp().len(),
+            5,
+            "represented guild-bank repair records the same static _ApplyItemBonuses action plan for the broken equipped item"
         );
     }
 

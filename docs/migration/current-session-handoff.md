@@ -1,3 +1,19 @@
+- `#NEXT.R8.ENTITIES.1167` — represented `_ApplyItemMods` repair
+  reapplication now records the static-stat `_ApplyItemBonuses` action plan
+  for repaired broken equipment when `ItemSparse` stat data is represented.
+  Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7660-8163`.
+  The slice deliberately separates the C++ contracts: item-bonus primary stats
+  use `BASE_VALUE` (unlike enchantment stat effects, which use their own helper),
+  and unified hit rating expands to melee/ranged/spell rating actions. Coverage:
+  `cargo test -p wow-entities item_stat_bonus_actions_match_cpp_apply_item_bonuses_stat_loop --lib`
+  and `cargo test -p wow-world repair_all_inventory_item_durability --lib`.
+  Boundary remains partial: this records represented static stat/rating bonus
+  actions only; scaling stats, resistances, shield block, weapon damage, attack
+  time, equip spells, dependent auras, weapon-dependent aura updates,
+  enchantments, real stat mutation/update-field fanout, live-client/bot
+  validation, and manual validation remain open.
+
 - `#NEXT.R8.ENTITIES.1166` — repair-all durability tests now explicitly
   validate the C++ `DurabilityRepairAll -> DurabilityRepair` broken-equipped
   item-mod reapply path for both player-money and guild-bank repair. Source of

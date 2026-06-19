@@ -2460,6 +2460,83 @@ fn apply_enchantment_stat_actions(
     }
 }
 
+/// C++ `Player::_ApplyItemBonuses` stat-loop subset for represented callers.
+///
+/// This intentionally covers only static `ItemSparse` stat modifier slots. The
+/// remaining `_ApplyItemBonuses` branches (scaling stats, resistances, shield
+/// block, weapon damage and attack time) require their own runtime state.
+pub fn item_stat_bonus_actions_like_cpp(
+    stats: &[(i8, i16); 10],
+    apply: bool,
+) -> Vec<ApplyEnchantmentEffectAction> {
+    let mut actions = Vec::new();
+    for &(stat_type, amount) in stats {
+        if stat_type == -1 || amount == 0 {
+            continue;
+        }
+        if amount < 0 {
+            actions.push(ApplyEnchantmentEffectAction::UnhandledStatModifier {
+                item_mod: item_mod_type_from_u32(stat_type as u32),
+                amount: amount.unsigned_abs().into(),
+                apply,
+            });
+            continue;
+        }
+        let item_mod = item_mod_type_from_u32(stat_type as u32);
+        actions.extend(match item_mod {
+            ItemModType::Agility => item_bonus_primary_stat_actions(
+                ApplyEnchantmentUnitMod::StatAgility,
+                Stats::Agility,
+                amount as u32,
+                apply,
+            ),
+            ItemModType::Strength => item_bonus_primary_stat_actions(
+                ApplyEnchantmentUnitMod::StatStrength,
+                Stats::Strength,
+                amount as u32,
+                apply,
+            ),
+            ItemModType::Intellect => item_bonus_primary_stat_actions(
+                ApplyEnchantmentUnitMod::StatIntellect,
+                Stats::Intellect,
+                amount as u32,
+                apply,
+            ),
+            ItemModType::Spirit => item_bonus_primary_stat_actions(
+                ApplyEnchantmentUnitMod::StatSpirit,
+                Stats::Spirit,
+                amount as u32,
+                apply,
+            ),
+            ItemModType::Stamina => item_bonus_primary_stat_actions(
+                ApplyEnchantmentUnitMod::StatStamina,
+                Stats::Stamina,
+                amount as u32,
+                apply,
+            ),
+            _ => apply_enchantment_stat_actions(item_mod, amount as u32, apply),
+        });
+    }
+    actions
+}
+
+fn item_bonus_primary_stat_actions(
+    unit_mod: ApplyEnchantmentUnitMod,
+    stat: Stats,
+    amount: u32,
+    apply: bool,
+) -> Vec<ApplyEnchantmentEffectAction> {
+    vec![
+        unit_modifier(
+            unit_mod,
+            ApplyEnchantmentUnitModifier::BaseValue,
+            amount,
+            apply,
+        ),
+        ApplyEnchantmentEffectAction::UpdateStatBuffMod(stat),
+    ]
+}
+
 fn primary_stat_actions(
     unit_mod: ApplyEnchantmentUnitMod,
     stat: Stats,
@@ -15522,6 +15599,50 @@ mod tests {
                 spell_id: 1234,
                 item_guid: item.object().guid(),
             }]
+        );
+    }
+
+    #[test]
+    fn item_stat_bonus_actions_match_cpp_apply_item_bonuses_stat_loop() {
+        let stats = [
+            (ItemModType::Strength as i8, 12),
+            (ItemModType::HitRating as i8, 5),
+            (-1, 99),
+            (ItemModType::SpellPower as i8, 0),
+            (-1, 0),
+            (-1, 0),
+            (-1, 0),
+            (-1, 0),
+            (-1, 0),
+            (-1, 0),
+        ];
+
+        assert_eq!(
+            item_stat_bonus_actions_like_cpp(&stats, true),
+            vec![
+                ApplyEnchantmentEffectAction::UnitModifier {
+                    unit_mod: ApplyEnchantmentUnitMod::StatStrength,
+                    modifier: ApplyEnchantmentUnitModifier::BaseValue,
+                    amount: 12,
+                    apply: true,
+                },
+                ApplyEnchantmentEffectAction::UpdateStatBuffMod(Stats::Strength),
+                ApplyEnchantmentEffectAction::RatingModifier {
+                    rating: ApplyEnchantmentCombatRating::HitMelee,
+                    amount: 5,
+                    apply: true,
+                },
+                ApplyEnchantmentEffectAction::RatingModifier {
+                    rating: ApplyEnchantmentCombatRating::HitRanged,
+                    amount: 5,
+                    apply: true,
+                },
+                ApplyEnchantmentEffectAction::RatingModifier {
+                    rating: ApplyEnchantmentCombatRating::HitSpell,
+                    amount: 5,
+                    apply: true,
+                },
+            ],
         );
     }
 

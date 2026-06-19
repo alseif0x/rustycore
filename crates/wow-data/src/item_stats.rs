@@ -399,6 +399,24 @@ impl ItemStatsStore {
         }
     }
 
+    pub fn from_stats_sparse_and_random_property_templates(
+        stats: impl IntoIterator<Item = (u32, ItemStatEntry)>,
+        sparse_templates: impl IntoIterator<Item = (u32, ItemSparseTemplateEntry)>,
+        random_property_templates: impl IntoIterator<Item = (u32, ItemRandomPropertyTemplateEntry)>,
+    ) -> Self {
+        let sparse_templates: HashMap<_, _> = sparse_templates.into_iter().collect();
+        let flags = sparse_templates
+            .iter()
+            .map(|(&id, template)| (id, template.flags))
+            .collect();
+        Self {
+            stats: stats.into_iter().collect(),
+            flags,
+            sparse_templates,
+            random_property_templates: random_property_templates.into_iter().collect(),
+        }
+    }
+
     /// Load item stat modifiers from ItemSparse.db2.
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         let path = Path::new(data_dir)
