@@ -1,3 +1,20 @@
+- `#NEXT.R8.ENTITIES.1145` — represented `PlayerData::AvgItemLevel[0]`
+  now maintains a C++-shaped best-item-level table per equipment slot for
+  represented inventory items. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28773-28880`
+  and `/home/server/woltk-trinity-legacy/src/server/game/Conditions/ConditionMgr.cpp:3206-3215`.
+  Rust now maps represented item `InventoryType` values through the same
+  `ForEachEquipmentSlot` shape used by C++ `UpdateAverageItemLevelTotal`,
+  lets a better represented non-equipped direct-inventory item replace the
+  current slot candidate, suppresses duplicate GUID reuse for paired candidate
+  slots like finger/trinket/offhand, keeps the main-hand 2H double-count rule,
+  and continues to divide by `16.0`. Coverage: `cargo test -p wow-world
+  represented_condition_total_avg_item_level --lib`. Boundary remains partial:
+  full `CanEquipItem` restrictions, bag-contained item traversal, bank
+  traversal, unique-equip/limit/category gates, item-level bonus/PvP/timewalker
+  scaling, update-field packet emission/fanout, persistence, live-client/bot
+  manual validation, and full condition-runtime parity remain open.
+
 - `#NEXT.R8.ENTITIES.1144` — represented player-condition context now uses
   the C++ equipment-slot denominator / main-hand 2H formula for
   `PlayerData::AvgItemLevel[0]` within the represented equipped-items

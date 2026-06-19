@@ -123,11 +123,12 @@ use wow_entities::{
     BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_COUNT, BUYBACK_SLOT_END,
     BUYBACK_SLOT_START, BagTemplateRef, CanStoreItemArgs, CanUnequipItemArgs, CanUseItemArgs,
     CanUseItemTemplateArgs, EQUIPMENT_SLOT_BACK, EQUIPMENT_SLOT_BODY, EQUIPMENT_SLOT_CHEST,
-    EQUIPMENT_SLOT_END, EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_HANDS, EQUIPMENT_SLOT_HEAD,
-    EQUIPMENT_SLOT_LEGS, EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND, EQUIPMENT_SLOT_SHOULDERS,
-    EQUIPMENT_SLOT_TABARD, EQUIPMENT_SLOT_WAIST, EQUIPMENT_SLOT_WRISTS, GAMEOBJECT_TYPE_GUILD_BANK,
-    GameObject, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END,
-    INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS,
+    EQUIPMENT_SLOT_END, EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_FINGER1, EQUIPMENT_SLOT_FINGER2,
+    EQUIPMENT_SLOT_HANDS, EQUIPMENT_SLOT_HEAD, EQUIPMENT_SLOT_LEGS, EQUIPMENT_SLOT_MAINHAND,
+    EQUIPMENT_SLOT_NECK, EQUIPMENT_SLOT_OFFHAND, EQUIPMENT_SLOT_SHOULDERS, EQUIPMENT_SLOT_TABARD,
+    EQUIPMENT_SLOT_TRINKET1, EQUIPMENT_SLOT_TRINKET2, EQUIPMENT_SLOT_WAIST, EQUIPMENT_SLOT_WRISTS,
+    GAMEOBJECT_TYPE_GUILD_BANK, GameObject, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0,
+    INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS,
     ITEM_DATA_CONTAINED_IN_BIT, ITEM_DATA_DURABILITY_BIT, Item, ItemCreateInfo, ItemDataUpdate,
     ItemLimitCategoryTemplate, ItemPosCount, ItemSlotRef, ItemStorageRef, ItemStorageTemplate,
     ItemValuesUpdate, MAX_BAG_SIZE, MAX_ITEM_SPELLS, MAX_MONEY_AMOUNT, MAX_POWERS,
@@ -30218,11 +30219,158 @@ impl WorldSession {
     }
 
     fn represented_avg_total_item_level_like_cpp(&self) -> f32 {
-        // C++ UpdateAverageItemLevelTotal selects the best equipable item for
-        // each equipment slot and divides the slot sum by 16. The represented
-        // model does not yet evaluate every bag candidate with CanEquipItem, so
-        // the current boundary is the already-equipped slot formula.
-        self.represented_avg_equipped_item_level_like_cpp()
+        let can_dual_wield = self
+            .canonical_player_snapshot_like_cpp(|player| player.unit().can_dual_wield_like_cpp())
+            .unwrap_or(false);
+        let can_titan_grip = self
+            .canonical_player_snapshot_like_cpp(Player::can_titan_grip)
+            .unwrap_or(false);
+        let mut best_item_levels =
+            vec![(InventoryType::NonEquip, 0u32, ObjectGuid::EMPTY); EQUIPMENT_SLOT_END as usize];
+        let mut sum = 0u32;
+
+        for (&slot, inventory_item) in self.inventory_items_like_cpp() {
+            let Some(storage_template) = self.item_storage_template(inventory_item.entry_id) else {
+                continue;
+            };
+            let Some(stats_template) = self
+                .item_stats_store
+                .as_ref()
+                .and_then(|store| store.random_property_template(inventory_item.entry_id))
+            else {
+                continue;
+            };
+            let item_level = u32::from(stats_template.item_level);
+            let inventory_type = storage_template.inventory_type;
+
+            if slot < EQUIPMENT_SLOT_END {
+                Self::represented_avg_total_item_level_maybe_replace_slot_like_cpp(
+                    &mut best_item_levels,
+                    &mut sum,
+                    slot,
+                    inventory_type,
+                    item_level,
+                    inventory_item.guid,
+                    false,
+                );
+                continue;
+            }
+
+            for (candidate_slot, check_duplicate_guid) in
+                Self::represented_total_avg_equipment_slot_candidates_like_cpp(
+                    inventory_type,
+                    can_dual_wield,
+                    can_titan_grip,
+                )
+            {
+                Self::represented_avg_total_item_level_maybe_replace_slot_like_cpp(
+                    &mut best_item_levels,
+                    &mut sum,
+                    candidate_slot,
+                    inventory_type,
+                    item_level,
+                    inventory_item.guid,
+                    check_duplicate_guid,
+                );
+            }
+        }
+
+        if !can_titan_grip
+            && best_item_levels[EQUIPMENT_SLOT_MAINHAND as usize].0 == InventoryType::Weapon2Hand
+        {
+            sum = sum.saturating_add(best_item_levels[EQUIPMENT_SLOT_MAINHAND as usize].1);
+        }
+
+        sum as f32 / 16.0
+    }
+
+    fn represented_avg_total_item_level_maybe_replace_slot_like_cpp(
+        best_item_levels: &mut [(InventoryType, u32, ObjectGuid)],
+        sum: &mut u32,
+        slot: u8,
+        inventory_type: InventoryType,
+        item_level: u32,
+        item_guid: ObjectGuid,
+        check_duplicate_guid: bool,
+    ) {
+        if check_duplicate_guid
+            && best_item_levels
+                .iter()
+                .any(|(_, _, existing_guid)| *existing_guid == item_guid)
+        {
+            return;
+        }
+
+        let slot_data = &mut best_item_levels[slot as usize];
+        if item_level > slot_data.1 {
+            *sum = sum.saturating_add(item_level.saturating_sub(slot_data.1));
+            *slot_data = (inventory_type, item_level, item_guid);
+        }
+    }
+
+    fn represented_total_avg_equipment_slot_candidates_like_cpp(
+        inventory_type: InventoryType,
+        can_dual_wield: bool,
+        can_titan_grip: bool,
+    ) -> Vec<(u8, bool)> {
+        match inventory_type {
+            InventoryType::Head => vec![(EQUIPMENT_SLOT_HEAD, false)],
+            InventoryType::Neck => vec![(EQUIPMENT_SLOT_NECK, false)],
+            InventoryType::Shoulders => vec![(EQUIPMENT_SLOT_SHOULDERS, false)],
+            InventoryType::Body => vec![(EQUIPMENT_SLOT_BODY, false)],
+            InventoryType::Robe | InventoryType::Chest => vec![(EQUIPMENT_SLOT_CHEST, false)],
+            InventoryType::Waist => vec![(EQUIPMENT_SLOT_WAIST, false)],
+            InventoryType::Legs => vec![(EQUIPMENT_SLOT_LEGS, false)],
+            InventoryType::Feet => vec![(EQUIPMENT_SLOT_FEET, false)],
+            InventoryType::Wrists => vec![(EQUIPMENT_SLOT_WRISTS, false)],
+            InventoryType::Hands => vec![(EQUIPMENT_SLOT_HANDS, false)],
+            InventoryType::Cloak => vec![(EQUIPMENT_SLOT_BACK, false)],
+            InventoryType::Finger => {
+                vec![
+                    (EQUIPMENT_SLOT_FINGER1, false),
+                    (EQUIPMENT_SLOT_FINGER2, true),
+                ]
+            }
+            InventoryType::Trinket => {
+                vec![
+                    (EQUIPMENT_SLOT_TRINKET1, false),
+                    (EQUIPMENT_SLOT_TRINKET2, true),
+                ]
+            }
+            InventoryType::Weapon => {
+                let mut slots = vec![(EQUIPMENT_SLOT_MAINHAND, false)];
+                if can_dual_wield {
+                    slots.push((EQUIPMENT_SLOT_OFFHAND, true));
+                }
+                slots
+            }
+            InventoryType::Weapon2Hand => {
+                let mut slots = vec![(EQUIPMENT_SLOT_MAINHAND, false)];
+                if can_dual_wield && can_titan_grip {
+                    slots.push((EQUIPMENT_SLOT_OFFHAND, true));
+                }
+                slots
+            }
+            InventoryType::Ranged | InventoryType::RangedRight | InventoryType::WeaponMainhand => {
+                vec![(EQUIPMENT_SLOT_MAINHAND, false)]
+            }
+            InventoryType::Shield | InventoryType::Holdable | InventoryType::WeaponOffhand => {
+                vec![(EQUIPMENT_SLOT_OFFHAND, false)]
+            }
+            InventoryType::NonEquip
+            | InventoryType::Bag
+            | InventoryType::Tabard
+            | InventoryType::Ammo
+            | InventoryType::Thrown
+            | InventoryType::Quiver
+            | InventoryType::Relic
+            | InventoryType::ProfessionTool
+            | InventoryType::ProfessionGear
+            | InventoryType::EquipableSpellOffensive
+            | InventoryType::EquipableSpellUtility
+            | InventoryType::EquipableSpellDefensive
+            | InventoryType::EquipableSpellMobility => Vec::new(),
+        }
     }
 
     fn represented_avg_equipped_item_level_like_cpp(&self) -> f32 {
@@ -50065,6 +50213,24 @@ mod tests {
         );
     }
 
+    fn represented_test_item_record_like_cpp(
+        item_id: u32,
+        inventory_type: InventoryType,
+        class_id: ItemClass,
+        subclass_id: u8,
+    ) -> ItemRecord {
+        ItemRecord {
+            id: item_id,
+            class_id: class_id as u8,
+            subclass_id,
+            material: 0,
+            inventory_type: inventory_type as i8,
+            sheathe_type: 0,
+            random_select: 0,
+            random_suffix_group_id: 0,
+        }
+    }
+
     #[test]
     fn remove_known_spell_clears_dual_wield_like_cpp() {
         let (mut session, _, _send_rx) = make_session();
@@ -50855,6 +51021,163 @@ mod tests {
         assert_eq!(
             context.avg_equipped_item_level, 25.0,
             "The represented equipped boundary has the same result when only equipped items are known"
+        );
+    }
+
+    #[test]
+    fn represented_condition_total_avg_item_level_uses_best_represented_slot_candidate_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let equipped_chest_item_id = 30_017_u32;
+        let bag_chest_item_id = 30_018_u32;
+        let equipped_chest_guid = ObjectGuid::create_item(1, 30_017);
+        let bag_chest_guid = ObjectGuid::create_item(1, 30_018);
+        let player_guid = ObjectGuid::create_player(1, 165);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AverageItemLevelBestCandidate".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        session.set_item_store(Arc::new(ItemStore::from_records([
+            represented_test_item_record_like_cpp(
+                equipped_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+            represented_test_item_record_like_cpp(
+                bag_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+        ])));
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [
+                    (
+                        equipped_chest_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                    ),
+                    (
+                        bag_chest_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                    ),
+                ],
+                [
+                    (
+                        equipped_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 100,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                    (
+                        bag_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 200,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                ],
+            ),
+        ));
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            equipped_chest_guid,
+            equipped_chest_item_id,
+            InventoryType::Chest,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            INVENTORY_SLOT_ITEM_START,
+            bag_chest_guid,
+            bag_chest_item_id,
+            InventoryType::Chest,
+        );
+
+        let owned = session.represented_player_condition_context_like_cpp();
+        let context = owned.as_context(&session);
+
+        assert_eq!(
+            context.avg_item_level, 12.5,
+            "C++ UpdateAverageItemLevelTotal keeps the highest represented equipable candidate per equipment slot and divides by 16"
+        );
+        assert_eq!(
+            context.avg_equipped_item_level, 6.25,
+            "C++ UpdateAverageItemLevelEquipped only uses currently equipped items"
+        );
+    }
+
+    #[test]
+    fn represented_condition_total_avg_item_level_does_not_count_same_ring_twice_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let ring_item_id = 30_019_u32;
+        let ring_guid = ObjectGuid::create_item(1, 30_019);
+        let player_guid = ObjectGuid::create_player(1, 166);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AverageItemLevelRingDuplicate".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        session.set_item_store(Arc::new(ItemStore::from_records([
+            represented_test_item_record_like_cpp(
+                ring_item_id,
+                InventoryType::Finger,
+                ItemClass::Armor,
+                ItemSubClassArmor::Miscellaneous as u8,
+            ),
+        ])));
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [(
+                    ring_item_id,
+                    sparse_template_for_inventory_type_like_cpp(InventoryType::Finger, 0),
+                )],
+                [(
+                    ring_item_id,
+                    ItemRandomPropertyTemplateEntry {
+                        item_level: 100,
+                        quality: ItemQuality::Epic as i8,
+                        inventory_type: InventoryType::Finger as i8,
+                    },
+                )],
+            ),
+        ));
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            INVENTORY_SLOT_ITEM_START,
+            ring_guid,
+            ring_item_id,
+            InventoryType::Finger,
+        );
+
+        let owned = session.represented_player_condition_context_like_cpp();
+        let context = owned.as_context(&session);
+
+        assert_eq!(
+            context.avg_item_level, 6.25,
+            "C++ ForEachEquipmentSlot duplicate-GUID gate prevents the same ring candidate from filling both finger slots"
         );
     }
 
