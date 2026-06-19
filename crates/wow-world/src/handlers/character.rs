@@ -13289,6 +13289,8 @@ mod tests {
                 id: 77,
                 continent_id: 571,
                 parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
                 mount_flags: 0,
                 flags: area_flags,
             },

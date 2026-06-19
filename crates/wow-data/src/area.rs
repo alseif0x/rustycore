@@ -19,6 +19,8 @@ pub struct AreaTableEntry {
     pub id: u32,
     pub continent_id: u16,
     pub parent_area_id: u16,
+    pub area_bit: i16,
+    pub exploration_level: i8,
     pub mount_flags: i32,
     pub flags: u32,
 }
@@ -37,6 +39,18 @@ pub const AREA_FLAG_ALLOW_HEARTH_AND_RESURRECT_FROM_AREA_LIKE_CPP: u32 = 0x0800_
 pub const AREA_FLAG_IS_SUBZONE_LIKE_CPP: u32 = 0x4000_0000;
 
 impl AreaTableEntry {
+    /// C++ `Player::CheckAreaExploreAndOutdoor` derives
+    /// `(offset, mask)` from `AreaTableEntry::AreaBit`.
+    pub fn explored_zone_bit_like_cpp(&self, explored_zone_blocks: usize) -> Option<(usize, u64)> {
+        let area_bit = usize::try_from(self.area_bit).ok()?;
+        let offset = area_bit / 64;
+        if offset >= explored_zone_blocks {
+            return None;
+        }
+
+        Some((offset, 1u64 << (area_bit % 64)))
+    }
+
     pub fn allow_hearth_and_resurrect_from_area_like_cpp(&self) -> bool {
         self.flags & AREA_FLAG_ALLOW_HEARTH_AND_RESURRECT_FROM_AREA_LIKE_CPP != 0
     }
@@ -78,6 +92,9 @@ impl AreaTableStore {
                     // `ContinentID` is DB2Meta field index 3 and `ParentAreaID` is index 4.
                     continent_id: reader.get_field_u16(idx, 3),
                     parent_area_id: reader.get_field_u16(idx, 4),
+                    // C++ fields `AreaBit` and `ExplorationLevel`.
+                    area_bit: reader.get_field_i16(idx, 5),
+                    exploration_level: reader.get_field_i8(idx, 12),
                     // `MountFlags` is C++ field index 17, DB2Meta field index 16.
                     mount_flags: reader.get_field_i32(idx, 16),
                     // `Flags1` is C++ field index 22, DB2Meta field index 21
@@ -120,6 +137,8 @@ impl AreaTableStore {
                     id,
                     continent_id: result.read(3),
                     parent_area_id: result.read(4),
+                    area_bit: result.read(5),
+                    exploration_level: result.read(12),
                     mount_flags: result.read(17),
                     flags: result.read(22),
                 },
@@ -244,6 +263,8 @@ mod tests {
                 id: 100,
                 continent_id: 0,
                 parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
                 mount_flags: 0,
                 flags: 0,
             },
@@ -251,6 +272,8 @@ mod tests {
                 id: 101,
                 continent_id: 0,
                 parent_area_id: 100,
+                area_bit: -1,
+                exploration_level: 0,
                 mount_flags: 0,
                 flags: AREA_FLAG_IS_SUBZONE_LIKE_CPP,
             },
@@ -274,6 +297,8 @@ mod tests {
                 id: 10,
                 continent_id: 0,
                 parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
                 mount_flags: 0,
                 flags: 0,
             },
@@ -281,6 +306,8 @@ mod tests {
                 id: 11,
                 continent_id: 0,
                 parent_area_id: 10,
+                area_bit: -1,
+                exploration_level: 0,
                 mount_flags: 0,
                 flags: AREA_FLAG_IS_SUBZONE_LIKE_CPP,
             },
@@ -289,6 +316,41 @@ mod tests {
 
         assert_eq!(fishing.base_skill_level_like_cpp(&areas, 11), 225);
         assert_eq!(fishing.base_skill_level_like_cpp(&areas, 999), 0);
+    }
+
+    #[test]
+    fn area_table_entry_explored_zone_bit_matches_cpp_area_bit_math() {
+        let entry = AreaTableEntry {
+            id: 42,
+            continent_id: 0,
+            parent_area_id: 0,
+            area_bit: 65,
+            exploration_level: 12,
+            mount_flags: 0,
+            flags: 0,
+        };
+
+        assert_eq!(entry.explored_zone_bit_like_cpp(240), Some((1, 2)));
+    }
+
+    #[test]
+    fn area_table_entry_invalid_area_bit_is_not_discoverable_like_cpp() {
+        let negative = AreaTableEntry {
+            id: 43,
+            continent_id: 0,
+            parent_area_id: 0,
+            area_bit: -1,
+            exploration_level: 0,
+            mount_flags: 0,
+            flags: 0,
+        };
+        let out_of_range = AreaTableEntry {
+            area_bit: 240 * 64,
+            ..negative
+        };
+
+        assert_eq!(negative.explored_zone_bit_like_cpp(240), None);
+        assert_eq!(out_of_range.explored_zone_bit_like_cpp(240), None);
     }
 
     #[test]

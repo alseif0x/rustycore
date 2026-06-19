@@ -4253,6 +4253,9 @@ pub struct WorldSession {
     pub(crate) represented_quest_completed_bits_like_cpp: BTreeSet<u32>,
     /// C++ `ActivePlayerData::ExploredZones`, represented before the canonical Player owns persistence.
     represented_explored_zones_like_cpp: [u64; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP],
+    /// Represented `CriteriaType::RevealWorldMapOverlay` events from area discovery.
+    #[allow(dead_code)]
+    represented_reveal_world_map_overlay_criteria_like_cpp: Vec<u32>,
     /// Session-local evidence for represented `ScriptMgr::OnQuestAcknowledgeAutoAccept` calls.
     pub(crate) represented_auto_accept_acknowledged_quests_like_cpp: Vec<u32>,
     /// Session-local representation of C++ pending shared quest sender + quest id.
@@ -5587,6 +5590,7 @@ impl WorldSession {
             represented_quest_reward_reputations_like_cpp: Vec::new(),
             represented_quest_completed_bits_like_cpp: BTreeSet::new(),
             represented_explored_zones_like_cpp: [0; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP],
+            represented_reveal_world_map_overlay_criteria_like_cpp: Vec::new(),
             represented_auto_accept_acknowledged_quests_like_cpp: Vec::new(),
             represented_pending_quest_sharing_like_cpp: None,
             represented_quest_push_result_responses_like_cpp: Vec::new(),
@@ -18591,6 +18595,58 @@ impl WorldSession {
 
     pub(crate) fn represented_explored_zones_db_string_like_cpp(&self) -> String {
         explored_zones_db_string_from_blocks_like_cpp(&self.represented_explored_zones_like_cpp)
+    }
+
+    /// Represented C++ `Player::CheckAreaExploreAndOutdoor` discovery branch.
+    ///
+    /// This slice covers `AreaTableEntry::AreaBit`, `AddExploredZones`, the player-values update,
+    /// and the `CriteriaType::RevealWorldMapOverlay` side effect. Exploration XP and
+    /// indoor/outdoor aura removal remain separate runtime gaps.
+    #[allow(dead_code)]
+    pub(crate) fn check_area_explore_and_outdoor_represented_like_cpp(
+        &mut self,
+        area_id: u32,
+    ) -> bool {
+        if area_id == 0 {
+            return false;
+        }
+
+        let Some(area_entry) = self
+            .area_table_store
+            .as_ref()
+            .and_then(|store| store.get(area_id))
+            .copied()
+        else {
+            return false;
+        };
+
+        let Some((offset, mask)) =
+            area_entry.explored_zone_bit_like_cpp(PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP)
+        else {
+            return false;
+        };
+
+        if self.represented_explored_zones_like_cpp[offset] & mask != 0 {
+            return false;
+        }
+
+        self.represented_explored_zones_like_cpp[offset] |= mask;
+        self.represented_reveal_world_map_overlay_criteria_like_cpp
+            .push(area_id);
+
+        if let Some(update) = self.mutate_canonical_player_like_cpp(|player| {
+            player.add_explored_zones_like_cpp(offset, mask);
+            player.values_update(true)
+        }) {
+            self.send_player_values_update_like_cpp(&update);
+        }
+
+        true
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_reveal_world_map_overlay_criteria_like_cpp(&self) -> &[u32] {
+        &self.represented_reveal_world_map_overlay_criteria_like_cpp
     }
 
     fn sync_represented_explored_zones_from_canonical_like_cpp(&mut self) {
@@ -58995,6 +59051,8 @@ mod tests {
                 id: 10,
                 continent_id: 0,
                 parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
                 mount_flags: i32::from(wow_data::AREA_MOUNT_FLAG_ALLOW_GROUND_MOUNTS),
                 flags: 0,
             },
@@ -59002,6 +59060,8 @@ mod tests {
                 id: 77,
                 continent_id: 0,
                 parent_area_id: 10,
+                area_bit: -1,
+                exploration_level: 0,
                 mount_flags: i32::from(wow_data::AREA_MOUNT_FLAG_ALLOW_GROUND_MOUNTS),
                 flags: 0,
             },
@@ -59111,6 +59171,8 @@ mod tests {
                 id: 1519,
                 continent_id: 0,
                 parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
                 mount_flags: i32::from(wow_data::AREA_MOUNT_FLAG_ALLOW_GROUND_MOUNTS),
                 flags: 0,
             },
@@ -85196,6 +85258,114 @@ mod tests {
     }
 
     #[test]
+    fn check_area_explore_marks_block_sends_update_and_records_criteria_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 0xE202);
+        session.ensure_login_player_controller_like_cpp(
+            player_guid,
+            "Explorer".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        );
+        session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
+            wow_data::AreaTableEntry {
+                id: 9_001,
+                continent_id: 571,
+                parent_area_id: 0,
+                area_bit: 65,
+                exploration_level: 12,
+                mount_flags: 0,
+                flags: 0,
+            },
+        ])));
+        let canonical = shared_canonical_map_manager();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
+
+        assert!(session.check_area_explore_and_outdoor_represented_like_cpp(9_001));
+        assert_eq!(
+            session
+                .represented_explored_zones_db_string_like_cpp()
+                .split_whitespace()
+                .take(4)
+                .collect::<Vec<_>>(),
+            vec!["0", "0", "2", "0"]
+        );
+        assert_eq!(
+            session.represented_reveal_world_map_overlay_criteria_like_cpp(),
+            &[9_001]
+        );
+        {
+            let manager = canonical.lock().unwrap();
+            let player = manager
+                .find_map(571, 0)
+                .unwrap()
+                .map()
+                .get_typed_player(player_guid)
+                .unwrap();
+            assert_eq!(player.explored_zones_block_like_cpp(1), Some(2));
+        }
+        assert!(
+            drain_server_opcodes(&send_rx).contains(&ServerOpcodes::UpdateObject),
+            "C++ SetUpdateFieldFlagValue must be visible to the player through UpdateObject"
+        );
+
+        assert!(!session.check_area_explore_and_outdoor_represented_like_cpp(9_001));
+        assert!(send_rx.try_recv().is_err());
+        assert_eq!(
+            session.represented_reveal_world_map_overlay_criteria_like_cpp(),
+            &[9_001],
+            "C++ only updates criteria when the area bit was newly discovered"
+        );
+    }
+
+    #[test]
+    fn check_area_explore_rejects_missing_and_invalid_area_bits_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
+            wow_data::AreaTableEntry {
+                id: 9_002,
+                continent_id: 571,
+                parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: 0,
+            },
+            wow_data::AreaTableEntry {
+                id: 9_003,
+                continent_id: 571,
+                parent_area_id: 0,
+                area_bit: (wow_entities::PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP * 64) as i16,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: 0,
+            },
+        ])));
+
+        assert!(!session.check_area_explore_and_outdoor_represented_like_cpp(0));
+        assert!(!session.check_area_explore_and_outdoor_represented_like_cpp(123_456));
+        assert!(!session.check_area_explore_and_outdoor_represented_like_cpp(9_002));
+        assert!(!session.check_area_explore_and_outdoor_represented_like_cpp(9_003));
+        assert!(
+            session
+                .represented_explored_zones_db_string_like_cpp()
+                .split_whitespace()
+                .all(|token| token == "0")
+        );
+        assert!(
+            session
+                .represented_reveal_world_map_overlay_criteria_like_cpp()
+                .is_empty()
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[test]
     fn set_player_skill_values_builds_represented_skill_records_for_tests_like_cpp() {
         let (mut session, _, _) = make_session();
 
@@ -101864,6 +102034,8 @@ mod tests {
                 id: 900,
                 continent_id: 0,
                 parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
                 mount_flags: 0,
                 flags: 0,
             },
@@ -101871,6 +102043,8 @@ mod tests {
                 id: 901,
                 continent_id: 0,
                 parent_area_id: 900,
+                area_bit: -1,
+                exploration_level: 0,
                 mount_flags: 0,
                 flags: 0,
             },
@@ -101955,6 +102129,8 @@ mod tests {
                 id: 900,
                 continent_id: 0,
                 parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
                 mount_flags: 0,
                 flags: 0,
             },
