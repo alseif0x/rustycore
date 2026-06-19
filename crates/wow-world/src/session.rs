@@ -28873,6 +28873,32 @@ impl WorldSession {
     }
 
     pub(crate) fn remove_known_spell_like_cpp(&mut self, spell_id: i32) {
+        let mut seen = HashSet::new();
+        self.remove_known_spell_with_seen_like_cpp(spell_id, &mut seen);
+    }
+
+    fn remove_known_spell_with_seen_like_cpp(&mut self, spell_id: i32, seen: &mut HashSet<i32>) {
+        if !self.known_spells.contains(&spell_id) {
+            return;
+        }
+
+        if !seen.insert(spell_id) {
+            return;
+        }
+
+        if let Ok(required_spell_id) = u32::try_from(spell_id) {
+            let spells_requiring_removed: Vec<i32> = self
+                .spells_requiring_spell_like_cpp(required_spell_id)
+                .iter()
+                .filter_map(|spell| i32::try_from(*spell).ok())
+                .collect();
+            for requiring_spell_id in spells_requiring_removed {
+                if self.known_spells.contains(&requiring_spell_id) {
+                    self.remove_known_spell_with_seen_like_cpp(requiring_spell_id, seen);
+                }
+            }
+        }
+
         let was_known = self.known_spells.contains(&spell_id);
         let was_dependent = self
             .represented_dependent_known_spells_like_cpp
@@ -48221,6 +48247,46 @@ mod tests {
         assert_eq!(session.spells_requiring_spell_like_cpp(10), &[100, 101]);
         assert!(session.is_spell_requiring_spell_like_cpp(100, 10));
         assert!(!session.is_spell_requiring_spell_like_cpp(11, 100));
+    }
+
+    #[test]
+    fn remove_known_spell_removes_spells_requiring_it_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_spell_required_store(Arc::new(test_spell_required_store_like_cpp()));
+        session.set_known_spells_like_cpp(vec![10, 100, 101, 200]);
+
+        session.remove_known_spell_like_cpp(10);
+
+        assert_eq!(
+            session.known_spells_like_cpp(),
+            &[200],
+            "C++ Player::RemoveSpell removes spells returned by GetSpellsRequiringSpellBounds recursively"
+        );
+        let statements = WorldSession::character_spell_save_statements_like_cpp(
+            42,
+            session.represented_player_spell_rows_like_cpp(),
+        );
+        let deleted_spells: BTreeSet<i32> = statements
+            .iter()
+            .filter(|stmt| stmt.sql() == CharStatements::DEL_CHAR_SPELL_BY_SPELL.sql())
+            .filter_map(|stmt| match stmt.params().first() {
+                Some(wow_database::SqlParam::I32(spell_id)) => Some(*spell_id),
+                _ => None,
+            })
+            .collect();
+
+        assert_eq!(
+            deleted_spells,
+            BTreeSet::from([10, 100, 101]),
+            "C++ marks the removed required spell and its non-dependent known dependants as PLAYERSPELL_REMOVED"
+        );
+
+        session.remove_known_spell_like_cpp(11);
+        assert_eq!(
+            session.known_spells_like_cpp(),
+            &[200],
+            "C++ returns before recursive required-spell cleanup when the removed spell is not known"
+        );
     }
 
     #[test]

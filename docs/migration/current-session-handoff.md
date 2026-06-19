@@ -1,3 +1,27 @@
+- `#NEXT.R8.ENTITIES.1117` — represented `Player::RemoveSpell` now removes
+  known spells that require the removed spell through the existing
+  `SpellRequiredStoreLikeCpp` inverse lookup, matching the C++
+  `GetSpellsRequiringSpellBounds(spell_id)` recursion before the current spell
+  is marked `PLAYERSPELL_REMOVED`. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3236-3260`
+  and ResetSpells caller
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:23777`.
+  Rust uses a small recursion guard for corrupt/cyclic data, keeps represented
+  `_SaveSpells` delete evidence for the required spell and its removed
+  non-dependent dependants, and leaves unrelated known spells intact. Coverage
+  planned for this slice: `cargo fmt --all`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  remove_known_spell_removes_spells_requiring_it_like_cpp --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  login_at_login_reset_spells_removes_known_spells_and_notifies_like_cpp
+  --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p
+  world-server`; `cargo fmt --all --check`; and `git diff --check`. Boundary
+  remains partial: C++ `GetNextSpellInChain` higher-rank recursion,
+  disabled/new/temporary `PlayerSpell` states, profession point updates, pet
+  aura removal, full aura ownership, logout DB persistence,
+  live-client/bot/manual validation, and full `Player::RemoveSpell` /
+  `ResetSpells` parity remain open.
+
 - `#NEXT.R8.ENTITIES.1116` — represented `Player::LearnQuestRewardedSpells`
   now handles the C++ `RewardSpell == -1 && SourceSpellID != 0` branch during
   login spell reset by removing represented visible auras due to `SourceSpellID`
