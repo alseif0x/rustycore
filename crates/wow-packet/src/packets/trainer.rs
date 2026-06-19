@@ -4,7 +4,8 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 //! Trainer packets: CMSG_TRAINER_LIST, CMSG_TRAINER_BUY_SPELL, SMSG_TRAINER_LIST,
-//! SMSG_TRAINER_BUY_FAILED, SMSG_LEARNED_SPELLS, SMSG_UNLEARNED_SPELLS.
+//! SMSG_TRAINER_BUY_FAILED, SMSG_LEARNED_SPELLS, SMSG_SUPERCEDED_SPELLS,
+//! SMSG_UNLEARNED_SPELLS.
 //!
 //! C# reference: Game/Networking/Packets/NPCPackets.cs, SpellPackets.cs
 //! Handler ref:  Game/Handlers/NPCHandler.cs
@@ -145,6 +146,7 @@ impl ServerPacket for TrainerBuyFailed {
 /// A single entry in the LearnedSpells packet.
 pub struct LearnedSpellEntry {
     pub spell_id: i32,
+    pub superceded: Option<i32>,
 }
 
 /// SMSG_LEARNED_SPELLS — sent after a player learns one or more spells.
@@ -172,7 +174,10 @@ impl LearnedSpells {
     /// Create a packet that tells the client about one newly learned spell.
     pub fn single(spell_id: i32) -> Self {
         Self {
-            spells: vec![LearnedSpellEntry { spell_id }],
+            spells: vec![LearnedSpellEntry {
+                spell_id,
+                superceded: None,
+            }],
             suppress_messaging: false,
         }
     }
@@ -188,12 +193,39 @@ impl ServerPacket for LearnedSpells {
         pkt.flush_bits();
 
         for spell in &self.spells {
-            pkt.write_int32(spell.spell_id);
-            pkt.write_bit(false); // IsFavorite
-            pkt.write_bit(false); // field_8.HasValue
-            pkt.write_bit(false); // Superceded.HasValue
-            pkt.write_bit(false); // TraitDefinitionID.HasValue
-            pkt.flush_bits();
+            write_learned_spell_info_like_cpp(pkt, spell.spell_id, spell.superceded);
+        }
+    }
+}
+
+// ── SMSG_SUPERCEDED_SPELLS (0x2c49) ─────────────────────────────────
+
+/// SMSG_SUPERCEDED_SPELLS — sent when a lower rank replaces an unlearned spell.
+///
+/// C++ `Player::SendSupercededSpell(oldSpell, newSpell)` writes one
+/// `LearnedSpellInfo` with `SpellID = newSpell` and `Superceded = oldSpell`.
+pub struct SupercededSpells {
+    pub spells: Vec<LearnedSpellEntry>,
+}
+
+impl SupercededSpells {
+    pub fn single(old_spell_id: i32, new_spell_id: i32) -> Self {
+        Self {
+            spells: vec![LearnedSpellEntry {
+                spell_id: new_spell_id,
+                superceded: Some(old_spell_id),
+            }],
+        }
+    }
+}
+
+impl ServerPacket for SupercededSpells {
+    const OPCODE: ServerOpcodes = ServerOpcodes::SupercededSpells;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint32(self.spells.len() as u32);
+        for spell in &self.spells {
+            write_learned_spell_info_like_cpp(pkt, spell.spell_id, spell.superceded);
         }
     }
 }
@@ -237,6 +269,23 @@ impl ServerPacket for UnlearnedSpells {
     }
 }
 
+fn write_learned_spell_info_like_cpp(
+    pkt: &mut WorldPacket,
+    spell_id: i32,
+    superceded: Option<i32>,
+) {
+    pkt.write_int32(spell_id);
+    pkt.write_bit(false); // IsFavorite
+    pkt.write_bit(false); // field_8.HasValue
+    pkt.write_bit(superceded.is_some());
+    pkt.write_bit(false); // TraitDefinitionID.HasValue
+    pkt.flush_bits();
+
+    if let Some(old_spell_id) = superceded {
+        pkt.write_int32(old_spell_id);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -276,6 +325,26 @@ mod tests {
         let bytes = pkt.to_bytes();
         // opcode(2) + count(4) + spec_id(4) + bit/flush(1) + spell_id(4) + bits/flush(1)
         assert!(bytes.len() >= 14);
+    }
+
+    #[test]
+    fn superceded_spells_single_serializes_like_cpp() {
+        let pkt = SupercededSpells::single(200, 100);
+        let mut bytes = WorldPacket::from_bytes(&pkt.to_bytes());
+
+        assert_eq!(
+            bytes.read_uint16().expect("opcode"),
+            ServerOpcodes::SupercededSpells as u16
+        );
+        assert_eq!(bytes.read_uint32().expect("count"), 1);
+        assert_eq!(bytes.read_int32().expect("new spell id"), 100);
+        assert!(!bytes.read_bit().expect("IsFavorite"));
+        assert!(!bytes.read_bit().expect("field_8.HasValue"));
+        assert!(bytes.read_bit().expect("Superceded.HasValue"));
+        assert!(!bytes.read_bit().expect("TraitDefinitionID.HasValue"));
+        bytes.flush_bits();
+        assert_eq!(bytes.read_int32().expect("old spell id"), 200);
+        assert!(bytes.is_empty());
     }
 
     #[test]

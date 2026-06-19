@@ -1,3 +1,24 @@
+- `#NEXT.R8.ENTITIES.1127` — represented `Player::RemoveSpell` now emits
+  C++-shaped `SMSG_SUPERCEDED_SPELLS` when a lower rank is reactivated.
+  Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3394-3404`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28523-28530`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/SpellPackets.cpp:448-488`.
+  Rust serializes the shared `LearnedSpellInfo` bit layout, writes
+  `SpellID = newSpell` and `Superceded = oldSpell`, emits it from the
+  represented lower-rank reactivation branch, and still suppresses
+  `UnlearnedSpells` for that branch. Coverage: `cargo fmt`; `cargo fmt
+  --check`; `cargo test -p wow-packet superceded_spells --lib`; `cargo test
+  -p wow-packet unlearned_spells --lib`; `cargo test -p wow-packet
+  learned_spells_single --lib`; `cargo test -p wow-world remove_known_spell
+  --lib`; `cargo check -p world-server`; `git diff --check`. Boundary remains
+  partial: full `AddSpell` return/state semantics, real action-bar update
+  parity beyond the packet, full `TraitConfig` / `TraitNodeEntry`
+  application, inactive `PlayerSpellMap` rows, active/disabled/state
+  transitions, Titan Grip/Dual Wield side effects, offhand auto-unequip,
+  live-client/bot/manual validation, and full `Player::RemoveSpell` parity
+  remain open.
+
 - `#NEXT.R8.ENTITIES.1126` — represented `Player::RemoveSpell` now emits
   C++-shaped `SMSG_UNLEARNED_SPELLS` when no lower rank was reactivated, and
   carries the `suppressMessaging` flag through the top-level represented
@@ -11,12 +32,12 @@
   taken. Coverage: `cargo fmt`; `cargo fmt --check`; `cargo test -p
   wow-packet unlearned_spells --lib`; `cargo test -p wow-world
   remove_known_spell --lib`; `cargo check -p world-server`; `git diff
-  --check`. Boundary remains partial: real `SendSupercededSpell`/action-bar
-  packet, full `AddSpell` return semantics, full `TraitConfig` /
+  --check`. Boundary remains partial: full `AddSpell` return semantics, full `TraitConfig` /
   `TraitNodeEntry` application, inactive `PlayerSpellMap` rows,
   active/disabled/state transitions, Titan Grip/Dual Wield side effects,
   offhand auto-unequip, live-client/bot/manual validation, and full
-  `Player::RemoveSpell` parity remain open.
+  `Player::RemoveSpell` parity remain open. Represented `SendSupercededSpell`
+  packet emission is closed by `#NEXT.R8.ENTITIES.1127`.
 
 - `#NEXT.R8.ENTITIES.1125` — represented `Player::RemoveSpell` now mirrors
   the C++ `TraitDefinitionId -> TraitDefinitionEntry::OverridesSpellID`
@@ -33,11 +54,12 @@
   remove_known_spell --lib`; `cargo check -p world-server`; `git diff
   --check`. Boundary remains partial: full `TraitConfig` /
   `TraitNodeEntry` application, inactive `PlayerSpellMap` rows,
-  active/disabled/state transitions, `AddSpell` return semantics, real
-  `SendSupercededSpell`/action-bar packet, Titan Grip/Dual Wield side effects, offhand
+  active/disabled/state transitions, `AddSpell` return semantics,
+  action-bar update parity beyond represented packet emission, Titan Grip/Dual Wield side effects, offhand
   auto-unequip, live-client/bot/manual validation, and full
   `Player::RemoveSpell` parity remain open. Represented `UnlearnedSpells`
-  `suppressMessaging` is closed by `#NEXT.R8.ENTITIES.1126`.
+  `suppressMessaging` is closed by `#NEXT.R8.ENTITIES.1126`; represented
+  `SendSupercededSpell` packet emission is closed by `#NEXT.R8.ENTITIES.1127`.
 
 - `#NEXT.R8.ENTITIES.1124` — represented `Player::RemoveSpell` now mirrors
   the C++ direct `m_overrideSpells.erase(spell_id)` cleanup. Source of truth:
@@ -48,13 +70,14 @@
   `cargo test -p wow-world remove_known_spell --lib`; `cargo check -p
   world-server`; `git diff --check`. Boundary remains partial: full
   `TraitDefinition`/`TraitConfig` ownership, inactive `PlayerSpellMap` rows,
-  active/disabled/state transitions, `AddSpell` return semantics, real
-  `SendSupercededSpell`/action-bar packet, Titan Grip/Dual Wield side effects, offhand
+  active/disabled/state transitions, `AddSpell` return semantics,
+  action-bar update parity beyond represented packet emission, Titan Grip/Dual Wield side effects, offhand
   auto-unequip, live-client/bot/manual validation, and full
   `Player::RemoveSpell` parity remain open. Trait-definition lookup removal
   (`TraitDefinitionId -> OverridesSpellID`) is closed by
   `#NEXT.R8.ENTITIES.1125`; represented `UnlearnedSpells`
-  `suppressMessaging` is closed by `#NEXT.R8.ENTITIES.1126`.
+  `suppressMessaging` is closed by `#NEXT.R8.ENTITIES.1126`; represented
+  `SendSupercededSpell` packet emission is closed by `#NEXT.R8.ENTITIES.1127`.
 
 - `#NEXT.R8.ENTITIES.1123` — represented `Player::RemoveSpell` now carries
   the C++ `learn_low_rank` flag through recursive removal and updates the
@@ -71,13 +94,14 @@
   -p wow-world remove_known_spell --lib`; `cargo check -p world-server`; `git
   diff --check`. Boundary remains partial: Rust still does not model inactive
   `PlayerSpellMap` rows, active/disabled/state transitions, `AddSpell` return
-  semantics, real `SendSupercededSpell`/action-bar packet, Titan Grip/Dual Wield
+  semantics, action-bar update parity beyond represented packet emission, Titan Grip/Dual Wield
   side effects, offhand auto-unequip, live-client/bot/manual validation, or full
   `Player::RemoveSpell` parity. Direct represented
   `m_overrideSpells.erase(spell_id)` cleanup is closed by
   `#NEXT.R8.ENTITIES.1124`; trait-definition override lookup removal is closed
   by `#NEXT.R8.ENTITIES.1125`; represented `UnlearnedSpells`
-  `suppressMessaging` is closed by `#NEXT.R8.ENTITIES.1126`.
+  `suppressMessaging` is closed by `#NEXT.R8.ENTITIES.1126`; represented
+  `SendSupercededSpell` packet emission is closed by `#NEXT.R8.ENTITIES.1127`.
 
 - `#NEXT.R8.ENTITIES.1122` — represented `Player::RemoveSpell` now handles
   the C++ previous-skill branch where `prevSkill->maxvalue == 0` by wiring

@@ -29186,6 +29186,12 @@ impl WorldSession {
                                 self.represented_dependent_known_spells_like_cpp
                                     .remove(&prev_known_spell_id);
                             }
+                            self.send_packet(
+                                &wow_packet::packets::trainer::SupercededSpells::single(
+                                    spell_id,
+                                    prev_known_spell_id,
+                                ),
+                            );
                             prev_activate = true;
                         }
                     }
@@ -49207,7 +49213,7 @@ mod tests {
     }
 
     #[test]
-    fn remove_known_spell_skips_unlearned_packet_when_previous_rank_reactivates_like_cpp() {
+    fn remove_known_spell_sends_superceded_packet_when_previous_rank_reactivates_like_cpp() {
         let (mut session, _, send_rx) = make_session();
         session.set_spell_chain_store(Arc::new(
             wow_data::SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(
@@ -49222,9 +49228,24 @@ mod tests {
 
         session.remove_known_spell_with_suppress_messaging_like_cpp(20, true);
 
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 1);
+        let mut packet = WorldPacket::from_bytes(&packets[0]);
+        assert_eq!(
+            packet.read_uint16().expect("opcode"),
+            ServerOpcodes::SupercededSpells as u16
+        );
+        assert_eq!(packet.read_uint32().expect("count"), 1);
+        assert_eq!(packet.read_int32().expect("new spell id"), 10);
+        assert!(!packet.read_bit().expect("IsFavorite"));
+        assert!(!packet.read_bit().expect("field_8.HasValue"));
+        assert!(packet.read_bit().expect("Superceded.HasValue"));
+        assert!(!packet.read_bit().expect("TraitDefinitionID.HasValue"));
+        packet.flush_bits();
+        assert_eq!(packet.read_int32().expect("old spell id"), 20);
         assert!(
-            drain_server_packet_bytes(&send_rx).is_empty(),
-            "C++ skips UnlearnedSpells when RemoveSpell reactivates a lower rank and sends SendSupercededSpell instead"
+            packet.is_empty(),
+            "C++ sends SendSupercededSpell instead of UnlearnedSpells when the lower rank reactivates"
         );
     }
 
