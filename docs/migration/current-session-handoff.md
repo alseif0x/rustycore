@@ -1,3 +1,20 @@
+- `#NEXT.R8.ENTITIES.1142` — represented `AutoUnequipOffhandIfNeed` now
+  records the C++ `RemoveItem` call to `CheckTitanGripPenalty()` after the
+  offhand slot has been cleared/synchronized. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11616-11625`
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:12827-12840`.
+  Rust now records the represented `TitanGripPenaltyAction` selected from the
+  canonical player's Titan Grip state and the post-removal main/offhand item
+  templates; the covered case records `Remove(m_titanGripPenaltySpellId)` when
+  forced offhand removal leaves only a normal main-hand 2H weapon. Coverage:
+  `cargo test -p wow-world
+  auto_unequip_offhand_records_titan_grip_penalty_check_like_cpp --lib`.
+  Boundary remains partial: this records the represented penalty action only;
+  real triggered `CastSpell`, real `RemoveAurasDueToSpell` packet/update
+  effects, multi-session fanout, DB persistence, average item-level
+  recalculation, live-client/bot/manual validation, and full `RemoveItem` /
+  `RemoveSpell` parity remain open.
+
 - `#NEXT.R8.ENTITIES.1141` — represented `AutoUnequipOffhandIfNeed` now
   records the C++ offhand combat-stat recalculation hooks from `RemoveItem`.
   Source of truth:
@@ -11,7 +28,8 @@
   remove_known_spell_auto_unequip_records_invalid_two_hand_state_like_cpp --lib`.
   Boundary remains partial: this is a represented recalculation hook only; real
   expertise/rating math, update-field packet emission, dependency on live aura
-  state, item-set removal, full `_ApplyItemMods`, `CheckTitanGripPenalty`,
+  state, item-set removal, full `_ApplyItemMods`, represented
+  `CheckTitanGripPenalty` action recording is closed by `#NEXT.R8.ENTITIES.1142`,
   average item-level recalculation, DB persistence, multi-session fanout, and
   live-client/bot/manual validation remain open.
 
