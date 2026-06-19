@@ -2024,6 +2024,14 @@ pub(crate) struct MoveTeleportAckEventLikeCpp {
     pub delayed_operations_processed: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RepresentedAreaZoneCriteriaLikeCpp {
+    EnterArea(u32),
+    LeaveArea(u32),
+    EnterTopLevelArea(u32),
+    LeaveTopLevelArea(u32),
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct RepresentedTaxiFlightStateLikeCpp {
     current_node: RepresentedTaxiFlightNodeLikeCpp,
@@ -4259,6 +4267,9 @@ pub struct WorldSession {
     /// Represented `CriteriaType::RevealWorldMapOverlay` events from area discovery.
     #[allow(dead_code)]
     represented_reveal_world_map_overlay_criteria_like_cpp: Vec<u32>,
+    /// Represented `Player::UpdateArea` / `Player::UpdateZone` criteria side effects.
+    #[allow(dead_code)]
+    represented_area_zone_criteria_like_cpp: Vec<RepresentedAreaZoneCriteriaLikeCpp>,
     /// Session-local evidence for represented `ScriptMgr::OnQuestAcknowledgeAutoAccept` calls.
     pub(crate) represented_auto_accept_acknowledged_quests_like_cpp: Vec<u32>,
     /// Session-local representation of C++ pending shared quest sender + quest id.
@@ -5601,6 +5612,7 @@ impl WorldSession {
             represented_quest_completed_bits_like_cpp: BTreeSet::new(),
             represented_explored_zones_like_cpp: [0; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP],
             represented_reveal_world_map_overlay_criteria_like_cpp: Vec::new(),
+            represented_area_zone_criteria_like_cpp: Vec::new(),
             represented_auto_accept_acknowledged_quests_like_cpp: Vec::new(),
             represented_pending_quest_sharing_like_cpp: None,
             represented_quest_push_result_responses_like_cpp: Vec::new(),
@@ -18617,6 +18629,67 @@ impl WorldSession {
         explored_zones_db_string_from_blocks_like_cpp(&self.represented_explored_zones_like_cpp)
     }
 
+    /// Represented C++ `Player::UpdateArea` criteria branch.
+    ///
+    /// C++ records `EnterArea`/`LeaveArea` after updating area-dependent state when
+    /// `oldArea != newArea`; this represented slice records only those criteria
+    /// side effects. PvP/rest flags, phasing, aura checks, quest push, mount
+    /// capability refresh, and chat-channel updates remain runtime gaps.
+    pub(crate) fn update_area_represented_like_cpp(&mut self, new_area: u32) -> bool {
+        let old_area = self.player_area_id_like_cpp;
+        self.player_area_id_like_cpp = new_area;
+
+        if old_area == new_area {
+            return false;
+        }
+
+        self.represented_area_zone_criteria_like_cpp
+            .push(RepresentedAreaZoneCriteriaLikeCpp::EnterArea(new_area));
+        self.represented_area_zone_criteria_like_cpp
+            .push(RepresentedAreaZoneCriteriaLikeCpp::LeaveArea(old_area));
+        true
+    }
+
+    /// Represented C++ `Player::UpdateZone` criteria branch.
+    ///
+    /// C++ first updates `m_zoneUpdateId`, then calls `UpdateArea(newArea)`, then
+    /// returns early if the new zone has no `AreaTableEntry`. Therefore top-level
+    /// area criteria are recorded only when the zone changes and the new zone row
+    /// exists, while area criteria may already have been recorded by `UpdateArea`.
+    pub(crate) fn update_zone_represented_like_cpp(
+        &mut self,
+        new_zone: u32,
+        new_area: u32,
+    ) -> bool {
+        if self.player_guid().is_none() {
+            return false;
+        }
+
+        let old_zone = self.player_zone_id_like_cpp;
+        self.player_zone_id_like_cpp = new_zone;
+        self.update_area_represented_like_cpp(new_area);
+
+        if old_zone == new_zone {
+            return false;
+        }
+
+        if !self
+            .area_table_store
+            .as_ref()
+            .is_some_and(|store| store.get(new_zone).is_some())
+        {
+            return true;
+        }
+
+        self.represented_area_zone_criteria_like_cpp.push(
+            RepresentedAreaZoneCriteriaLikeCpp::EnterTopLevelArea(new_zone),
+        );
+        self.represented_area_zone_criteria_like_cpp.push(
+            RepresentedAreaZoneCriteriaLikeCpp::LeaveTopLevelArea(old_zone),
+        );
+        true
+    }
+
     /// Represented C++ `Player::CheckAreaExploreAndOutdoor` discovery branch.
     ///
     /// This slice covers `AreaTableEntry::AreaBit`, `AddExploredZones`, the player-values update,
@@ -18724,6 +18797,13 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn represented_reveal_world_map_overlay_criteria_like_cpp(&self) -> &[u32] {
         &self.represented_reveal_world_map_overlay_criteria_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_area_zone_criteria_like_cpp(
+        &self,
+    ) -> &[RepresentedAreaZoneCriteriaLikeCpp] {
+        &self.represented_area_zone_criteria_like_cpp
     }
 
     fn sync_represented_explored_zones_from_canonical_like_cpp(&mut self) {
@@ -36996,8 +37076,7 @@ impl WorldSession {
         let (new_zone, new_area) = self
             .near_teleport_destination_zone_area_like_cpp
             .unwrap_or((self.player_zone_id_like_cpp, self.player_area_id_like_cpp));
-        self.player_zone_id_like_cpp = new_zone;
-        self.player_area_id_like_cpp = new_area;
+        self.update_zone_represented_like_cpp(new_zone, new_area);
 
         let zone_changed = old_zone != new_zone;
         let honorless_target_cast = zone_changed && self.player_pvp_hostile_like_cpp;
@@ -85490,6 +85569,96 @@ mod tests {
                 .take(4)
                 .collect::<Vec<_>>(),
             vec!["1", "2", "5", "6"]
+        );
+    }
+
+    #[test]
+    fn update_area_records_enter_leave_area_criteria_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_player_zone_area_like_cpp(10, 100);
+
+        assert!(session.update_area_represented_like_cpp(101));
+        assert_eq!(session.player_zone_area_like_cpp(), (10, 101));
+        assert_eq!(
+            session.represented_area_zone_criteria_like_cpp(),
+            &[
+                RepresentedAreaZoneCriteriaLikeCpp::EnterArea(101),
+                RepresentedAreaZoneCriteriaLikeCpp::LeaveArea(100),
+            ],
+            "C++ Player::UpdateArea records EnterArea then LeaveArea after m_areaUpdateId changes"
+        );
+
+        assert!(!session.update_area_represented_like_cpp(101));
+        assert_eq!(session.represented_area_zone_criteria_like_cpp().len(), 2);
+    }
+
+    #[test]
+    fn update_zone_records_area_then_top_level_criteria_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 0xE1A0);
+        session.ensure_login_player_controller_like_cpp(
+            player_guid,
+            "ZoneCriteria".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        );
+        session.set_player_zone_area_like_cpp(10, 100);
+        session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
+            wow_data::AreaTableEntry {
+                id: 20,
+                continent_id: 571,
+                parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: 0,
+            },
+        ])));
+
+        assert!(session.update_zone_represented_like_cpp(20, 101));
+        assert_eq!(session.player_zone_area_like_cpp(), (20, 101));
+        assert_eq!(
+            session.represented_area_zone_criteria_like_cpp(),
+            &[
+                RepresentedAreaZoneCriteriaLikeCpp::EnterArea(101),
+                RepresentedAreaZoneCriteriaLikeCpp::LeaveArea(100),
+                RepresentedAreaZoneCriteriaLikeCpp::EnterTopLevelArea(20),
+                RepresentedAreaZoneCriteriaLikeCpp::LeaveTopLevelArea(10),
+            ],
+            "C++ Player::UpdateZone calls UpdateArea before EnterTopLevelArea/LeaveTopLevelArea"
+        );
+    }
+
+    #[test]
+    fn update_zone_missing_zone_keeps_area_criteria_but_skips_top_level_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 0xE1A1);
+        session.ensure_login_player_controller_like_cpp(
+            player_guid,
+            "MissingZone".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        );
+        session.set_player_zone_area_like_cpp(10, 100);
+        session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([])));
+
+        assert!(session.update_zone_represented_like_cpp(20, 101));
+        assert_eq!(session.player_zone_area_like_cpp(), (20, 101));
+        assert_eq!(
+            session.represented_area_zone_criteria_like_cpp(),
+            &[
+                RepresentedAreaZoneCriteriaLikeCpp::EnterArea(101),
+                RepresentedAreaZoneCriteriaLikeCpp::LeaveArea(100),
+            ],
+            "C++ Player::UpdateZone returns after UpdateArea when AreaTable lacks the new zone"
         );
     }
 

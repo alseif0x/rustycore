@@ -1,3 +1,26 @@
+- `#NEXT.R8.ENTITIES.1099` — represented `Player::UpdateArea` /
+  `Player::UpdateZone` criteria side effects are now ported for the represented
+  zone/area state (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:1016-1040`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7304-7439`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:1923-1927`.
+  Rust now records represented `EnterArea` then `LeaveArea` after an area id
+  change, updates represented zone id before calling represented area update,
+  skips `EnterTopLevelArea` / `LeaveTopLevelArea` when `AreaTable` lacks the
+  new zone row like C++, and routes near-teleport ACK zone/area changes through
+  the helper instead of directly assigning ids. Coverage: `cargo fmt --all
+  --check`; focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test
+  -p wow-world update_zone --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  move_teleport_ack_applies_near_teleport_cpp_side_effects --lib`;
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p
+  world-server`; `git diff --check`. Boundary remains partial: real
+  TerrainMgr/VMAP coordinate-to-zone/area recomputation, zone update timer,
+  PvP/rest flags, phasing callbacks, dependent aura updates, weather/dynamic
+  info/world states, OutdoorPvP/Battlefield hooks, local channels,
+  item/equipment limitations, guild member zone updates, live-client/bot
+  validation, and manual validation remain open.
 - `#NEXT.R8.ENTITIES.1098` — represented `Player::CheckAreaExploreAndOutdoor`
   now performs the C++ `CONFIG_VMAP_INDOOR_CHECK` aura-removal branch when a
   represented `WorldObject::IsOutdoors()` value is available (not
@@ -25,7 +48,7 @@
   world-server`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p
   world-server`; `git diff --check`. Boundary remains partial: real
   VMAP-derived `WorldObject::IsOutdoors`, terrain/vmap coordinate-to-area
-  recomputation, `UpdateArea` / `UpdateZone` side effects, full aura runtime
+  recomputation, `UpdateArea` / `UpdateZone` runtime side effects beyond represented criteria, full aura runtime
   ownership, live-client/bot validation, and manual validation remain open.
 - `#NEXT.R8.ENTITIES.1093` — represented `characters.exploredZones`
   load/save is now wired through the C++ `Player::LoadFromDB` /
