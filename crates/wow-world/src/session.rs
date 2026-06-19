@@ -4713,6 +4713,18 @@ pub(crate) fn player_team_for_race_cpp(race: u8) -> Team {
     }
 }
 
+const FIRST_LOGIN_START_REPUTATION_STANDING_LIKE_CPP: i32 = 42_999;
+const FIRST_LOGIN_START_REPUTATION_COMMON_FACTIONS_LIKE_CPP: &[u32] = &[
+    942, 935, 936, 1011, 970, 967, 989, 932, 934, 1038, 1077, 1106, 1104, 1090, 1098, 1156, 1073,
+    1105, 1119, 1091,
+];
+const FIRST_LOGIN_START_REPUTATION_ALLIANCE_FACTIONS_LIKE_CPP: &[u32] = &[
+    72, 47, 69, 930, 730, 978, 54, 946, 1037, 1068, 1126, 1094, 1050,
+];
+const FIRST_LOGIN_START_REPUTATION_HORDE_FACTIONS_LIKE_CPP: &[u32] = &[
+    76, 68, 81, 911, 729, 941, 530, 947, 1052, 1067, 1124, 1064, 1085,
+];
+
 const WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP: u8 = 80;
 
 fn player_team_id_for_race_cpp(race: u8) -> u32 {
@@ -18514,6 +18526,63 @@ impl WorldSession {
         }
 
         self.remove_represented_at_login_flag_like_cpp(AT_LOGIN_FIRST_LIKE_CPP, false)
+    }
+
+    pub(crate) fn apply_represented_first_login_reputation_like_cpp(&mut self) -> usize {
+        if !self.start_all_reputation_like_cpp() {
+            return 0;
+        }
+
+        let Some(faction_store) = self.faction_store().map(Arc::clone) else {
+            return 0;
+        };
+        let friendship_rep_reaction_store = self.friendship_rep_reaction_store().map(Arc::clone);
+        let paragon_reputation_store = self.paragon_reputation_store().map(Arc::clone);
+        let currency_types_store = self.currency_types_store().map(Arc::clone);
+        let player_race = self.player_race_like_cpp();
+        let player_class = self.player_class_like_cpp();
+        let team_factions = match player_team_for_race_cpp(player_race) {
+            Team::Horde => FIRST_LOGIN_START_REPUTATION_HORDE_FACTIONS_LIKE_CPP,
+            _ => FIRST_LOGIN_START_REPUTATION_ALLIANCE_FACTIONS_LIKE_CPP,
+        };
+
+        let mut applied = 0usize;
+        for faction_id in FIRST_LOGIN_START_REPUTATION_COMMON_FACTIONS_LIKE_CPP
+            .iter()
+            .chain(team_factions.iter())
+        {
+            let Some(faction_entry) = faction_store.get(*faction_id).cloned() else {
+                continue;
+            };
+            let outcome = self
+                .reputation_mgr_like_cpp_mut()
+                .set_one_faction_reputation_like_cpp(
+                    &faction_entry,
+                    FIRST_LOGIN_START_REPUTATION_STANDING_LIKE_CPP,
+                    false,
+                    1.0,
+                    friendship_rep_reaction_store.as_deref(),
+                    paragon_reputation_store.as_deref(),
+                    true,
+                    currency_types_store.as_deref(),
+                    0,
+                    0,
+                    player_race,
+                    player_class,
+                );
+            if outcome.applied {
+                applied += 1;
+            }
+        }
+
+        if applied > 0 {
+            let packet = self
+                .reputation_mgr_like_cpp_mut()
+                .set_faction_standing_packet_like_cpp(None);
+            self.send_packet(&packet);
+        }
+
+        applied
     }
 
     pub(crate) fn mark_represented_talents_loaded_like_cpp(&mut self) {
@@ -74916,6 +74985,124 @@ mod tests {
                 .represented_at_login_flag_removals_like_cpp()
                 .is_empty(),
             "C++ calls RemoveAtLoginFlag(AT_LOGIN_FIRST) with persist=false"
+        );
+    }
+
+    fn first_login_reputation_faction_store_like_cpp() -> FactionStore {
+        let mut entries = Vec::new();
+        for (rep_index, faction_id) in FIRST_LOGIN_START_REPUTATION_COMMON_FACTIONS_LIKE_CPP
+            .iter()
+            .chain(FIRST_LOGIN_START_REPUTATION_ALLIANCE_FACTIONS_LIKE_CPP.iter())
+            .chain(FIRST_LOGIN_START_REPUTATION_HORDE_FACTIONS_LIKE_CPP.iter())
+            .enumerate()
+        {
+            let mut entry = FactionEntry::for_test_like_cpp(*faction_id, rep_index as i16);
+            entry.reputation_race_mask[0] = 1;
+            entry.reputation_max[0] = wow_data::reputation::REPUTATION_CAP_LIKE_CPP;
+            entries.push(entry);
+        }
+        FactionStore::from_entries(entries)
+    }
+
+    #[test]
+    fn first_login_start_all_reputation_applies_cpp_common_and_alliance_lists() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_loaded_player_identity_like_cpp(0, 1, 1, 1, 0);
+        session.set_faction_store(Arc::new(first_login_reputation_faction_store_like_cpp()));
+        let _ = session
+            .reputation_mgr_like_cpp_mut()
+            .initialize_factions_packet_like_cpp();
+        session.set_start_all_reputation_like_cpp(true);
+
+        let applied = session.apply_represented_first_login_reputation_like_cpp();
+
+        assert_eq!(
+            applied,
+            FIRST_LOGIN_START_REPUTATION_COMMON_FACTIONS_LIKE_CPP.len()
+                + FIRST_LOGIN_START_REPUTATION_ALLIANCE_FACTIONS_LIKE_CPP.len()
+        );
+        let faction_store = session.faction_store().expect("faction store").clone();
+        for faction_id in FIRST_LOGIN_START_REPUTATION_COMMON_FACTIONS_LIKE_CPP
+            .iter()
+            .chain(FIRST_LOGIN_START_REPUTATION_ALLIANCE_FACTIONS_LIKE_CPP.iter())
+        {
+            let faction = faction_store.get(*faction_id).expect("configured faction");
+            let state = session
+                .reputation_mgr_like_cpp()
+                .get_state(faction.reputation_index as u32)
+                .expect("reputation state");
+            assert_eq!(
+                state.standing,
+                wow_data::reputation::REPUTATION_CAP_LIKE_CPP,
+                "C++ CharacterHandler passes 42999, then ReputationMgr clamps at GetMaxReputation"
+            );
+        }
+        let horde = faction_store.get(76).expect("horde faction");
+        assert_eq!(
+            session
+                .reputation_mgr_like_cpp()
+                .get_state(horde.reputation_index as u32)
+                .expect("horde state")
+                .standing,
+            0,
+            "Alliance first login must not apply the Horde-only branch"
+        );
+
+        let packet = drain_server_packet_bytes(&send_rx)
+            .into_iter()
+            .find(|bytes| {
+                wow_packet::WorldPacket::from_bytes(bytes).server_opcode()
+                    == Some(ServerOpcodes::SetFactionStanding)
+            })
+            .expect("C++ repMgr.SendState(nullptr) equivalent");
+        let mut reader = wow_packet::WorldPacket::from_bytes(&packet);
+        reader.skip_opcode();
+        assert_eq!(reader.read_float().unwrap(), 0.0);
+        assert_eq!(reader.read_uint32().unwrap(), applied as u32);
+    }
+
+    #[test]
+    fn first_login_start_all_reputation_is_config_gated_and_uses_horde_branch() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_loaded_player_identity_like_cpp(0, 2, 1, 1, 0);
+        session.set_faction_store(Arc::new(first_login_reputation_faction_store_like_cpp()));
+        let _ = session
+            .reputation_mgr_like_cpp_mut()
+            .initialize_factions_packet_like_cpp();
+
+        assert_eq!(
+            session.apply_represented_first_login_reputation_like_cpp(),
+            0
+        );
+        assert!(send_rx.try_recv().is_err());
+
+        session.set_start_all_reputation_like_cpp(true);
+        let applied = session.apply_represented_first_login_reputation_like_cpp();
+
+        assert_eq!(
+            applied,
+            FIRST_LOGIN_START_REPUTATION_COMMON_FACTIONS_LIKE_CPP.len()
+                + FIRST_LOGIN_START_REPUTATION_HORDE_FACTIONS_LIKE_CPP.len()
+        );
+        let faction_store = session.faction_store().expect("faction store").clone();
+        let orgrimmar = faction_store.get(76).expect("horde faction");
+        assert_eq!(
+            session
+                .reputation_mgr_like_cpp()
+                .get_state(orgrimmar.reputation_index as u32)
+                .expect("horde state")
+                .standing,
+            wow_data::reputation::REPUTATION_CAP_LIKE_CPP
+        );
+        let stormwind = faction_store.get(72).expect("alliance faction");
+        assert_eq!(
+            session
+                .reputation_mgr_like_cpp()
+                .get_state(stormwind.reputation_index as u32)
+                .expect("alliance state")
+                .standing,
+            0,
+            "Horde first login must not apply the Alliance-only branch"
         );
     }
 

@@ -1,3 +1,25 @@
+- `#NEXT.R8.ENTITIES.1091` — represented first login now applies the C++
+  `CONFIG_START_ALL_REP` branch (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CharacterHandler.cpp:1313-1367`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Reputation/ReputationMgr.cpp:515-590`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Reputation/ReputationMgr.cpp:136-180`.
+  C++ hardcodes a common faction list plus Alliance/Horde branches, calls
+  `SetOneFactionReputation(..., 42999, false)`, then sends
+  `repMgr.SendState(nullptr)`. Rust now mirrors that represented branch after
+  `AT_LOGIN_FIRST` removal when `PlayerStart.AllReputation` is enabled: it uses
+  the exact faction ids, calls the existing `ReputationMgrLikeCpp`
+  `set_one_faction_reputation_like_cpp` with `incremental=false`, allows the
+  manager to clamp through `GetMaxReputation` (typically 42000), and emits one
+  aggregate `SetFactionStanding` packet. Coverage: `cargo fmt --all --check`;
+  focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p
+  wow-world first_login_start_all_reputation --lib`;
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p
+  world-server`; `git diff --check`. Boundary remains partial: first-login
+  PlayerInfo create-mode cast spells, `CONFIG_START_ALL_EXPLORED` /
+  `AddExploredZones`, full `character_reputation` persistence through
+  `Player::SaveToDB`, live-client validation, bot validation, and manual
+  validation remain open.
 - `#NEXT.R8.ENTITIES.1090` — represented session config now carries the C++
   first-login player-start toggles (not manual-test-ready). Source of truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CharacterHandler.cpp:1304-1367`,
