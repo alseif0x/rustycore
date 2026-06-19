@@ -121,7 +121,7 @@ use wow_entities::{
     AccessorObjectKind, ActiveState, ApplyEnchantmentArgs, ApplyEnchantmentEffectRef,
     ApplyEnchantmentPlan, ApplyEnchantmentRandomSuffixRef, ApplyEnchantmentTemplateRef,
     BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_COUNT, BUYBACK_SLOT_END,
-    BUYBACK_SLOT_START, BagTemplateRef, CanEquipUniqueItemArgs, CanStoreItemArgs,
+    BUYBACK_SLOT_START, BagTemplateRef, CanEquipItemArgs, CanEquipUniqueItemArgs, CanStoreItemArgs,
     CanUnequipItemArgs, CanUseItemArgs, CanUseItemTemplateArgs, EQUIPMENT_SLOT_BACK,
     EQUIPMENT_SLOT_BODY, EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_END, EQUIPMENT_SLOT_FEET,
     EQUIPMENT_SLOT_FINGER1, EQUIPMENT_SLOT_FINGER2, EQUIPMENT_SLOT_HANDS, EQUIPMENT_SLOT_HEAD,
@@ -30363,6 +30363,16 @@ impl WorldSession {
             {
                 return;
             }
+
+            if self.represented_avg_total_item_level_can_equip_item_like_cpp(
+                entry_id,
+                runtime_item,
+                can_dual_wield,
+                can_titan_grip,
+            ) != InventoryResult::Ok
+            {
+                return;
+            }
         }
 
         for (candidate_slot, check_duplicate_guid) in
@@ -30492,6 +30502,102 @@ impl WorldSession {
             equipped_gems: &equipped_gems,
             socketed_gems: &socketed_gems,
         })
+    }
+
+    fn represented_avg_total_item_level_can_equip_item_like_cpp(
+        &self,
+        entry_id: u32,
+        runtime_item: &Item,
+        can_dual_wield: bool,
+        can_titan_grip: bool,
+    ) -> InventoryResult {
+        let Some(mut player) = self.direct_inventory_player_snapshot() else {
+            return InventoryResult::ItemNotFound;
+        };
+        let Some(proto) = self.item_storage_template(entry_id) else {
+            return InventoryResult::ItemNotFound;
+        };
+
+        player
+            .unit_mut()
+            .set_can_dual_wield_like_cpp(can_dual_wield);
+        player.set_can_titan_grip(can_titan_grip, 0);
+
+        let item_objects = self.inventory_item_objects_like_cpp();
+        let mut storage_rows = Vec::new();
+        let mut equipped_items = Vec::new();
+        for (&slot, inventory_item) in self.inventory_items_like_cpp() {
+            let Some(item) = item_objects.get(&inventory_item.guid) else {
+                continue;
+            };
+            let Some(template) = self.item_storage_template(inventory_item.entry_id) else {
+                continue;
+            };
+            storage_rows.push((INVENTORY_SLOT_BAG_0, slot, item, template));
+            if slot < EQUIPMENT_SLOT_END {
+                equipped_items.push(ItemSlotRef::new(INVENTORY_SLOT_BAG_0, slot, item));
+            }
+        }
+        let stored_items: Vec<_> = storage_rows
+            .iter()
+            .map(|(bag, slot, item, template)| {
+                ItemStorageRef::new(*bag, *slot, *item, Some(template))
+            })
+            .collect();
+
+        let mainhand_template = self
+            .inventory_items_like_cpp()
+            .get(&EQUIPMENT_SLOT_MAINHAND)
+            .and_then(|item| self.item_storage_template(item.entry_id));
+        let is_two_hand_used = player.is_two_hand_used_template(mainhand_template.as_ref());
+        let can_use_result = self.can_use_inventory_item_represented_with_loading_like_cpp(
+            &InventoryItem {
+                guid: runtime_item.object().guid(),
+                entry_id,
+                db_guid: runtime_item.object().guid().counter() as u64,
+                inventory_type: Some(proto.inventory_type as u8),
+            },
+            Some(runtime_item),
+            false,
+        );
+        let can_equip_unique_result =
+            self.represented_avg_total_item_level_can_equip_unique_like_cpp(entry_id, runtime_item);
+        let proto_always_allow_dual_wield = self
+            .item_template_flags3(entry_id)
+            .is_some_and(|flags| (flags & ItemFlags3::AlwaysAllowDualWield as u32) != 0);
+        let limit_category = self.item_limit_category_template_like_cpp(proto.item_limit_category);
+
+        player
+            .can_equip_item(CanEquipItemArgs {
+                slot: NULL_SLOT,
+                proto: Some(&proto),
+                source_item: Some(runtime_item),
+                source_bop_trade_allowed_for_player: false,
+                swap: true,
+                not_loading: false,
+                is_stunned: false,
+                is_charmed: false,
+                is_in_combat: false,
+                is_in_progress_arena: false,
+                weapon_change_timer_active: false,
+                current_generic_spell_allows_equip: None,
+                current_channeled_spell_allows_equip: None,
+                heirloom_required_level_failed: false,
+                can_use_result,
+                can_equip_unique_result,
+                can_dual_wield,
+                can_titan_grip,
+                is_two_hand_used,
+                proto_always_allow_dual_wield,
+                has_required_profession_skill: false,
+                profession_slot: None,
+                offhand_can_unequip_result: InventoryResult::Ok,
+                offhand_can_store_result: InventoryResult::Ok,
+                limit_category: limit_category.as_ref(),
+                equipped_items: &equipped_items,
+                stored_items: &stored_items,
+            })
+            .result
     }
 
     fn represented_avg_total_item_level_maybe_replace_slot_like_cpp(
@@ -51796,6 +51902,184 @@ mod tests {
         assert_eq!(
             context.avg_equipped_item_level, 6.25,
             "C++ UpdateAverageItemLevelEquipped still uses only equipped items"
+        );
+    }
+
+    #[test]
+    fn represented_condition_total_avg_item_level_rejects_twohand_candidate_with_offhand_like_cpp()
+    {
+        let (mut session, _, _send_rx) = make_session();
+        let equipped_mainhand_item_id = 30_039_u32;
+        let equipped_offhand_item_id = 30_040_u32;
+        let rejected_twohand_item_id = 30_041_u32;
+        let equipped_mainhand_guid = ObjectGuid::create_item(1, 30_039);
+        let equipped_offhand_guid = ObjectGuid::create_item(1, 30_040);
+        let rejected_twohand_guid = ObjectGuid::create_item(1, 30_041);
+        let player_guid = ObjectGuid::create_player(1, 174);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AverageItemLevelTwoHandOffhandRejected".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        let _ = session.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_can_dual_wield_like_cpp(true);
+            player.set_can_titan_grip(false, 0);
+        });
+        session.set_item_store(Arc::new(ItemStore::from_records([
+            represented_test_item_record_like_cpp(
+                equipped_mainhand_item_id,
+                InventoryType::Weapon,
+                ItemClass::Weapon,
+                ItemSubClassWeapon::Axe as u8,
+            ),
+            represented_test_item_record_like_cpp(
+                equipped_offhand_item_id,
+                InventoryType::Shield,
+                ItemClass::Armor,
+                ItemSubClassArmor::Shield as u8,
+            ),
+            represented_test_item_record_like_cpp(
+                rejected_twohand_item_id,
+                InventoryType::Weapon2Hand,
+                ItemClass::Weapon,
+                ItemSubClassWeapon::Axe2 as u8,
+            ),
+        ])));
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [
+                    (
+                        equipped_mainhand_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Weapon, 0),
+                    ),
+                    (
+                        equipped_offhand_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Shield, 0),
+                    ),
+                    (
+                        rejected_twohand_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Weapon2Hand, 0),
+                    ),
+                ],
+                [
+                    (
+                        equipped_mainhand_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 100,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Weapon as i8,
+                        },
+                    ),
+                    (
+                        equipped_offhand_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 100,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Shield as i8,
+                        },
+                    ),
+                    (
+                        rejected_twohand_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 300,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Weapon2Hand as i8,
+                        },
+                    ),
+                ],
+            ),
+        ));
+        session.set_item_search_name_store(Arc::new(ItemSearchNameStore::from_entries([
+            ItemSearchNameEntry {
+                id: equipped_mainhand_item_id,
+                allowable_race: 0,
+                display: String::new(),
+                overall_quality_id: ItemQuality::Epic as u8,
+                expansion_id: 0,
+                min_faction_id: 0,
+                min_reputation: 0,
+                allowable_class: 0,
+                required_level: 0,
+                required_skill: 0,
+                required_skill_rank: 0,
+                required_ability: 0,
+                item_level: 100,
+                flags: [0; 4],
+            },
+            ItemSearchNameEntry {
+                id: equipped_offhand_item_id,
+                allowable_race: 0,
+                display: String::new(),
+                overall_quality_id: ItemQuality::Epic as u8,
+                expansion_id: 0,
+                min_faction_id: 0,
+                min_reputation: 0,
+                allowable_class: 0,
+                required_level: 0,
+                required_skill: 0,
+                required_skill_rank: 0,
+                required_ability: 0,
+                item_level: 100,
+                flags: [0; 4],
+            },
+            ItemSearchNameEntry {
+                id: rejected_twohand_item_id,
+                allowable_race: 0,
+                display: String::new(),
+                overall_quality_id: ItemQuality::Epic as u8,
+                expansion_id: 0,
+                min_faction_id: 0,
+                min_reputation: 0,
+                allowable_class: 0,
+                required_level: 0,
+                required_skill: 0,
+                required_skill_rank: 0,
+                required_ability: 0,
+                item_level: 300,
+                flags: [0; 4],
+            },
+        ])));
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_MAINHAND,
+            equipped_mainhand_guid,
+            equipped_mainhand_item_id,
+            InventoryType::Weapon,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_OFFHAND,
+            equipped_offhand_guid,
+            equipped_offhand_item_id,
+            InventoryType::Shield,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            INVENTORY_SLOT_ITEM_START,
+            rejected_twohand_guid,
+            rejected_twohand_item_id,
+            InventoryType::Weapon2Hand,
+        );
+
+        let owned = session.represented_player_condition_context_like_cpp();
+        let context = owned.as_context(&session);
+
+        assert_eq!(
+            context.avg_item_level, 12.5,
+            "C++ UpdateAverageItemLevelTotal calls CanEquipItem(..., swap=true, not_loading=false); a non-TitanGrip 2H candidate is rejected while the offhand slot is occupied"
+        );
+        assert_eq!(
+            context.avg_equipped_item_level, 12.5,
+            "C++ UpdateAverageItemLevelEquipped still counts the currently equipped mainhand and offhand only"
         );
     }
 

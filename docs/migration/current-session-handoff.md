@@ -1,3 +1,22 @@
+- `#NEXT.R8.ENTITIES.1152` — represented `PlayerData::AvgItemLevel[0]`
+  now runs represented non-equipped runtime item candidates through the
+  represented `CanEquipItem` preflight with `swap=true` and
+  `not_loading=false`, after the represented `CanUseItem` and
+  `CanEquipUniqueItem` results. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:10590-10790`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28773-28880`,
+  and the existing Rust C++ mirror in `crates/wow-entities/src/player.rs`.
+  C++ `UpdateAverageItemLevelTotal` only lets a non-equipped item replace
+  best-slot item levels if `CanEquipItem(NULL_SLOT, dest, item, true, false)`
+  succeeds; Rust now reuses `Player::can_equip_item` for the represented
+  `FindEquipSlot`, quiver uniqueness, offhand/two-hand gates, and occupied
+  offhand rejection. Coverage: `cargo test -p wow-world
+  represented_condition_total_avg_item_level --lib`. Boundary remains partial:
+  exact child-item storage refs for every contained item, item-level
+  bonus/PvP/timewalker scaling, update-field packet emission/fanout,
+  persistence, live-client/bot manual validation, and full condition-runtime
+  parity remain open.
+
 - `#NEXT.R8.ENTITIES.1151` — represented `PlayerData::AvgItemLevel[0]`
   now includes represented socketed gems in the `CanEquipUniqueItem` candidate
   filter. Source of truth:
