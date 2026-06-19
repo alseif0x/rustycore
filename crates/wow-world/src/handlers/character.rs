@@ -3816,7 +3816,7 @@ impl WorldSession {
         self.load_account_heirlooms_like_cpp().await;
         self.load_account_item_appearances_like_cpp().await;
         self.load_account_transmog_illusions_like_cpp().await;
-        let account_mounts = self.load_account_mounts_like_cpp().await;
+        self.load_account_mounts_like_cpp().await;
 
         // Load equipped items for visible display + inventory objects
         let mut visible_items = [(0i32, 0u16, 0u16); 19];
@@ -4388,6 +4388,15 @@ impl WorldSession {
 
         // Store final known_spells in session for later use (ShowTradeSkill, etc.)
         self.set_known_spells_like_cpp(known_spells.clone());
+        let promoted_character_mounts =
+            self.promote_loaded_character_mount_spells_like_cpp(&known_spells);
+        if promoted_character_mounts > 0 {
+            info!(
+                player_guid = guid.counter(),
+                promoted_character_mounts,
+                "Promoted loaded character mount spells into the represented account mount collection like C++ Player::_LoadSpells -> AddMount"
+            );
+        }
 
         // ── Load talents from character_talent ──
         // C++ `Player::_LoadTalents`: skip talent rows whose Talent.db2 entry
@@ -4735,7 +4744,7 @@ impl WorldSession {
             spell_charge_entries,
             action_buttons,
             skill_info_tuples,
-            account_mounts,
+            self.account_mount_rows_like_cpp(),
         );
         self.apply_represented_login_spell_reset_if_needed_like_cpp();
         self.apply_represented_login_talent_reset_if_needed_like_cpp();

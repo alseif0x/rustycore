@@ -1,3 +1,25 @@
+- `#NEXT.R8.ENTITIES.1105` — represented login now mirrors the C++
+  `Player::_LoadSpells -> AddSpell -> CollectionMgr::AddMount` bridge for
+  character DB mount spells (not manual-test-ready). C++ first loads account
+  mounts, then `_LoadSpells` calls `AddSpell`, and `AddSpell` promotes any DB2
+  mount source spell into `CollectionMgr` before the login `AccountMountUpdate`
+  is sent from the final `std::map` collection. Rust now promotes loaded
+  `character_spell` mount source spells into the represented account mount
+  collection after `known_spells` are loaded, preserves existing account-mount
+  flags by using insert-if-absent semantics, and sends `AccountMountUpdate` from
+  the final session collection rather than the pre-spell-load vector.
+  `account_mount_rows_like_cpp` now sorts by source spell id to match C++
+  `std::map` iteration. Coverage: `cargo fmt --all`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  loaded_character_mount_spells_promote_to_account_collection_like_cpp --lib`;
+  filtered `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p
+  wow-world account_mount --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
+  cargo check -p world-server`; and `git diff --check`. Boundary remains
+  partial: faction-specific counterpart mount definitions from `CollectionMgr`
+  are still not represented, terrain/liquid/capability runtime remains
+  represented, live-client/bot/manual validation remains open, and full mount
+  runtime parity is incomplete.
+
 - `#NEXT.R8.ENTITIES.1104` — canonical typed `Unit` now owns represented
   `m_movementInfo.time` for the player path (not manual-test-ready). Source
   of truth:

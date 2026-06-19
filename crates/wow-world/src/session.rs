@@ -27838,6 +27838,32 @@ impl WorldSession {
         self.learn_account_mount_spells_like_cpp();
     }
 
+    pub(crate) fn promote_loaded_character_mount_spells_like_cpp(
+        &mut self,
+        spells: &[i32],
+    ) -> usize {
+        let Some(mount_store) = self.mount_store.as_ref() else {
+            return 0;
+        };
+
+        let mut added = 0usize;
+        for &spell_id in spells {
+            let Ok(spell_id_u32) = u32::try_from(spell_id) else {
+                continue;
+            };
+            if mount_store
+                .get_by_source_spell_id_like_cpp(spell_id_u32)
+                .is_some()
+                && let std::collections::hash_map::Entry::Vacant(entry) =
+                    self.account_mounts_like_cpp.entry(spell_id)
+            {
+                entry.insert(0);
+                added += 1;
+            }
+        }
+        added
+    }
+
     fn learn_account_mount_spells_like_cpp(&mut self) -> usize {
         let mut spell_ids: Vec<i32> = self.account_mounts_like_cpp.keys().copied().collect();
         spell_ids.sort_unstable();
@@ -28240,10 +28266,13 @@ impl WorldSession {
     }
 
     pub(crate) fn account_mount_rows_like_cpp(&self) -> Vec<AccountMount> {
-        self.account_mounts_like_cpp
+        let mut mounts = self
+            .account_mounts_like_cpp
             .iter()
             .map(|(&spell_id, &flags)| AccountMount { spell_id, flags })
-            .collect()
+            .collect::<Vec<_>>();
+        mounts.sort_by_key(|mount| mount.spell_id);
+        mounts
     }
 
     pub(crate) fn mount_set_favorite_like_cpp(
@@ -59480,6 +59509,58 @@ mod tests {
         assert!(session.known_spells_like_cpp().contains(&635));
         assert!(session.known_spells_like_cpp().contains(&100));
         assert!(session.known_spells_like_cpp().contains(&101));
+    }
+
+    #[test]
+    fn loaded_character_mount_spells_promote_to_account_collection_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([
+            wow_data::MountEntry {
+                id: 1,
+                mount_type_id: 0,
+                flags: 0,
+                source_type_enum: 0,
+                source_spell_id: 300,
+                player_condition_id: 0,
+                mount_fly_ride_height: 0.0,
+                ui_model_scene_id: 0,
+            },
+            wow_data::MountEntry {
+                id: 2,
+                mount_type_id: 0,
+                flags: 0,
+                source_type_enum: 0,
+                source_spell_id: 100,
+                player_condition_id: 0,
+                mount_fly_ride_height: 0.0,
+                ui_model_scene_id: 0,
+            },
+        ])));
+        session.set_account_mounts_like_cpp(vec![wow_packet::packets::misc::AccountMount {
+            spell_id: 300,
+            flags: 1,
+        }]);
+
+        let added = session.promote_loaded_character_mount_spells_like_cpp(&[100, 200, 300]);
+
+        assert_eq!(
+            added, 1,
+            "C++ Player::_LoadSpells calls AddSpell; AddSpell promotes DB-backed mount spells into CollectionMgr while preserving existing account mount rows"
+        );
+        assert_eq!(
+            session.account_mount_rows_like_cpp(),
+            vec![
+                wow_packet::packets::misc::AccountMount {
+                    spell_id: 100,
+                    flags: 0
+                },
+                wow_packet::packets::misc::AccountMount {
+                    spell_id: 300,
+                    flags: 1
+                },
+            ],
+            "C++ CollectionMgr stores mounts in std::map, so the full AccountMountUpdate is sorted by source spell id"
+        );
     }
 
     #[test]
