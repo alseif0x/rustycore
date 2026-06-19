@@ -126,8 +126,8 @@ use wow_entities::{
     INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS, ITEM_DATA_DURABILITY_BIT,
     Item, ItemCreateInfo, ItemDataUpdate, ItemLimitCategoryTemplate, ItemPosCount, ItemSlotRef,
     ItemStorageRef, ItemStorageTemplate, ItemValuesUpdate, MAX_BAG_SIZE, MAX_ITEM_SPELLS,
-    MAX_MONEY_AMOUNT, MAX_POWERS, NULL_BAG, NULL_SLOT, ObjectAccessor,
-    PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP, PLAYER_SLOT_END, Pet, PetAuraLikeCpp,
+    MAX_MONEY_AMOUNT, MAX_POWERS, MovementGeneratorKind, MovementSlot, NULL_BAG, NULL_SLOT,
+    ObjectAccessor, PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP, PLAYER_SLOT_END, Pet, PetAuraLikeCpp,
     PetDeclinedNamesLikeCpp, PetSaveMode, PetSpellState, PetSpellType, PetStable, PetStableInfo,
     PetType, PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerInventoryStorage,
     PlayerItemTimeUpdate, QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE,
@@ -26071,8 +26071,12 @@ impl WorldSession {
     fn reset_teleport_movement_state_like_cpp(&mut self) {
         self.player_movement_flags_like_cpp &= MovementFlag::MASK_HAS_PLAYER_STATUS_OPCODE;
         self.player_movement_jump_like_cpp = wow_packet::packets::movement::JumpInfo::default();
-        // C++ also disables the player spline and removes EFFECT_MOTION_TYPE here.
-        // Rust does not keep those player-side runtime states yet.
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            let motion = &mut player.unit_mut().subsystems_mut().motion;
+            motion.interrupt_spline();
+            let _ =
+                motion.remove_generator_kind(MovementGeneratorKind::Effect, MovementSlot::Active);
+        });
     }
 
     fn teleport_options_after_seamless_gate_like_cpp(
@@ -78194,6 +78198,7 @@ mod tests {
     #[tokio::test]
     async fn teleport_to_same_map_masks_movement_flags_before_near_teleport_like_cpp() {
         let (mut session, _, send_rx) = make_session();
+        let canonical = Arc::new(Mutex::new(wow_map::MapManager::default()));
         let player_guid = ObjectGuid::create_player(1, 827);
         let source = Position::new(10.0, 20.0, 30.0, 0.0);
         let destination = Position::new(119.0, 219.0, 49.0, 3.4);
@@ -78209,6 +78214,7 @@ mod tests {
             },
         ])));
         session.expansion = 1;
+        session.set_canonical_map_manager(Arc::clone(&canonical));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
             player_guid,
             "NearTeleportMovementReset".to_string(),
@@ -78219,6 +78225,14 @@ mod tests {
             80,
             0,
         ));
+        session
+            .ensure_canonical_world_map_for_current_player_like_cpp()
+            .expect("canonical world map/player");
+        session.mutate_canonical_player_like_cpp(|player| {
+            let motion = &mut player.unit_mut().subsystems_mut().motion;
+            motion.start_spline(77, 1_000);
+            motion.launch_generic_movement(MovementGeneratorKind::Effect, 3, 1_000, None);
+        });
         session.set_player_movement_flags_like_cpp(
             MovementFlag::ROOT
                 | MovementFlag::CAN_FLY
@@ -78251,6 +78265,23 @@ mod tests {
             session.player_movement_jump_like_cpp().fall_time,
             0,
             "C++ Player::TeleportTo resets MovementInfo::jump before the same-map branch"
+        );
+        let canonical = canonical.lock().unwrap();
+        let player = canonical
+            .find_map(571, 0)
+            .and_then(|map| map.map().get_typed_player(player_guid))
+            .expect("canonical player after teleport");
+        let motion = &player.unit().subsystems().motion;
+        assert!(
+            motion.spline.finalized,
+            "C++ Player::TeleportTo calls Unit::DisableSpline before the same-map branch"
+        );
+        assert!(
+            !motion
+                .active_generators
+                .iter()
+                .any(|generator| generator.kind == MovementGeneratorKind::Effect),
+            "C++ Player::TeleportTo removes EFFECT_MOTION_TYPE before the same-map branch"
         );
         assert!(session.near_teleport_pending_like_cpp());
     }

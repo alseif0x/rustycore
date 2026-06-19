@@ -1,3 +1,22 @@
+- `#NEXT.R8.ENTITIES.1102` — represented/canonical `Player::TeleportTo`
+  now mirrors the remaining C++ common movement reset side effects for typed
+  player motion state (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:1286-1289`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:622-626`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Movement/MotionMaster.cpp:392-430`.
+  Rust still masks represented player movement flags and resets represented
+  `MovementInfo::jump`, and now also interrupts the canonical typed player's
+  `MoveSpline` plus removes the active `EFFECT_MOTION_TYPE` generator before
+  the same-map near-teleport / far-teleport branches. Coverage:
+  focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p
+  wow-world teleport_to_same_map_masks_movement_flags_before_near_teleport_like_cpp
+  --lib`; `cargo fmt --all`; focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
+  cargo test -p wow-world teleport_to_ --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
+  cargo check -p world-server`; and `git diff --check`. Boundary remains partial:
+  canonical player movement flags are not yet a full `m_movementInfo` owner,
+  player-side MoveSpline/MotionMaster runtime ownership is not complete, and
+  live-client/bot/manual validation remains open.
 - `#NEXT.R8.ENTITIES.1101` — represented `Player::TeleportTo` now mirrors the
   C++ `MovementInfo::ResetJump()` side effect in the common teleport pre-branch
   (not manual-test-ready). Source of truth:
