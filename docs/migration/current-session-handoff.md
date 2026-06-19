@@ -1,3 +1,22 @@
+- `#NEXT.R8.ENTITIES.1161` — `wow-data` now represents C++
+  `DB2Manager::GetCurveValueAt(curveId, x)` and the supporting
+  `_curvePoints` grouping. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Stores.cpp:1118-1138`,
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Stores.cpp:1943-2089`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DBCEnums.h:822-831`.
+  Rust now groups `CurvePoint.db2` rows only for existing curves, sorts by
+  `OrderIndex`, returns `0.0` for missing/empty curve data, mirrors the C++
+  interpolation-mode selection from `Curve.Type` and point count, and evaluates
+  linear, cosine, Catmull-Rom, Bezier3, Bezier4, generic Bezier, and constant
+  curves. Coverage: `cargo test -p wow-data curve_value_at --lib`,
+  `cargo test -p wow-data --lib`, `cargo fmt --all --check`, and
+  `git diff --check`. Boundary remains partial: this is the DB2 helper needed
+  by represented player-level-to-item-level scaling; it is not yet consumed by
+  represented `Item::GetItemLevel(owner)`, does not apply timewalker fixed-level
+  modifiers, update item fields, emit/fanout packets, persist state, or perform
+  live-client/bot validation.
+
 - `#NEXT.R8.ENTITIES.1160` — `ItemSparseTemplateEntry` now exposes the C++
   `ItemTemplate::GetScalingStatContentTuning()` and
   `ItemTemplate::GetPlayerLevelToItemLevelCurveId()` inputs used by

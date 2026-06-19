@@ -81,6 +81,17 @@ pub struct CurvePointEntry {
     pub order_index: u8,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CurveInterpolationModeLikeCpp {
+    Linear,
+    Cosine,
+    CatmullRom,
+    Bezier3,
+    Bezier4,
+    Bezier,
+    Constant,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct FactionEntry {
     pub id: u32,
@@ -484,6 +495,26 @@ impl CurveStore {
             flags: r.get_field_u8(idx, 2),
         })
     }
+
+    pub fn curve_value_at_like_cpp(
+        &self,
+        curve_points: &CurvePointStore,
+        curve_id: u32,
+        x: f32,
+    ) -> f32 {
+        let grouped_points = curve_points.points_by_curve_like_cpp(self);
+        let Some(points) = grouped_points.get(&curve_id) else {
+            return 0.0;
+        };
+        let Some(curve) = self.get(curve_id) else {
+            return 0.0;
+        };
+        if points.is_empty() {
+            return 0.0;
+        }
+
+        curve_value_at_points_like_cpp(determine_curve_type_like_cpp(curve, points), points, x)
+    }
 }
 
 impl CurvePointStore {
@@ -497,6 +528,176 @@ impl CurvePointStore {
                 order_index: r.get_field_u8(idx, 4),
             }
         })
+    }
+
+    pub fn points_by_curve_like_cpp(
+        &self,
+        curve_store: &CurveStore,
+    ) -> HashMap<u32, Vec<[f32; 2]>> {
+        let mut unsorted_points: HashMap<u32, Vec<&CurvePointEntry>> = HashMap::new();
+        for point in self.entries.values() {
+            if curve_store.get(point.curve_id).is_some() {
+                unsorted_points
+                    .entry(point.curve_id)
+                    .or_default()
+                    .push(point);
+            }
+        }
+
+        let mut points_by_curve = HashMap::with_capacity(unsorted_points.len());
+        for (curve_id, mut points) in unsorted_points {
+            points.sort_by_key(|point| point.order_index);
+            points_by_curve.insert(
+                curve_id,
+                points.into_iter().map(|point| point.pos).collect(),
+            );
+        }
+        points_by_curve
+    }
+}
+
+fn determine_curve_type_like_cpp(
+    curve: &CurveEntry,
+    points: &[[f32; 2]],
+) -> CurveInterpolationModeLikeCpp {
+    match curve.curve_type {
+        1 => {
+            if points.len() < 4 {
+                CurveInterpolationModeLikeCpp::Cosine
+            } else {
+                CurveInterpolationModeLikeCpp::CatmullRom
+            }
+        }
+        2 => match points.len() {
+            1 => CurveInterpolationModeLikeCpp::Constant,
+            2 => CurveInterpolationModeLikeCpp::Linear,
+            3 => CurveInterpolationModeLikeCpp::Bezier3,
+            4 => CurveInterpolationModeLikeCpp::Bezier4,
+            _ => CurveInterpolationModeLikeCpp::Bezier,
+        },
+        3 => CurveInterpolationModeLikeCpp::Cosine,
+        _ => {
+            if points.len() != 1 {
+                CurveInterpolationModeLikeCpp::Linear
+            } else {
+                CurveInterpolationModeLikeCpp::Constant
+            }
+        }
+    }
+}
+
+fn curve_value_at_points_like_cpp(
+    mode: CurveInterpolationModeLikeCpp,
+    points: &[[f32; 2]],
+    x: f32,
+) -> f32 {
+    match mode {
+        CurveInterpolationModeLikeCpp::Linear => {
+            let mut point_index = 0usize;
+            while point_index < points.len() && points[point_index][0] <= x {
+                point_index += 1;
+            }
+            if point_index == 0 {
+                return points[0][1];
+            }
+            if point_index >= points.len() {
+                return points[points.len() - 1][1];
+            }
+            let x_diff = points[point_index][0] - points[point_index - 1][0];
+            if x_diff == 0.0 {
+                return points[point_index][1];
+            }
+            (((x - points[point_index - 1][0]) / x_diff)
+                * (points[point_index][1] - points[point_index - 1][1]))
+                + points[point_index - 1][1]
+        }
+        CurveInterpolationModeLikeCpp::Cosine => {
+            let mut point_index = 0usize;
+            while point_index < points.len() && points[point_index][0] <= x {
+                point_index += 1;
+            }
+            if point_index == 0 {
+                return points[0][1];
+            }
+            if point_index >= points.len() {
+                return points[points.len() - 1][1];
+            }
+            let x_diff = points[point_index][0] - points[point_index - 1][0];
+            if x_diff == 0.0 {
+                return points[point_index][1];
+            }
+            ((points[point_index][1] - points[point_index - 1][1])
+                * (1.0 - ((x - points[point_index - 1][0]) / x_diff * std::f32::consts::PI).cos())
+                * 0.5)
+                + points[point_index - 1][1]
+        }
+        CurveInterpolationModeLikeCpp::CatmullRom => {
+            let mut point_index = 1usize;
+            while point_index < points.len() && points[point_index][0] <= x {
+                point_index += 1;
+            }
+            if point_index == 1 {
+                return points[1][1];
+            }
+            if point_index >= points.len() - 1 {
+                return points[points.len() - 2][1];
+            }
+            let x_diff = points[point_index][0] - points[point_index - 1][0];
+            if x_diff == 0.0 {
+                return points[point_index][1];
+            }
+
+            let mu = (x - points[point_index - 1][0]) / x_diff;
+            let a0 = -0.5 * points[point_index - 2][1] + 1.5 * points[point_index - 1][1]
+                - 1.5 * points[point_index][1]
+                + 0.5 * points[point_index + 1][1];
+            let a1 = points[point_index - 2][1] - 2.5 * points[point_index - 1][1]
+                + 2.0 * points[point_index][1]
+                - 0.5 * points[point_index + 1][1];
+            let a2 = -0.5 * points[point_index - 2][1] + 0.5 * points[point_index][1];
+            let a3 = points[point_index - 1][1];
+
+            a0 * mu * mu * mu + a1 * mu * mu + a2 * mu + a3
+        }
+        CurveInterpolationModeLikeCpp::Bezier3 => {
+            let x_diff = points[2][0] - points[0][0];
+            if x_diff == 0.0 {
+                return points[1][1];
+            }
+            let mu = (x - points[0][0]) / x_diff;
+            ((1.0 - mu) * (1.0 - mu) * points[0][1])
+                + (1.0 - mu) * 2.0 * mu * points[1][1]
+                + mu * mu * points[2][1]
+        }
+        CurveInterpolationModeLikeCpp::Bezier4 => {
+            let x_diff = points[3][0] - points[0][0];
+            if x_diff == 0.0 {
+                return points[1][1];
+            }
+            let mu = (x - points[0][0]) / x_diff;
+            (1.0 - mu) * (1.0 - mu) * (1.0 - mu) * points[0][1]
+                + 3.0 * mu * (1.0 - mu) * (1.0 - mu) * points[1][1]
+                + 3.0 * mu * mu * (1.0 - mu) * points[2][1]
+                + mu * mu * mu * points[3][1]
+        }
+        CurveInterpolationModeLikeCpp::Bezier => {
+            let x_diff = points[points.len() - 1][0] - points[0][0];
+            if x_diff == 0.0 {
+                return points[points.len() - 1][1];
+            }
+
+            let mut tmp: Vec<f32> = points.iter().map(|point| point[1]).collect();
+            let mu = (x - points[0][0]) / x_diff;
+            let mut i = tmp.len() - 1;
+            while i > 0 {
+                for k in 0..i {
+                    tmp[k] += mu * (tmp[k + 1] - tmp[k]);
+                }
+                i -= 1;
+            }
+            tmp[0]
+        }
+        CurveInterpolationModeLikeCpp::Constant => points[0][1],
     }
 }
 
@@ -963,6 +1164,31 @@ impl_from_entries!(ScalingStatValuesStore, ScalingStatValuesEntry);
 mod tests {
     use super::*;
 
+    fn assert_close(actual: f32, expected: f32) {
+        assert!(
+            (actual - expected).abs() < 0.0001,
+            "expected {expected}, got {actual}"
+        );
+    }
+
+    fn curve(id: u32, curve_type: u8) -> CurveEntry {
+        CurveEntry {
+            id,
+            curve_type,
+            flags: 0,
+        }
+    }
+
+    fn point(id: u32, curve_id: u32, order_index: u8, x: f32, y: f32) -> CurvePointEntry {
+        CurvePointEntry {
+            id,
+            pos: [x, y],
+            pre_sl_squish_pos: [0.0, 0.0],
+            curve_id,
+            order_index,
+        }
+    }
+
     fn faction_template_for_test(
         id: u32,
         faction: u16,
@@ -1142,6 +1368,92 @@ mod tests {
         assert_eq!(store.num_talents_at_level_like_cpp(80, 6), 76);
         assert_eq!(store.num_talents_at_level_like_cpp(90, 1), 71);
         assert_eq!(store.num_talents_at_level_like_cpp(90, 12), 0);
+    }
+
+    #[test]
+    fn curve_points_group_sort_and_skip_missing_curves_like_cpp() {
+        let curves = CurveStore::from_entries([curve(10, 0)]);
+        let points = CurvePointStore::from_entries([
+            point(1, 10, 2, 20.0, 200.0),
+            point(2, 999, 0, 1.0, 1.0),
+            point(3, 10, 0, 0.0, 100.0),
+            point(4, 10, 1, 10.0, 150.0),
+        ]);
+
+        let grouped = points.points_by_curve_like_cpp(&curves);
+        assert_eq!(
+            grouped.get(&10).unwrap(),
+            &vec![[0.0, 100.0], [10.0, 150.0], [20.0, 200.0]]
+        );
+        assert!(!grouped.contains_key(&999));
+    }
+
+    #[test]
+    fn curve_value_at_linear_and_constant_match_cpp() {
+        let curves = CurveStore::from_entries([curve(1, 0), curve(2, 0)]);
+        let points = CurvePointStore::from_entries([
+            point(1, 1, 0, 0.0, 10.0),
+            point(2, 1, 1, 10.0, 30.0),
+            point(3, 2, 0, 0.0, 77.0),
+        ]);
+
+        assert_close(curves.curve_value_at_like_cpp(&points, 1, -1.0), 10.0);
+        assert_close(curves.curve_value_at_like_cpp(&points, 1, 5.0), 20.0);
+        assert_close(curves.curve_value_at_like_cpp(&points, 1, 11.0), 30.0);
+        assert_close(curves.curve_value_at_like_cpp(&points, 2, 999.0), 77.0);
+        assert_close(curves.curve_value_at_like_cpp(&points, 999, 5.0), 0.0);
+    }
+
+    #[test]
+    fn curve_value_at_cosine_matches_cpp() {
+        let curves = CurveStore::from_entries([curve(10, 3)]);
+        let points = CurvePointStore::from_entries([
+            point(1, 10, 0, 0.0, 10.0),
+            point(2, 10, 1, 10.0, 30.0),
+        ]);
+
+        assert_close(curves.curve_value_at_like_cpp(&points, 10, 5.0), 20.0);
+    }
+
+    #[test]
+    fn curve_value_at_catmull_rom_matches_cpp() {
+        let curves = CurveStore::from_entries([curve(20, 1)]);
+        let points = CurvePointStore::from_entries([
+            point(1, 20, 0, 0.0, 0.0),
+            point(2, 20, 1, 10.0, 10.0),
+            point(3, 20, 2, 20.0, 20.0),
+            point(4, 20, 3, 30.0, 30.0),
+        ]);
+
+        assert_close(curves.curve_value_at_like_cpp(&points, 20, 5.0), 10.0);
+        assert_close(curves.curve_value_at_like_cpp(&points, 20, 15.0), 15.0);
+        assert_close(curves.curve_value_at_like_cpp(&points, 20, 25.0), 20.0);
+    }
+
+    #[test]
+    fn curve_value_at_bezier_modes_match_cpp() {
+        let curves =
+            CurveStore::from_entries([curve(30, 2), curve(31, 2), curve(32, 2), curve(33, 2)]);
+        let points = CurvePointStore::from_entries([
+            point(1, 30, 0, 0.0, 10.0),
+            point(2, 30, 1, 10.0, 30.0),
+            point(3, 30, 2, 20.0, 10.0),
+            point(4, 31, 0, 0.0, 0.0),
+            point(5, 31, 1, 10.0, 30.0),
+            point(6, 31, 2, 20.0, 30.0),
+            point(7, 31, 3, 30.0, 0.0),
+            point(8, 32, 0, 0.0, 0.0),
+            point(9, 32, 1, 10.0, 10.0),
+            point(10, 32, 2, 20.0, 20.0),
+            point(11, 32, 3, 30.0, 30.0),
+            point(12, 32, 4, 40.0, 40.0),
+            point(13, 33, 0, 0.0, 44.0),
+        ]);
+
+        assert_close(curves.curve_value_at_like_cpp(&points, 30, 10.0), 20.0);
+        assert_close(curves.curve_value_at_like_cpp(&points, 31, 15.0), 22.5);
+        assert_close(curves.curve_value_at_like_cpp(&points, 32, 20.0), 20.0);
+        assert_close(curves.curve_value_at_like_cpp(&points, 33, 999.0), 44.0);
     }
 
     #[test]
