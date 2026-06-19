@@ -1,3 +1,24 @@
+- `#NEXT.R8.ENTITIES.1130` — represented `Player::RemoveSpell` now consumes
+  the C++ `CONFIG_OFFHAND_CHECK_AT_SPELL_UNLEARN` /
+  `OffhandCheckAtSpellUnlearn` switch and records represented
+  `AutoUnequipOffhandIfNeed` requests after the Titan Grip and Dual Wield
+  cleanup branches. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3431-3432`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:24606-24640`,
+  `/home/server/woltk-trinity-legacy/src/server/game/World/World.cpp:1367`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/ItemTemplate.h:267`.
+  Rust carries the config through `SessionResources`, defaults it to the C++
+  `true`, honors `ITEM_FLAG3_ALWAYS_ALLOW_DUAL_WIELD`, and records the C++
+  offhand decision reasons for lost dual-wield and invalid two-hand state.
+  Coverage: `cargo fmt`; `cargo fmt --check`; `cargo test -p wow-world
+  remove_known_spell --lib`; `cargo test -p world-server
+  offhand_check_at_spell_unlearn_uses_cpp_world_config_key --bin
+  world-server`; `cargo check -p world-server`; `git diff --check`.
+  Boundary remains partial: this is represented decision evidence only; real
+  `CanStoreItem` destination selection, `RemoveItem`/`StoreItem`, DB
+  delete/save transaction, mail fallback, update packets, live-client/bot/manual
+  validation, and full `Player::RemoveSpell` parity remain open.
+
 - `#NEXT.R8.ENTITIES.1129` — represented `Player::RemoveSpell` now clears
   Dual Wield capability when the removed spell is passive and has
   `SPELL_EFFECT_DUAL_WIELD`. Source of truth:
@@ -9,10 +30,12 @@
   represented removal path under the same passive/effect gates as C++.
   Coverage: `cargo fmt`; `cargo test -p wow-world remove_known_spell --lib`;
   `cargo check -p world-server`; `cargo fmt --check`; `git diff --check`.
-  Boundary remains partial: `CONFIG_OFFHAND_CHECK_AT_SPELL_UNLEARN` wiring,
-  real `AutoUnequipOffhandIfNeed` inventory movement/mail fallback, passive
-  aura ownership beyond represented visible auras, live-client/bot/manual
-  validation, and full `Player::RemoveSpell` parity remain open.
+  Boundary remains partial: `CONFIG_OFFHAND_CHECK_AT_SPELL_UNLEARN` wiring and
+  represented `AutoUnequipOffhandIfNeed` request evidence are closed by
+  `#NEXT.R8.ENTITIES.1130`; real `AutoUnequipOffhandIfNeed` inventory
+  movement/mail fallback, passive aura ownership beyond represented visible
+  auras, live-client/bot/manual validation, and full `Player::RemoveSpell`
+  parity remain open.
 
 - `#NEXT.R8.ENTITIES.1128` — represented `Spell::EffectTitanGrip` and
   `Player::RemoveSpell` Titan Grip cleanup now mirror the C++ bounded paths.
@@ -28,10 +51,12 @@
   wow-data spell_effect_constants --lib`; `cargo check -p world-server`;
   `cargo fmt --check`; `git diff --check`. Boundary remains partial:
   represented Dual Wield cleanup is closed by `#NEXT.R8.ENTITIES.1129`;
-  `CONFIG_OFFHAND_CHECK_AT_SPELL_UNLEARN` wiring, real
-  `AutoUnequipOffhandIfNeed` inventory movement/mail fallback, passive aura
-  ownership beyond represented visible auras, live-client/bot/manual
-  validation, and full `Player::RemoveSpell` parity remain open.
+  `CONFIG_OFFHAND_CHECK_AT_SPELL_UNLEARN` wiring and represented
+  `AutoUnequipOffhandIfNeed` request evidence are closed by
+  `#NEXT.R8.ENTITIES.1130`; real `AutoUnequipOffhandIfNeed` inventory
+  movement/mail fallback, passive aura ownership beyond represented visible
+  auras, live-client/bot/manual validation, and full `Player::RemoveSpell`
+  parity remain open.
 
 - `#NEXT.R8.ENTITIES.1127` — represented `Player::RemoveSpell` now emits
   C++-shaped `SMSG_SUPERCEDED_SPELLS` when a lower rank is reactivated.

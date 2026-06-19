@@ -3698,6 +3698,7 @@ pub struct WorldSession {
     represented_auction_place_bids_like_cpp: Vec<RepresentedAuctionPlaceBidLikeCpp>,
     represented_auction_remove_items_like_cpp: Vec<RepresentedAuctionRemoveItemLikeCpp>,
     represented_auction_sell_items_like_cpp: Vec<RepresentedAuctionSellItemLikeCpp>,
+    represented_auto_unequip_offhand_requests_like_cpp: Vec<RepresentedAutoUnequipOffhandLikeCpp>,
     player_xp: u32,
     /// XP required to reach next level, cached from player_xp_for_level.
     player_next_level_xp: u32,
@@ -4388,6 +4389,8 @@ pub struct WorldSession {
     reset_schedule_like_cpp: wow_instances::ResetSchedule,
     /// C++ `CONFIG_NO_RESET_TALENT_COST` represented switch.
     no_reset_talent_cost_like_cpp: bool,
+    /// C++ `CONFIG_OFFHAND_CHECK_AT_SPELL_UNLEARN` represented switch.
+    represented_offhand_check_at_spell_unlearn_like_cpp: bool,
     /// C++ `CONFIG_VMAP_INDOOR_CHECK` represented switch.
     vmap_indoor_check_like_cpp: bool,
     /// Represented C++ `WorldObject::IsOutdoors()` result until VMAP owns it.
@@ -4511,6 +4514,20 @@ pub struct InventoryItem {
     /// InventoryType from Item.db2 (e.g. 1=Head, 5=Chest, 13=Weapon).
     /// Loaded from the item store at login, with slot-based fallback.
     pub inventory_type: Option<u8>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RepresentedAutoUnequipOffhandReasonLikeCpp {
+    Forced,
+    LostDualWield,
+    InvalidTwoHandState,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedAutoUnequipOffhandLikeCpp {
+    pub item_guid: ObjectGuid,
+    pub item_entry: u32,
+    pub reason: RepresentedAutoUnequipOffhandReasonLikeCpp,
 }
 
 pub(crate) const MAX_EQUIPMENT_SET_INDEX_LIKE_CPP: u32 = 20;
@@ -5366,6 +5383,7 @@ impl WorldSession {
             represented_auction_place_bids_like_cpp: Vec::new(),
             represented_auction_remove_items_like_cpp: Vec::new(),
             represented_auction_sell_items_like_cpp: Vec::new(),
+            represented_auto_unequip_offhand_requests_like_cpp: Vec::new(),
             player_xp: 0,
             player_next_level_xp: 400,
             player_xp_table: None,
@@ -5734,6 +5752,7 @@ impl WorldSession {
             repair_cost_rate_like_cpp: 1.0,
             reset_schedule_like_cpp: wow_instances::ResetSchedule::default(),
             no_reset_talent_cost_like_cpp: false,
+            represented_offhand_check_at_spell_unlearn_like_cpp: true,
             vmap_indoor_check_like_cpp: false,
             represented_is_outdoors_like_cpp: None,
             reputation_mgr_like_cpp: ReputationMgrLikeCpp::new_like_cpp(),
@@ -14046,6 +14065,10 @@ impl WorldSession {
 
     pub fn set_no_reset_talent_cost_like_cpp(&mut self, no_cost: bool) {
         self.no_reset_talent_cost_like_cpp = no_cost;
+    }
+
+    pub fn set_offhand_check_at_spell_unlearn_like_cpp(&mut self, enabled: bool) {
+        self.represented_offhand_check_at_spell_unlearn_like_cpp = enabled;
     }
 
     pub fn set_vmap_indoor_check_like_cpp(&mut self, enabled: bool) {
@@ -28009,6 +28032,12 @@ impl WorldSession {
         &self.represented_bank_item_moves_like_cpp
     }
 
+    pub(crate) fn represented_auto_unequip_offhand_requests_like_cpp(
+        &self,
+    ) -> &[RepresentedAutoUnequipOffhandLikeCpp] {
+        &self.represented_auto_unequip_offhand_requests_like_cpp
+    }
+
     pub(crate) fn represented_guild_bank_can_interact_like_cpp(
         &self,
         banker: ObjectGuid,
@@ -29222,6 +29251,9 @@ impl WorldSession {
 
         self.cleanup_removed_spell_titan_grip_like_cpp(spell_id);
         self.cleanup_removed_spell_dual_wield_like_cpp(spell_id);
+        if self.represented_offhand_check_at_spell_unlearn_like_cpp {
+            self.represented_auto_unequip_offhand_if_need_like_cpp(false);
+        }
 
         if let Some(controller) = &mut self.player_controller {
             controller.remove_spell(spell_id);
@@ -29290,6 +29322,70 @@ impl WorldSession {
                 player.unit_mut().set_can_dual_wield_like_cpp(false);
             }
         });
+    }
+
+    fn represented_auto_unequip_offhand_if_need_like_cpp(&mut self, force: bool) -> bool {
+        let Some(offhand_item) = self
+            .inventory_items_like_cpp()
+            .get(&EQUIPMENT_SLOT_OFFHAND)
+            .cloned()
+        else {
+            return false;
+        };
+        let Some(offhand_template) = self.item_storage_template(offhand_item.entry_id) else {
+            return false;
+        };
+        let mainhand_template = self
+            .inventory_items_like_cpp()
+            .get(&EQUIPMENT_SLOT_MAINHAND)
+            .and_then(|item| self.item_storage_template(item.entry_id));
+        let (can_dual_wield, can_titan_grip) = self
+            .canonical_player_snapshot_like_cpp(|player| {
+                (
+                    player.unit().can_dual_wield_like_cpp(),
+                    player.can_titan_grip(),
+                )
+            })
+            .unwrap_or((false, false));
+
+        let always_allow_dual_wield = self
+            .item_template_flags3(offhand_item.entry_id)
+            .is_some_and(|flags| (flags & ItemFlags3::AlwaysAllowDualWield as u32) != 0);
+        let lost_dual_wield = !can_dual_wield
+            && ((offhand_template.inventory_type == InventoryType::WeaponOffhand
+                && !always_allow_dual_wield)
+                || offhand_template.inventory_type == InventoryType::Weapon);
+        let is_two_hand_used = mainhand_template.is_some_and(|template| {
+            (template.inventory_type == InventoryType::Weapon2Hand && !can_titan_grip)
+                || template.inventory_type == InventoryType::Ranged
+                || (template.inventory_type == InventoryType::RangedRight
+                    && template.class_id == ItemClass::Weapon
+                    && template.subclass_id != ItemSubClassWeapon::Wand as u32)
+        });
+
+        let reason = if force {
+            Some(RepresentedAutoUnequipOffhandReasonLikeCpp::Forced)
+        } else if lost_dual_wield {
+            Some(RepresentedAutoUnequipOffhandReasonLikeCpp::LostDualWield)
+        } else if !can_titan_grip
+            && (offhand_template.inventory_type == InventoryType::Weapon2Hand || is_two_hand_used)
+        {
+            Some(RepresentedAutoUnequipOffhandReasonLikeCpp::InvalidTwoHandState)
+        } else {
+            None
+        };
+
+        let Some(reason) = reason else {
+            return false;
+        };
+
+        self.represented_auto_unequip_offhand_requests_like_cpp
+            .push(RepresentedAutoUnequipOffhandLikeCpp {
+                item_guid: offhand_item.guid,
+                item_entry: offhand_item.entry_id,
+                reason,
+            });
+        true
     }
 
     pub(crate) fn add_represented_override_spell_like_cpp(
@@ -49413,6 +49509,87 @@ mod tests {
         );
     }
 
+    fn install_remove_spell_offhand_templates_like_cpp(
+        session: &mut WorldSession,
+        items: &[(u32, InventoryType, u32, ItemClass, u8)],
+    ) {
+        session.set_item_store(Arc::new(ItemStore::from_records(items.iter().map(
+            |&(item_id, inventory_type, _, class_id, subclass_id)| ItemRecord {
+                id: item_id,
+                class_id: class_id as u8,
+                subclass_id,
+                material: 0,
+                inventory_type: inventory_type as i8,
+                sheathe_type: 0,
+                random_select: 0,
+                random_suffix_group_id: 0,
+            },
+        ))));
+        session.set_item_stats_store(Arc::new(ItemStatsStore::from_sparse_templates(
+            items
+                .iter()
+                .map(|&(item_id, inventory_type, flags3, _, _)| {
+                    (
+                        item_id,
+                        ItemSparseTemplateEntry {
+                            flags: [0, 0, flags3, 0],
+                            bag_family: 0,
+                            start_quest_id: 0,
+                            stackable: 1,
+                            max_count: 0,
+                            lock_id: 0,
+                            required_reputation_rank: 0,
+                            sell_price: 0,
+                            buy_price: 0,
+                            vendor_stack_count: 1,
+                            price_variance: 0.0,
+                            price_random_value: 0.0,
+                            max_durability: 0,
+                            other_faction_item_id: 0,
+                            limit_category: 0,
+                            instance_bound: 0,
+                            zone_bound: [0, 0],
+                            required_reputation_faction: 0,
+                            allowable_class: -1,
+                            required_expansion: 0,
+                            bonding: ItemBondingType::None as u8,
+                            container_slots: 0,
+                            inventory_type: inventory_type as i8,
+                        },
+                    )
+                }),
+        )));
+    }
+
+    fn equip_represented_test_item_like_cpp(
+        session: &mut WorldSession,
+        slot: u8,
+        item_guid: ObjectGuid,
+        item_id: u32,
+        inventory_type: InventoryType,
+    ) {
+        let owner = session.player_guid().unwrap_or(ObjectGuid::EMPTY);
+        let item = session.make_inventory_item_object(
+            item_guid,
+            item_id,
+            owner,
+            1,
+            0,
+            ItemContext::None,
+            slot,
+        );
+        session.insert_inventory_item_object(item);
+        session.insert_inventory_item_like_cpp(
+            slot,
+            InventoryItem {
+                guid: item_guid,
+                entry_id: item_id,
+                db_guid: item_guid.counter() as u64,
+                inventory_type: Some(inventory_type as u8),
+            },
+        );
+    }
+
     #[test]
     fn remove_known_spell_clears_dual_wield_like_cpp() {
         let (mut session, _, _send_rx) = make_session();
@@ -49482,6 +49659,283 @@ mod tests {
             }),
             Some(false),
             "C++ Player::RemoveSpell clears m_canDualWield when the removed spell is passive and has SPELL_EFFECT_DUAL_WIELD"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_records_offhand_auto_unequip_after_losing_dual_wield_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let spell_id = 776_i32;
+        let offhand_item_id = 30_001_u32;
+        let offhand_guid = ObjectGuid::create_item(1, 30_001);
+        let player_guid = ObjectGuid::create_player(1, 156);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "RemoveDualWieldOffhand".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        let _ = session.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_can_dual_wield_like_cpp(true);
+        });
+        install_remove_spell_offhand_templates_like_cpp(
+            &mut session,
+            &[(
+                offhand_item_id,
+                InventoryType::WeaponOffhand,
+                0,
+                ItemClass::Weapon,
+                ItemSubClassWeapon::Axe as u8,
+            )],
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_OFFHAND,
+            offhand_guid,
+            offhand_item_id,
+            InventoryType::WeaponOffhand,
+        );
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_DUAL_WIELD,
+                    ..Default::default()
+                }],
+            },
+        );
+        let mut attributes = [0_u32; 15];
+        attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_PASSIVE;
+        spell_store.insert_spell_misc_attributes_like_cpp(spell_id, attributes);
+        session.set_spell_store(Arc::new(spell_store));
+        session.set_known_spells_like_cpp(vec![spell_id]);
+
+        session.remove_known_spell_like_cpp(spell_id);
+
+        assert_eq!(
+            session.represented_auto_unequip_offhand_requests_like_cpp(),
+            &[RepresentedAutoUnequipOffhandLikeCpp {
+                item_guid: offhand_guid,
+                item_entry: offhand_item_id,
+                reason: RepresentedAutoUnequipOffhandReasonLikeCpp::LostDualWield,
+            }],
+            "C++ RemoveSpell calls AutoUnequipOffhandIfNeed after losing dual wield"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_honors_offhand_unlearn_config_and_always_allow_flag_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let spell_id = 777_i32;
+        let offhand_item_id = 30_002_u32;
+        let offhand_guid = ObjectGuid::create_item(1, 30_002);
+        let player_guid = ObjectGuid::create_player(1, 157);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "RemoveDualWieldConfig".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        let _ = session.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_can_dual_wield_like_cpp(true);
+        });
+        install_remove_spell_offhand_templates_like_cpp(
+            &mut session,
+            &[(
+                offhand_item_id,
+                InventoryType::WeaponOffhand,
+                ItemFlags3::AlwaysAllowDualWield as u32,
+                ItemClass::Weapon,
+                ItemSubClassWeapon::Axe as u8,
+            )],
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_OFFHAND,
+            offhand_guid,
+            offhand_item_id,
+            InventoryType::WeaponOffhand,
+        );
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_DUAL_WIELD,
+                    ..Default::default()
+                }],
+            },
+        );
+        let mut attributes = [0_u32; 15];
+        attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_PASSIVE;
+        spell_store.insert_spell_misc_attributes_like_cpp(spell_id, attributes);
+        session.set_spell_store(Arc::new(spell_store));
+        session.set_known_spells_like_cpp(vec![spell_id]);
+
+        session.remove_known_spell_like_cpp(spell_id);
+
+        assert!(
+            session
+                .represented_auto_unequip_offhand_requests_like_cpp()
+                .is_empty(),
+            "C++ skips forced offhand unequip for ITEM_FLAG3_ALWAYS_ALLOW_DUAL_WIELD"
+        );
+
+        let _ = session.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_can_dual_wield_like_cpp(true);
+        });
+        session.set_known_spells_like_cpp(vec![spell_id]);
+        session.set_offhand_check_at_spell_unlearn_like_cpp(false);
+        session.set_item_stats_store(Arc::new(ItemStatsStore::from_sparse_templates([(
+            offhand_item_id,
+            ItemSparseTemplateEntry {
+                flags: [0, 0, 0, 0],
+                bag_family: 0,
+                start_quest_id: 0,
+                stackable: 1,
+                max_count: 0,
+                lock_id: 0,
+                required_reputation_rank: 0,
+                sell_price: 0,
+                buy_price: 0,
+                vendor_stack_count: 1,
+                price_variance: 0.0,
+                price_random_value: 0.0,
+                max_durability: 0,
+                other_faction_item_id: 0,
+                limit_category: 0,
+                instance_bound: 0,
+                zone_bound: [0, 0],
+                required_reputation_faction: 0,
+                allowable_class: -1,
+                required_expansion: 0,
+                bonding: ItemBondingType::None as u8,
+                container_slots: 0,
+                inventory_type: InventoryType::WeaponOffhand as i8,
+            },
+        )])));
+
+        session.remove_known_spell_like_cpp(spell_id);
+
+        assert!(
+            session
+                .represented_auto_unequip_offhand_requests_like_cpp()
+                .is_empty(),
+            "C++ RemoveSpell skips AutoUnequipOffhandIfNeed when CONFIG_OFFHAND_CHECK_AT_SPELL_UNLEARN is false"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_auto_unequip_records_invalid_two_hand_state_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let mainhand_item_id = 30_003_u32;
+        let offhand_item_id = 30_004_u32;
+        let mainhand_guid = ObjectGuid::create_item(1, 30_003);
+        let offhand_guid = ObjectGuid::create_item(1, 30_004);
+        let player_guid = ObjectGuid::create_player(1, 158);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "InvalidTwoHandOffhand".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        let _ = session.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_can_dual_wield_like_cpp(true);
+            player.set_can_titan_grip(false, 0);
+        });
+        install_remove_spell_offhand_templates_like_cpp(
+            &mut session,
+            &[
+                (
+                    mainhand_item_id,
+                    InventoryType::Weapon2Hand,
+                    0,
+                    ItemClass::Weapon,
+                    ItemSubClassWeapon::Axe2 as u8,
+                ),
+                (
+                    offhand_item_id,
+                    InventoryType::Shield,
+                    0,
+                    ItemClass::Armor,
+                    ItemSubClassArmor::Shield as u8,
+                ),
+            ],
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_MAINHAND,
+            mainhand_guid,
+            mainhand_item_id,
+            InventoryType::Weapon2Hand,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_OFFHAND,
+            offhand_guid,
+            offhand_item_id,
+            InventoryType::Shield,
+        );
+
+        assert!(session.represented_auto_unequip_offhand_if_need_like_cpp(false));
+
+        assert_eq!(
+            session.represented_auto_unequip_offhand_requests_like_cpp(),
+            &[RepresentedAutoUnequipOffhandLikeCpp {
+                item_guid: offhand_guid,
+                item_entry: offhand_item_id,
+                reason: RepresentedAutoUnequipOffhandReasonLikeCpp::InvalidTwoHandState,
+            }],
+            "C++ AutoUnequipOffhandIfNeed unequips offhand when the main hand is a 2H weapon without Titan Grip"
         );
     }
 

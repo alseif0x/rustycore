@@ -337,6 +337,8 @@ pub struct SessionResources {
     pub reset_schedule: wow_instances::ResetSchedule,
     /// C++ `CONFIG_NO_RESET_TALENT_COST` / `NoResetTalentsCost`.
     pub no_reset_talent_cost: bool,
+    /// C++ `CONFIG_OFFHAND_CHECK_AT_SPELL_UNLEARN` / `OffhandCheckAtSpellUnlearn`.
+    pub offhand_check_at_spell_unlearn: bool,
     /// C++ `CONFIG_VMAP_INDOOR_CHECK` / `vmap.enableIndoorCheck`.
     pub vmap_indoor_check: bool,
     /// C++ `CONFIG_START_ALL_EXPLORED` / `PlayerStart.MapsExplored`.
