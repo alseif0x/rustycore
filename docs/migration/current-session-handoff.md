@@ -1,3 +1,21 @@
+- `#NEXT.R8.ENTITIES.1143` — represented `AutoUnequipOffhandIfNeed` now
+  records the C++ `RemoveItem` terminal `UpdateAverageItemLevelEquipped()`
+  hook and the represented player-condition context now uses the C++
+  equipped-average formula for `PlayerData::AvgItemLevel[1]`. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11636-11638`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28883-28898`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Conditions/ConditionMgr.cpp:3212-3215`.
+  Rust now divides the equipped item-level sum by `16.0` and counts a
+  remaining main-hand 2H weapon twice when Titan Grip is not active, matching
+  C++ `UpdateAverageItemLevelEquipped`; the auto-unequip hook records the
+  recalculated value after the offhand has been moved/delinked. Coverage:
+  `cargo test -p wow-world
+  auto_unequip_offhand_records_average_equipped_item_level_like_cpp --lib`.
+  Boundary remains partial: total average item-level parity, full item-level
+  bonus/PvP/timewalker scaling, update-field packet emission/fanout,
+  persistence, live-client/bot/manual validation, and full `RemoveItem` /
+  condition-runtime parity remain open.
+
 - `#NEXT.R8.ENTITIES.1142` — represented `AutoUnequipOffhandIfNeed` now
   records the C++ `RemoveItem` call to `CheckTitanGripPenalty()` after the
   offhand slot has been cleared/synchronized. Source of truth:
@@ -11,9 +29,10 @@
   auto_unequip_offhand_records_titan_grip_penalty_check_like_cpp --lib`.
   Boundary remains partial: this records the represented penalty action only;
   real triggered `CastSpell`, real `RemoveAurasDueToSpell` packet/update
-  effects, multi-session fanout, DB persistence, average item-level
-  recalculation, live-client/bot/manual validation, and full `RemoveItem` /
-  `RemoveSpell` parity remain open.
+  effects, multi-session fanout, DB persistence, represented average
+  equipped item-level recalculation is closed by `#NEXT.R8.ENTITIES.1143`,
+  live-client/bot/manual validation, and full `RemoveItem` / `RemoveSpell`
+  parity remain open.
 
 - `#NEXT.R8.ENTITIES.1141` — represented `AutoUnequipOffhandIfNeed` now
   records the C++ offhand combat-stat recalculation hooks from `RemoveItem`.

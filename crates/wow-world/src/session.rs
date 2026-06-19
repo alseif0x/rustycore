@@ -3750,6 +3750,7 @@ pub struct WorldSession {
     represented_item_mod_reapply_events_like_cpp: Vec<RepresentedItemModsReapplyEventLikeCpp>,
     represented_combat_stat_recalculations_like_cpp: Vec<RepresentedCombatStatRecalculationLikeCpp>,
     represented_titan_grip_penalty_actions_like_cpp: Vec<TitanGripPenaltyAction>,
+    represented_avg_equipped_item_level_updates_like_cpp: Vec<f32>,
     represented_guild_id_like_cpp: u64,
     represented_guild_id_invited_like_cpp: u64,
     represented_guild_accept_invites_like_cpp: Vec<u64>,
@@ -5429,6 +5430,7 @@ impl WorldSession {
             represented_item_mod_reapply_events_like_cpp: Vec::new(),
             represented_combat_stat_recalculations_like_cpp: Vec::new(),
             represented_titan_grip_penalty_actions_like_cpp: Vec::new(),
+            represented_avg_equipped_item_level_updates_like_cpp: Vec::new(),
             represented_guild_id_like_cpp: 0,
             represented_guild_id_invited_like_cpp: 0,
             represented_guild_accept_invites_like_cpp: Vec::new(),
@@ -29546,6 +29548,7 @@ impl WorldSession {
         }
 
         self.record_represented_titan_grip_penalty_action_like_cpp();
+        self.record_represented_avg_equipped_item_level_update_like_cpp();
 
         self.represented_auto_unequip_offhand_requests_like_cpp
             .push(RepresentedAutoUnequipOffhandLikeCpp {
@@ -29672,6 +29675,12 @@ impl WorldSession {
             self.represented_titan_grip_penalty_actions_like_cpp
                 .push(action);
         }
+    }
+
+    fn record_represented_avg_equipped_item_level_update_like_cpp(&mut self) {
+        let avg_equipped_item_level = self.represented_avg_equipped_item_level_like_cpp();
+        self.represented_avg_equipped_item_level_updates_like_cpp
+            .push(avg_equipped_item_level);
     }
 
     fn send_auto_unequip_offhand_values_update_like_cpp(
@@ -30181,8 +30190,6 @@ impl WorldSession {
 
         let mut item_level_sum = 0u32;
         let mut item_level_count = 0u32;
-        let mut equipped_level_sum = 0u32;
-        let mut equipped_level_count = 0u32;
         let mut mainhand_weapon_subclass = None;
         for (&slot, inventory_item) in self.inventory_items_like_cpp() {
             let Some(template) = self
@@ -30194,11 +30201,6 @@ impl WorldSession {
             };
             item_level_sum = item_level_sum.saturating_add(u32::from(template.item_level));
             item_level_count = item_level_count.saturating_add(1);
-            if is_equipment_packed_pos(make_item_pos(INVENTORY_SLOT_BAG_0, slot)) {
-                equipped_level_sum =
-                    equipped_level_sum.saturating_add(u32::from(template.item_level));
-                equipped_level_count = equipped_level_count.saturating_add(1);
-            }
             if slot == EQUIPMENT_SLOT_MAINHAND {
                 mainhand_weapon_subclass = self
                     .item_store
@@ -30224,14 +30226,43 @@ impl WorldSession {
             } else {
                 item_level_sum as f32 / item_level_count as f32
             },
-            avg_equipped_item_level: if equipped_level_count == 0 {
-                0.0
-            } else {
-                equipped_level_sum as f32 / equipped_level_count as f32
-            },
+            avg_equipped_item_level: self.represented_avg_equipped_item_level_like_cpp(),
             mainhand_weapon_subclass,
             ..Default::default()
         }
+    }
+
+    fn represented_avg_equipped_item_level_like_cpp(&self) -> f32 {
+        let can_titan_grip = self
+            .canonical_player_snapshot_like_cpp(Player::can_titan_grip)
+            .unwrap_or(false);
+        let mut total_item_level = 0u32;
+        for slot in 0..EQUIPMENT_SLOT_END {
+            let Some(inventory_item) = self.inventory_items_like_cpp().get(&slot) else {
+                continue;
+            };
+            let Some(template) = self
+                .item_stats_store
+                .as_ref()
+                .and_then(|store| store.random_property_template(inventory_item.entry_id))
+            else {
+                continue;
+            };
+            let item_level = u32::from(template.item_level);
+            total_item_level = total_item_level.saturating_add(item_level);
+            let is_mainhand_two_hand = slot == EQUIPMENT_SLOT_MAINHAND
+                && !can_titan_grip
+                && self
+                    .item_storage_template(inventory_item.entry_id)
+                    .is_some_and(|item_template| {
+                        item_template.inventory_type == InventoryType::Weapon2Hand
+                    });
+            if is_mainhand_two_hand {
+                total_item_level = total_item_level.saturating_add(item_level);
+            }
+        }
+
+        total_item_level as f32 / 16.0
     }
 
     pub(crate) fn represented_meets_player_condition_id_like_cpp(
@@ -32073,6 +32104,11 @@ impl WorldSession {
         &self,
     ) -> &[TitanGripPenaltyAction] {
         &self.represented_titan_grip_penalty_actions_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_avg_equipped_item_level_updates_like_cpp(&self) -> &[f32] {
+        &self.represented_avg_equipped_item_level_updates_like_cpp
     }
 
     pub(crate) fn set_represented_guild_id_like_cpp(&mut self, guild_id: u64) {
@@ -49949,6 +49985,41 @@ mod tests {
         )));
     }
 
+    fn sparse_template_for_inventory_type_like_cpp(
+        inventory_type: InventoryType,
+        flags3: u32,
+    ) -> ItemSparseTemplateEntry {
+        ItemSparseTemplateEntry {
+            flags: [0, 0, flags3, 0],
+            bag_family: 0,
+            start_quest_id: 0,
+            stackable: 1,
+            max_count: 0,
+            lock_id: 0,
+            required_reputation_rank: 0,
+            sell_price: 0,
+            buy_price: 0,
+            vendor_stack_count: 1,
+            price_variance: 0.0,
+            price_random_value: 0.0,
+            max_durability: 0,
+            other_faction_item_id: 0,
+            limit_category: 0,
+            instance_bound: 0,
+            zone_bound: [0, 0],
+            required_reputation_faction: 0,
+            allowable_class: -1,
+            required_expansion: 0,
+            bonding: ItemBondingType::None as u8,
+            container_slots: if inventory_type == InventoryType::Bag {
+                4
+            } else {
+                0
+            },
+            inventory_type: inventory_type as i8,
+        }
+    }
+
     fn equip_represented_test_item_like_cpp(
         session: &mut WorldSession,
         slot: u8,
@@ -50576,6 +50647,127 @@ mod tests {
             session.represented_titan_grip_penalty_actions_like_cpp(),
             &[TitanGripPenaltyAction::Remove(penalty_spell_id)],
             "C++ RemoveItem calls CheckTitanGripPenalty after clearing the offhand slot; once only the main-hand 2H remains, the Titan Grip penalty aura is removed"
+        );
+    }
+
+    #[test]
+    fn auto_unequip_offhand_records_average_equipped_item_level_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let mainhand_item_id = 30_014_u32;
+        let offhand_item_id = 30_015_u32;
+        let mainhand_guid = ObjectGuid::create_item(1, 30_014);
+        let offhand_guid = ObjectGuid::create_item(1, 30_015);
+        let player_guid = ObjectGuid::create_player(1, 163);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AverageItemLevelRemoveItem".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        let _ = session.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_can_dual_wield_like_cpp(true);
+            player.set_can_titan_grip(false, 0);
+        });
+        session.set_item_store(Arc::new(ItemStore::from_records([
+            ItemRecord {
+                id: mainhand_item_id,
+                class_id: ItemClass::Weapon as u8,
+                subclass_id: ItemSubClassWeapon::Axe2 as u8,
+                material: 0,
+                inventory_type: InventoryType::Weapon2Hand as i8,
+                sheathe_type: 0,
+                random_select: 0,
+                random_suffix_group_id: 0,
+            },
+            ItemRecord {
+                id: offhand_item_id,
+                class_id: ItemClass::Weapon as u8,
+                subclass_id: ItemSubClassWeapon::Axe2 as u8,
+                material: 0,
+                inventory_type: InventoryType::Weapon2Hand as i8,
+                sheathe_type: 0,
+                random_select: 0,
+                random_suffix_group_id: 0,
+            },
+        ])));
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [
+                    (
+                        mainhand_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Weapon2Hand, 0),
+                    ),
+                    (
+                        offhand_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Weapon2Hand, 0),
+                    ),
+                ],
+                [
+                    (
+                        mainhand_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 200,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Weapon2Hand as i8,
+                        },
+                    ),
+                    (
+                        offhand_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 100,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Weapon2Hand as i8,
+                        },
+                    ),
+                ],
+            ),
+        ));
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_MAINHAND,
+            mainhand_guid,
+            mainhand_item_id,
+            InventoryType::Weapon2Hand,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_OFFHAND,
+            offhand_guid,
+            offhand_item_id,
+            InventoryType::Weapon2Hand,
+        );
+
+        assert!(session.represented_auto_unequip_offhand_if_need_like_cpp(true));
+
+        assert_eq!(
+            session.represented_avg_equipped_item_level_updates_like_cpp(),
+            &[25.0],
+            "C++ UpdateAverageItemLevelEquipped divides equipped item-level sum by 16 and counts a remaining main-hand 2H twice without Titan Grip"
+        );
+        let owned = session.represented_player_condition_context_like_cpp();
+        let context = owned.as_context(&session);
+        assert_eq!(
+            context.avg_equipped_item_level, 25.0,
+            "C++ PlayerCondition uses PlayerData::AvgItemLevel[1], so the represented context must use the same equipped-average formula"
         );
     }
 
