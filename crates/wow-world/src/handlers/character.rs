@@ -4738,6 +4738,7 @@ impl WorldSession {
         );
         self.apply_represented_login_spell_reset_if_needed_like_cpp();
         self.apply_represented_login_talent_reset_if_needed_like_cpp();
+        self.apply_represented_first_login_flag_if_needed_like_cpp();
 
         // Mark online in DB
         let mut online_stmt = char_db.prepare(CharStatements::UPD_CHAR_ONLINE);

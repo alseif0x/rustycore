@@ -1,3 +1,23 @@
+- `#NEXT.R8.ENTITIES.1089` — represented login now applies the C++
+  `AT_LOGIN_FIRST` flag-removal boundary after reset-spells/reset-talents (not
+  manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CharacterHandler.cpp:1296-1303`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26563-26575`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:539`.
+  C++ calls `RemoveAtLoginFlag(AT_LOGIN_FIRST)` with the default
+  `persist=false`, then applies first-login create-mode cast spells and optional
+  start-all-explored/start-all-reputation config branches. Rust now removes only
+  the represented in-memory `AT_LOGIN_FIRST` bit at the same at-login-request
+  stage and intentionally records no persistent at-login DB update boundary.
+  Coverage: `cargo fmt --all --check`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  first_login_flag_removal_is_not_persisted_like_cpp --lib`;
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`;
+  `git diff --check`. Boundary remains partial: `PlayerInfo::castSpells`,
+  `CONFIG_START_ALL_EXPLORED`, `CONFIG_START_ALL_REP`, reputation `SendState`,
+  live DB persistence through full `Player::SaveToDB`, live-client validation,
+  bot validation, and manual validation remain open.
 - `#NEXT.R8.ENTITIES.1088` — represented login now applies the C++
   `AT_LOGIN_RESET_PET_TALENTS` pre-pet-load DB block (not
   manual-test-ready). Source of truth:

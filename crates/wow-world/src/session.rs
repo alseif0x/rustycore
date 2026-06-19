@@ -648,6 +648,9 @@ pub(crate) struct RepresentedTalentResetScriptHookLikeCpp {
 }
 
 /// Evidence for C++ `RemoveAtLoginFlag(flags, persist=true)`.
+///
+/// Non-persistent at-login removals intentionally mutate only the represented
+/// in-memory flag field and do not push this boundary record.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedAtLoginFlagRemovalLikeCpp {
     pub flags: u16,
@@ -18481,6 +18484,16 @@ impl WorldSession {
         }
         self.send_notification_like_cpp(self.reset_spells_notification_text_like_cpp());
         true
+    }
+
+    pub(crate) fn apply_represented_first_login_flag_if_needed_like_cpp(&mut self) -> bool {
+        const AT_LOGIN_FIRST_LIKE_CPP: u16 = 0x020;
+
+        if (self.represented_at_login_flags_like_cpp & AT_LOGIN_FIRST_LIKE_CPP) == 0 {
+            return false;
+        }
+
+        self.remove_represented_at_login_flag_like_cpp(AT_LOGIN_FIRST_LIKE_CPP, false)
     }
 
     pub(crate) fn mark_represented_talents_loaded_like_cpp(&mut self) {
@@ -74862,6 +74875,27 @@ mod tests {
             session
                 .represented_at_login_flag_removals_like_cpp()
                 .is_empty()
+        );
+    }
+
+    #[test]
+    fn first_login_flag_removal_is_not_persisted_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        const AT_LOGIN_FIRST_LIKE_CPP: u16 = 0x020;
+
+        session.set_represented_at_login_flags_like_cpp(AT_LOGIN_FIRST_LIKE_CPP);
+
+        assert!(session.apply_represented_first_login_flag_if_needed_like_cpp());
+        assert_eq!(
+            session.represented_at_login_flags_like_cpp() & AT_LOGIN_FIRST_LIKE_CPP,
+            0,
+            "C++ CharacterHandler removes AT_LOGIN_FIRST from the in-memory player flags"
+        );
+        assert!(
+            session
+                .represented_at_login_flag_removals_like_cpp()
+                .is_empty(),
+            "C++ calls RemoveAtLoginFlag(AT_LOGIN_FIRST) with persist=false"
         );
     }
 
