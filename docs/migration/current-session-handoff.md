@@ -1,3 +1,32 @@
+- `#NEXT.R8.ENTITIES.1114` — represented `AT_LOGIN_RESET_SPELLS` now keeps
+  C++ `PLAYERSPELL_REMOVED` evidence for normal loaded spells so the
+  represented `_SaveSpells` plan can delete their `character_spell` rows (not
+  manual-test-ready, not wired to DB logout persistence yet). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CharacterHandler.cpp:1283-1288`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3238-3285`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:23733-23764`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:20405-20440`.
+  C++ `ResetSpells(false)` copies `m_spells`, calls `RemoveSpell` for every
+  entry, and `RemoveSpell` marks existing non-new spells as
+  `PLAYERSPELL_REMOVED`; `_SaveSpells` later emits
+  `CHAR_DEL_CHAR_SPELL_BY_SPELL` for those rows. Rust now tracks represented
+  removed known spells, clears removed evidence when a spell is relearned,
+  excludes dependent login-learned spells from normal delete evidence, and
+  exposes `represented_player_spell_rows_like_cpp()` so the statement plan from
+  `#NEXT.R8.ENTITIES.1113` can produce the same deletes after login spell reset.
+  Coverage planned for this slice: `cargo fmt --all`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  login_at_login_reset_spells_removes_known_spells_and_notifies_like_cpp --lib`;
+  focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p
+  wow-world character_spell_save_plan --lib`;
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`;
+  `cargo fmt --all --check`; and `git diff --check`. Boundary remains partial:
+  logout persistence wiring, full `PlayerSpellMap` ownership including
+  inactive/disabled/new/temporary rows, exact recursive `RemoveSpell` rank and
+  required-spell cleanup, default-skill/custom/quest-reward relearn parity,
+  SpellMgr validity cleanup, and live-client/bot/manual validation remain open.
+
 - `#NEXT.R8.ENTITIES.1113` — represented `Player::_SaveSpells` statement
   planning now mirrors the C++ delete/insert/favorite/dependent branches for
   represented `PlayerSpell` rows (not manual-test-ready, not wired to logout

@@ -3786,6 +3786,9 @@ pub struct WorldSession {
     /// Represented C++ `PlayerSpell::dependent` for known spells that must not
     /// be persisted by `_SaveSpells`.
     represented_dependent_known_spells_like_cpp: HashSet<i32>,
+    /// Represented C++ `PLAYERSPELL_REMOVED` rows for known spells removed
+    /// after a coherent character spell load.
+    represented_removed_known_spells_like_cpp: HashSet<i32>,
     /// Represented C++ `PlayerSpell::favorite` rows loaded from
     /// `character_spell_favorite`.
     represented_favorite_known_spells_like_cpp: HashSet<i32>,
@@ -5419,6 +5422,7 @@ impl WorldSession {
             loot_specialization_id: 0,
             known_spells: Vec::new(),
             represented_dependent_known_spells_like_cpp: HashSet::new(),
+            represented_removed_known_spells_like_cpp: HashSet::new(),
             represented_favorite_known_spells_like_cpp: HashSet::new(),
             account_mounts_like_cpp: HashMap::new(),
             cuf_profiles_like_cpp: vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP],
@@ -28169,6 +28173,7 @@ impl WorldSession {
 
     pub(crate) fn set_known_spells_like_cpp(&mut self, spells: Vec<i32>) {
         self.known_spells = spells;
+        self.represented_removed_known_spells_like_cpp.clear();
         self.represented_dependent_known_spells_like_cpp
             .retain(|spell_id| self.known_spells.contains(spell_id));
         self.represented_favorite_known_spells_like_cpp
@@ -28743,6 +28748,8 @@ impl WorldSession {
         if !self.known_spells.contains(&spell_id) {
             self.known_spells.push(spell_id);
         }
+        self.represented_removed_known_spells_like_cpp
+            .remove(&spell_id);
         if let Some(controller) = &mut self.player_controller {
             controller.learn_spell(spell_id);
         }
@@ -28757,11 +28764,19 @@ impl WorldSession {
     }
 
     pub(crate) fn remove_known_spell_like_cpp(&mut self, spell_id: i32) {
+        let was_known = self.known_spells.contains(&spell_id);
+        let was_dependent = self
+            .represented_dependent_known_spells_like_cpp
+            .contains(&spell_id);
         self.known_spells.retain(|known| *known != spell_id);
         self.represented_dependent_known_spells_like_cpp
             .remove(&spell_id);
         self.represented_favorite_known_spells_like_cpp
             .remove(&spell_id);
+        if was_known && !was_dependent {
+            self.represented_removed_known_spells_like_cpp
+                .insert(spell_id);
+        }
         if let Some(controller) = &mut self.player_controller {
             controller.remove_spell(spell_id);
         }
@@ -29044,6 +29059,45 @@ impl WorldSession {
             .into_iter()
             .filter(|spell_id| self.known_spells.contains(spell_id))
             .collect();
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn represented_player_spell_rows_like_cpp(
+        &self,
+    ) -> Vec<RepresentedPlayerSpellLikeCpp> {
+        let mut rows = self
+            .known_spells_like_cpp()
+            .iter()
+            .copied()
+            .map(|spell_id| RepresentedPlayerSpellLikeCpp {
+                spell_id,
+                active: true,
+                disabled: false,
+                dependent: self
+                    .represented_dependent_known_spells_like_cpp
+                    .contains(&spell_id),
+                favorite: self
+                    .represented_favorite_known_spells_like_cpp
+                    .contains(&spell_id),
+                state: RepresentedPlayerSpellStateLikeCpp::Unchanged,
+            })
+            .collect::<Vec<_>>();
+
+        rows.extend(
+            self.represented_removed_known_spells_like_cpp
+                .iter()
+                .copied()
+                .map(|spell_id| RepresentedPlayerSpellLikeCpp {
+                    spell_id,
+                    active: false,
+                    disabled: false,
+                    dependent: false,
+                    favorite: false,
+                    state: RepresentedPlayerSpellStateLikeCpp::Removed,
+                }),
+        );
+        rows.sort_by_key(|spell| spell.spell_id);
+        rows
     }
 
     #[cfg(test)]

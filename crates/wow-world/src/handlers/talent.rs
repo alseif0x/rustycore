@@ -7,6 +7,8 @@ use tracing::warn;
 
 use wow_constants::ClientOpcodes;
 use wow_constants::unit::NPCFlags1;
+#[cfg(test)]
+use wow_database::StatementDef;
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
 use wow_packet::packets::talent::{
     ConfirmRespecWipe, LearnTalent, LearnTalents, SPEC_RESET_TALENTS_LIKE_CPP,
@@ -814,6 +816,7 @@ mod tests {
     async fn login_at_login_reset_spells_removes_known_spells_and_notifies_like_cpp() {
         let (mut session, send_rx) = make_session_with_send_capacity(2);
         session.set_known_spells_like_cpp(vec![118, 133, 19740]);
+        session.learn_dependent_known_spell_like_cpp(19740);
         session.set_represented_at_login_flags_like_cpp(
             AT_LOGIN_RENAME_LIKE_CPP
                 | AT_LOGIN_RESET_SPELLS_LIKE_CPP
@@ -839,6 +842,24 @@ mod tests {
         assert!(
             session.known_spells_like_cpp().is_empty(),
             "C++ ResetSpells(false) removes every spell in the copied PlayerSpellMap before relearning defaults"
+        );
+        let spell_save_statements = WorldSession::character_spell_save_statements_like_cpp(
+            42,
+            session.represented_player_spell_rows_like_cpp(),
+        );
+        assert_eq!(spell_save_statements.len(), 2);
+        assert!(
+            spell_save_statements
+                .iter()
+                .all(|stmt| stmt.sql()
+                    == wow_database::CharStatements::DEL_CHAR_SPELL_BY_SPELL.sql()),
+            "C++ RemoveSpell marks loaded non-dependent spells as PLAYERSPELL_REMOVED so _SaveSpells deletes character_spell rows"
+        );
+        assert!(
+            spell_save_statements
+                .iter()
+                .all(|stmt| stmt.params()[0] != wow_database::SqlParam::I32(19740)),
+            "C++ dependent spells learned during represented login are not normal character_spell rows to delete"
         );
         assert_eq!(
             session.represented_at_login_flags_like_cpp(),
