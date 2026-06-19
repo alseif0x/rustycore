@@ -1,3 +1,26 @@
+- `#NEXT.R8.ENTITIES.1106` — represented logout/disconnect save snapshots now
+  mirror the C++ `Player::SaveToDB` `IsBeingTeleported()` branch for pending
+  teleports (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:552-641`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:19329-19572`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:20611-20645`.
+  C++ logout finishes pending transfers before saving and `SaveToDB` writes
+  `GetTeleportDest()` with instance id `0` while `IsBeingTeleported()`. Rust's
+  represented save snapshot now prefers pending far or near teleport
+  destinations over stale session/canonical position, also using instance id
+  `0`, before the existing represented position save statement persists the
+  snapshot. Coverage: focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
+  cargo test -p wow-world logout_save_snapshot_uses_pending --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  character_position_save --lib`; `cargo fmt --all`;
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`;
+  and `git diff --check`. Boundary remains partial: Rust still saves through
+  represented split statements rather than the full C++ monolithic
+  `CHAR_UPD_CHARACTER` transaction, pending-teleport zone id is still
+  represented/current, live-client/bot/manual validation remains open, and full
+  `Player::SaveToDB` parity is incomplete.
+
 - `#NEXT.R8.ENTITIES.1105` — represented login now mirrors the C++
   `Player::_LoadSpells -> AddSpell -> CollectionMgr::AddMount` bridge for
   character DB mount spells (not manual-test-ready). C++ first loads account

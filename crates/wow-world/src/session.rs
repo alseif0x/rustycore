@@ -6327,6 +6327,7 @@ impl WorldSession {
         &self,
     ) -> Option<PlayerSaveToDbSnapshotLikeCpp> {
         let guid = self.player_guid()?;
+        let pending_teleport_destination = self.pending_teleport_save_destination_like_cpp();
         if let Some(manager) = self.canonical_map_manager.as_ref()
             && let Ok(manager) = manager.lock()
         {
@@ -6345,14 +6346,22 @@ impl WorldSession {
                 // touch the canonical typed Player. Keep canonical gameplay
                 // fields, but prefer the latest accepted session map/position
                 // for logout/disconnect persistence.
-                let position = self
-                    .player_position_like_cpp()
-                    .unwrap_or_else(|| player.unit().world().position());
+                let (map_id, instance_id, position) =
+                    if let Some((map_id, position)) = pending_teleport_destination {
+                        (map_id, 0, position)
+                    } else {
+                        (
+                            self.player_map_id_like_cpp(),
+                            managed.instance_id(),
+                            self.player_position_like_cpp()
+                                .unwrap_or_else(|| player.unit().world().position()),
+                        )
+                    };
 
                 snapshot = Some(PlayerSaveToDbSnapshotLikeCpp {
                     guid,
-                    map_id: self.player_map_id_like_cpp(),
-                    instance_id: managed.instance_id(),
+                    map_id,
+                    instance_id,
                     position,
                     level: player.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8,
                     xp: player.active_data().xp.max(0) as u32,
@@ -6364,18 +6373,38 @@ impl WorldSession {
             }
         }
 
+        let (map_id, instance_id, position) =
+            if let Some((map_id, position)) = pending_teleport_destination {
+                (map_id, 0, position)
+            } else {
+                (
+                    self.player_map_id_like_cpp(),
+                    self.current_canonical_player_map_key_like_cpp()
+                        .map(|key| key.instance_id)
+                        .unwrap_or(0),
+                    self.player_position_like_cpp()?,
+                )
+            };
+
         Some(PlayerSaveToDbSnapshotLikeCpp {
             guid,
-            map_id: self.player_map_id_like_cpp(),
-            instance_id: self
-                .current_canonical_player_map_key_like_cpp()
-                .map(|key| key.instance_id)
-                .unwrap_or(0),
-            position: self.player_position_like_cpp()?,
+            map_id,
+            instance_id,
+            position,
             level: self.player_level_like_cpp(),
             xp: self.player_xp_like_cpp(),
             money: self.player_gold_like_cpp(),
         })
+    }
+
+    fn pending_teleport_save_destination_like_cpp(&self) -> Option<(u16, Position)> {
+        if let Some((map_id, position)) = self.pending_teleport {
+            return Some((u16::try_from(map_id).unwrap_or(u16::MAX), position));
+        }
+        if self.near_teleport_pending_like_cpp {
+            return self.near_teleport_destination_like_cpp;
+        }
+        None
     }
 
     pub(crate) fn sync_session_from_save_to_db_snapshot_like_cpp(
@@ -85736,6 +85765,72 @@ mod tests {
         assert_eq!(snapshot.level, 42);
         assert_eq!(snapshot.xp, 1234);
         assert_eq!(snapshot.money, 5678);
+    }
+
+    #[test]
+    fn logout_save_snapshot_uses_pending_far_teleport_destination_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 72);
+        let current_position = Position::new(10.0, 20.0, 30.0, 0.0);
+        let teleport_destination = Position::new(100.0, 200.0, 300.0, 1.5);
+
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "Teleporter".to_string(),
+            current_position,
+            571,
+            1,
+            3,
+            80,
+            0,
+        ));
+        session.pending_teleport = Some((0, teleport_destination));
+
+        let snapshot = session
+            .current_player_save_to_db_snapshot_like_cpp()
+            .expect("snapshot should exist");
+
+        assert_eq!(snapshot.map_id, 0);
+        assert_eq!(
+            snapshot.instance_id, 0,
+            "C++ Player::SaveToDB stores instance 0 while IsBeingTeleported() and saving GetTeleportDest"
+        );
+        assert_eq!(snapshot.position, teleport_destination);
+    }
+
+    #[test]
+    fn logout_save_snapshot_uses_pending_near_teleport_destination_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 73);
+        let current_position = Position::new(10.0, 20.0, 30.0, 0.0);
+        let teleport_destination = Position::new(44.0, 55.0, 66.0, 2.25);
+
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "NearTeleporter".to_string(),
+            current_position,
+            571,
+            1,
+            3,
+            80,
+            0,
+        ));
+        session.set_near_teleport_pending_like_cpp(
+            true,
+            Some((571, teleport_destination)),
+            Some((10, 20)),
+        );
+
+        let snapshot = session
+            .current_player_save_to_db_snapshot_like_cpp()
+            .expect("snapshot should exist");
+
+        assert_eq!(snapshot.map_id, 571);
+        assert_eq!(
+            snapshot.instance_id, 0,
+            "C++ Player::SaveToDB also stores instance 0 for same-map pending teleport destinations"
+        );
+        assert_eq!(snapshot.position, teleport_destination);
     }
 
     #[test]
