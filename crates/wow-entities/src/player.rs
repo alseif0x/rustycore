@@ -5,7 +5,7 @@ use wow_constants::{
     BagFamilyMask, EnchantmentSlot, Gender, InventoryResult, InventoryType, ItemBondingType,
     ItemClass, ItemEnchantmentType, ItemFieldFlags, ItemFieldFlags2, ItemModType, ItemModifier,
     ItemSubClassContainer, ItemSubClassQuiver, ItemSubClassWeapon, ItemSubclassProfession,
-    ItemUpdateState, PowerType, Stats, TypeId, TypeMask, WeaponAttackType,
+    ItemUpdateState, PowerType, Stats, TypeId, TypeMask, WeaponAttackType, spell::SpellSchools,
 };
 use wow_core::{ObjectGuid, Position};
 
@@ -1935,6 +1935,7 @@ pub enum ApplyEnchantmentUnitModifier {
 pub enum ApplyEnchantmentUnitMod {
     Mana,
     Health,
+    Armor,
     StatAgility,
     StatStrength,
     StatIntellect,
@@ -2483,41 +2484,149 @@ pub fn item_stat_bonus_actions_like_cpp(
             continue;
         }
         let item_mod = item_mod_type_from_u32(stat_type as u32);
-        actions.extend(match item_mod {
-            ItemModType::Agility => item_bonus_primary_stat_actions(
-                ApplyEnchantmentUnitMod::StatAgility,
-                Stats::Agility,
-                amount as u32,
-                apply,
-            ),
-            ItemModType::Strength => item_bonus_primary_stat_actions(
-                ApplyEnchantmentUnitMod::StatStrength,
-                Stats::Strength,
-                amount as u32,
-                apply,
-            ),
-            ItemModType::Intellect => item_bonus_primary_stat_actions(
-                ApplyEnchantmentUnitMod::StatIntellect,
-                Stats::Intellect,
-                amount as u32,
-                apply,
-            ),
-            ItemModType::Spirit => item_bonus_primary_stat_actions(
-                ApplyEnchantmentUnitMod::StatSpirit,
-                Stats::Spirit,
-                amount as u32,
-                apply,
-            ),
-            ItemModType::Stamina => item_bonus_primary_stat_actions(
-                ApplyEnchantmentUnitMod::StatStamina,
-                Stats::Stamina,
-                amount as u32,
-                apply,
-            ),
-            _ => apply_enchantment_stat_actions(item_mod, amount as u32, apply),
-        });
+        actions.extend(item_bonus_stat_actions_like_cpp(
+            item_mod,
+            amount as u32,
+            apply,
+        ));
     }
     actions
+}
+
+fn item_bonus_stat_actions_like_cpp(
+    item_mod: ItemModType,
+    amount: u32,
+    apply: bool,
+) -> Vec<ApplyEnchantmentEffectAction> {
+    match item_mod {
+        ItemModType::Agility => item_bonus_primary_stat_actions(
+            ApplyEnchantmentUnitMod::StatAgility,
+            Stats::Agility,
+            amount,
+            apply,
+        ),
+        ItemModType::Strength => item_bonus_primary_stat_actions(
+            ApplyEnchantmentUnitMod::StatStrength,
+            Stats::Strength,
+            amount,
+            apply,
+        ),
+        ItemModType::Intellect => item_bonus_primary_stat_actions(
+            ApplyEnchantmentUnitMod::StatIntellect,
+            Stats::Intellect,
+            amount,
+            apply,
+        ),
+        ItemModType::Spirit => item_bonus_primary_stat_actions(
+            ApplyEnchantmentUnitMod::StatSpirit,
+            Stats::Spirit,
+            amount,
+            apply,
+        ),
+        ItemModType::Stamina => item_bonus_primary_stat_actions(
+            ApplyEnchantmentUnitMod::StatStamina,
+            Stats::Stamina,
+            amount,
+            apply,
+        ),
+        ItemModType::HasteMeleeRating => {
+            rating_actions(&[ApplyEnchantmentCombatRating::HasteMelee], amount, apply)
+        }
+        ItemModType::HasteRangedRating => {
+            rating_actions(&[ApplyEnchantmentCombatRating::HasteRanged], amount, apply)
+        }
+        ItemModType::ExtraArmor => vec![unit_modifier(
+            ApplyEnchantmentUnitMod::Armor,
+            ApplyEnchantmentUnitModifier::TotalValue,
+            amount,
+            apply,
+        )],
+        ItemModType::FireResistance => {
+            item_bonus_resistance_actions(SpellSchools::Fire, amount, apply)
+        }
+        ItemModType::FrostResistance => {
+            item_bonus_resistance_actions(SpellSchools::Frost, amount, apply)
+        }
+        ItemModType::HolyResistance => {
+            item_bonus_resistance_actions(SpellSchools::Holy, amount, apply)
+        }
+        ItemModType::ShadowResistance => {
+            item_bonus_resistance_actions(SpellSchools::Shadow, amount, apply)
+        }
+        ItemModType::NatureResistance => {
+            item_bonus_resistance_actions(SpellSchools::Nature, amount, apply)
+        }
+        ItemModType::ArcaneResistance => {
+            item_bonus_resistance_actions(SpellSchools::Arcane, amount, apply)
+        }
+        ItemModType::AgiStrInt => [
+            item_bonus_primary_stat_actions(
+                ApplyEnchantmentUnitMod::StatAgility,
+                Stats::Agility,
+                amount,
+                apply,
+            ),
+            item_bonus_primary_stat_actions(
+                ApplyEnchantmentUnitMod::StatStrength,
+                Stats::Strength,
+                amount,
+                apply,
+            ),
+            item_bonus_primary_stat_actions(
+                ApplyEnchantmentUnitMod::StatIntellect,
+                Stats::Intellect,
+                amount,
+                apply,
+            ),
+        ]
+        .concat(),
+        ItemModType::AgiStr => [
+            item_bonus_primary_stat_actions(
+                ApplyEnchantmentUnitMod::StatAgility,
+                Stats::Agility,
+                amount,
+                apply,
+            ),
+            item_bonus_primary_stat_actions(
+                ApplyEnchantmentUnitMod::StatStrength,
+                Stats::Strength,
+                amount,
+                apply,
+            ),
+        ]
+        .concat(),
+        ItemModType::AgiInt => [
+            item_bonus_primary_stat_actions(
+                ApplyEnchantmentUnitMod::StatAgility,
+                Stats::Agility,
+                amount,
+                apply,
+            ),
+            item_bonus_primary_stat_actions(
+                ApplyEnchantmentUnitMod::StatIntellect,
+                Stats::Intellect,
+                amount,
+                apply,
+            ),
+        ]
+        .concat(),
+        ItemModType::StrInt => [
+            item_bonus_primary_stat_actions(
+                ApplyEnchantmentUnitMod::StatStrength,
+                Stats::Strength,
+                amount,
+                apply,
+            ),
+            item_bonus_primary_stat_actions(
+                ApplyEnchantmentUnitMod::StatIntellect,
+                Stats::Intellect,
+                amount,
+                apply,
+            ),
+        ]
+        .concat(),
+        _ => apply_enchantment_stat_actions(item_mod, amount, apply),
+    }
 }
 
 fn item_bonus_primary_stat_actions(
@@ -2535,6 +2644,19 @@ fn item_bonus_primary_stat_actions(
         ),
         ApplyEnchantmentEffectAction::UpdateStatBuffMod(stat),
     ]
+}
+
+fn item_bonus_resistance_actions(
+    school: SpellSchools,
+    amount: u32,
+    apply: bool,
+) -> Vec<ApplyEnchantmentEffectAction> {
+    vec![unit_modifier(
+        ApplyEnchantmentUnitMod::Resistance(school as u32),
+        ApplyEnchantmentUnitModifier::BaseValue,
+        amount,
+        apply,
+    )]
 }
 
 fn primary_stat_actions(
@@ -2661,6 +2783,8 @@ const fn item_mod_type_from_u32(value: u32) -> ItemModType {
         19 => ItemModType::CritMeleeRating,
         20 => ItemModType::CritRangedRating,
         21 => ItemModType::CritSpellRating,
+        28 => ItemModType::HasteMeleeRating,
+        29 => ItemModType::HasteRangedRating,
         30 => ItemModType::HasteSpellRating,
         31 => ItemModType::HitRating,
         32 => ItemModType::CritRating,
@@ -2674,6 +2798,17 @@ const fn item_mod_type_from_u32(value: u32) -> ItemModType {
         46 => ItemModType::HealthRegen,
         47 => ItemModType::SpellPenetration,
         48 => ItemModType::BlockValue,
+        50 => ItemModType::ExtraArmor,
+        51 => ItemModType::FireResistance,
+        52 => ItemModType::FrostResistance,
+        53 => ItemModType::HolyResistance,
+        54 => ItemModType::ShadowResistance,
+        55 => ItemModType::NatureResistance,
+        56 => ItemModType::ArcaneResistance,
+        71 => ItemModType::AgiStrInt,
+        72 => ItemModType::AgiStr,
+        73 => ItemModType::AgiInt,
+        74 => ItemModType::StrInt,
         _ => ItemModType::None,
     }
 }
@@ -15640,6 +15775,71 @@ mod tests {
                 ApplyEnchantmentEffectAction::RatingModifier {
                     rating: ApplyEnchantmentCombatRating::HitSpell,
                     amount: 5,
+                    apply: true,
+                },
+            ],
+        );
+    }
+
+    #[test]
+    fn item_stat_bonus_actions_cover_cpp_item_bonus_only_stat_cases() {
+        let stats = [
+            (ItemModType::AgiStrInt as i8, 7),
+            (ItemModType::ExtraArmor as i8, 40),
+            (ItemModType::FireResistance as i8, 9),
+            (ItemModType::HasteMeleeRating as i8, 3),
+            (ItemModType::HasteRangedRating as i8, 4),
+            (-1, 0),
+            (-1, 0),
+            (-1, 0),
+            (-1, 0),
+            (-1, 0),
+        ];
+
+        assert_eq!(
+            item_stat_bonus_actions_like_cpp(&stats, true),
+            vec![
+                ApplyEnchantmentEffectAction::UnitModifier {
+                    unit_mod: ApplyEnchantmentUnitMod::StatAgility,
+                    modifier: ApplyEnchantmentUnitModifier::BaseValue,
+                    amount: 7,
+                    apply: true,
+                },
+                ApplyEnchantmentEffectAction::UpdateStatBuffMod(Stats::Agility),
+                ApplyEnchantmentEffectAction::UnitModifier {
+                    unit_mod: ApplyEnchantmentUnitMod::StatStrength,
+                    modifier: ApplyEnchantmentUnitModifier::BaseValue,
+                    amount: 7,
+                    apply: true,
+                },
+                ApplyEnchantmentEffectAction::UpdateStatBuffMod(Stats::Strength),
+                ApplyEnchantmentEffectAction::UnitModifier {
+                    unit_mod: ApplyEnchantmentUnitMod::StatIntellect,
+                    modifier: ApplyEnchantmentUnitModifier::BaseValue,
+                    amount: 7,
+                    apply: true,
+                },
+                ApplyEnchantmentEffectAction::UpdateStatBuffMod(Stats::Intellect),
+                ApplyEnchantmentEffectAction::UnitModifier {
+                    unit_mod: ApplyEnchantmentUnitMod::Armor,
+                    modifier: ApplyEnchantmentUnitModifier::TotalValue,
+                    amount: 40,
+                    apply: true,
+                },
+                ApplyEnchantmentEffectAction::UnitModifier {
+                    unit_mod: ApplyEnchantmentUnitMod::Resistance(SpellSchools::Fire as u32),
+                    modifier: ApplyEnchantmentUnitModifier::BaseValue,
+                    amount: 9,
+                    apply: true,
+                },
+                ApplyEnchantmentEffectAction::RatingModifier {
+                    rating: ApplyEnchantmentCombatRating::HasteMelee,
+                    amount: 3,
+                    apply: true,
+                },
+                ApplyEnchantmentEffectAction::RatingModifier {
+                    rating: ApplyEnchantmentCombatRating::HasteRanged,
+                    amount: 4,
                     apply: true,
                 },
             ],

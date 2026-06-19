@@ -1,3 +1,20 @@
+- `#NEXT.R8.ENTITIES.1168` — represented `_ApplyItemBonuses` static stat
+  action planning now covers the item-bonus-only branches that were still
+  falling through after `#NEXT.R8.ENTITIES.1167`: melee/ranged haste ratings,
+  `ITEM_MOD_EXTRA_ARMOR`, explicit school resistance item mods, and composite
+  primary stat mods (`AGI_STR_INT`, `AGI_STR`, `AGI_INT`, `STR_INT`). Source of
+  truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7694-8163`.
+  The slice keeps the C++ separation intact: `ApplyEnchantment` stat effects
+  remain conservative, while item-bonus static stats use the `_ApplyItemBonuses`
+  switch where primary stats and resistance item mods apply as `BASE_VALUE`.
+  Coverage: `cargo test -p wow-entities item_stat_bonus_actions --lib`.
+  Boundary remains partial: this is still represented action planning only;
+  direct template resistance fields, scaling-stat values, shield block update
+  field mutation, weapon damage, attack time, equip spells, dependent auras,
+  weapon-dependent aura updates, enchantments, real stat mutation/update-field
+  fanout, live-client/bot validation, and manual validation remain open.
+
 - `#NEXT.R8.ENTITIES.1167` — represented `_ApplyItemMods` repair
   reapplication now records the static-stat `_ApplyItemBonuses` action plan
   for repaired broken equipment when `ItemSparse` stat data is represented.
