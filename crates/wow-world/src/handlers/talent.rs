@@ -192,6 +192,7 @@ mod tests {
     use wow_core::{ObjectGuid, Position};
     use wow_entities::{PetStable, PetStableInfo, PetType};
     use wow_packet::ServerPacket;
+    use wow_packet::packets::chat::PrintNotification;
     use wow_packet::packets::misc::BuyFailed;
     use wow_packet::packets::update::CreatureCreateData;
 
@@ -724,6 +725,86 @@ mod tests {
                 respec_master: trainer,
                 respec_type: SPEC_RESET_TALENTS_LIKE_CPP,
             }]
+        );
+    }
+
+    #[tokio::test]
+    async fn login_at_login_reset_talents_resets_without_cost_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(4);
+        install_test_talent_store(&mut session, &[(101, 0, 50_101)]);
+        session.mark_represented_talents_loaded_like_cpp();
+        session.set_player_gold_like_cpp(9_999);
+
+        session
+            .handle_learn_talent(learn_talent_packet(101, 0))
+            .await;
+        let _learn_update = send_rx
+            .try_recv()
+            .expect("C++ sends SendTalentsInfoData after LearnTalent");
+        assert!(session.known_spells_like_cpp().contains(&50_101));
+
+        session.set_represented_at_login_flags_like_cpp(
+            AT_LOGIN_RENAME_LIKE_CPP | AT_LOGIN_RESET_TALENTS_LIKE_CPP,
+        );
+
+        assert!(
+            session.apply_represented_login_talent_reset_if_needed_like_cpp(),
+            "C++ CharacterHandler applies AT_LOGIN_RESET_TALENTS through ResetTalents(true)"
+        );
+
+        let reset_update = send_rx
+            .try_recv()
+            .expect("C++ resends SendTalentsInfoData after ResetTalents(true)");
+        assert_eq!(
+            reset_update,
+            session
+                .represented_update_talent_data_packet_like_cpp()
+                .to_bytes()
+        );
+        let notification = send_rx
+            .try_recv()
+            .expect("C++ SendNotification(LANG_RESET_TALENTS)");
+        assert_eq!(
+            notification,
+            PrintNotification {
+                notify_text: "Your talents have been reset.".to_string(),
+            }
+            .to_bytes()
+        );
+        assert!(send_rx.try_recv().is_err());
+        assert_eq!(
+            session.represented_talent_reset_script_hooks_like_cpp(),
+            &[RepresentedTalentResetScriptHookLikeCpp { no_cost: true }]
+        );
+        assert_eq!(
+            session.represented_at_login_flags_like_cpp(),
+            AT_LOGIN_RENAME_LIKE_CPP,
+            "C++ removes only AT_LOGIN_RESET_TALENTS"
+        );
+        assert_eq!(
+            session.represented_at_login_flag_removals_like_cpp(),
+            &[RepresentedAtLoginFlagRemovalLikeCpp {
+                flags: AT_LOGIN_RESET_TALENTS_LIKE_CPP,
+                persist: true,
+                db_statement_unrepresented: true,
+            }]
+        );
+        assert_eq!(
+            session.player_gold_like_cpp(),
+            9_999,
+            "C++ ResetTalents(true) skips ModifyMoney and criteria/accounting"
+        );
+        assert_eq!(session.represented_talent_reset_cost_like_cpp(), 0);
+        assert_eq!(session.represented_talent_reset_time_secs_like_cpp(), 0);
+        assert!(
+            session
+                .represented_talent_respec_criteria_events_like_cpp()
+                .is_empty(),
+            "C++ skips criteria updates when noCost=true"
+        );
+        assert!(
+            !session.known_spells_like_cpp().contains(&50_101),
+            "C++ ResetTalents(true) still removes active talents"
         );
     }
 

@@ -3418,7 +3418,7 @@ impl WorldSession {
         let level: u8 = result.read(6);
         // C++ CHAR_SEL_CHARACTER column order:
         // 7=xp, 8=money, 14..18=position/map/orientation, 23..24=played time,
-        // 28=resettalents_cost, 29=resettalents_time, 40=zone.
+        // 28=resettalents_cost, 29=resettalents_time, 39=at_login, 40=zone.
         let zone: i32 = result.try_read::<u16>(40).unwrap_or(0) as i32; // smallint unsigned
         let map_id: i32 = result.try_read::<u16>(17).unwrap_or(0) as i32; // smallint unsigned
         let pos_x: f32 = result.try_read(14).unwrap_or(0.0);
@@ -3441,6 +3441,7 @@ impl WorldSession {
         );
         self.set_represented_active_talent_group_like_cpp(result.try_read::<u8>(30).unwrap_or(0));
         self.set_represented_bonus_talent_groups_like_cpp(result.try_read::<u8>(31).unwrap_or(0));
+        self.set_represented_at_login_flags_like_cpp(result.try_read::<u16>(39).unwrap_or(0));
         self.set_player_guid(Some(guid));
         self.set_loaded_player_identity_like_cpp(map_id as u16, race, class, level, gender);
         // C++ recalculates zone/area from terrain after AddToMap
@@ -4709,6 +4710,7 @@ impl WorldSession {
             skill_info_tuples,
             account_mounts,
         );
+        self.apply_represented_login_talent_reset_if_needed_like_cpp();
 
         // Mark online in DB
         let mut online_stmt = char_db.prepare(CharStatements::UPD_CHAR_ONLINE);

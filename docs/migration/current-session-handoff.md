@@ -1,3 +1,27 @@
+- `#NEXT.R8.ENTITIES.1086` — represented login now applies
+  `AT_LOGIN_RESET_TALENTS` through the C++ `ResetTalents(true)` path after
+  the initial talent-data packet (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CharacterHandler.cpp:1282-1293`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3505-3562`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/Language.h:259-262`,
+  and `/home/server/woltk-trinity-legacy/sql/old/3.0.9/01351_world.sql:170`.
+  C++ checks `AT_LOGIN_RESET_TALENTS` during player login, calls
+  `ResetTalents(true)`, resends `SendTalentsInfoData`, and sends
+  `LANG_RESET_TALENTS` ("Your talents have been reset."). Rust now hydrates
+  `characters.at_login` from `SEL_CHARACTER`, applies a represented no-cost
+  talent reset after the login sequence, clears only the reset-talents bit,
+  removes active talent side effects, sends the second represented talent-data
+  packet, and sends the localized Trinity string when available with the C++
+  English text as fallback. Coverage: `cargo fmt --all --check`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  login_at_login_reset_talents_resets_without_cost_like_cpp --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  confirm_respec --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo
+  check -p world-server`; `git diff --check`. Boundary remains partial:
+  `AT_LOGIN_RESET_SPELLS`, `AT_LOGIN_RESET_PET_TALENTS`, `AT_LOGIN_FIRST`,
+  live DB execution of the at-login flag update, full `ScriptMgr`, full
+  `Player::SaveToDB` talent/spell transaction parity, live-client validation,
+  bot validation, and manual validation remain open.
 - `#NEXT.R8.ENTITIES.1085` — represented `Player::ResetTalents`
   now records the initial C++ script hook and removes
   `AT_LOGIN_RESET_TALENTS` before the money gate (not manual-test-ready).

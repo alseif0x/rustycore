@@ -202,6 +202,8 @@ const PLAYER_FLAGS_IN_PVP_LIKE_CPP: u32 = 0x0000_0200;
 const PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP: u32 = 0x0002_0000;
 const PLAYER_FLAGS_PVP_TIMER_LIKE_CPP: u32 = 0x0004_0000;
 const PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP: u32 = 0x0800_0000;
+const LANG_RESET_TALENTS_LIKE_CPP: u32 = 216;
+const LANG_RESET_TALENTS_TEXT_LIKE_CPP: &str = "Your talents have been reset.";
 pub(crate) const TRADE_STATUS_PLAYER_BUSY_LIKE_CPP: u8 = 0;
 const PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP: u32 = 0x0000_0800;
 const CURRENCY_DB_UNUSED_FLAGS_LIKE_CPP: u8 = 0x13;
@@ -18443,6 +18445,26 @@ impl WorldSession {
         true
     }
 
+    pub(crate) fn apply_represented_login_talent_reset_if_needed_like_cpp(&mut self) -> bool {
+        const AT_LOGIN_RESET_TALENTS_LIKE_CPP: u16 = 0x004;
+
+        if (self.represented_at_login_flags_like_cpp & AT_LOGIN_RESET_TALENTS_LIKE_CPP) == 0 {
+            return false;
+        }
+
+        self.record_represented_talent_reset_script_hook_like_cpp(true);
+        self.remove_represented_at_login_flag_like_cpp(AT_LOGIN_RESET_TALENTS_LIKE_CPP, true);
+        self.remove_represented_pet_not_in_slot_like_cpp();
+
+        if self.reset_represented_active_talents_like_cpp() {
+            self.send_packet(&self.represented_update_talent_data_packet_like_cpp());
+            self.send_notification_like_cpp(self.reset_talents_notification_text_like_cpp());
+            return true;
+        }
+
+        false
+    }
+
     pub(crate) fn mark_represented_talents_loaded_like_cpp(&mut self) {
         self.represented_talents_loaded_like_cpp = true;
         self.refresh_represented_talent_points_like_cpp();
@@ -26045,6 +26067,15 @@ impl WorldSession {
 
     fn send_notification_like_cpp(&self, text: String) {
         self.send_packet(&PrintNotification { notify_text: text });
+    }
+
+    fn reset_talents_notification_text_like_cpp(&self) -> String {
+        let text = self.trinity_string_like_cpp(LANG_RESET_TALENTS_LIKE_CPP);
+        if text == "<error>" {
+            LANG_RESET_TALENTS_TEXT_LIKE_CPP.to_string()
+        } else {
+            text.to_string()
+        }
     }
 
     fn trinity_string_like_cpp(&self, entry: u32) -> &str {
@@ -36668,7 +36699,6 @@ impl WorldSession {
         true
     }
 
-    #[cfg(test)]
     pub(crate) fn set_represented_at_login_flags_like_cpp(&mut self, flags: u16) {
         self.represented_at_login_flags_like_cpp = flags;
     }
