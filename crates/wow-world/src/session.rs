@@ -19075,6 +19075,13 @@ impl WorldSession {
             let Some(quest) = quest_store.get(quest_id) else {
                 continue;
             };
+            if quest.reward_spell == u32::MAX && quest.source_spell_id != 0 {
+                let Ok(source_spell_id) = i32::try_from(quest.source_spell_id) else {
+                    continue;
+                };
+                learned += self.remove_represented_auras_due_to_spell_like_cpp(source_spell_id);
+                continue;
+            }
             for spell_id in self.represented_quest_rewarded_spell_triggers_like_cpp(quest) {
                 self.learn_known_spell_like_cpp(spell_id);
                 learned += 1;
@@ -19137,6 +19144,22 @@ impl WorldSession {
         }
 
         missing_learn_triggers
+    }
+
+    pub(crate) fn remove_represented_auras_due_to_spell_like_cpp(
+        &mut self,
+        spell_id: i32,
+    ) -> usize {
+        let slots = self
+            .visible_auras
+            .values()
+            .filter_map(|aura| (aura.spell_id == spell_id).then_some(aura.slot))
+            .collect::<Vec<_>>();
+        let removed = slots.len();
+        for slot in slots {
+            let _ = self.remove_aura(slot);
+        }
+        removed
     }
 
     pub(crate) fn apply_represented_first_login_reputation_like_cpp(&mut self) -> usize {

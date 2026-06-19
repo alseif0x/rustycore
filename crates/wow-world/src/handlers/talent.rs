@@ -185,6 +185,7 @@ impl WorldSession {
 #[cfg(test)]
 mod tests {
     use std::sync::{Arc, Mutex, RwLock};
+    use std::time::Instant;
 
     use super::*;
     use crate::session::{
@@ -389,6 +390,27 @@ mod tests {
             trivial_rank_low: 0,
             flags: 0,
             num_skill_ups: 0,
+        }
+    }
+
+    fn test_visible_aura_like_cpp(slot: u8, spell_id: i32) -> AuraApplication {
+        AuraApplication {
+            spell_id,
+            caster_guid: ObjectGuid::EMPTY,
+            slot,
+            duration_total: 0,
+            duration_remaining: 0,
+            stack_count: 1,
+            aura_flags: 0,
+            effect_mask: 1,
+            aura_interrupt_flags: 0,
+            aura_interrupt_flags2: 0,
+            represented_effect: None,
+            represented_amount: 0,
+            represented_effect_amounts: Vec::new(),
+            represented_misc_value: None,
+            represented_multiplier: 1.0,
+            applied_at: Instant::now(),
         }
     }
 
@@ -1060,6 +1082,66 @@ mod tests {
         assert!(
             session.known_spells_like_cpp().is_empty(),
             "C++ LearnQuestRewardedSpells requires SKILL_LINE_ABILITY_REWARDED_FROM_QUEST for missing first learned spell"
+        );
+    }
+
+    #[tokio::test]
+    async fn login_spell_reset_reward_spell_minus_one_removes_source_spell_auras_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(4);
+        let quest_id = 7003;
+        let source_spell_id = 9201;
+        let other_spell_id = 9202;
+
+        let mut quest = test_quest_template_like_cpp(quest_id);
+        quest.reward_spell = u32::MAX;
+        quest.source_spell_id = source_spell_id as u32;
+        session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
+            [quest],
+        )));
+        session.rewarded_quests.insert(quest_id);
+        session
+            .visible_auras
+            .insert(1, test_visible_aura_like_cpp(1, source_spell_id));
+        session
+            .visible_auras
+            .insert(2, test_visible_aura_like_cpp(2, source_spell_id));
+        session
+            .visible_auras
+            .insert(3, test_visible_aura_like_cpp(3, other_spell_id));
+        session.set_known_spells_like_cpp(vec![118]);
+        session.set_represented_at_login_flags_like_cpp(AT_LOGIN_RESET_SPELLS_LIKE_CPP);
+
+        assert!(
+            session.apply_represented_login_spell_reset_if_needed_like_cpp(),
+            "C++ ResetSpells calls LearnQuestRewardedSpells after removing spells"
+        );
+        let _aura_remove_1 = send_rx
+            .try_recv()
+            .expect("C++ RemoveAurasDueToSpell sends aura removal updates");
+        let _aura_remove_2 = send_rx
+            .try_recv()
+            .expect("C++ RemoveAurasDueToSpell removes every matching aura");
+        let _notification = send_rx
+            .try_recv()
+            .expect("C++ still notifies after ResetSpells");
+
+        assert!(
+            session
+                .visible_auras
+                .values()
+                .all(|aura| aura.spell_id != source_spell_id),
+            "C++ RewardSpell=-1 removes auras due to SourceSpellID"
+        );
+        assert!(
+            session
+                .visible_auras
+                .values()
+                .any(|aura| aura.spell_id == other_spell_id),
+            "C++ RemoveAurasDueToSpell does not remove unrelated aura spells"
+        );
+        assert!(
+            session.known_spells_like_cpp().is_empty(),
+            "RewardSpell=-1 removes source auras and returns without relearning spells"
         );
     }
 

@@ -1,3 +1,26 @@
+- `#NEXT.R8.ENTITIES.1116` — represented `Player::LearnQuestRewardedSpells`
+  now handles the C++ `RewardSpell == -1 && SourceSpellID != 0` branch during
+  login spell reset by removing represented visible auras due to `SourceSpellID`
+  and returning without relearning spells (not manual-test-ready, not full aura
+  runtime). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:23863-23876`.
+  C++ treats this branch before looking up `SpellInfo`, calls
+  `RemoveAurasDueToSpell(src_spell_id)`, then returns. Rust now models
+  `RewardSpell=-1` as `u32::MAX` in the existing `QuestTemplate.reward_spell`
+  field, removes all represented visible auras with matching `spell_id`, sends
+  the existing aura-removal updates, preserves unrelated auras, and skips the
+  bounded learn-spell path. Coverage planned for this slice: `cargo fmt --all`;
+  focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p
+  wow-world login_spell_reset --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  login_at_login_reset_spells_removes_known_spells_and_notifies_like_cpp
+  --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p
+  world-server`; `cargo fmt --all --check`; and `git diff --check`. Boundary
+  remains partial: canonical aura-subsystem removal, full
+  `Aura::Remove(AURA_REMOVE_BY_DEFAULT)` side effects, multi-target aura
+  ownership, full `CastSpell` runtime ordering, DB persistence, live-client/bot
+  validation, and full `Player::Create` / `ResetSpells` parity remain open.
+
 - `#NEXT.R8.ENTITIES.1115` — represented `Player::ResetSpells` now re-applies
   bounded quest-rewarded learned spells after removing the copied
   `PlayerSpellMap`, matching the C++ `LearnQuestRewardedSpells()` call order
