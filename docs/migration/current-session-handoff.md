@@ -1,3 +1,24 @@
+- `#NEXT.R8.ENTITIES.1154` — represented `PlayerData::AvgItemLevel[0]`
+  and `[1]` now resolve item level through a represented
+  `Item::GetItemLevel` seam instead of always using the static sparse template
+  level. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:1891-1937`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28773-28898`.
+  C++ `UpdateAverageItemLevelTotal` and `UpdateAverageItemLevelEquipped` both
+  call `item->GetItemLevel(this)`, whose final result is clamped to
+  `MIN_ITEM_LEVEL..MAX_ITEM_LEVEL`; Rust now uses represented
+  `ItemData::DebugItemLevel` when it is present on the runtime item, falls back
+  to the template item level otherwise, and clamps to the C++ range before
+  total/equipped average calculations. Coverage: `cargo test -p wow-world
+  represented_condition_avg_item_level_uses_runtime_item_level_like_cpp --lib`
+  and `cargo test -p wow-world represented_condition_total_avg_item_level
+  --lib`. Boundary remains partial: full `BonusData` calculation,
+  player-level-to-item-level curves, timewalker fixed-level modifiers, PvP
+  item-level bonus, owner min/max item-level caps, update-field packet
+  emission/fanout, persistence, live-client/bot manual validation, and full
+  condition-runtime parity remain open.
+
 - `#NEXT.R8.ENTITIES.1153` — represented `PlayerData::AvgItemLevel[0]`
   now passes a full represented storage view into the represented
   `CanEquipItem` preflight, including top-level inventory plus bag, bank-bag,
@@ -15,9 +36,10 @@
   represented_condition_total_avg_item_level_counts_contained_items_for_max_count_like_cpp
   --lib` and `cargo test -p wow-world
   represented_condition_total_avg_item_level --lib`. Boundary remains partial:
-  item-level bonus/PvP/timewalker scaling, update-field packet
-  emission/fanout, persistence, live-client/bot manual validation, and full
-  condition-runtime parity remain open.
+  represented runtime `DebugItemLevel` consumption is closed later by
+  `#NEXT.R8.ENTITIES.1154`; full item-level bonus/PvP/timewalker scaling,
+  update-field packet emission/fanout, persistence, live-client/bot manual
+  validation, and full condition-runtime parity remain open.
 
 - `#NEXT.R8.ENTITIES.1152` — represented `PlayerData::AvgItemLevel[0]`
   now runs represented non-equipped runtime item candidates through the

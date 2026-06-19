@@ -5219,6 +5219,9 @@ fn player_class_by_armor_subclass_like_cpp(subclass: u32) -> u32 {
 
 #[allow(dead_code)]
 impl WorldSession {
+    const MIN_ITEM_LEVEL_LIKE_CPP: u32 = 1;
+    const MAX_ITEM_LEVEL_LIKE_CPP: u32 = 1300;
+
     /// Create a new session with the given account info and channels.
     pub fn new(
         account_id: u32,
@@ -30318,14 +30321,9 @@ impl WorldSession {
         let Some(storage_template) = self.item_storage_template(entry_id) else {
             return;
         };
-        let Some(stats_template) = self
-            .item_stats_store
-            .as_ref()
-            .and_then(|store| store.random_property_template(entry_id))
-        else {
+        let Some(item_level) = self.represented_item_level_like_cpp(entry_id, runtime_item) else {
             return;
         };
-        let item_level = u32::from(stats_template.item_level);
         let inventory_type = storage_template.inventory_type;
 
         if let Some(slot) = direct_slot.filter(|slot| *slot < EQUIPMENT_SLOT_END) {
@@ -30643,6 +30641,27 @@ impl WorldSession {
             .result
     }
 
+    fn represented_item_level_like_cpp(
+        &self,
+        entry_id: u32,
+        runtime_item: Option<&Item>,
+    ) -> Option<u32> {
+        let template_item_level = u32::from(
+            self.item_stats_store
+                .as_ref()
+                .and_then(|store| store.random_property_template(entry_id))?
+                .item_level,
+        );
+        let runtime_item_level = runtime_item
+            .map(|item| u32::from(item.data().debug_item_level))
+            .filter(|level| *level != 0);
+        Some(
+            runtime_item_level
+                .unwrap_or(template_item_level)
+                .clamp(Self::MIN_ITEM_LEVEL_LIKE_CPP, Self::MAX_ITEM_LEVEL_LIKE_CPP),
+        )
+    }
+
     fn represented_avg_total_item_level_maybe_replace_slot_like_cpp(
         best_item_levels: &mut [(InventoryType, u32, ObjectGuid)],
         sum: &mut u32,
@@ -30741,14 +30760,14 @@ impl WorldSession {
             let Some(inventory_item) = self.inventory_items_like_cpp().get(&slot) else {
                 continue;
             };
-            let Some(template) = self
-                .item_stats_store
-                .as_ref()
-                .and_then(|store| store.random_property_template(inventory_item.entry_id))
+            let runtime_item = self
+                .inventory_item_objects_like_cpp()
+                .get(&inventory_item.guid);
+            let Some(item_level) =
+                self.represented_item_level_like_cpp(inventory_item.entry_id, runtime_item)
             else {
                 continue;
             };
-            let item_level = u32::from(template.item_level);
             total_item_level = total_item_level.saturating_add(item_level);
             let is_mainhand_two_hand = slot == EQUIPMENT_SLOT_MAINHAND
                 && !can_titan_grip
@@ -51477,6 +51496,129 @@ mod tests {
         assert_eq!(
             context.avg_equipped_item_level, 6.25,
             "C++ UpdateAverageItemLevelEquipped only uses currently equipped items"
+        );
+    }
+
+    #[test]
+    fn represented_condition_avg_item_level_uses_runtime_item_level_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let equipped_chest_item_id = 30_046_u32;
+        let bag_chest_item_id = 30_047_u32;
+        let equipped_chest_guid = ObjectGuid::create_item(1, 30_046);
+        let bag_chest_guid = ObjectGuid::create_item(1, 30_047);
+        let player_guid = ObjectGuid::create_player(1, 176);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AverageItemLevelRuntimeLevel".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        session.set_item_store(Arc::new(ItemStore::from_records([
+            represented_test_item_record_like_cpp(
+                equipped_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+            represented_test_item_record_like_cpp(
+                bag_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+        ])));
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [
+                    (
+                        equipped_chest_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                    ),
+                    (
+                        bag_chest_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                    ),
+                ],
+                [
+                    (
+                        equipped_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 100,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                    (
+                        bag_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 100,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                ],
+            ),
+        ));
+        let owner = session.player_guid().unwrap_or(ObjectGuid::EMPTY);
+        let mut equipped_chest = session.make_inventory_item_object(
+            equipped_chest_guid,
+            equipped_chest_item_id,
+            owner,
+            1,
+            0,
+            ItemContext::None,
+            EQUIPMENT_SLOT_CHEST,
+        );
+        equipped_chest.set_debug_item_level(180);
+        session.insert_inventory_item_object(equipped_chest);
+        session.insert_inventory_item_like_cpp(
+            EQUIPMENT_SLOT_CHEST,
+            InventoryItem {
+                guid: equipped_chest_guid,
+                entry_id: equipped_chest_item_id,
+                db_guid: equipped_chest_guid.counter() as u64,
+                inventory_type: Some(InventoryType::Chest as u8),
+            },
+        );
+        let mut bag_chest = session.make_inventory_item_object(
+            bag_chest_guid,
+            bag_chest_item_id,
+            owner,
+            1,
+            0,
+            ItemContext::None,
+            INVENTORY_SLOT_ITEM_START,
+        );
+        bag_chest.set_debug_item_level(260);
+        session.insert_inventory_item_object(bag_chest);
+        session.insert_inventory_item_like_cpp(
+            INVENTORY_SLOT_ITEM_START,
+            InventoryItem {
+                guid: bag_chest_guid,
+                entry_id: bag_chest_item_id,
+                db_guid: bag_chest_guid.counter() as u64,
+                inventory_type: Some(InventoryType::Chest as u8),
+            },
+        );
+
+        let owned = session.represented_player_condition_context_like_cpp();
+        let context = owned.as_context(&session);
+
+        assert_eq!(
+            context.avg_item_level, 16.25,
+            "C++ UpdateAverageItemLevelTotal calls Item::GetItemLevel(owner), so a runtime item level can replace the static template item level for best-slot candidates"
+        );
+        assert_eq!(
+            context.avg_equipped_item_level, 11.25,
+            "C++ UpdateAverageItemLevelEquipped also calls Item::GetItemLevel(owner) for equipped items"
         );
     }
 
@@ -117414,6 +117556,7 @@ mod tests {
                 ai.wander_delay_ms = 0;
                 ai.move_start_ms = 0;
                 ai.wander_radius = 3.0;
+                creature.seed_runtime_rng_like_cpp(0x9005);
             })
             .unwrap();
 
