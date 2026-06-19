@@ -4413,6 +4413,7 @@ impl WorldSession {
 
         // Store final known_spells in session for later use (ShowTradeSkill, etc.)
         self.set_known_spells_like_cpp(known_spells.clone());
+        self.set_represented_favorite_known_spells_like_cpp(favorite_spell_rows.clone());
         let promoted_character_mounts =
             self.promote_loaded_character_mount_spells_like_cpp(&known_spells);
         if promoted_character_mounts > 0 {

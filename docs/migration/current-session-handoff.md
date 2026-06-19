@@ -1,3 +1,29 @@
+- `#NEXT.R8.ENTITIES.1113` — represented `Player::_SaveSpells` statement
+  planning now mirrors the C++ delete/insert/favorite/dependent branches for
+  represented `PlayerSpell` rows (not manual-test-ready, not wired to logout
+  persistence yet). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:2741-3005`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:20405-20440`.
+  C++ `_SaveSpells` deletes `REMOVED`/`CHANGED` rows, inserts only `NEW` or
+  `CHANGED` spells that are not `dependent`, refreshes
+  `character_spell_favorite` only for `NEW`/`CHANGED`, erases removed spells,
+  and ignores `TEMPORARY` rows. Rust now has represented `PlayerSpell` state
+  types plus statement builders/plans for `DEL_CHAR_SPELL_BY_SPELL`,
+  `INS_CHAR_SPELL`, `DEL_CHAR_SPELL_FAVORITE`, and
+  `INS_CHAR_SPELL_FAVORITE`, and keeps loaded favorite-known-spell state in
+  `WorldSession` for the future full `PlayerSpellMap` owner. Coverage planned
+  for this slice: `cargo fmt --all`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  character_spell_save_plan --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  represented_favorite_known_spells --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
+  cargo check -p world-server`; `cargo fmt --all --check`; and
+  `git diff --check`. Boundary remains partial: this is a safe plan helper;
+  logout wiring is intentionally deferred until Rust owns full `PlayerSpellMap`
+  state, including inactive/disabled/temporary rows, exact `AddSpell` state
+  transitions, SpellMgr validity cleanup, and live-client/bot/manual validation.
+
 - `#NEXT.R8.ENTITIES.1112` — represented `PlayerSpell::dependent` state is
   now recorded for dependent known-spell paths (not manual-test-ready). Source
   of truth:

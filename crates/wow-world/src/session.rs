@@ -2846,6 +2846,27 @@ pub(crate) struct RepresentedPlayerSkillLikeCpp {
     pub profession_slot: i8,
 }
 
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RepresentedPlayerSpellStateLikeCpp {
+    Unchanged,
+    Changed,
+    New,
+    Removed,
+    Temporary,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedPlayerSpellLikeCpp {
+    pub spell_id: i32,
+    pub active: bool,
+    pub disabled: bool,
+    pub dependent: bool,
+    pub favorite: bool,
+    pub state: RepresentedPlayerSpellStateLikeCpp,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedCharacterSpellCooldownLikeCpp {
     pub spell_id: u32,
@@ -3765,6 +3786,9 @@ pub struct WorldSession {
     /// Represented C++ `PlayerSpell::dependent` for known spells that must not
     /// be persisted by `_SaveSpells`.
     represented_dependent_known_spells_like_cpp: HashSet<i32>,
+    /// Represented C++ `PlayerSpell::favorite` rows loaded from
+    /// `character_spell_favorite`.
+    represented_favorite_known_spells_like_cpp: HashSet<i32>,
     /// C++ `CollectionMgr::_mounts` represented account mount collection.
     account_mounts_like_cpp: HashMap<i32, u8>,
     /// C++ `Player::_CUFProfiles`, represented until full player save/load owns it.
@@ -5395,6 +5419,7 @@ impl WorldSession {
             loot_specialization_id: 0,
             known_spells: Vec::new(),
             represented_dependent_known_spells_like_cpp: HashSet::new(),
+            represented_favorite_known_spells_like_cpp: HashSet::new(),
             account_mounts_like_cpp: HashMap::new(),
             cuf_profiles_like_cpp: vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP],
             cuf_profiles_loaded_like_cpp: false,
@@ -19666,6 +19691,115 @@ impl WorldSession {
         stmt
     }
 
+    #[allow(dead_code)]
+    pub(crate) fn build_character_spell_delete_by_spell_statement_like_cpp(
+        guid_counter: u64,
+        spell_id: i32,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::DEL_CHAR_SPELL_BY_SPELL.sql());
+        stmt.set_i32(0, spell_id);
+        stmt.set_u64(1, guid_counter);
+        stmt
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn build_character_spell_insert_statement_like_cpp(
+        guid_counter: u64,
+        spell: RepresentedPlayerSpellLikeCpp,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::INS_CHAR_SPELL.sql());
+        stmt.set_u64(0, guid_counter);
+        stmt.set_i32(1, spell.spell_id);
+        stmt.set_bool(2, spell.active);
+        stmt.set_bool(3, spell.disabled);
+        stmt
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn build_character_spell_favorite_delete_statement_like_cpp(
+        guid_counter: u64,
+        spell_id: i32,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::DEL_CHAR_SPELL_FAVORITE.sql());
+        stmt.set_u64(0, guid_counter);
+        stmt.set_i32(1, spell_id);
+        stmt
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn build_character_spell_favorite_insert_statement_like_cpp(
+        guid_counter: u64,
+        spell_id: i32,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::INS_CHAR_SPELL_FAVORITE.sql());
+        stmt.set_u64(0, guid_counter);
+        stmt.set_i32(1, spell_id);
+        stmt
+    }
+
+    /// Builds the represented statement sequence for C++ `Player::_SaveSpells`.
+    ///
+    /// This is intentionally a plan helper for the represented spell state. The
+    /// runtime logout path must not call it until `PlayerSpellMap` ownership is
+    /// complete enough to preserve inactive/disabled/temporary rows exactly.
+    #[allow(dead_code)]
+    pub(crate) fn character_spell_save_statements_like_cpp(
+        guid_counter: u64,
+        spells: impl IntoIterator<Item = RepresentedPlayerSpellLikeCpp>,
+    ) -> Vec<PreparedStatement> {
+        let mut statements = Vec::new();
+        let mut spells: Vec<RepresentedPlayerSpellLikeCpp> = spells.into_iter().collect();
+        spells.sort_by_key(|spell| spell.spell_id);
+
+        for spell in spells {
+            match spell.state {
+                RepresentedPlayerSpellStateLikeCpp::Removed
+                | RepresentedPlayerSpellStateLikeCpp::Changed => statements.push(
+                    Self::build_character_spell_delete_by_spell_statement_like_cpp(
+                        guid_counter,
+                        spell.spell_id,
+                    ),
+                ),
+                RepresentedPlayerSpellStateLikeCpp::Unchanged
+                | RepresentedPlayerSpellStateLikeCpp::New
+                | RepresentedPlayerSpellStateLikeCpp::Temporary => {}
+            }
+
+            match spell.state {
+                RepresentedPlayerSpellStateLikeCpp::New
+                | RepresentedPlayerSpellStateLikeCpp::Changed => {
+                    if !spell.dependent {
+                        statements.push(Self::build_character_spell_insert_statement_like_cpp(
+                            guid_counter,
+                            spell,
+                        ));
+                    }
+
+                    statements.push(
+                        Self::build_character_spell_favorite_delete_statement_like_cpp(
+                            guid_counter,
+                            spell.spell_id,
+                        ),
+                    );
+
+                    if spell.favorite {
+                        statements.push(
+                            Self::build_character_spell_favorite_insert_statement_like_cpp(
+                                guid_counter,
+                                spell.spell_id,
+                            ),
+                        );
+                    }
+                }
+                RepresentedPlayerSpellStateLikeCpp::Unchanged
+                | RepresentedPlayerSpellStateLikeCpp::Removed
+                | RepresentedPlayerSpellStateLikeCpp::Temporary => {}
+            }
+        }
+
+        statements
+    }
+
     pub(crate) fn build_character_spell_cooldown_insert_statement_like_cpp(
         guid_counter: u64,
         cooldown: RepresentedCharacterSpellCooldownLikeCpp,
@@ -28037,6 +28171,8 @@ impl WorldSession {
         self.known_spells = spells;
         self.represented_dependent_known_spells_like_cpp
             .retain(|spell_id| self.known_spells.contains(spell_id));
+        self.represented_favorite_known_spells_like_cpp
+            .retain(|spell_id| self.known_spells.contains(spell_id));
         self.learn_account_mount_spells_like_cpp();
         if let Some(controller) = &mut self.player_controller {
             controller.set_known_spells(self.known_spells.clone());
@@ -28616,11 +28752,15 @@ impl WorldSession {
         self.learn_known_spell_like_cpp(spell_id);
         self.represented_dependent_known_spells_like_cpp
             .insert(spell_id);
+        self.represented_favorite_known_spells_like_cpp
+            .remove(&spell_id);
     }
 
     pub(crate) fn remove_known_spell_like_cpp(&mut self, spell_id: i32) {
         self.known_spells.retain(|known| *known != spell_id);
         self.represented_dependent_known_spells_like_cpp
+            .remove(&spell_id);
+        self.represented_favorite_known_spells_like_cpp
             .remove(&spell_id);
         if let Some(controller) = &mut self.player_controller {
             controller.remove_spell(spell_id);
@@ -28894,6 +29034,21 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn represented_dependent_known_spells_like_cpp(&self) -> &HashSet<i32> {
         &self.represented_dependent_known_spells_like_cpp
+    }
+
+    pub(crate) fn set_represented_favorite_known_spells_like_cpp(
+        &mut self,
+        favorite_spells: HashSet<i32>,
+    ) {
+        self.represented_favorite_known_spells_like_cpp = favorite_spells
+            .into_iter()
+            .filter(|spell_id| self.known_spells.contains(spell_id))
+            .collect();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_favorite_known_spells_like_cpp(&self) -> &HashSet<i32> {
+        &self.represented_favorite_known_spells_like_cpp
     }
 
     pub(crate) fn player_skill_values_like_cpp(&self) -> &HashMap<u16, u16> {
@@ -87085,6 +87240,163 @@ mod tests {
                 .character_spell_cooldown_save_statements_like_cpp(42, 1_000)
                 .is_none(),
             "Rust must not emulate C++ SpellHistory::SaveToDB delete-all unless the character_spell_cooldown runtime was loaded coherently"
+        );
+    }
+
+    #[test]
+    fn character_spell_save_plan_skips_dependent_inserts_like_cpp() {
+        let statements = WorldSession::character_spell_save_statements_like_cpp(
+            42,
+            [
+                RepresentedPlayerSpellLikeCpp {
+                    spell_id: 100,
+                    active: true,
+                    disabled: false,
+                    dependent: false,
+                    favorite: true,
+                    state: RepresentedPlayerSpellStateLikeCpp::New,
+                },
+                RepresentedPlayerSpellLikeCpp {
+                    spell_id: 200,
+                    active: true,
+                    disabled: false,
+                    dependent: true,
+                    favorite: true,
+                    state: RepresentedPlayerSpellStateLikeCpp::New,
+                },
+            ],
+        );
+
+        assert_eq!(statements.len(), 5);
+        assert_eq!(statements[0].sql(), CharStatements::INS_CHAR_SPELL.sql());
+        assert_eq!(
+            statements[0].params(),
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::I32(100),
+                wow_database::SqlParam::Bool(true),
+                wow_database::SqlParam::Bool(false),
+            ]
+        );
+        assert_eq!(
+            statements[1].sql(),
+            CharStatements::DEL_CHAR_SPELL_FAVORITE.sql()
+        );
+        assert_eq!(
+            statements[2].sql(),
+            CharStatements::INS_CHAR_SPELL_FAVORITE.sql()
+        );
+        assert_eq!(
+            statements[3].sql(),
+            CharStatements::DEL_CHAR_SPELL_FAVORITE.sql(),
+            "C++ still deletes stale favorite state for new/changed dependent spells"
+        );
+        assert_eq!(
+            statements[4].sql(),
+            CharStatements::INS_CHAR_SPELL_FAVORITE.sql(),
+            "C++ persists favorites independently from the dependent character_spell insert skip"
+        );
+        assert!(
+            statements
+                .iter()
+                .filter(|stmt| stmt.sql() == CharStatements::INS_CHAR_SPELL.sql())
+                .all(|stmt| stmt.params()[1] != wow_database::SqlParam::I32(200)),
+            "C++ Player::_SaveSpells does not insert dependent spells into character_spell"
+        );
+    }
+
+    #[test]
+    fn character_spell_save_plan_deletes_changed_and_removed_like_cpp() {
+        let statements = WorldSession::character_spell_save_statements_like_cpp(
+            7,
+            [
+                RepresentedPlayerSpellLikeCpp {
+                    spell_id: 300,
+                    active: false,
+                    disabled: true,
+                    dependent: false,
+                    favorite: false,
+                    state: RepresentedPlayerSpellStateLikeCpp::Changed,
+                },
+                RepresentedPlayerSpellLikeCpp {
+                    spell_id: 400,
+                    active: true,
+                    disabled: false,
+                    dependent: false,
+                    favorite: true,
+                    state: RepresentedPlayerSpellStateLikeCpp::Removed,
+                },
+                RepresentedPlayerSpellLikeCpp {
+                    spell_id: 500,
+                    active: true,
+                    disabled: false,
+                    dependent: false,
+                    favorite: true,
+                    state: RepresentedPlayerSpellStateLikeCpp::Unchanged,
+                },
+                RepresentedPlayerSpellLikeCpp {
+                    spell_id: 600,
+                    active: true,
+                    disabled: false,
+                    dependent: false,
+                    favorite: true,
+                    state: RepresentedPlayerSpellStateLikeCpp::Temporary,
+                },
+            ],
+        );
+
+        let sqls: Vec<&str> = statements.iter().map(|stmt| stmt.sql()).collect();
+        assert_eq!(
+            sqls,
+            vec![
+                CharStatements::DEL_CHAR_SPELL_BY_SPELL.sql(),
+                CharStatements::INS_CHAR_SPELL.sql(),
+                CharStatements::DEL_CHAR_SPELL_FAVORITE.sql(),
+                CharStatements::DEL_CHAR_SPELL_BY_SPELL.sql(),
+            ],
+            "C++ _SaveSpells deletes changed/removed spells, reinserts only changed/new non-dependent spells, and ignores unchanged/temporary rows"
+        );
+        assert_eq!(
+            statements[0].params(),
+            &[
+                wow_database::SqlParam::I32(300),
+                wow_database::SqlParam::U64(7),
+            ]
+        );
+        assert_eq!(
+            statements[1].params(),
+            &[
+                wow_database::SqlParam::U64(7),
+                wow_database::SqlParam::I32(300),
+                wow_database::SqlParam::Bool(false),
+                wow_database::SqlParam::Bool(true),
+            ]
+        );
+        assert_eq!(
+            statements[3].params(),
+            &[
+                wow_database::SqlParam::I32(400),
+                wow_database::SqlParam::U64(7),
+            ]
+        );
+    }
+
+    #[test]
+    fn represented_favorite_known_spells_are_retained_only_for_known_spells_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_known_spells_like_cpp(vec![100, 200]);
+        session.set_represented_favorite_known_spells_like_cpp(HashSet::from([100, 300]));
+
+        assert_eq!(
+            session.represented_favorite_known_spells_like_cpp(),
+            &HashSet::from([100])
+        );
+
+        session.remove_known_spell_like_cpp(100);
+        assert!(
+            session
+                .represented_favorite_known_spells_like_cpp()
+                .is_empty()
         );
     }
 
