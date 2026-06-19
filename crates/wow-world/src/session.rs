@@ -126,11 +126,12 @@ use wow_entities::{
     EQUIPMENT_SLOT_LEGS, EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND, EQUIPMENT_SLOT_SHOULDERS,
     EQUIPMENT_SLOT_TABARD, EQUIPMENT_SLOT_WAIST, EQUIPMENT_SLOT_WRISTS, GAMEOBJECT_TYPE_GUILD_BANK,
     GameObject, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END,
-    INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS, ITEM_DATA_DURABILITY_BIT,
-    Item, ItemCreateInfo, ItemDataUpdate, ItemLimitCategoryTemplate, ItemPosCount, ItemSlotRef,
-    ItemStorageRef, ItemStorageTemplate, ItemValuesUpdate, MAX_BAG_SIZE, MAX_ITEM_SPELLS,
-    MAX_MONEY_AMOUNT, MAX_POWERS, MovementGeneratorKind, MovementSlot, NULL_BAG, NULL_SLOT,
-    ObjectAccessor, PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP, PLAYER_SLOT_END, Pet, PetAuraLikeCpp,
+    INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS,
+    ITEM_DATA_CONTAINED_IN_BIT, ITEM_DATA_DURABILITY_BIT, Item, ItemCreateInfo, ItemDataUpdate,
+    ItemLimitCategoryTemplate, ItemPosCount, ItemSlotRef, ItemStorageRef, ItemStorageTemplate,
+    ItemValuesUpdate, MAX_BAG_SIZE, MAX_ITEM_SPELLS, MAX_MONEY_AMOUNT, MAX_POWERS,
+    MovementGeneratorKind, MovementSlot, NULL_BAG, NULL_SLOT, ObjectAccessor,
+    PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP, PLAYER_SLOT_END, Pet, PetAuraLikeCpp,
     PetDeclinedNamesLikeCpp, PetSaveMode, PetSpellState, PetSpellType, PetStable, PetStableInfo,
     PetType, PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerInventoryStorage,
     PlayerItemTimeUpdate, QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE,
@@ -6170,11 +6171,18 @@ impl WorldSession {
         };
 
         self.insert_inventory_item_like_cpp(dst, src_item.clone());
-        self.set_inventory_item_object_slot(src_item.guid, dst);
+        let player_guid = self.player_guid().unwrap_or(ObjectGuid::EMPTY);
+        self.update_inventory_item_object_like_cpp(src_item.guid, |item| {
+            item.set_contained_in(player_guid);
+            item.set_slot(dst);
+        });
 
         if let Some(dst_item) = dst_item {
             self.insert_inventory_item_like_cpp(src, dst_item.clone());
-            self.set_inventory_item_object_slot(dst_item.guid, src);
+            self.update_inventory_item_object_like_cpp(dst_item.guid, |item| {
+                item.set_contained_in(player_guid);
+                item.set_slot(src);
+            });
         } else {
             self.remove_inventory_item_like_cpp(src);
         }
@@ -6215,6 +6223,7 @@ impl WorldSession {
 
         self.remove_inventory_item_like_cpp(src);
         self.update_inventory_item_object_like_cpp(src_item.guid, |item| {
+            item.set_contained_in(bag_item.guid);
             item.set_slot(dst_slot);
             item.set_container_guid_and_slot(bag_item.guid, dst_bag);
         })
@@ -29492,6 +29501,7 @@ impl WorldSession {
                     Some((bag, slot)),
                     offhand_item.guid,
                 );
+                self.send_item_contained_in_values_update_like_cpp(offhand_item.guid);
                 stored_destination = Some((bag, slot));
                 needs_mail_fallback = false;
             }
@@ -29501,9 +29511,11 @@ impl WorldSession {
             self.sync_canonical_direct_inventory_remove_like_cpp(EQUIPMENT_SLOT_OFFHAND);
             self.send_auto_unequip_offhand_values_update_like_cpp(None, offhand_item.guid);
             self.update_inventory_item_object_like_cpp(offhand_item.guid, |item| {
+                item.set_contained_in(ObjectGuid::EMPTY);
                 item.set_container_guid(ObjectGuid::EMPTY);
                 item.set_slot(NULL_SLOT);
             });
+            self.send_item_contained_in_values_update_like_cpp(offhand_item.guid);
         }
 
         self.represented_auto_unequip_offhand_requests_like_cpp
@@ -29534,6 +29546,27 @@ impl WorldSession {
             &[],
             None,
         );
+    }
+
+    fn send_item_contained_in_values_update_like_cpp(&self, item_guid: ObjectGuid) {
+        let Some(item) = self.inventory_item_objects_like_cpp().get(&item_guid) else {
+            return;
+        };
+        let mut item_data_mask = UpdateMask::new(ITEM_DATA_BITS);
+        item_data_mask.set(ITEM_DATA_CONTAINED_IN_BIT);
+        let update = ItemValuesUpdate {
+            changed_object_type_mask: 1 << TYPEID_ITEM,
+            object_data: None,
+            item_data: Some(ItemDataUpdate {
+                mask: item_data_mask,
+                values: item.data().clone(),
+            }),
+        };
+        if let Some(packet) =
+            item_values_update_to_update_object(item_guid, self.player_map_id_like_cpp(), &update)
+        {
+            self.send_packet(&packet);
+        }
     }
 
     pub(crate) fn add_represented_override_spell_like_cpp(
@@ -50142,10 +50175,17 @@ mod tests {
             }],
             "C++ AutoUnequipOffhandIfNeed unequips offhand when the main hand is a 2H weapon without Titan Grip"
         );
+        let runtime_item = session
+            .inventory_item_objects_like_cpp()
+            .get(&offhand_guid)
+            .expect("stored backpack item remains a runtime item object");
+        assert_eq!(runtime_item.data().contained_in, player_guid);
+        assert_eq!(runtime_item.container_guid(), ObjectGuid::EMPTY);
+        assert_eq!(runtime_item.slot(), INVENTORY_SLOT_ITEM_START);
         assert_eq!(
             drain_server_opcodes(&send_rx),
-            vec![ServerOpcodes::UpdateObject],
-            "C++ RemoveItem(update=true) + StoreItem(update=true) send a visible player values update after offhand auto-store"
+            vec![ServerOpcodes::UpdateObject, ServerOpcodes::UpdateObject],
+            "C++ RemoveItem(update=true) + StoreItem(update=true) send player and item values updates after offhand auto-store"
         );
     }
 
@@ -50254,6 +50294,7 @@ mod tests {
             .inventory_item_objects_like_cpp()
             .get(&offhand_guid)
             .expect("mail fallback keeps the standalone item object represented");
+        assert_eq!(runtime_item.data().contained_in, ObjectGuid::EMPTY);
         assert_eq!(runtime_item.container_guid(), ObjectGuid::EMPTY);
         assert_eq!(runtime_item.slot(), NULL_SLOT);
         assert_eq!(
@@ -50268,8 +50309,8 @@ mod tests {
         );
         assert_eq!(
             drain_server_opcodes(&send_rx),
-            vec![ServerOpcodes::UpdateObject],
-            "C++ MoveItemFromInventory(update=true) sends the offhand clear update before the represented mail fallback"
+            vec![ServerOpcodes::UpdateObject, ServerOpcodes::UpdateObject],
+            "C++ MoveItemFromInventory(update=true) sends player and item values updates before the represented mail fallback"
         );
     }
 
@@ -50397,6 +50438,7 @@ mod tests {
             .inventory_item_objects_like_cpp()
             .get(&offhand_guid)
             .expect("stored bag item remains a runtime item object");
+        assert_eq!(runtime_item.data().contained_in, bag_guid);
         assert_eq!(runtime_item.container_guid(), bag_guid);
         assert_eq!(runtime_item.bag_slot(), INVENTORY_SLOT_BAG_START);
         assert_eq!(runtime_item.slot(), 0);
@@ -50422,8 +50464,8 @@ mod tests {
         );
         assert_eq!(
             drain_server_opcodes(&send_rx),
-            vec![ServerOpcodes::UpdateObject],
-            "C++ RemoveItem(update=true) + Bag::StoreItem(update=true) emit a player-visible offhand clear update"
+            vec![ServerOpcodes::UpdateObject, ServerOpcodes::UpdateObject],
+            "C++ RemoveItem(update=true) + Bag::StoreItem(update=true) emit player and item values updates"
         );
     }
 

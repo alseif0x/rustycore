@@ -1,3 +1,24 @@
+- `#NEXT.R8.ENTITIES.1135` — represented `AutoUnequipOffhandIfNeed` now
+  updates and emits the moved item's `ItemData::ContainedIn` VALUES delta for
+  the C++ `RemoveItem(update=true)` / `StoreItem(update=true)` item update
+  branch. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11559-11635`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11271-11302`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:1398-1415`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Container/Bag.cpp:160-170,248-258`.
+  Rust now sets represented item `ContainedIn` to the equipped bag guid for the
+  `Bag::StoreItem` branch, clears it to `ObjectGuid::Empty` for the mail
+  fallback delink branch, and sends an item `SMSG_UPDATE_OBJECT` containing the
+  explicit `ITEM_DATA_CONTAINED_IN` mask after the player values update.
+  Coverage: `cargo test -p wow-world remove_known_spell --lib`. Boundary
+  remains partial: this closes only the represented item's `ContainedIn`
+  VALUES delta for the current session; complete create/update queue ordering,
+  equipped-bag `ContainerData::Slots` packet emission, multi-session fanout,
+  stat recalculation, item mod/enchantment duration hooks, DB inventory slot
+  updates, DB delete/save transaction, real mail draft/send fallback,
+  live-client/bot/manual validation, and full `Player::RemoveSpell` parity
+  remain open.
+
 - `#NEXT.R8.ENTITIES.1134` — represented `AutoUnequipOffhandIfNeed` now
   emits the self-session player values `SMSG_UPDATE_OBJECT` for the C++
   `RemoveItem(update=true)` + `StoreItem(update=true)` branches. Source of
@@ -11,9 +32,10 @@
   the destination `InvSlot` with the moved item guid. Coverage: `cargo test -p
   wow-world remove_known_spell --lib`. Boundary remains partial: this closes
   only the current-session player values packet for the represented branch;
-  item object update packets, equipped-bag child object values, multi-session
-  fanout, stat recalculation, item mod/enchantment duration hooks, DB inventory
-  slot updates, DB delete/save transaction, real mail draft/send fallback,
+  item `ContainedIn` VALUES emission is closed by `#NEXT.R8.ENTITIES.1135`;
+  equipped-bag child container values, multi-session fanout, stat
+  recalculation, item mod/enchantment duration hooks, DB inventory slot
+  updates, DB delete/save transaction, real mail draft/send fallback,
   live-client/bot/manual validation, and full `Player::RemoveSpell` parity
   remain open.
 
