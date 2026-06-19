@@ -1,3 +1,28 @@
+- `#NEXT.R8.ENTITIES.1162` — represented
+  `Item::GetItemLevel(owner)` now consumes the C++ player-level-to-item-level
+  curve branch. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:1891-1937`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:2164-2167`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:2188-2192`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Stores.cpp:1889-1919,1943-2089`.
+  `world-server` now loads `Curve.db2` and `CurvePoint.db2` into session
+  resources, `WorldSession` carries those stores, and represented item-level
+  calculation replaces the template item level with `GetCurveValueAt` when
+  `ItemSparse.PlayerLevelToItemLevelCurveID` is present. Rust preserves the C++
+  branch order: `ITEM_MODIFIER_TIMEWALKER_LEVEL` overrides owner level,
+  otherwise `ContentTuningData(forItem=true)` clamps owner level before curve
+  evaluation, then item bonus, PvP bonus, min/max caps, and final
+  `MIN_ITEM_LEVEL..MAX_ITEM_LEVEL` clamp apply as before. Missing curve data
+  follows C++ `GetCurveValueAt` by yielding zero before the final minimum clamp,
+  not by falling back to template item level. Coverage:
+  `cargo test -p wow-world represented_item_level --lib`,
+  `cargo check -p world-server`, `cargo fmt --all --check`, and
+  `git diff --check`. Boundary remains partial: this closes represented
+  average item-level curve consumption only; full item stat reapplication,
+  update-field packet/fanout propagation, DB persistence, live-client/bot
+  validation, and complete condition-runtime parity remain open.
+
 - `#NEXT.R8.ENTITIES.1161` — `wow-data` now represents C++
   `DB2Manager::GetCurveValueAt(curveId, x)` and the supporting
   `_curvePoints` grouping. Source of truth:

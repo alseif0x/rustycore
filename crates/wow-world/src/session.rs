@@ -51,8 +51,8 @@ use wow_constants::unit::{
 };
 use wow_constants::{
     BagFamilyMask, BuyResult, ClientOpcodes, InventoryResult, InventoryType, ItemBondingType,
-    ItemClass, ItemContext, ItemEnchantmentType, ItemFlags, ItemFlags2, ItemFlags3, ItemQuality,
-    ItemSubClassArmor, ItemSubClassWeapon, SellResult, ServerOpcodes, SpellCastResult,
+    ItemClass, ItemContext, ItemEnchantmentType, ItemFlags, ItemFlags2, ItemFlags3, ItemModifier,
+    ItemQuality, ItemSubClassArmor, ItemSubClassWeapon, SellResult, ServerOpcodes, SpellCastResult,
     SpellItemEnchantmentFlags, TypeId, UnitState,
 };
 use wow_core::{ObjectGuid, ObjectGuidGenerator, Position, guid::HighGuid};
@@ -101,9 +101,10 @@ use wow_data::{
     VehicleTemplateStoreLikeCpp, calculate_battle_pet_stats_like_cpp,
     is_player_meeting_condition_like_cpp,
     progression_rewards::{
-        ContentTuningStore, FactionEntry, FactionStore, FactionTemplateStore,
-        FriendshipRepReactionStore, NumTalentsAtLevelStore, ParagonReputationStore,
-        QuestFactionRewardStore, QuestInfoStore, QuestPackageItemStore, QuestV2Store,
+        ContentTuningStore, CurvePointStore, CurveStore, FactionEntry, FactionStore,
+        FactionTemplateStore, FriendshipRepReactionStore, NumTalentsAtLevelStore,
+        ParagonReputationStore, QuestFactionRewardStore, QuestInfoStore, QuestPackageItemStore,
+        QuestV2Store,
     },
     reputation::{
         CreatureOnKillReputationStoreLikeCpp, RepSpilloverTemplateStoreLikeCpp,
@@ -3534,6 +3535,8 @@ pub struct WorldSession {
 
     // C++ ContentTuning.db2 store used by level gates such as Meeting Stone.
     content_tuning_store: Option<Arc<ContentTuningStore>>,
+    curve_store: Option<Arc<CurveStore>>,
+    curve_point_store: Option<Arc<CurvePointStore>>,
 
     // C++ DisableMgr store loaded from world.disables.
     disable_mgr: Option<Arc<DisableMgrLikeCpp>>,
@@ -5337,6 +5340,8 @@ impl WorldSession {
             player_condition_store: None,
             adventure_map_poi_store: None,
             content_tuning_store: None,
+            curve_store: None,
+            curve_point_store: None,
             disable_mgr: None,
             difficulty_store: None,
             lock_store: None,
@@ -16889,6 +16894,14 @@ impl WorldSession {
 
     pub fn set_content_tuning_store(&mut self, store: Arc<ContentTuningStore>) {
         self.content_tuning_store = Some(store);
+    }
+
+    pub fn set_curve_store(&mut self, store: Arc<CurveStore>) {
+        self.curve_store = Some(store);
+    }
+
+    pub fn set_curve_point_store(&mut self, store: Arc<CurvePointStore>) {
+        self.curve_point_store = Some(store);
     }
 
     /// Get the loaded PlayerCondition.db2 store reference.
@@ -30719,10 +30732,13 @@ impl WorldSession {
             .map(|item| i64::from(item.data().debug_item_level))
             .filter(|level| *level != 0);
         let item_level = runtime_item_level.unwrap_or_else(|| {
-            let item_level =
-                template_item_level + self.represented_item_level_bonus_like_cpp(runtime_item);
+            let mut item_level = sparse_template
+                .and_then(|template| {
+                    self.represented_player_level_curve_item_level_like_cpp(template, runtime_item)
+                })
+                .unwrap_or(template_item_level);
+            item_level += self.represented_item_level_bonus_like_cpp(runtime_item);
             let item_level_before_upgrades = item_level;
-            let mut item_level = item_level;
             if self.represented_using_pvp_item_levels_like_cpp {
                 item_level += i64::from(self.represented_pvp_item_level_bonus_like_cpp(entry_id));
             }
@@ -30768,6 +30784,50 @@ impl WorldSession {
                 .try_into()
                 .expect("clamped item level fits u32"),
         )
+    }
+
+    fn represented_player_level_curve_item_level_like_cpp(
+        &self,
+        template: &wow_data::item_stats::ItemSparseTemplateEntry,
+        runtime_item: Option<&Item>,
+    ) -> Option<i64> {
+        let curve_id = template.player_level_to_item_level_curve_id_like_cpp();
+        if curve_id == 0 {
+            return None;
+        }
+
+        let fixed_level = runtime_item
+            .map(|item| item.get_modifier(ItemModifier::TimewalkerLevel))
+            .unwrap_or(0);
+        let mut level = if fixed_level != 0 {
+            fixed_level
+        } else {
+            u32::from(self.player_level_like_cpp())
+        };
+
+        if fixed_level == 0
+            && let Some(levels) = self.content_tuning_store.as_ref().and_then(|store| {
+                store.content_tuning_data_like_cpp(
+                    template.scaling_stat_content_tuning_like_cpp(),
+                    true,
+                )
+            })
+        {
+            let clamped = (level as i32).clamp(levels.min_level, levels.max_level);
+            level = u32::try_from(clamped).unwrap_or(level);
+        }
+
+        let Some((curve_store, curve_point_store)) = self
+            .curve_store
+            .as_ref()
+            .zip(self.curve_point_store.as_ref())
+        else {
+            return Some(0);
+        };
+        let curve_value =
+            curve_store.curve_value_at_like_cpp(curve_point_store, curve_id, level as f32);
+
+        Some(curve_value as i64)
     }
 
     fn represented_item_level_bonus_like_cpp(&self, runtime_item: Option<&Item>) -> i64 {
@@ -49061,7 +49121,8 @@ mod tests {
         SpellItemEnchantmentStore, ToyEntry, ToyStore, TransmogSetEntry, TransmogSetItemEntry,
         TransmogSetItemStore,
         progression_rewards::{
-            FactionEntry, FactionStore, QUEST_PACKAGE_FILTER_CLASS_LIKE_CPP,
+            ContentTuningEntry, ContentTuningStore, CurveEntry, CurvePointEntry, CurvePointStore,
+            CurveStore, FactionEntry, FactionStore, QUEST_PACKAGE_FILTER_CLASS_LIKE_CPP,
             QUEST_PACKAGE_FILTER_UNMATCHED_LIKE_CPP, QuestPackageItemEntry, QuestPackageItemStore,
         },
         reputation::ReputationFlagsLikeCpp,
@@ -50672,6 +50733,15 @@ mod tests {
         inventory_type: InventoryType,
         flags3: u32,
     ) -> ItemSparseTemplateEntry {
+        sparse_template_with_scaling_like_cpp(inventory_type, flags3, 0, 0)
+    }
+
+    fn sparse_template_with_scaling_like_cpp(
+        inventory_type: InventoryType,
+        flags3: u32,
+        content_tuning_id: i32,
+        player_level_to_item_level_curve_id: i32,
+    ) -> ItemSparseTemplateEntry {
         ItemSparseTemplateEntry {
             flags: [0, 0, flags3, 0],
             bag_family: 0,
@@ -50687,8 +50757,8 @@ mod tests {
             price_random_value: 0.0,
             max_durability: 0,
             other_faction_item_id: 0,
-            content_tuning_id: 0,
-            player_level_to_item_level_curve_id: 0,
+            content_tuning_id,
+            player_level_to_item_level_curve_id,
             limit_category: 0,
             instance_bound: 0,
             zone_bound: [0, 0],
@@ -50732,6 +50802,56 @@ mod tests {
                 inventory_type: Some(inventory_type as u8),
             },
         );
+    }
+
+    fn install_represented_item_level_curve_fixture_like_cpp(
+        session: &mut WorldSession,
+        item_id: u32,
+        content_tuning_id: i32,
+        curve_id: i32,
+    ) {
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [(
+                    item_id,
+                    sparse_template_with_scaling_like_cpp(
+                        InventoryType::Chest,
+                        0,
+                        content_tuning_id,
+                        curve_id,
+                    ),
+                )],
+                [(
+                    item_id,
+                    ItemRandomPropertyTemplateEntry {
+                        item_level: 10,
+                        quality: ItemQuality::Epic as i8,
+                        inventory_type: InventoryType::Chest as i8,
+                    },
+                )],
+            ),
+        ));
+        session.set_curve_store(Arc::new(CurveStore::from_entries([CurveEntry {
+            id: curve_id as u32,
+            curve_type: 0,
+            flags: 0,
+        }])));
+        session.set_curve_point_store(Arc::new(CurvePointStore::from_entries([
+            CurvePointEntry {
+                id: 1,
+                pos: [1.0, 101.0],
+                pre_sl_squish_pos: [0.0, 0.0],
+                curve_id: curve_id as u32,
+                order_index: 0,
+            },
+            CurvePointEntry {
+                id: 2,
+                pos: [60.0, 160.0],
+                pre_sl_squish_pos: [0.0, 0.0],
+                curve_id: curve_id as u32,
+                order_index: 1,
+            },
+        ])));
     }
 
     fn represented_test_item_record_like_cpp(
@@ -51861,6 +51981,109 @@ mod tests {
         assert_eq!(
             context.avg_equipped_item_level, 9.6875,
             "C++ UpdateAverageItemLevelEquipped also consumes Item::GetItemLevel(owner) with item bonus levels"
+        );
+    }
+
+    #[test]
+    fn represented_item_level_uses_player_level_curve_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_158_u32;
+        session.set_player_level_like_cpp(45);
+        install_represented_item_level_curve_fixture_like_cpp(&mut session, item_id, 0, 9_001);
+
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(145),
+            "C++ Item::GetItemLevel replaces template item level with DB2Manager::GetCurveValueAt(PlayerLevelToItemLevelCurveId, owner level) before bonus/caps"
+        );
+    }
+
+    #[test]
+    fn represented_item_level_curve_clamps_owner_level_by_content_tuning_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_159_u32;
+        session.set_player_level_like_cpp(80);
+        install_represented_item_level_curve_fixture_like_cpp(&mut session, item_id, 55, 9_002);
+        session.set_content_tuning_store(Arc::new(ContentTuningStore::from_entries([
+            ContentTuningEntry {
+                id: 55,
+                min_level: 10,
+                max_level: 40,
+                flags: 0,
+                expected_stat_mod_id: 0,
+                difficulty_esm_id: 0,
+            },
+        ])));
+
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(140),
+            "C++ clamps owner level through GetContentTuningData(contentTuningId, true) before evaluating the item-level curve"
+        );
+    }
+
+    #[test]
+    fn represented_item_level_curve_fixed_level_overrides_content_tuning_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_160_u32;
+        let item_guid = ObjectGuid::create_item(1, 30_160);
+        session.set_player_level_like_cpp(80);
+        install_represented_item_level_curve_fixture_like_cpp(&mut session, item_id, 56, 9_003);
+        session.set_content_tuning_store(Arc::new(ContentTuningStore::from_entries([
+            ContentTuningEntry {
+                id: 56,
+                min_level: 10,
+                max_level: 40,
+                flags: 0,
+                expected_stat_mod_id: 0,
+                difficulty_esm_id: 0,
+            },
+        ])));
+        let owner = session.player_guid().unwrap_or(ObjectGuid::EMPTY);
+        let mut item = session.make_inventory_item_object(
+            item_guid,
+            item_id,
+            owner,
+            1,
+            0,
+            ItemContext::None,
+            EQUIPMENT_SLOT_CHEST,
+        );
+        item.set_modifier(ItemModifier::TimewalkerLevel, 50);
+
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, Some(&item)),
+            Some(150),
+            "C++ fixedLevel/ITEM_MODIFIER_TIMEWALKER_LEVEL bypasses ContentTuning clamp for Item::GetItemLevel"
+        );
+    }
+
+    #[test]
+    fn represented_item_level_curve_missing_data_does_not_fall_back_to_template_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_161_u32;
+        session.set_player_level_like_cpp(45);
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [(
+                    item_id,
+                    sparse_template_with_scaling_like_cpp(InventoryType::Chest, 0, 0, 9_004),
+                )],
+                [(
+                    item_id,
+                    ItemRandomPropertyTemplateEntry {
+                        item_level: 100,
+                        quality: ItemQuality::Epic as i8,
+                        inventory_type: InventoryType::Chest as i8,
+                    },
+                )],
+            ),
+        ));
+
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(WorldSession::MIN_ITEM_LEVEL_LIKE_CPP),
+            "C++ GetCurveValueAt returns 0 for missing curve data; Item::GetItemLevel then clamps to MIN_ITEM_LEVEL instead of falling back to proto ItemLevel"
         );
     }
 

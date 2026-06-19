@@ -1703,8 +1703,19 @@ async fn main() -> Result<ExitCode> {
         "Loaded condition validation trainer id store: {} trainers",
         trainer_store.len()
     );
-    let curve_store = wow_data::progression_rewards::CurveStore::load(&data_dir, &locale)
-        .context("Failed to load Curve.db2 for C++ curve validation")?;
+    let curve_store = Arc::new(
+        wow_data::progression_rewards::CurveStore::load(&data_dir, &locale)
+            .context("Failed to load Curve.db2 for C++ curve validation")?,
+    );
+    let curve_point_store = Arc::new(
+        wow_data::progression_rewards::CurvePointStore::load(&data_dir, &locale)
+            .context("Failed to load CurvePoint.db2 for C++ curve evaluation")?,
+    );
+    info!(
+        "Loaded {} curves and {} curve points from Curve.db2/CurvePoint.db2",
+        curve_store.len(),
+        curve_point_store.len()
+    );
     let area_trigger_template_outcome = wow_data::AreaTriggerTemplateStore::load_like_cpp(
         world_db.as_ref(),
         &world_safe_loc_store,
@@ -4266,6 +4277,8 @@ async fn main() -> Result<ExitCode> {
         player_condition_store: Some(Arc::clone(&player_condition_store)),
         adventure_map_poi_store: Some(Arc::clone(&adventure_map_poi_store)),
         content_tuning_store: Some(Arc::clone(&content_tuning_store)),
+        curve_store: Some(Arc::clone(&curve_store)),
+        curve_point_store: Some(Arc::clone(&curve_point_store)),
         disable_mgr: Some(Arc::clone(&disable_mgr)),
         difficulty_store: Some(Arc::clone(&difficulty_store)),
         lock_store: Some(Arc::clone(&lock_store)),
@@ -10756,6 +10769,12 @@ async fn create_session(
     }
     if let Some(ref store) = resources.content_tuning_store {
         session.set_content_tuning_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.curve_store {
+        session.set_curve_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.curve_point_store {
+        session.set_curve_point_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.disable_mgr {
         session.set_disable_mgr(Arc::clone(store));
