@@ -1,3 +1,32 @@
+- `#NEXT.R8.ENTITIES.1098` — represented `Player::CheckAreaExploreAndOutdoor`
+  now performs the C++ `CONFIG_VMAP_INDOOR_CHECK` aura-removal branch when a
+  represented `WorldObject::IsOutdoors()` value is available (not
+  manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:6195-6204`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:3985-3994`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:445-446`,
+  `/home/server/woltk-trinity-legacy/src/server/game/World/World.cpp:1550`,
+  `/home/server/woltk-trinity-legacy/src/server/game/World/World.h:145`, and
+  `/home/server/woltk-trinity-legacy/src/server/worldserver/worldserver.conf.dist:444-449`.
+  Rust now wires `vmap.enableIndoorCheck` through the C++ world-config registry
+  into `SessionResources` / `WorldSession`, anchors
+  `SPELL_ATTR0_ONLY_INDOORS` and `SPELL_ATTR0_ONLY_OUTDOORS`, and removes
+  represented visible auras via `SpellStore::has_attribute0_like_cpp` before the
+  `areaId == 0` early return, matching the C++ branch order. Coverage:
+  `cargo fmt --all --check`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-data
+  spell_effect_constants_match_cpp_shared_defines --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  check_area_explore_removes_indoor_outdoor_auras_like_cpp --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  check_area_explore_indoor_outdoor_removal_is_config_gated_like_cpp --lib`;
+  focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p
+  world-server vmap_indoor_check_uses_cpp_world_config_key --bin
+  world-server`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p
+  world-server`; `git diff --check`. Boundary remains partial: real
+  VMAP-derived `WorldObject::IsOutdoors`, terrain/vmap coordinate-to-area
+  recomputation, `UpdateArea` / `UpdateZone` side effects, full aura runtime
+  ownership, live-client/bot validation, and manual validation remain open.
 - `#NEXT.R8.ENTITIES.1093` — represented `characters.exploredZones`
   load/save is now wired through the C++ `Player::LoadFromDB` /
   `Player::SaveToDB` low/high 32-bit word string format (not
@@ -5373,7 +5402,7 @@ C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entit
 
 Implemented Rust seam: `AreaTableEntry` now loads the C++ `AreaBit` and `ExplorationLevel` fields from DB2 and hotfix rows, and exposes the C++ explored-zone `(offset, mask)` calculation. `WorldSession::check_area_explore_and_outdoor_represented_like_cpp` now looks up the area, rejects zero/missing/negative/out-of-range area bits, marks the represented `ActivePlayerData::ExploredZones` snapshot, syncs the canonical `Player` and sends `UpdateObject` when the canonical player is present, and records represented `CriteriaType::RevealWorldMapOverlay` evidence once per newly discovered area.
 
-Validation evidence: `cargo fmt --all`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-data area_table_entry --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world check_area_explore --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p wow-data`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`; `git diff --check`. Remaining gaps: movement wiring is closed by `#NEXT.R8.ENTITIES.1095`; exploration XP is closed by `#NEXT.R8.ENTITIES.1096`; `CONFIG_VMAP_INDOOR_CHECK` aura removal is not represented here, criteria/achievement and player-condition consumers are evidence-only/partial, and live-client/bot/manual validation remain open.
+Validation evidence: `cargo fmt --all`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-data area_table_entry --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world check_area_explore --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p wow-data`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`; `git diff --check`. Remaining gaps: movement wiring is closed by `#NEXT.R8.ENTITIES.1095`; exploration XP is closed by `#NEXT.R8.ENTITIES.1096`; real VMAP-derived `IsOutdoors` state is not represented here, criteria/achievement and player-condition consumers are evidence-only/partial, and live-client/bot/manual validation remain open.
 
 ### #NEXT.R8.ENTITIES.1095 — movement hook for represented area discovery
 
@@ -5383,7 +5412,7 @@ C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entit
 
 Implemented Rust seam: accepted `CMSG_MOVE_*` packets now call `check_area_explore_and_outdoor_represented_like_cpp` after the server-side session position and canonical `Player` relocation are updated. The hook uses the current represented `player_zone_area_like_cpp().1` area id because Rust still lacks the C++ terrain/vmap area recomputation path. The represented discovery method now preserves the C++ `IsAlive()` and `IsInFlight()` guards before mutating explored-zone state.
 
-Validation evidence: `cargo fmt --all --check`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world handle_movement_discovers_current_area_like_cpp --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world check_area_explore --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`; `git diff --check`. Remaining gaps: no coordinate-to-area refresh from maps/vmaps, no full `UpdateArea`/`UpdateZone` side effects, exploration XP is closed by `#NEXT.R8.ENTITIES.1096`, no `CONFIG_VMAP_INDOOR_CHECK` aura removal, no full achievement/condition consumers, and no live-client/bot/manual validation.
+Validation evidence: `cargo fmt --all --check`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world handle_movement_discovers_current_area_like_cpp --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world check_area_explore --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`; `git diff --check`. Remaining gaps: no coordinate-to-area refresh from maps/vmaps, no full `UpdateArea`/`UpdateZone` side effects, exploration XP is closed by `#NEXT.R8.ENTITIES.1096`, no real VMAP-derived `IsOutdoors` state, no full achievement/condition consumers, and no live-client/bot/manual validation.
 
 ### #NEXT.R8.ENTITIES.1096 — represented exploration XP and packet
 
@@ -5393,7 +5422,7 @@ C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entit
 
 Implemented Rust seam: `wow-packet` now has `SMSG_EXPLORATION_EXPERIENCE` with C++ payload order `AreaID, Experience`. `wow-data::ExplorationBaseXpStoreLikeCpp` now exposes the C++ exploration XP branch calculation. `world-server` loads `exploration_basexp`, resolves `RATE_XP_EXPLORE` and `CONFIG_MIN_DISCOVERED_SCALED_XP_RATIO`, and injects them through `SessionResources`. `WorldSession::check_area_explore_and_outdoor_represented_like_cpp` is async so the discovery branch can call `GiveXP` and persist through the existing XP path before sending `ExplorationExperience`; max-level players receive XP 0 without a `LogXpGain`, like C++.
 
-Validation evidence: `cargo fmt --all --check`; `cargo test -p wow-packet exploration_experience --lib`; `cargo test -p wow-data exploration_xp --lib`; `cargo test -p wow-world check_area_explore --lib`; `cargo check -p world-server`; `git diff --check`. Remaining gaps: no coordinate-to-area refresh from maps/vmaps, no full `UpdateArea`/`UpdateZone` side effects, no `CONFIG_VMAP_INDOOR_CHECK` aura removal, criteria/achievement and player-condition consumers are still represented/evidence-only, and no live-client/bot/manual validation was performed in this slice.
+Validation evidence: `cargo fmt --all --check`; `cargo test -p wow-packet exploration_experience --lib`; `cargo test -p wow-data exploration_xp --lib`; `cargo test -p wow-world check_area_explore --lib`; `cargo check -p world-server`; `git diff --check`. Remaining gaps: no coordinate-to-area refresh from maps/vmaps, no full `UpdateArea`/`UpdateZone` side effects, no real VMAP-derived `IsOutdoors` state, criteria/achievement and player-condition consumers are still represented/evidence-only, and no live-client/bot/manual validation was performed in this slice.
 
 ### #NEXT.R8.ENTITIES.1097 — represented PlayerCondition explored/area consumers
 
@@ -5403,4 +5432,4 @@ C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Condi
 
 Implemented Rust seam: `AreaTableStore` now exposes C++-like helpers to build an area parent chain and to derive explored area ids by mapping represented explored-zone blocks through each `AreaTableEntry::AreaBit`. `WorldSession::represented_player_condition_context_like_cpp` now populates `explored_area_ids` and `parent_area_ids` from the loaded `AreaTableStore` and the represented explored-zone snapshot, so `represented_meets_player_condition_id_like_cpp` can satisfy/fail `PlayerCondition::Explored` and parent-area requirements from live represented session state.
 
-Validation evidence: `cargo fmt --all --check`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-data area_table_store_derives --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world represented_player_condition_explored_uses_area_bit_blocks_like_cpp --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world represented_player_condition_area_uses_parent_chain_like_cpp --lib`; `cargo check -p world-server`; `git diff --check`. Remaining gaps: this does not implement full Achievement/Criteria manager persistence/runtime, terrain/vmap coordinate-to-area recomputation, `UpdateArea`/`UpdateZone` side effects, `CONFIG_VMAP_INDOOR_CHECK` aura removal, bot/live-client validation, or manual validation.
+Validation evidence: `cargo fmt --all --check`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-data area_table_store_derives --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world represented_player_condition_explored_uses_area_bit_blocks_like_cpp --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world represented_player_condition_area_uses_parent_chain_like_cpp --lib`; `cargo check -p world-server`; `git diff --check`. Remaining gaps: this does not implement full Achievement/Criteria manager persistence/runtime, terrain/vmap coordinate-to-area recomputation, `UpdateArea`/`UpdateZone` side effects, real VMAP-derived `IsOutdoors` state, bot/live-client validation, or manual validation.

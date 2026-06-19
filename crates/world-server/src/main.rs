@@ -4304,6 +4304,7 @@ async fn main() -> Result<ExitCode> {
             "CONFIG_NO_RESET_TALENT_COST",
             false,
         ),
+        vmap_indoor_check: world_config_bool(&world_configs, "CONFIG_VMAP_INDOOR_CHECK", false),
         start_all_explored: world_config_bool(&world_configs, "CONFIG_START_ALL_EXPLORED", false),
         start_all_reputation: world_config_bool(&world_configs, "CONFIG_START_ALL_REP", false),
         support_enabled: world_config_bool(&world_configs, "CONFIG_SUPPORT_ENABLED", true),
@@ -10937,6 +10938,7 @@ async fn create_session(
     session.set_repair_cost_rate_like_cpp(resources.repair_cost_rate);
     session.set_reset_schedule_like_cpp(resources.reset_schedule);
     session.set_no_reset_talent_cost_like_cpp(resources.no_reset_talent_cost);
+    session.set_vmap_indoor_check_like_cpp(resources.vmap_indoor_check);
     session.set_start_all_explored_like_cpp(resources.start_all_explored);
     session.set_start_all_reputation_like_cpp(resources.start_all_reputation);
     session.set_represented_support_enabled_like_cpp(resources.support_enabled);
@@ -15541,6 +15543,20 @@ ResetSchedule.WeekDay = 5
         assert!(world_config_bool(
             &configs,
             "CONFIG_NO_RESET_TALENT_COST",
+            false
+        ));
+    }
+
+    #[test]
+    fn vmap_indoor_check_uses_cpp_world_config_key() {
+        let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+        wow_config::load_config_from_str("vmap.enableIndoorCheck = 1\n")
+            .expect("config should load");
+
+        let configs = wow_config::load_world_config_values();
+        assert!(world_config_bool(
+            &configs,
+            "CONFIG_VMAP_INDOOR_CHECK",
             false
         ));
     }

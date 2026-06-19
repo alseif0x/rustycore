@@ -4306,6 +4306,10 @@ pub struct WorldSession {
     reset_schedule_like_cpp: wow_instances::ResetSchedule,
     /// C++ `CONFIG_NO_RESET_TALENT_COST` represented switch.
     no_reset_talent_cost_like_cpp: bool,
+    /// C++ `CONFIG_VMAP_INDOOR_CHECK` represented switch.
+    vmap_indoor_check_like_cpp: bool,
+    /// Represented C++ `WorldObject::IsOutdoors()` result until VMAP owns it.
+    represented_is_outdoors_like_cpp: Option<bool>,
     /// C++ `ReputationMgr` per-player state foundation.
     reputation_mgr_like_cpp: ReputationMgrLikeCpp,
     /// C++ `ActivePlayerData::WatchedFactionIndex` represented state.
@@ -5635,6 +5639,8 @@ impl WorldSession {
             repair_cost_rate_like_cpp: 1.0,
             reset_schedule_like_cpp: wow_instances::ResetSchedule::default(),
             no_reset_talent_cost_like_cpp: false,
+            vmap_indoor_check_like_cpp: false,
+            represented_is_outdoors_like_cpp: None,
             reputation_mgr_like_cpp: ReputationMgrLikeCpp::new_like_cpp(),
             watched_faction_index_like_cpp: -1,
             enable_ae_loot_like_cpp: false,
@@ -13875,6 +13881,14 @@ impl WorldSession {
         self.no_reset_talent_cost_like_cpp = no_cost;
     }
 
+    pub fn set_vmap_indoor_check_like_cpp(&mut self, enabled: bool) {
+        self.vmap_indoor_check_like_cpp = enabled;
+    }
+
+    pub fn set_represented_is_outdoors_like_cpp(&mut self, is_outdoors: bool) {
+        self.represented_is_outdoors_like_cpp = Some(is_outdoors);
+    }
+
     pub fn set_start_all_explored_like_cpp(&mut self, enabled: bool) {
         self.start_all_explored_like_cpp = enabled;
     }
@@ -18606,8 +18620,10 @@ impl WorldSession {
     /// Represented C++ `Player::CheckAreaExploreAndOutdoor` discovery branch.
     ///
     /// This slice covers `AreaTableEntry::AreaBit`, `AddExploredZones`, the player-values update,
-    /// `CriteriaType::RevealWorldMapOverlay`, and the exploration XP branch. Indoor/outdoor aura
-    /// removal remains a separate runtime gap.
+    /// `CriteriaType::RevealWorldMapOverlay`, the exploration XP branch, and the
+    /// `CONFIG_VMAP_INDOOR_CHECK` aura-removal branch when a represented
+    /// `WorldObject::IsOutdoors()` value is available. Terrain/VMAP ownership of
+    /// the outdoors state remains a map-runtime gap.
     pub(crate) async fn check_area_explore_and_outdoor_represented_like_cpp(
         &mut self,
         area_id: u32,
@@ -18619,6 +18635,8 @@ impl WorldSession {
         if self.taxi_flight_state_like_cpp.is_some() {
             return false;
         }
+
+        self.remove_indoor_outdoor_auras_for_current_position_represented_like_cpp();
 
         if area_id == 0 {
             return false;
@@ -18684,6 +18702,23 @@ impl WorldSession {
         }
 
         true
+    }
+
+    fn remove_indoor_outdoor_auras_for_current_position_represented_like_cpp(&mut self) -> usize {
+        if !self.vmap_indoor_check_like_cpp {
+            return 0;
+        }
+
+        let Some(is_outdoors) = self.represented_is_outdoors_like_cpp else {
+            return 0;
+        };
+
+        let attribute = if is_outdoors {
+            wow_data::spell::attributes::SPELL_ATTR0_ONLY_INDOORS
+        } else {
+            wow_data::spell::attributes::SPELL_ATTR0_ONLY_OUTDOORS
+        };
+        self.remove_represented_auras_with_attribute0_like_cpp(attribute)
     }
 
     #[cfg(test)]
@@ -23458,6 +23493,31 @@ impl WorldSession {
             SPELL_AURA_INTERRUPT_FLAG_LOOTING_LIKE_CPP,
             0,
         )
+    }
+
+    pub(crate) fn remove_represented_auras_with_attribute0_like_cpp(
+        &mut self,
+        attribute: u32,
+    ) -> usize {
+        let Some(spell_store) = self.spell_store.as_ref() else {
+            return 0;
+        };
+
+        let slots: Vec<u8> = self
+            .visible_auras
+            .values()
+            .filter_map(|aura| {
+                spell_store
+                    .has_attribute0_like_cpp(aura.spell_id, attribute)
+                    .then_some(aura.slot)
+            })
+            .collect();
+
+        let removed = slots.len();
+        for slot in slots {
+            let _ = self.remove_aura(slot);
+        }
+        removed
     }
 
     pub(crate) fn remove_moving_or_turning_interrupt_auras_for_far_teleport_like_cpp(
@@ -85687,6 +85747,70 @@ mod tests {
         assert!(send_rx.try_recv().is_err());
     }
 
+    #[tokio::test]
+    async fn check_area_explore_removes_indoor_outdoor_auras_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(9_101, test_spell_info_like_cpp(9_101));
+        spell_store.insert(9_102, test_spell_info_like_cpp(9_102));
+        spell_store.insert(9_103, test_spell_info_like_cpp(9_103));
+        let mut indoor_attributes = [0; 15];
+        indoor_attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_ONLY_INDOORS;
+        spell_store.insert_spell_misc_attributes_like_cpp(9_101, indoor_attributes);
+        let mut outdoor_attributes = [0; 15];
+        outdoor_attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_ONLY_OUTDOORS;
+        spell_store.insert_spell_misc_attributes_like_cpp(9_102, outdoor_attributes);
+        session.set_spell_store(Arc::new(spell_store));
+        session.visible_auras.insert(1, test_visible_aura(1, 9_101));
+        session.visible_auras.insert(2, test_visible_aura(2, 9_102));
+        session.visible_auras.insert(3, test_visible_aura(3, 9_103));
+
+        session.set_vmap_indoor_check_like_cpp(true);
+        session.set_represented_is_outdoors_like_cpp(true);
+
+        assert!(
+            !session
+                .check_area_explore_and_outdoor_represented_like_cpp(0)
+                .await,
+            "C++ still returns after area_id==0, but aura removal already ran"
+        );
+        assert!(!session.visible_auras.contains_key(&1));
+        assert!(session.visible_auras.contains_key(&2));
+        assert!(session.visible_auras.contains_key(&3));
+
+        session.set_represented_is_outdoors_like_cpp(false);
+        assert!(
+            !session
+                .check_area_explore_and_outdoor_represented_like_cpp(0)
+                .await
+        );
+        assert!(!session.visible_auras.contains_key(&2));
+        assert!(session.visible_auras.contains_key(&3));
+    }
+
+    #[tokio::test]
+    async fn check_area_explore_indoor_outdoor_removal_is_config_gated_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(9_201, test_spell_info_like_cpp(9_201));
+        let mut indoor_attributes = [0; 15];
+        indoor_attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_ONLY_INDOORS;
+        spell_store.insert_spell_misc_attributes_like_cpp(9_201, indoor_attributes);
+        session.set_spell_store(Arc::new(spell_store));
+        session.visible_auras.insert(1, test_visible_aura(1, 9_201));
+        session.set_represented_is_outdoors_like_cpp(true);
+
+        assert!(
+            !session
+                .check_area_explore_and_outdoor_represented_like_cpp(0)
+                .await
+        );
+        assert!(
+            session.visible_auras.contains_key(&1),
+            "C++ only calls RemoveAurasWithAttribute when CONFIG_VMAP_INDOOR_CHECK is enabled"
+        );
+    }
+
     #[test]
     fn set_player_skill_values_builds_represented_skill_records_for_tests_like_cpp() {
         let (mut session, _, _) = make_session();
@@ -86020,6 +86144,27 @@ mod tests {
             display_flags: 0,
             requires_spell_focus: 0,
             effects: Vec::new(),
+        }
+    }
+
+    fn test_visible_aura(slot: u8, spell_id: i32) -> AuraApplication {
+        AuraApplication {
+            spell_id,
+            caster_guid: ObjectGuid::EMPTY,
+            slot,
+            duration_total: 30_000,
+            duration_remaining: 30_000,
+            stack_count: 1,
+            aura_flags: 0x1,
+            effect_mask: 0x1,
+            aura_interrupt_flags: 0,
+            aura_interrupt_flags2: 0,
+            represented_effect: None,
+            represented_amount: 0,
+            represented_effect_amounts: Vec::new(),
+            represented_misc_value: None,
+            represented_multiplier: 1.0,
+            applied_at: Instant::now(),
         }
     }
 

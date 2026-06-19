@@ -497,6 +497,10 @@ pub const TOTAL_SPELL_TARGETS_LIKE_CPP: i32 = 153;
 pub mod attributes {
     /// C++ `SPELL_ATTR0_PASSIVE` (`SharedDefines.h`).
     pub const SPELL_ATTR0_PASSIVE: u32 = 0x0000_0040;
+    /// C++ `SPELL_ATTR0_ONLY_INDOORS` (`SharedDefines.h`).
+    pub const SPELL_ATTR0_ONLY_INDOORS: u32 = 0x0000_4000;
+    /// C++ `SPELL_ATTR0_ONLY_OUTDOORS` (`SharedDefines.h`).
+    pub const SPELL_ATTR0_ONLY_OUTDOORS: u32 = 0x0000_8000;
     /// C++ `SPELL_ATTR0_ALLOW_WHILE_MOUNTED` (`SharedDefines.h`).
     pub const SPELL_ATTR0_ALLOW_WHILE_MOUNTED: u32 = 0x0100_0000;
     /// C++ `SPELL_ATTR0_NO_AURA_CANCEL` (`SharedDefines.h`).
@@ -6142,6 +6146,8 @@ mod tests {
         assert_eq!(aura_types::SPELL_AURA_MOD_MINIMUM_SPEED_RATE, 437);
 
         // C++ `SharedDefines.h`: selected SpellAttr0 anchors.
+        assert_eq!(attributes::SPELL_ATTR0_ONLY_INDOORS, 0x0000_4000);
+        assert_eq!(attributes::SPELL_ATTR0_ONLY_OUTDOORS, 0x0000_8000);
         assert_eq!(attributes::SPELL_ATTR0_ALLOW_WHILE_MOUNTED, 0x0100_0000);
     }
 
