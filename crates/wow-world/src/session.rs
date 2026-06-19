@@ -28932,6 +28932,27 @@ impl WorldSession {
             self.represented_removed_known_spells_like_cpp
                 .insert(spell_id);
         }
+
+        if let Ok(current_spell_id) = u32::try_from(spell_id) {
+            let learned_spells: Vec<SpellLearnSpellNodeLikeCpp> = self
+                .spell_learn_spell_map_bounds_like_cpp(current_spell_id)
+                .to_vec();
+            for learned_spell in learned_spells {
+                if let Ok(learned_spell_id) = i32::try_from(learned_spell.spell) {
+                    self.remove_known_spell_with_seen_like_cpp(learned_spell_id, seen);
+                    if learned_spell.overrides_spell != 0 {
+                        if let Ok(overrides_spell_id) = i32::try_from(learned_spell.overrides_spell)
+                        {
+                            self.remove_represented_override_spell_like_cpp(
+                                overrides_spell_id,
+                                learned_spell_id,
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
         if let Some(controller) = &mut self.player_controller {
             controller.remove_spell(spell_id);
         }
@@ -48396,6 +48417,50 @@ mod tests {
             &[200],
             "C++ returns before recursive required-spell cleanup when the removed spell is not known"
         );
+    }
+
+    #[test]
+    fn remove_known_spell_removes_learned_dependent_spells_and_overrides_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_spell_learn_spell_store(Arc::new(wow_data::SpellLearnSpellStoreLikeCpp {
+            learned_by_spell_id: BTreeMap::from([(
+                10,
+                vec![wow_data::SpellLearnSpellNodeLikeCpp {
+                    spell: 20,
+                    overrides_spell: 100,
+                    active: true,
+                    auto_learned: false,
+                }],
+            )]),
+        }));
+        session.set_known_spells_like_cpp(vec![10, 20, 30]);
+        session.add_represented_override_spell_like_cpp(100, 20);
+
+        session.remove_known_spell_like_cpp(10);
+
+        assert_eq!(
+            session.known_spells_like_cpp(),
+            &[30],
+            "C++ Player::RemoveSpell removes spells returned by GetSpellLearnSpellMapBounds"
+        );
+        assert!(
+            session.represented_override_spells_like_cpp().is_empty(),
+            "C++ removes OverridesSpell pairs for learned dependent spells"
+        );
+        let statements = WorldSession::character_spell_save_statements_like_cpp(
+            42,
+            session.represented_player_spell_rows_like_cpp(),
+        );
+        let deleted_spells: BTreeSet<i32> = statements
+            .iter()
+            .filter(|stmt| stmt.sql() == CharStatements::DEL_CHAR_SPELL_BY_SPELL.sql())
+            .filter_map(|stmt| match stmt.params().first() {
+                Some(wow_database::SqlParam::I32(spell_id)) => Some(*spell_id),
+                _ => None,
+            })
+            .collect();
+
+        assert_eq!(deleted_spells, BTreeSet::from([10, 20]));
     }
 
     #[test]

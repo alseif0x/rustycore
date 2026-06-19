@@ -1,3 +1,26 @@
+- `#NEXT.R8.ENTITIES.1119` — represented `Player::RemoveSpell` now removes
+  spells learned by the removed spell through
+  `SpellLearnSpellStoreLikeCpp::get_spell_learn_spell_map_bounds_like_cpp`,
+  and clears represented override spell pairs when the C++ node has
+  `OverridesSpell` (not manual-test-ready, not full `PlayerSpellMap`). Source
+  of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3370-3376`.
+  C++ performs this dependent-spell cleanup after marking the current spell
+  removed and before lower-rank reactivation; Rust now mirrors that represented
+  cleanup over known spells and `_SaveSpells` delete evidence. Coverage planned
+  for this slice: `cargo fmt --all`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  remove_known_spell_ --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  spell_learn_spell_queries_match_loaded_multimap_like_cpp --lib`;
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p
+  world-server`; `cargo fmt --all --check`; and `git diff --check`. Boundary
+  remains partial: `SpellLearnSkill` skill downgrade/removal,
+  `learn_low_rank` previous-rank activation, disabled/new/temporary
+  `PlayerSpell` state semantics, profession point updates, pet aura removal,
+  full aura ownership, logout DB persistence, live-client/bot/manual
+  validation, and full `Player::RemoveSpell` parity remain open.
+
 - `#NEXT.R8.ENTITIES.1118` — represented `Player::RemoveSpell` now removes
   known non-talent higher ranks recursively through
   `SpellChainStoreLikeCpp::next_spell_in_chain_like_cpp`, preserving the C++
@@ -18,8 +41,9 @@
   --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p
   world-server`; `cargo fmt --all --check`; and `git diff --check`. Boundary
   remains partial: disabled/new/temporary `PlayerSpell` state semantics,
-  `learn_low_rank` previous-rank relearn behavior, profession point updates,
-  pet aura removal, full aura ownership, logout DB persistence,
+  `learn_low_rank` previous-rank relearn behavior, dependent spell-learn
+  cleanup (closed by `#NEXT.R8.ENTITIES.1119`), profession point updates, pet
+  aura removal, full aura ownership, logout DB persistence,
   live-client/bot/manual validation, and full `Player::RemoveSpell` /
   `ResetSpells` parity remain open.
 
