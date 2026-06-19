@@ -117201,6 +117201,7 @@ mod tests {
             ai.move_start_ms = 0;
             ai.wander_radius = 3.0;
         }
+        creature.seed_runtime_rng_like_cpp(0x5757);
         let config = MMapRuntimeConfigLikeCpp {
             enabled: false, // disable pathfinding → simple straight-line spline
             ..Default::default()
