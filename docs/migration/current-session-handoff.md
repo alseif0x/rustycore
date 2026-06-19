@@ -1,3 +1,20 @@
+- `#NEXT.R8.ENTITIES.1141` — represented `AutoUnequipOffhandIfNeed` now
+  records the C++ offhand combat-stat recalculation hooks from `RemoveItem`.
+  Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11586-11613`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:6830-6836`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.h:303-329`.
+  Rust now records `UpdateExpertise(OFF_ATTACK)` and
+  `RecalculateRating(CR_ARMOR_PENETRATION)` after the represented item-mod
+  removal hook and before moving/delinking the offhand item. Coverage:
+  `cargo test -p wow-world
+  remove_known_spell_auto_unequip_records_invalid_two_hand_state_like_cpp --lib`.
+  Boundary remains partial: this is a represented recalculation hook only; real
+  expertise/rating math, update-field packet emission, dependency on live aura
+  state, item-set removal, full `_ApplyItemMods`, `CheckTitanGripPenalty`,
+  average item-level recalculation, DB persistence, multi-session fanout, and
+  live-client/bot/manual validation remain open.
+
 - `#NEXT.R8.ENTITIES.1140` — represented `AutoUnequipOffhandIfNeed` now
   mirrors the C++ `RemoveItem` duration-reference cleanup for the removed
   offhand item. Source of truth:
@@ -13,9 +30,10 @@
   remove_known_spell_auto_unequip_records_invalid_two_hand_state_like_cpp --lib`.
   Boundary remains partial: exact duration update packets, full item/enchant
   duration ticking and DB persistence, item-set removal, full `_ApplyItemMods`,
-  expertise/armor-penetration recalculation, `CheckTitanGripPenalty`, average
-  item-level recalculation, multi-session fanout, and live-client/bot/manual
-  validation remain open.
+  expertise/armor-penetration recalculation hook is closed by
+  `#NEXT.R8.ENTITIES.1141`, `CheckTitanGripPenalty`, average item-level
+  recalculation, multi-session fanout, and live-client/bot/manual validation
+  remain open.
 
 - `#NEXT.R8.ENTITIES.1139` — represented `AutoUnequipOffhandIfNeed` now
   mirrors the C++ `RemoveItem` cleanup of `ITEM_FIELD_FLAG2_EQUIPPED` for the

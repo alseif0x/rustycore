@@ -1702,6 +1702,14 @@ pub(crate) struct RepresentedItemModsReapplyEventLikeCpp {
     pub apply: bool,
 }
 
+const CR_ARMOR_PENETRATION_LIKE_CPP: u8 = 24;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RepresentedCombatStatRecalculationLikeCpp {
+    Expertise { attack: WeaponAttackType },
+    Rating { combat_rating: u8 },
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedGuildRepairBankStateLikeCpp {
     pub available_repair_money: u64,
@@ -3739,6 +3747,7 @@ pub struct WorldSession {
     buyback_timestamp: [i64; BUYBACK_SLOT_COUNT],
     current_buyback_slot: u8,
     represented_item_mod_reapply_events_like_cpp: Vec<RepresentedItemModsReapplyEventLikeCpp>,
+    represented_combat_stat_recalculations_like_cpp: Vec<RepresentedCombatStatRecalculationLikeCpp>,
     represented_guild_id_like_cpp: u64,
     represented_guild_id_invited_like_cpp: u64,
     represented_guild_accept_invites_like_cpp: Vec<u64>,
@@ -5416,6 +5425,7 @@ impl WorldSession {
             buyback_timestamp: [0; BUYBACK_SLOT_COUNT],
             current_buyback_slot: BUYBACK_SLOT_START,
             represented_item_mod_reapply_events_like_cpp: Vec::new(),
+            represented_combat_stat_recalculations_like_cpp: Vec::new(),
             represented_guild_id_like_cpp: 0,
             represented_guild_id_invited_like_cpp: 0,
             represented_guild_accept_invites_like_cpp: Vec::new(),
@@ -29488,6 +29498,7 @@ impl WorldSession {
         self.clear_represented_offhand_equipped_flag_like_cpp(offhand_item.guid);
         self.remove_represented_offhand_tradeable_item_like_cpp(offhand_item.guid);
         self.record_represented_offhand_item_mod_remove_like_cpp(offhand_item.guid);
+        self.record_represented_offhand_combat_stat_recalculations_like_cpp();
 
         let mut stored_destination = None;
         let mut needs_mail_fallback = true;
@@ -29604,6 +29615,19 @@ impl WorldSession {
                 item_guid,
                 slot: EQUIPMENT_SLOT_OFFHAND,
                 apply: false,
+            },
+        );
+    }
+
+    fn record_represented_offhand_combat_stat_recalculations_like_cpp(&mut self) {
+        self.represented_combat_stat_recalculations_like_cpp.push(
+            RepresentedCombatStatRecalculationLikeCpp::Expertise {
+                attack: WeaponAttackType::OffAttack,
+            },
+        );
+        self.represented_combat_stat_recalculations_like_cpp.push(
+            RepresentedCombatStatRecalculationLikeCpp::Rating {
+                combat_rating: CR_ARMOR_PENETRATION_LIKE_CPP,
             },
         );
     }
@@ -31993,6 +32017,13 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedItemModsReapplyEventLikeCpp] {
         &self.represented_item_mod_reapply_events_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_combat_stat_recalculations_like_cpp(
+        &self,
+    ) -> &[RepresentedCombatStatRecalculationLikeCpp] {
+        &self.represented_combat_stat_recalculations_like_cpp
     }
 
     pub(crate) fn set_represented_guild_id_like_cpp(&mut self, guild_id: u64) {
@@ -50382,6 +50413,18 @@ mod tests {
                 apply: false,
             }],
             "C++ RemoveItem calls _ApplyItemMods(offhand, false) before clearing the equipment slot"
+        );
+        assert_eq!(
+            session.represented_combat_stat_recalculations_like_cpp(),
+            &[
+                RepresentedCombatStatRecalculationLikeCpp::Expertise {
+                    attack: WeaponAttackType::OffAttack,
+                },
+                RepresentedCombatStatRecalculationLikeCpp::Rating {
+                    combat_rating: CR_ARMOR_PENETRATION_LIKE_CPP,
+                },
+            ],
+            "C++ RemoveItem updates offhand expertise and recalculates armor penetration for weapon/armor slots"
         );
         let runtime_item = session
             .inventory_item_objects_like_cpp()
