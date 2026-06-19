@@ -28468,6 +28468,19 @@ impl WorldSession {
             .iter()
             .map(|(&id, &value)| PlayerConditionSkillLikeCpp { id, value })
             .collect();
+        let (_, area_id) = self.player_zone_area_like_cpp();
+        let (explored_area_ids, parent_area_ids) = self
+            .area_table_store
+            .as_ref()
+            .map(|store| {
+                (
+                    store.explored_area_ids_from_blocks_like_cpp(
+                        &self.represented_explored_zones_like_cpp,
+                    ),
+                    store.parent_area_ids_like_cpp(area_id),
+                )
+            })
+            .unwrap_or_default();
 
         let mut item_level_sum = 0u32;
         let mut item_level_count = 0u32;
@@ -28507,6 +28520,8 @@ impl WorldSession {
             complete_quests,
             auras,
             skills,
+            explored_area_ids,
+            parent_area_ids,
             avg_item_level: if item_level_count == 0 {
                 0.0
             } else {
@@ -52898,6 +52913,94 @@ mod tests {
         assert!(session.represented_meets_player_condition_id_like_cpp(42));
         assert!(!session.represented_meets_player_condition_id_like_cpp(43));
         assert!(session.represented_meets_player_condition_id_like_cpp(999));
+    }
+
+    #[test]
+    fn represented_player_condition_explored_uses_area_bit_blocks_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
+            wow_data::AreaTableEntry {
+                id: 900,
+                continent_id: 0,
+                parent_area_id: 0,
+                area_bit: 65,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: 0,
+            },
+            wow_data::AreaTableEntry {
+                id: 901,
+                continent_id: 0,
+                parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: 0,
+            },
+        ])));
+        session.set_player_condition_store(Arc::new(wow_data::PlayerConditionStore::from_entries(
+            [
+                wow_data::PlayerConditionEntry {
+                    id: 42,
+                    explored: [900, 0],
+                    ..Default::default()
+                },
+                wow_data::PlayerConditionEntry {
+                    id: 43,
+                    explored: [901, 0],
+                    ..Default::default()
+                },
+            ],
+        )));
+
+        assert!(!session.represented_meets_player_condition_id_like_cpp(42));
+
+        session.represented_explored_zones_like_cpp[1] = 2;
+        assert!(session.represented_meets_player_condition_id_like_cpp(42));
+        assert!(!session.represented_meets_player_condition_id_like_cpp(43));
+    }
+
+    #[test]
+    fn represented_player_condition_area_uses_parent_chain_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_player_zone_area_like_cpp(12, 901);
+        session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
+            wow_data::AreaTableEntry {
+                id: 900,
+                continent_id: 0,
+                parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: 0,
+            },
+            wow_data::AreaTableEntry {
+                id: 901,
+                continent_id: 0,
+                parent_area_id: 900,
+                area_bit: -1,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: 0,
+            },
+        ])));
+        session.set_player_condition_store(Arc::new(wow_data::PlayerConditionStore::from_entries(
+            [
+                wow_data::PlayerConditionEntry {
+                    id: 42,
+                    area_id: [900, 0, 0, 0],
+                    ..Default::default()
+                },
+                wow_data::PlayerConditionEntry {
+                    id: 43,
+                    area_id: [902, 0, 0, 0],
+                    ..Default::default()
+                },
+            ],
+        )));
+
+        assert!(session.represented_meets_player_condition_id_like_cpp(42));
+        assert!(!session.represented_meets_player_condition_id_like_cpp(43));
     }
 
     #[test]

@@ -178,6 +178,43 @@ impl AreaTableStore {
         }
     }
 
+    /// C++ `DB2Manager::IsInArea` walks the AreaTable parent chain. This helper exposes the
+    /// same chain for callers that already evaluate area predicates from a prebuilt context.
+    pub fn parent_area_ids_like_cpp(&self, mut area_id: u32) -> Vec<u32> {
+        let mut parents = Vec::new();
+        while let Some(area) = self.get(area_id) {
+            let parent = u32::from(area.parent_area_id);
+            if parent == 0 {
+                break;
+            }
+
+            parents.push(parent);
+            area_id = parent;
+        }
+        parents
+    }
+
+    /// C++ `PlayerCondition::Explored` looks up each requested AreaTable row and then checks
+    /// `Player::m_activePlayerData->ExploredZones` using `AreaTableEntry::AreaBit`.
+    pub fn explored_area_ids_from_blocks_like_cpp(&self, explored_zone_blocks: &[u64]) -> Vec<u16> {
+        let mut explored = Vec::new();
+        for entry in self.entries.values() {
+            let Some((offset, mask)) = entry.explored_zone_bit_like_cpp(explored_zone_blocks.len())
+            else {
+                continue;
+            };
+
+            if explored_zone_blocks[offset] & mask != 0 {
+                if let Ok(area_id) = u16::try_from(entry.id) {
+                    explored.push(area_id);
+                }
+            }
+        }
+        explored.sort_unstable();
+        explored.dedup();
+        explored
+    }
+
     pub fn len(&self) -> usize {
         self.entries.len()
     }
@@ -351,6 +388,92 @@ mod tests {
 
         assert_eq!(negative.explored_zone_bit_like_cpp(240), None);
         assert_eq!(out_of_range.explored_zone_bit_like_cpp(240), None);
+    }
+
+    #[test]
+    fn area_table_store_derives_parent_chain_like_cpp() {
+        let store = AreaTableStore::from_entries([
+            AreaTableEntry {
+                id: 10,
+                continent_id: 0,
+                parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: 0,
+            },
+            AreaTableEntry {
+                id: 11,
+                continent_id: 0,
+                parent_area_id: 10,
+                area_bit: -1,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: AREA_FLAG_IS_SUBZONE_LIKE_CPP,
+            },
+            AreaTableEntry {
+                id: 12,
+                continent_id: 0,
+                parent_area_id: 11,
+                area_bit: -1,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: AREA_FLAG_IS_SUBZONE_LIKE_CPP,
+            },
+        ]);
+
+        assert_eq!(store.parent_area_ids_like_cpp(12), vec![11, 10]);
+        assert!(store.parent_area_ids_like_cpp(999).is_empty());
+    }
+
+    #[test]
+    fn area_table_store_derives_explored_area_ids_from_blocks_like_cpp() {
+        let store = AreaTableStore::from_entries([
+            AreaTableEntry {
+                id: 10,
+                continent_id: 0,
+                parent_area_id: 0,
+                area_bit: 0,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: 0,
+            },
+            AreaTableEntry {
+                id: 11,
+                continent_id: 0,
+                parent_area_id: 0,
+                area_bit: 65,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: 0,
+            },
+            AreaTableEntry {
+                id: 70_000,
+                continent_id: 0,
+                parent_area_id: 0,
+                area_bit: 1,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: 0,
+            },
+            AreaTableEntry {
+                id: 12,
+                continent_id: 0,
+                parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: 0,
+            },
+        ]);
+        let mut blocks = [0u64; 2];
+        blocks[0] = 1;
+        blocks[1] = 2;
+
+        assert_eq!(
+            store.explored_area_ids_from_blocks_like_cpp(&blocks),
+            vec![10, 11]
+        );
     }
 
     #[test]
