@@ -1,3 +1,25 @@
+- `#NEXT.R8.ENTITIES.1120` — represented `Player::RemoveSpell` now handles
+  the first-rank `SpellLearnSkill` branch by resetting the represented skill
+  row to value/max `0` when `GetPrevSpellInChain(spell_id) == 0`, matching the
+  C++ `SetSkill(spellLearnSkill->skill, 0, 0, 0)` path (not
+  manual-test-ready, not full skill downgrade parity). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3284-3370`.
+  Rust exposes `prev_spell_in_chain_like_cpp` through `WorldSession`, preserves
+  the loaded `profession_slot` for represented `character_skill` save evidence,
+  and updates the first-rank learned skill to zero before dependent learned
+  spells are removed. Coverage planned for this slice: `cargo fmt --all`;
+  focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p
+  wow-world remove_known_spell_ --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  prev_spell_in_chain_returns_zero_without_store_like_cpp --lib`;
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p
+  world-server`; `cargo fmt --all --check`; and `git diff --check`.
+  Boundary remains partial: higher-rank `SpellLearnSkill` downgrade through
+  `SkillRaceClassInfo`, `SkillTiers`, and `GetMaxSkillValueForLevel`,
+  profession point updates, pet aura removal, full aura ownership,
+  previous-rank activation, logout DB persistence, live-client/bot/manual
+  validation, and full `Player::RemoveSpell` parity remain open.
+
 - `#NEXT.R8.ENTITIES.1119` — represented `Player::RemoveSpell` now removes
   spells learned by the removed spell through
   `SpellLearnSpellStoreLikeCpp::get_spell_learn_spell_map_bounds_like_cpp`,
@@ -15,7 +37,8 @@
   spell_learn_spell_queries_match_loaded_multimap_like_cpp --lib`;
   `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p
   world-server`; `cargo fmt --all --check`; and `git diff --check`. Boundary
-  remains partial: `SpellLearnSkill` skill downgrade/removal,
+  remains partial: first-rank `SpellLearnSkill` removal is closed by
+  `#NEXT.R8.ENTITIES.1120`; higher-rank `SpellLearnSkill` downgrade,
   `learn_low_rank` previous-rank activation, disabled/new/temporary
   `PlayerSpell` state semantics, profession point updates, pet aura removal,
   full aura ownership, logout DB persistence, live-client/bot/manual

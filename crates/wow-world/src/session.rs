@@ -17782,6 +17782,13 @@ impl WorldSession {
             .unwrap_or(0)
     }
 
+    pub(crate) fn prev_spell_in_chain_like_cpp(&self, spell_id: u32) -> u32 {
+        self.spell_chain_store
+            .as_ref()
+            .map(|store| store.prev_spell_in_chain_like_cpp(spell_id))
+            .unwrap_or(0)
+    }
+
     pub fn set_spell_category_store(&mut self, store: Arc<SpellCategoryStore>) {
         self.spell_category_store = Some(store);
     }
@@ -28860,6 +28867,25 @@ impl WorldSession {
         self.player_skill_records_loaded_like_cpp
     }
 
+    fn set_represented_player_skill_like_cpp(&mut self, skill_id: u16, value: u16, max: u16) {
+        let profession_slot = self
+            .player_skill_records_like_cpp()
+            .get(&skill_id)
+            .map(|skill| skill.profession_slot)
+            .unwrap_or(-1);
+        let mut skill_records = self.player_skill_records_like_cpp().clone();
+        skill_records.insert(
+            skill_id,
+            RepresentedPlayerSkillLikeCpp {
+                skill_id,
+                value,
+                max,
+                profession_slot,
+            },
+        );
+        self.set_player_skill_records_like_cpp(skill_records);
+    }
+
     pub(crate) fn learn_known_spell_like_cpp(&mut self, spell_id: i32) {
         if !self.known_spells.contains(&spell_id) {
             self.known_spells.push(spell_id);
@@ -28934,6 +28960,13 @@ impl WorldSession {
         }
 
         if let Ok(current_spell_id) = u32::try_from(spell_id) {
+            if let Some(learned_skill) = self.spell_learn_skill_like_cpp(current_spell_id).copied()
+            {
+                if self.prev_spell_in_chain_like_cpp(current_spell_id) == 0 {
+                    self.set_represented_player_skill_like_cpp(learned_skill.skill, 0, 0);
+                }
+            }
+
             let learned_spells: Vec<SpellLearnSpellNodeLikeCpp> = self
                 .spell_learn_spell_map_bounds_like_cpp(current_spell_id)
                 .to_vec();
@@ -48278,6 +48311,13 @@ mod tests {
     }
 
     #[test]
+    fn prev_spell_in_chain_returns_zero_without_store_like_cpp() {
+        let (session, _, _) = make_session();
+
+        assert_eq!(session.prev_spell_in_chain_like_cpp(10), 0);
+    }
+
+    #[test]
     fn remove_known_spell_removes_non_talent_higher_ranks_like_cpp() {
         let (mut session, _, _) = make_session();
         session.set_spell_chain_store(Arc::new(
@@ -48461,6 +48501,58 @@ mod tests {
             .collect();
 
         assert_eq!(deleted_spells, BTreeSet::from([10, 20]));
+    }
+
+    #[test]
+    fn remove_known_spell_removes_first_rank_learned_skill_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_spell_learn_skill_store(Arc::new(test_spell_learn_skill_store_like_cpp()));
+        session.set_player_skill_records_like_cpp(HashMap::from([(
+            755,
+            RepresentedPlayerSkillLikeCpp {
+                skill_id: 755,
+                value: 150,
+                max: 225,
+                profession_slot: 0,
+            },
+        )]));
+        session.set_known_spells_like_cpp(vec![10, 30]);
+
+        session.remove_known_spell_like_cpp(10);
+
+        assert_eq!(
+            session.known_spells_like_cpp(),
+            &[30],
+            "C++ Player::RemoveSpell removes the known first-rank spell itself"
+        );
+        assert_eq!(
+            session.player_skill_records_like_cpp().get(&755),
+            Some(&RepresentedPlayerSkillLikeCpp {
+                skill_id: 755,
+                value: 0,
+                max: 0,
+                profession_slot: 0,
+            }),
+            "C++ SetSkill(skill, 0, 0, 0) resets the learned skill for first-rank SpellLearnSkill nodes"
+        );
+
+        let statements = session.character_skill_save_statements_like_cpp(42);
+        let skill_insert = statements
+            .iter()
+            .find(|stmt| stmt.sql() == CharStatements::INS_CHAR_SKILLS.sql())
+            .expect("skill insert for reset skill");
+        assert!(matches!(
+            skill_insert.params()[1],
+            wow_database::SqlParam::U16(755)
+        ));
+        assert!(matches!(
+            skill_insert.params()[2],
+            wow_database::SqlParam::U16(0)
+        ));
+        assert!(matches!(
+            skill_insert.params()[3],
+            wow_database::SqlParam::U16(0)
+        ));
     }
 
     #[test]
