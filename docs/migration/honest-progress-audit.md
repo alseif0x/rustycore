@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-19 · **Base commit:** `develop` after `#NEXT.R8.ENTITIES.1106`
 
-This document exists to prevent the headline `97.99%` from being read as "almost a
+This document exists to prevent the headline `98.00%` from being read as "almost a
 finished, gap-free server." It records what the number actually measures, with three
 honest percentages instead of one.
 
@@ -33,7 +33,7 @@ honest percentages instead of one.
 
 ## The two big caveats
 
-1. **`97.99%` measures "represented game logic addressed", not "gap-free server."**
+1. **`98.00%` measures "represented game logic addressed", not "gap-free server."**
    The macro-gap — split-engine live runtime — is now partially bridged but not fully
    closed. Since the original #764 finding, the legacy `wow_world::MapManager` gained an
    experimental global creature runtime (`RustyCore.LegacyCreatureGlobalRuntime`, default
