@@ -1,3 +1,25 @@
+- `#NEXT.R8.ENTITIES.1103` — canonical typed `Unit` now owns represented
+  `m_movementInfo.flags` for the player path (not manual-test-ready). Source
+  of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Object/Object.h:741`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.h:1619-1623`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:1285-1289`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28435-28453`.
+  Rust `Unit` now stores represented movement flags, accepted player movement
+  synchronizes those flags into the canonical typed `Player`, and the common
+  teleport reset writes the masked flags back through the same setter before
+  interrupting spline/removing `EFFECT_MOTION_TYPE`. Coverage: focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  handle_movement_syncs_canonical_player_position_for_logout_save_like_cpp
+  --lib`; focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test
+  -p wow-world teleport_to_same_map_masks_movement_flags_before_near_teleport_like_cpp
+  --lib`; `cargo fmt --all`; focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
+  cargo test -p wow-world teleport_to_ --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
+  cargo check -p world-server`; and `git diff --check`. Boundary remains partial:
+  `MovementInfo` time/jump/transport/extra flags/inertia/advanced flying are
+  still not canonical `Unit`-owned, live-client/bot/manual validation remains
+  open, and full movement/fanout/runtime parity is incomplete.
 - `#NEXT.R8.ENTITIES.1102` — represented/canonical `Player::TeleportTo`
   now mirrors the remaining C++ common movement reset side effects for typed
   player motion state (not manual-test-ready). Source of truth:
@@ -14,8 +36,8 @@
   --lib`; `cargo fmt --all`; focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
   cargo test -p wow-world teleport_to_ --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
   cargo check -p world-server`; and `git diff --check`. Boundary remains partial:
-  canonical player movement flags are not yet a full `m_movementInfo` owner,
-  player-side MoveSpline/MotionMaster runtime ownership is not complete, and
+  full player-side MoveSpline/MotionMaster runtime ownership is not complete,
+  full `MovementInfo` ownership beyond flags/jump remains open, and
   live-client/bot/manual validation remains open.
 - `#NEXT.R8.ENTITIES.1101` — represented `Player::TeleportTo` now mirrors the
   C++ `MovementInfo::ResetJump()` side effect in the common teleport pre-branch
@@ -32,10 +54,11 @@
   accepted_movement_updates_represented_jump_info_like_cpp --lib`; focused
   `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
   teleport_to_ --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo
-  check -p world-server`; `git diff --check`. Boundary remains partial: C++
-  `DisableSpline()` and `MotionMaster::Remove(EFFECT_MOTION_TYPE)` still require
-  player-side MoveSpline/MotionMaster runtime ownership; live-client/bot
-  validation, install/restart validation, and manual validation remain open.
+  check -p world-server`; `git diff --check`. Boundary remains partial:
+  `DisableSpline()` and `MotionMaster::Remove(EFFECT_MOTION_TYPE)` were closed
+  later by `#NEXT.R8.ENTITIES.1102`; full player-side MoveSpline/MotionMaster
+  runtime ownership, live-client/bot validation, install/restart validation,
+  and manual validation remain open.
 - `#NEXT.R8.ENTITIES.1099` — represented `Player::UpdateArea` /
   `Player::UpdateZone` criteria side effects are now ported for the represented
   zone/area state (not manual-test-ready). Source of truth:

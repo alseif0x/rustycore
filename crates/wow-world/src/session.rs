@@ -26069,7 +26069,9 @@ impl WorldSession {
     }
 
     fn reset_teleport_movement_state_like_cpp(&mut self) {
-        self.player_movement_flags_like_cpp &= MovementFlag::MASK_HAS_PLAYER_STATUS_OPCODE;
+        let movement_flags =
+            self.player_movement_flags_like_cpp & MovementFlag::MASK_HAS_PLAYER_STATUS_OPCODE;
+        self.set_player_movement_flags_like_cpp(movement_flags);
         self.player_movement_jump_like_cpp = wow_packet::packets::movement::JumpInfo::default();
         let _ = self.mutate_canonical_player_like_cpp(|player| {
             let motion = &mut player.unit_mut().subsystems_mut().motion;
@@ -27396,6 +27398,9 @@ impl WorldSession {
 
     pub(crate) fn set_player_movement_flags_like_cpp(&mut self, flags: MovementFlag) {
         self.player_movement_flags_like_cpp = flags;
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_movement_flags_like_cpp(flags);
+        });
     }
 
     pub(crate) fn set_player_movement_jump_like_cpp(
@@ -78271,6 +78276,11 @@ mod tests {
             .find_map(571, 0)
             .and_then(|map| map.map().get_typed_player(player_guid))
             .expect("canonical player after teleport");
+        assert_eq!(
+            player.unit().movement_flags_like_cpp(),
+            MovementFlag::ROOT | MovementFlag::CAN_FLY,
+            "C++ Player::TeleportTo writes the masked flags back to Unit::m_movementInfo"
+        );
         let motion = &player.unit().subsystems().motion;
         assert!(
             motion.spline.finalized,

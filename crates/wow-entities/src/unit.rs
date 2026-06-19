@@ -1,7 +1,7 @@
 use wow_constants::{
     DeathState, Gender, PowerType, ShapeShiftForm, SheathState, SpellState, TypeId, TypeMask,
     UnitFlags, UnitFlags2, UnitFlags3, UnitPvpFlags, UnitStandStateType, UnitState,
-    WeaponAttackType,
+    WeaponAttackType, movement::MovementFlag,
 };
 use wow_core::ObjectGuid;
 
@@ -335,6 +335,7 @@ pub struct Unit {
     can_parry: bool,
     can_block: bool,
     emote_state: u32,
+    movement_flags: MovementFlag,
     speed_rate: [f32; MAX_MOVE_TYPE],
     ai_anim_kit_id: u16,
     movement_anim_kit_id: u16,
@@ -370,6 +371,7 @@ impl Unit {
             can_parry: false,
             can_block: false,
             emote_state: 0,
+            movement_flags: MovementFlag::NONE,
             speed_rate: [1.0; MAX_MOVE_TYPE],
             ai_anim_kit_id: 0,
             movement_anim_kit_id: 0,
@@ -502,6 +504,14 @@ impl Unit {
 
     pub fn set_collision_height_like_cpp(&mut self, height: f32) {
         self.world.set_collision_height_like_cpp(height);
+    }
+
+    pub const fn movement_flags_like_cpp(&self) -> MovementFlag {
+        self.movement_flags
+    }
+
+    pub fn set_movement_flags_like_cpp(&mut self, flags: MovementFlag) {
+        self.movement_flags = flags;
     }
 
     pub const fn visibility_detection_like_cpp(&self) -> &UnitVisibilityDetectionStateLikeCpp {

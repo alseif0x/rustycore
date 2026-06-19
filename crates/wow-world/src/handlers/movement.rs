@@ -1633,6 +1633,18 @@ mod tests {
             .map(|player| player.unit().world().position())
             .expect("canonical player");
         assert_eq!(canonical_position, moved_position);
+        let canonical_movement_flags = canonical
+            .lock()
+            .unwrap()
+            .find_map(571, 0)
+            .and_then(|map| map.map().get_typed_player(guid))
+            .map(|player| player.unit().movement_flags_like_cpp())
+            .expect("canonical player movement flags");
+        assert_eq!(
+            canonical_movement_flags,
+            MovementFlag::FORWARD,
+            "C++ stores accepted player MovementInfo flags on Unit::m_movementInfo"
+        );
         assert_eq!(
             session
                 .sync_session_from_save_to_db_snapshot_like_cpp()
