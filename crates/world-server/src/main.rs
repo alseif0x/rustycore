@@ -1321,6 +1321,10 @@ async fn main() -> Result<ExitCode> {
         wow_data::SkillLineStore::load(&data_dir, &locale)
             .context("Failed to load SkillLine.db2")?,
     );
+    let trait_definition_store = Arc::new(
+        wow_data::trait_tree::TraitDefinitionStore::load(&data_dir, &locale)
+            .context("Failed to load TraitDefinition.db2")?,
+    );
     let skill_tiers_store = Arc::new(
         wow_data::SkillTiersStoreLikeCpp::load_like_cpp(world_db.as_ref())
             .await
@@ -4250,6 +4254,7 @@ async fn main() -> Result<ExitCode> {
         spell_enchant_proc_store: Some(Arc::clone(&spell_enchant_proc_store)),
         hotfix_blob_cache: Some(Arc::clone(&hotfix_blob_cache)),
         skill_store: Some(Arc::clone(&skill_store)),
+        trait_definition_store: Some(Arc::clone(&trait_definition_store)),
         skill_line_store: Some(Arc::clone(&skill_line_store)),
         skill_tiers_store: Some(Arc::clone(&skill_tiers_store)),
         talent_store: Some(Arc::clone(&talent_store)),
@@ -10742,6 +10747,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.skill_store {
         session.set_skill_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.trait_definition_store {
+        session.set_trait_definition_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.skill_line_store {
         session.set_skill_line_store(Arc::clone(store));

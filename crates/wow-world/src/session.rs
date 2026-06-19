@@ -54,6 +54,7 @@ use wow_constants::{
 };
 use wow_core::{ObjectGuid, ObjectGuidGenerator, Position, guid::HighGuid};
 use wow_data::character_progression::{ChrClassesStore, ChrRacesStore};
+use wow_data::trait_tree::TraitDefinitionStore;
 use wow_data::{
     AccessRequirementStoreLikeCpp, AdventureMapPoiStore, AreaTableStore, AreaTriggerStore,
     BankBagSlotPricesStore, BattlePetBreedQualityStore, BattlePetBreedStateStore,
@@ -3524,6 +3525,9 @@ pub struct WorldSession {
     // Skill store (auto-learned spells from SkillLineAbility.db2 + SkillRaceClassInfo.db2)
     skill_store: Option<Arc<SkillStore>>,
 
+    // TraitDefinition.db2 store used by represented PlayerSpell::TraitDefinitionId cleanup.
+    trait_definition_store: Option<Arc<TraitDefinitionStore>>,
+
     // SkillLine.db2 store for C++ parent/expansion skill resolution.
     skill_line_store: Option<Arc<SkillLineStore>>,
 
@@ -3795,6 +3799,8 @@ pub struct WorldSession {
     /// Represented C++ `PlayerSpell::favorite` rows loaded from
     /// `character_spell_favorite`.
     represented_favorite_known_spells_like_cpp: HashSet<i32>,
+    /// Represented C++ `PlayerSpell::TraitDefinitionId`, keyed by learned spell id.
+    represented_spell_trait_definition_ids_like_cpp: HashMap<i32, i32>,
     /// C++ `CollectionMgr::_mounts` represented account mount collection.
     account_mounts_like_cpp: HashMap<i32, u8>,
     /// C++ `Player::_CUFProfiles`, represented until full player save/load owns it.
@@ -5259,6 +5265,7 @@ impl WorldSession {
             spell_enchant_proc_store: None,
             hotfix_blob_cache: None,
             skill_store: None,
+            trait_definition_store: None,
             skill_line_store: None,
             skill_tiers_store: None,
             area_table_store: None,
@@ -5428,6 +5435,7 @@ impl WorldSession {
             represented_dependent_known_spells_like_cpp: HashSet::new(),
             represented_removed_known_spells_like_cpp: HashSet::new(),
             represented_favorite_known_spells_like_cpp: HashSet::new(),
+            represented_spell_trait_definition_ids_like_cpp: HashMap::new(),
             account_mounts_like_cpp: HashMap::new(),
             cuf_profiles_like_cpp: vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP],
             cuf_profiles_loaded_like_cpp: false,
@@ -17720,6 +17728,14 @@ impl WorldSession {
         self.skill_store.as_ref()
     }
 
+    pub fn set_trait_definition_store(&mut self, store: Arc<TraitDefinitionStore>) {
+        self.trait_definition_store = Some(store);
+    }
+
+    pub(crate) fn trait_definition_store(&self) -> Option<&Arc<TraitDefinitionStore>> {
+        self.trait_definition_store.as_ref()
+    }
+
     pub fn set_skill_line_store(&mut self, store: Arc<SkillLineStore>) {
         self.skill_line_store = Some(store);
     }
@@ -28320,6 +28336,8 @@ impl WorldSession {
             .retain(|spell_id| self.known_spells.contains(spell_id));
         self.represented_favorite_known_spells_like_cpp
             .retain(|spell_id| self.known_spells.contains(spell_id));
+        self.represented_spell_trait_definition_ids_like_cpp
+            .retain(|spell_id, _| self.known_spells.contains(spell_id));
         self.learn_account_mount_spells_like_cpp();
         if let Some(controller) = &mut self.player_controller {
             controller.set_known_spells(self.known_spells.clone());
@@ -29030,6 +29048,17 @@ impl WorldSession {
             .remove(&spell_id);
     }
 
+    pub(crate) fn set_represented_spell_trait_definition_id_like_cpp(
+        &mut self,
+        spell_id: i32,
+        trait_definition_id: i32,
+    ) {
+        if self.known_spells.contains(&spell_id) && trait_definition_id > 0 {
+            self.represented_spell_trait_definition_ids_like_cpp
+                .insert(spell_id, trait_definition_id);
+        }
+    }
+
     pub(crate) fn remove_known_spell_like_cpp(&mut self, spell_id: i32) {
         let mut seen = HashSet::new();
         self.remove_known_spell_with_seen_like_cpp(spell_id, true, &mut seen);
@@ -29144,6 +29173,21 @@ impl WorldSession {
             }
         }
 
+        if let Some(trait_definition_id) = self
+            .represented_spell_trait_definition_ids_like_cpp
+            .remove(&spell_id)
+        {
+            if let Ok(trait_definition_id) = u32::try_from(trait_definition_id) {
+                let override_spell_id = self
+                    .trait_definition_store()
+                    .and_then(|store| store.get(trait_definition_id))
+                    .map(|definition| definition.overrides_spell_id)
+                    .unwrap_or(0);
+                if override_spell_id > 0 {
+                    self.remove_represented_override_spell_like_cpp(override_spell_id, spell_id);
+                }
+            }
+        }
         self.represented_override_spells_like_cpp.remove(&spell_id);
 
         if let Some(controller) = &mut self.player_controller {
@@ -49059,6 +49103,54 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![40],
             "unrelated override spell entries are not removed by m_overrideSpells.erase(spell_id)"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_removes_trait_definition_override_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_known_spells_like_cpp(vec![20, 40]);
+        session.set_trait_definition_store(Arc::new(TraitDefinitionStore::from_entries([
+            wow_data::trait_tree::TraitDefinitionEntry {
+                id: 7,
+                override_name: String::new(),
+                override_subtext: String::new(),
+                override_description: String::new(),
+                spell_id: 20,
+                override_icon: 0,
+                overrides_spell_id: 10,
+                visible_spell_id: 0,
+            },
+        ])));
+        session.add_represented_override_spell_like_cpp(10, 20);
+        session.add_represented_override_spell_like_cpp(30, 40);
+        session.set_represented_spell_trait_definition_id_like_cpp(20, 7);
+
+        session.remove_known_spell_like_cpp(20);
+
+        assert!(
+            !session
+                .represented_override_spells_like_cpp()
+                .get(&10)
+                .is_some_and(|spells| spells.contains(&20)),
+            "C++ Player::RemoveSpell removes TraitDefinition OverridesSpellID -> spell_id pairs"
+        );
+        assert_eq!(
+            session
+                .represented_override_spells_like_cpp()
+                .get(&30)
+                .cloned()
+                .unwrap_or_default()
+                .into_iter()
+                .collect::<Vec<_>>(),
+            vec![40],
+            "trait-definition cleanup must not remove unrelated override mappings"
+        );
+        assert!(
+            !session
+                .represented_spell_trait_definition_ids_like_cpp
+                .contains_key(&20),
+            "removed PlayerSpell no longer owns a represented TraitDefinitionId"
         );
     }
 

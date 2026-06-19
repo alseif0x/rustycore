@@ -1,3 +1,24 @@
+- `#NEXT.R8.ENTITIES.1125` — represented `Player::RemoveSpell` now mirrors
+  the C++ `TraitDefinitionId -> TraitDefinitionEntry::OverridesSpellID`
+  override cleanup before the direct `m_overrideSpells.erase(spell_id)`
+  branch. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3236-3465`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:184-191`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:27377-27395`.
+  Rust now carries represented `PlayerSpell::TraitDefinitionId` metadata for
+  known spells, wires `TraitDefinition.db2` into sessions, removes the
+  represented `OverridesSpellID -> spell_id` pair, and then keeps the direct
+  removed-spell override-source erase from `#NEXT.R8.ENTITIES.1124`.
+  Coverage: `cargo fmt`; `cargo fmt --check`; `cargo test -p wow-world
+  remove_known_spell --lib`; `cargo check -p world-server`; `git diff
+  --check`. Boundary remains partial: full `TraitConfig` /
+  `TraitNodeEntry` application, inactive `PlayerSpellMap` rows,
+  active/disabled/state transitions, `AddSpell` return semantics, real
+  `SendSupercededSpell`/action-bar packet, `UnlearnedSpells`
+  `suppressMessaging`, Titan Grip/Dual Wield side effects, offhand
+  auto-unequip, live-client/bot/manual validation, and full
+  `Player::RemoveSpell` parity remain open.
+
 - `#NEXT.R8.ENTITIES.1124` — represented `Player::RemoveSpell` now mirrors
   the C++ direct `m_overrideSpells.erase(spell_id)` cleanup. Source of truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3433`
@@ -5,14 +26,15 @@
   represented override map entry keyed by the spell being removed and preserves
   unrelated override mappings. Coverage: `cargo fmt`; `cargo fmt --check`;
   `cargo test -p wow-world remove_known_spell --lib`; `cargo check -p
-  world-server`; `git diff --check`. Boundary remains partial: trait-definition
-  lookup removal (`TraitDefinitionId -> OverridesSpellID`), full
+  world-server`; `git diff --check`. Boundary remains partial: full
   `TraitDefinition`/`TraitConfig` ownership, inactive `PlayerSpellMap` rows,
   active/disabled/state transitions, `AddSpell` return semantics, real
   `SendSupercededSpell`/action-bar packet, `UnlearnedSpells`
   `suppressMessaging`, Titan Grip/Dual Wield side effects, offhand
   auto-unequip, live-client/bot/manual validation, and full
-  `Player::RemoveSpell` parity remain open.
+  `Player::RemoveSpell` parity remain open. Trait-definition lookup removal
+  (`TraitDefinitionId -> OverridesSpellID`) is closed by
+  `#NEXT.R8.ENTITIES.1125`.
 
 - `#NEXT.R8.ENTITIES.1123` — represented `Player::RemoveSpell` now carries
   the C++ `learn_low_rank` flag through recursive removal and updates the

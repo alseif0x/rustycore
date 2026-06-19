@@ -231,6 +231,7 @@ pub struct SessionResources {
     pub spell_enchant_proc_store: Option<Arc<wow_data::SpellEnchantProcStoreLikeCpp>>,
     pub hotfix_blob_cache: Option<Arc<wow_data::HotfixBlobCache>>,
     pub skill_store: Option<Arc<wow_data::SkillStore>>,
+    pub trait_definition_store: Option<Arc<wow_data::trait_tree::TraitDefinitionStore>>,
     pub skill_line_store: Option<Arc<wow_data::SkillLineStore>>,
     pub skill_tiers_store: Option<Arc<wow_data::SkillTiersStoreLikeCpp>>,
     pub talent_store: Option<Arc<wow_data::TalentStore>>,
