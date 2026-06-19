@@ -3457,6 +3457,29 @@ impl WorldSession {
             result.try_read::<u32>(68).unwrap_or(0),
         );
         let summoned_pet_number = result.try_read::<u32>(38).unwrap_or(0);
+        const AT_LOGIN_RESET_PET_TALENTS_LIKE_CPP: u16 = 0x010;
+        if (self.represented_at_login_flags_like_cpp() & AT_LOGIN_RESET_PET_TALENTS_LIKE_CPP) != 0 {
+            let mut delete_pet_spells =
+                char_db.prepare(CharStatements::DEL_ALL_PET_SPELLS_BY_OWNER);
+            delete_pet_spells.set_u64(0, guid.counter() as u64);
+            if let Err(error) = char_db.execute(&delete_pet_spells).await {
+                warn!(
+                    player_guid = guid.counter(),
+                    %error,
+                    "failed to apply represented AT_LOGIN_RESET_PET_TALENTS pet_spell delete like C++"
+                );
+            }
+
+            let mut reset_pet_specs = char_db.prepare(CharStatements::UPD_PET_SPECS_BY_OWNER);
+            reset_pet_specs.set_u64(0, guid.counter() as u64);
+            if let Err(error) = char_db.execute(&reset_pet_specs).await {
+                warn!(
+                    player_guid = guid.counter(),
+                    %error,
+                    "failed to apply represented AT_LOGIN_RESET_PET_TALENTS pet specialization reset like C++"
+                );
+            }
+        }
         {
             let mut pets_stmt = char_db.prepare(CharStatements::SEL_CHAR_PETS);
             pets_stmt.set_u64(0, guid.counter() as u64);
@@ -3744,6 +3767,9 @@ impl WorldSession {
                     );
                 }
             }
+        }
+        if (self.represented_at_login_flags_like_cpp() & AT_LOGIN_RESET_PET_TALENTS_LIKE_CPP) != 0 {
+            self.apply_represented_login_pet_talent_reset_like_cpp();
         }
         self.group_guid = None;
         {

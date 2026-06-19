@@ -27382,6 +27382,36 @@ impl WorldSession {
         self.represented_pet_stable_like_cpp = stable;
     }
 
+    pub(crate) fn apply_represented_login_pet_talent_reset_like_cpp(&mut self) -> bool {
+        const AT_LOGIN_RESET_PET_TALENTS_LIKE_CPP: u16 = 0x010;
+
+        if (self.represented_at_login_flags_like_cpp & AT_LOGIN_RESET_PET_TALENTS_LIKE_CPP) == 0 {
+            return false;
+        }
+
+        for pet in self
+            .represented_pet_stable_like_cpp
+            .active_pets
+            .iter_mut()
+            .flatten()
+        {
+            pet.specialization_id = 0;
+        }
+        for pet in self
+            .represented_pet_stable_like_cpp
+            .stabled_pets
+            .iter_mut()
+            .flatten()
+        {
+            pet.specialization_id = 0;
+        }
+        for pet in &mut self.represented_pet_stable_like_cpp.unslotted_pets {
+            pet.specialization_id = 0;
+        }
+        self.represented_pet_spells_like_cpp.clear();
+        true
+    }
+
     /// C++ `Player::RemovePet(nullptr, PET_SAVE_NOT_IN_SLOT, true)`.
     ///
     /// Represented boundary: clears the active represented pet link, resets
@@ -36730,7 +36760,6 @@ impl WorldSession {
         self.represented_at_login_flags_like_cpp = flags;
     }
 
-    #[cfg(test)]
     pub(crate) fn represented_at_login_flags_like_cpp(&self) -> u16 {
         self.represented_at_login_flags_like_cpp
     }
@@ -74752,6 +74781,87 @@ mod tests {
         assert_eq!(
             session.represented_pet_stable_like_cpp.current_pet_index,
             Some(0)
+        );
+    }
+
+    #[test]
+    fn login_pet_talent_reset_clears_pet_spells_and_specs_without_clearing_flag_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        const AT_LOGIN_RESET_PET_TALENTS_LIKE_CPP: u16 = 0x010;
+
+        session.set_represented_at_login_flags_like_cpp(AT_LOGIN_RESET_PET_TALENTS_LIKE_CPP);
+        session.load_represented_pet_stable_rows_like_cpp(
+            42,
+            [
+                character_pet_stable_row_like_cpp(42, PetSaveMode::active_slot(0), 1),
+                character_pet_stable_row_like_cpp(43, PetSaveMode::stable_slot(0), 1),
+                character_pet_stable_row_like_cpp(44, PetSaveMode::NotInSlot as i16, 1),
+            ],
+        );
+        session.load_represented_pet_spell_rows_like_cpp(
+            42,
+            [CharacterPetSpellRowLikeCpp {
+                spell_id: 123,
+                active: ActiveState::Enabled as u8,
+            }],
+        );
+        session.load_represented_pet_spell_cooldown_rows_like_cpp(
+            42,
+            [CharacterPetSpellCooldownRowLikeCpp {
+                spell_id: 123,
+                cooldown_end_unix_secs: 1_000,
+                category_id: 7,
+                category_end_unix_secs: 2_000,
+            }],
+        );
+        session.load_represented_pet_spell_charge_rows_like_cpp(
+            42,
+            [CharacterPetSpellChargeRowLikeCpp {
+                category_id: 7,
+                recharge_start_unix_secs: 1_000,
+                recharge_end_unix_secs: 2_000,
+            }],
+        );
+
+        assert!(session.apply_represented_login_pet_talent_reset_like_cpp());
+
+        assert!(
+            session.represented_pet_spells_like_cpp.is_empty(),
+            "C++ deletes pet_spell rows for all pets owned by the player"
+        );
+        assert_eq!(
+            session.represented_pet_stable_like_cpp.active_pets[0]
+                .as_ref()
+                .map(|pet| pet.specialization_id),
+            Some(0)
+        );
+        assert_eq!(
+            session.represented_pet_stable_like_cpp.stabled_pets[0]
+                .as_ref()
+                .map(|pet| pet.specialization_id),
+            Some(0)
+        );
+        assert_eq!(
+            session.represented_pet_stable_like_cpp.unslotted_pets[0].specialization_id,
+            0
+        );
+        assert!(
+            !session.represented_pet_spell_cooldowns_like_cpp.is_empty(),
+            "C++ AT_LOGIN_RESET_PET_TALENTS does not delete pet_spell_cooldown rows in this block"
+        );
+        assert!(
+            !session.represented_pet_spell_charges_like_cpp.is_empty(),
+            "C++ AT_LOGIN_RESET_PET_TALENTS does not delete pet_spell_charges rows in this block"
+        );
+        assert_eq!(
+            session.represented_at_login_flags_like_cpp(),
+            AT_LOGIN_RESET_PET_TALENTS_LIKE_CPP,
+            "C++ does not call RemoveAtLoginFlag for AT_LOGIN_RESET_PET_TALENTS in CharacterHandler"
+        );
+        assert!(
+            session
+                .represented_at_login_flag_removals_like_cpp()
+                .is_empty()
         );
     }
 

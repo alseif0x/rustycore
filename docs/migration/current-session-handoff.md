@@ -1,3 +1,27 @@
+- `#NEXT.R8.ENTITIES.1088` — represented login now applies the C++
+  `AT_LOGIN_RESET_PET_TALENTS` pre-pet-load DB block (not
+  manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CharacterHandler.cpp:1259-1269`,
+  `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/CharacterDatabase.cpp:683-684`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:538`.
+  C++ executes `CHAR_DEL_ALL_PET_SPELLS_BY_OWNER`, then
+  `CHAR_UPD_PET_SPECS_BY_OWNER`, before loading/resummoning pets. Rust now
+  executes the matching `DEL_ALL_PET_SPELLS_BY_OWNER` and
+  `UPD_PET_SPECS_BY_OWNER` statements before loading represented
+  `character_pet` rows, mirrors the represented state by clearing loaded pet
+  spells and zeroing pet specializations, and intentionally leaves
+  `AT_LOGIN_RESET_PET_TALENTS` set because this C++ block does not call
+  `RemoveAtLoginFlag`. Coverage: `cargo fmt --all --check`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  login_pet_talent_reset_clears_pet_spells_and_specs_without_clearing_flag_like_cpp
+  --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p
+  world-server`; `git diff --check`. Boundary remains partial: full live
+  `Pet::LoadPetFromDB` reload semantics, pet talent/spell packet fanout, pet
+  cooldown/charge cleanup outside this exact C++ block, full pet
+  specialization runtime, live-client validation, bot validation, and manual
+  validation remain open. C++ appears to leave this at-login flag set in the
+  handler; Rust mirrors that rather than silently fixing it.
 - `#NEXT.R8.ENTITIES.1087` — represented login now applies
   `AT_LOGIN_RESET_SPELLS` before `AT_LOGIN_RESET_TALENTS`, matching the C++
   at-login request order (not manual-test-ready). Source of truth:
@@ -45,7 +69,8 @@
   confirm_respec --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo
   check -p world-server`; `git diff --check`. Boundary remains partial:
   `AT_LOGIN_RESET_SPELLS` is closed by `#NEXT.R8.ENTITIES.1087`;
-  `AT_LOGIN_RESET_PET_TALENTS`, `AT_LOGIN_FIRST`,
+  `AT_LOGIN_RESET_PET_TALENTS` is closed by `#NEXT.R8.ENTITIES.1088`;
+  `AT_LOGIN_FIRST`,
   live DB execution of the at-login flag update, full `ScriptMgr`, full
   `Player::SaveToDB` talent/spell transaction parity, live-client validation,
   bot validation, and manual validation remain open.
