@@ -1,3 +1,22 @@
+- `#NEXT.R8.ENTITIES.1131` — represented `AutoUnequipOffhandIfNeed` now
+  runs the C++ `CanStoreItem(NULL_BAG, NULL_SLOT, off_dest, offItem, false)`
+  storage branch for the existing offhand item before falling back to removal.
+  Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:24621-24634`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11559-11635`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11643-11675`.
+  Rust reuses represented `CanStoreItem` with the source item, moves a supported
+  direct-inventory destination from `EQUIPMENT_SLOT_OFFHAND` into the selected
+  direct slot, and delinks the offhand item with `container=Empty` and
+  `slot=NULL_SLOT` when represented storage cannot be completed so the mail
+  fallback boundary is explicit. Coverage: `cargo fmt`; `cargo fmt --check`;
+  `cargo test -p wow-world remove_known_spell --lib`; `cargo check -p
+  world-server`; `git diff --check`. Boundary remains partial: nested bag
+  `StoreItem`, DB inventory slot updates, DB delete/save transaction, real
+  mail draft/send fallback, item update queue, quest/refund/temp appearance
+  cleanup, packets/stat recalculation, live-client/bot/manual validation, and
+  full `Player::RemoveSpell` parity remain open.
+
 - `#NEXT.R8.ENTITIES.1130` — represented `Player::RemoveSpell` now consumes
   the C++ `CONFIG_OFFHAND_CHECK_AT_SPELL_UNLEARN` /
   `OffhandCheckAtSpellUnlearn` switch and records represented
@@ -14,10 +33,11 @@
   remove_known_spell --lib`; `cargo test -p world-server
   offhand_check_at_spell_unlearn_uses_cpp_world_config_key --bin
   world-server`; `cargo check -p world-server`; `git diff --check`.
-  Boundary remains partial: this is represented decision evidence only; real
-  `CanStoreItem` destination selection, `RemoveItem`/`StoreItem`, DB
-  delete/save transaction, mail fallback, update packets, live-client/bot/manual
-  validation, and full `Player::RemoveSpell` parity remain open.
+  Boundary remains partial: real represented `CanStoreItem` direct-inventory
+  movement and delink fallback are closed by `#NEXT.R8.ENTITIES.1131`; nested
+  bag `StoreItem`, DB delete/save transaction, real mail fallback, update
+  packets, live-client/bot/manual validation, and full `Player::RemoveSpell`
+  parity remain open.
 
 - `#NEXT.R8.ENTITIES.1129` — represented `Player::RemoveSpell` now clears
   Dual Wield capability when the removed spell is passive and has

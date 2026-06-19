@@ -4528,6 +4528,8 @@ pub(crate) struct RepresentedAutoUnequipOffhandLikeCpp {
     pub item_guid: ObjectGuid,
     pub item_entry: u32,
     pub reason: RepresentedAutoUnequipOffhandReasonLikeCpp,
+    pub stored_destination: Option<(u8, u8)>,
+    pub needs_mail_fallback: bool,
 }
 
 pub(crate) const MAX_EQUIPMENT_SET_INDEX_LIKE_CPP: u32 = 20;
@@ -16489,6 +16491,34 @@ impl WorldSession {
         bag: u8,
         slot: u8,
     ) -> Option<(InventoryResult, Vec<ItemPosCount>, Option<u32>)> {
+        self.plan_store_direct_inventory_item_like_cpp(entry_id, count, bag, slot, None)
+    }
+
+    pub(crate) fn plan_store_existing_direct_inventory_item_like_cpp(
+        &self,
+        source_slot: u8,
+    ) -> Option<(InventoryResult, Vec<ItemPosCount>, Option<u32>)> {
+        let inventory_item = self.inventory_items_like_cpp().get(&source_slot)?;
+        let source_item = self
+            .inventory_item_objects_like_cpp()
+            .get(&inventory_item.guid)?;
+        self.plan_store_direct_inventory_item_like_cpp(
+            inventory_item.entry_id,
+            source_item.count(),
+            NULL_BAG,
+            NULL_SLOT,
+            Some(source_item),
+        )
+    }
+
+    fn plan_store_direct_inventory_item_like_cpp(
+        &self,
+        entry_id: u32,
+        count: u32,
+        bag: u8,
+        slot: u8,
+        source_item: Option<&Item>,
+    ) -> Option<(InventoryResult, Vec<ItemPosCount>, Option<u32>)> {
         let player = self.direct_inventory_player_snapshot()?;
         let proto = self.item_storage_template(entry_id);
         let inventory_items = self.inventory_items_like_cpp();
@@ -16567,7 +16597,7 @@ impl WorldSession {
                 entry: entry_id,
                 count,
                 proto: proto.as_ref(),
-                source_item: None,
+                source_item,
                 source_is_not_empty_bag: false,
                 source_bop_trade_allowed_for_player: false,
                 swap: false,
@@ -29379,11 +29409,36 @@ impl WorldSession {
             return false;
         };
 
+        let mut stored_destination = None;
+        let mut needs_mail_fallback = true;
+        if let Some((InventoryResult::Ok, destinations, _)) =
+            self.plan_store_existing_direct_inventory_item_like_cpp(EQUIPMENT_SLOT_OFFHAND)
+            && let Some(destination) = destinations.first()
+        {
+            let [bag, slot] = destination.pos.to_be_bytes();
+            if bag == INVENTORY_SLOT_BAG_0
+                && self
+                    .move_represented_direct_inventory_item_like_cpp(EQUIPMENT_SLOT_OFFHAND, slot)
+            {
+                stored_destination = Some((bag, slot));
+                needs_mail_fallback = false;
+            }
+        }
+        if needs_mail_fallback {
+            self.remove_inventory_item_like_cpp(EQUIPMENT_SLOT_OFFHAND);
+            self.update_inventory_item_object_like_cpp(offhand_item.guid, |item| {
+                item.set_container_guid(ObjectGuid::EMPTY);
+                item.set_slot(NULL_SLOT);
+            });
+        }
+
         self.represented_auto_unequip_offhand_requests_like_cpp
             .push(RepresentedAutoUnequipOffhandLikeCpp {
                 item_guid: offhand_item.guid,
                 item_entry: offhand_item.entry_id,
                 reason,
+                stored_destination,
+                needs_mail_fallback,
             });
         true
     }
@@ -49739,8 +49794,24 @@ mod tests {
                 item_guid: offhand_guid,
                 item_entry: offhand_item_id,
                 reason: RepresentedAutoUnequipOffhandReasonLikeCpp::LostDualWield,
+                stored_destination: Some((INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)),
+                needs_mail_fallback: false,
             }],
             "C++ RemoveSpell calls AutoUnequipOffhandIfNeed after losing dual wield"
+        );
+        assert!(
+            !session
+                .inventory_items_like_cpp()
+                .contains_key(&EQUIPMENT_SLOT_OFFHAND),
+            "C++ RemoveItem removes the item from EQUIPMENT_SLOT_OFFHAND before StoreItem"
+        );
+        assert_eq!(
+            session
+                .inventory_items_like_cpp()
+                .get(&INVENTORY_SLOT_ITEM_START)
+                .map(|item| item.guid),
+            Some(offhand_guid),
+            "represented StoreItem moves the offhand item to the selected backpack slot"
         );
     }
 
@@ -49934,9 +50005,84 @@ mod tests {
                 item_guid: offhand_guid,
                 item_entry: offhand_item_id,
                 reason: RepresentedAutoUnequipOffhandReasonLikeCpp::InvalidTwoHandState,
+                stored_destination: Some((INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)),
+                needs_mail_fallback: false,
             }],
             "C++ AutoUnequipOffhandIfNeed unequips offhand when the main hand is a 2H weapon without Titan Grip"
         );
+    }
+
+    #[test]
+    fn remove_known_spell_auto_unequip_delinks_offhand_when_store_fails_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let offhand_item_id = 30_005_u32;
+        let filler_item_id = 30_006_u32;
+        let offhand_guid = ObjectGuid::create_item(1, 30_005);
+        let player_guid = ObjectGuid::create_player(1, 159);
+        session.set_player_guid(Some(player_guid));
+        install_remove_spell_offhand_templates_like_cpp(
+            &mut session,
+            &[
+                (
+                    offhand_item_id,
+                    InventoryType::WeaponOffhand,
+                    0,
+                    ItemClass::Weapon,
+                    ItemSubClassWeapon::Axe as u8,
+                ),
+                (
+                    filler_item_id,
+                    InventoryType::NonEquip,
+                    0,
+                    ItemClass::Consumable,
+                    0,
+                ),
+            ],
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_OFFHAND,
+            offhand_guid,
+            offhand_item_id,
+            InventoryType::WeaponOffhand,
+        );
+        for offset in 0..INVENTORY_DEFAULT_SIZE {
+            let slot = INVENTORY_SLOT_ITEM_START + offset;
+            let guid = ObjectGuid::create_item(1, 40_000 + i64::from(offset));
+            equip_represented_test_item_like_cpp(
+                &mut session,
+                slot,
+                guid,
+                filler_item_id,
+                InventoryType::NonEquip,
+            );
+        }
+
+        assert!(session.represented_auto_unequip_offhand_if_need_like_cpp(false));
+
+        assert_eq!(
+            session.represented_auto_unequip_offhand_requests_like_cpp(),
+            &[RepresentedAutoUnequipOffhandLikeCpp {
+                item_guid: offhand_guid,
+                item_entry: offhand_item_id,
+                reason: RepresentedAutoUnequipOffhandReasonLikeCpp::LostDualWield,
+                stored_destination: None,
+                needs_mail_fallback: true,
+            }],
+            "C++ AutoUnequipOffhandIfNeed falls back to MoveItemFromInventory + mail when CanStoreItem fails"
+        );
+        assert!(
+            !session
+                .inventory_items_like_cpp()
+                .contains_key(&EQUIPMENT_SLOT_OFFHAND),
+            "C++ MoveItemFromInventory removes the item from the offhand slot"
+        );
+        let runtime_item = session
+            .inventory_item_objects_like_cpp()
+            .get(&offhand_guid)
+            .expect("mail fallback keeps the standalone item object represented");
+        assert_eq!(runtime_item.container_guid(), ObjectGuid::EMPTY);
+        assert_eq!(runtime_item.slot(), NULL_SLOT);
     }
 
     #[test]
