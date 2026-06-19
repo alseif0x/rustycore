@@ -14205,8 +14205,58 @@ impl WorldSession {
             return false;
         }
 
+        let health_before = self.player_health_like_cpp;
+        let max_health_before = self.player_max_health_like_cpp.max(1);
+        let item_mod_targets = self.represented_top_level_item_mod_targets_like_cpp();
+        self.record_represented_all_item_mods_like_cpp(&item_mod_targets, false);
         self.represented_using_pvp_item_levels_like_cpp = pvp_activity;
+        self.record_represented_all_item_mods_like_cpp(&item_mod_targets, true);
+        self.restore_represented_health_pct_after_item_mod_scaling_like_cpp(
+            health_before,
+            max_health_before,
+        );
         true
+    }
+
+    fn represented_top_level_item_mod_targets_like_cpp(&self) -> Vec<(u8, ObjectGuid)> {
+        let mut targets = self
+            .inventory_item_objects_like_cpp()
+            .values()
+            .filter(|item| {
+                item.container_guid().is_empty()
+                    && item.slot() < INVENTORY_SLOT_BAG_END
+                    && !item.is_broken()
+            })
+            .map(|item| (item.slot(), item.object().guid()))
+            .collect::<Vec<_>>();
+        targets.sort_by_key(|(slot, guid)| (*slot, guid.counter()));
+        targets
+    }
+
+    fn record_represented_all_item_mods_like_cpp(
+        &mut self,
+        targets: &[(u8, ObjectGuid)],
+        apply: bool,
+    ) {
+        self.represented_item_mod_reapply_events_like_cpp
+            .extend(targets.iter().map(|(slot, item_guid)| {
+                RepresentedItemModsReapplyEventLikeCpp {
+                    item_guid: *item_guid,
+                    slot: *slot,
+                    apply,
+                }
+            }));
+    }
+
+    fn restore_represented_health_pct_after_item_mod_scaling_like_cpp(
+        &mut self,
+        health_before: u32,
+        max_health_before: u32,
+    ) {
+        let max_health_after = self.player_max_health_like_cpp.max(1);
+        let restored = (u64::from(max_health_after) * u64::from(health_before)
+            / u64::from(max_health_before.max(1))) as u32;
+        self.set_player_health_like_cpp(restored, max_health_after);
     }
 
     pub fn set_item_spec_override_store(&mut self, store: Arc<ItemSpecOverrideStore>) {
@@ -52426,6 +52476,106 @@ mod tests {
         assert_eq!(
             session.represented_item_level_like_cpp(item_id, None),
             Some(100)
+        );
+    }
+
+    #[test]
+    fn represented_item_level_area_scaling_reapplies_top_level_item_mods_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_160_u32;
+        let item_guid = ObjectGuid::create_item(1, 30_160);
+        install_represented_pvp_item_level_fixture_like_cpp(&mut session, item_id, 10);
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            item_guid,
+            item_id,
+            InventoryType::Chest,
+        );
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            represented_item_level_area_map_like_cpp(489, wow_data::map::MAP_BATTLEGROUND, 0),
+        ])));
+        session.set_player_map_position_like_cpp(489, Position::ZERO);
+        session.set_player_health_like_cpp(35, 80);
+
+        assert!(session.update_represented_item_level_area_based_scaling_like_cpp());
+
+        assert_eq!(
+            session.represented_item_mod_reapply_events_like_cpp(),
+            &[
+                RepresentedItemModsReapplyEventLikeCpp {
+                    item_guid,
+                    slot: EQUIPMENT_SLOT_CHEST,
+                    apply: false,
+                },
+                RepresentedItemModsReapplyEventLikeCpp {
+                    item_guid,
+                    slot: EQUIPMENT_SLOT_CHEST,
+                    apply: true,
+                },
+            ],
+            "C++ Player::UpdateItemLevelAreaBasedScaling wraps ActivatePvpItemLevels with _RemoveAllItemMods/_ApplyAllItemMods"
+        );
+        assert_eq!(
+            session.player_health_like_cpp(),
+            35,
+            "C++ restores health with CalculatePct(GetMaxHealth(), previous GetHealthPct()) after item mods are reapplied"
+        );
+    }
+
+    #[test]
+    fn represented_item_level_area_scaling_noop_does_not_reapply_item_mods_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_161_u32;
+        let item_guid = ObjectGuid::create_item(1, 30_161);
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            item_guid,
+            item_id,
+            InventoryType::Chest,
+        );
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            represented_item_level_area_map_like_cpp(30_161, wow_data::map::MAP_COMMON, 0),
+        ])));
+        session.set_player_map_position_like_cpp(30_161, Position::ZERO);
+
+        assert!(!session.update_represented_item_level_area_based_scaling_like_cpp());
+        assert!(
+            session
+                .represented_item_mod_reapply_events_like_cpp()
+                .is_empty(),
+            "C++ only removes/reapplies item mods when _usePvpItemLevels changes"
+        );
+    }
+
+    #[test]
+    fn represented_item_level_area_scaling_skips_broken_item_mods_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_162_u32;
+        let item_guid = ObjectGuid::create_item(1, 30_162);
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            item_guid,
+            item_id,
+            InventoryType::Chest,
+        );
+        session.update_inventory_item_object_like_cpp(item_guid, |item| {
+            item.set_max_durability(40);
+            item.set_durability(0);
+        });
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            represented_item_level_area_map_like_cpp(489, wow_data::map::MAP_BATTLEGROUND, 0),
+        ])));
+        session.set_player_map_position_like_cpp(489, Position::ZERO);
+
+        assert!(session.update_represented_item_level_area_based_scaling_like_cpp());
+        assert!(
+            session
+                .represented_item_mod_reapply_events_like_cpp()
+                .is_empty(),
+            "C++ _RemoveAllItemMods/_ApplyAllItemMods skip broken items for represented mod removal/reapplication"
         );
     }
 

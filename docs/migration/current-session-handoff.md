@@ -1,3 +1,21 @@
+- `#NEXT.R8.ENTITIES.1165` — represented
+  `Player::UpdateItemLevelAreaBasedScaling` now mirrors the C++ state-change
+  wrapper around PvP item-level toggles: it records `_RemoveAllItemMods` for
+  top-level non-broken inventory slots, flips represented PvP item levels,
+  records `_ApplyAllItemMods`, and restores player health from the previous
+  health percentage. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:8542-8621`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28744-28755`.
+  Coverage: `cargo test -p wow-world represented_item_level_area_scaling
+  --lib`, `cargo test -p wow-world represented_pvp_rules_aura --lib`,
+  `cargo fmt --all --check`, `cargo check -p world-server`, and
+  `git diff --check`. Boundary remains partial: this records represented
+  remove/apply evidence and health percentage preservation only; full
+  `_ApplyItemBonuses`, equip spells, enchantments, set bonuses, combat-stat
+  recalculation, update-field packet/fanout, persistence, live-client/bot
+  validation, and full item stat reapplication remain open.
+
 - `#NEXT.R8.ENTITIES.1164` — represented PvP-rules aura apply/remove now
   recalculates C++ `Player::UpdateItemLevelAreaBasedScaling`. Source of truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26134-26168`,
