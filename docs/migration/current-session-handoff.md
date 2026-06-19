@@ -1,3 +1,24 @@
+- `#NEXT.R8.ENTITIES.1156` — represented `PlayerData::AvgItemLevel[0]`
+  and `[1]` now apply the represented owner item-level caps consumed by
+  C++ `Item::GetItemLevel(Player const*)`: `MinItemLevel`,
+  `MinItemLevelCutoff`, and `MaxItemLevel`, including the
+  `ITEM_FLAG3_IGNORE_ITEM_LEVEL_CAP_IN_PVP` max-cap bypass and the
+  `INVTYPE_NON_EQUIP` skip. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:1891-1937`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Object/Updates/UpdateFields.h:296-298`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/ItemTemplate.h:256`.
+  C++ applies `BonusData::ItemLevelBonus`, records
+  `itemLevelBeforeUpgrades`, then applies min/max caps only for equipable
+  templates; Rust now mirrors that represented ordering for static/bonus item
+  levels while preserving the existing runtime `DebugItemLevel` override seam.
+  Coverage: `cargo test -p wow-world represented_item_level --lib` and
+  `cargo test -p wow-world represented_condition_avg_item_level --lib`.
+  Boundary remains partial: player-level-to-item-level curves, timewalker fixed
+  level, PvP item-level bonus, real update-field propagation into these
+  represented caps, packet emission/fanout, persistence, live-client/bot manual
+  validation, and full condition-runtime parity remain open.
+
 - `#NEXT.R8.ENTITIES.1155` — represented `PlayerData::AvgItemLevel[0]`
   and `[1]` now consume the represented `BonusData::ItemLevelBonus` branch
   from item bonus lists when a runtime item carries `ItemData::ItemBonusKey`.

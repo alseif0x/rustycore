@@ -3489,6 +3489,7 @@ pub struct WorldSession {
 
     // Player level stats store (race/class/level → base stats)
     player_stats: Option<Arc<PlayerStatsStore>>,
+    represented_item_level_caps_like_cpp: RepresentedItemLevelCapsLikeCpp,
 
     // Item stat modifiers store (item_id → stat bonuses from ItemSparse.db2)
     item_bonus_db2_store: Option<Arc<ItemBonusDb2Store>>,
@@ -4758,6 +4759,15 @@ pub(crate) struct RepresentedPlayerConditionContextLikeCpp {
     mainhand_weapon_subclass: Option<u8>,
 }
 
+/// Represented subset of C++ `Player::m_unitData` item-level cap fields
+/// consumed by `Item::GetItemLevel(Player const*)`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct RepresentedItemLevelCapsLikeCpp {
+    pub min_item_level_cutoff: u32,
+    pub min_item_level: u32,
+    pub max_item_level: u32,
+}
+
 impl RepresentedPlayerConditionContextLikeCpp {
     pub(crate) fn as_context<'a>(
         &'a self,
@@ -5304,6 +5314,7 @@ impl WorldSession {
             item_limit_category_store: None,
             item_limit_category_condition_store: None,
             player_stats: None,
+            represented_item_level_caps_like_cpp: RepresentedItemLevelCapsLikeCpp::default(),
             item_bonus_db2_store: None,
             item_stats_store: None,
             durability_costs_store: None,
@@ -14145,6 +14156,13 @@ impl WorldSession {
 
     pub fn set_item_stats_store(&mut self, store: Arc<ItemStatsStore>) {
         self.item_stats_store = Some(store);
+    }
+
+    pub(crate) fn set_represented_item_level_caps_like_cpp(
+        &mut self,
+        caps: RepresentedItemLevelCapsLikeCpp,
+    ) {
+        self.represented_item_level_caps_like_cpp = caps;
     }
 
     pub fn set_item_spec_override_store(&mut self, store: Arc<ItemSpecOverrideStore>) {
@@ -30654,17 +30672,49 @@ impl WorldSession {
         entry_id: u32,
         runtime_item: Option<&Item>,
     ) -> Option<u32> {
-        let template_item_level = i64::from(
-            self.item_stats_store
-                .as_ref()
-                .and_then(|store| store.random_property_template(entry_id))?
-                .item_level,
-        );
+        let item_stats_store = self.item_stats_store.as_ref()?;
+        let random_property_template = item_stats_store.random_property_template(entry_id)?;
+        let sparse_template = item_stats_store.sparse_template(entry_id);
+        let template_item_level = i64::from(random_property_template.item_level);
         let runtime_item_level = runtime_item
             .map(|item| i64::from(item.data().debug_item_level))
             .filter(|level| *level != 0);
         let item_level = runtime_item_level.unwrap_or_else(|| {
-            template_item_level + self.represented_item_level_bonus_like_cpp(runtime_item)
+            let item_level =
+                template_item_level + self.represented_item_level_bonus_like_cpp(runtime_item);
+            let item_level_before_upgrades = item_level;
+            let inventory_type = sparse_template
+                .map(|template| template.inventory_type)
+                .unwrap_or(random_property_template.inventory_type);
+            let is_equipable =
+                <InventoryType as num_traits::FromPrimitive>::from_i8(inventory_type)
+                    .is_some_and(|inventory_type| inventory_type != InventoryType::NonEquip);
+            if !is_equipable {
+                return item_level;
+            }
+
+            let caps = self.represented_item_level_caps_like_cpp;
+            let mut item_level = item_level;
+            if caps.min_item_level != 0
+                && (caps.min_item_level_cutoff == 0
+                    || item_level_before_upgrades >= i64::from(caps.min_item_level_cutoff))
+                && item_level < i64::from(caps.min_item_level)
+            {
+                item_level = i64::from(caps.min_item_level);
+            }
+
+            let flags3 = sparse_template
+                .map(|template| template.flags[2])
+                .unwrap_or_default();
+            let ignore_max_cap = (flags3 & ItemFlags3::IgnoreItemLevelCapInPvp as u32) != 0;
+            if caps.max_item_level != 0
+                && !ignore_max_cap
+                && item_level > i64::from(caps.max_item_level)
+            {
+                item_level = i64::from(caps.max_item_level);
+            }
+
+            item_level
         });
         Some(
             item_level
@@ -51754,6 +51804,182 @@ mod tests {
         assert_eq!(
             context.avg_equipped_item_level, 9.6875,
             "C++ UpdateAverageItemLevelEquipped also consumes Item::GetItemLevel(owner) with item bonus levels"
+        );
+    }
+
+    #[test]
+    fn represented_item_level_applies_min_cap_to_equipable_item_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_049_u32;
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [(
+                    item_id,
+                    sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                )],
+                [(
+                    item_id,
+                    ItemRandomPropertyTemplateEntry {
+                        item_level: 100,
+                        quality: ItemQuality::Epic as i8,
+                        inventory_type: InventoryType::Chest as i8,
+                    },
+                )],
+            ),
+        ));
+        session.set_represented_item_level_caps_like_cpp(RepresentedItemLevelCapsLikeCpp {
+            min_item_level: 150,
+            ..Default::default()
+        });
+
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(150),
+            "C++ Item::GetItemLevel(owner) raises equipable items below MinItemLevel"
+        );
+    }
+
+    #[test]
+    fn represented_item_level_respects_min_cap_cutoff_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_050_u32;
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [(
+                    item_id,
+                    sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                )],
+                [(
+                    item_id,
+                    ItemRandomPropertyTemplateEntry {
+                        item_level: 100,
+                        quality: ItemQuality::Epic as i8,
+                        inventory_type: InventoryType::Chest as i8,
+                    },
+                )],
+            ),
+        ));
+        session.set_represented_item_level_caps_like_cpp(RepresentedItemLevelCapsLikeCpp {
+            min_item_level_cutoff: 120,
+            min_item_level: 150,
+            ..Default::default()
+        });
+
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(100),
+            "C++ only applies MinItemLevel when itemLevelBeforeUpgrades reaches MinItemLevelCutoff"
+        );
+
+        session.set_represented_item_level_caps_like_cpp(RepresentedItemLevelCapsLikeCpp {
+            min_item_level_cutoff: 90,
+            min_item_level: 150,
+            ..Default::default()
+        });
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(150),
+            "C++ cutoff uses itemLevelBeforeUpgrades, not the capped item level"
+        );
+    }
+
+    #[test]
+    fn represented_item_level_applies_max_cap_to_equipable_item_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_051_u32;
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [(
+                    item_id,
+                    sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                )],
+                [(
+                    item_id,
+                    ItemRandomPropertyTemplateEntry {
+                        item_level: 200,
+                        quality: ItemQuality::Epic as i8,
+                        inventory_type: InventoryType::Chest as i8,
+                    },
+                )],
+            ),
+        ));
+        session.set_represented_item_level_caps_like_cpp(RepresentedItemLevelCapsLikeCpp {
+            max_item_level: 120,
+            ..Default::default()
+        });
+
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(120),
+            "C++ Item::GetItemLevel(owner) caps equipable items above MaxItemLevel"
+        );
+    }
+
+    #[test]
+    fn represented_item_level_ignores_max_cap_with_pvp_cap_flag_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_052_u32;
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [(
+                    item_id,
+                    sparse_template_for_inventory_type_like_cpp(
+                        InventoryType::Chest,
+                        ItemFlags3::IgnoreItemLevelCapInPvp as u32,
+                    ),
+                )],
+                [(
+                    item_id,
+                    ItemRandomPropertyTemplateEntry {
+                        item_level: 200,
+                        quality: ItemQuality::Epic as i8,
+                        inventory_type: InventoryType::Chest as i8,
+                    },
+                )],
+            ),
+        ));
+        session.set_represented_item_level_caps_like_cpp(RepresentedItemLevelCapsLikeCpp {
+            max_item_level: 120,
+            ..Default::default()
+        });
+
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(200),
+            "C++ clears maxItemLevel when ITEM_FLAG3_IGNORE_ITEM_LEVEL_CAP_IN_PVP is present"
+        );
+    }
+
+    #[test]
+    fn represented_item_level_does_not_apply_caps_to_non_equip_items_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_053_u32;
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [(
+                    item_id,
+                    sparse_template_for_inventory_type_like_cpp(InventoryType::NonEquip, 0),
+                )],
+                [(
+                    item_id,
+                    ItemRandomPropertyTemplateEntry {
+                        item_level: 100,
+                        quality: ItemQuality::Epic as i8,
+                        inventory_type: InventoryType::NonEquip as i8,
+                    },
+                )],
+            ),
+        ));
+        session.set_represented_item_level_caps_like_cpp(RepresentedItemLevelCapsLikeCpp {
+            min_item_level: 150,
+            max_item_level: 80,
+            ..Default::default()
+        });
+
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(100),
+            "C++ skips MinItemLevel/MaxItemLevel caps for INVTYPE_NON_EQUIP"
         );
     }
 
