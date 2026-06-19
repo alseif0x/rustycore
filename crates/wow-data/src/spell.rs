@@ -115,6 +115,9 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_HEAL_PCT: u32 = 136;
     pub const SPELL_EFFECT_ENERGIZE_PCT: u32 = 137;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_OWNER: u32 = 143;
+    /// C++ `SPELL_EFFECT_TITAN_GRIP`; see `Spell::EffectTitanGrip`
+    /// (`SpellEffects.cpp:4910-4919`).
+    pub const SPELL_EFFECT_TITAN_GRIP: u32 = 155;
     pub const SPELL_EFFECT_OBLITERATE_ITEM: u32 = 163;
     pub const SPELL_EFFECT_ALLOW_CONTROL_PET: u32 = 168;
     pub const SPELL_EFFECT_APPLY_AURA_ON_PET: u32 = 174;
@@ -4861,6 +4864,12 @@ impl SpellInfo {
         self.effects
             .iter()
             .any(|effect| effect.effect_aura == aura_type)
+    }
+
+    pub fn has_effect_like_cpp(&self, effect_type: u32) -> bool {
+        self.effects
+            .iter()
+            .any(|effect| effect.effect == effect_type)
     }
 
     pub fn requires_spell_focus_like_cpp(&self) -> bool {
