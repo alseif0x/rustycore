@@ -1,3 +1,25 @@
+- `#NEXT.R8.ENTITIES.1160` — `ItemSparseTemplateEntry` now exposes the C++
+  `ItemTemplate::GetScalingStatContentTuning()` and
+  `ItemTemplate::GetPlayerLevelToItemLevelCurveId()` inputs used by
+  `BonusData::Initialize`. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/ItemTemplate.h:783-784`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:2164-2167`,
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2LoadInfo.h:3078-3081`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Structure.h:2326-2327`.
+  The Rust `ItemSparse.db2` sequential loader now reads `ContentTuningID` and
+  `PlayerLevelToItemLevelCurveID` from the grouped layout between
+  `FactionRelated` and `MaxDurability`, stores them on the represented sparse
+  template subset, and provides helper accessors with C++-matching names.
+  Existing test fixtures default the new fields to zero. Coverage:
+  `cargo test -p wow-data item_sparse_template_entry_matches_cpp_template_helpers
+  --lib` and `cargo check -p wow-world`. Boundary remains partial: this is only
+  field exposure for the represented item-level curve path; it does not yet
+  evaluate DB2 curves, consume `ContentTuningData` in represented
+  `Item::GetItemLevel(owner)`, consume timewalker fixed-level modifiers, update
+  item fields, emit/fanout packets, persist state, or perform live-client/bot
+  validation.
+
 - `#NEXT.R8.ENTITIES.1159` — `wow-data` now represents C++
   `DB2Manager::GetContentTuningData(contentTuningId, forItem)` as
   `ContentTuningStore::content_tuning_data_like_cpp`. Source of truth:

@@ -78,6 +78,8 @@ pub struct ItemSparseTemplateEntry {
     pub price_random_value: f32,
     pub max_durability: u32,
     pub other_faction_item_id: i32,
+    pub content_tuning_id: i32,
+    pub player_level_to_item_level_curve_id: i32,
     pub limit_category: u16,
     pub instance_bound: u16,
     pub zone_bound: [u16; 2],
@@ -114,6 +116,16 @@ impl ItemSparseTemplateEntry {
     /// C++ `ItemTemplate::GetOtherFactionItemId`.
     pub fn other_faction_item_id_like_cpp(&self) -> u32 {
         self.other_faction_item_id as u32
+    }
+
+    /// C++ `ItemTemplate::GetScalingStatContentTuning`.
+    pub fn scaling_stat_content_tuning_like_cpp(&self) -> u32 {
+        self.content_tuning_id as u32
+    }
+
+    /// C++ `ItemTemplate::GetPlayerLevelToItemLevelCurveId`.
+    pub fn player_level_to_item_level_curve_id_like_cpp(&self) -> u32 {
+        self.player_level_to_item_level_curve_id as u32
     }
 }
 
@@ -429,6 +441,8 @@ impl ItemStatsStore {
             let mut price_random_value_offset: usize = 0;
             let mut flags_offset: usize = 0;
             let mut other_faction_item_id_offset: usize = 0;
+            let mut content_tuning_id_offset: usize = 0;
+            let mut player_level_to_item_level_curve_id_offset: usize = 0;
             let mut max_durability_offset: usize = 0;
             let mut limit_category_offset: usize = 0;
             let mut instance_bound_offset: usize = 0;
@@ -484,6 +498,12 @@ impl ItemStatsStore {
                 }
                 if fi == 24 {
                     other_faction_item_id_offset = pos;
+                }
+                if fi == 26 {
+                    content_tuning_id_offset = pos;
+                }
+                if fi == 27 {
+                    player_level_to_item_level_curve_id_offset = pos;
                 }
                 if fi == 28 {
                     max_durability_offset = pos;
@@ -576,6 +596,8 @@ impl ItemStatsStore {
                 && price_random_value_offset + 4 <= record.len()
                 && flags_offset + 16 <= record.len()
                 && other_faction_item_id_offset + 4 <= record.len()
+                && content_tuning_id_offset + 4 <= record.len()
+                && player_level_to_item_level_curve_id_offset + 4 <= record.len()
                 && max_durability_offset + 4 <= record.len()
                 && limit_category_offset + 2 <= record.len()
                 && instance_bound_offset + 2 <= record.len()
@@ -603,6 +625,11 @@ impl ItemStatsStore {
                         price_variance: read_f32(record, price_variance_offset),
                         price_random_value: read_f32(record, price_random_value_offset),
                         other_faction_item_id: read_i32(record, other_faction_item_id_offset),
+                        content_tuning_id: read_i32(record, content_tuning_id_offset),
+                        player_level_to_item_level_curve_id: read_i32(
+                            record,
+                            player_level_to_item_level_curve_id_offset,
+                        ),
                         max_durability: read_u32(record, max_durability_offset),
                         limit_category: read_u16(record, limit_category_offset),
                         instance_bound: read_u16(record, instance_bound_offset),
@@ -857,6 +884,8 @@ mod tests {
             price_variance: 1.25,
             price_random_value: 0.75,
             other_faction_item_id: 999,
+            content_tuning_id: 321,
+            player_level_to_item_level_curve_id: 654,
             max_durability: 77,
             limit_category: 9,
             instance_bound: 11,
@@ -882,6 +911,8 @@ mod tests {
         assert_eq!(loaded.price_variance, 1.25);
         assert_eq!(loaded.price_random_value, 0.75);
         assert_eq!(loaded.other_faction_item_id_like_cpp(), 999);
+        assert_eq!(loaded.scaling_stat_content_tuning_like_cpp(), 321);
+        assert_eq!(loaded.player_level_to_item_level_curve_id_like_cpp(), 654);
         assert_eq!(loaded.instance_bound, 11);
         assert_eq!(loaded.zone_bound, [22, 33]);
         assert_eq!(loaded.required_expansion, 4);
