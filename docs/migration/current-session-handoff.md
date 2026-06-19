@@ -1,3 +1,28 @@
+- `#NEXT.R8.ENTITIES.1118` — represented `Player::RemoveSpell` now removes
+  known non-talent higher ranks recursively through
+  `SpellChainStoreLikeCpp::next_spell_in_chain_like_cpp`, preserving the C++
+  `SPELL_ATTR0_CU_IS_TALENT` exclusion on the next rank before running the
+  required-spell cleanup branch (not manual-test-ready, not full
+  `PlayerSpellMap`). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3236-3254`
+  and ResetSpells caller
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:23777`.
+  Rust now uses the represented spell-chain store for `GetNextSpellInChain`,
+  reads represented custom attributes at difficulty 0 for the talent guard, and
+  keeps `_SaveSpells` delete evidence for removed higher ranks. Coverage
+  planned for this slice: `cargo fmt --all`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  remove_known_spell_ --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  login_at_login_reset_spells_removes_known_spells_and_notifies_like_cpp
+  --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p
+  world-server`; `cargo fmt --all --check`; and `git diff --check`. Boundary
+  remains partial: disabled/new/temporary `PlayerSpell` state semantics,
+  `learn_low_rank` previous-rank relearn behavior, profession point updates,
+  pet aura removal, full aura ownership, logout DB persistence,
+  live-client/bot/manual validation, and full `Player::RemoveSpell` /
+  `ResetSpells` parity remain open.
+
 - `#NEXT.R8.ENTITIES.1117` — represented `Player::RemoveSpell` now removes
   known spells that require the removed spell through the existing
   `SpellRequiredStoreLikeCpp` inverse lookup, matching the C++
@@ -16,11 +41,11 @@
   login_at_login_reset_spells_removes_known_spells_and_notifies_like_cpp
   --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p
   world-server`; `cargo fmt --all --check`; and `git diff --check`. Boundary
-  remains partial: C++ `GetNextSpellInChain` higher-rank recursion,
-  disabled/new/temporary `PlayerSpell` states, profession point updates, pet
-  aura removal, full aura ownership, logout DB persistence,
+  remains partial: disabled/new/temporary `PlayerSpell` states, profession
+  point updates, pet aura removal, full aura ownership, logout DB persistence,
   live-client/bot/manual validation, and full `Player::RemoveSpell` /
-  `ResetSpells` parity remain open.
+  `ResetSpells` parity remain open. The C++ `GetNextSpellInChain` higher-rank
+  branch is closed separately by `#NEXT.R8.ENTITIES.1118`.
 
 - `#NEXT.R8.ENTITIES.1116` — represented `Player::LearnQuestRewardedSpells`
   now handles the C++ `RewardSpell == -1 && SourceSpellID != 0` branch during

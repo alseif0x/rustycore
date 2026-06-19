@@ -17775,6 +17775,13 @@ impl WorldSession {
         self.spell_chain_store.as_ref()
     }
 
+    pub(crate) fn next_spell_in_chain_like_cpp(&self, spell_id: u32) -> u32 {
+        self.spell_chain_store
+            .as_ref()
+            .map(|store| store.next_spell_in_chain_like_cpp(spell_id))
+            .unwrap_or(0)
+    }
+
     pub fn set_spell_category_store(&mut self, store: Arc<SpellCategoryStore>) {
         self.spell_category_store = Some(store);
     }
@@ -28886,9 +28893,22 @@ impl WorldSession {
             return;
         }
 
-        if let Ok(required_spell_id) = u32::try_from(spell_id) {
+        if let Ok(current_spell_id) = u32::try_from(spell_id) {
+            let next_spell_id = self.next_spell_in_chain_like_cpp(current_spell_id);
+            if next_spell_id != 0 {
+                if let Ok(next_known_spell_id) = i32::try_from(next_spell_id) {
+                    let next_spell_is_talent = self
+                        .spell_custom_attributes_for_difficulty_like_cpp(next_spell_id, 0)
+                        & wow_data::SPELL_ATTR0_CU_IS_TALENT_LIKE_CPP
+                        != 0;
+                    if self.known_spells.contains(&next_known_spell_id) && !next_spell_is_talent {
+                        self.remove_known_spell_with_seen_like_cpp(next_known_spell_id, seen);
+                    }
+                }
+            }
+
             let spells_requiring_removed: Vec<i32> = self
-                .spells_requiring_spell_like_cpp(required_spell_id)
+                .spells_requiring_spell_like_cpp(current_spell_id)
                 .iter()
                 .filter_map(|spell| i32::try_from(*spell).ok())
                 .collect();
@@ -48227,6 +48247,95 @@ mod tests {
             .expect("first-rank threat entry");
 
         assert_eq!(entry.flat_mod, 11);
+    }
+
+    #[test]
+    fn next_spell_in_chain_returns_zero_without_store_like_cpp() {
+        let (session, _, _) = make_session();
+
+        assert_eq!(session.next_spell_in_chain_like_cpp(10), 0);
+    }
+
+    #[test]
+    fn remove_known_spell_removes_non_talent_higher_ranks_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_spell_chain_store(Arc::new(
+            wow_data::SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(
+                [
+                    wow_data::SpellRankEdgeLikeCpp {
+                        spell_id: 20,
+                        supercedes_spell_id: 10,
+                    },
+                    wow_data::SpellRankEdgeLikeCpp {
+                        spell_id: 30,
+                        supercedes_spell_id: 20,
+                    },
+                ],
+                |_| true,
+            ),
+        ));
+        session.set_known_spells_like_cpp(vec![10, 20, 30, 40]);
+
+        session.remove_known_spell_like_cpp(10);
+
+        assert_eq!(
+            session.known_spells_like_cpp(),
+            &[40],
+            "C++ Player::RemoveSpell recursively removes known non-talent higher ranks before removing the current spell"
+        );
+        let statements = WorldSession::character_spell_save_statements_like_cpp(
+            42,
+            session.represented_player_spell_rows_like_cpp(),
+        );
+        let deleted_spells: BTreeSet<i32> = statements
+            .iter()
+            .filter(|stmt| stmt.sql() == CharStatements::DEL_CHAR_SPELL_BY_SPELL.sql())
+            .filter_map(|stmt| match stmt.params().first() {
+                Some(wow_database::SqlParam::I32(spell_id)) => Some(*spell_id),
+                _ => None,
+            })
+            .collect();
+
+        assert_eq!(deleted_spells, BTreeSet::from([10, 20, 30]));
+    }
+
+    #[test]
+    fn remove_known_spell_preserves_talent_higher_rank_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_spell_chain_store(Arc::new(
+            wow_data::SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(
+                [wow_data::SpellRankEdgeLikeCpp {
+                    spell_id: 20,
+                    supercedes_spell_id: 10,
+                }],
+                |_| true,
+            ),
+        ));
+        let outcome = wow_data::SpellCustomAttributeStoreLikeCpp::from_sql_rows_like_cpp(
+            [wow_data::SpellCustomAttributeRowLikeCpp {
+                spell_id: 20,
+                attributes: wow_data::SPELL_ATTR0_CU_IS_TALENT_LIKE_CPP,
+            }],
+            |spell_id| {
+                (spell_id == 20)
+                    .then_some(vec![wow_data::SpellCustomAttributeSourceSpellInfoLikeCpp {
+                        spell_id,
+                        difficulty: 0,
+                        effects: Vec::new(),
+                    }])
+                    .unwrap_or_default()
+            },
+        );
+        session.set_spell_custom_attribute_store(Arc::new(outcome.store));
+        session.set_known_spells_like_cpp(vec![10, 20]);
+
+        session.remove_known_spell_like_cpp(10);
+
+        assert_eq!(
+            session.known_spells_like_cpp(),
+            &[20],
+            "C++ skips recursive higher-rank removal when the next spell has SPELL_ATTR0_CU_IS_TALENT"
+        );
     }
 
     #[test]
