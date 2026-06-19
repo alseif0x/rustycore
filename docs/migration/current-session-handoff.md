@@ -1,3 +1,19 @@
+- `#NEXT.R8.ENTITIES.1124` — represented `Player::RemoveSpell` now mirrors
+  the C++ direct `m_overrideSpells.erase(spell_id)` cleanup. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3433`
+  inside `Player::RemoveSpell` (`Player.cpp:3236-3465`). Rust removes the
+  represented override map entry keyed by the spell being removed and preserves
+  unrelated override mappings. Coverage: `cargo fmt`; `cargo fmt --check`;
+  `cargo test -p wow-world remove_known_spell --lib`; `cargo check -p
+  world-server`; `git diff --check`. Boundary remains partial: trait-definition
+  lookup removal (`TraitDefinitionId -> OverridesSpellID`), full
+  `TraitDefinition`/`TraitConfig` ownership, inactive `PlayerSpellMap` rows,
+  active/disabled/state transitions, `AddSpell` return semantics, real
+  `SendSupercededSpell`/action-bar packet, `UnlearnedSpells`
+  `suppressMessaging`, Titan Grip/Dual Wield side effects, offhand
+  auto-unequip, live-client/bot/manual validation, and full
+  `Player::RemoveSpell` parity remain open.
+
 - `#NEXT.R8.ENTITIES.1123` — represented `Player::RemoveSpell` now carries
   the C++ `learn_low_rank` flag through recursive removal and updates the
   represented previous-rank dependent state when the previous rank already
@@ -14,9 +30,11 @@
   diff --check`. Boundary remains partial: Rust still does not model inactive
   `PlayerSpellMap` rows, active/disabled/state transitions, `AddSpell` return
   semantics, real `SendSupercededSpell`/action-bar packet, `UnlearnedSpells`
-  `suppressMessaging`, trait override removal, Titan Grip/Dual Wield side
-  effects, offhand auto-unequip, live-client/bot/manual validation, or full
-  `Player::RemoveSpell` parity.
+  `suppressMessaging`, trait-definition override lookup removal, Titan Grip/Dual
+  Wield side effects, offhand auto-unequip, live-client/bot/manual validation,
+  or full `Player::RemoveSpell` parity. Direct represented
+  `m_overrideSpells.erase(spell_id)` cleanup is closed by
+  `#NEXT.R8.ENTITIES.1124`.
 
 - `#NEXT.R8.ENTITIES.1122` — represented `Player::RemoveSpell` now handles
   the C++ previous-skill branch where `prevSkill->maxvalue == 0` by wiring

@@ -29144,6 +29144,8 @@ impl WorldSession {
             }
         }
 
+        self.represented_override_spells_like_cpp.remove(&spell_id);
+
         if let Some(controller) = &mut self.player_controller {
             controller.remove_spell(spell_id);
         }
@@ -49029,6 +49031,34 @@ mod tests {
         assert!(
             session.known_spells_like_cpp().is_empty(),
             "C++ RemoveSpell only reactivates a previous rank when prev_id already exists in PlayerSpellMap; Rust does not invent an absent previous row in the represented model"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_erases_override_source_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_known_spells_like_cpp(vec![10, 30]);
+        session.add_represented_override_spell_like_cpp(10, 20);
+        session.add_represented_override_spell_like_cpp(30, 40);
+
+        session.remove_known_spell_like_cpp(10);
+
+        assert!(
+            !session
+                .represented_override_spells_like_cpp()
+                .contains_key(&10),
+            "C++ Player::RemoveSpell erases m_overrideSpells[spell_id] after removing the spell"
+        );
+        assert_eq!(
+            session
+                .represented_override_spells_like_cpp()
+                .get(&30)
+                .cloned()
+                .unwrap_or_default()
+                .into_iter()
+                .collect::<Vec<_>>(),
+            vec![40],
+            "unrelated override spell entries are not removed by m_overrideSpells.erase(spell_id)"
         );
     }
 
