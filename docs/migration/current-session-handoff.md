@@ -1,3 +1,22 @@
+- `#NEXT.R8.ENTITIES.1134` — represented `AutoUnequipOffhandIfNeed` now
+  emits the self-session player values `SMSG_UPDATE_OBJECT` for the C++
+  `RemoveItem(update=true)` + `StoreItem(update=true)` branches. Source of
+  truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11559-11635`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11271-11302`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:24621-24634`.
+  Rust now sends the bridged player VALUES update after the represented
+  offhand move/fallback: the offhand `InvSlot` is cleared, the offhand
+  `VisibleItems` value is cleared, and direct backpack destinations also mark
+  the destination `InvSlot` with the moved item guid. Coverage: `cargo test -p
+  wow-world remove_known_spell --lib`. Boundary remains partial: this closes
+  only the current-session player values packet for the represented branch;
+  item object update packets, equipped-bag child object values, multi-session
+  fanout, stat recalculation, item mod/enchantment duration hooks, DB inventory
+  slot updates, DB delete/save transaction, real mail draft/send fallback,
+  live-client/bot/manual validation, and full `Player::RemoveSpell` parity
+  remain open.
+
 - `#NEXT.R8.ENTITIES.1133` — represented `AutoUnequipOffhandIfNeed` now
   syncs the canonical player storage/update-field model for the C++
   `RemoveItem` + `StoreItem` branches. Source of truth:

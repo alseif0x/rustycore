@@ -29488,6 +29488,10 @@ impl WorldSession {
                     slot,
                     offhand_item.guid,
                 );
+                self.send_auto_unequip_offhand_values_update_like_cpp(
+                    Some((bag, slot)),
+                    offhand_item.guid,
+                );
                 stored_destination = Some((bag, slot));
                 needs_mail_fallback = false;
             }
@@ -29495,6 +29499,7 @@ impl WorldSession {
         if needs_mail_fallback {
             self.remove_inventory_item_like_cpp(EQUIPMENT_SLOT_OFFHAND);
             self.sync_canonical_direct_inventory_remove_like_cpp(EQUIPMENT_SLOT_OFFHAND);
+            self.send_auto_unequip_offhand_values_update_like_cpp(None, offhand_item.guid);
             self.update_inventory_item_object_like_cpp(offhand_item.guid, |item| {
                 item.set_container_guid(ObjectGuid::EMPTY);
                 item.set_slot(NULL_SLOT);
@@ -29510,6 +29515,25 @@ impl WorldSession {
                 needs_mail_fallback,
             });
         true
+    }
+
+    fn send_auto_unequip_offhand_values_update_like_cpp(
+        &self,
+        stored_destination: Option<(u8, u8)>,
+        item_guid: ObjectGuid,
+    ) {
+        let mut inv_slot_changes = vec![(EQUIPMENT_SLOT_OFFHAND, ObjectGuid::EMPTY)];
+        if let Some((INVENTORY_SLOT_BAG_0, slot)) = stored_destination {
+            inv_slot_changes.push((slot, item_guid));
+        }
+
+        self.send_player_values_update_from_entity_bridge(
+            &inv_slot_changes,
+            &[(EQUIPMENT_SLOT_OFFHAND, 0, 0, 0)],
+            &[],
+            &[],
+            None,
+        );
     }
 
     pub(crate) fn add_represented_override_spell_like_cpp(
@@ -50047,7 +50071,7 @@ mod tests {
 
     #[test]
     fn remove_known_spell_auto_unequip_records_invalid_two_hand_state_like_cpp() {
-        let (mut session, _, _send_rx) = make_session();
+        let (mut session, _, send_rx) = make_session();
         let mainhand_item_id = 30_003_u32;
         let offhand_item_id = 30_004_u32;
         let mainhand_guid = ObjectGuid::create_item(1, 30_003);
@@ -50118,11 +50142,16 @@ mod tests {
             }],
             "C++ AutoUnequipOffhandIfNeed unequips offhand when the main hand is a 2H weapon without Titan Grip"
         );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::UpdateObject],
+            "C++ RemoveItem(update=true) + StoreItem(update=true) send a visible player values update after offhand auto-store"
+        );
     }
 
     #[test]
     fn remove_known_spell_auto_unequip_delinks_offhand_when_store_fails_like_cpp() {
-        let (mut session, _, _send_rx) = make_session();
+        let (mut session, _, send_rx) = make_session();
         let offhand_item_id = 30_005_u32;
         let filler_item_id = 30_006_u32;
         let offhand_guid = ObjectGuid::create_item(1, 30_005);
@@ -50237,11 +50266,16 @@ mod tests {
             Some((ObjectGuid::EMPTY, VisibleItemValues::default())),
             "C++ MoveItemFromInventory clears offhand InvSlot/VisibleItem before mail fallback"
         );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::UpdateObject],
+            "C++ MoveItemFromInventory(update=true) sends the offhand clear update before the represented mail fallback"
+        );
     }
 
     #[test]
     fn remove_known_spell_auto_unequip_stores_offhand_in_represented_bag_like_cpp() {
-        let (mut session, _, _send_rx) = make_session();
+        let (mut session, _, send_rx) = make_session();
         let offhand_item_id = 30_007_u32;
         let filler_item_id = 30_008_u32;
         let bag_item_id = 30_009_u32;
@@ -50385,6 +50419,11 @@ mod tests {
                 Some(offhand_guid)
             )),
             "C++ RemoveItem clears offhand InvSlot/VisibleItem and Bag::StoreItem stores the child item in the equipped bag"
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::UpdateObject],
+            "C++ RemoveItem(update=true) + Bag::StoreItem(update=true) emit a player-visible offhand clear update"
         );
     }
 
