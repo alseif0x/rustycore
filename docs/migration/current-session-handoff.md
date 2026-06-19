@@ -5377,6 +5377,16 @@ Implemented Rust seam: represented login now preserves loaded `character_skills`
 
 Validation evidence: `cargo fmt --all --check`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world character_skill_save --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world set_player_skill_values_builds_represented_skill_records --lib`. Remaining gaps: exact C++ `SkillStatusMap` changed/new/deleted tracking, race/class skill validation and fixed-range recalculation, profession-slot assignment, full skill reward spell learning runtime, live-client/bot validation, and manual validation.
 
+### #NEXT.R8.ENTITIES.1100 — mounted aura amount recalculation
+
+Status: bugfix-partial for represented `SPELL_AURA_MOUNTED` speed-aura application; not full mount runtime parity and not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraEffects.cpp:659-700` implements `AuraEffect::CalculateAmount` and replaces the default amount for `SPELL_AURA_MOUNTED` with `MountCapabilityEntry::ID` from `Unit::GetMountCapability`. `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraEffects.cpp:2581-2665` applies/removes the mount and casts/removes `MountCapabilityEntry::ModSpellAuraID` from `GetAmount()`. `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:7891-7999` selects the mount capability by mount type, riding skill, area flags, liquid state, map, required area, aura, and known spell.
+
+Implemented Rust seam: represented mounted aura application now calculates the mounted aura amount like C++ before inserting the represented aura. It resolves `EffectMiscValueB` or the `Mount.db2` source-spell row to a mount type, reuses the represented `Unit::GetMountCapability` selector, stores the selected `MountCapabilityEntry::ID` as the mounted aura amount, and uses that recalculated amount to apply/remove the capability speed aura. This closes the mismatch where DB2 mounted auras with raw base points `0` could set the mount display/flag without applying the C++ capability speed aura. The existing mount broadcast test was also updated to assert the current `SendIfVisibleLikeCpp` fanout contract instead of the older direct-send assumption.
+
+Validation evidence: `cargo fmt --all --check`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world represented_mount --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world cast_mount_spell --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`; `git diff --check`. Remaining gaps: no full TerrainMgr-derived area/liquid refresh, no DB fixture/migration for granting test characters riding/account mounts, no full vehicle/passenger mount runtime parity, no install/restart validation, no bot/live-client/manual validation, and no complete runtime parity.
+
 ### #NEXT.R8.ENTITIES.1061 — live mount/save diagnostics
 
 Status: bugfix-partial for represented mount capability diagnostics and logout-position save observability; not full mount runtime parity and not manual-test-ready.

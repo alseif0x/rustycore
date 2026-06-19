@@ -22906,6 +22906,8 @@ impl WorldSession {
         caster_guid: ObjectGuid,
         effect: &wow_data::SpellEffectInfo,
     ) -> Result<(), &'static str> {
+        let mounted_amount =
+            self.calculate_represented_mounted_aura_amount_like_cpp(spell_id, effect);
         let selected_display_id = u32::try_from(spell_id)
             .ok()
             .and_then(|spell_id| self.select_represented_mount_aura_display_like_cpp(spell_id))
@@ -22945,7 +22947,7 @@ impl WorldSession {
             aura_interrupt_flags: 0,
             aura_interrupt_flags2: 0,
             represented_effect: Some(RepresentedAuraEffectLikeCpp::Mounted),
-            represented_amount: effect.effect_base_points,
+            represented_amount: mounted_amount,
             represented_effect_amounts: represented_aura_effect_amounts_like_cpp(effect),
             represented_misc_value: Some(effect.effect_misc_value_1),
             represented_multiplier: 1.0,
@@ -22977,15 +22979,42 @@ impl WorldSession {
         self.send_movement_set_collision_height_like_cpp(
             wow_packet::packets::movement::UPDATE_COLLISION_HEIGHT_REASON_MOUNT_LIKE_CPP,
         );
-        self.apply_represented_mount_capability_speed_aura_like_cpp(
-            effect.effect_base_points,
-            caster_guid,
-        );
+        self.apply_represented_mount_capability_speed_aura_like_cpp(mounted_amount, caster_guid);
 
         self.send_aura_update_applied(spell_id, slot, caster_guid, 0, 0x0000_0001);
         self.send_represented_mount_unit_update_like_cpp(display_id);
 
         Ok(())
+    }
+
+    fn calculate_represented_mounted_aura_amount_like_cpp(
+        &self,
+        spell_id: i32,
+        effect: &wow_data::SpellEffectInfo,
+    ) -> i32 {
+        let mut mount_type_id = u16::try_from(effect.effect_misc_value_2).unwrap_or_default();
+        if let Some(mount_entry) = self.mount_store.as_ref().and_then(|store| {
+            u32::try_from(spell_id)
+                .ok()
+                .and_then(|spell_id| store.get_by_source_spell_id_like_cpp(spell_id))
+        }) {
+            mount_type_id = mount_entry.mount_type_id;
+        }
+
+        if mount_type_id != 0 {
+            let (is_submerged, is_in_water) = self.represented_player_mount_liquid_state_like_cpp();
+            if let Ok(capability) = self.represented_mount_capability_selection_for_type_like_cpp(
+                mount_type_id,
+                u32::from(self.player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP)),
+                None,
+                is_submerged,
+                is_in_water,
+            ) {
+                return i32::try_from(capability.id).unwrap_or(effect.effect_base_points);
+            }
+        }
+
+        effect.effect_base_points
     }
 
     fn apply_represented_mount_capability_speed_aura_like_cpp(
@@ -57055,10 +57084,12 @@ mod tests {
         let pet_guid =
             ObjectGuid::create_world_object(wow_core::guid::HighGuid::Pet, 0, 1, 0, 0, 500, 44);
         let registry = Arc::new(PlayerRegistry::default());
-        let (other_tx, other_rx) = flume::bounded(8);
+        let (other_tx, _other_rx) = flume::bounded(8);
+        let (other_command_tx, other_command_rx) = flume::bounded(8);
         session.set_player_guid(Some(player_guid));
         session.set_player_registry(Arc::clone(&registry));
         session.set_player_position_like_cpp(Position::new(1.0, 2.0, 3.0, 0.5));
+        session.client_visible_guids_like_cpp.insert(other_guid);
         session.set_represented_pet_mode_state_like_cpp(
             Some(pet_guid),
             wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
@@ -57070,7 +57101,10 @@ mod tests {
             player_guid,
             broadcast_info(player_guid, flume::bounded(1).0),
         );
-        registry.insert(other_guid, broadcast_info(other_guid, other_tx));
+        registry.insert(
+            other_guid,
+            broadcast_info_with_command(other_guid, other_tx, other_command_tx),
+        );
         session.set_creature_template_mount_store(Arc::new(
             wow_data::CreatureTemplateMountStoreLikeCpp::from_entries([
                 wow_data::CreatureTemplateMountEntryLikeCpp {
@@ -57238,7 +57272,15 @@ mod tests {
         assert!(opcodes.contains(&wow_constants::ServerOpcodes::OnCancelExpectedRideVehicleAura));
         assert!(opcodes.contains(&wow_constants::ServerOpcodes::PetMode));
         assert!(opcodes.contains(&wow_constants::ServerOpcodes::MoveSetCollisionHeight));
-        let broadcast = wow_packet::WorldPacket::from_bytes(&other_rx.try_recv().unwrap());
+        let command = other_command_rx.try_recv().unwrap();
+        let broadcast = match command {
+            SessionCommand::SendIfVisibleLikeCpp(command) => {
+                wow_packet::WorldPacket::from_bytes(&command.packet_bytes)
+            }
+            other => {
+                panic!("expected SendIfVisibleLikeCpp collision-height command, got {other:?}")
+            }
+        };
         assert_eq!(
             broadcast.server_opcode(),
             Some(wow_constants::ServerOpcodes::MoveUpdateCollisionHeight)
@@ -57285,7 +57327,15 @@ mod tests {
         assert!(opcodes.contains(&wow_constants::ServerOpcodes::SetVehicleRecId));
         assert!(opcodes.contains(&wow_constants::ServerOpcodes::PetMode));
         assert!(opcodes.contains(&wow_constants::ServerOpcodes::MoveSetCollisionHeight));
-        let broadcast = wow_packet::WorldPacket::from_bytes(&other_rx.try_recv().unwrap());
+        let command = other_command_rx.try_recv().unwrap();
+        let broadcast = match command {
+            SessionCommand::SendIfVisibleLikeCpp(command) => {
+                wow_packet::WorldPacket::from_bytes(&command.packet_bytes)
+            }
+            other => {
+                panic!("expected SendIfVisibleLikeCpp collision-height command, got {other:?}")
+            }
+        };
         assert_eq!(
             broadcast.server_opcode(),
             Some(wow_constants::ServerOpcodes::MoveUpdateCollisionHeight)
@@ -57429,6 +57479,101 @@ mod tests {
         assert!(
             drain_server_opcodes(&send_rx).contains(&ServerOpcodes::MoveSetRunSpeed),
             "C++ Unit::SetSpeedRate sends SMSG_MOVE_SET_RUN_SPEED when the mounted run rate changes"
+        );
+    }
+
+    #[test]
+    fn represented_mounted_aura_recalculates_amount_from_mount_capability_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([
+            wow_data::MountEntry {
+                id: 1,
+                mount_type_id: 7,
+                flags: 0,
+                source_type_enum: 0,
+                source_spell_id: 100,
+                player_condition_id: 0,
+                mount_fly_ride_height: 0.0,
+                ui_model_scene_id: 0,
+            },
+        ])));
+        session.set_mount_capability_store(Arc::new(wow_data::MountCapabilityStore::from_entries(
+            [wow_data::MountCapabilityEntry {
+                id: 77,
+                flags: wow_data::MOUNT_CAPABILITY_FLAG_GROUND,
+                req_riding_skill: 0,
+                req_area_id: 0,
+                req_spell_aura_id: 0,
+                req_spell_known_id: 0,
+                mod_spell_aura_id: 12_346,
+                req_map_id: -1,
+            }],
+        )));
+        session.set_mount_type_x_capability_store(Arc::new(
+            wow_data::MountTypeXCapabilityStore::from_entries([
+                wow_data::MountTypeXCapabilityEntry {
+                    id: 1,
+                    mount_type_id: 7,
+                    mount_capability_id: 77,
+                    order_index: 0,
+                },
+            ]),
+        ));
+        session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([])));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            12_346,
+            wow_data::SpellInfo {
+                spell_id: 12_346,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED,
+                    effect_base_points: 100,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+        let effect = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
+            effect_base_points: 0,
+            effect_misc_value_1: 0,
+            effect_misc_value_2: 0,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_mounted_aura_like_cpp(100, ObjectGuid::EMPTY, &effect)
+            .unwrap();
+
+        assert!(session.visible_auras.values().any(|aura| {
+            aura.spell_id == 100
+                && aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::Mounted)
+                && aura.represented_amount == 77
+        }));
+        assert!(session.visible_auras.values().any(|aura| {
+            aura.spell_id == 12_346
+                && aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::MountedSpeed)
+                && aura.represented_amount == 100
+        }));
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 14.0).abs()
+                < 0.0001
+        );
+        assert!(
+            drain_server_opcodes(&send_rx).contains(&ServerOpcodes::MoveSetRunSpeed),
+            "C++ AuraEffect::CalculateAmount turns SPELL_AURA_MOUNTED amount into MountCapabilityEntry::ID before HandleAuraMounted casts the speed aura"
         );
     }
 
