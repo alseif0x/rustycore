@@ -4295,6 +4295,8 @@ async fn main() -> Result<ExitCode> {
             "CONFIG_NO_RESET_TALENT_COST",
             false,
         ),
+        start_all_explored: world_config_bool(&world_configs, "CONFIG_START_ALL_EXPLORED", false),
+        start_all_reputation: world_config_bool(&world_configs, "CONFIG_START_ALL_REP", false),
         support_enabled: world_config_bool(&world_configs, "CONFIG_SUPPORT_ENABLED", true),
         support_bugs_enabled: world_config_bool(
             &world_configs,
@@ -10921,6 +10923,8 @@ async fn create_session(
     session.set_repair_cost_rate_like_cpp(resources.repair_cost_rate);
     session.set_reset_schedule_like_cpp(resources.reset_schedule);
     session.set_no_reset_talent_cost_like_cpp(resources.no_reset_talent_cost);
+    session.set_start_all_explored_like_cpp(resources.start_all_explored);
+    session.set_start_all_reputation_like_cpp(resources.start_all_reputation);
     session.set_represented_support_enabled_like_cpp(resources.support_enabled);
     session.set_represented_support_bugs_enabled_like_cpp(resources.support_bugs_enabled);
     session
@@ -15525,6 +15529,23 @@ ResetSchedule.WeekDay = 5
             "CONFIG_NO_RESET_TALENT_COST",
             false
         ));
+    }
+
+    #[test]
+    fn player_start_explored_and_reputation_use_cpp_world_config_keys() {
+        let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+        wow_config::load_config_from_str(
+            "PlayerStart.MapsExplored = 1\nPlayerStart.AllReputation = 1\n",
+        )
+        .expect("config should load");
+
+        let configs = wow_config::load_world_config_values();
+        assert!(world_config_bool(
+            &configs,
+            "CONFIG_START_ALL_EXPLORED",
+            false
+        ));
+        assert!(world_config_bool(&configs, "CONFIG_START_ALL_REP", false));
     }
 
     #[test]

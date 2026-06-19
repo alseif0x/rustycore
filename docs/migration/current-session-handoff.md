@@ -1,3 +1,26 @@
+- `#NEXT.R8.ENTITIES.1090` — represented session config now carries the C++
+  first-login player-start toggles (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CharacterHandler.cpp:1304-1367`,
+  `/home/server/woltk-trinity-legacy/src/server/game/World/World.cpp:1570-1571`,
+  `/home/server/woltk-trinity-legacy/src/server/game/World/World.h:147-148`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26563-26575`.
+  C++ first login checks `CONFIG_START_ALL_EXPLORED` and
+  `CONFIG_START_ALL_REP` after removing `AT_LOGIN_FIRST`. Rust now wires
+  `PlayerStart.MapsExplored` and `PlayerStart.AllReputation` from
+  `worldserver.conf` through `WorldSessionResources` into the represented
+  `WorldSession` snapshot, and updates the config registry rows from
+  `missing_in_rust` to represented config wiring. Coverage: `cargo fmt --all
+  --check`; focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test
+  -p world-server player_start_explored_and_reputation_use_cpp_world_config_keys
+  --bin world-server`; focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
+  cargo test -p wow-world
+  player_start_config_snapshot_defaults_and_setters_match_cpp_keys --lib`;
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p
+  world-server`; `git diff --check`. Boundary remains partial:
+  first-login `AddExploredZones`, `SetOneFactionReputation` faction list,
+  reputation `SendState`, `exploredZones`/`character_reputation` persistence,
+  live-client validation, bot validation, and manual validation remain open.
 - `#NEXT.R8.ENTITIES.1089` — represented login now applies the C++
   `AT_LOGIN_FIRST` flag-removal boundary after reset-spells/reset-talents (not
   manual-test-ready). Source of truth:

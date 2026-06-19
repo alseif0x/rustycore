@@ -3302,6 +3302,8 @@ pub struct WorldSession {
     instance_ignore_raid_like_cpp: bool,
     instance_ignore_level_like_cpp: bool,
     max_instances_per_hour_like_cpp: u32,
+    start_all_explored_like_cpp: bool,
+    start_all_reputation_like_cpp: bool,
     pub build: u32,
     pub session_key: Vec<u8>,
     pub locale: String,
@@ -5081,6 +5083,8 @@ impl WorldSession {
             instance_ignore_raid_like_cpp: false,
             instance_ignore_level_like_cpp: false,
             max_instances_per_hour_like_cpp: 5,
+            start_all_explored_like_cpp: false,
+            start_all_reputation_like_cpp: false,
             build,
             session_key,
             locale,
@@ -13841,6 +13845,22 @@ impl WorldSession {
 
     pub fn set_no_reset_talent_cost_like_cpp(&mut self, no_cost: bool) {
         self.no_reset_talent_cost_like_cpp = no_cost;
+    }
+
+    pub fn set_start_all_explored_like_cpp(&mut self, enabled: bool) {
+        self.start_all_explored_like_cpp = enabled;
+    }
+
+    pub fn set_start_all_reputation_like_cpp(&mut self, enabled: bool) {
+        self.start_all_reputation_like_cpp = enabled;
+    }
+
+    pub(crate) fn start_all_explored_like_cpp(&self) -> bool {
+        self.start_all_explored_like_cpp
+    }
+
+    pub(crate) fn start_all_reputation_like_cpp(&self) -> bool {
+        self.start_all_reputation_like_cpp
     }
 
     pub(crate) const fn reset_schedule_like_cpp(&self) -> wow_instances::ResetSchedule {
@@ -74897,6 +74917,20 @@ mod tests {
                 .is_empty(),
             "C++ calls RemoveAtLoginFlag(AT_LOGIN_FIRST) with persist=false"
         );
+    }
+
+    #[test]
+    fn player_start_config_snapshot_defaults_and_setters_match_cpp_keys() {
+        let (mut session, _, _send_rx) = make_session();
+
+        assert!(!session.start_all_explored_like_cpp());
+        assert!(!session.start_all_reputation_like_cpp());
+
+        session.set_start_all_explored_like_cpp(true);
+        session.set_start_all_reputation_like_cpp(true);
+
+        assert!(session.start_all_explored_like_cpp());
+        assert!(session.start_all_reputation_like_cpp());
     }
 
     #[test]
