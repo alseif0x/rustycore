@@ -72,11 +72,11 @@ use wow_data::{
     ItemRandomPropertiesStore, ItemRandomPropertyTemplateEntry, ItemRandomSuffixStore,
     ItemSearchNameStore, ItemSpecOverrideStore, ItemStatsStore, ItemStore, LfgDungeonsStore,
     LockStore, MapDifficultyStore, MapDifficultyXConditionStore, MapStore, MountCapabilityStore,
-    MountStore, MountTypeXCapabilityStore, MountXDisplayStore, MovieStore,
-    NpcSpellClickStoreLikeCpp, PetDefaultSpellStoreLikeCpp, PetDefaultSpellsEntryLikeCpp,
-    PetFamilySpellStoreLikeCpp, PetLevelupSpellSetLikeCpp, PetLevelupSpellStoreLikeCpp,
-    PhaseGroupStore, PhaseStore, PlayerConditionAuraLikeCpp, PlayerConditionContextLikeCpp,
-    PlayerConditionCountLikeCpp, PlayerConditionPartyStatusLikeCpp,
+    MountDefinitionStoreLikeCpp, MountStore, MountTypeXCapabilityStore, MountXDisplayStore,
+    MovieStore, NpcSpellClickStoreLikeCpp, PetDefaultSpellStoreLikeCpp,
+    PetDefaultSpellsEntryLikeCpp, PetFamilySpellStoreLikeCpp, PetLevelupSpellSetLikeCpp,
+    PetLevelupSpellStoreLikeCpp, PhaseGroupStore, PhaseStore, PlayerConditionAuraLikeCpp,
+    PlayerConditionContextLikeCpp, PlayerConditionCountLikeCpp, PlayerConditionPartyStatusLikeCpp,
     PlayerConditionQuestKillLikeCpp, PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp,
     PlayerConditionStore, PlayerStatsStore, RandPropPointsStore, ScriptIdLikeCpp,
     ScriptNameInternerLikeCpp, ServersideSpellInfoLikeCpp, ServersideSpellStoreLikeCpp,
@@ -3519,6 +3519,7 @@ pub struct WorldSession {
     gameobject_display_info_store: Option<Arc<GameObjectDisplayInfoStore>>,
     creature_model_data_store: Option<Arc<CreatureModelDataStore>>,
     mount_store: Option<Arc<MountStore>>,
+    mount_definition_store_like_cpp: Option<Arc<MountDefinitionStoreLikeCpp>>,
     mount_capability_store: Option<Arc<MountCapabilityStore>>,
     mount_type_x_capability_store: Option<Arc<MountTypeXCapabilityStore>>,
     mount_x_display_store: Option<Arc<MountXDisplayStore>>,
@@ -5223,6 +5224,7 @@ impl WorldSession {
             gameobject_display_info_store: None,
             creature_model_data_store: None,
             mount_store: None,
+            mount_definition_store_like_cpp: None,
             mount_capability_store: None,
             mount_type_x_capability_store: None,
             mount_x_display_store: None,
@@ -17421,11 +17423,18 @@ impl WorldSession {
 
     pub fn set_mount_store(&mut self, store: Arc<MountStore>) {
         self.mount_store = Some(store);
+        self.expand_account_mount_faction_definitions_like_cpp();
         self.learn_account_mount_spells_like_cpp();
     }
 
     pub(crate) fn mount_store(&self) -> Option<&Arc<MountStore>> {
         self.mount_store.as_ref()
+    }
+
+    pub fn set_mount_definition_store_like_cpp(&mut self, store: Arc<MountDefinitionStoreLikeCpp>) {
+        self.mount_definition_store_like_cpp = Some(store);
+        self.expand_account_mount_faction_definitions_like_cpp();
+        self.learn_account_mount_spells_like_cpp();
     }
 
     pub fn set_mount_capability_store(&mut self, store: Arc<MountCapabilityStore>) {
@@ -27864,6 +27873,7 @@ impl WorldSession {
             .into_iter()
             .map(|mount| (mount.spell_id, mount.flags))
             .collect();
+        self.expand_account_mount_faction_definitions_like_cpp();
         self.learn_account_mount_spells_like_cpp();
     }
 
@@ -27871,26 +27881,71 @@ impl WorldSession {
         &mut self,
         spells: &[i32],
     ) -> usize {
-        let Some(mount_store) = self.mount_store.as_ref() else {
+        if self.mount_store.is_none() {
             return 0;
-        };
+        }
 
         let mut added = 0usize;
         for &spell_id in spells {
-            let Ok(spell_id_u32) = u32::try_from(spell_id) else {
-                continue;
-            };
-            if mount_store
-                .get_by_source_spell_id_like_cpp(spell_id_u32)
-                .is_some()
-                && let std::collections::hash_map::Entry::Vacant(entry) =
-                    self.account_mounts_like_cpp.entry(spell_id)
-            {
-                entry.insert(0);
-                added += 1;
-            }
+            added +=
+                usize::from(self.add_account_mount_with_faction_counterpart_like_cpp(spell_id, 0));
         }
         added
+    }
+
+    fn add_account_mount_with_faction_counterpart_like_cpp(
+        &mut self,
+        spell_id: i32,
+        flags: u8,
+    ) -> bool {
+        self.add_account_mount_like_cpp(spell_id, flags, true)
+    }
+
+    fn add_account_mount_like_cpp(
+        &mut self,
+        spell_id: i32,
+        flags: u8,
+        include_faction_counterpart: bool,
+    ) -> bool {
+        let Ok(spell_id_u32) = u32::try_from(spell_id) else {
+            return false;
+        };
+        if self.mount_store.as_ref().is_some_and(|store| {
+            store
+                .get_by_source_spell_id_like_cpp(spell_id_u32)
+                .is_none()
+        }) {
+            return false;
+        }
+
+        if include_faction_counterpart
+            && let Some(other_faction_spell_id) = self
+                .mount_definition_store_like_cpp
+                .as_ref()
+                .and_then(|store| store.other_faction_spell_id_like_cpp(spell_id_u32))
+            && let Ok(other_faction_spell_id) = i32::try_from(other_faction_spell_id)
+        {
+            self.add_account_mount_like_cpp(other_faction_spell_id, flags, false);
+        }
+
+        match self.account_mounts_like_cpp.entry(spell_id) {
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                entry.insert(flags);
+                true
+            }
+            std::collections::hash_map::Entry::Occupied(_) => false,
+        }
+    }
+
+    fn expand_account_mount_faction_definitions_like_cpp(&mut self) {
+        let mounts: Vec<(i32, u8)> = self
+            .account_mounts_like_cpp
+            .iter()
+            .map(|(&spell_id, &flags)| (spell_id, flags))
+            .collect();
+        for (spell_id, flags) in mounts {
+            self.add_account_mount_with_faction_counterpart_like_cpp(spell_id, flags);
+        }
     }
 
     fn learn_account_mount_spells_like_cpp(&mut self) -> usize {
@@ -59589,6 +59644,106 @@ mod tests {
                 },
             ],
             "C++ CollectionMgr stores mounts in std::map, so the full AccountMountUpdate is sorted by source spell id"
+        );
+    }
+
+    #[test]
+    fn account_mount_load_adds_faction_counterpart_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([
+            wow_data::MountEntry {
+                id: 1,
+                mount_type_id: 0,
+                flags: 0,
+                source_type_enum: 0,
+                source_spell_id: 100,
+                player_condition_id: 0,
+                mount_fly_ride_height: 0.0,
+                ui_model_scene_id: 0,
+            },
+            wow_data::MountEntry {
+                id: 2,
+                mount_type_id: 0,
+                flags: 0,
+                source_type_enum: 0,
+                source_spell_id: 101,
+                player_condition_id: 0,
+                mount_fly_ride_height: 0.0,
+                ui_model_scene_id: 0,
+            },
+        ])));
+        session.set_mount_definition_store_like_cpp(Arc::new(
+            wow_data::MountDefinitionStoreLikeCpp::from_entries([(100, 101)]),
+        ));
+
+        session.set_account_mounts_like_cpp(vec![wow_packet::packets::misc::AccountMount {
+            spell_id: 100,
+            flags: 2,
+        }]);
+
+        assert_eq!(
+            session.account_mount_rows_like_cpp(),
+            vec![
+                wow_packet::packets::misc::AccountMount {
+                    spell_id: 100,
+                    flags: 2
+                },
+                wow_packet::packets::misc::AccountMount {
+                    spell_id: 101,
+                    flags: 2
+                },
+            ],
+            "C++ CollectionMgr::AddMount recursively stores the faction-specific counterpart with the same flags"
+        );
+        assert!(session.known_spells_like_cpp().contains(&100));
+        assert!(session.known_spells_like_cpp().contains(&101));
+    }
+
+    #[test]
+    fn loaded_character_mount_spell_promotes_faction_counterpart_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([
+            wow_data::MountEntry {
+                id: 1,
+                mount_type_id: 0,
+                flags: 0,
+                source_type_enum: 0,
+                source_spell_id: 100,
+                player_condition_id: 0,
+                mount_fly_ride_height: 0.0,
+                ui_model_scene_id: 0,
+            },
+            wow_data::MountEntry {
+                id: 2,
+                mount_type_id: 0,
+                flags: 0,
+                source_type_enum: 0,
+                source_spell_id: 101,
+                player_condition_id: 0,
+                mount_fly_ride_height: 0.0,
+                ui_model_scene_id: 0,
+            },
+        ])));
+        session.set_mount_definition_store_like_cpp(Arc::new(
+            wow_data::MountDefinitionStoreLikeCpp::from_entries([(100, 101)]),
+        ));
+
+        let added = session.promote_loaded_character_mount_spells_like_cpp(&[100]);
+
+        assert_eq!(added, 1);
+        assert_eq!(
+            session.account_mount_rows_like_cpp(),
+            vec![
+                wow_packet::packets::misc::AccountMount {
+                    spell_id: 100,
+                    flags: 0
+                },
+                wow_packet::packets::misc::AccountMount {
+                    spell_id: 101,
+                    flags: 0
+                },
+            ],
+            "C++ Player::_LoadSpells -> AddSpell -> CollectionMgr::AddMount includes faction-specific counterpart mounts"
         );
     }
 

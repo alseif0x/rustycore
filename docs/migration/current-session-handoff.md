@@ -1,3 +1,28 @@
+- `#NEXT.R8.ENTITIES.1107` — represented account mount load and
+  `character_spell` mount promotion now include C++ faction-specific mount
+  counterparts from `mount_definitions` (not manual-test-ready). Source of
+  truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/CollectionMgr.cpp:33-66`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/CollectionMgr.cpp:330-395`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/CollectionMgr.h:79-80`.
+  C++ loads `FactionSpecificMounts` from `world.mount_definitions`, validates
+  both source and other-faction source spells through `sDB2Manager.GetMount`,
+  and `CollectionMgr::AddMount` recursively inserts the counterpart before
+  inserting the requested mount. Rust now loads the same world table after
+  Mount.db2/hotfixes, wires the store through `SessionResources`, expands
+  represented account mount rows and login-time character mount promotion with
+  the counterpart, and preserves existing flags with insert-if-absent semantics
+  like C++ `std::map::insert`. Coverage: `cargo fmt --all`; filtered
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  account_mount --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  faction_counterpart_like_cpp --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
+  cargo check -p world-server`; and `git diff --check`. Boundary remains
+  partial: no live-client/bot/manual validation, no full CollectionMgr packet
+  delta path, terrain/liquid/capability runtime remains represented, and full
+  vehicle/passenger mount runtime parity is incomplete.
+
 - `#NEXT.R8.ENTITIES.1106` — represented logout/disconnect save snapshots now
   mirror the C++ `Player::SaveToDB` `IsBeingTeleported()` branch for pending
   teleports (not manual-test-ready). Source of truth:

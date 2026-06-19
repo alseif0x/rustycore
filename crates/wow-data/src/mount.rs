@@ -10,7 +10,7 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use tracing::info;
-use wow_database::{HotfixDatabase, HotfixStatements};
+use wow_database::{HotfixDatabase, HotfixStatements, WorldDatabase, WorldStatements};
 
 use crate::wdc4::Wdc4Reader;
 
@@ -42,6 +42,11 @@ pub struct MountEntry {
 pub struct MountStore {
     by_id: HashMap<u32, MountEntry>,
     by_source_spell_id: HashMap<u32, u32>,
+}
+
+/// C++ `CollectionMgr::FactionSpecificMounts` loaded from `mount_definitions`.
+pub struct MountDefinitionStoreLikeCpp {
+    other_faction_by_spell_id: HashMap<u32, u32>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -236,6 +241,59 @@ impl MountStore {
 
     pub fn is_empty(&self) -> bool {
         self.by_id.is_empty()
+    }
+}
+
+impl MountDefinitionStoreLikeCpp {
+    pub fn from_entries(entries: impl IntoIterator<Item = (u32, u32)>) -> Self {
+        Self {
+            other_faction_by_spell_id: entries.into_iter().collect(),
+        }
+    }
+
+    /// Load `mount_definitions` with the same DB2 validation as
+    /// C++ `CollectionMgr::LoadMountDefinitions`.
+    pub async fn load_like_cpp(db: &WorldDatabase, mount_store: &MountStore) -> Result<Self> {
+        let stmt = db.prepare(WorldStatements::SEL_MOUNT_DEFINITIONS);
+        let mut result = db.query(&stmt).await?;
+        if result.is_empty() {
+            return Ok(Self::from_entries([]));
+        }
+
+        let mut entries = Vec::new();
+        loop {
+            let spell_id: u32 = result.read(0);
+            let other_faction_spell_id: u32 = result.read(1);
+
+            if mount_store
+                .get_by_source_spell_id_like_cpp(spell_id)
+                .is_some()
+                && (other_faction_spell_id == 0
+                    || mount_store
+                        .get_by_source_spell_id_like_cpp(other_faction_spell_id)
+                        .is_some())
+            {
+                entries.push((spell_id, other_faction_spell_id));
+            }
+
+            if !result.next_row() {
+                break;
+            }
+        }
+
+        Ok(Self::from_entries(entries))
+    }
+
+    pub fn other_faction_spell_id_like_cpp(&self, spell_id: u32) -> Option<u32> {
+        self.other_faction_by_spell_id.get(&spell_id).copied()
+    }
+
+    pub fn len(&self) -> usize {
+        self.other_faction_by_spell_id.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.other_faction_by_spell_id.is_empty()
     }
 }
 

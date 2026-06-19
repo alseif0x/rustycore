@@ -283,6 +283,7 @@ pub struct SessionResources {
     pub gameobject_display_info_store: Option<Arc<wow_data::GameObjectDisplayInfoStore>>,
     pub creature_model_data_store: Option<Arc<wow_data::CreatureModelDataStore>>,
     pub mount_store: Option<Arc<wow_data::MountStore>>,
+    pub mount_definition_store: Option<Arc<wow_data::MountDefinitionStoreLikeCpp>>,
     pub mount_capability_store: Option<Arc<wow_data::MountCapabilityStore>>,
     pub mount_type_x_capability_store: Option<Arc<wow_data::MountTypeXCapabilityStore>>,
     pub mount_x_display_store: Option<Arc<wow_data::MountXDisplayStore>>,

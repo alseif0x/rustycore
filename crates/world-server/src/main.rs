@@ -2054,6 +2054,15 @@ async fn main() -> Result<ExitCode> {
             .context("Failed to load Mount.db2 / hotfix rows")?,
     );
     info!("Loaded {} mounts from Mount.db2", mount_store.len());
+    let mount_definition_store = Arc::new(
+        wow_data::MountDefinitionStoreLikeCpp::load_like_cpp(&world_db, &mount_store)
+            .await
+            .context("Failed to load mount_definitions")?,
+    );
+    info!(
+        "Loaded {} faction-specific mount definitions from mount_definitions",
+        mount_definition_store.len()
+    );
     let mount_capability_store = Arc::new(
         wow_data::MountCapabilityStore::load_with_hotfixes(&data_dir, &locale, &hotfix_db)
             .await
@@ -4259,6 +4268,7 @@ async fn main() -> Result<ExitCode> {
         gameobject_display_info_store: Some(Arc::clone(&gameobject_display_info_store)),
         creature_model_data_store: Some(Arc::clone(&creature_model_data_store)),
         mount_store: Some(Arc::clone(&mount_store)),
+        mount_definition_store: Some(Arc::clone(&mount_definition_store)),
         mount_capability_store: Some(Arc::clone(&mount_capability_store)),
         mount_type_x_capability_store: Some(Arc::clone(&mount_type_x_capability_store)),
         mount_x_display_store: Some(Arc::clone(&mount_x_display_store)),
@@ -10844,6 +10854,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.mount_store {
         session.set_mount_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.mount_definition_store {
+        session.set_mount_definition_store_like_cpp(Arc::clone(store));
     }
     if let Some(ref store) = resources.mount_capability_store {
         session.set_mount_capability_store(Arc::clone(store));

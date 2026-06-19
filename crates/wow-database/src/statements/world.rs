@@ -82,6 +82,8 @@ pub enum WorldStatements {
     SEL_PLAYER_XP_FOR_LEVEL,
     /// C++ ObjectMgr exploration base XP by area level.
     SEL_EXPLORATION_BASE_XP,
+    /// C++ `CollectionMgr::LoadMountDefinitions` startup query.
+    SEL_MOUNT_DEFINITIONS,
     SEL_CREATURE_BY_ID,
     /// Creature template entry by spawn GUID (for vendor/trainer when not in visibility tracker).
     SEL_CREATURE_ENTRY_BY_GUID,
@@ -458,6 +460,9 @@ impl StatementDef for WorldStatements {
             Self::DEL_GAME_TELE => "DELETE FROM game_tele WHERE name = ?",
             Self::SEL_GAME_TELE => {
                 "SELECT id, position_x, position_y, position_z, orientation, map, name FROM game_tele"
+            }
+            Self::SEL_MOUNT_DEFINITIONS => {
+                "SELECT spellId, otherFactionSpellId FROM mount_definitions"
             }
             Self::INS_NPC_VENDOR => {
                 "INSERT INTO npc_vendor (entry, item, maxcount, incrtime, extendedcost, type) VALUES(?, ?, ?, ?, ?, ?)"
