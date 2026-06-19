@@ -40,7 +40,7 @@ use wow_ai::{
     select_creature_ai_like_cpp,
 };
 use wow_constants::creature::{CreatureFlagsExtra, CreatureType, CreatureTypeFlags};
-use wow_constants::item::{CurrencyTypes, CurrencyTypesFlags, EnchantmentSlot};
+use wow_constants::item::{CurrencyTypes, CurrencyTypesFlags, EnchantmentSlot, ItemFieldFlags2};
 use wow_constants::movement::MovementFlag;
 use wow_constants::shared::DifficultyFlags;
 use wow_constants::unit::{
@@ -29484,6 +29484,7 @@ impl WorldSession {
             return false;
         };
 
+        self.clear_represented_offhand_equipped_flag_like_cpp(offhand_item.guid);
         self.remove_represented_offhand_tradeable_item_like_cpp(offhand_item.guid);
         self.record_represented_offhand_item_mod_remove_like_cpp(offhand_item.guid);
 
@@ -29538,6 +29539,12 @@ impl WorldSession {
                 needs_mail_fallback,
             });
         true
+    }
+
+    fn clear_represented_offhand_equipped_flag_like_cpp(&mut self, item_guid: ObjectGuid) {
+        self.update_inventory_item_object_like_cpp(item_guid, |item| {
+            item.remove_item_flag2(ItemFieldFlags2::EQUIPPED);
+        });
     }
 
     fn remove_represented_offhand_tradeable_item_like_cpp(&mut self, item_guid: ObjectGuid) {
@@ -50261,11 +50268,17 @@ mod tests {
         );
         session.update_inventory_item_object_like_cpp(offhand_guid, |item| {
             item.set_soulbound_tradeable([player_guid]);
+            item.set_item_flag2(ItemFieldFlags2::EQUIPPED);
         });
         let tradeable_offhand = session.inventory_item_objects_like_cpp()[&offhand_guid].clone();
         let _ = session.mutate_canonical_player_like_cpp(|player| {
             player.add_tradeable_item(&tradeable_offhand);
         });
+        assert!(
+            session.inventory_item_objects_like_cpp()[&offhand_guid]
+                .has_item_flag2(ItemFieldFlags2::EQUIPPED),
+            "fixture starts with the offhand ITEM_FIELD_FLAG2_EQUIPPED bit set"
+        );
 
         assert_eq!(
             session.canonical_player_snapshot_like_cpp(|player| player
@@ -50294,6 +50307,11 @@ mod tests {
                 .contains(&offhand_guid)),
             Some(false),
             "C++ RemoveItem removes the item from m_itemSoulboundTradeable before item mod cleanup"
+        );
+        assert!(
+            !session.inventory_item_objects_like_cpp()[&offhand_guid]
+                .has_item_flag2(ItemFieldFlags2::EQUIPPED),
+            "C++ RemoveItem clears ITEM_FIELD_FLAG2_EQUIPPED for equipped top-level slots"
         );
         assert_eq!(
             session.represented_item_mod_reapply_events_like_cpp(),

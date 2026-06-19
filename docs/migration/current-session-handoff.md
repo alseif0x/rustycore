@@ -1,3 +1,19 @@
+- `#NEXT.R8.ENTITIES.1139` — represented `AutoUnequipOffhandIfNeed` now
+  mirrors the C++ `RemoveItem` cleanup of `ITEM_FIELD_FLAG2_EQUIPPED` for the
+  removed offhand item. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11559-11635`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:24621-24634`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/ItemTemplate.h:169`.
+  Rust now clears `ItemFieldFlags2::EQUIPPED` on the represented offhand item
+  before moving/delinking it, matching the top-level equipment branch in C++.
+  Coverage: `cargo test -p wow-world remove_known_spell --lib`. Boundary
+  remains partial: this closes only the runtime item flag2 state; exact
+  `ITEM_DATA_DYNAMIC_FLAGS2` update queue/fanout, `RemoveEnchantmentDurations`,
+  `RemoveItemDurations`, item-set removal, full `_ApplyItemMods`,
+  expertise/armor-penetration recalculation, `CheckTitanGripPenalty`, average
+  item-level recalculation, DB persistence, and live-client/bot/manual
+  validation remain open.
+
 - `#NEXT.R8.ENTITIES.1138` — represented `AutoUnequipOffhandIfNeed` now
   mirrors the C++ `RemoveItem` `RemoveTradeableItem(pItem)` side effect for the
   removed offhand item. Source of truth:
@@ -11,10 +27,11 @@
   set entry and does not clear the item's BoP-tradeable flag/allowed GUIDs.
   Coverage: `cargo test -p wow-world remove_known_spell --lib`. Boundary
   remains partial: `RemoveEnchantmentDurations`, `RemoveItemDurations`,
-  item-set removal, full `_ApplyItemMods`, item flag2 equipped cleanup,
-  expertise/armor-penetration recalculation, `CheckTitanGripPenalty`, average
-  item-level recalculation, update queue/DB persistence, fanout, and
-  live-client/bot/manual validation remain open.
+  item-set removal, full `_ApplyItemMods`, item flag2 equipped cleanup is
+  closed by `#NEXT.R8.ENTITIES.1139`, expertise/armor-penetration
+  recalculation, `CheckTitanGripPenalty`, average item-level recalculation,
+  update queue/DB persistence, fanout, and live-client/bot/manual validation
+  remain open.
 
 - `#NEXT.R8.ENTITIES.1137` — represented `AutoUnequipOffhandIfNeed` now
   records the C++ `RemoveItem(..., EQUIPMENT_SLOT_OFFHAND, update=true)`
