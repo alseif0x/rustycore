@@ -1,3 +1,24 @@
+- `#NEXT.R8.ENTITIES.1153` — represented `PlayerData::AvgItemLevel[0]`
+  now passes a full represented storage view into the represented
+  `CanEquipItem` preflight, including top-level inventory plus bag, bank-bag,
+  and reagent-bank child items. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:9554-9613`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:10590-10790`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28773-28880`,
+  and the existing Rust C++ mirror in `crates/wow-entities/src/player.rs`.
+  C++ `CanEquipItem` calls `CanTakeMoreSimilarItems(pItem)`, which uses
+  `GetItemCount(..., inBankAlso=true, pItem)` and limit-category counts over
+  the player's real storage. Rust now lets the existing `wow-entities`
+  `CanEquipItem` helper see represented contained items, so max-count and
+  have-limit-category checks cannot be bypassed by bag-contained candidates.
+  Coverage: `cargo test -p wow-world
+  represented_condition_total_avg_item_level_counts_contained_items_for_max_count_like_cpp
+  --lib` and `cargo test -p wow-world
+  represented_condition_total_avg_item_level --lib`. Boundary remains partial:
+  item-level bonus/PvP/timewalker scaling, update-field packet
+  emission/fanout, persistence, live-client/bot manual validation, and full
+  condition-runtime parity remain open.
+
 - `#NEXT.R8.ENTITIES.1152` — represented `PlayerData::AvgItemLevel[0]`
   now runs represented non-equipped runtime item candidates through the
   represented `CanEquipItem` preflight with `swap=true` and
@@ -12,7 +33,8 @@
   `FindEquipSlot`, quiver uniqueness, offhand/two-hand gates, and occupied
   offhand rejection. Coverage: `cargo test -p wow-world
   represented_condition_total_avg_item_level --lib`. Boundary remains partial:
-  exact child-item storage refs for every contained item, item-level
+  child-item storage refs for CanEquipItem max-count / have-limit-category
+  counting are closed later by `#NEXT.R8.ENTITIES.1153`; item-level
   bonus/PvP/timewalker scaling, update-field packet emission/fanout,
   persistence, live-client/bot manual validation, and full condition-runtime
   parity remain open.

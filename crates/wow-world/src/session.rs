@@ -30524,19 +30524,62 @@ impl WorldSession {
         player.set_can_titan_grip(can_titan_grip, 0);
 
         let item_objects = self.inventory_item_objects_like_cpp();
+        let inventory_items = self.inventory_items_like_cpp();
+        let mut template_cache = HashMap::new();
+        for item in item_objects.values() {
+            let item_entry = item.object().entry();
+            if let std::collections::hash_map::Entry::Vacant(entry) =
+                template_cache.entry(item_entry)
+            {
+                if let Some(template) = self.item_storage_template(item_entry) {
+                    entry.insert(template);
+                }
+            }
+        }
+
+        let mut represented_bag_slots_by_guid = HashMap::new();
+        for (&slot, inventory_item) in inventory_items {
+            if Self::is_buyback_slot(slot) {
+                continue;
+            }
+            if is_represented_bag_slot(slot) && item_objects.contains_key(&inventory_item.guid) {
+                represented_bag_slots_by_guid.insert(inventory_item.guid, slot);
+            }
+        }
+
         let mut storage_rows = Vec::new();
         let mut equipped_items = Vec::new();
-        for (&slot, inventory_item) in self.inventory_items_like_cpp() {
+        for (&slot, inventory_item) in inventory_items {
+            if Self::is_buyback_slot(slot) {
+                continue;
+            }
             let Some(item) = item_objects.get(&inventory_item.guid) else {
                 continue;
             };
-            let Some(template) = self.item_storage_template(inventory_item.entry_id) else {
+            let Some(template) = template_cache.get(&inventory_item.entry_id) else {
                 continue;
             };
             storage_rows.push((INVENTORY_SLOT_BAG_0, slot, item, template));
             if slot < EQUIPMENT_SLOT_END {
                 equipped_items.push(ItemSlotRef::new(INVENTORY_SLOT_BAG_0, slot, item));
             }
+        }
+        for item in item_objects.values() {
+            if item.is_in_trade() {
+                continue;
+            }
+            let container_guid = item.container_guid();
+            if container_guid.is_empty() {
+                continue;
+            }
+            let Some(&bag_slot) = represented_bag_slots_by_guid.get(&container_guid) else {
+                continue;
+            };
+            let item_entry = item.object().entry();
+            let Some(template) = template_cache.get(&item_entry) else {
+                continue;
+            };
+            storage_rows.push((bag_slot, item.slot(), item, template));
         }
         let stored_items: Vec<_> = storage_rows
             .iter()
@@ -52080,6 +52123,172 @@ mod tests {
         assert_eq!(
             context.avg_equipped_item_level, 12.5,
             "C++ UpdateAverageItemLevelEquipped still counts the currently equipped mainhand and offhand only"
+        );
+    }
+
+    #[test]
+    fn represented_condition_total_avg_item_level_counts_contained_items_for_max_count_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let equipped_chest_item_id = 30_042_u32;
+        let bag_item_id = 30_043_u32;
+        let limited_chest_item_id = 30_044_u32;
+        let equipped_chest_guid = ObjectGuid::create_item(1, 30_042);
+        let bag_guid = ObjectGuid::create_item(1, 30_043);
+        let contained_chest_guid = ObjectGuid::create_item(1, 30_044);
+        let second_contained_chest_guid = ObjectGuid::create_item(1, 30_045);
+        let player_guid = ObjectGuid::create_player(1, 175);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AverageItemLevelContainedMaxCountRejected".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        session.set_item_store(Arc::new(ItemStore::from_records([
+            represented_test_item_record_like_cpp(
+                equipped_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+            represented_test_item_record_like_cpp(
+                bag_item_id,
+                InventoryType::Bag,
+                ItemClass::Container,
+                0,
+            ),
+            represented_test_item_record_like_cpp(
+                limited_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+        ])));
+        let mut limited_sparse =
+            sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0);
+        limited_sparse.max_count = 1;
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [
+                    (
+                        equipped_chest_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                    ),
+                    (
+                        bag_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Bag, 0),
+                    ),
+                    (limited_chest_item_id, limited_sparse),
+                ],
+                [
+                    (
+                        equipped_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 100,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                    (
+                        limited_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 300,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                ],
+            ),
+        ));
+        session.set_item_search_name_store(Arc::new(ItemSearchNameStore::from_entries([
+            ItemSearchNameEntry {
+                id: equipped_chest_item_id,
+                allowable_race: 0,
+                display: String::new(),
+                overall_quality_id: ItemQuality::Epic as u8,
+                expansion_id: 0,
+                min_faction_id: 0,
+                min_reputation: 0,
+                allowable_class: 0,
+                required_level: 0,
+                required_skill: 0,
+                required_skill_rank: 0,
+                required_ability: 0,
+                item_level: 100,
+                flags: [0; 4],
+            },
+            ItemSearchNameEntry {
+                id: limited_chest_item_id,
+                allowable_race: 0,
+                display: String::new(),
+                overall_quality_id: ItemQuality::Epic as u8,
+                expansion_id: 0,
+                min_faction_id: 0,
+                min_reputation: 0,
+                allowable_class: 0,
+                required_level: 0,
+                required_skill: 0,
+                required_skill_rank: 0,
+                required_ability: 0,
+                item_level: 300,
+                flags: [0; 4],
+            },
+        ])));
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            equipped_chest_guid,
+            equipped_chest_item_id,
+            InventoryType::Chest,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            INVENTORY_SLOT_BAG_START,
+            bag_guid,
+            bag_item_id,
+            InventoryType::Bag,
+        );
+        let owner = session.player_guid().unwrap_or(ObjectGuid::EMPTY);
+        let mut contained_chest = session.make_inventory_item_object(
+            contained_chest_guid,
+            limited_chest_item_id,
+            owner,
+            1,
+            0,
+            ItemContext::None,
+            0,
+        );
+        contained_chest.set_container_guid_and_slot(bag_guid, 0);
+        session.insert_inventory_item_object(contained_chest);
+        let mut second_contained_chest = session.make_inventory_item_object(
+            second_contained_chest_guid,
+            limited_chest_item_id,
+            owner,
+            1,
+            0,
+            ItemContext::None,
+            1,
+        );
+        second_contained_chest.set_container_guid_and_slot(bag_guid, 1);
+        session.insert_inventory_item_object(second_contained_chest);
+
+        let owned = session.represented_player_condition_context_like_cpp();
+        let context = owned.as_context(&session);
+
+        assert_eq!(
+            context.avg_item_level, 6.25,
+            "C++ CanEquipItem calls CanTakeMoreSimilarItems, which counts contained items through GetItemCount(..., inBankAlso=true); two MaxCount=1 contained candidates are both rejected"
+        );
+        assert_eq!(
+            context.avg_equipped_item_level, 6.25,
+            "C++ UpdateAverageItemLevelEquipped still ignores contained inventory candidates"
         );
     }
 
