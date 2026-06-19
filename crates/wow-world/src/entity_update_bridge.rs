@@ -855,6 +855,9 @@ fn active_player_data_update_to_packet(
     packet_update
         .inv_slots
         .copy_from_slice(&update.values.inv_slots);
+    packet_update
+        .explored_zones
+        .copy_from_slice(&update.values.explored_zones);
     packet_update.buyback_price = update.values.buyback_price;
     packet_update.buyback_timestamp = update.values.buyback_timestamp;
     packet_update.bank_bag_slot_flags = update.values.bank_bag_slot_flags;
@@ -893,7 +896,8 @@ mod tests {
     use super::*;
     use wow_core::ObjectGuid;
     use wow_entities::{
-        ACTIVE_PLAYER_DATA_COINAGE_BIT, ACTIVE_PLAYER_DATA_HEIRLOOM_FLAGS_BIT,
+        ACTIVE_PLAYER_DATA_COINAGE_BIT, ACTIVE_PLAYER_DATA_EXPLORED_ZONES_FIRST_BIT,
+        ACTIVE_PLAYER_DATA_EXPLORED_ZONES_PARENT_BIT, ACTIVE_PLAYER_DATA_HEIRLOOM_FLAGS_BIT,
         ACTIVE_PLAYER_DATA_HEIRLOOMS_BIT, ACTIVE_PLAYER_DATA_HONOR_BIT,
         ACTIVE_PLAYER_DATA_HONOR_NEXT_LEVEL_BIT, ACTIVE_PLAYER_DATA_HONOR_PARENT_BIT,
         ACTIVE_PLAYER_DATA_PARENT_BIT, ACTIVE_PLAYER_DATA_QUEST_COMPLETED_FIRST_BIT,
@@ -951,6 +955,32 @@ mod tests {
         ));
         assert_eq!(active.coinage, 123_456);
         assert_eq!(active.watched_faction_index, 42);
+    }
+
+    #[test]
+    fn bridges_active_player_explored_zones_update_from_entity_mask_like_cpp() {
+        let mut player = Player::new(Some(7), false);
+        player.clear_data_changes();
+
+        assert!(player.add_explored_zones_like_cpp(9, u64::MAX));
+
+        let update = player.values_update(true);
+        let packet_update = player_values_update_to_packet(&update).unwrap();
+        let active = packet_update.active_player_data.unwrap();
+
+        assert_eq!(
+            packet_update.changed_object_type_mask,
+            1 << TYPEID_ACTIVE_PLAYER
+        );
+        assert!(mask_has(
+            &active.active_player_data_mask,
+            ACTIVE_PLAYER_DATA_EXPLORED_ZONES_PARENT_BIT
+        ));
+        assert!(mask_has(
+            &active.active_player_data_mask,
+            ACTIVE_PLAYER_DATA_EXPLORED_ZONES_FIRST_BIT + 9
+        ));
+        assert_eq!(active.explored_zones[9], u64::MAX);
     }
 
     #[test]

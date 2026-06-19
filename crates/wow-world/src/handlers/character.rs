@@ -4739,6 +4739,7 @@ impl WorldSession {
         self.apply_represented_login_spell_reset_if_needed_like_cpp();
         self.apply_represented_login_talent_reset_if_needed_like_cpp();
         if self.apply_represented_first_login_flag_if_needed_like_cpp() {
+            self.apply_represented_first_login_explored_zones_like_cpp();
             self.apply_represented_first_login_reputation_like_cpp();
         }
 

@@ -1,3 +1,28 @@
+- `#NEXT.R8.ENTITIES.1092` — represented first login now applies the C++
+  `CONFIG_START_ALL_EXPLORED` / `Player::AddExploredZones` branch (not
+  manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CharacterHandler.cpp:1304-1309`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:142-143,2193`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:19437-19572`.
+  C++ loops `PLAYER_EXPLORED_ZONES_SIZE` and applies
+  `UI64LIT(0xFFFFFFFFFFFFFFFF)` to each `ExploredZones` block before the
+  first-login reputation branch. Rust now represents
+  `ActivePlayerData::ExploredZones[240]`, marks the C++ parent/child update
+  bits for `AddExploredZones(pos, mask)`, bridges the u64 blocks into
+  `UpdateObject` active-player updates, and fills all 240 blocks when
+  `PlayerStart.MapsExplored` is enabled after `AT_LOGIN_FIRST` removal.
+  Coverage: `cargo fmt --all --check`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-entities
+  explored_zones --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  first_login_start_all_explored --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  bridges_active_player_explored_zones --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
+  cargo check -p world-server`; `git diff --check`. Boundary remains partial:
+  live `characters.exploredZones` load/save string serialization through full
+  `Player::LoadFromDB` / `Player::SaveToDB`, bot validation, live-client
+  validation, and manual validation remain open.
 - `#NEXT.R8.ENTITIES.1091` — represented first login now applies the C++
   `CONFIG_START_ALL_REP` branch (not manual-test-ready). Source of truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CharacterHandler.cpp:1313-1367`,

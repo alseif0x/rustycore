@@ -695,6 +695,8 @@ pub const ACTIVE_PLAYER_DATA_HONOR_NEXT_LEVEL_BIT: usize = 110;
 pub const ACTIVE_PLAYER_DATA_NUM_BACKPACK_SLOTS_BIT: usize = 104;
 pub const ACTIVE_PLAYER_DATA_INV_SLOTS_PARENT_BIT: usize = 124;
 pub const ACTIVE_PLAYER_DATA_INV_SLOTS_FIRST_BIT: usize = 125;
+pub const ACTIVE_PLAYER_DATA_EXPLORED_ZONES_PARENT_BIT: usize = 298;
+pub const ACTIVE_PLAYER_DATA_EXPLORED_ZONES_FIRST_BIT: usize = 299;
 pub const ACTIVE_PLAYER_DATA_BUYBACK_PARENT_BIT: usize = 549;
 pub const ACTIVE_PLAYER_DATA_BUYBACK_PRICE_FIRST_BIT: usize = 550;
 pub const ACTIVE_PLAYER_DATA_BUYBACK_TIMESTAMP_FIRST_BIT: usize = 562;
@@ -705,6 +707,7 @@ pub const ACTIVE_PLAYER_DATA_QUEST_COMPLETED_FIRST_BIT: usize = 637;
 pub const ACTIVE_PLAYER_DATA_WATCHED_FACTION_INDEX_BIT: usize = 92;
 pub const QUESTS_COMPLETED_BITS_SIZE: usize = 875;
 pub const QUESTS_COMPLETED_BITS_PER_BLOCK: u32 = 64;
+pub const PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP: usize = 240;
 pub const PLAYER_MAX_HONOR_LEVEL_LIKE_CPP: i32 = 500;
 pub const PLAYER_LEVEL_MIN_HONOR_LIKE_CPP: u8 = 10;
 pub const PLAYER_HONOR_NEXT_LEVEL_XP_LIKE_CPP: i32 = 8_800;
@@ -2765,6 +2768,7 @@ pub struct ActivePlayerDataValues {
     pub watched_faction_index: i32,
     pub num_backpack_slots: u8,
     pub inv_slots: [ObjectGuid; PLAYER_SLOT_END],
+    pub explored_zones: [u64; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP],
     pub buyback_price: [u32; BUYBACK_SLOT_COUNT],
     pub buyback_timestamp: [i64; BUYBACK_SLOT_COUNT],
     pub bank_bag_slot_flags: [u32; 7],
@@ -2795,6 +2799,7 @@ impl Default for ActivePlayerDataValues {
             watched_faction_index: -1,
             num_backpack_slots: 0,
             inv_slots: [ObjectGuid::EMPTY; PLAYER_SLOT_END],
+            explored_zones: [0; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP],
             buyback_price: [0; BUYBACK_SLOT_COUNT],
             buyback_timestamp: [0; BUYBACK_SLOT_COUNT],
             bank_bag_slot_flags: [0; 7],
@@ -3607,6 +3612,29 @@ impl Player {
 
     pub fn quest_completed_block_like_cpp(&self, index: usize) -> Option<u64> {
         self.active_data.quest_completed.get(index).copied()
+    }
+
+    /// C++ `Player::AddExploredZones(pos, mask)`.
+    pub fn add_explored_zones_like_cpp(&mut self, index: usize, mask: u64) -> bool {
+        let Some(target) = self.active_data.explored_zones.get_mut(index) else {
+            return false;
+        };
+        let new_value = *target | mask;
+        if *target == new_value {
+            return false;
+        }
+
+        *target = new_value;
+        self.mark_active_player_data_array(
+            ACTIVE_PLAYER_DATA_EXPLORED_ZONES_PARENT_BIT,
+            ACTIVE_PLAYER_DATA_EXPLORED_ZONES_FIRST_BIT,
+            index,
+        );
+        true
+    }
+
+    pub fn explored_zones_block_like_cpp(&self, index: usize) -> Option<u64> {
+        self.active_data.explored_zones.get(index).copied()
     }
 
     pub fn set_inventory_slot_count(&mut self, count: u8) {
@@ -12600,6 +12628,48 @@ mod tests {
 
         assert!(!player.set_quest_completed_bit_like_cpp(65, false));
         assert_eq!(player.quest_completed_block_like_cpp(1), Some(0));
+        assert!(!player.active_player_data_changes_mask().is_any_set());
+    }
+
+    #[test]
+    fn add_explored_zones_ors_mask_and_marks_cpp_parent_and_child_bits() {
+        let mut player = Player::new(None, false);
+        player.clear_data_changes();
+
+        assert!(player.add_explored_zones_like_cpp(7, 0x0f));
+        assert_eq!(player.explored_zones_block_like_cpp(7), Some(0x0f));
+        assert!(
+            player
+                .active_player_data_changes_mask()
+                .is_set(ACTIVE_PLAYER_DATA_EXPLORED_ZONES_PARENT_BIT)
+        );
+        assert!(
+            player
+                .active_player_data_changes_mask()
+                .is_set(ACTIVE_PLAYER_DATA_EXPLORED_ZONES_FIRST_BIT + 7)
+        );
+
+        player.clear_data_changes();
+        assert!(player.add_explored_zones_like_cpp(7, 0xf0));
+        assert_eq!(player.explored_zones_block_like_cpp(7), Some(0xff));
+        assert!(
+            player
+                .active_player_data_changes_mask()
+                .is_set(ACTIVE_PLAYER_DATA_EXPLORED_ZONES_FIRST_BIT + 7)
+        );
+    }
+
+    #[test]
+    fn add_explored_zones_repeated_and_out_of_range_are_noops_like_cpp() {
+        let mut player = Player::new(None, false);
+        assert!(player.add_explored_zones_like_cpp(0, u64::MAX));
+        player.clear_data_changes();
+
+        assert!(!player.add_explored_zones_like_cpp(0, 1));
+        assert_eq!(player.explored_zones_block_like_cpp(0), Some(u64::MAX));
+        assert!(!player.active_player_data_changes_mask().is_any_set());
+
+        assert!(!player.add_explored_zones_like_cpp(PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP, u64::MAX));
         assert!(!player.active_player_data_changes_mask().is_any_set());
     }
 

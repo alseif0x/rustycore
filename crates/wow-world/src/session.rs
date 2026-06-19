@@ -18585,6 +18585,32 @@ impl WorldSession {
         applied
     }
 
+    /// C++ `Player::AddExploredZones` loop for `CONFIG_START_ALL_EXPLORED` on first login.
+    pub(crate) fn apply_represented_first_login_explored_zones_like_cpp(&mut self) -> usize {
+        if !self.start_all_explored_like_cpp() {
+            return 0;
+        }
+
+        let Some((applied, update)) = self
+            .mutate_canonical_player_like_cpp(|player| {
+                let mut applied = 0usize;
+                for index in 0..wow_entities::PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP {
+                    if player.add_explored_zones_like_cpp(index, u64::MAX) {
+                        applied += 1;
+                    }
+                }
+
+                (applied > 0).then(|| (applied, player.values_update(true)))
+            })
+            .flatten()
+        else {
+            return 0;
+        };
+
+        self.send_player_values_update_like_cpp(&update);
+        applied
+    }
+
     pub(crate) fn mark_represented_talents_loaded_like_cpp(&mut self) {
         self.represented_talents_loaded_like_cpp = true;
         self.refresh_represented_talent_points_like_cpp();
@@ -75104,6 +75130,62 @@ mod tests {
             0,
             "Horde first login must not apply the Alliance-only branch"
         );
+    }
+
+    #[test]
+    fn first_login_start_all_explored_sets_all_cpp_blocks_and_sends_update() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 0xE001);
+        session.ensure_login_player_controller_like_cpp(
+            player_guid,
+            "Explorer".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        );
+        let canonical = shared_canonical_map_manager();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
+
+        assert_eq!(
+            session.apply_represented_first_login_explored_zones_like_cpp(),
+            0
+        );
+        assert!(send_rx.try_recv().is_err());
+
+        session.set_start_all_explored_like_cpp(true);
+        let applied = session.apply_represented_first_login_explored_zones_like_cpp();
+
+        assert_eq!(
+            applied,
+            wow_entities::PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP,
+            "C++ loops PLAYER_EXPLORED_ZONES_SIZE and applies UI64_MAX to each block"
+        );
+        {
+            let manager = canonical.lock().unwrap();
+            let player = manager
+                .find_map(571, 0)
+                .unwrap()
+                .map()
+                .get_typed_player(player_guid)
+                .unwrap();
+            assert!(
+                (0..wow_entities::PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP)
+                    .all(|index| player.explored_zones_block_like_cpp(index) == Some(u64::MAX))
+            );
+        }
+
+        let packet = drain_server_packet_bytes(&send_rx)
+            .into_iter()
+            .find(|bytes| {
+                wow_packet::WorldPacket::from_bytes(bytes).server_opcode()
+                    == Some(ServerOpcodes::UpdateObject)
+            })
+            .expect("explored-zone field update");
+        assert!(!packet.is_empty());
     }
 
     #[test]
