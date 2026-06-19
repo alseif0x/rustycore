@@ -1,3 +1,20 @@
+- `#NEXT.R8.ENTITIES.1166` — repair-all durability tests now explicitly
+  validate the C++ `DurabilityRepairAll -> DurabilityRepair` broken-equipped
+  item-mod reapply path for both player-money and guild-bank repair. Source of
+  truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:4629-4740`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7660-7691`.
+  This also preserves the legacy ordering where guild-bank repair repairs
+  selected items before the final `Guild::HandleMemberWithdrawMoney` result;
+  that may be a C++ bug, but Rust now documents/tests the ported behavior
+  instead of silently changing semantics. Coverage:
+  `cargo test -p wow-world repair_all_inventory_item_durability --lib` and
+  `cargo fmt --all --check`. Boundary remains partial: this is coverage for
+  represented repair-all mod reapplication only; full `_ApplyItemMods` bonus,
+  equip spell, dependent aura, weapon-dependent aura, enchantment mutation,
+  exact fanout, live-client/bot validation, and manual validation remain open.
+
 - `#NEXT.R8.ENTITIES.1165` — represented
   `Player::UpdateItemLevelAreaBasedScaling` now mirrors the C++ state-change
   wrapper around PvP item-level toggles: it records `_RemoveAllItemMods` for

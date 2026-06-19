@@ -103630,7 +103630,7 @@ mod tests {
         let bag_guid = ObjectGuid::create_item(1, 901);
         let armor_guid = ObjectGuid::create_item(1, 902);
         session.set_player_guid(Some(player_guid));
-        session.set_player_gold_like_cpp(500);
+        session.set_player_gold_like_cpp(2_000);
         session.set_item_store(Arc::new(ItemStore::from_records([
             ItemRecord {
                 id: 100,
@@ -103765,7 +103765,7 @@ mod tests {
             100,
             player_guid,
             1,
-            40,
+            0,
             ItemContext::None,
             EQUIPMENT_SLOT_MAINHAND,
         );
@@ -103797,7 +103797,7 @@ mod tests {
                 .repair_all_inventory_item_durability_with_player_money_like_cpp(0.8, 2.0)
                 .await
         );
-        assert_eq!(session.player_gold_like_cpp(), 210);
+        assert_eq!(session.player_gold_like_cpp(), 670);
         assert_eq!(
             session.inventory_item_objects_like_cpp()[&weapon_guid]
                 .data()
@@ -103809,6 +103809,15 @@ mod tests {
                 .data()
                 .durability,
             13
+        );
+        assert_eq!(
+            session.represented_item_mod_reapply_events_like_cpp(),
+            &[RepresentedItemModsReapplyEventLikeCpp {
+                item_guid: weapon_guid,
+                slot: EQUIPMENT_SLOT_MAINHAND,
+                apply: true,
+            }],
+            "C++ DurabilityRepairAll delegates each item to DurabilityRepair, which reapplies item mods when an equipped item was broken before repair"
         );
 
         session.set_player_gold_like_cpp(10);
@@ -104049,7 +104058,7 @@ mod tests {
             .inventory_item_objects
             .get_mut(&weapon_guid)
             .unwrap()
-            .set_durability(40);
+            .set_durability(0);
         session
             .inventory_item_objects
             .get_mut(&armor_guid)
@@ -104057,7 +104066,7 @@ mod tests {
             .set_durability(10);
         session.set_represented_guild_repair_bank_state_like_cpp(Some(
             RepresentedGuildRepairBankStateLikeCpp {
-                available_repair_money: 500,
+                available_repair_money: 2_000,
                 withdraw_repair_money_allowed: false,
             },
         ));
@@ -104084,10 +104093,19 @@ mod tests {
                 .represented_guild_repair_bank_withdraws_like_cpp()
                 .last(),
             Some(&RepresentedGuildRepairBankWithdrawLikeCpp {
-                amount: 290,
+                amount: 1330,
                 repair: true,
                 success: false,
             })
+        );
+        assert_eq!(
+            session.represented_item_mod_reapply_events_like_cpp(),
+            &[RepresentedItemModsReapplyEventLikeCpp {
+                item_guid: weapon_guid,
+                slot: EQUIPMENT_SLOT_MAINHAND,
+                apply: true,
+            }],
+            "C++ guild-bank repair also calls DurabilityRepair for each selected item before the final guild withdrawal"
         );
     }
 
