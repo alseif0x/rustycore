@@ -211,6 +211,8 @@ impl WorldSession {
         let _ = self.mutate_canonical_player_like_cpp(|player| {
             player.unit_mut().world_mut().relocate(info.position);
         });
+        let (_, area_id) = self.player_zone_area_like_cpp();
+        self.check_area_explore_and_outdoor_represented_like_cpp(area_id);
         // Keep the broadcast registry in sync so chat range checks are accurate.
         self.update_registry_position();
         trace!(
@@ -594,6 +596,24 @@ mod tests {
             send_tx,
         );
         (session, send_rx)
+    }
+
+    fn movement_packet(opcode: ClientOpcodes, movement: &MovementInfo) -> wow_packet::WorldPacket {
+        let mut inbound = wow_packet::WorldPacket::new_empty();
+        inbound.write_uint16(opcode as u16);
+        movement.write(&mut inbound);
+        inbound.read_uint16().expect("movement opcode");
+        inbound
+    }
+
+    fn drain_server_opcodes(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<ServerOpcodes> {
+        let mut opcodes = Vec::new();
+        while let Ok(bytes) = send_rx.try_recv() {
+            if let Some(opcode) = wow_packet::WorldPacket::from_bytes(&bytes).server_opcode() {
+                opcodes.push(opcode);
+            }
+        }
+        opcodes
     }
 
     fn visible_aura(slot: u8, flags: u32, flags2: u32) -> AuraApplication {
@@ -1585,6 +1605,86 @@ mod tests {
                 .position,
             moved_position
         );
+    }
+
+    #[tokio::test]
+    async fn handle_movement_discovers_current_area_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_rx();
+        let canonical = Arc::new(Mutex::new(wow_map::MapManager::default()));
+        let guid = ObjectGuid::create_player(1, 1094);
+        let login_position = Position::new(1.0, 2.0, 3.0, 0.25);
+        let moved_position = Position::new(11.0, 22.0, 33.0, 1.0);
+
+        canonical.lock().unwrap().create_world_map(571, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
+            wow_data::AreaTableEntry {
+                id: 9_104,
+                continent_id: 571,
+                parent_area_id: 0,
+                area_bit: 65,
+                exploration_level: 12,
+                mount_flags: 0,
+                flags: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            guid,
+            "MovementExplorer".to_string(),
+            login_position,
+            571,
+            1,
+            3,
+            10,
+            0,
+        ));
+        session.set_player_zone_area_like_cpp(9_104, 9_104);
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+
+        let movement = MovementInfo {
+            guid,
+            flags: MovementFlag::FORWARD,
+            position: moved_position,
+            ..MovementInfo::default()
+        };
+        session
+            .handle_movement(movement_packet(ClientOpcodes::MoveHeartbeat, &movement))
+            .await;
+
+        assert_eq!(
+            session
+                .represented_explored_zones_db_string_like_cpp()
+                .split_whitespace()
+                .take(4)
+                .collect::<Vec<_>>(),
+            vec!["0", "0", "2", "0"]
+        );
+        assert_eq!(
+            session.represented_reveal_world_map_overlay_criteria_like_cpp(),
+            &[9_104]
+        );
+        assert!(drain_server_opcodes(&send_rx).contains(&ServerOpcodes::UpdateObject));
+
+        session
+            .handle_movement(movement_packet(ClientOpcodes::MoveHeartbeat, &movement))
+            .await;
+        assert_eq!(
+            session.represented_reveal_world_map_overlay_criteria_like_cpp(),
+            &[9_104],
+            "C++ discovery criteria only fires when the explored-zone bit changes"
+        );
+        assert!(!drain_server_opcodes(&send_rx).contains(&ServerOpcodes::UpdateObject));
     }
 
     #[tokio::test]

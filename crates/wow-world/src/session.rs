@@ -18602,11 +18602,18 @@ impl WorldSession {
     /// This slice covers `AreaTableEntry::AreaBit`, `AddExploredZones`, the player-values update,
     /// and the `CriteriaType::RevealWorldMapOverlay` side effect. Exploration XP and
     /// indoor/outdoor aura removal remain separate runtime gaps.
-    #[allow(dead_code)]
     pub(crate) fn check_area_explore_and_outdoor_represented_like_cpp(
         &mut self,
         area_id: u32,
     ) -> bool {
+        if !self.player_is_alive_like_cpp() {
+            return false;
+        }
+
+        if self.taxi_flight_state_like_cpp.is_some() {
+            return false;
+        }
+
         if area_id == 0 {
             return false;
         }
