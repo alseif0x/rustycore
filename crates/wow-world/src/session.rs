@@ -18,9 +18,10 @@ use rand::{Rng, RngCore, SeedableRng, rngs::StdRng, seq::SliceRandom};
 use tracing::{debug, info, trace, warn};
 
 use crate::entity_update_bridge::{
-    dynamic_object_values_update_to_update_object, game_object_values_update_to_update_object,
-    item_values_update_to_update_object, player_values_update_to_update_object,
-    unit_values_update_to_packet, unit_values_update_to_update_object,
+    bag_values_update_to_update_object, dynamic_object_values_update_to_update_object,
+    game_object_values_update_to_update_object, item_values_update_to_update_object,
+    player_values_update_to_update_object, unit_values_update_to_packet,
+    unit_values_update_to_update_object,
 };
 use crate::map_manager::{
     PendingRespawn, RecipientRule, RuntimeEvent, RuntimeOutput, RuntimePlan, RuntimeTickOwner,
@@ -136,11 +137,15 @@ use wow_entities::{
     PetType, PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerInventoryStorage,
     PlayerItemTimeUpdate, QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE,
     REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, ReactState, SendNewItemDelivery,
-    SendNewItemDisplayText, SendNewItemPlan, TYPEID_ITEM, UNIT_DATA_HEALTH_BIT, Unit,
-    UnitDataUpdate, UnitDataValues, UnitVisibilityDetectionStateLikeCpp, UpdateMask, Vehicle,
+    SendNewItemDisplayText, SendNewItemPlan, TYPEID_CONTAINER, TYPEID_ITEM, UNIT_DATA_HEALTH_BIT,
+    Unit, UnitDataUpdate, UnitDataValues, UnitVisibilityDetectionStateLikeCpp, UpdateMask, Vehicle,
     VehicleAccessory, VisibleItemValues, WorldObject,
     explored_zones_db_string_from_blocks_like_cpp, is_bag_pos, is_equipment_packed_pos,
     is_inventory_pos, make_item_pos, parse_explored_zones_db_string_like_cpp,
+};
+use wow_entities::{
+    BagValuesUpdate, CONTAINER_DATA_BITS, CONTAINER_DATA_SLOTS_FIRST_BIT,
+    CONTAINER_DATA_SLOTS_PARENT_BIT, ContainerDataUpdate, ContainerDataValues,
 };
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus, build_dispatch_table};
 use wow_loot::{LootStoreKind, LootStores};
@@ -29502,6 +29507,9 @@ impl WorldSession {
                     offhand_item.guid,
                 );
                 self.send_item_contained_in_values_update_like_cpp(offhand_item.guid);
+                if bag != INVENTORY_SLOT_BAG_0 {
+                    self.send_bag_slot_values_update_like_cpp(bag, slot);
+                }
                 stored_destination = Some((bag, slot));
                 needs_mail_fallback = false;
             }
@@ -29546,6 +29554,50 @@ impl WorldSession {
             &[],
             None,
         );
+    }
+
+    fn send_bag_slot_values_update_like_cpp(&self, bag_slot: u8, changed_slot: u8) {
+        if changed_slot as usize >= MAX_BAG_SIZE {
+            return;
+        }
+        let Some((bag_guid, bag_size, slot_values)) = self
+            .canonical_player_snapshot_like_cpp(|player| {
+                let bag = player
+                    .inventory()
+                    .bags
+                    .get(bag_slot as usize)
+                    .and_then(Option::as_ref)?;
+                let mut slots = [ObjectGuid::EMPTY; MAX_BAG_SIZE];
+                for (index, slot) in bag.slots.iter().enumerate() {
+                    slots[index] = slot.unwrap_or(ObjectGuid::EMPTY);
+                }
+                Some((bag.bag_guid, bag.bag_size, slots))
+            })
+            .flatten()
+        else {
+            return;
+        };
+
+        let mut container_data_mask = UpdateMask::new(CONTAINER_DATA_BITS);
+        container_data_mask.set(CONTAINER_DATA_SLOTS_PARENT_BIT);
+        container_data_mask.set(CONTAINER_DATA_SLOTS_FIRST_BIT + changed_slot as usize);
+        let update = BagValuesUpdate {
+            changed_object_type_mask: 1 << TYPEID_CONTAINER,
+            object_data: None,
+            item_data: None,
+            container_data: Some(ContainerDataUpdate {
+                mask: container_data_mask,
+                values: ContainerDataValues {
+                    num_slots: u32::from(bag_size),
+                    slots: slot_values,
+                },
+            }),
+        };
+        if let Some(packet) =
+            bag_values_update_to_update_object(bag_guid, self.player_map_id_like_cpp(), &update)
+        {
+            self.send_packet(&packet);
+        }
     }
 
     fn send_item_contained_in_values_update_like_cpp(&self, item_guid: ObjectGuid) {
@@ -50464,8 +50516,12 @@ mod tests {
         );
         assert_eq!(
             drain_server_opcodes(&send_rx),
-            vec![ServerOpcodes::UpdateObject, ServerOpcodes::UpdateObject],
-            "C++ RemoveItem(update=true) + Bag::StoreItem(update=true) emit player and item values updates"
+            vec![
+                ServerOpcodes::UpdateObject,
+                ServerOpcodes::UpdateObject,
+                ServerOpcodes::UpdateObject
+            ],
+            "C++ RemoveItem(update=true) + Bag::StoreItem(update=true) emit player, item, and bag slot values updates"
         );
     }
 

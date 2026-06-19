@@ -1,3 +1,21 @@
+- `#NEXT.R8.ENTITIES.1136` — represented `AutoUnequipOffhandIfNeed` now
+  emits the equipped-bag `ContainerData::Slots` VALUES delta for the C++
+  `Bag::StoreItem` branch. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Container/Bag.cpp:160-170`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Container/Bag.cpp:248-258`.
+  Rust now reads the canonical `PlayerBagStorage` after the represented
+  offhand move, builds a `ContainerData` update with
+  `CONTAINER_DATA_SLOTS_PARENT_BIT` plus the changed slot bit, and sends a bag
+  `SMSG_UPDATE_OBJECT` for the equipped bag guid. Coverage: `cargo test -p
+  wow-world remove_known_spell_auto_unequip_stores_offhand_in_represented_bag_like_cpp
+  --lib`. Boundary remains partial: this closes only the current-session bag
+  slot VALUES packet for the represented offhand-in-bag branch; complete
+  create/update queue ordering, multi-session fanout, stat recalculation, item
+  mod/enchantment duration hooks, DB inventory slot updates, DB delete/save
+  transaction, real mail draft/send fallback, live-client/bot/manual
+  validation, and full `Player::RemoveSpell` parity remain open.
+
 - `#NEXT.R8.ENTITIES.1135` — represented `AutoUnequipOffhandIfNeed` now
   updates and emits the moved item's `ItemData::ContainedIn` VALUES delta for
   the C++ `RemoveItem(update=true)` / `StoreItem(update=true)` item update
@@ -12,12 +30,12 @@
   explicit `ITEM_DATA_CONTAINED_IN` mask after the player values update.
   Coverage: `cargo test -p wow-world remove_known_spell --lib`. Boundary
   remains partial: this closes only the represented item's `ContainedIn`
-  VALUES delta for the current session; complete create/update queue ordering,
-  equipped-bag `ContainerData::Slots` packet emission, multi-session fanout,
-  stat recalculation, item mod/enchantment duration hooks, DB inventory slot
-  updates, DB delete/save transaction, real mail draft/send fallback,
-  live-client/bot/manual validation, and full `Player::RemoveSpell` parity
-  remain open.
+  VALUES delta for the current session; equipped-bag `ContainerData::Slots`
+  packet emission is closed by `#NEXT.R8.ENTITIES.1136`; complete
+  create/update queue ordering, multi-session fanout, stat recalculation, item
+  mod/enchantment duration hooks, DB inventory slot updates, DB delete/save
+  transaction, real mail draft/send fallback, live-client/bot/manual
+  validation, and full `Player::RemoveSpell` parity remain open.
 
 - `#NEXT.R8.ENTITIES.1134` — represented `AutoUnequipOffhandIfNeed` now
   emits the self-session player values `SMSG_UPDATE_OBJECT` for the C++
@@ -32,12 +50,12 @@
   the destination `InvSlot` with the moved item guid. Coverage: `cargo test -p
   wow-world remove_known_spell --lib`. Boundary remains partial: this closes
   only the current-session player values packet for the represented branch;
-  item `ContainedIn` VALUES emission is closed by `#NEXT.R8.ENTITIES.1135`;
-  equipped-bag child container values, multi-session fanout, stat
-  recalculation, item mod/enchantment duration hooks, DB inventory slot
-  updates, DB delete/save transaction, real mail draft/send fallback,
-  live-client/bot/manual validation, and full `Player::RemoveSpell` parity
-  remain open.
+  item `ContainedIn` VALUES emission is closed by `#NEXT.R8.ENTITIES.1135`,
+  and equipped-bag child container values are closed by
+  `#NEXT.R8.ENTITIES.1136`; multi-session fanout, stat recalculation, item
+  mod/enchantment duration hooks, DB inventory slot updates, DB delete/save
+  transaction, real mail draft/send fallback, live-client/bot/manual
+  validation, and full `Player::RemoveSpell` parity remain open.
 
 - `#NEXT.R8.ENTITIES.1133` — represented `AutoUnequipOffhandIfNeed` now
   syncs the canonical player storage/update-field model for the C++
