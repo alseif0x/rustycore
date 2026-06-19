@@ -29484,6 +29484,8 @@ impl WorldSession {
             return false;
         };
 
+        self.record_represented_offhand_item_mod_remove_like_cpp(offhand_item.guid);
+
         let mut stored_destination = None;
         let mut needs_mail_fallback = true;
         if let Some((InventoryResult::Ok, destinations, _)) =
@@ -29535,6 +29537,24 @@ impl WorldSession {
                 needs_mail_fallback,
             });
         true
+    }
+
+    fn record_represented_offhand_item_mod_remove_like_cpp(&mut self, item_guid: ObjectGuid) {
+        if self
+            .inventory_item_objects_like_cpp()
+            .get(&item_guid)
+            .is_some_and(|item| item.is_broken())
+        {
+            return;
+        }
+
+        self.represented_item_mod_reapply_events_like_cpp.push(
+            RepresentedItemModsReapplyEventLikeCpp {
+                item_guid,
+                slot: EQUIPMENT_SLOT_OFFHAND,
+                apply: false,
+            },
+        );
     }
 
     fn send_auto_unequip_offhand_values_update_like_cpp(
@@ -50227,6 +50247,15 @@ mod tests {
             }],
             "C++ AutoUnequipOffhandIfNeed unequips offhand when the main hand is a 2H weapon without Titan Grip"
         );
+        assert_eq!(
+            session.represented_item_mod_reapply_events_like_cpp(),
+            &[RepresentedItemModsReapplyEventLikeCpp {
+                item_guid: offhand_guid,
+                slot: EQUIPMENT_SLOT_OFFHAND,
+                apply: false,
+            }],
+            "C++ RemoveItem calls _ApplyItemMods(offhand, false) before clearing the equipment slot"
+        );
         let runtime_item = session
             .inventory_item_objects_like_cpp()
             .get(&offhand_guid)
@@ -50238,6 +50267,80 @@ mod tests {
             drain_server_opcodes(&send_rx),
             vec![ServerOpcodes::UpdateObject, ServerOpcodes::UpdateObject],
             "C++ RemoveItem(update=true) + StoreItem(update=true) send player and item values updates after offhand auto-store"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_auto_unequip_skips_item_mod_remove_for_broken_offhand_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let mainhand_item_id = 30_010_u32;
+        let offhand_item_id = 30_011_u32;
+        let mainhand_guid = ObjectGuid::create_item(1, 30_010);
+        let offhand_guid = ObjectGuid::create_item(1, 30_011);
+        let player_guid = ObjectGuid::create_player(1, 161);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "BrokenOffhandMods".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        let _ = session.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_can_dual_wield_like_cpp(true);
+            player.set_can_titan_grip(false, 0);
+        });
+        install_remove_spell_offhand_templates_like_cpp(
+            &mut session,
+            &[
+                (
+                    mainhand_item_id,
+                    InventoryType::Weapon2Hand,
+                    0,
+                    ItemClass::Weapon,
+                    ItemSubClassWeapon::Axe2 as u8,
+                ),
+                (
+                    offhand_item_id,
+                    InventoryType::Shield,
+                    0,
+                    ItemClass::Armor,
+                    ItemSubClassArmor::Shield as u8,
+                ),
+            ],
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_MAINHAND,
+            mainhand_guid,
+            mainhand_item_id,
+            InventoryType::Weapon2Hand,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_OFFHAND,
+            offhand_guid,
+            offhand_item_id,
+            InventoryType::Shield,
+        );
+        session.update_inventory_item_object_like_cpp(offhand_guid, |item| {
+            item.set_max_durability(40);
+            item.set_durability(0);
+        });
+
+        assert!(session.represented_auto_unequip_offhand_if_need_like_cpp(false));
+
+        assert!(
+            session
+                .represented_item_mod_reapply_events_like_cpp()
+                .is_empty(),
+            "C++ _ApplyItemMods returns without applying/removing mods for broken items"
         );
     }
 

@@ -1,3 +1,23 @@
+- `#NEXT.R8.ENTITIES.1137` — represented `AutoUnequipOffhandIfNeed` now
+  records the C++ `RemoveItem(..., EQUIPMENT_SLOT_OFFHAND, update=true)`
+  `_ApplyItemMods(offhand, false, update)` boundary before moving/delinking the
+  offhand item. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11559-11635`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11643-11655`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:24621-24634`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7660-7691`.
+  Rust now pushes
+  `RepresentedItemModsReapplyEventLikeCpp { item_guid, slot:
+  EQUIPMENT_SLOT_OFFHAND, apply: false }` for non-broken represented offhand
+  removals, and skips the event for broken items to mirror the early return in
+  C++ `_ApplyItemMods`. Coverage: `cargo test -p wow-world
+  remove_known_spell_auto_unequip --lib`. Boundary remains partial: this is a
+  represented hook/evidence seam only; full `_ApplyItemMods` item bonuses,
+  set bonuses, equip spells, dependent auras, weapon-dependent aura updates,
+  enchantment application/removal, expertise/armor-penetration recalculation,
+  average item-level recalculation, multi-session fanout, DB persistence, and
+  live-client/bot/manual validation remain open.
+
 - `#NEXT.R8.ENTITIES.1136` — represented `AutoUnequipOffhandIfNeed` now
   emits the equipped-bag `ContainerData::Slots` VALUES delta for the C++
   `Bag::StoreItem` branch. Source of truth:
@@ -10,11 +30,13 @@
   `SMSG_UPDATE_OBJECT` for the equipped bag guid. Coverage: `cargo test -p
   wow-world remove_known_spell_auto_unequip_stores_offhand_in_represented_bag_like_cpp
   --lib`. Boundary remains partial: this closes only the current-session bag
-  slot VALUES packet for the represented offhand-in-bag branch; complete
-  create/update queue ordering, multi-session fanout, stat recalculation, item
-  mod/enchantment duration hooks, DB inventory slot updates, DB delete/save
-  transaction, real mail draft/send fallback, live-client/bot/manual
-  validation, and full `Player::RemoveSpell` parity remain open.
+  slot VALUES packet for the represented offhand-in-bag branch; represented
+  `_ApplyItemMods(offhand, false)` hook evidence is closed by
+  `#NEXT.R8.ENTITIES.1137`; complete create/update queue ordering,
+  multi-session fanout, real stat recalculation, enchantment duration hooks, DB
+  inventory slot updates, DB delete/save transaction, real mail draft/send
+  fallback, live-client/bot/manual validation, and full `Player::RemoveSpell`
+  parity remain open.
 
 - `#NEXT.R8.ENTITIES.1135` — represented `AutoUnequipOffhandIfNeed` now
   updates and emits the moved item's `ItemData::ContainedIn` VALUES delta for
