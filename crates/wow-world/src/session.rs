@@ -48591,10 +48591,11 @@ mod tests {
     };
     use wow_entities::{
         AccessorObjectRef, ApplyEnchantmentDurationAction, ApplyEnchantmentResult,
-        BANK_SLOT_BAG_START, CharmType, EQUIPMENT_SLOT_CHEST, INVENTORY_SLOT_BAG_START,
-        INVENTORY_SLOT_ITEM_START, MapObjectRecord, PlayerEnchantDuration, REAGENT_BAG_SLOT_START,
-        SendNewItemInstancePlan, SendNewItemModifier, TYPEID_UNIT, UNIT_DATA_BITS, UnitDataUpdate,
-        UnitDataValues, UnitValuesUpdate, UpdateMask,
+        BANK_SLOT_BAG_START, BANK_SLOT_ITEM_START, CharmType, EQUIPMENT_SLOT_CHEST,
+        INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, MapObjectRecord,
+        PlayerEnchantDuration, REAGENT_BAG_SLOT_START, SendNewItemInstancePlan,
+        SendNewItemModifier, TYPEID_UNIT, UNIT_DATA_BITS, UnitDataUpdate, UnitDataValues,
+        UnitValuesUpdate, UpdateMask,
     };
     use wow_movement::MoveSplineFlag;
     use wow_network::player_registry::{
@@ -51276,6 +51277,222 @@ mod tests {
         assert_eq!(
             context.avg_equipped_item_level, 6.25,
             "C++ UpdateAverageItemLevelEquipped still ignores bag-contained items"
+        );
+    }
+
+    #[test]
+    fn represented_condition_total_avg_item_level_uses_represented_bank_item_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let equipped_chest_item_id = 30_023_u32;
+        let bank_chest_item_id = 30_024_u32;
+        let equipped_chest_guid = ObjectGuid::create_item(1, 30_023);
+        let bank_chest_guid = ObjectGuid::create_item(1, 30_024);
+        let player_guid = ObjectGuid::create_player(1, 168);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AverageItemLevelBankItem".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        session.set_item_store(Arc::new(ItemStore::from_records([
+            represented_test_item_record_like_cpp(
+                equipped_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+            represented_test_item_record_like_cpp(
+                bank_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+        ])));
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [
+                    (
+                        equipped_chest_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                    ),
+                    (
+                        bank_chest_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                    ),
+                ],
+                [
+                    (
+                        equipped_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 100,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                    (
+                        bank_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 240,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                ],
+            ),
+        ));
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            equipped_chest_guid,
+            equipped_chest_item_id,
+            InventoryType::Chest,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            BANK_SLOT_ITEM_START,
+            bank_chest_guid,
+            bank_chest_item_id,
+            InventoryType::Chest,
+        );
+
+        let owned = session.represented_player_condition_context_like_cpp();
+        let context = owned.as_context(&session);
+
+        assert_eq!(
+            context.avg_item_level, 15.0,
+            "C++ ItemSearchLocation::Everywhere includes bank slots, so represented bank candidates can replace equipped lower item-level candidates"
+        );
+        assert_eq!(
+            context.avg_equipped_item_level, 6.25,
+            "C++ UpdateAverageItemLevelEquipped still ignores bank items"
+        );
+    }
+
+    #[test]
+    fn represented_condition_total_avg_item_level_uses_represented_bank_bag_contents_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let equipped_chest_item_id = 30_025_u32;
+        let bank_bag_item_id = 30_026_u32;
+        let contained_chest_item_id = 30_027_u32;
+        let equipped_chest_guid = ObjectGuid::create_item(1, 30_025);
+        let bank_bag_guid = ObjectGuid::create_item(1, 30_026);
+        let contained_chest_guid = ObjectGuid::create_item(1, 30_027);
+        let player_guid = ObjectGuid::create_player(1, 169);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AverageItemLevelBankBagContents".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        session.set_item_store(Arc::new(ItemStore::from_records([
+            represented_test_item_record_like_cpp(
+                equipped_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+            represented_test_item_record_like_cpp(
+                bank_bag_item_id,
+                InventoryType::Bag,
+                ItemClass::Container,
+                0,
+            ),
+            represented_test_item_record_like_cpp(
+                contained_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+        ])));
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [
+                    (
+                        equipped_chest_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                    ),
+                    (
+                        bank_bag_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Bag, 0),
+                    ),
+                    (
+                        contained_chest_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                    ),
+                ],
+                [
+                    (
+                        equipped_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 100,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                    (
+                        contained_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 260,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                ],
+            ),
+        ));
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            equipped_chest_guid,
+            equipped_chest_item_id,
+            InventoryType::Chest,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            BANK_SLOT_BAG_START,
+            bank_bag_guid,
+            bank_bag_item_id,
+            InventoryType::Bag,
+        );
+        let owner = session.player_guid().unwrap_or(ObjectGuid::EMPTY);
+        let mut contained_chest = session.make_inventory_item_object(
+            contained_chest_guid,
+            contained_chest_item_id,
+            owner,
+            1,
+            0,
+            ItemContext::None,
+            0,
+        );
+        contained_chest.set_container_guid_and_slot(bank_bag_guid, BANK_SLOT_BAG_START);
+        session.insert_inventory_item_object(contained_chest);
+
+        let owned = session.represented_player_condition_context_like_cpp();
+        let context = owned.as_context(&session);
+
+        assert_eq!(
+            context.avg_item_level, 16.25,
+            "C++ ItemSearchLocation::Everywhere includes bank bag contents, so represented bank-bag candidates can replace equipped lower item-level candidates"
+        );
+        assert_eq!(
+            context.avg_equipped_item_level, 6.25,
+            "C++ UpdateAverageItemLevelEquipped still ignores bank-bag contents"
         );
     }
 

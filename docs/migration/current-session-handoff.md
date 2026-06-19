@@ -1,3 +1,18 @@
+- `#NEXT.R8.ENTITIES.1147` — represented `PlayerData::AvgItemLevel[0]`
+  now has explicit coverage for represented bank candidates. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:756`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28773-28880`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Conditions/ConditionMgr.cpp:3206-3215`.
+  C++ `ItemSearchLocation::Everywhere` includes `Bank`; Rust now has tests
+  proving top-level represented bank items and represented bank-bag child items
+  feed the same total-average best-slot candidate path and can replace lower
+  equipped candidates. Coverage: `cargo test -p wow-world
+  represented_condition_total_avg_item_level --lib`. Boundary remains partial:
+  full `CanEquipItem` restrictions, reagent-bank-specific traversal evidence,
+  unique-equip/limit/category gates, item-level bonus/PvP/timewalker scaling,
+  update-field packet emission/fanout, persistence, live-client/bot manual
+  validation, and full condition-runtime parity remain open.
+
 - `#NEXT.R8.ENTITIES.1146` — represented `PlayerData::AvgItemLevel[0]`
   now includes represented item objects contained in represented bags when
   selecting C++ best equipment-slot candidates. Source of truth:
@@ -9,10 +24,11 @@
   bag into the same best-slot selection path used for direct inventory
   candidates. Coverage: `cargo test -p wow-world
   represented_condition_total_avg_item_level --lib`. Boundary remains partial:
-  full `CanEquipItem` restrictions, bank traversal, unique-equip/limit/category
-  gates, item-level bonus/PvP/timewalker scaling, update-field packet
-  emission/fanout, persistence, live-client/bot manual validation, and full
-  condition-runtime parity remain open.
+  full `CanEquipItem` restrictions, bank traversal is closed later by
+  `#NEXT.R8.ENTITIES.1147` for represented bank top-level/bank-bag child
+  objects, unique-equip/limit/category gates, item-level bonus/PvP/timewalker
+  scaling, update-field packet emission/fanout, persistence, live-client/bot
+  manual validation, and full condition-runtime parity remain open.
 
 - `#NEXT.R8.ENTITIES.1145` — represented `PlayerData::AvgItemLevel[0]`
   now maintains a C++-shaped best-item-level table per equipment slot for
