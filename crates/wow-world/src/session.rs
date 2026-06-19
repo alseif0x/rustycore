@@ -23659,6 +23659,9 @@ impl WorldSession {
 
         // Send SMSG_AURA_UPDATE
         self.send_aura_update_applied(spell_id, slot, caster_guid, duration_ms, aura_flags);
+        if spell_id == SPELL_PVP_RULES_ENABLED_LIKE_CPP {
+            let _ = self.update_represented_item_level_area_based_scaling_like_cpp();
+        }
 
         Ok(())
     }
@@ -24356,6 +24359,9 @@ impl WorldSession {
 
         // Send SMSG_AURA_UPDATE (removal)
         self.send_aura_update_removed(slot);
+        if aura.spell_id == SPELL_PVP_RULES_ENABLED_LIKE_CPP {
+            let _ = self.update_represented_item_level_area_based_scaling_like_cpp();
+        }
 
         Ok(())
     }
@@ -52332,6 +52338,75 @@ mod tests {
         assert_eq!(
             session.represented_item_level_like_cpp(item_id, None),
             Some(130)
+        );
+    }
+
+    #[test]
+    fn represented_pvp_rules_aura_application_recalculates_item_level_scaling_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_158_u32;
+        install_represented_pvp_item_level_fixture_like_cpp(&mut session, item_id, 35);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            represented_item_level_area_map_like_cpp(30_158, wow_data::map::MAP_COMMON, 0),
+        ])));
+        session.set_player_map_position_like_cpp(30_158, Position::ZERO);
+
+        assert!(!session.represented_using_pvp_item_levels_like_cpp());
+        session
+            .apply_aura(
+                SPELL_PVP_RULES_ENABLED_LIKE_CPP,
+                ObjectGuid::EMPTY,
+                30_000,
+                0x0000_0001,
+            )
+            .expect("represented PvP rules aura should apply");
+
+        assert!(
+            session.represented_using_pvp_item_levels_like_cpp(),
+            "C++ Player::EnablePvpRules calls UpdateItemLevelAreaBasedScaling after applying SPELL_PVP_RULES_ENABLED"
+        );
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(135)
+        );
+    }
+
+    #[test]
+    fn represented_pvp_rules_aura_removal_recalculates_item_level_scaling_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_159_u32;
+        install_represented_pvp_item_level_fixture_like_cpp(&mut session, item_id, 40);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            represented_item_level_area_map_like_cpp(30_159, wow_data::map::MAP_COMMON, 0),
+        ])));
+        session.set_player_map_position_like_cpp(30_159, Position::ZERO);
+        session
+            .apply_aura(
+                SPELL_PVP_RULES_ENABLED_LIKE_CPP,
+                ObjectGuid::EMPTY,
+                30_000,
+                0x0000_0001,
+            )
+            .expect("represented PvP rules aura should apply");
+        let slot = session
+            .visible_auras
+            .values()
+            .find_map(|aura| {
+                (aura.spell_id == SPELL_PVP_RULES_ENABLED_LIKE_CPP).then_some(aura.slot)
+            })
+            .expect("PvP rules aura slot");
+
+        session
+            .remove_aura(slot)
+            .expect("represented PvP rules aura should remove");
+
+        assert!(
+            !session.represented_using_pvp_item_levels_like_cpp(),
+            "C++ Player::DisablePvpRules removes SPELL_PVP_RULES_ENABLED and then calls UpdateItemLevelAreaBasedScaling"
+        );
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(100)
         );
     }
 

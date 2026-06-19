@@ -1,3 +1,26 @@
+- `#NEXT.R8.ENTITIES.1164` — represented PvP-rules aura apply/remove now
+  recalculates C++ `Player::UpdateItemLevelAreaBasedScaling`. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26134-26168`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26171-26174`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28744-28755`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:1053`.
+  C++ `EnablePvpRules` applies or extends `SPELL_PVP_RULES_ENABLED` (`134735`)
+  and then calls `UpdateItemLevelAreaBasedScaling`; `DisablePvpRules` removes
+  that aura when not in PvP combat and then calls the same recalculation.
+  Rust now triggers the existing represented recalculation when the represented
+  aura system applies or removes spell `134735`, so a normal map starts using
+  represented PvP item levels while the aura is present and clears them when the
+  aura is removed. Coverage: `cargo test -p wow-world represented_pvp_rules_aura
+  --lib`, `cargo test -p wow-world represented_item_level_area_scaling --lib`,
+  `cargo fmt --all --check`, `cargo check -p world-server`, and
+  `git diff --check`. Boundary remains partial: this does not implement the
+  full `EnablePvpRules`/`DisablePvpRules` APIs, Honorable/Gladiator medallion
+  spell learning, combat-duration handling, `IsInAreaThatActivatesPvpTalents`,
+  C++ `_RemoveAllItemMods` / `_ApplyAllItemMods`, health percentage
+  preservation, update-field packet/fanout, persistence, or live-client/bot
+  validation.
+
 - `#NEXT.R8.ENTITIES.1163` — represented far `WorldPortResponse` now
   recalculates C++ `Player::UpdateItemLevelAreaBasedScaling` after committing
   the player's new map and position. Source of truth:
