@@ -12,6 +12,9 @@ pub const QUEST_PACKAGE_FILTER_LOOT_SPECIALIZATION_LIKE_CPP: u8 = 0;
 pub const QUEST_PACKAGE_FILTER_CLASS_LIKE_CPP: u8 = 1;
 pub const QUEST_PACKAGE_FILTER_UNMATCHED_LIKE_CPP: u8 = 2;
 pub const QUEST_PACKAGE_FILTER_EVERYONE_LIKE_CPP: u8 = 3;
+/// C++ `MAX_LEVEL` from `DataStores/DBCEnums.h` for the 3.4.3 client data set.
+pub const MAX_LEVEL_LIKE_CPP: u8 = 123;
+pub const CONTENT_TUNING_FLAG_DISABLED_FOR_ITEM_LIKE_CPP: i32 = 0x04;
 pub const FACTION_TEMPLATE_FLAG_CONTESTED_GUARD_LIKE_CPP: u16 = 0x0000_1000;
 pub const FACTION_TEMPLATE_FLAG_HOSTILE_BY_DEFAULT_LIKE_CPP: u16 = 0x0000_2000;
 pub const FACTION_MASK_PLAYER_LIKE_CPP: u8 = 0x01;
@@ -32,6 +35,22 @@ pub struct ContentTuningEntry {
     pub flags: i32,
     pub expected_stat_mod_id: i32,
     pub difficulty_esm_id: i32,
+}
+
+impl ContentTuningEntry {
+    pub const fn disabled_for_item_like_cpp(&self) -> bool {
+        (self.flags & CONTENT_TUNING_FLAG_DISABLED_FOR_ITEM_LIKE_CPP) != 0
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ContentTuningLevelsLikeCpp {
+    pub min_level: i32,
+    pub max_level: i32,
+    pub min_level_with_delta: i32,
+    pub max_level_with_delta: i32,
+    pub target_level_min: i32,
+    pub target_level_max: i32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -410,6 +429,32 @@ impl ContentTuningStore {
                 expected_stat_mod_id: r.get_field_i32(idx, 4),
                 difficulty_esm_id: r.get_field_i32(idx, 5),
             }
+        })
+    }
+
+    pub fn content_tuning_data_like_cpp(
+        &self,
+        content_tuning_id: u32,
+        for_item: bool,
+    ) -> Option<ContentTuningLevelsLikeCpp> {
+        let content_tuning = self.get(content_tuning_id)?;
+        if for_item && content_tuning.disabled_for_item_like_cpp() {
+            return None;
+        }
+
+        let max_level = i32::from(MAX_LEVEL_LIKE_CPP);
+        let min_level_with_delta = content_tuning.min_level.clamp(1, max_level);
+        let max_level_with_delta = content_tuning.max_level.clamp(1, max_level);
+        let min_level = content_tuning.min_level.clamp(1, max_level);
+        let max_level = content_tuning.max_level.clamp(1, max_level);
+
+        Some(ContentTuningLevelsLikeCpp {
+            min_level,
+            max_level,
+            min_level_with_delta,
+            max_level_with_delta,
+            target_level_min: min_level_with_delta,
+            target_level_max: max_level_with_delta,
         })
     }
 }
@@ -1097,6 +1142,73 @@ mod tests {
         assert_eq!(store.num_talents_at_level_like_cpp(80, 6), 76);
         assert_eq!(store.num_talents_at_level_like_cpp(90, 1), 71);
         assert_eq!(store.num_talents_at_level_like_cpp(90, 12), 0);
+    }
+
+    #[test]
+    fn content_tuning_data_filters_for_item_like_cpp() {
+        let store = ContentTuningStore::from_entries([
+            ContentTuningEntry {
+                id: 100,
+                min_level: 10,
+                max_level: 70,
+                flags: 0,
+                expected_stat_mod_id: 0,
+                difficulty_esm_id: 0,
+            },
+            ContentTuningEntry {
+                id: 101,
+                min_level: 20,
+                max_level: 60,
+                flags: CONTENT_TUNING_FLAG_DISABLED_FOR_ITEM_LIKE_CPP,
+                expected_stat_mod_id: 0,
+                difficulty_esm_id: 0,
+            },
+        ]);
+
+        assert_eq!(
+            store.content_tuning_data_like_cpp(100, true),
+            Some(ContentTuningLevelsLikeCpp {
+                min_level: 10,
+                max_level: 70,
+                min_level_with_delta: 10,
+                max_level_with_delta: 70,
+                target_level_min: 10,
+                target_level_max: 70,
+            })
+        );
+        assert_eq!(
+            store
+                .content_tuning_data_like_cpp(101, false)
+                .unwrap()
+                .max_level,
+            60
+        );
+        assert_eq!(store.content_tuning_data_like_cpp(101, true), None);
+        assert_eq!(store.content_tuning_data_like_cpp(999, true), None);
+    }
+
+    #[test]
+    fn content_tuning_data_clamps_levels_like_cpp() {
+        let store = ContentTuningStore::from_entries([ContentTuningEntry {
+            id: 200,
+            min_level: -10,
+            max_level: i32::from(MAX_LEVEL_LIKE_CPP) + 20,
+            flags: 0,
+            expected_stat_mod_id: 0,
+            difficulty_esm_id: 0,
+        }]);
+
+        assert_eq!(
+            store.content_tuning_data_like_cpp(200, true),
+            Some(ContentTuningLevelsLikeCpp {
+                min_level: 1,
+                max_level: i32::from(MAX_LEVEL_LIKE_CPP),
+                min_level_with_delta: 1,
+                max_level_with_delta: i32::from(MAX_LEVEL_LIKE_CPP),
+                target_level_min: 1,
+                target_level_max: i32::from(MAX_LEVEL_LIKE_CPP),
+            })
+        );
     }
 
     #[test]

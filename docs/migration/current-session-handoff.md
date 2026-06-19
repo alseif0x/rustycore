@@ -1,3 +1,24 @@
+- `#NEXT.R8.ENTITIES.1159` — `wow-data` now represents C++
+  `DB2Manager::GetContentTuningData(contentTuningId, forItem)` as
+  `ContentTuningStore::content_tuning_data_like_cpp`. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Stores.cpp:1889-1919`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DBCEnums.h:368-370`.
+  Rust now returns `None` for missing `ContentTuning` rows, returns `None` for
+  `forItem=true` rows carrying `ContentTuningFlag::DisabledForItem` (`0x04`),
+  clamps `MinLevel`, `MaxLevel`, `MinLevelWithDelta`, and `MaxLevelWithDelta`
+  to `[1, MAX_LEVEL]`, and mirrors the delta-clamped values into
+  `TargetLevelMin` / `TargetLevelMax`, matching the current C++ branch. The
+  shared `MAX_LEVEL_LIKE_CPP` constant now lives in `progression_rewards` and is
+  re-exported from `mail` to preserve the existing API. Coverage:
+  `cargo test -p wow-data content_tuning_data --lib`. Boundary remains partial:
+  this is a prerequisite for represented item-level player-curve scaling only;
+  it does not yet expose `ItemSparse` `ContentTuningID` /
+  `PlayerLevelToItemLevelCurveID`, evaluate DB2 curves, consume timewalker
+  fixed-level modifiers, wire represented `Item::GetItemLevel(owner)` to that
+  branch, update item fields, emit/fanout packets, persist state, or perform
+  live-client/bot validation.
+
 - `#NEXT.R8.ENTITIES.1158` — represented `PlayerData::AvgItemLevel[0]`
   and `[1]` now have the C++ `Player::UpdateItemLevelAreaBasedScaling`
   `pvpActivity` branch represented for PvP item-level activation. Source of
