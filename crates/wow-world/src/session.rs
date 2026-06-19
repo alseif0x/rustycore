@@ -2264,6 +2264,21 @@ pub(crate) struct AccountMountSaveRowLikeCpp {
     pub(crate) flags: u8,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct AccountToySaveRowLikeCpp {
+    pub(crate) bnet_account_id: u32,
+    pub(crate) item_id: u32,
+    pub(crate) is_favorite: bool,
+    pub(crate) has_fanfare: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct AccountHeirloomSaveRowLikeCpp {
+    pub(crate) bnet_account_id: u32,
+    pub(crate) item_id: u32,
+    pub(crate) flags: u32,
+}
+
 const DEFAULT_TRANSMOG_ILLUSIONS_LIKE_CPP: [u32; 7] = [
     3,  // Lifestealing
     13, // Crusader
@@ -12935,6 +12950,19 @@ impl WorldSession {
             .collect()
     }
 
+    /// C++ `CollectionMgr::SaveAccountHeirlooms`.
+    pub(crate) fn account_heirloom_save_rows_like_cpp(&self) -> Vec<AccountHeirloomSaveRowLikeCpp> {
+        let bnet_account_id = self.battlenet_account_id();
+        self.account_heirloom_rows_like_cpp()
+            .into_iter()
+            .map(|(item_id, flags)| AccountHeirloomSaveRowLikeCpp {
+                bnet_account_id,
+                item_id,
+                flags,
+            })
+            .collect()
+    }
+
     /// C++ `CollectionMgr::GetHeirloomBonus`.
     pub(crate) fn account_heirloom_bonus_like_cpp(&self, item_id: u32) -> u32 {
         self.represented_account_heirlooms_like_cpp
@@ -13156,6 +13184,22 @@ impl WorldSession {
                     (flags & TOY_FLAG_HAS_FANFARE_LIKE_CPP) != 0,
                 )
             })
+            .collect()
+    }
+
+    /// C++ `CollectionMgr::SaveAccountToys`.
+    pub(crate) fn account_toy_save_rows_like_cpp(&self) -> Vec<AccountToySaveRowLikeCpp> {
+        let bnet_account_id = self.battlenet_account_id();
+        self.account_toy_rows_like_cpp()
+            .into_iter()
+            .map(
+                |(item_id, is_favorite, has_fanfare)| AccountToySaveRowLikeCpp {
+                    bnet_account_id,
+                    item_id,
+                    is_favorite,
+                    has_fanfare,
+                },
+            )
             .collect()
     }
 
@@ -91188,6 +91232,7 @@ mod tests {
     #[test]
     fn account_heirloom_rows_filter_by_heirloom_store_like_cpp() {
         let (mut session, _, _) = make_session();
+        session.set_battlenet_account_id(77);
         session.set_heirloom_store(Arc::new(HeirloomStore::from_entries([HeirloomEntry {
             id: 1,
             source_text: "known".to_string(),
@@ -91206,6 +91251,15 @@ mod tests {
         assert_eq!(
             session.account_heirloom_rows_like_cpp(),
             vec![(44_000, 0x03)]
+        );
+        assert_eq!(
+            session.account_heirloom_save_rows_like_cpp(),
+            vec![AccountHeirloomSaveRowLikeCpp {
+                bnet_account_id: 77,
+                item_id: 44_000,
+                flags: 0x03,
+            }],
+            "C++ CollectionMgr::SaveAccountHeirlooms appends the battlenet account id to the LoginDatabase transaction"
         );
         assert_eq!(
             session.account_heirloom_packet_rows_like_cpp(),
@@ -91548,6 +91602,7 @@ mod tests {
     #[test]
     fn account_toy_rows_preserve_cpp_flags_like_cpp() {
         let (mut session, _, _) = make_session();
+        session.set_battlenet_account_id(77);
 
         session
             .load_represented_account_toys_like_cpp([(30_001, false, true), (30_000, true, false)]);
@@ -91555,6 +91610,24 @@ mod tests {
         assert_eq!(
             session.account_toy_rows_like_cpp(),
             vec![(30_000, true, false), (30_001, false, true)]
+        );
+        assert_eq!(
+            session.account_toy_save_rows_like_cpp(),
+            vec![
+                AccountToySaveRowLikeCpp {
+                    bnet_account_id: 77,
+                    item_id: 30_000,
+                    is_favorite: true,
+                    has_fanfare: false,
+                },
+                AccountToySaveRowLikeCpp {
+                    bnet_account_id: 77,
+                    item_id: 30_001,
+                    is_favorite: false,
+                    has_fanfare: true,
+                },
+            ],
+            "C++ CollectionMgr::SaveAccountToys appends the battlenet account id to the LoginDatabase transaction"
         );
         assert_eq!(
             session.account_toy_packet_rows_like_cpp(),

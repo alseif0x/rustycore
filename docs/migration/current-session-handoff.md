@@ -1,3 +1,29 @@
+- `#NEXT.R8.ENTITIES.1109` — represented account toy/heirloom persistence now
+  uses C++-style LoginDatabase transactions for the final represented
+  collections (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/CollectionMgr.cpp:123-137`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/CollectionMgr.cpp:200-216`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:19668-19674`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/LoginDatabase.cpp:164,180`.
+  C++ `CollectionMgr::SaveAccountToys` and
+  `CollectionMgr::SaveAccountHeirlooms` iterate their final account
+  collections, set the battlenet account id plus row payload, and append every
+  statement to the shared `loginTransaction`. Rust now builds explicit
+  battlenet-account-qualified toy and heirloom save-row plans, verifies those
+  plans in focused tests, and appends all `REP_ACCOUNT_TOYS` /
+  `REP_ACCOUNT_HEIRLOOMS` statements to `SqlTransaction`s instead of executing
+  row-by-row. Coverage: `cargo fmt --all`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  account_toy_rows_preserve_cpp_flags_like_cpp --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  account_heirloom_rows_filter_by_heirloom_store_like_cpp --lib`. Remaining
+  before commit: `cargo fmt --all --check`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
+  cargo check -p world-server`; and `git diff --check`. Boundary remains
+  partial: battle pets remain outside the WotLK priority, full
+  `Player::SaveToDB` monolithic parity remains incomplete, and
+  live-client/bot/manual validation remains open.
+
 - `#NEXT.R8.ENTITIES.1108` — represented account mount persistence now uses a
   C++-style LoginDatabase transaction for the full final collection (not
   manual-test-ready). Source of truth:

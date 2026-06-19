@@ -3225,45 +3225,57 @@ impl WorldSession {
     }
 
     pub(crate) async fn save_account_toys_like_cpp(&self) {
-        let Some(login_db) = self.login_db() else {
+        let Some(login_db) = self.login_db().map(Arc::clone) else {
             return;
         };
+        let save_rows = self.account_toy_save_rows_like_cpp();
+        if save_rows.is_empty() {
+            return;
+        }
 
-        for (item_id, is_favorite, has_fanfare) in self.account_toy_rows_like_cpp() {
+        let mut tx = SqlTransaction::new();
+        for row in save_rows {
             let mut stmt = login_db.prepare(LoginStatements::REP_ACCOUNT_TOYS);
-            stmt.set_u32(0, self.battlenet_account_id());
-            stmt.set_u32(1, item_id);
-            stmt.set_bool(2, is_favorite);
-            stmt.set_bool(3, has_fanfare);
-            if let Err(error) = login_db.execute(&stmt).await {
-                warn!(
-                    account = self.account_id,
-                    bnet_account = self.battlenet_account_id(),
-                    item_id,
-                    "Failed to save account toy flags: {error}"
-                );
-            }
+            stmt.set_u32(0, row.bnet_account_id);
+            stmt.set_u32(1, row.item_id);
+            stmt.set_bool(2, row.is_favorite);
+            stmt.set_bool(3, row.has_fanfare);
+            tx.append(stmt);
+        }
+
+        if let Err(error) = login_db.commit_transaction(tx).await {
+            warn!(
+                account = self.account_id,
+                bnet_account = self.battlenet_account_id(),
+                "Failed to save account toy flags: {error}"
+            );
         }
     }
 
     pub(crate) async fn save_account_heirlooms_like_cpp(&self) {
-        let Some(login_db) = self.login_db() else {
+        let Some(login_db) = self.login_db().map(Arc::clone) else {
             return;
         };
+        let save_rows = self.account_heirloom_save_rows_like_cpp();
+        if save_rows.is_empty() {
+            return;
+        }
 
-        for (item_id, flags) in self.account_heirloom_rows_like_cpp() {
+        let mut tx = SqlTransaction::new();
+        for row in save_rows {
             let mut stmt = login_db.prepare(LoginStatements::REP_ACCOUNT_HEIRLOOMS);
-            stmt.set_u32(0, self.battlenet_account_id());
-            stmt.set_u32(1, item_id);
-            stmt.set_u32(2, flags);
-            if let Err(error) = login_db.execute(&stmt).await {
-                warn!(
-                    account = self.account_id,
-                    bnet_account = self.battlenet_account_id(),
-                    item_id,
-                    "Failed to save account heirloom flags: {error}"
-                );
-            }
+            stmt.set_u32(0, row.bnet_account_id);
+            stmt.set_u32(1, row.item_id);
+            stmt.set_u32(2, row.flags);
+            tx.append(stmt);
+        }
+
+        if let Err(error) = login_db.commit_transaction(tx).await {
+            warn!(
+                account = self.account_id,
+                bnet_account = self.battlenet_account_id(),
+                "Failed to save account heirloom flags: {error}"
+            );
         }
     }
 
