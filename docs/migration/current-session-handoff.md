@@ -1,3 +1,22 @@
+- `#NEXT.R8.ENTITIES.1140` — represented `AutoUnequipOffhandIfNeed` now
+  mirrors the C++ `RemoveItem` duration-reference cleanup for the removed
+  offhand item. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11559-11575`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:24621-24634`,
+  and the existing Rust canonical duration model in
+  `crates/wow-entities/src/player.rs`. Rust now removes the offhand item guid
+  from canonical `item_durations`, removes its enchantment-duration refs from
+  canonical `enchant_durations`, and writes the remaining enchantment duration
+  back onto the runtime item before moving/delinking it, matching C++
+  `RemoveEnchantmentDurations(pItem)` / `RemoveItemDurations(pItem)`.
+  Coverage: `cargo test -p wow-world
+  remove_known_spell_auto_unequip_records_invalid_two_hand_state_like_cpp --lib`.
+  Boundary remains partial: exact duration update packets, full item/enchant
+  duration ticking and DB persistence, item-set removal, full `_ApplyItemMods`,
+  expertise/armor-penetration recalculation, `CheckTitanGripPenalty`, average
+  item-level recalculation, multi-session fanout, and live-client/bot/manual
+  validation remain open.
+
 - `#NEXT.R8.ENTITIES.1139` — represented `AutoUnequipOffhandIfNeed` now
   mirrors the C++ `RemoveItem` cleanup of `ITEM_FIELD_FLAG2_EQUIPPED` for the
   removed offhand item. Source of truth:
@@ -8,8 +27,8 @@
   before moving/delinking it, matching the top-level equipment branch in C++.
   Coverage: `cargo test -p wow-world remove_known_spell --lib`. Boundary
   remains partial: this closes only the runtime item flag2 state; exact
-  `ITEM_DATA_DYNAMIC_FLAGS2` update queue/fanout, `RemoveEnchantmentDurations`,
-  `RemoveItemDurations`, item-set removal, full `_ApplyItemMods`,
+  `ITEM_DATA_DYNAMIC_FLAGS2` update queue/fanout, duration-reference cleanup is
+  closed by `#NEXT.R8.ENTITIES.1140`, item-set removal, full `_ApplyItemMods`,
   expertise/armor-penetration recalculation, `CheckTitanGripPenalty`, average
   item-level recalculation, DB persistence, and live-client/bot/manual
   validation remain open.
@@ -26,12 +45,12 @@
   preserving the C++ distinction that `RemoveTradeableItem` only erases the
   set entry and does not clear the item's BoP-tradeable flag/allowed GUIDs.
   Coverage: `cargo test -p wow-world remove_known_spell --lib`. Boundary
-  remains partial: `RemoveEnchantmentDurations`, `RemoveItemDurations`,
-  item-set removal, full `_ApplyItemMods`, item flag2 equipped cleanup is
-  closed by `#NEXT.R8.ENTITIES.1139`, expertise/armor-penetration
-  recalculation, `CheckTitanGripPenalty`, average item-level recalculation,
-  update queue/DB persistence, fanout, and live-client/bot/manual validation
-  remain open.
+  remains partial: duration-reference cleanup is closed by
+  `#NEXT.R8.ENTITIES.1140`, item-set removal, full `_ApplyItemMods`, item flag2
+  equipped cleanup is closed by `#NEXT.R8.ENTITIES.1139`,
+  expertise/armor-penetration recalculation, `CheckTitanGripPenalty`, average
+  item-level recalculation, update queue/DB persistence, fanout, and
+  live-client/bot/manual validation remain open.
 
 - `#NEXT.R8.ENTITIES.1137` — represented `AutoUnequipOffhandIfNeed` now
   records the C++ `RemoveItem(..., EQUIPMENT_SLOT_OFFHAND, update=true)`

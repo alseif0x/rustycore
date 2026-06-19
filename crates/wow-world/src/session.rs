@@ -29484,6 +29484,7 @@ impl WorldSession {
             return false;
         };
 
+        self.remove_represented_offhand_duration_refs_like_cpp(offhand_item.guid);
         self.clear_represented_offhand_equipped_flag_like_cpp(offhand_item.guid);
         self.remove_represented_offhand_tradeable_item_like_cpp(offhand_item.guid);
         self.record_represented_offhand_item_mod_remove_like_cpp(offhand_item.guid);
@@ -29544,6 +29545,34 @@ impl WorldSession {
     fn clear_represented_offhand_equipped_flag_like_cpp(&mut self, item_guid: ObjectGuid) {
         self.update_inventory_item_object_like_cpp(item_guid, |item| {
             item.remove_item_flag2(ItemFieldFlags2::EQUIPPED);
+        });
+    }
+
+    fn remove_represented_offhand_duration_refs_like_cpp(&mut self, item_guid: ObjectGuid) {
+        let Some(mut item) = self
+            .inventory_item_objects_like_cpp()
+            .get(&item_guid)
+            .cloned()
+        else {
+            return;
+        };
+
+        let Some(removed_enchantments) = self.mutate_canonical_player_like_cpp(|player| {
+            let removed_enchantments = player.remove_enchantment_durations(&mut item);
+            let _ = player.remove_item_durations(&item);
+            removed_enchantments
+        }) else {
+            return;
+        };
+
+        if removed_enchantments.is_empty() {
+            return;
+        }
+
+        let _ = self.update_inventory_item_object_like_cpp(item_guid, |stored_item| {
+            for duration in removed_enchantments {
+                stored_item.set_enchantment_duration(duration.slot, duration.left_duration_ms);
+            }
         });
     }
 
@@ -48244,7 +48273,7 @@ mod tests {
     use wow_entities::{
         AccessorObjectRef, ApplyEnchantmentDurationAction, ApplyEnchantmentResult,
         BANK_SLOT_BAG_START, CharmType, EQUIPMENT_SLOT_CHEST, INVENTORY_SLOT_BAG_START,
-        INVENTORY_SLOT_ITEM_START, MapObjectRecord, REAGENT_BAG_SLOT_START,
+        INVENTORY_SLOT_ITEM_START, MapObjectRecord, PlayerEnchantDuration, REAGENT_BAG_SLOT_START,
         SendNewItemInstancePlan, SendNewItemModifier, TYPEID_UNIT, UNIT_DATA_BITS, UnitDataUpdate,
         UnitDataValues, UnitValuesUpdate, UpdateMask,
     };
@@ -50269,10 +50298,19 @@ mod tests {
         session.update_inventory_item_object_like_cpp(offhand_guid, |item| {
             item.set_soulbound_tradeable([player_guid]);
             item.set_item_flag2(ItemFieldFlags2::EQUIPPED);
+            item.set_expiration(300);
+            item.set_enchantment(EnchantmentSlot::EnhancementTemporary, 905, 12_000, 0);
         });
         let tradeable_offhand = session.inventory_item_objects_like_cpp()[&offhand_guid].clone();
         let _ = session.mutate_canonical_player_like_cpp(|player| {
-            player.add_tradeable_item(&tradeable_offhand);
+            let mut duration_item = tradeable_offhand.clone();
+            player.add_tradeable_item(&duration_item);
+            let _ = player.add_item_durations(&duration_item);
+            let _ = player.add_enchantment_duration(
+                &mut duration_item,
+                EnchantmentSlot::EnhancementTemporary,
+                7_000,
+            );
         });
         assert!(
             session.inventory_item_objects_like_cpp()[&offhand_guid]
@@ -50286,6 +50324,21 @@ mod tests {
                 .contains(&offhand_guid)),
             Some(true),
             "fixture starts with the offhand in C++ m_itemSoulboundTradeable"
+        );
+        assert_eq!(
+            session.canonical_player_snapshot_like_cpp(|player| (
+                player.item_durations().to_vec(),
+                player.enchant_durations().to_vec()
+            )),
+            Some((
+                vec![offhand_guid],
+                vec![PlayerEnchantDuration {
+                    item_guid: offhand_guid,
+                    slot: EnchantmentSlot::EnhancementTemporary,
+                    left_duration_ms: 7_000,
+                }]
+            )),
+            "fixture starts with C++ item/enchantment duration refs registered on the player"
         );
 
         assert!(session.represented_auto_unequip_offhand_if_need_like_cpp(false));
@@ -50308,6 +50361,14 @@ mod tests {
             Some(false),
             "C++ RemoveItem removes the item from m_itemSoulboundTradeable before item mod cleanup"
         );
+        assert_eq!(
+            session.canonical_player_snapshot_like_cpp(|player| (
+                player.item_durations().to_vec(),
+                player.enchant_durations().to_vec()
+            )),
+            Some((Vec::new(), Vec::new())),
+            "C++ RemoveItem removes item and enchantment duration refs before item mod cleanup"
+        );
         assert!(
             !session.inventory_item_objects_like_cpp()[&offhand_guid]
                 .has_item_flag2(ItemFieldFlags2::EQUIPPED),
@@ -50326,6 +50387,12 @@ mod tests {
             .inventory_item_objects_like_cpp()
             .get(&offhand_guid)
             .expect("stored backpack item remains a runtime item object");
+        assert_eq!(
+            runtime_item.data().enchantments[EnchantmentSlot::EnhancementTemporary as usize]
+                .duration,
+            7_000,
+            "C++ RemoveEnchantmentDurations writes the remaining duration back onto the item"
+        );
         assert_eq!(runtime_item.data().contained_in, player_guid);
         assert_eq!(runtime_item.container_guid(), ObjectGuid::EMPTY);
         assert_eq!(runtime_item.slot(), INVENTORY_SLOT_ITEM_START);
