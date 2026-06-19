@@ -3442,6 +3442,7 @@ impl WorldSession {
         self.set_represented_active_talent_group_like_cpp(result.try_read::<u8>(30).unwrap_or(0));
         self.set_represented_bonus_talent_groups_like_cpp(result.try_read::<u8>(31).unwrap_or(0));
         self.set_represented_at_login_flags_like_cpp(result.try_read::<u16>(39).unwrap_or(0));
+        self.load_represented_explored_zones_like_cpp(&result.read_string(64));
         self.set_player_guid(Some(guid));
         self.set_loaded_player_identity_like_cpp(map_id as u16, race, class, level, gender);
         // C++ recalculates zone/area from terrain after AddToMap

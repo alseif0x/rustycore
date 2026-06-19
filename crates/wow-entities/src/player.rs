@@ -708,6 +708,50 @@ pub const ACTIVE_PLAYER_DATA_WATCHED_FACTION_INDEX_BIT: usize = 92;
 pub const QUESTS_COMPLETED_BITS_SIZE: usize = 875;
 pub const QUESTS_COMPLETED_BITS_PER_BLOCK: u32 = 64;
 pub const PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP: usize = 240;
+
+/// C++ `Player::LoadFromDB` `exploredZones` parser.
+///
+/// Trinity stores each 64-bit block as two decimal 32-bit words:
+/// low half first, then high half. Loading uses `StringTo<uint64>` and
+/// shifts by `32 * (token_index % 2)` before OR-ing into the destination
+/// block, so malformed tokens become zero and extra tokens are ignored.
+pub fn parse_explored_zones_db_string_like_cpp(
+    input: &str,
+) -> [u64; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP] {
+    let mut blocks = [0u64; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP];
+    for (token_index, token) in input.split_whitespace().enumerate() {
+        let block_index = token_index / 2;
+        if block_index >= PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP {
+            break;
+        }
+
+        let value = token.parse::<u64>().unwrap_or(0);
+        blocks[block_index] |= value << (32 * (token_index % 2));
+    }
+    blocks
+}
+
+/// C++ `Player::SaveToDB` `exploredZones` serializer.
+///
+/// The legacy column is a space-separated string with a trailing space after
+/// every low/high 32-bit word pair.
+pub fn explored_zones_db_string_from_blocks_like_cpp(
+    blocks: &[u64; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP],
+) -> String {
+    use std::fmt::Write;
+
+    let mut out = String::with_capacity(PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP * 4);
+    for block in blocks {
+        let _ = write!(
+            &mut out,
+            "{} {} ",
+            (*block & 0xFFFF_FFFF) as u32,
+            ((*block >> 32) & 0xFFFF_FFFF) as u32
+        );
+    }
+    out
+}
+
 pub const PLAYER_MAX_HONOR_LEVEL_LIKE_CPP: i32 = 500;
 pub const PLAYER_LEVEL_MIN_HONOR_LIKE_CPP: u8 = 10;
 pub const PLAYER_HONOR_NEXT_LEVEL_XP_LIKE_CPP: i32 = 8_800;
@@ -3633,8 +3677,50 @@ impl Player {
         true
     }
 
+    pub fn set_explored_zones_block_like_cpp(&mut self, index: usize, value: u64) -> bool {
+        let Some(target) = self.active_data.explored_zones.get_mut(index) else {
+            return false;
+        };
+        if *target == value {
+            return false;
+        }
+
+        *target = value;
+        self.mark_active_player_data_array(
+            ACTIVE_PLAYER_DATA_EXPLORED_ZONES_PARENT_BIT,
+            ACTIVE_PLAYER_DATA_EXPLORED_ZONES_FIRST_BIT,
+            index,
+        );
+        true
+    }
+
+    pub fn load_explored_zones_string_like_cpp(&mut self, input: &str) -> usize {
+        let blocks = parse_explored_zones_db_string_like_cpp(input);
+        self.set_explored_zones_blocks_like_cpp(&blocks)
+    }
+
+    pub fn set_explored_zones_blocks_like_cpp(
+        &mut self,
+        blocks: &[u64; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP],
+    ) -> usize {
+        blocks
+            .iter()
+            .copied()
+            .enumerate()
+            .filter(|(index, value)| self.set_explored_zones_block_like_cpp(*index, *value))
+            .count()
+    }
+
     pub fn explored_zones_block_like_cpp(&self, index: usize) -> Option<u64> {
         self.active_data.explored_zones.get(index).copied()
+    }
+
+    pub fn explored_zones_blocks_like_cpp(&self) -> &[u64; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP] {
+        &self.active_data.explored_zones
+    }
+
+    pub fn explored_zones_db_string_like_cpp(&self) -> String {
+        explored_zones_db_string_from_blocks_like_cpp(&self.active_data.explored_zones)
     }
 
     pub fn set_inventory_slot_count(&mut self, count: u8) {
@@ -12671,6 +12757,72 @@ mod tests {
 
         assert!(!player.add_explored_zones_like_cpp(PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP, u64::MAX));
         assert!(!player.active_player_data_changes_mask().is_any_set());
+    }
+
+    #[test]
+    fn explored_zones_db_string_parser_matches_cpp_low_high_words() {
+        let blocks = parse_explored_zones_db_string_like_cpp("1 2 bad 4 5");
+
+        assert_eq!(blocks[0], 0x0000_0002_0000_0001);
+        assert_eq!(blocks[1], 0x0000_0004_0000_0000);
+        assert_eq!(blocks[2], 5);
+        assert!(blocks[3..].iter().all(|value| *value == 0));
+    }
+
+    #[test]
+    fn explored_zones_db_string_parser_ignores_tokens_past_cpp_array() {
+        let input = std::iter::repeat_n("1", PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP * 2 + 6)
+            .collect::<Vec<_>>()
+            .join(" ");
+        let blocks = parse_explored_zones_db_string_like_cpp(&input);
+
+        assert!(blocks.iter().all(|value| *value == 0x0000_0001_0000_0001));
+    }
+
+    #[test]
+    fn explored_zones_db_string_serializer_matches_cpp_low_high_order_and_trailing_space() {
+        let mut blocks = [0u64; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP];
+        blocks[0] = 0x0000_0002_0000_0001;
+        blocks[1] = 0xFFFF_FFFF_8000_0000;
+
+        let serialized = explored_zones_db_string_from_blocks_like_cpp(&blocks);
+
+        assert!(serialized.starts_with("1 2 2147483648 4294967295 0 0 "));
+        assert!(serialized.ends_with(' '));
+        assert_eq!(
+            serialized.split_whitespace().count(),
+            PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP * 2
+        );
+    }
+
+    #[test]
+    fn player_load_explored_zones_marks_cpp_parent_and_child_bits() {
+        let mut player = Player::new(None, false);
+        player.clear_data_changes();
+
+        assert_eq!(player.load_explored_zones_string_like_cpp("1 2 0 0"), 1);
+        assert_eq!(
+            player.explored_zones_block_like_cpp(0),
+            Some(0x0000_0002_0000_0001)
+        );
+        assert_eq!(
+            player
+                .explored_zones_db_string_like_cpp()
+                .split_whitespace()
+                .take(2)
+                .collect::<Vec<_>>(),
+            vec!["1", "2"]
+        );
+        assert!(
+            player
+                .active_player_data_changes_mask()
+                .is_set(ACTIVE_PLAYER_DATA_EXPLORED_ZONES_PARENT_BIT)
+        );
+        assert!(
+            player
+                .active_player_data_changes_mask()
+                .is_set(ACTIVE_PLAYER_DATA_EXPLORED_ZONES_FIRST_BIT)
+        );
     }
 
     #[test]

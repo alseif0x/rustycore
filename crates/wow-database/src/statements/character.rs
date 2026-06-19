@@ -1183,6 +1183,9 @@ pub enum CharStatements {
     /// C++ `CHAR_UPD_CHARACTER` persists these fields in the full save.
     /// UPDATE characters SET dungeonDifficulty = ?, raidDifficulty = ?, legacyRaidDifficulty = ? WHERE guid = ?
     UPD_CHAR_DIFFICULTIES,
+    /// C++ `CHAR_UPD_CHARACTER` persists this field in the full save.
+    /// UPDATE characters SET exploredZones = ? WHERE guid = ?
+    UPD_CHAR_EXPLORED_ZONES,
 
     /// SELECT MAX(guid) FROM item_instance
     SEL_MAX_ITEM_GUID,
@@ -2743,6 +2746,9 @@ impl StatementDef for CharStatements {
             Self::UPD_CHAR_DIFFICULTIES => {
                 "UPDATE characters SET dungeonDifficulty = ?, raidDifficulty = ?, legacyRaidDifficulty = ? WHERE guid = ?"
             }
+            Self::UPD_CHAR_EXPLORED_ZONES => {
+                "UPDATE characters SET exploredZones = ? WHERE guid = ?"
+            }
             Self::SEL_MAX_ITEM_GUID => "SELECT MAX(guid) FROM item_instance",
             Self::INS_ITEM_INSTANCE => {
                 "INSERT INTO item_instance \
@@ -3455,6 +3461,10 @@ mod tests {
             "UPDATE characters SET resettalents_cost = ?, resettalents_time = ? WHERE guid = ?"
         );
         assert_eq!(
+            CharStatements::UPD_CHAR_EXPLORED_ZONES.sql(),
+            "UPDATE characters SET exploredZones = ? WHERE guid = ?"
+        );
+        assert_eq!(
             CharStatements::UPD_ADD_AT_LOGIN_FLAG.sql(),
             "UPDATE characters SET at_login = at_login | ? WHERE guid = ?"
         );
@@ -3501,6 +3511,14 @@ mod tests {
         assert_eq!(
             CharStatements::UPD_CHAR_DIFFICULTIES.sql(),
             "UPDATE characters SET dungeonDifficulty = ?, raidDifficulty = ?, legacyRaidDifficulty = ? WHERE guid = ?"
+        );
+    }
+
+    #[test]
+    fn upd_char_explored_zones_matches_cpp_saveback_column() {
+        assert_eq!(
+            CharStatements::UPD_CHAR_EXPLORED_ZONES.sql(),
+            "UPDATE characters SET exploredZones = ? WHERE guid = ?"
         );
     }
 

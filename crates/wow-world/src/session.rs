@@ -126,15 +126,17 @@ use wow_entities::{
     INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS, ITEM_DATA_DURABILITY_BIT,
     Item, ItemCreateInfo, ItemDataUpdate, ItemLimitCategoryTemplate, ItemPosCount, ItemSlotRef,
     ItemStorageRef, ItemStorageTemplate, ItemValuesUpdate, MAX_BAG_SIZE, MAX_ITEM_SPELLS,
-    MAX_MONEY_AMOUNT, MAX_POWERS, NULL_BAG, NULL_SLOT, ObjectAccessor, PLAYER_SLOT_END, Pet,
-    PetAuraLikeCpp, PetDeclinedNamesLikeCpp, PetSaveMode, PetSpellState, PetSpellType, PetStable,
-    PetStableInfo, PetType, PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerInventoryStorage,
+    MAX_MONEY_AMOUNT, MAX_POWERS, NULL_BAG, NULL_SLOT, ObjectAccessor,
+    PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP, PLAYER_SLOT_END, Pet, PetAuraLikeCpp,
+    PetDeclinedNamesLikeCpp, PetSaveMode, PetSpellState, PetSpellType, PetStable, PetStableInfo,
+    PetType, PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerInventoryStorage,
     PlayerItemTimeUpdate, QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE,
     REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, ReactState, SendNewItemDelivery,
     SendNewItemDisplayText, SendNewItemPlan, TYPEID_ITEM, UNIT_DATA_HEALTH_BIT, Unit,
     UnitDataUpdate, UnitDataValues, UnitVisibilityDetectionStateLikeCpp, UpdateMask, Vehicle,
-    VehicleAccessory, VisibleItemValues, WorldObject, is_bag_pos, is_equipment_packed_pos,
-    is_inventory_pos, make_item_pos,
+    VehicleAccessory, VisibleItemValues, WorldObject,
+    explored_zones_db_string_from_blocks_like_cpp, is_bag_pos, is_equipment_packed_pos,
+    is_inventory_pos, make_item_pos, parse_explored_zones_db_string_like_cpp,
 };
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus, build_dispatch_table};
 use wow_loot::{LootStoreKind, LootStores};
@@ -4249,6 +4251,8 @@ pub struct WorldSession {
         Vec<RepresentedQuestRewardReputationLikeCpp>,
     /// Bridge for quest completed unique-bit state loaded before the canonical Player snapshot exists.
     pub(crate) represented_quest_completed_bits_like_cpp: BTreeSet<u32>,
+    /// C++ `ActivePlayerData::ExploredZones`, represented before the canonical Player owns persistence.
+    represented_explored_zones_like_cpp: [u64; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP],
     /// Session-local evidence for represented `ScriptMgr::OnQuestAcknowledgeAutoAccept` calls.
     pub(crate) represented_auto_accept_acknowledged_quests_like_cpp: Vec<u32>,
     /// Session-local representation of C++ pending shared quest sender + quest id.
@@ -5582,6 +5586,7 @@ impl WorldSession {
             represented_quest_reward_mails_like_cpp: Vec::new(),
             represented_quest_reward_reputations_like_cpp: Vec::new(),
             represented_quest_completed_bits_like_cpp: BTreeSet::new(),
+            represented_explored_zones_like_cpp: [0; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP],
             represented_auto_accept_acknowledged_quests_like_cpp: Vec::new(),
             represented_pending_quest_sharing_like_cpp: None,
             represented_quest_push_result_responses_like_cpp: Vec::new(),
@@ -6219,6 +6224,7 @@ impl WorldSession {
         for quest_bit in &self.represented_quest_completed_bits_like_cpp {
             player.set_quest_completed_bit_like_cpp(*quest_bit, true);
         }
+        player.set_explored_zones_blocks_like_cpp(&self.represented_explored_zones_like_cpp);
         player.set_game_master_like_cpp(self.player_game_master_like_cpp);
         player
             .unit_mut()
@@ -18319,6 +18325,35 @@ impl WorldSession {
         }
     }
 
+    fn build_character_explored_zones_save_statement_like_cpp(
+        explored_zones: String,
+        guid_counter: u64,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::UPD_CHAR_EXPLORED_ZONES.sql());
+        stmt.set_string(0, explored_zones);
+        stmt.set_u64(1, guid_counter);
+        stmt
+    }
+
+    async fn save_player_explored_zones_like_cpp(&mut self) {
+        let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
+        else {
+            return;
+        };
+
+        self.sync_represented_explored_zones_from_canonical_like_cpp();
+        let stmt = Self::build_character_explored_zones_save_statement_like_cpp(
+            self.represented_explored_zones_db_string_like_cpp(),
+            guid.counter() as u64,
+        );
+        if let Err(err) = char_db.execute(&stmt).await {
+            warn!(
+                "Failed to save represented explored zones for guid {}: {err}",
+                guid.counter()
+            );
+        }
+    }
+
     fn build_character_position_save_statement_like_cpp(
         position: Position,
         map_id: u16,
@@ -18419,6 +18454,7 @@ impl WorldSession {
         self.save_player_level_xp_like_cpp().await;
         self.save_player_gold().await;
         self.save_player_talent_reset_state_like_cpp().await;
+        self.save_player_explored_zones_like_cpp().await;
         self.save_player_skills_like_cpp().await;
         self.save_player_difficulties_like_cpp().await;
         self.save_player_glyphs_like_cpp().await;
@@ -18528,6 +18564,43 @@ impl WorldSession {
         self.remove_represented_at_login_flag_like_cpp(AT_LOGIN_FIRST_LIKE_CPP, false)
     }
 
+    pub(crate) fn load_represented_explored_zones_like_cpp(&mut self, input: &str) -> usize {
+        let blocks = parse_explored_zones_db_string_like_cpp(input);
+        let changed = self.represented_explored_zones_like_cpp != blocks;
+        self.represented_explored_zones_like_cpp = blocks;
+
+        if let Some(update) = self
+            .mutate_canonical_player_like_cpp(|player| {
+                let applied = player.set_explored_zones_blocks_like_cpp(&blocks);
+                (applied > 0).then(|| player.values_update(true))
+            })
+            .flatten()
+        {
+            self.send_player_values_update_like_cpp(&update);
+        }
+
+        if changed {
+            self.represented_explored_zones_like_cpp
+                .iter()
+                .filter(|block| **block != 0)
+                .count()
+        } else {
+            0
+        }
+    }
+
+    pub(crate) fn represented_explored_zones_db_string_like_cpp(&self) -> String {
+        explored_zones_db_string_from_blocks_like_cpp(&self.represented_explored_zones_like_cpp)
+    }
+
+    fn sync_represented_explored_zones_from_canonical_like_cpp(&mut self) {
+        if let Some(blocks) =
+            self.mutate_canonical_player_like_cpp(|player| *player.explored_zones_blocks_like_cpp())
+        {
+            self.represented_explored_zones_like_cpp = blocks;
+        }
+    }
+
     pub(crate) fn apply_represented_first_login_reputation_like_cpp(&mut self) -> usize {
         if !self.start_all_reputation_like_cpp() {
             return 0;
@@ -18607,6 +18680,7 @@ impl WorldSession {
             return 0;
         };
 
+        self.represented_explored_zones_like_cpp = [u64::MAX; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP];
         self.send_player_values_update_like_cpp(&update);
         applied
     }
@@ -75164,6 +75238,14 @@ mod tests {
             wow_entities::PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP,
             "C++ loops PLAYER_EXPLORED_ZONES_SIZE and applies UI64_MAX to each block"
         );
+        assert!(
+            session
+                .represented_explored_zones_db_string_like_cpp()
+                .split_whitespace()
+                .take(2)
+                .eq(["4294967295", "4294967295"]),
+            "first-login AddExploredZones must also update the represented DB snapshot"
+        );
         {
             let manager = canonical.lock().unwrap();
             let player = manager
@@ -85052,6 +85134,64 @@ mod tests {
         ));
         assert!(
             matches!(stmt.params()[2], wow_database::SqlParam::U64(v) if v == guid.counter() as u64)
+        );
+    }
+
+    #[test]
+    fn character_explored_zones_save_statement_matches_cpp_bind_order() {
+        let guid = ObjectGuid::create_player(1, 5005);
+
+        let stmt = WorldSession::build_character_explored_zones_save_statement_like_cpp(
+            "1 2 0 0 ".to_string(),
+            guid.counter() as u64,
+        );
+
+        assert_eq!(stmt.sql(), CharStatements::UPD_CHAR_EXPLORED_ZONES.sql());
+        assert!(matches!(
+            &stmt.params()[0],
+            wow_database::SqlParam::String(value) if value == "1 2 0 0 "
+        ));
+        assert!(
+            matches!(stmt.params()[1], wow_database::SqlParam::U64(v) if v == guid.counter() as u64)
+        );
+    }
+
+    #[test]
+    fn represented_explored_zones_load_preserves_canonical_snapshot_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 0xE101);
+
+        assert_eq!(
+            session.load_represented_explored_zones_like_cpp("1 2 5 6"),
+            2
+        );
+        session.ensure_login_player_controller_like_cpp(
+            player_guid,
+            "Explorer".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        );
+
+        let player = session.canonical_player_entity_snapshot_like_cpp().unwrap();
+        assert_eq!(
+            player.explored_zones_block_like_cpp(0),
+            Some(0x0000_0002_0000_0001)
+        );
+        assert_eq!(
+            player.explored_zones_block_like_cpp(1),
+            Some(0x0000_0006_0000_0005)
+        );
+        assert_eq!(
+            session
+                .represented_explored_zones_db_string_like_cpp()
+                .split_whitespace()
+                .take(4)
+                .collect::<Vec<_>>(),
+            vec!["1", "2", "5", "6"]
         );
     }
 

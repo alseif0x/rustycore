@@ -1,3 +1,27 @@
+- `#NEXT.R8.ENTITIES.1093` — represented `characters.exploredZones`
+  load/save is now wired through the C++ `Player::LoadFromDB` /
+  `Player::SaveToDB` low/high 32-bit word string format (not
+  manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:17292-17295,19437-19572`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:142-143,2193`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/CharacterDatabase.cpp:98,435,441`.
+  Rust now parses malformed tokens as zero, ignores tokens beyond
+  `PLAYER_EXPLORED_ZONES_SIZE`, serializes every block as `uint32(low)` then
+  `uint32(high)` with the C++ trailing spaces, keeps a session snapshot that
+  seeds canonical `Player` reconstruction, updates that snapshot when
+  first-login `StartAllExplored` fills all blocks, and writes the represented
+  value through focused `UPD_CHAR_EXPLORED_ZONES`. Coverage: `cargo fmt --all
+  --check`; focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test
+  -p wow-entities explored_zones --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-database
+  explored_zones --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  explored_zones --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo
+  check -p world-server`; `git diff --check`. Boundary remains partial: live
+  area exploration runtime (`CheckAreaExploreAndOutdoor`), achievement/criteria
+  consumers, full monolithic `CHAR_UPD_CHARACTER` parity, bot validation,
+  live-client validation, and manual validation remain open.
 - `#NEXT.R8.ENTITIES.1092` — represented first login now applies the C++
   `CONFIG_START_ALL_EXPLORED` / `Player::AddExploredZones` branch (not
   manual-test-ready). Source of truth:
