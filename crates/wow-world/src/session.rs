@@ -29032,10 +29032,15 @@ impl WorldSession {
 
     pub(crate) fn remove_known_spell_like_cpp(&mut self, spell_id: i32) {
         let mut seen = HashSet::new();
-        self.remove_known_spell_with_seen_like_cpp(spell_id, &mut seen);
+        self.remove_known_spell_with_seen_like_cpp(spell_id, true, &mut seen);
     }
 
-    fn remove_known_spell_with_seen_like_cpp(&mut self, spell_id: i32, seen: &mut HashSet<i32>) {
+    fn remove_known_spell_with_seen_like_cpp(
+        &mut self,
+        spell_id: i32,
+        learn_low_rank: bool,
+        seen: &mut HashSet<i32>,
+    ) {
         if !self.known_spells.contains(&spell_id) {
             return;
         }
@@ -29053,7 +29058,11 @@ impl WorldSession {
                         & wow_data::SPELL_ATTR0_CU_IS_TALENT_LIKE_CPP
                         != 0;
                     if self.known_spells.contains(&next_known_spell_id) && !next_spell_is_talent {
-                        self.remove_known_spell_with_seen_like_cpp(next_known_spell_id, seen);
+                        self.remove_known_spell_with_seen_like_cpp(
+                            next_known_spell_id,
+                            false,
+                            seen,
+                        );
                     }
                 }
             }
@@ -29065,7 +29074,7 @@ impl WorldSession {
                 .collect();
             for requiring_spell_id in spells_requiring_removed {
                 if self.known_spells.contains(&requiring_spell_id) {
-                    self.remove_known_spell_with_seen_like_cpp(requiring_spell_id, seen);
+                    self.remove_known_spell_with_seen_like_cpp(requiring_spell_id, true, seen);
                 }
             }
         }
@@ -29098,7 +29107,7 @@ impl WorldSession {
                 .to_vec();
             for learned_spell in learned_spells {
                 if let Ok(learned_spell_id) = i32::try_from(learned_spell.spell) {
-                    self.remove_known_spell_with_seen_like_cpp(learned_spell_id, seen);
+                    self.remove_known_spell_with_seen_like_cpp(learned_spell_id, true, seen);
                     if learned_spell.overrides_spell != 0 {
                         if let Ok(overrides_spell_id) = i32::try_from(learned_spell.overrides_spell)
                         {
@@ -29106,6 +29115,29 @@ impl WorldSession {
                                 overrides_spell_id,
                                 learned_spell_id,
                             );
+                        }
+                    }
+                }
+            }
+
+            if learn_low_rank {
+                let prev_spell_id = self.prev_spell_in_chain_like_cpp(current_spell_id);
+                if prev_spell_id != 0 {
+                    if let Ok(prev_known_spell_id) = i32::try_from(prev_spell_id) {
+                        let current_spell_is_ranked = self
+                            .spell_chain_store()
+                            .and_then(|store| store.spell_chain_node_like_cpp(current_spell_id))
+                            .is_some();
+                        if current_spell_is_ranked
+                            && self.known_spells.contains(&prev_known_spell_id)
+                        {
+                            if was_dependent {
+                                self.learn_dependent_known_spell_like_cpp(prev_known_spell_id);
+                            } else {
+                                self.learn_known_spell_like_cpp(prev_known_spell_id);
+                                self.represented_dependent_known_spells_like_cpp
+                                    .remove(&prev_known_spell_id);
+                            }
                         }
                     }
                 }
@@ -48903,6 +48935,100 @@ mod tests {
                 profession_slot: 0,
             }),
             "C++ removes the current learned skill when no previous SpellLearnSkill setting is found"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_marks_previous_rank_dependent_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_spell_chain_store(Arc::new(
+            wow_data::SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(
+                [wow_data::SpellRankEdgeLikeCpp {
+                    spell_id: 20,
+                    supercedes_spell_id: 10,
+                }],
+                |_| true,
+            ),
+        ));
+        session.set_known_spells_like_cpp(vec![10, 20]);
+        session.learn_dependent_known_spell_like_cpp(20);
+
+        session.remove_known_spell_like_cpp(20);
+
+        assert_eq!(session.known_spells_like_cpp(), &[10]);
+        assert!(
+            session
+                .represented_dependent_known_spells_like_cpp()
+                .contains(&10),
+            "C++ RemoveSpell copies cur_dependent to the previous rank before AddSpell reactivates it"
+        );
+        assert!(
+            !session
+                .represented_player_spell_rows_like_cpp()
+                .iter()
+                .any(|spell| {
+                    spell.spell_id == 20
+                        && spell.state == RepresentedPlayerSpellStateLikeCpp::Removed
+                }),
+            "represented dependent spells are still skipped from normal removed-spell save evidence"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_clears_previous_rank_dependent_when_current_is_independent_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_spell_chain_store(Arc::new(
+            wow_data::SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(
+                [wow_data::SpellRankEdgeLikeCpp {
+                    spell_id: 20,
+                    supercedes_spell_id: 10,
+                }],
+                |_| true,
+            ),
+        ));
+        session.set_known_spells_like_cpp(vec![10, 20]);
+        session.learn_dependent_known_spell_like_cpp(10);
+
+        session.remove_known_spell_like_cpp(20);
+
+        assert_eq!(session.known_spells_like_cpp(), &[10]);
+        assert!(
+            !session
+                .represented_dependent_known_spells_like_cpp()
+                .contains(&10),
+            "C++ RemoveSpell updates previous-rank dependent state when it differs from the removed rank"
+        );
+        assert!(
+            session
+                .represented_player_spell_rows_like_cpp()
+                .iter()
+                .any(|spell| {
+                    spell.spell_id == 20
+                        && spell.state == RepresentedPlayerSpellStateLikeCpp::Removed
+                }),
+            "non-dependent removed current rank still carries represented _SaveSpells delete evidence"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_does_not_create_missing_previous_rank_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_spell_chain_store(Arc::new(
+            wow_data::SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(
+                [wow_data::SpellRankEdgeLikeCpp {
+                    spell_id: 20,
+                    supercedes_spell_id: 10,
+                }],
+                |_| true,
+            ),
+        ));
+        session.set_known_spells_like_cpp(vec![20]);
+
+        session.remove_known_spell_like_cpp(20);
+
+        assert!(
+            session.known_spells_like_cpp().is_empty(),
+            "C++ RemoveSpell only reactivates a previous rank when prev_id already exists in PlayerSpellMap; Rust does not invent an absent previous row in the represented model"
         );
     }
 

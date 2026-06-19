@@ -1,3 +1,23 @@
+- `#NEXT.R8.ENTITIES.1123` — represented `Player::RemoveSpell` now carries
+  the C++ `learn_low_rank` flag through recursive removal and updates the
+  represented previous-rank dependent state when the previous rank already
+  exists in the represented spellbook. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3236-3465`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:2735-3150`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellInfo.cpp:4343`.
+  Rust now mirrors the C++ shape where recursive higher-rank cleanup calls
+  `RemoveSpell(nextSpell, disabled, false)`, required-spell and learned
+  dependent cleanup keep the default `learn_low_rank=true`, and the previous
+  rank receives the current removed spell's represented `dependent` flag when
+  it already exists. Coverage: `cargo fmt`; `cargo fmt --check`; `cargo test
+  -p wow-world remove_known_spell --lib`; `cargo check -p world-server`; `git
+  diff --check`. Boundary remains partial: Rust still does not model inactive
+  `PlayerSpellMap` rows, active/disabled/state transitions, `AddSpell` return
+  semantics, real `SendSupercededSpell`/action-bar packet, `UnlearnedSpells`
+  `suppressMessaging`, trait override removal, Titan Grip/Dual Wield side
+  effects, offhand auto-unequip, live-client/bot/manual validation, or full
+  `Player::RemoveSpell` parity.
+
 - `#NEXT.R8.ENTITIES.1122` — represented `Player::RemoveSpell` now handles
   the C++ previous-skill branch where `prevSkill->maxvalue == 0` by wiring
   `SkillTiersStoreLikeCpp` into live sessions, resolving `SkillRaceClassInfo`
@@ -16,8 +36,9 @@
   `cargo test -p wow-world remove_known_spell --lib`; `cargo check -p
   world-server`; `git diff --check`. Boundary remains partial: skill step
   update-field parity, profession point updates, pet aura removal, full aura
-  ownership, previous-rank activation, logout DB persistence, live-client/bot
-  manual validation, and full `Player::RemoveSpell` parity remain open.
+  ownership, logout DB persistence, live-client/bot manual validation, and
+  full `Player::RemoveSpell` parity remain open. Represented previous-rank
+  dependent-state propagation is closed by `#NEXT.R8.ENTITIES.1123`.
 
 - `#NEXT.R8.ENTITIES.1121` — represented `Player::RemoveSpell` now handles
   the C++ previous-skill branch for higher-rank `SpellLearnSkill` nodes when
@@ -38,9 +59,10 @@
   world-server`; `cargo fmt --all --check`; and `git diff --check`.
   Boundary remains partial: the `prevSkill->maxvalue == 0` branch is
   closed by `#NEXT.R8.ENTITIES.1122`; skill-step update-field parity,
-  profession point updates, pet aura removal, full aura ownership, previous-rank activation,
-  logout DB persistence, live-client/bot/manual validation, and full
-  `Player::RemoveSpell` parity remain open.
+  profession point updates, pet aura removal, full aura ownership, logout DB
+  persistence, live-client/bot/manual validation, and full `Player::RemoveSpell`
+  parity remain open. Represented previous-rank dependent-state propagation is
+  closed by `#NEXT.R8.ENTITIES.1123`.
 
 - `#NEXT.R8.ENTITIES.1120` — represented `Player::RemoveSpell` now handles
   the first-rank `SpellLearnSkill` branch by resetting the represented skill
@@ -60,11 +82,11 @@
   world-server`; `cargo fmt --all --check`; and `git diff --check`.
   Boundary remains partial: previous-skill lookup and explicit-max downgrade
   are closed by `#NEXT.R8.ENTITIES.1121`; the `prevSkill->maxvalue == 0`
-  branch still needs `SkillRaceClassInfo`, `SkillTiers`, and
-  `GetMaxSkillValueForLevel`; profession point updates, pet aura removal, full
-  aura ownership, previous-rank activation, logout DB persistence,
-  live-client/bot/manual validation, and full `Player::RemoveSpell` parity
-  remain open.
+  branch is closed by `#NEXT.R8.ENTITIES.1122`; profession point updates, pet
+  aura removal, full aura ownership, logout DB persistence, live-client/bot
+  manual validation, and full `Player::RemoveSpell` parity remain open.
+  Represented previous-rank dependent-state propagation is closed by
+  `#NEXT.R8.ENTITIES.1123`.
 
 - `#NEXT.R8.ENTITIES.1119` — represented `Player::RemoveSpell` now removes
   spells learned by the removed spell through
@@ -85,10 +107,11 @@
   world-server`; `cargo fmt --all --check`; and `git diff --check`. Boundary
   remains partial: first-rank `SpellLearnSkill` removal is closed by
   `#NEXT.R8.ENTITIES.1120`; higher-rank `SpellLearnSkill` downgrade,
-  `learn_low_rank` previous-rank activation, disabled/new/temporary
-  `PlayerSpell` state semantics, profession point updates, pet aura removal,
-  full aura ownership, logout DB persistence, live-client/bot/manual
-  validation, and full `Player::RemoveSpell` parity remain open.
+  represented `learn_low_rank` previous-rank dependent-state propagation is
+  closed by `#NEXT.R8.ENTITIES.1123`; disabled/new/temporary `PlayerSpell`
+  state semantics, profession point updates, pet aura removal, full aura
+  ownership, logout DB persistence, live-client/bot/manual validation, and full
+  `Player::RemoveSpell` parity remain open.
 
 - `#NEXT.R8.ENTITIES.1118` — represented `Player::RemoveSpell` now removes
   known non-talent higher ranks recursively through
@@ -110,8 +133,9 @@
   --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p
   world-server`; `cargo fmt --all --check`; and `git diff --check`. Boundary
   remains partial: disabled/new/temporary `PlayerSpell` state semantics,
-  `learn_low_rank` previous-rank relearn behavior, dependent spell-learn
-  cleanup (closed by `#NEXT.R8.ENTITIES.1119`), profession point updates, pet
+  `learn_low_rank` previous-rank represented state propagation (closed by
+  `#NEXT.R8.ENTITIES.1123`), dependent spell-learn cleanup (closed by
+  `#NEXT.R8.ENTITIES.1119`), profession point updates, pet
   aura removal, full aura ownership, logout DB persistence,
   live-client/bot/manual validation, and full `Player::RemoveSpell` /
   `ResetSpells` parity remain open.
