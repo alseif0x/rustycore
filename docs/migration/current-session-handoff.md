@@ -1,3 +1,20 @@
+- `#NEXT.R8.ENTITIES.1149` — represented `PlayerData::AvgItemLevel[0]`
+  now filters represented non-equipped candidates through the represented
+  `CanUseItem` branch of C++ `CanEquipItem`. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:10590-10663`
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28845-28852`.
+  C++ `UpdateAverageItemLevelTotal` calls
+  `CanEquipItem(NULL_SLOT, dest, item, swap=true, not_loading=false)` before a
+  non-equipped item can replace a best slot candidate. Rust now applies the
+  represented `CanUseItem` class/race/level/skill/reputation/basic-template
+  gates for represented runtime item objects before the best-slot replacement.
+  Coverage: `cargo test -p wow-world
+  represented_condition_total_avg_item_level --lib`. Boundary remains partial:
+  full `CanEquipUniqueItem` restrictions, unique-equip/limit-category equipped
+  counting, quiver/offhand special gates, item-level bonus/PvP/timewalker
+  scaling, update-field packet emission/fanout, persistence, live-client/bot
+  manual validation, and full condition-runtime parity remain open.
+
 - `#NEXT.R8.ENTITIES.1148` — represented `PlayerData::AvgItemLevel[0]`
   now has explicit coverage for represented reagent-bank child items. Source
   of truth:
@@ -12,10 +29,11 @@
   keeps unused `wow-world` port seams explicit with `#[allow(dead_code)]`
   instead of deleting future boundary code. Coverage: `cargo test -p wow-world
   represented_condition_total_avg_item_level --lib`. Boundary remains partial:
-  full `CanEquipItem` restrictions, unique-equip/limit/category gates,
-  item-level bonus/PvP/timewalker scaling, update-field packet emission/fanout,
-  persistence, live-client/bot manual validation, and full condition-runtime
-  parity remain open.
+  represented `CanUseItem` candidate filtering is closed later by
+  `#NEXT.R8.ENTITIES.1149`; full `CanEquipUniqueItem` restrictions,
+  unique-equip/limit-category gates, item-level bonus/PvP/timewalker scaling,
+  update-field packet emission/fanout, persistence, live-client/bot manual
+  validation, and full condition-runtime parity remain open.
 
 - `#NEXT.R8.ENTITIES.1147` — represented `PlayerData::AvgItemLevel[0]`
   now has explicit coverage for represented bank candidates. Source of truth:

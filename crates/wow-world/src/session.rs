@@ -16043,6 +16043,15 @@ impl WorldSession {
         item: &InventoryItem,
         runtime_item: Option<&Item>,
     ) -> InventoryResult {
+        self.can_use_inventory_item_represented_with_loading_like_cpp(item, runtime_item, true)
+    }
+
+    fn can_use_inventory_item_represented_with_loading_like_cpp(
+        &self,
+        item: &InventoryItem,
+        runtime_item: Option<&Item>,
+        not_loading: bool,
+    ) -> InventoryResult {
         let Some(player) = self.direct_inventory_player_snapshot() else {
             return InventoryResult::ItemNotFound;
         };
@@ -16149,7 +16158,7 @@ impl WorldSession {
         player.can_use_item(CanUseItemArgs {
             source_item: runtime_item,
             proto: proto.as_ref(),
-            not_loading: true,
+            not_loading,
             is_alive: true,
             player_level: self.player_level_like_cpp(),
             item_required_level: base_required_level,
@@ -30250,19 +30259,21 @@ impl WorldSession {
             vec![(InventoryType::NonEquip, 0u32, ObjectGuid::EMPTY); EQUIPMENT_SLOT_END as usize];
         let mut sum = 0u32;
 
+        let item_objects = self.inventory_item_objects_like_cpp();
         for (&slot, inventory_item) in self.inventory_items_like_cpp() {
+            let runtime_item = item_objects.get(&inventory_item.guid);
             self.represented_avg_total_item_level_consume_candidate_like_cpp(
                 &mut best_item_levels,
                 &mut sum,
                 Some(slot),
                 inventory_item.entry_id,
                 inventory_item.guid,
+                runtime_item,
                 can_dual_wield,
                 can_titan_grip,
             );
         }
 
-        let item_objects = self.inventory_item_objects_like_cpp();
         for item in item_objects.values() {
             if item.is_in_trade()
                 || item.container_guid().is_empty()
@@ -30277,6 +30288,7 @@ impl WorldSession {
                 None,
                 item.object().entry(),
                 item.object().guid(),
+                Some(item),
                 can_dual_wield,
                 can_titan_grip,
             );
@@ -30298,6 +30310,7 @@ impl WorldSession {
         direct_slot: Option<u8>,
         entry_id: u32,
         item_guid: ObjectGuid,
+        runtime_item: Option<&Item>,
         can_dual_wield: bool,
         can_titan_grip: bool,
     ) {
@@ -30325,6 +30338,23 @@ impl WorldSession {
                 false,
             );
             return;
+        }
+
+        if let Some(runtime_item) = runtime_item {
+            let represented_item = InventoryItem {
+                guid: item_guid,
+                entry_id,
+                db_guid: item_guid.counter() as u64,
+                inventory_type: Some(inventory_type as u8),
+            };
+            if self.can_use_inventory_item_represented_with_loading_like_cpp(
+                &represented_item,
+                Some(runtime_item),
+                false,
+            ) != InventoryResult::Ok
+            {
+                return;
+            }
         }
 
         for (candidate_slot, check_duplicate_guid) in
@@ -51180,6 +51210,136 @@ mod tests {
         assert_eq!(
             context.avg_equipped_item_level, 6.25,
             "C++ UpdateAverageItemLevelEquipped only uses currently equipped items"
+        );
+    }
+
+    #[test]
+    fn represented_condition_total_avg_item_level_skips_can_use_rejected_candidates_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let equipped_chest_item_id = 30_031_u32;
+        let rejected_chest_item_id = 30_032_u32;
+        let equipped_chest_guid = ObjectGuid::create_item(1, 30_031);
+        let rejected_chest_guid = ObjectGuid::create_item(1, 30_032);
+        let player_guid = ObjectGuid::create_player(1, 171);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AverageItemLevelCanUseRejected".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        session.set_item_store(Arc::new(ItemStore::from_records([
+            represented_test_item_record_like_cpp(
+                equipped_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+            represented_test_item_record_like_cpp(
+                rejected_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+        ])));
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [
+                    (
+                        equipped_chest_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                    ),
+                    (
+                        rejected_chest_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                    ),
+                ],
+                [
+                    (
+                        equipped_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 100,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                    (
+                        rejected_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 300,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                ],
+            ),
+        ));
+        session.set_item_search_name_store(Arc::new(ItemSearchNameStore::from_entries([
+            ItemSearchNameEntry {
+                id: equipped_chest_item_id,
+                allowable_race: 0,
+                display: String::new(),
+                overall_quality_id: ItemQuality::Epic as u8,
+                expansion_id: 0,
+                min_faction_id: 0,
+                min_reputation: 0,
+                allowable_class: 0,
+                required_level: 0,
+                required_skill: 0,
+                required_skill_rank: 0,
+                required_ability: 0,
+                item_level: 100,
+                flags: [0; 4],
+            },
+            ItemSearchNameEntry {
+                id: rejected_chest_item_id,
+                allowable_race: 0,
+                display: String::new(),
+                overall_quality_id: ItemQuality::Epic as u8,
+                expansion_id: 0,
+                min_faction_id: 0,
+                min_reputation: 0,
+                allowable_class: 1 << 1,
+                required_level: 0,
+                required_skill: 0,
+                required_skill_rank: 0,
+                required_ability: 0,
+                item_level: 300,
+                flags: [0; 4],
+            },
+        ])));
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            equipped_chest_guid,
+            equipped_chest_item_id,
+            InventoryType::Chest,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            INVENTORY_SLOT_ITEM_START,
+            rejected_chest_guid,
+            rejected_chest_item_id,
+            InventoryType::Chest,
+        );
+
+        let owned = session.represented_player_condition_context_like_cpp();
+        let context = owned.as_context(&session);
+
+        assert_eq!(
+            context.avg_item_level, 6.25,
+            "C++ UpdateAverageItemLevelTotal calls CanEquipItem for non-equipped candidates, and CanEquipItem rejects CanUseItem class/race failures before replacing the best slot"
+        );
+        assert_eq!(
+            context.avg_equipped_item_level, 6.25,
+            "C++ UpdateAverageItemLevelEquipped still uses only equipped items"
         );
     }
 
