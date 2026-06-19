@@ -29484,6 +29484,7 @@ impl WorldSession {
             return false;
         };
 
+        self.remove_represented_offhand_tradeable_item_like_cpp(offhand_item.guid);
         self.record_represented_offhand_item_mod_remove_like_cpp(offhand_item.guid);
 
         let mut stored_destination = None;
@@ -29537,6 +29538,20 @@ impl WorldSession {
                 needs_mail_fallback,
             });
         true
+    }
+
+    fn remove_represented_offhand_tradeable_item_like_cpp(&mut self, item_guid: ObjectGuid) {
+        let Some(item) = self
+            .inventory_item_objects_like_cpp()
+            .get(&item_guid)
+            .cloned()
+        else {
+            return;
+        };
+
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            player.remove_tradeable_item(&item);
+        });
     }
 
     fn record_represented_offhand_item_mod_remove_like_cpp(&mut self, item_guid: ObjectGuid) {
@@ -50185,6 +50200,17 @@ mod tests {
         let canonical = shared_canonical_map_manager();
         canonical.lock().unwrap().create_world_map(0, 0);
         session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
             player_guid,
             "InvalidTwoHandOffhand".to_string(),
@@ -50233,6 +50259,21 @@ mod tests {
             offhand_item_id,
             InventoryType::Shield,
         );
+        session.update_inventory_item_object_like_cpp(offhand_guid, |item| {
+            item.set_soulbound_tradeable([player_guid]);
+        });
+        let tradeable_offhand = session.inventory_item_objects_like_cpp()[&offhand_guid].clone();
+        let _ = session.mutate_canonical_player_like_cpp(|player| {
+            player.add_tradeable_item(&tradeable_offhand);
+        });
+
+        assert_eq!(
+            session.canonical_player_snapshot_like_cpp(|player| player
+                .soulbound_tradeable_items()
+                .contains(&offhand_guid)),
+            Some(true),
+            "fixture starts with the offhand in C++ m_itemSoulboundTradeable"
+        );
 
         assert!(session.represented_auto_unequip_offhand_if_need_like_cpp(false));
 
@@ -50246,6 +50287,13 @@ mod tests {
                 needs_mail_fallback: false,
             }],
             "C++ AutoUnequipOffhandIfNeed unequips offhand when the main hand is a 2H weapon without Titan Grip"
+        );
+        assert_eq!(
+            session.canonical_player_snapshot_like_cpp(|player| player
+                .soulbound_tradeable_items()
+                .contains(&offhand_guid)),
+            Some(false),
+            "C++ RemoveItem removes the item from m_itemSoulboundTradeable before item mod cleanup"
         );
         assert_eq!(
             session.represented_item_mod_reapply_events_like_cpp(),

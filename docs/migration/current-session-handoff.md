@@ -1,3 +1,21 @@
+- `#NEXT.R8.ENTITIES.1138` — represented `AutoUnequipOffhandIfNeed` now
+  mirrors the C++ `RemoveItem` `RemoveTradeableItem(pItem)` side effect for the
+  removed offhand item. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11559-11575`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11643-11655`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:24621-24634`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:12902-12910`.
+  Rust now removes the represented offhand guid from the canonical player's
+  `m_itemSoulboundTradeable` set before moving/delinking the item, while
+  preserving the C++ distinction that `RemoveTradeableItem` only erases the
+  set entry and does not clear the item's BoP-tradeable flag/allowed GUIDs.
+  Coverage: `cargo test -p wow-world remove_known_spell --lib`. Boundary
+  remains partial: `RemoveEnchantmentDurations`, `RemoveItemDurations`,
+  item-set removal, full `_ApplyItemMods`, item flag2 equipped cleanup,
+  expertise/armor-penetration recalculation, `CheckTitanGripPenalty`, average
+  item-level recalculation, update queue/DB persistence, fanout, and
+  live-client/bot/manual validation remain open.
+
 - `#NEXT.R8.ENTITIES.1137` — represented `AutoUnequipOffhandIfNeed` now
   records the C++ `RemoveItem(..., EQUIPMENT_SLOT_OFFHAND, update=true)`
   `_ApplyItemMods(offhand, false, update)` boundary before moving/delinking the
@@ -16,7 +34,8 @@
   set bonuses, equip spells, dependent auras, weapon-dependent aura updates,
   enchantment application/removal, expertise/armor-penetration recalculation,
   average item-level recalculation, multi-session fanout, DB persistence, and
-  live-client/bot/manual validation remain open.
+  live-client/bot/manual validation remain open. C++ `RemoveTradeableItem`
+  state cleanup is closed by `#NEXT.R8.ENTITIES.1138`.
 
 - `#NEXT.R8.ENTITIES.1136` — represented `AutoUnequipOffhandIfNeed` now
   emits the equipped-bag `ContainerData::Slots` VALUES delta for the C++
