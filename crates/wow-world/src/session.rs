@@ -127,7 +127,7 @@ use wow_entities::{
     EQUIPMENT_SLOT_FINGER1, EQUIPMENT_SLOT_FINGER2, EQUIPMENT_SLOT_HANDS, EQUIPMENT_SLOT_HEAD,
     EQUIPMENT_SLOT_LEGS, EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_NECK, EQUIPMENT_SLOT_OFFHAND,
     EQUIPMENT_SLOT_SHOULDERS, EQUIPMENT_SLOT_TABARD, EQUIPMENT_SLOT_TRINKET1,
-    EQUIPMENT_SLOT_TRINKET2, EQUIPMENT_SLOT_WAIST, EQUIPMENT_SLOT_WRISTS,
+    EQUIPMENT_SLOT_TRINKET2, EQUIPMENT_SLOT_WAIST, EQUIPMENT_SLOT_WRISTS, EquippedGemRef,
     GAMEOBJECT_TYPE_GUILD_BANK, GameObject, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0,
     INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS,
     ITEM_DATA_CONTAINED_IN_BIT, ITEM_DATA_DURABILITY_BIT, Item, ItemCreateInfo, ItemDataUpdate,
@@ -139,8 +139,8 @@ use wow_entities::{
     PetType, PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerInventoryStorage,
     PlayerItemTimeUpdate, QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE,
     REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, ReactState, SendNewItemDelivery,
-    SendNewItemDisplayText, SendNewItemPlan, TYPEID_CONTAINER, TYPEID_ITEM, TitanGripPenaltyAction,
-    UNIT_DATA_HEALTH_BIT, Unit, UnitDataUpdate, UnitDataValues,
+    SendNewItemDisplayText, SendNewItemPlan, SocketedGemUniqueRef, TYPEID_CONTAINER, TYPEID_ITEM,
+    TitanGripPenaltyAction, UNIT_DATA_HEALTH_BIT, Unit, UnitDataUpdate, UnitDataValues,
     UnitVisibilityDetectionStateLikeCpp, UpdateMask, Vehicle, VehicleAccessory, VisibleItemValues,
     WorldObject, explored_zones_db_string_from_blocks_like_cpp, is_bag_pos,
     is_equipment_packed_pos, is_inventory_pos, make_item_pos,
@@ -30399,6 +30399,7 @@ impl WorldSession {
         let item_objects = self.inventory_item_objects_like_cpp();
         let mut equipped_templates = Vec::new();
         let mut equipped_items_with_templates = Vec::new();
+        let mut equipped_gems = Vec::new();
         for (&slot, inventory_item) in self.inventory_items_like_cpp() {
             if slot >= EQUIPMENT_SLOT_END {
                 continue;
@@ -30409,6 +30410,19 @@ impl WorldSession {
             let Some(template) = self.item_storage_template(inventory_item.entry_id) else {
                 continue;
             };
+            for gem in &item.data().gems {
+                let Ok(gem_entry) = u32::try_from(gem.item_id) else {
+                    continue;
+                };
+                let Some(gem_template) = self.item_storage_template(gem_entry) else {
+                    continue;
+                };
+                equipped_gems.push(EquippedGemRef::new(
+                    slot,
+                    gem_entry,
+                    gem_template.item_limit_category,
+                ));
+            }
             equipped_templates.push((slot, item, template));
         }
 
@@ -30418,6 +30432,50 @@ impl WorldSession {
                 *slot,
                 *item,
                 Some(template),
+            ));
+        }
+
+        let mut socketed_gem_templates = Vec::new();
+        for gem in &runtime_item.data().gems {
+            let Ok(gem_entry) = u32::try_from(gem.item_id) else {
+                continue;
+            };
+            let Some(gem_template) = self.item_storage_template(gem_entry) else {
+                continue;
+            };
+            let source_limit_category_count = if gem_template.item_limit_category == 0 {
+                1
+            } else {
+                runtime_item
+                    .data()
+                    .gems
+                    .iter()
+                    .filter_map(|source_gem| u32::try_from(source_gem.item_id).ok())
+                    .filter_map(|source_gem_entry| self.item_storage_template(source_gem_entry))
+                    .filter(|source_gem_template| {
+                        source_gem_template.item_limit_category == gem_template.item_limit_category
+                    })
+                    .count() as u32
+            };
+            let unique_equippable = gem_template.flags.contains(ItemFlags::UNIQUE_EQUIPPABLE);
+            let limit_category =
+                self.item_limit_category_template_like_cpp(gem_template.item_limit_category);
+            socketed_gem_templates.push((
+                gem_template,
+                unique_equippable,
+                limit_category,
+                source_limit_category_count,
+            ));
+        }
+        let mut socketed_gems = Vec::new();
+        for (gem_template, unique_equippable, limit_category, source_limit_category_count) in
+            &socketed_gem_templates
+        {
+            socketed_gems.push(SocketedGemUniqueRef::new(
+                Some(gem_template),
+                *unique_equippable,
+                limit_category.as_ref(),
+                *source_limit_category_count,
             ));
         }
 
@@ -30431,8 +30489,8 @@ impl WorldSession {
             unique_equippable,
             limit_category: limit_category.as_ref(),
             equipped_items: &equipped_items_with_templates,
-            equipped_gems: &[],
-            socketed_gems: &[],
+            equipped_gems: &equipped_gems,
+            socketed_gems: &socketed_gems,
         })
     }
 
@@ -51536,6 +51594,204 @@ mod tests {
         assert_eq!(
             context.avg_item_level, 6.25,
             "C++ CanEquipItem calls CanEquipUniqueItem for non-equipped candidates, so an equip-limit category candidate cannot replace an already equipped item in the same limited category"
+        );
+        assert_eq!(
+            context.avg_equipped_item_level, 6.25,
+            "C++ UpdateAverageItemLevelEquipped still uses only equipped items"
+        );
+    }
+
+    #[test]
+    fn represented_condition_total_avg_item_level_skips_socketed_gem_limit_candidates_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let equipped_chest_item_id = 30_035_u32;
+        let rejected_chest_item_id = 30_036_u32;
+        let equipped_gem_item_id = 30_037_u32;
+        let candidate_gem_item_id = 30_038_u32;
+        let equipped_chest_guid = ObjectGuid::create_item(1, 30_035);
+        let rejected_chest_guid = ObjectGuid::create_item(1, 30_036);
+        let gem_limit_category_id = 45_u32;
+        let player_guid = ObjectGuid::create_player(1, 173);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AverageItemLevelSocketedGemLimitRejected".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        session.set_item_store(Arc::new(ItemStore::from_records([
+            represented_test_item_record_like_cpp(
+                equipped_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+            represented_test_item_record_like_cpp(
+                rejected_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+            represented_test_item_record_like_cpp(
+                equipped_gem_item_id,
+                InventoryType::NonEquip,
+                ItemClass::Gem,
+                0,
+            ),
+            represented_test_item_record_like_cpp(
+                candidate_gem_item_id,
+                InventoryType::NonEquip,
+                ItemClass::Gem,
+                0,
+            ),
+        ])));
+
+        let mut equipped_gem_sparse =
+            sparse_template_for_inventory_type_like_cpp(InventoryType::NonEquip, 0);
+        equipped_gem_sparse.limit_category = gem_limit_category_id as u16;
+        let mut candidate_gem_sparse =
+            sparse_template_for_inventory_type_like_cpp(InventoryType::NonEquip, 0);
+        candidate_gem_sparse.limit_category = gem_limit_category_id as u16;
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [
+                    (
+                        equipped_chest_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                    ),
+                    (
+                        rejected_chest_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                    ),
+                    (equipped_gem_item_id, equipped_gem_sparse),
+                    (candidate_gem_item_id, candidate_gem_sparse),
+                ],
+                [
+                    (
+                        equipped_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 100,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                    (
+                        rejected_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 300,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                ],
+            ),
+        ));
+        session.set_item_search_name_store(Arc::new(ItemSearchNameStore::from_entries([
+            ItemSearchNameEntry {
+                id: equipped_chest_item_id,
+                allowable_race: 0,
+                display: String::new(),
+                overall_quality_id: ItemQuality::Epic as u8,
+                expansion_id: 0,
+                min_faction_id: 0,
+                min_reputation: 0,
+                allowable_class: 0,
+                required_level: 0,
+                required_skill: 0,
+                required_skill_rank: 0,
+                required_ability: 0,
+                item_level: 100,
+                flags: [0; 4],
+            },
+            ItemSearchNameEntry {
+                id: rejected_chest_item_id,
+                allowable_race: 0,
+                display: String::new(),
+                overall_quality_id: ItemQuality::Epic as u8,
+                expansion_id: 0,
+                min_faction_id: 0,
+                min_reputation: 0,
+                allowable_class: 0,
+                required_level: 0,
+                required_skill: 0,
+                required_skill_rank: 0,
+                required_ability: 0,
+                item_level: 300,
+                flags: [0; 4],
+            },
+        ])));
+        session.set_item_limit_category_store(Arc::new(ItemLimitCategoryStore::from_entries([
+            ItemLimitCategoryEntry {
+                id: gem_limit_category_id,
+                name: String::new(),
+                quantity: 1,
+                flags: wow_entities::ITEM_LIMIT_CATEGORY_MODE_EQUIP,
+            },
+        ])));
+        let owner = session.player_guid().unwrap_or(ObjectGuid::EMPTY);
+        let mut equipped_chest = session.make_inventory_item_object(
+            equipped_chest_guid,
+            equipped_chest_item_id,
+            owner,
+            1,
+            0,
+            ItemContext::None,
+            EQUIPMENT_SLOT_CHEST,
+        );
+        equipped_chest.set_gems(vec![wow_entities::SocketedGem {
+            item_id: equipped_gem_item_id as i32,
+            context: 0,
+            bonus_list_ids: Vec::new(),
+        }]);
+        session.insert_inventory_item_object(equipped_chest);
+        session.insert_inventory_item_like_cpp(
+            EQUIPMENT_SLOT_CHEST,
+            InventoryItem {
+                guid: equipped_chest_guid,
+                entry_id: equipped_chest_item_id,
+                db_guid: equipped_chest_guid.counter() as u64,
+                inventory_type: Some(InventoryType::Chest as u8),
+            },
+        );
+
+        let mut candidate_chest = session.make_inventory_item_object(
+            rejected_chest_guid,
+            rejected_chest_item_id,
+            owner,
+            1,
+            0,
+            ItemContext::None,
+            INVENTORY_SLOT_ITEM_START,
+        );
+        candidate_chest.set_gems(vec![wow_entities::SocketedGem {
+            item_id: candidate_gem_item_id as i32,
+            context: 0,
+            bonus_list_ids: Vec::new(),
+        }]);
+        session.insert_inventory_item_object(candidate_chest);
+        session.insert_inventory_item_like_cpp(
+            INVENTORY_SLOT_ITEM_START,
+            InventoryItem {
+                guid: rejected_chest_guid,
+                entry_id: rejected_chest_item_id,
+                db_guid: rejected_chest_guid.counter() as u64,
+                inventory_type: Some(InventoryType::Chest as u8),
+            },
+        );
+
+        let owned = session.represented_player_condition_context_like_cpp();
+        let context = owned.as_context(&session);
+
+        assert_eq!(
+            context.avg_item_level, 6.25,
+            "C++ CanEquipUniqueItem checks socketed gems after the item template, so a candidate with a gem from an already-equipped limited category cannot replace the best slot"
         );
         assert_eq!(
             context.avg_equipped_item_level, 6.25,

@@ -1,3 +1,20 @@
+- `#NEXT.R8.ENTITIES.1151` — represented `PlayerData::AvgItemLevel[0]`
+  now includes represented socketed gems in the `CanEquipUniqueItem` candidate
+  filter. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:25859-25882`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:1213-1218`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28845-28852`.
+  C++ checks `pItem->m_itemData->Gems` after the item-template branch, skips
+  missing gem templates, and for a non-equipped source item uses
+  `GetGemCountWithLimitCategory` as the gem limit count. Rust now builds
+  represented equipped gem refs plus candidate socketed gem refs and delegates
+  them through the existing `wow_entities::Player::can_equip_unique_item`
+  helper before a candidate can replace a best slot. Coverage: `cargo test -p
+  wow-world represented_condition_total_avg_item_level --lib`. Boundary
+  remains partial: quiver/offhand special gates, item-level bonus/PvP/timewalker
+  scaling, update-field packet emission/fanout, persistence, live-client/bot
+  manual validation, and full condition-runtime parity remain open.
+
 - `#NEXT.R8.ENTITIES.1150` — represented `PlayerData::AvgItemLevel[0]`
   now filters represented non-equipped candidates through the represented
   item-template `CanEquipUniqueItem` branch of C++ `CanEquipItem`. Source of
@@ -12,10 +29,11 @@
   `UNIQUE_EQUIPPABLE` and item-limit-category equipped counts before a
   non-equipped candidate can replace a best slot. Coverage: `cargo test -p
   wow-world represented_condition_total_avg_item_level --lib`. Boundary
-  remains partial: socketed gem unique/limit-category checks, quiver/offhand
-  special gates, item-level bonus/PvP/timewalker scaling, update-field packet
-  emission/fanout, persistence, live-client/bot manual validation, and full
-  condition-runtime parity remain open.
+  remains partial: represented socketed gem `CanEquipUniqueItem` checks are
+  closed later by `#NEXT.R8.ENTITIES.1151`; quiver/offhand special gates,
+  item-level bonus/PvP/timewalker scaling, update-field packet emission/fanout,
+  persistence, live-client/bot manual validation, and full condition-runtime
+  parity remain open.
 
 - `#NEXT.R8.ENTITIES.1149` — represented `PlayerData::AvgItemLevel[0]`
   now filters represented non-equipped candidates through the represented
