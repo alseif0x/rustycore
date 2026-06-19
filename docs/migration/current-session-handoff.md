@@ -1,3 +1,22 @@
+- `#NEXT.R8.ENTITIES.1148` — represented `PlayerData::AvgItemLevel[0]`
+  now has explicit coverage for represented reagent-bank child items. Source
+  of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:753-756`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:1287-1289`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28773-28880`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Conditions/ConditionMgr.cpp:3206-3215`.
+  C++ `ItemSearchLocation::Everywhere` includes `ReagentBank`; Rust already
+  exposes the same reagent-bank slot range in the represented item traversal,
+  and the new test proves a represented reagent-bank child item can replace a
+  lower equipped slot candidate for total average item level. This slice also
+  keeps unused `wow-world` port seams explicit with `#[allow(dead_code)]`
+  instead of deleting future boundary code. Coverage: `cargo test -p wow-world
+  represented_condition_total_avg_item_level --lib`. Boundary remains partial:
+  full `CanEquipItem` restrictions, unique-equip/limit/category gates,
+  item-level bonus/PvP/timewalker scaling, update-field packet emission/fanout,
+  persistence, live-client/bot manual validation, and full condition-runtime
+  parity remain open.
+
 - `#NEXT.R8.ENTITIES.1147` — represented `PlayerData::AvgItemLevel[0]`
   now has explicit coverage for represented bank candidates. Source of truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:756`,
@@ -8,10 +27,11 @@
   feed the same total-average best-slot candidate path and can replace lower
   equipped candidates. Coverage: `cargo test -p wow-world
   represented_condition_total_avg_item_level --lib`. Boundary remains partial:
-  full `CanEquipItem` restrictions, reagent-bank-specific traversal evidence,
-  unique-equip/limit/category gates, item-level bonus/PvP/timewalker scaling,
-  update-field packet emission/fanout, persistence, live-client/bot manual
-  validation, and full condition-runtime parity remain open.
+  full `CanEquipItem` restrictions, reagent-bank-specific traversal evidence is
+  closed later by `#NEXT.R8.ENTITIES.1148`, unique-equip/limit/category gates,
+  item-level bonus/PvP/timewalker scaling, update-field packet emission/fanout,
+  persistence, live-client/bot manual validation, and full condition-runtime
+  parity remain open.
 
 - `#NEXT.R8.ENTITIES.1146` — represented `PlayerData::AvgItemLevel[0]`
   now includes represented item objects contained in represented bags when

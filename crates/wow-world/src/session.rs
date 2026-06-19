@@ -578,6 +578,7 @@ pub(crate) enum RepresentedPushQuestToPartyOutcomeReasonLikeCpp {
     ReceiverSatisfyQuestDependentBreadcrumbQuestsPrerequisite,
     ReceiverSatisfyQuestExpansionRequiredExpansion,
     ReceiverCanTakeQuestInvalid,
+    #[allow(dead_code)]
     ReceiverRepeatableTurnInRequestItemsUnrepresented,
     ReceiverRepeatableTurnInRequestItemsPrompted,
     ReceiverRepeatableTurnInRequestItemsPromptCommandFailed,
@@ -716,6 +717,7 @@ pub(crate) enum RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp {
     ReceiverGiveQuestSourceItemBoundObjectiveNoGrant,
     GiveQuestSourceItemStoreNewItemUnrepresented,
     ReceiverAddQuestLocalStateRepresented,
+    #[allow(dead_code)]
     AddQuestRuntimeUnrepresented,
 }
 
@@ -2312,6 +2314,7 @@ pub(crate) const BATTLE_PET_FLAG_FANFARE_NEEDED_LIKE_CPP: u16 = 0x01;
 pub(crate) const BATTLE_PET_FLAGS_CONTROL_TYPE_APPLY_LIKE_CPP: u8 = 1;
 pub(crate) const BATTLE_PET_SLOT_COUNT_LIKE_CPP: usize = 3;
 pub(crate) const BATTLE_PET_CAGE_ITEM_ID_LIKE_CPP: u32 = 82_800;
+#[allow(dead_code)]
 pub(crate) const BATTLE_PET_BREED_QUALITY_RARE_LIKE_CPP: u8 = 3;
 pub(crate) const BATTLE_PET_SPELL_VISUAL_UNCAGE_PET_LIKE_CPP: u32 = 222;
 pub(crate) const DEFAULT_MAX_BATTLE_PETS_PER_SPECIES_LIKE_CPP: u8 = 3;
@@ -2328,6 +2331,7 @@ pub(crate) enum RepresentedBattlePetXpSourceLikeCpp {
 pub(crate) enum RepresentedBattlePetSaveInfoLikeCpp {
     New,
     Changed,
+    #[allow(dead_code)]
     Unchanged,
     Removed,
 }
@@ -2360,6 +2364,7 @@ pub(crate) struct RepresentedBattlePetCalculatedStatsLikeCpp {
     pub(crate) speed: u32,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedBattlePetQualityOutcomeLikeCpp {
     Changed,
@@ -4825,9 +4830,20 @@ pub(crate) struct PlayerCurrencyDelta {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedQuestObjectiveProgressEventLikeCpp {
-    MoneyChanged { old_money: u64, new_money: u64 },
-    CurrencyChanged { currency_id: u32, change: i32 },
-    ReputationChanged { faction_id: u32, change: i32 },
+    MoneyChanged {
+        old_money: u64,
+        new_money: u64,
+    },
+    #[allow(dead_code)]
+    CurrencyChanged {
+        currency_id: u32,
+        change: i32,
+    },
+    #[allow(dead_code)]
+    ReputationChanged {
+        faction_id: u32,
+        change: i32,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -5200,6 +5216,7 @@ fn player_class_by_armor_subclass_like_cpp(subclass: u32) -> u32 {
     }
 }
 
+#[allow(dead_code)]
 impl WorldSession {
     /// Create a new session with the given account info and channels.
     pub fn new(
@@ -14284,6 +14301,7 @@ impl WorldSession {
         self.watched_faction_index_like_cpp = index;
     }
 
+    #[allow(dead_code)]
     pub(crate) fn reputation_rank_like_cpp(
         &self,
         faction_entry: &FactionEntry,
@@ -17980,6 +17998,7 @@ impl WorldSession {
         self.npc_spell_click_store = Some(store);
     }
 
+    #[allow(dead_code)]
     pub(crate) fn npc_spell_click_store(&self) -> Option<&Arc<NpcSpellClickStoreLikeCpp>> {
         self.npc_spell_click_store.as_ref()
     }
@@ -18285,6 +18304,7 @@ impl WorldSession {
         self.spell_proc_store = Some(store);
     }
 
+    #[allow(dead_code)]
     pub(crate) fn spell_proc_store(&self) -> Option<&Arc<SpellProcStoreLikeCpp>> {
         self.spell_proc_store.as_ref()
     }
@@ -18380,6 +18400,7 @@ impl WorldSession {
         self.script_name_interner = Some(store);
     }
 
+    #[allow(dead_code)]
     pub(crate) fn script_name_like_cpp(&self, id: ScriptIdLikeCpp) -> &str {
         self.script_name_interner
             .as_ref()
@@ -18387,6 +18408,7 @@ impl WorldSession {
             .unwrap_or("")
     }
 
+    #[allow(dead_code)]
     pub(crate) fn script_id_bound_in_database_like_cpp(&self, id: ScriptIdLikeCpp) -> bool {
         self.script_name_interner
             .as_ref()
@@ -43142,6 +43164,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
 
 // ── Creature AI / Combat tick methods ────────────────────────────
 
+#[allow(dead_code)]
 impl WorldSession {
     /// Called every ~200ms from the update loop.
     /// Advances creature movement state and sends MonsterMove packets.
@@ -51493,6 +51516,127 @@ mod tests {
         assert_eq!(
             context.avg_equipped_item_level, 6.25,
             "C++ UpdateAverageItemLevelEquipped still ignores bank-bag contents"
+        );
+    }
+
+    #[test]
+    fn represented_condition_total_avg_item_level_uses_represented_reagent_bank_contents_like_cpp()
+    {
+        let (mut session, _, _send_rx) = make_session();
+        let equipped_chest_item_id = 30_028_u32;
+        let reagent_bag_item_id = 30_029_u32;
+        let contained_chest_item_id = 30_030_u32;
+        let equipped_chest_guid = ObjectGuid::create_item(1, 30_028);
+        let reagent_bag_guid = ObjectGuid::create_item(1, 30_029);
+        let contained_chest_guid = ObjectGuid::create_item(1, 30_030);
+        let player_guid = ObjectGuid::create_player(1, 170);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AverageItemLevelReagentBankContents".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        session.set_item_store(Arc::new(ItemStore::from_records([
+            represented_test_item_record_like_cpp(
+                equipped_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+            represented_test_item_record_like_cpp(
+                reagent_bag_item_id,
+                InventoryType::Bag,
+                ItemClass::Container,
+                0,
+            ),
+            represented_test_item_record_like_cpp(
+                contained_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+        ])));
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [
+                    (
+                        equipped_chest_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                    ),
+                    (
+                        reagent_bag_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Bag, 0),
+                    ),
+                    (
+                        contained_chest_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                    ),
+                ],
+                [
+                    (
+                        equipped_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 100,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                    (
+                        contained_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 280,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                ],
+            ),
+        ));
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            equipped_chest_guid,
+            equipped_chest_item_id,
+            InventoryType::Chest,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            REAGENT_BAG_SLOT_START,
+            reagent_bag_guid,
+            reagent_bag_item_id,
+            InventoryType::Bag,
+        );
+        let owner = session.player_guid().unwrap_or(ObjectGuid::EMPTY);
+        let mut contained_chest = session.make_inventory_item_object(
+            contained_chest_guid,
+            contained_chest_item_id,
+            owner,
+            1,
+            0,
+            ItemContext::None,
+            0,
+        );
+        contained_chest.set_container_guid_and_slot(reagent_bag_guid, REAGENT_BAG_SLOT_START);
+        session.insert_inventory_item_object(contained_chest);
+
+        let owned = session.represented_player_condition_context_like_cpp();
+        let context = owned.as_context(&session);
+
+        assert_eq!(
+            context.avg_item_level, 17.5,
+            "C++ ItemSearchLocation::Everywhere includes reagent-bank contents, so represented reagent-bank candidates can replace equipped lower item-level candidates"
+        );
+        assert_eq!(
+            context.avg_equipped_item_level, 6.25,
+            "C++ UpdateAverageItemLevelEquipped still ignores reagent-bank contents"
         );
     }
 

@@ -10221,6 +10221,7 @@ impl WorldSession {
     }
 
     /// Send SMSG_QUEST_GIVER_STATUS for a single NPC.
+    #[allow(dead_code)]
     fn send_quest_giver_status(&self, guid: ObjectGuid, status: u32) {
         use wow_constants::ServerOpcodes;
         let mut pkt = wow_packet::WorldPacket::new_server(ServerOpcodes::QuestGiverStatus);
