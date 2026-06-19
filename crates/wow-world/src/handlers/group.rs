@@ -839,7 +839,7 @@ impl WorldSession {
 
         let _proposed_roles = pkt.read_uint32().unwrap_or(0);
 
-        let target_guid = match pkt.read_packed_guid() {
+        let _target_guid = match pkt.read_packed_guid() {
             Ok(g) => g,
             Err(e) => {
                 warn!("PartyInvite: target_guid read error: {}", e);

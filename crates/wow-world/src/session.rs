@@ -24507,7 +24507,6 @@ impl WorldSession {
         duration: u32,
         flags: u32,
     ) {
-        use wow_packet::ServerPacket;
         use wow_packet::packets::aura::{AuraData, AuraUpdate};
 
         let update = AuraUpdate {
@@ -43292,7 +43291,6 @@ impl WorldSession {
             {
                 warn!(account = self.account_id, "Spell execution failed: {}", e);
                 // Send CastFailed so client cancels cast animation
-                use wow_packet::ServerPacket;
                 use wow_packet::packets::spell::CastFailed;
                 self.send_packet(&CastFailed {
                     cast_id,
