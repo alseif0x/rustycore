@@ -1,3 +1,21 @@
+- `#NEXT.R8.ENTITIES.1144` — represented player-condition context now uses
+  the C++ equipment-slot denominator / main-hand 2H formula for
+  `PlayerData::AvgItemLevel[0]` within the represented equipped-items
+  boundary. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28773-28880`
+  and `/home/server/woltk-trinity-legacy/src/server/game/Conditions/ConditionMgr.cpp:3206-3215`.
+  Rust no longer averages all represented item objects by count for
+  `AvgItemLevel[0]`; a single represented ilvl 200 main-hand 2H without Titan
+  Grip now contributes `(200 + 200) / 16 = 25`, matching the C++ slot formula.
+  Coverage: `cargo test -p wow-world
+  represented_condition_total_avg_item_level_uses_cpp_slot_formula_like_cpp
+  --lib`. Boundary remains partial: full `UpdateAverageItemLevelTotal`
+  best-equipable candidate selection across bags/bank, `CanEquipItem`
+  restrictions, duplicate-guid handling for ring/trinket/offhand candidates,
+  item-level bonus/PvP/timewalker scaling, update-field packet emission/fanout,
+  persistence, live-client/bot/manual validation, and full condition-runtime
+  parity remain open.
+
 - `#NEXT.R8.ENTITIES.1143` — represented `AutoUnequipOffhandIfNeed` now
   records the C++ `RemoveItem` terminal `UpdateAverageItemLevelEquipped()`
   hook and the represented player-condition context now uses the C++

@@ -30188,19 +30188,8 @@ impl WorldSession {
             })
             .unwrap_or_default();
 
-        let mut item_level_sum = 0u32;
-        let mut item_level_count = 0u32;
         let mut mainhand_weapon_subclass = None;
         for (&slot, inventory_item) in self.inventory_items_like_cpp() {
-            let Some(template) = self
-                .item_stats_store
-                .as_ref()
-                .and_then(|store| store.random_property_template(inventory_item.entry_id))
-            else {
-                continue;
-            };
-            item_level_sum = item_level_sum.saturating_add(u32::from(template.item_level));
-            item_level_count = item_level_count.saturating_add(1);
             if slot == EQUIPMENT_SLOT_MAINHAND {
                 mainhand_weapon_subclass = self
                     .item_store
@@ -30221,15 +30210,19 @@ impl WorldSession {
             skills,
             explored_area_ids,
             parent_area_ids,
-            avg_item_level: if item_level_count == 0 {
-                0.0
-            } else {
-                item_level_sum as f32 / item_level_count as f32
-            },
+            avg_item_level: self.represented_avg_total_item_level_like_cpp(),
             avg_equipped_item_level: self.represented_avg_equipped_item_level_like_cpp(),
             mainhand_weapon_subclass,
             ..Default::default()
         }
+    }
+
+    fn represented_avg_total_item_level_like_cpp(&self) -> f32 {
+        // C++ UpdateAverageItemLevelTotal selects the best equipable item for
+        // each equipment slot and divides the slot sum by 16. The represented
+        // model does not yet evaluate every bag candidate with CanEquipItem, so
+        // the current boundary is the already-equipped slot formula.
+        self.represented_avg_equipped_item_level_like_cpp()
     }
 
     fn represented_avg_equipped_item_level_like_cpp(&self) -> f32 {
@@ -50791,6 +50784,77 @@ mod tests {
         assert_eq!(
             context.avg_equipped_item_level, 25.0,
             "C++ PlayerCondition uses PlayerData::AvgItemLevel[1], so the represented context must use the same equipped-average formula"
+        );
+    }
+
+    #[test]
+    fn represented_condition_total_avg_item_level_uses_cpp_slot_formula_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let mainhand_item_id = 30_016_u32;
+        let mainhand_guid = ObjectGuid::create_item(1, 30_016);
+        let player_guid = ObjectGuid::create_player(1, 164);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AverageItemLevelTotal".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        let _ = session.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_can_dual_wield_like_cpp(true);
+            player.set_can_titan_grip(false, 0);
+        });
+        session.set_item_store(Arc::new(ItemStore::from_records([ItemRecord {
+            id: mainhand_item_id,
+            class_id: ItemClass::Weapon as u8,
+            subclass_id: ItemSubClassWeapon::Axe2 as u8,
+            material: 0,
+            inventory_type: InventoryType::Weapon2Hand as i8,
+            sheathe_type: 0,
+            random_select: 0,
+            random_suffix_group_id: 0,
+        }])));
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [(
+                    mainhand_item_id,
+                    sparse_template_for_inventory_type_like_cpp(InventoryType::Weapon2Hand, 0),
+                )],
+                [(
+                    mainhand_item_id,
+                    ItemRandomPropertyTemplateEntry {
+                        item_level: 200,
+                        quality: ItemQuality::Epic as i8,
+                        inventory_type: InventoryType::Weapon2Hand as i8,
+                    },
+                )],
+            ),
+        ));
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_MAINHAND,
+            mainhand_guid,
+            mainhand_item_id,
+            InventoryType::Weapon2Hand,
+        );
+
+        let owned = session.represented_player_condition_context_like_cpp();
+        let context = owned.as_context(&session);
+
+        assert_eq!(
+            context.avg_item_level, 25.0,
+            "C++ UpdateAverageItemLevelTotal divides the best-slot item-level sum by 16 and counts a main-hand 2H twice without Titan Grip"
+        );
+        assert_eq!(
+            context.avg_equipped_item_level, 25.0,
+            "The represented equipped boundary has the same result when only equipped items are known"
         );
     }
 
