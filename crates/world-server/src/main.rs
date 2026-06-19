@@ -959,6 +959,15 @@ async fn main() -> Result<ExitCode> {
         item_limit_category_condition_store.len()
     );
 
+    let item_bonus_db2_store = Arc::new(
+        wow_data::ItemBonusDb2Store::load(&data_dir, &locale)
+            .context("Failed to load ItemBonus.db2 — check DataDir and DBC.Locale config")?,
+    );
+    info!(
+        "Loaded {} item bonus rows from ItemBonus.db2",
+        item_bonus_db2_store.len()
+    );
+
     // Load ChrSpecialization.db2 for C++ loot-specialization validation.
     let chr_specialization_store = Arc::new(
         wow_data::ChrSpecializationStore::load(&data_dir, &locale).context(
@@ -4230,6 +4239,7 @@ async fn main() -> Result<ExitCode> {
         player_create_cast_spell_store: Some(Arc::clone(&player_create_cast_spell_store)),
         player_create_custom_spell_store: Some(Arc::clone(&player_create_custom_spell_store)),
         player_stats: Some(Arc::clone(&player_stats)),
+        item_bonus_db2_store: Some(Arc::clone(&item_bonus_db2_store)),
         item_stats_store: Some(Arc::clone(&item_stats_store)),
         durability_costs_store: Some(Arc::clone(&durability_costs_store)),
         durability_quality_store: Some(Arc::clone(&durability_quality_store)),
@@ -10686,6 +10696,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.player_stats {
         session.set_player_stats(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.item_bonus_db2_store {
+        session.set_item_bonus_db2_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.item_stats_store {
         session.set_item_stats_store(Arc::clone(store));

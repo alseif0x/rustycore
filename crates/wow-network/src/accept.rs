@@ -202,6 +202,7 @@ pub struct SessionResources {
     pub player_create_custom_spell_store:
         Option<Arc<wow_data::PlayerCreateInfoCustomSpellStoreLikeCpp>>,
     pub player_stats: Option<Arc<wow_data::PlayerStatsStore>>,
+    pub item_bonus_db2_store: Option<Arc<wow_data::ItemBonusDb2Store>>,
     pub item_stats_store: Option<Arc<wow_data::ItemStatsStore>>,
     pub durability_costs_store: Option<Arc<wow_data::DurabilityCostsStore>>,
     pub durability_quality_store: Option<Arc<wow_data::DurabilityQualityStore>>,

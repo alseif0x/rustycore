@@ -1,3 +1,25 @@
+- `#NEXT.R8.ENTITIES.1155` — represented `PlayerData::AvgItemLevel[0]`
+  and `[1]` now consume the represented `BonusData::ItemLevelBonus` branch
+  from item bonus lists when a runtime item carries `ItemData::ItemBonusKey`.
+  Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:1903-1937`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:2150-2192`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.h:68-86`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DBCEnums.h:989-1004`.
+  C++ `Item::GetItemLevel(owner)` adds `bonusData.ItemLevelBonus` after the
+  template/curve item level and before final clamp. Rust now loads
+  `ItemBonus.db2`, passes `ItemBonusDb2Store` through session resources, looks
+  up rows by `ParentItemBonusListID`, sums only `ITEM_BONUS_ITEM_LEVEL`
+  values, and includes that bonus in represented total/equipped average
+  calculations when `DebugItemLevel` is not already present. Coverage:
+  `cargo test -p wow-world represented_condition_avg_item_level_applies_item_bonus_level_like_cpp
+  --lib`. Boundary remains partial: full `BonusData` quality/required-level/
+  appearance/effect state, player-level-to-item-level curves, timewalker fixed
+  level, PvP item-level bonus, owner min/max item-level caps, update-field
+  packet emission/fanout, persistence, live-client/bot manual validation, and
+  full condition-runtime parity remain open.
+
 - `#NEXT.R8.ENTITIES.1154` — represented `PlayerData::AvgItemLevel[0]`
   and `[1]` now resolve item level through a represented
   `Item::GetItemLevel` seam instead of always using the static sparse template

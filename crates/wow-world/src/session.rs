@@ -40,7 +40,9 @@ use wow_ai::{
     select_creature_ai_like_cpp,
 };
 use wow_constants::creature::{CreatureFlagsExtra, CreatureType, CreatureTypeFlags};
-use wow_constants::item::{CurrencyTypes, CurrencyTypesFlags, EnchantmentSlot, ItemFieldFlags2};
+use wow_constants::item::{
+    CurrencyTypes, CurrencyTypesFlags, EnchantmentSlot, ItemBonusType, ItemFieldFlags2,
+};
 use wow_constants::movement::MovementFlag;
 use wow_constants::shared::DifficultyFlags;
 use wow_constants::unit::{
@@ -69,10 +71,11 @@ use wow_data::{
     GameObjectDisplayInfoStore, GameObjectTemplateLifecycleStoreLikeCpp, GlyphPropertiesStore,
     HeirloomEntry, HeirloomStore, HotfixBlobCache, ImportPriceStores, ItemAppearanceStore,
     ItemClassStore, ItemCurrencyCostStore, ItemDisenchantLootStore, ItemEffectStore,
-    ItemExtendedCostStore, ItemLimitCategoryConditionStore, ItemLimitCategoryStore,
-    ItemModifiedAppearanceStore, ItemPriceBaseStore, ItemRandomEnchantmentTemplateStore,
-    ItemRandomPropertiesStore, ItemRandomPropertyTemplateEntry, ItemRandomSuffixStore,
-    ItemSearchNameStore, ItemSpecOverrideStore, ItemStatsStore, ItemStore, LfgDungeonsStore,
+    ItemBonusDb2Store, ItemExtendedCostStore, ItemLimitCategoryConditionStore,
+    ItemLimitCategoryStore, ItemModifiedAppearanceStore, ItemPriceBaseStore,
+    ItemRandomEnchantmentTemplateStore, ItemRandomPropertiesStore, ItemRandomPropertyTemplateEntry,
+    ItemRandomSuffixStore, ItemSearchNameStore, ItemSpecOverrideStore, ItemStatsStore, ItemStore,
+    LfgDungeonsStore,
     LockStore, MapDifficultyStore, MapDifficultyXConditionStore, MapStore, MountCapabilityStore,
     MountDefinitionStoreLikeCpp, MountStore, MountTypeXCapabilityStore, MountXDisplayStore,
     MovieStore, NpcSpellClickStoreLikeCpp, PetDefaultSpellStoreLikeCpp,
@@ -3489,6 +3492,7 @@ pub struct WorldSession {
     player_stats: Option<Arc<PlayerStatsStore>>,
 
     // Item stat modifiers store (item_id → stat bonuses from ItemSparse.db2)
+    item_bonus_db2_store: Option<Arc<ItemBonusDb2Store>>,
     item_stats_store: Option<Arc<ItemStatsStore>>,
     durability_costs_store: Option<Arc<DurabilityCostsStore>>,
     durability_quality_store: Option<Arc<DurabilityQualityStore>>,
@@ -5301,6 +5305,7 @@ impl WorldSession {
             item_limit_category_store: None,
             item_limit_category_condition_store: None,
             player_stats: None,
+            item_bonus_db2_store: None,
             item_stats_store: None,
             durability_costs_store: None,
             durability_quality_store: None,
@@ -14135,6 +14140,10 @@ impl WorldSession {
     }
 
     /// Set the item stats store for this session.
+    pub fn set_item_bonus_db2_store(&mut self, store: Arc<ItemBonusDb2Store>) {
+        self.item_bonus_db2_store = Some(store);
+    }
+
     pub fn set_item_stats_store(&mut self, store: Arc<ItemStatsStore>) {
         self.item_stats_store = Some(store);
     }
@@ -30646,20 +30655,49 @@ impl WorldSession {
         entry_id: u32,
         runtime_item: Option<&Item>,
     ) -> Option<u32> {
-        let template_item_level = u32::from(
+        let template_item_level = i64::from(
             self.item_stats_store
                 .as_ref()
                 .and_then(|store| store.random_property_template(entry_id))?
                 .item_level,
         );
         let runtime_item_level = runtime_item
-            .map(|item| u32::from(item.data().debug_item_level))
+            .map(|item| i64::from(item.data().debug_item_level))
             .filter(|level| *level != 0);
+        let item_level = runtime_item_level.unwrap_or_else(|| {
+            template_item_level + self.represented_item_level_bonus_like_cpp(runtime_item)
+        });
         Some(
-            runtime_item_level
-                .unwrap_or(template_item_level)
-                .clamp(Self::MIN_ITEM_LEVEL_LIKE_CPP, Self::MAX_ITEM_LEVEL_LIKE_CPP),
+            item_level
+                .clamp(
+                    i64::from(Self::MIN_ITEM_LEVEL_LIKE_CPP),
+                    i64::from(Self::MAX_ITEM_LEVEL_LIKE_CPP),
+                )
+                .try_into()
+                .expect("clamped item level fits u32"),
         )
+    }
+
+    fn represented_item_level_bonus_like_cpp(&self, runtime_item: Option<&Item>) -> i64 {
+        let Some(item) = runtime_item else {
+            return 0;
+        };
+        let Some(store) = self.item_bonus_db2_store.as_ref() else {
+            return 0;
+        };
+
+        item.data()
+            .item_bonus_key
+            .bonus_list_ids
+            .iter()
+            .filter_map(|bonus_list_id| u16::try_from(*bonus_list_id).ok())
+            .flat_map(|bonus_list_id| store.entries_for_bonus_list_like_cpp(bonus_list_id))
+            .filter(|bonus| {
+                <ItemBonusType as num_traits::FromPrimitive>::from_u8(bonus.bonus_type)
+                    == Some(ItemBonusType::ItemLevel)
+            })
+            .map(|bonus| i64::from(bonus.value[0]))
+            .sum()
     }
 
     fn represented_avg_total_item_level_maybe_replace_slot_like_cpp(
@@ -48912,13 +48950,14 @@ mod tests {
         ImportPriceShieldEntry, ImportPriceShieldStore, ImportPriceStores, ImportPriceWeaponEntry,
         ImportPriceWeaponStore, ItemAppearanceEntry, ItemAppearanceStore, ItemClassEntry,
         ItemClassStore, ItemCurrencyCostEntry, ItemCurrencyCostStore, ItemDisenchantLootEntry,
-        ItemDisenchantLootStore, ItemEffectEntry, ItemEffectStore, ItemLimitCategoryConditionEntry,
-        ItemLimitCategoryConditionStore, ItemLimitCategoryEntry, ItemLimitCategoryStore,
-        ItemModifiedAppearanceEntry, ItemModifiedAppearanceStore, ItemPriceBaseEntry,
-        ItemPriceBaseStore, ItemRandomPropertyTemplateEntry, ItemRandomSuffixEntry,
-        ItemRandomSuffixStore, ItemRecord, ItemSearchNameEntry, ItemSearchNameStore,
-        ItemSparseTemplateEntry, ItemSpecOverrideEntry, ItemSpecOverrideStore, ItemStatsStore,
-        ItemStore, LockEntry, LockStore, MapDifficultyEntry, MapDifficultyStore,
+        ItemDisenchantLootStore, ItemEffectEntry, ItemEffectStore, ItemBonusDb2Entry,
+        ItemBonusDb2Store, ItemLimitCategoryConditionEntry, ItemLimitCategoryConditionStore,
+        ItemLimitCategoryEntry, ItemLimitCategoryStore, ItemModifiedAppearanceEntry,
+        ItemModifiedAppearanceStore, ItemPriceBaseEntry, ItemPriceBaseStore,
+        ItemRandomPropertyTemplateEntry, ItemRandomSuffixEntry, ItemRandomSuffixStore, ItemRecord,
+        ItemSearchNameEntry, ItemSearchNameStore, ItemSparseTemplateEntry, ItemSpecOverrideEntry,
+        ItemSpecOverrideStore, ItemStatsStore, ItemStore, LockEntry, LockStore, MapDifficultyEntry,
+        MapDifficultyStore,
         PlayerConditionEntry, PlayerConditionStore, SpellItemEnchantmentEntry,
         SpellItemEnchantmentStore, ToyEntry, ToyStore, TransmogSetEntry, TransmogSetItemEntry,
         TransmogSetItemStore,
@@ -48930,7 +48969,7 @@ mod tests {
     };
     use wow_entities::{
         AccessorObjectRef, ApplyEnchantmentDurationAction, ApplyEnchantmentResult,
-        BANK_SLOT_BAG_START, BANK_SLOT_ITEM_START, CharmType, EQUIPMENT_SLOT_CHEST,
+        BANK_SLOT_BAG_START, BANK_SLOT_ITEM_START, CharmType, EQUIPMENT_SLOT_CHEST, ItemBonusKey,
         INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, MapObjectRecord,
         PlayerEnchantDuration, REAGENT_BAG_SLOT_START, SendNewItemInstancePlan,
         SendNewItemModifier, TYPEID_UNIT, UNIT_DATA_BITS, UnitDataUpdate, UnitDataValues,
@@ -51619,6 +51658,104 @@ mod tests {
         assert_eq!(
             context.avg_equipped_item_level, 11.25,
             "C++ UpdateAverageItemLevelEquipped also calls Item::GetItemLevel(owner) for equipped items"
+        );
+    }
+
+    #[test]
+    fn represented_condition_avg_item_level_applies_item_bonus_level_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let chest_item_id = 30_048_u32;
+        let chest_guid = ObjectGuid::create_item(1, 30_048);
+        let player_guid = ObjectGuid::create_player(1, 177);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AverageItemLevelBonusLevel".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        session.set_item_store(Arc::new(ItemStore::from_records([
+            represented_test_item_record_like_cpp(
+                chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+        ])));
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [(
+                    chest_item_id,
+                    sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                )],
+                [(
+                    chest_item_id,
+                    ItemRandomPropertyTemplateEntry {
+                        item_level: 100,
+                        quality: ItemQuality::Epic as i8,
+                        inventory_type: InventoryType::Chest as i8,
+                    },
+                )],
+            ),
+        ));
+        session.set_item_bonus_db2_store(Arc::new(ItemBonusDb2Store::from_entries([
+            ItemBonusDb2Entry {
+                id: 1,
+                value: [55, 0, 0, 0],
+                parent_item_bonus_list_id: 77,
+                bonus_type: ItemBonusType::ItemLevel as u8,
+                order_index: 0,
+            },
+            ItemBonusDb2Entry {
+                id: 2,
+                value: [900, 0, 0, 0],
+                parent_item_bonus_list_id: 78,
+                bonus_type: ItemBonusType::Quality as u8,
+                order_index: 0,
+            },
+        ])));
+        let owner = session.player_guid().unwrap_or(ObjectGuid::EMPTY);
+        let mut chest = session.make_inventory_item_object(
+            chest_guid,
+            chest_item_id,
+            owner,
+            1,
+            0,
+            ItemContext::None,
+            EQUIPMENT_SLOT_CHEST,
+        );
+        chest.set_item_bonus_key(ItemBonusKey {
+            item_id: chest_item_id as i32,
+            bonus_list_ids: vec![77, 78],
+        });
+        session.insert_inventory_item_object(chest);
+        session.insert_inventory_item_like_cpp(
+            EQUIPMENT_SLOT_CHEST,
+            InventoryItem {
+                guid: chest_guid,
+                entry_id: chest_item_id,
+                db_guid: chest_guid.counter() as u64,
+                inventory_type: Some(InventoryType::Chest as u8),
+            },
+        );
+
+        let owned = session.represented_player_condition_context_like_cpp();
+        let context = owned.as_context(&session);
+
+        assert_eq!(
+            context.avg_item_level, 9.6875,
+            "C++ BonusData::ItemLevelBonus is added before PlayerData::AvgItemLevel[0] is computed"
+        );
+        assert_eq!(
+            context.avg_equipped_item_level, 9.6875,
+            "C++ UpdateAverageItemLevelEquipped also consumes Item::GetItemLevel(owner) with item bonus levels"
         );
     }
 

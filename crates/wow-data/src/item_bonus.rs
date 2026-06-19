@@ -268,6 +268,16 @@ impl ItemBonusDb2Store {
             }
         })
     }
+
+    /// C++ item bonus lists are represented by `ItemBonus.ParentItemBonusListID`.
+    pub fn entries_for_bonus_list_like_cpp(
+        &self,
+        bonus_list_id: u16,
+    ) -> impl Iterator<Item = &ItemBonusDb2Entry> {
+        self.entries
+            .values()
+            .filter(move |entry| entry.parent_item_bonus_list_id == bonus_list_id)
+    }
 }
 
 impl ItemBonusListLevelDeltaStore {
