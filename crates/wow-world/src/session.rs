@@ -17782,6 +17782,13 @@ impl WorldSession {
             .unwrap_or(0)
     }
 
+    pub(crate) fn first_spell_in_chain_like_cpp(&self, spell_id: u32) -> u32 {
+        self.spell_chain_store
+            .as_ref()
+            .map(|store| store.first_spell_in_chain_like_cpp(spell_id))
+            .unwrap_or(spell_id)
+    }
+
     pub(crate) fn prev_spell_in_chain_like_cpp(&self, spell_id: u32) -> u32 {
         self.spell_chain_store
             .as_ref()
@@ -28886,6 +28893,63 @@ impl WorldSession {
         self.set_player_skill_records_like_cpp(skill_records);
     }
 
+    fn player_skill_max_value_like_cpp(&self, skill_id: u16) -> u16 {
+        self.player_skill_records_like_cpp()
+            .get(&skill_id)
+            .map(|skill| skill.max)
+            .unwrap_or(0)
+    }
+
+    fn previous_spell_learn_skill_like_cpp(
+        &self,
+        mut prev_spell: u32,
+    ) -> Option<SpellLearnSkillNodeLikeCpp> {
+        let mut prev_skill = self.spell_learn_skill_like_cpp(prev_spell).copied();
+        while prev_skill.is_none() && prev_spell != 0 {
+            prev_spell = self.prev_spell_in_chain_like_cpp(prev_spell);
+            let first_spell_id = self.first_spell_in_chain_like_cpp(prev_spell);
+            prev_skill = self.spell_learn_skill_like_cpp(first_spell_id).copied();
+        }
+        prev_skill
+    }
+
+    fn downgrade_represented_spell_learn_skill_like_cpp(
+        &mut self,
+        learned_skill: SpellLearnSkillNodeLikeCpp,
+        current_spell_id: u32,
+    ) {
+        let prev_spell = self.prev_spell_in_chain_like_cpp(current_spell_id);
+        if prev_spell == 0 {
+            self.set_represented_player_skill_like_cpp(learned_skill.skill, 0, 0);
+            return;
+        }
+
+        let Some(prev_skill) = self.previous_spell_learn_skill_like_cpp(prev_spell) else {
+            self.set_represented_player_skill_like_cpp(learned_skill.skill, 0, 0);
+            return;
+        };
+
+        if prev_skill.maxvalue == 0 {
+            return;
+        }
+
+        let mut skill_value = self.player_skill_value_like_cpp(prev_skill.skill);
+        let mut skill_max_value = self.player_skill_max_value_like_cpp(prev_skill.skill);
+        let new_skill_max_value = prev_skill.maxvalue;
+
+        if skill_value > prev_skill.value {
+            skill_value = prev_skill.value;
+        }
+        if skill_max_value > new_skill_max_value {
+            skill_max_value = new_skill_max_value;
+        }
+        if skill_value > new_skill_max_value {
+            skill_value = new_skill_max_value;
+        }
+
+        self.set_represented_player_skill_like_cpp(prev_skill.skill, skill_value, skill_max_value);
+    }
+
     pub(crate) fn learn_known_spell_like_cpp(&mut self, spell_id: i32) {
         if !self.known_spells.contains(&spell_id) {
             self.known_spells.push(spell_id);
@@ -28962,9 +29026,10 @@ impl WorldSession {
         if let Ok(current_spell_id) = u32::try_from(spell_id) {
             if let Some(learned_skill) = self.spell_learn_skill_like_cpp(current_spell_id).copied()
             {
-                if self.prev_spell_in_chain_like_cpp(current_spell_id) == 0 {
-                    self.set_represented_player_skill_like_cpp(learned_skill.skill, 0, 0);
-                }
+                self.downgrade_represented_spell_learn_skill_like_cpp(
+                    learned_skill,
+                    current_spell_id,
+                );
             }
 
             let learned_spells: Vec<SpellLearnSpellNodeLikeCpp> = self
@@ -48318,6 +48383,13 @@ mod tests {
     }
 
     #[test]
+    fn first_spell_in_chain_returns_input_without_store_like_cpp() {
+        let (session, _, _) = make_session();
+
+        assert_eq!(session.first_spell_in_chain_like_cpp(10), 10);
+    }
+
+    #[test]
     fn remove_known_spell_removes_non_talent_higher_ranks_like_cpp() {
         let (mut session, _, _) = make_session();
         session.set_spell_chain_store(Arc::new(
@@ -48553,6 +48625,113 @@ mod tests {
             skill_insert.params()[3],
             wow_database::SqlParam::U16(0)
         ));
+    }
+
+    #[test]
+    fn remove_known_spell_downgrades_to_previous_learned_skill_with_explicit_max_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_spell_chain_store(Arc::new(
+            wow_data::SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(
+                [wow_data::SpellRankEdgeLikeCpp {
+                    spell_id: 20,
+                    supercedes_spell_id: 10,
+                }],
+                |_| true,
+            ),
+        ));
+        session.set_spell_learn_skill_store(Arc::new(wow_data::SpellLearnSkillStoreLikeCpp {
+            skill_by_spell_id: BTreeMap::from([
+                (
+                    10,
+                    wow_data::SpellLearnSkillNodeLikeCpp {
+                        skill: 755,
+                        step: 1,
+                        value: 75,
+                        maxvalue: 75,
+                    },
+                ),
+                (
+                    20,
+                    wow_data::SpellLearnSkillNodeLikeCpp {
+                        skill: 755,
+                        step: 2,
+                        value: 150,
+                        maxvalue: 150,
+                    },
+                ),
+            ]),
+        }));
+        session.set_player_skill_records_like_cpp(HashMap::from([(
+            755,
+            RepresentedPlayerSkillLikeCpp {
+                skill_id: 755,
+                value: 180,
+                max: 225,
+                profession_slot: 0,
+            },
+        )]));
+        session.set_known_spells_like_cpp(vec![20]);
+
+        session.remove_known_spell_like_cpp(20);
+
+        assert_eq!(
+            session.player_skill_records_like_cpp().get(&755),
+            Some(&RepresentedPlayerSkillLikeCpp {
+                skill_id: 755,
+                value: 75,
+                max: 75,
+                profession_slot: 0,
+            }),
+            "C++ clamps GetPureSkillValue/GetPureMaxSkillValue to the previous SpellLearnSkill explicit value/maxvalue before SetSkill"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_resets_skill_when_previous_learned_skill_missing_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_spell_chain_store(Arc::new(
+            wow_data::SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(
+                [wow_data::SpellRankEdgeLikeCpp {
+                    spell_id: 20,
+                    supercedes_spell_id: 10,
+                }],
+                |_| true,
+            ),
+        ));
+        session.set_spell_learn_skill_store(Arc::new(wow_data::SpellLearnSkillStoreLikeCpp {
+            skill_by_spell_id: BTreeMap::from([(
+                20,
+                wow_data::SpellLearnSkillNodeLikeCpp {
+                    skill: 755,
+                    step: 2,
+                    value: 150,
+                    maxvalue: 150,
+                },
+            )]),
+        }));
+        session.set_player_skill_records_like_cpp(HashMap::from([(
+            755,
+            RepresentedPlayerSkillLikeCpp {
+                skill_id: 755,
+                value: 150,
+                max: 225,
+                profession_slot: 0,
+            },
+        )]));
+        session.set_known_spells_like_cpp(vec![20]);
+
+        session.remove_known_spell_like_cpp(20);
+
+        assert_eq!(
+            session.player_skill_records_like_cpp().get(&755),
+            Some(&RepresentedPlayerSkillLikeCpp {
+                skill_id: 755,
+                value: 0,
+                max: 0,
+                profession_slot: 0,
+            }),
+            "C++ removes the current learned skill when no previous SpellLearnSkill setting is found"
+        );
     }
 
     #[test]

@@ -1,3 +1,26 @@
+- `#NEXT.R8.ENTITIES.1121` — represented `Player::RemoveSpell` now handles
+  the C++ previous-skill branch for higher-rank `SpellLearnSkill` nodes when
+  the previous learned skill has an explicit `maxvalue`: Rust resolves
+  `prevSkill` through `GetPrevSpellInChain` / `GetFirstSpellInChain`, resets
+  the current learned skill if no previous setting is found, and otherwise
+  clamps represented skill value/max to `prevSkill->value` and
+  `prevSkill->maxvalue` before writing the represented skill row (not
+  manual-test-ready, not full `SkillRaceClassInfo` parity). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3305-3367`.
+  Coverage planned for this slice: `cargo fmt --all`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  remove_known_spell_ --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  first_spell_in_chain_returns_input_without_store_like_cpp --lib`;
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p
+  world-server`; `cargo fmt --all --check`; and `git diff --check`.
+  Boundary remains partial: the `prevSkill->maxvalue == 0` branch still needs
+  `SkillRaceClassInfo`, `GetSkillRangeType`, `SkillTiers`, and
+  `GetMaxSkillValueForLevel`; skill-step update-field parity, profession point
+  updates, pet aura removal, full aura ownership, previous-rank activation,
+  logout DB persistence, live-client/bot/manual validation, and full
+  `Player::RemoveSpell` parity remain open.
+
 - `#NEXT.R8.ENTITIES.1120` — represented `Player::RemoveSpell` now handles
   the first-rank `SpellLearnSkill` branch by resetting the represented skill
   row to value/max `0` when `GetPrevSpellInChain(spell_id) == 0`, matching the
@@ -14,11 +37,13 @@
   prev_spell_in_chain_returns_zero_without_store_like_cpp --lib`;
   `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p
   world-server`; `cargo fmt --all --check`; and `git diff --check`.
-  Boundary remains partial: higher-rank `SpellLearnSkill` downgrade through
-  `SkillRaceClassInfo`, `SkillTiers`, and `GetMaxSkillValueForLevel`,
-  profession point updates, pet aura removal, full aura ownership,
-  previous-rank activation, logout DB persistence, live-client/bot/manual
-  validation, and full `Player::RemoveSpell` parity remain open.
+  Boundary remains partial: previous-skill lookup and explicit-max downgrade
+  are closed by `#NEXT.R8.ENTITIES.1121`; the `prevSkill->maxvalue == 0`
+  branch still needs `SkillRaceClassInfo`, `SkillTiers`, and
+  `GetMaxSkillValueForLevel`; profession point updates, pet aura removal, full
+  aura ownership, previous-rank activation, logout DB persistence,
+  live-client/bot/manual validation, and full `Player::RemoveSpell` parity
+  remain open.
 
 - `#NEXT.R8.ENTITIES.1119` — represented `Player::RemoveSpell` now removes
   spells learned by the removed spell through
