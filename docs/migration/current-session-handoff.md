@@ -1,3 +1,25 @@
+- `#NEXT.R8.ENTITIES.1157` — represented `PlayerData::AvgItemLevel[0]`
+  and `[1]` now consume the represented PvP item-level bonus branch of C++
+  `Item::GetItemLevel(Player const*)` when represented
+  `Player::IsUsingPvpItemLevels()` is active. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:1891-1937`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28744-28755`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:2515-2516`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Stores.cpp:2549-2556`.
+  C++ stores PvP item bonuses in `DB2Manager::_pvpItemBonus` keyed by
+  `PVPItem.ItemID`; Rust now loads `PVPItem.db2`, indexes it by item id,
+  passes `PvpItemStore` through session resources, and applies
+  `item_level_delta` after `BonusData::ItemLevelBonus` and before min/max caps,
+  while preserving `itemLevelBeforeUpgrades` as the min-cutoff source. Coverage:
+  `cargo test -p wow-data pvp_item_store_bonus_lookup_matches_cpp_item_id_map
+  --lib` and `cargo test -p wow-world represented_item_level --lib`.
+  Boundary remains partial: automatic `UpdateItemLevelAreaBasedScaling` map/PvP
+  activation, player-level-to-item-level curves, timewalker fixed level, real
+  update-field propagation, packet emission/fanout, persistence,
+  live-client/bot manual validation, and full condition-runtime parity remain
+  open.
+
 - `#NEXT.R8.ENTITIES.1156` — represented `PlayerData::AvgItemLevel[0]`
   and `[1]` now apply the represented owner item-level caps consumed by
   C++ `Item::GetItemLevel(Player const*)`: `MinItemLevel`,

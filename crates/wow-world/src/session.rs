@@ -83,7 +83,7 @@ use wow_data::{
     PlayerConditionContextLikeCpp, PlayerConditionCountLikeCpp, PlayerConditionPartyStatusLikeCpp,
     PlayerConditionQuestKillLikeCpp, PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp,
     PlayerConditionStore, PlayerCreateInfoCastSpellStoreLikeCpp,
-    PlayerCreateInfoCustomSpellStoreLikeCpp, PlayerStatsStore, RandPropPointsStore,
+    PlayerCreateInfoCustomSpellStoreLikeCpp, PlayerStatsStore, PvpItemStore, RandPropPointsStore,
     ScriptIdLikeCpp, ScriptNameInternerLikeCpp, ServersideSpellInfoLikeCpp,
     ServersideSpellStoreLikeCpp, SkillLineStore, SkillRangeTypeLikeCpp, SkillStore,
     SkillTiersStoreLikeCpp, SpellAreaLikeCpp, SpellAreaStoreLikeCpp, SpellAuraOptionsStore,
@@ -3490,9 +3490,11 @@ pub struct WorldSession {
     // Player level stats store (race/class/level → base stats)
     player_stats: Option<Arc<PlayerStatsStore>>,
     represented_item_level_caps_like_cpp: RepresentedItemLevelCapsLikeCpp,
+    represented_using_pvp_item_levels_like_cpp: bool,
 
     // Item stat modifiers store (item_id → stat bonuses from ItemSparse.db2)
     item_bonus_db2_store: Option<Arc<ItemBonusDb2Store>>,
+    pvp_item_store: Option<Arc<PvpItemStore>>,
     item_stats_store: Option<Arc<ItemStatsStore>>,
     durability_costs_store: Option<Arc<DurabilityCostsStore>>,
     durability_quality_store: Option<Arc<DurabilityQualityStore>>,
@@ -5315,7 +5317,9 @@ impl WorldSession {
             item_limit_category_condition_store: None,
             player_stats: None,
             represented_item_level_caps_like_cpp: RepresentedItemLevelCapsLikeCpp::default(),
+            represented_using_pvp_item_levels_like_cpp: false,
             item_bonus_db2_store: None,
+            pvp_item_store: None,
             item_stats_store: None,
             durability_costs_store: None,
             durability_quality_store: None,
@@ -14154,6 +14158,10 @@ impl WorldSession {
         self.item_bonus_db2_store = Some(store);
     }
 
+    pub fn set_pvp_item_store(&mut self, store: Arc<PvpItemStore>) {
+        self.pvp_item_store = Some(store);
+    }
+
     pub fn set_item_stats_store(&mut self, store: Arc<ItemStatsStore>) {
         self.item_stats_store = Some(store);
     }
@@ -14163,6 +14171,10 @@ impl WorldSession {
         caps: RepresentedItemLevelCapsLikeCpp,
     ) {
         self.represented_item_level_caps_like_cpp = caps;
+    }
+
+    pub(crate) fn set_represented_using_pvp_item_levels_like_cpp(&mut self, active: bool) {
+        self.represented_using_pvp_item_levels_like_cpp = active;
     }
 
     pub fn set_item_spec_override_store(&mut self, store: Arc<ItemSpecOverrideStore>) {
@@ -30683,6 +30695,11 @@ impl WorldSession {
             let item_level =
                 template_item_level + self.represented_item_level_bonus_like_cpp(runtime_item);
             let item_level_before_upgrades = item_level;
+            let mut item_level = item_level;
+            if self.represented_using_pvp_item_levels_like_cpp {
+                item_level += i64::from(self.represented_pvp_item_level_bonus_like_cpp(entry_id));
+            }
+
             let inventory_type = sparse_template
                 .map(|template| template.inventory_type)
                 .unwrap_or(random_property_template.inventory_type);
@@ -30694,7 +30711,6 @@ impl WorldSession {
             }
 
             let caps = self.represented_item_level_caps_like_cpp;
-            let mut item_level = item_level;
             if caps.min_item_level != 0
                 && (caps.min_item_level_cutoff == 0
                     || item_level_before_upgrades >= i64::from(caps.min_item_level_cutoff))
@@ -30747,6 +30763,13 @@ impl WorldSession {
             })
             .map(|bonus| i64::from(bonus.value[0]))
             .sum()
+    }
+
+    fn represented_pvp_item_level_bonus_like_cpp(&self, entry_id: u32) -> u8 {
+        self.pvp_item_store
+            .as_ref()
+            .map(|store| store.item_level_bonus_like_cpp(entry_id))
+            .unwrap_or(0)
     }
 
     fn represented_avg_total_item_level_maybe_replace_slot_like_cpp(
@@ -48991,6 +49014,7 @@ mod tests {
         SpellItemEnchantmentFlags, UnitDynFlags, UnitFlags,
     };
     use wow_core::{Position, guid::HighGuid};
+    use wow_data::PvpItemEntry;
     use wow_data::{
         ChrSpecializationEntry, ChrSpecializationStore, Condition, DifficultyEntry,
         DifficultyStore, DurabilityCostsEntry, DurabilityCostsStore, DurabilityQualityEntry,
@@ -51947,6 +51971,123 @@ mod tests {
             session.represented_item_level_like_cpp(item_id, None),
             Some(200),
             "C++ clears maxItemLevel when ITEM_FLAG3_IGNORE_ITEM_LEVEL_CAP_IN_PVP is present"
+        );
+    }
+
+    #[test]
+    fn represented_item_level_applies_pvp_item_level_bonus_when_active_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_054_u32;
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [(
+                    item_id,
+                    sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                )],
+                [(
+                    item_id,
+                    ItemRandomPropertyTemplateEntry {
+                        item_level: 100,
+                        quality: ItemQuality::Epic as i8,
+                        inventory_type: InventoryType::Chest as i8,
+                    },
+                )],
+            ),
+        ));
+        session.set_pvp_item_store(Arc::new(PvpItemStore::from_entries([PvpItemEntry {
+            id: 1,
+            item_id: item_id as i32,
+            item_level_delta: 25,
+        }])));
+
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(100),
+            "C++ only adds GetPvpItemLevelBonus when Player::IsUsingPvpItemLevels is true"
+        );
+
+        session.set_represented_using_pvp_item_levels_like_cpp(true);
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(125),
+            "C++ Item::GetItemLevel(owner) adds DB2Manager::GetPvpItemLevelBonus after BonusData::ItemLevelBonus"
+        );
+    }
+
+    #[test]
+    fn represented_item_level_applies_max_cap_after_pvp_bonus_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_055_u32;
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [(
+                    item_id,
+                    sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                )],
+                [(
+                    item_id,
+                    ItemRandomPropertyTemplateEntry {
+                        item_level: 100,
+                        quality: ItemQuality::Epic as i8,
+                        inventory_type: InventoryType::Chest as i8,
+                    },
+                )],
+            ),
+        ));
+        session.set_pvp_item_store(Arc::new(PvpItemStore::from_entries([PvpItemEntry {
+            id: 1,
+            item_id: item_id as i32,
+            item_level_delta: 75,
+        }])));
+        session.set_represented_using_pvp_item_levels_like_cpp(true);
+        session.set_represented_item_level_caps_like_cpp(RepresentedItemLevelCapsLikeCpp {
+            max_item_level: 150,
+            ..Default::default()
+        });
+
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(150),
+            "C++ applies MaxItemLevel after adding the PvP item-level bonus"
+        );
+    }
+
+    #[test]
+    fn represented_item_level_min_cutoff_uses_pre_pvp_item_level_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_056_u32;
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [(
+                    item_id,
+                    sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                )],
+                [(
+                    item_id,
+                    ItemRandomPropertyTemplateEntry {
+                        item_level: 100,
+                        quality: ItemQuality::Epic as i8,
+                        inventory_type: InventoryType::Chest as i8,
+                    },
+                )],
+            ),
+        ));
+        session.set_pvp_item_store(Arc::new(PvpItemStore::from_entries([PvpItemEntry {
+            id: 1,
+            item_id: item_id as i32,
+            item_level_delta: 50,
+        }])));
+        session.set_represented_using_pvp_item_levels_like_cpp(true);
+        session.set_represented_item_level_caps_like_cpp(RepresentedItemLevelCapsLikeCpp {
+            min_item_level_cutoff: 120,
+            min_item_level: 200,
+            ..Default::default()
+        });
+
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(150),
+            "C++ stores itemLevelBeforeUpgrades before PvP bonus and checks MinItemLevelCutoff against that value"
         );
     }
 

@@ -566,6 +566,51 @@ pub struct PvpItemEntry {
     pub item_level_delta: u8,
 }
 
+pub struct PvpItemStore {
+    entries: HashMap<u32, PvpItemEntry>,
+    item_level_bonus_by_item_id: HashMap<i32, u8>,
+}
+
+impl PvpItemStore {
+    pub fn from_entries(entries: impl IntoIterator<Item = PvpItemEntry>) -> Self {
+        let mut by_id = HashMap::new();
+        let mut item_level_bonus_by_item_id = HashMap::new();
+        for entry in entries {
+            item_level_bonus_by_item_id.insert(entry.item_id, entry.item_level_delta);
+            by_id.insert(entry.id, entry);
+        }
+
+        Self {
+            entries: by_id,
+            item_level_bonus_by_item_id,
+        }
+    }
+
+    pub fn get(&self, id: u32) -> Option<&PvpItemEntry> {
+        self.entries.get(&id)
+    }
+
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    /// C++ `DB2Manager::GetPvpItemLevelBonus(itemId)`.
+    pub fn item_level_bonus_like_cpp(&self, item_id: u32) -> u8 {
+        let Ok(item_id) = i32::try_from(item_id) else {
+            return 0;
+        };
+
+        self.item_level_bonus_by_item_id
+            .get(&item_id)
+            .copied()
+            .unwrap_or(0)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrestigeLevelInfoEntry {
     pub id: u32,
@@ -743,7 +788,6 @@ db2_store!(NamesReservedStore, NamesReservedEntry);
 db2_store!(NamesReservedLocaleStore, NamesReservedLocaleEntry);
 db2_store!(OverrideSpellDataStore, OverrideSpellDataEntry);
 db2_store!(PvpDifficultyStore, PvpDifficultyEntry);
-db2_store!(PvpItemStore, PvpItemEntry);
 db2_store!(PrestigeLevelInfoStore, PrestigeLevelInfoEntry);
 db2_store!(ScenarioStore, ScenarioEntry);
 db2_store!(SceneScriptStore, SceneScriptEntry);
@@ -1833,7 +1877,15 @@ impl_from_entries!(NamesReservedStore, NamesReservedEntry);
 impl_from_entries!(NamesReservedLocaleStore, NamesReservedLocaleEntry);
 impl_from_entries!(OverrideSpellDataStore, OverrideSpellDataEntry);
 impl_from_entries!(PvpDifficultyStore, PvpDifficultyEntry);
-impl_from_entries!(PvpItemStore, PvpItemEntry);
+impl FromEntries<PvpItemEntry> for PvpItemStore {
+    fn from_entries(entries: impl IntoIterator<Item = PvpItemEntry>) -> Self {
+        Self::from_entries(entries)
+    }
+
+    fn len(&self) -> usize {
+        self.len()
+    }
+}
 impl_from_entries!(PrestigeLevelInfoStore, PrestigeLevelInfoEntry);
 impl_from_entries!(ScenarioStore, ScenarioEntry);
 impl_from_entries!(SceneScriptStore, SceneScriptEntry);
@@ -1973,5 +2025,34 @@ mod tests {
         load_if_exists!("SummonProperties.db2", SummonPropertiesStore);
         load_if_exists!("TactKey.db2", TactKeyStore);
         load_if_exists!("TotemCategory.db2", TotemCategoryStore);
+    }
+
+    #[test]
+    fn pvp_item_store_bonus_lookup_matches_cpp_item_id_map() {
+        let store = PvpItemStore::from_entries([
+            PvpItemEntry {
+                id: 10,
+                item_id: 1_000,
+                item_level_delta: 7,
+            },
+            PvpItemEntry {
+                id: 11,
+                item_id: 2_000,
+                item_level_delta: 13,
+            },
+            PvpItemEntry {
+                id: 12,
+                item_id: 1_000,
+                item_level_delta: 21,
+            },
+        ]);
+
+        assert_eq!(
+            store.item_level_bonus_like_cpp(1_000),
+            21,
+            "C++ DB2Manager::_pvpItemBonus is keyed by PVPItem.ItemID and later duplicate rows overwrite earlier ones"
+        );
+        assert_eq!(store.item_level_bonus_like_cpp(2_000), 13);
+        assert_eq!(store.item_level_bonus_like_cpp(9_999), 0);
     }
 }
