@@ -1,3 +1,24 @@
+- `#NEXT.R8.ENTITIES.1122` — represented `Player::RemoveSpell` now handles
+  the C++ previous-skill branch where `prevSkill->maxvalue == 0` by wiring
+  `SkillTiersStoreLikeCpp` into live sessions, resolving `SkillRaceClassInfo`
+  by skill/race/class, mirroring `GetSkillRangeType` for LANGUAGE, LEVEL,
+  MONO, RANK, and NONE, applying `GetMaxSkillValueForLevel()` as `level * 5`,
+  respecting `SKILL_FLAG_ALWAYS_MAX_VALUE`, and preserving the exact C++ clamp
+  order. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3321-3356`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:9006-9026`,
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Stores.cpp:2583-2596`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.h:891`,
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DBCEnums.h:1869-1872`,
+  and `SharedDefines.h` skill constants. Note: C++ LANGUAGE range sets value to
+  300 but does not raise an already lower max; Rust preserves that oddity for
+  fidelity. Coverage: `cargo fmt`; `cargo test -p wow-data skill_tier --lib`;
+  `cargo test -p wow-world remove_known_spell --lib`; `cargo check -p
+  world-server`; `git diff --check`. Boundary remains partial: skill step
+  update-field parity, profession point updates, pet aura removal, full aura
+  ownership, previous-rank activation, logout DB persistence, live-client/bot
+  manual validation, and full `Player::RemoveSpell` parity remain open.
+
 - `#NEXT.R8.ENTITIES.1121` — represented `Player::RemoveSpell` now handles
   the C++ previous-skill branch for higher-rank `SpellLearnSkill` nodes when
   the previous learned skill has an explicit `maxvalue`: Rust resolves
@@ -5,7 +26,8 @@
   the current learned skill if no previous setting is found, and otherwise
   clamps represented skill value/max to `prevSkill->value` and
   `prevSkill->maxvalue` before writing the represented skill row (not
-  manual-test-ready, not full `SkillRaceClassInfo` parity). Source of truth:
+  manual-test-ready; the `prevSkill->maxvalue == 0` SkillRaceClassInfo branch
+  is closed separately by `#NEXT.R8.ENTITIES.1122`). Source of truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3305-3367`.
   Coverage planned for this slice: `cargo fmt --all`; focused
   `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
@@ -14,10 +36,9 @@
   first_spell_in_chain_returns_input_without_store_like_cpp --lib`;
   `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p
   world-server`; `cargo fmt --all --check`; and `git diff --check`.
-  Boundary remains partial: the `prevSkill->maxvalue == 0` branch still needs
-  `SkillRaceClassInfo`, `GetSkillRangeType`, `SkillTiers`, and
-  `GetMaxSkillValueForLevel`; skill-step update-field parity, profession point
-  updates, pet aura removal, full aura ownership, previous-rank activation,
+  Boundary remains partial: the `prevSkill->maxvalue == 0` branch is
+  closed by `#NEXT.R8.ENTITIES.1122`; skill-step update-field parity,
+  profession point updates, pet aura removal, full aura ownership, previous-rank activation,
   logout DB persistence, live-client/bot/manual validation, and full
   `Player::RemoveSpell` parity remain open.
 

@@ -232,6 +232,7 @@ pub struct SessionResources {
     pub hotfix_blob_cache: Option<Arc<wow_data::HotfixBlobCache>>,
     pub skill_store: Option<Arc<wow_data::SkillStore>>,
     pub skill_line_store: Option<Arc<wow_data::SkillLineStore>>,
+    pub skill_tiers_store: Option<Arc<wow_data::SkillTiersStoreLikeCpp>>,
     pub talent_store: Option<Arc<wow_data::TalentStore>>,
     pub talent_tab_store: Option<Arc<wow_data::TalentTabStore>>,
     pub num_talents_at_level_store:

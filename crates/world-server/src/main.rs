@@ -1321,6 +1321,11 @@ async fn main() -> Result<ExitCode> {
         wow_data::SkillLineStore::load(&data_dir, &locale)
             .context("Failed to load SkillLine.db2")?,
     );
+    let skill_tiers_store = Arc::new(
+        wow_data::SkillTiersStoreLikeCpp::load_like_cpp(world_db.as_ref())
+            .await
+            .context("Failed to load world.skill_tiers")?,
+    );
     let talent_store = Arc::new(
         wow_data::TalentStore::load(&data_dir, &locale).context("Failed to load Talent.db2")?,
     );
@@ -4246,6 +4251,7 @@ async fn main() -> Result<ExitCode> {
         hotfix_blob_cache: Some(Arc::clone(&hotfix_blob_cache)),
         skill_store: Some(Arc::clone(&skill_store)),
         skill_line_store: Some(Arc::clone(&skill_line_store)),
+        skill_tiers_store: Some(Arc::clone(&skill_tiers_store)),
         talent_store: Some(Arc::clone(&talent_store)),
         talent_tab_store: Some(Arc::clone(&talent_tab_store)),
         num_talents_at_level_store: Some(Arc::clone(&num_talents_at_level_store)),
@@ -10739,6 +10745,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.skill_line_store {
         session.set_skill_line_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.skill_tiers_store {
+        session.set_skill_tiers_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.talent_store {
         session.set_talent_store(Arc::clone(store));

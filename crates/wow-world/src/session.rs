@@ -81,18 +81,18 @@ use wow_data::{
     PlayerConditionStore, PlayerCreateInfoCastSpellStoreLikeCpp,
     PlayerCreateInfoCustomSpellStoreLikeCpp, PlayerStatsStore, RandPropPointsStore,
     ScriptIdLikeCpp, ScriptNameInternerLikeCpp, ServersideSpellInfoLikeCpp,
-    ServersideSpellStoreLikeCpp, SkillLineStore, SkillStore, SpellAreaLikeCpp,
-    SpellAreaStoreLikeCpp, SpellAuraOptionsStore, SpellCategoryStore, SpellChainStoreLikeCpp,
-    SpellCustomAttributeStoreLikeCpp, SpellDurationStore, SpellEnchantProcEntryLikeCpp,
-    SpellEnchantProcStoreLikeCpp, SpellGroupStackRuleLikeCpp, SpellGroupStackRuleStoreLikeCpp,
-    SpellGroupStoreLikeCpp, SpellItemEnchantmentStore, SpellLearnSkillNodeLikeCpp,
-    SpellLearnSkillStoreLikeCpp, SpellLearnSpellNodeLikeCpp, SpellLearnSpellStoreLikeCpp,
-    SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp, SpellMiscStore, SpellPetAuraStoreLikeCpp,
-    SpellProcEntryLikeCpp, SpellProcStoreLikeCpp, SpellRadiusStore, SpellRangeStore,
-    SpellRequiredStoreLikeCpp, SpellShapeshiftFormStore, SpellStore,
-    SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp,
-    SpellTotemModelStoreLikeCpp, SummonPropertiesEntry, TalentStore, TalentTabStore, ToyStore,
-    TransmogSetEntry, TransmogSetItemStore, TrinityStringStoreLikeCpp,
+    ServersideSpellStoreLikeCpp, SkillLineStore, SkillRangeTypeLikeCpp, SkillStore,
+    SkillTiersStoreLikeCpp, SpellAreaLikeCpp, SpellAreaStoreLikeCpp, SpellAuraOptionsStore,
+    SpellCategoryStore, SpellChainStoreLikeCpp, SpellCustomAttributeStoreLikeCpp,
+    SpellDurationStore, SpellEnchantProcEntryLikeCpp, SpellEnchantProcStoreLikeCpp,
+    SpellGroupStackRuleLikeCpp, SpellGroupStackRuleStoreLikeCpp, SpellGroupStoreLikeCpp,
+    SpellItemEnchantmentStore, SpellLearnSkillNodeLikeCpp, SpellLearnSkillStoreLikeCpp,
+    SpellLearnSpellNodeLikeCpp, SpellLearnSpellStoreLikeCpp, SpellLinkedStoreLikeCpp,
+    SpellLinkedTypeLikeCpp, SpellMiscStore, SpellPetAuraStoreLikeCpp, SpellProcEntryLikeCpp,
+    SpellProcStoreLikeCpp, SpellRadiusStore, SpellRangeStore, SpellRequiredStoreLikeCpp,
+    SpellShapeshiftFormStore, SpellStore, SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp,
+    SpellThreatStoreLikeCpp, SpellTotemModelStoreLikeCpp, SummonPropertiesEntry, TalentStore,
+    TalentTabStore, ToyStore, TransmogSetEntry, TransmogSetItemStore, TrinityStringStoreLikeCpp,
     VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore,
     VehicleTemplateStoreLikeCpp, calculate_battle_pet_stats_like_cpp,
     is_player_meeting_condition_like_cpp,
@@ -3527,6 +3527,9 @@ pub struct WorldSession {
     // SkillLine.db2 store for C++ parent/expansion skill resolution.
     skill_line_store: Option<Arc<SkillLineStore>>,
 
+    // C++ ObjectMgr::_skillTiers loaded from world.skill_tiers.
+    skill_tiers_store: Option<Arc<SkillTiersStoreLikeCpp>>,
+
     // Area table store (area hierarchy + mount flags)
     area_table_store: Option<Arc<AreaTableStore>>,
 
@@ -5257,6 +5260,7 @@ impl WorldSession {
             hotfix_blob_cache: None,
             skill_store: None,
             skill_line_store: None,
+            skill_tiers_store: None,
             area_table_store: None,
             fishing_base_skill_store: None,
             area_trigger_store: None,
@@ -17724,6 +17728,14 @@ impl WorldSession {
         self.skill_line_store.as_ref()
     }
 
+    pub fn set_skill_tiers_store(&mut self, store: Arc<SkillTiersStoreLikeCpp>) {
+        self.skill_tiers_store = Some(store);
+    }
+
+    pub(crate) fn skill_tiers_store(&self) -> Option<&Arc<SkillTiersStoreLikeCpp>> {
+        self.skill_tiers_store.as_ref()
+    }
+
     /// Set the spell store for this session.
     pub fn set_spell_store(&mut self, store: Arc<SpellStore>) {
         self.spell_store = Some(store);
@@ -28900,6 +28912,10 @@ impl WorldSession {
             .unwrap_or(0)
     }
 
+    fn max_skill_value_for_level_like_cpp(&self) -> u16 {
+        u16::from(self.player_level_like_cpp()).saturating_mul(5)
+    }
+
     fn previous_spell_learn_skill_like_cpp(
         &self,
         mut prev_spell: u32,
@@ -28929,17 +28945,62 @@ impl WorldSession {
             return;
         };
 
-        if prev_skill.maxvalue == 0 {
-            return;
-        }
-
         let mut skill_value = self.player_skill_value_like_cpp(prev_skill.skill);
         let mut skill_max_value = self.player_skill_max_value_like_cpp(prev_skill.skill);
-        let new_skill_max_value = prev_skill.maxvalue;
+        let mut new_skill_max_value = prev_skill.maxvalue;
 
-        if skill_value > prev_skill.value {
+        if new_skill_max_value == 0 {
+            if let (Some(skill_store), Some(skill_line_store), Some(skill_tiers_store)) = (
+                self.skill_store(),
+                self.skill_line_store(),
+                self.skill_tiers_store(),
+            ) {
+                if let Some(rc_info) = skill_store.skill_race_class_info_like_cpp(
+                    prev_skill.skill,
+                    self.player_race_like_cpp(),
+                    self.player_class_like_cpp(),
+                ) {
+                    match skill_store.skill_range_type_like_cpp(
+                        rc_info,
+                        skill_line_store,
+                        skill_tiers_store,
+                    ) {
+                        SkillRangeTypeLikeCpp::Language => {
+                            skill_value = 300;
+                            new_skill_max_value = 300;
+                        }
+                        SkillRangeTypeLikeCpp::Level => {
+                            new_skill_max_value = self.max_skill_value_for_level_like_cpp();
+                        }
+                        SkillRangeTypeLikeCpp::Mono => {
+                            new_skill_max_value = 1;
+                        }
+                        SkillRangeTypeLikeCpp::Rank => {
+                            if let Some(tier) = u32::try_from(rc_info.skill_tier_id).ok().and_then(
+                                |skill_tier_id| {
+                                    skill_tiers_store.get_skill_tier_like_cpp(skill_tier_id)
+                                },
+                            ) {
+                                new_skill_max_value = tier
+                                    .get_value_for_tier_index_like_cpp(u32::from(
+                                        prev_skill.step.saturating_sub(1),
+                                    ))
+                                    .try_into()
+                                    .unwrap_or(u16::MAX);
+                            }
+                        }
+                        SkillRangeTypeLikeCpp::None => {}
+                    }
+
+                    if rc_info.flags & wow_data::SKILL_FLAG_ALWAYS_MAX_VALUE_LIKE_CPP != 0 {
+                        skill_value = new_skill_max_value;
+                    }
+                }
+            }
+        } else if skill_value > prev_skill.value {
             skill_value = prev_skill.value;
         }
+
         if skill_max_value > new_skill_max_value {
             skill_max_value = new_skill_max_value;
         }
@@ -48052,6 +48113,117 @@ mod tests {
         outcome.store
     }
 
+    fn test_spell_learn_skill_rank_store_like_cpp(
+        skill_id: u16,
+    ) -> wow_data::SpellLearnSkillStoreLikeCpp {
+        wow_data::SpellLearnSkillStoreLikeCpp {
+            skill_by_spell_id: BTreeMap::from([
+                (
+                    10,
+                    wow_data::SpellLearnSkillNodeLikeCpp {
+                        skill: skill_id,
+                        step: 2,
+                        value: 0,
+                        maxvalue: 0,
+                    },
+                ),
+                (
+                    20,
+                    wow_data::SpellLearnSkillNodeLikeCpp {
+                        skill: skill_id,
+                        step: 3,
+                        value: 0,
+                        maxvalue: 0,
+                    },
+                ),
+            ]),
+        }
+    }
+
+    fn test_skill_line_entry_like_cpp(skill_id: u16, category_id: i8) -> wow_data::SkillLineEntry {
+        wow_data::SkillLineEntry {
+            id: u32::from(skill_id),
+            display_name: String::new(),
+            alternate_verb: String::new(),
+            description: String::new(),
+            horde_display_name: String::new(),
+            override_source_info_display_name: String::new(),
+            category_id,
+            spell_icon_file_id: 0,
+            can_link: 0,
+            parent_skill_line_id: 0,
+            parent_tier_index: 0,
+            flags: 0,
+            spell_book_spell_id: 0,
+        }
+    }
+
+    fn test_skill_race_class_info_like_cpp(
+        skill_id: u16,
+        flags: u16,
+        skill_tier_id: i16,
+    ) -> wow_data::SkillRaceClassInfoRecord {
+        wow_data::SkillRaceClassInfoRecord {
+            id: u32::from(skill_id),
+            race_mask: 0,
+            skill_id,
+            class_mask: 0,
+            flags,
+            availability: 0,
+            min_level: 0,
+            skill_tier_id,
+        }
+    }
+
+    fn prepare_remove_spell_skill_range_fixture_like_cpp(
+        session: &mut WorldSession,
+        skill_id: u16,
+        category_id: i8,
+        race_class_flags: u16,
+        skill_tier_id: i16,
+        skill_tiers_store: wow_data::SkillTiersStoreLikeCpp,
+        skill_value: u16,
+        skill_max: u16,
+    ) {
+        session.set_loaded_player_identity_like_cpp(0, 1, 1, 12, 0);
+        session.set_spell_chain_store(Arc::new(
+            wow_data::SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(
+                [wow_data::SpellRankEdgeLikeCpp {
+                    spell_id: 20,
+                    supercedes_spell_id: 10,
+                }],
+                |_| true,
+            ),
+        ));
+        session.set_spell_learn_skill_store(Arc::new(test_spell_learn_skill_rank_store_like_cpp(
+            skill_id,
+        )));
+        session.set_skill_line_store(Arc::new(wow_data::SkillLineStore::from_entries([
+            test_skill_line_entry_like_cpp(skill_id, category_id),
+        ])));
+        session.set_skill_store(Arc::new(
+            wow_data::SkillStore::from_skill_line_abilities_and_race_class_like_cpp(
+                std::iter::empty::<wow_data::SkillLineAbilityRecord>(),
+                [test_skill_race_class_info_like_cpp(
+                    skill_id,
+                    race_class_flags,
+                    skill_tier_id,
+                )],
+            ),
+        ));
+        session.set_skill_tiers_store(Arc::new(skill_tiers_store));
+        session.set_player_skill_records_like_cpp(HashMap::from([(
+            skill_id,
+            RepresentedPlayerSkillLikeCpp {
+                skill_id,
+                value: skill_value,
+                max: skill_max,
+                profession_slot: 0,
+            },
+        )]));
+        session.set_known_spells_like_cpp(vec![20]);
+    }
+
     fn test_spell_learn_spell_store_like_cpp() -> wow_data::SpellLearnSpellStoreLikeCpp {
         let outcome = wow_data::SpellLearnSpellStoreLikeCpp::from_sources_like_cpp(
             [wow_data::SpellLearnSpellSqlRowLikeCpp {
@@ -48731,6 +48903,201 @@ mod tests {
                 profession_slot: 0,
             }),
             "C++ removes the current learned skill when no previous SpellLearnSkill setting is found"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_downgrades_learned_skill_language_range_like_cpp() {
+        let (mut session, _, _) = make_session();
+        prepare_remove_spell_skill_range_fixture_like_cpp(
+            &mut session,
+            777,
+            wow_data::SKILL_CATEGORY_LANGUAGES_LIKE_CPP,
+            0,
+            0,
+            wow_data::SkillTiersStoreLikeCpp::default(),
+            50,
+            75,
+        );
+
+        session.remove_known_spell_like_cpp(20);
+
+        assert_eq!(
+            session.player_skill_records_like_cpp().get(&777),
+            Some(&RepresentedPlayerSkillLikeCpp {
+                skill_id: 777,
+                value: 300,
+                max: 75,
+                profession_slot: 0,
+            }),
+            "C++ GetSkillRangeType LANGUAGE forces value to 300 but only clamps existing max downward, so max is not raised when it was already below 300"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_downgrades_learned_skill_level_range_like_cpp() {
+        let (mut session, _, _) = make_session();
+        prepare_remove_spell_skill_range_fixture_like_cpp(
+            &mut session,
+            778,
+            9,
+            0,
+            0,
+            wow_data::SkillTiersStoreLikeCpp::default(),
+            80,
+            100,
+        );
+
+        session.remove_known_spell_like_cpp(20);
+
+        assert_eq!(
+            session.player_skill_records_like_cpp().get(&778),
+            Some(&RepresentedPlayerSkillLikeCpp {
+                skill_id: 778,
+                value: 60,
+                max: 60,
+                profession_slot: 0,
+            }),
+            "C++ LEVEL range uses GetMaxSkillValueForLevel (level * 5) and then clamps current value/max"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_downgrades_learned_skill_always_max_level_range_like_cpp() {
+        let (mut session, _, _) = make_session();
+        prepare_remove_spell_skill_range_fixture_like_cpp(
+            &mut session,
+            779,
+            9,
+            wow_data::SKILL_FLAG_ALWAYS_MAX_VALUE_LIKE_CPP,
+            0,
+            wow_data::SkillTiersStoreLikeCpp::default(),
+            10,
+            100,
+        );
+
+        session.remove_known_spell_like_cpp(20);
+
+        assert_eq!(
+            session.player_skill_records_like_cpp().get(&779),
+            Some(&RepresentedPlayerSkillLikeCpp {
+                skill_id: 779,
+                value: 60,
+                max: 60,
+                profession_slot: 0,
+            }),
+            "C++ SKILL_FLAG_ALWAYS_MAX_VALUE sets value to the computed max before SetSkill"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_downgrades_learned_skill_mono_range_like_cpp() {
+        let (mut session, _, _) = make_session();
+        prepare_remove_spell_skill_range_fixture_like_cpp(
+            &mut session,
+            780,
+            wow_data::SKILL_CATEGORY_ARMOR_LIKE_CPP,
+            0,
+            0,
+            wow_data::SkillTiersStoreLikeCpp::default(),
+            10,
+            100,
+        );
+
+        session.remove_known_spell_like_cpp(20);
+
+        assert_eq!(
+            session.player_skill_records_like_cpp().get(&780),
+            Some(&RepresentedPlayerSkillLikeCpp {
+                skill_id: 780,
+                value: 1,
+                max: 1,
+                profession_slot: 0,
+            }),
+            "C++ MONO range caps the downgraded learned skill to 1"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_downgrades_learned_skill_rank_range_like_cpp() {
+        let (mut session, _, _) = make_session();
+        prepare_remove_spell_skill_range_fixture_like_cpp(
+            &mut session,
+            781,
+            9,
+            0,
+            12,
+            wow_data::SkillTiersStoreLikeCpp::from_rows_like_cpp([
+                wow_data::SkillTiersRowLikeCpp {
+                    id: 12,
+                    value: [75, 150, 225, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                },
+            ]),
+            200,
+            225,
+        );
+
+        session.remove_known_spell_like_cpp(20);
+
+        assert_eq!(
+            session.player_skill_records_like_cpp().get(&781),
+            Some(&RepresentedPlayerSkillLikeCpp {
+                skill_id: 781,
+                value: 150,
+                max: 150,
+                profession_slot: 0,
+            }),
+            "C++ RANK range resolves SkillTiers[prevSkill.step - 1] when previous SpellLearnSkill maxvalue is 0"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_downgrades_learned_skill_without_race_class_info_to_zero_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_loaded_player_identity_like_cpp(0, 1, 1, 12, 0);
+        session.set_spell_chain_store(Arc::new(
+            wow_data::SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(
+                [wow_data::SpellRankEdgeLikeCpp {
+                    spell_id: 20,
+                    supercedes_spell_id: 10,
+                }],
+                |_| true,
+            ),
+        ));
+        session
+            .set_spell_learn_skill_store(Arc::new(test_spell_learn_skill_rank_store_like_cpp(782)));
+        session.set_skill_line_store(Arc::new(wow_data::SkillLineStore::from_entries([
+            test_skill_line_entry_like_cpp(782, 9),
+        ])));
+        session.set_skill_store(Arc::new(
+            wow_data::SkillStore::from_skill_line_abilities_and_race_class_like_cpp(
+                std::iter::empty::<wow_data::SkillLineAbilityRecord>(),
+                std::iter::empty::<wow_data::SkillRaceClassInfoRecord>(),
+            ),
+        ));
+        session.set_skill_tiers_store(Arc::new(wow_data::SkillTiersStoreLikeCpp::default()));
+        session.set_player_skill_records_like_cpp(HashMap::from([(
+            782,
+            RepresentedPlayerSkillLikeCpp {
+                skill_id: 782,
+                value: 80,
+                max: 100,
+                profession_slot: 0,
+            },
+        )]));
+        session.set_known_spells_like_cpp(vec![20]);
+
+        session.remove_known_spell_like_cpp(20);
+
+        assert_eq!(
+            session.player_skill_records_like_cpp().get(&782),
+            Some(&RepresentedPlayerSkillLikeCpp {
+                skill_id: 782,
+                value: 0,
+                max: 0,
+                profession_slot: 0,
+            }),
+            "C++ leaves new_skill_max_value at 0 when SkillRaceClassInfo is missing, then clamps value/max to 0"
         );
     }
 

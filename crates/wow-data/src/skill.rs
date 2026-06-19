@@ -16,6 +16,7 @@ use tracing::info;
 use wow_database::{WorldDatabase, WorldStatements};
 
 use crate::entities_movement::CreatureFamilyEntry;
+use crate::skill_talent::SkillLineStore;
 use crate::wdc4::Wdc4Reader;
 
 // ── Records ─────────────────────────────────────────────────────────
@@ -40,6 +41,10 @@ pub struct SkillLineAbilityRecord {
 
 /// C++ `SKILL_LINE_ABILITY_REWARDED_FROM_QUEST`.
 pub const SKILL_LINE_ABILITY_REWARDED_FROM_QUEST_LIKE_CPP: i8 = 4;
+pub const SKILL_FLAG_ALWAYS_MAX_VALUE_LIKE_CPP: u16 = 0x10;
+pub const SKILL_RUNEFORGING_LIKE_CPP: u16 = 960;
+pub const SKILL_CATEGORY_ARMOR_LIKE_CPP: i8 = 8;
+pub const SKILL_CATEGORY_LANGUAGES_LIKE_CPP: i8 = 10;
 
 /// A single record from SkillRaceClassInfo.db2.
 #[derive(Debug, Clone)]
@@ -53,6 +58,15 @@ pub struct SkillRaceClassInfoRecord {
     pub availability: i8,
     pub min_level: i8,
     pub skill_tier_id: i16,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SkillRangeTypeLikeCpp {
+    Language,
+    Level,
+    Mono,
+    Rank,
+    None,
 }
 
 pub const MAX_SKILL_STEP_LIKE_CPP: usize = 16;
@@ -525,6 +539,8 @@ pub struct SkillStore {
     abilities_by_spell_like_cpp: HashMap<i32, Vec<SkillLineAbilityRecord>>,
     /// SkillRaceClassInfo records indexed by (race, class).
     starting_skills: HashMap<(u8, u8), Vec<SkillRaceClassInfoRecord>>,
+    /// C++ `_skillRaceClassInfoBySkill`, preserving DB2 iteration order.
+    race_class_by_skill: HashMap<u16, Vec<SkillRaceClassInfoRecord>>,
     /// Total number of SkillLineAbility records loaded.
     total_abilities: usize,
     /// Total number of SkillRaceClassInfo records loaded.
@@ -542,6 +558,7 @@ impl SkillStore {
                 .collect(),
             abilities_by_spell_like_cpp: HashMap::new(),
             starting_skills: HashMap::new(),
+            race_class_by_skill: HashMap::new(),
             total_abilities: 0,
             total_race_class: 0,
         }
@@ -575,9 +592,46 @@ impl SkillStore {
             abilities_by_skill,
             abilities_by_spell_like_cpp,
             starting_skills: HashMap::new(),
+            race_class_by_skill: HashMap::new(),
             total_abilities,
             total_race_class: 0,
         }
+    }
+
+    /// Build represented `SkillLineAbility` + `SkillRaceClassInfo` fixtures.
+    pub fn from_skill_line_abilities_and_race_class_like_cpp(
+        abilities: impl IntoIterator<Item = SkillLineAbilityRecord>,
+        race_class_infos: impl IntoIterator<Item = SkillRaceClassInfoRecord>,
+    ) -> Self {
+        let mut store = Self::from_skill_line_abilities_like_cpp(abilities);
+        let mut total_race_class = 0usize;
+        for record in race_class_infos {
+            store
+                .race_class_by_skill
+                .entry(record.skill_id)
+                .or_default()
+                .push(record.clone());
+
+            for race in 1u8..=11 {
+                if !matches_race(record.race_mask, race) {
+                    continue;
+                }
+                for class in 1u8..=11 {
+                    if !matches_class(record.class_mask, class) {
+                        continue;
+                    }
+                    store
+                        .starting_skills
+                        .entry((race, class))
+                        .or_default()
+                        .push(record.clone());
+                }
+            }
+
+            total_race_class += 1;
+        }
+        store.total_race_class = total_race_class;
+        store
     }
 
     /// Load both DB2 files from `{data_dir}/dbc/{locale}/`.
@@ -672,6 +726,14 @@ impl SkillStore {
 
         let total_race_class = all_records.len();
 
+        let mut race_class_by_skill: HashMap<u16, Vec<SkillRaceClassInfoRecord>> = HashMap::new();
+        for record in &all_records {
+            race_class_by_skill
+                .entry(record.skill_id)
+                .or_default()
+                .push(record.clone());
+        }
+
         // Index by (race, class) — expand masks into individual (race, class) pairs
         // for all 10 races × 11 classes
         let mut starting_skills: HashMap<(u8, u8), Vec<SkillRaceClassInfoRecord>> = HashMap::new();
@@ -702,9 +764,56 @@ impl SkillStore {
             abilities_by_skill,
             abilities_by_spell_like_cpp,
             starting_skills,
+            race_class_by_skill,
             total_abilities,
             total_race_class,
         })
+    }
+
+    /// C++ `DB2Manager::GetSkillRaceClassInfo(skill, race, class)`.
+    pub fn skill_race_class_info_like_cpp(
+        &self,
+        skill_id: u16,
+        race: u8,
+        class: u8,
+    ) -> Option<&SkillRaceClassInfoRecord> {
+        self.race_class_by_skill
+            .get(&skill_id)?
+            .iter()
+            .find(|record| {
+                (record.race_mask == 0 || matches_race(record.race_mask, race))
+                    && (record.class_mask == 0 || matches_class(record.class_mask, class))
+            })
+    }
+
+    /// C++ free function `GetSkillRangeType(SkillRaceClassInfoEntry const*)`.
+    pub fn skill_range_type_like_cpp(
+        &self,
+        rc_info: &SkillRaceClassInfoRecord,
+        skill_line_store: &SkillLineStore,
+        skill_tiers_store: &SkillTiersStoreLikeCpp,
+    ) -> SkillRangeTypeLikeCpp {
+        let Some(skill) = skill_line_store.get(u32::from(rc_info.skill_id)) else {
+            return SkillRangeTypeLikeCpp::None;
+        };
+
+        if u32::try_from(rc_info.skill_tier_id)
+            .ok()
+            .and_then(|skill_tier_id| skill_tiers_store.get_skill_tier_like_cpp(skill_tier_id))
+            .is_some()
+        {
+            return SkillRangeTypeLikeCpp::Rank;
+        }
+
+        if rc_info.skill_id == SKILL_RUNEFORGING_LIKE_CPP {
+            return SkillRangeTypeLikeCpp::Mono;
+        }
+
+        match skill.category_id {
+            SKILL_CATEGORY_ARMOR_LIKE_CPP => SkillRangeTypeLikeCpp::Mono,
+            SKILL_CATEGORY_LANGUAGES_LIKE_CPP => SkillRangeTypeLikeCpp::Language,
+            _ => SkillRangeTypeLikeCpp::Level,
+        }
     }
 
     /// Get the SkillInfo entries for a character's starting skills.
