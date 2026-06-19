@@ -1,3 +1,24 @@
+- `#NEXT.R8.ENTITIES.1108` — represented account mount persistence now uses a
+  C++-style LoginDatabase transaction for the full final collection (not
+  manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/CollectionMgr.cpp:348-358`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:19672`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/LoginDatabase.cpp:184`.
+  C++ `CollectionMgr::SaveAccountMounts` iterates the final `_mounts`
+  `std::map`, appends every `LOGIN_REP_ACCOUNT_MOUNTS` statement to the
+  `loginTransaction`, and `Player::SaveToDB` commits it with the other account
+  collection saves. Rust now builds an ordered save-row plan from the represented
+  final account mount collection, including faction-specific counterpart mounts,
+  and appends all `REP_ACCOUNT_MOUNTS` statements to one `SqlTransaction`
+  instead of executing row-by-row. Coverage: `cargo fmt --all --check`;
+  filtered `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p
+  wow-world account_mount --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
+  cargo check -p world-server`; and `git diff --check`. Boundary remains
+  partial: other account collection save paths still have mixed transaction
+  fidelity, full `Player::SaveToDB` monolithic parity remains incomplete, and
+  live-client/bot/manual validation remains open.
+
 - `#NEXT.R8.ENTITIES.1107` — represented account mount load and
   `character_spell` mount promotion now include C++ faction-specific mount
   counterparts from `mount_definitions` (not manual-test-ready). Source of

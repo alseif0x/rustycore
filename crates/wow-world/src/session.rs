@@ -2257,6 +2257,13 @@ impl AccountTransmogIllusionSavePlanLikeCpp {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct AccountMountSaveRowLikeCpp {
+    pub(crate) bnet_account_id: u32,
+    pub(crate) mount_spell_id: u32,
+    pub(crate) flags: u8,
+}
+
 const DEFAULT_TRANSMOG_ILLUSIONS_LIKE_CPP: [u32; 7] = [
     3,  // Lifestealing
     13, // Crusader
@@ -28357,6 +28364,21 @@ impl WorldSession {
             .collect::<Vec<_>>();
         mounts.sort_by_key(|mount| mount.spell_id);
         mounts
+    }
+
+    /// C++ `CollectionMgr::SaveAccountMounts`.
+    pub(crate) fn account_mount_save_rows_like_cpp(&self) -> Vec<AccountMountSaveRowLikeCpp> {
+        let bnet_account_id = self.battlenet_account_id();
+        self.account_mount_rows_like_cpp()
+            .into_iter()
+            .filter_map(|mount| {
+                Some(AccountMountSaveRowLikeCpp {
+                    bnet_account_id,
+                    mount_spell_id: u32::try_from(mount.spell_id).ok()?,
+                    flags: mount.flags,
+                })
+            })
+            .collect()
     }
 
     pub(crate) fn mount_set_favorite_like_cpp(
@@ -59650,6 +59672,7 @@ mod tests {
     #[test]
     fn account_mount_load_adds_faction_counterpart_like_cpp() {
         let (mut session, _, _) = make_session();
+        session.set_battlenet_account_id(77);
         session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([
             wow_data::MountEntry {
                 id: 1,
@@ -59697,6 +59720,22 @@ mod tests {
         );
         assert!(session.known_spells_like_cpp().contains(&100));
         assert!(session.known_spells_like_cpp().contains(&101));
+        assert_eq!(
+            session.account_mount_save_rows_like_cpp(),
+            vec![
+                AccountMountSaveRowLikeCpp {
+                    bnet_account_id: 77,
+                    mount_spell_id: 100,
+                    flags: 2,
+                },
+                AccountMountSaveRowLikeCpp {
+                    bnet_account_id: 77,
+                    mount_spell_id: 101,
+                    flags: 2,
+                },
+            ],
+            "C++ CollectionMgr::SaveAccountMounts persists the final std::map collection, including faction-specific mounts"
+        );
     }
 
     #[test]

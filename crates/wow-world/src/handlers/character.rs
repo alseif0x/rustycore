@@ -3198,26 +3198,29 @@ impl WorldSession {
     }
 
     pub(crate) async fn save_account_mounts_like_cpp(&self) {
-        let Some(login_db) = self.login_db() else {
+        let Some(login_db) = self.login_db().map(Arc::clone) else {
             return;
         };
+        let save_rows = self.account_mount_save_rows_like_cpp();
+        if save_rows.is_empty() {
+            return;
+        }
 
-        for mount in self.account_mount_rows_like_cpp() {
-            let Ok(mount_spell_id) = u32::try_from(mount.spell_id) else {
-                continue;
-            };
+        let mut tx = SqlTransaction::new();
+        for row in save_rows {
             let mut stmt = login_db.prepare(LoginStatements::REP_ACCOUNT_MOUNTS);
-            stmt.set_u32(0, self.battlenet_account_id());
-            stmt.set_u32(1, mount_spell_id);
-            stmt.set_u8(2, mount.flags);
-            if let Err(error) = login_db.execute(&stmt).await {
-                warn!(
-                    account = self.account_id,
-                    bnet_account = self.battlenet_account_id(),
-                    mount_spell_id,
-                    "Failed to save account mount flags: {error}"
-                );
-            }
+            stmt.set_u32(0, row.bnet_account_id);
+            stmt.set_u32(1, row.mount_spell_id);
+            stmt.set_u8(2, row.flags);
+            tx.append(stmt);
+        }
+
+        if let Err(error) = login_db.commit_transaction(tx).await {
+            warn!(
+                account = self.account_id,
+                bnet_account = self.battlenet_account_id(),
+                "Failed to save account mount flags: {error}"
+            );
         }
     }
 
