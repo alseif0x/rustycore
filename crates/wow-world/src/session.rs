@@ -29060,14 +29060,23 @@ impl WorldSession {
     }
 
     pub(crate) fn remove_known_spell_like_cpp(&mut self, spell_id: i32) {
+        self.remove_known_spell_with_suppress_messaging_like_cpp(spell_id, false);
+    }
+
+    pub(crate) fn remove_known_spell_with_suppress_messaging_like_cpp(
+        &mut self,
+        spell_id: i32,
+        suppress_messaging: bool,
+    ) {
         let mut seen = HashSet::new();
-        self.remove_known_spell_with_seen_like_cpp(spell_id, true, &mut seen);
+        self.remove_known_spell_with_seen_like_cpp(spell_id, true, suppress_messaging, &mut seen);
     }
 
     fn remove_known_spell_with_seen_like_cpp(
         &mut self,
         spell_id: i32,
         learn_low_rank: bool,
+        suppress_messaging: bool,
         seen: &mut HashSet<i32>,
     ) {
         if !self.known_spells.contains(&spell_id) {
@@ -29090,6 +29099,7 @@ impl WorldSession {
                         self.remove_known_spell_with_seen_like_cpp(
                             next_known_spell_id,
                             false,
+                            false,
                             seen,
                         );
                     }
@@ -29103,7 +29113,12 @@ impl WorldSession {
                 .collect();
             for requiring_spell_id in spells_requiring_removed {
                 if self.known_spells.contains(&requiring_spell_id) {
-                    self.remove_known_spell_with_seen_like_cpp(requiring_spell_id, true, seen);
+                    self.remove_known_spell_with_seen_like_cpp(
+                        requiring_spell_id,
+                        true,
+                        false,
+                        seen,
+                    );
                 }
             }
         }
@@ -29122,7 +29137,11 @@ impl WorldSession {
                 .insert(spell_id);
         }
 
+        let mut unlearned_spells_packet_like_cpp = None;
+
         if let Ok(current_spell_id) = u32::try_from(spell_id) {
+            let mut prev_activate = false;
+
             if let Some(learned_skill) = self.spell_learn_skill_like_cpp(current_spell_id).copied()
             {
                 self.downgrade_represented_spell_learn_skill_like_cpp(
@@ -29136,7 +29155,7 @@ impl WorldSession {
                 .to_vec();
             for learned_spell in learned_spells {
                 if let Ok(learned_spell_id) = i32::try_from(learned_spell.spell) {
-                    self.remove_known_spell_with_seen_like_cpp(learned_spell_id, true, seen);
+                    self.remove_known_spell_with_seen_like_cpp(learned_spell_id, true, false, seen);
                     if learned_spell.overrides_spell != 0 {
                         if let Ok(overrides_spell_id) = i32::try_from(learned_spell.overrides_spell)
                         {
@@ -29167,9 +29186,14 @@ impl WorldSession {
                                 self.represented_dependent_known_spells_like_cpp
                                     .remove(&prev_known_spell_id);
                             }
+                            prev_activate = true;
                         }
                     }
                 }
+            }
+
+            if !prev_activate {
+                unlearned_spells_packet_like_cpp = Some((current_spell_id, suppress_messaging));
             }
         }
 
@@ -29192,6 +29216,13 @@ impl WorldSession {
 
         if let Some(controller) = &mut self.player_controller {
             controller.remove_spell(spell_id);
+        }
+
+        if let Some((spell_id, suppress_messaging)) = unlearned_spells_packet_like_cpp {
+            self.send_packet(&wow_packet::packets::trainer::UnlearnedSpells::single(
+                spell_id,
+                suppress_messaging,
+            ));
         }
     }
 
@@ -49151,6 +49182,49 @@ mod tests {
                 .represented_spell_trait_definition_ids_like_cpp
                 .contains_key(&20),
             "removed PlayerSpell no longer owns a represented TraitDefinitionId"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_sends_unlearned_spells_with_suppress_flag_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_known_spells_like_cpp(vec![20, 40]);
+
+        session.remove_known_spell_with_suppress_messaging_like_cpp(20, true);
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 1);
+        let mut packet = WorldPacket::from_bytes(&packets[0]);
+        assert_eq!(
+            packet.read_uint16().expect("opcode"),
+            ServerOpcodes::UnlearnedSpells as u16
+        );
+        assert_eq!(packet.read_uint32().expect("count"), 1);
+        assert_eq!(packet.read_uint32().expect("spell id"), 20);
+        assert!(packet.read_bit().expect("SuppressMessaging"));
+        packet.flush_bits();
+        assert!(packet.is_empty());
+    }
+
+    #[test]
+    fn remove_known_spell_skips_unlearned_packet_when_previous_rank_reactivates_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_spell_chain_store(Arc::new(
+            wow_data::SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(
+                [wow_data::SpellRankEdgeLikeCpp {
+                    spell_id: 20,
+                    supercedes_spell_id: 10,
+                }],
+                |_| true,
+            ),
+        ));
+        session.set_known_spells_like_cpp(vec![10, 20]);
+
+        session.remove_known_spell_with_suppress_messaging_like_cpp(20, true);
+
+        assert!(
+            drain_server_packet_bytes(&send_rx).is_empty(),
+            "C++ skips UnlearnedSpells when RemoveSpell reactivates a lower rank and sends SendSupercededSpell instead"
         );
     }
 

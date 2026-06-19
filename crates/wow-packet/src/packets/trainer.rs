@@ -4,7 +4,7 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 //! Trainer packets: CMSG_TRAINER_LIST, CMSG_TRAINER_BUY_SPELL, SMSG_TRAINER_LIST,
-//! SMSG_TRAINER_BUY_FAILED, SMSG_LEARNED_SPELLS.
+//! SMSG_TRAINER_BUY_FAILED, SMSG_LEARNED_SPELLS, SMSG_UNLEARNED_SPELLS.
 //!
 //! C# reference: Game/Networking/Packets/NPCPackets.cs, SpellPackets.cs
 //! Handler ref:  Game/Handlers/NPCHandler.cs
@@ -198,6 +198,45 @@ impl ServerPacket for LearnedSpells {
     }
 }
 
+// ── SMSG_UNLEARNED_SPELLS (0x2c4b) ──────────────────────────────────
+
+/// SMSG_UNLEARNED_SPELLS — sent after a player unlearns one or more spells.
+///
+/// C++ write order (SpellPackets.cpp UnlearnedSpells):
+/// ```text
+/// WriteUInt32(SpellID.Count)
+/// foreach spell:
+///   WriteUInt32(spellId)
+/// WriteBit(SuppressMessaging)
+/// FlushBits()
+/// ```
+pub struct UnlearnedSpells {
+    pub spell_ids: Vec<u32>,
+    pub suppress_messaging: bool,
+}
+
+impl UnlearnedSpells {
+    pub fn single(spell_id: u32, suppress_messaging: bool) -> Self {
+        Self {
+            spell_ids: vec![spell_id],
+            suppress_messaging,
+        }
+    }
+}
+
+impl ServerPacket for UnlearnedSpells {
+    const OPCODE: ServerOpcodes = ServerOpcodes::UnlearnedSpells;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint32(self.spell_ids.len() as u32);
+        for spell_id in &self.spell_ids {
+            pkt.write_uint32(*spell_id);
+        }
+        pkt.write_bit(self.suppress_messaging);
+        pkt.flush_bits();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -237,5 +276,21 @@ mod tests {
         let bytes = pkt.to_bytes();
         // opcode(2) + count(4) + spec_id(4) + bit/flush(1) + spell_id(4) + bits/flush(1)
         assert!(bytes.len() >= 14);
+    }
+
+    #[test]
+    fn unlearned_spells_single_serializes_like_cpp() {
+        let pkt = UnlearnedSpells::single(100, true);
+        let mut bytes = WorldPacket::from_bytes(&pkt.to_bytes());
+
+        assert_eq!(
+            bytes.read_uint16().expect("opcode"),
+            ServerOpcodes::UnlearnedSpells as u16
+        );
+        assert_eq!(bytes.read_uint32().expect("count"), 1);
+        assert_eq!(bytes.read_uint32().expect("spell id"), 100);
+        assert!(bytes.read_bit().expect("SuppressMessaging"));
+        bytes.flush_bits();
+        assert!(bytes.is_empty());
     }
 }
