@@ -1,3 +1,19 @@
+- `#NEXT.R8.ENTITIES.1146` — represented `PlayerData::AvgItemLevel[0]`
+  now includes represented item objects contained in represented bags when
+  selecting C++ best equipment-slot candidates. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28773-28880`
+  and `/home/server/woltk-trinity-legacy/src/server/game/Conditions/ConditionMgr.cpp:3206-3215`.
+  C++ `UpdateAverageItemLevelTotal` calls
+  `ForEachItem(ItemSearchLocation::Everywhere)`, so Rust now feeds
+  represented child item objects whose container GUID points at a represented
+  bag into the same best-slot selection path used for direct inventory
+  candidates. Coverage: `cargo test -p wow-world
+  represented_condition_total_avg_item_level --lib`. Boundary remains partial:
+  full `CanEquipItem` restrictions, bank traversal, unique-equip/limit/category
+  gates, item-level bonus/PvP/timewalker scaling, update-field packet
+  emission/fanout, persistence, live-client/bot manual validation, and full
+  condition-runtime parity remain open.
+
 - `#NEXT.R8.ENTITIES.1145` — represented `PlayerData::AvgItemLevel[0]`
   now maintains a C++-shaped best-item-level table per equipment slot for
   represented inventory items. Source of truth:
@@ -10,10 +26,11 @@
   slots like finger/trinket/offhand, keeps the main-hand 2H double-count rule,
   and continues to divide by `16.0`. Coverage: `cargo test -p wow-world
   represented_condition_total_avg_item_level --lib`. Boundary remains partial:
-  full `CanEquipItem` restrictions, bag-contained item traversal, bank
-  traversal, unique-equip/limit/category gates, item-level bonus/PvP/timewalker
-  scaling, update-field packet emission/fanout, persistence, live-client/bot
-  manual validation, and full condition-runtime parity remain open.
+  full `CanEquipItem` restrictions, bag-contained item traversal is closed
+  later by `#NEXT.R8.ENTITIES.1146`, bank traversal, unique-equip/limit/category
+  gates, item-level bonus/PvP/timewalker scaling, update-field packet
+  emission/fanout, persistence, live-client/bot manual validation, and full
+  condition-runtime parity remain open.
 
 - `#NEXT.R8.ENTITIES.1144` — represented player-condition context now uses
   the C++ equipment-slot denominator / main-hand 2H formula for
