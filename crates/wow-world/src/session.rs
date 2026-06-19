@@ -3762,6 +3762,9 @@ pub struct WorldSession {
     loot_specialization_id: u32,
     /// All known spell IDs for the logged-in character (DB + DBC merged).
     known_spells: Vec<i32>,
+    /// Represented C++ `PlayerSpell::dependent` for known spells that must not
+    /// be persisted by `_SaveSpells`.
+    represented_dependent_known_spells_like_cpp: HashSet<i32>,
     /// C++ `CollectionMgr::_mounts` represented account mount collection.
     account_mounts_like_cpp: HashMap<i32, u8>,
     /// C++ `Player::_CUFProfiles`, represented until full player save/load owns it.
@@ -5391,6 +5394,7 @@ impl WorldSession {
             player_create_mode_like_cpp: wow_data::PLAYER_CREATE_MODE_NORMAL_LIKE_CPP,
             loot_specialization_id: 0,
             known_spells: Vec::new(),
+            represented_dependent_known_spells_like_cpp: HashSet::new(),
             account_mounts_like_cpp: HashMap::new(),
             cuf_profiles_like_cpp: vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP],
             cuf_profiles_loaded_like_cpp: false,
@@ -18984,7 +18988,7 @@ impl WorldSession {
     /// mirrors the login spell snapshot: configured custom spells are included in
     /// `INITIAL_SPELLS` without duplicating spells already loaded from DB/DBC.
     pub(crate) fn apply_represented_start_all_spells_like_cpp(
-        &self,
+        &mut self,
         known_spells: &mut Vec<i32>,
     ) -> usize {
         if !self.start_all_spells_like_cpp() {
@@ -19013,6 +19017,8 @@ impl WorldSession {
                 known_spells.push(spell_id);
                 applied += 1;
             }
+            self.represented_dependent_known_spells_like_cpp
+                .insert(spell_id);
         }
 
         applied
@@ -28029,6 +28035,8 @@ impl WorldSession {
 
     pub(crate) fn set_known_spells_like_cpp(&mut self, spells: Vec<i32>) {
         self.known_spells = spells;
+        self.represented_dependent_known_spells_like_cpp
+            .retain(|spell_id| self.known_spells.contains(spell_id));
         self.learn_account_mount_spells_like_cpp();
         if let Some(controller) = &mut self.player_controller {
             controller.set_known_spells(self.known_spells.clone());
@@ -28133,7 +28141,7 @@ impl WorldSession {
                 continue;
             }
             let before = self.known_spells.len();
-            self.learn_known_spell_like_cpp(spell_id);
+            self.learn_dependent_known_spell_like_cpp(spell_id);
             learned += usize::from(self.known_spells.len() != before);
         }
         learned
@@ -28604,8 +28612,16 @@ impl WorldSession {
         }
     }
 
+    pub(crate) fn learn_dependent_known_spell_like_cpp(&mut self, spell_id: i32) {
+        self.learn_known_spell_like_cpp(spell_id);
+        self.represented_dependent_known_spells_like_cpp
+            .insert(spell_id);
+    }
+
     pub(crate) fn remove_known_spell_like_cpp(&mut self, spell_id: i32) {
         self.known_spells.retain(|known| *known != spell_id);
+        self.represented_dependent_known_spells_like_cpp
+            .remove(&spell_id);
         if let Some(controller) = &mut self.player_controller {
             controller.remove_spell(spell_id);
         }
@@ -28873,6 +28889,11 @@ impl WorldSession {
             .as_ref()
             .map(SessionPlayerController::known_spells)
             .unwrap_or(&self.known_spells)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_dependent_known_spells_like_cpp(&self) -> &HashSet<i32> {
+        &self.represented_dependent_known_spells_like_cpp
     }
 
     pub(crate) fn player_skill_values_like_cpp(&self) -> &HashMap<u16, u16> {
@@ -59774,11 +59795,37 @@ mod tests {
             session.known_spells_like_cpp().contains(&101),
             "C++ CollectionMgr::AddMount stores/learns mounts before PlayerCondition; that condition applies to using the mount"
         );
+        assert!(
+            session
+                .represented_dependent_known_spells_like_cpp()
+                .contains(&100)
+        );
+        assert!(
+            session
+                .represented_dependent_known_spells_like_cpp()
+                .contains(&101),
+            "C++ CollectionMgr::AddMount calls Player::LearnSpell(spellId, true), which creates dependent spells skipped by _SaveSpells"
+        );
 
         session.set_known_spells_like_cpp(vec![635]);
         assert!(session.known_spells_like_cpp().contains(&635));
         assert!(session.known_spells_like_cpp().contains(&100));
         assert!(session.known_spells_like_cpp().contains(&101));
+        assert!(
+            !session
+                .represented_dependent_known_spells_like_cpp()
+                .contains(&635)
+        );
+        assert!(
+            session
+                .represented_dependent_known_spells_like_cpp()
+                .contains(&100)
+        );
+        assert!(
+            session
+                .represented_dependent_known_spells_like_cpp()
+                .contains(&101)
+        );
     }
 
     #[test]
@@ -76255,6 +76302,11 @@ mod tests {
             "C++ Player::LearnCustomSpells is gated by CONFIG_START_ALL_SPELLS"
         );
         assert_eq!(known_spells, vec![80_001]);
+        assert!(
+            session
+                .represented_dependent_known_spells_like_cpp()
+                .is_empty()
+        );
 
         session.set_start_all_spells_like_cpp(true);
         assert_eq!(
@@ -76263,6 +76315,17 @@ mod tests {
             "C++ AddSpell semantics do not duplicate an already known spell"
         );
         assert_eq!(known_spells, vec![80_001, 80_002]);
+        assert!(
+            session
+                .represented_dependent_known_spells_like_cpp()
+                .contains(&80_001),
+            "C++ AddSpell(... dependent=true) marks even an already-known custom spell as dependent"
+        );
+        assert!(
+            session
+                .represented_dependent_known_spells_like_cpp()
+                .contains(&80_002)
+        );
     }
 
     #[test]
@@ -76280,6 +76343,11 @@ mod tests {
             1
         );
         assert_eq!(known_spells, vec![80_003]);
+        assert!(
+            session
+                .represented_dependent_known_spells_like_cpp()
+                .contains(&80_003)
+        );
     }
 
     #[test]

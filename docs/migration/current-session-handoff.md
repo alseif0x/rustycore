@@ -1,3 +1,30 @@
+- `#NEXT.R8.ENTITIES.1112` — represented `PlayerSpell::dependent` state is
+  now recorded for dependent known-spell paths (not manual-test-ready). Source
+  of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:2741-2835`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:20405-20440`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:23784-23805`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/CollectionMgr.cpp:330-395`.
+  C++ `LearnCustomSpells` calls `AddSpell(... dependent=true)` and
+  `CollectionMgr::AddMount` calls `LearnSpell(spellId, true)`; `_SaveSpells`
+  then explicitly skips inserting dependent spells into `character_spell`.
+  Rust now tracks represented dependent known spells for
+  `PlayerStart.AllSpells` custom spells and account mount spells while still
+  including them in the login spell snapshot. This corrects the previous
+  shorthand boundary: custom start spells should **not** be blindly persisted as
+  normal `character_spell` rows. Coverage planned for this slice:
+  `cargo fmt --all`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  start_all_spells --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  account_mount_load_learns_mount_spells_before_use_condition_like_cpp --lib`;
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`;
+  `cargo fmt --all --check`; and `git diff --check`. Boundary remains partial:
+  full `PlayerSpell` state transitions, `_SaveSpells` delete/insert/favorite
+  transaction parity, exact SpellMgr validity, live-client/bot/manual
+  validation, and full `Player::Create` / `ResetSpells` parity remain open.
+
 - `#NEXT.R8.ENTITIES.1111` — represented `PlayerStart.AllSpells` /
   `playercreateinfo_spell_custom` login snapshot application is now wired (not
   manual-test-ready). Source of truth:
@@ -19,10 +46,11 @@
   `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
   start_all_spells --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
   cargo check -p world-server`; `cargo fmt --all --check`; and
-  `git diff --check`. Boundary remains partial: C++ `AddSpell` persistence into
-  `character_spell`, full `ObjectMgr::_playerInfo` ownership, SpellMgr validity,
-  live-client/bot/manual validation, and full `Player::Create` / `ResetSpells`
-  parity remain open.
+  `git diff --check`. Boundary remains partial: exact dependent
+  `PlayerSpell` state was refined by `#NEXT.R8.ENTITIES.1112`; full
+  `PlayerSpell` state-machine / `_SaveSpells` parity,
+  `ObjectMgr::_playerInfo` ownership, SpellMgr validity, live-client/bot/manual
+  validation, and full `Player::Create` / `ResetSpells` parity remain open.
 
 - `#NEXT.R8.ENTITIES.1110` — represented first-login
   `PlayerInfo::castSpells[Player::GetCreateMode()]` is now wired before
