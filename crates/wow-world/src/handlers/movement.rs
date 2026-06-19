@@ -1616,6 +1616,7 @@ mod tests {
         let movement = MovementInfo {
             guid,
             flags: MovementFlag::FORWARD,
+            time: 12_345,
             position: moved_position,
             ..MovementInfo::default()
         };
@@ -1644,6 +1645,18 @@ mod tests {
             canonical_movement_flags,
             MovementFlag::FORWARD,
             "C++ stores accepted player MovementInfo flags on Unit::m_movementInfo"
+        );
+        let canonical_movement_time = canonical
+            .lock()
+            .unwrap()
+            .find_map(571, 0)
+            .and_then(|map| map.map().get_typed_player(guid))
+            .map(|player| player.unit().movement_time_like_cpp())
+            .expect("canonical player movement time");
+        assert_eq!(
+            canonical_movement_time,
+            session.player_movement_time_like_cpp(),
+            "C++ stores accepted player MovementInfo time on Unit::m_movementInfo"
         );
         assert_eq!(
             session

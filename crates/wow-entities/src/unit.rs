@@ -336,6 +336,7 @@ pub struct Unit {
     can_block: bool,
     emote_state: u32,
     movement_flags: MovementFlag,
+    movement_time: u32,
     speed_rate: [f32; MAX_MOVE_TYPE],
     ai_anim_kit_id: u16,
     movement_anim_kit_id: u16,
@@ -372,6 +373,7 @@ impl Unit {
             can_block: false,
             emote_state: 0,
             movement_flags: MovementFlag::NONE,
+            movement_time: 0,
             speed_rate: [1.0; MAX_MOVE_TYPE],
             ai_anim_kit_id: 0,
             movement_anim_kit_id: 0,
@@ -512,6 +514,14 @@ impl Unit {
 
     pub fn set_movement_flags_like_cpp(&mut self, flags: MovementFlag) {
         self.movement_flags = flags;
+    }
+
+    pub const fn movement_time_like_cpp(&self) -> u32 {
+        self.movement_time
+    }
+
+    pub fn set_movement_time_like_cpp(&mut self, time: u32) {
+        self.movement_time = time;
     }
 
     pub const fn visibility_detection_like_cpp(&self) -> &UnitVisibilityDetectionStateLikeCpp {

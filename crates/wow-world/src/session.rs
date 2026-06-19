@@ -27394,6 +27394,9 @@ impl WorldSession {
 
     pub(crate) fn set_player_movement_time_like_cpp(&mut self, time: u32) {
         self.player_movement_time_like_cpp = time;
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_movement_time_like_cpp(time);
+        });
     }
 
     pub(crate) fn set_player_movement_flags_like_cpp(&mut self, flags: MovementFlag) {
@@ -36742,7 +36745,7 @@ impl WorldSession {
 
         let mut status = ack.status.clone();
         status.time = self.adjust_client_movement_time_like_cpp(status.time);
-        self.player_movement_time_like_cpp = status.time;
+        self.set_player_movement_time_like_cpp(status.time);
         self.set_player_movement_flags_like_cpp(status.flags);
         self.set_player_position_like_cpp(status.position);
         self.record_movement_ack_event_like_cpp(MovementAckEventLikeCpp {
@@ -36767,9 +36770,10 @@ impl WorldSession {
     ) -> bool {
         let accepted = self.player_guid() == Some(mover_guid);
         if accepted {
-            self.player_movement_time_like_cpp = self
-                .player_movement_time_like_cpp
-                .saturating_add(time_skipped);
+            self.set_player_movement_time_like_cpp(
+                self.player_movement_time_like_cpp
+                    .saturating_add(time_skipped),
+            );
         }
 
         self.record_movement_ack_event_like_cpp(MovementAckEventLikeCpp {

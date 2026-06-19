@@ -1,3 +1,20 @@
+- `#NEXT.R8.ENTITIES.1104` — canonical typed `Unit` now owns represented
+  `m_movementInfo.time` for the player path (not manual-test-ready). Source
+  of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Object/MovementInfo.h:27-125`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Object/Object.h:741`.
+  Rust `Unit` now stores represented movement time; accepted player movement
+  updates, validated movement ACKs, and `MoveTimeSkipped` updates synchronize
+  that value into the canonical typed `Player` through the same setter path as
+  movement flags. Coverage: focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  handle_movement_syncs_canonical_player_position_for_logout_save_like_cpp
+  --lib`; `cargo fmt --all`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
+  cargo check -p world-server`; and `git diff --check`. Boundary remains
+  partial: `MovementInfo` jump/transport/extra flags/inertia/advanced flying are
+  still not canonical `Unit`-owned, live-client/bot/manual validation remains
+  open, and full movement/fanout/runtime parity is incomplete.
 - `#NEXT.R8.ENTITIES.1103` — canonical typed `Unit` now owns represented
   `m_movementInfo.flags` for the player path (not manual-test-ready). Source
   of truth:
@@ -17,7 +34,7 @@
   --lib`; `cargo fmt --all`; focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
   cargo test -p wow-world teleport_to_ --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
   cargo check -p world-server`; and `git diff --check`. Boundary remains partial:
-  `MovementInfo` time/jump/transport/extra flags/inertia/advanced flying are
+  `MovementInfo` jump/transport/extra flags/inertia/advanced flying are
   still not canonical `Unit`-owned, live-client/bot/manual validation remains
   open, and full movement/fanout/runtime parity is incomplete.
 - `#NEXT.R8.ENTITIES.1102` — represented/canonical `Player::TeleportTo`
