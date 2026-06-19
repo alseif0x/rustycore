@@ -1,3 +1,25 @@
+- `#NEXT.R8.ENTITIES.1163` — represented far `WorldPortResponse` now
+  recalculates C++ `Player::UpdateItemLevelAreaBasedScaling` after committing
+  the player's new map and position. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28744-28755`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26160-26180`.
+  C++ toggles PvP item levels from map PvP activity (`Map::IsBattlegroundOrArena`,
+  `MapEntry::Flags[1] & 0x40`) or PvP-rules aura state, and the WotLK far
+  teleport/map-change path is one of the points where the current map becomes
+  authoritative for that branch. Rust now calls the existing represented
+  `update_represented_item_level_area_based_scaling_like_cpp` helper immediately
+  after `set_player_map_position_like_cpp` in `handle_world_port_response`, so
+  entering a map with the `Flags[1] & 0x40` PvP item-level bit activates the
+  represented `Player::IsUsingPvpItemLevels` flag and leaving to a normal map
+  clears it. Coverage: `cargo test -p wow-world world_port_response --lib`,
+  `cargo fmt --all --check`, `cargo check -p world-server`, and
+  `git diff --check`. Boundary remains partial: this wires the represented
+  activation point only; C++ `_RemoveAllItemMods` / `_ApplyAllItemMods`, health
+  percentage preservation, item update-field propagation, packet/fanout, DB
+  persistence, PvP-rules aura runtime coverage, live-client/bot validation, and
+  full item stat reapplication remain open.
+
 - `#NEXT.R8.ENTITIES.1162` — represented
   `Item::GetItemLevel(owner)` now consumes the C++ player-level-to-item-level
   curve branch. Source of truth:

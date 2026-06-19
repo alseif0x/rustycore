@@ -2112,6 +2112,7 @@ impl crate::session::WorldSession {
 
         // Update internal state
         self.set_player_map_position_like_cpp(new_map as u16, new_pos);
+        let _ = self.update_represented_item_level_area_based_scaling_like_cpp();
         let _ = self.ensure_canonical_world_map_for_current_player_like_cpp();
         self.update_registry_position();
         self.resummon_pet_temporary_unsummoned_if_any_like_cpp();
@@ -6574,6 +6575,95 @@ mod tests {
                 ServerOpcodes::NewWorld as u16,
                 ServerOpcodes::ResumeToken as u16,
             ]
+        );
+    }
+
+    #[tokio::test]
+    async fn world_port_response_activates_pvp_item_levels_for_flagged_map_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        let canonical = shared_canonical_map_manager_for_misc_test();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let destination = Position::new(7.0, 8.0, 9.0, 0.25);
+        let mut pvp_item_level_map = map_entry(30, wow_data::map::MAP_COMMON);
+        pvp_item_level_map.flags2 = 0x40;
+        session.set_map_store(Arc::new(MapStore::from_entries([
+            map_entry(571, wow_data::map::MAP_COMMON),
+            pvp_item_level_map,
+        ])));
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(crate::session::SessionPlayerController::new(
+            player_guid,
+            "WorldportPvpItemLevel".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map_for_misc_test(
+            &canonical,
+            player_guid,
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            0,
+        );
+        session.pending_teleport = Some((30, destination));
+        session.set_represented_far_teleport_pending_like_cpp(true);
+        session.set_state(crate::session::SessionState::Transfer);
+
+        session
+            .handle_world_port_response(WorldPacket::new_empty())
+            .await;
+
+        assert!(
+            session.represented_using_pvp_item_levels_like_cpp(),
+            "C++ Player::UpdateItemLevelAreaBasedScaling activates PvP item levels when MapEntry::Flags[1] has 0x40"
+        );
+    }
+
+    #[tokio::test]
+    async fn world_port_response_deactivates_pvp_item_levels_for_normal_map_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        let canonical = shared_canonical_map_manager_for_misc_test();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let destination = Position::new(7.0, 8.0, 9.0, 0.25);
+        let mut pvp_item_level_map = map_entry(30, wow_data::map::MAP_COMMON);
+        pvp_item_level_map.flags2 = 0x40;
+        session.set_map_store(Arc::new(MapStore::from_entries([
+            pvp_item_level_map,
+            map_entry(571, wow_data::map::MAP_COMMON),
+        ])));
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(crate::session::SessionPlayerController::new(
+            player_guid,
+            "WorldportNormalItemLevel".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            30,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map_for_misc_test(
+            &canonical,
+            player_guid,
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            30,
+            0,
+        );
+        session.set_represented_using_pvp_item_levels_like_cpp(true);
+        session.pending_teleport = Some((571, destination));
+        session.set_represented_far_teleport_pending_like_cpp(true);
+        session.set_state(crate::session::SessionState::Transfer);
+
+        session
+            .handle_world_port_response(WorldPacket::new_empty())
+            .await;
+
+        assert!(
+            !session.represented_using_pvp_item_levels_like_cpp(),
+            "C++ Player::UpdateItemLevelAreaBasedScaling clears PvP item levels after leaving map/PvP activity"
         );
     }
 
