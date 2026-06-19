@@ -7637,6 +7637,74 @@ impl UpdateObject {
 mod tests {
     use super::*;
 
+    /// Pins the movement create-block layout that the real 3.4.3.54261 client
+    /// requires: 9 conditional sub-bits (ending HasAdvFlying + HasDriveStatus)
+    /// flushed to exactly 2 bytes before the 9 movement speeds — matching the
+    /// current TrinityCore wotlk_classic `Object.cpp` create-block (9 `WriteBit`
+    /// then `FlushBits`, with `HasDriveStatus` the 9th bit).
+    ///
+    /// 9 bits flush to 2 bytes; 7 or 8 bits flush to 1, which shifts the speed
+    /// block one byte early. The 54261 client then reads garbage
+    /// RunBack/FlightBack/TurnRate and crashes with ERROR#132 (physics
+    /// out-of-bounds write) at world entry. A regression to 7/8 sub-bits moves
+    /// the speeds off the +2-byte boundary and fails this test.
+    #[test]
+    fn movement_create_block_flushes_nine_subbits_to_two_bytes_before_speeds_like_cpp() {
+        // Unique per-speed values so the decoded order is unambiguous.
+        let mv = MovementBlock {
+            position: Position::ZERO,
+            walk_speed: 1.0,
+            run_speed: 2.0,
+            run_back_speed: 3.0,
+            swim_speed: 4.0,
+            swim_back_speed: 5.0,
+            fly_speed: 6.0,
+            fly_back_speed: 7.0,
+            turn_rate: 8.0,
+            pitch_rate: 9.0,
+        };
+
+        let mut buf = WorldPacket::new_empty();
+        write_movement_update(&mut buf, &ObjectGuid::EMPTY, &mv);
+        let bytes = buf.data();
+
+        // Fixed header before the conditional sub-bits, with an EMPTY packed guid:
+        //   packed_guid(EMPTY) = 2  (low_mask=0, high_mask=0, no value bytes)
+        // + MovementFlags / Flags2 / ExtraFlags2 (3 * u32) = 12
+        // + MoveTime (u32)                                 = 4
+        // + Position x / y / z / o (4 * f32)               = 16
+        // + Pitch (f32)                                    = 4
+        // + StepUpStartElevation (f32)                     = 4
+        // + RemoveForcesIDs.Count (u32)                    = 4
+        // + MoveIndex (u32)                                = 4
+        const HEADER_BEFORE_SUBBITS: usize = 2 + 12 + 4 + 16 + 4 + 4 + 4 + 4; // 50
+        const SUBBIT_BYTES: usize = 2; // 9 sub-bits -> flush_bits -> 2 bytes
+        const SPEEDS_OFFSET: usize = HEADER_BEFORE_SUBBITS + SUBBIT_BYTES; // 52
+
+        let read_f32 = |off: usize| f32::from_le_bytes(bytes[off..off + 4].try_into().unwrap());
+
+        // The 9 speeds must decode in order at the +2-byte boundary.
+        let speeds = [1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0];
+        for (i, want) in speeds.iter().enumerate() {
+            assert_eq!(
+                read_f32(SPEEDS_OFFSET + i * 4),
+                *want,
+                "speed[{i}] misaligned: the flushed sub-bit region is not exactly 2 bytes"
+            );
+        }
+
+        // Directly reject the 7/8-bit failure mode: if only one byte of sub-bits
+        // were flushed, walk_speed would decode one byte earlier.
+        assert_ne!(
+            read_f32(HEADER_BEFORE_SUBBITS + 1),
+            1.0,
+            "walk_speed decodes at the 1-byte boundary -> only 7/8 sub-bits written -> 54261 crash"
+        );
+
+        // All nine sub-bits are false here, so the flushed region is two zero bytes.
+        assert_eq!(&bytes[HEADER_BEFORE_SUBBITS..SPEEDS_OFFSET], &[0x00, 0x00]);
+    }
+
     #[test]
     fn gameobject_create_values_serializes_created_by_guid_like_cpp() {
         let base = GameObjectCreateData {
