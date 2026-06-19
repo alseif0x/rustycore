@@ -23,6 +23,8 @@ const MIN_TALENT_RESET_LEVEL_LIKE_CPP: u8 = 15;
 const UNTALENT_VISUAL_EFFECT_SPELL_ID_LIKE_CPP: u32 = 14_867;
 #[cfg(test)]
 const AT_LOGIN_RENAME_LIKE_CPP: u16 = 0x001;
+#[cfg(test)]
+const AT_LOGIN_RESET_SPELLS_LIKE_CPP: u16 = 0x002;
 const AT_LOGIN_RESET_TALENTS_LIKE_CPP: u16 = 0x004;
 
 inventory::submit! {
@@ -805,6 +807,51 @@ mod tests {
         assert!(
             !session.known_spells_like_cpp().contains(&50_101),
             "C++ ResetTalents(true) still removes active talents"
+        );
+    }
+
+    #[tokio::test]
+    async fn login_at_login_reset_spells_removes_known_spells_and_notifies_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(2);
+        session.set_known_spells_like_cpp(vec![118, 133, 19740]);
+        session.set_represented_at_login_flags_like_cpp(
+            AT_LOGIN_RENAME_LIKE_CPP
+                | AT_LOGIN_RESET_SPELLS_LIKE_CPP
+                | AT_LOGIN_RESET_TALENTS_LIKE_CPP,
+        );
+
+        assert!(
+            session.apply_represented_login_spell_reset_if_needed_like_cpp(),
+            "C++ CharacterHandler applies AT_LOGIN_RESET_SPELLS through Player::ResetSpells"
+        );
+
+        let notification = send_rx
+            .try_recv()
+            .expect("C++ SendNotification(LANG_RESET_SPELLS)");
+        assert_eq!(
+            notification,
+            PrintNotification {
+                notify_text: "Your spells have been reset.".to_string(),
+            }
+            .to_bytes()
+        );
+        assert!(send_rx.try_recv().is_err());
+        assert!(
+            session.known_spells_like_cpp().is_empty(),
+            "C++ ResetSpells(false) removes every spell in the copied PlayerSpellMap before relearning defaults"
+        );
+        assert_eq!(
+            session.represented_at_login_flags_like_cpp(),
+            AT_LOGIN_RENAME_LIKE_CPP | AT_LOGIN_RESET_TALENTS_LIKE_CPP,
+            "C++ removes only AT_LOGIN_RESET_SPELLS"
+        );
+        assert_eq!(
+            session.represented_at_login_flag_removals_like_cpp(),
+            &[RepresentedAtLoginFlagRemovalLikeCpp {
+                flags: AT_LOGIN_RESET_SPELLS_LIKE_CPP,
+                persist: true,
+                db_statement_unrepresented: true,
+            }]
         );
     }
 

@@ -202,7 +202,9 @@ const PLAYER_FLAGS_IN_PVP_LIKE_CPP: u32 = 0x0000_0200;
 const PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP: u32 = 0x0002_0000;
 const PLAYER_FLAGS_PVP_TIMER_LIKE_CPP: u32 = 0x0004_0000;
 const PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP: u32 = 0x0800_0000;
+const LANG_RESET_SPELLS_LIKE_CPP: u32 = 215;
 const LANG_RESET_TALENTS_LIKE_CPP: u32 = 216;
+const LANG_RESET_SPELLS_TEXT_LIKE_CPP: &str = "Your spells have been reset.";
 const LANG_RESET_TALENTS_TEXT_LIKE_CPP: &str = "Your talents have been reset.";
 pub(crate) const TRADE_STATUS_PLAYER_BUSY_LIKE_CPP: u8 = 0;
 const PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP: u32 = 0x0000_0800;
@@ -18465,6 +18467,22 @@ impl WorldSession {
         false
     }
 
+    pub(crate) fn apply_represented_login_spell_reset_if_needed_like_cpp(&mut self) -> bool {
+        const AT_LOGIN_RESET_SPELLS_LIKE_CPP: u16 = 0x002;
+
+        if (self.represented_at_login_flags_like_cpp & AT_LOGIN_RESET_SPELLS_LIKE_CPP) == 0 {
+            return false;
+        }
+
+        self.remove_represented_at_login_flag_like_cpp(AT_LOGIN_RESET_SPELLS_LIKE_CPP, true);
+        let spells = self.known_spells_like_cpp().to_vec();
+        for spell_id in spells {
+            self.remove_known_spell_like_cpp(spell_id);
+        }
+        self.send_notification_like_cpp(self.reset_spells_notification_text_like_cpp());
+        true
+    }
+
     pub(crate) fn mark_represented_talents_loaded_like_cpp(&mut self) {
         self.represented_talents_loaded_like_cpp = true;
         self.refresh_represented_talent_points_like_cpp();
@@ -26073,6 +26091,15 @@ impl WorldSession {
         let text = self.trinity_string_like_cpp(LANG_RESET_TALENTS_LIKE_CPP);
         if text == "<error>" {
             LANG_RESET_TALENTS_TEXT_LIKE_CPP.to_string()
+        } else {
+            text.to_string()
+        }
+    }
+
+    fn reset_spells_notification_text_like_cpp(&self) -> String {
+        let text = self.trinity_string_like_cpp(LANG_RESET_SPELLS_LIKE_CPP);
+        if text == "<error>" {
+            LANG_RESET_SPELLS_TEXT_LIKE_CPP.to_string()
         } else {
             text.to_string()
         }

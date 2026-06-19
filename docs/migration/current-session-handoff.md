@@ -1,3 +1,29 @@
+- `#NEXT.R8.ENTITIES.1087` — represented login now applies
+  `AT_LOGIN_RESET_SPELLS` before `AT_LOGIN_RESET_TALENTS`, matching the C++
+  at-login request order (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CharacterHandler.cpp:1282-1293`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:23733-23761`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:535`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/Language.h:257-262`,
+  and `/home/server/woltk-trinity-legacy/sql/old/3.0.9/01351_world.sql:169`.
+  C++ checks `AT_LOGIN_RESET_SPELLS`, calls `ResetSpells()`, removes the
+  at-login flag with `persist=true`, removes the copied `PlayerSpellMap`, then
+  sends `LANG_RESET_SPELLS` ("Your spells have been reset."). Rust now clears
+  only the represented reset-spells bit, records the persistent at-login
+  removal boundary, removes the current represented known-spell snapshot, and
+  sends the localized Trinity string when available with the C++ English text
+  as fallback. Coverage: `cargo fmt --all --check`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  login_at_login_reset_spells_removes_known_spells_and_notifies_like_cpp
+  --lib`; focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test
+  -p wow-world login_at_login_reset_talents_resets_without_cost_like_cpp
+  --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p
+  world-server`; `git diff --check`. Boundary remains partial:
+  `LearnDefaultSkills`, `LearnCustomSpells`, `LearnQuestRewardedSpells`,
+  `myClassOnly` reset filtering, full `SpellMgr::IsSpellValid`,
+  live `character_spell` DB deletion/reinsert transaction parity, live DB
+  execution of the at-login flag update, live-client validation, bot
+  validation, and manual validation remain open.
 - `#NEXT.R8.ENTITIES.1086` — represented login now applies
   `AT_LOGIN_RESET_TALENTS` through the C++ `ResetTalents(true)` path after
   the initial talent-data packet (not manual-test-ready). Source of truth:
@@ -18,7 +44,8 @@
   `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
   confirm_respec --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo
   check -p world-server`; `git diff --check`. Boundary remains partial:
-  `AT_LOGIN_RESET_SPELLS`, `AT_LOGIN_RESET_PET_TALENTS`, `AT_LOGIN_FIRST`,
+  `AT_LOGIN_RESET_SPELLS` is closed by `#NEXT.R8.ENTITIES.1087`;
+  `AT_LOGIN_RESET_PET_TALENTS`, `AT_LOGIN_FIRST`,
   live DB execution of the at-login flag update, full `ScriptMgr`, full
   `Player::SaveToDB` talent/spell transaction parity, live-client validation,
   bot validation, and manual validation remain open.

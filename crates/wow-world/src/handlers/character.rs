@@ -4710,6 +4710,7 @@ impl WorldSession {
             skill_info_tuples,
             account_mounts,
         );
+        self.apply_represented_login_spell_reset_if_needed_like_cpp();
         self.apply_represented_login_talent_reset_if_needed_like_cpp();
 
         // Mark online in DB
