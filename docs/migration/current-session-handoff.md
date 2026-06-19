@@ -1,3 +1,22 @@
+- `#NEXT.R8.ENTITIES.1150` — represented `PlayerData::AvgItemLevel[0]`
+  now filters represented non-equipped candidates through the represented
+  item-template `CanEquipUniqueItem` branch of C++ `CanEquipItem`. Source of
+  truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:10667-10712`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:25859-25928`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28845-28852`.
+  C++ calls `CanEquipUniqueItem(pItem, swap ? ignore : NULL_SLOT)` after
+  `CanUseItem` and before quiver/offhand special cases. Rust now builds the
+  represented equipped item/template view and delegates to the existing
+  `wow_entities::Player::can_equip_unique_item` helper for
+  `UNIQUE_EQUIPPABLE` and item-limit-category equipped counts before a
+  non-equipped candidate can replace a best slot. Coverage: `cargo test -p
+  wow-world represented_condition_total_avg_item_level --lib`. Boundary
+  remains partial: socketed gem unique/limit-category checks, quiver/offhand
+  special gates, item-level bonus/PvP/timewalker scaling, update-field packet
+  emission/fanout, persistence, live-client/bot manual validation, and full
+  condition-runtime parity remain open.
+
 - `#NEXT.R8.ENTITIES.1149` — represented `PlayerData::AvgItemLevel[0]`
   now filters represented non-equipped candidates through the represented
   `CanUseItem` branch of C++ `CanEquipItem`. Source of truth:
@@ -10,10 +29,11 @@
   gates for represented runtime item objects before the best-slot replacement.
   Coverage: `cargo test -p wow-world
   represented_condition_total_avg_item_level --lib`. Boundary remains partial:
-  full `CanEquipUniqueItem` restrictions, unique-equip/limit-category equipped
-  counting, quiver/offhand special gates, item-level bonus/PvP/timewalker
-  scaling, update-field packet emission/fanout, persistence, live-client/bot
-  manual validation, and full condition-runtime parity remain open.
+  represented item-template `CanEquipUniqueItem` filtering is closed later by
+  `#NEXT.R8.ENTITIES.1150`; socketed gem unique/limit-category checks,
+  quiver/offhand special gates, item-level bonus/PvP/timewalker scaling,
+  update-field packet emission/fanout, persistence, live-client/bot manual
+  validation, and full condition-runtime parity remain open.
 
 - `#NEXT.R8.ENTITIES.1148` — represented `PlayerData::AvgItemLevel[0]`
   now has explicit coverage for represented reagent-bank child items. Source

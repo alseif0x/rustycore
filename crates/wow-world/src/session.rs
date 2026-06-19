@@ -121,12 +121,13 @@ use wow_entities::{
     AccessorObjectKind, ActiveState, ApplyEnchantmentArgs, ApplyEnchantmentEffectRef,
     ApplyEnchantmentPlan, ApplyEnchantmentRandomSuffixRef, ApplyEnchantmentTemplateRef,
     BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_COUNT, BUYBACK_SLOT_END,
-    BUYBACK_SLOT_START, BagTemplateRef, CanStoreItemArgs, CanUnequipItemArgs, CanUseItemArgs,
-    CanUseItemTemplateArgs, EQUIPMENT_SLOT_BACK, EQUIPMENT_SLOT_BODY, EQUIPMENT_SLOT_CHEST,
-    EQUIPMENT_SLOT_END, EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_FINGER1, EQUIPMENT_SLOT_FINGER2,
-    EQUIPMENT_SLOT_HANDS, EQUIPMENT_SLOT_HEAD, EQUIPMENT_SLOT_LEGS, EQUIPMENT_SLOT_MAINHAND,
-    EQUIPMENT_SLOT_NECK, EQUIPMENT_SLOT_OFFHAND, EQUIPMENT_SLOT_SHOULDERS, EQUIPMENT_SLOT_TABARD,
-    EQUIPMENT_SLOT_TRINKET1, EQUIPMENT_SLOT_TRINKET2, EQUIPMENT_SLOT_WAIST, EQUIPMENT_SLOT_WRISTS,
+    BUYBACK_SLOT_START, BagTemplateRef, CanEquipUniqueItemArgs, CanStoreItemArgs,
+    CanUnequipItemArgs, CanUseItemArgs, CanUseItemTemplateArgs, EQUIPMENT_SLOT_BACK,
+    EQUIPMENT_SLOT_BODY, EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_END, EQUIPMENT_SLOT_FEET,
+    EQUIPMENT_SLOT_FINGER1, EQUIPMENT_SLOT_FINGER2, EQUIPMENT_SLOT_HANDS, EQUIPMENT_SLOT_HEAD,
+    EQUIPMENT_SLOT_LEGS, EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_NECK, EQUIPMENT_SLOT_OFFHAND,
+    EQUIPMENT_SLOT_SHOULDERS, EQUIPMENT_SLOT_TABARD, EQUIPMENT_SLOT_TRINKET1,
+    EQUIPMENT_SLOT_TRINKET2, EQUIPMENT_SLOT_WAIST, EQUIPMENT_SLOT_WRISTS,
     GAMEOBJECT_TYPE_GUILD_BANK, GameObject, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0,
     INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS,
     ITEM_DATA_CONTAINED_IN_BIT, ITEM_DATA_DURABILITY_BIT, Item, ItemCreateInfo, ItemDataUpdate,
@@ -30355,6 +30356,13 @@ impl WorldSession {
             {
                 return;
             }
+
+            if self
+                .represented_avg_total_item_level_can_equip_unique_like_cpp(entry_id, runtime_item)
+                != InventoryResult::Ok
+            {
+                return;
+            }
         }
 
         for (candidate_slot, check_duplicate_guid) in
@@ -30374,6 +30382,58 @@ impl WorldSession {
                 check_duplicate_guid,
             );
         }
+    }
+
+    fn represented_avg_total_item_level_can_equip_unique_like_cpp(
+        &self,
+        entry_id: u32,
+        runtime_item: &Item,
+    ) -> InventoryResult {
+        let Some(player) = self.direct_inventory_player_snapshot() else {
+            return InventoryResult::ItemNotFound;
+        };
+        let Some(proto) = self.item_storage_template(entry_id) else {
+            return InventoryResult::ItemNotFound;
+        };
+
+        let item_objects = self.inventory_item_objects_like_cpp();
+        let mut equipped_templates = Vec::new();
+        let mut equipped_items_with_templates = Vec::new();
+        for (&slot, inventory_item) in self.inventory_items_like_cpp() {
+            if slot >= EQUIPMENT_SLOT_END {
+                continue;
+            }
+            let Some(item) = item_objects.get(&inventory_item.guid) else {
+                continue;
+            };
+            let Some(template) = self.item_storage_template(inventory_item.entry_id) else {
+                continue;
+            };
+            equipped_templates.push((slot, item, template));
+        }
+
+        for (slot, item, template) in &equipped_templates {
+            equipped_items_with_templates.push(ItemStorageRef::new(
+                INVENTORY_SLOT_BAG_0,
+                *slot,
+                *item,
+                Some(template),
+            ));
+        }
+
+        let unique_equippable = proto.flags.contains(ItemFlags::UNIQUE_EQUIPPABLE);
+        let limit_category = self.item_limit_category_template_like_cpp(proto.item_limit_category);
+        player.can_equip_unique_item(CanEquipUniqueItemArgs {
+            source_item: Some(runtime_item),
+            proto: Some(&proto),
+            except_slot: NULL_SLOT,
+            limit_count: 1,
+            unique_equippable,
+            limit_category: limit_category.as_ref(),
+            equipped_items: &equipped_items_with_templates,
+            equipped_gems: &[],
+            socketed_gems: &[],
+        })
     }
 
     fn represented_avg_total_item_level_maybe_replace_slot_like_cpp(
@@ -51336,6 +51396,146 @@ mod tests {
         assert_eq!(
             context.avg_item_level, 6.25,
             "C++ UpdateAverageItemLevelTotal calls CanEquipItem for non-equipped candidates, and CanEquipItem rejects CanUseItem class/race failures before replacing the best slot"
+        );
+        assert_eq!(
+            context.avg_equipped_item_level, 6.25,
+            "C++ UpdateAverageItemLevelEquipped still uses only equipped items"
+        );
+    }
+
+    #[test]
+    fn represented_condition_total_avg_item_level_skips_unique_limit_candidates_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let equipped_chest_item_id = 30_033_u32;
+        let rejected_chest_item_id = 30_034_u32;
+        let equipped_chest_guid = ObjectGuid::create_item(1, 30_033);
+        let rejected_chest_guid = ObjectGuid::create_item(1, 30_034);
+        let limit_category_id = 44_u32;
+        let player_guid = ObjectGuid::create_player(1, 172);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AverageItemLevelUniqueLimitRejected".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        session.set_item_store(Arc::new(ItemStore::from_records([
+            represented_test_item_record_like_cpp(
+                equipped_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+            represented_test_item_record_like_cpp(
+                rejected_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+        ])));
+
+        let mut equipped_sparse =
+            sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0);
+        equipped_sparse.limit_category = limit_category_id as u16;
+        let mut rejected_sparse =
+            sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0);
+        rejected_sparse.limit_category = limit_category_id as u16;
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [
+                    (equipped_chest_item_id, equipped_sparse),
+                    (rejected_chest_item_id, rejected_sparse),
+                ],
+                [
+                    (
+                        equipped_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 100,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                    (
+                        rejected_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 300,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                ],
+            ),
+        ));
+        session.set_item_search_name_store(Arc::new(ItemSearchNameStore::from_entries([
+            ItemSearchNameEntry {
+                id: equipped_chest_item_id,
+                allowable_race: 0,
+                display: String::new(),
+                overall_quality_id: ItemQuality::Epic as u8,
+                expansion_id: 0,
+                min_faction_id: 0,
+                min_reputation: 0,
+                allowable_class: 0,
+                required_level: 0,
+                required_skill: 0,
+                required_skill_rank: 0,
+                required_ability: 0,
+                item_level: 100,
+                flags: [0; 4],
+            },
+            ItemSearchNameEntry {
+                id: rejected_chest_item_id,
+                allowable_race: 0,
+                display: String::new(),
+                overall_quality_id: ItemQuality::Epic as u8,
+                expansion_id: 0,
+                min_faction_id: 0,
+                min_reputation: 0,
+                allowable_class: 0,
+                required_level: 0,
+                required_skill: 0,
+                required_skill_rank: 0,
+                required_ability: 0,
+                item_level: 300,
+                flags: [0; 4],
+            },
+        ])));
+        session.set_item_limit_category_store(Arc::new(ItemLimitCategoryStore::from_entries([
+            ItemLimitCategoryEntry {
+                id: limit_category_id,
+                name: String::new(),
+                quantity: 1,
+                flags: wow_entities::ITEM_LIMIT_CATEGORY_MODE_EQUIP,
+            },
+        ])));
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            equipped_chest_guid,
+            equipped_chest_item_id,
+            InventoryType::Chest,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            INVENTORY_SLOT_ITEM_START,
+            rejected_chest_guid,
+            rejected_chest_item_id,
+            InventoryType::Chest,
+        );
+
+        let owned = session.represented_player_condition_context_like_cpp();
+        let context = owned.as_context(&session);
+
+        assert_eq!(
+            context.avg_item_level, 6.25,
+            "C++ CanEquipItem calls CanEquipUniqueItem for non-equipped candidates, so an equip-limit category candidate cannot replace an already equipped item in the same limited category"
         );
         assert_eq!(
             context.avg_equipped_item_level, 6.25,
