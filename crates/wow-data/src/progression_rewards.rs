@@ -360,6 +360,109 @@ pub struct ScalingStatValuesEntry {
     pub plate_chest_armor: i32,
 }
 
+impl ScalingStatValuesEntry {
+    /// C++ `ScalingStatValuesEntry::getssdMultiplier`.
+    pub fn ssd_multiplier_like_cpp(&self, mask: u32) -> i32 {
+        if mask & 0x4001F == 0 {
+            return 0;
+        }
+        if mask & 0x00000001 != 0 {
+            return self.shoulder_budget;
+        }
+        if mask & 0x00000002 != 0 {
+            return self.trinket_budget;
+        }
+        if mask & 0x00000004 != 0 {
+            return self.weapon_budget_1h;
+        }
+        if mask & 0x00000008 != 0 {
+            return self.primary_budget;
+        }
+        if mask & 0x00000010 != 0 {
+            return self.ranged_budget;
+        }
+        if mask & 0x00040000 != 0 {
+            return self.tertiary_budget;
+        }
+        0
+    }
+
+    /// C++ `ScalingStatValuesEntry::getArmorMod`.
+    pub fn armor_mod_like_cpp(&self, mask: u32) -> i32 {
+        if mask & 0x00F001E0 == 0 {
+            return 0;
+        }
+        if mask & 0x00000020 != 0 {
+            return self.cloth_shoulder_armor;
+        }
+        if mask & 0x00000040 != 0 {
+            return self.leather_shoulder_armor;
+        }
+        if mask & 0x00000080 != 0 {
+            return self.mail_shoulder_armor;
+        }
+        if mask & 0x00000100 != 0 {
+            return self.plate_shoulder_armor;
+        }
+        if mask & 0x00080000 != 0 {
+            return self.cloth_cloak_armor;
+        }
+        if mask & 0x00100000 != 0 {
+            return self.cloth_chest_armor;
+        }
+        if mask & 0x00200000 != 0 {
+            return self.leather_chest_armor;
+        }
+        if mask & 0x00400000 != 0 {
+            return self.mail_chest_armor;
+        }
+        if mask & 0x00800000 != 0 {
+            return self.plate_chest_armor;
+        }
+        0
+    }
+
+    /// C++ `ScalingStatValuesEntry::getDPSMod`.
+    pub fn dps_mod_like_cpp(&self, mask: u32) -> i32 {
+        if mask & 0x7E00 == 0 {
+            return 0;
+        }
+        if mask & 0x00000200 != 0 {
+            return self.weapon_dps_1h;
+        }
+        if mask & 0x00000400 != 0 {
+            return self.weapon_dps_2h;
+        }
+        if mask & 0x00000800 != 0 {
+            return self.spellcaster_dps_1h;
+        }
+        if mask & 0x00001000 != 0 {
+            return self.spellcaster_dps_2h;
+        }
+        if mask & 0x00002000 != 0 {
+            return self.ranged_dps;
+        }
+        if mask & 0x00004000 != 0 {
+            return self.wand_dps;
+        }
+        0
+    }
+
+    /// C++ `ScalingStatValuesEntry::isTwoHand`.
+    pub fn is_two_hand_like_cpp(&self, mask: u32) -> bool {
+        mask & 0x7E00 != 0 && (mask & 0x00000400 != 0 || mask & 0x00001000 != 0)
+    }
+
+    /// C++ `ScalingStatValuesEntry::getSpellBonus`.
+    pub fn spell_bonus_like_cpp(&self, mask: u32) -> i32 {
+        if mask & 0x00008000 != 0 {
+            self.spell_power
+        } else {
+            0
+        }
+    }
+}
+
 macro_rules! db2_store {
     ($store:ident, $entry:ty) => {
         pub struct $store {
@@ -1083,6 +1186,16 @@ impl ScalingStatValuesStore {
             }
         })
     }
+
+    /// C++ `DB2Manager::GetScalingStatValuesForLevel`.
+    pub fn get_for_character_level_like_cpp(
+        &self,
+        character_level: u32,
+    ) -> Option<&ScalingStatValuesEntry> {
+        self.entries
+            .values()
+            .find(|entry| entry.char_level == character_level as i32)
+    }
 }
 
 fn load_store<T, S>(
@@ -1206,6 +1319,93 @@ mod tests {
             enemies: [0; 8],
             friend: [0; 8],
         }
+    }
+
+    fn scaling_stat_values_for_test(id: u32, char_level: i32) -> ScalingStatValuesEntry {
+        ScalingStatValuesEntry {
+            id,
+            char_level,
+            weapon_dps_1h: 101,
+            weapon_dps_2h: 102,
+            spellcaster_dps_1h: 103,
+            spellcaster_dps_2h: 104,
+            ranged_dps: 105,
+            wand_dps: 106,
+            spell_power: 107,
+            shoulder_budget: 201,
+            trinket_budget: 202,
+            weapon_budget_1h: 203,
+            primary_budget: 204,
+            ranged_budget: 205,
+            tertiary_budget: 206,
+            cloth_shoulder_armor: 301,
+            leather_shoulder_armor: 302,
+            mail_shoulder_armor: 303,
+            plate_shoulder_armor: 304,
+            cloth_cloak_armor: 305,
+            cloth_chest_armor: 306,
+            leather_chest_armor: 307,
+            mail_chest_armor: 308,
+            plate_chest_armor: 309,
+        }
+    }
+
+    #[test]
+    fn scaling_stat_values_helpers_match_cpp_mask_priority() {
+        let values = scaling_stat_values_for_test(1, 80);
+
+        assert_eq!(values.ssd_multiplier_like_cpp(0), 0);
+        assert_eq!(values.ssd_multiplier_like_cpp(0x00000001), 201);
+        assert_eq!(values.ssd_multiplier_like_cpp(0x00000002), 202);
+        assert_eq!(values.ssd_multiplier_like_cpp(0x00000004), 203);
+        assert_eq!(values.ssd_multiplier_like_cpp(0x00000008), 204);
+        assert_eq!(values.ssd_multiplier_like_cpp(0x00000010), 205);
+        assert_eq!(values.ssd_multiplier_like_cpp(0x00040000), 206);
+        assert_eq!(values.ssd_multiplier_like_cpp(0x00040001), 201);
+
+        assert_eq!(values.armor_mod_like_cpp(0), 0);
+        assert_eq!(values.armor_mod_like_cpp(0x00000020), 301);
+        assert_eq!(values.armor_mod_like_cpp(0x00000040), 302);
+        assert_eq!(values.armor_mod_like_cpp(0x00000080), 303);
+        assert_eq!(values.armor_mod_like_cpp(0x00000100), 304);
+        assert_eq!(values.armor_mod_like_cpp(0x00080000), 0);
+        assert_eq!(values.armor_mod_like_cpp(0x00180000), 305);
+        assert_eq!(values.armor_mod_like_cpp(0x00100000), 306);
+        assert_eq!(values.armor_mod_like_cpp(0x00200000), 307);
+        assert_eq!(values.armor_mod_like_cpp(0x00400000), 308);
+        assert_eq!(values.armor_mod_like_cpp(0x00800000), 309);
+        assert_eq!(values.armor_mod_like_cpp(0x00800020), 301);
+
+        assert_eq!(values.dps_mod_like_cpp(0), 0);
+        assert_eq!(values.dps_mod_like_cpp(0x00000200), 101);
+        assert_eq!(values.dps_mod_like_cpp(0x00000400), 102);
+        assert_eq!(values.dps_mod_like_cpp(0x00000800), 103);
+        assert_eq!(values.dps_mod_like_cpp(0x00001000), 104);
+        assert_eq!(values.dps_mod_like_cpp(0x00002000), 105);
+        assert_eq!(values.dps_mod_like_cpp(0x00004000), 106);
+        assert_eq!(values.dps_mod_like_cpp(0x00004200), 101);
+
+        assert!(!values.is_two_hand_like_cpp(0x00000200));
+        assert!(values.is_two_hand_like_cpp(0x00000400));
+        assert!(values.is_two_hand_like_cpp(0x00001000));
+        assert_eq!(values.spell_bonus_like_cpp(0), 0);
+        assert_eq!(values.spell_bonus_like_cpp(0x00008000), 107);
+    }
+
+    #[test]
+    fn scaling_stat_values_store_gets_entry_by_character_level_like_cpp() {
+        let store = ScalingStatValuesStore::from_entries([
+            scaling_stat_values_for_test(10, 10),
+            scaling_stat_values_for_test(80, 80),
+        ]);
+
+        assert_eq!(
+            store
+                .get_for_character_level_like_cpp(80)
+                .map(|entry| entry.id),
+            Some(80)
+        );
+        assert_eq!(store.get_for_character_level_like_cpp(11), None);
     }
 
     #[test]

@@ -1,3 +1,18 @@
+- `#NEXT.R8.ENTITIES.1175` — `wow-data` now exposes C++-faithful
+  `ScalingStatValuesEntry` helper methods (`getssdMultiplier`, `getArmorMod`,
+  `getDPSMod`, `isTwoHand`, and `getSpellBonus`) plus the
+  `DB2Manager::GetScalingStatValuesForLevel` equivalent lookup by
+  `Charlevel`. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Structure.h:3181-3262`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Stores.cpp:3101-3104`.
+  Tests preserve the exact C++ mask priority, including the odd
+  `getArmorMod` gate where a lone `0x00080000` cloth-cloak mask returns zero
+  unless another gated armor bit is present. Boundary remains partial: this is
+  a data/helper prerequisite; represented `_ApplyWeaponDamage` still does not
+  consume scaling DPS overrides, and live stat mutation/fanout/manual
+  validation remain open.
+
 - `#NEXT.R8.ENTITIES.1174` — represented `_ApplyItemBonuses` now wires the
   direct, non-scaling weapon-damage branch after shield block, matching the C++
   order in
