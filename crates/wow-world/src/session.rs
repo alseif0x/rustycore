@@ -14706,6 +14706,19 @@ impl WorldSession {
         self.represented_item_bonus_actions_like_cpp.len() != action_start
     }
 
+    pub(crate) fn record_destroyed_inventory_item_set_remove_like_cpp(
+        &mut self,
+        bag: u8,
+        slot: u8,
+        item_guid: ObjectGuid,
+    ) -> bool {
+        if bag != INVENTORY_SLOT_BAG_0 || slot >= INVENTORY_SLOT_BAG_END {
+            return false;
+        }
+
+        self.record_represented_items_set_item_like_cpp(item_guid, false)
+    }
+
     pub(crate) fn record_represented_items_set_item_like_cpp(
         &mut self,
         item_guid: ObjectGuid,
@@ -105121,6 +105134,116 @@ mod tests {
             session.represented_item_bonus_actions_like_cpp().len(),
             actions_before,
             "C++ _ApplyItemMods skips non-applied inventory slots and broken equipped items"
+        );
+    }
+
+    #[test]
+    fn destroyed_inventory_item_set_remove_matches_cpp_even_for_broken_equipped_item() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let chest_guid = ObjectGuid::create_item(1, 912);
+        let hands_guid = ObjectGuid::create_item(1, 913);
+        let backpack_guid = ObjectGuid::create_item(1, 914);
+        session.set_player_guid(Some(player_guid));
+        session.set_item_set_store(Arc::new(ItemSetStore::from_entries([ItemSetEntry {
+            id: 704,
+            name: "Destroy Set".to_string(),
+            set_flags: 0,
+            required_skill: 0,
+            required_skill_rank: 0,
+            item_id: std::array::from_fn(|i| match i {
+                0 => 106,
+                1 => 107,
+                2 => 108,
+                _ => 0,
+            }),
+        }])));
+        session.set_item_set_spell_store(Arc::new(ItemSetSpellStore::from_entries([
+            ItemSetSpellEntry {
+                id: 20,
+                chr_spec_id: 0,
+                spell_id: 9020,
+                threshold: 2,
+                item_set_id: 704,
+            },
+        ])));
+
+        let mut broken_chest = session.make_inventory_item_object(
+            chest_guid,
+            106,
+            player_guid,
+            1,
+            0,
+            ItemContext::None,
+            EQUIPMENT_SLOT_CHEST,
+        );
+        broken_chest.set_max_durability(10);
+        broken_chest.set_durability(0);
+        session.insert_inventory_item_object(broken_chest);
+        session.insert_inventory_item_like_cpp(
+            EQUIPMENT_SLOT_CHEST,
+            InventoryItem {
+                guid: chest_guid,
+                entry_id: 106,
+                db_guid: chest_guid.counter() as u64,
+                inventory_type: Some(InventoryType::Chest as u8),
+            },
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_HANDS,
+            hands_guid,
+            107,
+            InventoryType::Hands,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            INVENTORY_SLOT_ITEM_START,
+            backpack_guid,
+            108,
+            InventoryType::Chest,
+        );
+
+        assert!(!session.record_represented_items_set_item_like_cpp(chest_guid, true));
+        assert!(session.record_represented_items_set_item_like_cpp(hands_guid, true));
+        assert_eq!(
+            session.represented_item_set_spell_events_like_cpp(),
+            &[RepresentedItemSetSpellEventLikeCpp {
+                item_set_id: 704,
+                spell_entry_id: 20,
+                spell_id: 9020,
+                threshold: 2,
+                apply: true,
+            }]
+        );
+
+        assert!(
+            !session.record_destroyed_inventory_item_set_remove_like_cpp(
+                INVENTORY_SLOT_BAG_0,
+                INVENTORY_SLOT_ITEM_START,
+                backpack_guid,
+            )
+        );
+        assert_eq!(
+            session.represented_item_set_spell_events_like_cpp().len(),
+            1
+        );
+
+        assert!(session.record_destroyed_inventory_item_set_remove_like_cpp(
+            INVENTORY_SLOT_BAG_0,
+            EQUIPMENT_SLOT_CHEST,
+            chest_guid,
+        ));
+        assert_eq!(
+            session.represented_item_set_spell_events_like_cpp()[1],
+            RepresentedItemSetSpellEventLikeCpp {
+                item_set_id: 704,
+                spell_entry_id: 20,
+                spell_id: 9020,
+                threshold: 2,
+                apply: false,
+            },
+            "C++ DestroyItem removes item-set bonuses for equipped/equipped-bag slots, and item-set bonuses still count broken items"
         );
     }
 

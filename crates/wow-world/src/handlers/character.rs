@@ -10820,6 +10820,8 @@ impl WorldSession {
             return false;
         }
 
+        let _represented_item_set_changed =
+            self.record_destroyed_inventory_item_set_remove_like_cpp(bag, slot, item.guid);
         let represented_item_mods_changed =
             self.record_destroyed_inventory_item_mod_remove_like_cpp(bag, slot, item.guid);
 

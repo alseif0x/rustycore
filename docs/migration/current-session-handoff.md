@@ -1,3 +1,25 @@
+- `#NEXT.R8.ENTITIES.1188` — represented `DestroyItem` now invokes the C++
+  item-set removal hook for direct equipped/equipped-bag full-stack destroys
+  before represented item-mod removal. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11689-11770`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:146-190`.
+  C++ `Player::DestroyItem(bag, slot, update=true)` calls
+  `RemoveItemsSetItem` when `bag == INVENTORY_SLOT_BAG_0` and
+  `slot < INVENTORY_SLOT_BAG_END`, then `_ApplyItemMods`; Rust now mirrors that
+  represented order by recording item-set spell removal events before the
+  existing represented item-mod removal path. Coverage proves equipped slots
+  remove the represented set spell even for broken items, while backpack slots
+  do not touch item-set state. Checks: `cargo fmt --all --check`,
+  `cargo test -p wow-world
+  destroyed_inventory_item_set_remove_matches_cpp_even_for_broken_equipped_item
+  --lib`, `cargo test -p wow-world represented_item_set --lib`,
+  `cargo check -p wow-world`, `cargo check -p world-server`, and
+  `git diff --check`. Boundary remains partial: represented events only; no
+  real `ApplyEquipSpell`/aura removal, no `RemoveItem`/equip/swap wiring, no
+  update-field emission, persistence, fanout, bot/live/manual validation, or
+  exact C++ spec/form-change aura behavior.
+
 - `#NEXT.R8.ENTITIES.1187` — represented item-set effect state now models the
   C++ `AddItemsSetItem` / `RemoveItemsSetItem` threshold machine. Source of
   truth:
