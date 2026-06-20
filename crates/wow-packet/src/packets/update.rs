@@ -3659,20 +3659,9 @@ fn write_movement_update(buf: &mut WorldPacket, guid: &ObjectGuid, mv: &Movement
     // MoveIndex
     buf.write_uint32(0);
 
-    // 3.4.3.54261 CreateObject movement layout expects nine conditional
-    // sub-bits before speeds. The local legacy C++ tree stops at HasAdvFlying
-    // (8 bits), but PR #3 reported that 54261 clients parse the later
-    // Drive-status bit here. `cpp_movement_8bits` is a temporary login
-    // diagnostic to isolate client crash regressions against the local C++
-    // truth without reverting the PR by default.
-    let use_cpp_legacy_8_subbits = std::env::var("RUSTYCORE_LOGIN_UPDATEOBJECT_DIAGNOSTIC")
-        .ok()
-        .is_some_and(|value| {
-            value
-                .split(',')
-                .map(str::trim)
-                .any(|mode| mode == "cpp_movement_8bits")
-        });
+    // C++ 3.4.3 `Object::BuildMovementUpdate` writes eight conditional
+    // sub-bits here, ending at HasAdvFlying. A previous Rust-only ninth
+    // HasDriveStatus bit crashed the 54261 client while parsing player CREATE.
     buf.write_bit(false); // HasStandingOnGameObjectGUID
     buf.write_bit(false); // HasTransport
     buf.write_bit(false); // HasFall
@@ -3681,12 +3670,9 @@ fn write_movement_update(buf: &mut WorldPacket, guid: &ObjectGuid, mv: &Movement
     buf.write_bit(false); // RemoteTimeValid
     buf.write_bit(false); // HasInertia
     buf.write_bit(false); // HasAdvFlying
-    if !use_cpp_legacy_8_subbits {
-        buf.write_bit(false); // HasDriveStatus
-    }
     buf.flush_bits();
 
-    // No transport, standing, inertia, advFlying, fall, or drive blocks.
+    // No transport, standing, inertia, advFlying, or fall blocks.
 
     // 9 movement speeds
     buf.write_float(mv.walk_speed);
@@ -7693,7 +7679,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn movement_create_block_flushes_nine_subbits_before_speeds_for_54261() {
+    fn movement_create_block_flushes_cpp_eight_subbits_before_speeds_for_54261() {
         let mv = MovementBlock {
             position: Position::ZERO,
             walk_speed: 1.0,
@@ -7714,12 +7700,12 @@ mod tests {
         // EMPTY packed GUID = 2 bytes, then movement flags/flags2/extra2,
         // time, position, pitch, step elevation, remove-forces count, move index.
         const HEADER_BEFORE_SUBBITS: usize = 2 + 12 + 4 + 16 + 4 + 4 + 4 + 4;
-        const SPEEDS_OFFSET: usize = HEADER_BEFORE_SUBBITS + 2;
+        const SPEEDS_OFFSET: usize = HEADER_BEFORE_SUBBITS + 1;
 
         assert_eq!(
             &bytes[HEADER_BEFORE_SUBBITS..SPEEDS_OFFSET],
-            &[0x00, 0x00],
-            "nine false movement sub-bits must flush to two bytes for 54261"
+            &[0x00],
+            "C++ 3.4.3 movement create writes eight false sub-bits before speeds"
         );
 
         let read_f32 = |off: usize| f32::from_le_bytes(bytes[off..off + 4].try_into().unwrap());
@@ -7735,9 +7721,9 @@ mod tests {
         }
 
         assert_ne!(
-            read_f32(HEADER_BEFORE_SUBBITS + 1),
+            read_f32(HEADER_BEFORE_SUBBITS + 2),
             1.0,
-            "speed block still starts at the old one-byte 7/8-bit boundary"
+            "speed block shifted to the old Rust-only nine-sub-bit boundary"
         );
     }
 
