@@ -1,3 +1,20 @@
+- `#NEXT.R8.ENTITIES.1172` — `wow-data` now exposes the C++
+  `ItemSparseEntry` weapon fields required by `Player::_ApplyWeaponDamage`.
+  Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7976-8019`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/ItemTemplate.h:785-786,805,812-813`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Structure.h:2306,2341,2349-2350,2364`.
+  Rust now stores `DmgVariance`, `ItemDelay`, `MinDamage[5]`,
+  `MaxDamage[5]`, and `DamageDamageType` in `ItemWeaponTemplateEntry`
+  via `ItemStatsStore::weapon_template`. Coverage: `cargo test -p wow-data
+  item_weapon_template_entry_exposes_cpp_apply_weapon_damage_inputs --lib`.
+  Boundary remains partial/prerequisite only: represented `_ApplyWeaponDamage`
+  action planning, scaling-stat DPS override, feral/can-use attack gates,
+  attack-time application, physical damage recalculation, update-field fanout,
+  persistence, bot validation, live-client validation, and manual validation
+  remain open.
+
 - `#NEXT.R8.ENTITIES.1171` — represented `_ApplyItemBonuses` now consumes the
   direct shield-block branch after the resistance loop. Source of truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7972-7974`

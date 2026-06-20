@@ -261,6 +261,7 @@ pub use item_random_properties::{ItemRandomPropertiesEntry, ItemRandomProperties
 pub use item_random_suffix::{ItemRandomSuffixEntry, ItemRandomSuffixStore};
 pub use item_stats::{
     ItemRandomPropertyTemplateEntry, ItemSparseTemplateEntry, ItemStatEntry, ItemStatsStore,
+    ItemWeaponTemplateEntry,
 };
 pub use jump_charge::{
     JumpChargeParamsLoadOutcomeLikeCpp, JumpChargeParamsLoadReportLikeCpp,

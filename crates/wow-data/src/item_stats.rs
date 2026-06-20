@@ -101,6 +101,16 @@ pub struct ItemRandomPropertyTemplateEntry {
     pub inventory_type: i8,
 }
 
+/// C++ `ItemSparseEntry` weapon fields used by `Player::_ApplyWeaponDamage`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ItemWeaponTemplateEntry {
+    pub dmg_variance: f32,
+    pub item_delay: u16,
+    pub min_damage: [u16; 5],
+    pub max_damage: [u16; 5],
+    pub damage_damage_type: u8,
+}
+
 impl ItemSparseTemplateEntry {
     /// C++ `ItemTemplate::GetMaxStackSize`.
     pub fn max_stack_size(&self) -> u32 {
@@ -246,6 +256,7 @@ pub struct ItemStatsStore {
     flags: HashMap<u32, [u32; 4]>,
     sparse_templates: HashMap<u32, ItemSparseTemplateEntry>,
     random_property_templates: HashMap<u32, ItemRandomPropertyTemplateEntry>,
+    weapon_templates: HashMap<u32, ItemWeaponTemplateEntry>,
 }
 
 /// Known field byte sizes for ItemSparse.db2 (from field_meta).
@@ -354,6 +365,7 @@ impl ItemStatsStore {
             flags: flags.into_iter().collect(),
             sparse_templates: HashMap::new(),
             random_property_templates: HashMap::new(),
+            weapon_templates: HashMap::new(),
         }
     }
 
@@ -370,6 +382,7 @@ impl ItemStatsStore {
             flags,
             sparse_templates,
             random_property_templates: HashMap::new(),
+            weapon_templates: HashMap::new(),
         }
     }
 
@@ -381,6 +394,7 @@ impl ItemStatsStore {
             flags: HashMap::new(),
             sparse_templates: HashMap::new(),
             random_property_templates: random_property_templates.into_iter().collect(),
+            weapon_templates: HashMap::new(),
         }
     }
 
@@ -398,6 +412,7 @@ impl ItemStatsStore {
             flags,
             sparse_templates,
             random_property_templates: random_property_templates.into_iter().collect(),
+            weapon_templates: HashMap::new(),
         }
     }
 
@@ -416,6 +431,19 @@ impl ItemStatsStore {
             flags,
             sparse_templates,
             random_property_templates: random_property_templates.into_iter().collect(),
+            weapon_templates: HashMap::new(),
+        }
+    }
+
+    pub fn from_weapon_templates(
+        weapon_templates: impl IntoIterator<Item = (u32, ItemWeaponTemplateEntry)>,
+    ) -> Self {
+        Self {
+            stats: HashMap::new(),
+            flags: HashMap::new(),
+            sparse_templates: HashMap::new(),
+            random_property_templates: HashMap::new(),
+            weapon_templates: weapon_templates.into_iter().collect(),
         }
     }
 
@@ -434,6 +462,7 @@ impl ItemStatsStore {
         let mut flags = HashMap::with_capacity(reader.total_count());
         let mut sparse_templates = HashMap::with_capacity(reader.total_count());
         let mut random_property_templates = HashMap::with_capacity(reader.total_count());
+        let mut weapon_templates = HashMap::with_capacity(reader.total_count());
         let mut loaded = 0u32;
 
         for (id, idx) in reader.iter_records() {
@@ -448,6 +477,7 @@ impl ItemStatsStore {
             let mut pos = 0usize;
 
             // Field offsets for the stat fields we care about
+            let mut dmg_variance_offset: usize = 0;
             let mut bag_family_offset: usize = 0;
             let mut start_quest_id_offset: usize = 0;
             let mut stackable_offset: usize = 0;
@@ -469,17 +499,24 @@ impl ItemStatsStore {
             let mut zone_bound_offset: usize = 0;
             let mut required_reputation_faction_offset: usize = 0;
             let mut allowable_class_offset: usize = 0;
+            let mut item_delay_offset: usize = 0;
+            let mut min_damage_offset: usize = 0;
+            let mut max_damage_offset: usize = 0;
             let mut resistances_offset: usize = 0;
             let mut stat_amount_offset: usize = 0;
             let mut item_level_offset: usize = 0;
             let mut expansion_id_offset: usize = 0;
             let mut bonding_offset: usize = 0;
+            let mut damage_damage_type_offset: usize = 0;
             let mut stat_type_offset: usize = 0;
             let mut container_slots_offset: usize = 0;
             let mut inventory_type_offset: usize = 0;
             let mut quality_offset: usize = 0;
 
             for (fi, &(byte_size, is_string)) in layout.iter().enumerate() {
+                if fi == 6 {
+                    dmg_variance_offset = pos;
+                }
                 if fi == 9 {
                     bag_family_offset = pos;
                 }
@@ -543,8 +580,17 @@ impl ItemStatsStore {
                 if fi == 48 {
                     allowable_class_offset = pos;
                 }
+                if fi == 41 {
+                    item_delay_offset = pos;
+                }
                 if fi == 43 {
                     item_level_offset = pos;
+                }
+                if fi == 49 {
+                    min_damage_offset = pos;
+                }
+                if fi == 50 {
+                    max_damage_offset = pos;
                 }
                 if fi == 51 {
                     resistances_offset = pos;
@@ -557,6 +603,9 @@ impl ItemStatsStore {
                 }
                 if fi == 63 {
                     bonding_offset = pos;
+                }
+                if fi == 64 {
+                    damage_damage_type_offset = pos;
                 }
                 if fi == 65 {
                     stat_type_offset = pos;
@@ -684,6 +733,30 @@ impl ItemStatsStore {
                 );
             }
 
+            if dmg_variance_offset + 4 <= record.len()
+                && item_delay_offset + 2 <= record.len()
+                && min_damage_offset + 10 <= record.len()
+                && max_damage_offset + 10 <= record.len()
+                && damage_damage_type_offset < record.len()
+            {
+                let mut min_damage = [0u16; 5];
+                let mut max_damage = [0u16; 5];
+                for i in 0..5 {
+                    min_damage[i] = read_u16(record, min_damage_offset + i * 2);
+                    max_damage[i] = read_u16(record, max_damage_offset + i * 2);
+                }
+                weapon_templates.insert(
+                    id,
+                    ItemWeaponTemplateEntry {
+                        dmg_variance: read_f32(record, dmg_variance_offset),
+                        item_delay: read_u16(record, item_delay_offset),
+                        min_damage,
+                        max_damage,
+                        damage_damage_type: record[damage_damage_type_offset],
+                    },
+                );
+            }
+
             // Extract C++ ItemSparseEntry::Resistances[7] (field 51).
             let mut resistances = [0i16; 7];
             if resistances_offset + 14 <= record.len() {
@@ -730,6 +803,7 @@ impl ItemStatsStore {
             flags,
             sparse_templates,
             random_property_templates,
+            weapon_templates,
         })
     }
 
@@ -769,6 +843,11 @@ impl ItemStatsStore {
         item_id: u32,
     ) -> Option<&ItemRandomPropertyTemplateEntry> {
         self.random_property_templates.get(&item_id)
+    }
+
+    /// Return the C++ `ItemSparseEntry` weapon subset used by `_ApplyWeaponDamage`.
+    pub fn weapon_template(&self, item_id: u32) -> Option<&ItemWeaponTemplateEntry> {
+        self.weapon_templates.get(&item_id)
     }
 
     /// Number of items with stats.
@@ -955,6 +1034,26 @@ mod tests {
     }
 
     #[test]
+    fn item_weapon_template_entry_exposes_cpp_apply_weapon_damage_inputs() {
+        let weapon = ItemWeaponTemplateEntry {
+            dmg_variance: 1.4,
+            item_delay: 2600,
+            min_damage: [120, 1, 2, 3, 4],
+            max_damage: [180, 5, 6, 7, 8],
+            damage_damage_type: 0,
+        };
+        let store = ItemStatsStore::from_weapon_templates([(100, weapon)]);
+
+        let loaded = store.weapon_template(100).unwrap();
+        assert_eq!(loaded.dmg_variance, 1.4);
+        assert_eq!(loaded.item_delay, 2600);
+        assert_eq!(loaded.min_damage[0], 120);
+        assert_eq!(loaded.max_damage[0], 180);
+        assert_eq!(loaded.damage_damage_type, 0);
+        assert_eq!(store.weapon_template(101), None);
+    }
+
+    #[test]
     fn test_load_item_stats_store() {
         let data_dir = "/home/server/woltk-server-core/Data";
         let locale = "esES";
@@ -983,6 +1082,14 @@ mod tests {
             eprintln!("  full stats: {:?}", entry.stats);
             assert!(str > 100, "Shadowmourne STR should be >100, got {str}");
             assert!(sta > 100, "Shadowmourne STA should be >100, got {sta}");
+            let weapon = store
+                .weapon_template(49623)
+                .expect("Shadowmourne should expose ItemSparse weapon fields");
+            assert!(weapon.item_delay > 0, "weapon delay should be loaded");
+            assert!(
+                weapon.min_damage[0] <= weapon.max_damage[0],
+                "weapon damage range should be ordered"
+            );
         } else {
             eprintln!("Shadowmourne (49623) not found in stats store");
         }
