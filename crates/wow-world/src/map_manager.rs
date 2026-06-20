@@ -9,7 +9,10 @@ use std::time::{Duration, Instant};
 use rand::{Rng, SeedableRng, rngs::StdRng};
 use tracing::{debug, info, warn};
 use wow_constants::movement::MovementFlag;
-use wow_constants::{UnitDynFlags, UnitMoveType, UnitStandStateType, UnitState, WeaponAttackType};
+use wow_constants::{
+    CreatureRandomMovementType, UnitDynFlags, UnitMoveType, UnitStandStateType, UnitState,
+    WeaponAttackType,
+};
 use wow_core::{ObjectGuid, Position};
 use wow_entities::{
     Creature, CreatureAiState, DistractMovementAction, EVENT_CHARGE_PREPATH, GenericMovementInform,
@@ -1158,9 +1161,13 @@ impl WorldCreature {
                 MoveSplineLaunchInput {
                     current_position: self.position(),
                     active_spline_position,
-                    movement_flags: MovementFlag::NONE,
-                    selected_speed: 2.5,
-                    run_speed: 2.5,
+                    movement_flags: self.creature.movement_flags_like_cpp(),
+                    selected_speed: if init.args.walk {
+                        self.walk_speed_like_cpp()
+                    } else {
+                        self.run_speed_like_cpp()
+                    },
+                    run_speed: self.run_speed_like_cpp(),
                     assistance_speed_factor: 1.0,
                     on_transport: false,
                 },
@@ -1193,6 +1200,14 @@ impl WorldCreature {
         Some((launch.real_position, spline))
     }
 
+    fn walk_speed_like_cpp(&self) -> f32 {
+        (self.create_data.speed_walk_rate * 2.5).max(0.01)
+    }
+
+    fn run_speed_like_cpp(&self) -> f32 {
+        (self.create_data.speed_run_rate * 7.0).max(0.01)
+    }
+
     pub fn begin_move_spline_like_cpp(&mut self, dst: Position) -> Option<(Position, MoveSpline)> {
         let spline_id = self.spline_id().saturating_add(1);
         let mut init = MoveSplineInit::new(spline_id);
@@ -1200,6 +1215,46 @@ impl WorldCreature {
         init.move_to(dst);
 
         self.launch_move_spline_init_like_cpp(&mut init, dst)
+    }
+
+    pub fn begin_random_move_spline_like_cpp(
+        &mut self,
+        dst: Position,
+    ) -> Option<(Position, MoveSpline)> {
+        let spline_id = self.spline_id().saturating_add(1);
+        let mut init = MoveSplineInit::new(spline_id);
+        init.set_walk(self.random_movement_walk_like_cpp());
+        init.move_to(dst);
+
+        self.launch_move_spline_init_like_cpp(&mut init, dst)
+    }
+
+    pub fn begin_random_move_spline_by_path_like_cpp<I>(
+        &mut self,
+        path: I,
+    ) -> Option<(Position, MoveSpline)>
+    where
+        I: IntoIterator<Item = Position>,
+    {
+        let points = path.into_iter().collect::<Vec<_>>();
+        let dst = points.last().copied()?;
+        let spline_id = self.spline_id().saturating_add(1);
+        let mut init = MoveSplineInit::new(spline_id);
+        init.set_walk(self.random_movement_walk_like_cpp());
+        init.move_by_path(points, 0);
+
+        self.launch_move_spline_init_like_cpp(&mut init, dst)
+    }
+
+    pub fn random_movement_walk_like_cpp(&self) -> bool {
+        match self.creature.random_movement_type_like_cpp() {
+            value if value == CreatureRandomMovementType::CanRun as u8 => self
+                .creature
+                .movement_flags_like_cpp()
+                .contains(MovementFlag::WALKING),
+            value if value == CreatureRandomMovementType::AlwaysRun as u8 => false,
+            _ => true,
+        }
     }
 
     pub fn begin_move_spline_by_path_like_cpp<I>(
@@ -1426,6 +1481,35 @@ impl WorldCreature {
 
         let points = path.path_points().to_vec();
         self.begin_move_spline_by_path_like_cpp(points)
+            .map(|(from, spline)| (from, spline, Some(path)))
+    }
+
+    pub fn begin_random_move_spline_with_detour_path_like_cpp(
+        &mut self,
+        dst: Position,
+        detour_path: Option<&DetourPolyPath>,
+        force_destination: bool,
+    ) -> Option<(Position, MoveSpline, Option<PathGenerator>)> {
+        let Some(detour_path) = detour_path else {
+            return self
+                .begin_random_move_spline_like_cpp(dst)
+                .map(|(from, spline)| (from, spline, None));
+        };
+
+        let path = path_generator_from_detour_like_cpp(
+            self.position(),
+            dst,
+            detour_path,
+            force_destination,
+        );
+        if path.path_type().contains(PathType::NOPATH) {
+            return self
+                .begin_random_move_spline_like_cpp(dst)
+                .map(|(from, spline)| (from, spline, Some(path)));
+        }
+
+        let points = path.path_points().to_vec();
+        self.begin_random_move_spline_by_path_like_cpp(points)
             .map(|(from, spline)| (from, spline, Some(path)))
     }
 
@@ -3135,6 +3219,65 @@ mod tests {
         assert!(
             rolls.iter().any(|roll| *roll != rolls[0]),
             "damage rolls should come from owned RNG, not now_ms/spline_id: {rolls:?}"
+        );
+    }
+
+    #[test]
+    fn world_creature_random_movement_walk_rule_matches_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 70003);
+        let mut creature = test_creature(guid);
+
+        creature
+            .creature
+            .set_random_movement_type_runtime_like_cpp(CreatureRandomMovementType::Walk as u8);
+        assert!(creature.random_movement_walk_like_cpp());
+
+        creature
+            .creature
+            .set_random_movement_type_runtime_like_cpp(CreatureRandomMovementType::AlwaysRun as u8);
+        assert!(!creature.random_movement_walk_like_cpp());
+
+        creature
+            .creature
+            .set_random_movement_type_runtime_like_cpp(CreatureRandomMovementType::CanRun as u8);
+        creature
+            .creature
+            .set_movement_flags_runtime_like_cpp(MovementFlag::NONE);
+        assert!(!creature.random_movement_walk_like_cpp());
+        creature
+            .creature
+            .set_movement_flags_runtime_like_cpp(MovementFlag::WALKING);
+        assert!(creature.random_movement_walk_like_cpp());
+    }
+
+    #[test]
+    fn world_creature_random_spline_uses_walk_or_run_speed_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 70004);
+        let mut walker = test_creature(guid);
+        walker.create_data.speed_walk_rate = 1.0;
+        walker.create_data.speed_run_rate = 1.0;
+        walker
+            .creature
+            .set_random_movement_type_runtime_like_cpp(CreatureRandomMovementType::Walk as u8);
+        let (_, walk_spline) = walker
+            .begin_random_move_spline_like_cpp(Position::new(20.0, 10.0, 0.0, 0.0))
+            .expect("walk random spline");
+
+        let mut runner = test_creature(guid);
+        runner.create_data.speed_walk_rate = 1.0;
+        runner.create_data.speed_run_rate = 1.0;
+        runner
+            .creature
+            .set_random_movement_type_runtime_like_cpp(CreatureRandomMovementType::AlwaysRun as u8);
+        let (_, run_spline) = runner
+            .begin_random_move_spline_like_cpp(Position::new(20.0, 10.0, 0.0, 0.0))
+            .expect("run random spline");
+
+        assert!((walk_spline.duration_ms() - 4_000).abs() <= 1);
+        assert!((run_spline.duration_ms() - 1_429).abs() <= 1);
+        assert!(
+            run_spline.duration_ms() < walk_spline.duration_ms(),
+            "C++ RandomMovementGenerator SetWalk(false) uses run speed"
         );
     }
 
