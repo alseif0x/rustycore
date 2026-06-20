@@ -10,15 +10,15 @@ use wow_constants::{
 use wow_core::{ObjectGuid, Position};
 
 use crate::{
-    Bag, EQUIPMENT_SLOT_BACK, EQUIPMENT_SLOT_BODY, EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_END,
-    EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_FINGER1, EQUIPMENT_SLOT_FINGER2, EQUIPMENT_SLOT_HANDS,
-    EQUIPMENT_SLOT_HEAD, EQUIPMENT_SLOT_LEGS, EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_NECK,
-    EQUIPMENT_SLOT_OFFHAND, EQUIPMENT_SLOT_SHOULDERS, EQUIPMENT_SLOT_TABARD,
-    EQUIPMENT_SLOT_TRINKET1, EQUIPMENT_SLOT_TRINKET2, EQUIPMENT_SLOT_WAIST, EQUIPMENT_SLOT_WRISTS,
-    INVENTORY_SLOT_BAG_0, Item, ItemStorageTemplate, MAX_BAG_SIZE, MAX_ENCHANTMENT_SLOT,
-    MAX_POWERS, MAX_POWERS_PER_CLASS, NULL_SLOT, ObjectDataUpdate, PROFESSION_SLOT_COOKING_GEAR1,
-    PROFESSION_SLOT_COOKING_TOOL, PROFESSION_SLOT_END, PROFESSION_SLOT_FISHING_TOOL,
-    PROFESSION_SLOT_MAX_COUNT, PROFESSION_SLOT_PROFESSION1_GEAR1,
+    BASE_MAXDAMAGE, BASE_MINDAMAGE, Bag, EQUIPMENT_SLOT_BACK, EQUIPMENT_SLOT_BODY,
+    EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_END, EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_FINGER1,
+    EQUIPMENT_SLOT_FINGER2, EQUIPMENT_SLOT_HANDS, EQUIPMENT_SLOT_HEAD, EQUIPMENT_SLOT_LEGS,
+    EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_NECK, EQUIPMENT_SLOT_OFFHAND, EQUIPMENT_SLOT_SHOULDERS,
+    EQUIPMENT_SLOT_TABARD, EQUIPMENT_SLOT_TRINKET1, EQUIPMENT_SLOT_TRINKET2, EQUIPMENT_SLOT_WAIST,
+    EQUIPMENT_SLOT_WRISTS, INVENTORY_SLOT_BAG_0, Item, ItemStorageTemplate, MAX_BAG_SIZE,
+    MAX_ENCHANTMENT_SLOT, MAX_POWERS, MAX_POWERS_PER_CLASS, NULL_SLOT, ObjectDataUpdate,
+    PROFESSION_SLOT_COOKING_GEAR1, PROFESSION_SLOT_COOKING_TOOL, PROFESSION_SLOT_END,
+    PROFESSION_SLOT_FISHING_TOOL, PROFESSION_SLOT_MAX_COUNT, PROFESSION_SLOT_PROFESSION1_GEAR1,
     PROFESSION_SLOT_PROFESSION1_GEAR2, PROFESSION_SLOT_PROFESSION1_TOOL,
     PROFESSION_SLOT_PROFESSION2_GEAR1, PROFESSION_SLOT_PROFESSION2_GEAR2, PROFESSION_SLOT_START,
     Unit, UnitDataUpdate, UpdateMask, item_can_go_into_bag,
@@ -1915,6 +1915,18 @@ pub enum ApplyEnchantmentEffectAction {
     SetShieldBlockValue {
         amount: u32,
     },
+    SetBaseWeaponDamage {
+        attack_type: WeaponAttackType,
+        bound: WeaponDamageBoundLikeCpp,
+        amount_bits: u32,
+    },
+    SetBaseAttackTime {
+        attack_type: WeaponAttackType,
+        time_ms: u32,
+    },
+    UpdateDamagePhysical {
+        attack_type: WeaponAttackType,
+    },
     UnhandledStatModifier {
         item_mod: ItemModType,
         amount: u32,
@@ -1926,6 +1938,12 @@ pub enum ApplyEnchantmentEffectAction {
     Unknown {
         effect_type: u32,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WeaponDamageBoundLikeCpp {
+    Min,
+    Max,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2532,6 +2550,76 @@ pub fn item_shield_block_bonus_action_like_cpp(
     Some(ApplyEnchantmentEffectAction::SetShieldBlockValue {
         amount: if apply { shield_block_value as u32 } else { 0 },
     })
+}
+
+/// C++ `Player::_ApplyWeaponDamage` direct non-scaling weapon field actions.
+pub fn item_weapon_damage_actions_like_cpp(
+    slot: u8,
+    inventory_type: InventoryType,
+    min_damage: u16,
+    max_damage: u16,
+    item_delay: u16,
+    apply: bool,
+    is_in_feral_form: bool,
+    can_use_attack_type: bool,
+    has_shapeshift_combat_round_time: bool,
+    can_modify_stats: bool,
+) -> Vec<ApplyEnchantmentEffectAction> {
+    const BASE_ATTACK_TIME_LIKE_CPP: u32 = 2_000;
+
+    let attack_type = get_attack_by_slot(slot, inventory_type);
+    if attack_type == WeaponAttackType::Max || (!is_in_feral_form && apply && !can_use_attack_type)
+    {
+        return Vec::new();
+    }
+
+    let mut actions = Vec::new();
+    let mut changed_damage = false;
+
+    if min_damage > 0 {
+        let amount = if apply {
+            f32::from(min_damage)
+        } else {
+            BASE_MINDAMAGE
+        };
+        actions.push(ApplyEnchantmentEffectAction::SetBaseWeaponDamage {
+            attack_type,
+            bound: WeaponDamageBoundLikeCpp::Min,
+            amount_bits: amount.to_bits(),
+        });
+        changed_damage = true;
+    }
+
+    if max_damage > 0 {
+        let amount = if apply {
+            f32::from(max_damage)
+        } else {
+            BASE_MAXDAMAGE
+        };
+        actions.push(ApplyEnchantmentEffectAction::SetBaseWeaponDamage {
+            attack_type,
+            bound: WeaponDamageBoundLikeCpp::Max,
+            amount_bits: amount.to_bits(),
+        });
+        changed_damage = true;
+    }
+
+    if item_delay != 0 && !has_shapeshift_combat_round_time {
+        actions.push(ApplyEnchantmentEffectAction::SetBaseAttackTime {
+            attack_type,
+            time_ms: if apply {
+                u32::from(item_delay)
+            } else {
+                BASE_ATTACK_TIME_LIKE_CPP
+            },
+        });
+    }
+
+    if can_modify_stats && (changed_damage || item_delay != 0) {
+        actions.push(ApplyEnchantmentEffectAction::UpdateDamagePhysical { attack_type });
+    }
+
+    actions
 }
 
 fn item_bonus_stat_actions_like_cpp(
@@ -15934,6 +16022,168 @@ mod tests {
             None
         );
         assert_eq!(item_shield_block_bonus_action_like_cpp(0, true, true), None);
+    }
+
+    #[test]
+    fn item_weapon_damage_actions_match_cpp_direct_apply_weapon_damage() {
+        assert_eq!(
+            item_weapon_damage_actions_like_cpp(
+                EQUIPMENT_SLOT_MAINHAND,
+                InventoryType::Weapon,
+                12,
+                18,
+                2600,
+                true,
+                false,
+                true,
+                false,
+                true,
+            ),
+            vec![
+                ApplyEnchantmentEffectAction::SetBaseWeaponDamage {
+                    attack_type: WeaponAttackType::BaseAttack,
+                    bound: WeaponDamageBoundLikeCpp::Min,
+                    amount_bits: 12.0f32.to_bits(),
+                },
+                ApplyEnchantmentEffectAction::SetBaseWeaponDamage {
+                    attack_type: WeaponAttackType::BaseAttack,
+                    bound: WeaponDamageBoundLikeCpp::Max,
+                    amount_bits: 18.0f32.to_bits(),
+                },
+                ApplyEnchantmentEffectAction::SetBaseAttackTime {
+                    attack_type: WeaponAttackType::BaseAttack,
+                    time_ms: 2600,
+                },
+                ApplyEnchantmentEffectAction::UpdateDamagePhysical {
+                    attack_type: WeaponAttackType::BaseAttack,
+                },
+            ],
+        );
+
+        assert_eq!(
+            item_weapon_damage_actions_like_cpp(
+                EQUIPMENT_SLOT_MAINHAND,
+                InventoryType::Weapon,
+                12,
+                18,
+                2600,
+                false,
+                false,
+                true,
+                false,
+                true,
+            ),
+            vec![
+                ApplyEnchantmentEffectAction::SetBaseWeaponDamage {
+                    attack_type: WeaponAttackType::BaseAttack,
+                    bound: WeaponDamageBoundLikeCpp::Min,
+                    amount_bits: BASE_MINDAMAGE.to_bits(),
+                },
+                ApplyEnchantmentEffectAction::SetBaseWeaponDamage {
+                    attack_type: WeaponAttackType::BaseAttack,
+                    bound: WeaponDamageBoundLikeCpp::Max,
+                    amount_bits: BASE_MAXDAMAGE.to_bits(),
+                },
+                ApplyEnchantmentEffectAction::SetBaseAttackTime {
+                    attack_type: WeaponAttackType::BaseAttack,
+                    time_ms: 2000,
+                },
+                ApplyEnchantmentEffectAction::UpdateDamagePhysical {
+                    attack_type: WeaponAttackType::BaseAttack,
+                },
+            ],
+        );
+    }
+
+    #[test]
+    fn item_weapon_damage_actions_match_cpp_attack_slot_and_gate_rules() {
+        assert_eq!(
+            item_weapon_damage_actions_like_cpp(
+                EQUIPMENT_SLOT_MAINHAND,
+                InventoryType::RangedRight,
+                20,
+                30,
+                1800,
+                true,
+                false,
+                true,
+                true,
+                true,
+            ),
+            vec![
+                ApplyEnchantmentEffectAction::SetBaseWeaponDamage {
+                    attack_type: WeaponAttackType::RangedAttack,
+                    bound: WeaponDamageBoundLikeCpp::Min,
+                    amount_bits: 20.0f32.to_bits(),
+                },
+                ApplyEnchantmentEffectAction::SetBaseWeaponDamage {
+                    attack_type: WeaponAttackType::RangedAttack,
+                    bound: WeaponDamageBoundLikeCpp::Max,
+                    amount_bits: 30.0f32.to_bits(),
+                },
+                ApplyEnchantmentEffectAction::UpdateDamagePhysical {
+                    attack_type: WeaponAttackType::RangedAttack,
+                },
+            ],
+            "C++ skips SetBaseAttackTime when the shapeshift form has CombatRoundTime"
+        );
+        assert_eq!(
+            item_weapon_damage_actions_like_cpp(
+                EQUIPMENT_SLOT_OFFHAND,
+                InventoryType::WeaponOffhand,
+                9,
+                11,
+                0,
+                true,
+                false,
+                true,
+                false,
+                false,
+            ),
+            vec![
+                ApplyEnchantmentEffectAction::SetBaseWeaponDamage {
+                    attack_type: WeaponAttackType::OffAttack,
+                    bound: WeaponDamageBoundLikeCpp::Min,
+                    amount_bits: 9.0f32.to_bits(),
+                },
+                ApplyEnchantmentEffectAction::SetBaseWeaponDamage {
+                    attack_type: WeaponAttackType::OffAttack,
+                    bound: WeaponDamageBoundLikeCpp::Max,
+                    amount_bits: 11.0f32.to_bits(),
+                },
+            ],
+            "C++ skips UpdateDamagePhysical when CanModifyStats is false"
+        );
+        assert!(
+            item_weapon_damage_actions_like_cpp(
+                EQUIPMENT_SLOT_MAINHAND,
+                InventoryType::Weapon,
+                12,
+                18,
+                2600,
+                true,
+                false,
+                false,
+                false,
+                true,
+            )
+            .is_empty()
+        );
+        assert!(
+            item_weapon_damage_actions_like_cpp(
+                EQUIPMENT_SLOT_HEAD,
+                InventoryType::Weapon,
+                12,
+                18,
+                2600,
+                true,
+                false,
+                true,
+                false,
+                true,
+            )
+            .is_empty()
+        );
     }
 
     #[test]

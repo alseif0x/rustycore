@@ -1,3 +1,20 @@
+- `#NEXT.R8.ENTITIES.1173` — `wow-entities` now represents the direct,
+  non-scaling action plan for C++ `Player::_ApplyWeaponDamage`. Source of
+  truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7976-8029`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/UnitDefines.h:28-30`.
+  The new `item_weapon_damage_actions_like_cpp` helper maps slot/inventory type
+  through the C++ `GetAttackBySlot` rules, preserves the feral/can-use attack
+  gate, records min/max base weapon damage, applies/removes base attack time
+  unless shapeshift `CombatRoundTime` owns it, and records `UpdateDamagePhysical`
+  only when `CanModifyStats` would allow it. Coverage: `cargo test -p
+  wow-entities item_weapon_damage_actions --lib`. Boundary remains partial:
+  the helper is not yet wired into represented `_ApplyItemBonuses`, scaling-stat
+  DPS override is not represented, real player weapon damage/attack-time fields
+  are not mutated, update-field fanout, persistence, bot validation,
+  live-client validation, and manual validation remain open.
+
 - `#NEXT.R8.ENTITIES.1172` — `wow-data` now exposes the C++
   `ItemSparseEntry` weapon fields required by `Player::_ApplyWeaponDamage`.
   Source of truth:
