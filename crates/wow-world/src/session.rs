@@ -11728,6 +11728,13 @@ impl WorldSession {
         None
     }
 
+    pub(crate) fn pause_interacted_creature_movement_like_cpp(&mut self, guid: ObjectGuid) -> bool {
+        self.mutate_world_creature(guid, |creature| {
+            creature.pause_interaction_movement_like_cpp()
+        })
+        .unwrap_or(false)
+    }
+
     pub(crate) fn world_creature_guids(&self) -> Vec<ObjectGuid> {
         if let Some(manager) = &self.map_manager {
             return manager

@@ -16,7 +16,7 @@ use wow_constants::{
 use wow_core::{ObjectGuid, Position};
 use wow_entities::{
     Creature, CreatureAiState, DistractMovementAction, EVENT_CHARGE_PREPATH, GenericMovementInform,
-    MovementGeneratorKind, PhaseShift, PointMovementAction, PointMovementInform,
+    MovementGeneratorKind, MovementSlot, PhaseShift, PointMovementAction, PointMovementInform,
     RotateMovementUpdate,
 };
 use wow_movement::{
@@ -878,6 +878,21 @@ impl WorldCreature {
 
     pub fn home_position(&self) -> Position {
         self.creature.ai_home_position()
+    }
+
+    /// C++ interaction handlers call `PauseMovement(timer)` and then
+    /// `SetHomePosition(GetPosition())` for gossip/vendor/quest interactions.
+    pub fn pause_interaction_movement_like_cpp(&mut self) -> bool {
+        let pause_timer = self.creature.interaction_pause_timer_ms_like_cpp();
+        if pause_timer == 0 {
+            return false;
+        }
+
+        let current_position = self.position();
+        let motion = &mut self.creature.unit_mut().subsystems_mut().motion;
+        motion.pause_current_movement_like_cpp(pause_timer, MovementSlot::Default, true);
+        self.creature.set_ai_home_position(current_position);
+        true
     }
 
     pub fn is_alive(&self) -> bool {
@@ -3291,6 +3306,33 @@ mod tests {
             run_spline.duration_ms() < walk_spline.duration_ms(),
             "C++ RandomMovementGenerator SetWalk(false) uses run speed"
         );
+    }
+
+    #[test]
+    fn world_creature_interaction_pause_stops_and_updates_home_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 70005);
+        let mut creature = test_creature(guid);
+        let current = Position::new(14.0, 15.0, 16.0, 1.5);
+        creature.creature.unit_mut().world_mut().relocate(current);
+        creature
+            .creature
+            .unit_mut()
+            .subsystems_mut()
+            .motion
+            .start_spline(42, 1_000);
+
+        assert!(creature.pause_interaction_movement_like_cpp());
+
+        let motion = &creature.creature.unit().subsystems().motion;
+        assert!(motion.paused);
+        assert!(motion.stopped);
+        assert!(!motion.spline.enabled);
+        assert_eq!(creature.home_position(), current);
+
+        creature
+            .creature
+            .set_interaction_pause_timer_ms_runtime_like_cpp(0);
+        assert!(!creature.pause_interaction_movement_like_cpp());
     }
 
     #[test]

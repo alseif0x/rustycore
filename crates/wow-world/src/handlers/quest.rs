@@ -1191,8 +1191,8 @@ impl WorldSession {
     /// C++ refs:
     /// - `WorldSession::HandleQuestgiverHelloOpcode`, `QuestHandler.cpp:76-103`.
     /// - `Player::PrepareQuestMenu`, `Player.cpp:13947-14004`.
-    /// Remaining represented gaps: fake-death aura removal, movement pause/home position,
-    /// `AI()->OnGossipHello`, `PrepareGossipMenu`, `SendPreparedGossip` / auto-open / PlayerTalkClass.
+    /// Remaining represented gaps: fake-death aura removal, `AI()->OnGossipHello`,
+    /// `PrepareGossipMenu`, `SendPreparedGossip` / auto-open / PlayerTalkClass.
     pub async fn handle_quest_giver_hello(&mut self, mut pkt: wow_packet::WorldPacket) {
         let guid = match pkt.read_packed_guid() {
             Ok(g) => g,
@@ -1212,6 +1212,8 @@ impl WorldSession {
             );
             return;
         };
+
+        self.pause_interacted_creature_movement_like_cpp(guid);
 
         if self.use_represented_creature_questgiver_like_cpp(guid, access.entry) {
             debug!(

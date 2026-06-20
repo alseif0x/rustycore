@@ -7052,6 +7052,7 @@ impl WorldSession {
 
         let (npc_flags, entry) = self
             .mutate_world_creature(hello.unit, |creature| {
+                creature.pause_interaction_movement_like_cpp();
                 (creature.npc_flags(), creature.entry())
             })
             .unwrap_or((0, 0));
@@ -8142,7 +8143,10 @@ impl WorldSession {
         };
 
         // Resolve creature entry: first from map-owned creature state, then fallback from DB by spawn GUID.
-        let entry = match self.mutate_world_creature(vendor_guid, |creature| creature.entry()) {
+        let entry = match self.mutate_world_creature(vendor_guid, |creature| {
+            creature.pause_interaction_movement_like_cpp();
+            creature.entry()
+        }) {
             Some(entry) => entry,
             None => {
                 let mut stmt = world_db.prepare(WorldStatements::SEL_CREATURE_ENTRY_BY_GUID);

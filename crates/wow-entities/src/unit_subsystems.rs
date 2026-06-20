@@ -3137,6 +3137,16 @@ impl MotionSubsystem {
             .unwrap_or(self.default_generator)
     }
 
+    fn movement_generator_for_slot_mut(
+        &mut self,
+        slot: MovementSlot,
+    ) -> Option<&mut MovementGeneratorRef> {
+        match slot {
+            MovementSlot::Default => Some(&mut self.default_generator),
+            MovementSlot::Active => self.active_generators.first_mut(),
+        }
+    }
+
     pub fn add_generator(&mut self, mut generator: MovementGeneratorRef) {
         match generator.slot {
             MovementSlot::Default => {
@@ -3579,6 +3589,33 @@ impl MotionSubsystem {
 
     pub fn pause_movement(&mut self) {
         self.paused = true;
+    }
+
+    pub fn pause_current_movement_like_cpp(
+        &mut self,
+        timer_ms: u32,
+        slot: MovementSlot,
+        forced: bool,
+    ) -> bool {
+        let Some(generator) = self.movement_generator_for_slot_mut(slot) else {
+            return false;
+        };
+
+        if timer_ms > 0 {
+            generator.flags |= MOVEMENTGENERATOR_FLAG_TIMED_PAUSED;
+            generator.flags &= !MOVEMENTGENERATOR_FLAG_PAUSED;
+            generator.duration_ms = Some(timer_ms);
+            generator.elapsed_ms = 0;
+        } else {
+            generator.flags |= MOVEMENTGENERATOR_FLAG_PAUSED;
+            generator.flags &= !MOVEMENTGENERATOR_FLAG_TIMED_PAUSED;
+        }
+
+        self.paused = true;
+        if forced && self.current_slot() == slot {
+            self.stop_moving();
+        }
+        true
     }
 
     pub fn resume_movement(&mut self) {
@@ -5319,6 +5356,23 @@ mod unit_subsystems_tests {
         assert_eq!(
             motion.current_movement_generator().kind,
             MovementGeneratorKind::Follow
+        );
+        assert!(motion.pause_current_movement_like_cpp(750, MovementSlot::Default, false));
+        let default_generator = motion.default_generator;
+        assert!(default_generator.has_flag(MOVEMENTGENERATOR_FLAG_TIMED_PAUSED));
+        assert!(!default_generator.has_flag(MOVEMENTGENERATOR_FLAG_PAUSED));
+        assert_eq!(default_generator.duration_ms, Some(750));
+        assert!(
+            !motion.stopped,
+            "C++ PauseMovement only StopMoving()s when the paused slot is current"
+        );
+        assert!(motion.pause_current_movement_like_cpp(0, MovementSlot::Active, true));
+        let current = motion.current_movement_generator();
+        assert!(current.has_flag(MOVEMENTGENERATOR_FLAG_PAUSED));
+        assert!(!current.has_flag(MOVEMENTGENERATOR_FLAG_TIMED_PAUSED));
+        assert!(
+            motion.stopped,
+            "C++ PauseMovement forced=true stops when the requested slot is current"
         );
 
         motion.move_charge(42);
