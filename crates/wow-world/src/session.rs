@@ -14706,7 +14706,7 @@ impl WorldSession {
         self.represented_item_bonus_actions_like_cpp.len() != action_start
     }
 
-    pub(crate) fn record_destroyed_inventory_item_set_remove_like_cpp(
+    pub(crate) fn record_direct_inventory_item_set_remove_like_cpp(
         &mut self,
         bag: u8,
         slot: u8,
@@ -30643,6 +30643,11 @@ impl WorldSession {
         self.remove_represented_offhand_duration_refs_like_cpp(offhand_item.guid);
         self.clear_represented_offhand_equipped_flag_like_cpp(offhand_item.guid);
         self.remove_represented_offhand_tradeable_item_like_cpp(offhand_item.guid);
+        let _item_set_changed = self.record_direct_inventory_item_set_remove_like_cpp(
+            INVENTORY_SLOT_BAG_0,
+            EQUIPMENT_SLOT_OFFHAND,
+            offhand_item.guid,
+        );
         let item_mods_changed =
             self.record_represented_offhand_item_mod_remove_like_cpp(offhand_item.guid);
         self.record_represented_offhand_combat_stat_recalculations_like_cpp();
@@ -52363,6 +52368,23 @@ mod tests {
                 [],
             ),
         ));
+        session.set_item_set_store(Arc::new(ItemSetStore::from_entries([ItemSetEntry {
+            id: 705,
+            name: "Offhand Set".to_string(),
+            set_flags: 0,
+            required_skill: 0,
+            required_skill_rank: 0,
+            item_id: std::array::from_fn(|i| if i == 0 { offhand_item_id } else { 0 }),
+        }])));
+        session.set_item_set_spell_store(Arc::new(ItemSetSpellStore::from_entries([
+            ItemSetSpellEntry {
+                id: 21,
+                chr_spec_id: 0,
+                spell_id: 9021,
+                threshold: 1,
+                item_set_id: 705,
+            },
+        ])));
         equip_represented_test_item_like_cpp(
             &mut session,
             EQUIPMENT_SLOT_MAINHAND,
@@ -52398,6 +52420,17 @@ mod tests {
             session.inventory_item_objects_like_cpp()[&offhand_guid]
                 .has_item_flag2(ItemFieldFlags2::EQUIPPED),
             "fixture starts with the offhand ITEM_FIELD_FLAG2_EQUIPPED bit set"
+        );
+        assert!(session.record_represented_items_set_item_like_cpp(offhand_guid, true));
+        assert_eq!(
+            session.represented_item_set_spell_events_like_cpp(),
+            &[RepresentedItemSetSpellEventLikeCpp {
+                item_set_id: 705,
+                spell_entry_id: 21,
+                spell_id: 9021,
+                threshold: 1,
+                apply: true,
+            }]
         );
 
         assert_eq!(
@@ -52464,6 +52497,17 @@ mod tests {
                 apply: false,
             }],
             "C++ RemoveItem calls _ApplyItemMods(offhand, false) before clearing the equipment slot"
+        );
+        assert_eq!(
+            session.represented_item_set_spell_events_like_cpp()[1],
+            RepresentedItemSetSpellEventLikeCpp {
+                item_set_id: 705,
+                spell_entry_id: 21,
+                spell_id: 9021,
+                threshold: 1,
+                apply: false,
+            },
+            "C++ RemoveItem removes item-set bonuses before _ApplyItemMods for equipped top-level slots"
         );
         assert_eq!(
             session.represented_combat_stat_recalculations_like_cpp(),
@@ -105217,19 +105261,17 @@ mod tests {
             }]
         );
 
-        assert!(
-            !session.record_destroyed_inventory_item_set_remove_like_cpp(
-                INVENTORY_SLOT_BAG_0,
-                INVENTORY_SLOT_ITEM_START,
-                backpack_guid,
-            )
-        );
+        assert!(!session.record_direct_inventory_item_set_remove_like_cpp(
+            INVENTORY_SLOT_BAG_0,
+            INVENTORY_SLOT_ITEM_START,
+            backpack_guid,
+        ));
         assert_eq!(
             session.represented_item_set_spell_events_like_cpp().len(),
             1
         );
 
-        assert!(session.record_destroyed_inventory_item_set_remove_like_cpp(
+        assert!(session.record_direct_inventory_item_set_remove_like_cpp(
             INVENTORY_SLOT_BAG_0,
             EQUIPMENT_SLOT_CHEST,
             chest_guid,

@@ -1,3 +1,26 @@
+- `#NEXT.R8.ENTITIES.1189` — represented `RemoveItem` offhand auto-unequip now
+  invokes the same C++ item-set removal hook before represented item-mod
+  removal. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11559-11613`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:146-190`.
+  C++ `Player::RemoveItem(bag=0, slot<INVENTORY_SLOT_BAG_END)` removes item-set
+  bonuses before `_ApplyItemMods`; Rust now reuses the direct-inventory
+  represented item-set removal hook in `AutoUnequipOffhandIfNeed` before the
+  existing offhand item-mod/stat cleanup. Coverage extends the existing
+  invalid-two-hand auto-unequip fixture with an active one-piece item set and
+  proves the represented set spell removal event is emitted when the offhand
+  leaves equipment. Checks: `cargo fmt --all --check`, `cargo test -p wow-world
+  remove_known_spell_auto_unequip_records_invalid_two_hand_state_like_cpp
+  --lib`, `cargo test -p wow-world
+  destroyed_inventory_item_set_remove_matches_cpp_even_for_broken_equipped_item
+  --lib`, `cargo check -p wow-world`, `cargo check -p world-server`, and
+  `git diff --check`. Boundary remains partial: only the represented
+  auto-unequip `RemoveItem` path is wired; general `RemoveItem`/equip/swap
+  routing, real `ApplyEquipSpell`/aura removal, update-field emission,
+  persistence, fanout, bot/live/manual validation, and exact C++
+  spec/form-change aura behavior remain open.
+
 - `#NEXT.R8.ENTITIES.1188` — represented `DestroyItem` now invokes the C++
   item-set removal hook for direct equipped/equipped-bag full-stack destroys
   before represented item-mod removal. Source of truth:
