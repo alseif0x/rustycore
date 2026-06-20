@@ -146,8 +146,8 @@ use wow_entities::{
     TitanGripPenaltyAction, UNIT_DATA_HEALTH_BIT, Unit, UnitDataUpdate, UnitDataValues,
     UnitVisibilityDetectionStateLikeCpp, UpdateMask, Vehicle, VehicleAccessory, VisibleItemValues,
     WorldObject, explored_zones_db_string_from_blocks_like_cpp, is_bag_pos,
-    is_equipment_packed_pos, is_inventory_pos, item_stat_bonus_actions_like_cpp, make_item_pos,
-    parse_explored_zones_db_string_like_cpp,
+    is_equipment_packed_pos, is_inventory_pos, item_resistance_bonus_actions_like_cpp,
+    item_stat_bonus_actions_like_cpp, make_item_pos, parse_explored_zones_db_string_like_cpp,
 };
 use wow_entities::{
     BagValuesUpdate, CONTAINER_DATA_BITS, CONTAINER_DATA_SLOTS_FIRST_BIT,
@@ -14284,6 +14284,10 @@ impl WorldSession {
         self.represented_item_bonus_actions_like_cpp.extend(
             item_stat_bonus_actions_like_cpp(&stat_entry.stats, apply)
                 .into_iter()
+                .chain(item_resistance_bonus_actions_like_cpp(
+                    &stat_entry.resistances,
+                    apply,
+                ))
                 .map(|action| RepresentedItemBonusActionLikeCpp {
                     item_guid,
                     slot,
@@ -103757,7 +103761,8 @@ mod tests {
                             (-1, 0),
                             (-1, 0),
                         ],
-                        armor: 0,
+                        resistances: [17, 0, 7, 0, 0, 0, 0],
+                        armor: 17,
                     },
                 )],
                 [
@@ -103930,6 +103935,30 @@ mod tests {
                         apply: true,
                     },
                 },
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid: weapon_guid,
+                    slot: EQUIPMENT_SLOT_MAINHAND,
+                    action: ApplyEnchantmentEffectAction::UnitModifier {
+                        unit_mod: wow_entities::ApplyEnchantmentUnitMod::Resistance(
+                            wow_constants::spell::SpellSchools::Normal as u32,
+                        ),
+                        modifier: wow_entities::ApplyEnchantmentUnitModifier::BaseValue,
+                        amount: 17,
+                        apply: true,
+                    },
+                },
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid: weapon_guid,
+                    slot: EQUIPMENT_SLOT_MAINHAND,
+                    action: ApplyEnchantmentEffectAction::UnitModifier {
+                        unit_mod: wow_entities::ApplyEnchantmentUnitMod::Resistance(
+                            wow_constants::spell::SpellSchools::Fire as u32,
+                        ),
+                        modifier: wow_entities::ApplyEnchantmentUnitModifier::BaseValue,
+                        amount: 7,
+                        apply: true,
+                    },
+                },
             ],
             "C++ _ApplyItemMods calls _ApplyItemBonuses before equip spells/auras/enchantments"
         );
@@ -104054,7 +104083,8 @@ mod tests {
                             (-1, 0),
                             (-1, 0),
                         ],
-                        armor: 0,
+                        resistances: [17, 0, 7, 0, 0, 0, 0],
+                        armor: 17,
                     },
                 )],
                 [
@@ -104241,7 +104271,7 @@ mod tests {
         );
         assert_eq!(
             session.represented_item_bonus_actions_like_cpp().len(),
-            5,
+            7,
             "represented guild-bank repair records the same static _ApplyItemBonuses action plan for the broken equipped item"
         );
     }

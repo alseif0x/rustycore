@@ -2493,6 +2493,29 @@ pub fn item_stat_bonus_actions_like_cpp(
     actions
 }
 
+/// C++ `_ApplyItemBonuses` direct `ItemTemplate::GetResistance(school)` loop.
+pub fn item_resistance_bonus_actions_like_cpp(
+    resistances: &[i16; 7],
+    apply: bool,
+) -> Vec<ApplyEnchantmentEffectAction> {
+    let mut actions = Vec::new();
+    for (school, resistance) in resistances.iter().copied().enumerate() {
+        if resistance == 0 {
+            continue;
+        }
+        if resistance < 0 {
+            continue;
+        }
+        actions.push(unit_modifier(
+            ApplyEnchantmentUnitMod::Resistance(school as u32),
+            ApplyEnchantmentUnitModifier::BaseValue,
+            resistance as u32,
+            apply,
+        ));
+    }
+    actions
+}
+
 fn item_bonus_stat_actions_like_cpp(
     item_mod: ItemModType,
     amount: u32,
@@ -15841,6 +15864,38 @@ mod tests {
                     rating: ApplyEnchantmentCombatRating::HasteRanged,
                     amount: 4,
                     apply: true,
+                },
+            ],
+        );
+    }
+
+    #[test]
+    fn item_resistance_bonus_actions_match_cpp_template_resistance_loop() {
+        let mut resistances = [0i16; 7];
+        resistances[SpellSchools::Normal as usize] = 120;
+        resistances[SpellSchools::Holy as usize] = 3;
+        resistances[SpellSchools::Fire as usize] = 7;
+
+        assert_eq!(
+            item_resistance_bonus_actions_like_cpp(&resistances, false),
+            vec![
+                ApplyEnchantmentEffectAction::UnitModifier {
+                    unit_mod: ApplyEnchantmentUnitMod::Resistance(SpellSchools::Normal as u32),
+                    modifier: ApplyEnchantmentUnitModifier::BaseValue,
+                    amount: 120,
+                    apply: false,
+                },
+                ApplyEnchantmentEffectAction::UnitModifier {
+                    unit_mod: ApplyEnchantmentUnitMod::Resistance(SpellSchools::Holy as u32),
+                    modifier: ApplyEnchantmentUnitModifier::BaseValue,
+                    amount: 3,
+                    apply: false,
+                },
+                ApplyEnchantmentEffectAction::UnitModifier {
+                    unit_mod: ApplyEnchantmentUnitMod::Resistance(SpellSchools::Fire as u32),
+                    modifier: ApplyEnchantmentUnitModifier::BaseValue,
+                    amount: 7,
+                    apply: false,
                 },
             ],
         );

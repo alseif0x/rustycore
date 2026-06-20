@@ -1,3 +1,23 @@
+- `#NEXT.R8.ENTITIES.1169` — represented `_ApplyItemBonuses` now consumes
+  direct `ItemTemplate::GetResistance(school)` data from `ItemSparse`
+  `Resistances[7]`. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7955-7970`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/ItemTemplate.h:808`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Structure.h:2351`.
+  `wow-data` now preserves the full seven-school resistance array while keeping
+  the old `armor` convenience value as `Resistances[0]`; represented repair
+  reapply records the C++ `BASE_VALUE` unit-modifier actions after static stat
+  actions. Coverage: `cargo test -p wow-entities
+  item_resistance_bonus_actions_match_cpp_template_resistance_loop --lib` and
+  `cargo test -p wow-world repair_all_inventory_item_durability --lib`.
+  Boundary remains partial: this is still represented action planning only;
+  negative resistance values are not modelled by the unsigned represented action
+  vocabulary, and scaling-stat armor overrides, shield block update-field
+  mutation, weapon damage, attack time, equip spells, dependent auras,
+  weapon-dependent aura updates, enchantments, real stat mutation/update-field
+  fanout, live-client/bot validation, and manual validation remain open.
+
 - `#NEXT.R8.ENTITIES.1168` — represented `_ApplyItemBonuses` static stat
   action planning now covers the item-bonus-only branches that were still
   falling through after `#NEXT.R8.ENTITIES.1167`: melee/ranged haste ratings,
@@ -10,8 +30,9 @@
   switch where primary stats and resistance item mods apply as `BASE_VALUE`.
   Coverage: `cargo test -p wow-entities item_stat_bonus_actions --lib`.
   Boundary remains partial: this is still represented action planning only;
-  direct template resistance fields, scaling-stat values, shield block update
-  field mutation, weapon damage, attack time, equip spells, dependent auras,
+  direct template resistance fields were closed by `#NEXT.R8.ENTITIES.1169`;
+  scaling-stat values, shield block update field mutation, weapon damage,
+  attack time, equip spells, dependent auras,
   weapon-dependent aura updates, enchantments, real stat mutation/update-field
   fanout, live-client/bot validation, and manual validation remain open.
 

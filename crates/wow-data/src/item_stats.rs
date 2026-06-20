@@ -57,6 +57,8 @@ pub struct ItemStatEntry {
     /// Up to 10 stat modifier slots: (stat_type, bonus_amount).
     /// stat_type -1 = unused slot.
     pub stats: [(i8, i16); 10],
+    /// C++ `ItemSparseEntry::Resistances` indexed by `SpellSchools`.
+    pub resistances: [i16; 7],
     /// Physical armor from ItemSparse Resistances[0].
     pub armor: i32,
 }
@@ -682,16 +684,19 @@ impl ItemStatsStore {
                 );
             }
 
-            // Extract physical armor from Resistances[0] (field 51, first i16)
-            let item_armor = if resistances_offset + 2 <= record.len() {
-                i16::from_le_bytes([record[resistances_offset], record[resistances_offset + 1]])
-                    as i32
-            } else {
-                0
-            };
+            // Extract C++ ItemSparseEntry::Resistances[7] (field 51).
+            let mut resistances = [0i16; 7];
+            if resistances_offset + 14 <= record.len() {
+                for (school, resistance) in resistances.iter_mut().enumerate() {
+                    let offset = resistances_offset + school * 2;
+                    *resistance = i16::from_le_bytes([record[offset], record[offset + 1]]);
+                }
+            }
+            let item_armor = i32::from(resistances[0]);
 
             let mut entry = ItemStatEntry {
                 stats: [(-1i8, 0i16); 10],
+                resistances,
                 armor: item_armor,
             };
 
@@ -820,6 +825,7 @@ mod tests {
     fn test_base_stat_bonuses() {
         let entry = ItemStatEntry {
             armor: 0,
+            resistances: [0; 7],
             stats: [
                 (4, 100), // STR=100
                 (7, 80),  // STA=80
@@ -845,6 +851,7 @@ mod tests {
     fn test_attack_power_bonus() {
         let entry = ItemStatEntry {
             armor: 0,
+            resistances: [0; 7],
             stats: [
                 (38, 120), // AttackPower=120
                 (4, 50),   // STR=50
