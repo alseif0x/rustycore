@@ -1,3 +1,20 @@
+- `#NEXT.R8.ENTITIES.1182` — represented `Player::DurabilityRepair` now emits a
+  current-session `SMSG_UPDATE_OBJECT` stat VALUES delta after repairing a
+  broken equipped item and reapplying item mods. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:4713-4748`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:4629-4710`.
+  C++ stores `isBroken`, sets durability to max, marks the item changed, and for
+  equipped broken items calls `_ApplyItemMods(item, slot, true)`. Rust already
+  recorded the represented item-mod reapply; this slice now flushes the #1180
+  represented stat projection after that reapply. Coverage: `cargo fmt --all
+  --check`, `cargo test -p wow-world repair_inventory_item_durability --lib`,
+  `cargo test -p wow-world repair_all_inventory_item_durability --lib`, `cargo
+  check -p wow-world`, `cargo check -p world-server`, and `git diff --check`.
+  Boundary remains partial: current-session represented packet only; no full
+  authoritative stat recomputation, no general equip/unequip fanout, no
+  multi-session fanout, no bot/live/manual validation.
+
 - `#NEXT.R8.ENTITIES.1181` — represented
   `Player::UpdateItemLevelAreaBasedScaling` now emits a current-session
   `SMSG_UPDATE_OBJECT` stat VALUES delta after the C++

@@ -16098,6 +16098,7 @@ impl WorldSession {
                 && was_broken
             {
                 self.record_represented_item_mods_like_cpp(item_guid, slot, true);
+                self.send_represented_item_bonus_player_stat_update_like_cpp();
             }
             self.sync_object_accessor_player();
         }
@@ -104131,7 +104132,8 @@ mod tests {
         );
         assert_eq!(
             drain_server_opcodes(&send_rx),
-            vec![ServerOpcodes::UpdateObject]
+            vec![ServerOpcodes::UpdateObject, ServerOpcodes::UpdateObject],
+            "C++ DurabilityRepair sets item durability and reapplies equipped broken-item mods, both visible through update fields"
         );
 
         session.set_player_gold_like_cpp(10);
@@ -104830,7 +104832,7 @@ mod tests {
 
     #[tokio::test]
     async fn repair_all_inventory_item_durability_charges_once_like_cpp() {
-        let (mut session, _, _) = make_session();
+        let (mut session, _, send_rx) = make_session();
         let player_guid = ObjectGuid::create_player(1, 42);
         let weapon_guid = ObjectGuid::create_item(1, 900);
         let bag_guid = ObjectGuid::create_item(1, 901);
@@ -105141,6 +105143,15 @@ mod tests {
                 },
             ],
             "C++ _ApplyItemMods calls _ApplyItemBonuses before equip spells/auras/enchantments"
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![
+                ServerOpcodes::UpdateObject,
+                ServerOpcodes::UpdateObject,
+                ServerOpcodes::UpdateObject
+            ],
+            "C++ DurabilityRepairAll delegates DurabilityRepair per item: repaired items send durability updates, and the equipped broken item reapply sends a stat VALUES delta"
         );
 
         session.set_player_gold_like_cpp(10);
