@@ -76,7 +76,10 @@ pub struct ResolvedCreatureTemplateLikeCpp {
     pub ground_movement_type: u8,
     pub swim_allowed: bool,
     pub flight_movement_type: u8,
+    pub rooted: bool,
+    pub chase_movement_type: u8,
     pub random_movement_type: u8,
+    pub interaction_pause_timer_ms: u32,
     pub min_level: u8,
     pub max_level: u8,
     pub equipment_id: u8,
@@ -402,7 +405,10 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
         ground_movement_type: runtime_row.ground_movement_type,
         swim_allowed: runtime_row.swim_allowed,
         flight_movement_type: runtime_row.flight_movement_type,
+        rooted: runtime_row.rooted,
+        chase_movement_type: runtime_row.chase_movement_type,
         random_movement_type: runtime_row.random_movement_type,
+        interaction_pause_timer_ms: runtime_row.interaction_pause_timer_ms,
         min_level: difficulty.min_level,
         max_level: difficulty.max_level,
         equipment_id,
@@ -556,7 +562,10 @@ fn template_lifecycle_record(
         ground_movement_type: template.ground_movement_type,
         swim_allowed: template.swim_allowed,
         flight_movement_type: template.flight_movement_type,
+        rooted: template.rooted,
+        chase_movement_type: template.chase_movement_type,
         random_movement_type: template.random_movement_type,
+        interaction_pause_timer_ms: template.interaction_pause_timer_ms,
         min_level: template.min_level,
         max_level: template.max_level,
         equipment_id: template.equipment_id,
@@ -642,7 +651,11 @@ mod tests {
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
+            rooted: false,
+            chase_movement_type: wow_constants::CreatureChaseMovementType::Run as u8,
             random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
+            interaction_pause_timer_ms:
+                wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
             min_level: 18,
             max_level: 20,
             equipment_id: 3,
@@ -811,7 +824,11 @@ mod tests {
                 ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
                 swim_allowed: true,
                 flight_movement_type: 0,
+                rooted: false,
+                chase_movement_type: wow_constants::CreatureChaseMovementType::Run as u8,
                 random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
+                interaction_pause_timer_ms:
+                    wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
                 flags_extra: 0x40,
                 string_id: "template-string".to_string(),
                 regen_health,
@@ -906,7 +923,11 @@ mod tests {
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: wow_constants::CreatureFlightMovementType::CanFly as u8,
+            rooted: false,
+            chase_movement_type: wow_constants::CreatureChaseMovementType::Run as u8,
             random_movement_type: wow_constants::CreatureRandomMovementType::AlwaysRun as u8,
+            interaction_pause_timer_ms:
+                wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
             string_id: "runtime-string".to_string(),
             spawn_time_secs: 300,
         };
@@ -1014,7 +1035,11 @@ mod tests {
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
+            rooted: false,
+            chase_movement_type: wow_constants::CreatureChaseMovementType::Run as u8,
             random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
+            interaction_pause_timer_ms:
+                wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
             string_id: String::new(),
             spawn_time_secs: 20,
         };
@@ -1121,7 +1146,11 @@ mod tests {
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
+            rooted: false,
+            chase_movement_type: wow_constants::CreatureChaseMovementType::Run as u8,
             random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
+            interaction_pause_timer_ms:
+                wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
             string_id: String::new(),
             spawn_time_secs: 20,
         };
@@ -1175,7 +1204,11 @@ mod tests {
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
+            rooted: false,
+            chase_movement_type: wow_constants::CreatureChaseMovementType::Run as u8,
             random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
+            interaction_pause_timer_ms:
+                wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
             string_id: String::new(),
             spawn_time_secs: 20,
         };
@@ -1236,7 +1269,11 @@ mod tests {
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
+            rooted: false,
+            chase_movement_type: wow_constants::CreatureChaseMovementType::Run as u8,
             random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
+            interaction_pause_timer_ms:
+                wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
             string_id: String::new(),
             spawn_time_secs: 10,
         };
@@ -1306,7 +1343,11 @@ mod tests {
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
+            rooted: false,
+            chase_movement_type: wow_constants::CreatureChaseMovementType::Run as u8,
             random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
+            interaction_pause_timer_ms:
+                wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
             string_id: String::new(),
             spawn_time_secs: 20,
         };
@@ -1366,7 +1407,11 @@ mod tests {
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
+            rooted: false,
+            chase_movement_type: wow_constants::CreatureChaseMovementType::Run as u8,
             random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
+            interaction_pause_timer_ms:
+                wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
             string_id: String::new(),
             spawn_time_secs: 20,
         };
@@ -1426,7 +1471,11 @@ mod tests {
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
+            rooted: false,
+            chase_movement_type: wow_constants::CreatureChaseMovementType::Run as u8,
             random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
+            interaction_pause_timer_ms:
+                wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
             string_id: String::new(),
             spawn_time_secs: 20,
         };
@@ -1499,7 +1548,11 @@ mod tests {
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
+            rooted: false,
+            chase_movement_type: wow_constants::CreatureChaseMovementType::Run as u8,
             random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
+            interaction_pause_timer_ms:
+                wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
             string_id: String::new(),
             spawn_time_secs: 20,
         };

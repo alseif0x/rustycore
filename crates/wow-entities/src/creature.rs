@@ -4,10 +4,11 @@ use std::{
 };
 
 use wow_constants::{
-    CreatureFlagsExtra, CreatureFlightMovementType, CreatureGroundMovementType,
-    CreatureRandomMovementType, CreatureStaticFlags, CreatureTypeFlags, DeathState, PowerType,
-    ShapeShiftForm, SheathState, TypeId, TypeMask, UnitDynFlags, UnitFlags, UnitFlags2, UnitFlags3,
-    UnitPvpFlags, UnitStandStateType, UnitState, WeaponAttackType, movement::MovementFlag,
+    CreatureChaseMovementType, CreatureFlagsExtra, CreatureFlightMovementType,
+    CreatureGroundMovementType, CreatureRandomMovementType, CreatureStaticFlags, CreatureTypeFlags,
+    DeathState, PowerType, ShapeShiftForm, SheathState, TypeId, TypeMask, UnitDynFlags, UnitFlags,
+    UnitFlags2, UnitFlags3, UnitPvpFlags, UnitStandStateType, UnitState, WeaponAttackType,
+    movement::MovementFlag,
 };
 use wow_core::{ObjectGuid, Position};
 
@@ -32,7 +33,9 @@ pub const CREATURE_Z_ATTACK_RANGE_LIKE_CPP: f32 = 3.0;
 pub const MAX_AGGRO_RESET_TIME_SECS_LIKE_CPP: i64 = 10;
 const CREATURE_GROUND_MOVEMENT_TYPE_MAX_LIKE_CPP: u8 = 3;
 const CREATURE_FLIGHT_MOVEMENT_TYPE_MAX_LIKE_CPP: u8 = 3;
+const CREATURE_CHASE_MOVEMENT_TYPE_MAX_LIKE_CPP: u8 = 3;
 const CREATURE_RANDOM_MOVEMENT_TYPE_MAX_LIKE_CPP: u8 = 3;
+pub const DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP: u32 = 180_000;
 
 pub fn game_time_secs_like_cpp() -> i64 {
     SystemTime::now()
@@ -54,6 +57,14 @@ pub const fn normalize_creature_ground_movement_type_like_cpp(ground_movement_ty
         ground_movement_type
     } else {
         CreatureGroundMovementType::Run as u8
+    }
+}
+
+pub const fn normalize_creature_chase_movement_type_like_cpp(chase_movement_type: u8) -> u8 {
+    if chase_movement_type < CREATURE_CHASE_MOVEMENT_TYPE_MAX_LIKE_CPP {
+        chase_movement_type
+    } else {
+        CreatureChaseMovementType::Run as u8
     }
 }
 
@@ -265,7 +276,10 @@ pub struct CreatureTemplateLifecycleRecord {
     pub ground_movement_type: u8,
     pub swim_allowed: bool,
     pub flight_movement_type: u8,
+    pub rooted: bool,
+    pub chase_movement_type: u8,
     pub random_movement_type: u8,
+    pub interaction_pause_timer_ms: u32,
     pub min_level: u8,
     pub max_level: u8,
     pub equipment_id: u8,
@@ -446,7 +460,10 @@ pub struct CreatureLifecycleMetadata {
     pub ground_movement_type: u8,
     pub swim_allowed: bool,
     pub flight_movement_type: u8,
+    pub rooted: bool,
+    pub chase_movement_type: u8,
     pub random_movement_type: u8,
+    pub interaction_pause_timer_ms: u32,
     pub creature_type: u32,
     pub type_flags: u32,
     pub selected_level: u8,
@@ -502,7 +519,10 @@ impl Default for CreatureLifecycleMetadata {
             ground_movement_type: CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: CreatureFlightMovementType::None as u8,
+            rooted: false,
+            chase_movement_type: CreatureChaseMovementType::Run as u8,
             random_movement_type: CreatureRandomMovementType::Walk as u8,
+            interaction_pause_timer_ms: DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
             creature_type: 0,
             type_flags: 0,
             selected_level: 0,
@@ -1128,9 +1148,14 @@ impl Creature {
             flight_movement_type: normalize_creature_flight_movement_type_like_cpp(
                 template.flight_movement_type,
             ),
+            rooted: template.rooted,
+            chase_movement_type: normalize_creature_chase_movement_type_like_cpp(
+                template.chase_movement_type,
+            ),
             random_movement_type: normalize_creature_random_movement_type_like_cpp(
                 template.random_movement_type,
             ),
+            interaction_pause_timer_ms: template.interaction_pause_timer_ms,
             creature_type: template.creature_type,
             type_flags: template.type_flags,
             selected_level: record.selected_level,
@@ -1174,6 +1199,7 @@ impl Creature {
             addon: record.addon,
         };
 
+        self.set_template_rooted_like_cpp(template.rooted);
         self.refresh_threat_list_capability_like_cpp();
         self.clear_data_changes();
     }
@@ -1837,7 +1863,8 @@ impl Creature {
     }
 
     pub fn can_ai_wander(&self) -> bool {
-        self.ai_ownership.npc_flags == 0 || (self.ai_ownership.npc_flags & 0x80) == 0
+        !self.is_template_rooted_like_cpp()
+            && (self.ai_ownership.npc_flags == 0 || (self.ai_ownership.npc_flags & 0x80) == 0)
     }
 
     pub fn try_ai_aggro(&mut self, player_guid: ObjectGuid, player_pos: &Position) -> bool {
@@ -1984,6 +2011,19 @@ impl Creature {
         self.lifecycle_metadata.static_flags = static_flags;
     }
 
+    pub fn is_template_rooted_like_cpp(&self) -> bool {
+        CreatureStaticFlags::from_bits_truncate(self.lifecycle_metadata.static_flags[0])
+            .contains(CreatureStaticFlags::SESSILE)
+    }
+
+    pub fn set_template_rooted_like_cpp(&mut self, rooted: bool) {
+        self.lifecycle_metadata.rooted = rooted;
+        let mut flags =
+            CreatureStaticFlags::from_bits_truncate(self.lifecycle_metadata.static_flags[0]);
+        flags.set(CreatureStaticFlags::SESSILE, rooted);
+        self.lifecycle_metadata.static_flags[0] = flags.bits();
+    }
+
     pub fn can_melee_like_cpp(&self) -> bool {
         !CreatureStaticFlags::from_bits_truncate(self.lifecycle_metadata.static_flags[0])
             .contains(CreatureStaticFlags::NO_MELEE_FLEE)
@@ -2020,6 +2060,15 @@ impl Creature {
             normalize_creature_flight_movement_type_like_cpp(flight_movement_type);
     }
 
+    pub const fn chase_movement_type_like_cpp(&self) -> u8 {
+        self.lifecycle_metadata.chase_movement_type
+    }
+
+    pub fn set_chase_movement_type_runtime_like_cpp(&mut self, chase_movement_type: u8) {
+        self.lifecycle_metadata.chase_movement_type =
+            normalize_creature_chase_movement_type_like_cpp(chase_movement_type);
+    }
+
     pub const fn random_movement_type_like_cpp(&self) -> u8 {
         self.lifecycle_metadata.random_movement_type
     }
@@ -2027,6 +2076,17 @@ impl Creature {
     pub fn set_random_movement_type_runtime_like_cpp(&mut self, random_movement_type: u8) {
         self.lifecycle_metadata.random_movement_type =
             normalize_creature_random_movement_type_like_cpp(random_movement_type);
+    }
+
+    pub const fn interaction_pause_timer_ms_like_cpp(&self) -> u32 {
+        self.lifecycle_metadata.interaction_pause_timer_ms
+    }
+
+    pub fn set_interaction_pause_timer_ms_runtime_like_cpp(
+        &mut self,
+        interaction_pause_timer_ms: u32,
+    ) {
+        self.lifecycle_metadata.interaction_pause_timer_ms = interaction_pause_timer_ms;
     }
 
     pub fn configure_ai_runtime(
@@ -4038,6 +4098,12 @@ mod tests {
         assert!(creature.can_ai_wander());
         creature.ai_ownership_mut().npc_flags = 0x80;
         assert!(!creature.can_ai_wander());
+        creature.ai_ownership_mut().npc_flags = 0;
+        creature.set_template_rooted_like_cpp(true);
+        assert!(creature.is_template_rooted_like_cpp());
+        assert!(!creature.can_ai_wander());
+        creature.set_template_rooted_like_cpp(false);
+        assert!(creature.can_ai_wander());
 
         creature.set_display_id(1234, true, None);
         creature.set_faction(35);
@@ -4215,6 +4281,10 @@ mod tests {
             ground_movement_type: CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: CreatureFlightMovementType::DisableGravity as u8,
+            rooted: false,
+            chase_movement_type: CreatureChaseMovementType::Run as u8,
+            random_movement_type: CreatureRandomMovementType::Walk as u8,
+            interaction_pause_timer_ms: DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
             min_level: 70,
             max_level: 72,
             equipment_id: 4,

@@ -3240,7 +3240,10 @@ pub struct CreatureSpawnRuntimeRowLikeCpp {
     pub ground_movement_type: u8,
     pub swim_allowed: bool,
     pub flight_movement_type: u8,
+    pub rooted: bool,
+    pub chase_movement_type: u8,
     pub random_movement_type: u8,
+    pub interaction_pause_timer_ms: u32,
     pub string_id: String,
     pub spawn_time_secs: i32,
 }
@@ -3285,7 +3288,10 @@ struct CreatureSpawnRow {
     ground_movement_type: u8,
     swim_allowed: bool,
     flight_movement_type: u8,
+    rooted: bool,
+    chase_movement_type: u8,
     random_movement_type: u8,
+    interaction_pause_timer_ms: u32,
     spawn_difficulties: String,
     event_entry: i16,
     pool_id: u32,
@@ -5045,7 +5051,13 @@ async fn load_creature_spawns_like_cpp(
                 .unwrap_or(wow_constants::CreatureGroundMovementType::Run as u8),
             swim_allowed: result.try_read::<Option<u8>>(29).flatten().unwrap_or(1) != 0,
             flight_movement_type: result.try_read::<Option<u8>>(30).flatten().unwrap_or(0),
-            random_movement_type: result.try_read::<Option<u8>>(31).flatten().unwrap_or(0),
+            rooted: result.try_read::<Option<u8>>(31).flatten().unwrap_or(0) != 0,
+            chase_movement_type: result.try_read::<Option<u8>>(32).flatten().unwrap_or(0),
+            random_movement_type: result.try_read::<Option<u8>>(33).flatten().unwrap_or(0),
+            interaction_pause_timer_ms: result
+                .try_read::<Option<u32>>(34)
+                .flatten()
+                .unwrap_or(wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP),
         };
         let runtime_row = creature_row_to_runtime_row_like_cpp(&row);
         report.creature.rows += 1;
@@ -5590,7 +5602,10 @@ fn creature_row_to_runtime_row_like_cpp(row: &CreatureSpawnRow) -> CreatureSpawn
         ground_movement_type: row.ground_movement_type,
         swim_allowed: row.swim_allowed,
         flight_movement_type: row.flight_movement_type,
+        rooted: row.rooted,
+        chase_movement_type: row.chase_movement_type,
         random_movement_type: row.random_movement_type,
+        interaction_pause_timer_ms: row.interaction_pause_timer_ms,
         string_id: row.string_id.clone(),
         spawn_time_secs: row.spawn_time_secs,
     }
@@ -6350,7 +6365,11 @@ mod tests {
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
+            rooted: false,
+            chase_movement_type: wow_constants::CreatureChaseMovementType::Run as u8,
             random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
+            interaction_pause_timer_ms:
+                wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
             spawn_difficulties: difficulties.to_string(),
             event_entry,
             pool_id: 0,
@@ -10028,7 +10047,11 @@ mod tests {
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
+            rooted: false,
+            chase_movement_type: wow_constants::CreatureChaseMovementType::Run as u8,
             random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
+            interaction_pause_timer_ms:
+                wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
             string_id: String::new(),
             spawn_time_secs: 120,
         }

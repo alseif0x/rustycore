@@ -9687,7 +9687,10 @@ impl WorldSession {
             ground_movement_type,
             swim_allowed,
             flight_movement_type,
+            false,
+            wow_constants::CreatureChaseMovementType::Run as u8,
             wow_constants::CreatureRandomMovementType::Walk as u8,
+            wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
             0.0,
             wow_entities::MovementGeneratorType::Idle,
             0,
@@ -9716,7 +9719,10 @@ impl WorldSession {
         ground_movement_type: u8,
         swim_allowed: bool,
         flight_movement_type: u8,
+        rooted: bool,
+        chase_movement_type: u8,
         random_movement_type: u8,
+        interaction_pause_timer_ms: u32,
         wander_distance: f32,
         default_movement_type: wow_entities::MovementGeneratorType,
         waypoint_path_id: u32,
@@ -9766,7 +9772,10 @@ impl WorldSession {
             creature.set_ground_movement_type_runtime_like_cpp(ground_movement_type);
             creature.set_swim_allowed_runtime_like_cpp(swim_allowed);
             creature.set_flight_movement_type_runtime_like_cpp(flight_movement_type);
+            creature.set_template_rooted_like_cpp(rooted);
+            creature.set_chase_movement_type_runtime_like_cpp(chase_movement_type);
             creature.set_random_movement_type_runtime_like_cpp(random_movement_type);
+            creature.set_interaction_pause_timer_ms_runtime_like_cpp(interaction_pause_timer_ms);
             // This compatibility path has no DB CreatureTemplate. Real loaded-grid creatures carry
             // template RequiredExpansion through lifecycle metadata; legacy ad-hoc registrations
             // preserve the previous WotLK max-level behavior.
@@ -78214,7 +78223,11 @@ mod tests {
                 ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
                 swim_allowed: true,
                 flight_movement_type: 0,
+                rooted: false,
+                chase_movement_type: wow_constants::CreatureChaseMovementType::Run as u8,
                 random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
+                interaction_pause_timer_ms:
+                    wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
                 flags_extra: 0,
                 string_id: String::new(),
                 regen_health: true,
@@ -78975,7 +78988,10 @@ mod tests {
             wow_constants::CreatureGroundMovementType::Run as u8,
             true,
             0,
+            false,
+            wow_constants::CreatureChaseMovementType::Run as u8,
             wow_constants::CreatureRandomMovementType::Walk as u8,
+            wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
             0.0,
             wow_entities::MovementGeneratorType::Waypoint,
             77_001,
@@ -118615,7 +118631,11 @@ mod tests {
                     ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
                     swim_allowed: true,
                     flight_movement_type: 0,
+                    rooted: false,
+                    chase_movement_type: wow_constants::CreatureChaseMovementType::Run as u8,
                     random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
+                    interaction_pause_timer_ms:
+                        wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
                     min_level: 80,
                     max_level: 80,
                     equipment_id: 0,
@@ -122220,7 +122240,11 @@ mod tests {
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
+            rooted: false,
+            chase_movement_type: wow_constants::CreatureChaseMovementType::Run as u8,
             random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
+            interaction_pause_timer_ms:
+                wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
             npc_flags: 0,
             unit_flags: 0,
             map_id: 0,

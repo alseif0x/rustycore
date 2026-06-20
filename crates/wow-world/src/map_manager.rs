@@ -2990,7 +2990,10 @@ pub struct PendingRespawn {
     pub ground_movement_type: u8,
     pub swim_allowed: bool,
     pub flight_movement_type: u8,
+    pub rooted: bool,
+    pub chase_movement_type: u8,
     pub random_movement_type: u8,
+    pub interaction_pause_timer_ms: u32,
     pub npc_flags: u32,
     pub unit_flags: u32,
     pub map_id: u16,
@@ -3063,7 +3066,10 @@ pub fn pending_respawn_from_world_creature_like_cpp(
         ground_movement_type: creature.creature.ground_movement_type_like_cpp(),
         swim_allowed: creature.creature.swim_allowed_like_cpp(),
         flight_movement_type: creature.creature.flight_movement_type_like_cpp(),
+        rooted: creature.creature.is_template_rooted_like_cpp(),
+        chase_movement_type: creature.creature.chase_movement_type_like_cpp(),
         random_movement_type: creature.creature.random_movement_type_like_cpp(),
+        interaction_pause_timer_ms: creature.creature.interaction_pause_timer_ms_like_cpp(),
         npc_flags: creature.npc_flags(),
         unit_flags: creature.unit_flags(),
         map_id,
@@ -3134,7 +3140,10 @@ pub fn world_creature_from_pending_respawn_like_cpp(
     creature.set_ground_movement_type_runtime_like_cpp(respawn.ground_movement_type);
     creature.set_swim_allowed_runtime_like_cpp(respawn.swim_allowed);
     creature.set_flight_movement_type_runtime_like_cpp(respawn.flight_movement_type);
+    creature.set_template_rooted_like_cpp(respawn.rooted);
+    creature.set_chase_movement_type_runtime_like_cpp(respawn.chase_movement_type);
     creature.set_random_movement_type_runtime_like_cpp(respawn.random_movement_type);
+    creature.set_interaction_pause_timer_ms_runtime_like_cpp(respawn.interaction_pause_timer_ms);
     creature.configure_ai_runtime(
         respawn.home_pos,
         respawn.aggro_radius,
@@ -5534,7 +5543,11 @@ mod tests {
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
+            rooted: false,
+            chase_movement_type: wow_constants::CreatureChaseMovementType::Run as u8,
             random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
+            interaction_pause_timer_ms:
+                wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
             npc_flags: 0,
             unit_flags: 0,
             map_id: 0,

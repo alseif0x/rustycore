@@ -153,6 +153,7 @@ pub fn build_template_script_name_interner_like_cpp(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::creature_template::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP;
 
     #[test]
     fn script_name_interner_reserves_empty_id_zero_like_cpp() {
@@ -227,7 +228,10 @@ mod tests {
                 ground_movement_type: 1,
                 swim_allowed: true,
                 flight_movement_type: 0,
+                rooted: false,
+                chase_movement_type: wow_constants::CreatureChaseMovementType::Run as u8,
                 random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
+                interaction_pause_timer_ms: DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
                 flags_extra: 0,
                 string_id: String::new(),
                 regen_health: true,
@@ -259,7 +263,10 @@ mod tests {
                 ground_movement_type: 1,
                 swim_allowed: true,
                 flight_movement_type: 0,
+                rooted: false,
+                chase_movement_type: wow_constants::CreatureChaseMovementType::Run as u8,
                 random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
+                interaction_pause_timer_ms: DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
                 flags_extra: 0,
                 string_id: String::new(),
                 regen_health: true,

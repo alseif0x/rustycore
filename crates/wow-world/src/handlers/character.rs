@@ -35,7 +35,8 @@ use wow_entities::{
     INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
     INVENTORY_SLOT_ITEM_START, MAX_BAG_SIZE, MAX_GAMEOBJECT_DATA, MovementGeneratorType, NULL_BAG,
     NULL_SLOT, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, WorldObject, is_equipment_pos,
-    is_inventory_pos, normalize_creature_random_movement_type_like_cpp,
+    is_inventory_pos, normalize_creature_chase_movement_type_like_cpp,
+    normalize_creature_random_movement_type_like_cpp,
 };
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
 use wow_packet::packets::auth::{
@@ -70,10 +71,13 @@ const GO_SPAWN_TERRAIN_SWAP_MAP_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN 
 const GO_SPAWN_EFFECTIVE_FLAGS_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 4;
 const GO_SPAWN_EFFECTIVE_FACTION_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 5;
 const GO_SPAWN_OVERRIDE_SOURCE_KNOWN_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 6;
-const CREATURE_SPAWN_RANDOM_MOVEMENT_TYPE_COLUMN: usize = 35;
-const CREATURE_SPAWN_WANDER_DISTANCE_COLUMN: usize = 36;
-const CREATURE_SPAWN_EFFECTIVE_MOVEMENT_TYPE_COLUMN: usize = 37;
-const CREATURE_SPAWN_WAYPOINT_PATH_ID_COLUMN: usize = 38;
+const CREATURE_SPAWN_ROOTED_COLUMN: usize = 35;
+const CREATURE_SPAWN_CHASE_MOVEMENT_TYPE_COLUMN: usize = 36;
+const CREATURE_SPAWN_RANDOM_MOVEMENT_TYPE_COLUMN: usize = 37;
+const CREATURE_SPAWN_INTERACTION_PAUSE_TIMER_COLUMN: usize = 38;
+const CREATURE_SPAWN_WANDER_DISTANCE_COLUMN: usize = 39;
+const CREATURE_SPAWN_EFFECTIVE_MOVEMENT_TYPE_COLUMN: usize = 40;
+const CREATURE_SPAWN_WAYPOINT_PATH_ID_COLUMN: usize = 41;
 const WAYPOINT_MOTION_TYPE_LIKE_CPP: u8 = 2;
 const TACT_KEY_TABLE_HASH_LIKE_CPP: u32 = 0xD3F6_1A9E;
 const QUEST_GIVER_STATUS_TRACKED_QUERY_MAX_GUIDS_LIKE_CPP: u32 = 1000;
@@ -5068,6 +5072,28 @@ impl WorldSession {
                 .or_else(|| result.try_read::<u8>(34))
                 .or_else(|| result.try_read::<i16>(34).map(|value| value.max(0) as u8))
                 .unwrap_or(0);
+            let rooted: bool = result
+                .try_read::<Option<u8>>(CREATURE_SPAWN_ROOTED_COLUMN)
+                .flatten()
+                .or_else(|| result.try_read::<u8>(CREATURE_SPAWN_ROOTED_COLUMN))
+                .or_else(|| {
+                    result
+                        .try_read::<i16>(CREATURE_SPAWN_ROOTED_COLUMN)
+                        .map(|value| value.max(0) as u8)
+                })
+                .unwrap_or(0)
+                != 0;
+            let chase_movement_type: u8 = result
+                .try_read::<Option<u8>>(CREATURE_SPAWN_CHASE_MOVEMENT_TYPE_COLUMN)
+                .flatten()
+                .or_else(|| result.try_read::<u8>(CREATURE_SPAWN_CHASE_MOVEMENT_TYPE_COLUMN))
+                .or_else(|| {
+                    result
+                        .try_read::<i16>(CREATURE_SPAWN_CHASE_MOVEMENT_TYPE_COLUMN)
+                        .map(|value| value.max(0) as u8)
+                })
+                .map(normalize_creature_chase_movement_type_like_cpp)
+                .unwrap_or(wow_constants::CreatureChaseMovementType::Run as u8);
             let random_movement_type: u8 = result
                 .try_read::<Option<u8>>(CREATURE_SPAWN_RANDOM_MOVEMENT_TYPE_COLUMN)
                 .flatten()
@@ -5079,6 +5105,11 @@ impl WorldSession {
                 })
                 .map(normalize_creature_random_movement_type_like_cpp)
                 .unwrap_or(CreatureRandomMovementType::Walk as u8);
+            let interaction_pause_timer_ms: u32 = result
+                .try_read::<Option<u32>>(CREATURE_SPAWN_INTERACTION_PAUSE_TIMER_COLUMN)
+                .flatten()
+                .or_else(|| result.try_read::<u32>(CREATURE_SPAWN_INTERACTION_PAUSE_TIMER_COLUMN))
+                .unwrap_or(wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP);
             let wander_distance: f32 = result
                 .try_read::<Option<f32>>(CREATURE_SPAWN_WANDER_DISTANCE_COLUMN)
                 .flatten()
@@ -5207,7 +5238,10 @@ impl WorldSession {
                 ground_movement_type,
                 swim_allowed,
                 flight_movement_type,
+                rooted,
+                chase_movement_type,
                 random_movement_type,
+                interaction_pause_timer_ms,
                 wander_distance,
                 default_movement_type,
                 waypoint_path_id,
@@ -5590,6 +5624,26 @@ impl WorldSession {
                     .or_else(|| cr.try_read::<u8>(34))
                     .or_else(|| cr.try_read::<i16>(34).map(|value| value.max(0) as u8))
                     .unwrap_or(0);
+                let rooted: bool = cr
+                    .try_read::<Option<u8>>(CREATURE_SPAWN_ROOTED_COLUMN)
+                    .flatten()
+                    .or_else(|| cr.try_read::<u8>(CREATURE_SPAWN_ROOTED_COLUMN))
+                    .or_else(|| {
+                        cr.try_read::<i16>(CREATURE_SPAWN_ROOTED_COLUMN)
+                            .map(|value| value.max(0) as u8)
+                    })
+                    .unwrap_or(0)
+                    != 0;
+                let chase_movement_type: u8 = cr
+                    .try_read::<Option<u8>>(CREATURE_SPAWN_CHASE_MOVEMENT_TYPE_COLUMN)
+                    .flatten()
+                    .or_else(|| cr.try_read::<u8>(CREATURE_SPAWN_CHASE_MOVEMENT_TYPE_COLUMN))
+                    .or_else(|| {
+                        cr.try_read::<i16>(CREATURE_SPAWN_CHASE_MOVEMENT_TYPE_COLUMN)
+                            .map(|value| value.max(0) as u8)
+                    })
+                    .map(normalize_creature_chase_movement_type_like_cpp)
+                    .unwrap_or(wow_constants::CreatureChaseMovementType::Run as u8);
                 let random_movement_type: u8 = cr
                     .try_read::<Option<u8>>(CREATURE_SPAWN_RANDOM_MOVEMENT_TYPE_COLUMN)
                     .flatten()
@@ -5600,6 +5654,11 @@ impl WorldSession {
                     })
                     .map(normalize_creature_random_movement_type_like_cpp)
                     .unwrap_or(CreatureRandomMovementType::Walk as u8);
+                let interaction_pause_timer_ms: u32 = cr
+                    .try_read::<Option<u32>>(CREATURE_SPAWN_INTERACTION_PAUSE_TIMER_COLUMN)
+                    .flatten()
+                    .or_else(|| cr.try_read::<u32>(CREATURE_SPAWN_INTERACTION_PAUSE_TIMER_COLUMN))
+                    .unwrap_or(wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP);
                 let wander_distance: f32 = cr
                     .try_read::<Option<f32>>(CREATURE_SPAWN_WANDER_DISTANCE_COLUMN)
                     .flatten()
@@ -5729,9 +5788,12 @@ impl WorldSession {
                         flags_extra,
                         ground_movement_type,
                         swim_allowed,
-                        flight_movement_type,
-                        random_movement_type,
-                        wander_distance,
+                    flight_movement_type,
+                    rooted,
+                    chase_movement_type,
+                    random_movement_type,
+                    interaction_pause_timer_ms,
+                    wander_distance,
                         default_movement_type,
                         waypoint_path_id,
                     );

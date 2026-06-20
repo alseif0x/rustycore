@@ -742,6 +742,7 @@ fn normalize_unsigned_db_i16_like_cpp(value: u32) -> i16 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::creature_template::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP;
     use crate::progression_rewards::{FactionEntry, FactionStore};
 
     fn rates(value: f32) -> ReputationRewardRateEntryLikeCpp {
@@ -806,7 +807,10 @@ mod tests {
                 ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
                 swim_allowed: true,
                 flight_movement_type: 0,
+                rooted: false,
+                chase_movement_type: wow_constants::CreatureChaseMovementType::Run as u8,
                 random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
+                interaction_pause_timer_ms: DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
                 flags_extra: 0,
                 string_id: String::new(),
                 regen_health: true,
