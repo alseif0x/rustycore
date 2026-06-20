@@ -1771,6 +1771,37 @@ impl Default for RepresentedItemBonusStateLikeCpp {
     }
 }
 
+impl RepresentedItemBonusStateLikeCpp {
+    #[allow(dead_code)]
+    fn represented_player_stat_changes_like_cpp(
+        &self,
+    ) -> wow_packet::packets::update::PlayerStatChanges {
+        let mut changes = wow_packet::packets::update::PlayerStatChanges {
+            base_mana: self.mana_base,
+            base_health: self.health_base,
+            attack_power: self.attack_power_total,
+            ranged_attack_power: self.ranged_attack_power_total,
+            stats: self.stats_base,
+            stat_pos_buff: self.stats_base,
+            armor: self.armor_base + self.armor_total + self.resistances_base[0],
+            combat_ratings: self.combat_ratings,
+            spell_power: self.spell_power_bonus,
+            shield_block: i32::try_from(self.shield_block_value).unwrap_or(i32::MAX),
+            ..Default::default()
+        };
+
+        changes.min_damage =
+            self.weapon_damage[wow_constants::WeaponAttackType::BaseAttack as usize][0];
+        changes.max_damage =
+            self.weapon_damage[wow_constants::WeaponAttackType::BaseAttack as usize][1];
+        changes.min_ranged_damage =
+            self.weapon_damage[wow_constants::WeaponAttackType::RangedAttack as usize][0];
+        changes.max_ranged_damage =
+            self.weapon_damage[wow_constants::WeaponAttackType::RangedAttack as usize][1];
+        changes
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct RepresentedScalingStatContextLikeCpp {
     stat_id: [i32; 10],
@@ -104328,6 +104359,15 @@ mod tests {
                 .damage_physical_updates,
             &[wow_constants::WeaponAttackType::BaseAttack]
         );
+        let stat_changes = session
+            .represented_item_bonus_state_like_cpp()
+            .represented_player_stat_changes_like_cpp();
+        assert_eq!(stat_changes.min_damage, 140.0);
+        assert_eq!(stat_changes.max_damage, 260.0);
+        assert_eq!(
+            stat_changes.min_ranged_damage, 0.0,
+            "the represented packet projection does not invent ranged/offhand values when C++ only changed BASE_ATTACK"
+        );
     }
 
     #[test]
@@ -104501,6 +104541,25 @@ mod tests {
                 .stat_buff_updates,
             &[wow_constants::Stats::Strength]
         );
+        let stat_changes = session
+            .represented_item_bonus_state_like_cpp()
+            .represented_player_stat_changes_like_cpp();
+        assert_eq!(
+            stat_changes.stats[wow_constants::Stats::Strength as usize],
+            100
+        );
+        assert_eq!(
+            stat_changes.stat_pos_buff[wow_constants::Stats::Strength as usize],
+            100
+        );
+        assert_eq!(
+            stat_changes.spell_power, 33,
+            "C++ ApplySpellPowerBonus updates ModHealingDonePos and magic ModDamageDonePos update fields"
+        );
+        assert_eq!(
+            stat_changes.armor, 77,
+            "C++ armor/resistance item mods surface as UnitData::Resistances[0]"
+        );
 
         session.record_represented_item_mods_like_cpp(item_guid, EQUIPMENT_SLOT_CHEST, false);
 
@@ -104522,6 +104581,15 @@ mod tests {
                 .resistances_base[wow_constants::spell::SpellSchools::Normal as usize],
             0
         );
+        let removed_changes = session
+            .represented_item_bonus_state_like_cpp()
+            .represented_player_stat_changes_like_cpp();
+        assert_eq!(
+            removed_changes.stats[wow_constants::Stats::Strength as usize],
+            0
+        );
+        assert_eq!(removed_changes.spell_power, 0);
+        assert_eq!(removed_changes.armor, 0);
     }
 
     #[tokio::test]

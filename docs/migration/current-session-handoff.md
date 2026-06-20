@@ -1,3 +1,30 @@
+- `#NEXT.R8.ENTITIES.1180` — represented item-bonus runtime state now has a
+  bounded projection into the existing `PlayerStatChanges` update-field packet
+  helper. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7694-8033`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.h:754`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.h:1476-1488`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/StatSystem.cpp:152-170`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/StatSystem.cpp:788-827`.
+  Rust now maps the represented subset that can be safely expressed by
+  `PlayerStatChanges`: base mana/health, primary stats and positive stat buffs,
+  armor/normal resistance, attack power, ranged attack power, combat ratings,
+  spell power, shield block, and base/ranged weapon damage. `PlayerStatChanges`
+  also gained a C++-safe default so packet projections start from zero values
+  while multiplicative update fields remain `1.0`. Coverage: `cargo fmt --all
+  --check`, `cargo test -p wow-world represented_item_mods_apply_scaling --lib`,
+  `cargo test -p wow-packet
+  active_player_stats_values_update_matches_cpp_common_runtime_masks --lib`,
+  `cargo check -p wow-world`, `cargo check -p world-server`, and `git diff
+  --check`. Boundary remains partial: this projection is not yet an
+  authoritative full-player stat recomputation or automatic live packet send;
+  C++ mana regen requires `UpdateManaRegen`, health regen/spell penetration use
+  fields outside the current helper, base attack time/offhand weapon fields are
+  not represented in `PlayerStatChanges`, and update-field emission/fanout,
+  persistence, bot validation, live-client validation, and manual validation
+  remain open.
+
 - `#NEXT.R8.ENTITIES.1179` — represented `Player::_ApplyItemBonuses` now
   mutates a represented item-bonus runtime snapshot from the same action plan
   introduced in the previous slices. Source of truth:

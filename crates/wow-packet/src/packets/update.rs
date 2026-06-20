@@ -1328,6 +1328,52 @@ pub struct PlayerStatChanges {
     pub mod_spell_power_pct: f32,      // bit 63 (1.0)
 }
 
+impl Default for PlayerStatChanges {
+    fn default() -> Self {
+        Self {
+            health: 0,
+            max_health: 0,
+            min_damage: 0.0,
+            max_damage: 0.0,
+            base_mana: 0,
+            base_health: 0,
+            attack_power: 0,
+            ranged_attack_power: 0,
+            min_ranged_damage: 0.0,
+            max_ranged_damage: 0.0,
+            power0: 0,
+            max_power0: 0,
+            stats: [0; 5],
+            stat_pos_buff: [0; 5],
+            armor: 0,
+            combat_ratings: [0; 32],
+            spell_power: 0,
+            block_pct: 0.0,
+            dodge_pct: 0.0,
+            parry_pct: 0.0,
+            crit_pct: 0.0,
+            ranged_crit_pct: 0.0,
+            spell_crit_pct: [0.0; 7],
+            mana_regen: 0.0,
+            mana_regen_combat: 0.0,
+            mana_regen_mp5: 0.0,
+            mainhand_expertise: 0.0,
+            offhand_expertise: 0.0,
+            ranged_expertise: 0.0,
+            combat_rating_expertise: 0.0,
+            dodge_from_attr: 0.0,
+            parry_from_attr: 0.0,
+            offhand_crit_pct: 0.0,
+            shield_block: 0,
+            shield_block_crit_pct: 0.0,
+            mod_healing_pct: 1.0,
+            mod_healing_done_pct: 1.0,
+            mod_periodic_healing_pct: 1.0,
+            mod_spell_power_pct: 1.0,
+        }
+    }
+}
+
 // ── PlayerCombatStats ──────────────────────────────────────────────
 
 /// All combat-related stats computed from base stats + gear.
