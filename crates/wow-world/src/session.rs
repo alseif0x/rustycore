@@ -1772,7 +1772,6 @@ impl Default for RepresentedItemBonusStateLikeCpp {
 }
 
 impl RepresentedItemBonusStateLikeCpp {
-    #[allow(dead_code)]
     fn represented_player_stat_changes_like_cpp(
         &self,
     ) -> wow_packet::packets::update::PlayerStatChanges {
@@ -14382,6 +14381,9 @@ impl WorldSession {
             health_before,
             max_health_before,
         );
+        if !item_mod_targets.is_empty() {
+            self.send_represented_item_bonus_player_stat_update_like_cpp();
+        }
         true
     }
 
@@ -14553,6 +14555,28 @@ impl WorldSession {
         for action in planned_actions {
             self.apply_represented_item_bonus_action_state_like_cpp(action);
         }
+    }
+
+    fn represented_item_bonus_player_stat_update_object_like_cpp(
+        &self,
+    ) -> Option<wow_packet::packets::update::UpdateObject> {
+        let player_guid = self.player_guid()?;
+        Some(
+            wow_packet::packets::update::UpdateObject::player_stat_update(
+                player_guid,
+                self.player_map_id_like_cpp(),
+                self.represented_item_bonus_state_like_cpp
+                    .represented_player_stat_changes_like_cpp(),
+            ),
+        )
+    }
+
+    fn send_represented_item_bonus_player_stat_update_like_cpp(&self) -> bool {
+        let Some(update) = self.represented_item_bonus_player_stat_update_object_like_cpp() else {
+            return false;
+        };
+        self.send_packet(&update);
+        true
     }
 
     fn apply_represented_item_bonus_action_state_like_cpp(
@@ -53151,9 +53175,11 @@ mod tests {
 
     #[test]
     fn represented_item_level_area_scaling_reapplies_top_level_item_mods_like_cpp() {
-        let (mut session, _, _send_rx) = make_session();
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 30_160);
         let item_id = 30_160_u32;
         let item_guid = ObjectGuid::create_item(1, 30_160);
+        session.set_player_guid(Some(player_guid));
         install_represented_pvp_item_level_fixture_like_cpp(&mut session, item_id, 10);
         equip_represented_test_item_like_cpp(
             &mut session,
@@ -53190,6 +53216,11 @@ mod tests {
             session.player_health_like_cpp(),
             35,
             "C++ restores health with CalculatePct(GetMaxHealth(), previous GetHealthPct()) after item mods are reapplied"
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::UpdateObject],
+            "C++ item-mod setters mark update fields; this represented path emits the current-session VALUES delta after the reapply sequence"
         );
     }
 

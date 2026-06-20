@@ -1,3 +1,23 @@
+- `#NEXT.R8.ENTITIES.1181` — represented
+  `Player::UpdateItemLevelAreaBasedScaling` now emits a current-session
+  `SMSG_UPDATE_OBJECT` stat VALUES delta after the C++
+  `_RemoveAllItemMods -> ActivatePvpItemLevels -> _ApplyAllItemMods -> health
+  pct restore` sequence when top-level non-broken item mods were actually
+  reprocessed. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7659-7687`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:8542-8621`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28744-28755`.
+  Rust reuses the #1180 represented `PlayerStatChanges` projection and sends one
+  current-session `UpdateObject` after the reapply sequence, rather than sending
+  per-item intermediate deltas. Coverage: `cargo fmt --all --check`, `cargo
+  test -p wow-world represented_item_level_area_scaling --lib`, `cargo test -p
+  wow-world represented_item_mods_apply_scaling --lib`, `cargo check -p
+  wow-world`, and `cargo check -p world-server`. Boundary remains partial: this
+  is not general equip/unequip/repair stat emission, not a full authoritative
+  stat recomputation, not multi-session fanout, and still lacks persistence
+  proof, bot validation, live-client validation, and manual validation.
+
 - `#NEXT.R8.ENTITIES.1180` — represented item-bonus runtime state now has a
   bounded projection into the existing `PlayerStatChanges` update-field packet
   helper. Source of truth:
