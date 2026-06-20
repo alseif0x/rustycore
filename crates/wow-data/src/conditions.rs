@@ -2985,6 +2985,8 @@ mod tests {
             sheathe_type: 0,
             random_select: 0,
             random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
         }]);
         let mut spell_store = crate::SpellStore::new();
         spell_store.insert(200, spell_info(200));
@@ -3544,6 +3546,8 @@ mod tests {
             sheathe_type: 0,
             random_select: 0,
             random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
         }]);
         let area_store = crate::AreaTableStore::from_entries([
             crate::AreaTableEntry {

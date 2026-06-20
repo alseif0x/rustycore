@@ -1,3 +1,16 @@
+- `#NEXT.R8.ENTITIES.1176` — `wow-data::ItemRecord` now exposes the C++
+  basic item fields required by scaling weapon damage:
+  `ScalingStatDistributionID` and `ScalingStatValue`. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/ItemTemplate.h:810-811`,
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2LoadInfo.h:2434-2440`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Structure.h:1981-1987`.
+  `ItemStore::load` reads the C++ `Item.db2` field positions, and getters
+  default missing item entries to zero like the existing item-template helpers.
+  Boundary remains partial: represented `_ApplyWeaponDamage` still does not
+  consume scaling DPS overrides, and real stat mutation/fanout/manual
+  validation remain open.
+
 - `#NEXT.R8.ENTITIES.1175` — `wow-data` now exposes C++-faithful
   `ScalingStatValuesEntry` helper methods (`getssdMultiplier`, `getArmorMod`,
   `getDPSMod`, `isTwoHand`, and `getSpellBonus`) plus the

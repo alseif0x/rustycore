@@ -10934,6 +10934,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
             ItemRecord {
                 id: toy_item_id,
@@ -10944,6 +10946,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
         ])));
         session.set_item_search_name_store(Arc::new(ItemSearchNameStore::from_entries([

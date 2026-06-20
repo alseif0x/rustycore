@@ -50880,6 +50880,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
         ))));
         session.set_item_stats_store(Arc::new(ItemStatsStore::from_sparse_templates(
@@ -51064,6 +51066,8 @@ mod tests {
             sheathe_type: 0,
             random_select: 0,
             random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
         }
     }
 
@@ -51717,6 +51721,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
             ItemRecord {
                 id: offhand_item_id,
@@ -51727,6 +51733,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
         ])));
         session.set_item_stats_store(Arc::new(
@@ -51824,6 +51832,8 @@ mod tests {
             sheathe_type: 0,
             random_select: 0,
             random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
         }])));
         session.set_item_stats_store(Arc::new(
             ItemStatsStore::from_sparse_and_random_property_templates(
@@ -78303,6 +78313,8 @@ mod tests {
             sheathe_type: 0,
             random_select: 0,
             random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
         }])));
         session.set_item_stats_store(Arc::new(ItemStatsStore::from_sparse_templates([(
             entry,
@@ -97886,6 +97898,8 @@ mod tests {
                     sheathe_type: 0,
                     random_select: 0,
                     random_suffix_group_id: 0,
+                    scaling_stat_distribution_id: 0,
+                    scaling_stat_value: 0,
                 },
             ),
         )));
@@ -102857,6 +102871,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
             ItemRecord {
                 id: 778,
@@ -102867,6 +102883,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
             ItemRecord {
                 id: 779,
@@ -102877,6 +102895,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
         ])));
 
@@ -102952,6 +102972,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
             ItemRecord {
                 id: 778,
@@ -102962,6 +102984,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
         ])));
 
@@ -103055,6 +103079,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
             ItemRecord {
                 id: 778,
@@ -103065,6 +103091,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
         ])));
         session.mutate_canonical_player_like_cpp(|player| player.clear_data_changes());
@@ -103365,6 +103393,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
             ItemRecord {
                 id: 101,
@@ -103375,6 +103405,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
         ])));
         session.set_item_stats_store(Arc::new(ItemStatsStore::from_random_property_templates([
@@ -103447,6 +103479,8 @@ mod tests {
             sheathe_type: 0,
             random_select: 0,
             random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
         }])));
         session.set_item_stats_store(Arc::new(
             ItemStatsStore::from_sparse_and_random_property_templates(
@@ -103581,6 +103615,8 @@ mod tests {
             sheathe_type: 0,
             random_select: 0,
             random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
         }])));
         session.set_item_stats_store(Arc::new(ItemStatsStore::from_weapon_templates([(
             100,
@@ -103729,6 +103765,8 @@ mod tests {
             sheathe_type: 0,
             random_select: 0,
             random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
         }])));
         session.set_item_stats_store(Arc::new(
             ItemStatsStore::from_sparse_and_random_property_templates(
@@ -103877,6 +103915,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
             ItemRecord {
                 id: 101,
@@ -103887,6 +103927,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
             ItemRecord {
                 id: 200,
@@ -103897,6 +103939,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
         ])));
         let sparse = |inventory_type: InventoryType, max_durability: u32| ItemSparseTemplateEntry {
@@ -104217,6 +104261,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
             ItemRecord {
                 id: 101,
@@ -104227,6 +104273,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
             ItemRecord {
                 id: 200,
@@ -104237,6 +104285,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
         ])));
         let sparse = |inventory_type: InventoryType, max_durability: u32| ItemSparseTemplateEntry {
@@ -104515,6 +104565,8 @@ mod tests {
             sheathe_type: 0,
             random_select: 0,
             random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
         }])));
         session.set_item_stats_store(Arc::new(ItemStatsStore::from_sparse_templates([(
             100,
@@ -104649,6 +104701,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
             ItemRecord {
                 id: 201,
@@ -104659,6 +104713,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
         ])));
         session.set_item_stats_store(Arc::new(ItemStatsStore::from_sparse_templates([
@@ -105199,6 +105255,8 @@ mod tests {
             sheathe_type: 0,
             random_select: 0,
             random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
         }])));
         session.set_item_stats_store(Arc::new(ItemStatsStore::from_sparse_templates([(
             200,
@@ -105484,6 +105542,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
             ItemRecord {
                 id: 101,
@@ -105494,6 +105554,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
         ])));
         session.set_item_stats_store(Arc::new(ItemStatsStore::from_sparse_templates([
@@ -107093,6 +107155,8 @@ mod tests {
             sheathe_type: 0,
             random_select: 0,
             random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
         }])));
         session.set_item_stats_store(Arc::new(ItemStatsStore::from_sparse_templates([(
             700,
@@ -107246,6 +107310,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
             ItemRecord {
                 id: 700,
@@ -107256,6 +107322,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
         ])));
         session.set_item_stats_store(Arc::new(ItemStatsStore::from_sparse_templates([
@@ -107385,6 +107453,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
             ItemRecord {
                 id: 700,
@@ -107395,6 +107465,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
             ItemRecord {
                 id: 701,
@@ -107405,6 +107477,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
         ])));
         let sparse = |inventory_type: InventoryType,

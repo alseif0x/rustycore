@@ -7160,6 +7160,8 @@ mod tests {
             sheathe_type: 0,
             random_select: 0,
             random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
         }])));
         session.set_item_stats_store(Arc::new(ItemStatsStore::from_sparse_templates([(
             entry,
@@ -7602,6 +7604,8 @@ mod tests {
             sheathe_type: 0,
             random_select: 0,
             random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
         }])));
         session.set_item_stats_store(Arc::new(ItemStatsStore::from_sparse_templates([(
             entry,
@@ -10944,6 +10948,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
             ItemRecord {
                 id: bag_item_id,
@@ -10954,6 +10960,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
             ItemRecord {
                 id: filler_item_id,
@@ -10964,6 +10972,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
         ])));
         let sparse = |inventory_type: InventoryType, stackable: i32, container_slots: u8| {
@@ -11117,6 +11127,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
             ItemRecord {
                 id: bag_item_id,
@@ -11127,6 +11139,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
             ItemRecord {
                 id: filler_item_id,
@@ -11137,6 +11151,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
         ])));
         let sparse = |inventory_type: InventoryType, stackable: i32, container_slots: u8| {

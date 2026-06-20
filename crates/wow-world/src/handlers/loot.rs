@@ -9367,6 +9367,8 @@ mod tests {
             sheathe_type: 0,
             random_select: 0,
             random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
         }])));
         session.set_item_stats_store(Arc::new(ItemStatsStore::from_sparse_templates([(
             entry,
@@ -9410,6 +9412,8 @@ mod tests {
             sheathe_type: 0,
             random_select: 0,
             random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
         }])));
         session.set_item_stats_store(Arc::new(
             ItemStatsStore::from_sparse_and_random_property_templates(
@@ -10828,6 +10832,8 @@ mod tests {
             sheathe_type: 0,
             random_select,
             random_suffix_group_id,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
         }
     }
 
