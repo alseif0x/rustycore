@@ -13172,6 +13172,25 @@ mod tests {
         let entry_id = 109;
         session.set_player_guid(Some(player_guid));
         session.set_item_stats_store(Arc::new(strength_item_stats_store(entry_id, 7)));
+        session.set_item_set_store(Arc::new(wow_data::ItemSetStore::from_entries([
+            wow_data::ItemSetEntry {
+                id: 706,
+                name: "Auto Equip Set".to_string(),
+                set_flags: 0,
+                required_skill: 0,
+                required_skill_rank: 0,
+                item_id: std::array::from_fn(|i| if i == 0 { entry_id } else { 0 }),
+            },
+        ])));
+        session.set_item_set_spell_store(Arc::new(wow_data::ItemSetSpellStore::from_entries([
+            wow_data::ItemSetSpellEntry {
+                id: 22,
+                chr_spec_id: 0,
+                spell_id: 9022,
+                threshold: 1,
+                item_set_id: 706,
+            },
+        ])));
         session.insert_inventory_item_like_cpp(
             INVENTORY_SLOT_ITEM_START,
             InventoryItem {
@@ -13206,6 +13225,17 @@ mod tests {
             session.represented_item_bonus_state_like_cpp().stats_base[0],
             7,
             "C++ EquipItem calls _ApplyItemMods(..., true) for alive equipped items"
+        );
+        assert_eq!(
+            session.represented_item_set_spell_events_like_cpp(),
+            &[crate::session::RepresentedItemSetSpellEventLikeCpp {
+                item_set_id: 706,
+                spell_entry_id: 22,
+                spell_id: 9022,
+                threshold: 1,
+                apply: true,
+            }],
+            "C++ EquipItem calls AddItemsSetItem before _ApplyItemMods for equipped slots"
         );
         assert_eq!(
             drain_server_opcodes(&send_rx),

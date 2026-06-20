@@ -1,3 +1,23 @@
+- `#NEXT.R8.ENTITIES.1190` — represented direct inventory equip now invokes
+  the C++ `AddItemsSetItem` hook before represented item-mod apply. Source of
+  truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11372-11430`
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:57-145`.
+  C++ `Player::EquipItem` calls `AddItemsSetItem` before `_ApplyItemMods` for
+  alive equips; Rust now mirrors that order in the shared direct-inventory move
+  helper used by `AutoEquipItemSlot`, `SwapInvItem`, and represented equipment
+  set moves, while still removing set bonuses before item mods when a slot
+  leaves equipment. Coverage extends `AutoEquipItemSlot` to equip a represented
+  one-piece set from backpack to mainhand and proves the set spell apply event
+  is recorded before the existing represented item-mod stat update. Checks:
+  `cargo fmt --all --check`, `cargo test -p wow-world
+  auto_equip_item_slot_applies_represented_item_mods_like_cpp --lib`,
+  `cargo check -p wow-world`, `cargo check -p world-server`, and
+  `git diff --check`. Boundary remains partial: represented events only; no
+  real `ApplyEquipSpell`/aura add, no full general equip/swap validation, no
+  update-field emission for set spells, persistence, fanout, bot/live/manual
+  validation, or exact C++ spec/form-change aura behavior.
+
 - `#NEXT.R8.ENTITIES.1189` — represented `RemoveItem` offhand auto-unequip now
   invokes the same C++ item-set removal hook before represented item-mod
   removal. Source of truth:

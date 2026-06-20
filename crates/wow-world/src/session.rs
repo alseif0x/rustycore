@@ -6456,6 +6456,14 @@ impl WorldSession {
         let dst_item = self.inventory_items_like_cpp().get(&dst).cloned();
         let mut item_mods_changed = false;
 
+        if src < INVENTORY_SLOT_BAG_END {
+            let _ = self.record_direct_inventory_item_set_remove_like_cpp(
+                INVENTORY_SLOT_BAG_0,
+                src,
+                src_item.guid,
+            );
+        }
+
         if src < INVENTORY_SLOT_BAG_END
             && self
                 .inventory_item_objects_like_cpp()
@@ -6464,6 +6472,16 @@ impl WorldSession {
         {
             self.record_represented_item_mods_like_cpp(src_item.guid, src, false);
             item_mods_changed = true;
+        }
+
+        if dst < INVENTORY_SLOT_BAG_END
+            && let Some(dst_item) = dst_item.as_ref()
+        {
+            let _ = self.record_direct_inventory_item_set_remove_like_cpp(
+                INVENTORY_SLOT_BAG_0,
+                dst,
+                dst_item.guid,
+            );
         }
 
         if dst < INVENTORY_SLOT_BAG_END
@@ -6482,6 +6500,10 @@ impl WorldSession {
             return None;
         }
 
+        if dst < INVENTORY_SLOT_BAG_END {
+            let _ = self.record_represented_items_set_item_like_cpp(src_item.guid, true);
+        }
+
         if dst < INVENTORY_SLOT_BAG_END
             && self
                 .inventory_item_objects_like_cpp()
@@ -6490,6 +6512,12 @@ impl WorldSession {
         {
             self.record_represented_item_mods_like_cpp(src_item.guid, dst, true);
             item_mods_changed = true;
+        }
+
+        if src < INVENTORY_SLOT_BAG_END
+            && let Some(dst_item) = dst_item.as_ref()
+        {
+            let _ = self.record_represented_items_set_item_like_cpp(dst_item.guid, true);
         }
 
         if src < INVENTORY_SLOT_BAG_END
