@@ -16,6 +16,20 @@ RustyCore is a Rust port of a TrinityCore-derived World of Warcraft Wrath/Cata-c
 
 Do not trust existing Rust, old AI summaries, or migration docs as correctness proof. Always contrast behavior against the C++ source before implementing or approving a change.
 
+### Reference Priority
+
+The legacy C# server and older C#-based notes are secondary historical references only. They are useful for finding intent, old diagnostics, or previous packet experiments, but they are not an authority for this port.
+
+For protocol, gameplay, database, map/runtime, and persistence behavior, the final implementation must be anchored to the C++ source under `/home/server/woltk-trinity-legacy` or to a real client/server packet capture when C++ is incomplete or ambiguous. Do not approve a layout, field order, bit count, opcode response, or runtime rule merely because a Rust comment says "C# format", "C# ref", or "matches C#".
+
+When touching code that still cites C#:
+
+1. Treat the C# citation as suspect until checked.
+2. Locate the equivalent C++ packet/class/function.
+3. Update the comment to cite C++ once verified.
+4. If C++ and C# disagree, stop and document the discrepancy before changing Rust.
+5. If keeping C# behavior intentionally, explain why C++ does not answer the case and add the packet capture/client-build evidence.
+
 ## Current Checkpoint
 
 As of the last audited port state before this documentation refresh:

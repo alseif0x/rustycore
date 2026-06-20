@@ -69,12 +69,16 @@ const GO_SPAWN_TERRAIN_SWAP_MAP_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN 
 const GO_SPAWN_EFFECTIVE_FLAGS_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 4;
 const GO_SPAWN_EFFECTIVE_FACTION_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 5;
 const GO_SPAWN_OVERRIDE_SOURCE_KNOWN_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 6;
-const CREATURE_SPAWN_EFFECTIVE_MOVEMENT_TYPE_COLUMN: usize = 35;
-const CREATURE_SPAWN_WAYPOINT_PATH_ID_COLUMN: usize = 36;
+const CREATURE_SPAWN_WANDER_DISTANCE_COLUMN: usize = 35;
+const CREATURE_SPAWN_EFFECTIVE_MOVEMENT_TYPE_COLUMN: usize = 36;
+const CREATURE_SPAWN_WAYPOINT_PATH_ID_COLUMN: usize = 37;
 const WAYPOINT_MOTION_TYPE_LIKE_CPP: u8 = 2;
 const TACT_KEY_TABLE_HASH_LIKE_CPP: u32 = 0xD3F6_1A9E;
 const QUEST_GIVER_STATUS_TRACKED_QUERY_MAX_GUIDS_LIKE_CPP: u32 = 1000;
 const MAX_AREA_SPIRIT_HEALER_RANGE_LIKE_CPP: f32 = 20.0;
+// C++ ObjectDefines.h: DEFAULT_VISIBILITY_DISTANCE = VISIBILITY_DISTANCE_NORMAL = 100 yards.
+// Wider values here make the SQL fallback load whole areas and can crash the 3.4.3 client.
+const DEFAULT_VISIBILITY_DISTANCE_LIKE_CPP: f32 = crate::map_manager::VISIBILITY_RADIUS;
 const DIFFICULTY_NORMAL_LIKE_CPP: u8 = 1;
 const DIFFICULTY_NORMAL_RAID_LIKE_CPP: u8 = 14;
 const RESPONSE_SUCCESS_LIKE_CPP: u8 = 0;
@@ -116,6 +120,66 @@ fn normalize_creature_template_speed_walk_like_cpp(speed_walk: f32) -> f32 {
 
 fn normalize_creature_template_speed_run_like_cpp(speed_run: f32) -> f32 {
     if speed_run == 0.0 { 1.14286 } else { speed_run }
+}
+
+fn is_within_2d_visibility_range_like_cpp(
+    viewer: &Position,
+    object_x: f32,
+    object_y: f32,
+    range: f32,
+) -> bool {
+    let dx = viewer.x - object_x;
+    let dy = viewer.y - object_y;
+    dx * dx + dy * dy <= range * range
+}
+
+fn creature_visibility_limit_diagnostic_like_cpp() -> Option<usize> {
+    std::env::var("RUSTYCORE_CREATURE_VISIBILITY_LIMIT")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+}
+
+fn apply_creature_visibility_limit_diagnostic_like_cpp(
+    blocks: &mut Vec<UpdateBlock>,
+    visible_guids: &mut Vec<ObjectGuid>,
+    account_id: u32,
+    map_id: u16,
+) {
+    let Some(limit) = creature_visibility_limit_diagnostic_like_cpp() else {
+        return;
+    };
+    if blocks.len() <= limit {
+        return;
+    }
+    warn!(
+        "Creature visibility diagnostic limit active account={} map={} original={} limit={}",
+        account_id,
+        map_id,
+        blocks.len(),
+        limit
+    );
+    blocks.truncate(limit);
+    visible_guids.truncate(limit);
+}
+
+fn login_update_object_diagnostic_modes_like_cpp() -> (Option<String>, Vec<String>) {
+    let diagnostic = std::env::var("RUSTYCORE_LOGIN_UPDATEOBJECT_DIAGNOSTIC").ok();
+    let modes = diagnostic
+        .as_deref()
+        .map(|value| {
+            value
+                .split(',')
+                .map(str::trim)
+                .filter(|mode| !mode.is_empty())
+                .map(str::to_owned)
+                .collect()
+        })
+        .unwrap_or_default();
+    (diagnostic, modes)
+}
+
+fn diagnostic_mode_enabled_like_cpp(modes: &[String], mode: &str) -> bool {
+    modes.iter().any(|entry| entry == mode)
 }
 
 fn represented_go_state_from_i8_like_cpp(state: i8) -> Option<wow_entities::GoState> {
@@ -4819,19 +4883,10 @@ impl WorldSession {
     /// on the player's map, builds CreatureCreateData for each, and sends
     /// a batched UpdateObject.
     pub async fn send_nearby_creatures(&mut self, map_id: u16, position: &Position, zone_id: u32) {
-        const VISIBILITY_RANGE: f32 = 800.0;
-
         let map_creatures = self.visible_world_creatures_from_map_like_cpp(map_id, position);
-        if self.has_world_map_manager_like_cpp() {
-            if map_creatures.is_empty() {
-                self.client_visible_guids_like_cpp
-                    .retain(|guid| !guid.is_any_type_creature());
-                self.last_visibility_pos = Some(*position);
-                return;
-            }
-
+        if self.has_world_map_manager_like_cpp() && !map_creatures.is_empty() {
             let mut blocks = Vec::with_capacity(map_creatures.len());
-            let mut visible = HashSet::with_capacity(map_creatures.len());
+            let mut visible_guids = Vec::with_capacity(map_creatures.len());
             for creature in &map_creatures {
                 let mut create_data = creature.create_data.clone();
                 create_data.health = i64::from(creature.current_hp());
@@ -4848,17 +4903,24 @@ impl WorldSession {
                     create_data,
                     &creature.position(),
                 ));
-                visible.insert(creature.guid());
+                visible_guids.push(creature.guid());
             }
 
+            apply_creature_visibility_limit_diagnostic_like_cpp(
+                &mut blocks,
+                &mut visible_guids,
+                self.account_id,
+                map_id,
+            );
             self.client_visible_guids_like_cpp
                 .retain(|guid| !guid.is_any_type_creature());
-            self.client_visible_guids_like_cpp.extend(visible);
+            self.client_visible_guids_like_cpp
+                .extend(visible_guids.iter().copied());
             self.last_visibility_pos = Some(*position);
             self.send_packet(&UpdateObject::create_creatures(blocks, map_id));
             debug!(
                 "Sent {} map-owned creatures to account {} on map {}",
-                map_creatures.len(),
+                visible_guids.len(),
                 self.account_id,
                 map_id
             );
@@ -4868,15 +4930,18 @@ impl WorldSession {
         let world_db = match self.world_db() {
             Some(db) => Arc::clone(db),
             None => {
+                self.client_visible_guids_like_cpp
+                    .retain(|guid| !guid.is_any_type_creature());
+                self.last_visibility_pos = Some(*position);
                 warn!("No world database — skipping creature spawn");
                 return;
             }
         };
 
-        let x_min = position.x - VISIBILITY_RANGE;
-        let x_max = position.x + VISIBILITY_RANGE;
-        let y_min = position.y - VISIBILITY_RANGE;
-        let y_max = position.y + VISIBILITY_RANGE;
+        let x_min = position.x - DEFAULT_VISIBILITY_DISTANCE_LIKE_CPP;
+        let x_max = position.x + DEFAULT_VISIBILITY_DISTANCE_LIKE_CPP;
+        let y_min = position.y - DEFAULT_VISIBILITY_DISTANCE_LIKE_CPP;
+        let y_max = position.y + DEFAULT_VISIBILITY_DISTANCE_LIKE_CPP;
 
         let mut stmt = world_db.prepare(WorldStatements::SEL_CREATURES_IN_RANGE);
         stmt.set_u16(0, map_id);
@@ -4901,6 +4966,9 @@ impl WorldSession {
             };
 
         if result.is_empty() {
+            self.client_visible_guids_like_cpp
+                .retain(|guid| !guid.is_any_type_creature());
+            self.last_visibility_pos = Some(*position);
             return;
         }
 
@@ -4921,6 +4989,17 @@ impl WorldSession {
             let pos_y: f32 = result.try_read(3).unwrap_or(0.0);
             let pos_z: f32 = result.try_read(4).unwrap_or(0.0);
             let orientation: f32 = result.try_read(5).unwrap_or(0.0);
+            if !is_within_2d_visibility_range_like_cpp(
+                position,
+                pos_x,
+                pos_y,
+                DEFAULT_VISIBILITY_DISTANCE_LIKE_CPP,
+            ) {
+                if !result.next_row() {
+                    break;
+                }
+                continue;
+            }
             let cur_health: u32 = result.try_read(6).unwrap_or(100);
             let _cur_mana: u32 = result.try_read(7).unwrap_or(0);
             let model_id: u32 = result.try_read(8).unwrap_or(0);
@@ -4984,6 +5063,12 @@ impl WorldSession {
                 .or_else(|| result.try_read::<u8>(34))
                 .or_else(|| result.try_read::<i16>(34).map(|value| value.max(0) as u8))
                 .unwrap_or(0);
+            let wander_distance: f32 = result
+                .try_read::<Option<f32>>(CREATURE_SPAWN_WANDER_DISTANCE_COLUMN)
+                .flatten()
+                .or_else(|| result.try_read::<f32>(CREATURE_SPAWN_WANDER_DISTANCE_COLUMN))
+                .unwrap_or(0.0)
+                .max(0.0);
             let default_movement_type = result
                 .try_read::<Option<u8>>(CREATURE_SPAWN_EFFECTIVE_MOVEMENT_TYPE_COLUMN)
                 .flatten()
@@ -5101,6 +5186,7 @@ impl WorldSession {
                 ground_movement_type,
                 swim_allowed,
                 flight_movement_type,
+                wander_distance,
                 default_movement_type,
                 waypoint_path_id,
             );
@@ -5126,6 +5212,23 @@ impl WorldSession {
             return;
         }
 
+        apply_creature_visibility_limit_diagnostic_like_cpp(
+            &mut blocks,
+            &mut visible_guids,
+            self.account_id,
+            map_id,
+        );
+        if blocks.is_empty() {
+            self.client_visible_guids_like_cpp
+                .retain(|guid| !guid.is_any_type_creature());
+            self.last_visibility_pos = Some(*position);
+            warn!(
+                "Creature visibility diagnostic limit produced zero creature creates account={} map={}",
+                self.account_id, map_id
+            );
+            return;
+        }
+
         let count = blocks.len();
         // Mirror C++ Player::m_clientGUIDs semantics: this is the exact set
         // of creatures sent to this client, not every creature loaded on map.
@@ -5144,7 +5247,7 @@ impl WorldSession {
             })
             .count();
         let npc_count = visible_guids.len().saturating_sub(mob_count);
-        debug!(
+        info!(
             "Sent {} creatures ({} mobs / {} npcs) to account {} on map {}",
             count, mob_count, npc_count, self.account_id, map_id
         );
@@ -5179,7 +5282,7 @@ impl WorldSession {
         let map_id = self.player_map_id_like_cpp();
         let realm_id = self.realm_id();
 
-        const RANGE: f32 = 800.0;
+        const RANGE: f32 = DEFAULT_VISIBILITY_DISTANCE_LIKE_CPP;
         let x_min = pos.x - RANGE;
         let x_max = pos.x + RANGE;
         let y_min = pos.y - RANGE;
@@ -5190,9 +5293,8 @@ impl WorldSession {
             self.visible_gameobjects_from_canonical_map_like_cpp(map_id, &pos, RANGE);
         let canonical_dynamic_objects =
             self.visible_dynamic_objects_from_canonical_map_like_cpp(map_id, &pos, RANGE);
-        let has_map_visibility_source = self.has_world_map_manager_like_cpp()
-            || canonical_gameobjects.is_some()
-            || canonical_dynamic_objects.is_some();
+        let has_map_visibility_source =
+            self.has_world_map_manager_like_cpp() && !map_creatures.is_empty();
 
         if has_map_visibility_source {
             let mut new_visible_creatures: HashSet<ObjectGuid> = HashSet::new();
@@ -5217,6 +5319,18 @@ impl WorldSession {
                     ));
                 }
             }
+
+            let mut new_visible_creature_guids = new_visible_creatures
+                .iter()
+                .copied()
+                .collect::<Vec<ObjectGuid>>();
+            apply_creature_visibility_limit_diagnostic_like_cpp(
+                &mut new_creature_blocks,
+                &mut new_visible_creature_guids,
+                self.account_id,
+                map_id,
+            );
+            new_visible_creatures = new_visible_creature_guids.into_iter().collect();
 
             let removed_creatures: Vec<ObjectGuid> = self
                 .client_visible_guids_like_cpp
@@ -5389,6 +5503,12 @@ impl WorldSession {
                 let pos_y: f32 = cr.try_read(3).unwrap_or(0.0);
                 let pos_z: f32 = cr.try_read(4).unwrap_or(0.0);
                 let orientation: f32 = cr.try_read(5).unwrap_or(0.0);
+                if !is_within_2d_visibility_range_like_cpp(&pos, pos_x, pos_y, RANGE) {
+                    if !cr.next_row() {
+                        break;
+                    }
+                    continue;
+                }
                 let cur_health: u32 = cr.try_read(6).unwrap_or(100);
                 let model_id: u32 = cr.try_read(8).unwrap_or(0);
                 let min_level: u8 = cr.try_read::<Option<u8>>(9).flatten().unwrap_or(1);
@@ -5448,6 +5568,12 @@ impl WorldSession {
                     .or_else(|| cr.try_read::<u8>(34))
                     .or_else(|| cr.try_read::<i16>(34).map(|value| value.max(0) as u8))
                     .unwrap_or(0);
+                let wander_distance: f32 = cr
+                    .try_read::<Option<f32>>(CREATURE_SPAWN_WANDER_DISTANCE_COLUMN)
+                    .flatten()
+                    .or_else(|| cr.try_read::<f32>(CREATURE_SPAWN_WANDER_DISTANCE_COLUMN))
+                    .unwrap_or(0.0)
+                    .max(0.0);
                 let default_movement_type = cr
                     .try_read::<Option<u8>>(CREATURE_SPAWN_EFFECTIVE_MOVEMENT_TYPE_COLUMN)
                     .flatten()
@@ -5567,6 +5693,7 @@ impl WorldSession {
                         ground_movement_type,
                         swim_allowed,
                         flight_movement_type,
+                        wander_distance,
                         default_movement_type,
                         waypoint_path_id,
                     );
@@ -5590,6 +5717,18 @@ impl WorldSession {
         }
 
         // Creatures that left range → out-of-range
+        let mut new_visible_creature_guids = new_visible_creatures
+            .iter()
+            .copied()
+            .collect::<Vec<ObjectGuid>>();
+        apply_creature_visibility_limit_diagnostic_like_cpp(
+            &mut new_creature_blocks,
+            &mut new_visible_creature_guids,
+            self.account_id,
+            map_id,
+        );
+        new_visible_creatures = new_visible_creature_guids.into_iter().collect();
+
         let removed_creatures: Vec<ObjectGuid> = self
             .client_visible_guids_like_cpp
             .iter()
@@ -5654,6 +5793,12 @@ impl WorldSession {
                 let pos_y: f32 = go_result.try_read(3).unwrap_or(0.0);
                 let pos_z: f32 = go_result.try_read(4).unwrap_or(0.0);
                 let orientation: f32 = go_result.try_read(5).unwrap_or(0.0);
+                if !is_within_2d_visibility_range_like_cpp(&pos, pos_x, pos_y, RANGE) {
+                    if !go_result.next_row() {
+                        break;
+                    }
+                    continue;
+                }
                 let rot0: f32 = go_result.try_read(6).unwrap_or(0.0);
                 let rot1: f32 = go_result.try_read(7).unwrap_or(0.0);
                 let rot2: f32 = go_result.try_read(8).unwrap_or(0.0);
@@ -6362,11 +6507,11 @@ impl WorldSession {
         position: &Position,
         _zone_id: u32,
     ) {
-        const VISIBILITY_RANGE: f32 = 800.0;
-
-        if let Some(gameobjects) =
-            self.visible_gameobjects_from_canonical_map_like_cpp(map_id, position, VISIBILITY_RANGE)
-        {
+        if let Some(gameobjects) = self.visible_gameobjects_from_canonical_map_like_cpp(
+            map_id,
+            position,
+            DEFAULT_VISIBILITY_DISTANCE_LIKE_CPP,
+        ) {
             if gameobjects.is_empty() {
                 self.client_visible_guids_like_cpp
                     .retain(|guid| !guid.is_game_object());
@@ -6396,10 +6541,10 @@ impl WorldSession {
             None => return,
         };
 
-        let x_min = position.x - VISIBILITY_RANGE;
-        let x_max = position.x + VISIBILITY_RANGE;
-        let y_min = position.y - VISIBILITY_RANGE;
-        let y_max = position.y + VISIBILITY_RANGE;
+        let x_min = position.x - DEFAULT_VISIBILITY_DISTANCE_LIKE_CPP;
+        let x_max = position.x + DEFAULT_VISIBILITY_DISTANCE_LIKE_CPP;
+        let y_min = position.y - DEFAULT_VISIBILITY_DISTANCE_LIKE_CPP;
+        let y_max = position.y + DEFAULT_VISIBILITY_DISTANCE_LIKE_CPP;
 
         let mut stmt = world_db.prepare(WorldStatements::SEL_GAMEOBJECTS_IN_RANGE);
         stmt.set_u16(0, map_id);
@@ -6443,6 +6588,17 @@ impl WorldSession {
             let pos_y: f32 = result.try_read(3).unwrap_or(0.0);
             let pos_z: f32 = result.try_read(4).unwrap_or(0.0);
             let orientation: f32 = result.try_read(5).unwrap_or(0.0);
+            if !is_within_2d_visibility_range_like_cpp(
+                position,
+                pos_x,
+                pos_y,
+                DEFAULT_VISIBILITY_DISTANCE_LIKE_CPP,
+            ) {
+                if !result.next_row() {
+                    break;
+                }
+                continue;
+            }
             let rot0: f32 = result.try_read(6).unwrap_or(0.0);
             let rot1: f32 = result.try_read(7).unwrap_or(0.0);
             let rot2: f32 = result.try_read(8).unwrap_or(0.0);
@@ -11679,6 +11835,11 @@ impl WorldSession {
         skill_info: Vec<(u16, u16, u16, u16, u16, i16, u16)>,
         account_mounts: Vec<AccountMount>,
     ) {
+        let (login_update_object_diagnostic, diagnostic_modes) =
+            login_update_object_diagnostic_modes_like_cpp();
+        let skip_account_collection_packets =
+            diagnostic_mode_enabled_like_cpp(&diagnostic_modes, "no_account_collections");
+
         // ── Phase 1: HandlePlayerLogin packets ──
 
         // 1. DungeonDifficultySet — C++ `Player::SendDungeonDifficulty()`
@@ -11701,7 +11862,14 @@ impl WorldSession {
         self.send_packet(&FeatureSystemStatus::default_wotlk());
 
         // 5. BattlePetJournalLockAcquired (empty packet — journal access granted)
-        self.send_packet(&BattlePetJournalLockAcquired);
+        if skip_account_collection_packets {
+            warn!(
+                diagnostic = login_update_object_diagnostic.as_deref().unwrap_or(""),
+                "Skipping BattlePetJournalLockAcquired for login diagnostic"
+            );
+        } else {
+            self.send_packet(&BattlePetJournalLockAcquired);
+        }
 
         // ── Phase 2: SendInitialPacketsBeforeAddToMap ──
 
@@ -11794,32 +11962,29 @@ impl WorldSession {
         // 23. AccountMountUpdate
         self.send_packet(&AccountMountUpdate::full(account_mounts));
 
-        // 24. AccountToyUpdate
-        self.send_account_toys_like_cpp();
+        if skip_account_collection_packets {
+            warn!(
+                diagnostic = login_update_object_diagnostic.as_deref().unwrap_or(""),
+                "Skipping account collection packets for login diagnostic"
+            );
+        } else {
+            // 24. AccountToyUpdate
+            self.send_account_toys_like_cpp();
 
-        // 25. AccountHeirloomUpdate
-        self.send_account_heirlooms_like_cpp();
+            // 25. AccountHeirloomUpdate
+            self.send_account_heirlooms_like_cpp();
 
-        // 26. AccountTransmogUpdate favorite appearances
-        self.send_favorite_appearances_like_cpp();
+            // 26. AccountTransmogUpdate favorite appearances
+            self.send_favorite_appearances_like_cpp();
+        }
 
         // 27. InitialSetup (expansion level)
         self.send_packet(&InitialSetup::wotlk());
 
-        let login_update_object_diagnostic =
-            std::env::var("RUSTYCORE_LOGIN_UPDATEOBJECT_DIAGNOSTIC").ok();
-        let diagnostic_modes: Vec<&str> = login_update_object_diagnostic
-            .as_deref()
-            .map(|value| {
-                value
-                    .split(',')
-                    .map(str::trim)
-                    .filter(|mode| !mode.is_empty())
-                    .collect()
-            })
-            .unwrap_or_default();
-        let skip_active_mover_packet = diagnostic_modes.contains(&"no_active_mover");
-        let active_mover_after_create = diagnostic_modes.contains(&"active_mover_after_create");
+        let skip_active_mover_packet =
+            diagnostic_mode_enabled_like_cpp(&diagnostic_modes, "no_active_mover");
+        let active_mover_after_create =
+            diagnostic_mode_enabled_like_cpp(&diagnostic_modes, "active_mover_after_create");
 
         // 27b. MoveSetActiveMover diagnostic.
         //
@@ -11849,8 +12014,11 @@ impl WorldSession {
             // StateFlags: 0=None, 1=Complete (QuestSlotStateMask)
             let quest_log: Vec<(u32, u32, i64, [u16; 24])> =
                 self.quest_log_create_entries_like_cpp();
-            let skip_inventory_create = diagnostic_modes.contains(&"no_items");
-            let skip_collection_create = diagnostic_modes.contains(&"no_collections");
+            let skip_inventory_create =
+                diagnostic_mode_enabled_like_cpp(&diagnostic_modes, "no_items");
+            let skip_collection_create =
+                diagnostic_mode_enabled_like_cpp(&diagnostic_modes, "no_collections")
+                    || skip_account_collection_packets;
 
             let mut account_toys = self.account_toy_active_player_rows_like_cpp();
             let mut account_heirlooms = self.account_heirloom_active_player_rows_like_cpp();

@@ -661,6 +661,7 @@ impl StatementDef for WorldStatements {
                 "ctdiff.LootID, ctdiff.SkinLootID, ctdiff.GoldMin, ctdiff.GoldMax, ",
                 "c.phaseUseFlags, c.phaseid, c.phasegroup, c.terrainSwapMap, ",
                 "COALESCE(cmo.Ground, ctmv.Ground, 1), COALESCE(cmo.Swim, ctmv.Swim, 1), COALESCE(cmo.Flight, ctmv.Flight, 0), ",
+                "c.wander_distance, ",
                 "CASE WHEN ca.guid IS NOT NULL AND ca.PathId = 0 AND c.MovementType = 2 THEN 0 ELSE c.MovementType END, ",
                 "COALESCE(ca.PathId, cta.PathId, 0) ",
                 "FROM creature c ",
@@ -1276,6 +1277,10 @@ mod tests {
 
         assert!(sql.contains("LEFT JOIN creature_addon ca ON ca.guid = c.guid"));
         assert!(sql.contains("LEFT JOIN creature_template_addon cta ON cta.entry = c.id"));
+        assert!(
+            sql.contains("c.wander_distance"),
+            "C++ Creature::LoadFromDB copies CreatureData::wander_distance into m_wanderDistance"
+        );
         assert!(
             sql.contains(
                 "CASE WHEN ca.guid IS NOT NULL AND ca.PathId = 0 AND c.MovementType = 2 THEN 0 ELSE c.MovementType END"

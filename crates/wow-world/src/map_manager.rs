@@ -713,7 +713,9 @@ impl WorldCreature {
         {
             let ai = creature.ai_ownership_mut();
             ai.aggro_radius = aggro_radius;
-            ai.wander_radius = 5.0;
+            // C++ `Creature::Creature` initializes `m_wanderDistance` to 0.0f and only
+            // random movement spawns get a positive distance from CreatureData.
+            ai.wander_radius = 0.0;
             ai.respawn_time_secs = 30;
             ai.npc_flags = npc_flags;
             ai.unit_flags = unit_flags;
@@ -1816,6 +1818,7 @@ impl WorldCreature {
         self.is_alive()
             && self.state() == CreatureAiState::Idle
             && self.can_wander()
+            && self.creature.ai_ownership().wander_radius > 0.0
             && self
                 .now_ms()
                 .saturating_sub(self.creature.ai_ownership().move_start_ms)
@@ -2894,6 +2897,7 @@ pub struct PendingRespawn {
     pub min_dmg: u32,
     pub max_dmg: u32,
     pub aggro_radius: f32,
+    pub wander_distance: f32,
     pub flags_extra: u32,
     pub static_flags: [u32; 8],
     pub ai_name: String,
@@ -2965,6 +2969,7 @@ pub fn pending_respawn_from_world_creature_like_cpp(
         min_dmg: creature.min_dmg(),
         max_dmg: creature.max_dmg(),
         aggro_radius: creature.creature.ai_ownership().aggro_radius,
+        wander_distance: creature.creature.ai_ownership().wander_radius.max(0.0),
         flags_extra: creature.creature.lifecycle_metadata().flags_extra,
         static_flags: creature.creature.lifecycle_metadata().static_flags,
         ai_name: creature.creature.lifecycle_metadata().ai_name.clone(),
@@ -3042,7 +3047,12 @@ pub fn world_creature_from_pending_respawn_like_cpp(
     creature.set_ground_movement_type_runtime_like_cpp(respawn.ground_movement_type);
     creature.set_swim_allowed_runtime_like_cpp(respawn.swim_allowed);
     creature.set_flight_movement_type_runtime_like_cpp(respawn.flight_movement_type);
-    creature.configure_ai_runtime(respawn.home_pos, respawn.aggro_radius, 5.0, 30);
+    creature.configure_ai_runtime(
+        respawn.home_pos,
+        respawn.aggro_radius,
+        respawn.wander_distance.max(0.0),
+        30,
+    );
     creature.ai_ownership_mut().min_damage = respawn.min_dmg;
     creature.ai_ownership_mut().max_damage = respawn.max_dmg;
     creature.ai_ownership_mut().loot_id = respawn.loot_id;
@@ -5369,6 +5379,7 @@ mod tests {
             min_dmg: 1,
             max_dmg: 5,
             aggro_radius: 10.0,
+            wander_distance: 0.0,
             flags_extra: 0,
             static_flags: [0; 8],
             ai_name: String::new(),
@@ -5407,6 +5418,20 @@ mod tests {
         let now = Instant::now();
         map.push_respawn(make_pending_respawn(now));
         assert_eq!(map.respawn_queue_len(), 1);
+    }
+
+    #[test]
+    fn pending_respawn_rebuild_preserves_zero_wander_distance_like_cpp() {
+        let pending = make_pending_respawn(Instant::now());
+
+        let creature = world_creature_from_pending_respawn_like_cpp(&pending, 0);
+
+        assert_eq!(
+            creature.creature.ai_ownership().wander_radius,
+            0.0,
+            "C++ respawn uses CreatureData::wander_distance; idle spawns must not regain an invented wander radius"
+        );
+        assert!(!creature.should_wander());
     }
 
     /// `drain_ready_respawns` returns only entries whose `respawn_at <= now`.

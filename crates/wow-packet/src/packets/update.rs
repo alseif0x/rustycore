@@ -6,7 +6,10 @@
 //! UpdateObject packet — used to create, update, and destroy game objects
 //! in the client's view.
 //!
-//! Wire format matches RustyCore C# for WoW 3.4.3.54261.
+//! C++ is the canonical reference for this wire format. Some field layouts
+//! were originally ported from the legacy C# server, but any touched layout
+//! must be verified against `/home/server/woltk-trinity-legacy` before it is
+//! treated as correct.
 
 use std::collections::BTreeSet;
 
@@ -55,7 +58,8 @@ impl Default for MovementBlock {
             fly_speed: 7.0,
             fly_back_speed: 4.5,
             turn_rate: std::f32::consts::PI,
-            pitch_rate: std::f32::consts::PI,
+            // C++ Unit.cpp `playerBaseMoveSpeed[MOVE_PITCH_RATE]`.
+            pitch_rate: 3.14,
         }
     }
 }
@@ -3569,6 +3573,23 @@ fn write_create_block(
     create_data: &PlayerCreateData,
     is_self: bool,
 ) {
+    let skip_active_player_movement_block =
+        std::env::var("RUSTYCORE_LOGIN_UPDATEOBJECT_DIAGNOSTIC")
+            .map(|value| {
+                value
+                    .split(',')
+                    .any(|mode| mode.trim() == "no_active_player_movement_block")
+            })
+            .unwrap_or(false);
+    let skip_movement_update = std::env::var("RUSTYCORE_LOGIN_UPDATEOBJECT_DIAGNOSTIC")
+        .map(|value| {
+            value
+                .split(',')
+                .any(|mode| mode.trim() == "no_movement_update")
+        })
+        .unwrap_or(false);
+    let write_active_player_movement = is_self && !skip_active_player_movement_block;
+
     // UpdateType byte
     buf.write_uint8(update_type as u8);
 
@@ -3579,7 +3600,7 @@ fn write_create_block(
     buf.write_uint8(type_id as u8);
 
     // ── 18-bit CreateObjectBits ────────────────────────────────
-    let has_movement = movement.is_some();
+    let has_movement = movement.is_some() && !skip_movement_update;
     buf.write_bit(false); // 0: NoBirthAnim
     buf.write_bit(false); // 1: EnablePortals
     buf.write_bit(false); // 2: PlayHoverAnim
@@ -3596,12 +3617,12 @@ fn write_create_block(
     buf.write_bit(false); // 13: SmoothPhasing
     buf.write_bit(is_self); // 14: ThisIsYou
     buf.write_bit(false); // 15: SceneObject
-    buf.write_bit(is_self); // 16: ActivePlayer
+    buf.write_bit(write_active_player_movement); // 16: ActivePlayer
     buf.write_bit(false); // 17: Conversation
     buf.flush_bits();
 
     // ── MovementUpdate block ───────────────────────────────────
-    if let Some(mv) = movement {
+    if let Some(mv) = movement.filter(|_| has_movement) {
         write_movement_update(buf, guid, mv);
     }
 
@@ -3615,10 +3636,10 @@ fn write_create_block(
     // MovementTransport block — not present (bit 4 = false)
 
     // ── ActivePlayer block (bit 16) ─────────────────────────────
-    // C# BuildMovementUpdate writes this when flags.ActivePlayer is true.
+    // C++ Object::BuildMovementUpdate writes this when flags.ActivePlayer is true.
     // Contains: 3 bits (HasSceneInstanceIDs, HasRuneState, HasActionButtons)
     //           + optional scene IDs, rune data, and 180 action buttons.
-    if is_self {
+    if write_active_player_movement {
         write_active_player_movement_block(buf);
     }
 
@@ -3715,14 +3736,14 @@ fn write_movement_update(buf: &mut WorldPacket, guid: &ObjectGuid, mv: &Movement
     // No movement forces, no spline data
 }
 
-/// The ActivePlayer block in BuildMovementUpdate (C# lines 733-768).
+/// The ActivePlayer block in C++ `Object::BuildMovementUpdate`.
 ///
 /// Written when the `ActivePlayer` bit (bit 16) is set in CreateObjectBits.
 /// Contains 3 conditional bits, then optionally: scene instance IDs, rune state,
 /// and 180 action buttons (4 bytes each = 720 bytes).
 ///
 /// For a fresh player: HasSceneInstanceIDs=false, HasRuneState=false,
-/// HasActionButtons=true, all 180 buttons = 0.
+/// HasActionButtons=true, all 180 action ids = 0.
 const MAX_ACTION_BUTTONS: usize = 180;
 
 fn write_active_player_movement_block(buf: &mut WorldPacket) {

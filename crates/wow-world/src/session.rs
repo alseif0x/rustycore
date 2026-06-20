@@ -9687,6 +9687,7 @@ impl WorldSession {
             ground_movement_type,
             swim_allowed,
             flight_movement_type,
+            0.0,
             wow_entities::MovementGeneratorType::Idle,
             0,
         );
@@ -9714,6 +9715,7 @@ impl WorldSession {
         ground_movement_type: u8,
         swim_allowed: bool,
         flight_movement_type: u8,
+        wander_distance: f32,
         default_movement_type: wow_entities::MovementGeneratorType,
         waypoint_path_id: u32,
     ) {
@@ -9770,7 +9772,7 @@ impl WorldSession {
             if waypoint_path_id != 0 {
                 creature.load_path_like_cpp(waypoint_path_id);
             }
-            creature.configure_ai_runtime(position, aggro_radius, 5.0, 30);
+            creature.configure_ai_runtime(position, aggro_radius, wander_distance.max(0.0), 30);
             creature.ai_ownership_mut().min_damage = min_dmg;
             creature.ai_ownership_mut().max_damage = max_dmg;
             creature.ai_ownership_mut().loot_id = loot_id;
@@ -73935,7 +73937,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn send_nearby_creatures_empty_map_source_is_authoritative_like_cpp() {
+    async fn send_nearby_creatures_empty_map_source_without_world_db_clears_stale_like_cpp() {
         let (mut session, _pkt_tx, send_rx) = make_session();
         let manager = shared_map_manager();
         let player_position = Position::new(10.0, 10.0, 0.0, 0.0);
@@ -73956,7 +73958,7 @@ mod tests {
         assert_eq!(session.last_visibility_pos, Some(player_position));
         assert!(
             send_rx.try_recv().is_err(),
-            "empty map-owned creature source should not fall back to SQL or send creates"
+            "empty map-owned creature source without world DB should not send creates"
         );
     }
 
@@ -78969,6 +78971,7 @@ mod tests {
             wow_constants::CreatureGroundMovementType::Run as u8,
             true,
             0,
+            0.0,
             wow_entities::MovementGeneratorType::Waypoint,
             77_001,
         );
@@ -122168,6 +122171,7 @@ mod tests {
             min_dmg: 1,
             max_dmg: 2,
             aggro_radius: 5.0,
+            wander_distance: 0.0,
             flags_extra: 0,
             static_flags: [0; 8],
             ai_name: String::new(),
@@ -122291,6 +122295,31 @@ mod tests {
             wow_entities::CreatureAiState::WalkingRandom,
             "state must be WalkingRandom after launching a wander spline"
         );
+    }
+
+    #[test]
+    fn step_creature_movement_idle_zero_wander_radius_stays_still_like_cpp() {
+        let guid = test_creature_guid(200_011);
+        let mut creature = make_test_world_creature(guid);
+        {
+            let ai = creature.creature.ai_ownership_mut();
+            ai.wander_delay_ms = 0;
+            ai.move_start_ms = 0;
+            ai.wander_radius = 0.0;
+        }
+        let config = MMapRuntimeConfigLikeCpp {
+            enabled: false,
+            ..Default::default()
+        };
+
+        let result = step_creature_movement_like_cpp(&mut creature, guid, &config, None, 200);
+
+        assert!(
+            result.is_none(),
+            "C++ Creature::Create forces RANDOM_MOTION_TYPE to IDLE_MOTION_TYPE when m_wanderDistance is zero"
+        );
+        assert_eq!(creature.state(), wow_entities::CreatureAiState::Idle);
+        assert!(creature.creature.ai_ownership().move_target.is_none());
     }
 
     #[test]
