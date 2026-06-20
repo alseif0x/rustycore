@@ -799,6 +799,7 @@ mod tests {
                 unit_flags3: 0,
                 creature_type: 0,
                 family: 0,
+                trainer_class: 0,
                 unit_class: 1,
                 vehicle_id: 0,
                 movement_type: 0,

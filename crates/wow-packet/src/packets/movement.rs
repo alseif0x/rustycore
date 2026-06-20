@@ -518,6 +518,79 @@ impl ServerPacket for MoveUpdateCollisionHeight {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct MoveSetSpeed {
+    pub opcode: ServerOpcodes,
+    pub mover_guid: ObjectGuid,
+    pub sequence_index: u32,
+    pub speed: f32,
+}
+
+impl MoveSetSpeed {
+    /// C++ `WorldPackets::Movement::MoveSetSpeed` is opcode-selected by move type.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut pkt = WorldPacket::new_server(self.opcode);
+        pkt.write_packed_guid(&self.mover_guid);
+        pkt.write_uint32(self.sequence_index);
+        pkt.write_float(self.speed);
+        pkt.flush_bits();
+        pkt.into_data()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct MoveUpdateSpeed {
+    pub opcode: ServerOpcodes,
+    pub status: MovementInfo,
+    pub speed: f32,
+}
+
+impl MoveUpdateSpeed {
+    /// C++ `WorldPackets::Movement::MoveUpdateSpeed` is opcode-selected by move type.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut pkt = WorldPacket::new_server(self.opcode);
+        self.status.write(&mut pkt);
+        pkt.write_float(self.speed);
+        pkt.into_data()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct MoveSplineSetSpeed {
+    pub opcode: ServerOpcodes,
+    pub mover_guid: ObjectGuid,
+    pub speed: f32,
+}
+
+impl MoveSplineSetSpeed {
+    /// C++ `WorldPackets::Movement::MoveSplineSetSpeed` is opcode-selected by move type.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut pkt = WorldPacket::new_server(self.opcode);
+        pkt.write_packed_guid(&self.mover_guid);
+        pkt.write_float(self.speed);
+        pkt.flush_bits();
+        pkt.into_data()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct MoveSetFlag {
+    pub opcode: ServerOpcodes,
+    pub mover_guid: ObjectGuid,
+    pub sequence_index: u32,
+}
+
+impl MoveSetFlag {
+    /// C++ `WorldPackets::Movement::MoveSetFlag` is opcode-selected by flag type.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut pkt = WorldPacket::new_server(self.opcode);
+        pkt.write_packed_guid(&self.mover_guid);
+        pkt.write_uint32(self.sequence_index);
+        pkt.flush_bits();
+        pkt.into_data()
+    }
+}
+
 /// C++ `MovementForceType`, stored as two bits on the wire.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MovementForceType {
@@ -2036,5 +2109,49 @@ mod tests {
             &1.5f32.to_le_bytes()
         );
         assert_eq!(&bytes[bytes.len() - 4..], &1.0f32.to_le_bytes());
+    }
+
+    #[test]
+    fn move_spline_set_speed_matches_cpp_opcode_and_tail() {
+        let guid = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Creature,
+            0,
+            1,
+            571,
+            0,
+            123,
+            456,
+        );
+        let bytes = MoveSplineSetSpeed {
+            opcode: ServerOpcodes::MoveSplineSetRunSpeed,
+            mover_guid: guid,
+            speed: 14.0,
+        }
+        .to_bytes();
+
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::MoveSplineSetRunSpeed as u16
+        );
+        assert!(bytes.len() > 6);
+        assert_eq!(&bytes[bytes.len() - 4..], &14.0f32.to_le_bytes());
+    }
+
+    #[test]
+    fn move_set_flag_matches_cpp_opcode_and_tail() {
+        let guid = ObjectGuid::create_player(1, 42);
+        let bytes = MoveSetFlag {
+            opcode: ServerOpcodes::MoveSetCanFly,
+            mover_guid: guid,
+            sequence_index: 77,
+        }
+        .to_bytes();
+
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::MoveSetCanFly as u16
+        );
+        assert!(bytes.len() > 6);
+        assert_eq!(&bytes[bytes.len() - 4..], &77u32.to_le_bytes());
     }
 }

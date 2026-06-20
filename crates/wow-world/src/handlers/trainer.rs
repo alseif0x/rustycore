@@ -32,8 +32,7 @@ use wow_database::statements::world::WorldStatements;
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
 use wow_packet::ClientPacket;
 use wow_packet::packets::trainer::{
-    LearnedSpells, TrainerBuyFailed, TrainerBuySpellRequest, TrainerListPacket, TrainerListRequest,
-    TrainerListSpell,
+    LearnedSpells, TrainerBuyFailed, TrainerBuySpellRequest, TrainerListPacket, TrainerListSpell,
 };
 
 use crate::conditions;

@@ -5,7 +5,7 @@
 
 //! Character handlers: enum, create, delete, and player login.
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::sync::Arc;
 
 use rand::Rng;
@@ -26,7 +26,7 @@ use wow_data::{
 };
 use wow_database::{
     CharStatements, CharacterDatabase, LoginStatements, PreparedStatement, SqlTransaction,
-    WorldDatabase, WorldStatements,
+    StatementDef, WorldDatabase, WorldStatements,
 };
 use wow_entities::{
     BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_START, GAMEOBJECT_TYPE_FISHING_HOLE,
@@ -108,6 +108,14 @@ fn creature_movement_generator_type_from_db_like_cpp(
         WAYPOINT_MOTION_TYPE_LIKE_CPP => MovementGeneratorType::Waypoint,
         _ => MovementGeneratorType::Idle,
     }
+}
+
+fn normalize_creature_template_speed_walk_like_cpp(speed_walk: f32) -> f32 {
+    if speed_walk == 0.0 { 1.0 } else { speed_walk }
+}
+
+fn normalize_creature_template_speed_run_like_cpp(speed_run: f32) -> f32 {
+    if speed_run == 0.0 { 1.14286 } else { speed_run }
 }
 
 fn represented_go_state_from_i8_like_cpp(state: i8) -> Option<wow_entities::GoState> {
@@ -945,6 +953,84 @@ fn player_money_gain_like_cpp(current_money: u64, amount: u64) -> Option<u64> {
     } else {
         None
     }
+}
+
+fn active_known_spell_for_send_like_cpp(spell_id: u32, active: u8, disabled: u8) -> Option<i32> {
+    if spell_id > 0 && active != 0 && disabled == 0 {
+        i32::try_from(spell_id).ok()
+    } else {
+        None
+    }
+}
+
+fn favorite_known_spells_for_send_like_cpp(
+    known_spells: &[i32],
+    favorite_spells: &HashSet<i32>,
+) -> Vec<i32> {
+    known_spells
+        .iter()
+        .copied()
+        .filter(|spell_id| favorite_spells.contains(spell_id))
+        .collect()
+}
+
+fn unix_now_secs_like_cpp() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_secs() as i64)
+        .unwrap_or(0)
+}
+
+fn remaining_ms_from_unix_secs_like_cpp(end_unix_secs: i64, now_unix_secs: i64) -> Option<u32> {
+    let remaining_secs = end_unix_secs.checked_sub(now_unix_secs)?;
+    if remaining_secs <= 0 {
+        return None;
+    }
+
+    u32::try_from(remaining_secs.saturating_mul(1000)).ok()
+}
+
+fn spell_history_entry_from_db_like_cpp(
+    spell_id: u32,
+    item_id: u32,
+    cooldown_end_unix_secs: i64,
+    category_id: u32,
+    category_end_unix_secs: i64,
+    now_unix_secs: i64,
+) -> Option<SpellHistoryEntry> {
+    let cooldown_ms = remaining_ms_from_unix_secs_like_cpp(cooldown_end_unix_secs, now_unix_secs)?;
+    let category_ms =
+        remaining_ms_from_unix_secs_like_cpp(category_end_unix_secs, now_unix_secs).unwrap_or(0);
+
+    Some(SpellHistoryEntry {
+        spell_id,
+        item_id,
+        category: if category_ms > 0 { category_id } else { 0 },
+        recovery_time_ms: if cooldown_ms > category_ms {
+            cooldown_ms as i32
+        } else {
+            0
+        },
+        category_recovery_time_ms: category_ms as i32,
+        mod_rate: 1.0,
+        on_hold: false,
+    })
+}
+
+fn spell_charge_entry_from_db_like_cpp(
+    category_id: u32,
+    first_recharge_end_unix_secs: i64,
+    consumed_charges: u8,
+    now_unix_secs: i64,
+) -> Option<SpellChargeEntry> {
+    let next_recovery_time_ms =
+        remaining_ms_from_unix_secs_like_cpp(first_recharge_end_unix_secs, now_unix_secs)?;
+    Some(SpellChargeEntry {
+        category: category_id,
+        next_recovery_time_ms,
+        charge_mod_rate: 1.0,
+        consumed_charges,
+    })
 }
 
 fn vendor_buy_packet_quantity_to_cpp_count(quantity: i32) -> u32 {
@@ -2715,7 +2801,10 @@ impl WorldSession {
             }
         };
 
-        self.use_represented_equipment_set_like_cpp(&request);
+        let represented_item_mods_changed = self.use_represented_equipment_set_like_cpp(&request);
+        if represented_item_mods_changed {
+            self.send_represented_item_bonus_player_stat_update_like_cpp();
+        }
         self.send_packet(&UseEquipmentSetResult {
             guid: request.guid,
             reason: 0,
@@ -2914,6 +3003,7 @@ impl WorldSession {
         // Send LogoutComplete → client returns to character select
         self.set_state(crate::session::SessionState::Authed);
         self.send_packet(&LogoutComplete);
+        self.mark_character_account_offline_like_cpp().await;
         self.set_player_guid(None);
 
         // Clear inventory state
@@ -2980,7 +3070,7 @@ impl WorldSession {
     }
 
     /// Mark the current character as offline in the database.
-    async fn mark_character_offline(&self) {
+    pub(crate) async fn mark_character_offline(&self) {
         let guid = match self.player_guid() {
             Some(g) => g,
             None => return,
@@ -2995,10 +3085,75 @@ impl WorldSession {
         stmt.set_u32(0, guid.counter() as u32);
         if let Err(e) = char_db.execute(&stmt).await {
             warn!("Failed to mark character offline: {e}");
+        } else {
+            info!("Marked character offline for guid {}", guid.counter());
         }
     }
 
-    async fn clear_buyback_on_logout(&mut self) {
+    pub(crate) fn build_character_account_offline_statement_like_cpp(
+        account_id: u32,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::UPD_ACCOUNT_ONLINE.sql());
+        stmt.set_u32(0, account_id);
+        stmt
+    }
+
+    /// Trinity marks every character for the active account offline after
+    /// `SMSG_LOGOUT_COMPLETE` because one account can only have one online
+    /// character.  See C++ `WorldSession::LogoutPlayer`.
+    pub(crate) async fn mark_character_account_offline_like_cpp(&self) {
+        let Some(char_db) = self.char_db().map(Arc::clone) else {
+            warn!(
+                account = self.account_id,
+                "Character account offline save skipped: character database unavailable"
+            );
+            return;
+        };
+
+        let stmt = Self::build_character_account_offline_statement_like_cpp(self.account_id);
+        match char_db.execute(&stmt).await {
+            Ok(rows) => {
+                info!(
+                    account = self.account_id,
+                    rows, "Marked character account offline like C++"
+                );
+            }
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "Failed to mark character account offline like C++: {error}"
+                );
+            }
+        }
+    }
+
+    /// Mark the account as offline in the login database when the whole
+    /// WorldSession is being destroyed, matching C++ `WorldSession::~WorldSession`.
+    pub(crate) async fn mark_login_account_offline_on_disconnect_like_cpp(&self) {
+        let Some(login_db) = self.login_db().map(Arc::clone) else {
+            warn!(
+                account = self.account_id,
+                "Disconnect account offline save skipped: login database unavailable"
+            );
+            return;
+        };
+
+        let mut stmt = login_db.prepare(LoginStatements::UPD_ACCOUNT_OFFLINE);
+        stmt.set_u32(0, self.account_id);
+        if let Err(error) = login_db.execute(&stmt).await {
+            warn!(
+                account = self.account_id,
+                "Failed to mark login account offline on disconnect: {error}"
+            );
+        } else {
+            info!(
+                account = self.account_id,
+                "Marked login account offline on disconnect"
+            );
+        }
+    }
+
+    pub(crate) async fn clear_buyback_on_logout(&mut self) {
         let guid = match self.player_guid() {
             Some(g) => g,
             None => return,
@@ -3045,74 +3200,89 @@ impl WorldSession {
         self.sync_object_accessor_player();
     }
 
-    async fn save_account_mounts_like_cpp(&self) {
-        let Some(login_db) = self.login_db() else {
+    pub(crate) async fn save_account_mounts_like_cpp(&self) {
+        let Some(login_db) = self.login_db().map(Arc::clone) else {
             return;
         };
+        let save_rows = self.account_mount_save_rows_like_cpp();
+        if save_rows.is_empty() {
+            return;
+        }
 
-        for mount in self.account_mount_rows_like_cpp() {
-            let Ok(mount_spell_id) = u32::try_from(mount.spell_id) else {
-                continue;
-            };
+        let mut tx = SqlTransaction::new();
+        for row in save_rows {
             let mut stmt = login_db.prepare(LoginStatements::REP_ACCOUNT_MOUNTS);
-            stmt.set_u32(0, self.battlenet_account_id());
-            stmt.set_u32(1, mount_spell_id);
-            stmt.set_u8(2, mount.flags);
-            if let Err(error) = login_db.execute(&stmt).await {
-                warn!(
-                    account = self.account_id,
-                    bnet_account = self.battlenet_account_id(),
-                    mount_spell_id,
-                    "Failed to save account mount flags: {error}"
-                );
-            }
+            stmt.set_u32(0, row.bnet_account_id);
+            stmt.set_u32(1, row.mount_spell_id);
+            stmt.set_u8(2, row.flags);
+            tx.append(stmt);
+        }
+
+        if let Err(error) = login_db.commit_transaction(tx).await {
+            warn!(
+                account = self.account_id,
+                bnet_account = self.battlenet_account_id(),
+                "Failed to save account mount flags: {error}"
+            );
         }
     }
 
-    async fn save_account_toys_like_cpp(&self) {
-        let Some(login_db) = self.login_db() else {
+    pub(crate) async fn save_account_toys_like_cpp(&self) {
+        let Some(login_db) = self.login_db().map(Arc::clone) else {
             return;
         };
+        let save_rows = self.account_toy_save_rows_like_cpp();
+        if save_rows.is_empty() {
+            return;
+        }
 
-        for (item_id, is_favorite, has_fanfare) in self.account_toy_rows_like_cpp() {
+        let mut tx = SqlTransaction::new();
+        for row in save_rows {
             let mut stmt = login_db.prepare(LoginStatements::REP_ACCOUNT_TOYS);
-            stmt.set_u32(0, self.battlenet_account_id());
-            stmt.set_u32(1, item_id);
-            stmt.set_bool(2, is_favorite);
-            stmt.set_bool(3, has_fanfare);
-            if let Err(error) = login_db.execute(&stmt).await {
-                warn!(
-                    account = self.account_id,
-                    bnet_account = self.battlenet_account_id(),
-                    item_id,
-                    "Failed to save account toy flags: {error}"
-                );
-            }
+            stmt.set_u32(0, row.bnet_account_id);
+            stmt.set_u32(1, row.item_id);
+            stmt.set_bool(2, row.is_favorite);
+            stmt.set_bool(3, row.has_fanfare);
+            tx.append(stmt);
+        }
+
+        if let Err(error) = login_db.commit_transaction(tx).await {
+            warn!(
+                account = self.account_id,
+                bnet_account = self.battlenet_account_id(),
+                "Failed to save account toy flags: {error}"
+            );
         }
     }
 
-    async fn save_account_heirlooms_like_cpp(&self) {
-        let Some(login_db) = self.login_db() else {
+    pub(crate) async fn save_account_heirlooms_like_cpp(&self) {
+        let Some(login_db) = self.login_db().map(Arc::clone) else {
             return;
         };
+        let save_rows = self.account_heirloom_save_rows_like_cpp();
+        if save_rows.is_empty() {
+            return;
+        }
 
-        for (item_id, flags) in self.account_heirloom_rows_like_cpp() {
+        let mut tx = SqlTransaction::new();
+        for row in save_rows {
             let mut stmt = login_db.prepare(LoginStatements::REP_ACCOUNT_HEIRLOOMS);
-            stmt.set_u32(0, self.battlenet_account_id());
-            stmt.set_u32(1, item_id);
-            stmt.set_u32(2, flags);
-            if let Err(error) = login_db.execute(&stmt).await {
-                warn!(
-                    account = self.account_id,
-                    bnet_account = self.battlenet_account_id(),
-                    item_id,
-                    "Failed to save account heirloom flags: {error}"
-                );
-            }
+            stmt.set_u32(0, row.bnet_account_id);
+            stmt.set_u32(1, row.item_id);
+            stmt.set_u32(2, row.flags);
+            tx.append(stmt);
+        }
+
+        if let Err(error) = login_db.commit_transaction(tx).await {
+            warn!(
+                account = self.account_id,
+                bnet_account = self.battlenet_account_id(),
+                "Failed to save account heirloom flags: {error}"
+            );
         }
     }
 
-    async fn save_account_item_appearances_like_cpp(&mut self) {
+    pub(crate) async fn save_account_item_appearances_like_cpp(&mut self) {
         let Some(login_db) = self.login_db().map(Arc::clone) else {
             return;
         };
@@ -3152,7 +3322,7 @@ impl WorldSession {
         }
     }
 
-    async fn save_account_transmog_illusions_like_cpp(&self) {
+    pub(crate) async fn save_account_transmog_illusions_like_cpp(&self) {
         let Some(login_db) = self.login_db().map(Arc::clone) else {
             return;
         };
@@ -3265,7 +3435,8 @@ impl WorldSession {
         let gender: u8 = result.read(5);
         let level: u8 = result.read(6);
         // C++ CHAR_SEL_CHARACTER column order:
-        // 7=xp, 8=money, 14..18=position/map/orientation, 23..24=played time, 40=zone.
+        // 7=xp, 8=money, 14..18=position/map/orientation, 21=createMode, 23..24=played time,
+        // 28=resettalents_cost, 29=resettalents_time, 39=at_login, 40=zone.
         let zone: i32 = result.try_read::<u16>(40).unwrap_or(0) as i32; // smallint unsigned
         let map_id: i32 = result.try_read::<u16>(17).unwrap_or(0) as i32; // smallint unsigned
         let pos_x: f32 = result.try_read(14).unwrap_or(0.0);
@@ -3282,8 +3453,23 @@ impl WorldSession {
         self.set_player_gold_like_cpp(result.try_read::<u64>(8).unwrap_or(0));
         self.set_player_bank_bag_slot_count_like_cpp(result.try_read::<u8>(10).unwrap_or(0));
         self.set_player_xp_like_cpp(result.try_read::<u32>(7).unwrap_or(0));
+        self.set_represented_talent_reset_state_like_cpp(
+            result.try_read::<u32>(28).unwrap_or(0),
+            result.try_read::<u64>(29).unwrap_or(0),
+        );
+        self.set_represented_active_talent_group_like_cpp(result.try_read::<u8>(30).unwrap_or(0));
+        self.set_represented_bonus_talent_groups_like_cpp(result.try_read::<u8>(31).unwrap_or(0));
+        self.set_player_create_mode_like_cpp(result.try_read::<u8>(21).unwrap_or(0));
+        self.set_represented_at_login_flags_like_cpp(result.try_read::<u16>(39).unwrap_or(0));
+        self.load_represented_explored_zones_like_cpp(&result.read_string(64));
         self.set_player_guid(Some(guid));
         self.set_loaded_player_identity_like_cpp(map_id as u16, race, class, level, gender);
+        // C++ recalculates zone/area from terrain after AddToMap
+        // (`Player::SendInitialPacketsAfterAddToMap`). Until the Rust terrain
+        // runtime can resolve subzones, seed both from the DB zone so
+        // area-dependent checks (notably mount capability flags) do not run
+        // against the zero/default area.
+        self.set_player_zone_area_like_cpp(zone as u32, zone as u32);
         self.set_represented_guild_id_like_cpp(result.try_read::<u64>(11).unwrap_or(0));
         self.load_represented_player_difficulties_like_cpp(
             result.try_read::<u32>(44).unwrap_or(0),
@@ -3291,6 +3477,29 @@ impl WorldSession {
             result.try_read::<u32>(68).unwrap_or(0),
         );
         let summoned_pet_number = result.try_read::<u32>(38).unwrap_or(0);
+        const AT_LOGIN_RESET_PET_TALENTS_LIKE_CPP: u16 = 0x010;
+        if (self.represented_at_login_flags_like_cpp() & AT_LOGIN_RESET_PET_TALENTS_LIKE_CPP) != 0 {
+            let mut delete_pet_spells =
+                char_db.prepare(CharStatements::DEL_ALL_PET_SPELLS_BY_OWNER);
+            delete_pet_spells.set_u64(0, guid.counter() as u64);
+            if let Err(error) = char_db.execute(&delete_pet_spells).await {
+                warn!(
+                    player_guid = guid.counter(),
+                    %error,
+                    "failed to apply represented AT_LOGIN_RESET_PET_TALENTS pet_spell delete like C++"
+                );
+            }
+
+            let mut reset_pet_specs = char_db.prepare(CharStatements::UPD_PET_SPECS_BY_OWNER);
+            reset_pet_specs.set_u64(0, guid.counter() as u64);
+            if let Err(error) = char_db.execute(&reset_pet_specs).await {
+                warn!(
+                    player_guid = guid.counter(),
+                    %error,
+                    "failed to apply represented AT_LOGIN_RESET_PET_TALENTS pet specialization reset like C++"
+                );
+            }
+        }
         {
             let mut pets_stmt = char_db.prepare(CharStatements::SEL_CHAR_PETS);
             pets_stmt.set_u64(0, guid.counter() as u64);
@@ -3579,6 +3788,9 @@ impl WorldSession {
                 }
             }
         }
+        if (self.represented_at_login_flags_like_cpp() & AT_LOGIN_RESET_PET_TALENTS_LIKE_CPP) != 0 {
+            self.apply_represented_login_pet_talent_reset_like_cpp();
+        }
         self.group_guid = None;
         {
             let mut group_stmt = char_db.prepare(CharStatements::SEL_GROUP_MEMBER);
@@ -3623,7 +3835,7 @@ impl WorldSession {
         self.load_account_heirlooms_like_cpp().await;
         self.load_account_item_appearances_like_cpp().await;
         self.load_account_transmog_illusions_like_cpp().await;
-        let account_mounts = self.load_account_mounts_like_cpp().await;
+        self.load_account_mounts_like_cpp().await;
 
         // Load equipped items for visible display + inventory objects
         let mut visible_items = [(0i32, 0u16, 0u16); 19];
@@ -3839,6 +4051,158 @@ impl WorldSession {
         }
         self.sync_player_inventory_like_cpp();
 
+        // ── Load equipment sets / transmog outfits ──
+        // C++ `Player::_LoadEquipmentSets` and `_LoadTransmogOutfits` rebuild
+        // one shared `_equipmentSets` container before `SendEquipmentSetList`.
+        self.clear_represented_equipment_sets_like_cpp();
+        let mut equipment_sets_loaded = true;
+        {
+            let mut equipment_set_stmt =
+                char_db.prepare(CharStatements::SEL_CHARACTER_EQUIPMENTSETS);
+            equipment_set_stmt.set_u64(0, guid.counter() as u64);
+            match char_db.query(&equipment_set_stmt).await {
+                Ok(mut equipment_set_result) => {
+                    if !equipment_set_result.is_empty() {
+                        loop {
+                            let set_guid: u64 = equipment_set_result.try_read(0).unwrap_or(0);
+                            let set_id: u32 =
+                                u32::from(equipment_set_result.try_read::<u8>(1).unwrap_or(0));
+                            let set_name: String =
+                                equipment_set_result.try_read(2).unwrap_or_default();
+                            let set_icon: String =
+                                equipment_set_result.try_read(3).unwrap_or_default();
+                            let ignore_mask: u32 = equipment_set_result.try_read(4).unwrap_or(0);
+                            let assigned_spec_index: i32 =
+                                equipment_set_result.try_read(5).unwrap_or(-1);
+                            let mut pieces = [ObjectGuid::EMPTY;
+                                wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP];
+                            for (slot, piece) in pieces.iter_mut().enumerate() {
+                                let item_low_guid: u64 =
+                                    equipment_set_result.try_read(6 + slot).unwrap_or(0);
+                                if item_low_guid != 0 {
+                                    *piece =
+                                        ObjectGuid::create_item(realm_id, item_low_guid as i64);
+                                }
+                            }
+                            self.load_represented_equipment_set_row_like_cpp(
+                                set_guid,
+                                set_id,
+                                set_name,
+                                set_icon,
+                                ignore_mask,
+                                assigned_spec_index,
+                                pieces,
+                            );
+                            if !equipment_set_result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    equipment_sets_loaded = false;
+                    warn!("Failed to load equipment sets for {:?}: {}", guid, e);
+                }
+            }
+        }
+        {
+            let mut transmog_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_TRANSMOG_OUTFITS);
+            transmog_stmt.set_u64(0, guid.counter() as u64);
+            match char_db.query(&transmog_stmt).await {
+                Ok(mut transmog_result) => {
+                    if !transmog_result.is_empty() {
+                        loop {
+                            let set_guid: u64 = transmog_result.try_read(0).unwrap_or(0);
+                            let set_id: u32 =
+                                u32::from(transmog_result.try_read::<u8>(1).unwrap_or(0));
+                            let set_name: String = transmog_result.try_read(2).unwrap_or_default();
+                            let set_icon: String = transmog_result.try_read(3).unwrap_or_default();
+                            let ignore_mask: u32 = transmog_result.try_read(4).unwrap_or(0);
+                            let mut appearances =
+                                [0; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP];
+                            for (slot, appearance) in appearances.iter_mut().enumerate() {
+                                *appearance = transmog_result.try_read(5 + slot).unwrap_or(0);
+                            }
+                            let enchants = [
+                                transmog_result.try_read(24).unwrap_or(0),
+                                transmog_result.try_read(25).unwrap_or(0),
+                            ];
+                            self.load_represented_transmog_outfit_row_like_cpp(
+                                set_guid,
+                                set_id,
+                                set_name,
+                                set_icon,
+                                ignore_mask,
+                                appearances,
+                                enchants,
+                            );
+                            if !transmog_result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    equipment_sets_loaded = false;
+                    warn!("Failed to load transmog outfits for {:?}: {}", guid, e);
+                }
+            }
+        }
+        if equipment_sets_loaded {
+            self.mark_represented_equipment_sets_loaded_like_cpp();
+        }
+
+        // ── Load compact unit-frame profiles ──
+        // C++ `Player::_LoadCUFProfiles` fills `_CUFProfiles[id]`, then
+        // `WorldSession::SendLoadCUFProfiles` sends only occupied slots. The
+        // legacy fork checks `id > MAX_CUF_PROFILES`, but the backing array has
+        // length MAX_CUF_PROFILES; Rust rejects `id >= MAX` to avoid the OOB
+        // bug while preserving valid row semantics.
+        self.clear_represented_cuf_profiles_like_cpp();
+        {
+            let mut cuf_stmt = char_db.prepare(CharStatements::SEL_CHAR_CUF_PROFILES);
+            cuf_stmt.set_u64(0, guid.counter() as u64);
+            match char_db.query(&cuf_stmt).await {
+                Ok(mut cuf_result) => {
+                    if !cuf_result.is_empty() {
+                        loop {
+                            let id: u8 = cuf_result.try_read(0).unwrap_or(0);
+                            let profile = wow_packet::packets::misc::CufProfile {
+                                profile_name: cuf_result.try_read(1).unwrap_or_default(),
+                                frame_height: cuf_result.try_read(2).unwrap_or(0),
+                                frame_width: cuf_result.try_read(3).unwrap_or(0),
+                                sort_by: cuf_result.try_read(4).unwrap_or(0),
+                                health_text: cuf_result.try_read(5).unwrap_or(0),
+                                bool_options: cuf_result.try_read(6).unwrap_or(0),
+                                top_point: cuf_result.try_read(7).unwrap_or(0),
+                                bottom_point: cuf_result.try_read(8).unwrap_or(0),
+                                left_point: cuf_result.try_read(9).unwrap_or(0),
+                                top_offset: cuf_result.try_read(10).unwrap_or(0),
+                                bottom_offset: cuf_result.try_read(11).unwrap_or(0),
+                                left_offset: cuf_result.try_read(12).unwrap_or(0),
+                            };
+                            if !self.load_represented_cuf_profile_like_cpp(id, profile) {
+                                warn!(
+                                    player_guid = guid.counter(),
+                                    id,
+                                    max_profiles =
+                                        wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP,
+                                    "Skipping invalid CUF profile id"
+                                );
+                            }
+                            if !cuf_result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    self.mark_represented_cuf_profiles_loaded_like_cpp();
+                }
+                Err(e) => {
+                    warn!("Failed to load CUF profiles for {:?}: {}", guid, e);
+                }
+            }
+        }
+
         // ── Load character currencies from character_currency ──
         // C++ `Player::_LoadCurrency` skips rows not found in sCurrencyTypesStore.
         {
@@ -3891,6 +4255,7 @@ impl WorldSession {
         // ── Load known spells from character_spell ──
         // Column types: spell=int unsigned, active=tinyint unsigned, disabled=tinyint unsigned
         let mut known_spells: Vec<i32> = Vec::new();
+        let mut favorite_spell_rows: HashSet<i32> = HashSet::new();
         {
             let mut spell_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_SPELL);
             spell_stmt.set_u64(0, guid.counter() as u64);
@@ -3900,9 +4265,11 @@ impl WorldSession {
                         loop {
                             let spell_id: u32 = spell_result.try_read(0).unwrap_or(0);
                             let active: u8 = spell_result.try_read(1).unwrap_or(1);
-                            let _disabled: u8 = spell_result.try_read(2).unwrap_or(0);
-                            if spell_id > 0 && active != 0 {
-                                known_spells.push(spell_id as i32);
+                            let disabled: u8 = spell_result.try_read(2).unwrap_or(0);
+                            if let Some(spell_id) =
+                                active_known_spell_for_send_like_cpp(spell_id, active, disabled)
+                            {
+                                known_spells.push(spell_id);
                             }
                             if !spell_result.next_row() {
                                 break;
@@ -3915,6 +4282,32 @@ impl WorldSession {
                     warn!("Failed to load spells for {:?}: {}", guid, e);
                 }
             }
+
+            let mut favorite_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_SPELL_FAVORITES);
+            favorite_stmt.set_u64(0, guid.counter() as u64);
+            match char_db.query(&favorite_stmt).await {
+                Ok(mut favorite_result) => {
+                    if !favorite_result.is_empty() {
+                        loop {
+                            let spell_id: u32 = favorite_result.try_read(0).unwrap_or(0);
+                            if let Ok(spell_id) = i32::try_from(spell_id) {
+                                favorite_spell_rows.insert(spell_id);
+                            }
+                            if !favorite_result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    info!(
+                        "Loaded {} DB favorite spells for {:?}",
+                        favorite_spell_rows.len(),
+                        guid
+                    );
+                }
+                Err(e) => {
+                    warn!("Failed to load favorite spells for {:?}: {}", guid, e);
+                }
+            }
         }
 
         // ── Load character skill IDs from character_skills table ──
@@ -3922,19 +4315,32 @@ impl WorldSession {
         // racials, worn armor type). This matches C# behavior where
         // LearnSkillRewardedSpells() only runs for skills the character actually has.
         let mut known_skill_ids = std::collections::HashSet::<u16>::new();
-        let mut skill_values = std::collections::HashMap::<u16, u16>::new();
+        let mut skill_records =
+            std::collections::HashMap::<u16, crate::session::RepresentedPlayerSkillLikeCpp>::new();
+        let mut loaded_skill_records_like_cpp = false;
         {
             let mut skill_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_SKILLS);
             skill_stmt.set_u64(0, guid.counter() as u64);
             match char_db.query(&skill_stmt).await {
                 Ok(mut skill_result) => {
+                    loaded_skill_records_like_cpp = true;
                     if !skill_result.is_empty() {
                         loop {
                             let skill_id: u16 = skill_result.try_read(0).unwrap_or(0);
                             let skill_value: u16 = skill_result.try_read(1).unwrap_or(0);
+                            let skill_max: u16 = skill_result.try_read(2).unwrap_or(skill_value);
+                            let profession_slot: i8 = skill_result.try_read(3).unwrap_or(-1);
                             if skill_id > 0 {
                                 known_skill_ids.insert(skill_id);
-                                skill_values.insert(skill_id, skill_value);
+                                skill_records.insert(
+                                    skill_id,
+                                    crate::session::RepresentedPlayerSkillLikeCpp {
+                                        skill_id,
+                                        value: skill_value,
+                                        max: skill_max,
+                                        profession_slot,
+                                    },
+                                );
                             }
                             if !skill_result.next_row() {
                                 break;
@@ -3952,7 +4358,9 @@ impl WorldSession {
                 }
             }
         }
-        self.set_player_skill_values_like_cpp(skill_values);
+        if loaded_skill_records_like_cpp {
+            self.set_player_skill_records_like_cpp(skill_records);
+        }
 
         // ── Merge DBC auto-learned spells + build SkillInfo ──
         // Only supplement from DBC if character has NO spells in DB (new character).
@@ -3996,14 +4404,122 @@ impl WorldSession {
             }
             info!("Loaded {} skill slots for {:?}", skill_entries.len(), guid);
         }
+        let custom_spell_count =
+            self.apply_represented_start_all_spells_like_cpp(&mut known_spells);
+        if custom_spell_count > 0 {
+            info!(
+                player_guid = guid.counter(),
+                custom_spell_count,
+                "Applied represented C++ Player::LearnCustomSpells / CONFIG_START_ALL_SPELLS"
+            );
+        }
 
         // Store final known_spells in session for later use (ShowTradeSkill, etc.)
         self.set_known_spells_like_cpp(known_spells.clone());
+        self.set_represented_favorite_known_spells_like_cpp(favorite_spell_rows.clone());
+        let promoted_character_mounts =
+            self.promote_loaded_character_mount_spells_like_cpp(&known_spells);
+        if promoted_character_mounts > 0 {
+            info!(
+                player_guid = guid.counter(),
+                promoted_character_mounts,
+                "Promoted loaded character mount spells into the represented account mount collection like C++ Player::_LoadSpells -> AddMount"
+            );
+        }
+
+        // ── Load talents from character_talent ──
+        // C++ `Player::_LoadTalents`: skip talent rows whose Talent.db2 entry
+        // cannot be resolved; AddTalent also rejects invalid rank/spell rows.
+        self.reset_represented_talents_like_cpp();
+        {
+            let mut talent_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_TALENTS);
+            talent_stmt.set_u64(0, guid.counter() as u64);
+            match char_db.query(&talent_stmt).await {
+                Ok(mut talent_result) => {
+                    let mut loaded = 0usize;
+                    let mut skipped = 0usize;
+                    if !talent_result.is_empty() {
+                        loop {
+                            let talent_id: u32 = talent_result.try_read(0).unwrap_or(0);
+                            let rank: u8 = talent_result.try_read(1).unwrap_or(0);
+                            let talent_group: u8 = talent_result.try_read(2).unwrap_or(0);
+                            if self.load_represented_talent_row_like_cpp(
+                                talent_id,
+                                rank,
+                                talent_group,
+                            ) {
+                                loaded += 1;
+                            } else {
+                                skipped += 1;
+                            }
+                            if !talent_result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    self.mark_represented_talents_loaded_like_cpp();
+                    info!(
+                        loaded,
+                        skipped,
+                        player_guid = guid.counter(),
+                        "Loaded represented character talents like C++ Player::_LoadTalents"
+                    );
+                }
+                Err(e) => {
+                    warn!("Failed to load character talents for {:?}: {}", guid, e);
+                }
+            }
+        }
+
+        // ── Load glyphs from character_glyphs ──
+        // C++ `Player::_LoadGlyphs`: skip invalid talent group/slot and glyph ids
+        // missing from GlyphProperties.db2.
+        self.reset_represented_glyphs_like_cpp();
+        {
+            let mut glyph_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_GLYPHS);
+            glyph_stmt.set_u64(0, guid.counter() as u64);
+            match char_db.query(&glyph_stmt).await {
+                Ok(mut glyph_result) => {
+                    let mut loaded = 0usize;
+                    let mut skipped = 0usize;
+                    if !glyph_result.is_empty() {
+                        loop {
+                            let talent_group: u8 = glyph_result.try_read(0).unwrap_or(0);
+                            let glyph_slot: u8 = glyph_result.try_read(1).unwrap_or(0);
+                            let glyph_id: u16 = glyph_result.try_read(2).unwrap_or(0);
+                            if self.load_represented_glyph_row_like_cpp(
+                                talent_group,
+                                glyph_slot,
+                                glyph_id,
+                            ) {
+                                loaded += 1;
+                            } else {
+                                skipped += 1;
+                            }
+                            if !glyph_result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    self.mark_represented_glyphs_loaded_like_cpp();
+                    info!(
+                        loaded,
+                        skipped,
+                        player_guid = guid.counter(),
+                        "Loaded represented character glyphs like C++ Player::_LoadGlyphs"
+                    );
+                }
+                Err(e) => {
+                    warn!("Failed to load character glyphs for {:?}: {}", guid, e);
+                }
+            }
+        }
 
         // ── Load action buttons from character_action ──
         // Column types: button=tinyint unsigned, action=int unsigned, type=tinyint unsigned
         let mut action_buttons = [0i64; 180];
         let mut action_count = 0u32;
+        self.reset_represented_action_buttons_like_cpp();
         {
             let mut action_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_ACTIONS_SPEC);
             action_stmt.set_u64(0, guid.counter() as u64);
@@ -4017,6 +4533,7 @@ impl WorldSession {
                             let action: u32 = action_result.try_read(1).unwrap_or(0);
                             let btn_type: u8 = action_result.try_read(2).unwrap_or(0);
                             if (button as usize) < 180 && action > 0 {
+                                self.record_loaded_action_button_like_cpp(button, action, btn_type);
                                 action_buttons[button as usize] =
                                     wow_packet::packets::misc::UpdateActionButtons::pack_button(
                                         action as i32,
@@ -4029,6 +4546,7 @@ impl WorldSession {
                             }
                         }
                     }
+                    self.mark_represented_action_buttons_loaded_like_cpp();
                     info!("Loaded {} action buttons for {:?}", action_count, guid);
                 }
                 Err(e) => {
@@ -4228,6 +4746,12 @@ impl WorldSession {
         self.load_completed_achievements_like_cpp().await;
         self.load_instance_time_restrictions_like_cpp().await;
         self.load_player_account_data_like_cpp(guid).await;
+        let login_known_spells = self.login_known_spells_after_account_collections_like_cpp();
+        let login_favorite_spells =
+            favorite_known_spells_for_send_like_cpp(&login_known_spells, &favorite_spell_rows);
+        let (spell_history_entries, spell_charge_entries) = self
+            .load_character_spell_history_packets_like_cpp(&char_db, guid)
+            .await;
 
         self.send_login_sequence(
             guid,
@@ -4243,16 +4767,31 @@ impl WorldSession {
             inv_slots,
             item_creates,
             combat,
-            known_spells,
+            login_known_spells,
+            login_favorite_spells,
+            spell_history_entries,
+            spell_charge_entries,
             action_buttons,
             skill_info_tuples,
-            account_mounts,
+            self.account_mount_rows_like_cpp(),
         );
+        self.apply_represented_login_spell_reset_if_needed_like_cpp();
+        self.apply_represented_login_talent_reset_if_needed_like_cpp();
+        if self.apply_represented_first_login_flag_if_needed_like_cpp() {
+            self.apply_represented_first_login_cast_spells_like_cpp()
+                .await;
+            self.apply_represented_first_login_explored_zones_like_cpp();
+            self.apply_represented_first_login_reputation_like_cpp();
+        }
 
         // Mark online in DB
         let mut online_stmt = char_db.prepare(CharStatements::UPD_CHAR_ONLINE);
         online_stmt.set_u32(0, guid.counter() as u32);
         let _ = char_db.execute(&online_stmt).await;
+    }
+
+    fn login_known_spells_after_account_collections_like_cpp(&self) -> Vec<i32> {
+        self.known_spells_like_cpp().to_vec()
     }
 
     /// Fallback: skip ConnectTo and trigger direct login on the realm socket.
@@ -4397,8 +4936,11 @@ impl WorldSession {
             let unit_flags: u32 = result.try_read(13).unwrap_or(0);
             let unit_flags2: u32 = result.try_read(14).unwrap_or(0);
             let unit_flags3: u32 = result.try_read(15).unwrap_or(0);
-            let speed_walk: f32 = result.try_read(16).unwrap_or(1.0);
-            let speed_run: f32 = result.try_read(17).unwrap_or(1.14286);
+            let speed_walk: f32 =
+                normalize_creature_template_speed_walk_like_cpp(result.try_read(16).unwrap_or(1.0));
+            let speed_run: f32 = normalize_creature_template_speed_run_like_cpp(
+                result.try_read(17).unwrap_or(1.14286),
+            );
             let scale: f32 = result.try_read(18).unwrap_or(1.0);
             let unit_class: u8 = result.try_read(19).unwrap_or(1);
             let flags_extra: u32 = result.try_read(20).unwrap_or(0);
@@ -4859,8 +5401,11 @@ impl WorldSession {
                 let unit_flags: u32 = cr.try_read(13).unwrap_or(0);
                 let unit_flags2: u32 = cr.try_read(14).unwrap_or(0);
                 let unit_flags3: u32 = cr.try_read(15).unwrap_or(0);
-                let speed_walk: f32 = cr.try_read(16).unwrap_or(1.0);
-                let speed_run: f32 = cr.try_read(17).unwrap_or(1.14286);
+                let speed_walk: f32 =
+                    normalize_creature_template_speed_walk_like_cpp(cr.try_read(16).unwrap_or(1.0));
+                let speed_run: f32 = normalize_creature_template_speed_run_like_cpp(
+                    cr.try_read(17).unwrap_or(1.14286),
+                );
                 let scale: f32 = cr.try_read(18).unwrap_or(1.0);
                 let unit_class: u8 = cr.try_read(19).unwrap_or(1);
                 let flags_extra: u32 = cr.try_read(20).unwrap_or(0);
@@ -9679,6 +10224,7 @@ impl WorldSession {
     }
 
     /// Send SMSG_QUEST_GIVER_STATUS for a single NPC.
+    #[allow(dead_code)]
     fn send_quest_giver_status(&self, guid: ObjectGuid, status: u32) {
         use wow_constants::ServerOpcodes;
         let mut pkt = wow_packet::WorldPacket::new_server(ServerOpcodes::QuestGiverStatus);
@@ -9733,19 +10279,17 @@ impl WorldSession {
             None => return,
         };
 
-        // Perform the swap in memory
-        if let Some(ref item) = src_item {
-            self.insert_inventory_item_like_cpp(dst, item.clone());
-            self.set_inventory_item_object_slot(item.guid, dst);
+        // Perform the swap in memory. When the move crosses equipment slots,
+        // mirror C++ RemoveItem/EquipItem around the slot mutation.
+        let represented_item_mods_changed = if src_item.is_some() {
+            self.move_represented_direct_inventory_item_with_item_mods_like_cpp(src, dst)
+                .unwrap_or(false)
+        } else if dst_item.is_some() {
+            self.move_represented_direct_inventory_item_with_item_mods_like_cpp(dst, src)
+                .unwrap_or(false)
         } else {
-            self.remove_inventory_item_like_cpp(dst);
-        }
-        if let Some(ref item) = dst_item {
-            self.insert_inventory_item_like_cpp(src, item.clone());
-            self.set_inventory_item_object_slot(item.guid, src);
-        } else {
-            self.remove_inventory_item_like_cpp(src);
-        }
+            false
+        };
         self.sync_object_accessor_player();
 
         // Update DB
@@ -9831,6 +10375,9 @@ impl WorldSession {
         // If any affected slot is a gear slot (0-18), recalculate and send stats
         if src < 19 || dst < 19 {
             self.send_stat_update();
+        }
+        if represented_item_mods_changed {
+            self.send_represented_item_bonus_player_stat_update_like_cpp();
         }
 
         info!(
@@ -9954,11 +10501,19 @@ impl WorldSession {
             return;
         }
 
-        if self.move_represented_direct_inventory_item_like_cpp(src_slot, equip.item_dst_slot) {
+        if let Some(represented_item_mods_changed) = self
+            .move_represented_direct_inventory_item_with_item_mods_like_cpp(
+                src_slot,
+                equip.item_dst_slot,
+            )
+        {
             self.sync_object_accessor_player();
             self.sync_player_registry_state_like_cpp();
             if src_slot < 19 || equip.item_dst_slot < 19 {
                 self.send_stat_update();
+            }
+            if represented_item_mods_changed {
+                self.send_represented_item_bonus_player_stat_update_like_cpp();
             }
             debug!(
                 "AutoEquipItemSlot: swapped item {:?} from slot {} to {} for {:?}",
@@ -10265,6 +10820,11 @@ impl WorldSession {
             return false;
         }
 
+        let _represented_item_set_changed =
+            self.record_direct_inventory_item_set_remove_like_cpp(bag, slot, item.guid);
+        let represented_item_mods_changed =
+            self.record_destroyed_inventory_item_mod_remove_like_cpp(bag, slot, item.guid);
+
         self.remove_fully_looted_runtime_item(bag, slot, item.guid);
 
         if should_expire_refund {
@@ -10295,6 +10855,9 @@ impl WorldSession {
 
             if slot < 19 {
                 self.send_stat_update();
+            }
+            if represented_item_mods_changed {
+                self.send_represented_item_bonus_player_stat_update_like_cpp();
             }
         }
 
@@ -10696,21 +11259,145 @@ impl WorldSession {
         }
     }
 
+    async fn load_character_spell_history_packets_like_cpp(
+        &mut self,
+        char_db: &wow_database::CharacterDatabase,
+        guid: ObjectGuid,
+    ) -> (Vec<SpellHistoryEntry>, Vec<SpellChargeEntry>) {
+        let now = unix_now_secs_like_cpp();
+        let guid_counter = guid.counter() as u64;
+        let mut history_entries = Vec::new();
+        self.reset_represented_character_spell_cooldowns_like_cpp();
+
+        let mut cooldown_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_SPELLCOOLDOWNS);
+        cooldown_stmt.set_u64(0, guid_counter);
+        match char_db.query(&cooldown_stmt).await {
+            Ok(mut cooldown_result) => {
+                if !cooldown_result.is_empty() {
+                    loop {
+                        let spell_id: u32 = cooldown_result.try_read(0).unwrap_or(0);
+                        let item_id: u32 = cooldown_result.try_read(1).unwrap_or(0);
+                        let cooldown_end: i64 = cooldown_result.try_read(2).unwrap_or(0);
+                        let category_id: u32 = cooldown_result.try_read(3).unwrap_or(0);
+                        let category_end: i64 = cooldown_result.try_read(4).unwrap_or(0);
+
+                        let spell_known_to_store = self.spell_store().is_none_or(|store| {
+                            i32::try_from(spell_id)
+                                .ok()
+                                .is_some_and(|id| store.get(id).is_some())
+                        });
+                        if spell_known_to_store {
+                            if let Some(entry) = spell_history_entry_from_db_like_cpp(
+                                spell_id,
+                                item_id,
+                                cooldown_end,
+                                category_id,
+                                category_end,
+                                now,
+                            ) {
+                                self.record_loaded_character_spell_cooldown_like_cpp(
+                                    spell_id,
+                                    item_id,
+                                    cooldown_end,
+                                    category_id,
+                                    category_end,
+                                );
+                                history_entries.push(entry);
+                            }
+                        }
+
+                        if !cooldown_result.next_row() {
+                            break;
+                        }
+                    }
+                }
+                self.mark_represented_character_spell_cooldowns_loaded_like_cpp();
+            }
+            Err(error) => {
+                warn!("Failed to load spell cooldowns for {:?}: {error}", guid);
+            }
+        }
+
+        let mut charges_by_category = BTreeMap::<u32, (i64, u8)>::new();
+        self.reset_represented_character_spell_charges_like_cpp();
+        let mut charges_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_SPELL_CHARGES);
+        charges_stmt.set_u64(0, guid_counter);
+        match char_db.query(&charges_stmt).await {
+            Ok(mut charges_result) => {
+                if !charges_result.is_empty() {
+                    loop {
+                        let category_id: u32 = charges_result.try_read(0).unwrap_or(0);
+                        let recharge_start: i64 = charges_result.try_read(1).unwrap_or(0);
+                        let recharge_end: i64 = charges_result.try_read(2).unwrap_or(0);
+                        let category_known_to_store = self
+                            .spell_category_store()
+                            .is_none_or(|store| store.get(category_id).is_some());
+                        if category_known_to_store && recharge_end > now {
+                            self.record_loaded_character_spell_charge_like_cpp(
+                                category_id,
+                                recharge_start,
+                                recharge_end,
+                            );
+                            charges_by_category
+                                .entry(category_id)
+                                .and_modify(|(first_recharge_end, consumed_charges)| {
+                                    *first_recharge_end = (*first_recharge_end).min(recharge_end);
+                                    *consumed_charges = consumed_charges.saturating_add(1);
+                                })
+                                .or_insert((recharge_end, 1));
+                        }
+
+                        if !charges_result.next_row() {
+                            break;
+                        }
+                    }
+                }
+                self.mark_represented_character_spell_charges_loaded_like_cpp();
+            }
+            Err(error) => {
+                warn!("Failed to load spell charges for {:?}: {error}", guid);
+            }
+        }
+
+        let charge_entries = charges_by_category
+            .into_iter()
+            .filter_map(|(category_id, (first_recharge_end, consumed_charges))| {
+                spell_charge_entry_from_db_like_cpp(
+                    category_id,
+                    first_recharge_end,
+                    consumed_charges,
+                    now,
+                )
+            })
+            .collect();
+
+        (history_entries, charge_entries)
+    }
+
     async fn load_account_mounts_like_cpp(&mut self) -> Vec<AccountMount> {
         self.set_account_mounts_like_cpp(Vec::new());
         let Some(login_db) = self.login_db() else {
             return Vec::new();
         };
 
+        let bnet_account_id = self.battlenet_account_id();
+        if bnet_account_id == 0 {
+            warn!(
+                account = self.account_id,
+                "Skipping account mount load because the game account is not linked to a Battle.net account"
+            );
+            return Vec::new();
+        }
+
         let mut stmt = login_db.prepare(LoginStatements::SEL_ACCOUNT_MOUNTS);
-        stmt.set_u32(0, self.battlenet_account_id());
+        stmt.set_u32(0, bnet_account_id);
 
         let mut result = match login_db.query(&stmt).await {
             Ok(result) => result,
             Err(e) => {
                 warn!(
                     account = self.account_id,
-                    bnet_account = self.battlenet_account_id(),
+                    bnet_account = bnet_account_id,
                     "Failed to load account mounts: {e}"
                 );
                 return Vec::new();
@@ -10718,13 +11405,28 @@ impl WorldSession {
         };
 
         if result.is_empty() {
+            info!(
+                account = self.account_id,
+                bnet_account = bnet_account_id,
+                "Loaded 0 account mounts from battlenet_account_mounts"
+            );
             return Vec::new();
         }
 
         let mut mounts = Vec::new();
+        let mut skipped_invalid_spell_id = 0usize;
+        let mut skipped_missing_mount_db2 = 0usize;
         loop {
             let spell_id = result.try_read::<i32>(0).unwrap_or(0);
             let flags = result.try_read::<u8>(1).unwrap_or(0);
+            if spell_id <= 0 {
+                skipped_invalid_spell_id += 1;
+                if !result.next_row() {
+                    break;
+                }
+                continue;
+            }
+
             let has_mount = spell_id > 0
                 && self.mount_store().is_none_or(|store| {
                     store
@@ -10733,6 +11435,8 @@ impl WorldSession {
                 });
             if has_mount {
                 mounts.push(AccountMount { spell_id, flags });
+            } else {
+                skipped_missing_mount_db2 += 1;
             }
 
             if !result.next_row() {
@@ -10740,6 +11444,14 @@ impl WorldSession {
             }
         }
 
+        info!(
+            account = self.account_id,
+            bnet_account = bnet_account_id,
+            loaded = mounts.len(),
+            skipped_invalid_spell_id,
+            skipped_missing_mount_db2,
+            "Loaded represented account mounts like C++ CollectionMgr"
+        );
         self.set_account_mounts_like_cpp(mounts.clone());
         mounts
     }
@@ -10960,6 +11672,9 @@ impl WorldSession {
         item_creates: Vec<wow_packet::packets::update::ItemCreateData>,
         combat: PlayerCombatStats,
         known_spells: Vec<i32>,
+        favorite_spells: Vec<i32>,
+        spell_history_entries: Vec<SpellHistoryEntry>,
+        spell_charge_entries: Vec<SpellChargeEntry>,
         action_buttons: [i64; 180],
         skill_info: Vec<(u16, u16, u16, u16, u16, i16, u16)>,
         account_mounts: Vec<AccountMount>,
@@ -11012,30 +11727,32 @@ impl WorldSession {
         self.send_packet(&SetProficiency::default_weapons(class));
         self.send_packet(&SetProficiency::default_armor(class));
 
-        // 9. UpdateTalentData (empty for fresh character)
-        self.send_packet(&UpdateTalentData);
+        // 9. UpdateTalentData — C++ `Player::SendTalentsInfoData`.
+        self.send_packet(&self.represented_update_talent_data_packet_like_cpp());
 
         // 10. SendKnownSpells — populated from character_spell table
         info!("Sending {} known spells for {:?}", known_spells.len(), guid);
         self.send_packet(&SendKnownSpells {
             initial_login: true,
             known_spells,
-            favorite_spells: Vec::new(),
+            favorite_spells,
         });
 
         // 11. SendUnlearnSpells (empty)
         self.send_packet(&SendUnlearnSpells);
 
-        // 12. SendSpellHistory (empty — no cooldowns)
-        self.send_packet(&SendSpellHistory);
-
-        // 13. SendSpellCharges (empty)
-        self.send_packet(&SendSpellCharges);
-
-        // 14. ActiveGlyphs (empty with full update)
-        self.send_packet(&ActiveGlyphs {
-            is_full_update: true,
+        // 12. SendSpellHistory — C++ `SpellHistory::WritePacket`.
+        self.send_packet(&SendSpellHistory {
+            entries: spell_history_entries,
         });
+
+        // 13. SendSpellCharges — C++ `SpellHistory::WritePacket`.
+        self.send_packet(&SendSpellCharges {
+            entries: spell_charge_entries,
+        });
+
+        // 14. ActiveGlyphs — full update; bindable spell mapping is still pending.
+        self.send_packet(&self.represented_active_glyphs_packet_like_cpp());
 
         // 15. UpdateActionButtons — populated from character_action table
         self.send_packet(&UpdateActionButtons {
@@ -11052,8 +11769,8 @@ impl WorldSession {
         // 17. SetupCurrency (empty)
         self.send_packet(&SetupCurrency::empty());
 
-        // 18. LoadEquipmentSet (empty)
-        self.send_packet(&LoadEquipmentSet);
+        // 18. LoadEquipmentSet
+        self.send_packet(&self.represented_load_equipment_set_packet_like_cpp());
 
         // 19. AllAccountCriteria (empty)
         self.send_packet(&AllAccountCriteria);
@@ -11089,11 +11806,35 @@ impl WorldSession {
         // 27. InitialSetup (expansion level)
         self.send_packet(&InitialSetup::wotlk());
 
-        // 27b. MoveSetActiveMover — CRITICAL: tells the client which unit it
-        //      controls for movement. Without this, `m_mover` is null and the
-        //      client crashes with ACCESS_VIOLATION when processing movement.
-        //      C# sends via SetMovedUnit(this) at Player.cs line 5610.
-        self.send_packet(&MoveSetActiveMover { mover_guid: guid });
+        let login_update_object_diagnostic =
+            std::env::var("RUSTYCORE_LOGIN_UPDATEOBJECT_DIAGNOSTIC").ok();
+        let diagnostic_modes: Vec<&str> = login_update_object_diagnostic
+            .as_deref()
+            .map(|value| {
+                value
+                    .split(',')
+                    .map(str::trim)
+                    .filter(|mode| !mode.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default();
+        let skip_active_mover_packet = diagnostic_modes.contains(&"no_active_mover");
+        let active_mover_after_create = diagnostic_modes.contains(&"active_mover_after_create");
+
+        // 27b. MoveSetActiveMover diagnostic.
+        //
+        // C++ 3.4.3 `Player::SendInitialPacketsBeforeAddToMap` ends with
+        // `SetMovedUnit(this)`, but that is server-side state, not an immediate
+        // `SMSG_MOVE_SET_ACTIVE_MOVER` in this login position. Keep this gated
+        // while we isolate the 54261 client crash around player CREATE.
+        if skip_active_mover_packet || active_mover_after_create {
+            warn!(
+                diagnostic = login_update_object_diagnostic.as_deref().unwrap_or(""),
+                "Skipping pre-UpdateObject MoveSetActiveMover for login diagnostic"
+            );
+        } else {
+            self.send_packet(&MoveSetActiveMover { mover_guid: guid });
+        }
 
         // ── Phase 3: AddToMap → UpdateObject ──
 
@@ -11108,8 +11849,39 @@ impl WorldSession {
             // StateFlags: 0=None, 1=Complete (QuestSlotStateMask)
             let quest_log: Vec<(u32, u32, i64, [u16; 24])> =
                 self.quest_log_create_entries_like_cpp();
-            let account_toys = self.account_toy_active_player_rows_like_cpp();
-            let account_heirlooms = self.account_heirloom_active_player_rows_like_cpp();
+            let skip_inventory_create = diagnostic_modes.contains(&"no_items");
+            let skip_collection_create = diagnostic_modes.contains(&"no_collections");
+
+            let mut account_toys = self.account_toy_active_player_rows_like_cpp();
+            let mut account_heirlooms = self.account_heirloom_active_player_rows_like_cpp();
+            info!(
+                toys = account_toys.len(),
+                heirlooms = account_heirlooms.len(),
+                diagnostic = login_update_object_diagnostic.as_deref().unwrap_or(""),
+                "Building player CREATE collection dynamic fields"
+            );
+            if skip_collection_create {
+                warn!(
+                    toys = account_toys.len(),
+                    heirlooms = account_heirlooms.len(),
+                    "RUSTYCORE_LOGIN_UPDATEOBJECT_DIAGNOSTIC=no_collections: sending player CREATE without account collection dynamic fields"
+                );
+                account_toys.clear();
+                account_heirlooms.clear();
+            }
+            let visible_items_for_create = if skip_inventory_create {
+                warn!(
+                    "RUSTYCORE_LOGIN_UPDATEOBJECT_DIAGNOSTIC=no_items: sending player CREATE without item CREATE blocks or inventory references"
+                );
+                [(0, 0, 0); 19]
+            } else {
+                visible_items
+            };
+            let inv_slots_for_create = if skip_inventory_create {
+                [wow_core::guid::ObjectGuid::EMPTY; 141]
+            } else {
+                inv_slots
+            };
 
             let mut player_pkt = UpdateObject::create_player_with_party_type(
                 guid,
@@ -11122,8 +11894,8 @@ impl WorldSession {
                 map_id as u16,
                 zone_id as u32,
                 true,
-                visible_items,
-                inv_slots,
+                visible_items_for_create,
+                inv_slots_for_create,
                 combat,
                 skill_info,
                 self.player_gold_like_cpp(),
@@ -11133,7 +11905,7 @@ impl WorldSession {
             player_pkt
                 .set_player_collection_dynamic_fields_like_cpp(account_toys, account_heirlooms);
 
-            if !item_creates.is_empty() {
+            if !item_creates.is_empty() && !skip_inventory_create {
                 info!(
                     "Sending {} item CREATE blocks + player in single UpdateObject",
                     item_creates.len()
@@ -11156,6 +11928,10 @@ impl WorldSession {
 
             self.send_packet(&player_pkt);
         }
+        if active_mover_after_create {
+            warn!("Sending MoveSetActiveMover after player CREATE for login diagnostic");
+            self.send_packet(&MoveSetActiveMover { mover_guid: guid });
+        }
 
         // ── Phase 3b: Send nearby creatures + gameobjects ──
         // Query world DB for objects near the player and send UpdateObject.
@@ -11171,8 +11947,8 @@ impl WorldSession {
         // 27. InitWorldStates (zone state variables — empty for now)
         self.send_packet(&InitWorldStates::new(map_id, zone_id));
 
-        // 28. LoadCufProfiles (empty — no saved profiles)
-        self.send_packet(&LoadCufProfiles::empty());
+        // 28. LoadCufProfiles
+        self.send_packet(&self.represented_load_cuf_profiles_packet_like_cpp());
 
         // 29. AuraUpdate (empty — no auras on fresh character)
         self.send_packet(&AuraUpdate::empty_for(guid));
@@ -11292,6 +12068,7 @@ mod tests {
     use wow_data::character_progression::{
         ChrClassesEntry, ChrClassesStore, ChrRacesEntry, ChrRacesStore,
     };
+    use wow_data::item_stats::{ItemModType, ItemStatEntry, ItemStatsStore};
     use wow_data::quest::{
         QUEST_ITEM_DROP_COUNT, QUEST_REWARD_CHOICES_COUNT, QUEST_REWARD_DISPLAY_SPELL_COUNT,
         QUEST_REWARD_ITEM_COUNT, QUEST_REWARD_REPUTATIONS_COUNT, QuestStore, QuestTemplate,
@@ -11303,6 +12080,14 @@ mod tests {
         CreatureLoot, LOOT_TYPE_CORPSE_LIKE_CPP, LootEntry, LootEntryFlags,
     };
     use wow_packet::packets::quest::quest_giver_status;
+
+    #[test]
+    fn sql_creature_template_speed_defaults_match_cpp_check_creature_template() {
+        assert_eq!(normalize_creature_template_speed_walk_like_cpp(0.0), 1.0);
+        assert_eq!(normalize_creature_template_speed_run_like_cpp(0.0), 1.14286);
+        assert_eq!(normalize_creature_template_speed_walk_like_cpp(0.75), 0.75);
+        assert_eq!(normalize_creature_template_speed_run_like_cpp(2.0), 2.0);
+    }
 
     fn make_session_with_send_capacity(
         capacity: usize,
@@ -11332,6 +12117,198 @@ mod tests {
         session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
         session.set_player_position_like_cpp(Position::new(10.0, 0.0, 0.0, 0.0));
         (session, send_rx)
+    }
+
+    fn strength_item_stats_store(entry_id: u32, amount: i16) -> ItemStatsStore {
+        ItemStatsStore::from_parts(
+            [(
+                entry_id,
+                ItemStatEntry {
+                    stats: std::array::from_fn(|i| {
+                        if i == 0 {
+                            (ItemModType::Strength as i8, amount)
+                        } else {
+                            (ItemModType::None as i8, 0)
+                        }
+                    }),
+                    resistances: [0; 7],
+                    armor: 0,
+                },
+            )],
+            [],
+        )
+    }
+
+    fn drain_server_opcodes(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<ServerOpcodes> {
+        let mut opcodes = Vec::new();
+        while let Ok(bytes) = send_rx.try_recv() {
+            let packet = WorldPacket::from_bytes(&bytes);
+            if let Some(opcode) = packet.server_opcode() {
+                opcodes.push(opcode);
+            }
+        }
+        opcodes
+    }
+
+    #[test]
+    fn login_known_spells_include_account_mounts_even_when_use_condition_fails_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send_capacity(8);
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_known_spells_like_cpp(vec![635]);
+        session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([
+            wow_data::MountEntry {
+                id: 1,
+                mount_type_id: 0,
+                flags: 0,
+                source_type_enum: 0,
+                source_spell_id: 100,
+                player_condition_id: 42,
+                mount_fly_ride_height: 0.0,
+                ui_model_scene_id: 0,
+            },
+            wow_data::MountEntry {
+                id: 2,
+                mount_type_id: 0,
+                flags: 0,
+                source_type_enum: 0,
+                source_spell_id: 101,
+                player_condition_id: 43,
+                mount_fly_ride_height: 0.0,
+                ui_model_scene_id: 0,
+            },
+        ])));
+        session.set_player_condition_store(Arc::new(wow_data::PlayerConditionStore::from_entries(
+            [
+                wow_data::PlayerConditionEntry {
+                    id: 42,
+                    class_mask: 1,
+                    ..Default::default()
+                },
+                wow_data::PlayerConditionEntry {
+                    id: 43,
+                    class_mask: 1 << 1,
+                    ..Default::default()
+                },
+            ],
+        )));
+
+        session.set_account_mounts_like_cpp(vec![
+            AccountMount {
+                spell_id: 100,
+                flags: 0,
+            },
+            AccountMount {
+                spell_id: 101,
+                flags: 0,
+            },
+        ]);
+
+        let login_spells = session.login_known_spells_after_account_collections_like_cpp();
+        assert!(login_spells.contains(&635));
+        assert!(login_spells.contains(&100));
+        assert!(
+            login_spells.contains(&101),
+            "C++ CollectionMgr::AddMount stores/learns the mount before evaluating PlayerCondition; the condition applies to using it"
+        );
+    }
+
+    #[test]
+    fn send_known_spells_filters_disabled_and_inactive_like_cpp() {
+        assert_eq!(active_known_spell_for_send_like_cpp(118, 1, 0), Some(118));
+        assert_eq!(
+            active_known_spell_for_send_like_cpp(118, 0, 0),
+            None,
+            "C++ Player::SendKnownSpells skips inactive spells"
+        );
+        assert_eq!(
+            active_known_spell_for_send_like_cpp(118, 1, 1),
+            None,
+            "C++ Player::SendKnownSpells skips disabled spells"
+        );
+        assert_eq!(active_known_spell_for_send_like_cpp(0, 1, 0), None);
+    }
+
+    #[test]
+    fn send_known_spells_favorites_are_subset_of_sent_spells_like_cpp() {
+        let favorites = HashSet::from([635, 999]);
+
+        assert_eq!(
+            favorite_known_spells_for_send_like_cpp(&[118, 635, 133], &favorites),
+            vec![635],
+            "C++ only marks favorite spells while iterating spells that are actually sent"
+        );
+    }
+
+    #[test]
+    fn spell_history_entry_from_db_splits_spell_and_category_cooldowns_like_cpp() {
+        let entry = spell_history_entry_from_db_like_cpp(133, 6948, 1_030, 12, 1_010, 1_000)
+            .expect("future cooldown should be serialized");
+
+        assert_eq!(entry.spell_id, 133);
+        assert_eq!(entry.item_id, 6948);
+        assert_eq!(entry.category, 12);
+        assert_eq!(entry.recovery_time_ms, 30_000);
+        assert_eq!(entry.category_recovery_time_ms, 10_000);
+        assert_eq!(entry.mod_rate, 1.0);
+        assert!(!entry.on_hold);
+    }
+
+    #[test]
+    fn spell_history_entry_omits_recovery_when_category_last_longer_like_cpp() {
+        let entry = spell_history_entry_from_db_like_cpp(133, 0, 1_005, 12, 1_010, 1_000)
+            .expect("future category cooldown should be serialized");
+
+        assert_eq!(entry.category, 12);
+        assert_eq!(entry.recovery_time_ms, 0);
+        assert_eq!(entry.category_recovery_time_ms, 10_000);
+    }
+
+    #[test]
+    fn spell_history_entry_skips_expired_cooldowns_like_cpp() {
+        assert_eq!(
+            spell_history_entry_from_db_like_cpp(133, 0, 1_000, 12, 1_010, 1_000),
+            None
+        );
+    }
+
+    #[test]
+    fn spell_charge_entry_uses_first_recharge_and_consumed_count_like_cpp() {
+        let entry = spell_charge_entry_from_db_like_cpp(42, 1_045, 2, 1_000)
+            .expect("future charge should be serialized");
+
+        assert_eq!(entry.category, 42);
+        assert_eq!(entry.next_recovery_time_ms, 45_000);
+        assert_eq!(entry.charge_mod_rate, 1.0);
+        assert_eq!(entry.consumed_charges, 2);
+    }
+
+    #[test]
+    fn spell_charge_entry_skips_expired_recharges_like_cpp() {
+        assert_eq!(
+            spell_charge_entry_from_db_like_cpp(42, 1_000, 1, 1_000),
+            None
+        );
+    }
+
+    #[test]
+    fn account_mount_spells_are_dependent_and_not_saved_to_character_spell_like_cpp() {
+        assert_eq!(
+            CharStatements::INS_CHARACTER_SPELL.sql(),
+            "INSERT IGNORE INTO character_spell (guid, spell, active, disabled) VALUES (?, ?, 1, 0)",
+            "trainer/regular learned spells still use the character_spell insert seam"
+        );
+        assert!(
+            WorldSession::account_mount_spells_are_session_dependent_like_cpp(),
+            "C++ CollectionMgr::AddMount calls Player::LearnSpell(spellId, true); Player::_SaveSpells skips dependent spells, so account mounts must not be persisted into character_spell"
+        );
+    }
+
+    #[test]
+    fn logout_marks_all_account_characters_offline_like_cpp() {
+        let stmt = WorldSession::build_character_account_offline_statement_like_cpp(42);
+
+        assert_eq!(stmt.sql(), CharStatements::UPD_ACCOUNT_ONLINE.sql());
+        assert_eq!(stmt.params(), &[wow_database::SqlParam::U32(42)]);
     }
 
     #[test]
@@ -12023,6 +13000,55 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn use_equipment_set_applies_represented_item_mods_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(4);
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let item_guid = ObjectGuid::create_item(1, 66);
+        let entry_id = 111;
+        session.set_player_guid(Some(player_guid));
+        session.set_item_stats_store(Arc::new(strength_item_stats_store(entry_id, 11)));
+        session.insert_inventory_item_like_cpp(
+            INVENTORY_SLOT_ITEM_START,
+            InventoryItem {
+                guid: item_guid,
+                entry_id,
+                db_guid: 66,
+                inventory_type: Some(InventoryType::Weapon as u8),
+            },
+        );
+        let item = session.make_inventory_item_object(
+            item_guid,
+            entry_id,
+            player_guid,
+            1,
+            0,
+            ItemContext::None,
+            INVENTORY_SLOT_ITEM_START,
+        );
+        session.insert_inventory_item_object(item);
+        let mut items =
+            [ObjectGuid::EMPTY; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP];
+        items[EQUIPMENT_SLOT_MAINHAND as usize] = item_guid;
+
+        session
+            .handle_use_equipment_set(use_equipment_set_packet(0x0203, items))
+            .await;
+
+        assert_eq!(
+            session.represented_item_bonus_state_like_cpp().stats_base[0],
+            11,
+            "C++ HandleUseEquipmentSet reaches SwapItem -> EquipItem -> _ApplyItemMods"
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![
+                ServerOpcodes::UpdateObject,
+                ServerOpcodes::UseEquipmentSetResult
+            ]
+        );
+    }
+
+    #[tokio::test]
     async fn use_equipment_set_empty_slot_unequips_to_backpack_like_cpp() {
         let (mut session, send_rx) = make_session_with_send_capacity(1);
         let item_guid = ObjectGuid::create_item(1, 56);
@@ -12194,6 +13220,138 @@ mod tests {
             session
                 .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)
                 .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn auto_equip_item_slot_applies_represented_item_mods_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(4);
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let item_guid = ObjectGuid::create_item(1, 64);
+        let entry_id = 109;
+        session.set_player_guid(Some(player_guid));
+        session.set_item_stats_store(Arc::new(strength_item_stats_store(entry_id, 7)));
+        session.set_item_set_store(Arc::new(wow_data::ItemSetStore::from_entries([
+            wow_data::ItemSetEntry {
+                id: 706,
+                name: "Auto Equip Set".to_string(),
+                set_flags: 0,
+                required_skill: 0,
+                required_skill_rank: 0,
+                item_id: std::array::from_fn(|i| if i == 0 { entry_id } else { 0 }),
+            },
+        ])));
+        session.set_item_set_spell_store(Arc::new(wow_data::ItemSetSpellStore::from_entries([
+            wow_data::ItemSetSpellEntry {
+                id: 22,
+                chr_spec_id: 0,
+                spell_id: 9022,
+                threshold: 1,
+                item_set_id: 706,
+            },
+        ])));
+        session.insert_inventory_item_like_cpp(
+            INVENTORY_SLOT_ITEM_START,
+            InventoryItem {
+                guid: item_guid,
+                entry_id,
+                db_guid: 64,
+                inventory_type: Some(InventoryType::Weapon as u8),
+            },
+        );
+        let item = session.make_inventory_item_object(
+            item_guid,
+            entry_id,
+            player_guid,
+            1,
+            0,
+            ItemContext::None,
+            INVENTORY_SLOT_ITEM_START,
+        );
+        session.insert_inventory_item_object(item);
+
+        session
+            .handle_auto_equip_item_slot(AutoEquipItemSlot {
+                inv_update: InvUpdate {
+                    items: vec![(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)],
+                },
+                item: item_guid,
+                item_dst_slot: EQUIPMENT_SLOT_MAINHAND,
+            })
+            .await;
+
+        assert_eq!(
+            session.represented_item_bonus_state_like_cpp().stats_base[0],
+            7,
+            "C++ EquipItem calls _ApplyItemMods(..., true) for alive equipped items"
+        );
+        assert_eq!(
+            session.represented_item_set_spell_events_like_cpp(),
+            &[crate::session::RepresentedItemSetSpellEventLikeCpp {
+                item_set_id: 706,
+                spell_entry_id: 22,
+                spell_id: 9022,
+                threshold: 1,
+                apply: true,
+            }],
+            "C++ EquipItem calls AddItemsSetItem before _ApplyItemMods for equipped slots"
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::UpdateObject],
+            "represented item-mod equip emits one current-session stat VALUES delta"
+        );
+    }
+
+    #[test]
+    fn direct_inventory_move_from_equipment_removes_represented_item_mods_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send_capacity(1);
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let item_guid = ObjectGuid::create_item(1, 65);
+        let entry_id = 110;
+        session.set_player_guid(Some(player_guid));
+        session.set_item_stats_store(Arc::new(strength_item_stats_store(entry_id, 9)));
+        session.insert_inventory_item_like_cpp(
+            INVENTORY_SLOT_ITEM_START,
+            InventoryItem {
+                guid: item_guid,
+                entry_id,
+                db_guid: 65,
+                inventory_type: Some(InventoryType::Weapon as u8),
+            },
+        );
+        let item = session.make_inventory_item_object(
+            item_guid,
+            entry_id,
+            player_guid,
+            1,
+            0,
+            ItemContext::None,
+            INVENTORY_SLOT_ITEM_START,
+        );
+        session.insert_inventory_item_object(item);
+        assert_eq!(
+            session.move_represented_direct_inventory_item_with_item_mods_like_cpp(
+                INVENTORY_SLOT_ITEM_START,
+                EQUIPMENT_SLOT_MAINHAND
+            ),
+            Some(true)
+        );
+        assert_eq!(
+            session.represented_item_bonus_state_like_cpp().stats_base[0],
+            9
+        );
+        assert_eq!(
+            session.move_represented_direct_inventory_item_with_item_mods_like_cpp(
+                EQUIPMENT_SLOT_MAINHAND,
+                INVENTORY_SLOT_ITEM_START
+            ),
+            Some(true)
+        );
+        assert_eq!(
+            session.represented_item_bonus_state_like_cpp().stats_base[0],
+            0,
+            "C++ RemoveItem calls _ApplyItemMods(..., false) before taking equipped items out of storage"
         );
     }
 
@@ -12461,6 +13619,8 @@ mod tests {
                 id: 77,
                 continent_id: 571,
                 parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
                 mount_flags: 0,
                 flags: area_flags,
             },

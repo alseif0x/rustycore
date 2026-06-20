@@ -20,6 +20,41 @@ pub struct ConfirmRespecWipe {
     pub respec_type: u8,
 }
 
+/// C++ `WorldPackets::Talent::LearnTalents`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LearnTalents {
+    pub talent_ids: Vec<u16>,
+}
+
+impl LearnTalents {
+    pub fn read(packet: &mut WorldPacket) -> Result<Self, PacketError> {
+        let count = packet.read_bits(6)? as usize;
+        let mut talent_ids = Vec::with_capacity(count);
+        for _ in 0..count {
+            talent_ids.push(packet.read_uint16()?);
+        }
+        Ok(Self { talent_ids })
+    }
+}
+
+/// C++ `WorldPackets::Talent::LearnTalent`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LearnTalent {
+    pub talent_id: i32,
+    pub requested_rank: u16,
+}
+
+impl ClientPacket for LearnTalent {
+    const OPCODE: ClientOpcodes = ClientOpcodes::LearnTalent;
+
+    fn read(packet: &mut WorldPacket) -> Result<Self, PacketError> {
+        Ok(Self {
+            talent_id: packet.read_int32()?,
+            requested_rank: packet.read_uint16()?,
+        })
+    }
+}
+
 impl ClientPacket for ConfirmRespecWipe {
     const OPCODE: ClientOpcodes = ClientOpcodes::ConfirmRespecWipe;
 
@@ -35,6 +70,41 @@ impl ClientPacket for ConfirmRespecWipe {
 mod tests {
     use super::*;
     use wow_core::guid::HighGuid;
+
+    #[test]
+    fn learn_talents_reads_cpp_count_bits_then_uint16_ids() {
+        let mut packet = WorldPacket::new_empty();
+        packet.write_bits(3, 6);
+        packet.flush_bits();
+        packet.write_uint16(101);
+        packet.write_uint16(202);
+        packet.write_uint16(303);
+        packet.reset_read();
+
+        let parsed = LearnTalents::read(&mut packet).unwrap();
+
+        assert_eq!(parsed.talent_ids, vec![101, 202, 303]);
+        assert_eq!(packet.remaining(), 0);
+    }
+
+    #[test]
+    fn learn_talent_reads_cpp_int32_then_uint16_rank() {
+        let mut packet = WorldPacket::new_empty();
+        packet.write_int32(101);
+        packet.write_uint16(2);
+        packet.reset_read();
+
+        let parsed = LearnTalent::read(&mut packet).unwrap();
+
+        assert_eq!(
+            parsed,
+            LearnTalent {
+                talent_id: 101,
+                requested_rank: 2,
+            }
+        );
+        assert_eq!(packet.remaining(), 0);
+    }
 
     #[test]
     fn confirm_respec_wipe_reads_cpp_guid_then_uint8_type() {

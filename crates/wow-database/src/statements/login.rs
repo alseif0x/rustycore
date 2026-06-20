@@ -49,6 +49,7 @@ pub enum LoginStatements {
     UPD_LAST_IP,
     UPD_LAST_ATTEMPT_IP,
     UPD_ACCOUNT_ONLINE,
+    UPD_ACCOUNT_OFFLINE,
     UPD_UPTIME_PLAYERS,
     DEL_OLD_LOGS,
     DEL_ACCOUNT_ACCESS,
@@ -248,6 +249,7 @@ impl StatementDef for LoginStatements {
                 "UPDATE account SET last_attempt_ip = ? WHERE username = ?"
             }
             Self::UPD_ACCOUNT_ONLINE => "UPDATE account SET online = 1 WHERE id = ?",
+            Self::UPD_ACCOUNT_OFFLINE => "UPDATE account SET online = 0 WHERE id = ?",
             Self::UPD_UPTIME_PLAYERS => {
                 "UPDATE uptime SET uptime = ?, maxplayers = ? WHERE realmid = ? AND starttime = ?"
             }

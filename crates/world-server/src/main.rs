@@ -959,6 +959,39 @@ async fn main() -> Result<ExitCode> {
         item_limit_category_condition_store.len()
     );
 
+    let item_bonus_db2_store = Arc::new(
+        wow_data::ItemBonusDb2Store::load(&data_dir, &locale)
+            .context("Failed to load ItemBonus.db2 — check DataDir and DBC.Locale config")?,
+    );
+    info!(
+        "Loaded {} item bonus rows from ItemBonus.db2",
+        item_bonus_db2_store.len()
+    );
+    let pvp_item_store = Arc::new(
+        wow_data::PvpItemStore::load(&data_dir, &locale)
+            .context("Failed to load PVPItem.db2 — check DataDir and DBC.Locale config")?,
+    );
+    info!(
+        "Loaded {} PvP item bonus rows from PVPItem.db2",
+        pvp_item_store.len()
+    );
+    let item_set_store = Arc::new(
+        wow_data::ItemSetStore::load(&data_dir, &locale)
+            .context("Failed to load ItemSet.db2 — check DataDir and DBC.Locale config")?,
+    );
+    info!(
+        "Loaded {} item set rows from ItemSet.db2",
+        item_set_store.len()
+    );
+    let item_set_spell_store = Arc::new(
+        wow_data::ItemSetSpellStore::load(&data_dir, &locale)
+            .context("Failed to load ItemSetSpell.db2 — check DataDir and DBC.Locale config")?,
+    );
+    info!(
+        "Loaded {} item set spell rows from ItemSetSpell.db2",
+        item_set_spell_store.len()
+    );
+
     // Load ChrSpecialization.db2 for C++ loot-specialization validation.
     let chr_specialization_store = Arc::new(
         wow_data::ChrSpecializationStore::load(&data_dir, &locale).context(
@@ -1230,6 +1263,14 @@ async fn main() -> Result<ExitCode> {
         "Loaded {} creature display info rows",
         creature_display_info_store.len()
     );
+    let creature_display_info_extra_store = Arc::new(
+        wow_data::CreatureDisplayInfoExtraStore::load(&data_dir, &locale)
+            .context("Failed to load CreatureDisplayInfoExtra.db2")?,
+    );
+    info!(
+        "Loaded {} creature display info extra rows",
+        creature_display_info_extra_store.len()
+    );
     let emotes_store = Arc::new(
         wow_data::EmotesStore::load(&data_dir, &locale).context("Failed to load Emotes.db2")?,
     );
@@ -1313,8 +1354,29 @@ async fn main() -> Result<ExitCode> {
         wow_data::SkillLineStore::load(&data_dir, &locale)
             .context("Failed to load SkillLine.db2")?,
     );
+    let trait_definition_store = Arc::new(
+        wow_data::trait_tree::TraitDefinitionStore::load(&data_dir, &locale)
+            .context("Failed to load TraitDefinition.db2")?,
+    );
+    let skill_tiers_store = Arc::new(
+        wow_data::SkillTiersStoreLikeCpp::load_like_cpp(world_db.as_ref())
+            .await
+            .context("Failed to load world.skill_tiers")?,
+    );
     let talent_store = Arc::new(
         wow_data::TalentStore::load(&data_dir, &locale).context("Failed to load Talent.db2")?,
+    );
+    let talent_tab_store = Arc::new(
+        wow_data::TalentTabStore::load(&data_dir, &locale)
+            .context("Failed to load TalentTab.db2")?,
+    );
+    let num_talents_at_level_store = Arc::new(
+        wow_data::progression_rewards::NumTalentsAtLevelStore::load(&data_dir, &locale)
+            .context("Failed to load NumTalentsAtLevel.db2")?,
+    );
+    let glyph_properties_store = Arc::new(
+        wow_data::GlyphPropertiesStore::load(&data_dir, &locale)
+            .context("Failed to load GlyphProperties.db2")?,
     );
     let talent_spell_ids_like_cpp = Arc::new(
         talent_store
@@ -1322,9 +1384,12 @@ async fn main() -> Result<ExitCode> {
             .collect::<HashSet<_>>(),
     );
     info!(
-        "Loaded {} talent rows and {} talent spell ranks from Talent.db2",
+        "Loaded {} talent rows, {} talent tabs, {} talent-level rows, {} talent spell ranks, and {} glyph property rows from DB2",
         talent_store.len(),
-        talent_spell_ids_like_cpp.len()
+        talent_tab_store.len(),
+        num_talents_at_level_store.len(),
+        talent_spell_ids_like_cpp.len(),
+        glyph_properties_store.len()
     );
     let chr_races_store = Arc::new(
         wow_data::character_progression::ChrRacesStore::load(&data_dir, &locale)
@@ -1358,9 +1423,10 @@ async fn main() -> Result<ExitCode> {
         "Loaded {} SpellLearnSpell.db2 rows",
         spell_learn_spell_db2_store.len()
     );
-    let mut spell_store = wow_data::SpellStore::load(&hotfix_db)
-        .await
-        .context("Failed to load SpellStore")?;
+    let mut spell_store =
+        wow_data::SpellStore::load_with_db2_and_hotfixes(&data_dir, &locale, &hotfix_db)
+            .await
+            .context("Failed to load SpellStore")?;
     info!("Loaded {} spells from SpellStore", spell_store.len());
     let spell_chain_store = Arc::new(
         wow_data::SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(
@@ -1590,6 +1656,14 @@ async fn main() -> Result<ExitCode> {
             .context("Failed to load SpellDuration.db2")?,
     );
     info!("Loaded {} spell duration rows", spell_duration_store.len());
+    let spell_shapeshift_form_store = Arc::new(
+        wow_data::SpellShapeshiftFormStore::load(&data_dir, &locale)
+            .context("Failed to load SpellShapeshiftForm.db2")?,
+    );
+    info!(
+        "Loaded {} spell shapeshift form rows",
+        spell_shapeshift_form_store.len()
+    );
     let creature_addon_store = Arc::new(
         wow_data::CreatureAddonStoreLikeCpp::load_like_cpp(
             world_db.as_ref(),
@@ -1645,8 +1719,32 @@ async fn main() -> Result<ExitCode> {
         "Loaded condition validation trainer id store: {} trainers",
         trainer_store.len()
     );
-    let curve_store = wow_data::progression_rewards::CurveStore::load(&data_dir, &locale)
-        .context("Failed to load Curve.db2 for C++ curve validation")?;
+    let curve_store = Arc::new(
+        wow_data::progression_rewards::CurveStore::load(&data_dir, &locale)
+            .context("Failed to load Curve.db2 for C++ curve validation")?,
+    );
+    let curve_point_store = Arc::new(
+        wow_data::progression_rewards::CurvePointStore::load(&data_dir, &locale)
+            .context("Failed to load CurvePoint.db2 for C++ curve evaluation")?,
+    );
+    let scaling_stat_distribution_store = Arc::new(
+        wow_data::progression_rewards::ScalingStatDistributionStore::load(&data_dir, &locale)
+            .context(
+                "Failed to load ScalingStatDistribution.db2 — check DataDir and DBC.Locale config",
+            )?,
+    );
+    let scaling_stat_values_store = Arc::new(
+        wow_data::progression_rewards::ScalingStatValuesStore::load(&data_dir, &locale).context(
+            "Failed to load ScalingStatValues.db2 — check DataDir and DBC.Locale config",
+        )?,
+    );
+    info!(
+        "Loaded {} curves, {} curve points, {} scaling-stat distributions, and {} scaling-stat values from DB2",
+        curve_store.len(),
+        curve_point_store.len(),
+        scaling_stat_distribution_store.len(),
+        scaling_stat_values_store.len()
+    );
     let area_trigger_template_outcome = wow_data::AreaTriggerTemplateStore::load_like_cpp(
         world_db.as_ref(),
         &world_safe_loc_store,
@@ -2022,6 +2120,15 @@ async fn main() -> Result<ExitCode> {
             .context("Failed to load Mount.db2 / hotfix rows")?,
     );
     info!("Loaded {} mounts from Mount.db2", mount_store.len());
+    let mount_definition_store = Arc::new(
+        wow_data::MountDefinitionStoreLikeCpp::load_like_cpp(&world_db, &mount_store)
+            .await
+            .context("Failed to load mount_definitions")?,
+    );
+    info!(
+        "Loaded {} faction-specific mount definitions from mount_definitions",
+        mount_definition_store.len()
+    );
     let mount_capability_store = Arc::new(
         wow_data::MountCapabilityStore::load_with_hotfixes(&data_dir, &locale, &hotfix_db)
             .await
@@ -2239,6 +2346,15 @@ async fn main() -> Result<ExitCode> {
         battle_pet_xp_game_table.len()
     );
 
+    let shield_block_regular_game_table = Arc::new(
+        wow_data::ShieldBlockRegularGameTableLikeCpp::load(&data_dir)
+            .context("Failed to load gt/ShieldBlockRegular.txt - check DataDir config")?,
+    );
+    info!(
+        "Loaded ShieldBlockRegular game table: {} rows",
+        shield_block_regular_game_table.len()
+    );
+
     // Load TransmogSet.db2 and TransmogSetItem.db2 for DB2Manager transmog indexes.
     let transmog_set_store = Arc::new(
         wow_data::TransmogSetStore::load(&data_dir, &locale)
@@ -2264,6 +2380,35 @@ async fn main() -> Result<ExitCode> {
             .context("Failed to load player_levelstats")?,
     );
     info!("Loaded {} player level stat entries", player_stats.len());
+    let player_create_cast_spell_store = Arc::new(
+        wow_data::PlayerCreateInfoCastSpellStoreLikeCpp::load_like_cpp(&world_db)
+            .await
+            .context("Failed to load playercreateinfo_cast_spell")?,
+    );
+    let player_create_cast_spell_report = player_create_cast_spell_store
+        .load_report_like_cpp()
+        .clone();
+    info!(
+        loaded_assignments = player_create_cast_spell_report.loaded_assignments,
+        skipped_invalid_race_mask = player_create_cast_spell_report.skipped_invalid_race_mask,
+        skipped_invalid_class_mask = player_create_cast_spell_report.skipped_invalid_class_mask,
+        skipped_invalid_create_mode = player_create_cast_spell_report.skipped_invalid_create_mode,
+        "Loaded C++ player create cast spell assignments"
+    );
+    let player_create_custom_spell_store = Arc::new(
+        wow_data::PlayerCreateInfoCustomSpellStoreLikeCpp::load_like_cpp(&world_db)
+            .await
+            .context("Failed to load playercreateinfo_spell_custom")?,
+    );
+    let player_create_custom_spell_report = player_create_custom_spell_store
+        .load_report_like_cpp()
+        .clone();
+    info!(
+        loaded_assignments = player_create_custom_spell_report.loaded_assignments,
+        skipped_invalid_race_mask = player_create_custom_spell_report.skipped_invalid_race_mask,
+        skipped_invalid_class_mask = player_create_custom_spell_report.skipped_invalid_class_mask,
+        "Loaded C++ player create custom spell assignments"
+    );
 
     // Load item stat modifiers from ItemSparse.db2 (gear bonuses: STR, AGI, STA, etc.)
     let item_stats_store = Arc::new(
@@ -2873,13 +3018,16 @@ async fn main() -> Result<ExitCode> {
 
     // Load player_xp_for_level table
     let player_xp_table = {
-        let mut stmt = world_db.prepare(WorldStatements::SEL_PLAYER_XP_FOR_LEVEL);
+        let stmt = world_db.prepare(WorldStatements::SEL_PLAYER_XP_FOR_LEVEL);
         let mut table = vec![0u32; 82]; // index = level, 0=unused, 81=max
         if let Ok(result) = world_db.query(&stmt).await {
             let mut r = result;
             loop {
                 let lvl: u8 = r.try_read::<u8>(0).unwrap_or(0);
-                let xp: u32 = r.try_read::<u32>(1).unwrap_or(0);
+                let xp: u32 = r
+                    .try_read::<u32>(1)
+                    .or_else(|| r.try_read::<i32>(1).map(|value| value as u32))
+                    .unwrap_or(0);
                 if (lvl as usize) < table.len() {
                     table[lvl as usize] = xp;
                 }
@@ -2890,6 +3038,8 @@ async fn main() -> Result<ExitCode> {
         }
         Arc::new(table)
     };
+    let exploration_base_xp_store =
+        Arc::new(wow_data::ExplorationBaseXpStoreLikeCpp::load_like_cpp(&world_db).await?);
 
     // Load QuestXP.db2 for accurate XP rewards
     let dbc_path = format!("{}/dbc/{}", data_dir, locale);
@@ -4142,11 +4292,18 @@ async fn main() -> Result<ExitCode> {
         battle_pet_species_store: Some(Arc::clone(&battle_pet_species_entry_store)),
         battle_pet_species_state_store: Some(Arc::clone(&battle_pet_species_state_store)),
         battle_pet_xp_game_table: Some(Arc::clone(&battle_pet_xp_game_table)),
+        shield_block_regular_game_table: Some(Arc::clone(&shield_block_regular_game_table)),
         transmog_set_item_store: Some(Arc::clone(&transmog_set_item_store)),
         item_price_base_store: Some(Arc::clone(&item_price_base_store)),
         item_limit_category_store: Some(Arc::clone(&item_limit_category_store)),
         item_limit_category_condition_store: Some(Arc::clone(&item_limit_category_condition_store)),
+        player_create_cast_spell_store: Some(Arc::clone(&player_create_cast_spell_store)),
+        player_create_custom_spell_store: Some(Arc::clone(&player_create_custom_spell_store)),
         player_stats: Some(Arc::clone(&player_stats)),
+        item_bonus_db2_store: Some(Arc::clone(&item_bonus_db2_store)),
+        pvp_item_store: Some(Arc::clone(&pvp_item_store)),
+        item_set_store: Some(Arc::clone(&item_set_store)),
+        item_set_spell_store: Some(Arc::clone(&item_set_spell_store)),
         item_stats_store: Some(Arc::clone(&item_stats_store)),
         durability_costs_store: Some(Arc::clone(&durability_costs_store)),
         durability_quality_store: Some(Arc::clone(&durability_quality_store)),
@@ -4164,6 +4321,10 @@ async fn main() -> Result<ExitCode> {
         player_condition_store: Some(Arc::clone(&player_condition_store)),
         adventure_map_poi_store: Some(Arc::clone(&adventure_map_poi_store)),
         content_tuning_store: Some(Arc::clone(&content_tuning_store)),
+        curve_store: Some(Arc::clone(&curve_store)),
+        curve_point_store: Some(Arc::clone(&curve_point_store)),
+        scaling_stat_distribution_store: Some(Arc::clone(&scaling_stat_distribution_store)),
+        scaling_stat_values_store: Some(Arc::clone(&scaling_stat_values_store)),
         disable_mgr: Some(Arc::clone(&disable_mgr)),
         difficulty_store: Some(Arc::clone(&difficulty_store)),
         lock_store: Some(Arc::clone(&lock_store)),
@@ -4171,7 +4332,13 @@ async fn main() -> Result<ExitCode> {
         spell_enchant_proc_store: Some(Arc::clone(&spell_enchant_proc_store)),
         hotfix_blob_cache: Some(Arc::clone(&hotfix_blob_cache)),
         skill_store: Some(Arc::clone(&skill_store)),
+        trait_definition_store: Some(Arc::clone(&trait_definition_store)),
         skill_line_store: Some(Arc::clone(&skill_line_store)),
+        skill_tiers_store: Some(Arc::clone(&skill_tiers_store)),
+        talent_store: Some(Arc::clone(&talent_store)),
+        talent_tab_store: Some(Arc::clone(&talent_tab_store)),
+        num_talents_at_level_store: Some(Arc::clone(&num_talents_at_level_store)),
+        glyph_properties_store: Some(Arc::clone(&glyph_properties_store)),
         chr_races_store: Some(Arc::clone(&chr_races_store)),
         spell_chain_store: Some(Arc::clone(&spell_chain_store)),
         spell_store: Some(Arc::clone(&spell_store)),
@@ -4217,12 +4384,15 @@ async fn main() -> Result<ExitCode> {
         battlemaster_list_store: Some(Arc::clone(&battlemaster_list_typed_store)),
         creature_template_mount_store: Some(Arc::clone(&creature_template_mount_store)),
         creature_display_info_store: Some(Arc::clone(&creature_display_info_store)),
+        creature_display_info_extra_store: Some(Arc::clone(&creature_display_info_extra_store)),
         gameobject_display_info_store: Some(Arc::clone(&gameobject_display_info_store)),
         creature_model_data_store: Some(Arc::clone(&creature_model_data_store)),
         mount_store: Some(Arc::clone(&mount_store)),
+        mount_definition_store: Some(Arc::clone(&mount_definition_store)),
         mount_capability_store: Some(Arc::clone(&mount_capability_store)),
         mount_type_x_capability_store: Some(Arc::clone(&mount_type_x_capability_store)),
         mount_x_display_store: Some(Arc::clone(&mount_x_display_store)),
+        spell_shapeshift_form_store: Some(Arc::clone(&spell_shapeshift_form_store)),
         vehicle_store: Some(Arc::clone(&vehicle_store)),
         vehicle_seat_store: Some(Arc::clone(&vehicle_seat_store)),
         vehicle_template_store: Some(Arc::clone(&vehicle_template_store)),
@@ -4244,6 +4414,13 @@ async fn main() -> Result<ExitCode> {
         creature_onkill_reputation_store: Some(Arc::clone(&creature_onkill_reputation_store)),
         reputation_spillover_template_store: Some(Arc::clone(&reputation_spillover_template_store)),
         player_xp_table: Some(Arc::clone(&player_xp_table)),
+        exploration_base_xp_store: Some(Arc::clone(&exploration_base_xp_store)),
+        exploration_xp_rate: world_config_f32(&world_configs, "RATE_XP_EXPLORE", 1.0),
+        min_discovered_scaled_xp_ratio: world_config_u32(
+            &world_configs,
+            "CONFIG_MIN_DISCOVERED_SCALED_XP_RATIO",
+            0,
+        ),
         player_registry: Some(Arc::clone(&player_registry)),
         game_event_quest_complete_tx: Some(game_event_quest_complete_tx),
         group_registry: Some(Arc::clone(&group_registry)),
@@ -4252,6 +4429,20 @@ async fn main() -> Result<ExitCode> {
         reputation_rates: reputation_rates_like_cpp(&world_configs),
         repair_cost_rate: repair_cost_rate_like_cpp(&world_configs),
         reset_schedule: reset_schedule_like_cpp(&world_configs),
+        no_reset_talent_cost: world_config_bool(
+            &world_configs,
+            "CONFIG_NO_RESET_TALENT_COST",
+            false,
+        ),
+        offhand_check_at_spell_unlearn: world_config_bool(
+            &world_configs,
+            "CONFIG_OFFHAND_CHECK_AT_SPELL_UNLEARN",
+            true,
+        ),
+        vmap_indoor_check: world_config_bool(&world_configs, "CONFIG_VMAP_INDOOR_CHECK", false),
+        start_all_explored: world_config_bool(&world_configs, "CONFIG_START_ALL_EXPLORED", false),
+        start_all_reputation: world_config_bool(&world_configs, "CONFIG_START_ALL_REP", false),
+        start_all_spells: world_config_bool(&world_configs, "CONFIG_START_ALL_SPELLS", false),
         support_enabled: world_config_bool(&world_configs, "CONFIG_SUPPORT_ENABLED", true),
         support_bugs_enabled: world_config_bool(
             &world_configs,
@@ -10553,6 +10744,9 @@ async fn create_session(
     if let Some(ref table) = resources.battle_pet_xp_game_table {
         session.set_battle_pet_xp_game_table(Arc::clone(table));
     }
+    if let Some(ref table) = resources.shield_block_regular_game_table {
+        session.set_shield_block_regular_game_table(Arc::clone(table));
+    }
     if let Some(ref store) = resources.transmog_set_item_store {
         session.set_transmog_set_item_store(Arc::clone(store));
     }
@@ -10565,8 +10759,26 @@ async fn create_session(
     if let Some(ref store) = resources.item_limit_category_condition_store {
         session.set_item_limit_category_condition_store(Arc::clone(store));
     }
+    if let Some(ref store) = resources.player_create_cast_spell_store {
+        session.set_player_create_cast_spell_store_like_cpp(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.player_create_custom_spell_store {
+        session.set_player_create_custom_spell_store_like_cpp(Arc::clone(store));
+    }
     if let Some(ref store) = resources.player_stats {
         session.set_player_stats(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.item_bonus_db2_store {
+        session.set_item_bonus_db2_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.pvp_item_store {
+        session.set_pvp_item_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.item_set_store {
+        session.set_item_set_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.item_set_spell_store {
+        session.set_item_set_spell_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.item_stats_store {
         session.set_item_stats_store(Arc::clone(store));
@@ -10613,6 +10825,18 @@ async fn create_session(
     if let Some(ref store) = resources.content_tuning_store {
         session.set_content_tuning_store(Arc::clone(store));
     }
+    if let Some(ref store) = resources.curve_store {
+        session.set_curve_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.curve_point_store {
+        session.set_curve_point_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.scaling_stat_distribution_store {
+        session.set_scaling_stat_distribution_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.scaling_stat_values_store {
+        session.set_scaling_stat_values_store(Arc::clone(store));
+    }
     if let Some(ref store) = resources.disable_mgr {
         session.set_disable_mgr(Arc::clone(store));
     }
@@ -10634,8 +10858,26 @@ async fn create_session(
     if let Some(ref store) = resources.skill_store {
         session.set_skill_store(Arc::clone(store));
     }
+    if let Some(ref store) = resources.trait_definition_store {
+        session.set_trait_definition_store(Arc::clone(store));
+    }
     if let Some(ref store) = resources.skill_line_store {
         session.set_skill_line_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.skill_tiers_store {
+        session.set_skill_tiers_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.talent_store {
+        session.set_talent_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.talent_tab_store {
+        session.set_talent_tab_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.num_talents_at_level_store {
+        session.set_num_talents_at_level_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.glyph_properties_store {
+        session.set_glyph_properties_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.chr_races_store {
         session.set_chr_races_store(Arc::clone(store));
@@ -10766,6 +11008,9 @@ async fn create_session(
     if let Some(ref store) = resources.creature_display_info_store {
         session.set_creature_display_info_store(Arc::clone(store));
     }
+    if let Some(ref store) = resources.creature_display_info_extra_store {
+        session.set_creature_display_info_extra_store(Arc::clone(store));
+    }
     if let Some(ref store) = resources.gameobject_display_info_store {
         session.set_gameobject_display_info_store(Arc::clone(store));
     }
@@ -10775,6 +11020,9 @@ async fn create_session(
     if let Some(ref store) = resources.mount_store {
         session.set_mount_store(Arc::clone(store));
     }
+    if let Some(ref store) = resources.mount_definition_store {
+        session.set_mount_definition_store_like_cpp(Arc::clone(store));
+    }
     if let Some(ref store) = resources.mount_capability_store {
         session.set_mount_capability_store(Arc::clone(store));
     }
@@ -10783,6 +11031,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.mount_x_display_store {
         session.set_mount_x_display_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.spell_shapeshift_form_store {
+        session.set_spell_shapeshift_form_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.vehicle_store {
         session.set_vehicle_store(Arc::clone(store));
@@ -10849,6 +11100,11 @@ async fn create_session(
     if let Some(ref table) = resources.player_xp_table {
         session.set_player_xp_table(Arc::clone(table));
     }
+    if let Some(ref store) = resources.exploration_base_xp_store {
+        session.set_exploration_base_xp_store_like_cpp(Arc::clone(store));
+    }
+    session.set_exploration_xp_rate_like_cpp(resources.exploration_xp_rate);
+    session.set_min_discovered_scaled_xp_ratio_like_cpp(resources.min_discovered_scaled_xp_ratio);
     if let Some(ref registry) = resources.player_registry {
         session.set_player_registry(Arc::clone(registry));
     }
@@ -10859,6 +11115,12 @@ async fn create_session(
     session.set_reputation_rates_like_cpp(resources.reputation_rates);
     session.set_repair_cost_rate_like_cpp(resources.repair_cost_rate);
     session.set_reset_schedule_like_cpp(resources.reset_schedule);
+    session.set_no_reset_talent_cost_like_cpp(resources.no_reset_talent_cost);
+    session.set_offhand_check_at_spell_unlearn_like_cpp(resources.offhand_check_at_spell_unlearn);
+    session.set_vmap_indoor_check_like_cpp(resources.vmap_indoor_check);
+    session.set_start_all_explored_like_cpp(resources.start_all_explored);
+    session.set_start_all_reputation_like_cpp(resources.start_all_reputation);
+    session.set_start_all_spells_like_cpp(resources.start_all_spells);
     session.set_represented_support_enabled_like_cpp(resources.support_enabled);
     session.set_represented_support_bugs_enabled_like_cpp(resources.support_bugs_enabled);
     session
@@ -10922,6 +11184,7 @@ async fn create_session(
     // Send session init packets (AuthResponse + glue screen data).
     // These are the first encrypted packets the client receives.
     session.load_global_account_data_like_cpp().await;
+    session.load_tutorials_data_like_cpp().await;
     session.send_session_init_packets();
 
     info!("Session ready for account {}", account.id);
@@ -10949,6 +11212,7 @@ async fn create_session(
             tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
         }
     }
+    session.save_disconnect_player_to_db_like_cpp().await;
     session
         .cleanup_shared_runtime_state_on_disconnect_like_cpp()
         .await;
@@ -12978,6 +13242,7 @@ mod tests {
                 unit_flags3: 0,
                 creature_type: 0,
                 family: 0,
+                trainer_class: 0,
                 unit_class: 1,
                 vehicle_id: 0,
                 movement_type: 0,
@@ -15447,6 +15712,64 @@ ResetSchedule.WeekDay = 5
 
         let configs = wow_config::load_world_config_values();
         assert!(!world_config_bool(&configs, "CONFIG_ADDON_CHANNEL", true));
+    }
+
+    #[test]
+    fn no_reset_talent_cost_uses_cpp_world_config_key() {
+        let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+        wow_config::load_config_from_str("NoResetTalentsCost = 1\n").expect("config should load");
+
+        let configs = wow_config::load_world_config_values();
+        assert!(world_config_bool(
+            &configs,
+            "CONFIG_NO_RESET_TALENT_COST",
+            false
+        ));
+    }
+
+    #[test]
+    fn offhand_check_at_spell_unlearn_uses_cpp_world_config_key() {
+        let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+        wow_config::load_config_from_str("OffhandCheckAtSpellUnlearn = 0\n")
+            .expect("config should load");
+
+        let configs = wow_config::load_world_config_values();
+        assert!(!world_config_bool(
+            &configs,
+            "CONFIG_OFFHAND_CHECK_AT_SPELL_UNLEARN",
+            true
+        ));
+    }
+
+    #[test]
+    fn vmap_indoor_check_uses_cpp_world_config_key() {
+        let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+        wow_config::load_config_from_str("vmap.enableIndoorCheck = 1\n")
+            .expect("config should load");
+
+        let configs = wow_config::load_world_config_values();
+        assert!(world_config_bool(
+            &configs,
+            "CONFIG_VMAP_INDOOR_CHECK",
+            false
+        ));
+    }
+
+    #[test]
+    fn player_start_explored_and_reputation_use_cpp_world_config_keys() {
+        let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+        wow_config::load_config_from_str(
+            "PlayerStart.MapsExplored = 1\nPlayerStart.AllReputation = 1\n",
+        )
+        .expect("config should load");
+
+        let configs = wow_config::load_world_config_values();
+        assert!(world_config_bool(
+            &configs,
+            "CONFIG_START_ALL_EXPLORED",
+            false
+        ));
+        assert!(world_config_bool(&configs, "CONFIG_START_ALL_REP", false));
     }
 
     #[test]
@@ -19973,6 +20296,7 @@ mmap.enablePathFinding = 0
                         unit_flags3: 0,
                         creature_type: 0,
                         family: 0,
+                        trainer_class: 0,
                         unit_class: 1,
                         vehicle_id,
                         movement_type: 1,

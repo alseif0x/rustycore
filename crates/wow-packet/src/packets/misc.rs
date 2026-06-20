@@ -1675,14 +1675,23 @@ impl ServerPacket for AccountDataTimes {
     }
 }
 
-// ── TutorialFlags (SMSG 0x27be) ─────────────────────────────────────
+// ── Tutorial (CMSG 0x36e4 / SMSG 0x27be) ────────────────────────────
 
 /// Tutorial flags. All 0xFFFFFFFF means all tutorials are shown/completed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TutorialFlags {
     pub tutorial_data: [u32; 8],
 }
 
 impl TutorialFlags {
+    /// C++ `WorldSession::LoadTutorialsData` defaults to zeroes when no
+    /// account_tutorial row exists.
+    pub fn none_shown() -> Self {
+        Self {
+            tutorial_data: [0; 8],
+        }
+    }
+
     /// All tutorials shown (client won't display any tutorial pop-ups).
     pub fn all_shown() -> Self {
         Self {
@@ -1698,6 +1707,36 @@ impl ServerPacket for TutorialFlags {
         for val in &self.tutorial_data {
             pkt.write_uint32(*val);
         }
+    }
+}
+
+pub const TUTORIAL_ACTION_UPDATE_LIKE_CPP: u8 = 0;
+pub const TUTORIAL_ACTION_CLEAR_LIKE_CPP: u8 = 1;
+pub const TUTORIAL_ACTION_RESET_LIKE_CPP: u8 = 2;
+
+/// C++ `WorldPackets::Misc::TutorialSetFlag`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TutorialSetFlag {
+    pub action: u8,
+    pub tutorial_bit: Option<u32>,
+}
+
+impl ClientPacket for TutorialSetFlag {
+    const OPCODE: ClientOpcodes = ClientOpcodes::Tutorial;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        pkt.skip_opcode();
+        let action = pkt.read_bits(2)? as u8;
+        let tutorial_bit = if action == TUTORIAL_ACTION_UPDATE_LIKE_CPP {
+            Some(pkt.read_uint32()?)
+        } else {
+            None
+        };
+
+        Ok(Self {
+            action,
+            tutorial_bit,
+        })
     }
 }
 
@@ -2673,30 +2712,79 @@ impl ServerPacket for InitWorldStates {
 
 // ── UpdateTalentData (SMSG 0x25d7) ──────────────────────────────────
 
-/// Talent data sent during login. Empty for fresh characters.
-pub struct UpdateTalentData;
+pub const MAX_GLYPH_SLOT_INDEX_LIKE_CPP: usize = 6;
+
+/// C++ `WorldPackets::Talent::TalentInfo`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TalentInfoLikeCpp {
+    pub talent_id: u32,
+    pub rank: u8,
+}
+
+/// C++ `WorldPackets::Talent::TalentGroupInfo`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TalentGroupInfoLikeCpp {
+    pub spec_id: u8,
+    pub talents: Vec<TalentInfoLikeCpp>,
+    pub glyph_ids: [u16; MAX_GLYPH_SLOT_INDEX_LIKE_CPP],
+}
+
+impl Default for TalentGroupInfoLikeCpp {
+    fn default() -> Self {
+        Self {
+            spec_id: 0,
+            talents: Vec::new(),
+            glyph_ids: [0; MAX_GLYPH_SLOT_INDEX_LIKE_CPP],
+        }
+    }
+}
+
+/// C++ `WorldPackets::Talent::UpdateTalentData`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UpdateTalentData {
+    pub unspent_talent_points: u32,
+    pub active_group: u8,
+    pub groups: Vec<TalentGroupInfoLikeCpp>,
+    pub is_pet_talents: bool,
+}
+
+impl Default for UpdateTalentData {
+    fn default() -> Self {
+        Self {
+            unspent_talent_points: 0,
+            active_group: 0,
+            groups: vec![TalentGroupInfoLikeCpp::default()],
+            is_pet_talents: false,
+        }
+    }
+}
 
 impl ServerPacket for UpdateTalentData {
     const OPCODE: ServerOpcodes = ServerOpcodes::UpdateTalentData;
 
     fn write(&self, pkt: &mut WorldPacket) {
-        pkt.write_int32(0); // UnspentTalentPoints
-        pkt.write_uint8(0); // ActiveGroup
-        pkt.write_int32(1); // TalentGroupInfos.Count (1 spec group)
+        pkt.write_uint32(self.unspent_talent_points); // UnspentTalentPoints
+        pkt.write_uint8(self.active_group); // ActiveGroup
+        pkt.write_uint32(self.groups.len() as u32); // TalentGroupInfos.Count
 
-        // TalentGroupInfo[0] — C# writes count twice (uint8 + uint32):
-        pkt.write_uint8(0); // (byte)Talents.Count
-        pkt.write_uint32(0); // (uint)Talents.Count
-        pkt.write_uint8(6); // (byte)MaxGlyphSlotIndex
-        pkt.write_uint32(6); // (uint)MaxGlyphSlotIndex
-        pkt.write_uint8(0); // SpecID = 0 (no spec)
-        // 0 talent entries
-        // 6 glyph entries (all 0):
-        for _ in 0..6 {
-            pkt.write_uint16(0);
+        for group in &self.groups {
+            pkt.write_uint8(group.talents.len() as u8);
+            pkt.write_uint32(group.talents.len() as u32);
+            pkt.write_uint8(group.glyph_ids.len() as u8);
+            pkt.write_uint32(group.glyph_ids.len() as u32);
+            pkt.write_uint8(group.spec_id);
+
+            for talent in &group.talents {
+                pkt.write_uint32(talent.talent_id);
+                pkt.write_uint8(talent.rank);
+            }
+
+            for glyph_id in group.glyph_ids {
+                pkt.write_uint16(glyph_id);
+            }
         }
 
-        pkt.write_bit(false); // IsPetTalents
+        pkt.write_bit(self.is_pet_talents);
         pkt.flush_bits();
     }
 }
@@ -2761,27 +2849,86 @@ impl ServerPacket for SendUnlearnSpells {
 
 // ── SendSpellHistory (SMSG 0x2c28) ──────────────────────────────────
 
-/// Spell cooldown history. Empty for fresh characters.
-pub struct SendSpellHistory;
+/// One C++ `WorldPackets::Spells::SpellHistoryEntry`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SpellHistoryEntry {
+    pub spell_id: u32,
+    pub item_id: u32,
+    pub category: u32,
+    pub recovery_time_ms: i32,
+    pub category_recovery_time_ms: i32,
+    pub mod_rate: f32,
+    pub on_hold: bool,
+}
+
+/// Spell cooldown history.
+pub struct SendSpellHistory {
+    pub entries: Vec<SpellHistoryEntry>,
+}
+
+impl SendSpellHistory {
+    pub fn empty() -> Self {
+        Self {
+            entries: Vec::new(),
+        }
+    }
+}
 
 impl ServerPacket for SendSpellHistory {
     const OPCODE: ServerOpcodes = ServerOpcodes::SendSpellHistory;
 
     fn write(&self, pkt: &mut WorldPacket) {
-        pkt.write_int32(0); // Entries.Count
+        pkt.write_uint32(self.entries.len() as u32);
+        for entry in &self.entries {
+            pkt.write_uint32(entry.spell_id);
+            pkt.write_uint32(entry.item_id);
+            pkt.write_uint32(entry.category);
+            pkt.write_int32(entry.recovery_time_ms);
+            pkt.write_int32(entry.category_recovery_time_ms);
+            pkt.write_float(entry.mod_rate);
+            pkt.write_bit(false); // unused622_1
+            pkt.write_bit(false); // unused622_2
+            pkt.write_bit(entry.on_hold);
+            pkt.flush_bits();
+        }
     }
 }
 
 // ── SendSpellCharges (SMSG 0x2c2a) ──────────────────────────────────
 
-/// Spell charges. Empty for fresh characters.
-pub struct SendSpellCharges;
+/// One C++ `WorldPackets::Spells::SpellChargeEntry`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SpellChargeEntry {
+    pub category: u32,
+    pub next_recovery_time_ms: u32,
+    pub charge_mod_rate: f32,
+    pub consumed_charges: u8,
+}
+
+/// Spell charges.
+pub struct SendSpellCharges {
+    pub entries: Vec<SpellChargeEntry>,
+}
+
+impl SendSpellCharges {
+    pub fn empty() -> Self {
+        Self {
+            entries: Vec::new(),
+        }
+    }
+}
 
 impl ServerPacket for SendSpellCharges {
     const OPCODE: ServerOpcodes = ServerOpcodes::SendSpellCharges;
 
     fn write(&self, pkt: &mut WorldPacket) {
-        pkt.write_int32(0); // Entries.Count
+        pkt.write_uint32(self.entries.len() as u32);
+        for entry in &self.entries {
+            pkt.write_uint32(entry.category);
+            pkt.write_uint32(entry.next_recovery_time_ms);
+            pkt.write_float(entry.charge_mod_rate);
+            pkt.write_uint8(entry.consumed_charges);
+        }
     }
 }
 
@@ -2997,8 +3144,17 @@ impl ServerPacket for ContactList {
 
 // ── ActiveGlyphs (SMSG 0x2c51) ──────────────────────────────────────
 
-/// Active glyphs. Sent during login with IsFullUpdate=true.
+/// C++ `WorldPackets::Talent::GlyphBinding`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GlyphBindingLikeCpp {
+    pub spell_id: u32,
+    pub glyph_id: u16,
+}
+
+/// C++ `WorldPackets::Talent::ActiveGlyphs`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ActiveGlyphs {
+    pub glyphs: Vec<GlyphBindingLikeCpp>,
     pub is_full_update: bool,
 }
 
@@ -3006,7 +3162,11 @@ impl ServerPacket for ActiveGlyphs {
     const OPCODE: ServerOpcodes = ServerOpcodes::ActiveGlyphs;
 
     fn write(&self, pkt: &mut WorldPacket) {
-        pkt.write_int32(0); // Glyphs.Count
+        pkt.write_uint32(self.glyphs.len() as u32);
+        for glyph in &self.glyphs {
+            pkt.write_uint32(glyph.spell_id);
+            pkt.write_uint16(glyph.glyph_id);
+        }
         pkt.write_bit(self.is_full_update);
         pkt.flush_bits();
     }
@@ -3017,14 +3177,48 @@ impl ServerPacket for ActiveGlyphs {
 /// C++ `EQUIPMENT_SET_SLOTS` / `EQUIPMENT_SLOT_END`.
 pub const EQUIPMENT_SET_SLOTS_LIKE_CPP: usize = 19;
 
-/// Equipment set list. Empty for fresh characters.
-pub struct LoadEquipmentSet;
+/// C++ `WorldPackets::EquipmentSet::LoadEquipmentSet`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct LoadEquipmentSet {
+    pub sets: Vec<EquipmentSetDataLikeCpp>,
+}
 
 impl ServerPacket for LoadEquipmentSet {
     const OPCODE: ServerOpcodes = ServerOpcodes::LoadEquipmentSet;
 
     fn write(&self, pkt: &mut WorldPacket) {
-        pkt.write_int32(0); // SetData.Count
+        pkt.write_uint32(self.sets.len() as u32);
+
+        for set in &self.sets {
+            pkt.write_int32(set.set_type);
+            pkt.write_uint64(set.guid);
+            pkt.write_uint32(set.set_id);
+            pkt.write_uint32(set.ignore_mask);
+
+            for i in 0..EQUIPMENT_SET_SLOTS_LIKE_CPP {
+                pkt.write_guid(&set.pieces[i]);
+                pkt.write_int32(set.appearances[i]);
+            }
+
+            pkt.write_int32(set.enchants[0]);
+            pkt.write_int32(set.enchants[1]);
+            pkt.write_int32(set.secondary_shoulder_appearance_id);
+            pkt.write_int32(set.secondary_shoulder_slot);
+            pkt.write_int32(set.secondary_weapon_appearance_id);
+            pkt.write_int32(set.secondary_weapon_slot);
+
+            let has_spec_index = set.assigned_spec_index != -1;
+            pkt.write_bit(has_spec_index);
+            pkt.write_bits(set.set_name.len() as u32, 8);
+            pkt.write_bits(set.set_icon.len() as u32, 9);
+
+            if has_spec_index {
+                pkt.write_int32(set.assigned_spec_index);
+            }
+
+            pkt.write_string(&set.set_name);
+            pkt.write_string(&set.set_icon);
+        }
     }
 }
 
@@ -3300,6 +3494,24 @@ impl ServerPacket for AccountMountUpdate {
         pkt.flush_bits();
     }
 }
+
+// ── MountResult (SMSG 0x257b) ───────────────────────────────────────
+
+/// C++ `WorldPackets::Spells::MountResult`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MountResult {
+    pub result: i32,
+}
+
+impl ServerPacket for MountResult {
+    const OPCODE: ServerOpcodes = ServerOpcodes::MountResult;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_int32(self.result);
+    }
+}
+
+pub const MOUNT_RESULT_SHAPESHIFTED_LIKE_CPP: i32 = 8;
 
 // ── MountSpecial (CMSG 0x3280) / SpecialMountAnim (SMSG 0x269f) ─────
 
@@ -4691,6 +4903,28 @@ impl ClientPacket for RepopRequest {
         Ok(Self {
             check_instance: packet.read_bit()?,
         })
+    }
+}
+
+/// C++ `WorldPackets::Misc::PortGraveyard`: empty packet.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PortGraveyard;
+
+impl ClientPacket for PortGraveyard {
+    // The inspected TrinityCore 3.4.3 opcode table uses the shared unresolved
+    // `0xBADD` placeholder. Route it from the existing 0xBADD slot by empty
+    // payload shape in `WorldSession`.
+    const OPCODE: ClientOpcodes = ClientOpcodes::SetLootSpecialization;
+
+    fn read(packet: &mut WorldPacket) -> Result<Self, PacketError> {
+        if packet.is_empty() {
+            Ok(Self)
+        } else {
+            Err(PacketError::ReadPastEnd {
+                wanted: 0,
+                available: packet.remaining(),
+            })
+        }
     }
 }
 
@@ -7737,6 +7971,21 @@ mod tests {
     }
 
     #[test]
+    fn port_graveyard_reads_empty_packet_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+
+        let parsed = PortGraveyard::read(&mut pkt).unwrap();
+
+        assert_eq!(parsed, PortGraveyard);
+        assert_eq!(pkt.remaining(), 0);
+
+        let mut non_empty = WorldPacket::new_empty();
+        non_empty.write_uint8(1);
+        non_empty.reset_read();
+        assert!(PortGraveyard::read(&mut non_empty).is_err());
+    }
+
+    #[test]
     fn reclaim_corpse_reads_raw_corpse_guid_like_cpp() {
         let corpse_guid = ObjectGuid::create_world_object(HighGuid::Corpse, 0, 1, 571, 0, 0, 42);
         let mut pkt = WorldPacket::new_empty();
@@ -8296,6 +8545,61 @@ mod tests {
         assert_eq!(parsed.set.set_name, "Tank");
         assert_eq!(parsed.set.set_icon, "INV_01");
         assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn load_equipment_set_writes_cpp_equipment_set_data_shape() {
+        let item_guid = ObjectGuid::create_item(1, 55);
+        let mut pieces = [ObjectGuid::EMPTY; EQUIPMENT_SET_SLOTS_LIKE_CPP];
+        pieces[0] = item_guid;
+        let mut appearances = [0; EQUIPMENT_SET_SLOTS_LIKE_CPP];
+        appearances[2] = 12;
+
+        let pkt = LoadEquipmentSet {
+            sets: vec![EquipmentSetDataLikeCpp {
+                set_type: 0,
+                guid: 0x0102_0304_0506_0708,
+                set_id: 7,
+                ignore_mask: 3,
+                pieces,
+                appearances,
+                enchants: [123, 456],
+                secondary_shoulder_appearance_id: 11,
+                secondary_shoulder_slot: 2,
+                secondary_weapon_appearance_id: 22,
+                secondary_weapon_slot: 16,
+                assigned_spec_index: 3,
+                set_name: "Tank".to_string(),
+                set_icon: "INV_01".to_string(),
+            }],
+        };
+        let bytes = pkt.to_bytes();
+        let mut body = WorldPacket::from_bytes(&bytes[2..]);
+
+        assert_eq!(u32::try_from(body.read_int32().unwrap()).unwrap(), 1);
+        assert_eq!(body.read_int32().unwrap(), 0);
+        assert_eq!(body.read_uint64().unwrap(), 0x0102_0304_0506_0708);
+        assert_eq!(body.read_uint32().unwrap(), 7);
+        assert_eq!(body.read_uint32().unwrap(), 3);
+        assert_eq!(body.read_guid().unwrap(), item_guid);
+        assert_eq!(body.read_int32().unwrap(), 0);
+        for i in 1..EQUIPMENT_SET_SLOTS_LIKE_CPP {
+            assert_eq!(body.read_guid().unwrap(), ObjectGuid::EMPTY);
+            assert_eq!(body.read_int32().unwrap(), if i == 2 { 12 } else { 0 });
+        }
+        assert_eq!(body.read_int32().unwrap(), 123);
+        assert_eq!(body.read_int32().unwrap(), 456);
+        assert_eq!(body.read_int32().unwrap(), 11);
+        assert_eq!(body.read_int32().unwrap(), 2);
+        assert_eq!(body.read_int32().unwrap(), 22);
+        assert_eq!(body.read_int32().unwrap(), 16);
+        assert!(body.read_bit().unwrap());
+        assert_eq!(body.read_bits(8).unwrap(), 4);
+        assert_eq!(body.read_bits(9).unwrap(), 6);
+        assert_eq!(body.read_int32().unwrap(), 3);
+        assert_eq!(body.read_string(4).unwrap(), "Tank");
+        assert_eq!(body.read_string(6).unwrap(), "INV_01");
+        assert_eq!(body.remaining(), 0);
     }
 
     #[test]
@@ -9615,6 +9919,12 @@ mod tests {
     }
 
     #[test]
+    fn tutorial_flags_none_shown_matches_cpp_default() {
+        let pkt = TutorialFlags::none_shown();
+        assert_eq!(pkt.tutorial_data, [0; 8]);
+    }
+
+    #[test]
     fn feature_system_status_serializes() {
         let pkt = FeatureSystemStatus::default_wotlk();
         let bytes = pkt.to_bytes();
@@ -9866,7 +10176,7 @@ mod tests {
 
     #[test]
     fn update_talent_data_empty() {
-        let pkt = UpdateTalentData;
+        let pkt = UpdateTalentData::default();
         let bytes = pkt.to_bytes();
         // opcode(2) + int32(4) + uint8(1) + int32(4) +
         // TalentGroupInfo: uint8(1)+uint32(4)+uint8(1)+uint32(4)+uint8(1)+6*uint16(12) +
@@ -9874,6 +10184,35 @@ mod tests {
         assert_eq!(bytes.len(), 35);
         let opcode = u16::from_le_bytes([bytes[0], bytes[1]]);
         assert_eq!(opcode, 0x25d7);
+    }
+
+    #[test]
+    fn update_talent_data_writes_glyph_ids_like_cpp() {
+        let mut group = TalentGroupInfoLikeCpp::default();
+        group.spec_id = 4;
+        group.glyph_ids = [101, 0, 202, 0, 0, 303];
+        let pkt = UpdateTalentData {
+            active_group: 2,
+            groups: vec![group],
+            ..UpdateTalentData::default()
+        };
+        let bytes = pkt.to_bytes();
+
+        assert_eq!(bytes[6], 2);
+        assert_eq!(bytes[21], 4); // C++ writes SpecID after glyph/talent counts.
+        let glyphs_start = 22;
+        assert_eq!(
+            u16::from_le_bytes([bytes[glyphs_start], bytes[glyphs_start + 1]]),
+            101
+        );
+        assert_eq!(
+            u16::from_le_bytes([bytes[glyphs_start + 4], bytes[glyphs_start + 5]]),
+            202
+        );
+        assert_eq!(
+            u16::from_le_bytes([bytes[glyphs_start + 10], bytes[glyphs_start + 11]]),
+            303
+        );
     }
 
     #[test]
@@ -9889,19 +10228,60 @@ mod tests {
         let pkt = SendKnownSpells {
             initial_login: true,
             known_spells: vec![6603, 78, 2457],
-            favorite_spells: vec![],
+            favorite_spells: vec![2457],
         };
         let bytes = pkt.to_bytes();
-        // opcode(2) + bit(flush)(1) + count(4) + fav_count(4) + 3*i32(12) = 23
-        assert_eq!(bytes.len(), 23);
+        // opcode(2) + bit(flush)(1) + count(4) + fav_count(4) + 4*i32(16) = 27
+        assert_eq!(bytes.len(), 27);
     }
 
     #[test]
     fn send_spell_history_empty() {
-        let pkt = SendSpellHistory;
+        let pkt = SendSpellHistory::empty();
         let bytes = pkt.to_bytes();
         // opcode(2) + int32(4) = 6
         assert_eq!(bytes.len(), 6);
+    }
+
+    #[test]
+    fn send_spell_history_with_entry_matches_cpp_layout() {
+        let pkt = SendSpellHistory {
+            entries: vec![SpellHistoryEntry {
+                spell_id: 133,
+                item_id: 6948,
+                category: 12,
+                recovery_time_ms: 30_000,
+                category_recovery_time_ms: 10_000,
+                mod_rate: 1.0,
+                on_hold: false,
+            }],
+        };
+        let bytes = pkt.to_bytes();
+        // opcode(2) + count(4) + entry(5*u32/i32 + f32 + 3 bits flushed to 1 byte) = 31
+        assert_eq!(bytes.len(), 31);
+    }
+
+    #[test]
+    fn send_spell_charges_empty() {
+        let pkt = SendSpellCharges::empty();
+        let bytes = pkt.to_bytes();
+        // opcode(2) + uint32(4) = 6
+        assert_eq!(bytes.len(), 6);
+    }
+
+    #[test]
+    fn send_spell_charges_with_entry_matches_cpp_layout() {
+        let pkt = SendSpellCharges {
+            entries: vec![SpellChargeEntry {
+                category: 42,
+                next_recovery_time_ms: 45_000,
+                charge_mod_rate: 1.0,
+                consumed_charges: 2,
+            }],
+        };
+        let bytes = pkt.to_bytes();
+        // opcode(2) + count(4) + category(4) + next(4) + mod_rate(4) + consumed(1) = 19
+        assert_eq!(bytes.len(), 19);
     }
 
     #[test]
@@ -10018,6 +10398,7 @@ mod tests {
     #[test]
     fn active_glyphs_empty() {
         let pkt = ActiveGlyphs {
+            glyphs: Vec::new(),
             is_full_update: true,
         };
         let bytes = pkt.to_bytes();
@@ -10028,8 +10409,26 @@ mod tests {
     }
 
     #[test]
+    fn active_glyphs_writes_bindings_like_cpp() {
+        let pkt = ActiveGlyphs {
+            glyphs: vec![GlyphBindingLikeCpp {
+                spell_id: 12345,
+                glyph_id: 678,
+            }],
+            is_full_update: false,
+        };
+        let bytes = pkt.to_bytes();
+
+        assert_eq!(bytes.len(), 13);
+        assert_eq!(u16::from_le_bytes([bytes[0], bytes[1]]), 0x2c51);
+        assert_eq!(u32::from_le_bytes(bytes[2..6].try_into().unwrap()), 1);
+        assert_eq!(u32::from_le_bytes(bytes[6..10].try_into().unwrap()), 12345);
+        assert_eq!(u16::from_le_bytes(bytes[10..12].try_into().unwrap()), 678);
+    }
+
+    #[test]
     fn load_equipment_set_empty() {
-        let pkt = LoadEquipmentSet;
+        let pkt = LoadEquipmentSet::default();
         let bytes = pkt.to_bytes();
         // opcode(2) + i32(4) = 6
         assert_eq!(bytes.len(), 6);
@@ -10167,6 +10566,24 @@ mod tests {
     }
 
     #[test]
+    fn mount_result_writes_result_int32_like_cpp() {
+        let bytes = MountResult {
+            result: MOUNT_RESULT_SHAPESHIFTED_LIKE_CPP,
+        }
+        .to_bytes();
+
+        assert_eq!(
+            bytes[0..2],
+            (ServerOpcodes::MountResult as u16).to_le_bytes()
+        );
+        assert_eq!(
+            i32::from_le_bytes([bytes[2], bytes[3], bytes[4], bytes[5]]),
+            MOUNT_RESULT_SHAPESHIFTED_LIKE_CPP
+        );
+        assert_eq!(bytes.len(), 6);
+    }
+
+    #[test]
     fn mount_set_favorite_reads_cpp_field_order() {
         let mut pkt = WorldPacket::new_empty();
         pkt.write_uint16(ClientOpcodes::MountSetFavorite as u16);
@@ -10274,6 +10691,34 @@ mod tests {
         assert_eq!(profile.bottom_offset, 8);
         assert_eq!(profile.left_offset, 9);
         assert_eq!(profile.bool_options, (1 << 0) | (1 << 5) | (1 << 26));
+    }
+
+    #[test]
+    fn tutorial_set_flag_reads_update_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(ClientOpcodes::Tutorial as u16);
+        pkt.write_bits(TUTORIAL_ACTION_UPDATE_LIKE_CPP as u32, 2);
+        pkt.write_uint32(37);
+
+        let mut packet = WorldPacket::from_bytes(pkt.data());
+        let parsed = TutorialSetFlag::read(&mut packet).expect("valid CMSG_TUTORIAL update");
+
+        assert_eq!(parsed.action, TUTORIAL_ACTION_UPDATE_LIKE_CPP);
+        assert_eq!(parsed.tutorial_bit, Some(37));
+    }
+
+    #[test]
+    fn tutorial_set_flag_reads_clear_without_bit_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint16(ClientOpcodes::Tutorial as u16);
+        pkt.write_bits(TUTORIAL_ACTION_CLEAR_LIKE_CPP as u32, 2);
+        pkt.flush_bits();
+
+        let mut packet = WorldPacket::from_bytes(pkt.data());
+        let parsed = TutorialSetFlag::read(&mut packet).expect("valid CMSG_TUTORIAL clear");
+
+        assert_eq!(parsed.action, TUTORIAL_ACTION_CLEAR_LIKE_CPP);
+        assert_eq!(parsed.tutorial_bit, None);
     }
 
     #[test]
@@ -12152,6 +12597,48 @@ impl ServerPacket for LogXpGain {
         pkt.write_uint8(self.reason);
         pkt.write_int32(self.amount);
         pkt.write_float(self.group_bonus);
+    }
+}
+
+// ── SMSG_EXPLORATION_EXPERIENCE ─────────────────────────────────────────────
+
+/// Area discovery XP notification.
+/// C++ `WorldPackets::Misc::ExplorationExperience::Write`.
+pub struct ExplorationExperience {
+    pub area_id: i32,
+    pub experience: i32,
+}
+
+impl ServerPacket for ExplorationExperience {
+    const OPCODE: ServerOpcodes = ServerOpcodes::ExplorationExperience;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_int32(self.area_id);
+        pkt.write_int32(self.experience);
+    }
+}
+
+#[cfg(test)]
+mod exploration_experience_tests {
+    use super::*;
+
+    #[test]
+    fn exploration_experience_writes_area_then_xp_like_cpp() {
+        let bytes = ExplorationExperience {
+            area_id: 9_001,
+            experience: 345,
+        }
+        .to_bytes();
+
+        let mut pkt = WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            pkt.server_opcode(),
+            Some(ServerOpcodes::ExplorationExperience)
+        );
+        pkt.skip_opcode();
+        assert_eq!(pkt.read_int32().unwrap(), 9_001);
+        assert_eq!(pkt.read_int32().unwrap(), 345);
+        assert_eq!(pkt.remaining(), 0);
     }
 }
 

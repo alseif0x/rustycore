@@ -26,7 +26,7 @@ use tracing::{debug, info, warn};
 
 use wow_constants::{
     BagFamilyMask, ClientOpcodes, InventoryResult, ItemFieldFlags, ItemFlags, ItemUpdateState,
-    TypeId,
+    SpellCastResult, TypeId,
 };
 use wow_core::ObjectGuid;
 use wow_data::{DISABLE_TYPE_SPELL, DisableWorldObjectRefLikeCpp};
@@ -47,12 +47,12 @@ use wow_packet::packets::loot::{
 use wow_packet::packets::pet::PetCancelAura;
 use wow_packet::packets::spell::{
     CancelAura, CancelAutoRepeatSpell, CancelCast, CancelChannelling, CancelGrowthAura,
-    CancelMountAura, CancelQueuedSpell, CastFailed, CastSpellRequest, OpenItem, SelfRes,
-    SpellCastVisual, SpellClick, SpellStartPkt,
+    CancelModSpeedNoControlAuras, CancelMountAura, CancelQueuedSpell, CastFailed, CastSpellRequest,
+    OpenItem, SelfRes, SpellCastVisual, SpellClick, SpellStartPkt,
 };
 use wow_packet::packets::totem::TotemDestroyed;
 
-use crate::session::WorldSession;
+use crate::session::{RepresentedPendingSpellCastRequestLikeCpp, WorldSession};
 
 const LOOT_MODE_DEFAULT_LIKE_CPP: u16 = 1;
 const MAX_NR_LOOT_ITEMS_LIKE_CPP: usize = 18;
@@ -220,47 +220,30 @@ impl WorldSession {
             }
         };
 
-        let spell_id = req.spell_id;
+        let original_spell_id = req.spell_id;
         let cast_id = req.cast_id;
 
         debug!(
             account = self.account_id,
-            spell_id = spell_id,
+            spell_id = original_spell_id,
             cast_id = ?cast_id,
             target = ?req.target.unit,
             "CMSG_CAST_SPELL"
         );
 
-        // ── Validation: Known spell ─────────────────────────────────────
-        if !self.known_spells_like_cpp().contains(&spell_id) {
-            warn!(
-                account = self.account_id,
-                spell_id = spell_id,
-                "Cast attempt for unknown spell"
-            );
-            self.send_packet(&CastFailed {
-                cast_id,
-                spell_id,
-                reason: 2, // SpellCastResult::NotKnown
-                fail_arg1: 0,
-                fail_arg2: 0,
-            });
-            return;
-        }
-
         // ── Get spell info ──────────────────────────────────────────────
-        let spell_info: &wow_data::SpellInfo = match &self.spell_store {
-            Some(store) => match store.get(spell_id) {
-                Some(info) => info,
+        let original_spell_info: wow_data::SpellInfo = match &self.spell_store {
+            Some(store) => match store.get(original_spell_id) {
+                Some(info) => info.clone(),
                 None => {
                     warn!(
                         account = self.account_id,
-                        spell_id = spell_id,
+                        spell_id = original_spell_id,
                         "Spell not found in store"
                     );
                     self.send_packet(&CastFailed {
                         cast_id,
-                        spell_id,
+                        spell_id: original_spell_id,
                         reason: 2,
                         fail_arg1: 0,
                         fail_arg2: 0,
@@ -272,7 +255,7 @@ impl WorldSession {
                 warn!(account = self.account_id, "No spell store available");
                 self.send_packet(&CastFailed {
                     cast_id,
-                    spell_id,
+                    spell_id: original_spell_id,
                     reason: 2,
                     fail_arg1: 0,
                     fail_arg2: 0,
@@ -280,6 +263,46 @@ impl WorldSession {
                 return;
             }
         };
+
+        // C++ `WorldSession::HandleCastSpellOpcode` applies an embedded
+        // `MoveUpdate` through `HandleMovementOpcode(CMSG_MOVE_STOP, ...)`
+        // after validating the `SpellInfo` and before the spell cast request
+        // continues.
+        if let Some(move_update) = req.move_update.clone() {
+            self.handle_movement_info_like_cpp(Some(ClientOpcodes::MoveStop), move_update)
+                .await;
+        }
+
+        // ── Validation: Known spell ─────────────────────────────────────
+        if !self.known_spells_like_cpp().contains(&original_spell_id) {
+            let account_mount_rows = self.account_mount_rows_like_cpp();
+            warn!(
+                account = self.account_id,
+                spell_id = original_spell_id,
+                known_spell_count = self.known_spells_like_cpp().len(),
+                account_mount_count = account_mount_rows.len(),
+                has_account_mount = account_mount_rows
+                    .iter()
+                    .any(|mount| mount.spell_id == original_spell_id),
+                riding_skill =
+                    self.player_skill_value_like_cpp(crate::session::SKILL_RIDING_LIKE_CPP),
+                "Cast attempt for unknown spell"
+            );
+            self.send_packet(&CastFailed {
+                cast_id,
+                spell_id: original_spell_id,
+                reason: 2, // SpellCastResult::NotKnown
+                fail_arg1: 0,
+                fail_arg2: 0,
+            });
+            return;
+        }
+
+        // C++ `Player::GetCastSpellInfo` resolves player override spells
+        // after the active/known-spell check. Invalid override targets fall
+        // back to the originally requested SpellInfo.
+        let spell_info = self.represented_cast_spell_info_like_cpp(&original_spell_info);
+        let spell_id = spell_info.spell_id;
 
         // C++ `Spell::CheckCast`: disabled spells fail with
         // `SPELL_FAILED_SPELL_UNAVAILABLE` before cooldown/cast processing.
@@ -299,31 +322,64 @@ impl WorldSession {
             return;
         }
 
-        // ── Validation: Cooldown ────────────────────────────────────────
-        // Check global cooldown (GCD)
-        if let Some(last_cast) = self.last_spell_cast_time {
-            let cooldown_ms = spell_info.effective_cooldown_ms();
-            let elapsed_ms = last_cast.elapsed().as_millis() as u32;
+        let mut spell_target = req.target.clone();
+        let target_guid = if !spell_target.unit.is_empty() {
+            spell_target.unit
+        } else {
+            spell_target.flags |= 0x2; // SpellCastTargetFlags::Unit
+            spell_target.unit = player_guid;
+            player_guid
+        };
 
-            if elapsed_ms < cooldown_ms {
+        // C++ `Player::CanRequestSpellCast` allows client spell queueing only
+        // inside the final 400 ms of global cooldown/cast completion. Outside
+        // that window, `HandleCastSpellOpcode` sends SPELL_FAILED_SPELL_IN_PROGRESS.
+        let remaining_gcd_ms = self.remaining_global_cooldown_ms_like_cpp(&spell_info);
+        let remaining_active_cast_ms = self.remaining_active_spell_cast_ms_like_cpp();
+        if remaining_gcd_ms > 0 || remaining_active_cast_ms > 0 {
+            if !self.can_request_represented_spell_cast_like_cpp(&spell_info) {
                 debug!(
                     account = self.account_id,
                     spell_id = spell_id,
-                    remaining_ms = cooldown_ms - elapsed_ms,
-                    "Spell on global cooldown"
+                    remaining_gcd_ms = remaining_gcd_ms,
+                    remaining_active_cast_ms = remaining_active_cast_ms,
+                    "Spell request rejected outside C++ spell queue window"
                 );
                 self.send_packet(&CastFailed {
                     cast_id,
                     spell_id,
-                    reason: 10, // SpellCastResult::NotReady
+                    reason: SpellCastResult::SpellInProgress as i32,
                     fail_arg1: 0,
                     fail_arg2: 0,
                 });
                 return;
             }
+
+            self.request_represented_spell_cast_like_cpp(
+                RepresentedPendingSpellCastRequestLikeCpp {
+                    cast_id,
+                    spell_id,
+                    casting_unit_guid: player_guid,
+                    target_guid,
+                    target_data: spell_target,
+                    spell_visual: SpellCastVisual {
+                        spell_visual_id: req.visual.spell_visual_id,
+                        script_visual_id: 0,
+                    },
+                    metadata: crate::session::SpellCastMetadata {
+                        from_client: true,
+                        misc: req.misc,
+                        original_cast_id: cast_id,
+                        ..crate::session::SpellCastMetadata::default()
+                    },
+                },
+            );
+            return;
         }
 
-        // Check per-spell cooldown
+        // Check per-spell cooldown. C++ spell queueing is driven by global
+        // cooldown/current cast; represented per-spell cooldowns still fail
+        // closed until full SpellHistory parity is ported.
         if spell_info.recovery_time_ms > 0 {
             if let Some(last_spell_cast) = self.last_spell_cast_time_per_spell.get(&spell_id) {
                 let elapsed_ms = last_spell_cast.elapsed().as_millis() as u32;
@@ -339,7 +395,7 @@ impl WorldSession {
                     self.send_packet(&CastFailed {
                         cast_id,
                         spell_id,
-                        reason: 10, // SpellCastResult::NotReady
+                        reason: SpellCastResult::NotReady as i32,
                         fail_arg1: 0,
                         fail_arg2: 0,
                     });
@@ -347,15 +403,6 @@ impl WorldSession {
                 }
             }
         }
-
-        let mut spell_target = req.target.clone();
-        let target_guid = if !spell_target.unit.is_empty() {
-            spell_target.unit
-        } else {
-            spell_target.flags |= 0x2; // SpellCastTargetFlags::Unit
-            spell_target.unit = player_guid;
-            player_guid
-        };
 
         // ── Initiate cast or execute immediately ─────────────────────────
         if spell_info.has_cast_time() {
@@ -1769,6 +1816,7 @@ impl WorldSession {
         }
 
         self.active_spell_cast = None;
+        self.cancel_pending_spell_cast_request_like_cpp();
     }
 
     /// Handle `CMSG_CANCEL_AURA` — player requests removing a cancelable owned aura.
@@ -1788,7 +1836,29 @@ impl WorldSession {
             account = self.account_id,
             spell_id = request.spell_id,
             caster_guid = ?request.caster_guid,
-            "CMSG_CANCEL_AURA parsed; full owned-aura cancellation runtime is not represented yet"
+            "CMSG_CANCEL_AURA parsed"
+        );
+        let Some(spell_store) = self.spell_store() else {
+            return;
+        };
+        if spell_store.get(request.spell_id).is_none()
+            || spell_store.has_attribute0_like_cpp(
+                request.spell_id,
+                wow_data::spell::attributes::SPELL_ATTR0_NO_AURA_CANCEL,
+            )
+        {
+            return;
+        }
+        if spell_store.is_channeled_like_cpp(request.spell_id) {
+            self.interrupt_current_channeled_spell_like_cpp(request.spell_id);
+            return;
+        }
+        if spell_store.is_passive_like_cpp(request.spell_id) {
+            return;
+        }
+        self.remove_represented_cancelable_owned_aura_like_cpp(
+            request.spell_id,
+            request.caster_guid,
         );
     }
 
@@ -1817,12 +1887,26 @@ impl WorldSession {
             }
         };
 
+        let Some(spell_store) = self.spell_store() else {
+            return;
+        };
+
+        if spell_store.get(request.channel_spell).is_none()
+            || spell_store.has_attribute0_like_cpp(
+                request.channel_spell,
+                wow_data::spell::attributes::SPELL_ATTR0_NO_AURA_CANCEL,
+            )
+        {
+            return;
+        }
+
         debug!(
             account = self.account_id,
             channel_spell = request.channel_spell,
             reason = request.reason,
-            "CMSG_CANCEL_CHANNELLING parsed; current channeled player spell runtime is not represented yet"
+            "CMSG_CANCEL_CHANNELLING parsed"
         );
+        self.interrupt_current_channeled_spell_like_cpp(request.channel_spell);
     }
 
     /// Handle `CMSG_CANCEL_GROWTH_AURA`.
@@ -1833,9 +1917,29 @@ impl WorldSession {
                 "CancelGrowthAura parse failed: {error}"
             );
         }
-        // C++ removes positive, cancelable SPELL_AURA_MOD_SCALE applications.
-        // Rust visible aura slots do not yet carry enough SpellInfo-backed aura
-        // ownership to mutate this faithfully.
+        self.remove_represented_growth_auras_cancelable_like_cpp();
+    }
+
+    /// Handle the represented `CMSG_CANCEL_MOD_SPEED_NO_CONTROL_AURAS`.
+    ///
+    /// The inspected opcode table assigns this packet to the shared unresolved
+    /// `0xBADD` value, so `WorldSession` probes this handler from that branch
+    /// and falls through to other 0xBADD packet shapes when the target does not
+    /// match C++ `Player::GetUnitBeingMoved()`.
+    pub async fn try_handle_cancel_mod_speed_no_control_auras_like_cpp(
+        &mut self,
+        mut pkt: wow_packet::WorldPacket,
+    ) -> bool {
+        let request = match CancelModSpeedNoControlAuras::read(&mut pkt) {
+            Ok(request) if pkt.is_empty() => request,
+            _ => return false,
+        };
+        if self.player_moved_unit_guid_like_cpp() != request.target_guid {
+            return false;
+        }
+
+        self.remove_represented_mod_speed_no_control_auras_cancelable_like_cpp();
+        true
     }
 
     /// Handle `CMSG_CANCEL_MOUNT_AURA`.
@@ -1846,8 +1950,7 @@ impl WorldSession {
                 "CancelMountAura parse failed: {error}"
             );
         }
-        // C++ removes positive, cancelable SPELL_AURA_MOUNTED applications.
-        // Full aura cancellation is left to the aura runtime slice.
+        self.remove_represented_mount_auras_cancelable_like_cpp();
     }
 
     /// Handle `CMSG_CANCEL_QUEUED_SPELL`.
@@ -1860,8 +1963,9 @@ impl WorldSession {
             return;
         }
         // C++ cancels `Player::CancelPendingCastRequest`, not the current
-        // non-melee spell. Rust does not yet represent that pending request
-        // queue separately, so do not clear `active_spell_cast` here.
+        // non-melee spell. The represented queue is separate from
+        // `active_spell_cast`, so this keeps casts already in progress alive.
+        self.cancel_pending_spell_cast_request_like_cpp();
     }
 
     /// Handle `CMSG_SELF_RES`.
@@ -1877,8 +1981,21 @@ impl WorldSession {
         debug!(
             account = self.account_id,
             spell_id = request.spell_id,
-            "CMSG_SELF_RES parsed; SelfResSpells active-player runtime is not represented yet"
+            "CMSG_SELF_RES parsed"
         );
+        if !self.has_represented_self_res_spell_like_cpp(request.spell_id) {
+            return;
+        }
+        let Some(player_guid) = self.player_guid() else {
+            return;
+        };
+        if self
+            .execute_spell(request.spell_id, player_guid)
+            .await
+            .is_ok()
+        {
+            self.remove_represented_self_res_spell_like_cpp(request.spell_id);
+        }
     }
 
     /// Handle `CMSG_PET_CANCEL_AURA`.
@@ -1898,8 +2015,9 @@ impl WorldSession {
             account = self.account_id,
             pet_guid = ?request.pet_guid,
             spell_id = request.spell_id,
-            "CMSG_PET_CANCEL_AURA parsed; guardian/charmed pet aura runtime is not represented yet"
+            "CMSG_PET_CANCEL_AURA parsed"
         );
+        self.cancel_represented_pet_aura_like_cpp(request.pet_guid, request.spell_id);
     }
 
     /// Handle `CMSG_TOTEM_DESTROYED`.
@@ -1919,8 +2037,9 @@ impl WorldSession {
             account = self.account_id,
             slot = request.slot,
             totem_guid = ?request.totem_guid,
-            "CMSG_TOTEM_DESTROYED parsed; player summon-slot totem runtime is not represented yet"
+            "CMSG_TOTEM_DESTROYED parsed"
         );
+        self.destroy_represented_totem_like_cpp(request.slot, request.totem_guid);
     }
 
     fn is_spell_disabled_for_player_like_cpp(&self, spell_id: i32) -> bool {
@@ -2315,18 +2434,28 @@ fn add_loot_template_row_item_like_cpp<F>(
 
 #[cfg(test)]
 mod tests {
+    use std::sync::{Arc, Mutex};
+    use std::time::Instant;
+
     use rand::{Rng, SeedableRng, rngs::StdRng};
 
-    use wow_constants::{BagFamilyMask, ItemContext, ItemFieldFlags, ItemFlags, ItemUpdateState};
-    use wow_core::{ObjectGuid, guid::HighGuid};
-    use wow_entities::{Item, ItemCreateInfo, MAX_ITEM_SPELLS};
+    use wow_constants::{
+        BagFamilyMask, DeathState, ItemContext, ItemFieldFlags, ItemFlags, ItemUpdateState,
+        ServerOpcodes, SpellCastResult,
+    };
+    use wow_core::{ObjectGuid, Position, guid::HighGuid};
+    use wow_entities::{
+        AppliedAuraRef, Creature, Item, ItemCreateInfo, MAX_ITEM_SPELLS, Pet, PetType, Player,
+        UNIT_MASK_TOTEM,
+    };
     use wow_loot::{
         LootConditionRowLikeCpp, condition_compare_values_like_cpp,
         loot_conditions_allow_player_like_cpp_representable,
     };
     use wow_packet::WorldPacket;
     use wow_packet::packets::loot::{LootEntry, LootEntryFlags};
-    use wow_packet::packets::spell::SpellTargetData;
+    use wow_packet::packets::movement::MovementInfo;
+    use wow_packet::packets::spell::{SpellCastVisual, SpellTargetData};
 
     use super::{
         ITEM_FLAGS_CU_FOLLOW_LOOT_RULES_LIKE_CPP, ITEM_FLAGS_CU_IGNORE_QUEST_STATUS_LIKE_CPP,
@@ -2340,7 +2469,10 @@ mod tests {
         roll_group_loot_row_like_cpp, stored_item_row_can_load_like_cpp_representable,
         stored_loot_item_should_persist_like_cpp,
     };
-    use crate::session::{SpellCastMetadata, SpellCastState};
+    use crate::session::{
+        AuraApplication, RepresentedAuraEffectLikeCpp, RepresentedPendingSpellCastRequestLikeCpp,
+        SessionPlayerController, SharedCanonicalMapManager, SpellCastMetadata, SpellCastState,
+    };
 
     fn make_session() -> (crate::session::WorldSession, flume::Receiver<Vec<u8>>) {
         let (_pkt_tx, pkt_rx) = flume::bounded(100);
@@ -2361,6 +2493,271 @@ mod tests {
             ),
             send_rx,
         )
+    }
+
+    fn shared_canonical_map_manager() -> SharedCanonicalMapManager {
+        Arc::new(Mutex::new(wow_map::MapManager::default()))
+    }
+
+    fn add_canonical_test_player_on_map(
+        canonical: &SharedCanonicalMapManager,
+        guid: ObjectGuid,
+        position: Position,
+        map_id: u32,
+        instance_id: u32,
+    ) {
+        let mut player = Player::new(Some(1), false);
+        player.unit_mut().world_mut().object_mut().create(guid);
+        player.unit_mut().world_mut().set_name("SpellHandlerPlayer");
+        player
+            .unit_mut()
+            .world_mut()
+            .set_map(map_id, instance_id)
+            .unwrap();
+        player.unit_mut().world_mut().relocate(position);
+        player.unit_mut().world_mut().object_mut().add_to_world();
+
+        canonical
+            .lock()
+            .unwrap()
+            .create_world_map(map_id, instance_id)
+            .map_mut()
+            .insert_map_object_record(wow_entities::MapObjectRecord::new_player(player).unwrap())
+            .unwrap();
+    }
+
+    fn install_canonical_player(
+        session: &mut crate::session::WorldSession,
+        canonical: &SharedCanonicalMapManager,
+        player_guid: ObjectGuid,
+    ) {
+        let position = Position::new(10.0, 20.0, 30.0, 0.0);
+        session.set_canonical_map_manager(Arc::clone(canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "SpellHandlerPlayer".to_string(),
+            position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map(canonical, player_guid, position, 571, 0);
+    }
+
+    fn add_canonical_test_pet_on_map(
+        canonical: &SharedCanonicalMapManager,
+        owner_guid: ObjectGuid,
+        pet_guid: ObjectGuid,
+        spell_id: u32,
+        alive: bool,
+    ) {
+        let mut pet = Pet::new(owner_guid, PetType::Hunter);
+        pet.creature_mut()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .create(pet_guid);
+        pet.creature_mut()
+            .unit_mut()
+            .world_mut()
+            .set_map(571, 0)
+            .unwrap();
+        pet.creature_mut()
+            .unit_mut()
+            .world_mut()
+            .relocate(Position::new(10.5, 20.5, 30.0, 0.0));
+        pet.creature_mut()
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .add_to_world();
+        pet.creature_mut().unit_mut().set_max_health(100);
+        pet.creature_mut()
+            .unit_mut()
+            .set_health(if alive { 100 } else { 0 });
+        if !alive {
+            pet.creature_mut()
+                .unit_mut()
+                .set_death_state(DeathState::Dead);
+        }
+        let aura = AppliedAuraRef::new(spell_id, ObjectGuid::EMPTY, 0, 0x1);
+        pet.creature_mut()
+            .unit_mut()
+            .subsystems_mut()
+            .auras
+            .add_applied(aura);
+
+        canonical
+            .lock()
+            .unwrap()
+            .find_map_mut(571, 0)
+            .unwrap()
+            .map_mut()
+            .insert_map_object_record(wow_entities::MapObjectRecord::new_pet(pet).unwrap())
+            .unwrap();
+    }
+
+    fn add_canonical_test_creature_on_map(
+        canonical: &SharedCanonicalMapManager,
+        guid: ObjectGuid,
+        position: Position,
+        map_id: u32,
+        instance_id: u32,
+        is_totem: bool,
+    ) {
+        let mut creature = Creature::new(false);
+        creature.unit_mut().world_mut().object_mut().create(guid);
+        creature.unit_mut().world_mut().object_mut().set_entry(777);
+        creature
+            .unit_mut()
+            .world_mut()
+            .set_map(map_id, instance_id)
+            .unwrap();
+        creature.unit_mut().world_mut().relocate(position);
+        creature.unit_mut().world_mut().object_mut().add_to_world();
+        if is_totem {
+            creature.add_unit_type_mask_like_cpp(UNIT_MASK_TOTEM);
+        }
+
+        canonical
+            .lock()
+            .unwrap()
+            .find_map_mut(map_id, instance_id)
+            .unwrap()
+            .map_mut()
+            .insert_map_object_record(
+                wow_entities::MapObjectRecord::new_creature(creature).unwrap(),
+            )
+            .unwrap();
+    }
+
+    fn set_canonical_player_pet_guid(
+        canonical: &SharedCanonicalMapManager,
+        player_guid: ObjectGuid,
+        pet_guid: ObjectGuid,
+    ) {
+        canonical
+            .lock()
+            .unwrap()
+            .find_map_mut(571, 0)
+            .unwrap()
+            .map_mut()
+            .get_typed_player_mut(player_guid)
+            .unwrap()
+            .unit_mut()
+            .subsystems_mut()
+            .control
+            .set_pet_guid(pet_guid);
+    }
+
+    fn set_canonical_player_charmed_guid(
+        canonical: &SharedCanonicalMapManager,
+        player_guid: ObjectGuid,
+        charmed_guid: ObjectGuid,
+    ) {
+        canonical
+            .lock()
+            .unwrap()
+            .find_map_mut(571, 0)
+            .unwrap()
+            .map_mut()
+            .get_typed_player_mut(player_guid)
+            .unwrap()
+            .unit_mut()
+            .subsystems_mut()
+            .control
+            .charmed_guid = Some(charmed_guid);
+    }
+
+    fn canonical_pet_has_applied_aura(
+        canonical: &SharedCanonicalMapManager,
+        pet_guid: ObjectGuid,
+        aura: AppliedAuraRef,
+    ) -> bool {
+        canonical
+            .lock()
+            .unwrap()
+            .find_map(571, 0)
+            .unwrap()
+            .map()
+            .get_typed_pet(pet_guid)
+            .unwrap()
+            .creature()
+            .unit()
+            .subsystems()
+            .auras
+            .has_applied(aura)
+    }
+
+    fn canonical_creature_has_applied_aura(
+        canonical: &SharedCanonicalMapManager,
+        creature_guid: ObjectGuid,
+        aura: AppliedAuraRef,
+    ) -> bool {
+        canonical
+            .lock()
+            .unwrap()
+            .find_map(571, 0)
+            .unwrap()
+            .map()
+            .get_typed_creature(creature_guid)
+            .unwrap()
+            .unit()
+            .subsystems()
+            .auras
+            .has_applied(aura)
+    }
+
+    fn set_canonical_player_summon_slot(
+        canonical: &SharedCanonicalMapManager,
+        player_guid: ObjectGuid,
+        slot: usize,
+        guid: ObjectGuid,
+    ) {
+        canonical
+            .lock()
+            .unwrap()
+            .find_map_mut(571, 0)
+            .unwrap()
+            .map_mut()
+            .get_typed_player_mut(player_guid)
+            .unwrap()
+            .unit_mut()
+            .subsystems_mut()
+            .control
+            .set_summon_slot(slot, guid);
+    }
+
+    fn canonical_player_summon_slot(
+        canonical: &SharedCanonicalMapManager,
+        player_guid: ObjectGuid,
+        slot: usize,
+    ) -> ObjectGuid {
+        canonical
+            .lock()
+            .unwrap()
+            .find_map(571, 0)
+            .unwrap()
+            .map()
+            .get_typed_player(player_guid)
+            .unwrap()
+            .unit()
+            .subsystems()
+            .control
+            .summon_slots[slot]
+    }
+
+    fn canonical_creature_exists(canonical: &SharedCanonicalMapManager, guid: ObjectGuid) -> bool {
+        canonical
+            .lock()
+            .unwrap()
+            .find_map(571, 0)
+            .unwrap()
+            .map()
+            .get_typed_creature(guid)
+            .is_some()
     }
 
     fn install_active_spell_cast(
@@ -2388,6 +2785,56 @@ mod tests {
         });
     }
 
+    fn install_pending_spell_cast_request(
+        session: &mut crate::session::WorldSession,
+        spell_id: i32,
+        cast_id: ObjectGuid,
+    ) {
+        session.represented_pending_spell_cast_request_like_cpp =
+            Some(RepresentedPendingSpellCastRequestLikeCpp {
+                cast_id,
+                spell_id,
+                casting_unit_guid: ObjectGuid::create_player(1, 42),
+                target_guid: ObjectGuid::create_player(1, 42),
+                target_data: SpellTargetData {
+                    flags: 0x2,
+                    unit: ObjectGuid::create_player(1, 42),
+                    ..SpellTargetData::default()
+                },
+                spell_visual: SpellCastVisual {
+                    spell_visual_id: 0,
+                    script_visual_id: 0,
+                },
+                metadata: SpellCastMetadata::default(),
+            });
+    }
+
+    fn install_canonical_channeled_spell(
+        session: &mut crate::session::WorldSession,
+        player_guid: ObjectGuid,
+        spell_id: u32,
+    ) -> wow_entities::CurrentSpellRef {
+        let spell = wow_entities::CurrentSpellRef::new(spell_id, Some(player_guid), None)
+            .with_state(wow_constants::SpellState::Delayed);
+        session.mutate_canonical_player_like_cpp(|player| {
+            player
+                .unit_mut()
+                .set_current_cast_spell(wow_entities::CurrentSpellSlot::Channeled, spell);
+        });
+        spell
+    }
+
+    fn canonical_channeled_spell_id(session: &mut crate::session::WorldSession) -> Option<u32> {
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player
+                    .unit()
+                    .current_spell(wow_entities::CurrentSpellSlot::Channeled)
+                    .map(|spell| spell.spell_id)
+            })
+            .flatten()
+    }
+
     fn cancel_cast_packet(cast_id: ObjectGuid, spell_id: u32) -> WorldPacket {
         let mut pkt = WorldPacket::new_empty();
         pkt.write_packed_guid(&cast_id);
@@ -2404,10 +2851,669 @@ mod tests {
         pkt
     }
 
+    fn cast_spell_packet(spell_id: i32, caster_guid: ObjectGuid) -> WorldPacket {
+        cast_spell_packet_with_move_update(spell_id, caster_guid, None)
+    }
+
+    fn cast_spell_packet_with_move_update(
+        spell_id: i32,
+        caster_guid: ObjectGuid,
+        move_update: Option<MovementInfo>,
+    ) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&caster_guid);
+        pkt.write_int32(0);
+        pkt.write_int32(0);
+        pkt.write_int32(spell_id);
+        SpellCastVisual {
+            spell_visual_id: 0,
+            script_visual_id: 0,
+        }
+        .write(&mut pkt);
+        pkt.write_float(0.0);
+        pkt.write_float(0.0);
+        pkt.write_packed_guid(&ObjectGuid::EMPTY);
+        pkt.write_uint32(0);
+        pkt.write_uint32(0);
+        pkt.write_uint32(0);
+        pkt.write_bits(0, 5);
+        pkt.write_bit(move_update.is_some());
+        pkt.write_bits(0, 2);
+        pkt.write_bit(false);
+        pkt.flush_bits();
+        SpellTargetData {
+            flags: 0x2,
+            unit: caster_guid,
+            ..SpellTargetData::default()
+        }
+        .write(&mut pkt);
+        if let Some(move_update) = move_update {
+            move_update.write(&mut pkt);
+        }
+        pkt.reset_read();
+        pkt
+    }
+
+    fn basic_spell_store(spell_ids: impl IntoIterator<Item = i32>) -> Arc<wow_data::SpellStore> {
+        let mut spell_store = wow_data::SpellStore::new();
+        for spell_id in spell_ids {
+            spell_store.insert(
+                spell_id,
+                wow_data::SpellInfo {
+                    spell_id,
+                    cast_time_ms: 0,
+                    cooldown_ms: 0,
+                    recovery_time_ms: 0,
+                    effect_type: 0,
+                    effect_base_points: 0,
+                    effect_bonus_coefficient: 0.0,
+                    aura_type: None,
+                    display_flags: 0,
+                    requires_spell_focus: 0,
+                    effects: Vec::new(),
+                },
+            );
+        }
+        Arc::new(spell_store)
+    }
+
+    fn spell_store_with_global_cooldown(
+        spell_id: i32,
+        cooldown_ms: u32,
+    ) -> Arc<wow_data::SpellStore> {
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: Vec::new(),
+            },
+        );
+        Arc::new(spell_store)
+    }
+
+    fn mounted_spell_store(spell_id: i32, creature_entry: i32) -> Arc<wow_data::SpellStore> {
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: 77,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOUNTED),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
+                    effect_base_points: 77,
+                    effect_misc_value_1: creature_entry,
+                    ..Default::default()
+                }],
+            },
+        );
+        Arc::new(spell_store)
+    }
+
+    fn mounted_flying_spell_store(spell_id: i32, creature_entry: i32) -> Arc<wow_data::SpellStore> {
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: 77,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOUNTED),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![
+                    wow_data::SpellEffectInfo {
+                        effect_index: 0,
+                        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                        effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
+                        effect_base_points: 77,
+                        effect_misc_value_1: creature_entry,
+                        ..Default::default()
+                    },
+                    wow_data::SpellEffectInfo {
+                        effect_index: 1,
+                        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                        effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED,
+                        effect_base_points: 280,
+                        ..Default::default()
+                    },
+                ],
+            },
+        );
+        Arc::new(spell_store)
+    }
+
+    fn shapeshift_spell_store(spell_id: i32, form_id: i32) -> Arc<wow_data::SpellStore> {
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOD_SHAPESHIFT),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_SHAPESHIFT,
+                    effect_misc_value_1: form_id,
+                    ..Default::default()
+                }],
+            },
+        );
+        Arc::new(spell_store)
+    }
+
+    fn mounted_spell_store_with_active_shapeshift_aura(
+        mount_spell_id: i32,
+        shapeshift_spell_id: i32,
+        form_id: i32,
+    ) -> Arc<wow_data::SpellStore> {
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            mount_spell_id,
+            wow_data::SpellInfo {
+                spell_id: mount_spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: 77,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOUNTED),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
+                    effect_base_points: 77,
+                    ..Default::default()
+                }],
+            },
+        );
+        spell_store.insert(
+            shapeshift_spell_id,
+            wow_data::SpellInfo {
+                spell_id: shapeshift_spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOD_SHAPESHIFT),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_SHAPESHIFT,
+                    effect_misc_value_1: form_id,
+                    ..Default::default()
+                }],
+            },
+        );
+        Arc::new(spell_store)
+    }
+
+    fn mounted_spell_store_with_transform_spell(
+        mount_spell_id: i32,
+        transform_spell_id: i32,
+        allow_while_mounted: bool,
+    ) -> Arc<wow_data::SpellStore> {
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            mount_spell_id,
+            wow_data::SpellInfo {
+                spell_id: mount_spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: 77,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOUNTED),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
+                    effect_base_points: 77,
+                    ..Default::default()
+                }],
+            },
+        );
+        spell_store.insert(
+            transform_spell_id,
+            wow_data::SpellInfo {
+                spell_id: transform_spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_TRANSFORM),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_TRANSFORM,
+                    ..Default::default()
+                }],
+            },
+        );
+        if allow_while_mounted {
+            let mut attributes = [0; 15];
+            attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_ALLOW_WHILE_MOUNTED;
+            spell_store.insert_spell_misc_attributes_like_cpp(transform_spell_id, attributes);
+        }
+        Arc::new(spell_store)
+    }
+
+    fn active_shapeshift_aura_for_test(spell_id: i32, caster_guid: ObjectGuid) -> AuraApplication {
+        AuraApplication {
+            spell_id,
+            caster_guid,
+            slot: 0,
+            duration_total: 0,
+            duration_remaining: 0,
+            stack_count: 1,
+            aura_flags: 0x0000_0001,
+            effect_mask: 1,
+            aura_interrupt_flags: 0,
+            aura_interrupt_flags2: 0,
+            represented_effect: None,
+            represented_amount: 0,
+            represented_effect_amounts: Vec::new(),
+            represented_misc_value: None,
+            represented_multiplier: 1.0,
+            applied_at: Instant::now(),
+        }
+    }
+
+    fn set_canonical_player_display_for_test(
+        canonical: &SharedCanonicalMapManager,
+        player_guid: ObjectGuid,
+        display_id: u32,
+        set_native: bool,
+    ) {
+        let mut manager = canonical.lock().unwrap();
+        let player = manager
+            .find_map_mut(571, 0)
+            .unwrap()
+            .map_mut()
+            .get_typed_player_mut(player_guid)
+            .unwrap();
+        player.unit_mut().set_display_id(display_id, set_native);
+    }
+
+    fn creature_display_info_extra_for_test(
+        id: u32,
+        display_race_id: i8,
+    ) -> wow_data::CreatureDisplayInfoExtraEntry {
+        wow_data::CreatureDisplayInfoExtraEntry {
+            id,
+            display_race_id,
+            display_sex_id: 0,
+            display_class_id: 0,
+            skin_id: 0,
+            face_id: 0,
+            hair_style_id: 0,
+            hair_color_id: 0,
+            facial_hair_id: 0,
+            flags: 0,
+            bake_material_resources_id: 0,
+            hd_bake_material_resources_id: 0,
+            custom_display_option: [0; 3],
+        }
+    }
+
+    fn chr_races_entry_for_test(
+        id: u32,
+        flags: i32,
+    ) -> wow_data::character_progression::ChrRacesEntry {
+        wow_data::character_progression::ChrRacesEntry {
+            id,
+            client_prefix: String::new(),
+            client_file_string: String::new(),
+            name: String::new(),
+            flags,
+            male_display_id: 0,
+            female_display_id: 0,
+            high_res_male_display_id: 0,
+            high_res_female_display_id: 0,
+            res_sickness_spell_id: 0,
+            splash_sound_id: 0,
+            create_screen_file_data_id: 0,
+            select_screen_file_data_id: 0,
+            low_res_screen_file_data_id: 0,
+            altered_form_start_visual_kit_id: [0; 3],
+            altered_form_finish_visual_kit_id: [0; 3],
+            heritage_armor_achievement_id: 0,
+            starting_level: 1,
+            ui_display_order: 0,
+            playable_race_bit: 0,
+            female_skeleton_file_data_id: 0,
+            male_skeleton_file_data_id: 0,
+            helmet_anim_scaling_race_id: 0,
+            transmogrify_disabled_slot_mask: 0,
+            faction_id: 0,
+            cinematic_sequence_id: 0,
+            base_language: 0,
+            creature_type: 0,
+            alliance: 0,
+            race_related: 0,
+            unaltered_visual_race_id: 0,
+            default_class_id: 0,
+            neutral_race_id: 0,
+        }
+    }
+
+    fn set_transformed_display_mount_check_stores_for_test(
+        session: &mut crate::session::WorldSession,
+        transformed_display_id: u32,
+        model_flags: u32,
+        race_flags: i32,
+    ) {
+        let display_extra_id = 91;
+        let model_id = 92;
+        let race_id = 7;
+        session.set_creature_display_info_store(Arc::new(
+            wow_data::CreatureDisplayInfoStore::from_entries([
+                wow_data::CreatureDisplayInfoEntry {
+                    id: transformed_display_id,
+                    model_id,
+                    extended_display_info_id: display_extra_id,
+                    creature_model_scale: 1.0,
+                },
+            ]),
+        ));
+        session.set_creature_display_info_extra_store(Arc::new(
+            wow_data::CreatureDisplayInfoExtraStore::from_entries([
+                creature_display_info_extra_for_test(display_extra_id as u32, race_id),
+            ]),
+        ));
+        session.set_creature_model_data_store(Arc::new(
+            wow_data::CreatureModelDataStore::from_entries([wow_data::CreatureModelDataEntry {
+                id: u32::from(model_id),
+                flags: model_flags,
+                collision_height: 2.0,
+                model_scale: 1.0,
+                mount_height: 0.0,
+            }]),
+        ));
+        session.set_chr_races_store(Arc::new(
+            wow_data::character_progression::ChrRacesStore::from_entries([
+                chr_races_entry_for_test(u32::from(race_id as u8), race_flags),
+            ]),
+        ));
+    }
+
+    fn mounted_spell_store_with_no_aura_cancel(
+        spell_id: i32,
+        creature_entry: i32,
+    ) -> Arc<wow_data::SpellStore> {
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: 77,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOUNTED),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
+                    effect_base_points: 77,
+                    effect_misc_value_1: creature_entry,
+                    ..Default::default()
+                }],
+            },
+        );
+        let mut attributes = [0; 15];
+        attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_NO_AURA_CANCEL;
+        spell_store.insert_spell_misc_attributes_like_cpp(spell_id, attributes);
+        Arc::new(spell_store)
+    }
+
+    fn channeled_spell_store(spell_id: i32) -> Arc<wow_data::SpellStore> {
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: Vec::new(),
+            },
+        );
+        let mut attributes = [0; 15];
+        attributes[1] = wow_data::spell::attributes::SPELL_ATTR1_IS_CHANNELLED;
+        spell_store.insert_spell_misc_attributes_like_cpp(spell_id, attributes);
+        Arc::new(spell_store)
+    }
+
+    fn channeled_spell_store_with_no_aura_cancel(spell_id: i32) -> Arc<wow_data::SpellStore> {
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: Vec::new(),
+            },
+        );
+        let mut attributes = [0; 15];
+        attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_NO_AURA_CANCEL;
+        attributes[1] = wow_data::spell::attributes::SPELL_ATTR1_IS_CHANNELLED;
+        spell_store.insert_spell_misc_attributes_like_cpp(spell_id, attributes);
+        Arc::new(spell_store)
+    }
+
+    fn mod_scale_spell_store(spell_id: i32, no_aura_cancel: bool) -> Arc<wow_data::SpellStore> {
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: 50,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOD_SCALE),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_SCALE,
+                    effect_base_points: 50,
+                    ..Default::default()
+                }],
+            },
+        );
+        if no_aura_cancel {
+            let mut attributes = [0; 15];
+            attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_NO_AURA_CANCEL;
+            spell_store.insert_spell_misc_attributes_like_cpp(spell_id, attributes);
+        }
+        Arc::new(spell_store)
+    }
+
+    fn mod_speed_no_control_spell_store(
+        spell_id: i32,
+        no_aura_cancel: bool,
+    ) -> Arc<wow_data::SpellStore> {
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: 50,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOD_SPEED_NO_CONTROL),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_SPEED_NO_CONTROL,
+                    effect_base_points: 50,
+                    ..Default::default()
+                }],
+            },
+        );
+        if no_aura_cancel {
+            let mut attributes = [0; 15];
+            attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_NO_AURA_CANCEL;
+            spell_store.insert_spell_misc_attributes_like_cpp(spell_id, attributes);
+        }
+        Arc::new(spell_store)
+    }
+
+    fn drain_server_opcodes(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<ServerOpcodes> {
+        let mut opcodes = Vec::new();
+        while let Ok(bytes) = send_rx.try_recv() {
+            if let Some(opcode) = WorldPacket::from_bytes(&bytes).server_opcode() {
+                opcodes.push(opcode);
+            }
+        }
+        opcodes
+    }
+
+    fn drain_server_packet_bytes(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<Vec<u8>> {
+        let mut packets = Vec::new();
+        while let Ok(bytes) = send_rx.try_recv() {
+            packets.push(bytes);
+        }
+        packets
+    }
+
+    fn cast_failed_reason_like_cpp(bytes: &[u8]) -> i32 {
+        let mut packet = WorldPacket::from_bytes(bytes);
+        assert_eq!(
+            packet.server_opcode(),
+            Some(ServerOpcodes::CastFailed),
+            "expected CastFailed packet"
+        );
+        let _ = packet.read_uint16().expect("opcode");
+        let _ = packet.read_packed_guid().expect("cast id");
+        let _ = packet.read_int32().expect("spell id");
+        packet.read_int32().expect("reason")
+    }
+
+    fn cast_failed_fields_like_cpp(bytes: &[u8]) -> (ObjectGuid, i32, i32) {
+        let mut packet = WorldPacket::from_bytes(bytes);
+        assert_eq!(
+            packet.server_opcode(),
+            Some(ServerOpcodes::CastFailed),
+            "expected CastFailed packet"
+        );
+        let _ = packet.read_uint16().expect("opcode");
+        let cast_id = packet.read_packed_guid().expect("cast id");
+        let spell_id = packet.read_int32().expect("spell id");
+        let reason = packet.read_int32().expect("reason");
+        (cast_id, spell_id, reason)
+    }
+
+    fn spell_go_spell_id_like_cpp(bytes: &[u8]) -> i32 {
+        let mut packet = WorldPacket::from_bytes(bytes);
+        assert_eq!(
+            packet.server_opcode(),
+            Some(ServerOpcodes::SpellGo),
+            "expected SpellGo packet"
+        );
+        let _ = packet.read_uint16().expect("opcode");
+        let _ = packet.read_packed_guid().expect("caster");
+        let _ = packet.read_packed_guid().expect("caster unit");
+        let _ = packet.read_packed_guid().expect("cast id");
+        let _ = packet.read_packed_guid().expect("original cast id");
+        packet.read_int32().expect("spell id")
+    }
+
+    fn mount_result_like_cpp(bytes: &[u8]) -> i32 {
+        let mut packet = WorldPacket::from_bytes(bytes);
+        assert_eq!(
+            packet.server_opcode(),
+            Some(ServerOpcodes::MountResult),
+            "expected MountResult packet"
+        );
+        let _ = packet.read_uint16().expect("opcode");
+        packet.read_int32().expect("result")
+    }
+
     fn cancel_aura_packet(spell_id: i32, caster_guid: ObjectGuid) -> WorldPacket {
         let mut pkt = WorldPacket::new_empty();
         pkt.write_int32(spell_id);
         pkt.write_packed_guid(&caster_guid);
+        pkt.reset_read();
+        pkt
+    }
+
+    fn cancel_mod_speed_no_control_packet(target_guid: ObjectGuid) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&target_guid);
         pkt.reset_read();
         pkt
     }
@@ -2417,6 +3523,33 @@ mod tests {
         pkt.write_int32(spell_id);
         pkt.reset_read();
         pkt
+    }
+
+    fn self_res_spell_store(spell_id: i32) -> Arc<wow_data::SpellStore> {
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_SELF_RESURRECT,
+                    effect_base_points: -35,
+                    effect_misc_value_1: 77,
+                    ..Default::default()
+                }],
+            },
+        );
+        Arc::new(spell_store)
     }
 
     fn pet_cancel_aura_packet(pet_guid: ObjectGuid, spell_id: u32) -> WorldPacket {
@@ -2449,6 +3582,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn cancel_cast_also_cancels_pending_spell_request_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let active_cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 7);
+        let pending_cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 8);
+        install_active_spell_cast(&mut session, 12_345, active_cast_id);
+        install_pending_spell_cast_request(&mut session, 67_890, pending_cast_id);
+
+        session
+            .handle_cancel_cast(cancel_cast_packet(active_cast_id, 12_345))
+            .await;
+
+        assert!(session.active_spell_cast.is_none());
+        assert!(
+            session
+                .represented_pending_spell_cast_request_like_cpp
+                .is_none()
+        );
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 1);
+        assert_eq!(
+            cast_failed_fields_like_cpp(&packets[0]),
+            (pending_cast_id, 67_890, 32),
+            "C++ HandleCancelCastOpcode calls Player::CancelPendingCastRequest after interrupting"
+        );
+    }
+
+    #[tokio::test]
     async fn cancel_cast_mismatched_spell_preserves_active_cast_like_cpp() {
         let (mut session, _send_rx) = make_session();
         let cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 7);
@@ -2468,21 +3628,176 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn cancel_channelling_parses_and_stays_silent_until_channel_runtime_exists() {
+    async fn cancel_cast_mismatch_preserves_pending_spell_request_like_cpp() {
         let (mut session, send_rx) = make_session();
+        let active_cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 7);
+        let pending_cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 8);
+        install_active_spell_cast(&mut session, 12_345, active_cast_id);
+        install_pending_spell_cast_request(&mut session, 67_890, pending_cast_id);
+
+        session
+            .handle_cancel_cast(cancel_cast_packet(active_cast_id, 54_321))
+            .await;
+
+        assert_eq!(
+            session
+                .active_spell_cast
+                .as_ref()
+                .map(|active_cast| active_cast.spell_id),
+            Some(12_345)
+        );
+        assert!(
+            session
+                .represented_pending_spell_cast_request_like_cpp
+                .as_ref()
+                .is_some_and(|pending| pending.cast_id == pending_cast_id)
+        );
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn cancel_channelling_interrupts_matching_player_channel_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 8);
+        install_canonical_player(&mut session, &canonical, player_guid);
+        session.set_spell_store(basic_spell_store([12_345]));
+        install_active_spell_cast(&mut session, 12_345, cast_id);
+        install_canonical_channeled_spell(&mut session, player_guid, 12_345);
 
         session
             .handle_cancel_channelling(cancel_channelling_packet(12_345, 40))
             .await;
 
+        assert_eq!(canonical_channeled_spell_id(&mut session), None);
+        assert!(session.active_spell_cast.is_none());
         assert!(send_rx.is_empty());
     }
 
     #[tokio::test]
-    async fn cancel_queued_spell_does_not_clear_current_active_cast_like_cpp() {
-        let (mut session, _send_rx) = make_session();
-        let cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 7);
+    async fn cancel_channelling_mismatched_spell_preserves_channel_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 9);
+        install_canonical_player(&mut session, &canonical, player_guid);
+        session.set_spell_store(basic_spell_store([67_890]));
         install_active_spell_cast(&mut session, 12_345, cast_id);
+        let spell = install_canonical_channeled_spell(&mut session, player_guid, 12_345);
+
+        session
+            .handle_cancel_channelling(cancel_channelling_packet(67_890, 40))
+            .await;
+
+        assert_eq!(
+            canonical_channeled_spell_id(&mut session),
+            Some(spell.spell_id)
+        );
+        assert_eq!(
+            session
+                .active_spell_cast
+                .as_ref()
+                .map(|active_cast| active_cast.spell_id),
+            Some(12_345)
+        );
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn cancel_channelling_no_aura_cancel_spell_preserves_channel_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 12);
+        install_canonical_player(&mut session, &canonical, player_guid);
+        session.set_spell_store(mounted_spell_store_with_no_aura_cancel(12_345, 0));
+        install_active_spell_cast(&mut session, 12_345, cast_id);
+        let spell = install_canonical_channeled_spell(&mut session, player_guid, 12_345);
+
+        session
+            .handle_cancel_channelling(cancel_channelling_packet(12_345, 40))
+            .await;
+
+        assert_eq!(
+            canonical_channeled_spell_id(&mut session),
+            Some(spell.spell_id)
+        );
+        assert_eq!(
+            session
+                .active_spell_cast
+                .as_ref()
+                .map(|active_cast| active_cast.spell_id),
+            Some(12_345)
+        );
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn cancel_channelling_zero_spell_preserves_channel_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 10);
+        install_canonical_player(&mut session, &canonical, player_guid);
+        session.set_spell_store(basic_spell_store([12_345]));
+        install_active_spell_cast(&mut session, 12_345, cast_id);
+        let spell = install_canonical_channeled_spell(&mut session, player_guid, 12_345);
+
+        session
+            .handle_cancel_channelling(cancel_channelling_packet(0, 40))
+            .await;
+
+        assert_eq!(
+            canonical_channeled_spell_id(&mut session),
+            Some(spell.spell_id)
+        );
+        assert_eq!(
+            session
+                .active_spell_cast
+                .as_ref()
+                .map(|active_cast| active_cast.spell_id),
+            Some(12_345)
+        );
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn cancel_channelling_missing_spellinfo_preserves_channel_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 11);
+        install_canonical_player(&mut session, &canonical, player_guid);
+        session.set_spell_store(basic_spell_store([]));
+        install_active_spell_cast(&mut session, 12_345, cast_id);
+        let spell = install_canonical_channeled_spell(&mut session, player_guid, 12_345);
+
+        session
+            .handle_cancel_channelling(cancel_channelling_packet(12_345, 40))
+            .await;
+
+        assert_eq!(
+            canonical_channeled_spell_id(&mut session),
+            Some(spell.spell_id)
+        );
+        assert_eq!(
+            session
+                .active_spell_cast
+                .as_ref()
+                .map(|active_cast| active_cast.spell_id),
+            Some(12_345)
+        );
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn cancel_queued_spell_clears_only_pending_request_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let active_cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 7);
+        let pending_cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 8);
+        install_active_spell_cast(&mut session, 12_345, active_cast_id);
+        install_pending_spell_cast_request(&mut session, 67_890, pending_cast_id);
 
         session
             .handle_cancel_queued_spell(WorldPacket::new_empty())
@@ -2495,10 +3810,34 @@ mod tests {
                 .map(|active_cast| active_cast.spell_id),
             Some(12_345)
         );
+        assert!(
+            session
+                .represented_pending_spell_cast_request_like_cpp
+                .is_none()
+        );
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 1);
+        assert_eq!(
+            cast_failed_fields_like_cpp(&packets[0]),
+            (pending_cast_id, 67_890, 32),
+            "C++ Player::CancelPendingCastRequest sends SPELL_FAILED_DONT_REPORT for the queued request"
+        );
     }
 
     #[tokio::test]
-    async fn cancel_aura_parses_and_stays_silent_until_aura_runtime_exists() {
+    async fn cancel_queued_spell_without_pending_request_is_silent_like_cpp() {
+        let (mut session, send_rx) = make_session();
+
+        session
+            .handle_cancel_queued_spell(WorldPacket::new_empty())
+            .await;
+
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn cancel_aura_without_matching_represented_aura_stays_silent_like_cpp() {
         let (mut session, send_rx) = make_session();
         let caster_guid = ObjectGuid::create_player(1, 42);
 
@@ -2507,6 +3846,185 @@ mod tests {
             .await;
 
         assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn cancel_aura_channeled_spell_interrupts_matching_channel_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 13);
+        install_canonical_player(&mut session, &canonical, player_guid);
+        session.set_spell_store(channeled_spell_store(12_345));
+        install_active_spell_cast(&mut session, 12_345, cast_id);
+        install_canonical_channeled_spell(&mut session, player_guid, 12_345);
+
+        session
+            .handle_cancel_aura(cancel_aura_packet(12_345, ObjectGuid::EMPTY))
+            .await;
+
+        assert_eq!(canonical_channeled_spell_id(&mut session), None);
+        assert!(session.active_spell_cast.is_none());
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn cancel_aura_channeled_mismatched_current_spell_preserves_channel_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 14);
+        install_canonical_player(&mut session, &canonical, player_guid);
+        session.set_spell_store(channeled_spell_store(67_890));
+        install_active_spell_cast(&mut session, 12_345, cast_id);
+        let spell = install_canonical_channeled_spell(&mut session, player_guid, 12_345);
+
+        session
+            .handle_cancel_aura(cancel_aura_packet(67_890, ObjectGuid::EMPTY))
+            .await;
+
+        assert_eq!(
+            canonical_channeled_spell_id(&mut session),
+            Some(spell.spell_id)
+        );
+        assert_eq!(
+            session
+                .active_spell_cast
+                .as_ref()
+                .map(|active_cast| active_cast.spell_id),
+            Some(12_345)
+        );
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn cancel_aura_channeled_no_aura_cancel_preserves_channel_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 15);
+        install_canonical_player(&mut session, &canonical, player_guid);
+        session.set_spell_store(channeled_spell_store_with_no_aura_cancel(12_345));
+        install_active_spell_cast(&mut session, 12_345, cast_id);
+        let spell = install_canonical_channeled_spell(&mut session, player_guid, 12_345);
+
+        session
+            .handle_cancel_aura(cancel_aura_packet(12_345, ObjectGuid::EMPTY))
+            .await;
+
+        assert_eq!(
+            canonical_channeled_spell_id(&mut session),
+            Some(spell.spell_id)
+        );
+        assert_eq!(
+            session
+                .active_spell_cast
+                .as_ref()
+                .map(|active_cast| active_cast.spell_id),
+            Some(12_345)
+        );
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn cancel_aura_removes_matching_represented_mount_aura_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let caster_guid = ObjectGuid::create_player(1, 42);
+        let effect = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
+            effect_base_points: 77,
+            effect_misc_value_1: 0,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_mounted_aura_for_test_like_cpp(12_345, caster_guid, &effect)
+            .unwrap();
+        session.set_spell_store(mounted_spell_store(12_345, 0));
+        assert!(session.player_mounted_like_cpp());
+
+        session
+            .handle_cancel_aura(cancel_aura_packet(12_345, caster_guid))
+            .await;
+
+        assert!(!session.player_mounted_like_cpp());
+        assert!(!send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn cancel_aura_no_aura_cancel_spell_preserves_represented_mount_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let caster_guid = ObjectGuid::create_player(1, 42);
+        let effect = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
+            effect_base_points: 77,
+            effect_misc_value_1: 0,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_mounted_aura_for_test_like_cpp(12_345, caster_guid, &effect)
+            .unwrap();
+        session.set_spell_store(mounted_spell_store_with_no_aura_cancel(12_345, 0));
+        let _ = drain_server_opcodes(&send_rx);
+
+        session
+            .handle_cancel_aura(cancel_aura_packet(12_345, caster_guid))
+            .await;
+
+        assert!(session.player_mounted_like_cpp());
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn cancel_aura_preserves_represented_mount_from_other_caster_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        let caster_guid = ObjectGuid::create_player(1, 42);
+        let other_caster_guid = ObjectGuid::create_player(1, 43);
+        let effect = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
+            effect_base_points: 77,
+            effect_misc_value_1: 0,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_mounted_aura_for_test_like_cpp(12_345, caster_guid, &effect)
+            .unwrap();
+        session.set_spell_store(mounted_spell_store(12_345, 0));
+
+        session
+            .handle_cancel_aura(cancel_aura_packet(12_345, other_caster_guid))
+            .await;
+
+        assert!(session.player_mounted_like_cpp());
+    }
+
+    #[tokio::test]
+    async fn cancel_aura_empty_caster_matches_represented_mount_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        let caster_guid = ObjectGuid::create_player(1, 42);
+        let effect = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
+            effect_base_points: 77,
+            effect_misc_value_1: 0,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_mounted_aura_for_test_like_cpp(12_345, caster_guid, &effect)
+            .unwrap();
+        session.set_spell_store(mounted_spell_store(12_345, 0));
+
+        session
+            .handle_cancel_aura(cancel_aura_packet(12_345, ObjectGuid::EMPTY))
+            .await;
+
+        assert!(!session.player_mounted_like_cpp());
     }
 
     #[tokio::test]
@@ -2527,35 +4045,1087 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn self_res_parses_and_stays_silent_until_self_res_runtime_exists() {
+    async fn cancel_growth_aura_removes_represented_mod_scale_like_cpp() {
         let (mut session, send_rx) = make_session();
-
-        session.handle_self_res(int32_spell_packet(20_000)).await;
-
-        assert!(send_rx.is_empty());
-    }
-
-    #[tokio::test]
-    async fn pet_cancel_aura_parses_and_stays_silent_until_pet_runtime_exists() {
-        let (mut session, send_rx) = make_session();
-        let pet_guid = ObjectGuid::create_player(1, 42);
+        let player_guid = ObjectGuid::create_player(1, 42);
+        session.set_player_guid(Some(player_guid));
+        session.set_spell_store(mod_scale_spell_store(12_345, false));
 
         session
-            .handle_pet_cancel_aura(pet_cancel_aura_packet(pet_guid, 12_345))
+            .execute_spell(12_345, player_guid)
+            .await
+            .expect("represented mod-scale aura should apply");
+        let _ = drain_server_opcodes(&send_rx);
+        assert!(session.visible_auras.values().any(|aura| {
+            aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::ModScale)
+        }));
+
+        session
+            .handle_cancel_growth_aura(WorldPacket::new_empty())
             .await;
 
+        assert!(!session.visible_auras.values().any(|aura| {
+            aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::ModScale)
+        }));
+    }
+
+    #[tokio::test]
+    async fn cancel_growth_aura_no_aura_cancel_preserves_mod_scale_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        session.set_player_guid(Some(player_guid));
+        session.set_spell_store(mod_scale_spell_store(12_345, true));
+
+        session
+            .execute_spell(12_345, player_guid)
+            .await
+            .expect("represented no-aura-cancel mod-scale aura should apply");
+        let _ = drain_server_opcodes(&send_rx);
+
+        session
+            .handle_cancel_growth_aura(WorldPacket::new_empty())
+            .await;
+
+        assert!(session.visible_auras.values().any(|aura| {
+            aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::ModScale)
+        }));
+    }
+
+    #[tokio::test]
+    async fn cancel_mod_speed_no_control_removes_matching_mover_aura_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        session.set_player_guid(Some(player_guid));
+        session.set_spell_store(mod_speed_no_control_spell_store(12_345, false));
+
+        session
+            .execute_spell(12_345, player_guid)
+            .await
+            .expect("represented mod-speed-no-control aura should apply");
+        let _ = drain_server_opcodes(&send_rx);
+        assert!(session.visible_auras.values().any(|aura| {
+            aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::ModSpeedNoControl)
+        }));
+
+        assert!(
+            session
+                .try_handle_cancel_mod_speed_no_control_auras_like_cpp(
+                    cancel_mod_speed_no_control_packet(player_guid),
+                )
+                .await
+        );
+
+        assert!(!session.visible_auras.values().any(|aura| {
+            aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::ModSpeedNoControl)
+        }));
+    }
+
+    #[tokio::test]
+    async fn cancel_mod_speed_no_control_ignores_non_mover_guid_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let other_guid = ObjectGuid::create_player(1, 43);
+        session.set_player_guid(Some(player_guid));
+        session.set_spell_store(mod_speed_no_control_spell_store(12_345, false));
+
+        session
+            .execute_spell(12_345, player_guid)
+            .await
+            .expect("represented mod-speed-no-control aura should apply");
+        let _ = drain_server_opcodes(&send_rx);
+
+        assert!(
+            !session
+                .try_handle_cancel_mod_speed_no_control_auras_like_cpp(
+                    cancel_mod_speed_no_control_packet(other_guid),
+                )
+                .await
+        );
+
+        assert!(session.visible_auras.values().any(|aura| {
+            aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::ModSpeedNoControl)
+        }));
+    }
+
+    #[tokio::test]
+    async fn cancel_mod_speed_no_control_no_aura_cancel_preserves_aura_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        session.set_player_guid(Some(player_guid));
+        session.set_spell_store(mod_speed_no_control_spell_store(12_345, true));
+
+        session
+            .execute_spell(12_345, player_guid)
+            .await
+            .expect("represented no-aura-cancel mod-speed-no-control aura should apply");
+        let _ = drain_server_opcodes(&send_rx);
+
+        assert!(
+            session
+                .try_handle_cancel_mod_speed_no_control_auras_like_cpp(
+                    cancel_mod_speed_no_control_packet(player_guid),
+                )
+                .await
+        );
+
+        assert!(session.visible_auras.values().any(|aura| {
+            aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::ModSpeedNoControl)
+        }));
+    }
+
+    #[tokio::test]
+    async fn cancel_mount_aura_no_aura_cancel_spell_preserves_mount_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let caster_guid = ObjectGuid::create_player(1, 42);
+        let effect = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
+            effect_base_points: 77,
+            effect_misc_value_1: 0,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_mounted_aura_for_test_like_cpp(12_345, caster_guid, &effect)
+            .unwrap();
+        session.set_spell_store(mounted_spell_store_with_no_aura_cancel(12_345, 0));
+        let _ = drain_server_opcodes(&send_rx);
+
+        session
+            .handle_cancel_mount_aura(WorldPacket::new_empty())
+            .await;
+
+        assert!(session.player_mounted_like_cpp());
         assert!(send_rx.is_empty());
     }
 
     #[tokio::test]
-    async fn totem_destroyed_parses_and_stays_silent_until_totem_runtime_exists() {
+    async fn self_res_unlisted_spell_stays_silent_like_cpp() {
         let (mut session, send_rx) = make_session();
-        let totem_guid = ObjectGuid::create_player(1, 42);
+        let spell_id = 20_000;
+
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 20_000)));
+        session.set_spell_store(self_res_spell_store(spell_id));
+        session.set_player_health_like_cpp(0, 100);
+
+        session.handle_self_res(int32_spell_packet(spell_id)).await;
+
+        assert!(!session.player_is_alive_like_cpp());
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn self_res_listed_spell_casts_and_removes_self_res_spell_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let spell_id = 20_001;
+
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 20_001)));
+        session.set_spell_store(self_res_spell_store(spell_id));
+        session.set_player_health_like_cpp(0, 100);
+        session.add_represented_self_res_spell_like_cpp(spell_id);
+
+        session.handle_self_res(int32_spell_packet(spell_id)).await;
+
+        assert!(session.player_is_alive_like_cpp());
+        assert_eq!(session.player_health_like_cpp(), 35);
+        assert!(!session.has_represented_self_res_spell_like_cpp(spell_id));
+        assert!(!send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn self_res_missing_spell_info_keeps_self_res_spell_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let spell_id = 20_002;
+
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 20_002)));
+        session.set_player_health_like_cpp(0, 100);
+        session.add_represented_self_res_spell_like_cpp(spell_id);
+
+        session.handle_self_res(int32_spell_packet(spell_id)).await;
+
+        assert!(!session.player_is_alive_like_cpp());
+        assert!(session.has_represented_self_res_spell_like_cpp(spell_id));
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn pet_cancel_aura_removes_owned_pet_aura_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let pet_guid = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 571, 0, 777, 42);
+        let spell_id = 12_345;
+        let aura = AppliedAuraRef::new(spell_id, ObjectGuid::EMPTY, 0, 0x1);
+        install_canonical_player(&mut session, &canonical, player_guid);
+        session.set_spell_store(basic_spell_store([spell_id as i32]));
+        set_canonical_player_pet_guid(&canonical, player_guid, pet_guid);
+        add_canonical_test_pet_on_map(&canonical, player_guid, pet_guid, spell_id, true);
+
+        session
+            .handle_pet_cancel_aura(pet_cancel_aura_packet(pet_guid, spell_id))
+            .await;
+
+        assert!(!canonical_pet_has_applied_aura(&canonical, pet_guid, aura));
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn cast_spell_applies_embedded_move_update_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let spell_id = 13_337;
+        let moved_position = Position::new(33.0, 44.0, 55.0, 1.25);
+        let move_update = MovementInfo {
+            guid: player_guid,
+            time: 12_345,
+            position: moved_position,
+            ..MovementInfo::default()
+        };
+
+        session.set_player_guid(Some(player_guid));
+        session.set_player_map_position_like_cpp(571, Position::new(10.0, 20.0, 30.0, 0.0));
+        session.set_known_spells_like_cpp(vec![spell_id]);
+        session.set_spell_store(basic_spell_store([spell_id]));
+
+        session
+            .handle_cast_spell(cast_spell_packet_with_move_update(
+                spell_id,
+                player_guid,
+                Some(move_update),
+            ))
+            .await;
+
+        assert_eq!(session.player_position_like_cpp(), Some(moved_position));
+    }
+
+    #[tokio::test]
+    async fn cast_spell_uses_represented_override_spell_info_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let original_spell_id = 13_347;
+        let override_spell_id = 13_348;
+
+        session.set_player_guid(Some(player_guid));
+        session.set_known_spells_like_cpp(vec![original_spell_id]);
+        session.set_spell_store(basic_spell_store([original_spell_id, override_spell_id]));
+        session.add_represented_override_spell_like_cpp(original_spell_id, override_spell_id);
+
+        session
+            .handle_cast_spell(cast_spell_packet(original_spell_id, player_guid))
+            .await;
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 2);
+        assert_eq!(
+            spell_go_spell_id_like_cpp(&packets[0]),
+            override_spell_id,
+            "C++ Player::GetCastSpellInfo resolves m_overrideSpells after the original spell known check"
+        );
+    }
+
+    #[tokio::test]
+    async fn cast_spell_falls_back_when_represented_override_missing_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let original_spell_id = 13_349;
+        let missing_override_spell_id = 13_350;
+
+        session.set_player_guid(Some(player_guid));
+        session.set_known_spells_like_cpp(vec![original_spell_id]);
+        session.set_spell_store(basic_spell_store([original_spell_id]));
+        session
+            .add_represented_override_spell_like_cpp(original_spell_id, missing_override_spell_id);
+
+        session
+            .handle_cast_spell(cast_spell_packet(original_spell_id, player_guid))
+            .await;
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 2);
+        assert_eq!(
+            spell_go_spell_id_like_cpp(&packets[0]),
+            original_spell_id,
+            "C++ Player::GetCastSpellInfo ignores override entries whose SpellInfo cannot be resolved"
+        );
+    }
+
+    #[tokio::test]
+    async fn cast_spell_rejects_gcd_outside_spell_queue_window_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let spell_id = 13_338;
+        session.set_player_guid(Some(player_guid));
+        session.set_known_spells_like_cpp(vec![spell_id]);
+        session.set_spell_store(spell_store_with_global_cooldown(spell_id, 1_500));
+        session.last_spell_cast_time = Some(std::time::Instant::now());
+
+        session
+            .handle_cast_spell(cast_spell_packet(spell_id, player_guid))
+            .await;
+
+        assert!(
+            session
+                .represented_pending_spell_cast_request_like_cpp
+                .is_none()
+        );
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 1);
+        assert_eq!(
+            cast_failed_reason_like_cpp(&packets[0]),
+            SpellCastResult::SpellInProgress as i32,
+            "C++ HandleCastSpellOpcode sends SPELL_FAILED_SPELL_IN_PROGRESS when CanRequestSpellCast rejects the request"
+        );
+    }
+
+    #[tokio::test]
+    async fn cast_spell_queues_within_spell_queue_window_and_executes_after_gcd_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let spell_id = 13_339;
+        session.set_player_guid(Some(player_guid));
+        session.set_known_spells_like_cpp(vec![spell_id]);
+        session.set_spell_store(spell_store_with_global_cooldown(spell_id, 1_500));
+        session.last_spell_cast_time =
+            Some(std::time::Instant::now() - std::time::Duration::from_millis(1_200));
+
+        session
+            .handle_cast_spell(cast_spell_packet(spell_id, player_guid))
+            .await;
+
+        assert!(
+            session
+                .represented_pending_spell_cast_request_like_cpp
+                .as_ref()
+                .is_some_and(|pending| pending.spell_id == spell_id)
+        );
+        assert!(
+            send_rx.is_empty(),
+            "C++ RequestSpellCast only queues while GCD is still active"
+        );
+
+        session.last_spell_cast_time =
+            Some(std::time::Instant::now() - std::time::Duration::from_millis(1_500));
+        session.tick_pending_spell_cast_request_like_cpp().await;
+
+        assert!(
+            session
+                .represented_pending_spell_cast_request_like_cpp
+                .is_none()
+        );
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert!(opcodes.contains(&ServerOpcodes::SpellGo));
+        assert!(opcodes.contains(&ServerOpcodes::CooldownEvent));
+    }
+
+    #[tokio::test]
+    async fn cast_spell_rejects_active_cast_outside_spell_queue_window_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let active_cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 20);
+        let queued_spell_id = 13_340;
+        session.set_player_guid(Some(player_guid));
+        session.set_known_spells_like_cpp(vec![12_345, queued_spell_id]);
+        session.set_spell_store(basic_spell_store([12_345, queued_spell_id]));
+        install_active_spell_cast(&mut session, 12_345, active_cast_id);
+
+        session
+            .handle_cast_spell(cast_spell_packet(queued_spell_id, player_guid))
+            .await;
+
+        assert!(
+            session
+                .represented_pending_spell_cast_request_like_cpp
+                .is_none()
+        );
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 1);
+        assert_eq!(
+            cast_failed_reason_like_cpp(&packets[0]),
+            SpellCastResult::SpellInProgress as i32
+        );
+    }
+
+    #[tokio::test]
+    async fn cast_spell_queues_near_active_cast_finish_and_executes_after_cast_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let active_cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 21);
+        let queued_spell_id = 13_341;
+        session.set_player_guid(Some(player_guid));
+        session.set_known_spells_like_cpp(vec![12_345, queued_spell_id]);
+        session.set_spell_store(basic_spell_store([12_345, queued_spell_id]));
+        install_active_spell_cast(&mut session, 12_345, active_cast_id);
+        if let Some(active) = session.active_spell_cast.as_mut() {
+            active.cast_start_time =
+                std::time::Instant::now() - std::time::Duration::from_millis(29_700);
+        }
+
+        session
+            .handle_cast_spell(cast_spell_packet(queued_spell_id, player_guid))
+            .await;
+
+        assert!(
+            session
+                .represented_pending_spell_cast_request_like_cpp
+                .as_ref()
+                .is_some_and(|pending| pending.spell_id == queued_spell_id)
+        );
+        assert!(send_rx.is_empty());
+
+        if let Some(active) = session.active_spell_cast.as_mut() {
+            active.cast_start_time =
+                std::time::Instant::now() - std::time::Duration::from_millis(30_000);
+        }
+        session.tick_active_spell_cast().await;
+        session.tick_pending_spell_cast_request_like_cpp().await;
+
+        assert!(
+            session
+                .represented_pending_spell_cast_request_like_cpp
+                .is_none()
+        );
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert!(opcodes.contains(&ServerOpcodes::SpellGo));
+        assert!(opcodes.contains(&ServerOpcodes::CooldownEvent));
+    }
+
+    #[tokio::test]
+    async fn cast_known_account_mount_spell_applies_mounted_aura_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let spell_id = 12345;
+
+        install_canonical_player(&mut session, &canonical, player_guid);
+        session.set_known_spells_like_cpp(vec![spell_id]);
+        session.set_spell_store(mounted_spell_store(spell_id, 0));
+        session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([
+            wow_data::MountEntry {
+                id: 7,
+                mount_type_id: 0,
+                flags: 0,
+                source_type_enum: 0,
+                source_spell_id: spell_id,
+                player_condition_id: 0,
+                mount_fly_ride_height: 0.0,
+                ui_model_scene_id: 0,
+            },
+        ])));
+        session.set_mount_x_display_store(Arc::new(wow_data::MountXDisplayStore::from_entries([
+            wow_data::MountXDisplayEntry {
+                id: 1,
+                creature_display_info_id: 4321,
+                player_condition_id: 0,
+                mount_id: 7,
+            },
+        ])));
+
+        session
+            .handle_cast_spell(cast_spell_packet(spell_id, player_guid))
+            .await;
+
+        assert!(session.player_mounted_like_cpp());
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert!(opcodes.contains(&ServerOpcodes::SpellGo));
+        assert!(opcodes.contains(&ServerOpcodes::AuraUpdate));
+        assert!(opcodes.contains(&ServerOpcodes::UpdateObject));
+
+        let manager = canonical.lock().unwrap();
+        let player = manager
+            .find_map(571, 0)
+            .unwrap()
+            .map()
+            .get_typed_player(player_guid)
+            .unwrap();
+        assert_eq!(player.unit().data().mount_display_id, 4321);
+    }
+
+    #[tokio::test]
+    async fn cast_mount_spell_fails_not_here_without_mount_capability_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 43);
+        let spell_id = 12_346;
+
+        install_canonical_player(&mut session, &canonical, player_guid);
+        session.set_known_spells_like_cpp(vec![spell_id]);
+        session.set_spell_store(mounted_spell_store(spell_id, 1234));
+        session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([
+            wow_data::MountEntry {
+                id: 8,
+                mount_type_id: 7,
+                flags: 0,
+                source_type_enum: 0,
+                source_spell_id: spell_id,
+                player_condition_id: 0,
+                mount_fly_ride_height: 0.0,
+                ui_model_scene_id: 0,
+            },
+        ])));
+
+        session
+            .handle_cast_spell(cast_spell_packet(spell_id, player_guid))
+            .await;
+
+        assert!(!session.player_mounted_like_cpp());
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 1);
+        assert_eq!(
+            cast_failed_reason_like_cpp(&packets[0]),
+            SpellCastResult::NotHere as i32
+        );
+    }
+
+    #[tokio::test]
+    async fn cast_flying_mount_spell_fails_only_abovewater_in_water_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 44);
+        let spell_id = 12_347;
+
+        install_canonical_player(&mut session, &canonical, player_guid);
+        session.set_known_spells_like_cpp(vec![spell_id]);
+        session.set_player_liquid_status_like_cpp(crate::session::LIQUID_MAP_IN_WATER_LIKE_CPP);
+        session.set_spell_store(mounted_flying_spell_store(spell_id, 1234));
+        session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([
+            wow_data::MountEntry {
+                id: 9,
+                mount_type_id: 0,
+                flags: 0,
+                source_type_enum: 0,
+                source_spell_id: spell_id,
+                player_condition_id: 0,
+                mount_fly_ride_height: 0.0,
+                ui_model_scene_id: 0,
+            },
+        ])));
+
+        session
+            .handle_cast_spell(cast_spell_packet(spell_id, player_guid))
+            .await;
+
+        assert!(!session.player_mounted_like_cpp());
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 1);
+        assert_eq!(
+            cast_failed_reason_like_cpp(&packets[0]),
+            SpellCastResult::OnlyAbovewater as i32
+        );
+    }
+
+    #[tokio::test]
+    async fn cast_shapeshift_mount_form_fails_not_here_without_capability_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 45);
+        let spell_id = 12_348;
+        let form_id = 55;
+
+        install_canonical_player(&mut session, &canonical, player_guid);
+        session.set_known_spells_like_cpp(vec![spell_id]);
+        session.set_spell_store(shapeshift_spell_store(spell_id, form_id));
+        session.set_spell_shapeshift_form_store(Arc::new(
+            wow_data::SpellShapeshiftFormStore::from_entries([
+                wow_data::SpellShapeshiftFormEntry {
+                    id: form_id as u32,
+                    name: "Mounted Form".to_string(),
+                    creature_type: 0,
+                    flags: 0,
+                    attack_icon_file_id: 0,
+                    bonus_action_bar: 0,
+                    combat_round_time: 0,
+                    damage_variance: 0.0,
+                    mount_type_id: 7,
+                    creature_display_id: [0; 4],
+                    preset_spell_id: [0; wow_data::MAX_SHAPESHIFT_SPELLS],
+                },
+            ]),
+        ));
+
+        session
+            .handle_cast_spell(cast_spell_packet(spell_id, player_guid))
+            .await;
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 1);
+        assert_eq!(
+            cast_failed_reason_like_cpp(&packets[0]),
+            SpellCastResult::NotHere as i32
+        );
+    }
+
+    #[tokio::test]
+    async fn cast_mount_spell_in_disallowed_shapeshift_form_sends_mount_result_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 46);
+        let mount_spell_id = 12_349;
+        let shapeshift_spell_id = 22_349;
+        let form_id = 56;
+
+        install_canonical_player(&mut session, &canonical, player_guid);
+        session.set_known_spells_like_cpp(vec![mount_spell_id]);
+        session.set_spell_store(mounted_spell_store_with_active_shapeshift_aura(
+            mount_spell_id,
+            shapeshift_spell_id,
+            form_id,
+        ));
+        session.set_spell_shapeshift_form_store(Arc::new(
+            wow_data::SpellShapeshiftFormStore::from_entries([
+                wow_data::SpellShapeshiftFormEntry {
+                    id: form_id as u32,
+                    name: "Non Stance Form".to_string(),
+                    creature_type: 0,
+                    flags: 0,
+                    attack_icon_file_id: 0,
+                    bonus_action_bar: 0,
+                    combat_round_time: 0,
+                    damage_variance: 0.0,
+                    mount_type_id: 0,
+                    creature_display_id: [0; 4],
+                    preset_spell_id: [0; wow_data::MAX_SHAPESHIFT_SPELLS],
+                },
+            ]),
+        ));
+        session.visible_auras.insert(
+            0,
+            active_shapeshift_aura_for_test(shapeshift_spell_id, player_guid),
+        );
+
+        session
+            .handle_cast_spell(cast_spell_packet(mount_spell_id, player_guid))
+            .await;
+
+        assert!(!session.player_mounted_like_cpp());
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 1);
+        assert_eq!(mount_result_like_cpp(&packets[0]), 8);
+    }
+
+    #[tokio::test]
+    async fn cast_mount_spell_in_stance_shapeshift_form_is_allowed_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 47);
+        let mount_spell_id = 12_350;
+        let shapeshift_spell_id = 22_350;
+        let form_id = 57;
+
+        install_canonical_player(&mut session, &canonical, player_guid);
+        session.set_known_spells_like_cpp(vec![mount_spell_id]);
+        session.set_spell_store(mounted_spell_store_with_active_shapeshift_aura(
+            mount_spell_id,
+            shapeshift_spell_id,
+            form_id,
+        ));
+        session.set_spell_shapeshift_form_store(Arc::new(
+            wow_data::SpellShapeshiftFormStore::from_entries([
+                wow_data::SpellShapeshiftFormEntry {
+                    id: form_id as u32,
+                    name: "Stance Form".to_string(),
+                    creature_type: 0,
+                    flags: 0x0000_0001,
+                    attack_icon_file_id: 0,
+                    bonus_action_bar: 0,
+                    combat_round_time: 0,
+                    damage_variance: 0.0,
+                    mount_type_id: 0,
+                    creature_display_id: [0; 4],
+                    preset_spell_id: [0; wow_data::MAX_SHAPESHIFT_SPELLS],
+                },
+            ]),
+        ));
+        session.visible_auras.insert(
+            0,
+            active_shapeshift_aura_for_test(shapeshift_spell_id, player_guid),
+        );
+
+        session
+            .handle_cast_spell(cast_spell_packet(mount_spell_id, player_guid))
+            .await;
+
+        assert!(session.player_mounted_like_cpp());
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert!(!opcodes.contains(&ServerOpcodes::MountResult));
+        assert!(!opcodes.contains(&ServerOpcodes::CastFailed));
+        assert!(opcodes.contains(&ServerOpcodes::SpellGo));
+    }
+
+    #[tokio::test]
+    async fn cast_mount_spell_in_disallowed_transformed_display_sends_mount_result_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 48);
+        let mount_spell_id = 12_351;
+        let transformed_display_id = 88_001;
+
+        install_canonical_player(&mut session, &canonical, player_guid);
+        set_canonical_player_display_for_test(
+            &canonical,
+            player_guid,
+            transformed_display_id,
+            false,
+        );
+        session.set_known_spells_like_cpp(vec![mount_spell_id]);
+        session.set_spell_store(mounted_spell_store(mount_spell_id, 0));
+        set_transformed_display_mount_check_stores_for_test(
+            &mut session,
+            transformed_display_id,
+            0,
+            0,
+        );
+
+        session
+            .handle_cast_spell(cast_spell_packet(mount_spell_id, player_guid))
+            .await;
+
+        assert!(!session.player_mounted_like_cpp());
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 1);
+        assert_eq!(mount_result_like_cpp(&packets[0]), 8);
+    }
+
+    #[tokio::test]
+    async fn cast_mount_spell_with_mountable_transform_spell_is_allowed_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 50);
+        let mount_spell_id = 12_353;
+        let transform_spell_id = 22_353;
+        let transformed_display_id = 88_003;
+
+        install_canonical_player(&mut session, &canonical, player_guid);
+        set_canonical_player_display_for_test(
+            &canonical,
+            player_guid,
+            transformed_display_id,
+            false,
+        );
+        session.set_known_spells_like_cpp(vec![mount_spell_id]);
+        session.set_spell_store(mounted_spell_store_with_transform_spell(
+            mount_spell_id,
+            transform_spell_id,
+            true,
+        ));
+        set_transformed_display_mount_check_stores_for_test(
+            &mut session,
+            transformed_display_id,
+            0,
+            0,
+        );
+        session.visible_auras.insert(
+            0,
+            active_shapeshift_aura_for_test(transform_spell_id, player_guid),
+        );
+
+        session
+            .handle_cast_spell(cast_spell_packet(mount_spell_id, player_guid))
+            .await;
+
+        assert!(session.player_mounted_like_cpp());
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert!(!opcodes.contains(&ServerOpcodes::MountResult));
+        assert!(!opcodes.contains(&ServerOpcodes::CastFailed));
+        assert!(opcodes.contains(&ServerOpcodes::SpellGo));
+    }
+
+    #[tokio::test]
+    async fn cast_mount_spell_in_mountable_transformed_model_is_allowed_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 49);
+        let mount_spell_id = 12_352;
+        let transformed_display_id = 88_002;
+
+        install_canonical_player(&mut session, &canonical, player_guid);
+        set_canonical_player_display_for_test(
+            &canonical,
+            player_guid,
+            transformed_display_id,
+            false,
+        );
+        session.set_known_spells_like_cpp(vec![mount_spell_id]);
+        session.set_spell_store(mounted_spell_store(mount_spell_id, 0));
+        set_transformed_display_mount_check_stores_for_test(
+            &mut session,
+            transformed_display_id,
+            0x0000_0080,
+            0,
+        );
+
+        session
+            .handle_cast_spell(cast_spell_packet(mount_spell_id, player_guid))
+            .await;
+
+        assert!(session.player_mounted_like_cpp());
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert!(!opcodes.contains(&ServerOpcodes::MountResult));
+        assert!(!opcodes.contains(&ServerOpcodes::CastFailed));
+        assert!(opcodes.contains(&ServerOpcodes::SpellGo));
+    }
+
+    #[tokio::test]
+    async fn pet_cancel_aura_missing_spellinfo_preserves_pet_aura_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let pet_guid = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 571, 0, 777, 43);
+        let spell_id = 12_346;
+        let aura = AppliedAuraRef::new(spell_id, ObjectGuid::EMPTY, 0, 0x1);
+        install_canonical_player(&mut session, &canonical, player_guid);
+        session.set_spell_store(basic_spell_store([]));
+        set_canonical_player_pet_guid(&canonical, player_guid, pet_guid);
+        add_canonical_test_pet_on_map(&canonical, player_guid, pet_guid, spell_id, true);
+
+        session
+            .handle_pet_cancel_aura(pet_cancel_aura_packet(pet_guid, spell_id))
+            .await;
+
+        assert!(canonical_pet_has_applied_aura(&canonical, pet_guid, aura));
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn pet_cancel_aura_non_owned_pet_preserves_aura_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let other_player_guid = ObjectGuid::create_player(1, 43);
+        let pet_guid = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 571, 0, 777, 44);
+        let spell_id = 12_347;
+        let aura = AppliedAuraRef::new(spell_id, ObjectGuid::EMPTY, 0, 0x1);
+        install_canonical_player(&mut session, &canonical, player_guid);
+        session.set_spell_store(basic_spell_store([spell_id as i32]));
+        add_canonical_test_pet_on_map(&canonical, other_player_guid, pet_guid, spell_id, true);
+
+        session
+            .handle_pet_cancel_aura(pet_cancel_aura_packet(pet_guid, spell_id))
+            .await;
+
+        assert!(canonical_pet_has_applied_aura(&canonical, pet_guid, aura));
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn pet_cancel_aura_dead_pet_sends_feedback_and_preserves_aura_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let pet_guid = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 571, 0, 777, 45);
+        let spell_id = 12_348;
+        let aura = AppliedAuraRef::new(spell_id, ObjectGuid::EMPTY, 0, 0x1);
+        install_canonical_player(&mut session, &canonical, player_guid);
+        session.set_spell_store(basic_spell_store([spell_id as i32]));
+        set_canonical_player_pet_guid(&canonical, player_guid, pet_guid);
+        add_canonical_test_pet_on_map(&canonical, player_guid, pet_guid, spell_id, false);
+
+        session
+            .handle_pet_cancel_aura(pet_cancel_aura_packet(pet_guid, spell_id))
+            .await;
+
+        assert!(canonical_pet_has_applied_aura(&canonical, pet_guid, aura));
+        let bytes = send_rx.try_recv().expect("pet action feedback");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::PetActionFeedback as u16
+        );
+        assert_eq!(&bytes[2..6], &0i32.to_le_bytes());
+        assert_eq!(
+            bytes[6],
+            wow_packet::packets::pet::PET_ACTION_FEEDBACK_DEAD_LIKE_CPP
+        );
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn pet_cancel_aura_removes_charmed_creature_aura_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let creature_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 46);
+        let spell_id = 12_349;
+        let aura = AppliedAuraRef::new(spell_id, ObjectGuid::EMPTY, 0, 0x1);
+        install_canonical_player(&mut session, &canonical, player_guid);
+        session.set_spell_store(basic_spell_store([spell_id as i32]));
+        set_canonical_player_charmed_guid(&canonical, player_guid, creature_guid);
+        add_canonical_test_creature_on_map(
+            &canonical,
+            creature_guid,
+            Position::new(11.0, 21.0, 30.0, 0.0),
+            571,
+            0,
+            false,
+        );
+        {
+            let mut guard = canonical.lock().unwrap();
+            let creature = guard
+                .find_map_mut(571, 0)
+                .unwrap()
+                .map_mut()
+                .get_typed_creature_mut(creature_guid)
+                .unwrap();
+            creature.unit_mut().set_max_health(100);
+            creature.unit_mut().set_health(100);
+            creature.unit_mut().subsystems_mut().auras.add_applied(aura);
+        }
+
+        session
+            .handle_pet_cancel_aura(pet_cancel_aura_packet(creature_guid, spell_id))
+            .await;
+
+        assert!(!canonical_creature_has_applied_aura(
+            &canonical,
+            creature_guid,
+            aura
+        ));
+        assert!(send_rx.is_empty());
+    }
+
+    fn install_canonical_totem_for_session(
+        session: &mut crate::session::WorldSession,
+        canonical: &SharedCanonicalMapManager,
+        slot: usize,
+        is_totem: bool,
+    ) -> (ObjectGuid, ObjectGuid) {
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let totem_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, slot as i64);
+        install_canonical_player(session, canonical, player_guid);
+        set_canonical_player_summon_slot(canonical, player_guid, slot, totem_guid);
+        add_canonical_test_creature_on_map(
+            canonical,
+            totem_guid,
+            Position::new(10.5, 20.5, 30.0, 0.0),
+            571,
+            0,
+            is_totem,
+        );
+        (player_guid, totem_guid)
+    }
+
+    #[tokio::test]
+    async fn totem_destroyed_despawns_matching_totem_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let slot = wow_entities::UNIT_SUMMON_SLOT_TOTEM + 2;
+        let (player_guid, totem_guid) =
+            install_canonical_totem_for_session(&mut session, &canonical, slot, true);
 
         session
             .handle_totem_destroyed(totem_destroyed_packet(2, totem_guid))
             .await;
 
+        assert!(!canonical_creature_exists(&canonical, totem_guid));
+        assert_eq!(
+            canonical_player_summon_slot(&canonical, player_guid, slot),
+            ObjectGuid::EMPTY
+        );
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn totem_destroyed_empty_guid_matches_slot_totem_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let slot = wow_entities::UNIT_SUMMON_SLOT_TOTEM + 1;
+        let (player_guid, totem_guid) =
+            install_canonical_totem_for_session(&mut session, &canonical, slot, true);
+
+        session
+            .handle_totem_destroyed(totem_destroyed_packet(1, ObjectGuid::EMPTY))
+            .await;
+
+        assert!(!canonical_creature_exists(&canonical, totem_guid));
+        assert_eq!(
+            canonical_player_summon_slot(&canonical, player_guid, slot),
+            ObjectGuid::EMPTY
+        );
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn totem_destroyed_mismatched_guid_preserves_totem_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let slot = wow_entities::UNIT_SUMMON_SLOT_TOTEM;
+        let (player_guid, totem_guid) =
+            install_canonical_totem_for_session(&mut session, &canonical, slot, true);
+        let other_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 901);
+
+        session
+            .handle_totem_destroyed(totem_destroyed_packet(0, other_guid))
+            .await;
+
+        assert!(canonical_creature_exists(&canonical, totem_guid));
+        assert_eq!(
+            canonical_player_summon_slot(&canonical, player_guid, slot),
+            totem_guid
+        );
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn totem_destroyed_remote_control_preserves_totem_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let slot = wow_entities::UNIT_SUMMON_SLOT_TOTEM;
+        let (player_guid, totem_guid) =
+            install_canonical_totem_for_session(&mut session, &canonical, slot, true);
+        let controlled_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 902);
+        session.set_player_moved_unit_guid_like_cpp(controlled_guid);
+
+        session
+            .handle_totem_destroyed(totem_destroyed_packet(0, totem_guid))
+            .await;
+
+        assert!(canonical_creature_exists(&canonical, totem_guid));
+        assert_eq!(
+            canonical_player_summon_slot(&canonical, player_guid, slot),
+            totem_guid
+        );
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn totem_destroyed_out_of_range_slot_preserves_totem_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let slot = wow_entities::UNIT_SUMMON_SLOT_TOTEM;
+        let (player_guid, totem_guid) =
+            install_canonical_totem_for_session(&mut session, &canonical, slot, true);
+
+        session
+            .handle_totem_destroyed(totem_destroyed_packet(4, totem_guid))
+            .await;
+
+        assert!(canonical_creature_exists(&canonical, totem_guid));
+        assert_eq!(
+            canonical_player_summon_slot(&canonical, player_guid, slot),
+            totem_guid
+        );
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
+    async fn totem_destroyed_non_totem_creature_preserves_slot_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let slot = wow_entities::UNIT_SUMMON_SLOT_TOTEM;
+        let (player_guid, totem_guid) =
+            install_canonical_totem_for_session(&mut session, &canonical, slot, false);
+
+        session
+            .handle_totem_destroyed(totem_destroyed_packet(0, totem_guid))
+            .await;
+
+        assert!(canonical_creature_exists(&canonical, totem_guid));
+        assert_eq!(
+            canonical_player_summon_slot(&canonical, player_guid, slot),
+            totem_guid
+        );
         assert!(send_rx.is_empty());
     }
 

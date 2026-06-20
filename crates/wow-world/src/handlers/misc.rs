@@ -69,7 +69,7 @@ use wow_packet::packets::misc::{
     GuildBankUpdateTab, GuildBankWithdrawMoney, GuildCommandResult, GuildSetAchievementTracking,
     IgnoreTrade, LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify,
     MAX_ACCOUNT_DATA_SIZE_LIKE_CPP, MountSetFavorite, MountSpecial, NUM_ACCOUNT_DATA_TYPES,
-    ObjectUpdateFailed, ObjectUpdateRescued, QueryArenaTeam, QueryBattlePetName,
+    ObjectUpdateFailed, ObjectUpdateRescued, PortGraveyard, QueryArenaTeam, QueryBattlePetName,
     QueryBattlePetNameResponse, QueryPetition, QueryPetitionResponse, RatedPvpInfo, ReclaimCorpse,
     RepopRequest, RequestAccountData, RequestBattlefieldStatus, RequestCemeteryListResponse,
     ResurrectResponse, SaveCufProfiles, SetAdvancedCombatLogging, SetCurrencyFlags,
@@ -78,8 +78,9 @@ use wow_packet::packets::misc::{
     SpecialMountAnim, StandStateChange, SubmitUserFeedback, SupportTicketSubmitBug,
     SupportTicketSubmitComplaint, SupportTicketSubmitSuggestion, TRADE_STATUS_CANCELLED_LIKE_CPP,
     TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, TaxiNodeStatusPkt, ToggleDifficulty, TogglePvp,
-    ToyClearFanfare, UnacceptTrade, UpdateAccountData, UseToy, UserClientUpdateAccountData,
-    ViolenceLevel, compress_account_data_like_cpp, decompress_account_data_like_cpp,
+    ToyClearFanfare, TutorialSetFlag, UnacceptTrade, UpdateAccountData, UseToy,
+    UserClientUpdateAccountData, ViolenceLevel, compress_account_data_like_cpp,
+    decompress_account_data_like_cpp,
 };
 use wow_packet::packets::pet::DismissCritter;
 use wow_packet::packets::reputation::{
@@ -753,6 +754,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_save_cuf_profiles",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::Tutorial,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_tutorial",
     }
 }
 
@@ -2102,6 +2112,7 @@ impl crate::session::WorldSession {
 
         // Update internal state
         self.set_player_map_position_like_cpp(new_map as u16, new_pos);
+        let _ = self.update_represented_item_level_area_based_scaling_like_cpp();
         let _ = self.ensure_canonical_world_map_for_current_player_like_cpp();
         self.update_registry_position();
         self.resummon_pet_temporary_unsummoned_if_any_like_cpp();
@@ -2239,6 +2250,28 @@ impl crate::session::WorldSession {
         self.set_player_ghost_flag_like_cpp(true);
         self.represented_repop_at_graveyard_count =
             self.represented_repop_at_graveyard_count.saturating_add(1);
+    }
+
+    /// CMSG_CLIENT_PORT_GRAVEYARD — manually teleport ghost to graveyard.
+    /// C++ ref: `WorldSession::HandlePortGraveyard`.
+    pub async fn try_handle_client_port_graveyard_like_cpp(
+        &mut self,
+        mut pkt: wow_packet::WorldPacket,
+    ) -> bool {
+        if PortGraveyard::read(&mut pkt).is_err() {
+            return false;
+        }
+
+        if self.player_is_alive_like_cpp() || !self.player_has_ghost_flag_like_cpp() {
+            return true;
+        }
+
+        // C++ calls `Player::RepopAtGraveyard()`. Rust still represents the
+        // graveyard selection/teleport runtime as a counter seam shared with
+        // release and instance-lock decline paths.
+        self.represented_repop_at_graveyard_count =
+            self.represented_repop_at_graveyard_count.saturating_add(1);
+        true
     }
 
     /// CMSG_RECLAIM_CORPSE — resurrect at corpse.
@@ -3320,6 +3353,26 @@ impl crate::session::WorldSession {
             );
         }
     }
+
+    pub async fn handle_tutorial(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let packet = match TutorialSetFlag::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(account = self.account_id, "Tutorial parse failed: {error}");
+                return;
+            }
+        };
+
+        if !self.apply_tutorial_action_like_cpp(packet.action, packet.tutorial_bit) {
+            warn!(
+                account = self.account_id,
+                action = packet.action,
+                tutorial_bit = packet.tutorial_bit,
+                "CMSG_TUTORIAL ignored invalid action or TutorialBit like C++"
+            );
+        }
+    }
+
     pub async fn handle_guild_set_achievement_tracking(
         &mut self,
         mut pkt: wow_packet::WorldPacket,
@@ -6525,6 +6578,95 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn world_port_response_activates_pvp_item_levels_for_flagged_map_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        let canonical = shared_canonical_map_manager_for_misc_test();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let destination = Position::new(7.0, 8.0, 9.0, 0.25);
+        let mut pvp_item_level_map = map_entry(30, wow_data::map::MAP_COMMON);
+        pvp_item_level_map.flags2 = 0x40;
+        session.set_map_store(Arc::new(MapStore::from_entries([
+            map_entry(571, wow_data::map::MAP_COMMON),
+            pvp_item_level_map,
+        ])));
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(crate::session::SessionPlayerController::new(
+            player_guid,
+            "WorldportPvpItemLevel".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map_for_misc_test(
+            &canonical,
+            player_guid,
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            0,
+        );
+        session.pending_teleport = Some((30, destination));
+        session.set_represented_far_teleport_pending_like_cpp(true);
+        session.set_state(crate::session::SessionState::Transfer);
+
+        session
+            .handle_world_port_response(WorldPacket::new_empty())
+            .await;
+
+        assert!(
+            session.represented_using_pvp_item_levels_like_cpp(),
+            "C++ Player::UpdateItemLevelAreaBasedScaling activates PvP item levels when MapEntry::Flags[1] has 0x40"
+        );
+    }
+
+    #[tokio::test]
+    async fn world_port_response_deactivates_pvp_item_levels_for_normal_map_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        let canonical = shared_canonical_map_manager_for_misc_test();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let destination = Position::new(7.0, 8.0, 9.0, 0.25);
+        let mut pvp_item_level_map = map_entry(30, wow_data::map::MAP_COMMON);
+        pvp_item_level_map.flags2 = 0x40;
+        session.set_map_store(Arc::new(MapStore::from_entries([
+            pvp_item_level_map,
+            map_entry(571, wow_data::map::MAP_COMMON),
+        ])));
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(crate::session::SessionPlayerController::new(
+            player_guid,
+            "WorldportNormalItemLevel".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            30,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map_for_misc_test(
+            &canonical,
+            player_guid,
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            30,
+            0,
+        );
+        session.set_represented_using_pvp_item_levels_like_cpp(true);
+        session.pending_teleport = Some((571, destination));
+        session.set_represented_far_teleport_pending_like_cpp(true);
+        session.set_state(crate::session::SessionState::Transfer);
+
+        session
+            .handle_world_port_response(WorldPacket::new_empty())
+            .await;
+
+        assert!(
+            !session.represented_using_pvp_item_levels_like_cpp(),
+            "C++ Player::UpdateItemLevelAreaBasedScaling clears PvP item levels after leaving map/PvP activity"
+        );
+    }
+
     fn install_pending_bind_instance_context_like_cpp(
         session: &mut crate::session::WorldSession,
         player_guid: ObjectGuid,
@@ -6969,6 +7111,10 @@ mod tests {
         pkt.write_bit(check_instance);
         pkt.flush_bits();
         pkt
+    }
+
+    fn port_graveyard_packet() -> WorldPacket {
+        WorldPacket::new_empty()
     }
 
     fn reclaim_corpse_packet(corpse_guid: ObjectGuid) -> WorldPacket {
@@ -7480,6 +7626,80 @@ mod tests {
             .await;
         assert_eq!(session.represented_repop_at_graveyard_count, 0);
         assert!(session.player_has_ghost_flag_like_cpp());
+    }
+
+    #[tokio::test]
+    async fn client_port_graveyard_dead_ghost_repops_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager_for_misc_test();
+        let player_guid = ObjectGuid::create_player(1, 4301);
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_player_on_map_for_misc_test(
+            &canonical,
+            player_guid,
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            0,
+        );
+        session.set_player_alive_like_cpp(false);
+        session.set_player_ghost_flag_like_cpp(true);
+
+        let handled = session
+            .try_handle_client_port_graveyard_like_cpp(port_graveyard_packet())
+            .await;
+
+        assert!(handled);
+        assert!(!session.player_is_alive_like_cpp());
+        assert!(session.player_has_ghost_flag_like_cpp());
+        assert_eq!(session.represented_repop_at_graveyard_count, 1);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn client_port_graveyard_alive_or_not_ghost_returns_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        let canonical = shared_canonical_map_manager_for_misc_test();
+        let player_guid = ObjectGuid::create_player(1, 4302);
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_player_on_map_for_misc_test(
+            &canonical,
+            player_guid,
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            0,
+        );
+
+        session.set_player_alive_like_cpp(true);
+        assert!(
+            session
+                .try_handle_client_port_graveyard_like_cpp(port_graveyard_packet())
+                .await
+        );
+        assert_eq!(session.represented_repop_at_graveyard_count, 0);
+        assert!(session.player_is_alive_like_cpp());
+
+        session.set_player_alive_like_cpp(false);
+        session.set_player_ghost_flag_like_cpp(false);
+        assert!(
+            session
+                .try_handle_client_port_graveyard_like_cpp(port_graveyard_packet())
+                .await
+        );
+        assert_eq!(session.represented_repop_at_graveyard_count, 0);
+        assert!(!session.player_has_ghost_flag_like_cpp());
+
+        let mut non_empty = WorldPacket::new_empty();
+        non_empty.write_uint8(1);
+        non_empty.reset_read();
+        assert!(
+            !session
+                .try_handle_client_port_graveyard_like_cpp(non_empty)
+                .await
+        );
     }
 
     #[tokio::test]
@@ -10714,6 +10934,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
             ItemRecord {
                 id: toy_item_id,
@@ -10724,6 +10946,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
         ])));
         session.set_item_search_name_store(Arc::new(ItemSearchNameStore::from_entries([
@@ -10780,6 +11004,8 @@ mod tests {
                             price_random_value: 0.0,
                             max_durability: 0,
                             other_faction_item_id: 0,
+                            content_tuning_id: 0,
+                            player_level_to_item_level_curve_id: 0,
                             limit_category: 0,
                             instance_bound: 0,
                             zone_bound: [0, 0],
@@ -10808,6 +11034,8 @@ mod tests {
                             price_random_value: 0.0,
                             max_durability: 0,
                             other_faction_item_id: 0,
+                            content_tuning_id: 0,
+                            player_level_to_item_level_curve_id: 0,
                             limit_category: 0,
                             instance_bound: 0,
                             zone_bound: [0, 0],

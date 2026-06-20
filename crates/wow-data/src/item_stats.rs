@@ -57,6 +57,8 @@ pub struct ItemStatEntry {
     /// Up to 10 stat modifier slots: (stat_type, bonus_amount).
     /// stat_type -1 = unused slot.
     pub stats: [(i8, i16); 10],
+    /// C++ `ItemSparseEntry::Resistances` indexed by `SpellSchools`.
+    pub resistances: [i16; 7],
     /// Physical armor from ItemSparse Resistances[0].
     pub armor: i32,
 }
@@ -78,6 +80,8 @@ pub struct ItemSparseTemplateEntry {
     pub price_random_value: f32,
     pub max_durability: u32,
     pub other_faction_item_id: i32,
+    pub content_tuning_id: i32,
+    pub player_level_to_item_level_curve_id: i32,
     pub limit_category: u16,
     pub instance_bound: u16,
     pub zone_bound: [u16; 2],
@@ -97,6 +101,16 @@ pub struct ItemRandomPropertyTemplateEntry {
     pub inventory_type: i8,
 }
 
+/// C++ `ItemSparseEntry` weapon fields used by `Player::_ApplyWeaponDamage`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ItemWeaponTemplateEntry {
+    pub dmg_variance: f32,
+    pub item_delay: u16,
+    pub min_damage: [u16; 5],
+    pub max_damage: [u16; 5],
+    pub damage_damage_type: u8,
+}
+
 impl ItemSparseTemplateEntry {
     /// C++ `ItemTemplate::GetMaxStackSize`.
     pub fn max_stack_size(&self) -> u32 {
@@ -114,6 +128,16 @@ impl ItemSparseTemplateEntry {
     /// C++ `ItemTemplate::GetOtherFactionItemId`.
     pub fn other_faction_item_id_like_cpp(&self) -> u32 {
         self.other_faction_item_id as u32
+    }
+
+    /// C++ `ItemTemplate::GetScalingStatContentTuning`.
+    pub fn scaling_stat_content_tuning_like_cpp(&self) -> u32 {
+        self.content_tuning_id as u32
+    }
+
+    /// C++ `ItemTemplate::GetPlayerLevelToItemLevelCurveId`.
+    pub fn player_level_to_item_level_curve_id_like_cpp(&self) -> u32 {
+        self.player_level_to_item_level_curve_id as u32
     }
 }
 
@@ -232,6 +256,7 @@ pub struct ItemStatsStore {
     flags: HashMap<u32, [u32; 4]>,
     sparse_templates: HashMap<u32, ItemSparseTemplateEntry>,
     random_property_templates: HashMap<u32, ItemRandomPropertyTemplateEntry>,
+    weapon_templates: HashMap<u32, ItemWeaponTemplateEntry>,
 }
 
 /// Known field byte sizes for ItemSparse.db2 (from field_meta).
@@ -340,6 +365,7 @@ impl ItemStatsStore {
             flags: flags.into_iter().collect(),
             sparse_templates: HashMap::new(),
             random_property_templates: HashMap::new(),
+            weapon_templates: HashMap::new(),
         }
     }
 
@@ -356,6 +382,7 @@ impl ItemStatsStore {
             flags,
             sparse_templates,
             random_property_templates: HashMap::new(),
+            weapon_templates: HashMap::new(),
         }
     }
 
@@ -367,6 +394,7 @@ impl ItemStatsStore {
             flags: HashMap::new(),
             sparse_templates: HashMap::new(),
             random_property_templates: random_property_templates.into_iter().collect(),
+            weapon_templates: HashMap::new(),
         }
     }
 
@@ -384,6 +412,38 @@ impl ItemStatsStore {
             flags,
             sparse_templates,
             random_property_templates: random_property_templates.into_iter().collect(),
+            weapon_templates: HashMap::new(),
+        }
+    }
+
+    pub fn from_stats_sparse_and_random_property_templates(
+        stats: impl IntoIterator<Item = (u32, ItemStatEntry)>,
+        sparse_templates: impl IntoIterator<Item = (u32, ItemSparseTemplateEntry)>,
+        random_property_templates: impl IntoIterator<Item = (u32, ItemRandomPropertyTemplateEntry)>,
+    ) -> Self {
+        let sparse_templates: HashMap<_, _> = sparse_templates.into_iter().collect();
+        let flags = sparse_templates
+            .iter()
+            .map(|(&id, template)| (id, template.flags))
+            .collect();
+        Self {
+            stats: stats.into_iter().collect(),
+            flags,
+            sparse_templates,
+            random_property_templates: random_property_templates.into_iter().collect(),
+            weapon_templates: HashMap::new(),
+        }
+    }
+
+    pub fn from_weapon_templates(
+        weapon_templates: impl IntoIterator<Item = (u32, ItemWeaponTemplateEntry)>,
+    ) -> Self {
+        Self {
+            stats: HashMap::new(),
+            flags: HashMap::new(),
+            sparse_templates: HashMap::new(),
+            random_property_templates: HashMap::new(),
+            weapon_templates: weapon_templates.into_iter().collect(),
         }
     }
 
@@ -402,6 +462,7 @@ impl ItemStatsStore {
         let mut flags = HashMap::with_capacity(reader.total_count());
         let mut sparse_templates = HashMap::with_capacity(reader.total_count());
         let mut random_property_templates = HashMap::with_capacity(reader.total_count());
+        let mut weapon_templates = HashMap::with_capacity(reader.total_count());
         let mut loaded = 0u32;
 
         for (id, idx) in reader.iter_records() {
@@ -416,6 +477,7 @@ impl ItemStatsStore {
             let mut pos = 0usize;
 
             // Field offsets for the stat fields we care about
+            let mut dmg_variance_offset: usize = 0;
             let mut bag_family_offset: usize = 0;
             let mut start_quest_id_offset: usize = 0;
             let mut stackable_offset: usize = 0;
@@ -429,23 +491,32 @@ impl ItemStatsStore {
             let mut price_random_value_offset: usize = 0;
             let mut flags_offset: usize = 0;
             let mut other_faction_item_id_offset: usize = 0;
+            let mut content_tuning_id_offset: usize = 0;
+            let mut player_level_to_item_level_curve_id_offset: usize = 0;
             let mut max_durability_offset: usize = 0;
             let mut limit_category_offset: usize = 0;
             let mut instance_bound_offset: usize = 0;
             let mut zone_bound_offset: usize = 0;
             let mut required_reputation_faction_offset: usize = 0;
             let mut allowable_class_offset: usize = 0;
+            let mut item_delay_offset: usize = 0;
+            let mut min_damage_offset: usize = 0;
+            let mut max_damage_offset: usize = 0;
             let mut resistances_offset: usize = 0;
             let mut stat_amount_offset: usize = 0;
             let mut item_level_offset: usize = 0;
             let mut expansion_id_offset: usize = 0;
             let mut bonding_offset: usize = 0;
+            let mut damage_damage_type_offset: usize = 0;
             let mut stat_type_offset: usize = 0;
             let mut container_slots_offset: usize = 0;
             let mut inventory_type_offset: usize = 0;
             let mut quality_offset: usize = 0;
 
             for (fi, &(byte_size, is_string)) in layout.iter().enumerate() {
+                if fi == 6 {
+                    dmg_variance_offset = pos;
+                }
                 if fi == 9 {
                     bag_family_offset = pos;
                 }
@@ -485,6 +556,12 @@ impl ItemStatsStore {
                 if fi == 24 {
                     other_faction_item_id_offset = pos;
                 }
+                if fi == 26 {
+                    content_tuning_id_offset = pos;
+                }
+                if fi == 27 {
+                    player_level_to_item_level_curve_id_offset = pos;
+                }
                 if fi == 28 {
                     max_durability_offset = pos;
                 }
@@ -503,8 +580,17 @@ impl ItemStatsStore {
                 if fi == 48 {
                     allowable_class_offset = pos;
                 }
+                if fi == 41 {
+                    item_delay_offset = pos;
+                }
                 if fi == 43 {
                     item_level_offset = pos;
+                }
+                if fi == 49 {
+                    min_damage_offset = pos;
+                }
+                if fi == 50 {
+                    max_damage_offset = pos;
                 }
                 if fi == 51 {
                     resistances_offset = pos;
@@ -517,6 +603,9 @@ impl ItemStatsStore {
                 }
                 if fi == 63 {
                     bonding_offset = pos;
+                }
+                if fi == 64 {
+                    damage_damage_type_offset = pos;
                 }
                 if fi == 65 {
                     stat_type_offset = pos;
@@ -576,6 +665,8 @@ impl ItemStatsStore {
                 && price_random_value_offset + 4 <= record.len()
                 && flags_offset + 16 <= record.len()
                 && other_faction_item_id_offset + 4 <= record.len()
+                && content_tuning_id_offset + 4 <= record.len()
+                && player_level_to_item_level_curve_id_offset + 4 <= record.len()
                 && max_durability_offset + 4 <= record.len()
                 && limit_category_offset + 2 <= record.len()
                 && instance_bound_offset + 2 <= record.len()
@@ -603,6 +694,11 @@ impl ItemStatsStore {
                         price_variance: read_f32(record, price_variance_offset),
                         price_random_value: read_f32(record, price_random_value_offset),
                         other_faction_item_id: read_i32(record, other_faction_item_id_offset),
+                        content_tuning_id: read_i32(record, content_tuning_id_offset),
+                        player_level_to_item_level_curve_id: read_i32(
+                            record,
+                            player_level_to_item_level_curve_id_offset,
+                        ),
                         max_durability: read_u32(record, max_durability_offset),
                         limit_category: read_u16(record, limit_category_offset),
                         instance_bound: read_u16(record, instance_bound_offset),
@@ -637,16 +733,43 @@ impl ItemStatsStore {
                 );
             }
 
-            // Extract physical armor from Resistances[0] (field 51, first i16)
-            let item_armor = if resistances_offset + 2 <= record.len() {
-                i16::from_le_bytes([record[resistances_offset], record[resistances_offset + 1]])
-                    as i32
-            } else {
-                0
-            };
+            if dmg_variance_offset + 4 <= record.len()
+                && item_delay_offset + 2 <= record.len()
+                && min_damage_offset + 10 <= record.len()
+                && max_damage_offset + 10 <= record.len()
+                && damage_damage_type_offset < record.len()
+            {
+                let mut min_damage = [0u16; 5];
+                let mut max_damage = [0u16; 5];
+                for i in 0..5 {
+                    min_damage[i] = read_u16(record, min_damage_offset + i * 2);
+                    max_damage[i] = read_u16(record, max_damage_offset + i * 2);
+                }
+                weapon_templates.insert(
+                    id,
+                    ItemWeaponTemplateEntry {
+                        dmg_variance: read_f32(record, dmg_variance_offset),
+                        item_delay: read_u16(record, item_delay_offset),
+                        min_damage,
+                        max_damage,
+                        damage_damage_type: record[damage_damage_type_offset],
+                    },
+                );
+            }
+
+            // Extract C++ ItemSparseEntry::Resistances[7] (field 51).
+            let mut resistances = [0i16; 7];
+            if resistances_offset + 14 <= record.len() {
+                for (school, resistance) in resistances.iter_mut().enumerate() {
+                    let offset = resistances_offset + school * 2;
+                    *resistance = i16::from_le_bytes([record[offset], record[offset + 1]]);
+                }
+            }
+            let item_armor = i32::from(resistances[0]);
 
             let mut entry = ItemStatEntry {
                 stats: [(-1i8, 0i16); 10],
+                resistances,
                 armor: item_armor,
             };
 
@@ -680,6 +803,7 @@ impl ItemStatsStore {
             flags,
             sparse_templates,
             random_property_templates,
+            weapon_templates,
         })
     }
 
@@ -719,6 +843,11 @@ impl ItemStatsStore {
         item_id: u32,
     ) -> Option<&ItemRandomPropertyTemplateEntry> {
         self.random_property_templates.get(&item_id)
+    }
+
+    /// Return the C++ `ItemSparseEntry` weapon subset used by `_ApplyWeaponDamage`.
+    pub fn weapon_template(&self, item_id: u32) -> Option<&ItemWeaponTemplateEntry> {
+        self.weapon_templates.get(&item_id)
     }
 
     /// Number of items with stats.
@@ -775,6 +904,7 @@ mod tests {
     fn test_base_stat_bonuses() {
         let entry = ItemStatEntry {
             armor: 0,
+            resistances: [0; 7],
             stats: [
                 (4, 100), // STR=100
                 (7, 80),  // STA=80
@@ -800,6 +930,7 @@ mod tests {
     fn test_attack_power_bonus() {
         let entry = ItemStatEntry {
             armor: 0,
+            resistances: [0; 7],
             stats: [
                 (38, 120), // AttackPower=120
                 (4, 50),   // STR=50
@@ -857,6 +988,8 @@ mod tests {
             price_variance: 1.25,
             price_random_value: 0.75,
             other_faction_item_id: 999,
+            content_tuning_id: 321,
+            player_level_to_item_level_curve_id: 654,
             max_durability: 77,
             limit_category: 9,
             instance_bound: 11,
@@ -882,6 +1015,8 @@ mod tests {
         assert_eq!(loaded.price_variance, 1.25);
         assert_eq!(loaded.price_random_value, 0.75);
         assert_eq!(loaded.other_faction_item_id_like_cpp(), 999);
+        assert_eq!(loaded.scaling_stat_content_tuning_like_cpp(), 321);
+        assert_eq!(loaded.player_level_to_item_level_curve_id_like_cpp(), 654);
         assert_eq!(loaded.instance_bound, 11);
         assert_eq!(loaded.zone_bound, [22, 33]);
         assert_eq!(loaded.required_expansion, 4);
@@ -896,6 +1031,26 @@ mod tests {
             ..template
         };
         assert_eq!(unlimited.max_stack_size(), 0x7FFF_FFFE);
+    }
+
+    #[test]
+    fn item_weapon_template_entry_exposes_cpp_apply_weapon_damage_inputs() {
+        let weapon = ItemWeaponTemplateEntry {
+            dmg_variance: 1.4,
+            item_delay: 2600,
+            min_damage: [120, 1, 2, 3, 4],
+            max_damage: [180, 5, 6, 7, 8],
+            damage_damage_type: 0,
+        };
+        let store = ItemStatsStore::from_weapon_templates([(100, weapon)]);
+
+        let loaded = store.weapon_template(100).unwrap();
+        assert_eq!(loaded.dmg_variance, 1.4);
+        assert_eq!(loaded.item_delay, 2600);
+        assert_eq!(loaded.min_damage[0], 120);
+        assert_eq!(loaded.max_damage[0], 180);
+        assert_eq!(loaded.damage_damage_type, 0);
+        assert_eq!(store.weapon_template(101), None);
     }
 
     #[test]
@@ -927,6 +1082,14 @@ mod tests {
             eprintln!("  full stats: {:?}", entry.stats);
             assert!(str > 100, "Shadowmourne STR should be >100, got {str}");
             assert!(sta > 100, "Shadowmourne STA should be >100, got {sta}");
+            let weapon = store
+                .weapon_template(49623)
+                .expect("Shadowmourne should expose ItemSparse weapon fields");
+            assert!(weapon.item_delay > 0, "weapon delay should be loaded");
+            assert!(
+                weapon.min_damage[0] <= weapon.max_damage[0],
+                "weapon damage range should be ordered"
+            );
         } else {
             eprintln!("Shadowmourne (49623) not found in stats store");
         }

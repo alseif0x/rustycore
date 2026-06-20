@@ -1893,6 +1893,28 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   remains the only nearby-entry destination target in this family with DB/caster fallback behavior.
   Remaining boundary: no full target-selection engine, script hooks, exact grid/phase/LOS parity,
   or live client/bot validation.
+- 2026-06-17 — Teleport preflight new-instance farm-limit abort `#NEXT.RUNTIME.L3.031j38`:
+  contrasted `Player::TeleportTo` calling `Map::PlayerCannotEnter` before transfer packets and
+  `Map::PlayerCannotEnter` applying `Player::CheckInstanceCount(instanceIdToCheck)` even when the
+  target instance map does not exist yet. Rust `player_cannot_enter_target_map_like_cpp` now applies
+  the represented account instance farm-limit probe to the key from either `CreateMapDecision::Create`
+  or `Existing`, keeping teleport preflight read-only and returning `TRANSFER_ABORT_TOO_MANY_INSTANCES`
+  before `SMSG_TRANSFER_PENDING` for new distinct instances over the hourly cap.
+- 2026-06-17 — WotLK `Player::TeleportTo` common movement-state reset
+  `#NEXT.RUNTIME.L3.031j80`: contrasted the C++ flag mask before same-map/far-map branching
+  (`Player.cpp:1274-1277`) and `MOVEMENTFLAG_MASK_HAS_PLAYER_STATUS_OPCODE` (`UnitDefines.h:405-407`).
+  Rust now masks represented player movement flags at the same point in `WorldSession::teleport_to`,
+  preserving only the player status-opcode flags before near teleport, far preflight, delayed
+  teleport, or DK escape abort. Remaining boundary is explicit: represented player
+  `MovementInfo::jump`, `DisableSpline`, and `MotionMaster::Remove(EFFECT_MOTION_TYPE)` are not yet
+  modeled in this Rust path.
+- 2026-06-17 — WotLK `Player::TeleportTo` represented vehicle-passenger exit
+  `#NEXT.RUNTIME.L3.031j81`: contrasted the direct `if (m_vehicle) ExitVehicle()` call before the
+  teleport movement reset (`Player.cpp:1282-1283`) and `Unit::ExitVehicle`'s passenger-side entry
+  point (`Unit.cpp:12069-12079`). Rust now clears represented vehicle passenger seat state and
+  republishes registry state at that same point, without using the client-requested vehicle-exit
+  seat permission gate. Remaining boundary: no real control-vehicle aura removal, `_ExitVehicle`
+  relocation spline, mounted-duel flee, or live vehicle base mutation.
 
 ## References
 

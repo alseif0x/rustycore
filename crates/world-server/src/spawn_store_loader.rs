@@ -5954,6 +5954,8 @@ mod tests {
                 id,
                 continent_id,
                 parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
                 mount_flags: 0,
                 flags: 0,
             }

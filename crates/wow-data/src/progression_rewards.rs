@@ -12,6 +12,9 @@ pub const QUEST_PACKAGE_FILTER_LOOT_SPECIALIZATION_LIKE_CPP: u8 = 0;
 pub const QUEST_PACKAGE_FILTER_CLASS_LIKE_CPP: u8 = 1;
 pub const QUEST_PACKAGE_FILTER_UNMATCHED_LIKE_CPP: u8 = 2;
 pub const QUEST_PACKAGE_FILTER_EVERYONE_LIKE_CPP: u8 = 3;
+/// C++ `MAX_LEVEL` from `DataStores/DBCEnums.h` for the 3.4.3 client data set.
+pub const MAX_LEVEL_LIKE_CPP: u8 = 123;
+pub const CONTENT_TUNING_FLAG_DISABLED_FOR_ITEM_LIKE_CPP: i32 = 0x04;
 pub const FACTION_TEMPLATE_FLAG_CONTESTED_GUARD_LIKE_CPP: u16 = 0x0000_1000;
 pub const FACTION_TEMPLATE_FLAG_HOSTILE_BY_DEFAULT_LIKE_CPP: u16 = 0x0000_2000;
 pub const FACTION_MASK_PLAYER_LIKE_CPP: u8 = 0x01;
@@ -32,6 +35,22 @@ pub struct ContentTuningEntry {
     pub flags: i32,
     pub expected_stat_mod_id: i32,
     pub difficulty_esm_id: i32,
+}
+
+impl ContentTuningEntry {
+    pub const fn disabled_for_item_like_cpp(&self) -> bool {
+        (self.flags & CONTENT_TUNING_FLAG_DISABLED_FOR_ITEM_LIKE_CPP) != 0
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ContentTuningLevelsLikeCpp {
+    pub min_level: i32,
+    pub max_level: i32,
+    pub min_level_with_delta: i32,
+    pub max_level_with_delta: i32,
+    pub target_level_min: i32,
+    pub target_level_max: i32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -60,6 +79,17 @@ pub struct CurvePointEntry {
     pub pre_sl_squish_pos: [f32; 2],
     pub curve_id: u32,
     pub order_index: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CurveInterpolationModeLikeCpp {
+    Linear,
+    Cosine,
+    CatmullRom,
+    Bezier3,
+    Bezier4,
+    Bezier,
+    Constant,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -330,6 +360,109 @@ pub struct ScalingStatValuesEntry {
     pub plate_chest_armor: i32,
 }
 
+impl ScalingStatValuesEntry {
+    /// C++ `ScalingStatValuesEntry::getssdMultiplier`.
+    pub fn ssd_multiplier_like_cpp(&self, mask: u32) -> i32 {
+        if mask & 0x4001F == 0 {
+            return 0;
+        }
+        if mask & 0x00000001 != 0 {
+            return self.shoulder_budget;
+        }
+        if mask & 0x00000002 != 0 {
+            return self.trinket_budget;
+        }
+        if mask & 0x00000004 != 0 {
+            return self.weapon_budget_1h;
+        }
+        if mask & 0x00000008 != 0 {
+            return self.primary_budget;
+        }
+        if mask & 0x00000010 != 0 {
+            return self.ranged_budget;
+        }
+        if mask & 0x00040000 != 0 {
+            return self.tertiary_budget;
+        }
+        0
+    }
+
+    /// C++ `ScalingStatValuesEntry::getArmorMod`.
+    pub fn armor_mod_like_cpp(&self, mask: u32) -> i32 {
+        if mask & 0x00F001E0 == 0 {
+            return 0;
+        }
+        if mask & 0x00000020 != 0 {
+            return self.cloth_shoulder_armor;
+        }
+        if mask & 0x00000040 != 0 {
+            return self.leather_shoulder_armor;
+        }
+        if mask & 0x00000080 != 0 {
+            return self.mail_shoulder_armor;
+        }
+        if mask & 0x00000100 != 0 {
+            return self.plate_shoulder_armor;
+        }
+        if mask & 0x00080000 != 0 {
+            return self.cloth_cloak_armor;
+        }
+        if mask & 0x00100000 != 0 {
+            return self.cloth_chest_armor;
+        }
+        if mask & 0x00200000 != 0 {
+            return self.leather_chest_armor;
+        }
+        if mask & 0x00400000 != 0 {
+            return self.mail_chest_armor;
+        }
+        if mask & 0x00800000 != 0 {
+            return self.plate_chest_armor;
+        }
+        0
+    }
+
+    /// C++ `ScalingStatValuesEntry::getDPSMod`.
+    pub fn dps_mod_like_cpp(&self, mask: u32) -> i32 {
+        if mask & 0x7E00 == 0 {
+            return 0;
+        }
+        if mask & 0x00000200 != 0 {
+            return self.weapon_dps_1h;
+        }
+        if mask & 0x00000400 != 0 {
+            return self.weapon_dps_2h;
+        }
+        if mask & 0x00000800 != 0 {
+            return self.spellcaster_dps_1h;
+        }
+        if mask & 0x00001000 != 0 {
+            return self.spellcaster_dps_2h;
+        }
+        if mask & 0x00002000 != 0 {
+            return self.ranged_dps;
+        }
+        if mask & 0x00004000 != 0 {
+            return self.wand_dps;
+        }
+        0
+    }
+
+    /// C++ `ScalingStatValuesEntry::isTwoHand`.
+    pub fn is_two_hand_like_cpp(&self, mask: u32) -> bool {
+        mask & 0x7E00 != 0 && (mask & 0x00000400 != 0 || mask & 0x00001000 != 0)
+    }
+
+    /// C++ `ScalingStatValuesEntry::getSpellBonus`.
+    pub fn spell_bonus_like_cpp(&self, mask: u32) -> i32 {
+        if mask & 0x00008000 != 0 {
+            self.spell_power
+        } else {
+            0
+        }
+    }
+}
+
 macro_rules! db2_store {
     ($store:ident, $entry:ty) => {
         pub struct $store {
@@ -412,6 +545,32 @@ impl ContentTuningStore {
             }
         })
     }
+
+    pub fn content_tuning_data_like_cpp(
+        &self,
+        content_tuning_id: u32,
+        for_item: bool,
+    ) -> Option<ContentTuningLevelsLikeCpp> {
+        let content_tuning = self.get(content_tuning_id)?;
+        if for_item && content_tuning.disabled_for_item_like_cpp() {
+            return None;
+        }
+
+        let max_level = i32::from(MAX_LEVEL_LIKE_CPP);
+        let min_level_with_delta = content_tuning.min_level.clamp(1, max_level);
+        let max_level_with_delta = content_tuning.max_level.clamp(1, max_level);
+        let min_level = content_tuning.min_level.clamp(1, max_level);
+        let max_level = content_tuning.max_level.clamp(1, max_level);
+
+        Some(ContentTuningLevelsLikeCpp {
+            min_level,
+            max_level,
+            min_level_with_delta,
+            max_level_with_delta,
+            target_level_min: min_level_with_delta,
+            target_level_max: max_level_with_delta,
+        })
+    }
 }
 
 impl CriteriaTreeStore {
@@ -439,6 +598,39 @@ impl CurveStore {
             flags: r.get_field_u8(idx, 2),
         })
     }
+
+    pub fn curve_value_at_like_cpp(
+        &self,
+        curve_points: &CurvePointStore,
+        curve_id: u32,
+        x: f32,
+    ) -> f32 {
+        let grouped_points = curve_points.points_by_curve_like_cpp(self);
+        let Some(points) = grouped_points.get(&curve_id) else {
+            return 0.0;
+        };
+        let Some(curve) = self.get(curve_id) else {
+            return 0.0;
+        };
+        if points.is_empty() {
+            return 0.0;
+        }
+
+        curve_value_at_points_like_cpp(determine_curve_type_like_cpp(curve, points), points, x)
+    }
+
+    /// C++ `DB2Manager::GetCurveXAxisRange`.
+    pub fn curve_x_axis_range_like_cpp(
+        &self,
+        curve_points: &CurvePointStore,
+        curve_id: u32,
+    ) -> Option<(f32, f32)> {
+        let grouped_points = curve_points.points_by_curve_like_cpp(self);
+        let points = grouped_points.get(&curve_id)?;
+        let first = points.first()?;
+        let last = points.last()?;
+        Some((first[0], last[0]))
+    }
 }
 
 impl CurvePointStore {
@@ -452,6 +644,176 @@ impl CurvePointStore {
                 order_index: r.get_field_u8(idx, 4),
             }
         })
+    }
+
+    pub fn points_by_curve_like_cpp(
+        &self,
+        curve_store: &CurveStore,
+    ) -> HashMap<u32, Vec<[f32; 2]>> {
+        let mut unsorted_points: HashMap<u32, Vec<&CurvePointEntry>> = HashMap::new();
+        for point in self.entries.values() {
+            if curve_store.get(point.curve_id).is_some() {
+                unsorted_points
+                    .entry(point.curve_id)
+                    .or_default()
+                    .push(point);
+            }
+        }
+
+        let mut points_by_curve = HashMap::with_capacity(unsorted_points.len());
+        for (curve_id, mut points) in unsorted_points {
+            points.sort_by_key(|point| point.order_index);
+            points_by_curve.insert(
+                curve_id,
+                points.into_iter().map(|point| point.pos).collect(),
+            );
+        }
+        points_by_curve
+    }
+}
+
+fn determine_curve_type_like_cpp(
+    curve: &CurveEntry,
+    points: &[[f32; 2]],
+) -> CurveInterpolationModeLikeCpp {
+    match curve.curve_type {
+        1 => {
+            if points.len() < 4 {
+                CurveInterpolationModeLikeCpp::Cosine
+            } else {
+                CurveInterpolationModeLikeCpp::CatmullRom
+            }
+        }
+        2 => match points.len() {
+            1 => CurveInterpolationModeLikeCpp::Constant,
+            2 => CurveInterpolationModeLikeCpp::Linear,
+            3 => CurveInterpolationModeLikeCpp::Bezier3,
+            4 => CurveInterpolationModeLikeCpp::Bezier4,
+            _ => CurveInterpolationModeLikeCpp::Bezier,
+        },
+        3 => CurveInterpolationModeLikeCpp::Cosine,
+        _ => {
+            if points.len() != 1 {
+                CurveInterpolationModeLikeCpp::Linear
+            } else {
+                CurveInterpolationModeLikeCpp::Constant
+            }
+        }
+    }
+}
+
+fn curve_value_at_points_like_cpp(
+    mode: CurveInterpolationModeLikeCpp,
+    points: &[[f32; 2]],
+    x: f32,
+) -> f32 {
+    match mode {
+        CurveInterpolationModeLikeCpp::Linear => {
+            let mut point_index = 0usize;
+            while point_index < points.len() && points[point_index][0] <= x {
+                point_index += 1;
+            }
+            if point_index == 0 {
+                return points[0][1];
+            }
+            if point_index >= points.len() {
+                return points[points.len() - 1][1];
+            }
+            let x_diff = points[point_index][0] - points[point_index - 1][0];
+            if x_diff == 0.0 {
+                return points[point_index][1];
+            }
+            (((x - points[point_index - 1][0]) / x_diff)
+                * (points[point_index][1] - points[point_index - 1][1]))
+                + points[point_index - 1][1]
+        }
+        CurveInterpolationModeLikeCpp::Cosine => {
+            let mut point_index = 0usize;
+            while point_index < points.len() && points[point_index][0] <= x {
+                point_index += 1;
+            }
+            if point_index == 0 {
+                return points[0][1];
+            }
+            if point_index >= points.len() {
+                return points[points.len() - 1][1];
+            }
+            let x_diff = points[point_index][0] - points[point_index - 1][0];
+            if x_diff == 0.0 {
+                return points[point_index][1];
+            }
+            ((points[point_index][1] - points[point_index - 1][1])
+                * (1.0 - ((x - points[point_index - 1][0]) / x_diff * std::f32::consts::PI).cos())
+                * 0.5)
+                + points[point_index - 1][1]
+        }
+        CurveInterpolationModeLikeCpp::CatmullRom => {
+            let mut point_index = 1usize;
+            while point_index < points.len() && points[point_index][0] <= x {
+                point_index += 1;
+            }
+            if point_index == 1 {
+                return points[1][1];
+            }
+            if point_index >= points.len() - 1 {
+                return points[points.len() - 2][1];
+            }
+            let x_diff = points[point_index][0] - points[point_index - 1][0];
+            if x_diff == 0.0 {
+                return points[point_index][1];
+            }
+
+            let mu = (x - points[point_index - 1][0]) / x_diff;
+            let a0 = -0.5 * points[point_index - 2][1] + 1.5 * points[point_index - 1][1]
+                - 1.5 * points[point_index][1]
+                + 0.5 * points[point_index + 1][1];
+            let a1 = points[point_index - 2][1] - 2.5 * points[point_index - 1][1]
+                + 2.0 * points[point_index][1]
+                - 0.5 * points[point_index + 1][1];
+            let a2 = -0.5 * points[point_index - 2][1] + 0.5 * points[point_index][1];
+            let a3 = points[point_index - 1][1];
+
+            a0 * mu * mu * mu + a1 * mu * mu + a2 * mu + a3
+        }
+        CurveInterpolationModeLikeCpp::Bezier3 => {
+            let x_diff = points[2][0] - points[0][0];
+            if x_diff == 0.0 {
+                return points[1][1];
+            }
+            let mu = (x - points[0][0]) / x_diff;
+            ((1.0 - mu) * (1.0 - mu) * points[0][1])
+                + (1.0 - mu) * 2.0 * mu * points[1][1]
+                + mu * mu * points[2][1]
+        }
+        CurveInterpolationModeLikeCpp::Bezier4 => {
+            let x_diff = points[3][0] - points[0][0];
+            if x_diff == 0.0 {
+                return points[1][1];
+            }
+            let mu = (x - points[0][0]) / x_diff;
+            (1.0 - mu) * (1.0 - mu) * (1.0 - mu) * points[0][1]
+                + 3.0 * mu * (1.0 - mu) * (1.0 - mu) * points[1][1]
+                + 3.0 * mu * mu * (1.0 - mu) * points[2][1]
+                + mu * mu * mu * points[3][1]
+        }
+        CurveInterpolationModeLikeCpp::Bezier => {
+            let x_diff = points[points.len() - 1][0] - points[0][0];
+            if x_diff == 0.0 {
+                return points[points.len() - 1][1];
+            }
+
+            let mut tmp: Vec<f32> = points.iter().map(|point| point[1]).collect();
+            let mu = (x - points[0][0]) / x_diff;
+            let mut i = tmp.len() - 1;
+            while i > 0 {
+                for k in 0..i {
+                    tmp[k] += mu * (tmp[k + 1] - tmp[k]);
+                }
+                i -= 1;
+            }
+            tmp[0]
+        }
+        CurveInterpolationModeLikeCpp::Constant => points[0][1],
     }
 }
 
@@ -587,6 +949,26 @@ impl NumTalentsAtLevelStore {
                 num_talents_demon_hunter: r.get_field_i32(idx, 3),
             }
         })
+    }
+
+    pub fn num_talents_at_level_like_cpp(&self, level: u32, class_id: u8) -> u32 {
+        let entry = self.get(level).or_else(|| {
+            self.entries
+                .keys()
+                .max()
+                .and_then(|highest_level| self.get(*highest_level))
+        });
+
+        let Some(entry) = entry else {
+            return 0;
+        };
+
+        let points = match class_id {
+            6 => entry.num_talents_death_knight,
+            12 => entry.num_talents_demon_hunter,
+            _ => entry.num_talents,
+        };
+        points.max(0) as u32
     }
 }
 
@@ -817,6 +1199,16 @@ impl ScalingStatValuesStore {
             }
         })
     }
+
+    /// C++ `DB2Manager::GetScalingStatValuesForLevel`.
+    pub fn get_for_character_level_like_cpp(
+        &self,
+        character_level: u32,
+    ) -> Option<&ScalingStatValuesEntry> {
+        self.entries
+            .values()
+            .find(|entry| entry.char_level == character_level as i32)
+    }
 }
 
 fn load_store<T, S>(
@@ -898,6 +1290,31 @@ impl_from_entries!(ScalingStatValuesStore, ScalingStatValuesEntry);
 mod tests {
     use super::*;
 
+    fn assert_close(actual: f32, expected: f32) {
+        assert!(
+            (actual - expected).abs() < 0.0001,
+            "expected {expected}, got {actual}"
+        );
+    }
+
+    fn curve(id: u32, curve_type: u8) -> CurveEntry {
+        CurveEntry {
+            id,
+            curve_type,
+            flags: 0,
+        }
+    }
+
+    fn point(id: u32, curve_id: u32, order_index: u8, x: f32, y: f32) -> CurvePointEntry {
+        CurvePointEntry {
+            id,
+            pos: [x, y],
+            pre_sl_squish_pos: [0.0, 0.0],
+            curve_id,
+            order_index,
+        }
+    }
+
     fn faction_template_for_test(
         id: u32,
         faction: u16,
@@ -915,6 +1332,93 @@ mod tests {
             enemies: [0; 8],
             friend: [0; 8],
         }
+    }
+
+    fn scaling_stat_values_for_test(id: u32, char_level: i32) -> ScalingStatValuesEntry {
+        ScalingStatValuesEntry {
+            id,
+            char_level,
+            weapon_dps_1h: 101,
+            weapon_dps_2h: 102,
+            spellcaster_dps_1h: 103,
+            spellcaster_dps_2h: 104,
+            ranged_dps: 105,
+            wand_dps: 106,
+            spell_power: 107,
+            shoulder_budget: 201,
+            trinket_budget: 202,
+            weapon_budget_1h: 203,
+            primary_budget: 204,
+            ranged_budget: 205,
+            tertiary_budget: 206,
+            cloth_shoulder_armor: 301,
+            leather_shoulder_armor: 302,
+            mail_shoulder_armor: 303,
+            plate_shoulder_armor: 304,
+            cloth_cloak_armor: 305,
+            cloth_chest_armor: 306,
+            leather_chest_armor: 307,
+            mail_chest_armor: 308,
+            plate_chest_armor: 309,
+        }
+    }
+
+    #[test]
+    fn scaling_stat_values_helpers_match_cpp_mask_priority() {
+        let values = scaling_stat_values_for_test(1, 80);
+
+        assert_eq!(values.ssd_multiplier_like_cpp(0), 0);
+        assert_eq!(values.ssd_multiplier_like_cpp(0x00000001), 201);
+        assert_eq!(values.ssd_multiplier_like_cpp(0x00000002), 202);
+        assert_eq!(values.ssd_multiplier_like_cpp(0x00000004), 203);
+        assert_eq!(values.ssd_multiplier_like_cpp(0x00000008), 204);
+        assert_eq!(values.ssd_multiplier_like_cpp(0x00000010), 205);
+        assert_eq!(values.ssd_multiplier_like_cpp(0x00040000), 206);
+        assert_eq!(values.ssd_multiplier_like_cpp(0x00040001), 201);
+
+        assert_eq!(values.armor_mod_like_cpp(0), 0);
+        assert_eq!(values.armor_mod_like_cpp(0x00000020), 301);
+        assert_eq!(values.armor_mod_like_cpp(0x00000040), 302);
+        assert_eq!(values.armor_mod_like_cpp(0x00000080), 303);
+        assert_eq!(values.armor_mod_like_cpp(0x00000100), 304);
+        assert_eq!(values.armor_mod_like_cpp(0x00080000), 0);
+        assert_eq!(values.armor_mod_like_cpp(0x00180000), 305);
+        assert_eq!(values.armor_mod_like_cpp(0x00100000), 306);
+        assert_eq!(values.armor_mod_like_cpp(0x00200000), 307);
+        assert_eq!(values.armor_mod_like_cpp(0x00400000), 308);
+        assert_eq!(values.armor_mod_like_cpp(0x00800000), 309);
+        assert_eq!(values.armor_mod_like_cpp(0x00800020), 301);
+
+        assert_eq!(values.dps_mod_like_cpp(0), 0);
+        assert_eq!(values.dps_mod_like_cpp(0x00000200), 101);
+        assert_eq!(values.dps_mod_like_cpp(0x00000400), 102);
+        assert_eq!(values.dps_mod_like_cpp(0x00000800), 103);
+        assert_eq!(values.dps_mod_like_cpp(0x00001000), 104);
+        assert_eq!(values.dps_mod_like_cpp(0x00002000), 105);
+        assert_eq!(values.dps_mod_like_cpp(0x00004000), 106);
+        assert_eq!(values.dps_mod_like_cpp(0x00004200), 101);
+
+        assert!(!values.is_two_hand_like_cpp(0x00000200));
+        assert!(values.is_two_hand_like_cpp(0x00000400));
+        assert!(values.is_two_hand_like_cpp(0x00001000));
+        assert_eq!(values.spell_bonus_like_cpp(0), 0);
+        assert_eq!(values.spell_bonus_like_cpp(0x00008000), 107);
+    }
+
+    #[test]
+    fn scaling_stat_values_store_gets_entry_by_character_level_like_cpp() {
+        let store = ScalingStatValuesStore::from_entries([
+            scaling_stat_values_for_test(10, 10),
+            scaling_stat_values_for_test(80, 80),
+        ]);
+
+        assert_eq!(
+            store
+                .get_for_character_level_like_cpp(80)
+                .map(|entry| entry.id),
+            Some(80)
+        );
+        assert_eq!(store.get_for_character_level_like_cpp(11), None);
     }
 
     #[test]
@@ -1054,6 +1558,199 @@ mod tests {
 
         assert_eq!(primary, vec![100]);
         assert_eq!(fallback, vec![200]);
+    }
+
+    #[test]
+    fn num_talents_at_level_matches_cpp_class_and_fallback_like_cpp() {
+        let store = NumTalentsAtLevelStore::from_entries([
+            NumTalentsAtLevelEntry {
+                id: 10,
+                num_talents: 1,
+                num_talents_death_knight: 0,
+                num_talents_demon_hunter: 3,
+            },
+            NumTalentsAtLevelEntry {
+                id: 80,
+                num_talents: 71,
+                num_talents_death_knight: 76,
+                num_talents_demon_hunter: 0,
+            },
+        ]);
+
+        assert_eq!(store.num_talents_at_level_like_cpp(10, 1), 1);
+        assert_eq!(store.num_talents_at_level_like_cpp(80, 6), 76);
+        assert_eq!(store.num_talents_at_level_like_cpp(90, 1), 71);
+        assert_eq!(store.num_talents_at_level_like_cpp(90, 12), 0);
+    }
+
+    #[test]
+    fn curve_points_group_sort_and_skip_missing_curves_like_cpp() {
+        let curves = CurveStore::from_entries([curve(10, 0)]);
+        let points = CurvePointStore::from_entries([
+            point(1, 10, 2, 20.0, 200.0),
+            point(2, 999, 0, 1.0, 1.0),
+            point(3, 10, 0, 0.0, 100.0),
+            point(4, 10, 1, 10.0, 150.0),
+        ]);
+
+        let grouped = points.points_by_curve_like_cpp(&curves);
+        assert_eq!(
+            grouped.get(&10).unwrap(),
+            &vec![[0.0, 100.0], [10.0, 150.0], [20.0, 200.0]]
+        );
+        assert!(!grouped.contains_key(&999));
+    }
+
+    #[test]
+    fn curve_x_axis_range_uses_ordered_curve_points_like_cpp() {
+        let curves = CurveStore::from_entries([curve(10, 0)]);
+        let points = CurvePointStore::from_entries([
+            point(1, 10, 2, 20.0, 200.0),
+            point(2, 999, 0, 1.0, 1.0),
+            point(3, 10, 0, 0.0, 100.0),
+            point(4, 10, 1, 10.0, 150.0),
+        ]);
+
+        assert_eq!(
+            curves.curve_x_axis_range_like_cpp(&points, 10),
+            Some((0.0, 20.0))
+        );
+        assert_eq!(curves.curve_x_axis_range_like_cpp(&points, 999), None);
+    }
+
+    #[test]
+    fn curve_value_at_linear_and_constant_match_cpp() {
+        let curves = CurveStore::from_entries([curve(1, 0), curve(2, 0)]);
+        let points = CurvePointStore::from_entries([
+            point(1, 1, 0, 0.0, 10.0),
+            point(2, 1, 1, 10.0, 30.0),
+            point(3, 2, 0, 0.0, 77.0),
+        ]);
+
+        assert_close(curves.curve_value_at_like_cpp(&points, 1, -1.0), 10.0);
+        assert_close(curves.curve_value_at_like_cpp(&points, 1, 5.0), 20.0);
+        assert_close(curves.curve_value_at_like_cpp(&points, 1, 11.0), 30.0);
+        assert_close(curves.curve_value_at_like_cpp(&points, 2, 999.0), 77.0);
+        assert_close(curves.curve_value_at_like_cpp(&points, 999, 5.0), 0.0);
+    }
+
+    #[test]
+    fn curve_value_at_cosine_matches_cpp() {
+        let curves = CurveStore::from_entries([curve(10, 3)]);
+        let points = CurvePointStore::from_entries([
+            point(1, 10, 0, 0.0, 10.0),
+            point(2, 10, 1, 10.0, 30.0),
+        ]);
+
+        assert_close(curves.curve_value_at_like_cpp(&points, 10, 5.0), 20.0);
+    }
+
+    #[test]
+    fn curve_value_at_catmull_rom_matches_cpp() {
+        let curves = CurveStore::from_entries([curve(20, 1)]);
+        let points = CurvePointStore::from_entries([
+            point(1, 20, 0, 0.0, 0.0),
+            point(2, 20, 1, 10.0, 10.0),
+            point(3, 20, 2, 20.0, 20.0),
+            point(4, 20, 3, 30.0, 30.0),
+        ]);
+
+        assert_close(curves.curve_value_at_like_cpp(&points, 20, 5.0), 10.0);
+        assert_close(curves.curve_value_at_like_cpp(&points, 20, 15.0), 15.0);
+        assert_close(curves.curve_value_at_like_cpp(&points, 20, 25.0), 20.0);
+    }
+
+    #[test]
+    fn curve_value_at_bezier_modes_match_cpp() {
+        let curves =
+            CurveStore::from_entries([curve(30, 2), curve(31, 2), curve(32, 2), curve(33, 2)]);
+        let points = CurvePointStore::from_entries([
+            point(1, 30, 0, 0.0, 10.0),
+            point(2, 30, 1, 10.0, 30.0),
+            point(3, 30, 2, 20.0, 10.0),
+            point(4, 31, 0, 0.0, 0.0),
+            point(5, 31, 1, 10.0, 30.0),
+            point(6, 31, 2, 20.0, 30.0),
+            point(7, 31, 3, 30.0, 0.0),
+            point(8, 32, 0, 0.0, 0.0),
+            point(9, 32, 1, 10.0, 10.0),
+            point(10, 32, 2, 20.0, 20.0),
+            point(11, 32, 3, 30.0, 30.0),
+            point(12, 32, 4, 40.0, 40.0),
+            point(13, 33, 0, 0.0, 44.0),
+        ]);
+
+        assert_close(curves.curve_value_at_like_cpp(&points, 30, 10.0), 20.0);
+        assert_close(curves.curve_value_at_like_cpp(&points, 31, 15.0), 22.5);
+        assert_close(curves.curve_value_at_like_cpp(&points, 32, 20.0), 20.0);
+        assert_close(curves.curve_value_at_like_cpp(&points, 33, 999.0), 44.0);
+    }
+
+    #[test]
+    fn content_tuning_data_filters_for_item_like_cpp() {
+        let store = ContentTuningStore::from_entries([
+            ContentTuningEntry {
+                id: 100,
+                min_level: 10,
+                max_level: 70,
+                flags: 0,
+                expected_stat_mod_id: 0,
+                difficulty_esm_id: 0,
+            },
+            ContentTuningEntry {
+                id: 101,
+                min_level: 20,
+                max_level: 60,
+                flags: CONTENT_TUNING_FLAG_DISABLED_FOR_ITEM_LIKE_CPP,
+                expected_stat_mod_id: 0,
+                difficulty_esm_id: 0,
+            },
+        ]);
+
+        assert_eq!(
+            store.content_tuning_data_like_cpp(100, true),
+            Some(ContentTuningLevelsLikeCpp {
+                min_level: 10,
+                max_level: 70,
+                min_level_with_delta: 10,
+                max_level_with_delta: 70,
+                target_level_min: 10,
+                target_level_max: 70,
+            })
+        );
+        assert_eq!(
+            store
+                .content_tuning_data_like_cpp(101, false)
+                .unwrap()
+                .max_level,
+            60
+        );
+        assert_eq!(store.content_tuning_data_like_cpp(101, true), None);
+        assert_eq!(store.content_tuning_data_like_cpp(999, true), None);
+    }
+
+    #[test]
+    fn content_tuning_data_clamps_levels_like_cpp() {
+        let store = ContentTuningStore::from_entries([ContentTuningEntry {
+            id: 200,
+            min_level: -10,
+            max_level: i32::from(MAX_LEVEL_LIKE_CPP) + 20,
+            flags: 0,
+            expected_stat_mod_id: 0,
+            difficulty_esm_id: 0,
+        }]);
+
+        assert_eq!(
+            store.content_tuning_data_like_cpp(200, true),
+            Some(ContentTuningLevelsLikeCpp {
+                min_level: 1,
+                max_level: i32::from(MAX_LEVEL_LIKE_CPP),
+                min_level_with_delta: 1,
+                max_level_with_delta: i32::from(MAX_LEVEL_LIKE_CPP),
+                target_level_min: 1,
+                target_level_max: i32::from(MAX_LEVEL_LIKE_CPP),
+            })
+        );
     }
 
     #[test]

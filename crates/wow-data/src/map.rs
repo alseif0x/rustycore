@@ -16,6 +16,7 @@ use crate::{DifficultyStore, PlayerConditionEntry, PlayerConditionStore, wdc4::W
 
 pub const MAP_FLAG_FLEXIBLE_RAID_LOCKING: u32 = 0x0000_8000;
 pub const MAP_FLAG_GARRISON: u32 = 0x0400_0000;
+pub const MAP_FLAG2_ACTIVATES_PVP_ITEM_LEVELS_LIKE_CPP: u32 = 0x0000_0040;
 pub const MAP_FLAG2_IGNORE_INSTANCE_FARM_LIMIT: u32 = 0x0000_0080;
 pub const MAP_DIFFICULTY_FLAG_USE_LOOT_BASED_LOCK: u8 = 0x02;
 
@@ -48,6 +49,10 @@ impl MapEntry {
 
     pub const fn ignores_instance_farm_limit_like_cpp(self) -> bool {
         self.flags2 & MAP_FLAG2_IGNORE_INSTANCE_FARM_LIMIT != 0
+    }
+
+    pub const fn activates_pvp_item_levels_like_cpp(self) -> bool {
+        self.flags2 & MAP_FLAG2_ACTIVATES_PVP_ITEM_LEVELS_LIKE_CPP != 0
     }
 
     pub const fn is_dungeon(self) -> bool {
@@ -576,6 +581,20 @@ mod tests {
         assert!(garrison.is_garrison());
         assert!(!garrison.is_dungeon());
         assert!(split.is_split_by_faction());
+
+        let pvp_item_level_map = MapEntry {
+            id: 30_001,
+            instance_type: MAP_COMMON,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+            flags2: MAP_FLAG2_ACTIVATES_PVP_ITEM_LEVELS_LIKE_CPP,
+        };
+        assert!(
+            pvp_item_level_map.activates_pvp_item_levels_like_cpp(),
+            "C++ Player::UpdateItemLevelAreaBasedScaling checks MapEntry::Flags[1] & 0x40"
+        );
     }
 
     #[test]

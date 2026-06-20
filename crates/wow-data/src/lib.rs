@@ -57,6 +57,7 @@ pub mod phase;
 pub mod phasing;
 pub mod player_choice;
 pub mod player_condition;
+pub mod player_create;
 pub mod player_power;
 pub mod player_stats;
 pub mod poi;
@@ -178,7 +179,9 @@ pub use faction_change::{
     FactionChangeSideLikeCpp, FactionChangeStoreLikeCpp, FactionChangeValidationErrorLikeCpp,
 };
 pub use game_tables::{
-    BattlePetXpEntryLikeCpp, BattlePetXpGameTableLikeCpp, battle_pet_xp_per_level_like_cpp,
+    BattlePetXpEntryLikeCpp, BattlePetXpGameTableLikeCpp, ShieldBlockRegularEntryLikeCpp,
+    ShieldBlockRegularGameTableLikeCpp, battle_pet_xp_per_level_like_cpp,
+    shield_block_regular_column_for_quality_like_cpp,
 };
 pub use game_tele::{
     GameTeleLikeCpp, GameTeleLoadOutcomeLikeCpp, GameTeleLoadReportLikeCpp, GameTeleRowLikeCpp,
@@ -258,6 +261,7 @@ pub use item_random_properties::{ItemRandomPropertiesEntry, ItemRandomProperties
 pub use item_random_suffix::{ItemRandomSuffixEntry, ItemRandomSuffixStore};
 pub use item_stats::{
     ItemRandomPropertyTemplateEntry, ItemSparseTemplateEntry, ItemStatEntry, ItemStatsStore,
+    ItemWeaponTemplateEntry,
 };
 pub use jump_charge::{
     JumpChargeParamsLoadOutcomeLikeCpp, JumpChargeParamsLoadReportLikeCpp,
@@ -322,8 +326,9 @@ pub use mount::{
     MOUNT_CAPABILITY_FLAG_FLOAT, MOUNT_CAPABILITY_FLAG_FLYING, MOUNT_CAPABILITY_FLAG_GROUND,
     MOUNT_CAPABILITY_FLAG_IGNORE_RESTRICTIONS, MOUNT_CAPABILITY_FLAG_UNDERWATER,
     MOUNT_FLAG_SELF_MOUNT, MountCapabilityContextLikeCpp, MountCapabilityEntry,
-    MountCapabilityStore, MountEntry, MountStore, MountTypeXCapabilityEntry,
-    MountTypeXCapabilityStore, MountXDisplayEntry, MountXDisplayStore,
+    MountCapabilityRejectLikeCpp, MountCapabilityStore, MountDefinitionStoreLikeCpp, MountEntry,
+    MountStore, MountTypeXCapabilityEntry, MountTypeXCapabilityStore, MountXDisplayEntry,
+    MountXDisplayStore,
 };
 pub use phase::{PhaseEntry, PhaseGroupStore, PhaseStore, PhaseXPhaseGroupEntry};
 pub use phasing::{
@@ -347,6 +352,13 @@ pub use player_condition::{
     PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp, PlayerConditionStore,
     is_player_meeting_condition_like_cpp, player_condition_compare_like_cpp,
     player_condition_logic_like_cpp,
+};
+pub use player_create::{
+    PLAYER_CREATE_MODE_MAX_LIKE_CPP, PLAYER_CREATE_MODE_NORMAL_LIKE_CPP,
+    PLAYER_CREATE_MODE_NPE_LIKE_CPP, PlayerCreateInfoCastSpellLoadReportLikeCpp,
+    PlayerCreateInfoCastSpellRowLikeCpp, PlayerCreateInfoCastSpellStoreLikeCpp,
+    PlayerCreateInfoCustomSpellLoadReportLikeCpp, PlayerCreateInfoCustomSpellRowLikeCpp,
+    PlayerCreateInfoCustomSpellStoreLikeCpp,
 };
 pub use player_power::{
     ClassPowerIndexRecord, Db2PlayerPowerIndexResolver, PlayerClassPowerIndexStore,
@@ -379,8 +391,10 @@ pub use skill::{
     PetDefaultSpellInfoLikeCpp, PetDefaultSpellStoreLikeCpp, PetDefaultSpellsEntryLikeCpp,
     PetFamilySpellInfoLikeCpp, PetFamilySpellLevelLikeCpp, PetFamilySpellStoreLikeCpp,
     PetLevelupSpellInfoLikeCpp, PetLevelupSpellSetLikeCpp, PetLevelupSpellStoreLikeCpp,
-    SkillInfoEntry, SkillLineAbilityRecord, SkillStore, SkillTiersEntryLikeCpp,
-    SkillTiersRowLikeCpp, SkillTiersStoreLikeCpp,
+    SKILL_CATEGORY_ARMOR_LIKE_CPP, SKILL_CATEGORY_LANGUAGES_LIKE_CPP,
+    SKILL_FLAG_ALWAYS_MAX_VALUE_LIKE_CPP, SKILL_RUNEFORGING_LIKE_CPP, SkillInfoEntry,
+    SkillLineAbilityRecord, SkillRaceClassInfoRecord, SkillRangeTypeLikeCpp, SkillStore,
+    SkillTiersEntryLikeCpp, SkillTiersRowLikeCpp, SkillTiersStoreLikeCpp,
 };
 pub use skill_talent::{
     GlyphBindableSpellEntry, GlyphBindableSpellStore, GlyphPropertiesEntry, GlyphPropertiesStore,

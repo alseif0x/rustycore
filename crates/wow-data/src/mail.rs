@@ -12,9 +12,7 @@ use tracing::info;
 use wow_database::{WorldDatabase, WorldStatements};
 
 use crate::conditions::RACEMASK_ALL_PLAYABLE_LIKE_CPP;
-
-/// C++ `MAX_LEVEL` from `DataStores/DBCEnums.h` for the 3.4.3 client data set.
-pub const MAX_LEVEL_LIKE_CPP: u8 = 123;
+pub use crate::progression_rewards::MAX_LEVEL_LIKE_CPP;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MailLevelRewardLikeCpp {

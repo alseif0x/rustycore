@@ -82,6 +82,8 @@ pub enum WorldStatements {
     SEL_PLAYER_XP_FOR_LEVEL,
     /// C++ ObjectMgr exploration base XP by area level.
     SEL_EXPLORATION_BASE_XP,
+    /// C++ `CollectionMgr::LoadMountDefinitions` startup query.
+    SEL_MOUNT_DEFINITIONS,
     SEL_CREATURE_BY_ID,
     /// Creature template entry by spawn GUID (for vendor/trainer when not in visibility tracker).
     SEL_CREATURE_ENTRY_BY_GUID,
@@ -186,6 +188,10 @@ pub enum WorldStatements {
     SEL_PLAYER_LEVELSTATS,
     /// Load initial action buttons for character creation.
     SEL_PLAYER_CREATEINFO_ACTION,
+    /// C++ `ObjectMgr::LoadPlayerInfo` playercreateinfo_cast_spell startup query.
+    SEL_PLAYER_CREATEINFO_CAST_SPELL,
+    /// C++ `ObjectMgr::LoadPlayerInfo` playercreateinfo_spell_custom startup query.
+    SEL_PLAYER_CREATEINFO_CUSTOM_SPELL,
     /// Gossip MenuID for a creature entry (creature_template_gossip).
     SEL_CREATURE_GOSSIP_MENU,
     /// Gossip menu text ID (gossip_menu).
@@ -458,6 +464,9 @@ impl StatementDef for WorldStatements {
             Self::DEL_GAME_TELE => "DELETE FROM game_tele WHERE name = ?",
             Self::SEL_GAME_TELE => {
                 "SELECT id, position_x, position_y, position_z, orientation, map, name FROM game_tele"
+            }
+            Self::SEL_MOUNT_DEFINITIONS => {
+                "SELECT spellId, otherFactionSpellId FROM mount_definitions"
             }
             Self::INS_NPC_VENDOR => {
                 "INSERT INTO npc_vendor (entry, item, maxcount, incrtime, extendedcost, type) VALUES(?, ?, ?, ?, ?, ?)"
@@ -799,6 +808,12 @@ impl StatementDef for WorldStatements {
             }
             Self::SEL_PLAYER_CREATEINFO_ACTION => {
                 "SELECT race, class, button, action, Type FROM playercreateinfo_action"
+            }
+            Self::SEL_PLAYER_CREATEINFO_CAST_SPELL => {
+                "SELECT raceMask, classMask, spell, createMode FROM playercreateinfo_cast_spell"
+            }
+            Self::SEL_PLAYER_CREATEINFO_CUSTOM_SPELL => {
+                "SELECT racemask, classmask, Spell FROM playercreateinfo_spell_custom"
             }
             Self::SEL_GAMEOBJECT_TEMPLATE_BY_ENTRY => concat!(
                 "SELECT entry, type, displayId, name, IconName, castBarCaption, unk1, ",

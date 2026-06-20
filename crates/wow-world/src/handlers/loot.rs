@@ -9367,6 +9367,8 @@ mod tests {
             sheathe_type: 0,
             random_select: 0,
             random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
         }])));
         session.set_item_stats_store(Arc::new(ItemStatsStore::from_sparse_templates([(
             entry,
@@ -9385,6 +9387,8 @@ mod tests {
                 price_random_value: 1.0,
                 max_durability: 0,
                 other_faction_item_id: 0,
+                content_tuning_id: 0,
+                player_level_to_item_level_curve_id: 0,
                 limit_category: 0,
                 instance_bound: 0,
                 zone_bound: [0, 0],
@@ -9408,6 +9412,8 @@ mod tests {
             sheathe_type: 0,
             random_select: 0,
             random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
         }])));
         session.set_item_stats_store(Arc::new(
             ItemStatsStore::from_sparse_and_random_property_templates(
@@ -9428,6 +9434,8 @@ mod tests {
                         price_random_value: 1.0,
                         max_durability: 0,
                         other_faction_item_id: 0,
+                        content_tuning_id: 0,
+                        player_level_to_item_level_curve_id: 0,
                         limit_category: 0,
                         instance_bound: 0,
                         zone_bound: [0, 0],
@@ -10497,6 +10505,8 @@ mod tests {
                 id: 77,
                 continent_id: 0,
                 parent_area_id: 10,
+                area_bit: -1,
+                exploration_level: 0,
                 mount_flags: 0,
                 flags: 0,
             },
@@ -10504,6 +10514,8 @@ mod tests {
                 id: 10,
                 continent_id: 0,
                 parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
                 mount_flags: 0,
                 flags: 0,
             },
@@ -10820,6 +10832,8 @@ mod tests {
             sheathe_type: 0,
             random_select,
             random_suffix_group_id,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
         }
     }
 

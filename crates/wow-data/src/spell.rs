@@ -17,6 +17,7 @@ use std::f32::consts::TAU;
 
 use anyhow::Result;
 use tracing::info;
+use wow_constants::SpellCastResult;
 use wow_database::{HotfixDatabase, StatementDef, WorldDatabase, WorldStatements};
 use wow_entities::PetAuraLikeCpp;
 
@@ -115,6 +116,9 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_HEAL_PCT: u32 = 136;
     pub const SPELL_EFFECT_ENERGIZE_PCT: u32 = 137;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_OWNER: u32 = 143;
+    /// C++ `SPELL_EFFECT_TITAN_GRIP`; see `Spell::EffectTitanGrip`
+    /// (`SpellEffects.cpp:4910-4919`).
+    pub const SPELL_EFFECT_TITAN_GRIP: u32 = 155;
     pub const SPELL_EFFECT_OBLITERATE_ITEM: u32 = 163;
     pub const SPELL_EFFECT_ALLOW_CONTROL_PET: u32 = 168;
     pub const SPELL_EFFECT_APPLY_AURA_ON_PET: u32 = 174;
@@ -408,7 +412,11 @@ pub mod aura_types {
     pub const SPELL_AURA_MOD_RESISTANCE: i32 = 22;
     pub const SPELL_AURA_MOD_ROOT: i32 = 26;
     pub const SPELL_AURA_REFLECT_SPELLS: i32 = 28;
+    pub const SPELL_AURA_MOD_INCREASE_SPEED: i32 = 31;
     pub const SPELL_AURA_MODIFY_DAMAGE_PERCENT_TAKEN: i32 = 31;
+    pub const SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED: i32 = 32;
+    pub const SPELL_AURA_MOD_DECREASE_SPEED: i32 = 33;
+    pub const SPELL_AURA_MOD_SHAPESHIFT: i32 = 36;
     pub const SPELL_AURA_DAMAGE_IMMUNITY: i32 = 40;
     pub const SPELL_AURA_PROC_TRIGGER_SPELL: i32 = 42;
     pub const SPELL_AURA_PROC_TRIGGER_DAMAGE: i32 = 43;
@@ -417,6 +425,8 @@ pub mod aura_types {
     pub const SPELL_AURA_MOD_HIT_CHANCE: i32 = 54;
     pub const SPELL_AURA_TRANSFORM: i32 = 56;
     pub const SPELL_AURA_MOD_SPELL_CRIT_CHANCE: i32 = 57;
+    pub const SPELL_AURA_MOD_INCREASE_SWIM_SPEED: i32 = 58;
+    pub const SPELL_AURA_MOD_SCALE: i32 = 61;
     pub const SPELL_AURA_MOD_CASTING_SPEED_NOT_STACK: i32 = 65;
     pub const SPELL_AURA_MOD_POWER_COST_SCHOOL_PCT: i32 = 72;
     pub const SPELL_AURA_HASTE_SPELLS: i32 = 73;
@@ -436,13 +446,24 @@ pub mod aura_types {
     pub const SPELL_AURA_OVERRIDE_CLASS_SCRIPTS: i32 = 112;
     pub const SPELL_AURA_MOD_MECHANIC_RESISTANCE: i32 = 117;
     pub const SPELL_AURA_RANGED_ATTACK_POWER_ATTACKER_BONUS: i32 = 127;
+    pub const SPELL_AURA_MOD_SPEED_ALWAYS: i32 = 129;
+    pub const SPELL_AURA_MOD_MOUNTED_SPEED_ALWAYS: i32 = 130;
     pub const SPELL_AURA_MOD_MELEE_HASTE: i32 = 138;
     pub const SPELL_AURA_FORCE_REACTION: i32 = 139;
     pub const SPELL_AURA_MOD_RANGED_HASTE: i32 = 140;
     pub const SPELL_AURA_MOD_DETECTED_RANGE: i32 = 152;
     pub const SPELL_AURA_MOD_ATTACK_POWER_PCT: i32 = 166;
+    pub const SPELL_AURA_MOD_SPEED_NOT_STACK: i32 = 171;
+    pub const SPELL_AURA_MOD_MOUNTED_SPEED_NOT_STACK: i32 = 172;
     pub const SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE: i32 = 184;
+    pub const SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED: i32 = 191;
     pub const SPELL_AURA_MOD_MELEE_RANGED_HASTE: i32 = 192;
+    pub const SPELL_AURA_FLY: i32 = 201;
+    pub const SPELL_AURA_MOD_INCREASE_VEHICLE_FLIGHT_SPEED: i32 = 206;
+    pub const SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED: i32 = 207;
+    pub const SPELL_AURA_MOD_INCREASE_FLIGHT_SPEED: i32 = 208;
+    pub const SPELL_AURA_MOD_MOUNTED_FLIGHT_SPEED_ALWAYS: i32 = 209;
+    pub const SPELL_AURA_MOD_FLIGHT_SPEED_NOT_STACK: i32 = 211;
     pub const SPELL_AURA_ADD_PCT_MODIFIER_BY_SPELL_LABEL: i32 = 218;
     pub const SPELL_AURA_MOD_DETAUNT: i32 = 221;
     pub const SPELL_AURA_PERIODIC_DUMMY: i32 = 226;
@@ -451,9 +472,12 @@ pub mod aura_types {
     pub const SPELL_AURA_MOD_SCHOOL_MASK_DAMAGE_FROM_CASTER: i32 = 270;
     pub const SPELL_AURA_MOD_SPELL_DAMAGE_FROM_CASTER: i32 = 271;
     pub const SPELL_AURA_PROVIDE_SPELL_FOCUS: i32 = 281;
+    pub const SPELL_AURA_MOD_MINIMUM_SPEED: i32 = 305;
     pub const SPELL_AURA_MOD_MELEE_HASTE_3: i32 = 319;
+    pub const SPELL_AURA_MOD_SPEED_NO_CONTROL: i32 = 373;
     pub const SPELL_AURA_IGNORE_SPELL_COOLDOWN: i32 = 383;
     pub const SPELL_AURA_MOD_BATTLE_PET_XP_PCT: i32 = 420;
+    pub const SPELL_AURA_MOD_MINIMUM_SPEED_RATE: i32 = 437;
     pub const SPELL_AURA_MOD_ROOT_2: i32 = 455;
 }
 
@@ -477,13 +501,38 @@ pub const TOTAL_SPELL_TARGETS_LIKE_CPP: i32 = 153;
 pub mod attributes {
     /// C++ `SPELL_ATTR0_PASSIVE` (`SharedDefines.h`).
     pub const SPELL_ATTR0_PASSIVE: u32 = 0x0000_0040;
+    /// C++ `SPELL_ATTR0_NOT_SHAPESHIFTED` (`SharedDefines.h`).
+    pub const SPELL_ATTR0_NOT_SHAPESHIFTED: u32 = 0x0001_0000;
+    /// C++ `SPELL_ATTR0_ONLY_INDOORS` (`SharedDefines.h`).
+    pub const SPELL_ATTR0_ONLY_INDOORS: u32 = 0x0000_4000;
+    /// C++ `SPELL_ATTR0_ONLY_OUTDOORS` (`SharedDefines.h`).
+    pub const SPELL_ATTR0_ONLY_OUTDOORS: u32 = 0x0000_8000;
+    /// C++ `SPELL_ATTR0_ALLOW_WHILE_MOUNTED` (`SharedDefines.h`).
+    pub const SPELL_ATTR0_ALLOW_WHILE_MOUNTED: u32 = 0x0100_0000;
+    /// C++ `SPELL_ATTR0_NO_AURA_CANCEL` (`SharedDefines.h`).
+    pub const SPELL_ATTR0_NO_AURA_CANCEL: u32 = 0x8000_0000;
+
+    /// C++ `SPELL_ATTR1_IS_CHANNELLED` (`SharedDefines.h`).
+    pub const SPELL_ATTR1_IS_CHANNELLED: u32 = 0x0000_0004;
+
+    /// C++ `SPELL_ATTR1_IS_SELF_CHANNELLED` (`SharedDefines.h`).
+    pub const SPELL_ATTR1_IS_SELF_CHANNELLED: u32 = 0x0000_0040;
     /// C++ `SPELL_ATTR1_NO_AUTOCAST_AI` (`SharedDefines.h`).
     pub const SPELL_ATTR1_NO_AUTOCAST_AI: u32 = 0x0002_0000;
+    /// C++ `SPELL_ATTR2_ALLOW_WHILE_NOT_SHAPESHIFTED_CASTER_FORM` (`SharedDefines.h`).
+    pub const SPELL_ATTR2_ALLOW_WHILE_NOT_SHAPESHIFTED_CASTER_FORM: u32 = 0x0008_0000;
     /// C++ `SPELL_ATTR3_CAN_PROC_FROM_PROCS` (`SharedDefines.h`).
     pub const SPELL_ATTR3_CAN_PROC_FROM_PROCS: u32 = 0x0400_0000;
     /// C++ `SPELL_ATTR4_AURA_EXPIRES_OFFLINE` (`SharedDefines.h`).
     pub const SPELL_ATTR4_AURA_EXPIRES_OFFLINE: u32 = 0x0000_0004;
     pub const SPELL_ATTR4_USE_FACING_FROM_SPELL: u32 = 0x8000_0000;
+}
+
+pub mod shapeshift_form_flags {
+    /// C++ `SpellShapeshiftFormFlags::Stance` (`DBCEnums.h`).
+    pub const STANCE: i32 = 0x0000_0001;
+    /// C++ `SpellShapeshiftFormFlags::CanOnlyCastShapeshiftSpells` (`DBCEnums.h`).
+    pub const CAN_ONLY_CAST_SHAPESHIFT_SPELLS: i32 = 0x0000_0400;
 }
 
 /// Metadata for a spell from Spell.db2 and related tables.
@@ -948,6 +997,57 @@ pub struct ServersideSpellRowLikeCpp {
 pub struct ServersideSpellInfoLikeCpp {
     pub row: ServersideSpellRowLikeCpp,
     pub effects: Vec<ServersideSpellEffectLikeCpp>,
+}
+
+impl ServersideSpellInfoLikeCpp {
+    /// Port of C++ `SpellInfo::CheckShapeshift` (`SpellInfo.cpp`).
+    pub fn check_shapeshift_like_cpp<'a, F>(&self, form: u32, mut lookup_form: F) -> SpellCastResult
+    where
+        F: FnMut(u32) -> Option<&'a crate::spell_db2::SpellShapeshiftFormEntry>,
+    {
+        let stance_mask = form
+            .checked_sub(1)
+            .and_then(|shift| 1u64.checked_shl(shift))
+            .unwrap_or(0);
+
+        if stance_mask & self.row.stances_not != 0 {
+            return SpellCastResult::NotShapeshift;
+        }
+
+        if stance_mask & self.row.stances != 0 {
+            return SpellCastResult::Success;
+        }
+
+        let mut act_as_shifted = false;
+        let mut form_flags = 0;
+        if form > 0 {
+            let Some(shape_info) = lookup_form(form) else {
+                return SpellCastResult::Success;
+            };
+            form_flags = shape_info.flags;
+            act_as_shifted = form_flags & shapeshift_form_flags::STANCE == 0;
+        }
+
+        if act_as_shifted {
+            if self.row.attributes & attributes::SPELL_ATTR0_NOT_SHAPESHIFTED != 0
+                || form_flags & shapeshift_form_flags::CAN_ONLY_CAST_SHAPESHIFT_SPELLS != 0
+            {
+                return SpellCastResult::NotShapeshift;
+            }
+
+            if self.row.stances != 0 {
+                return SpellCastResult::OnlyShapeshift;
+            }
+        } else if self.row.attributes_ex[1]
+            & attributes::SPELL_ATTR2_ALLOW_WHILE_NOT_SHAPESHIFTED_CASTER_FORM
+            == 0
+            && self.row.stances != 0
+        {
+            return SpellCastResult::OnlyShapeshift;
+        }
+
+        SpellCastResult::Success
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -4829,6 +4929,12 @@ impl SpellInfo {
             .any(|effect| effect.effect_aura == aura_type)
     }
 
+    pub fn has_effect_like_cpp(&self, effect_type: u32) -> bool {
+        self.effects
+            .iter()
+            .any(|effect| effect.effect == effect_type)
+    }
+
     pub fn requires_spell_focus_like_cpp(&self) -> bool {
         self.requires_spell_focus != 0
     }
@@ -4871,14 +4977,14 @@ impl SpellEffectInfo {
     where
         F: FnMut(i32, i32) -> i32,
     {
-        let mut value = self.effect_base_points;
+        let mut value = f64::from(self.effect_base_points);
         match self.effect_die_sides {
             0 => {}
-            1 => value += 1,
-            die_sides if die_sides > 1 => value += roll_die(1, die_sides),
-            die_sides => value += roll_die(die_sides, 1),
+            1 => value += 1.0,
+            die_sides if die_sides > 1 => value += f64::from(roll_die(1, die_sides)),
+            die_sides => value += f64::from(roll_die(die_sides, 1)),
         }
-        value
+        value.round() as i32
     }
 
     pub fn calc_value_no_caster_like_cpp(&self) -> i32 {
@@ -4892,6 +4998,11 @@ impl SpellEffectInfo {
     pub fn is_mounted_aura_like_cpp(&self) -> bool {
         self.effect == spell_effect_types::SPELL_EFFECT_APPLY_AURA
             && self.effect_aura == aura_types::SPELL_AURA_MOUNTED
+    }
+
+    pub fn is_mod_shapeshift_aura_like_cpp(&self) -> bool {
+        self.effect == spell_effect_types::SPELL_EFFECT_APPLY_AURA
+            && self.effect_aura == aura_types::SPELL_AURA_MOD_SHAPESHIFT
     }
 
     pub fn is_provide_spell_focus_aura_like_cpp(&self) -> bool {
@@ -5117,6 +5228,8 @@ const fn implicit_target_category_accepts_conditions_like_cpp(target: u32) -> bo
 #[derive(Default)]
 pub struct SpellStore {
     spells: HashMap<i32, SpellInfo>,
+    spell_misc_attributes: HashMap<i32, [u32; 15]>,
+    spell_shapeshift_masks: HashMap<i32, (u64, u64)>,
     implicit_target_conditions: HashMap<(i32, u32), ConditionsReference>,
 }
 
@@ -5125,8 +5238,191 @@ impl SpellStore {
     pub fn new() -> Self {
         Self {
             spells: HashMap::new(),
+            spell_misc_attributes: HashMap::new(),
+            spell_shapeshift_masks: HashMap::new(),
             implicit_target_conditions: HashMap::new(),
         }
+    }
+
+    fn make_pair64_like_cpp(low: i32, high: i32) -> u64 {
+        u64::from(low as u32) | (u64::from(high as u32) << 32)
+    }
+
+    fn empty_spell_info_like_cpp(spell_id: i32) -> SpellInfo {
+        SpellInfo {
+            spell_id,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: 0,
+            effect_base_points: 0,
+            effect_bonus_coefficient: 0.0,
+            aura_type: None,
+            display_flags: 0,
+            requires_spell_focus: 0,
+            effects: Vec::new(),
+        }
+    }
+
+    fn spell_effect_from_db2_like_cpp(
+        effect: &crate::spell_db2::SpellEffectDb2Entry,
+    ) -> SpellEffectInfo {
+        SpellEffectInfo {
+            effect_index: u32::try_from(effect.effect_index).unwrap_or(0),
+            effect: effect.effect,
+            effect_aura: i32::from(effect.effect_aura),
+            effect_base_points: effect.effect_base_points,
+            effect_die_sides: effect.effect_die_sides,
+            effect_spell_class_mask: effect.effect_spell_class_mask,
+            effect_misc_value_1: effect.effect_misc_value[0],
+            effect_misc_value_2: effect.effect_misc_value[1],
+            effect_trigger_spell: effect.effect_trigger_spell,
+            effect_radius_index_1: effect.effect_radius_index[0],
+            position_facing: effect.effect_pos_facing,
+            chain_targets: effect.effect_chain_targets,
+            implicit_target_1: u32::try_from(effect.implicit_target[0]).unwrap_or(0),
+            implicit_target_2: u32::try_from(effect.implicit_target[1]).unwrap_or(0),
+        }
+    }
+
+    fn hydrate_primary_effect_like_cpp(info: &mut SpellInfo) {
+        info.effects.sort_by_key(|effect| effect.effect_index);
+        if let Some(primary) = info.effects.iter().find(|effect| effect.effect != 0) {
+            info.effect_type = primary.effect;
+            info.effect_base_points = primary.effect_base_points;
+            info.effect_bonus_coefficient = 0.0;
+            info.aura_type = Some(primary.effect_aura);
+        }
+    }
+
+    fn merge_spell_info_like_cpp(&mut self, mut incoming: SpellInfo) {
+        Self::hydrate_primary_effect_like_cpp(&mut incoming);
+        let entry = self
+            .spells
+            .entry(incoming.spell_id)
+            .or_insert_with(|| Self::empty_spell_info_like_cpp(incoming.spell_id));
+        entry.cast_time_ms = incoming.cast_time_ms;
+        entry.cooldown_ms = incoming.cooldown_ms;
+        entry.recovery_time_ms = incoming.recovery_time_ms;
+        entry.requires_spell_focus = incoming.requires_spell_focus;
+        entry.display_flags = incoming.display_flags;
+
+        if !incoming.effects.is_empty() {
+            for hotfix_effect in incoming.effects {
+                entry
+                    .effects
+                    .retain(|effect| effect.effect_index != hotfix_effect.effect_index);
+                entry.effects.push(hotfix_effect);
+            }
+        }
+
+        Self::hydrate_primary_effect_like_cpp(entry);
+    }
+
+    fn merge_spell_misc_attributes_like_cpp(&mut self, incoming: HashMap<i32, [u32; 15]>) {
+        for (spell_id, attributes) in incoming {
+            self.spell_misc_attributes.insert(spell_id, attributes);
+        }
+    }
+
+    /// Load base spell data from DB2 and overlay SQL hotfix rows.
+    ///
+    /// C++ builds `SpellInfo` primarily from `sSpellEffectStore` and
+    /// `sSpellMiscStore` (`SpellMgr::LoadSpellInfoStore`) and then applies
+    /// hotfix data through the DB2 hotfix pipeline. Mount spells commonly
+    /// exist only in `SpellEffect.db2`/`SpellMisc.db2`, so a hotfix-only
+    /// loader makes account mounts fail as unknown or effectless spells.
+    pub async fn load_with_db2_and_hotfixes(
+        data_dir: &str,
+        locale: &str,
+        hotfix_db: &HotfixDatabase,
+    ) -> Result<Self> {
+        let spell_misc_store = crate::spell_db2::SpellMiscStore::load(data_dir, locale)?;
+        let spell_effect_store = crate::spell_db2::SpellEffectDb2Store::load(data_dir, locale)?;
+        let spell_shapeshift_store =
+            crate::spell_db2::SpellShapeshiftStore::load(data_dir, locale)?;
+        let mut store = Self::from_spell_db2_stores_like_cpp(
+            &spell_misc_store,
+            &spell_effect_store,
+            &spell_shapeshift_store,
+        );
+
+        let hotfix_store = Self::load(hotfix_db).await?;
+        for spell in hotfix_store.spells.into_values() {
+            store.merge_spell_info_like_cpp(spell);
+        }
+        store.merge_spell_misc_attributes_like_cpp(hotfix_store.spell_misc_attributes);
+
+        info!(
+            "Loaded {} spells from SpellMisc/SpellEffect DB2 with hotfix overlay",
+            store.spells.len()
+        );
+        Ok(store)
+    }
+
+    fn from_spell_db2_stores_like_cpp(
+        spell_misc_store: &crate::spell_db2::SpellMiscStore,
+        spell_effect_store: &crate::spell_db2::SpellEffectDb2Store,
+        spell_shapeshift_store: &crate::spell_db2::SpellShapeshiftStore,
+    ) -> Self {
+        let mut store = Self::new();
+
+        for misc in spell_misc_store.entries_like_cpp() {
+            if misc.difficulty_id != 0 {
+                continue;
+            }
+            let Ok(spell_id) = i32::try_from(misc.spell_id) else {
+                continue;
+            };
+            store
+                .spells
+                .entry(spell_id)
+                .or_insert_with(|| Self::empty_spell_info_like_cpp(spell_id));
+            store
+                .spell_misc_attributes
+                .insert(spell_id, misc.attributes.map(|attribute| attribute as u32));
+        }
+
+        for effect in spell_effect_store.entries_like_cpp() {
+            if effect.difficulty_id != 0 || effect.effect == 0 {
+                continue;
+            }
+            let Ok(spell_id) = i32::try_from(effect.spell_id) else {
+                continue;
+            };
+            let spell = store
+                .spells
+                .entry(spell_id)
+                .or_insert_with(|| Self::empty_spell_info_like_cpp(spell_id));
+            spell
+                .effects
+                .push(Self::spell_effect_from_db2_like_cpp(effect));
+        }
+
+        for shapeshift in spell_shapeshift_store.entries_like_cpp() {
+            if shapeshift.spell_id <= 0 {
+                continue;
+            }
+            store.spell_shapeshift_masks.insert(
+                shapeshift.spell_id,
+                (
+                    Self::make_pair64_like_cpp(
+                        shapeshift.shapeshift_mask[0],
+                        shapeshift.shapeshift_mask[1],
+                    ),
+                    Self::make_pair64_like_cpp(
+                        shapeshift.shapeshift_exclude[0],
+                        shapeshift.shapeshift_exclude[1],
+                    ),
+                ),
+            );
+        }
+
+        for spell in store.spells.values_mut() {
+            Self::hydrate_primary_effect_like_cpp(spell);
+        }
+
+        store
     }
 
     /// Load spell data from hotfixes database.
@@ -5262,6 +5558,100 @@ ORDER BY sm.ID, se.EffectIndex
         self.spells.get(&spell_id)
     }
 
+    /// C++ `SpellInfo::HasAttribute` for attributes hydrated from `SpellMisc.db2`.
+    pub fn has_attribute0_like_cpp(&self, spell_id: i32, attribute: u32) -> bool {
+        self.spell_misc_attributes
+            .get(&spell_id)
+            .is_some_and(|attributes| attributes[0] & attribute != 0)
+    }
+
+    /// C++ `SpellInfo::HasAttribute(SpellAttr1)` for attributes hydrated from `SpellMisc.db2`.
+    pub fn has_attribute1_like_cpp(&self, spell_id: i32, attribute: u32) -> bool {
+        self.spell_misc_attributes
+            .get(&spell_id)
+            .is_some_and(|attributes| attributes[1] & attribute != 0)
+    }
+
+    /// C++ `SpellInfo::IsPassive`, for the represented paths that currently
+    /// only need the `SPELL_ATTR0_PASSIVE` gate.
+    pub fn is_passive_like_cpp(&self, spell_id: i32) -> bool {
+        self.has_attribute0_like_cpp(spell_id, attributes::SPELL_ATTR0_PASSIVE)
+    }
+
+    /// C++ `SpellInfo::IsChanneled`.
+    pub fn is_channeled_like_cpp(&self, spell_id: i32) -> bool {
+        self.has_attribute1_like_cpp(
+            spell_id,
+            attributes::SPELL_ATTR1_IS_CHANNELLED | attributes::SPELL_ATTR1_IS_SELF_CHANNELLED,
+        )
+    }
+
+    /// Port of C++ `SpellInfo::CheckShapeshift` for regular `SpellInfo`
+    /// entries composed by `SpellMgr::LoadSpellInfoStore`.
+    pub fn check_shapeshift_like_cpp<'a, F>(
+        &self,
+        spell_id: i32,
+        form: u32,
+        mut lookup_form: F,
+    ) -> Option<SpellCastResult>
+    where
+        F: FnMut(u32) -> Option<&'a crate::spell_db2::SpellShapeshiftFormEntry>,
+    {
+        self.spells.get(&spell_id)?;
+
+        let (stances, stances_not) = self
+            .spell_shapeshift_masks
+            .get(&spell_id)
+            .copied()
+            .unwrap_or((0, 0));
+        let attributes = self
+            .spell_misc_attributes
+            .get(&spell_id)
+            .copied()
+            .unwrap_or([0; 15]);
+        let stance_mask = form
+            .checked_sub(1)
+            .and_then(|shift| 1u64.checked_shl(shift))
+            .unwrap_or(0);
+
+        if stance_mask & stances_not != 0 {
+            return Some(SpellCastResult::NotShapeshift);
+        }
+
+        if stance_mask & stances != 0 {
+            return Some(SpellCastResult::Success);
+        }
+
+        let mut act_as_shifted = false;
+        let mut form_flags = 0;
+        if form > 0 {
+            let Some(shape_info) = lookup_form(form) else {
+                return Some(SpellCastResult::Success);
+            };
+            form_flags = shape_info.flags;
+            act_as_shifted = form_flags & shapeshift_form_flags::STANCE == 0;
+        }
+
+        if act_as_shifted {
+            if attributes[0] & attributes::SPELL_ATTR0_NOT_SHAPESHIFTED != 0
+                || form_flags & shapeshift_form_flags::CAN_ONLY_CAST_SHAPESHIFT_SPELLS != 0
+            {
+                return Some(SpellCastResult::NotShapeshift);
+            }
+
+            if stances != 0 {
+                return Some(SpellCastResult::OnlyShapeshift);
+            }
+        } else if attributes[2] & attributes::SPELL_ATTR2_ALLOW_WHILE_NOT_SHAPESHIFTED_CASTER_FORM
+            == 0
+            && stances != 0
+        {
+            return Some(SpellCastResult::OnlyShapeshift);
+        }
+
+        Some(SpellCastResult::Success)
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = &SpellInfo> {
         self.spells.values()
     }
@@ -5315,6 +5705,22 @@ ORDER BY sm.ID, se.EffectIndex
         self.spells.insert(spell_id, info);
     }
 
+    #[allow(dead_code)]
+    pub fn insert_spell_misc_attributes_like_cpp(&mut self, spell_id: i32, attributes: [u32; 15]) {
+        self.spell_misc_attributes.insert(spell_id, attributes);
+    }
+
+    #[allow(dead_code)]
+    pub fn insert_spell_shapeshift_masks_like_cpp(
+        &mut self,
+        spell_id: i32,
+        stances: u64,
+        stances_not: u64,
+    ) {
+        self.spell_shapeshift_masks
+            .insert(spell_id, (stances, stances_not));
+    }
+
     /// Get the total number of loaded spells.
     pub fn len(&self) -> usize {
         self.spells.len()
@@ -5336,6 +5742,160 @@ mod tests {
     fn test_spell_store_creation() {
         let store = SpellStore::new();
         assert!(store.is_empty(), "new store should be empty");
+    }
+
+    #[test]
+    fn spell_store_db2_loader_keeps_mount_aura_spells_like_cpp() {
+        let spell_id = 32_243;
+        let mut misc = test_spell_misc_entry_like_cpp(1, spell_id, 0, 0);
+        misc.attributes[0] = attributes::SPELL_ATTR0_NO_AURA_CANCEL as i32;
+        let misc_store = crate::spell_db2::SpellMiscStore::from_entries([misc]);
+        let effect_store = crate::spell_db2::SpellEffectDb2Store::from_entries([
+            crate::spell_db2::SpellEffectDb2Entry {
+                id: 1,
+                difficulty_id: 0,
+                effect_index: 0,
+                effect: spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_amplitude: 0.0,
+                effect_attributes: 0,
+                effect_aura: aura_types::SPELL_AURA_MOUNTED as i16,
+                effect_aura_period: 0,
+                effect_base_points: 77,
+                effect_bonus_coefficient: 0.0,
+                effect_chain_amplitude: 0.0,
+                effect_chain_targets: 0,
+                effect_die_sides: 0,
+                effect_item_type: 0,
+                effect_mechanic: 0,
+                effect_points_per_resource: 0.0,
+                effect_pos_facing: 0.0,
+                effect_real_points_per_level: 0.0,
+                effect_trigger_spell: 0,
+                bonus_coefficient_from_ap: 0.0,
+                pvp_multiplier: 0.0,
+                coefficient: 0.0,
+                variance: 0.0,
+                resource_coefficient: 0.0,
+                group_size_base_points_coefficient: 0.0,
+                effect_misc_value: [23966, 0],
+                effect_radius_index: [0, 0],
+                effect_spell_class_mask: [0, 0, 0, 0],
+                implicit_target: [0, 0],
+                spell_id,
+            },
+        ]);
+
+        let shapeshift_store = crate::spell_db2::SpellShapeshiftStore::from_entries([]);
+        let store = SpellStore::from_spell_db2_stores_like_cpp(
+            &misc_store,
+            &effect_store,
+            &shapeshift_store,
+        );
+        let spell = store.get(spell_id as i32).expect("mount spell loaded");
+
+        assert_eq!(
+            spell.effect_type,
+            spell_effect_types::SPELL_EFFECT_APPLY_AURA
+        );
+        assert_eq!(spell.aura_type, Some(aura_types::SPELL_AURA_MOUNTED));
+        assert!(
+            spell
+                .effects
+                .iter()
+                .any(SpellEffectInfo::is_mounted_aura_like_cpp)
+        );
+        assert!(
+            store.has_attribute0_like_cpp(spell_id as i32, attributes::SPELL_ATTR0_NO_AURA_CANCEL)
+        );
+    }
+
+    #[test]
+    fn spell_store_db2_loader_keeps_channeled_spell_attr1_like_cpp() {
+        let spell_id = 51_588;
+        let mut misc = test_spell_misc_entry_like_cpp(1, spell_id, 0, 0);
+        misc.attributes[1] = attributes::SPELL_ATTR1_IS_CHANNELLED as i32;
+        let misc_store = crate::spell_db2::SpellMiscStore::from_entries([misc]);
+        let effect_store = crate::spell_db2::SpellEffectDb2Store::from_entries([]);
+
+        let shapeshift_store = crate::spell_db2::SpellShapeshiftStore::from_entries([]);
+        let store = SpellStore::from_spell_db2_stores_like_cpp(
+            &misc_store,
+            &effect_store,
+            &shapeshift_store,
+        );
+
+        assert!(
+            store.has_attribute1_like_cpp(spell_id as i32, attributes::SPELL_ATTR1_IS_CHANNELLED)
+        );
+        assert!(store.is_channeled_like_cpp(spell_id as i32));
+        assert!(!store.is_channeled_like_cpp(99_999));
+    }
+
+    #[test]
+    fn spell_store_db2_loader_composes_shapeshift_masks_like_cpp() {
+        let spell_id = 70_001;
+        let misc_store =
+            crate::spell_db2::SpellMiscStore::from_entries([test_spell_misc_entry_like_cpp(
+                1, spell_id, 0, 0,
+            )]);
+        let effect_store = crate::spell_db2::SpellEffectDb2Store::from_entries([]);
+        let shapeshift_store = crate::spell_db2::SpellShapeshiftStore::from_entries([
+            crate::spell_db2::SpellShapeshiftEntry {
+                id: 1,
+                spell_id: spell_id as i32,
+                stance_bar_order: 0,
+                shapeshift_exclude: [1 << 2, 0],
+                shapeshift_mask: [1 << 4, 0],
+            },
+        ]);
+        let form = shapeshift_form(shapeshift_form_flags::STANCE);
+        let store = SpellStore::from_spell_db2_stores_like_cpp(
+            &misc_store,
+            &effect_store,
+            &shapeshift_store,
+        );
+
+        assert_eq!(
+            store.check_shapeshift_like_cpp(spell_id as i32, 3, |_| Some(&form)),
+            Some(SpellCastResult::NotShapeshift)
+        );
+        assert_eq!(
+            store.check_shapeshift_like_cpp(spell_id as i32, 5, |_| Some(&form)),
+            Some(SpellCastResult::Success)
+        );
+        assert_eq!(
+            store.check_shapeshift_like_cpp(spell_id as i32, 0, |_| None),
+            Some(SpellCastResult::OnlyShapeshift)
+        );
+    }
+
+    #[test]
+    fn spell_store_check_shapeshift_uses_spell_misc_attr2_like_cpp() {
+        let spell_id = 70_002;
+        let mut misc = test_spell_misc_entry_like_cpp(1, spell_id, 0, 0);
+        misc.attributes[2] =
+            attributes::SPELL_ATTR2_ALLOW_WHILE_NOT_SHAPESHIFTED_CASTER_FORM as i32;
+        let misc_store = crate::spell_db2::SpellMiscStore::from_entries([misc]);
+        let effect_store = crate::spell_db2::SpellEffectDb2Store::from_entries([]);
+        let shapeshift_store = crate::spell_db2::SpellShapeshiftStore::from_entries([
+            crate::spell_db2::SpellShapeshiftEntry {
+                id: 2,
+                spell_id: spell_id as i32,
+                stance_bar_order: 0,
+                shapeshift_exclude: [0, 0],
+                shapeshift_mask: [1 << 4, 0],
+            },
+        ]);
+        let store = SpellStore::from_spell_db2_stores_like_cpp(
+            &misc_store,
+            &effect_store,
+            &shapeshift_store,
+        );
+
+        assert_eq!(
+            store.check_shapeshift_like_cpp(spell_id as i32, 0, |_| None),
+            Some(SpellCastResult::Success)
+        );
     }
 
     #[test]
@@ -5524,6 +6084,32 @@ mod tests {
                 -2
             }),
             8
+        );
+    }
+
+    #[test]
+    fn spell_effect_calc_value_no_caster_uses_cpp_double_accumulator() {
+        let overflowing_int_add = SpellEffectInfo {
+            effect_base_points: i32::MAX,
+            effect_die_sides: 1,
+            ..Default::default()
+        };
+        assert_eq!(
+            overflowing_int_add.calc_value_no_caster_with_die_roll_like_cpp(|_, _| unreachable!()),
+            i32::MAX
+        );
+
+        let underflowing_int_add = SpellEffectInfo {
+            effect_base_points: i32::MIN,
+            effect_die_sides: -1,
+            ..Default::default()
+        };
+        assert_eq!(
+            underflowing_int_add.calc_value_no_caster_with_die_roll_like_cpp(|min, max| {
+                assert_eq!((min, max), (-1, 1));
+                -1
+            }),
+            i32::MIN
         );
     }
 
@@ -5810,9 +6396,42 @@ mod tests {
         );
 
         // C++ `SpellAuraDefines.h`: selected `AuraType` enum anchors.
+        assert_eq!(aura_types::SPELL_AURA_MOD_INCREASE_SPEED, 31);
+        assert_eq!(aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED, 32);
+        assert_eq!(aura_types::SPELL_AURA_MOD_DECREASE_SPEED, 33);
+        assert_eq!(aura_types::SPELL_AURA_MOD_SHAPESHIFT, 36);
+        assert_eq!(aura_types::SPELL_AURA_TRANSFORM, 56);
+        assert_eq!(aura_types::SPELL_AURA_MOD_INCREASE_SWIM_SPEED, 58);
+        assert_eq!(aura_types::SPELL_AURA_MOD_SCALE, 61);
+        assert_eq!(aura_types::SPELL_AURA_MOUNTED, 78);
         assert_eq!(aura_types::SPELL_AURA_MOD_DETECT_RANGE, 91);
+        assert_eq!(aura_types::SPELL_AURA_MOD_SPEED_ALWAYS, 129);
+        assert_eq!(aura_types::SPELL_AURA_MOD_MOUNTED_SPEED_ALWAYS, 130);
         assert_eq!(aura_types::SPELL_AURA_MOD_DETECTED_RANGE, 152);
+        assert_eq!(aura_types::SPELL_AURA_MOD_SPEED_NOT_STACK, 171);
+        assert_eq!(aura_types::SPELL_AURA_MOD_MOUNTED_SPEED_NOT_STACK, 172);
+        assert_eq!(aura_types::SPELL_AURA_FLY, 201);
+        assert_eq!(
+            aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED,
+            207
+        );
+        assert_eq!(aura_types::SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED, 191);
+        assert_eq!(
+            aura_types::SPELL_AURA_MOD_INCREASE_VEHICLE_FLIGHT_SPEED,
+            206
+        );
+        assert_eq!(aura_types::SPELL_AURA_MOD_INCREASE_FLIGHT_SPEED, 208);
+        assert_eq!(aura_types::SPELL_AURA_MOD_MOUNTED_FLIGHT_SPEED_ALWAYS, 209);
+        assert_eq!(aura_types::SPELL_AURA_MOD_FLIGHT_SPEED_NOT_STACK, 211);
+        assert_eq!(aura_types::SPELL_AURA_MOD_MINIMUM_SPEED, 305);
+        assert_eq!(aura_types::SPELL_AURA_MOD_SPEED_NO_CONTROL, 373);
         assert_eq!(aura_types::SPELL_AURA_MOD_BATTLE_PET_XP_PCT, 420);
+        assert_eq!(aura_types::SPELL_AURA_MOD_MINIMUM_SPEED_RATE, 437);
+
+        // C++ `SharedDefines.h`: selected SpellAttr0 anchors.
+        assert_eq!(attributes::SPELL_ATTR0_ONLY_INDOORS, 0x0000_4000);
+        assert_eq!(attributes::SPELL_ATTR0_ONLY_OUTDOORS, 0x0000_8000);
+        assert_eq!(attributes::SPELL_ATTR0_ALLOW_WHILE_MOUNTED, 0x0100_0000);
     }
 
     #[test]
@@ -9035,6 +9654,132 @@ mod tests {
             school_mask: 77,
             charge_category_id: 78,
         }
+    }
+
+    fn serverside_spell_info_for_shapeshift(
+        stances: u64,
+        stances_not: u64,
+        attributes: u32,
+        attributes_ex2: u32,
+    ) -> ServersideSpellInfoLikeCpp {
+        let mut row = serverside_spell_row(7000, 0);
+        row.attributes = attributes;
+        row.attributes_ex = [0; 14];
+        row.attributes_ex[1] = attributes_ex2;
+        row.stances = stances;
+        row.stances_not = stances_not;
+        ServersideSpellInfoLikeCpp {
+            row,
+            effects: Vec::new(),
+        }
+    }
+
+    fn shapeshift_form(flags: i32) -> crate::spell_db2::SpellShapeshiftFormEntry {
+        crate::spell_db2::SpellShapeshiftFormEntry {
+            id: 1,
+            name: "Test Form".to_string(),
+            creature_type: 0,
+            flags,
+            attack_icon_file_id: 0,
+            bonus_action_bar: 0,
+            combat_round_time: 0,
+            damage_variance: 0.0,
+            mount_type_id: 0,
+            creature_display_id: [0; 4],
+            preset_spell_id: [0; crate::spell_db2::MAX_SHAPESHIFT_SPELLS],
+        }
+    }
+
+    #[test]
+    fn serverside_spell_check_shapeshift_rejects_excluded_form_like_cpp() {
+        let spell = serverside_spell_info_for_shapeshift(0, 1 << 2, 0, 0);
+        let form = shapeshift_form(shapeshift_form_flags::STANCE);
+
+        assert_eq!(
+            spell.check_shapeshift_like_cpp(3, |_| Some(&form)),
+            SpellCastResult::NotShapeshift
+        );
+    }
+
+    #[test]
+    fn serverside_spell_check_shapeshift_allows_explicit_form_like_cpp() {
+        let spell = serverside_spell_info_for_shapeshift(1 << 4, 0, 0, 0);
+        let form = shapeshift_form(shapeshift_form_flags::STANCE);
+
+        assert_eq!(
+            spell.check_shapeshift_like_cpp(5, |_| Some(&form)),
+            SpellCastResult::Success
+        );
+    }
+
+    #[test]
+    fn serverside_spell_check_shapeshift_missing_form_allows_like_cpp() {
+        let spell =
+            serverside_spell_info_for_shapeshift(0, 0, attributes::SPELL_ATTR0_NOT_SHAPESHIFTED, 0);
+
+        assert_eq!(
+            spell.check_shapeshift_like_cpp(7, |_| None),
+            SpellCastResult::Success
+        );
+    }
+
+    #[test]
+    fn serverside_spell_check_shapeshift_rejects_not_shapeshifted_attr_like_cpp() {
+        let spell =
+            serverside_spell_info_for_shapeshift(0, 0, attributes::SPELL_ATTR0_NOT_SHAPESHIFTED, 0);
+        let form = shapeshift_form(0);
+
+        assert_eq!(
+            spell.check_shapeshift_like_cpp(1, |_| Some(&form)),
+            SpellCastResult::NotShapeshift
+        );
+    }
+
+    #[test]
+    fn serverside_spell_check_shapeshift_rejects_can_only_cast_shapeshift_spells_like_cpp() {
+        let spell = serverside_spell_info_for_shapeshift(0, 0, 0, 0);
+        let form = shapeshift_form(shapeshift_form_flags::CAN_ONLY_CAST_SHAPESHIFT_SPELLS);
+
+        assert_eq!(
+            spell.check_shapeshift_like_cpp(1, |_| Some(&form)),
+            SpellCastResult::NotShapeshift
+        );
+    }
+
+    #[test]
+    fn serverside_spell_check_shapeshift_requires_other_shifted_form_like_cpp() {
+        let spell = serverside_spell_info_for_shapeshift(1 << 4, 0, 0, 0);
+        let form = shapeshift_form(0);
+
+        assert_eq!(
+            spell.check_shapeshift_like_cpp(2, |_| Some(&form)),
+            SpellCastResult::OnlyShapeshift
+        );
+    }
+
+    #[test]
+    fn serverside_spell_check_shapeshift_requires_form_when_unshifted_like_cpp() {
+        let spell = serverside_spell_info_for_shapeshift(1 << 4, 0, 0, 0);
+
+        assert_eq!(
+            spell.check_shapeshift_like_cpp(0, |_| None),
+            SpellCastResult::OnlyShapeshift
+        );
+    }
+
+    #[test]
+    fn serverside_spell_check_shapeshift_allows_unshifted_with_attr2_like_cpp() {
+        let spell = serverside_spell_info_for_shapeshift(
+            1 << 4,
+            0,
+            0,
+            attributes::SPELL_ATTR2_ALLOW_WHILE_NOT_SHAPESHIFTED_CASTER_FORM,
+        );
+
+        assert_eq!(
+            spell.check_shapeshift_like_cpp(0, |_| None),
+            SpellCastResult::Success
+        );
     }
 
     #[test]

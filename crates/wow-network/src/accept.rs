@@ -193,11 +193,20 @@ pub struct SessionResources {
     pub battle_pet_species_store: Option<Arc<wow_data::BattlePetSpeciesStore>>,
     pub battle_pet_species_state_store: Option<Arc<wow_data::BattlePetSpeciesStateStore>>,
     pub battle_pet_xp_game_table: Option<Arc<wow_data::BattlePetXpGameTableLikeCpp>>,
+    pub shield_block_regular_game_table: Option<Arc<wow_data::ShieldBlockRegularGameTableLikeCpp>>,
     pub transmog_set_item_store: Option<Arc<wow_data::TransmogSetItemStore>>,
     pub item_price_base_store: Option<Arc<wow_data::ItemPriceBaseStore>>,
     pub item_limit_category_store: Option<Arc<wow_data::ItemLimitCategoryStore>>,
     pub item_limit_category_condition_store: Option<Arc<wow_data::ItemLimitCategoryConditionStore>>,
+    pub player_create_cast_spell_store:
+        Option<Arc<wow_data::PlayerCreateInfoCastSpellStoreLikeCpp>>,
+    pub player_create_custom_spell_store:
+        Option<Arc<wow_data::PlayerCreateInfoCustomSpellStoreLikeCpp>>,
     pub player_stats: Option<Arc<wow_data::PlayerStatsStore>>,
+    pub item_bonus_db2_store: Option<Arc<wow_data::ItemBonusDb2Store>>,
+    pub pvp_item_store: Option<Arc<wow_data::PvpItemStore>>,
+    pub item_set_store: Option<Arc<wow_data::ItemSetStore>>,
+    pub item_set_spell_store: Option<Arc<wow_data::ItemSetSpellStore>>,
     pub item_stats_store: Option<Arc<wow_data::ItemStatsStore>>,
     pub durability_costs_store: Option<Arc<wow_data::DurabilityCostsStore>>,
     pub durability_quality_store: Option<Arc<wow_data::DurabilityQualityStore>>,
@@ -214,6 +223,12 @@ pub struct SessionResources {
     pub player_condition_store: Option<Arc<wow_data::PlayerConditionStore>>,
     pub adventure_map_poi_store: Option<Arc<wow_data::AdventureMapPoiStore>>,
     pub content_tuning_store: Option<Arc<wow_data::progression_rewards::ContentTuningStore>>,
+    pub curve_store: Option<Arc<wow_data::progression_rewards::CurveStore>>,
+    pub curve_point_store: Option<Arc<wow_data::progression_rewards::CurvePointStore>>,
+    pub scaling_stat_distribution_store:
+        Option<Arc<wow_data::progression_rewards::ScalingStatDistributionStore>>,
+    pub scaling_stat_values_store:
+        Option<Arc<wow_data::progression_rewards::ScalingStatValuesStore>>,
     pub progression_faction_store: Option<Arc<wow_data::progression_rewards::FactionStore>>,
     pub faction_template_store: Option<Arc<wow_data::progression_rewards::FactionTemplateStore>>,
     pub friendship_rep_reaction_store:
@@ -227,7 +242,14 @@ pub struct SessionResources {
     pub spell_enchant_proc_store: Option<Arc<wow_data::SpellEnchantProcStoreLikeCpp>>,
     pub hotfix_blob_cache: Option<Arc<wow_data::HotfixBlobCache>>,
     pub skill_store: Option<Arc<wow_data::SkillStore>>,
+    pub trait_definition_store: Option<Arc<wow_data::trait_tree::TraitDefinitionStore>>,
     pub skill_line_store: Option<Arc<wow_data::SkillLineStore>>,
+    pub skill_tiers_store: Option<Arc<wow_data::SkillTiersStoreLikeCpp>>,
+    pub talent_store: Option<Arc<wow_data::TalentStore>>,
+    pub talent_tab_store: Option<Arc<wow_data::TalentTabStore>>,
+    pub num_talents_at_level_store:
+        Option<Arc<wow_data::progression_rewards::NumTalentsAtLevelStore>>,
+    pub glyph_properties_store: Option<Arc<wow_data::GlyphPropertiesStore>>,
     pub chr_races_store: Option<Arc<wow_data::character_progression::ChrRacesStore>>,
     pub spell_chain_store: Option<Arc<wow_data::SpellChainStoreLikeCpp>>,
     pub spell_store: Option<Arc<wow_data::SpellStore>>,
@@ -274,12 +296,15 @@ pub struct SessionResources {
     pub battlemaster_list_store: Option<Arc<wow_data::BattlemasterListStore>>,
     pub creature_template_mount_store: Option<Arc<wow_data::CreatureTemplateMountStoreLikeCpp>>,
     pub creature_display_info_store: Option<Arc<wow_data::CreatureDisplayInfoStore>>,
+    pub creature_display_info_extra_store: Option<Arc<wow_data::CreatureDisplayInfoExtraStore>>,
     pub gameobject_display_info_store: Option<Arc<wow_data::GameObjectDisplayInfoStore>>,
     pub creature_model_data_store: Option<Arc<wow_data::CreatureModelDataStore>>,
     pub mount_store: Option<Arc<wow_data::MountStore>>,
+    pub mount_definition_store: Option<Arc<wow_data::MountDefinitionStoreLikeCpp>>,
     pub mount_capability_store: Option<Arc<wow_data::MountCapabilityStore>>,
     pub mount_type_x_capability_store: Option<Arc<wow_data::MountTypeXCapabilityStore>>,
     pub mount_x_display_store: Option<Arc<wow_data::MountXDisplayStore>>,
+    pub spell_shapeshift_form_store: Option<Arc<wow_data::SpellShapeshiftFormStore>>,
     pub vehicle_store: Option<Arc<wow_data::VehicleStore>>,
     pub vehicle_seat_store: Option<Arc<wow_data::VehicleSeatStore>>,
     pub vehicle_template_store: Option<Arc<wow_data::VehicleTemplateStoreLikeCpp>>,
@@ -302,6 +327,12 @@ pub struct SessionResources {
         Option<Arc<wow_data::reputation::RepSpilloverTemplateStoreLikeCpp>>,
     /// XP required per level: index = level (1-based), value = xp_needed.
     pub player_xp_table: Option<Arc<Vec<u32>>>,
+    /// C++ `ObjectMgr::_baseXPTable` used by area exploration XP.
+    pub exploration_base_xp_store: Option<Arc<wow_data::ExplorationBaseXpStoreLikeCpp>>,
+    /// C++ `sWorld->getRate(RATE_XP_EXPLORE)`.
+    pub exploration_xp_rate: f32,
+    /// C++ `CONFIG_MIN_DISCOVERED_SCALED_XP_RATIO`.
+    pub min_discovered_scaled_xp_ratio: u32,
     /// Shared registry of all active player sessions (for broadcast).
     pub player_registry: Option<Arc<PlayerRegistry>>,
     /// Session -> world-server bridge for C++ GameEventMgr::HandleQuestComplete.
@@ -315,6 +346,18 @@ pub struct SessionResources {
     pub repair_cost_rate: f32,
     /// C++ `CONFIG_RESET_SCHEDULE_{HOUR,WEEK_DAY}` for instance lock expiry.
     pub reset_schedule: wow_instances::ResetSchedule,
+    /// C++ `CONFIG_NO_RESET_TALENT_COST` / `NoResetTalentsCost`.
+    pub no_reset_talent_cost: bool,
+    /// C++ `CONFIG_OFFHAND_CHECK_AT_SPELL_UNLEARN` / `OffhandCheckAtSpellUnlearn`.
+    pub offhand_check_at_spell_unlearn: bool,
+    /// C++ `CONFIG_VMAP_INDOOR_CHECK` / `vmap.enableIndoorCheck`.
+    pub vmap_indoor_check: bool,
+    /// C++ `CONFIG_START_ALL_EXPLORED` / `PlayerStart.MapsExplored`.
+    pub start_all_explored: bool,
+    /// C++ `CONFIG_START_ALL_REP` / `PlayerStart.AllReputation`.
+    pub start_all_reputation: bool,
+    /// C++ `CONFIG_START_ALL_SPELLS` / `PlayerStart.AllSpells`.
+    pub start_all_spells: bool,
     /// C++ `CONFIG_SUPPORT_ENABLED` / `Support.Enabled`.
     pub support_enabled: bool,
     /// C++ `CONFIG_SUPPORT_BUGS_ENABLED` / `Support.BugsEnabled`.

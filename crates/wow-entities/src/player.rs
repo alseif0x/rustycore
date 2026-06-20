@@ -5,20 +5,20 @@ use wow_constants::{
     BagFamilyMask, EnchantmentSlot, Gender, InventoryResult, InventoryType, ItemBondingType,
     ItemClass, ItemEnchantmentType, ItemFieldFlags, ItemFieldFlags2, ItemModType, ItemModifier,
     ItemSubClassContainer, ItemSubClassQuiver, ItemSubClassWeapon, ItemSubclassProfession,
-    ItemUpdateState, PowerType, Stats, TypeId, TypeMask, WeaponAttackType,
+    ItemUpdateState, PowerType, Stats, TypeId, TypeMask, WeaponAttackType, spell::SpellSchools,
 };
 use wow_core::{ObjectGuid, Position};
 
 use crate::{
-    Bag, EQUIPMENT_SLOT_BACK, EQUIPMENT_SLOT_BODY, EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_END,
-    EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_FINGER1, EQUIPMENT_SLOT_FINGER2, EQUIPMENT_SLOT_HANDS,
-    EQUIPMENT_SLOT_HEAD, EQUIPMENT_SLOT_LEGS, EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_NECK,
-    EQUIPMENT_SLOT_OFFHAND, EQUIPMENT_SLOT_SHOULDERS, EQUIPMENT_SLOT_TABARD,
-    EQUIPMENT_SLOT_TRINKET1, EQUIPMENT_SLOT_TRINKET2, EQUIPMENT_SLOT_WAIST, EQUIPMENT_SLOT_WRISTS,
-    INVENTORY_SLOT_BAG_0, Item, ItemStorageTemplate, MAX_BAG_SIZE, MAX_ENCHANTMENT_SLOT,
-    MAX_POWERS, MAX_POWERS_PER_CLASS, NULL_SLOT, ObjectDataUpdate, PROFESSION_SLOT_COOKING_GEAR1,
-    PROFESSION_SLOT_COOKING_TOOL, PROFESSION_SLOT_END, PROFESSION_SLOT_FISHING_TOOL,
-    PROFESSION_SLOT_MAX_COUNT, PROFESSION_SLOT_PROFESSION1_GEAR1,
+    BASE_MAXDAMAGE, BASE_MINDAMAGE, Bag, EQUIPMENT_SLOT_BACK, EQUIPMENT_SLOT_BODY,
+    EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_END, EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_FINGER1,
+    EQUIPMENT_SLOT_FINGER2, EQUIPMENT_SLOT_HANDS, EQUIPMENT_SLOT_HEAD, EQUIPMENT_SLOT_LEGS,
+    EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_NECK, EQUIPMENT_SLOT_OFFHAND, EQUIPMENT_SLOT_SHOULDERS,
+    EQUIPMENT_SLOT_TABARD, EQUIPMENT_SLOT_TRINKET1, EQUIPMENT_SLOT_TRINKET2, EQUIPMENT_SLOT_WAIST,
+    EQUIPMENT_SLOT_WRISTS, INVENTORY_SLOT_BAG_0, Item, ItemStorageTemplate, MAX_BAG_SIZE,
+    MAX_ENCHANTMENT_SLOT, MAX_POWERS, MAX_POWERS_PER_CLASS, NULL_SLOT, ObjectDataUpdate,
+    PROFESSION_SLOT_COOKING_GEAR1, PROFESSION_SLOT_COOKING_TOOL, PROFESSION_SLOT_END,
+    PROFESSION_SLOT_FISHING_TOOL, PROFESSION_SLOT_MAX_COUNT, PROFESSION_SLOT_PROFESSION1_GEAR1,
     PROFESSION_SLOT_PROFESSION1_GEAR2, PROFESSION_SLOT_PROFESSION1_TOOL,
     PROFESSION_SLOT_PROFESSION2_GEAR1, PROFESSION_SLOT_PROFESSION2_GEAR2, PROFESSION_SLOT_START,
     Unit, UnitDataUpdate, UpdateMask, item_can_go_into_bag,
@@ -695,6 +695,8 @@ pub const ACTIVE_PLAYER_DATA_HONOR_NEXT_LEVEL_BIT: usize = 110;
 pub const ACTIVE_PLAYER_DATA_NUM_BACKPACK_SLOTS_BIT: usize = 104;
 pub const ACTIVE_PLAYER_DATA_INV_SLOTS_PARENT_BIT: usize = 124;
 pub const ACTIVE_PLAYER_DATA_INV_SLOTS_FIRST_BIT: usize = 125;
+pub const ACTIVE_PLAYER_DATA_EXPLORED_ZONES_PARENT_BIT: usize = 298;
+pub const ACTIVE_PLAYER_DATA_EXPLORED_ZONES_FIRST_BIT: usize = 299;
 pub const ACTIVE_PLAYER_DATA_BUYBACK_PARENT_BIT: usize = 549;
 pub const ACTIVE_PLAYER_DATA_BUYBACK_PRICE_FIRST_BIT: usize = 550;
 pub const ACTIVE_PLAYER_DATA_BUYBACK_TIMESTAMP_FIRST_BIT: usize = 562;
@@ -705,6 +707,51 @@ pub const ACTIVE_PLAYER_DATA_QUEST_COMPLETED_FIRST_BIT: usize = 637;
 pub const ACTIVE_PLAYER_DATA_WATCHED_FACTION_INDEX_BIT: usize = 92;
 pub const QUESTS_COMPLETED_BITS_SIZE: usize = 875;
 pub const QUESTS_COMPLETED_BITS_PER_BLOCK: u32 = 64;
+pub const PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP: usize = 240;
+
+/// C++ `Player::LoadFromDB` `exploredZones` parser.
+///
+/// Trinity stores each 64-bit block as two decimal 32-bit words:
+/// low half first, then high half. Loading uses `StringTo<uint64>` and
+/// shifts by `32 * (token_index % 2)` before OR-ing into the destination
+/// block, so malformed tokens become zero and extra tokens are ignored.
+pub fn parse_explored_zones_db_string_like_cpp(
+    input: &str,
+) -> [u64; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP] {
+    let mut blocks = [0u64; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP];
+    for (token_index, token) in input.split_whitespace().enumerate() {
+        let block_index = token_index / 2;
+        if block_index >= PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP {
+            break;
+        }
+
+        let value = token.parse::<u64>().unwrap_or(0);
+        blocks[block_index] |= value << (32 * (token_index % 2));
+    }
+    blocks
+}
+
+/// C++ `Player::SaveToDB` `exploredZones` serializer.
+///
+/// The legacy column is a space-separated string with a trailing space after
+/// every low/high 32-bit word pair.
+pub fn explored_zones_db_string_from_blocks_like_cpp(
+    blocks: &[u64; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP],
+) -> String {
+    use std::fmt::Write;
+
+    let mut out = String::with_capacity(PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP * 4);
+    for block in blocks {
+        let _ = write!(
+            &mut out,
+            "{} {} ",
+            (*block & 0xFFFF_FFFF) as u32,
+            ((*block >> 32) & 0xFFFF_FFFF) as u32
+        );
+    }
+    out
+}
+
 pub const PLAYER_MAX_HONOR_LEVEL_LIKE_CPP: i32 = 500;
 pub const PLAYER_LEVEL_MIN_HONOR_LIKE_CPP: u8 = 10;
 pub const PLAYER_HONOR_NEXT_LEVEL_XP_LIKE_CPP: i32 = 8_800;
@@ -1865,6 +1912,21 @@ pub enum ApplyEnchantmentEffectAction {
         amount: u32,
         apply: bool,
     },
+    SetShieldBlockValue {
+        amount: u32,
+    },
+    SetBaseWeaponDamage {
+        attack_type: WeaponAttackType,
+        bound: WeaponDamageBoundLikeCpp,
+        amount_bits: u32,
+    },
+    SetBaseAttackTime {
+        attack_type: WeaponAttackType,
+        time_ms: u32,
+    },
+    UpdateDamagePhysical {
+        attack_type: WeaponAttackType,
+    },
     UnhandledStatModifier {
         item_mod: ItemModType,
         amount: u32,
@@ -1879,6 +1941,12 @@ pub enum ApplyEnchantmentEffectAction {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WeaponDamageBoundLikeCpp {
+    Min,
+    Max,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ApplyEnchantmentUnitModifier {
     BaseValue,
     TotalValue,
@@ -1888,6 +1956,7 @@ pub enum ApplyEnchantmentUnitModifier {
 pub enum ApplyEnchantmentUnitMod {
     Mana,
     Health,
+    Armor,
     StatAgility,
     StatStrength,
     StatIntellect,
@@ -2413,6 +2482,332 @@ fn apply_enchantment_stat_actions(
     }
 }
 
+/// C++ `Player::_ApplyItemBonuses` static ItemSparse stat-loop subset.
+pub fn item_stat_bonus_actions_like_cpp(
+    stats: &[(i8, i16); 10],
+    apply: bool,
+) -> Vec<ApplyEnchantmentEffectAction> {
+    let mut actions = Vec::new();
+    for &(stat_type, amount) in stats {
+        if stat_type == -1 || amount == 0 {
+            continue;
+        }
+        if amount < 0 {
+            actions.push(ApplyEnchantmentEffectAction::UnhandledStatModifier {
+                item_mod: item_mod_type_from_u32(stat_type as u32),
+                amount: amount.unsigned_abs().into(),
+                apply,
+            });
+            continue;
+        }
+        let item_mod = item_mod_type_from_u32(stat_type as u32);
+        actions.extend(item_bonus_stat_actions_like_cpp(
+            item_mod,
+            amount as u32,
+            apply,
+        ));
+    }
+    actions
+}
+
+/// C++ `Player::_ApplyItemBonuses` scaling-stat stat loop.
+pub fn item_scaling_stat_bonus_actions_like_cpp(
+    stat_ids: &[i32; 10],
+    bonuses: &[i32; 10],
+    ssd_multiplier: i32,
+    apply: bool,
+) -> Vec<ApplyEnchantmentEffectAction> {
+    let mut actions = Vec::new();
+    for (&stat_type, &bonus) in stat_ids.iter().zip(bonuses.iter()) {
+        if stat_type == -1 {
+            continue;
+        }
+        let val = (ssd_multiplier * bonus) / 10_000;
+        if val == 0 {
+            continue;
+        }
+        if val < 0 {
+            actions.push(ApplyEnchantmentEffectAction::UnhandledStatModifier {
+                item_mod: item_mod_type_from_u32(stat_type as u32),
+                amount: val.unsigned_abs(),
+                apply,
+            });
+            continue;
+        }
+        let item_mod = item_mod_type_from_u32(stat_type as u32);
+        actions.extend(item_bonus_stat_actions_like_cpp(
+            item_mod, val as u32, apply,
+        ));
+    }
+    actions
+}
+
+/// C++ `_ApplyItemBonuses` direct `ItemTemplate::GetResistance(school)` loop.
+pub fn item_resistance_bonus_actions_like_cpp(
+    resistances: &[i16; 7],
+    apply: bool,
+) -> Vec<ApplyEnchantmentEffectAction> {
+    let mut actions = Vec::new();
+    for (school, resistance) in resistances.iter().copied().enumerate() {
+        if resistance == 0 {
+            continue;
+        }
+        if resistance < 0 {
+            continue;
+        }
+        actions.push(unit_modifier(
+            ApplyEnchantmentUnitMod::Resistance(school as u32),
+            ApplyEnchantmentUnitModifier::BaseValue,
+            resistance as u32,
+            apply,
+        ));
+    }
+    actions
+}
+
+/// C++ `_ApplyItemBonuses` direct `ActivePlayerData::ShieldBlock` assignment.
+pub fn item_shield_block_bonus_action_like_cpp(
+    shield_block_value: i16,
+    is_armor_shield: bool,
+    apply: bool,
+) -> Option<ApplyEnchantmentEffectAction> {
+    if !is_armor_shield || shield_block_value <= 0 {
+        return None;
+    }
+
+    Some(ApplyEnchantmentEffectAction::SetShieldBlockValue {
+        amount: if apply { shield_block_value as u32 } else { 0 },
+    })
+}
+
+/// C++ `Player::_ApplyWeaponDamage` direct non-scaling weapon field actions.
+pub fn item_weapon_damage_actions_like_cpp(
+    slot: u8,
+    inventory_type: InventoryType,
+    min_damage: f32,
+    max_damage: f32,
+    item_delay: u16,
+    apply: bool,
+    is_in_feral_form: bool,
+    can_use_attack_type: bool,
+    has_shapeshift_combat_round_time: bool,
+    can_modify_stats: bool,
+) -> Vec<ApplyEnchantmentEffectAction> {
+    const BASE_ATTACK_TIME_LIKE_CPP: u32 = 2_000;
+
+    let attack_type = get_attack_by_slot(slot, inventory_type);
+    if attack_type == WeaponAttackType::Max || (!is_in_feral_form && apply && !can_use_attack_type)
+    {
+        return Vec::new();
+    }
+
+    let mut actions = Vec::new();
+    let mut changed_damage = false;
+
+    if min_damage > 0.0 {
+        let amount = if apply { min_damage } else { BASE_MINDAMAGE };
+        actions.push(ApplyEnchantmentEffectAction::SetBaseWeaponDamage {
+            attack_type,
+            bound: WeaponDamageBoundLikeCpp::Min,
+            amount_bits: amount.to_bits(),
+        });
+        changed_damage = true;
+    }
+
+    if max_damage > 0.0 {
+        let amount = if apply { max_damage } else { BASE_MAXDAMAGE };
+        actions.push(ApplyEnchantmentEffectAction::SetBaseWeaponDamage {
+            attack_type,
+            bound: WeaponDamageBoundLikeCpp::Max,
+            amount_bits: amount.to_bits(),
+        });
+        changed_damage = true;
+    }
+
+    if item_delay != 0 && !has_shapeshift_combat_round_time {
+        actions.push(ApplyEnchantmentEffectAction::SetBaseAttackTime {
+            attack_type,
+            time_ms: if apply {
+                u32::from(item_delay)
+            } else {
+                BASE_ATTACK_TIME_LIKE_CPP
+            },
+        });
+    }
+
+    if can_modify_stats && (changed_damage || item_delay != 0) {
+        actions.push(ApplyEnchantmentEffectAction::UpdateDamagePhysical { attack_type });
+    }
+
+    actions
+}
+
+fn item_bonus_stat_actions_like_cpp(
+    item_mod: ItemModType,
+    amount: u32,
+    apply: bool,
+) -> Vec<ApplyEnchantmentEffectAction> {
+    match item_mod {
+        ItemModType::Agility => item_bonus_primary_stat_actions(
+            ApplyEnchantmentUnitMod::StatAgility,
+            Stats::Agility,
+            amount,
+            apply,
+        ),
+        ItemModType::Strength => item_bonus_primary_stat_actions(
+            ApplyEnchantmentUnitMod::StatStrength,
+            Stats::Strength,
+            amount,
+            apply,
+        ),
+        ItemModType::Intellect => item_bonus_primary_stat_actions(
+            ApplyEnchantmentUnitMod::StatIntellect,
+            Stats::Intellect,
+            amount,
+            apply,
+        ),
+        ItemModType::Spirit => item_bonus_primary_stat_actions(
+            ApplyEnchantmentUnitMod::StatSpirit,
+            Stats::Spirit,
+            amount,
+            apply,
+        ),
+        ItemModType::Stamina => item_bonus_primary_stat_actions(
+            ApplyEnchantmentUnitMod::StatStamina,
+            Stats::Stamina,
+            amount,
+            apply,
+        ),
+        ItemModType::HasteMeleeRating => {
+            rating_actions(&[ApplyEnchantmentCombatRating::HasteMelee], amount, apply)
+        }
+        ItemModType::HasteRangedRating => {
+            rating_actions(&[ApplyEnchantmentCombatRating::HasteRanged], amount, apply)
+        }
+        ItemModType::ExtraArmor => vec![unit_modifier(
+            ApplyEnchantmentUnitMod::Armor,
+            ApplyEnchantmentUnitModifier::TotalValue,
+            amount,
+            apply,
+        )],
+        ItemModType::FireResistance => {
+            item_bonus_resistance_actions(SpellSchools::Fire, amount, apply)
+        }
+        ItemModType::FrostResistance => {
+            item_bonus_resistance_actions(SpellSchools::Frost, amount, apply)
+        }
+        ItemModType::HolyResistance => {
+            item_bonus_resistance_actions(SpellSchools::Holy, amount, apply)
+        }
+        ItemModType::ShadowResistance => {
+            item_bonus_resistance_actions(SpellSchools::Shadow, amount, apply)
+        }
+        ItemModType::NatureResistance => {
+            item_bonus_resistance_actions(SpellSchools::Nature, amount, apply)
+        }
+        ItemModType::ArcaneResistance => {
+            item_bonus_resistance_actions(SpellSchools::Arcane, amount, apply)
+        }
+        ItemModType::AgiStrInt => [
+            item_bonus_primary_stat_actions(
+                ApplyEnchantmentUnitMod::StatAgility,
+                Stats::Agility,
+                amount,
+                apply,
+            ),
+            item_bonus_primary_stat_actions(
+                ApplyEnchantmentUnitMod::StatStrength,
+                Stats::Strength,
+                amount,
+                apply,
+            ),
+            item_bonus_primary_stat_actions(
+                ApplyEnchantmentUnitMod::StatIntellect,
+                Stats::Intellect,
+                amount,
+                apply,
+            ),
+        ]
+        .concat(),
+        ItemModType::AgiStr => [
+            item_bonus_primary_stat_actions(
+                ApplyEnchantmentUnitMod::StatAgility,
+                Stats::Agility,
+                amount,
+                apply,
+            ),
+            item_bonus_primary_stat_actions(
+                ApplyEnchantmentUnitMod::StatStrength,
+                Stats::Strength,
+                amount,
+                apply,
+            ),
+        ]
+        .concat(),
+        ItemModType::AgiInt => [
+            item_bonus_primary_stat_actions(
+                ApplyEnchantmentUnitMod::StatAgility,
+                Stats::Agility,
+                amount,
+                apply,
+            ),
+            item_bonus_primary_stat_actions(
+                ApplyEnchantmentUnitMod::StatIntellect,
+                Stats::Intellect,
+                amount,
+                apply,
+            ),
+        ]
+        .concat(),
+        ItemModType::StrInt => [
+            item_bonus_primary_stat_actions(
+                ApplyEnchantmentUnitMod::StatStrength,
+                Stats::Strength,
+                amount,
+                apply,
+            ),
+            item_bonus_primary_stat_actions(
+                ApplyEnchantmentUnitMod::StatIntellect,
+                Stats::Intellect,
+                amount,
+                apply,
+            ),
+        ]
+        .concat(),
+        _ => apply_enchantment_stat_actions(item_mod, amount, apply),
+    }
+}
+
+fn item_bonus_primary_stat_actions(
+    unit_mod: ApplyEnchantmentUnitMod,
+    stat: Stats,
+    amount: u32,
+    apply: bool,
+) -> Vec<ApplyEnchantmentEffectAction> {
+    vec![
+        unit_modifier(
+            unit_mod,
+            ApplyEnchantmentUnitModifier::BaseValue,
+            amount,
+            apply,
+        ),
+        ApplyEnchantmentEffectAction::UpdateStatBuffMod(stat),
+    ]
+}
+
+fn item_bonus_resistance_actions(
+    school: SpellSchools,
+    amount: u32,
+    apply: bool,
+) -> Vec<ApplyEnchantmentEffectAction> {
+    vec![unit_modifier(
+        ApplyEnchantmentUnitMod::Resistance(school as u32),
+        ApplyEnchantmentUnitModifier::BaseValue,
+        amount,
+        apply,
+    )]
+}
+
 fn primary_stat_actions(
     unit_mod: ApplyEnchantmentUnitMod,
     stat: Stats,
@@ -2537,6 +2932,8 @@ const fn item_mod_type_from_u32(value: u32) -> ItemModType {
         19 => ItemModType::CritMeleeRating,
         20 => ItemModType::CritRangedRating,
         21 => ItemModType::CritSpellRating,
+        28 => ItemModType::HasteMeleeRating,
+        29 => ItemModType::HasteRangedRating,
         30 => ItemModType::HasteSpellRating,
         31 => ItemModType::HitRating,
         32 => ItemModType::CritRating,
@@ -2550,6 +2947,17 @@ const fn item_mod_type_from_u32(value: u32) -> ItemModType {
         46 => ItemModType::HealthRegen,
         47 => ItemModType::SpellPenetration,
         48 => ItemModType::BlockValue,
+        50 => ItemModType::ExtraArmor,
+        51 => ItemModType::FireResistance,
+        52 => ItemModType::FrostResistance,
+        53 => ItemModType::HolyResistance,
+        54 => ItemModType::ShadowResistance,
+        55 => ItemModType::NatureResistance,
+        56 => ItemModType::ArcaneResistance,
+        71 => ItemModType::AgiStrInt,
+        72 => ItemModType::AgiStr,
+        73 => ItemModType::AgiInt,
+        74 => ItemModType::StrInt,
         _ => ItemModType::None,
     }
 }
@@ -2765,6 +3173,7 @@ pub struct ActivePlayerDataValues {
     pub watched_faction_index: i32,
     pub num_backpack_slots: u8,
     pub inv_slots: [ObjectGuid; PLAYER_SLOT_END],
+    pub explored_zones: [u64; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP],
     pub buyback_price: [u32; BUYBACK_SLOT_COUNT],
     pub buyback_timestamp: [i64; BUYBACK_SLOT_COUNT],
     pub bank_bag_slot_flags: [u32; 7],
@@ -2795,6 +3204,7 @@ impl Default for ActivePlayerDataValues {
             watched_faction_index: -1,
             num_backpack_slots: 0,
             inv_slots: [ObjectGuid::EMPTY; PLAYER_SLOT_END],
+            explored_zones: [0; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP],
             buyback_price: [0; BUYBACK_SLOT_COUNT],
             buyback_timestamp: [0; BUYBACK_SLOT_COUNT],
             bank_bag_slot_flags: [0; 7],
@@ -3607,6 +4017,71 @@ impl Player {
 
     pub fn quest_completed_block_like_cpp(&self, index: usize) -> Option<u64> {
         self.active_data.quest_completed.get(index).copied()
+    }
+
+    /// C++ `Player::AddExploredZones(pos, mask)`.
+    pub fn add_explored_zones_like_cpp(&mut self, index: usize, mask: u64) -> bool {
+        let Some(target) = self.active_data.explored_zones.get_mut(index) else {
+            return false;
+        };
+        let new_value = *target | mask;
+        if *target == new_value {
+            return false;
+        }
+
+        *target = new_value;
+        self.mark_active_player_data_array(
+            ACTIVE_PLAYER_DATA_EXPLORED_ZONES_PARENT_BIT,
+            ACTIVE_PLAYER_DATA_EXPLORED_ZONES_FIRST_BIT,
+            index,
+        );
+        true
+    }
+
+    pub fn set_explored_zones_block_like_cpp(&mut self, index: usize, value: u64) -> bool {
+        let Some(target) = self.active_data.explored_zones.get_mut(index) else {
+            return false;
+        };
+        if *target == value {
+            return false;
+        }
+
+        *target = value;
+        self.mark_active_player_data_array(
+            ACTIVE_PLAYER_DATA_EXPLORED_ZONES_PARENT_BIT,
+            ACTIVE_PLAYER_DATA_EXPLORED_ZONES_FIRST_BIT,
+            index,
+        );
+        true
+    }
+
+    pub fn load_explored_zones_string_like_cpp(&mut self, input: &str) -> usize {
+        let blocks = parse_explored_zones_db_string_like_cpp(input);
+        self.set_explored_zones_blocks_like_cpp(&blocks)
+    }
+
+    pub fn set_explored_zones_blocks_like_cpp(
+        &mut self,
+        blocks: &[u64; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP],
+    ) -> usize {
+        blocks
+            .iter()
+            .copied()
+            .enumerate()
+            .filter(|(index, value)| self.set_explored_zones_block_like_cpp(*index, *value))
+            .count()
+    }
+
+    pub fn explored_zones_block_like_cpp(&self, index: usize) -> Option<u64> {
+        self.active_data.explored_zones.get(index).copied()
+    }
+
+    pub fn explored_zones_blocks_like_cpp(&self) -> &[u64; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP] {
+        &self.active_data.explored_zones
+    }
+
+    pub fn explored_zones_db_string_like_cpp(&self) -> String {
+        explored_zones_db_string_from_blocks_like_cpp(&self.active_data.explored_zones)
     }
 
     pub fn set_inventory_slot_count(&mut self, count: u8) {
@@ -12604,6 +13079,114 @@ mod tests {
     }
 
     #[test]
+    fn add_explored_zones_ors_mask_and_marks_cpp_parent_and_child_bits() {
+        let mut player = Player::new(None, false);
+        player.clear_data_changes();
+
+        assert!(player.add_explored_zones_like_cpp(7, 0x0f));
+        assert_eq!(player.explored_zones_block_like_cpp(7), Some(0x0f));
+        assert!(
+            player
+                .active_player_data_changes_mask()
+                .is_set(ACTIVE_PLAYER_DATA_EXPLORED_ZONES_PARENT_BIT)
+        );
+        assert!(
+            player
+                .active_player_data_changes_mask()
+                .is_set(ACTIVE_PLAYER_DATA_EXPLORED_ZONES_FIRST_BIT + 7)
+        );
+
+        player.clear_data_changes();
+        assert!(player.add_explored_zones_like_cpp(7, 0xf0));
+        assert_eq!(player.explored_zones_block_like_cpp(7), Some(0xff));
+        assert!(
+            player
+                .active_player_data_changes_mask()
+                .is_set(ACTIVE_PLAYER_DATA_EXPLORED_ZONES_FIRST_BIT + 7)
+        );
+    }
+
+    #[test]
+    fn add_explored_zones_repeated_and_out_of_range_are_noops_like_cpp() {
+        let mut player = Player::new(None, false);
+        assert!(player.add_explored_zones_like_cpp(0, u64::MAX));
+        player.clear_data_changes();
+
+        assert!(!player.add_explored_zones_like_cpp(0, 1));
+        assert_eq!(player.explored_zones_block_like_cpp(0), Some(u64::MAX));
+        assert!(!player.active_player_data_changes_mask().is_any_set());
+
+        assert!(!player.add_explored_zones_like_cpp(PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP, u64::MAX));
+        assert!(!player.active_player_data_changes_mask().is_any_set());
+    }
+
+    #[test]
+    fn explored_zones_db_string_parser_matches_cpp_low_high_words() {
+        let blocks = parse_explored_zones_db_string_like_cpp("1 2 bad 4 5");
+
+        assert_eq!(blocks[0], 0x0000_0002_0000_0001);
+        assert_eq!(blocks[1], 0x0000_0004_0000_0000);
+        assert_eq!(blocks[2], 5);
+        assert!(blocks[3..].iter().all(|value| *value == 0));
+    }
+
+    #[test]
+    fn explored_zones_db_string_parser_ignores_tokens_past_cpp_array() {
+        let input = std::iter::repeat_n("1", PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP * 2 + 6)
+            .collect::<Vec<_>>()
+            .join(" ");
+        let blocks = parse_explored_zones_db_string_like_cpp(&input);
+
+        assert!(blocks.iter().all(|value| *value == 0x0000_0001_0000_0001));
+    }
+
+    #[test]
+    fn explored_zones_db_string_serializer_matches_cpp_low_high_order_and_trailing_space() {
+        let mut blocks = [0u64; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP];
+        blocks[0] = 0x0000_0002_0000_0001;
+        blocks[1] = 0xFFFF_FFFF_8000_0000;
+
+        let serialized = explored_zones_db_string_from_blocks_like_cpp(&blocks);
+
+        assert!(serialized.starts_with("1 2 2147483648 4294967295 0 0 "));
+        assert!(serialized.ends_with(' '));
+        assert_eq!(
+            serialized.split_whitespace().count(),
+            PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP * 2
+        );
+    }
+
+    #[test]
+    fn player_load_explored_zones_marks_cpp_parent_and_child_bits() {
+        let mut player = Player::new(None, false);
+        player.clear_data_changes();
+
+        assert_eq!(player.load_explored_zones_string_like_cpp("1 2 0 0"), 1);
+        assert_eq!(
+            player.explored_zones_block_like_cpp(0),
+            Some(0x0000_0002_0000_0001)
+        );
+        assert_eq!(
+            player
+                .explored_zones_db_string_like_cpp()
+                .split_whitespace()
+                .take(2)
+                .collect::<Vec<_>>(),
+            vec!["1", "2"]
+        );
+        assert!(
+            player
+                .active_player_data_changes_mask()
+                .is_set(ACTIVE_PLAYER_DATA_EXPLORED_ZONES_PARENT_BIT)
+        );
+        assert!(
+            player
+                .active_player_data_changes_mask()
+                .is_set(ACTIVE_PLAYER_DATA_EXPLORED_ZONES_FIRST_BIT)
+        );
+    }
+
+    #[test]
     fn values_update_splits_player_and_active_player_for_receiver() {
         let mut player = Player::new(None, false);
 
@@ -15300,6 +15883,367 @@ mod tests {
                 spell_id: 1234,
                 item_guid: item.object().guid(),
             }]
+        );
+    }
+
+    #[test]
+    fn item_stat_bonus_actions_match_cpp_apply_item_bonuses_stat_loop() {
+        let stats = [
+            (ItemModType::Strength as i8, 12),
+            (ItemModType::HitRating as i8, 5),
+            (-1, 99),
+            (ItemModType::SpellPower as i8, 0),
+            (-1, 0),
+            (-1, 0),
+            (-1, 0),
+            (-1, 0),
+            (-1, 0),
+            (-1, 0),
+        ];
+
+        assert_eq!(
+            item_stat_bonus_actions_like_cpp(&stats, true),
+            vec![
+                ApplyEnchantmentEffectAction::UnitModifier {
+                    unit_mod: ApplyEnchantmentUnitMod::StatStrength,
+                    modifier: ApplyEnchantmentUnitModifier::BaseValue,
+                    amount: 12,
+                    apply: true,
+                },
+                ApplyEnchantmentEffectAction::UpdateStatBuffMod(Stats::Strength),
+                ApplyEnchantmentEffectAction::RatingModifier {
+                    rating: ApplyEnchantmentCombatRating::HitMelee,
+                    amount: 5,
+                    apply: true,
+                },
+                ApplyEnchantmentEffectAction::RatingModifier {
+                    rating: ApplyEnchantmentCombatRating::HitRanged,
+                    amount: 5,
+                    apply: true,
+                },
+                ApplyEnchantmentEffectAction::RatingModifier {
+                    rating: ApplyEnchantmentCombatRating::HitSpell,
+                    amount: 5,
+                    apply: true,
+                },
+            ],
+        );
+    }
+
+    #[test]
+    fn item_scaling_stat_bonus_actions_match_cpp_scaled_stat_loop() {
+        let mut stat_ids = [-1; 10];
+        stat_ids[0] = ItemModType::Strength as i32;
+        stat_ids[1] = ItemModType::HitRating as i32;
+        stat_ids[2] = ItemModType::SpellPower as i32;
+        let mut bonuses = [0; 10];
+        bonuses[0] = 5_000;
+        bonuses[1] = 2_500;
+        bonuses[2] = 0;
+
+        assert_eq!(
+            item_scaling_stat_bonus_actions_like_cpp(&stat_ids, &bonuses, 200, true),
+            vec![
+                ApplyEnchantmentEffectAction::UnitModifier {
+                    unit_mod: ApplyEnchantmentUnitMod::StatStrength,
+                    modifier: ApplyEnchantmentUnitModifier::BaseValue,
+                    amount: 100,
+                    apply: true,
+                },
+                ApplyEnchantmentEffectAction::UpdateStatBuffMod(Stats::Strength),
+                ApplyEnchantmentEffectAction::RatingModifier {
+                    rating: ApplyEnchantmentCombatRating::HitMelee,
+                    amount: 50,
+                    apply: true,
+                },
+                ApplyEnchantmentEffectAction::RatingModifier {
+                    rating: ApplyEnchantmentCombatRating::HitRanged,
+                    amount: 50,
+                    apply: true,
+                },
+                ApplyEnchantmentEffectAction::RatingModifier {
+                    rating: ApplyEnchantmentCombatRating::HitSpell,
+                    amount: 50,
+                    apply: true,
+                },
+            ],
+            "C++ computes val = getssdMultiplier(mask) * ScalingStatDistribution::Bonus[i] / 10000"
+        );
+    }
+
+    #[test]
+    fn item_stat_bonus_actions_cover_cpp_item_bonus_only_stat_cases() {
+        let stats = [
+            (ItemModType::AgiStrInt as i8, 7),
+            (ItemModType::ExtraArmor as i8, 40),
+            (ItemModType::FireResistance as i8, 9),
+            (ItemModType::HasteMeleeRating as i8, 3),
+            (ItemModType::HasteRangedRating as i8, 4),
+            (-1, 0),
+            (-1, 0),
+            (-1, 0),
+            (-1, 0),
+            (-1, 0),
+        ];
+
+        assert_eq!(
+            item_stat_bonus_actions_like_cpp(&stats, true),
+            vec![
+                ApplyEnchantmentEffectAction::UnitModifier {
+                    unit_mod: ApplyEnchantmentUnitMod::StatAgility,
+                    modifier: ApplyEnchantmentUnitModifier::BaseValue,
+                    amount: 7,
+                    apply: true,
+                },
+                ApplyEnchantmentEffectAction::UpdateStatBuffMod(Stats::Agility),
+                ApplyEnchantmentEffectAction::UnitModifier {
+                    unit_mod: ApplyEnchantmentUnitMod::StatStrength,
+                    modifier: ApplyEnchantmentUnitModifier::BaseValue,
+                    amount: 7,
+                    apply: true,
+                },
+                ApplyEnchantmentEffectAction::UpdateStatBuffMod(Stats::Strength),
+                ApplyEnchantmentEffectAction::UnitModifier {
+                    unit_mod: ApplyEnchantmentUnitMod::StatIntellect,
+                    modifier: ApplyEnchantmentUnitModifier::BaseValue,
+                    amount: 7,
+                    apply: true,
+                },
+                ApplyEnchantmentEffectAction::UpdateStatBuffMod(Stats::Intellect),
+                ApplyEnchantmentEffectAction::UnitModifier {
+                    unit_mod: ApplyEnchantmentUnitMod::Armor,
+                    modifier: ApplyEnchantmentUnitModifier::TotalValue,
+                    amount: 40,
+                    apply: true,
+                },
+                ApplyEnchantmentEffectAction::UnitModifier {
+                    unit_mod: ApplyEnchantmentUnitMod::Resistance(SpellSchools::Fire as u32),
+                    modifier: ApplyEnchantmentUnitModifier::BaseValue,
+                    amount: 9,
+                    apply: true,
+                },
+                ApplyEnchantmentEffectAction::RatingModifier {
+                    rating: ApplyEnchantmentCombatRating::HasteMelee,
+                    amount: 3,
+                    apply: true,
+                },
+                ApplyEnchantmentEffectAction::RatingModifier {
+                    rating: ApplyEnchantmentCombatRating::HasteRanged,
+                    amount: 4,
+                    apply: true,
+                },
+            ],
+        );
+    }
+
+    #[test]
+    fn item_resistance_bonus_actions_match_cpp_template_resistance_loop() {
+        let mut resistances = [0i16; 7];
+        resistances[SpellSchools::Normal as usize] = 120;
+        resistances[SpellSchools::Holy as usize] = 3;
+        resistances[SpellSchools::Fire as usize] = 7;
+
+        assert_eq!(
+            item_resistance_bonus_actions_like_cpp(&resistances, false),
+            vec![
+                ApplyEnchantmentEffectAction::UnitModifier {
+                    unit_mod: ApplyEnchantmentUnitMod::Resistance(SpellSchools::Normal as u32),
+                    modifier: ApplyEnchantmentUnitModifier::BaseValue,
+                    amount: 120,
+                    apply: false,
+                },
+                ApplyEnchantmentEffectAction::UnitModifier {
+                    unit_mod: ApplyEnchantmentUnitMod::Resistance(SpellSchools::Holy as u32),
+                    modifier: ApplyEnchantmentUnitModifier::BaseValue,
+                    amount: 3,
+                    apply: false,
+                },
+                ApplyEnchantmentEffectAction::UnitModifier {
+                    unit_mod: ApplyEnchantmentUnitMod::Resistance(SpellSchools::Fire as u32),
+                    modifier: ApplyEnchantmentUnitModifier::BaseValue,
+                    amount: 7,
+                    apply: false,
+                },
+            ],
+        );
+    }
+
+    #[test]
+    fn item_shield_block_bonus_action_matches_cpp_direct_update_field_assignment() {
+        assert_eq!(
+            item_shield_block_bonus_action_like_cpp(42, true, true),
+            Some(ApplyEnchantmentEffectAction::SetShieldBlockValue { amount: 42 }),
+        );
+        assert_eq!(
+            item_shield_block_bonus_action_like_cpp(42, true, false),
+            Some(ApplyEnchantmentEffectAction::SetShieldBlockValue { amount: 0 }),
+        );
+        assert_eq!(
+            item_shield_block_bonus_action_like_cpp(42, false, true),
+            None
+        );
+        assert_eq!(item_shield_block_bonus_action_like_cpp(0, true, true), None);
+    }
+
+    #[test]
+    fn item_weapon_damage_actions_match_cpp_direct_apply_weapon_damage() {
+        assert_eq!(
+            item_weapon_damage_actions_like_cpp(
+                EQUIPMENT_SLOT_MAINHAND,
+                InventoryType::Weapon,
+                12.0,
+                18.0,
+                2600,
+                true,
+                false,
+                true,
+                false,
+                true,
+            ),
+            vec![
+                ApplyEnchantmentEffectAction::SetBaseWeaponDamage {
+                    attack_type: WeaponAttackType::BaseAttack,
+                    bound: WeaponDamageBoundLikeCpp::Min,
+                    amount_bits: 12.0f32.to_bits(),
+                },
+                ApplyEnchantmentEffectAction::SetBaseWeaponDamage {
+                    attack_type: WeaponAttackType::BaseAttack,
+                    bound: WeaponDamageBoundLikeCpp::Max,
+                    amount_bits: 18.0f32.to_bits(),
+                },
+                ApplyEnchantmentEffectAction::SetBaseAttackTime {
+                    attack_type: WeaponAttackType::BaseAttack,
+                    time_ms: 2600,
+                },
+                ApplyEnchantmentEffectAction::UpdateDamagePhysical {
+                    attack_type: WeaponAttackType::BaseAttack,
+                },
+            ],
+        );
+
+        assert_eq!(
+            item_weapon_damage_actions_like_cpp(
+                EQUIPMENT_SLOT_MAINHAND,
+                InventoryType::Weapon,
+                12.0,
+                18.0,
+                2600,
+                false,
+                false,
+                true,
+                false,
+                true,
+            ),
+            vec![
+                ApplyEnchantmentEffectAction::SetBaseWeaponDamage {
+                    attack_type: WeaponAttackType::BaseAttack,
+                    bound: WeaponDamageBoundLikeCpp::Min,
+                    amount_bits: BASE_MINDAMAGE.to_bits(),
+                },
+                ApplyEnchantmentEffectAction::SetBaseWeaponDamage {
+                    attack_type: WeaponAttackType::BaseAttack,
+                    bound: WeaponDamageBoundLikeCpp::Max,
+                    amount_bits: BASE_MAXDAMAGE.to_bits(),
+                },
+                ApplyEnchantmentEffectAction::SetBaseAttackTime {
+                    attack_type: WeaponAttackType::BaseAttack,
+                    time_ms: 2000,
+                },
+                ApplyEnchantmentEffectAction::UpdateDamagePhysical {
+                    attack_type: WeaponAttackType::BaseAttack,
+                },
+            ],
+        );
+    }
+
+    #[test]
+    fn item_weapon_damage_actions_match_cpp_attack_slot_and_gate_rules() {
+        assert_eq!(
+            item_weapon_damage_actions_like_cpp(
+                EQUIPMENT_SLOT_MAINHAND,
+                InventoryType::RangedRight,
+                20.0,
+                30.0,
+                1800,
+                true,
+                false,
+                true,
+                true,
+                true,
+            ),
+            vec![
+                ApplyEnchantmentEffectAction::SetBaseWeaponDamage {
+                    attack_type: WeaponAttackType::RangedAttack,
+                    bound: WeaponDamageBoundLikeCpp::Min,
+                    amount_bits: 20.0f32.to_bits(),
+                },
+                ApplyEnchantmentEffectAction::SetBaseWeaponDamage {
+                    attack_type: WeaponAttackType::RangedAttack,
+                    bound: WeaponDamageBoundLikeCpp::Max,
+                    amount_bits: 30.0f32.to_bits(),
+                },
+                ApplyEnchantmentEffectAction::UpdateDamagePhysical {
+                    attack_type: WeaponAttackType::RangedAttack,
+                },
+            ],
+            "C++ skips SetBaseAttackTime when the shapeshift form has CombatRoundTime"
+        );
+        assert_eq!(
+            item_weapon_damage_actions_like_cpp(
+                EQUIPMENT_SLOT_OFFHAND,
+                InventoryType::WeaponOffhand,
+                9.0,
+                11.0,
+                0,
+                true,
+                false,
+                true,
+                false,
+                false,
+            ),
+            vec![
+                ApplyEnchantmentEffectAction::SetBaseWeaponDamage {
+                    attack_type: WeaponAttackType::OffAttack,
+                    bound: WeaponDamageBoundLikeCpp::Min,
+                    amount_bits: 9.0f32.to_bits(),
+                },
+                ApplyEnchantmentEffectAction::SetBaseWeaponDamage {
+                    attack_type: WeaponAttackType::OffAttack,
+                    bound: WeaponDamageBoundLikeCpp::Max,
+                    amount_bits: 11.0f32.to_bits(),
+                },
+            ],
+            "C++ skips UpdateDamagePhysical when CanModifyStats is false"
+        );
+        assert!(
+            item_weapon_damage_actions_like_cpp(
+                EQUIPMENT_SLOT_MAINHAND,
+                InventoryType::Weapon,
+                12.0,
+                18.0,
+                2600,
+                true,
+                false,
+                false,
+                false,
+                true,
+            )
+            .is_empty()
+        );
+        assert!(
+            item_weapon_damage_actions_like_cpp(
+                EQUIPMENT_SLOT_HEAD,
+                InventoryType::Weapon,
+                12.0,
+                18.0,
+                2600,
+                true,
+                false,
+                true,
+                false,
+                true,
+            )
+            .is_empty()
         );
     }
 

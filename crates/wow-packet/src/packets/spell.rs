@@ -17,6 +17,7 @@
 use wow_constants::{ClientOpcodes, ServerOpcodes};
 use wow_core::{ObjectGuid, Position};
 
+use crate::packets::movement::MovementInfo;
 use crate::world_packet::{PacketError, WorldPacket};
 use crate::{ClientPacket, ServerPacket};
 
@@ -98,6 +99,24 @@ impl ClientPacket for CancelGrowthAura {
 
     fn read(_pkt: &mut WorldPacket) -> Result<Self, PacketError> {
         Ok(Self)
+    }
+}
+
+/// C++ `WorldPackets::Spells::CancelModSpeedNoControlAuras`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CancelModSpeedNoControlAuras {
+    pub target_guid: ObjectGuid,
+}
+
+impl ClientPacket for CancelModSpeedNoControlAuras {
+    // The inspected 3.4.3 table marks this as the shared unresolved `0xBADD`
+    // placeholder. Route it from the existing 0xBADD opcode branch by payload
+    // shape and mover GUID until that table is resolved.
+    const OPCODE: ClientOpcodes = ClientOpcodes::SetLootSpecialization;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let target_guid = pkt.read_packed_guid()?;
+        Ok(Self { target_guid })
     }
 }
 
@@ -438,6 +457,8 @@ pub struct CastSpellRequest {
     pub visual: SpellCastVisual,
     /// Cast target.
     pub target: SpellTargetData,
+    /// Optional movement status embedded in the cast request.
+    pub move_update: Option<MovementInfo>,
 }
 
 impl ClientPacket for CastSpellRequest {
@@ -460,15 +481,10 @@ impl ClientPacket for CastSpellRequest {
         let reagents_count = pkt.read_uint32()? as usize;
         let removed_mods_count = pkt.read_uint32()? as usize;
 
-        // Optional currencies (each: 3 i32 + 1 optional byte via bit)
+        // C++ SpellExtraCurrencyCost: CurrencyID + Count.
         for _ in 0..currencies_count {
-            let _item = pkt.read_int32()?;
-            let _slot = pkt.read_int32()?;
-            let _qty = pkt.read_int32()?;
-            let has_extra = pkt.has_bit()?;
-            if has_extra {
-                let _u = pkt.read_uint8()?;
-            }
+            let _currency_id = pkt.read_int32()?;
+            let _count = pkt.read_int32()?;
         }
 
         // Bit section: SendCastFlags(5), hasMoveUpdate(1), weightCount(2), hasCraftingOrderID(1)
@@ -494,20 +510,11 @@ impl ClientPacket for CastSpellRequest {
             skip_crafting_reagent(pkt)?;
         }
 
-        // Optional MoveUpdate (MovementInfo — many fields, skip via best-effort)
-        // We only reach this path if the player is moving while casting (rare).
-        // Parsing MovementInfo here is complex; we ignore it and stop reading.
-        if has_move_update {
-            // MoveInfo is at the end; anything after target is non-critical for
-            // our básicos implementation — just stop early.
-            return Ok(Self {
-                cast_id,
-                misc: [misc0, misc1],
-                spell_id,
-                visual,
-                target,
-            });
-        }
+        let move_update = if has_move_update {
+            Some(MovementInfo::read(pkt)?)
+        } else {
+            None
+        };
 
         // SpellWeights (each: ResetBitPos + Type(2 bits) + ID(i32) + Quantity(u32))
         for _ in 0..weight_count {
@@ -523,6 +530,7 @@ impl ClientPacket for CastSpellRequest {
             spell_id,
             visual,
             target,
+            move_update,
         })
     }
 }
@@ -875,6 +883,18 @@ mod tests {
     }
 
     #[test]
+    fn cancel_mod_speed_no_control_reads_cpp_target_guid() {
+        let target_guid = ObjectGuid::create_player(1, 77);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&target_guid);
+        pkt.reset_read();
+
+        let parsed = CancelModSpeedNoControlAuras::read(&mut pkt).unwrap();
+        assert_eq!(parsed.target_guid, target_guid);
+        assert!(pkt.is_empty());
+    }
+
+    #[test]
     fn cancel_empty_spell_packets_match_cpp_empty_reads() {
         assert_eq!(
             CancelAutoRepeatSpell::read(&mut WorldPacket::new_empty()).unwrap(),
@@ -1041,6 +1061,86 @@ mod tests {
         assert_eq!(parsed.cast_id, cast_id);
         assert_eq!(parsed.misc, [30_000, 9]);
         assert_eq!(parsed.spell_id, 12_345);
+        assert!(parsed.move_update.is_none());
+    }
+
+    #[test]
+    fn cast_spell_request_reads_optional_currency_cost_like_cpp() {
+        let cast_id = ObjectGuid::create_player(1, 88);
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&cast_id);
+        pkt.write_int32(0);
+        pkt.write_int32(0);
+        pkt.write_int32(17_229);
+        SpellCastVisual::default().write(&mut pkt);
+        pkt.write_float(0.0);
+        pkt.write_float(0.0);
+        pkt.write_packed_guid(&ObjectGuid::EMPTY);
+        pkt.write_uint32(1);
+        pkt.write_uint32(0);
+        pkt.write_uint32(0);
+        pkt.write_int32(3_777);
+        pkt.write_int32(25);
+        pkt.write_bits(0, 5);
+        pkt.write_bit(false);
+        pkt.write_bits(0, 2);
+        pkt.write_bit(false);
+        pkt.flush_bits();
+        SpellTargetData::default().write(&mut pkt);
+        pkt.reset_read();
+
+        let parsed = CastSpellRequest::read(&mut pkt).unwrap();
+        assert_eq!(parsed.cast_id, cast_id);
+        assert_eq!(parsed.spell_id, 17_229);
+        assert_eq!(parsed.target, SpellTargetData::default());
+    }
+
+    #[test]
+    fn cast_spell_request_reads_move_update_before_weights_like_cpp() {
+        let cast_id = ObjectGuid::create_player(1, 89);
+        let mover_guid = ObjectGuid::create_player(1, 90);
+        let movement = MovementInfo {
+            guid: mover_guid,
+            time: 123_456,
+            position: Position::new(11.0, 22.0, 33.0, 1.25),
+            ..MovementInfo::default()
+        };
+
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&cast_id);
+        pkt.write_int32(0);
+        pkt.write_int32(0);
+        pkt.write_int32(17_229);
+        SpellCastVisual::default().write(&mut pkt);
+        pkt.write_float(0.0);
+        pkt.write_float(0.0);
+        pkt.write_packed_guid(&ObjectGuid::EMPTY);
+        pkt.write_uint32(0);
+        pkt.write_uint32(0);
+        pkt.write_uint32(0);
+        pkt.write_bits(0, 5);
+        pkt.write_bit(true);
+        pkt.write_bits(1, 2);
+        pkt.write_bit(false);
+        pkt.flush_bits();
+        SpellTargetData::default().write(&mut pkt);
+        movement.write(&mut pkt);
+        pkt.write_bits(2, 2);
+        pkt.flush_bits();
+        pkt.write_int32(377);
+        pkt.write_uint32(4);
+        pkt.reset_read();
+
+        let parsed = CastSpellRequest::read(&mut pkt).unwrap();
+        let parsed_movement = parsed
+            .move_update
+            .expect("move update must be read before spell weights");
+        assert_eq!(parsed.cast_id, cast_id);
+        assert_eq!(parsed.spell_id, 17_229);
+        assert_eq!(parsed_movement.guid, mover_guid);
+        assert_eq!(parsed_movement.time, movement.time);
+        assert_eq!(parsed_movement.position, movement.position);
+        assert!(pkt.is_empty());
     }
 
     #[test]

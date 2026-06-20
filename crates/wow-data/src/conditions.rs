@@ -2985,6 +2985,8 @@ mod tests {
             sheathe_type: 0,
             random_select: 0,
             random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
         }]);
         let mut spell_store = crate::SpellStore::new();
         spell_store.insert(200, spell_info(200));
@@ -2993,6 +2995,8 @@ mod tests {
                 id: 300,
                 continent_id: 0,
                 parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
                 mount_flags: 0,
                 flags: 0,
             },
@@ -3000,6 +3004,8 @@ mod tests {
                 id: 301,
                 continent_id: 0,
                 parent_area_id: 300,
+                area_bit: -1,
+                exploration_level: 0,
                 mount_flags: 0,
                 flags: crate::area::AREA_FLAG_IS_SUBZONE_LIKE_CPP,
             },
@@ -3540,12 +3546,16 @@ mod tests {
             sheathe_type: 0,
             random_select: 0,
             random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
         }]);
         let area_store = crate::AreaTableStore::from_entries([
             crate::AreaTableEntry {
                 id: 7,
                 continent_id: 0,
                 parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
                 mount_flags: 0,
                 flags: 0,
             },
@@ -3553,6 +3563,8 @@ mod tests {
                 id: 8,
                 continent_id: 0,
                 parent_area_id: 7,
+                area_bit: -1,
+                exploration_level: 0,
                 mount_flags: 0,
                 flags: crate::area::AREA_FLAG_IS_SUBZONE_LIKE_CPP,
             },

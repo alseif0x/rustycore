@@ -18,6 +18,12 @@ pub const COMMAND_STAY_LIKE_CPP: u8 = 0;
 pub const COMMAND_FOLLOW_LIKE_CPP: u8 = 1;
 pub const COMMAND_ATTACK_LIKE_CPP: u8 = 2;
 
+pub const PET_ACTION_FEEDBACK_NONE_LIKE_CPP: u8 = 0;
+pub const PET_ACTION_FEEDBACK_DEAD_LIKE_CPP: u8 = 1;
+pub const PET_ACTION_FEEDBACK_NO_TARGET_LIKE_CPP: u8 = 2;
+pub const PET_ACTION_FEEDBACK_INVALID_TARGET_LIKE_CPP: u8 = 3;
+pub const PET_ACTION_FEEDBACK_NO_PATH_LIKE_CPP: u8 = 4;
+
 /// C++ `WorldPackets::Pet::DismissCritter`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DismissCritter {
@@ -94,6 +100,22 @@ impl ServerPacket for PetStableResult {
     }
 }
 
+/// C++ `WorldPackets::Pet::PetActionFeedback`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PetActionFeedback {
+    pub spell_id: i32,
+    pub response: u8,
+}
+
+impl ServerPacket for PetActionFeedback {
+    const OPCODE: ServerOpcodes = ServerOpcodes::PetActionFeedback;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_int32(self.spell_id);
+        pkt.write_uint8(self.response);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -151,5 +173,24 @@ mod tests {
 
         let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
         assert_eq!(pkt.read_uint8().unwrap(), 2);
+    }
+
+    #[test]
+    fn pet_action_feedback_matches_cpp_payload_order() {
+        let bytes = PetActionFeedback {
+            spell_id: 0,
+            response: PET_ACTION_FEEDBACK_DEAD_LIKE_CPP,
+        }
+        .to_bytes();
+
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::PetActionFeedback as u16
+        );
+        assert_eq!(bytes.len(), 2 + 4 + 1);
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_int32().unwrap(), 0);
+        assert_eq!(pkt.read_uint8().unwrap(), PET_ACTION_FEEDBACK_DEAD_LIKE_CPP);
+        assert!(pkt.is_empty());
     }
 }

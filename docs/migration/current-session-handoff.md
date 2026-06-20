@@ -1,3 +1,3611 @@
+- `#NEXT.R8.ENTITIES.1198` — represented item-set aura refresh events can now
+  materialize the C++ item-set `ApplyEquipSpell` remove/apply effects into the
+  session aura state. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:8187-8220`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:8238-8260`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:3806`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:3951`.
+  C++ item-set refresh removes with `RemoveAurasDueToSpell(spellId)` before
+  casting the set spell again, and the `formChange` apply branch returns early
+  when the same spell aura is already active. Rust now exposes
+  `apply_represented_item_set_aura_refresh_events_like_cpp`, which records the
+  existing C++-ordered refresh events, removes matching visible auras for remove
+  events, applies a permanent represented item-set aura for apply events, and
+  avoids duplicating active item-set auras during form-change refresh. Coverage
+  proves remove-then-apply leaves one matching aura while preserving unrelated
+  auras, and that form-change apply does not duplicate an active set aura.
+  Checks so far: `cargo fmt --all` and `cargo test -p wow-world
+  represented_item_set_aura_refresh --lib`; final check suite is recorded in
+  the TSV row. Boundary remains partial: this is still a represented
+  item-set-specific materializer, not full `CastSpell`, item GUID
+  `RemoveAurasDueToItemSpell`, update-field emission, persistence, fanout,
+  bot/live/manual validation, or full spell-effect runtime parity.
+
+- `#NEXT.R8.ENTITIES.1197` — represented item-set aura refresh now applies the
+  C++ `ApplyEquipSpell(..., formChange)` shapeshift gate for regular
+  `SpellInfo`. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:8187-8220`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:8238-8260`.
+  C++ skips the remove branch on a form change when `CheckShapeshift` is OK,
+  and skips the apply/cast branch when `CheckShapeshift` is not OK. Rust now
+  tracks a represented current shapeshift form, uses the regular
+  `SpellStore::check_shapeshift_like_cpp` decision for represented item-set
+  refresh events, emits remove-only for form-incompatible set spells, and emits
+  apply-only for still-compatible form-change refreshes. Coverage proves both
+  branches and updates the prior item-set refresh expectation to the exact C++
+  form-change remove-skip behavior. Checks so far: `cargo fmt --all` and
+  `cargo test -p wow-world represented_update_item_set_auras --lib`; final
+  check suite is recorded in the TSV row. Boundary remains partial: represented
+  event shaping only; no real `CastSpell`, `RemoveAurasDueToSpell`,
+  active-aura duplicate check for form changes, update-field emission,
+  persistence, fanout, bot/live/manual validation, or final aura state.
+
+- `#NEXT.R8.ENTITIES.1196` — regular `SpellStore` now hydrates the C++
+  `SpellInfo::Stances` / `StancesNot` data needed by real equip-spell
+  shapeshift checks. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellInfo.cpp:1312-1313`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellInfo.cpp:1921-1967`.
+  C++ composes `Stances` from `SpellShapeshiftEntry::ShapeshiftMask` and
+  `StancesNot` from `ShapeshiftExclude` using `MAKE_PAIR64`; Rust now loads
+  `SpellShapeshift.db2` as part of `SpellStore::load_with_db2_and_hotfixes`,
+  records the same masks in the regular `SpellStore`, and exposes
+  `SpellStore::check_shapeshift_like_cpp` so normal `SpellInfo` consumers do
+  not depend on the narrower `serverside_spell` table. Coverage proves DB2 mask
+  composition drives explicit allow/deny/unshifted outcomes and that
+  `SpellMisc` attr2 allows unshifted casts like C++. Checks so far: `cargo fmt
+  --all` and `cargo test -p wow-data shapeshift --lib`; final check suite is
+  recorded in the TSV row. Boundary remains partial: this is the regular
+  SpellInfo data/decision foundation only; it is not yet consumed by represented
+  or live `ApplyEquipSpell`, current shapeshift state, aura add/remove,
+  update-field emission, persistence, fanout, bot/live/manual validation, or
+  final aura state.
+
+- `#NEXT.R8.ENTITIES.1195` — represented server-side spell data now exposes a
+  C++-mirrored `SpellInfo::CheckShapeshift` decision for stances/forms. Source
+  of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellInfo.cpp:1921-1967`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellInfo.cpp:1312-1313`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:447`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:524`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DBCEnums.h:1949-1961`.
+  C++ checks `StancesNot` before `Stances`, treats unknown form ids as
+  cast-OK, then applies the shifted/unshifted branches using
+  `SPELL_ATTR0_NOT_SHAPESHIFTED`,
+  `SPELL_ATTR2_ALLOW_WHILE_NOT_SHAPESHIFTED_CASTER_FORM`, and
+  `SpellShapeshiftFormFlags::CanOnlyCastShapeshiftSpells`. Rust now exposes the
+  same pure decision on `ServersideSpellInfoLikeCpp::check_shapeshift_like_cpp`
+  with branch coverage for explicit allow/deny, missing forms, shifted-only
+  restrictions, other-form requirements, and unshifted allow-while-not-shifted.
+  Checks: `cargo fmt --all --check`, `cargo test -p wow-data check_shapeshift
+  --lib`, `cargo check -p wow-data`, `cargo check -p wow-world`, `cargo check -p
+  world-server`, and `git diff --check`. Boundary remains partial: this is a
+  reusable server-side spell decision only; it is not yet consumed by real
+  `ApplyEquipSpell`, current shapeshift state, aura add/remove, update-field
+  emission, persistence, fanout, bot/live/manual validation, or final aura
+  state.
+
+- `#NEXT.R8.ENTITIES.1194` — represented item-set apply now mirrors the C++
+  `SpellInfo` existence gate before inserting set-bonus entries. Source of
+  truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:57-145`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:8187-8220`.
+  C++ `AddItemsSetItem` resolves `sSpellMgr->GetSpellInfo(...)` before
+  `eff->SetBonuses.insert(itemSetSpell)` and logs/continues for unknown spells;
+  Rust now does the same in the represented path when `SpellStore` is available,
+  so an unknown item-set spell neither becomes an active represented set bonus
+  nor emits an apply event. Coverage proves an unknown threshold-met set spell is
+  skipped while a known spell in the same set still applies. Checks: `cargo fmt
+  --all --check`, `cargo test -p wow-world
+  represented_item_set_skips_unknown_spell_info_like_cpp --lib`, `cargo test -p
+  wow-world represented_item_set --lib`, `cargo check -p wow-world`, `cargo
+  check -p world-server`, and `git diff --check`. Boundary remains partial:
+  this is represented `SpellInfo` existence filtering only; no real
+  `ApplyEquipSpell`, shapeshift/aura active-state handling, aura add/remove,
+  update-field emission, persistence, fanout, bot/live/manual validation, or
+  final aura state.
+
+- `#NEXT.R8.ENTITIES.1193` — represented item-set apply now includes the C++
+  heirloom max-level guard. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:57-145`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:8621-8641`.
+  C++ skips `AddItemsSetItem` for heirloom items when the item bonus
+  `PlayerLevelToItemLevelCurveId` exists and the player level is greater than
+  the curve's max X, capped by `ContentTuningData(..., forItem=true).MaxLevel`
+  when present. Rust now exposes represented `CurveStore::curve_x_axis_range_like_cpp`
+  and applies that guard before creating/updating represented item-set effects.
+  Coverage proves an heirloom set item above the derived max level creates no
+  set effect, while the same item at the max level counts and activates the
+  threshold spell. Checks: `cargo fmt --all --check`, `cargo test -p wow-data
+  curve_x_axis_range_uses_ordered_curve_points_like_cpp --lib`, `cargo test -p
+  wow-world represented_item_set_heirloom_max_level_guard_matches_cpp --lib`,
+  `cargo test -p wow-world represented_item_set --lib`, `cargo check -p
+  wow-data`, `cargo check -p wow-world`, `cargo check -p world-server`, and
+  `git diff --check`. Boundary remains partial: the guard uses represented
+  `ItemSparse` scaling metadata for the runtime item, not a final C++
+  `item->GetBonus()` object; no real `ApplyEquipSpell`, aura/update-field
+  emission, persistence, fanout, bot/live/manual validation, or final aura
+  state.
+
+- `#NEXT.R8.ENTITIES.1192` — represented primary specialization is now
+  separate from loot specialization for item-set and item-use gates. Source of
+  truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/LootHandler.cpp:498-508`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:1794-1812`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:8180-8260`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26917-27034`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:57-145`.
+  C++ `HandleSetLootSpecialization` only updates `LootSpecID`; item-set
+  `ChrSpecID`, player-condition primary-specialization checks, and item-use
+  primary-specialization gates use `GetPrimarySpecialization()` /
+  `CurrentSpecID`. Rust now carries represented `CurrentSpecID` independently
+  and uses it instead of `LootSpecID` for those represented gates. Coverage
+  proves setting only loot spec does not activate a spec-gated item-set spell,
+  then setting represented primary spec lets represented `UpdateItemSetAuras`
+  replay the remove/apply sequence. Checks: `cargo fmt --all --check`,
+  `cargo test -p wow-world
+  represented_item_set_uses_primary_spec_not_loot_spec_like_cpp --lib`,
+  `cargo test -p wow-world
+  represented_update_item_set_auras_replays_active_bonuses_like_cpp --lib`,
+  `cargo check -p wow-world`, `cargo check -p world-server`, and
+  `git diff --check`. Boundary remains partial: represented state only; not
+  wired to real `ActivateTalentGroup`, DB load/save of current spec, update-field
+  emission, real `ApplyEquipSpell`, aura presence/shapeshift checks, fanout,
+  bot/live/manual validation, or final aura state.
+
+- `#NEXT.R8.ENTITIES.1191` — represented `UpdateItemSetAuras` now replays
+  active item-set bonuses like C++ when spec/form state changes. Source of
+  truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:8238-8260`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:8187-8235`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:57-145`.
+  C++ keeps threshold-met `SetBonuses` even when a spell is not cast because
+  its `ChrSpecID` does not match, then `UpdateItemSetAuras(formChange)` removes
+  non-current-spec set auras and otherwise remove/applies the current-spec aura
+  with the `formChange` flag. Rust now records represented aura-refresh events
+  for that same active-bonus loop. Coverage proves a two-spec set stores both
+  active bonus entries, only casts the initial current-spec spell, then after a
+  represented spec switch emits current-spec remove/apply with `form_change=true`
+  plus remove-only for the old spec. Checks: `cargo fmt --all --check`,
+  `cargo test -p wow-world
+  represented_update_item_set_auras_replays_active_bonuses_like_cpp --lib`,
+  `cargo check -p wow-world`, `cargo check -p world-server`, and
+  `git diff --check`. Boundary remains partial: represented refresh events
+  only; not wired to real spec/form change runtime, no real `ApplyEquipSpell`,
+  no shapeshift/aura-presence checks, no update-field emission, persistence,
+  fanout, bot/live/manual validation, or final aura state.
+
+- `#NEXT.R8.ENTITIES.1190` — represented direct inventory equip now invokes
+  the C++ `AddItemsSetItem` hook before represented item-mod apply. Source of
+  truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11372-11430`
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:57-145`.
+  C++ `Player::EquipItem` calls `AddItemsSetItem` before `_ApplyItemMods` for
+  alive equips; Rust now mirrors that order in the shared direct-inventory move
+  helper used by `AutoEquipItemSlot`, `SwapInvItem`, and represented equipment
+  set moves, while still removing set bonuses before item mods when a slot
+  leaves equipment. Coverage extends `AutoEquipItemSlot` to equip a represented
+  one-piece set from backpack to mainhand and proves the set spell apply event
+  is recorded before the existing represented item-mod stat update. Checks:
+  `cargo fmt --all --check`, `cargo test -p wow-world
+  auto_equip_item_slot_applies_represented_item_mods_like_cpp --lib`,
+  `cargo check -p wow-world`, `cargo check -p world-server`, and
+  `git diff --check`. Boundary remains partial: represented events only; no
+  real `ApplyEquipSpell`/aura add, no full general equip/swap validation, no
+  update-field emission for set spells, persistence, fanout, bot/live/manual
+  validation, or exact C++ spec/form-change aura behavior.
+
+- `#NEXT.R8.ENTITIES.1189` — represented `RemoveItem` offhand auto-unequip now
+  invokes the same C++ item-set removal hook before represented item-mod
+  removal. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11559-11613`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:146-190`.
+  C++ `Player::RemoveItem(bag=0, slot<INVENTORY_SLOT_BAG_END)` removes item-set
+  bonuses before `_ApplyItemMods`; Rust now reuses the direct-inventory
+  represented item-set removal hook in `AutoUnequipOffhandIfNeed` before the
+  existing offhand item-mod/stat cleanup. Coverage extends the existing
+  invalid-two-hand auto-unequip fixture with an active one-piece item set and
+  proves the represented set spell removal event is emitted when the offhand
+  leaves equipment. Checks: `cargo fmt --all --check`, `cargo test -p wow-world
+  remove_known_spell_auto_unequip_records_invalid_two_hand_state_like_cpp
+  --lib`, `cargo test -p wow-world
+  destroyed_inventory_item_set_remove_matches_cpp_even_for_broken_equipped_item
+  --lib`, `cargo check -p wow-world`, `cargo check -p world-server`, and
+  `git diff --check`. Boundary remains partial: only the represented
+  auto-unequip `RemoveItem` path is wired; general `RemoveItem`/equip/swap
+  routing, real `ApplyEquipSpell`/aura removal, update-field emission,
+  persistence, fanout, bot/live/manual validation, and exact C++
+  spec/form-change aura behavior remain open.
+
+- `#NEXT.R8.ENTITIES.1188` — represented `DestroyItem` now invokes the C++
+  item-set removal hook for direct equipped/equipped-bag full-stack destroys
+  before represented item-mod removal. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11689-11770`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:146-190`.
+  C++ `Player::DestroyItem(bag, slot, update=true)` calls
+  `RemoveItemsSetItem` when `bag == INVENTORY_SLOT_BAG_0` and
+  `slot < INVENTORY_SLOT_BAG_END`, then `_ApplyItemMods`; Rust now mirrors that
+  represented order by recording item-set spell removal events before the
+  existing represented item-mod removal path. Coverage proves equipped slots
+  remove the represented set spell even for broken items, while backpack slots
+  do not touch item-set state. Checks: `cargo fmt --all --check`,
+  `cargo test -p wow-world
+  destroyed_inventory_item_set_remove_matches_cpp_even_for_broken_equipped_item
+  --lib`, `cargo test -p wow-world represented_item_set --lib`,
+  `cargo check -p wow-world`, `cargo check -p world-server`, and
+  `git diff --check`. Boundary remains partial: represented events only; no
+  real `ApplyEquipSpell`/aura removal, no `RemoveItem`/equip/swap wiring, no
+  update-field emission, persistence, fanout, bot/live/manual validation, or
+  exact C++ spec/form-change aura behavior.
+
+- `#NEXT.R8.ENTITIES.1187` — represented item-set effect state now models the
+  C++ `AddItemsSetItem` / `RemoveItemsSetItem` threshold machine. Source of
+  truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:57-190`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:8238-8260`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11384-11386`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11580-11583`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11731-11733`.
+  Rust now loads `ItemSet.db2` and `ItemSetSpell.db2` into session resources,
+  exposes C++-shaped `item_id -> item set` and `item set -> spells` helpers,
+  tracks represented equipped items and active set-bonus spell entries per set,
+  respects required skill, `ITEM_SET_FLAG_LEGACY_INACTIVE`, and ChrSpec gating
+  on apply, and emits represented set-spell apply/remove events when thresholds
+  cross. Broken items still participate in set bonuses like C++. Coverage:
+  `cargo fmt --all --check`, `cargo test -p wow-data
+  item_set_stores_expose_cpp_item_set_and_spell_indexes --lib`, `cargo test -p
+  wow-world represented_item_set --lib`, `cargo check -p wow-world`, `cargo
+  check -p world-server`, and `git diff --check`. Boundary remains partial:
+  represented events only; they are not yet connected to `DestroyItem`,
+  `RemoveItem`, equip/swap, `UpdateItemSetAuras`, real `ApplyEquipSpell`,
+  the C++ heirloom max-level set-bonus guard, aura/update-field emission,
+  persistence, fanout, bot/live/manual validation, or exact C++
+  spec/form-change aura behavior.
+
+- `#NEXT.R8.ENTITIES.1186` — represented `CMSG_DESTROY_ITEM` full-stack direct
+  inventory destroy now emits the current-session represented item-bonus stat
+  VALUES delta when C++ `Player::DestroyItem(bag=0, slot, update=true)` removes
+  non-broken item mods for applied slots below `INVENTORY_SLOT_BAG_END`.
+  Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/ItemHandler.cpp:294-332`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11689-11770`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7660-7690`.
+  Rust now records represented `_ApplyItemMods(..., false)` after the delete
+  DB transaction succeeds and before the runtime item is removed, then sends
+  the represented player stat `UpdateObject` only when represented item-bonus
+  actions were produced. Backpack slots and broken equipped items keep the
+  previous no-op behavior like C++. Coverage: `cargo fmt --all --check`,
+  `cargo test -p wow-world destroyed_inventory_item_mod_remove --lib`, `cargo
+  test -p wow-world destroy_item --lib`, `cargo check -p wow-world`, `cargo
+  check -p world-server`, and `git diff --check`. Boundary remains partial:
+  current-session represented packet only; item set removal, exact C++ update
+  batching, authoritative Player/UnitMods mutation, DB fixture/integration
+  proof, multi-session fanout, bot/live/manual validation, and nested container
+  destroy parity remain open.
+
+- `#NEXT.R8.ENTITIES.1185` — represented `AutoUnequipOffhandIfNeed` now emits
+  the current-session represented item-bonus stat VALUES delta when C++
+  `RemoveItem(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_OFFHAND, true)` removes
+  non-broken offhand item mods. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:24596-24629`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11559-11587`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7660-7690`.
+  Rust now reuses the represented `_ApplyItemMods(..., false)` path for the
+  offhand removal, emits an extra player stat `UpdateObject` only when that
+  path produced represented item-bonus actions, and still skips broken items
+  like C++. Coverage: `cargo fmt --all --check`, `cargo test -p wow-world
+  remove_known_spell_auto_unequip --lib`, `cargo test -p wow-world
+  auto_unequip_offhand --lib`. Boundary remains partial: current-session
+  represented packet only; exact C++ batching, authoritative Player/UnitMods
+  mutation, DB persistence, multi-session fanout, bot/live/manual validation,
+  and full nested container equip parity remain open.
+
+- `#NEXT.R8.ENTITIES.1184` — represented `UseEquipmentSet` now feeds the same
+  direct equipment-move item-mod snapshot as `AutoEquipItemSlot` / `SwapInvItem`.
+  Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CharacterHandler.cpp:1967-2023`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:12277-12647`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11366-11587`.
+  C++ `HandleUseEquipmentSet` resolves each requested item and calls
+  `Player::SwapItem`; Rust now routes represented equipment-set moves through
+  the same direct-inventory item-mod wrapper, emits a single current-session
+  represented stat VALUES delta when those mods change, then sends
+  `UseEquipmentSetResult`. Coverage: `cargo fmt --all --check`, `cargo test -p
+  wow-world use_equipment_set --lib`, `cargo test -p wow-world
+  auto_equip_item_slot --lib`, `cargo test -p wow-world
+  direct_inventory_move_from_equipment_removes_represented_item_mods_like_cpp
+  --lib`, `cargo check -p wow-world`, `cargo check -p world-server`, and `git
+  diff --check`. Boundary remains partial: represented direct inventory only;
+  full C++ `CanEquipItem`/`CanStoreItem`, nested bag/container routing,
+  authoritative stat mutation, DB persistence, multi-session fanout,
+  bot/live/manual validation remain open.
+
+- `#NEXT.R8.ENTITIES.1183` — represented direct equipment moves now feed the
+  item-bonus snapshot around C++ `RemoveItem` / `EquipItem` boundaries. Source
+  of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11366-11479`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11559-11587`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7660-7690`.
+  Rust adds a direct-inventory move wrapper that calls represented
+  `_ApplyItemMods(..., false)` for non-broken items leaving equipment slots and
+  represented `_ApplyItemMods(..., true)` for non-broken items entering
+  equipment slots, then `AutoEquipItemSlot` / direct `SwapInvItem` emit one
+  current-session represented stat VALUES delta after the inventory/visual
+  update path. Coverage: `cargo fmt --all --check`, `cargo test -p wow-world
+  auto_equip_item_slot --lib`, `cargo test -p wow-world
+  direct_inventory_move_from_equipment_removes_represented_item_mods_like_cpp
+  --lib`, `cargo check -p wow-world`, `cargo check -p world-server`, and `git
+  diff --check`. Boundary remains partial: direct top-level inventory only;
+  nested bag/container equip parity, authoritative Player/UnitMods mutation,
+  exact C++ update batching, multi-session fanout, persistence proof,
+  bot/live/manual validation remain open.
+
+- `#NEXT.R8.ENTITIES.1182` — represented `Player::DurabilityRepair` now emits a
+  current-session `SMSG_UPDATE_OBJECT` stat VALUES delta after repairing a
+  broken equipped item and reapplying item mods. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:4713-4748`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:4629-4710`.
+  C++ stores `isBroken`, sets durability to max, marks the item changed, and for
+  equipped broken items calls `_ApplyItemMods(item, slot, true)`. Rust already
+  recorded the represented item-mod reapply; this slice now flushes the #1180
+  represented stat projection after that reapply. Coverage: `cargo fmt --all
+  --check`, `cargo test -p wow-world repair_inventory_item_durability --lib`,
+  `cargo test -p wow-world repair_all_inventory_item_durability --lib`, `cargo
+  check -p wow-world`, `cargo check -p world-server`, and `git diff --check`.
+  Boundary remains partial: current-session represented packet only; no full
+  authoritative stat recomputation, no general equip/unequip fanout, no
+  multi-session fanout, no bot/live/manual validation.
+
+- `#NEXT.R8.ENTITIES.1181` — represented
+  `Player::UpdateItemLevelAreaBasedScaling` now emits a current-session
+  `SMSG_UPDATE_OBJECT` stat VALUES delta after the C++
+  `_RemoveAllItemMods -> ActivatePvpItemLevels -> _ApplyAllItemMods -> health
+  pct restore` sequence when top-level non-broken item mods were actually
+  reprocessed. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7659-7687`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:8542-8621`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28744-28755`.
+  Rust reuses the #1180 represented `PlayerStatChanges` projection and sends one
+  current-session `UpdateObject` after the reapply sequence, rather than sending
+  per-item intermediate deltas. Coverage: `cargo fmt --all --check`, `cargo
+  test -p wow-world represented_item_level_area_scaling --lib`, `cargo test -p
+  wow-world represented_item_mods_apply_scaling --lib`, `cargo check -p
+  wow-world`, and `cargo check -p world-server`. Boundary remains partial: this
+  is not general equip/unequip/repair stat emission, not a full authoritative
+  stat recomputation, not multi-session fanout, and still lacks persistence
+  proof, bot validation, live-client validation, and manual validation.
+
+- `#NEXT.R8.ENTITIES.1180` — represented item-bonus runtime state now has a
+  bounded projection into the existing `PlayerStatChanges` update-field packet
+  helper. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7694-8033`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.h:754`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.h:1476-1488`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/StatSystem.cpp:152-170`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/StatSystem.cpp:788-827`.
+  Rust now maps the represented subset that can be safely expressed by
+  `PlayerStatChanges`: base mana/health, primary stats and positive stat buffs,
+  armor/normal resistance, attack power, ranged attack power, combat ratings,
+  spell power, shield block, and base/ranged weapon damage. `PlayerStatChanges`
+  also gained a C++-safe default so packet projections start from zero values
+  while multiplicative update fields remain `1.0`. Coverage: `cargo fmt --all
+  --check`, `cargo test -p wow-world represented_item_mods_apply_scaling --lib`,
+  `cargo test -p wow-packet
+  active_player_stats_values_update_matches_cpp_common_runtime_masks --lib`,
+  `cargo check -p wow-world`, `cargo check -p world-server`, and `git diff
+  --check`. Boundary remains partial: this projection is not yet an
+  authoritative full-player stat recomputation or automatic live packet send;
+  C++ mana regen requires `UpdateManaRegen`, health regen/spell penetration use
+  fields outside the current helper, base attack time/offhand weapon fields are
+  not represented in `PlayerStatChanges`, and update-field emission/fanout,
+  persistence, bot validation, live-client validation, and manual validation
+  remain open.
+
+- `#NEXT.R8.ENTITIES.1179` — represented `Player::_ApplyItemBonuses` now
+  mutates a represented item-bonus runtime snapshot from the same action plan
+  introduced in the previous slices. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7694-8033`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.h:303-329`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/StatSystem.cpp:152-170`.
+  Rust now applies unit modifier add/remove deltas to represented stats, armor,
+  resistances, attack power and resource bases; maps represented combat ratings
+  to the C++ `CombatRatings[]` indices, including `CR_ARMOR_PENETRATION=24`;
+  and accumulates spell power, shield block, weapon min/max damage, base attack
+  time and `UpdateDamagePhysical` evidence from the same planned actions.
+  Coverage: `cargo fmt --all --check`, `cargo test -p wow-world
+  represented_item_mods_apply_scaling --lib`, `cargo check -p wow-world`,
+  `cargo check -p world-server`, and `git diff --check`. Boundary remains partial: this is an in-session
+  represented snapshot, not canonical `Player`/`UnitMods` mutation, update-field
+  packet/fanout, persistence, bot validation, live-client validation, or manual
+  validation.
+
+- `#NEXT.R8.ENTITIES.1178` — represented `Player::_ApplyItemBonuses` now
+  consumes the non-DPS C++ scaling-stat branches. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7692-7970`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:8020-8033`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Structure.h:3181-3262`.
+  When `ssd && ssv` exists, Rust now substitutes the static `ItemSparse`
+  stat loop with `ScalingStatDistribution.StatID/Bonus` scaled by
+  `ScalingStatValuesEntry::getssdMultiplier`, applies `getSpellBonus` after
+  the stat loop, and replaces normal-school armor resistance with
+  `getArmorMod` before direct resistance actions. Coverage: `cargo test -p
+  wow-entities item_scaling_stat_bonus_actions_match_cpp_scaled_stat_loop
+  --lib`, `cargo test -p wow-world represented_item_mods_apply_scaling --lib`,
+  `cargo check -p wow-world`, and `cargo check -p world-server`. Boundary
+  remains partial: this is represented action planning only; negative scaling
+  bonuses still fall into the unsigned/unhandled seam, and real stat/armor/
+  spell-power mutation, update-field fanout, persistence, bot validation,
+  live-client validation, and manual validation remain open.
+
+- `#NEXT.R8.ENTITIES.1177` — represented `Player::_ApplyWeaponDamage` now
+  consumes the C++ scaling weapon-DPS override path. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7984-8015`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Structure.h:3181-3262`.
+  `world-server` loads `ScalingStatDistribution.db2` and
+  `ScalingStatValues.db2` into session resources, `WorldSession` clamps the
+  player level to `ScalingStatDistribution.MinLevel/MaxLevel`, resolves
+  `DB2Manager::GetScalingStatValuesForLevel`, and uses `getDPSMod/isTwoHand`
+  to replace min/max float weapon damage before recording attack time and
+  `UpdateDamagePhysical`. Coverage: `cargo test -p wow-entities
+  item_weapon_damage_actions_match_cpp --lib`, `cargo test -p wow-world
+  represented_item_mods_apply_scaling_weapon_dps_like_cpp --lib`, `cargo check
+  -p wow-world`, and `cargo check -p world-server`. Boundary remains partial:
+  this is represented action planning only; real feral/shapeshift
+  `CombatRoundTime`, class/weapon-proficiency `CanUseAttackType`, live
+  player damage/attack-time-field mutation, update-field fanout, persistence,
+  bot validation, live-client validation, and manual validation remain open.
+
+- `#NEXT.R8.ENTITIES.1176` — `wow-data::ItemRecord` now exposes the C++
+  basic item fields required by scaling weapon damage:
+  `ScalingStatDistributionID` and `ScalingStatValue`. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/ItemTemplate.h:810-811`,
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2LoadInfo.h:2434-2440`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Structure.h:1981-1987`.
+  `ItemStore::load` reads the C++ `Item.db2` field positions, and getters
+  default missing item entries to zero like the existing item-template helpers.
+  Boundary remains partial: represented `_ApplyWeaponDamage` still does not
+  consume scaling DPS overrides, and real stat mutation/fanout/manual
+  validation remain open.
+
+- `#NEXT.R8.ENTITIES.1175` — `wow-data` now exposes C++-faithful
+  `ScalingStatValuesEntry` helper methods (`getssdMultiplier`, `getArmorMod`,
+  `getDPSMod`, `isTwoHand`, and `getSpellBonus`) plus the
+  `DB2Manager::GetScalingStatValuesForLevel` equivalent lookup by
+  `Charlevel`. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Structure.h:3181-3262`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Stores.cpp:3101-3104`.
+  Tests preserve the exact C++ mask priority, including the odd
+  `getArmorMod` gate where a lone `0x00080000` cloth-cloak mask returns zero
+  unless another gated armor bit is present. Boundary remains partial: this is
+  a data/helper prerequisite; represented `_ApplyWeaponDamage` still does not
+  consume scaling DPS overrides, and live stat mutation/fanout/manual
+  validation remain open.
+
+- `#NEXT.R8.ENTITIES.1174` — represented `_ApplyItemBonuses` now wires the
+  direct, non-scaling weapon-damage branch after shield block, matching the C++
+  order in
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7972-8029`.
+  The Rust path no longer returns early just because an item lacks represented
+  stat/resistance modifiers; C++ still reaches shield block and
+  `_ApplyWeaponDamage` in that case. The new `wow-world` coverage records
+  `SetBaseWeaponDamage`, `SetBaseAttackTime`, and `UpdateDamagePhysical` for an
+  equipped main-hand weapon with no stat entry. Boundary remains partial:
+  represented wiring currently passes the direct non-feral/common gates only;
+  scaling-stat DPS override, real feral/shapeshift `CombatRoundTime`,
+  class/weapon-proficiency `CanUseAttackType`, real player
+  damage/attack-time-field mutation, update-field fanout, persistence, bot
+  validation, live-client validation, and manual validation remain open.
+
+- `#NEXT.R8.ENTITIES.1173` — `wow-entities` now represents the direct,
+  non-scaling action plan for C++ `Player::_ApplyWeaponDamage`. Source of
+  truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7976-8029`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/UnitDefines.h:28-30`.
+  The new `item_weapon_damage_actions_like_cpp` helper maps slot/inventory type
+  through the C++ `GetAttackBySlot` rules, preserves the feral/can-use attack
+  gate, records min/max base weapon damage, applies/removes base attack time
+  unless shapeshift `CombatRoundTime` owns it, and records `UpdateDamagePhysical`
+  only when `CanModifyStats` would allow it. Coverage: `cargo test -p
+  wow-entities item_weapon_damage_actions --lib`. Boundary remains partial:
+  the helper is not yet wired into represented `_ApplyItemBonuses`, scaling-stat
+  DPS override is not represented, real player weapon damage/attack-time fields
+  are not mutated, update-field fanout, persistence, bot validation,
+  live-client validation, and manual validation remain open.
+
+- `#NEXT.R8.ENTITIES.1172` — `wow-data` now exposes the C++
+  `ItemSparseEntry` weapon fields required by `Player::_ApplyWeaponDamage`.
+  Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7976-8019`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/ItemTemplate.h:785-786,805,812-813`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Structure.h:2306,2341,2349-2350,2364`.
+  Rust now stores `DmgVariance`, `ItemDelay`, `MinDamage[5]`,
+  `MaxDamage[5]`, and `DamageDamageType` in `ItemWeaponTemplateEntry`
+  via `ItemStatsStore::weapon_template`. Coverage: `cargo test -p wow-data
+  item_weapon_template_entry_exposes_cpp_apply_weapon_damage_inputs --lib`.
+  Boundary remains partial/prerequisite only: represented `_ApplyWeaponDamage`
+  action planning, scaling-stat DPS override, feral/can-use attack gates,
+  attack-time application, physical damage recalculation, update-field fanout,
+  persistence, bot validation, live-client validation, and manual validation
+  remain open.
+
+- `#NEXT.R8.ENTITIES.1171` — represented `_ApplyItemBonuses` now consumes the
+  direct shield-block branch after the resistance loop. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7972-7974`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/ItemTemplate.cpp:218-222`.
+  `world-server` loads `gt/ShieldBlockRegular.txt` into session resources,
+  `WorldSession` resolves armor-shield templates through `Item.db2` class/subclass
+  plus item level/quality, and represented repair reapply records the C++
+  direct `ActivePlayerData::ShieldBlock = apply ? value : 0` assignment as
+  `SetShieldBlockValue`. Coverage: `cargo test -p wow-entities
+  item_shield_block_bonus_action_matches_cpp_direct_update_field_assignment
+  --lib` and `cargo test -p wow-world repair_all_inventory_item_durability
+  --lib`. Boundary remains partial: this is represented action planning only;
+  it does not yet mutate real player update fields, emit/fanout update packets,
+  persist shield-block state, or validate with bot/live client/manual testing.
+
+- `#NEXT.R8.ENTITIES.1170` — `wow-data` now exposes the C++
+  `sShieldBlockRegularGameTable` / `GtShieldBlockRegularEntry` prerequisite for
+  `ItemTemplate::GetShieldBlockValue(itemLevel)`. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/ItemTemplate.cpp:218-222`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/GameTables.h:184-194,388-416`.
+  The Rust table reads `gt/ShieldBlockRegular.txt`, indexes rows by position
+  like `LoadGameTable`, maps item quality columns exactly (`Poor` through
+  `ScalingStat`), defaults malformed floats to zero, and returns zero for
+  unknown qualities. Coverage: `cargo test -p wow-data shield_block_regular
+  --lib`. Boundary remains partial/prerequisite only: represented
+  `_ApplyItemBonuses` consumption was closed by `#NEXT.R8.ENTITIES.1171`, but
+  real `ActivePlayerData::ShieldBlock` mutation, update-field
+  fanout/persistence/live-client validation remain open.
+
+- `#NEXT.R8.ENTITIES.1169` — represented `_ApplyItemBonuses` now consumes
+  direct `ItemTemplate::GetResistance(school)` data from `ItemSparse`
+  `Resistances[7]`. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7955-7970`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/ItemTemplate.h:808`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Structure.h:2351`.
+  `wow-data` now preserves the full seven-school resistance array while keeping
+  the old `armor` convenience value as `Resistances[0]`; represented repair
+  reapply records the C++ `BASE_VALUE` unit-modifier actions after static stat
+  actions. Coverage: `cargo test -p wow-entities
+  item_resistance_bonus_actions_match_cpp_template_resistance_loop --lib` and
+  `cargo test -p wow-world repair_all_inventory_item_durability --lib`.
+  Boundary remains partial: this is still represented action planning only;
+  negative resistance values are not modelled by the unsigned represented action
+  vocabulary, and scaling-stat armor overrides, shield block update-field
+  mutation, weapon damage, attack time, equip spells, dependent auras,
+  weapon-dependent aura updates, enchantments, real stat mutation/update-field
+  fanout, live-client/bot validation, and manual validation remain open.
+
+- `#NEXT.R8.ENTITIES.1168` — represented `_ApplyItemBonuses` static stat
+  action planning now covers the item-bonus-only branches that were still
+  falling through after `#NEXT.R8.ENTITIES.1167`: melee/ranged haste ratings,
+  `ITEM_MOD_EXTRA_ARMOR`, explicit school resistance item mods, and composite
+  primary stat mods (`AGI_STR_INT`, `AGI_STR`, `AGI_INT`, `STR_INT`). Source of
+  truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7694-8163`.
+  The slice keeps the C++ separation intact: `ApplyEnchantment` stat effects
+  remain conservative, while item-bonus static stats use the `_ApplyItemBonuses`
+  switch where primary stats and resistance item mods apply as `BASE_VALUE`.
+  Coverage: `cargo test -p wow-entities item_stat_bonus_actions --lib`.
+  Boundary remains partial: this is still represented action planning only;
+  direct template resistance fields were closed by `#NEXT.R8.ENTITIES.1169`;
+  scaling-stat values, shield block update field mutation, weapon damage,
+  attack time, equip spells, dependent auras,
+  weapon-dependent aura updates, enchantments, real stat mutation/update-field
+  fanout, live-client/bot validation, and manual validation remain open.
+
+- `#NEXT.R8.ENTITIES.1167` — represented `_ApplyItemMods` repair
+  reapplication now records the static-stat `_ApplyItemBonuses` action plan
+  for repaired broken equipment when `ItemSparse` stat data is represented.
+  Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7660-8163`.
+  The slice deliberately separates the C++ contracts: item-bonus primary stats
+  use `BASE_VALUE` (unlike enchantment stat effects, which use their own helper),
+  and unified hit rating expands to melee/ranged/spell rating actions. Coverage:
+  `cargo test -p wow-entities item_stat_bonus_actions_match_cpp_apply_item_bonuses_stat_loop --lib`
+  and `cargo test -p wow-world repair_all_inventory_item_durability --lib`.
+  Boundary remains partial: this records represented static stat/rating bonus
+  actions only; scaling stats, resistances, shield block, weapon damage, attack
+  time, equip spells, dependent auras, weapon-dependent aura updates,
+  enchantments, real stat mutation/update-field fanout, live-client/bot
+  validation, and manual validation remain open.
+
+- `#NEXT.R8.ENTITIES.1166` — repair-all durability tests now explicitly
+  validate the C++ `DurabilityRepairAll -> DurabilityRepair` broken-equipped
+  item-mod reapply path for both player-money and guild-bank repair. Source of
+  truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:4629-4740`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7660-7691`.
+  This also preserves the legacy ordering where guild-bank repair repairs
+  selected items before the final `Guild::HandleMemberWithdrawMoney` result;
+  that may be a C++ bug, but Rust now documents/tests the ported behavior
+  instead of silently changing semantics. Coverage:
+  `cargo test -p wow-world repair_all_inventory_item_durability --lib` and
+  `cargo fmt --all --check`. Boundary remains partial: this is coverage for
+  represented repair-all mod reapplication only; full `_ApplyItemMods` bonus,
+  equip spell, dependent aura, weapon-dependent aura, enchantment mutation,
+  exact fanout, live-client/bot validation, and manual validation remain open.
+
+- `#NEXT.R8.ENTITIES.1165` — represented
+  `Player::UpdateItemLevelAreaBasedScaling` now mirrors the C++ state-change
+  wrapper around PvP item-level toggles: it records `_RemoveAllItemMods` for
+  top-level non-broken inventory slots, flips represented PvP item levels,
+  records `_ApplyAllItemMods`, and restores player health from the previous
+  health percentage. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:8542-8621`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28744-28755`.
+  Coverage: `cargo test -p wow-world represented_item_level_area_scaling
+  --lib`, `cargo test -p wow-world represented_pvp_rules_aura --lib`,
+  `cargo fmt --all --check`, `cargo check -p world-server`, and
+  `git diff --check`. Boundary remains partial: this records represented
+  remove/apply evidence and health percentage preservation only; full
+  `_ApplyItemBonuses`, equip spells, enchantments, set bonuses, combat-stat
+  recalculation, update-field packet/fanout, persistence, live-client/bot
+  validation, and full item stat reapplication remain open.
+
+- `#NEXT.R8.ENTITIES.1164` — represented PvP-rules aura apply/remove now
+  recalculates C++ `Player::UpdateItemLevelAreaBasedScaling`. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26134-26168`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26171-26174`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28744-28755`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:1053`.
+  C++ `EnablePvpRules` applies or extends `SPELL_PVP_RULES_ENABLED` (`134735`)
+  and then calls `UpdateItemLevelAreaBasedScaling`; `DisablePvpRules` removes
+  that aura when not in PvP combat and then calls the same recalculation.
+  Rust now triggers the existing represented recalculation when the represented
+  aura system applies or removes spell `134735`, so a normal map starts using
+  represented PvP item levels while the aura is present and clears them when the
+  aura is removed. Coverage: `cargo test -p wow-world represented_pvp_rules_aura
+  --lib`, `cargo test -p wow-world represented_item_level_area_scaling --lib`,
+  `cargo fmt --all --check`, `cargo check -p world-server`, and
+  `git diff --check`. Boundary remains partial: this does not implement the
+  full `EnablePvpRules`/`DisablePvpRules` APIs, Honorable/Gladiator medallion
+  spell learning, combat-duration handling, `IsInAreaThatActivatesPvpTalents`,
+  C++ `_RemoveAllItemMods` / `_ApplyAllItemMods`, health percentage
+  preservation, update-field packet/fanout, persistence, or live-client/bot
+  validation.
+
+- `#NEXT.R8.ENTITIES.1163` — represented far `WorldPortResponse` now
+  recalculates C++ `Player::UpdateItemLevelAreaBasedScaling` after committing
+  the player's new map and position. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28744-28755`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26160-26180`.
+  C++ toggles PvP item levels from map PvP activity (`Map::IsBattlegroundOrArena`,
+  `MapEntry::Flags[1] & 0x40`) or PvP-rules aura state, and the WotLK far
+  teleport/map-change path is one of the points where the current map becomes
+  authoritative for that branch. Rust now calls the existing represented
+  `update_represented_item_level_area_based_scaling_like_cpp` helper immediately
+  after `set_player_map_position_like_cpp` in `handle_world_port_response`, so
+  entering a map with the `Flags[1] & 0x40` PvP item-level bit activates the
+  represented `Player::IsUsingPvpItemLevels` flag and leaving to a normal map
+  clears it. Coverage: `cargo test -p wow-world world_port_response --lib`,
+  `cargo fmt --all --check`, `cargo check -p world-server`, and
+  `git diff --check`. Boundary remains partial: this wires the represented
+  activation point only; C++ `_RemoveAllItemMods` / `_ApplyAllItemMods`, health
+  percentage preservation, item update-field propagation, packet/fanout, DB
+  persistence, PvP-rules aura runtime coverage, live-client/bot validation, and
+  full item stat reapplication remain open.
+
+- `#NEXT.R8.ENTITIES.1162` — represented
+  `Item::GetItemLevel(owner)` now consumes the C++ player-level-to-item-level
+  curve branch. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:1891-1937`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:2164-2167`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:2188-2192`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Stores.cpp:1889-1919,1943-2089`.
+  `world-server` now loads `Curve.db2` and `CurvePoint.db2` into session
+  resources, `WorldSession` carries those stores, and represented item-level
+  calculation replaces the template item level with `GetCurveValueAt` when
+  `ItemSparse.PlayerLevelToItemLevelCurveID` is present. Rust preserves the C++
+  branch order: `ITEM_MODIFIER_TIMEWALKER_LEVEL` overrides owner level,
+  otherwise `ContentTuningData(forItem=true)` clamps owner level before curve
+  evaluation, then item bonus, PvP bonus, min/max caps, and final
+  `MIN_ITEM_LEVEL..MAX_ITEM_LEVEL` clamp apply as before. Missing curve data
+  follows C++ `GetCurveValueAt` by yielding zero before the final minimum clamp,
+  not by falling back to template item level. Coverage:
+  `cargo test -p wow-world represented_item_level --lib`,
+  `cargo check -p world-server`, `cargo fmt --all --check`, and
+  `git diff --check`. Boundary remains partial: this closes represented
+  average item-level curve consumption only; full item stat reapplication,
+  update-field packet/fanout propagation, DB persistence, live-client/bot
+  validation, and complete condition-runtime parity remain open.
+
+- `#NEXT.R8.ENTITIES.1161` — `wow-data` now represents C++
+  `DB2Manager::GetCurveValueAt(curveId, x)` and the supporting
+  `_curvePoints` grouping. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Stores.cpp:1118-1138`,
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Stores.cpp:1943-2089`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DBCEnums.h:822-831`.
+  Rust now groups `CurvePoint.db2` rows only for existing curves, sorts by
+  `OrderIndex`, returns `0.0` for missing/empty curve data, mirrors the C++
+  interpolation-mode selection from `Curve.Type` and point count, and evaluates
+  linear, cosine, Catmull-Rom, Bezier3, Bezier4, generic Bezier, and constant
+  curves. Coverage: `cargo test -p wow-data curve_value_at --lib`,
+  `cargo test -p wow-data --lib`, `cargo fmt --all --check`, and
+  `git diff --check`. Boundary remains partial: this is the DB2 helper needed
+  by represented player-level-to-item-level scaling; it is not yet consumed by
+  represented `Item::GetItemLevel(owner)`, does not apply timewalker fixed-level
+  modifiers, update item fields, emit/fanout packets, persist state, or perform
+  live-client/bot validation.
+
+- `#NEXT.R8.ENTITIES.1160` — `ItemSparseTemplateEntry` now exposes the C++
+  `ItemTemplate::GetScalingStatContentTuning()` and
+  `ItemTemplate::GetPlayerLevelToItemLevelCurveId()` inputs used by
+  `BonusData::Initialize`. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/ItemTemplate.h:783-784`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:2164-2167`,
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2LoadInfo.h:3078-3081`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Structure.h:2326-2327`.
+  The Rust `ItemSparse.db2` sequential loader now reads `ContentTuningID` and
+  `PlayerLevelToItemLevelCurveID` from the grouped layout between
+  `FactionRelated` and `MaxDurability`, stores them on the represented sparse
+  template subset, and provides helper accessors with C++-matching names.
+  Existing test fixtures default the new fields to zero. Coverage:
+  `cargo test -p wow-data item_sparse_template_entry_matches_cpp_template_helpers
+  --lib` and `cargo check -p wow-world`. Boundary remains partial: this is only
+  field exposure for the represented item-level curve path; it does not yet
+  evaluate DB2 curves, consume `ContentTuningData` in represented
+  `Item::GetItemLevel(owner)`, consume timewalker fixed-level modifiers, update
+  item fields, emit/fanout packets, persist state, or perform live-client/bot
+  validation.
+
+- `#NEXT.R8.ENTITIES.1159` — `wow-data` now represents C++
+  `DB2Manager::GetContentTuningData(contentTuningId, forItem)` as
+  `ContentTuningStore::content_tuning_data_like_cpp`. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Stores.cpp:1889-1919`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DBCEnums.h:368-370`.
+  Rust now returns `None` for missing `ContentTuning` rows, returns `None` for
+  `forItem=true` rows carrying `ContentTuningFlag::DisabledForItem` (`0x04`),
+  clamps `MinLevel`, `MaxLevel`, `MinLevelWithDelta`, and `MaxLevelWithDelta`
+  to `[1, MAX_LEVEL]`, and mirrors the delta-clamped values into
+  `TargetLevelMin` / `TargetLevelMax`, matching the current C++ branch. The
+  shared `MAX_LEVEL_LIKE_CPP` constant now lives in `progression_rewards` and is
+  re-exported from `mail` to preserve the existing API. Coverage:
+  `cargo test -p wow-data content_tuning_data --lib`. Boundary remains partial:
+  this is a prerequisite for represented item-level player-curve scaling only;
+  it does not yet expose `ItemSparse` `ContentTuningID` /
+  `PlayerLevelToItemLevelCurveID`, evaluate DB2 curves, consume timewalker
+  fixed-level modifiers, wire represented `Item::GetItemLevel(owner)` to that
+  branch, update item fields, emit/fanout packets, persist state, or perform
+  live-client/bot validation.
+
+- `#NEXT.R8.ENTITIES.1158` — represented `PlayerData::AvgItemLevel[0]`
+  and `[1]` now have the C++ `Player::UpdateItemLevelAreaBasedScaling`
+  `pvpActivity` branch represented for PvP item-level activation. Source of
+  truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28738-28755`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26171-26174`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:1053`.
+  C++ activates `_usePvpItemLevels` when the current map is a battleground or
+  arena, when `MapEntry::Flags[1] & 0x40` is set, or when aura
+  `SPELL_PVP_RULES_ENABLED` (`134735`) is present. Rust now names that map
+  flag, detects the represented PvP-rules aura from `visible_auras`, updates
+  the represented `Player::IsUsingPvpItemLevels` flag, and therefore
+  activates/deactivates represented `PVPItem.db2` item-level bonuses before
+  average item-level calculations. Coverage: `cargo test -p wow-data
+  map_entry_classification_matches_cpp_helpers --lib`, `cargo test -p wow-world
+  represented_item_level_area_scaling --lib`, and `cargo test -p wow-world
+  represented_item_level --lib`. Boundary remains partial: this does not yet
+  execute C++ `_RemoveAllItemMods` / `_ApplyAllItemMods`, preserve live health
+  percentage around item-mod reapplication, propagate update fields, emit/fanout
+  packets, persist state, perform live-client/bot manual validation, implement
+  player-level-to-item-level curves, or close full condition-runtime parity.
+
+- `#NEXT.R8.ENTITIES.1157` — represented `PlayerData::AvgItemLevel[0]`
+  and `[1]` now consume the represented PvP item-level bonus branch of C++
+  `Item::GetItemLevel(Player const*)` when represented
+  `Player::IsUsingPvpItemLevels()` is active. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:1891-1937`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28744-28755`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:2515-2516`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Stores.cpp:2549-2556`.
+  C++ stores PvP item bonuses in `DB2Manager::_pvpItemBonus` keyed by
+  `PVPItem.ItemID`; Rust now loads `PVPItem.db2`, indexes it by item id,
+  passes `PvpItemStore` through session resources, and applies
+  `item_level_delta` after `BonusData::ItemLevelBonus` and before min/max caps,
+  while preserving `itemLevelBeforeUpgrades` as the min-cutoff source. Coverage:
+  `cargo test -p wow-data pvp_item_store_bonus_lookup_matches_cpp_item_id_map
+  --lib` and `cargo test -p wow-world represented_item_level --lib`.
+  Boundary remains partial: automatic `UpdateItemLevelAreaBasedScaling` map/PvP
+  activation, player-level-to-item-level curves, timewalker fixed level, real
+  update-field propagation, packet emission/fanout, persistence,
+  live-client/bot manual validation, and full condition-runtime parity remain
+  open.
+
+- `#NEXT.R8.ENTITIES.1156` — represented `PlayerData::AvgItemLevel[0]`
+  and `[1]` now apply the represented owner item-level caps consumed by
+  C++ `Item::GetItemLevel(Player const*)`: `MinItemLevel`,
+  `MinItemLevelCutoff`, and `MaxItemLevel`, including the
+  `ITEM_FLAG3_IGNORE_ITEM_LEVEL_CAP_IN_PVP` max-cap bypass and the
+  `INVTYPE_NON_EQUIP` skip. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:1891-1937`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Object/Updates/UpdateFields.h:296-298`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/ItemTemplate.h:256`.
+  C++ applies `BonusData::ItemLevelBonus`, records
+  `itemLevelBeforeUpgrades`, then applies min/max caps only for equipable
+  templates; Rust now mirrors that represented ordering for static/bonus item
+  levels while preserving the existing runtime `DebugItemLevel` override seam.
+  Coverage: `cargo test -p wow-world represented_item_level --lib` and
+  `cargo test -p wow-world represented_condition_avg_item_level --lib`.
+  Boundary remains partial: player-level-to-item-level curves, timewalker fixed
+  level, PvP item-level bonus, real update-field propagation into these
+  represented caps, packet emission/fanout, persistence, live-client/bot manual
+  validation, and full condition-runtime parity remain open.
+
+- `#NEXT.R8.ENTITIES.1155` — represented `PlayerData::AvgItemLevel[0]`
+  and `[1]` now consume the represented `BonusData::ItemLevelBonus` branch
+  from item bonus lists when a runtime item carries `ItemData::ItemBonusKey`.
+  Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:1903-1937`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:2150-2192`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.h:68-86`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DBCEnums.h:989-1004`.
+  C++ `Item::GetItemLevel(owner)` adds `bonusData.ItemLevelBonus` after the
+  template/curve item level and before final clamp. Rust now loads
+  `ItemBonus.db2`, passes `ItemBonusDb2Store` through session resources, looks
+  up rows by `ParentItemBonusListID`, sums only `ITEM_BONUS_ITEM_LEVEL`
+  values, and includes that bonus in represented total/equipped average
+  calculations when `DebugItemLevel` is not already present. Coverage:
+  `cargo test -p wow-world represented_condition_avg_item_level_applies_item_bonus_level_like_cpp
+  --lib`. Boundary remains partial: full `BonusData` quality/required-level/
+  appearance/effect state, player-level-to-item-level curves, timewalker fixed
+  level, PvP item-level bonus, owner min/max item-level caps, update-field
+  packet emission/fanout, persistence, live-client/bot manual validation, and
+  full condition-runtime parity remain open.
+
+- `#NEXT.R8.ENTITIES.1154` — represented `PlayerData::AvgItemLevel[0]`
+  and `[1]` now resolve item level through a represented
+  `Item::GetItemLevel` seam instead of always using the static sparse template
+  level. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:1891-1937`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28773-28898`.
+  C++ `UpdateAverageItemLevelTotal` and `UpdateAverageItemLevelEquipped` both
+  call `item->GetItemLevel(this)`, whose final result is clamped to
+  `MIN_ITEM_LEVEL..MAX_ITEM_LEVEL`; Rust now uses represented
+  `ItemData::DebugItemLevel` when it is present on the runtime item, falls back
+  to the template item level otherwise, and clamps to the C++ range before
+  total/equipped average calculations. Coverage: `cargo test -p wow-world
+  represented_condition_avg_item_level_uses_runtime_item_level_like_cpp --lib`
+  and `cargo test -p wow-world represented_condition_total_avg_item_level
+  --lib`. Boundary remains partial: full `BonusData` calculation,
+  player-level-to-item-level curves, timewalker fixed-level modifiers, PvP
+  item-level bonus, owner min/max item-level caps, update-field packet
+  emission/fanout, persistence, live-client/bot manual validation, and full
+  condition-runtime parity remain open.
+
+- `#NEXT.R8.ENTITIES.1153` — represented `PlayerData::AvgItemLevel[0]`
+  now passes a full represented storage view into the represented
+  `CanEquipItem` preflight, including top-level inventory plus bag, bank-bag,
+  and reagent-bank child items. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:9554-9613`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:10590-10790`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28773-28880`,
+  and the existing Rust C++ mirror in `crates/wow-entities/src/player.rs`.
+  C++ `CanEquipItem` calls `CanTakeMoreSimilarItems(pItem)`, which uses
+  `GetItemCount(..., inBankAlso=true, pItem)` and limit-category counts over
+  the player's real storage. Rust now lets the existing `wow-entities`
+  `CanEquipItem` helper see represented contained items, so max-count and
+  have-limit-category checks cannot be bypassed by bag-contained candidates.
+  Coverage: `cargo test -p wow-world
+  represented_condition_total_avg_item_level_counts_contained_items_for_max_count_like_cpp
+  --lib` and `cargo test -p wow-world
+  represented_condition_total_avg_item_level --lib`. Boundary remains partial:
+  represented runtime `DebugItemLevel` consumption is closed later by
+  `#NEXT.R8.ENTITIES.1154`; full item-level bonus/PvP/timewalker scaling,
+  update-field packet emission/fanout, persistence, live-client/bot manual
+  validation, and full condition-runtime parity remain open.
+
+- `#NEXT.R8.ENTITIES.1152` — represented `PlayerData::AvgItemLevel[0]`
+  now runs represented non-equipped runtime item candidates through the
+  represented `CanEquipItem` preflight with `swap=true` and
+  `not_loading=false`, after the represented `CanUseItem` and
+  `CanEquipUniqueItem` results. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:10590-10790`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28773-28880`,
+  and the existing Rust C++ mirror in `crates/wow-entities/src/player.rs`.
+  C++ `UpdateAverageItemLevelTotal` only lets a non-equipped item replace
+  best-slot item levels if `CanEquipItem(NULL_SLOT, dest, item, true, false)`
+  succeeds; Rust now reuses `Player::can_equip_item` for the represented
+  `FindEquipSlot`, quiver uniqueness, offhand/two-hand gates, and occupied
+  offhand rejection. Coverage: `cargo test -p wow-world
+  represented_condition_total_avg_item_level --lib`. Boundary remains partial:
+  child-item storage refs for CanEquipItem max-count / have-limit-category
+  counting are closed later by `#NEXT.R8.ENTITIES.1153`; item-level
+  bonus/PvP/timewalker scaling, update-field packet emission/fanout,
+  persistence, live-client/bot manual validation, and full condition-runtime
+  parity remain open.
+
+- `#NEXT.R8.ENTITIES.1151` — represented `PlayerData::AvgItemLevel[0]`
+  now includes represented socketed gems in the `CanEquipUniqueItem` candidate
+  filter. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:25859-25882`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:1213-1218`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28845-28852`.
+  C++ checks `pItem->m_itemData->Gems` after the item-template branch, skips
+  missing gem templates, and for a non-equipped source item uses
+  `GetGemCountWithLimitCategory` as the gem limit count. Rust now builds
+  represented equipped gem refs plus candidate socketed gem refs and delegates
+  them through the existing `wow_entities::Player::can_equip_unique_item`
+  helper before a candidate can replace a best slot. Coverage: `cargo test -p
+  wow-world represented_condition_total_avg_item_level --lib`. Boundary
+  remains partial: quiver/offhand special gates, item-level bonus/PvP/timewalker
+  scaling, update-field packet emission/fanout, persistence, live-client/bot
+  manual validation, and full condition-runtime parity remain open.
+
+- `#NEXT.R8.ENTITIES.1150` — represented `PlayerData::AvgItemLevel[0]`
+  now filters represented non-equipped candidates through the represented
+  item-template `CanEquipUniqueItem` branch of C++ `CanEquipItem`. Source of
+  truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:10667-10712`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:25859-25928`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28845-28852`.
+  C++ calls `CanEquipUniqueItem(pItem, swap ? ignore : NULL_SLOT)` after
+  `CanUseItem` and before quiver/offhand special cases. Rust now builds the
+  represented equipped item/template view and delegates to the existing
+  `wow_entities::Player::can_equip_unique_item` helper for
+  `UNIQUE_EQUIPPABLE` and item-limit-category equipped counts before a
+  non-equipped candidate can replace a best slot. Coverage: `cargo test -p
+  wow-world represented_condition_total_avg_item_level --lib`. Boundary
+  remains partial: represented socketed gem `CanEquipUniqueItem` checks are
+  closed later by `#NEXT.R8.ENTITIES.1151`; quiver/offhand special gates,
+  item-level bonus/PvP/timewalker scaling, update-field packet emission/fanout,
+  persistence, live-client/bot manual validation, and full condition-runtime
+  parity remain open.
+
+- `#NEXT.R8.ENTITIES.1149` — represented `PlayerData::AvgItemLevel[0]`
+  now filters represented non-equipped candidates through the represented
+  `CanUseItem` branch of C++ `CanEquipItem`. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:10590-10663`
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28845-28852`.
+  C++ `UpdateAverageItemLevelTotal` calls
+  `CanEquipItem(NULL_SLOT, dest, item, swap=true, not_loading=false)` before a
+  non-equipped item can replace a best slot candidate. Rust now applies the
+  represented `CanUseItem` class/race/level/skill/reputation/basic-template
+  gates for represented runtime item objects before the best-slot replacement.
+  Coverage: `cargo test -p wow-world
+  represented_condition_total_avg_item_level --lib`. Boundary remains partial:
+  represented item-template `CanEquipUniqueItem` filtering is closed later by
+  `#NEXT.R8.ENTITIES.1150`; socketed gem unique/limit-category checks,
+  quiver/offhand special gates, item-level bonus/PvP/timewalker scaling,
+  update-field packet emission/fanout, persistence, live-client/bot manual
+  validation, and full condition-runtime parity remain open.
+
+- `#NEXT.R8.ENTITIES.1148` — represented `PlayerData::AvgItemLevel[0]`
+  now has explicit coverage for represented reagent-bank child items. Source
+  of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:753-756`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:1287-1289`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28773-28880`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Conditions/ConditionMgr.cpp:3206-3215`.
+  C++ `ItemSearchLocation::Everywhere` includes `ReagentBank`; Rust already
+  exposes the same reagent-bank slot range in the represented item traversal,
+  and the new test proves a represented reagent-bank child item can replace a
+  lower equipped slot candidate for total average item level. This slice also
+  keeps unused `wow-world` port seams explicit with `#[allow(dead_code)]`
+  instead of deleting future boundary code. Coverage: `cargo test -p wow-world
+  represented_condition_total_avg_item_level --lib`. Boundary remains partial:
+  represented `CanUseItem` candidate filtering is closed later by
+  `#NEXT.R8.ENTITIES.1149`; full `CanEquipUniqueItem` restrictions,
+  unique-equip/limit-category gates, item-level bonus/PvP/timewalker scaling,
+  update-field packet emission/fanout, persistence, live-client/bot manual
+  validation, and full condition-runtime parity remain open.
+
+- `#NEXT.R8.ENTITIES.1147` — represented `PlayerData::AvgItemLevel[0]`
+  now has explicit coverage for represented bank candidates. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:756`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28773-28880`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Conditions/ConditionMgr.cpp:3206-3215`.
+  C++ `ItemSearchLocation::Everywhere` includes `Bank`; Rust now has tests
+  proving top-level represented bank items and represented bank-bag child items
+  feed the same total-average best-slot candidate path and can replace lower
+  equipped candidates. Coverage: `cargo test -p wow-world
+  represented_condition_total_avg_item_level --lib`. Boundary remains partial:
+  full `CanEquipItem` restrictions, reagent-bank-specific traversal evidence is
+  closed later by `#NEXT.R8.ENTITIES.1148`, unique-equip/limit/category gates,
+  item-level bonus/PvP/timewalker scaling, update-field packet emission/fanout,
+  persistence, live-client/bot manual validation, and full condition-runtime
+  parity remain open.
+
+- `#NEXT.R8.ENTITIES.1146` — represented `PlayerData::AvgItemLevel[0]`
+  now includes represented item objects contained in represented bags when
+  selecting C++ best equipment-slot candidates. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28773-28880`
+  and `/home/server/woltk-trinity-legacy/src/server/game/Conditions/ConditionMgr.cpp:3206-3215`.
+  C++ `UpdateAverageItemLevelTotal` calls
+  `ForEachItem(ItemSearchLocation::Everywhere)`, so Rust now feeds
+  represented child item objects whose container GUID points at a represented
+  bag into the same best-slot selection path used for direct inventory
+  candidates. Coverage: `cargo test -p wow-world
+  represented_condition_total_avg_item_level --lib`. Boundary remains partial:
+  full `CanEquipItem` restrictions, bank traversal is closed later by
+  `#NEXT.R8.ENTITIES.1147` for represented bank top-level/bank-bag child
+  objects, unique-equip/limit/category gates, item-level bonus/PvP/timewalker
+  scaling, update-field packet emission/fanout, persistence, live-client/bot
+  manual validation, and full condition-runtime parity remain open.
+
+- `#NEXT.R8.ENTITIES.1145` — represented `PlayerData::AvgItemLevel[0]`
+  now maintains a C++-shaped best-item-level table per equipment slot for
+  represented inventory items. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28773-28880`
+  and `/home/server/woltk-trinity-legacy/src/server/game/Conditions/ConditionMgr.cpp:3206-3215`.
+  Rust now maps represented item `InventoryType` values through the same
+  `ForEachEquipmentSlot` shape used by C++ `UpdateAverageItemLevelTotal`,
+  lets a better represented non-equipped direct-inventory item replace the
+  current slot candidate, suppresses duplicate GUID reuse for paired candidate
+  slots like finger/trinket/offhand, keeps the main-hand 2H double-count rule,
+  and continues to divide by `16.0`. Coverage: `cargo test -p wow-world
+  represented_condition_total_avg_item_level --lib`. Boundary remains partial:
+  full `CanEquipItem` restrictions, bag-contained item traversal is closed
+  later by `#NEXT.R8.ENTITIES.1146`, bank traversal, unique-equip/limit/category
+  gates, item-level bonus/PvP/timewalker scaling, update-field packet
+  emission/fanout, persistence, live-client/bot manual validation, and full
+  condition-runtime parity remain open.
+
+- `#NEXT.R8.ENTITIES.1144` — represented player-condition context now uses
+  the C++ equipment-slot denominator / main-hand 2H formula for
+  `PlayerData::AvgItemLevel[0]` within the represented equipped-items
+  boundary. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28773-28880`
+  and `/home/server/woltk-trinity-legacy/src/server/game/Conditions/ConditionMgr.cpp:3206-3215`.
+  Rust no longer averages all represented item objects by count for
+  `AvgItemLevel[0]`; a single represented ilvl 200 main-hand 2H without Titan
+  Grip now contributes `(200 + 200) / 16 = 25`, matching the C++ slot formula.
+  Coverage: `cargo test -p wow-world
+  represented_condition_total_avg_item_level_uses_cpp_slot_formula_like_cpp
+  --lib`. Boundary remains partial: full `UpdateAverageItemLevelTotal`
+  best-equipable candidate selection across bags/bank, `CanEquipItem`
+  restrictions, duplicate-guid handling for ring/trinket/offhand candidates,
+  item-level bonus/PvP/timewalker scaling, update-field packet emission/fanout,
+  persistence, live-client/bot/manual validation, and full condition-runtime
+  parity remain open.
+
+- `#NEXT.R8.ENTITIES.1143` — represented `AutoUnequipOffhandIfNeed` now
+  records the C++ `RemoveItem` terminal `UpdateAverageItemLevelEquipped()`
+  hook and the represented player-condition context now uses the C++
+  equipped-average formula for `PlayerData::AvgItemLevel[1]`. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11636-11638`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28883-28898`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Conditions/ConditionMgr.cpp:3212-3215`.
+  Rust now divides the equipped item-level sum by `16.0` and counts a
+  remaining main-hand 2H weapon twice when Titan Grip is not active, matching
+  C++ `UpdateAverageItemLevelEquipped`; the auto-unequip hook records the
+  recalculated value after the offhand has been moved/delinked. Coverage:
+  `cargo test -p wow-world
+  auto_unequip_offhand_records_average_equipped_item_level_like_cpp --lib`.
+  Boundary remains partial: total average item-level parity, full item-level
+  bonus/PvP/timewalker scaling, update-field packet emission/fanout,
+  persistence, live-client/bot/manual validation, and full `RemoveItem` /
+  condition-runtime parity remain open.
+
+- `#NEXT.R8.ENTITIES.1142` — represented `AutoUnequipOffhandIfNeed` now
+  records the C++ `RemoveItem` call to `CheckTitanGripPenalty()` after the
+  offhand slot has been cleared/synchronized. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11616-11625`
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:12827-12840`.
+  Rust now records the represented `TitanGripPenaltyAction` selected from the
+  canonical player's Titan Grip state and the post-removal main/offhand item
+  templates; the covered case records `Remove(m_titanGripPenaltySpellId)` when
+  forced offhand removal leaves only a normal main-hand 2H weapon. Coverage:
+  `cargo test -p wow-world
+  auto_unequip_offhand_records_titan_grip_penalty_check_like_cpp --lib`.
+  Boundary remains partial: this records the represented penalty action only;
+  real triggered `CastSpell`, real `RemoveAurasDueToSpell` packet/update
+  effects, multi-session fanout, DB persistence, represented average
+  equipped item-level recalculation is closed by `#NEXT.R8.ENTITIES.1143`,
+  live-client/bot/manual validation, and full `RemoveItem` / `RemoveSpell`
+  parity remain open.
+
+- `#NEXT.R8.ENTITIES.1141` — represented `AutoUnequipOffhandIfNeed` now
+  records the C++ offhand combat-stat recalculation hooks from `RemoveItem`.
+  Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11586-11613`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:6830-6836`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.h:303-329`.
+  Rust now records `UpdateExpertise(OFF_ATTACK)` and
+  `RecalculateRating(CR_ARMOR_PENETRATION)` after the represented item-mod
+  removal hook and before moving/delinking the offhand item. Coverage:
+  `cargo test -p wow-world
+  remove_known_spell_auto_unequip_records_invalid_two_hand_state_like_cpp --lib`.
+  Boundary remains partial: this is a represented recalculation hook only; real
+  expertise/rating math, update-field packet emission, dependency on live aura
+  state, item-set removal, full `_ApplyItemMods`, represented
+  `CheckTitanGripPenalty` action recording is closed by `#NEXT.R8.ENTITIES.1142`,
+  average item-level recalculation, DB persistence, multi-session fanout, and
+  live-client/bot/manual validation remain open.
+
+- `#NEXT.R8.ENTITIES.1140` — represented `AutoUnequipOffhandIfNeed` now
+  mirrors the C++ `RemoveItem` duration-reference cleanup for the removed
+  offhand item. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11559-11575`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:24621-24634`,
+  and the existing Rust canonical duration model in
+  `crates/wow-entities/src/player.rs`. Rust now removes the offhand item guid
+  from canonical `item_durations`, removes its enchantment-duration refs from
+  canonical `enchant_durations`, and writes the remaining enchantment duration
+  back onto the runtime item before moving/delinking it, matching C++
+  `RemoveEnchantmentDurations(pItem)` / `RemoveItemDurations(pItem)`.
+  Coverage: `cargo test -p wow-world
+  remove_known_spell_auto_unequip_records_invalid_two_hand_state_like_cpp --lib`.
+  Boundary remains partial: exact duration update packets, full item/enchant
+  duration ticking and DB persistence, item-set removal, full `_ApplyItemMods`,
+  expertise/armor-penetration recalculation hook is closed by
+  `#NEXT.R8.ENTITIES.1141`, `CheckTitanGripPenalty`, average item-level
+  recalculation, multi-session fanout, and live-client/bot/manual validation
+  remain open.
+
+- `#NEXT.R8.ENTITIES.1139` — represented `AutoUnequipOffhandIfNeed` now
+  mirrors the C++ `RemoveItem` cleanup of `ITEM_FIELD_FLAG2_EQUIPPED` for the
+  removed offhand item. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11559-11635`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:24621-24634`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/ItemTemplate.h:169`.
+  Rust now clears `ItemFieldFlags2::EQUIPPED` on the represented offhand item
+  before moving/delinking it, matching the top-level equipment branch in C++.
+  Coverage: `cargo test -p wow-world remove_known_spell --lib`. Boundary
+  remains partial: this closes only the runtime item flag2 state; exact
+  `ITEM_DATA_DYNAMIC_FLAGS2` update queue/fanout, duration-reference cleanup is
+  closed by `#NEXT.R8.ENTITIES.1140`, item-set removal, full `_ApplyItemMods`,
+  expertise/armor-penetration recalculation, `CheckTitanGripPenalty`, average
+  item-level recalculation, DB persistence, and live-client/bot/manual
+  validation remain open.
+
+- `#NEXT.R8.ENTITIES.1138` — represented `AutoUnequipOffhandIfNeed` now
+  mirrors the C++ `RemoveItem` `RemoveTradeableItem(pItem)` side effect for the
+  removed offhand item. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11559-11575`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11643-11655`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:24621-24634`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:12902-12910`.
+  Rust now removes the represented offhand guid from the canonical player's
+  `m_itemSoulboundTradeable` set before moving/delinking the item, while
+  preserving the C++ distinction that `RemoveTradeableItem` only erases the
+  set entry and does not clear the item's BoP-tradeable flag/allowed GUIDs.
+  Coverage: `cargo test -p wow-world remove_known_spell --lib`. Boundary
+  remains partial: duration-reference cleanup is closed by
+  `#NEXT.R8.ENTITIES.1140`, item-set removal, full `_ApplyItemMods`, item flag2
+  equipped cleanup is closed by `#NEXT.R8.ENTITIES.1139`,
+  expertise/armor-penetration recalculation, `CheckTitanGripPenalty`, average
+  item-level recalculation, update queue/DB persistence, fanout, and
+  live-client/bot/manual validation remain open.
+
+- `#NEXT.R8.ENTITIES.1137` — represented `AutoUnequipOffhandIfNeed` now
+  records the C++ `RemoveItem(..., EQUIPMENT_SLOT_OFFHAND, update=true)`
+  `_ApplyItemMods(offhand, false, update)` boundary before moving/delinking the
+  offhand item. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11559-11635`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11643-11655`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:24621-24634`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7660-7691`.
+  Rust now pushes
+  `RepresentedItemModsReapplyEventLikeCpp { item_guid, slot:
+  EQUIPMENT_SLOT_OFFHAND, apply: false }` for non-broken represented offhand
+  removals, and skips the event for broken items to mirror the early return in
+  C++ `_ApplyItemMods`. Coverage: `cargo test -p wow-world
+  remove_known_spell_auto_unequip --lib`. Boundary remains partial: this is a
+  represented hook/evidence seam only; full `_ApplyItemMods` item bonuses,
+  set bonuses, equip spells, dependent auras, weapon-dependent aura updates,
+  enchantment application/removal, expertise/armor-penetration recalculation,
+  average item-level recalculation, multi-session fanout, DB persistence, and
+  live-client/bot/manual validation remain open. C++ `RemoveTradeableItem`
+  state cleanup is closed by `#NEXT.R8.ENTITIES.1138`.
+
+- `#NEXT.R8.ENTITIES.1136` — represented `AutoUnequipOffhandIfNeed` now
+  emits the equipped-bag `ContainerData::Slots` VALUES delta for the C++
+  `Bag::StoreItem` branch. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Container/Bag.cpp:160-170`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Container/Bag.cpp:248-258`.
+  Rust now reads the canonical `PlayerBagStorage` after the represented
+  offhand move, builds a `ContainerData` update with
+  `CONTAINER_DATA_SLOTS_PARENT_BIT` plus the changed slot bit, and sends a bag
+  `SMSG_UPDATE_OBJECT` for the equipped bag guid. Coverage: `cargo test -p
+  wow-world remove_known_spell_auto_unequip_stores_offhand_in_represented_bag_like_cpp
+  --lib`. Boundary remains partial: this closes only the current-session bag
+  slot VALUES packet for the represented offhand-in-bag branch; represented
+  `_ApplyItemMods(offhand, false)` hook evidence is closed by
+  `#NEXT.R8.ENTITIES.1137`; complete create/update queue ordering,
+  multi-session fanout, real stat recalculation, enchantment duration hooks, DB
+  inventory slot updates, DB delete/save transaction, real mail draft/send
+  fallback, live-client/bot/manual validation, and full `Player::RemoveSpell`
+  parity remain open.
+
+- `#NEXT.R8.ENTITIES.1135` — represented `AutoUnequipOffhandIfNeed` now
+  updates and emits the moved item's `ItemData::ContainedIn` VALUES delta for
+  the C++ `RemoveItem(update=true)` / `StoreItem(update=true)` item update
+  branch. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11559-11635`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11271-11302`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:1398-1415`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Container/Bag.cpp:160-170,248-258`.
+  Rust now sets represented item `ContainedIn` to the equipped bag guid for the
+  `Bag::StoreItem` branch, clears it to `ObjectGuid::Empty` for the mail
+  fallback delink branch, and sends an item `SMSG_UPDATE_OBJECT` containing the
+  explicit `ITEM_DATA_CONTAINED_IN` mask after the player values update.
+  Coverage: `cargo test -p wow-world remove_known_spell --lib`. Boundary
+  remains partial: this closes only the represented item's `ContainedIn`
+  VALUES delta for the current session; equipped-bag `ContainerData::Slots`
+  packet emission is closed by `#NEXT.R8.ENTITIES.1136`; complete
+  create/update queue ordering, multi-session fanout, stat recalculation, item
+  mod/enchantment duration hooks, DB inventory slot updates, DB delete/save
+  transaction, real mail draft/send fallback, live-client/bot/manual
+  validation, and full `Player::RemoveSpell` parity remain open.
+
+- `#NEXT.R8.ENTITIES.1134` — represented `AutoUnequipOffhandIfNeed` now
+  emits the self-session player values `SMSG_UPDATE_OBJECT` for the C++
+  `RemoveItem(update=true)` + `StoreItem(update=true)` branches. Source of
+  truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11559-11635`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11271-11302`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:24621-24634`.
+  Rust now sends the bridged player VALUES update after the represented
+  offhand move/fallback: the offhand `InvSlot` is cleared, the offhand
+  `VisibleItems` value is cleared, and direct backpack destinations also mark
+  the destination `InvSlot` with the moved item guid. Coverage: `cargo test -p
+  wow-world remove_known_spell --lib`. Boundary remains partial: this closes
+  only the current-session player values packet for the represented branch;
+  item `ContainedIn` VALUES emission is closed by `#NEXT.R8.ENTITIES.1135`,
+  and equipped-bag child container values are closed by
+  `#NEXT.R8.ENTITIES.1136`; multi-session fanout, stat recalculation, item
+  mod/enchantment duration hooks, DB inventory slot updates, DB delete/save
+  transaction, real mail draft/send fallback, live-client/bot/manual
+  validation, and full `Player::RemoveSpell` parity remain open.
+
+- `#NEXT.R8.ENTITIES.1133` — represented `AutoUnequipOffhandIfNeed` now
+  syncs the canonical player storage/update-field model for the C++
+  `RemoveItem` + `StoreItem` branches. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11559-11635`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11271-11302`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Container/Bag.cpp:160-170`.
+  Rust clears the canonical offhand `InvSlot` and `VisibleItems` value when the
+  represented offhand item is removed, sets the canonical backpack `InvSlot`
+  for direct destinations, stores the child guid in canonical equipped-bag
+  storage for bag destinations, and clears the canonical offhand slot before
+  the mail-fallback delink path. Coverage: `cargo fmt`; `cargo fmt --check`;
+  `cargo test -p wow-world remove_known_spell --lib`; `cargo check -p
+  world-server`; `git diff --check`. Boundary remains partial: actual
+  `UpdateObject` packet emission/fanout from this branch, stat recalculation,
+  item mod/enchantment duration hooks, DB inventory slot updates, DB delete/save
+  transaction, real mail draft/send fallback, live-client/bot/manual validation,
+  and full `Player::RemoveSpell` parity remain open.
+
+- `#NEXT.R8.ENTITIES.1132` — represented `AutoUnequipOffhandIfNeed` now
+  follows the C++ `Bag::StoreItem` branch when `CanStoreItem` selects a
+  represented equipped bag destination. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:24621-24628`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11271-11302`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Container/Bag.cpp:160-170`.
+  Rust now moves an existing direct-inventory item from
+  `EQUIPMENT_SLOT_OFFHAND` to a supported `(bag, slot)` destination by removing
+  the direct slot and updating the runtime item object's `contained_in`, bag
+  slot, and inner slot, so `GetItemByPos(bag, slot)` resolves it afterward.
+  Coverage: `cargo fmt`; `cargo fmt --check`; `cargo test -p wow-world
+  remove_known_spell --lib`; `cargo check -p world-server`; `git diff
+  --check`. Boundary remains partial: stack-merge destinations, DB inventory
+  slot updates, DB delete/save transaction, real mail draft/send fallback, item
+  update queue, quest/refund/temp appearance cleanup, packets/stat recalculation,
+  live-client/bot/manual validation, and full `Player::RemoveSpell` parity
+  remain open. Canonical `InvSlot`/`VisibleItems` sync for these branches is
+  closed by `#NEXT.R8.ENTITIES.1133`.
+
+- `#NEXT.R8.ENTITIES.1131` — represented `AutoUnequipOffhandIfNeed` now
+  runs the C++ `CanStoreItem(NULL_BAG, NULL_SLOT, off_dest, offItem, false)`
+  storage branch for the existing offhand item before falling back to removal.
+  Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:24621-24634`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11559-11635`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11643-11675`.
+  Rust reuses represented `CanStoreItem` with the source item, moves a supported
+  direct-inventory destination from `EQUIPMENT_SLOT_OFFHAND` into the selected
+  direct slot, and delinks the offhand item with `container=Empty` and
+  `slot=NULL_SLOT` when represented storage cannot be completed so the mail
+  fallback boundary is explicit. Coverage: `cargo fmt`; `cargo fmt --check`;
+  `cargo test -p wow-world remove_known_spell --lib`; `cargo check -p
+  world-server`; `git diff --check`. Boundary remains partial: nested bag
+  `StoreItem`, DB inventory slot updates, DB delete/save transaction, real
+  mail draft/send fallback, item update queue, quest/refund/temp appearance
+  cleanup, packets/stat recalculation, live-client/bot/manual validation, and
+  full `Player::RemoveSpell` parity remain open. Represented equipped-bag
+  storage is closed by `#NEXT.R8.ENTITIES.1132`.
+
+- `#NEXT.R8.ENTITIES.1130` — represented `Player::RemoveSpell` now consumes
+  the C++ `CONFIG_OFFHAND_CHECK_AT_SPELL_UNLEARN` /
+  `OffhandCheckAtSpellUnlearn` switch and records represented
+  `AutoUnequipOffhandIfNeed` requests after the Titan Grip and Dual Wield
+  cleanup branches. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3431-3432`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:24606-24640`,
+  `/home/server/woltk-trinity-legacy/src/server/game/World/World.cpp:1367`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/ItemTemplate.h:267`.
+  Rust carries the config through `SessionResources`, defaults it to the C++
+  `true`, honors `ITEM_FLAG3_ALWAYS_ALLOW_DUAL_WIELD`, and records the C++
+  offhand decision reasons for lost dual-wield and invalid two-hand state.
+  Coverage: `cargo fmt`; `cargo fmt --check`; `cargo test -p wow-world
+  remove_known_spell --lib`; `cargo test -p world-server
+  offhand_check_at_spell_unlearn_uses_cpp_world_config_key --bin
+  world-server`; `cargo check -p world-server`; `git diff --check`.
+  Boundary remains partial: real represented `CanStoreItem` direct-inventory
+  movement and delink fallback are closed by `#NEXT.R8.ENTITIES.1131`; nested
+  bag `StoreItem`, DB delete/save transaction, real mail fallback, update
+  packets, live-client/bot/manual validation, and full `Player::RemoveSpell`
+  parity remain open.
+
+- `#NEXT.R8.ENTITIES.1129` — represented `Player::RemoveSpell` now clears
+  Dual Wield capability when the removed spell is passive and has
+  `SPELL_EFFECT_DUAL_WIELD`. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3425-3428`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.h:679-680`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellEffects.cpp:2176-2183`.
+  Rust reuses the existing canonical player `Unit::can_dual_wield_like_cpp`
+  flag that `Spell::EffectDualWield` already sets, and clears it from the
+  represented removal path under the same passive/effect gates as C++.
+  Coverage: `cargo fmt`; `cargo test -p wow-world remove_known_spell --lib`;
+  `cargo check -p world-server`; `cargo fmt --check`; `git diff --check`.
+  Boundary remains partial: `CONFIG_OFFHAND_CHECK_AT_SPELL_UNLEARN` wiring and
+  represented `AutoUnequipOffhandIfNeed` request evidence are closed by
+  `#NEXT.R8.ENTITIES.1130`; real `AutoUnequipOffhandIfNeed` inventory
+  movement/mail fallback, passive aura ownership beyond represented visible
+  auras, live-client/bot/manual validation, and full `Player::RemoveSpell`
+  parity remain open.
+
+- `#NEXT.R8.ENTITIES.1128` — represented `Spell::EffectTitanGrip` and
+  `Player::RemoveSpell` Titan Grip cleanup now mirror the C++ bounded paths.
+  Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellEffects.cpp:4910-4919`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3417-3424`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:12818-12835`.
+  Rust exposes `SPELL_EFFECT_TITAN_GRIP`, sets the canonical player
+  `can_titan_grip` flag plus penalty spell id from `SpellEffectInfo::MiscValue`,
+  and removes represented penalty auras before clearing Titan Grip when the
+  removed spell is passive and has `SPELL_EFFECT_TITAN_GRIP`. Coverage:
+  `cargo fmt`; `cargo test -p wow-world titan_grip --lib`; `cargo test -p
+  wow-data spell_effect_constants --lib`; `cargo check -p world-server`;
+  `cargo fmt --check`; `git diff --check`. Boundary remains partial:
+  represented Dual Wield cleanup is closed by `#NEXT.R8.ENTITIES.1129`;
+  `CONFIG_OFFHAND_CHECK_AT_SPELL_UNLEARN` wiring and represented
+  `AutoUnequipOffhandIfNeed` request evidence are closed by
+  `#NEXT.R8.ENTITIES.1130`; real `AutoUnequipOffhandIfNeed` inventory
+  movement/mail fallback, passive aura ownership beyond represented visible
+  auras, live-client/bot/manual validation, and full `Player::RemoveSpell`
+  parity remain open.
+
+- `#NEXT.R8.ENTITIES.1127` — represented `Player::RemoveSpell` now emits
+  C++-shaped `SMSG_SUPERCEDED_SPELLS` when a lower rank is reactivated.
+  Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3394-3404`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28523-28530`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/SpellPackets.cpp:448-488`.
+  Rust serializes the shared `LearnedSpellInfo` bit layout, writes
+  `SpellID = newSpell` and `Superceded = oldSpell`, emits it from the
+  represented lower-rank reactivation branch, and still suppresses
+  `UnlearnedSpells` for that branch. Coverage: `cargo fmt`; `cargo fmt
+  --check`; `cargo test -p wow-packet superceded_spells --lib`; `cargo test
+  -p wow-packet unlearned_spells --lib`; `cargo test -p wow-packet
+  learned_spells_single --lib`; `cargo test -p wow-world remove_known_spell
+  --lib`; `cargo check -p world-server`; `git diff --check`. Boundary remains
+  partial: full `AddSpell` return/state semantics, real action-bar update
+  parity beyond the packet, full `TraitConfig` / `TraitNodeEntry`
+  application, inactive `PlayerSpellMap` rows, active/disabled/state
+  transitions, offhand auto-unequip,
+  live-client/bot/manual validation, and full `Player::RemoveSpell` parity
+  remain open. Represented Titan Grip cleanup is closed by
+  `#NEXT.R8.ENTITIES.1128`; represented Dual Wield cleanup is closed by
+  `#NEXT.R8.ENTITIES.1129`.
+
+- `#NEXT.R8.ENTITIES.1126` — represented `Player::RemoveSpell` now emits
+  C++-shaped `SMSG_UNLEARNED_SPELLS` when no lower rank was reactivated, and
+  carries the `suppressMessaging` flag through the top-level represented
+  removal helper. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3394-3442`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/SpellPackets.cpp:564-572`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/SpellPackets.h:500-506`.
+  Rust now serializes `UnlearnedSpells` as count, spell ids, then
+  `SuppressMessaging`, sends it at the end of represented spell removal, and
+  suppresses that packet when the represented lower-rank reactivation path is
+  taken. Coverage: `cargo fmt`; `cargo fmt --check`; `cargo test -p
+  wow-packet unlearned_spells --lib`; `cargo test -p wow-world
+  remove_known_spell --lib`; `cargo check -p world-server`; `git diff
+  --check`. Boundary remains partial: full `AddSpell` return semantics, full `TraitConfig` /
+  `TraitNodeEntry` application, inactive `PlayerSpellMap` rows,
+  active/disabled/state transitions,
+  offhand auto-unequip, live-client/bot/manual validation, and full
+  `Player::RemoveSpell` parity remain open. Represented `SendSupercededSpell`
+  packet emission is closed by `#NEXT.R8.ENTITIES.1127`; represented Titan Grip
+  cleanup is closed by `#NEXT.R8.ENTITIES.1128`; represented Dual Wield cleanup
+  is closed by `#NEXT.R8.ENTITIES.1129`.
+
+- `#NEXT.R8.ENTITIES.1125` — represented `Player::RemoveSpell` now mirrors
+  the C++ `TraitDefinitionId -> TraitDefinitionEntry::OverridesSpellID`
+  override cleanup before the direct `m_overrideSpells.erase(spell_id)`
+  branch. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3236-3465`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:184-191`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:27377-27395`.
+  Rust now carries represented `PlayerSpell::TraitDefinitionId` metadata for
+  known spells, wires `TraitDefinition.db2` into sessions, removes the
+  represented `OverridesSpellID -> spell_id` pair, and then keeps the direct
+  removed-spell override-source erase from `#NEXT.R8.ENTITIES.1124`.
+  Coverage: `cargo fmt`; `cargo fmt --check`; `cargo test -p wow-world
+  remove_known_spell --lib`; `cargo check -p world-server`; `git diff
+  --check`. Boundary remains partial: full `TraitConfig` /
+  `TraitNodeEntry` application, inactive `PlayerSpellMap` rows,
+  active/disabled/state transitions, `AddSpell` return semantics,
+  action-bar update parity beyond represented packet emission, offhand
+  auto-unequip, live-client/bot/manual validation, and full
+  `Player::RemoveSpell` parity remain open. Represented `UnlearnedSpells`
+  `suppressMessaging` is closed by `#NEXT.R8.ENTITIES.1126`; represented
+  `SendSupercededSpell` packet emission is closed by `#NEXT.R8.ENTITIES.1127`;
+  represented Dual Wield cleanup is closed by `#NEXT.R8.ENTITIES.1129`.
+
+- `#NEXT.R8.ENTITIES.1124` — represented `Player::RemoveSpell` now mirrors
+  the C++ direct `m_overrideSpells.erase(spell_id)` cleanup. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3433`
+  inside `Player::RemoveSpell` (`Player.cpp:3236-3465`). Rust removes the
+  represented override map entry keyed by the spell being removed and preserves
+  unrelated override mappings. Coverage: `cargo fmt`; `cargo fmt --check`;
+  `cargo test -p wow-world remove_known_spell --lib`; `cargo check -p
+  world-server`; `git diff --check`. Boundary remains partial: full
+  `TraitDefinition`/`TraitConfig` ownership, inactive `PlayerSpellMap` rows,
+  active/disabled/state transitions, `AddSpell` return semantics,
+  action-bar update parity beyond represented packet emission, offhand
+  auto-unequip, live-client/bot/manual validation, and full
+  `Player::RemoveSpell` parity remain open. Trait-definition lookup removal
+  (`TraitDefinitionId -> OverridesSpellID`) is closed by
+  `#NEXT.R8.ENTITIES.1125`; represented `UnlearnedSpells`
+  `suppressMessaging` is closed by `#NEXT.R8.ENTITIES.1126`; represented
+  Dual Wield cleanup is closed by `#NEXT.R8.ENTITIES.1129`; represented
+  `SendSupercededSpell` packet emission is closed by `#NEXT.R8.ENTITIES.1127`.
+
+- `#NEXT.R8.ENTITIES.1123` — represented `Player::RemoveSpell` now carries
+  the C++ `learn_low_rank` flag through recursive removal and updates the
+  represented previous-rank dependent state when the previous rank already
+  exists in the represented spellbook. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3236-3465`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:2735-3150`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellInfo.cpp:4343`.
+  Rust now mirrors the C++ shape where recursive higher-rank cleanup calls
+  `RemoveSpell(nextSpell, disabled, false)`, required-spell and learned
+  dependent cleanup keep the default `learn_low_rank=true`, and the previous
+  rank receives the current removed spell's represented `dependent` flag when
+  it already exists. Coverage: `cargo fmt`; `cargo fmt --check`; `cargo test
+  -p wow-world remove_known_spell --lib`; `cargo check -p world-server`; `git
+  diff --check`. Boundary remains partial: Rust still does not model inactive
+  `PlayerSpellMap` rows, active/disabled/state transitions, `AddSpell` return
+  semantics, action-bar update parity beyond represented packet emission, Dual Wield removal
+  side effects, offhand auto-unequip, live-client/bot/manual validation, or full
+  `Player::RemoveSpell` parity. Direct represented
+  `m_overrideSpells.erase(spell_id)` cleanup is closed by
+  `#NEXT.R8.ENTITIES.1124`; trait-definition override lookup removal is closed
+  by `#NEXT.R8.ENTITIES.1125`; represented `UnlearnedSpells`
+  `suppressMessaging` is closed by `#NEXT.R8.ENTITIES.1126`; represented
+  `SendSupercededSpell` packet emission is closed by `#NEXT.R8.ENTITIES.1127`.
+
+- `#NEXT.R8.ENTITIES.1122` — represented `Player::RemoveSpell` now handles
+  the C++ previous-skill branch where `prevSkill->maxvalue == 0` by wiring
+  `SkillTiersStoreLikeCpp` into live sessions, resolving `SkillRaceClassInfo`
+  by skill/race/class, mirroring `GetSkillRangeType` for LANGUAGE, LEVEL,
+  MONO, RANK, and NONE, applying `GetMaxSkillValueForLevel()` as `level * 5`,
+  respecting `SKILL_FLAG_ALWAYS_MAX_VALUE`, and preserving the exact C++ clamp
+  order. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3321-3356`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:9006-9026`,
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Stores.cpp:2583-2596`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.h:891`,
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DBCEnums.h:1869-1872`,
+  and `SharedDefines.h` skill constants. Note: C++ LANGUAGE range sets value to
+  300 but does not raise an already lower max; Rust preserves that oddity for
+  fidelity. Coverage: `cargo fmt`; `cargo test -p wow-data skill_tier --lib`;
+  `cargo test -p wow-world remove_known_spell --lib`; `cargo check -p
+  world-server`; `git diff --check`. Boundary remains partial: skill step
+  update-field parity, profession point updates, pet aura removal, full aura
+  ownership, logout DB persistence, live-client/bot manual validation, and
+  full `Player::RemoveSpell` parity remain open. Represented previous-rank
+  dependent-state propagation is closed by `#NEXT.R8.ENTITIES.1123`.
+
+- `#NEXT.R8.ENTITIES.1121` — represented `Player::RemoveSpell` now handles
+  the C++ previous-skill branch for higher-rank `SpellLearnSkill` nodes when
+  the previous learned skill has an explicit `maxvalue`: Rust resolves
+  `prevSkill` through `GetPrevSpellInChain` / `GetFirstSpellInChain`, resets
+  the current learned skill if no previous setting is found, and otherwise
+  clamps represented skill value/max to `prevSkill->value` and
+  `prevSkill->maxvalue` before writing the represented skill row (not
+  manual-test-ready; the `prevSkill->maxvalue == 0` SkillRaceClassInfo branch
+  is closed separately by `#NEXT.R8.ENTITIES.1122`). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3305-3367`.
+  Coverage planned for this slice: `cargo fmt --all`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  remove_known_spell_ --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  first_spell_in_chain_returns_input_without_store_like_cpp --lib`;
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p
+  world-server`; `cargo fmt --all --check`; and `git diff --check`.
+  Boundary remains partial: the `prevSkill->maxvalue == 0` branch is
+  closed by `#NEXT.R8.ENTITIES.1122`; skill-step update-field parity,
+  profession point updates, pet aura removal, full aura ownership, logout DB
+  persistence, live-client/bot/manual validation, and full `Player::RemoveSpell`
+  parity remain open. Represented previous-rank dependent-state propagation is
+  closed by `#NEXT.R8.ENTITIES.1123`.
+
+- `#NEXT.R8.ENTITIES.1120` — represented `Player::RemoveSpell` now handles
+  the first-rank `SpellLearnSkill` branch by resetting the represented skill
+  row to value/max `0` when `GetPrevSpellInChain(spell_id) == 0`, matching the
+  C++ `SetSkill(spellLearnSkill->skill, 0, 0, 0)` path (not
+  manual-test-ready, not full skill downgrade parity). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3284-3370`.
+  Rust exposes `prev_spell_in_chain_like_cpp` through `WorldSession`, preserves
+  the loaded `profession_slot` for represented `character_skill` save evidence,
+  and updates the first-rank learned skill to zero before dependent learned
+  spells are removed. Coverage planned for this slice: `cargo fmt --all`;
+  focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p
+  wow-world remove_known_spell_ --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  prev_spell_in_chain_returns_zero_without_store_like_cpp --lib`;
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p
+  world-server`; `cargo fmt --all --check`; and `git diff --check`.
+  Boundary remains partial: previous-skill lookup and explicit-max downgrade
+  are closed by `#NEXT.R8.ENTITIES.1121`; the `prevSkill->maxvalue == 0`
+  branch is closed by `#NEXT.R8.ENTITIES.1122`; profession point updates, pet
+  aura removal, full aura ownership, logout DB persistence, live-client/bot
+  manual validation, and full `Player::RemoveSpell` parity remain open.
+  Represented previous-rank dependent-state propagation is closed by
+  `#NEXT.R8.ENTITIES.1123`.
+
+- `#NEXT.R8.ENTITIES.1119` — represented `Player::RemoveSpell` now removes
+  spells learned by the removed spell through
+  `SpellLearnSpellStoreLikeCpp::get_spell_learn_spell_map_bounds_like_cpp`,
+  and clears represented override spell pairs when the C++ node has
+  `OverridesSpell` (not manual-test-ready, not full `PlayerSpellMap`). Source
+  of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3370-3376`.
+  C++ performs this dependent-spell cleanup after marking the current spell
+  removed and before lower-rank reactivation; Rust now mirrors that represented
+  cleanup over known spells and `_SaveSpells` delete evidence. Coverage planned
+  for this slice: `cargo fmt --all`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  remove_known_spell_ --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  spell_learn_spell_queries_match_loaded_multimap_like_cpp --lib`;
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p
+  world-server`; `cargo fmt --all --check`; and `git diff --check`. Boundary
+  remains partial: first-rank `SpellLearnSkill` removal is closed by
+  `#NEXT.R8.ENTITIES.1120`; higher-rank `SpellLearnSkill` downgrade,
+  represented `learn_low_rank` previous-rank dependent-state propagation is
+  closed by `#NEXT.R8.ENTITIES.1123`; disabled/new/temporary `PlayerSpell`
+  state semantics, profession point updates, pet aura removal, full aura
+  ownership, logout DB persistence, live-client/bot/manual validation, and full
+  `Player::RemoveSpell` parity remain open.
+
+- `#NEXT.R8.ENTITIES.1118` — represented `Player::RemoveSpell` now removes
+  known non-talent higher ranks recursively through
+  `SpellChainStoreLikeCpp::next_spell_in_chain_like_cpp`, preserving the C++
+  `SPELL_ATTR0_CU_IS_TALENT` exclusion on the next rank before running the
+  required-spell cleanup branch (not manual-test-ready, not full
+  `PlayerSpellMap`). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3236-3254`
+  and ResetSpells caller
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:23777`.
+  Rust now uses the represented spell-chain store for `GetNextSpellInChain`,
+  reads represented custom attributes at difficulty 0 for the talent guard, and
+  keeps `_SaveSpells` delete evidence for removed higher ranks. Coverage
+  planned for this slice: `cargo fmt --all`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  remove_known_spell_ --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  login_at_login_reset_spells_removes_known_spells_and_notifies_like_cpp
+  --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p
+  world-server`; `cargo fmt --all --check`; and `git diff --check`. Boundary
+  remains partial: disabled/new/temporary `PlayerSpell` state semantics,
+  `learn_low_rank` previous-rank represented state propagation (closed by
+  `#NEXT.R8.ENTITIES.1123`), dependent spell-learn cleanup (closed by
+  `#NEXT.R8.ENTITIES.1119`), profession point updates, pet
+  aura removal, full aura ownership, logout DB persistence,
+  live-client/bot/manual validation, and full `Player::RemoveSpell` /
+  `ResetSpells` parity remain open.
+
+- `#NEXT.R8.ENTITIES.1117` — represented `Player::RemoveSpell` now removes
+  known spells that require the removed spell through the existing
+  `SpellRequiredStoreLikeCpp` inverse lookup, matching the C++
+  `GetSpellsRequiringSpellBounds(spell_id)` recursion before the current spell
+  is marked `PLAYERSPELL_REMOVED`. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3236-3260`
+  and ResetSpells caller
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:23777`.
+  Rust uses a small recursion guard for corrupt/cyclic data, keeps represented
+  `_SaveSpells` delete evidence for the required spell and its removed
+  non-dependent dependants, and leaves unrelated known spells intact. Coverage
+  planned for this slice: `cargo fmt --all`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  remove_known_spell_removes_spells_requiring_it_like_cpp --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  login_at_login_reset_spells_removes_known_spells_and_notifies_like_cpp
+  --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p
+  world-server`; `cargo fmt --all --check`; and `git diff --check`. Boundary
+  remains partial: disabled/new/temporary `PlayerSpell` states, profession
+  point updates, pet aura removal, full aura ownership, logout DB persistence,
+  live-client/bot/manual validation, and full `Player::RemoveSpell` /
+  `ResetSpells` parity remain open. The C++ `GetNextSpellInChain` higher-rank
+  branch is closed separately by `#NEXT.R8.ENTITIES.1118`.
+
+- `#NEXT.R8.ENTITIES.1116` — represented `Player::LearnQuestRewardedSpells`
+  now handles the C++ `RewardSpell == -1 && SourceSpellID != 0` branch during
+  login spell reset by removing represented visible auras due to `SourceSpellID`
+  and returning without relearning spells (not manual-test-ready, not full aura
+  runtime). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:23863-23876`.
+  C++ treats this branch before looking up `SpellInfo`, calls
+  `RemoveAurasDueToSpell(src_spell_id)`, then returns. Rust now models
+  `RewardSpell=-1` as `u32::MAX` in the existing `QuestTemplate.reward_spell`
+  field, removes all represented visible auras with matching `spell_id`, sends
+  the existing aura-removal updates, preserves unrelated auras, and skips the
+  bounded learn-spell path. Coverage planned for this slice: `cargo fmt --all`;
+  focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p
+  wow-world login_spell_reset --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  login_at_login_reset_spells_removes_known_spells_and_notifies_like_cpp
+  --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p
+  world-server`; `cargo fmt --all --check`; and `git diff --check`. Boundary
+  remains partial: canonical aura-subsystem removal, full
+  `Aura::Remove(AURA_REMOVE_BY_DEFAULT)` side effects, multi-target aura
+  ownership, full `CastSpell` runtime ordering, DB persistence, live-client/bot
+  validation, and full `Player::Create` / `ResetSpells` parity remain open.
+
+- `#NEXT.R8.ENTITIES.1115` — represented `Player::ResetSpells` now re-applies
+  bounded quest-rewarded learned spells after removing the copied
+  `PlayerSpellMap`, matching the C++ `LearnQuestRewardedSpells()` call order
+  (not manual-test-ready, not full `CastSpell` runtime). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:23733-23781`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:23863-23932`.
+  C++ skips quests without `RewardSpell`, skips missing spell info, requires a
+  missing `SPELL_EFFECT_LEARN_SPELL` trigger, and, when effect 0's trigger is
+  missing, requires a `SkillLineAbility` row with
+  `SKILL_LINE_ABILITY_REWARDED_FROM_QUEST` before casting the reward spell.
+  Rust now applies the represented direct learn-spell side effect during login
+  spell reset for rewarded quests already in `rewarded_quests`, clears removed
+  spell evidence when the rewarded spell is relearned, and rejects the
+  non-rewarded-skill ability case. Coverage planned for this slice:
+  `cargo fmt --all`; focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
+  cargo test -p wow-world login_spell_reset --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  login_at_login_reset_spells_removes_known_spells_and_notifies_like_cpp
+  --lib`; focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p
+  wow-world character_spell_save_plan --lib`;
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`;
+  `cargo fmt --all --check`; and `git diff --check`. Boundary remains partial:
+  exact `CastSpell` aura/removal behavior including `RewardSpell=-1`,
+  multi-effect runtime ordering beyond direct `LEARN_SPELL`, full
+  `PlayerSpellMap` state ownership, logout DB persistence, default/custom skill
+  relearn parity, SpellMgr validity cleanup, live-client/bot/manual validation,
+  and full `Player::Create` / `ResetSpells` parity remain open.
+
+- `#NEXT.R8.ENTITIES.1114` — represented `AT_LOGIN_RESET_SPELLS` now keeps
+  C++ `PLAYERSPELL_REMOVED` evidence for normal loaded spells so the
+  represented `_SaveSpells` plan can delete their `character_spell` rows (not
+  manual-test-ready, not wired to DB logout persistence yet). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CharacterHandler.cpp:1283-1288`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3238-3285`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:23733-23764`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:20405-20440`.
+  C++ `ResetSpells(false)` copies `m_spells`, calls `RemoveSpell` for every
+  entry, and `RemoveSpell` marks existing non-new spells as
+  `PLAYERSPELL_REMOVED`; `_SaveSpells` later emits
+  `CHAR_DEL_CHAR_SPELL_BY_SPELL` for those rows. Rust now tracks represented
+  removed known spells, clears removed evidence when a spell is relearned,
+  excludes dependent login-learned spells from normal delete evidence, and
+  exposes `represented_player_spell_rows_like_cpp()` so the statement plan from
+  `#NEXT.R8.ENTITIES.1113` can produce the same deletes after login spell reset.
+  Coverage planned for this slice: `cargo fmt --all`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  login_at_login_reset_spells_removes_known_spells_and_notifies_like_cpp --lib`;
+  focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p
+  wow-world character_spell_save_plan --lib`;
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`;
+  `cargo fmt --all --check`; and `git diff --check`. Boundary remains partial:
+  logout persistence wiring, full `PlayerSpellMap` ownership including
+  inactive/disabled/new/temporary rows, exact recursive `RemoveSpell` rank and
+  required-spell cleanup, default-skill/custom/quest-reward relearn parity,
+  SpellMgr validity cleanup, and live-client/bot/manual validation remain open.
+
+- `#NEXT.R8.ENTITIES.1113` — represented `Player::_SaveSpells` statement
+  planning now mirrors the C++ delete/insert/favorite/dependent branches for
+  represented `PlayerSpell` rows (not manual-test-ready, not wired to logout
+  persistence yet). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:2741-3005`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:20405-20440`.
+  C++ `_SaveSpells` deletes `REMOVED`/`CHANGED` rows, inserts only `NEW` or
+  `CHANGED` spells that are not `dependent`, refreshes
+  `character_spell_favorite` only for `NEW`/`CHANGED`, erases removed spells,
+  and ignores `TEMPORARY` rows. Rust now has represented `PlayerSpell` state
+  types plus statement builders/plans for `DEL_CHAR_SPELL_BY_SPELL`,
+  `INS_CHAR_SPELL`, `DEL_CHAR_SPELL_FAVORITE`, and
+  `INS_CHAR_SPELL_FAVORITE`, and keeps loaded favorite-known-spell state in
+  `WorldSession` for the future full `PlayerSpellMap` owner. Coverage planned
+  for this slice: `cargo fmt --all`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  character_spell_save_plan --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  represented_favorite_known_spells --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
+  cargo check -p world-server`; `cargo fmt --all --check`; and
+  `git diff --check`. Boundary remains partial: this is a safe plan helper;
+  logout wiring is intentionally deferred until Rust owns full `PlayerSpellMap`
+  state, including inactive/disabled/temporary rows, exact `AddSpell` state
+  transitions, SpellMgr validity cleanup, and live-client/bot/manual validation.
+
+- `#NEXT.R8.ENTITIES.1112` — represented `PlayerSpell::dependent` state is
+  now recorded for dependent known-spell paths (not manual-test-ready). Source
+  of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:2741-2835`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:20405-20440`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:23784-23805`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/CollectionMgr.cpp:330-395`.
+  C++ `LearnCustomSpells` calls `AddSpell(... dependent=true)` and
+  `CollectionMgr::AddMount` calls `LearnSpell(spellId, true)`; `_SaveSpells`
+  then explicitly skips inserting dependent spells into `character_spell`.
+  Rust now tracks represented dependent known spells for
+  `PlayerStart.AllSpells` custom spells and account mount spells while still
+  including them in the login spell snapshot. This corrects the previous
+  shorthand boundary: custom start spells should **not** be blindly persisted as
+  normal `character_spell` rows. Coverage planned for this slice:
+  `cargo fmt --all`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  start_all_spells --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  account_mount_load_learns_mount_spells_before_use_condition_like_cpp --lib`;
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`;
+  `cargo fmt --all --check`; and `git diff --check`. Boundary remains partial:
+  full `PlayerSpell` state transitions, `_SaveSpells` delete/insert/favorite
+  transaction parity, exact SpellMgr validity, live-client/bot/manual
+  validation, and full `Player::Create` / `ResetSpells` parity remain open.
+
+- `#NEXT.R8.ENTITIES.1111` — represented `PlayerStart.AllSpells` /
+  `playercreateinfo_spell_custom` login snapshot application is now wired (not
+  manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:4004-4056`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:23784-23805`,
+  `/home/server/woltk-trinity-legacy/src/server/game/World/World.cpp:1564-1566`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/worldserver/worldserver.conf.dist:3344-3352`.
+  C++ loads `playercreateinfo_spell_custom`, validates playable race/class
+  masks, attaches spells to `PlayerInfo::customSpells`, and
+  `Player::LearnCustomSpells` applies them only when
+  `CONFIG_START_ALL_SPELLS` / `PlayerStart.AllSpells` is enabled. Rust now
+  loads that table into `PlayerCreateInfoCustomSpellStoreLikeCpp`, wires the
+  config through `SessionResources`, and appends matching custom spells to the
+  represented login known-spell snapshot after DBC default/racial spells.
+  Coverage planned for this slice: `cargo fmt --all`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-data
+  player_create_custom_spell --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  start_all_spells --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
+  cargo check -p world-server`; `cargo fmt --all --check`; and
+  `git diff --check`. Boundary remains partial: exact dependent
+  `PlayerSpell` state was refined by `#NEXT.R8.ENTITIES.1112`; full
+  `PlayerSpell` state-machine / `_SaveSpells` parity,
+  `ObjectMgr::_playerInfo` ownership, SpellMgr validity, live-client/bot/manual
+  validation, and full `Player::Create` / `ResetSpells` parity remain open.
+
+- `#NEXT.R8.ENTITIES.1110` — represented first-login
+  `PlayerInfo::castSpells[Player::GetCreateMode()]` is now wired before
+  first-login map exploration/reputation branches (not manual-test-ready).
+  Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CharacterHandler.cpp:1296-1310`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:4066-4111`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.h:610-663`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/RaceMask.h:77-151`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:160-177`.
+  C++ loads `playercreateinfo_cast_spell`, validates playable race/class masks
+  plus `PlayerCreateMode`, stores spells per `(race, class, createMode)`, then
+  on `AT_LOGIN_FIRST` casts the selected list before `CONFIG_START_ALL_EXPLORED`
+  and `CONFIG_START_ALL_REP`. Rust now loads that table into
+  `PlayerCreateInfoCastSpellStoreLikeCpp`, mirrors the Trinity `RaceMask`
+  remapping and class mask constants, injects the store through
+  `SessionResources`, hydrates `characters.createMode`, and calls the
+  represented spell executor in the same first-login order. Coverage:
+  `cargo fmt --all`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-data
+  player_create_cast_spell --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  first_login_cast_spells --lib`. Remaining before commit:
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`
+  and `git diff --check`. Boundary remains partial: the casts use the current
+  represented spell executor, not full triggered `Unit::CastSpell` /
+  `Spell::prepare` parity, full `ObjectMgr::PlayerInfo` ownership is not
+  completed by this slice, and live-client/bot/manual validation remains open.
+
+- `#NEXT.R8.ENTITIES.1109` — represented account toy/heirloom persistence now
+  uses C++-style LoginDatabase transactions for the final represented
+  collections (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/CollectionMgr.cpp:123-137`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/CollectionMgr.cpp:200-216`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:19668-19674`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/LoginDatabase.cpp:164,180`.
+  C++ `CollectionMgr::SaveAccountToys` and
+  `CollectionMgr::SaveAccountHeirlooms` iterate their final account
+  collections, set the battlenet account id plus row payload, and append every
+  statement to the shared `loginTransaction`. Rust now builds explicit
+  battlenet-account-qualified toy and heirloom save-row plans, verifies those
+  plans in focused tests, and appends all `REP_ACCOUNT_TOYS` /
+  `REP_ACCOUNT_HEIRLOOMS` statements to `SqlTransaction`s instead of executing
+  row-by-row. Coverage: `cargo fmt --all`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  account_toy_rows_preserve_cpp_flags_like_cpp --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  account_heirloom_rows_filter_by_heirloom_store_like_cpp --lib`. Remaining
+  before commit: `cargo fmt --all --check`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
+  cargo check -p world-server`; and `git diff --check`. Boundary remains
+  partial: battle pets remain outside the WotLK priority, full
+  `Player::SaveToDB` monolithic parity remains incomplete, and
+  live-client/bot/manual validation remains open.
+
+- `#NEXT.R8.ENTITIES.1108` — represented account mount persistence now uses a
+  C++-style LoginDatabase transaction for the full final collection (not
+  manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/CollectionMgr.cpp:348-358`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:19672`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/LoginDatabase.cpp:184`.
+  C++ `CollectionMgr::SaveAccountMounts` iterates the final `_mounts`
+  `std::map`, appends every `LOGIN_REP_ACCOUNT_MOUNTS` statement to the
+  `loginTransaction`, and `Player::SaveToDB` commits it with the other account
+  collection saves. Rust now builds an ordered save-row plan from the represented
+  final account mount collection, including faction-specific counterpart mounts,
+  and appends all `REP_ACCOUNT_MOUNTS` statements to one `SqlTransaction`
+  instead of executing row-by-row. Coverage: `cargo fmt --all --check`;
+  filtered `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p
+  wow-world account_mount --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
+  cargo check -p world-server`; and `git diff --check`. Boundary remains
+  partial: other account collection save paths still have mixed transaction
+  fidelity, full `Player::SaveToDB` monolithic parity remains incomplete, and
+  live-client/bot/manual validation remains open.
+
+- `#NEXT.R8.ENTITIES.1107` — represented account mount load and
+  `character_spell` mount promotion now include C++ faction-specific mount
+  counterparts from `mount_definitions` (not manual-test-ready). Source of
+  truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/CollectionMgr.cpp:33-66`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/CollectionMgr.cpp:330-395`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/CollectionMgr.h:79-80`.
+  C++ loads `FactionSpecificMounts` from `world.mount_definitions`, validates
+  both source and other-faction source spells through `sDB2Manager.GetMount`,
+  and `CollectionMgr::AddMount` recursively inserts the counterpart before
+  inserting the requested mount. Rust now loads the same world table after
+  Mount.db2/hotfixes, wires the store through `SessionResources`, expands
+  represented account mount rows and login-time character mount promotion with
+  the counterpart, and preserves existing flags with insert-if-absent semantics
+  like C++ `std::map::insert`. Coverage: `cargo fmt --all`; filtered
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  account_mount --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  faction_counterpart_like_cpp --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
+  cargo check -p world-server`; and `git diff --check`. Boundary remains
+  partial: no live-client/bot/manual validation, no full CollectionMgr packet
+  delta path, terrain/liquid/capability runtime remains represented, and full
+  vehicle/passenger mount runtime parity is incomplete.
+
+- `#NEXT.R8.ENTITIES.1106` — represented logout/disconnect save snapshots now
+  mirror the C++ `Player::SaveToDB` `IsBeingTeleported()` branch for pending
+  teleports (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:552-641`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:19329-19572`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:20611-20645`.
+  C++ logout finishes pending transfers before saving and `SaveToDB` writes
+  `GetTeleportDest()` with instance id `0` while `IsBeingTeleported()`. Rust's
+  represented save snapshot now prefers pending far or near teleport
+  destinations over stale session/canonical position, also using instance id
+  `0`, before the existing represented position save statement persists the
+  snapshot. Coverage: focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
+  cargo test -p wow-world logout_save_snapshot_uses_pending --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  character_position_save --lib`; `cargo fmt --all`;
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`;
+  and `git diff --check`. Boundary remains partial: Rust still saves through
+  represented split statements rather than the full C++ monolithic
+  `CHAR_UPD_CHARACTER` transaction, pending-teleport zone id is still
+  represented/current, live-client/bot/manual validation remains open, and full
+  `Player::SaveToDB` parity is incomplete.
+
+- `#NEXT.R8.ENTITIES.1105` — represented login now mirrors the C++
+  `Player::_LoadSpells -> AddSpell -> CollectionMgr::AddMount` bridge for
+  character DB mount spells (not manual-test-ready). C++ first loads account
+  mounts, then `_LoadSpells` calls `AddSpell`, and `AddSpell` promotes any DB2
+  mount source spell into `CollectionMgr` before the login `AccountMountUpdate`
+  is sent from the final `std::map` collection. Rust now promotes loaded
+  `character_spell` mount source spells into the represented account mount
+  collection after `known_spells` are loaded, preserves existing account-mount
+  flags by using insert-if-absent semantics, and sends `AccountMountUpdate` from
+  the final session collection rather than the pre-spell-load vector.
+  `account_mount_rows_like_cpp` now sorts by source spell id to match C++
+  `std::map` iteration. Coverage: `cargo fmt --all`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  loaded_character_mount_spells_promote_to_account_collection_like_cpp --lib`;
+  filtered `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p
+  wow-world account_mount --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
+  cargo check -p world-server`; and `git diff --check`. Boundary remains
+  partial: faction-specific counterpart mount definitions from `CollectionMgr`
+  are still not represented, terrain/liquid/capability runtime remains
+  represented, live-client/bot/manual validation remains open, and full mount
+  runtime parity is incomplete.
+
+- `#NEXT.R8.ENTITIES.1104` — canonical typed `Unit` now owns represented
+  `m_movementInfo.time` for the player path (not manual-test-ready). Source
+  of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Object/MovementInfo.h:27-125`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Object/Object.h:741`.
+  Rust `Unit` now stores represented movement time; accepted player movement
+  updates, validated movement ACKs, and `MoveTimeSkipped` updates synchronize
+  that value into the canonical typed `Player` through the same setter path as
+  movement flags. Coverage: focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  handle_movement_syncs_canonical_player_position_for_logout_save_like_cpp
+  --lib`; `cargo fmt --all`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
+  cargo check -p world-server`; and `git diff --check`. Boundary remains
+  partial: `MovementInfo` jump/transport/extra flags/inertia/advanced flying are
+  still not canonical `Unit`-owned, live-client/bot/manual validation remains
+  open, and full movement/fanout/runtime parity is incomplete.
+- `#NEXT.R8.ENTITIES.1103` — canonical typed `Unit` now owns represented
+  `m_movementInfo.flags` for the player path (not manual-test-ready). Source
+  of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Object/Object.h:741`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.h:1619-1623`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:1285-1289`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28435-28453`.
+  Rust `Unit` now stores represented movement flags, accepted player movement
+  synchronizes those flags into the canonical typed `Player`, and the common
+  teleport reset writes the masked flags back through the same setter before
+  interrupting spline/removing `EFFECT_MOTION_TYPE`. Coverage: focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  handle_movement_syncs_canonical_player_position_for_logout_save_like_cpp
+  --lib`; focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test
+  -p wow-world teleport_to_same_map_masks_movement_flags_before_near_teleport_like_cpp
+  --lib`; `cargo fmt --all`; focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
+  cargo test -p wow-world teleport_to_ --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
+  cargo check -p world-server`; and `git diff --check`. Boundary remains partial:
+  `MovementInfo` jump/transport/extra flags/inertia/advanced flying are
+  still not canonical `Unit`-owned, live-client/bot/manual validation remains
+  open, and full movement/fanout/runtime parity is incomplete.
+- `#NEXT.R8.ENTITIES.1102` — represented/canonical `Player::TeleportTo`
+  now mirrors the remaining C++ common movement reset side effects for typed
+  player motion state (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:1286-1289`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:622-626`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Movement/MotionMaster.cpp:392-430`.
+  Rust still masks represented player movement flags and resets represented
+  `MovementInfo::jump`, and now also interrupts the canonical typed player's
+  `MoveSpline` plus removes the active `EFFECT_MOTION_TYPE` generator before
+  the same-map near-teleport / far-teleport branches. Coverage:
+  focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p
+  wow-world teleport_to_same_map_masks_movement_flags_before_near_teleport_like_cpp
+  --lib`; `cargo fmt --all`; focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
+  cargo test -p wow-world teleport_to_ --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
+  cargo check -p world-server`; and `git diff --check`. Boundary remains partial:
+  full player-side MoveSpline/MotionMaster runtime ownership is not complete,
+  full `MovementInfo` ownership beyond flags/jump remains open, and
+  live-client/bot/manual validation remains open.
+- `#NEXT.R8.ENTITIES.1101` — represented `Player::TeleportTo` now mirrors the
+  C++ `MovementInfo::ResetJump()` side effect in the common teleport pre-branch
+  (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:1286-1289`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:622-626`.
+  Rust now stores accepted `MovementInfo::jump` as represented
+  `Unit::m_movementInfo.jump` when movement packets are accepted, then resets
+  that jump state alongside the existing C++ movement-flag mask before same-map
+  near teleport, far teleport, delayed-branch setup, or the early DK escape
+  abort. Coverage: `cargo fmt --all --check`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  accepted_movement_updates_represented_jump_info_like_cpp --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  teleport_to_ --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo
+  check -p world-server`; `git diff --check`. Boundary remains partial:
+  `DisableSpline()` and `MotionMaster::Remove(EFFECT_MOTION_TYPE)` were closed
+  later by `#NEXT.R8.ENTITIES.1102`; full player-side MoveSpline/MotionMaster
+  runtime ownership, live-client/bot validation, install/restart validation,
+  and manual validation remain open.
+- `#NEXT.R8.ENTITIES.1099` — represented `Player::UpdateArea` /
+  `Player::UpdateZone` criteria side effects are now ported for the represented
+  zone/area state (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:1016-1040`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7304-7439`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:1923-1927`.
+  Rust now records represented `EnterArea` then `LeaveArea` after an area id
+  change, updates represented zone id before calling represented area update,
+  skips `EnterTopLevelArea` / `LeaveTopLevelArea` when `AreaTable` lacks the
+  new zone row like C++, and routes near-teleport ACK zone/area changes through
+  the helper instead of directly assigning ids. Coverage: `cargo fmt --all
+  --check`; focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test
+  -p wow-world update_zone --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  move_teleport_ack_applies_near_teleport_cpp_side_effects --lib`;
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p
+  world-server`; `git diff --check`. Boundary remains partial: real
+  TerrainMgr/VMAP coordinate-to-zone/area recomputation, zone update timer,
+  PvP/rest flags, phasing callbacks, dependent aura updates, weather/dynamic
+  info/world states, OutdoorPvP/Battlefield hooks, local channels,
+  item/equipment limitations, guild member zone updates, live-client/bot
+  validation, and manual validation remain open.
+- `#NEXT.R8.ENTITIES.1098` — represented `Player::CheckAreaExploreAndOutdoor`
+  now performs the C++ `CONFIG_VMAP_INDOOR_CHECK` aura-removal branch when a
+  represented `WorldObject::IsOutdoors()` value is available (not
+  manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:6195-6204`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:3985-3994`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:445-446`,
+  `/home/server/woltk-trinity-legacy/src/server/game/World/World.cpp:1550`,
+  `/home/server/woltk-trinity-legacy/src/server/game/World/World.h:145`, and
+  `/home/server/woltk-trinity-legacy/src/server/worldserver/worldserver.conf.dist:444-449`.
+  Rust now wires `vmap.enableIndoorCheck` through the C++ world-config registry
+  into `SessionResources` / `WorldSession`, anchors
+  `SPELL_ATTR0_ONLY_INDOORS` and `SPELL_ATTR0_ONLY_OUTDOORS`, and removes
+  represented visible auras via `SpellStore::has_attribute0_like_cpp` before the
+  `areaId == 0` early return, matching the C++ branch order. Coverage:
+  `cargo fmt --all --check`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-data
+  spell_effect_constants_match_cpp_shared_defines --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  check_area_explore_removes_indoor_outdoor_auras_like_cpp --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  check_area_explore_indoor_outdoor_removal_is_config_gated_like_cpp --lib`;
+  focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p
+  world-server vmap_indoor_check_uses_cpp_world_config_key --bin
+  world-server`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p
+  world-server`; `git diff --check`. Boundary remains partial: real
+  VMAP-derived `WorldObject::IsOutdoors`, terrain/vmap coordinate-to-area
+  recomputation, `UpdateArea` / `UpdateZone` runtime side effects beyond represented criteria, full aura runtime
+  ownership, live-client/bot validation, and manual validation remain open.
+- `#NEXT.R8.ENTITIES.1093` — represented `characters.exploredZones`
+  load/save is now wired through the C++ `Player::LoadFromDB` /
+  `Player::SaveToDB` low/high 32-bit word string format (not
+  manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:17292-17295,19437-19572`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:142-143,2193`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/CharacterDatabase.cpp:98,435,441`.
+  Rust now parses malformed tokens as zero, ignores tokens beyond
+  `PLAYER_EXPLORED_ZONES_SIZE`, serializes every block as `uint32(low)` then
+  `uint32(high)` with the C++ trailing spaces, keeps a session snapshot that
+  seeds canonical `Player` reconstruction, updates that snapshot when
+  first-login `StartAllExplored` fills all blocks, and writes the represented
+  value through focused `UPD_CHAR_EXPLORED_ZONES`. Coverage: `cargo fmt --all
+  --check`; focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test
+  -p wow-entities explored_zones --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-database
+  explored_zones --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  explored_zones --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo
+  check -p world-server`; `git diff --check`. Boundary remains partial: live
+  area exploration runtime (`CheckAreaExploreAndOutdoor`), achievement/criteria
+  consumers, full monolithic `CHAR_UPD_CHARACTER` parity, bot validation,
+  live-client validation, and manual validation remain open.
+- `#NEXT.R8.ENTITIES.1092` — represented first login now applies the C++
+  `CONFIG_START_ALL_EXPLORED` / `Player::AddExploredZones` branch (not
+  manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CharacterHandler.cpp:1304-1309`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:142-143,2193`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:19437-19572`.
+  C++ loops `PLAYER_EXPLORED_ZONES_SIZE` and applies
+  `UI64LIT(0xFFFFFFFFFFFFFFFF)` to each `ExploredZones` block before the
+  first-login reputation branch. Rust now represents
+  `ActivePlayerData::ExploredZones[240]`, marks the C++ parent/child update
+  bits for `AddExploredZones(pos, mask)`, bridges the u64 blocks into
+  `UpdateObject` active-player updates, and fills all 240 blocks when
+  `PlayerStart.MapsExplored` is enabled after `AT_LOGIN_FIRST` removal.
+  Coverage: `cargo fmt --all --check`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-entities
+  explored_zones --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  first_login_start_all_explored --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  bridges_active_player_explored_zones --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
+  cargo check -p world-server`; `git diff --check`. Boundary remains partial:
+  live `characters.exploredZones` load/save string serialization through full
+  `Player::LoadFromDB` / `Player::SaveToDB`, bot validation, live-client
+  validation, and manual validation remain open.
+- `#NEXT.R8.ENTITIES.1091` — represented first login now applies the C++
+  `CONFIG_START_ALL_REP` branch (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CharacterHandler.cpp:1313-1367`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Reputation/ReputationMgr.cpp:515-590`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Reputation/ReputationMgr.cpp:136-180`.
+  C++ hardcodes a common faction list plus Alliance/Horde branches, calls
+  `SetOneFactionReputation(..., 42999, false)`, then sends
+  `repMgr.SendState(nullptr)`. Rust now mirrors that represented branch after
+  `AT_LOGIN_FIRST` removal when `PlayerStart.AllReputation` is enabled: it uses
+  the exact faction ids, calls the existing `ReputationMgrLikeCpp`
+  `set_one_faction_reputation_like_cpp` with `incremental=false`, allows the
+  manager to clamp through `GetMaxReputation` (typically 42000), and emits one
+  aggregate `SetFactionStanding` packet. Coverage: `cargo fmt --all --check`;
+  focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p
+  wow-world first_login_start_all_reputation --lib`;
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p
+  world-server`; `git diff --check`. Boundary remains partial: first-login
+  PlayerInfo create-mode cast spells, `CONFIG_START_ALL_EXPLORED` /
+  `AddExploredZones`, full `character_reputation` persistence through
+  `Player::SaveToDB`, live-client validation, bot validation, and manual
+  validation remain open.
+- `#NEXT.R8.ENTITIES.1090` — represented session config now carries the C++
+  first-login player-start toggles (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CharacterHandler.cpp:1304-1367`,
+  `/home/server/woltk-trinity-legacy/src/server/game/World/World.cpp:1570-1571`,
+  `/home/server/woltk-trinity-legacy/src/server/game/World/World.h:147-148`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26563-26575`.
+  C++ first login checks `CONFIG_START_ALL_EXPLORED` and
+  `CONFIG_START_ALL_REP` after removing `AT_LOGIN_FIRST`. Rust now wires
+  `PlayerStart.MapsExplored` and `PlayerStart.AllReputation` from
+  `worldserver.conf` through `WorldSessionResources` into the represented
+  `WorldSession` snapshot, and updates the config registry rows from
+  `missing_in_rust` to represented config wiring. Coverage: `cargo fmt --all
+  --check`; focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test
+  -p world-server player_start_explored_and_reputation_use_cpp_world_config_keys
+  --bin world-server`; focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
+  cargo test -p wow-world
+  player_start_config_snapshot_defaults_and_setters_match_cpp_keys --lib`;
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p
+  world-server`; `git diff --check`. Boundary remains partial:
+  first-login `AddExploredZones`, `SetOneFactionReputation` faction list,
+  reputation `SendState`, `exploredZones`/`character_reputation` persistence,
+  live-client validation, bot validation, and manual validation remain open.
+- `#NEXT.R8.ENTITIES.1089` — represented login now applies the C++
+  `AT_LOGIN_FIRST` flag-removal boundary after reset-spells/reset-talents (not
+  manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CharacterHandler.cpp:1296-1303`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26563-26575`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:539`.
+  C++ calls `RemoveAtLoginFlag(AT_LOGIN_FIRST)` with the default
+  `persist=false`, then applies first-login create-mode cast spells and optional
+  start-all-explored/start-all-reputation config branches. Rust now removes only
+  the represented in-memory `AT_LOGIN_FIRST` bit at the same at-login-request
+  stage and intentionally records no persistent at-login DB update boundary.
+  Coverage: `cargo fmt --all --check`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  first_login_flag_removal_is_not_persisted_like_cpp --lib`;
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`;
+  `git diff --check`. Boundary remains partial: `PlayerInfo::castSpells`,
+  `CONFIG_START_ALL_EXPLORED`, `CONFIG_START_ALL_REP`, reputation `SendState`,
+  live DB persistence through full `Player::SaveToDB`, live-client validation,
+  bot validation, and manual validation remain open.
+- `#NEXT.R8.ENTITIES.1088` — represented login now applies the C++
+  `AT_LOGIN_RESET_PET_TALENTS` pre-pet-load DB block (not
+  manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CharacterHandler.cpp:1259-1269`,
+  `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/CharacterDatabase.cpp:683-684`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:538`.
+  C++ executes `CHAR_DEL_ALL_PET_SPELLS_BY_OWNER`, then
+  `CHAR_UPD_PET_SPECS_BY_OWNER`, before loading/resummoning pets. Rust now
+  executes the matching `DEL_ALL_PET_SPELLS_BY_OWNER` and
+  `UPD_PET_SPECS_BY_OWNER` statements before loading represented
+  `character_pet` rows, mirrors the represented state by clearing loaded pet
+  spells and zeroing pet specializations, and intentionally leaves
+  `AT_LOGIN_RESET_PET_TALENTS` set because this C++ block does not call
+  `RemoveAtLoginFlag`. Coverage: `cargo fmt --all --check`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  login_pet_talent_reset_clears_pet_spells_and_specs_without_clearing_flag_like_cpp
+  --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p
+  world-server`; `git diff --check`. Boundary remains partial: full live
+  `Pet::LoadPetFromDB` reload semantics, pet talent/spell packet fanout, pet
+  cooldown/charge cleanup outside this exact C++ block, full pet
+  specialization runtime, live-client validation, bot validation, and manual
+  validation remain open. C++ appears to leave this at-login flag set in the
+  handler; Rust mirrors that rather than silently fixing it.
+- `#NEXT.R8.ENTITIES.1087` — represented login now applies
+  `AT_LOGIN_RESET_SPELLS` before `AT_LOGIN_RESET_TALENTS`, matching the C++
+  at-login request order (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CharacterHandler.cpp:1282-1293`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:23733-23761`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:535`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/Language.h:257-262`,
+  and `/home/server/woltk-trinity-legacy/sql/old/3.0.9/01351_world.sql:169`.
+  C++ checks `AT_LOGIN_RESET_SPELLS`, calls `ResetSpells()`, removes the
+  at-login flag with `persist=true`, removes the copied `PlayerSpellMap`, then
+  sends `LANG_RESET_SPELLS` ("Your spells have been reset."). Rust now clears
+  only the represented reset-spells bit, records the persistent at-login
+  removal boundary, removes the current represented known-spell snapshot, and
+  sends the localized Trinity string when available with the C++ English text
+  as fallback. Coverage: `cargo fmt --all --check`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  login_at_login_reset_spells_removes_known_spells_and_notifies_like_cpp
+  --lib`; focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test
+  -p wow-world login_at_login_reset_talents_resets_without_cost_like_cpp
+  --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p
+  world-server`; `git diff --check`. Boundary remains partial:
+  `LearnDefaultSkills`, `LearnCustomSpells`, `LearnQuestRewardedSpells`,
+  `myClassOnly` reset filtering, full `SpellMgr::IsSpellValid`,
+  live `character_spell` DB deletion/reinsert transaction parity, live DB
+  execution of the at-login flag update, live-client validation, bot
+  validation, and manual validation remain open.
+- `#NEXT.R8.ENTITIES.1086` — represented login now applies
+  `AT_LOGIN_RESET_TALENTS` through the C++ `ResetTalents(true)` path after
+  the initial talent-data packet (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CharacterHandler.cpp:1282-1293`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3505-3562`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/Language.h:259-262`,
+  and `/home/server/woltk-trinity-legacy/sql/old/3.0.9/01351_world.sql:170`.
+  C++ checks `AT_LOGIN_RESET_TALENTS` during player login, calls
+  `ResetTalents(true)`, resends `SendTalentsInfoData`, and sends
+  `LANG_RESET_TALENTS` ("Your talents have been reset."). Rust now hydrates
+  `characters.at_login` from `SEL_CHARACTER`, applies a represented no-cost
+  talent reset after the login sequence, clears only the reset-talents bit,
+  removes active talent side effects, sends the second represented talent-data
+  packet, and sends the localized Trinity string when available with the C++
+  English text as fallback. Coverage: `cargo fmt --all --check`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  login_at_login_reset_talents_resets_without_cost_like_cpp --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  confirm_respec --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo
+  check -p world-server`; `git diff --check`. Boundary remains partial:
+  `AT_LOGIN_RESET_SPELLS` is closed by `#NEXT.R8.ENTITIES.1087`;
+  `AT_LOGIN_RESET_PET_TALENTS` is closed by `#NEXT.R8.ENTITIES.1088`;
+  `AT_LOGIN_FIRST`,
+  live DB execution of the at-login flag update, full `ScriptMgr`, full
+  `Player::SaveToDB` talent/spell transaction parity, live-client validation,
+  bot validation, and manual validation remain open.
+- `#NEXT.R8.ENTITIES.1085` — represented `Player::ResetTalents`
+  now records the initial C++ script hook and removes
+  `AT_LOGIN_RESET_TALENTS` before the money gate (not manual-test-ready).
+  Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3505-3511,26563-26575`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:531-536`,
+  `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/CharacterDatabase.cpp:444-445`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CharacterHandler.cpp:1282-1293`.
+  C++ calls `sScriptMgr->OnPlayerTalentsReset(this, noCost)`, then
+  removes `AT_LOGIN_RESET_TALENTS` with `persist=true` if present, and only
+  afterwards enters the money gate. Rust now records represented script-hook
+  evidence with `no_cost=false`, clears only the reset-talents at-login bit,
+  and records the persistent DB statement boundary before represented cost
+  application. Coverage: `cargo fmt --all --check`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  confirm_respec --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo
+  check -p world-server`; `git diff --check`. Boundary remains partial:
+  `ScriptMgr` dispatch is represented evidence only, `CHAR_UPD_REM_AT_LOGIN_FLAG`
+  execution is represented rather than live DB execution, login-time
+  `ResetTalents(true)`/notification flow, remaining pet/spec/glyph reset
+  branches, trait override paths, full runtime aura/cast ownership,
+  live-client validation, bot validation, and manual validation remain open.
+- `#NEXT.R8.ENTITIES.1084` — represented `Player::ResetTalents` now
+  performs the C++ active-pet removal branch before removing talents (not
+  manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:20871-20939,3505-3562`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Pet/PetDefines.h:40-48`.
+  C++ checks the money gate, then calls
+  `RemovePet(nullptr, PET_SAVE_NOT_IN_SLOT, true)` before iterating the active
+  talent map. Rust now clears represented active-pet state, resets
+  `PetStable::CurrentPetIndex`, and removes the typed pet from the canonical
+  map when present; failed money gates leave the pet untouched. Coverage:
+  `cargo fmt --all --check`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  confirm_respec --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo
+  check -p world-server`; `git diff --check`. Boundary remains partial: reagent return,
+  exact `Pet::SavePetToDB`, pet spell packet/group update side effects,
+  pet/spec/glyph reset branches beyond the active-pet removal, trait override
+  paths, full runtime aura/cast ownership, live-client validation, bot
+  validation, and manual validation remain open.
+- `#NEXT.R8.ENTITIES.1083` — represented `CMSG_CONFIRM_RESPEC_WIPE` now
+  records the C++ untalent visual spell cast after successful
+  `Player::ResetTalents` and `SendTalentsInfoData` (not manual-test-ready).
+  Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SkillHandler.cpp:54-82`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3505-3562`.
+  C++ returns if `ResetTalents()` fails; otherwise it sends talents and calls
+  `unit->CastSpell(_player, 14867, true)`. Rust now records represented cast
+  evidence with trainer caster GUID, player target GUID, spell id `14867`, and
+  `triggered=true` immediately after the represented talent-data packet.
+  Coverage: `cargo fmt --all --check`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  confirm_respec --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo
+  check -p world-server`; `git diff --check`. Boundary remains partial: this is cast
+  evidence only, not full `Spell::CastSpell` execution/fanout; active-pet
+  removal was closed later by `#NEXT.R8.ENTITIES.1084`, while remaining
+  pet/spec/glyph reset branches, trait override paths, full achievement/quest criteria manager
+  persistence, full runtime aura/cast ownership, live-client validation, bot
+  validation, and manual validation remain open.
+- `#NEXT.R8.ENTITIES.1082` — represented `CMSG_CONFIRM_RESPEC_WIPE` now
+  removes fake-death before attempting `Player::ResetTalents`, matching the
+  C++ handler order (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SkillHandler.cpp:54-82`.
+  C++ checks `UNIT_STATE_DIED`, calls
+  `RemoveAurasByType(SPELL_AURA_FEIGN_DEATH)`, and only then calls
+  `ResetTalents`; therefore fake-death is removed even when `ResetTalents`
+  later returns false. Rust now calls the existing represented
+  `remove_represented_feign_death_if_needed_like_cpp` seam immediately after
+  the trainer/type/class gate and before represented talent-load/cost/reset
+  gates. Coverage: focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  confirm_respec --lib`; `cargo fmt --all --check`;
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`.
+  Boundary remains partial: visual spell 14867 cast evidence was closed later by
+  `#NEXT.R8.ENTITIES.1083`; pet/spec/glyph reset
+  branches, trait override paths, full achievement/quest criteria manager
+  persistence, full runtime aura/cast ownership, live-client validation, bot
+  validation, and manual validation remain open.
+- `#NEXT.R8.ENTITIES.1081` — represented `Creature::CanResetTalents` now
+  enforces the C++ trainer-class match for `CMSG_CONFIRM_RESPEC_WIPE`
+  (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Creature/Creature.cpp:1311-1315`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SkillHandler.cpp:54-82`.
+  Rust now loads `creature_template.trainer_class`, carries it through
+  creature lifecycle records, loaded-grid template resolution, canonical/legacy
+  `WorldCreature` runtime metadata, represented NPC interaction access, and the
+  represented respec gate. This mirrors C++ `player->GetLevel() >= 15 &&
+  player->GetClass() == GetCreatureTemplate()->trainer_class`: a trainer with
+  the trainer NPC flag but a mismatched class now rejects the represented talent
+  reset before cost/money/talent mutation. Coverage: focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  confirm_respec --lib`; focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc
+  cargo test -p wow-data
+  creature_template_lifecycle_store_preserves_cpp_field_mapping_and_vehicle_id
+  --lib`; focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p
+  world-server loaded_grid_db_backed_builder_maps_spawn_template_runtime_like_cpp
+  --bin world-server`; `cargo fmt --all --check`;
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`.
+  Boundary remains partial: fake-death aura removal was closed later by
+  `#NEXT.R8.ENTITIES.1082`; visual spell 14867 cast evidence was closed later by
+  `#NEXT.R8.ENTITIES.1083`;
+  pet/spec/glyph reset branches, trait override paths, full achievement/quest
+  criteria manager persistence, full runtime aura/cast ownership,
+  live-client validation, bot validation, and manual validation remain open.
+- `#NEXT.R8.ENTITIES.1080` — represented `Player::ResetTalents` now records
+  the two C++ criteria updates for talent respecs (not manual-test-ready).
+  Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3505-3562`,
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DBCEnums.h:525-526`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Achievements/CriteriaHandler.cpp:1255-1256,1350-1366`.
+  Rust now records represented `MoneySpentOnRespecs(cost)` followed by
+  `TotalRespecs(1)` after represented `ModifyMoney`, matching the C++ order.
+  When `NoResetTalentsCost` is enabled, C++ still enters the final `!noCost`
+  block with `cost == 0`, so Rust records zero-cost criteria and updates
+  `TalentResetCost`/`TalentResetTime`; the events are skipped only when the
+  insufficient-money gate returns early. Coverage: focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world confirm_respec --lib`;
+  `cargo fmt --all --check`;
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`;
+  `git diff --check`. Boundary remains partial: trainer class matching was closed later
+  by `#NEXT.R8.ENTITIES.1081`; fake-death aura removal, visual spell 14867 cast, pet/spec/glyph reset branches, trait
+  override paths, full achievement/quest criteria manager persistence,
+  full runtime aura/cast ownership, live-client validation, bot validation, and
+  manual validation remain open.
+- `#NEXT.R8.ENTITIES.1079` — represented `CMSG_CONFIRM_RESPEC_WIPE` now
+  consumes C++ `CONFIG_NO_RESET_TALENT_COST` / `NoResetTalentsCost` for talent
+  reset cost application (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/World/World.cpp:1579`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellEffects.cpp:2271`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:13764`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3515`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/worldserver/worldserver.conf.dist:3420-3425`.
+  Rust now resolves the flag through `WorldConfigSet`, carries it through
+  `SessionResources`, stores it on `WorldSession`, and skips only the
+  represented money gate when it is enabled; C++ still applies the final
+  zero-cost reset accounting/time mutation because `noCost` is false for the
+  represented trainer reset path. Coverage:
+  focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p
+  wow-world confirm_respec_wipe_respects_no_reset_talent_cost_config_like_cpp
+  --lib`; focused `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p
+  world-server no_reset_talent_cost_uses_cpp_world_config_key`; `cargo fmt
+  --all --check`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check
+  -p world-server`; `git diff --check`. Boundary remains partial: confirm
+  visual cost display, criteria updates were closed later by
+  `#NEXT.R8.ENTITIES.1080`,
+  trainer class matching, fake-death aura removal, visual spell 14867 cast,
+  pet/spec/glyph reset branches, trait override paths, full runtime aura/cast
+  ownership, live-client validation, bot validation, and manual validation
+  remain open.
+- `#NEXT.R8.ENTITIES.1078` — represented login/save now persists
+  `Player::SetTalentResetCost` / `SetTalentResetTime` state for talent respec
+  pricing (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:17080-17192`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:17661-17662`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:19409-19410`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:19539-19540`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/CharacterDatabase.cpp:95-96,431-439`.
+  Rust now reads `resettalents_cost` / `resettalents_time` from the C++
+  `SEL_CHARACTER` column order during login and saves the represented fields
+  through a focused `UPD_CHAR_TALENT_RESET_STATE` statement during represented
+  `Player::SaveToDB`. Coverage: `cargo fmt --all --check`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  character_talent_reset_state_save_statement_matches_cpp_bind_order --lib`;
+  focused `cargo test -p wow-database character_save_statements_match_cpp_sql_exactly`.
+  Boundary remains partial: this is a focused represented save seam rather than
+  full `CHAR_UPD_CHARACTER` bind-order parity, criteria updates were closed
+  later by `#NEXT.R8.ENTITIES.1080`, trainer class matching, fake-death aura removal, visual
+  spell 14867 cast, pet/spec/glyph reset branches, trait override paths, full
+  runtime aura/cast ownership, live-client validation, bot validation, and
+  manual validation remain open.
+- `#NEXT.R8.ENTITIES.1077` — represented `CMSG_CONFIRM_RESPEC_WIPE` now
+  mirrors the C++ `Player::ResetTalents` money gate and reset-cost mutation
+  before removing talents (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SkillHandler.cpp:54-82`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3472-3503`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3505-3562`,
+  `/home/server/woltk-trinity-legacy/src/common/Common.h:33-34`, and
+  `/home/server/woltk-trinity-legacy/src/server/worldserver/worldserver.conf.dist:3420-3425`.
+  Rust now computes `GetNextResetTalentsCost` with the exact 1g/5g/10g,
+  +5g capped at 50g, and -5g-per-30-day-month minimum-10g branches, rejects
+  insufficient money with `BUY_ERR_NOT_ENOUGHT_MONEY` before `RemoveTalent`,
+  deducts represented player money on success, and stores represented
+  `TalentResetCost` / `TalentResetTime` for the next reset. Coverage:
+  `cargo fmt --all`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  confirm_respec --lib`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  represented_next_reset_talents_cost_matches_cpp_branches --lib`. Boundary
+  remains partial: DB load/save of `resettalents_cost` /
+  `resettalents_time` was closed later by `#NEXT.R8.ENTITIES.1078`, and
+  `CONFIG_NO_RESET_TALENT_COST` wiring was closed later by
+  `#NEXT.R8.ENTITIES.1079`, but
+  criteria updates (`MoneySpentOnRespecs`, `TotalRespecs`), trainer class
+  matching, fake-death aura removal, immediate DB transaction save, visual spell
+  14867 cast, pet/spec/glyph reset branches, trait override paths, full runtime
+  aura/cast ownership, live-client validation, bot validation, and manual
+  validation remain open.
+- `#NEXT.R8.ENTITIES.1076` — represented `CMSG_CONFIRM_RESPEC_WIPE` now runs a
+  bounded `Player::ResetTalents -> RemoveTalent` side-effect seam for the
+  active talent group after the represented trainer/level gates pass (not
+  manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SkillHandler.cpp:54-82`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:2694-2718`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3505-3562`.
+  Rust now removes active-group represented talents, removes the active talent
+  spell plus direct `SPELL_EFFECT_LEARN_SPELL` triggers, removes the matching
+  represented override-spell pair via `RemoveOverrideSpell`, refreshes
+  `CharacterPoints`, keeps coherent talent-save state loaded, records the
+  accepted respec request, and sends `UpdateTalentData` after a successful
+  represented reset. Coverage: `cargo fmt --all --check`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  confirm_respec --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo
+  test -p wow-world learn_talent --lib`. Boundary remains partial: represented
+  money/cost mutation was closed later by `#NEXT.R8.ENTITIES.1077`, but trainer
+  class matching, fake-death aura removal, criteria mutation, immediate DB
+  transaction save, visual spell 14867 cast, pet/spec/glyph reset branches,
+  trait override paths, full runtime aura/cast ownership,
+  live-client validation, bot validation, and manual validation remain open.
+- `#NEXT.R8.ENTITIES.1075` — represented player spell casts now consume the
+  represented `Player::m_overrideSpells` map through a C++-ordered
+  `Player::GetCastSpellInfo` seam (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28590-28615`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:29194-29205`.
+  Rust keeps the original requested spell for the active/known-spell gate, then
+  resolves the effective spell from represented overrides before disabled,
+  cooldown, cast-time, pending-cast, and `SMSG_SPELL_GO` handling. Invalid
+  override targets fall back to the original spell like C++
+  `sSpellMgr->GetSpellInfo(...) == nullptr`. Coverage: `cargo fmt --all
+  --check`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  cast_spell_uses_represented_override_spell_info_like_cpp --lib`;
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world
+  cast_spell_falls_back_when_represented_override_missing_like_cpp --lib`.
+  Boundary remains partial: represented `RemoveTalent`/respec override removal
+  was closed later by `#NEXT.R8.ENTITIES.1076`, but trait override paths remain
+  open, Rust uses deterministic `BTreeSet` iteration for represented overrides
+  while C++ stores an unordered set, full
+  `Unit::GetCastSpellInfo` / trigger-flag mutation is not represented, exact
+  create-item/reagent spell validity, full runtime aura ownership/cast
+  side-effects, real resolved `CMSG_LEARN_TALENTS` dispatch, preview/pet talent
+  handlers, live-client validation, bot validation, and manual validation
+  remain open.
+- `#NEXT.R8.ENTITIES.1074` — represented `Player::LearnTalent` now mirrors
+  the C++ `Player::AddTalent` `AddOverrideSpell` side effect for active talent
+  learns (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:2644-2690`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28590-28615`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:1778-1780`.
+  Rust now represents `Player::m_overrideSpells` as a per-session
+  `overridenSpellId -> replacement SpellID` set and records the pair when a
+  learned active talent has `OverridesSpellID`. Coverage:
+  `cargo fmt --all --check`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world learn_talent --lib`.
+  Boundary remains partial: cast-time `Player::GetCastSpellInfo` consumption was
+  closed later by `#NEXT.R8.ENTITIES.1075`, and represented
+  `RemoveTalent`/respec override removal was closed later by
+  `#NEXT.R8.ENTITIES.1076`, but trait override paths, exact
+  create-item/reagent spell validity, full runtime aura ownership/cast
+  side-effects, real resolved `CMSG_LEARN_TALENTS` dispatch, preview/pet talent
+  handlers, live-client validation, bot validation, and manual validation remain
+  open.
+- `#NEXT.R8.ENTITIES.1073` — represented `Player::LearnTalent` now mirrors
+  the C++ `Player::AddTalent(..., learning=true)` `ChangeTalent` aura
+  interruption side effect (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:2644-2690`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellDefines.h:111-128`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:4076-4109`.
+  Rust now defines `SPELL_AURA_INTERRUPT_FLAG2_CHANGE_TALENT_LIKE_CPP =
+  0x00004000` and removes represented visible auras carrying that
+  `aura_interrupt_flags2` bit after a successful runtime talent learn, while
+  unrelated auras survive. Coverage: `cargo fmt --all --check`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world learn_talent --lib`.
+  Boundary remains partial: exact create-item/reagent spell validity, full
+  runtime aura ownership/cast side-effects, real resolved `CMSG_LEARN_TALENTS`
+  dispatch, preview/pet talent handlers, live-client validation, bot
+  validation, and manual validation remain open. Override spell registration
+  was closed later by `#NEXT.R8.ENTITIES.1074`.
+- `#NEXT.R8.ENTITIES.1072` — represented `Player::LearnTalent` now mirrors
+  the first `Player::AddTalent` spell side effects and the representable
+  `SpellMgr::IsSpellValid` learn-spell branch (not manual-test-ready). Source
+  of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:2644-2690`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:2966-2971`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellMgr.cpp:140-230`.
+  Rust now recursively rejects talent spells whose
+  `SPELL_EFFECT_LEARN_SPELL` trigger chain points at a missing spell, learns
+  the active talent spell into the represented known-spell set, learns direct
+  `SPELL_EFFECT_LEARN_SPELL` triggers for that spell, and on rank upgrades
+  removes the previous rank spell plus its direct learn-spell triggers before
+  learning the new rank. Coverage: `cargo fmt --all`; focused
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world learn_talent --lib`.
+  Boundary remains partial: `SpellMgr::IsSpellValid` create-item,
+  create-loot, `ItemType`, reagent, and full item-template branches are not
+  closed because the represented `SpellInfo` surface does not yet carry all
+  required C++ data; full runtime `LearnSpell` cast side effects, override
+  spells, real resolved `CMSG_LEARN_TALENTS` dispatch, preview/pet talent
+  handlers, live-client validation, bot validation, and manual validation remain
+  open. `ChangeTalent` aura interruption was closed later by
+  `#NEXT.R8.ENTITIES.1073`.
+- `#NEXT.R8.ENTITIES.1071` — represented `Player::LearnTalent` now enforces
+  C++ free talent points and recomputes `CharacterPoints` after successful
+  learns (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26042-26135`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:2344-2360`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26316-26364`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:28688-28705`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Stores.cpp:2432-2450`.
+  Rust now loads `NumTalentsAtLevel.db2`, wires it into `WorldSession`,
+  mirrors `UF::ActivePlayerData::CharacterPoints` through
+  `SessionPlayerController`, rejects `LearnTalent` when no free points are
+  available or the C++ `neededTalentPoints` value exceeds available points,
+  computes base points from level/class plus represented quest reward talent
+  points, subtracts active-group spent talent ranks, and serializes
+  `UpdateTalentData.UnspentTalentPoints` from the represented active-player
+  field like C++ `SendTalentsInfoData`. The existing-rank upgrade cost mirrors
+  the inspected legacy expression `(currentRank - requestedRank) + 1`; if that
+  is later treated as a C++ bug, it must be fixed deliberately in both design
+  notes and behavior. Coverage: `cargo fmt --all --check`;
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world learn_talent --lib`;
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world character_talent --lib`;
+  `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`.
+  Boundary remains partial: `SpellMgr::IsSpellValid` learn-spell recursion and
+  first `AddTalent` spell side effects were closed later by
+  `#NEXT.R8.ENTITIES.1072`, but exact create-item/reagent parity, real resolved
+  `CMSG_LEARN_TALENTS` dispatch, preview/pet talent handlers, live-client
+  validation, bot validation, and manual validation remain open.
+- `#NEXT.R8.ENTITIES.1070` — represented `Player::LearnTalent` now enforces
+  C++ existing-rank, prereq-rank, and tier-spent gates before mutating the
+  represented active talent group (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26068-26110`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Structure.h:3915-3932`.
+  Rust now separates gameplay learn validation from DB row load, so
+  `character_talent` loading stays order-independent while live
+  `CMSG_LEARN_TALENT` rejects already-known/higher ranks, unmet prereq talent
+  ranks, and higher-tier talents without the required 5 points per lower tier
+  in the same tree. Coverage: focused `wow-world learn_talent` tests cover the
+  new reject/accept transitions, focused `wow-world character_talent` tests
+  verify DB load/save still works with the TalentTab gate, and `world-server`
+  compile verifies the data-store surface. Boundary remains partial:
+  represented `Player::LearnTalent` still needs exact `SpellMgr::IsSpellValid`
+  parity, real `CMSG_LEARN_TALENTS` opcode resolution/dispatch, preview/pet
+  talent handlers, live-client validation, bot validation, and manual
+  validation; character-points/free-point spending and talent-point
+  recomputation were closed later by `#NEXT.R8.ENTITIES.1071`.
+- `#NEXT.R8.ENTITIES.1069` — represented `Player::LearnTalent` now enforces
+  the C++ `TalentTab` existence and class-mask gates before mutating the active
+  represented talent group (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26042-26067`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Stores.cpp:322`.
+  Rust now loads `TalentTab.db2`, wires `TalentTabStore` into world sessions,
+  rejects missing talent tabs, rejects talents whose tab `ClassMask` does not
+  intersect the player's C++ class mask, and continues to reject out-of-range
+  requested ranks / empty spell ranks before sending `UpdateTalentData`.
+  Coverage: focused `wow-world learn_talent` tests cover success plus missing
+  tab, wrong class, unloaded snapshot, and out-of-range rank rejections;
+  `world-server` compile verifies the new DB2 store wiring. Boundary remains
+  partial: represented `Player::LearnTalent` still needs character-points,
+  exact `SpellMgr::IsSpellValid` parity, talent-point recomputation,
+  live-client validation, bot validation, and manual validation; existing-rank,
+  prereq, and tier-spent gates were closed later by `#NEXT.R8.ENTITIES.1070`.
+- `#NEXT.R8.ENTITIES.1068` — represented runtime `CMSG_LEARN_TALENT` now
+  parses, dispatches, and mutates the coherent represented active talent group;
+  `CMSG_LEARN_TALENTS` has its C++ payload parser/handler covered but remains
+  deliberately unregistered because the inspected C++ opcode table still uses
+  the shared unresolved `0xBADD` placeholder (not manual-test-ready). Source of
+  truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SkillHandler.cpp:29-41`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TalentPackets.cpp:81-92`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TalentPackets.h:62-68,150-158`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26042-26123`.
+  Rust now reads `LearnTalent` as C++ `int32 TalentID` + `uint16
+  RequestedRank`, reads `LearnTalents` as `ReadBits(6)` + repeated `uint16`
+  talent ids, registers/dispatches only the resolved `CMSG_LEARN_TALENT`
+  opcode, applies successful learns to the represented active talent group, and
+  sends `UpdateTalentData` after each successful learn like
+  `SendTalentsInfoData`. Boundary remains partial:
+  full `Player::LearnTalent` validation still needs character-points,
+  exact spell-validity, talent-point recomputation, preview/pet talent
+  handlers, live-client validation, bot validation, and manual validation;
+  `TalentTab` class-mask gates were closed later by `#NEXT.R8.ENTITIES.1069`,
+  and existing-rank/prereq/tier gates by `#NEXT.R8.ENTITIES.1070`.
+- `#NEXT.R8.ENTITIES.1067` — represented `Player::SaveToDB` now persists
+  `character_talent` from the coherent represented talent snapshot (not
+  manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:19635-19650`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26798-26825`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/CharacterDatabase.cpp:578,614`.
+  Rust now follows the C++ save shape for represented talents: delete all
+  `character_talent` rows for the character and reinsert each loaded valid
+  `{ talentId, rank, talentGroup }` from all 4 specialization groups, directly
+  after glyph save in the represented save pipeline. If the `character_talent`
+  load failed, Rust skips the delete-all save instead of risking data loss from
+  an incoherent snapshot. Coverage: focused `wow-world character_talent`
+  load/save tests and compile checks. Boundary remains partial: runtime
+  learn/reset/respec mutation, exact `PLAYERSPELL_REMOVED` state transitions,
+  exact `SpellMgr::IsSpellValid` parity, unspent talent point calculation,
+  live client validation, bot validation, and manual validation remain open.
+- `#NEXT.R8.ENTITIES.1066` — represented character talent load and
+  `UpdateTalentData` login surface now use `character_talent` instead of
+  serializing empty talent vectors (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26316-26363`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26397-26608`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26646-26656`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TalentPackets.cpp:34-82`.
+  Rust now wires `Talent.db2` into sessions, loads `character_talent`, filters
+  unknown talent ids, invalid groups/ranks, empty `SpellRank` entries, and
+  missing `SpellInfo` rows when the spell store is available, then serializes
+  the loaded `{ talentId, rank }` pairs into each C++ talent group alongside
+  the glyph ids closed in `#NEXT.R8.ENTITIES.1065`. Audit note: C++ trusts DB
+  enough to index `SpellRank[rank]`; Rust intentionally rejects out-of-range
+  ranks instead of panicking on corrupt rows. Coverage: focused `wow-world`
+  talent load/packet tests, focused `wow-packet` `UpdateTalentData` packet
+  tests, and compile checks. Boundary remains partial: `character_talent`
+  save, runtime learn/reset/respec mutation, exact `SpellMgr::IsSpellValid`
+  parity, unspent talent point calculation, live client validation, bot
+  validation, and manual validation remain open.
+- `#NEXT.R8.ENTITIES.1065` — represented character glyph load/save and
+  login packet surface now use `character_glyphs` instead of hard-coded empty
+  talent glyphs (not manual-test-ready). Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:23499-23508`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26316-26363`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26596-26646`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TalentPackets.cpp:44-82,139-152`.
+  Rust now loads `character_glyphs`, filters invalid talent groups, glyph
+  slots, and `GlyphProperties.db2` misses, sends loaded glyph ids through
+  `UpdateTalentData`, saves the coherent represented glyph table by
+  delete+24 inserts like C++ `_SaveGlyphs`, and skips save if the table failed
+  to load. Important audit note: current
+  `/home/server/woltk-trinity-legacy` validates `talentGroup` but then calls
+  `SetGlyph(glyphSlot, glyphId)`, which writes only the active group; archived
+  TC refs (`/home/server/archived/woltk-trinity-core`) load into the row's
+  talent group. Rust intentionally follows the coherent row-group behavior to
+  avoid porting that legacy C++ bug. Coverage: focused `wow-packet` glyph
+  packet tests, focused `wow-world` glyph load/save/bonus-group tests, and
+  `world-server` check. Boundary remains partial: full talent loading/saving,
+  glyph bindable-spell mapping for non-empty `ActiveGlyphs`, runtime glyph
+  learn/remove mutation, live client validation, bot validation, and manual
+  validation remain open.
+- `#NEXT.R8.ENTITIES.1061` — mount and disconnect-save triage instrumentation
+  added for the current live-client blockers (not manual-test-ready). Source
+  of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:7890-7985`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/CollectionMgr.cpp:330-408`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:19329-19635`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MovementHandler.cpp:312-430`.
+  Rust now exposes the C++-ordered `Unit::GetMountCapability` rejection reason
+  through represented mount checks, so a real client cast will say whether the
+  failure is riding skill, area mount flags, liquid state, map/area/aura,
+  known-spell, or missing data. Disconnect position persistence already had
+  movement->snapshot unit coverage; it now logs the affected row count and the
+  saved map/instance/zone/coordinates, so a live disconnect test can distinguish
+  "movement never reached session state" from "DB update affected zero rows" or
+  a normal successful save. Coverage: focused `wow-data` capability filter test,
+  focused `wow-world` mount-capability session-state test, and focused
+  movement->logout-save test. Boundary remains partial: no gameplay restriction
+  was relaxed, full `Player::SaveToDB` remains partial, transport/taxi/full
+  transaction/terrain-zone refresh gaps remain, and the mount/position fixes
+  still need live client validation against the server logs.
+- `#NEXT.R8.ENTITIES.1060` — represented `Player::SaveToDB` now persists
+  loaded `character_skills`, including Riding, across logout/disconnect saves.
+  This is the first half of the reported mount blocker: the skill gate should no
+  longer be erased by Rust save, but valid mount use still depends on account
+  mount spell data plus exact capability checks.
+- `#NEXT.R8.ENTITIES.1037` — disconnect/logout position save now persists
+  `instance_id` with the focused Rust location update (not manual-test-ready).
+  Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:552-641`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:19318-19630`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/CharacterDatabase.cpp:429-482`.
+  C++ logout calls `Player::SaveToDB` while the live player still exists, and
+  the full `CHAR_UPD_CHARACTER` save persists map, `instance_id`, difficulties,
+  position, orientation, and zone together. Rust still uses a focused
+  represented save instead of the full character update, but that focused
+  location statement now includes `instance_id` and the logout snapshot carries
+  the canonical map instance when available. Coverage: focused logout-save
+  snapshot tests plus the pinned character-position statement test. Boundary
+  remains partial: full `Player::SaveToDB` parity, teleport-delayed save,
+  transport offsets, full transaction coverage, install/restart, bot, and live
+  manual disconnect validation remain open.
+- `#NEXT.R8.ENTITIES.1036` — account-mount learning now matches C++
+  `CollectionMgr::LoadAccountMounts` / `AddMount` ordering for valid
+  `Mount.db2` source spells (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/CollectionMgr.cpp:330-386`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraEffects.cpp:2581-2665`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:7891-8018`.
+  C++ stores/keeps the account mount before applying the comment-backed rule
+  that `PlayerConditionID` only applies to using it. Rust now keeps every valid
+  account mount source spell as a known spell during login/load and leaves
+  `represented_mount_source_spell_usable_like_cpp` as the cast/capability gate
+  before mounted-aura execution. Coverage: focused mount-spell/account-mount
+  tests. Boundary remains partial: live-client mount validation, exact
+  terrain/subzone capability parity, vehicle/passenger behavior, complete aura
+  runtime/persistence, install/restart, bot, and manual client validation remain
+  open.
+- `#NEXT.R8.ENTITIES.1035` — player CREATE/DESTROY registry visibility seams
+  no longer broadcast blindly to every same-map session (not manual-test-ready).
+  Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:23193-23225`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:23285-23312`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:3586-3607`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Object/Object.cpp:237-245`.
+  C++ `Player::UpdateVisibilityOf` creates objects only when `CanSeeOrDetect`
+  passes, and destroys/out-of-ranges only when the target was at the receiver's
+  client. Rust now applies the bounded candidate part for player login/logout:
+  CREATE-to-others and receive-existing-players require in-world same
+  map/instance and `VISIBILITY_RADIUS` before direct CREATE delivery; DESTROY
+  enqueues `SendIfVisibleLikeCpp` so the receiver's session applies
+  `HaveAtClient` before sending the destroy `UpdateObject`. Coverage: focused
+  tests for create skip outside range, destroy command routing, and receiving
+  only nearby existing players. Boundary remains partial: full
+  `Player::UpdateObjectVisibility`, `CanSeeOrDetect`, phase/shared-vision,
+  farsight, exact cell traversal, `m_clientGUIDs` ownership, live two-client
+  validation, install/restart, bot, and manual client validation remain open.
+- `#NEXT.R8.ENTITIES.1034` — the shared
+  `broadcast_to_movement_set_like_cpp` helper now routes movement-set packets
+  through `SendIfVisibleLikeCpp` instead of direct same-map socket writes (not
+  manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Grids/Notifiers/GridNotifiers.h:157-191`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Grids/Notifiers/GridNotifiersImpl.h:38-46`,
+  and the movement ACK callers in
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MovementHandler.cpp:552-742`.
+  C++ `MessageDistDeliverer` skips the source object, checks distance, and then
+  applies `HaveAtClient` before packet delivery. Rust now requires a source
+  position, filters in-world same map/instance players inside
+  `VISIBILITY_RADIUS`, and enqueues non-blocking `SendIfVisibleLikeCpp`
+  commands for the receiver-side visible-set gate. Coverage: focused
+  `MoveTimeSkipped` command-routing test plus the movement handler fanout
+  suite. Boundary remains partial: exact phase/shared-vision/grid visitor
+  semantics, mounted special animation caller audit, live multi-client
+  validation, install/restart, bot, and manual client validation remain open.
+- `#NEXT.R8.ENTITIES.1033` — normal `CMSG_MOVE_*` fanout now uses the
+  existing `SendIfVisibleLikeCpp` session-command rail instead of direct socket
+  writes to every same-map player (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MovementHandler.cpp:407-430`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Object/Object.cpp:1746-1764`.
+  C++ updates the mover position, builds `SMSG_MOVE_UPDATE`, then calls
+  `mover->SendMessageToSet(..., _player)`: skip the mover's own session,
+  visit receivers within `GetVisibilityRange()`, and let the receiver-side
+  visible-set gate decide final delivery. Rust now mirrors the existing
+  teleport fanout shape for normal movement: candidate routing requires
+  in-world same map/instance and `VISIBILITY_RADIUS`, then enqueues
+  `SendIfVisibleLikeCpp` with `try_send`; the receiver session applies
+  `client_visible_guids_like_cpp` before writing bytes. Coverage: movement
+  handler tests for sanitized `MoveUpdate` routing and outside-range rejection.
+  Boundary remains partial: no live two-client validation, exact phase/grid
+  visitor parity, transport/vehicle movement edge cases, install/restart, bot,
+  or manual client validation.
+- `#NEXT.R8.ENTITIES.1032` — represented login now seeds the session's
+  zone/area state from the DB zone before gameplay casts can run (not
+  manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:23579-23581`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:7891-7988`.
+  C++ adds the player to the map, resolves `GetZoneAndAreaId`, then calls
+  `UpdateZone`, and `Unit::GetMountCapability` reads the current area mount
+  flags when validating mounted spells. Rust already sent the DB zone in login
+  packets, but left the represented session zone/area at `0/0`; ground mounts
+  with a non-zero `MountTypeID` could then fail capability checks with
+  `SPELL_FAILED_NOT_HERE`. Rust now seeds `(zone, area)` as `(db_zone, db_zone)`
+  until TerrainMgr/subzone resolution is ported. Coverage: focused mount
+  capability regression test. Boundary remains partial: exact terrain-backed
+  C++ subzone resolution, install/restart, bot, and live-client/manual
+  validation remain open.
+- `#NEXT.R8.ENTITIES.1031` — timed logout completion now preserves the loaded
+  represented player identity until the session loop reaches the disconnect
+  save path (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:244-279`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:552-641`.
+  C++ `WorldSession::LogoutPlayer(true)` saves while `_player` still exists
+  and only removes/clears the player afterwards. Rust `complete_logout()` no
+  longer clears `player_guid` or returns the session to `Authed`; it sends
+  `SMSG_LOGOUT_COMPLETE` and marks the session `Disconnecting`, letting the
+  existing `save_disconnect_player_to_db_like_cpp()` persist live position,
+  level/xp, money, difficulties, played time, reputation, and account
+  collections with the player still loaded. Coverage: focused timed-logout
+  regression test plus existing movement/logout-save snapshot and disconnect
+  cleanup tests. Boundary remains partial: full C++ character-select-after-
+  logout semantics are still represented as disconnect-first, and live-client/
+  bot validation remains open.
+- `#NEXT.R8.ENTITIES.1030` — `CMSG_CANCEL_CAST` now also cancels the represented
+  pending spell cast request after interrupting the matching active cast, like
+  C++ (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SpellHandler.cpp:258-270`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:29112-29126`.
+  C++ `WorldSession::HandleCancelCastOpcode` calls
+  `Player::CancelPendingCastRequest()` only after `IsNonMeleeSpellCast(false)`
+  succeeds and the interrupt path runs. Rust now mirrors that represented
+  ordering: mismatched/no-active cancel-cast requests leave pending unchanged,
+  while matching active-cast cancellation clears `active_spell_cast`, cancels
+  the represented pending request, and emits the pending request's
+  `SMSG_CAST_FAILED` with `SPELL_FAILED_DONT_REPORT`. Coverage: focused
+  `cancel_cast` tests for matching cancel, mismatch preservation, pending
+  cancellation, and pending preservation on mismatch. Boundary remains partial:
+  full current-spell slot parity, canonical `Unit::InterruptNonMeleeSpells`
+  integration, vehicle/creature casting units, install/restart, bot, and
+  live-client/manual validation remain open.
+- `#NEXT.R8.ENTITIES.1029` — represented spell queueing now also honors the
+  C++ active-cast remaining-time window (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:29127-29143`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SpellHandler.cpp:228-270`.
+  C++ `Player::CanRequestSpellCast` rejects a new spell when either global
+  cooldown or the current melee/generic spell has more than 400 ms remaining,
+  and allows queueing inside that final window. Rust now computes represented
+  `active_spell_cast` remaining time, includes it in
+  `can_request_represented_spell_cast_like_cpp`, rejects requests outside that
+  window with `SPELL_FAILED_SPELL_IN_PROGRESS`, and keeps pending requests from
+  executing until both represented GCD and active cast are clear. Coverage:
+  focused handler tests for active-cast outside-window rejection and
+  near-finish queue/execution after `tick_active_spell_cast`. Boundary remains
+  partial: channeled spell exception, separate melee/generic spell slots,
+  item-cast pending requests, vehicle/creature casting units, full `Spell::prepare`,
+  full `SpellHistory`, install/restart, bot, and live-client/manual validation
+  remain open.
+- `#NEXT.R8.ENTITIES.1028` — `CMSG_CAST_SPELL` now uses the represented
+  pending spell cast request for the C++ spell queue window around global
+  cooldown (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SpellHandler.cpp:228-270`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:29101-29354`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:1559,1594`.
+  C++ rejects spell requests when `CanRequestSpellCast` sees more than 400 ms
+  remaining on global cooldown/current cast, queues them inside that final
+  window, and executes the pending request once `CanExecutePendingSpellCastRequest`
+  becomes true. Rust now exposes the same 400 ms GCD queue decision for the
+  represented player-caster path: requests outside the window fail with
+  `SPELL_FAILED_SPELL_IN_PROGRESS`, requests inside the window populate
+  `represented_pending_spell_cast_request_like_cpp`, and
+  `tick_pending_spell_cast_request_like_cpp` executes the queued request once
+  represented global cooldown reaches zero. Coverage: focused handler tests for
+  outside-window rejection and inside-window queue/execution. Boundary remains
+  partial: current cast remaining-time queueing, item-cast pending requests,
+  vehicle/creature casting units, full `Spell::prepare`, full `SpellHistory`,
+  install/restart, bot, and live-client/manual validation remain open.
+- `#NEXT.R8.ENTITIES.1027` — `CMSG_CANCEL_QUEUED_SPELL` now clears a
+  represented pending spell cast request like C++ `Player::CancelPendingCastRequest`
+  (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SpellHandler.cpp:228-270`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:29101-29126`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellCastRequest.h:33-43`.
+  C++ keeps the queued spell request separate from the current spell slot, and
+  cancelling the queued spell sends `SMSG_CAST_FAILED` for the pending request
+  with `SPELL_FAILED_DONT_REPORT` before clearing only that pending pointer.
+  Rust now has a minimal represented `Player::_pendingSpellCastRequest` shape
+  on `WorldSession`, `handle_cancel_queued_spell` cancels that queue without
+  touching `active_spell_cast`, and focused tests verify the exact CastFailed
+  cast id/spell id/reason plus the silent no-pending case. Boundary remains
+  partial: `handle_cast_spell` still does not create/execute the pending
+  request via C++ `RequestSpellCast`/`ExecutePendingSpellCastRequest`,
+  item-cast pending requests are not represented, and there is no install,
+  restart, bot, or live-client/manual validation claim.
+- `#NEXT.R8.ENTITIES.1026` — `CMSG_CAST_SPELL` now parses and applies
+  the optional embedded `MoveUpdate` like C++ (not manual-test-ready).
+  Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/SpellPackets.cpp:216-261`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SpellHandler.cpp:228-270`.
+  C++ reads `SpellCastRequest::MoveUpdate` before `SpellWeights`, then
+  `WorldSession::HandleCastSpellOpcode` applies it via
+  `HandleMovementOpcode(CMSG_MOVE_STOP, *MoveUpdate)` after `SpellInfo`
+  validation and before the cast request continues. Rust now stores
+  `CastSpellRequest::move_update`, parses it before spell weights, extracts
+  movement handling into `handle_movement_info_like_cpp`, and applies the
+  embedded movement from `handle_cast_spell` through the same movement path.
+  Coverage: focused `wow-packet` parser tests prove the move update is read
+  before weights, focused `wow-world` handler test proves the embedded movement
+  updates the session position, plus affected-crate checks. Boundary remains
+  partial: this is CMSG cast/movement parity only; full `Spell` engine,
+  complete `Spell::CheckCast`, multi-session movement fanout/runtime map
+  ownership, install/restart, bot, and live-client/manual validation remain
+  open.
+- `#NEXT.R8.ENTITIES.1025` — represented
+  `CMSG_CLIENT_PORT_GRAVEYARD` now parses the C++ empty packet through the
+  shared unresolved `0xBADD` slot and applies the C++ alive/ghost gates before
+  the represented `RepopAtGraveyard` seam (not manual-test-ready).
+  Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MiscHandler.cpp:360-365`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.h:356-362`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:353`.
+  C++ returns unless the player is dead and has `PLAYER_FLAGS_GHOST`, then
+  calls `Player::RepopAtGraveyard()`. Rust now models the empty packet as
+  `PortGraveyard`, routes it from the existing `0xBADD` branch by zero-length
+  payload, and increments the existing represented graveyard-repop counter only
+  for dead ghost players. Coverage: focused `wow-packet` parser test and
+  focused `wow-world` handler tests for dead-ghost repop, alive/not-ghost
+  no-op, and non-empty payload fallthrough. Boundary remains partial: shared
+  `0xBADD` remains unresolved globally, full graveyard selection/teleport,
+  corpse runtime, arena rejection, DB persistence, install/restart, bot, and
+  live-client/manual validation remain open.
+- `#NEXT.R8.ENTITIES.1024` — `CMSG_CANCEL_AURA` now covers the
+  represented non-channeled `RemoveOwnedAura` branch for single-effect generic
+  owned auras (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SpellHandler.cpp:272-297`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:462`.
+  C++ returns for missing `SpellInfo`, `SPELL_ATTR0_NO_AURA_CANCEL`,
+  channeled spell handling, non-positive spells, and passive spells before
+  removing the owned aura by spell id and caster GUID. Rust now exposes
+  `SpellStore::is_passive_like_cpp`, keeps the passive gate in the packet
+  handler, and makes the represented remove helper enforce the missing-spell,
+  no-aura-cancel, channeled, passive, spell-id, and caster-GUID gates before it
+  removes a single-effect generic represented aura. Coverage: focused
+  `generic_owned_aura_cancel` tests and the broader `cancel_aura` test filter.
+  Boundary remains partial: full `SpellInfo::IsPositive()` DB2 parity is still
+  not represented, full `Aura`/`AuraApplication` remove-mode side effects are
+  not ported, multi-effect generic aura grouping remains open, and there is no
+  install/restart, bot, or live-client/manual validation claim.
+- `#NEXT.R8.ENTITIES.1023` — disconnect teardown now mirrors the C++
+  `WorldSession` destructor account-online cleanup (not manual-test-ready).
+  Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:155-186,552-670`.
+  C++ calls `LogoutPlayer(true)` if a player is still attached, then marks
+  `auth.account.online = 0` when the session object is destroyed. Rust already
+  had a character disconnect-save path, but hard session teardown did not clear
+  the login account online flag per session. Rust now executes
+  `UPDATE account SET online = 0 WHERE id = ?` on disconnect, including the
+  no-current-player case, and logs successful character/account offline saves
+  so the next live test can verify the path after EOF. Coverage: targeted
+  `wow-database` SQL statement test plus affected-crate check. Boundary remains
+  partial: this is disconnect account-state cleanup and observability, not a
+  full `LogoutPlayer(true)` port, full `Player::SaveToDB`, install/restart, bot,
+  or live-client/manual validation claim.
+- `#NEXT.R8.ENTITIES.1022` — `CMSG_CAST_SPELL` parsing now matches the C++
+  optional-currency layout used by `SpellCastRequest`: `SpellExtraCurrencyCost`
+  is `CurrencyID` + `Count`, not the crafting-reagent shape with
+  `Quantity`/optional byte bit (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/SpellPackets.cpp:198-211,216-261`
+  and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/SpellPackets.h:226-240,242-257`.
+  Live logs showed mount attempts failing before gameplay validation with
+  `Failed to parse CMSG_CAST_SPELL: read past end of packet`; the Rust parser
+  was consuming too much data when `OptionalCurrencies` was non-empty, which
+  desynced the subsequent SendCastFlags/target block. Coverage: targeted
+  `wow-packet` cast parser regression and the existing `wow-world` mount test
+  filter. Boundary remains partial: this is protocol layout parity only, not a
+  full Spell::CheckCast, aura runtime, vehicle/passenger mount parity,
+  install/restart, bot, or live-client/manual validation claim.
+- `#NEXT.R8.ENTITIES.1021` — represented mount casts now cover the C++
+  `Unit::IsDisallowedMountForm` `GetTransformSpell()` allowance branch for
+  represented active transform auras (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:8813-8852`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraEffects.cpp:1945-1948,2129-2130`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.h:1529-1530`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:455`.
+  C++ checks the current transform spell first and returns mount-allowed when
+  that spell has `SPELL_ATTR0_ALLOW_WHILE_MOUNTED`, before checking shapeshift
+  form or transformed display/model/race. Rust now anchors that attr0 bit,
+  detects active represented `SPELL_AURA_TRANSFORM` auras as the session-local
+  transform spell source, and allows the mount cast in that case even when the
+  transformed display would otherwise be rejected. Coverage: targeted
+  `wow-data` constant test, targeted `wow-world` allow-while-mounted transform
+  test, transformed-display regressions, and affected-crate `cargo check`.
+  Boundary remains partial: no full C++ transform apply/remove lifecycle,
+  `m_transformSpell` priority/replacement semantics, display update/fanout
+  parity, vehicle/passenger mount parity, install/restart, bot, or
+  live-client/manual validation.
+- `#NEXT.R8.ENTITIES.1020` — represented mount casts now cover the C++
+  `Unit::IsDisallowedMountForm` transformed-display/model/race branch after the
+  active shapeshift-form gate (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:8813-8852`,
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Structure.h:919-1012`,
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2LoadInfo.h:1258-1270`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DBCEnums.h:267-276,385-393`.
+  C++ allows native display, rejects missing display/display-extra rows, then
+  rejects transformed models only when `CreatureModelDataFlags::CanMountWhileTransformedAsThis`
+  is absent and the transformed race also lacks `ChrRacesFlag::CanMount`.
+  Rust now persists `CreatureDisplayInfo::ExtendedDisplayInfoID` and
+  `CreatureModelData::Flags`, loads/injects `CreatureDisplayInfoExtra.db2`,
+  reads canonical typed-player display/native-display IDs, sends
+  `SMSG_MOUNT_RESULT` shapeshifted for the disallowed transformed-display case,
+  and allows the model/race-permitted case. Coverage: targeted `wow-data`,
+  `wow-packet`, and `wow-world` tests plus affected-crate `cargo check`.
+  Boundary remains partial: transform-spell `ALLOW_WHILE_MOUNTED` is represented
+  by `#NEXT.R8.ENTITIES.1021`, but there is still no full transform apply/remove
+  runtime, vehicle/passenger mount parity,
+  install/restart, bot, or live-client/manual validation.
+- `#NEXT.R8.ENTITIES.1019` — represented mount casts now cover the C++
+  `Spell::CheckCast` disallowed shapeshift-form branch for active
+  `SPELL_AURA_MOD_SHAPESHIFT` auras (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Spell.cpp:4639-4651,6590-6620`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/SpellPackets.h:1012-1022`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/SpellPackets.cpp:1001-1007`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:8053-8066`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:8813-8852`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DBCEnums.h:1949-1970`.
+  C++ sends `SMSG_MOUNT_RESULT` with `MountResult::Shapeshifted = 8` before
+  returning `SPELL_FAILED_DONT_REPORT`, so no normal `SMSG_CAST_FAILED` should
+  be sent for this branch. Rust now serializes `MountResult`, detects active
+  represented shapeshift auras whose `SpellShapeshiftFormEntry` lacks the
+  `Stance` flag, sends result 8, and stops without `CastFailed`; stance forms
+  are explicitly allowed. Coverage: packet serializer test plus targeted
+  `wow-world` tests for disallowed and allowed stance forms. Boundary remains
+  partial: C++ transform-spell `ALLOW_WHILE_MOUNTED`, display/native-display,
+  CreatureDisplayInfoExtra/ModelData, and ChrRaces `CanMount` branches are not
+  represented yet; no full shapeshift apply/remove runtime, no full
+  vehicle/passenger mount parity, no install/restart, bot, or live-client/manual
+  validation.
+- `#NEXT.R8.ENTITIES.1018` — disconnect/logout save now again prefers
+  the latest represented session movement map/position over a stale canonical
+  typed `Player` position, while keeping canonical gameplay fields such as
+  level, XP, and money (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:552-670`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:19318,19329`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:19480-19520`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:20611-20624`.
+  C++ has a single live `Player` object, so `Player::SaveToDB()` naturally
+  writes the latest accepted movement position. Rust still has split state:
+  movement packets update the represented session first and the canonical typed
+  player can lag. The save snapshot now explicitly models that split instead
+  of blindly trusting stale canonical coordinates. Coverage: the targeted
+  `logout_save_snapshot_prefers_latest_session_position_like_cpp` regression
+  test failed before this fix and passes now. Boundary remains partial: no full
+  `Player::SaveToDB` port, no far-teleport/transport/instance persistence
+  parity, no install/restart, bot, or live-client/manual validation. Mount
+  usability was also instrumented in this slice: represented mount rejection
+  branches now log account, spell, mount type/form, riding skill, map, area, or
+  water context so the next live-client attempt can identify whether the issue
+  is DB riding skill, mount capability/area data, water state, or packet flow;
+  this is diagnostic only, not a claim that live mounts are fixed.
+- `#NEXT.R8.ENTITIES.1017` — represented shapeshift mount-form casts now run
+  the C++ `SPELL_AURA_MOD_SHAPESHIFT` mount-type location gate before
+  `SMSG_SPELL_GO` (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellInfo.cpp:2110-2145`,
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Structure.h:3766-3779`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraDefines.h:131`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:7891-7987`.
+  C++ looks up `SpellShapeshiftFormEntry` from the shapeshift aura
+  `EffectMiscValue1`; when that form has a non-zero `MountTypeID`, the player
+  must pass `GetMountCapability(mountType)` or the cast fails with
+  `SPELL_FAILED_NOT_HERE`. Rust now loads `SpellShapeshiftForm.db2`, injects the
+  store into live sessions, anchors `SPELL_AURA_MOD_SHAPESHIFT = 36`, and
+  extends the represented mount `CheckCast` gate to reject shapeshift mount
+  forms before any `SpellGo` packet is sent. Coverage: targeted `wow-data`
+  constant test and targeted `wow-world` cast test prove the missing-capability
+  shapeshift mount-form branch sends `CastFailed(NotHere)`. Boundary remains
+  partial: no full shapeshift aura apply/remove runtime, no form visual/action
+  bar/stat side effects, `IsInDisallowedMountForm` is only represented for
+  active shapeshift-aura form flags (#NEXT.R8.ENTITIES.1019), no
+  transform/display/model/race branches, no full vehicle/passenger mount runtime
+  parity, no install/restart, bot, or live-client/manual validation.
+- `#NEXT.R8.ENTITIES.1016` — represented mount casts now run the C++
+  `SPELL_AURA_MOUNTED` location/cast gates before `SMSG_SPELL_GO` instead of
+  applying the mount aura whenever the source spell is known (not
+  manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellInfo.cpp:2110-2145`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Spell.cpp:6588-6610`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:1552,1579`.
+  C++ `SpellInfo::CheckLocation` resolves `MountEntry::MountTypeID` from the
+  source spell, falls back to `EffectMiscValueB`, and rejects the cast with
+  `SPELL_FAILED_NOT_HERE` when `Player::GetMountCapability(mountType)` fails;
+  `Spell::CheckCast` also rejects flying-mount spells while the caster is in
+  water with `SPELL_FAILED_ONLY_ABOVEWATER`. Rust now mirrors those two
+  represented gates in `execute_spell_with_visual_and_target_data_with_metadata`
+  using the existing `MountStore` and represented `MountCapabilityStore`
+  context before any `SpellGo` is sent. Coverage: targeted `wow-world` tests
+  prove missing mount capability sends `CastFailed(NotHere)`, flying mount in
+  water sends `CastFailed(OnlyAbovewater)`, and the existing known account mount
+  success path still applies the mounted aura. Boundary remains partial:
+  `IsInDisallowedMountForm` / `SendMountResult(Shapeshifted)` is only represented
+  for active shapeshift-aura form flags (#NEXT.R8.ENTITIES.1019), no full
+  shapeshift mount-type location gate, no full battleground/flying/zone policy
+  beyond the existing represented capability context, no full vehicle/passenger
+  mount runtime parity, no install/restart, bot, or live-client/manual
+  validation.
+- `#NEXT.R8.ENTITIES.1015` — logout/disconnect save snapshots now prefer
+  the live canonical `Player` object's map/position when it exists, matching
+  the C++ `Player::SaveToDB()` authority instead of trusting a potentially
+  stale session-local position first (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:552-641`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:19329-19402`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:20611-20623`.
+  C++ logs the player out, keeps the player object alive through save, and
+  writes `GetMapId()` plus `GetPositionX/Y/Z/O()` from that object unless a
+  teleport destination overrides it. Rust now scans canonical maps for the
+  typed player during `current_player_save_to_db_snapshot_like_cpp`; when
+  present, that object's map id, position, level, XP, and money become the
+  snapshot and are mirrored back into session state before issuing the
+  existing DB position/character saves. Coverage: targeted `wow-world` movement
+  regression test proves a stale session position is overwritten by the live
+  canonical player position before logout save. Boundary remains partial: no
+  full far-teleport destination save parity, no instance-id/difficulty
+  persistence expansion beyond existing save fields, no install/restart, bot,
+  or live-client/manual validation.
+- `#NEXT.R8.ENTITIES.1014` — represented
+  `CMSG_CANCEL_MOD_SPEED_NO_CONTROL_AURAS` now parses the C++ target GUID and
+  removes cancelable represented `SPELL_AURA_MOD_SPEED_NO_CONTROL` auras for
+  the current moved unit target (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/SpellPackets.cpp:36-39`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/SpellPackets.h:85-93`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SpellHandler.cpp:349-360`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraDefines.h:468`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:279`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.h:745`.
+  C++ reads `TargetGUID`, verifies it matches
+  `Player::GetUnitBeingMoved()`, then removes player
+  `SPELL_AURA_MOD_SPEED_NO_CONTROL` applications when their `SpellInfo` is
+  cancelable, positive, and non-passive. Rust now anchors aura type 373, adds
+  the packet parser, represents apply-aura effect rows with
+  `RepresentedAuraEffectLikeCpp::ModSpeedNoControl`, and routes the handler
+  from the existing shared unresolved `0xBADD` branch by packet shape plus
+  moved-unit GUID. Coverage: targeted `wow-data` constant test, targeted
+  `wow-packet` parser test, and targeted `wow-world` handler tests prove
+  matching mover removal, non-mover ignore, and `SPELL_ATTR0_NO_AURA_CANCEL`
+  preservation. Boundary remains partial: `0xBADD` is still a shared unresolved
+  table slot, full remote/charmed/vehicle moved-unit runtime is not present,
+  full `IsPositive`/`IsPassive` DB2 parity is not implemented beyond the
+  represented assumption, and there was no install/restart, bot, or live-client
+  validation.
+- `#NEXT.R8.ENTITIES.1013` — represented mount auras now apply and remove
+  the C++ `MountCapabilityEntry::ModSpellAuraID` speed aura instead of only
+  toggling the mounted visual/unit flag (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraEffects.cpp:2580-2648`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:7826-7872`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:8300-8360`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraDefines.h:127,225`.
+  C++ `HandleAuraMounted` calls `target->CastSpell(target,
+  mountCapability->ModSpellAuraID, this)` while applying the mount and removes
+  that same spell on dismount; `Unit::UpdateSpeed(MOVE_RUN/MOVE_FLIGHT)` then
+  uses mounted-speed aura types. Rust now anchors those aura ids, casts the
+  represented speed aura from `MountCapabilityStore` during represented mount
+  apply, recalculates represented run/flight speed rates, and removes the
+  capability speed aura when the mounted aura is removed. Coverage: targeted
+  `wow-data` constants test, targeted `wow-world` represented mount tests, and
+  movement-speed ACK tests pass. Boundary remains partial: no full
+  `Unit::UpdateSpeed` packet/fanout parity, no mounted non-stack speed branch,
+  no full mount/vehicle/passenger runtime parity, no install/restart, bot, or
+  live-client/manual validation. The disconnect-position save path was already
+  represented in `#NEXT.R8.ENTITIES.1008`; if the live server still fails to
+  persist location, the next step is DB/server tracing of the existing
+  `save_disconnect_player_to_db_like_cpp` path rather than adding duplicate save
+  logic.
+- `#NEXT.R8.ENTITIES.1012` — `CMSG_CANCEL_GROWTH_AURA` now removes
+  represented cancelable `SPELL_AURA_MOD_SCALE` auras instead of parsing the
+  opcode as a no-op (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SpellHandler.cpp:331-340`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraDefines.h:156`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:462`.
+  C++ removes player `SPELL_AURA_MOD_SCALE` applications when their
+  `SpellInfo` is cancelable, positive, and non-passive. Rust now anchors aura
+  type 61, represents apply-aura effect rows with
+  `RepresentedAuraEffectLikeCpp::ModScale`, wires `handle_cancel_growth_aura`
+  to remove that represented effect, and reuses the DB2-backed
+  `SPELL_ATTR0_NO_AURA_CANCEL` gate. `CMSG_CANCEL_AURA` also treats represented
+  `ModScale` as a bounded player-cancelable aura for spell-id/caster-guid
+  removal. Coverage: targeted `wow-data` constant test proves the aura enum
+  anchor, and targeted `wow-world` tests prove `CancelGrowthAura` removes a
+  represented scale aura while preserving `NO_AURA_CANCEL` scale auras.
+  Boundary remains partial: full `IsPositive`/`IsPassive` DB2 parity, generic
+  non-mounted/non-scale owned aura cancellation, `SPELL_AURA_MOD_SCALE_2`, the
+  separate `CMSG_CANCEL_MOD_SPEED_NO_CONTROL_AURAS` packet/opcode path,
+  install/restart, bot, and live-client/manual validation remain open.
+- `#NEXT.R8.ENTITIES.1011` — `CMSG_CANCEL_AURA` now honors the C++
+  channeled-spell branch before normal owned-aura cancellation (not
+  manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SpellHandler.cpp:272-297`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellInfo.cpp:1694-1697`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:467-470`.
+  C++ rejects missing `SpellInfo`, rejects `SPELL_ATTR0_NO_AURA_CANCEL`, then
+  for `SpellInfo::IsChanneled()` interrupts the current
+  `CURRENT_CHANNELED_SPELL` only when its spell id matches the cancelled spell
+  and returns without running the normal `RemoveOwnedAura` path. Rust now
+  exposes `SpellStore::HasAttribute(SpellAttr1)` / `is_channeled_like_cpp`
+  from DB2-backed `SpellMisc.Attributes[1]`, checks that branch in
+  `handle_cancel_aura`, and reuses the represented canonical-player
+  `interrupt_current_channeled_spell_like_cpp` path. Coverage: targeted
+  `wow-data` test proves attr1 channeled data survives the DB2 SpellStore
+  loader; targeted `wow-world` `cancel_aura` tests prove matching channeled
+  cancel clears the canonical channeled spell and active-cast mirror,
+  mismatched current channel is preserved, and `NO_AURA_CANCEL` still wins
+  before the channeled branch. Boundary remains partial: generic non-mounted
+  owned aura cancellation, full `IsPositive`/`IsPassive` DB2 parity,
+  growth/speed-no-control aura cancellation, install/restart, bot, and
+  live-client/manual validation remain open.
+- `#NEXT.R8.ENTITIES.1010` — represented cancellation paths now honor C++
+  `SPELL_ATTR0_NO_AURA_CANCEL` for DB2-backed spells (not manual-test-ready).
+  Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellInfo.cpp:1167-1182`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:462`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SpellHandler.cpp:272-386`.
+  C++ hydrates `SpellInfo::Attributes` from `SpellMiscEntry::Attributes[0]`
+  and rejects voluntary cancellation when `SPELL_ATTR0_NO_AURA_CANCEL` is set
+  in `HandleCancelAuraOpcode`, `HandleCancelMountAuraOpcode`, and
+  `HandleCancelChanneling`. Rust now keeps `SpellMisc.db2` attributes in
+  `SpellStore`, exposes the bounded `HasAttribute` attr0 gate, and applies it
+  to represented mounted aura removal and current channeled spell interruption.
+  Coverage: targeted `wow-data` test proves DB2 attributes survive the
+  SpellStore DB2 loader; `wow-world` tests prove no-aura-cancel spells preserve
+  represented mount auras, `CancelMountAura` preserves mounted state, and
+  `CancelChannelling` preserves the current channel/active cast. Boundary
+  remains partial: only attr0 no-aura-cancel consumers in the current
+  represented cancel/mount/channel paths are wired; full SpellInfo attribute
+  exposure, `IsPositive`/`IsPassive` from all DB2 sources, channeled display-flag
+  parity, growth/speed-no-control aura cancellation, install/restart, bot, and
+  live-client/manual validation remain open.
+- `#NEXT.R8.ENTITIES.1009` — `SpellStore` startup now loads the C++ spell-data
+  base from `SpellMisc.db2` and `SpellEffect.db2`, then overlays SQL hotfix
+  rows, so account mount source spells that exist in DB2 but not in
+  `hotfixes.spell_misc` / `hotfixes.spell_effect` can be cast and reach the
+  represented Mounted aura path (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellMgr.cpp:2485-2561`,
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Stores.cpp:289,299`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/CollectionMgr.cpp:324-386`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraEffects.cpp:2581-2659`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:7826-7864`.
+  C++ builds `SpellInfo` from DB2 stores before hotfixes; Rust previously used
+  the hotfix SQL spell rows only, which left real account mount spells unknown
+  or effectless when the SQL hotfix tables did not contain those spell ids. Rust
+  now hydrates represented `SpellInfo` effects from DB2 difficulty 0, keeps the
+  existing hotfix loader as an overlay, and wires `world-server` startup to the
+  DB2+hotfix loader. Coverage: targeted `wow-data` test proves a DB2-only mount
+  aura spell is loaded; targeted `wow-world` cast test proves a known account
+  mount spell applies the represented mounted aura, emits SpellGo/AuraUpdate/
+  UpdateObject, and syncs the canonical Player mount display. The full mount
+  focused suite passes. Boundary remains partial: no full
+  `SpellMgr::LoadSpellInfoStore` parity for every DB2 side table/cast-time/
+  cooldown/class-mask nuance, no full `Spell::CheckCast` environment
+  restrictions, no full vehicle/passenger mount runtime parity, no
+  install/restart, bot, or live-client/manual validation.
+- `#NEXT.R8.ENTITIES.1008` — accepted `CMSG_MOVE_*` packets now synchronize
+  the canonical map-owned Player position as well as the session/registry
+  position, so disconnect/logout save snapshots persist the last accepted
+  movement instead of falling back to a stale canonical login position (not
+  manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MovementHandler.cpp:312-430`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:19329-19630`.
+  C++ stores movement into the live mover via `mover->UpdatePosition` and
+  later `Player::SaveToDB` reads `GetPositionX/Y/Z/O`; Rust now mirrors that
+  ownership by relocating the canonical typed Player after a movement packet
+  passes GUID/position/transport validation and before logout snapshot/save.
+  Coverage: targeted `wow-world` movement test proves accepted movement
+  updates the canonical Player and the save snapshot uses the moved position.
+  Boundary remains partial: no transport/taxi/teleport position save parity,
+  no full monolithic `CHAR_UPD_CHARACTER`, no install/restart, bot, or
+  live-client/manual validation.
+- `#NEXT.R8.ENTITIES.1007` — `CMSG_PET_CANCEL_AURA` now validates
+  represented SpellInfo, canonical guardian-pet/charmed ownership, alive state,
+  and removes represented owned auras from canonical Pet/Creature records
+  instead of only parsing/logging the opcode (not manual-test-ready).
+  Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SpellHandler.cpp:300-328`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/SpellPackets.cpp:41-45`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/SpellPackets.h:95-103`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:9867-9876`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/PetPackets.cpp:176-182`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Pet/PetDefines.h:82-88`.
+  C++ checks SpellInfo, resolves `ObjectAccessor::GetCreatureOrPetOrVehicle`,
+  requires `GetGuardianPet()` or `GetCharmed()`, sends
+  `SMSG_PET_ACTION_FEEDBACK` Dead/0 when the pet is dead, then calls
+  `RemoveOwnedAura(spellId, ObjectGuid::Empty, 0, AURA_REMOVE_BY_CANCEL)`.
+  Rust now represents that bounded branch through canonical map Pet/Creature
+  records: player `control.pet_guid`/`charmed_guid` ownership gate,
+  `PetActionFeedback` serializer, and aura subsystem removal. Coverage:
+  targeted `wow-packet` feedback payload test and `wow-world` handler tests
+  prove owned pet aura removal, missing SpellInfo preserve, non-owned preserve,
+  dead feedback+preserve, and charmed creature aura removal. Boundary remains
+  partial: no full ObjectAccessor live lookup/fanout, no aura
+  scripts/procs/recalculation/update packets beyond represented aura
+  subsystem, no generic vehicle-specific payload beyond typed Creature branch,
+  no install/restart, bot, or live-client/manual validation.
+- `#NEXT.R8.ENTITIES.1006` — `CMSG_TOTEM_DESTROYED` now destroys the
+  represented canonical player totem from the requested totem slot instead of
+  only parsing/logging the opcode (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SpellHandler.cpp:396-414`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/TotemPackets.cpp:20-24`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:6102-6112`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Totem/Totem.cpp:112-116`.
+  C++ rejects remote-control state, translates the client slot by
+  `SUMMON_SLOT_TOTEM`, rejects slots `>= MAX_TOTEM_SLOT`, reads the player's
+  `m_SummonSlot`, checks `ObjectAccessor::GetCreature`, requires `IsTotem`, and
+  accepts either an empty requested GUID or an exact GUID match before
+  `DespawnOrUnsummon`; totem unsummon clears the owner's totem summon slot.
+  Rust now represents that canonical player branch by reading the typed
+  player's summon slot in the current canonical map instance, validating the
+  typed creature is a totem and the optional requested GUID matches, removing
+  the creature from the canonical map, and clearing the same player summon slot.
+  Coverage: targeted `wow-world` handler tests prove matching and empty-GUID
+  requests despawn and clear the slot, while mismatched GUID, remote-control
+  state, out-of-range slot, and non-totem creature requests preserve both the
+  creature and summon slot. Boundary remains partial: no full legacy
+  `TempSummon`/`Totem::DespawnOrUnsummon` lifecycle, no object update/fanout
+  packet delivery for nearby clients, no spell aura cleanup beyond existing map
+  removal behavior, install/restart, bot, or live-client/manual validation.
+- `#NEXT.R8.ENTITIES.1005` — `CMSG_CANCEL_CHANNELLING` now interrupts the
+  represented canonical player `CURRENT_CHANNELED_SPELL` when the requested
+  channel spell id matches, instead of only parsing/logging the opcode (not
+  manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SpellHandler.cpp:374-393`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:3008-3032`.
+  C++ resolves `_player->GetUnitBeingMoved()`, rejects remote-controlled
+  players, checks `SpellInfo`, rejects `SPELL_ATTR0_NO_AURA_CANCEL`, requires a
+  matching `CURRENT_CHANNELED_SPELL`, and calls `InterruptSpell`. Rust now
+  checks represented `SpellInfo` existence, represents the player-owned
+  channeled current-spell branch by checking the canonical typed player's
+  `CurrentSpellSlot::Channeled`, interrupts only on exact spell-id match, and
+  clears the session `active_spell_cast` mirror only when that canonical channel
+  was actually interrupted. Coverage: targeted `wow-world` tests prove matching
+  channel cancel clears the canonical channel and active-cast mirror, while
+  mismatched, zero spell, and missing-spellinfo requests preserve both states and
+  stay silent. Boundary remains partial: no moved creature/vehicle unit branch,
+  no remote-controlled player rejection beyond the represented player boundary,
+  no `SPELL_ATTR0_NO_AURA_CANCEL` validation because the minimal Rust
+  `SpellInfo` used here does not yet expose that attr0 bit, no channel
+  aura/dynamic-object cleanup, install/restart, bot, or live-client/manual
+  validation.
+- `#NEXT.R8.ENTITIES.1004` — login now sends account-mount-learned spells in
+  the initial `SMSG_SEND_KNOWN_SPELLS` packet instead of using the pre-mount
+  DB/DBC spell snapshot (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/CollectionMgr.cpp:324-386`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:6059-6066`.
+  C++ `CollectionMgr::AddMount(..., learned=false)` inserts the account mount
+  and teaches `mount->SourceSpellID` when the mount is usable for the player;
+  the loaded player then owns that spell during login. Rust already learned
+  usable account mount spells into the represented session, but
+  `send_login_sequence` still received the stale `known_spells` local captured
+  before account mounts were applied, so the client could see the mount
+  collection while not receiving the castable mount spell in the login spell
+  list. Rust now builds login known spells from `self.known_spells_like_cpp()`
+  after account collections mutate the session. Coverage: targeted
+  `wow-world` test proves a usable account mount spell is included in the
+  login-known spell list and an unusable condition-filtered mount is not.
+  Boundary remains partial: full live-client mount validation, mount
+  `Spell::CheckCast` environment restrictions, full vehicle/passenger mount
+  runtime parity, install/restart, bot, and manual validation remain open.
+- `#NEXT.R8.ENTITIES.1003` — disconnect save now prefers the latest
+  represented session movement position over a stale canonical `Player`
+  position when building the `CHAR_UPD_CHARACTER_POSITION` snapshot (not
+  manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:552-670`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:20611-20624`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/CharacterDatabase.cpp:481`.
+  C++ has one live `Player` object whose position is updated by movement and
+  then saved by `Player::SaveToDB`/`SavePositionInDB` during logout. Rust has a
+  split runtime: movement packets update the represented session immediately,
+  while the canonical typed `Player` can lag behind. The previous snapshot
+  preferred canonical position, which could write the login/old coordinates on
+  disconnect. Rust now keeps canonical level/xp/money when present but uses the
+  latest represented session map/position for the position save. Coverage:
+  targeted `wow-world` test proves a moved represented session saves the moved
+  coordinates even when the canonical player remains at the login position.
+  Boundary remains partial: full `Player::SaveToDB` parity, canonical movement
+  sync, transport/taxi/instance positioning, install/restart, bot, and manual
+  validation remain open.
+- `#NEXT.R8.ENTITIES.1002` — `CMSG_SELF_RES` now consumes represented
+  `ActivePlayerData::SelfResSpells` entries and delegates the accepted spell to
+  the existing represented spell-effect runtime instead of only parsing/logging
+  the opcode (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SpellHandler.cpp:416-430`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:24763-24786`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:2753-2760`.
+  C++ silently returns when the requested spell is not present in
+  `SelfResSpells`, when `SpellInfo` is missing, or when prevent-resurrection
+  aura rules block the spell; otherwise it casts the self-res spell on the
+  player and removes that spell from `SelfResSpells`. Rust now represents the
+  `SelfResSpells` set on `WorldSession`, checks membership before casting,
+  calls `execute_spell(spell_id, player_guid)` so `SPELL_EFFECT_SELF_RESURRECT`
+  handles health/power updates, and removes the represented entry only after a
+  successful cast. Coverage: targeted `wow-world` handler tests prove unlisted
+  spells stay silent, listed spells resurrect and are removed, and missing
+  `SpellInfo` keeps the represented self-res spell. Boundary remains partial:
+  no update-field fanout for `ActivePlayerData::SelfResSpells`, no
+  `InitializeSelfResurrectionSpells` aura/passive/cooldown population, no
+  `SPELL_AURA_PREVENT_RESURRECTION` / `SPELL_ATTR7_BYPASS_NO_RESURRECT_AURA`
+  gate, install/restart, bot, or live-client/manual validation.
+- `#NEXT.R8.ENTITIES.1001` — `CMSG_CANCEL_AURA` now removes matching
+  represented player-cancelable mounted auras by `spell_id` and caster GUID,
+  instead of only parsing/logging the packet (not manual-test-ready).
+  Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SpellHandler.cpp:272-297`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/SpellPackets.cpp:24-28`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:3604-3613`.
+  C++ reads `SpellID` + `CasterGUID`, validates `SpellInfo`
+  (`NO_AURA_CANCEL`, channeled branch, positive, non-passive), and then calls
+  `RemoveOwnedAura(spellId, casterGuid, 0, AURA_REMOVE_BY_CANCEL)`, where an
+  empty caster GUID is a wildcard. Rust now mirrors the represented
+  `RemoveOwnedAura` matching semantics for locally modeled player-cancelable
+  `Mounted` auras: spell id must match, non-empty caster must match, empty
+  caster matches any represented caster, and removal reuses `remove_aura`.
+  Coverage: targeted `wow-world` handler tests prove matching cancel removes
+  the represented mount aura, a different caster preserves it, and an unmatched
+  cancel stays silent. Boundary remains partial: full `SpellInfo` validation,
+  channeled-spell interrupt handling, generic owned aura cancellation,
+  non-mounted aura types, install/restart, bot, and live-client/manual
+  validation remain open.
+- `#NEXT.R8.ENTITIES.1000` — `CMSG_CANCEL_MOUNT_AURA` now removes represented
+  mounted auras through the existing dismount cleanup path instead of parsing
+  the packet as a no-op (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/SpellHandler.cpp:340-348`.
+  C++ handles the opcode by removing `SPELL_AURA_MOUNTED` applications when
+  their `SpellInfo` is cancelable, positive, and non-passive. Rust now connects
+  the handler to `remove_represented_mount_auras_cancelable_like_cpp`, which
+  removes represented `Mounted` aura slots and reuses `remove_aura` so mount
+  display, vehicle kit, pet-control, collision-height, unit-flag, and aura
+  update side effects stay in one place. Coverage: targeted `wow-world` test
+  proves a represented mounted aura is removed, the mounted flag is cleared,
+  and a second cancel removes nothing. Boundary remains partial: Rust
+  `AuraApplication` still does not carry full `SpellInfo` cancelability/passive
+  metadata, so this closes the represented player-cancelable mount path only;
+  no full aura runtime parity, install/restart, bot, or live-client/manual
+  validation.
+- `#NEXT.R8.ENTITIES.999` — WotLK account mount loading now learns usable
+  mount source spells on the represented player, so mounts loaded from
+  account-wide collection state are no longer rejected as unknown spells by the
+  cast path (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/CollectionMgr.cpp:324-380`.
+  C++ loads account mounts through `CollectionMgr::LoadAccountMounts` /
+  `LoadMounts` and calls `AddMount(..., learned=false)`, which teaches the
+  mount spell when the mount source spell is usable for the player and the
+  player does not already know it. Rust now mirrors that represented boundary
+  when account mounts are set or known spells are replaced, filtering through
+  the existing MountStore + PlayerCondition usability seam before calling
+  `learn_known_spell_like_cpp`. Coverage: targeted `wow-world` tests prove a
+  usable account mount spell becomes cast-known and the existing condition
+  filter still rejects unusable sources. Boundary remains partial: no live
+  `CollectionMgr` packet fanout/persistence proof beyond the existing account
+  collection save path, no full mount runtime parity, install/restart, bot, or
+  live-client/manual validation.
+- `#NEXT.R8.ENTITIES.998` — WotLK disconnect cleanup now saves the represented
+  player's current state, including the canonical character position update,
+  before session teardown (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:552-670`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:20611-20624`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/database/Database/Implementation/CharacterDatabase.cpp:481`.
+  C++ `WorldSession::LogoutPlayer(save=true)` calls `Player::SaveToDB` before
+  removing the player, and `Player::SavePositionInDB` binds map, zone,
+  position, orientation, taxi path, guid, and world instance to
+  `CHAR_UPD_CHARACTER_POSITION`. Rust now calls the represented disconnect-save
+  wrapper when the world-session loop exits, preserving logout/buyback cleanup,
+  account collection saves, offline marking, and the exact position bind order.
+  Coverage: targeted `wow-world` tests prove the position SQL bind order and
+  logout snapshot use canonical player state. Boundary remains partial:
+  complete C++ `Player::SaveToDB` parity is still open, including full
+  inventory/spells/quests/mail/social/pet/state persistence, install/restart,
+  bot, and live-client/manual validation.
+- `#NEXT.RUNTIME.L3.031j81` — WotLK `Player::TeleportTo` now exits the
+  represented vehicle-passenger state before the common movement reset and
+  teleport branch selection (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:1282-1283`
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:12069-12079`.
+  C++ calls `ExitVehicle()` directly when `m_vehicle` is present, after the
+  disabled-map/battleground/expansion gates and before movement reset; this is
+  not the same as a client-requested vehicle exit seat-permission gate. Rust now
+  clears the represented passenger seat fields and republishes registry state at
+  that point. Coverage: targeted `wow-world` tests prove same-map teleport
+  forces vehicle exit even from a non-exit `CAN_ATTACK` seat before
+  `SMSG_MOVE_TELEPORT`, while the client-expansion abort still preserves
+  vehicle state because C++ returns before `ExitVehicle`. Boundary remains
+  partial: no real control-vehicle aura removal, `_ExitVehicle` relocation
+  spline, mounted-duel flee on vehicle exit, live vehicle base mutation,
+  transport passenger removal, install/restart, bot, or live-client/manual
+  validation.
+- `#NEXT.RUNTIME.L3.031j80` — WotLK `Player::TeleportTo` now applies the
+  C++ common movement-state reset before both same-map and far-map teleport
+  branches (not manual-test-ready). Source-of-truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:1274-1277`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/UnitDefines.h:405-407`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Object/MovementInfo.h:134`.
+  C++ masks movement flags to `MOVEMENTFLAG_MASK_HAS_PLAYER_STATUS_OPCODE`
+  before the DK far-branch abort, `Map::PlayerCannotEnter`, delayed teleports,
+  same-map near teleport packet emission, or far-transfer setup. Rust now does
+  the same represented flag mask in `WorldSession::teleport_to`, preserving
+  `DISABLE_GRAVITY`, `ROOT`, `CAN_FLY`, `WATER_WALK`, `FALLING_SLOW`, `HOVER`,
+  and `DISABLE_COLLISION` while clearing transient moving/falling/flying/spline
+  flags. Coverage: targeted `wow-world` tests prove same-map near teleport
+  masks flags before `SMSG_MOVE_TELEPORT`, and the unescaped-DK abort still
+  masks flags while returning before `SMSG_TRANSFER_PENDING`. Boundary remains
+  partial: Rust has no represented player `MovementInfo::jump`, player
+  `DisableSpline`, or `MotionMaster::Remove(EFFECT_MOTION_TYPE)` state in this
+  teleport path yet, so those C++ reset side effects remain open alongside
+  transport/vehicle/duel cleanup, install/restart, bot, and live-client/manual
+  validation.
 - `#NEXT.RUNTIME.L3.031j79` — WotLK `Player::TeleportTo` now clears the
   selected target on accepted far teleports at the C++ `SetSelection(ObjectGuid::Empty)`
   point (not manual-test-ready). Source-of-truth:
@@ -3576,3 +7184,335 @@ C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entit
 Implemented Rust seam: `wow_data::MapDifficultyEntry` now preserves the localized `message` string from `MapDifficulty.db2`. `WorldSession::access_requirement_abort_like_cpp` now checks the effective downscaled `MapDifficulty` row and returns `TRANSFER_ABORT_DIFFICULTY` with the requested difficulty when that message is non-empty, matching the C++ report branch. Existing empty-message behavior remains `TRANSFER_ABORT_ERROR` for level/item/quest/achievement failures, and `MapDifficultyXCondition` still sends difficulty abort with the failed condition id.
 
 Validation evidence: `cargo test -p wow-data map_difficulty --lib`, `cargo test -p wow-world canonical_access_requirement --lib`, `cargo test -p wow-instances map_db2_entries --lib`, and `cargo check -p wow-data -p wow-instances -p wow-world -p world-server` passed. New focused `wow-world` test covers a min-level access failure with non-empty `MapDifficulty::Message` producing `SMSG_TRANSFER_ABORTED { transfer_abort: TRANSFER_ABORT_DIFFICULTY, arg: requested_difficulty, map_difficulty_x_condition_id: 0 }`. Remaining gaps: exact `quest_failed_text` sysmessage, missing-item notification, level-min notification, leader achievement loading/resolution, broader portal/teleport call-sites, full `InstanceScript` lifecycle, and live client/bot/manual-test validation.
+
+### #NEXT.RUNTIME.L3.031j38 — teleport preflight new-instance farm-limit abort
+
+Status: bounded `Map::PlayerCannotEnter` / `Player::TeleportTo` parity for the account instance farm-limit gate when the target instance does not exist yet; not full portal/runtime validation and not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:1237-1361` calls `Map::PlayerCannotEnter(mapid, this)` before `SMSG_TRANSFER_PENDING`; `/home/server/woltk-trinity-legacy/src/server/game/Maps/Map.cpp:1806-1814` computes `instanceIdToCheck = sMapMgr->FindInstanceIdForPlayer(mapid, player)`, checks an existing bound map when present, and then applies `Player::CheckInstanceCount(instanceIdToCheck)` even when no map instance has been materialized yet.
+
+Implemented Rust seam: `WorldSession::player_cannot_enter_target_map_like_cpp` now extracts the `MapKey` from either `CreateMapDecision::Existing` or `CreateMapDecision::Create` and applies the represented `CheckInstanceCount` probe to that key. Previously this preflight only rejected the farm-limit gate inside the `Existing` branch, while `ensure_canonical_world_map_for_current_player_like_cpp` already handled both create/existing paths. The new helper keeps the check read-only for teleport preflight: it does not create the target map, does not store a pending teleport, and does not send `SMSG_TRANSFER_PENDING` when the C++ gate rejects.
+
+Validation evidence: `cargo test -p wow-world teleport_to_instance_rejects_new_instance_farm_limit_before_transfer_like_cpp --lib`; `cargo test -p wow-world teleport_to_instance --lib`; `cargo test -p wow-world instance_count --lib`. Remaining gaps: broader portal/teleport call-site audit beyond the represented `teleport_to` path, full `InstanceScript` lifecycle, and live client/bot/manual-test validation.
+
+### #NEXT.R8.ENTITIES.1038 — mounted speed change packets
+
+Status: bugfix-partial for represented mount runtime; not full mount/vehicle parity and not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraEffects.cpp:2581-2668` applies `SPELL_AURA_MOUNTED`, resolves `MountCapabilityEntry::ModSpellAuraID`, and applies mounted speed auras. `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:7891-8018` resolves mount capability from player state. `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:8460-8522` implements `Unit::SetSpeedRate`: clamp to `0.01f`, early-return if unchanged, increment player `m_forced_speed_changes[mtype]`, send `SMSG_MOVE_SET_*_SPEED` to the controlled player, and broadcast `SMSG_MOVE_UPDATE_*_SPEED` to the movement set.
+
+Implemented Rust seam: represented mounted speed recompute now uses a `SetSpeedRate`-like helper for Run and Flight rates instead of silently updating `movement_speed_rates_like_cpp`. On rate change it increments the represented forced-speed counter, serializes dynamic-opcode `MoveSetSpeed` to the player, and broadcasts dynamic-opcode `MoveUpdateSpeed` through the existing visibility-gated movement-set helper. `wow-packet` now has dynamic-opcode writers for `MoveSetSpeed` and `MoveUpdateSpeed`.
+
+Validation evidence: `cargo fmt --check`; `cargo test -p wow-world represented_mount_capability -- --nocapture`; `cargo test -p wow-world represented_mount_removal_removes_capability_speed_aura_like_cpp -- --nocapture`; `cargo check -p wow-packet -p wow-world`. Remaining gaps: live client/manual validation of mounting, full terrain/subzone capability parity, full vehicle/passenger behavior, complete aura runtime, and install/restart/bot validation.
+
+### #NEXT.R8.ENTITIES.1039 — mounted not-stack speed bonus parity
+
+Status: bugfix-partial for represented mount speed math; not full `Unit::UpdateSpeed` parity and not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:8294-8455` implements `Unit::UpdateSpeed`: mounted ground speed uses `SPELL_AURA_MOD_MOUNTED_SPEED_ALWAYS` as the stacking multiplier, `SPELL_AURA_MOD_MOUNTED_SPEED_NOT_STACK` as the non-stacking candidate, then applies `SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED` with `AddPct`; mounted flight speed mirrors that with `SPELL_AURA_MOD_MOUNTED_FLIGHT_SPEED_ALWAYS`, `SPELL_AURA_MOD_FLIGHT_SPEED_NOT_STACK`, and `SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED`. Aura IDs are anchored in `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraDefines.h:267,306`; speed updates are triggered by `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraEffects.cpp:3166-3187`.
+
+Implemented Rust seam: represented mounted speed auras now materialize `SPELL_AURA_MOD_MOUNTED_SPEED_NOT_STACK` and `SPELL_AURA_MOD_FLIGHT_SPEED_NOT_STACK` as explicit represented aura effects. Generic apply/remove paths recompute mounted speed for those auras, and Run/Flight rate calculation now uses `max(stack_bonus, non_stack_bonus)` before applying the main mounted speed modifier, matching the C++ `Unit::UpdateSpeed` order. No C++ bug was found here; Rust was missing this branch.
+
+Validation evidence: `cargo fmt --check`; `cargo test -p wow-data spell_effect_constants_match_cpp_shared_defines --lib`; `cargo test -p wow-world represented_mount_speed_uses_cpp_not_stack_bonus_order_like_cpp -- --nocapture`; `cargo test -p wow-world represented_mount_capability -- --nocapture`; `cargo check -p wow-data -p wow-world`. Remaining gaps: full generic `Unit::UpdateSpeed` parity still lacks slows, minimum-speed auras, normal-speed cap, vehicle owner flight-speed path, pet/minion propagation, terrain/subzone mount capability parity, live-client mount validation, install/restart, bot validation, and manual client validation.
+
+### #NEXT.R8.ENTITIES.1040 — normal run-speed stack/not-stack parity
+
+Status: bugfix-partial for represented non-mounted `MOVE_RUN` speed math; not full `Unit::UpdateSpeed` parity and not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:8294-8455` uses the non-mounted `MOVE_RUN` branch when `!IsMounted()`: `SPELL_AURA_MOD_INCREASE_SPEED` is the main positive modifier, `SPELL_AURA_MOD_SPEED_ALWAYS` is multiplied as the stacking bonus, `SPELL_AURA_MOD_SPEED_NOT_STACK` contributes the non-stacking candidate, and speed uses `max(non_stack_bonus, stack_bonus)` before `AddPct(main_speed_mod)`. Aura IDs are anchored in `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraDefines.h:126,224,266`; the same aura handlers call `UpdateSpeed` from `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraEffects.cpp:102,200,242`.
+
+Implemented Rust seam: represented normal run-speed auras now materialize `SPELL_AURA_MOD_INCREASE_SPEED`, `SPELL_AURA_MOD_SPEED_ALWAYS`, and `SPELL_AURA_MOD_SPEED_NOT_STACK`. `MOVE_RUN` recomputation chooses the mounted C++ branch while mounted and the normal C++ branch while unmounted, so dismounting restores still-active normal run-speed auras instead of resetting run speed to the base rate. The observable update still flows through the existing `SetSpeedRate`-like helper and sends `SMSG_MOVE_SET_RUN_SPEED` on rate changes.
+
+Validation evidence: `cargo fmt --check`; `cargo test -p wow-world represented_normal_run_speed_uses_cpp_stack_and_not_stack_order_like_cpp -- --nocapture`; `cargo test -p wow-world represented_dismount_restores_active_normal_run_speed_like_cpp -- --nocapture`; `cargo test -p wow-data spell_effect_constants_match_cpp_shared_defines --lib`; `cargo check -p wow-data -p wow-world`. Remaining gaps: represented `Unit::UpdateSpeed` still lacks slow/debuff application, minimum-speed auras, `SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED`, swim/backward/flight non-mounted branches, creature template speed, pet/minion owner-follow propagation, vehicle owner flight-speed path, live-client validation, install/restart, bot validation, and manual client validation.
+
+### #NEXT.R8.ENTITIES.1041 — represented run-speed slow parity
+
+Status: bugfix-partial for represented `MOVE_RUN` slow/debuff math; not full `Unit::UpdateSpeed` parity and not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:4888-4921` implements `GetMaxNegativeAuraModifier` by taking the minimum aura amount, and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:8432-8434` applies the strongest `SPELL_AURA_MOD_DECREASE_SPEED` after positive speed bonuses. `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraDefines.h:128` anchors aura id `33`; `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraEffects.cpp:3220-3233` triggers speed recompute for run/swim/flight/backward move types.
+
+Implemented Rust seam: represented aura effects now include `SPELL_AURA_MOD_DECREASE_SPEED`; `MOVE_RUN` recomputation applies the most negative represented slow after the mounted/non-mounted positive-speed branch, matching C++ order for player run speed. Removing the slow aura recomputes run speed and restores the remaining positive-speed result. This does not yet cover C++'s swim, flight, run-back, swim-back, or flight-back slow updates.
+
+Validation evidence: `cargo fmt --check`; `cargo test -p wow-world represented_run_speed_applies_cpp_strongest_slow_after_positive_bonus_like_cpp -- --nocapture`; `cargo test -p wow-world represented_run_speed_slow_removal_recomputes_like_cpp -- --nocapture`; `cargo test -p wow-data spell_effect_constants_match_cpp_shared_defines --lib`; `cargo check -p wow-data -p wow-world`. Remaining gaps: represented `Unit::UpdateSpeed` still lacks minimum-speed auras, `SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED`, swim/backward/flight non-mounted slow branches, creature template speed, pet/minion owner-follow propagation, vehicle owner flight-speed path, live-client validation, install/restart, bot validation, and manual client validation.
+
+### #NEXT.R8.ENTITIES.1042 — represented final minimum-speed floor
+
+Status: bugfix-partial for represented `MOVE_RUN` final minimum-speed floor; not full `Unit::UpdateSpeed` parity and not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:8436-8444` applies `SPELL_AURA_MOD_MINIMUM_SPEED` after the strongest `SPELL_AURA_MOD_DECREASE_SPEED`, using `CalculatePct(baseMinSpeed, minSpeedMod)` and a player `baseMinSpeed` of `1.0f`. `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraDefines.h:400` anchors aura id `305`; `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraEffects.cpp:376,3159-3167` routes that aura through `HandleAuraModIncreaseSpeed` and `UpdateSpeed(MOVE_RUN)`.
+
+Implemented Rust seam: represented aura effects now include `SPELL_AURA_MOD_MINIMUM_SPEED`; `MOVE_RUN` recomputation applies the represented minimum-speed floor after positive speed bonuses and slow/debuff math. For represented players this maps to `amount / 100.0`, matching C++'s `CalculatePct(1.0f, amount)`. Removing the minimum-speed aura recomputes run speed and drops the floor.
+
+Validation evidence: `cargo fmt --check`; `cargo test -p wow-world represented_run_speed_minimum_speed_floor_applies_after_slow_like_cpp -- --nocapture`; `cargo test -p wow-world represented_run_speed_minimum_speed_removal_recomputes_like_cpp -- --nocapture`; `cargo test -p wow-data spell_effect_constants_match_cpp_shared_defines --lib`; `cargo check -p wow-data -p wow-world`. Remaining gaps: `SPELL_AURA_MOD_MINIMUM_SPEED_RATE` (437) still has its separate pre-slow `MOVE_RUN` floor, and represented `Unit::UpdateSpeed` still lacks `SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED`, swim/backward/flight non-mounted slow branches, creature template speed, pet/minion owner-follow propagation, vehicle owner flight-speed path, live-client validation, install/restart, bot validation, and manual client validation.
+
+### #NEXT.R8.ENTITIES.1043 — represented pre-slow minimum-speed-rate floor
+
+Status: bugfix-partial for represented `MOVE_RUN` pre-slow minimum-speed-rate floor; not full `Unit::UpdateSpeed` parity and not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:8399-8407` applies `SPELL_AURA_MOD_MINIMUM_SPEED_RATE` only for `MOVE_RUN`, before the strongest slow/debuff branch, using `minSpeedMod / playerBaseMoveSpeed[MOVE_RUN]` for player-controlled units. `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraDefines.h:532` anchors aura id `437`; `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraEffects.cpp:508,3247-3255` routes that aura through `HandleAuraModMinimumSpeedRate` and `UpdateSpeed(MOVE_RUN)`.
+
+Implemented Rust seam: represented aura effects now include `SPELL_AURA_MOD_MINIMUM_SPEED_RATE`; `MOVE_RUN` recomputation applies the represented floor before `SPELL_AURA_MOD_DECREASE_SPEED` and before the final `SPELL_AURA_MOD_MINIMUM_SPEED` floor. For represented players this maps to `amount / PLAYER_BASE_MOVE_SPEED_LIKE_CPP[MOVE_RUN]`, matching C++'s player base speed divisor. Removing the aura recomputes run speed and drops the pre-slow floor.
+
+Validation evidence: `cargo fmt --check`; `cargo test -p wow-world represented_run_speed_minimum_speed_rate_floor_applies_before_slow_like_cpp -- --nocapture`; `cargo test -p wow-world represented_run_speed_minimum_speed_rate_removal_recomputes_like_cpp -- --nocapture`; `cargo test -p wow-data spell_effect_constants_match_cpp_shared_defines --lib`; `cargo check -p wow-data -p wow-world`. Remaining gaps: represented `Unit::UpdateSpeed` still lacks `SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED`, swim/backward/flight non-mounted slow branches, creature template speed, pet/minion owner-follow propagation, vehicle owner flight-speed path, live-client validation, install/restart, bot validation, and manual client validation.
+
+### #NEXT.R8.ENTITIES.1044 — represented normal movement speed cap
+
+Status: bugfix-partial for represented `MOVE_RUN` normal-movement-speed cap; not full `Unit::UpdateSpeed` parity and not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:8380-8395` applies `SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED` as a maximum speed cap before `SPELL_AURA_MOD_MINIMUM_SPEED_RATE` and before slow/debuff math, using `normalization / playerBaseMoveSpeed[mtype]` for player-controlled units. `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraDefines.h:286` anchors aura id `191`; `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraEffects.cpp:262,3235-3245` routes that aura through `HandleAuraModUseNormalSpeed` and updates `MOVE_RUN`, `MOVE_SWIM`, and `MOVE_FLIGHT`.
+
+Implemented Rust seam: represented aura effects now include `SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED`; represented `MOVE_RUN` recomputation applies the cap after positive stack/not-stack/main speed bonuses and before the pre-slow minimum-speed-rate floor, strongest slow, and final minimum-speed floor. For represented players this maps to `amount / PLAYER_BASE_MOVE_SPEED_LIKE_CPP[MOVE_RUN]`, matching the C++ player divisor. Removing the aura recomputes run speed and drops the cap.
+
+Validation evidence: `cargo fmt --check`; `cargo test -p wow-world represented_run_speed_use_normal_movement_speed_caps_before_slow_like_cpp --lib`; `cargo test -p wow-world represented_run_speed_use_normal_movement_speed_removal_recomputes_like_cpp --lib`; `cargo test -p wow-data spell_effect_constants_match_cpp_shared_defines --lib`; `cargo check -p wow-data -p wow-world`. Remaining gaps: this slice only covers represented player `MOVE_RUN`; C++ also calls `UpdateSpeed(MOVE_SWIM)` and `UpdateSpeed(MOVE_FLIGHT)`, and represented `Unit::UpdateSpeed` still lacks swim/backward/flight non-mounted slow branches, creature template speed and creature snare/daze immunity behavior for this aura, pet/minion owner-follow propagation, vehicle owner flight-speed path, live-client validation, install/restart, bot validation, and manual client validation.
+
+### #NEXT.R8.ENTITIES.1045 — represented non-mounted flight speed modifiers
+
+Status: bugfix-partial for represented player `MOVE_FLIGHT` non-mounted speed math; not full `Unit::UpdateSpeed` parity and not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:8329-8354` makes non-mounted `MOVE_FLIGHT` use `GetTotalAuraModifier(SPELL_AURA_MOD_INCREASE_FLIGHT_SPEED) + GetTotalAuraModifier(SPELL_AURA_MOD_INCREASE_VEHICLE_FLIGHT_SPEED)`, then adds `SPELL_AURA_MOD_FLIGHT_SPEED_NOT_STACK` as the non-stacking candidate. `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraDefines.h:301,303,306` anchors aura ids `206`, `208`, and `211`; `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraEffects.cpp:277-282,3174-3194` routes those flight-speed auras through `HandleAuraModIncreaseFlightSpeed` and `UpdateSpeed(MOVE_FLIGHT)`.
+
+Implemented Rust seam: represented aura effects now include `SPELL_AURA_MOD_INCREASE_FLIGHT_SPEED` and `SPELL_AURA_MOD_INCREASE_VEHICLE_FLIGHT_SPEED`; represented `MOVE_FLIGHT` recomputation now chooses the C++ mounted branch while mounted and the non-mounted branch otherwise. The non-mounted branch sums the two flight modifiers and combines them with the existing `SPELL_AURA_MOD_FLIGHT_SPEED_NOT_STACK` candidate before sending `SMSG_MOVE_SET_FLIGHT_SPEED` through the existing `SetSpeedRate`-like path. Removing a vehicle-flight aura recomputes flight speed and drops only that modifier.
+
+Validation evidence: `cargo fmt --check`; `cargo test -p wow-world represented_non_mounted_flight_speed_sums_cpp_flight_modifiers_like_cpp --lib`; `cargo test -p wow-world represented_non_mounted_flight_speed_removal_recomputes_like_cpp --lib`; `cargo test -p wow-data spell_effect_constants_match_cpp_shared_defines --lib`; `cargo check -p wow-data -p wow-world`. Remaining gaps: this does not implement controlled-unit vehicle owner flight-speed selection, `SPELL_AURA_MOD_VEHICLE_SPEED_ALWAYS`, fly/can-transition flag side effects, `MOVE_SWIM`, backward move types, creature template speed, pet/minion owner-follow propagation, live-client validation, install/restart, bot validation, or manual client validation.
+
+### #NEXT.R8.ENTITIES.1046 — represented swim speed modifier
+
+Status: bugfix-partial for represented player `MOVE_SWIM` positive speed math and observable speed packets; not full `Unit::UpdateSpeed` parity and not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:8325-8328` makes `MOVE_SWIM` use `GetMaxPositiveAuraModifier(SPELL_AURA_MOD_INCREASE_SWIM_SPEED)`. `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:8373-8407` then runs the common `MOVE_RUN`/`MOVE_SWIM`/`MOVE_FLIGHT` speed calculation path. `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:8478` maps `MOVE_SWIM` to `SMSG_MOVE_SET_SWIM_SPEED` / `SMSG_MOVE_UPDATE_SWIM_SPEED`. `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraDefines.h:153` anchors aura id `58`; `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraEffects.cpp:129,3210-3218` routes it through `HandleAuraModIncreaseSwimSpeed` and `UpdateSpeed(MOVE_SWIM)`.
+
+Implemented Rust seam: represented aura effects now include `SPELL_AURA_MOD_INCREASE_SWIM_SPEED`; represented `MOVE_SWIM` recomputation applies the strongest positive swim-speed modifier and sends the change through the existing `SetSpeedRate`-like packet path. `player_movement_speed_opcodes_like_cpp` now maps `UnitMoveTypeLikeCpp::Swim` to `MoveSetSwimSpeed` / `MoveUpdateSwimSpeed`, so client-visible forced speed-change accounting is shared with Run/Flight. Removing the swim-speed aura recomputes swim speed back to the base player swim speed.
+
+Validation evidence: `cargo fmt --check`; `cargo test -p wow-world represented_swim_speed_increase_updates_move_swim_like_cpp --lib`; `cargo test -p wow-world represented_swim_speed_removal_recomputes_like_cpp --lib`; `cargo test -p wow-data spell_effect_constants_match_cpp_shared_defines --lib`; `cargo check -p wow-data -p wow-world`. Remaining gaps: this does not yet apply common slows/min-speed/normal-speed cap to `MOVE_SWIM`, does not cover `MOVE_SWIM_BACK`, controlled creature template speed, pet/minion owner-follow propagation, live-client validation, install/restart, bot validation, or manual client validation.
+
+### #NEXT.R8.ENTITIES.1047 — represented forward speed common adjustments
+
+Status: bugfix-partial for represented player `MOVE_RUN`/`MOVE_SWIM`/`MOVE_FLIGHT` common speed adjustments; not full `Unit::UpdateSpeed` parity and not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:8373-8407` shares common `MOVE_RUN`/`MOVE_SWIM`/`MOVE_FLIGHT` handling: creature template speed, `SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED` cap, and run-only `SPELL_AURA_MOD_MINIMUM_SPEED_RATE`. `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:8432-8444` then applies the strongest `SPELL_AURA_MOD_DECREASE_SPEED` and final `SPELL_AURA_MOD_MINIMUM_SPEED` floor. `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraEffects.cpp:3220-3245` routes decrease-speed to run/swim/flight/backward speeds and normal-speed to run/swim/flight.
+
+Implemented Rust seam: represented forward speed recomputation now shares the C++ common adjustment helper for Run, Swim, and Flight. `SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED` caps all three represented forward speeds, `SPELL_AURA_MOD_MINIMUM_SPEED_RATE` remains run-only, strongest `SPELL_AURA_MOD_DECREASE_SPEED` applies to all three, and the final `SPELL_AURA_MOD_MINIMUM_SPEED` floor applies after slow math. Applying `DecreaseSpeed` or `UseNormalMovementSpeed` now recomputes represented forward speeds together; removal recomputes Swim/Flight for those shared effects.
+
+Validation evidence: `cargo fmt`; `cargo test -p wow-world represented_forward_speed --lib`; `cargo test -p wow-world represented_swim_speed --lib`. Remaining gaps: backward move types, creature template speed, creature snare/daze immunity behavior, pet/minion owner-follow propagation, controlled-unit vehicle owner path, fly/can-transition flags, install/restart, bot validation, live-client validation, and manual client validation remain open.
+
+### #NEXT.R8.ENTITIES.1048 — logout position save snapshot binding
+
+Status: bugfix-partial for represented logout position persistence; not full `Player::SaveToDB` parity and not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:552-641` calls `Player::SaveToDB()` while the player still exists during logout; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:19318-19635` saves map, instance, position, orientation, zone, transport, taxi path, health/powers and many other character tables from the live `Player`; `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MovementHandler.cpp:312-430` updates `m_movementInfo`/position before broadcast so later logout save reads the latest mover state.
+
+Implemented Rust seam: `save_current_player_to_db_like_cpp` still captures the canonical-player/session fallback snapshot first, but position persistence now builds `UPD_CHARACTER_POSITION` directly from that captured `PlayerSaveToDbSnapshotLikeCpp` instead of recomputing map/instance/position pieces after syncing the session. This keeps the saved `map_id`, `instance_id`, and position as one coherent tuple from the same live snapshot, closer to C++'s one-Player `SaveToDB` read.
+
+Validation evidence: `cargo fmt`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world character_position_save --lib`. Remaining gaps: full C++ `Player::SaveToDB` is still partial in Rust (inventory/items/auras/quests/action bars/talents/spell history/cooldowns/full transactions are not closed by this slice), terrain-derived zone refresh is still incomplete, and this has not yet been validated with the live client/bot disconnect path.
+
+### #NEXT.R8.ENTITIES.1049 — represented ground mount area-zero fallback
+
+Status: bugfix-partial for represented mount use when Rust has not resolved a real area id; not full `Unit::GetMountCapability` runtime parity and not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:7891-7981` selects mount capability from riding skill, AreaTable mount flags, water state, map, required area, aura, and known spell; `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellInfo.cpp:2118-2142` rejects mounted/shapeshift mount casts with `SPELL_FAILED_NOT_HERE` only when `GetMountCapability` fails; `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraEffects.cpp:2581-2665` applies the mounted aura and speed capability on success.
+
+Implemented Rust seam: represented mount capability selection still enforces riding skill, DB2 mount type/capability order, real AreaTable rows, map/aura/known-spell gates, and water state. The only changed branch is `area_id == 0` with no AreaTable row: Rust now treats that as an unresolved TerrainMgr placeholder and grants ordinary ground-mount area flags, so a missing terrain-derived area does not make normal ground mounts fail `SPELL_FAILED_NOT_HERE`. When login/movement has a real area row, Rust continues to use that row's flags.
+
+Validation evidence: `cargo fmt`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world represented_mount_capability_uses_login_zone_area_fallback_like_cpp --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world cast_known_account_mount_spell_applies_mounted_aura_like_cpp --lib`. Remaining gaps: no full TerrainMgr `GetZoneAndAreaId`, exact liquid/vmap refresh, flying-area resolution, riding skill learning/persistence, bot validation, or live-client/manual validation yet.
+
+### #NEXT.R8.ENTITIES.1050 — represented backward movement speed slow/debuff handling
+
+Status: bugfix-partial for represented player `MOVE_RUN_BACK`/`MOVE_SWIM_BACK`/`MOVE_FLIGHT_BACK` slow/debuff speed recompute and packets; not full `Unit::UpdateSpeed` parity and not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:8294-8522` makes backward move types (`MOVE_RUN_BACK`, `MOVE_SWIM_BACK`, `MOVE_FLIGHT_BACK`) skip positive run/swim/flight bonuses, then apply the common strongest `SPELL_AURA_MOD_DECREASE_SPEED` slow and final `SPELL_AURA_MOD_MINIMUM_SPEED` floor before `SetSpeedRate`. The same file maps those move types to `SMSG_MOVE_SET_RUN_BACK_SPEED` / `SMSG_MOVE_UPDATE_RUN_BACK_SPEED`, `SMSG_MOVE_SET_SWIM_BACK_SPEED` / `SMSG_MOVE_UPDATE_SWIM_BACK_SPEED`, and `SMSG_MOVE_SET_FLIGHT_BACK_SPEED` / `SMSG_MOVE_UPDATE_FLIGHT_BACK_SPEED`. `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraEffects.cpp:3220-3233` routes `SPELL_AURA_MOD_DECREASE_SPEED` to all forward and backward movement types.
+
+Implemented Rust seam: represented player backward speed recompute now starts from rate `1.0`, applies the strongest represented `DecreaseSpeed` slow, applies the final represented `MinimumSpeed` floor if a recompute happens, and updates all three backward move types through the same `SetSpeedRate`-like forced-speed-change path as Run/Swim/Flight. Applying or removing represented `SPELL_AURA_MOD_DECREASE_SPEED` now recomputes backward speeds; opcode mapping now covers RunBack, SwimBack, and FlightBack.
+
+Validation evidence: `cargo fmt`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world represented_backward_speed --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p wow-world`. Remaining gaps: full `Unit::UpdateSpeed` parity still lacks Unit-creature template speed, creature snare/daze immunity behavior for normal-speed caps, pet/minion owner-follow speed propagation, controlled-unit vehicle owner flight-speed selection, TerrainMgr-derived area refresh, install/restart, bot validation, and live-client/manual validation.
+
+### #NEXT.R8.ENTITIES.1051 — creature-template zero speed normalization
+
+Status: bugfix-partial for DB creature-template speed normalization; not full live `Unit::UpdateSpeed` creature parity and not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:1106-1114` is `ObjectMgr::CheckCreatureTemplate`: if `CreatureTemplate::speed_walk == 0.0f`, C++ logs and forces `1.0f`; if `speed_run == 0.0f`, C++ logs and forces `1.14286f`. `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:8373-8378` then multiplies Unit-creature run/swim/flight speed rates by `GetCreatureTemplate()->speed_run`, so a missed loader default leaks into runtime speed.
+
+Implemented Rust seam: `CreatureTemplateLifecycleRecordLikeCpp::normalize_like_cpp` now applies the same zero-speed defaults before records enter `CreatureTemplateLifecycleStoreLikeCpp`. This keeps loaded-grid/runtime consumers from building creature create data or Unit speed rates from zero template speeds.
+
+Validation evidence: `cargo fmt`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-data creature_template_lifecycle_normalizes_zero_speeds_like_cpp --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p wow-data`. Remaining gaps: this fixes loader normalization only; full live Unit-creature speed recompute, aura-driven speed updates for creatures, pet/minion owner-follow propagation, creature snare/daze immunity behavior, speed packet fanout, install/restart, bot validation, and live-client/manual validation remain open.
+
+### #NEXT.R8.ENTITIES.1052 — legacy SQL creature visibility speed normalization
+
+Status: bugfix-partial for direct SQL creature CREATE visibility paths; not full live `Unit::UpdateSpeed` creature parity and not manual-test-ready.
+
+C++ anchors contrasted: same as #1051, `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:1106-1114`, where `ObjectMgr::CheckCreatureTemplate` forces zero `speed_walk` and `speed_run` to `1.0f` and `1.14286f` after template load. Rust has newer loaded-grid paths through `CreatureTemplateLifecycleStoreLikeCpp`, but `crates/wow-world/src/handlers/character.rs` still had legacy SQL visibility/login paths reading `speed_walk`/`speed_run` directly and defaulting only on missing columns, not on DB zero values.
+
+Implemented Rust seam: both direct SQL creature visibility paths in `handlers/character.rs` now call local C++-named normalizers before building `CreatureCreateData`, preventing `speed_walk_rate=0.0` or `speed_run_rate=0.0` from being emitted when old direct SQL rows contain zero speeds.
+
+Validation evidence: `cargo fmt`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world sql_creature_template_speed_defaults_match_cpp_check_creature_template --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p wow-world`. Remaining gaps: this fixes direct create-data bypasses only; full live Unit-creature speed recompute, aura-driven speed updates for creatures, speed packet fanout, pet/minion owner-follow propagation, install/restart, bot validation, and live-client/manual validation remain open.
+
+### #NEXT.R8.ENTITIES.1053 — logout latest-session position authority
+
+Status: bugfix-partial for represented logout/disconnect position persistence; not full `Player::SaveToDB` parity and not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:552-641` keeps the live player object in world long enough to call `Player::SaveToDB()` during logout, and `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MovementHandler.cpp:312-430` updates the live movement/position state before later save. Rust still has split session and canonical player mirrors, so a stale canonical typed `Player` position must not overwrite the last accepted session movement during logout/disconnect.
+
+Implemented Rust seam: `current_player_save_to_db_snapshot_like_cpp` now keeps canonical typed-player gameplay fields (`level`, `xp`, `money`) when available, but uses the represented session's latest accepted `map_id`/`position` for the saved logout snapshot. This matches the C++ one-live-player authority more closely than the previous Rust behavior where a stale canonical position could win. The mount side of the user report was contrasted separately: C++ still requires riding skill, account mount ownership, and `Unit::GetMountCapability`; the local DB currently has several test characters without riding/mount rows, so those rejects are correct data failures, not a code bypass to add.
+
+Validation evidence: `cargo fmt --all`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world logout_save_snapshot --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world handle_movement_syncs_canonical_player_position_for_logout_save_like_cpp --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world cast_known_account_mount_spell_applies_mounted_aura_like_cpp --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world represented_mount_capability_uses_login_zone_area_fallback_like_cpp --lib`. Remaining gaps: no full `Player::SaveToDB` transaction/field coverage, no terrain-derived zone refresh, no live client/bot validation after disconnect, and no DB fixture/migration for granting riding/account mounts to test characters.
+
+### #NEXT.R8.ENTITIES.1054 — represented player-to-pet speed propagation
+
+Status: bugfix-partial for represented `Unit::SetSpeedRate` pet propagation; not full pet/minion Unit runtime parity and not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:8460-8495` implements `Unit::SetSpeedRate`; when the unit is a player, it increments `m_forced_speed_changes[mtype]` and, if the player is not in combat and has an active pet, calls `pet->SetSpeedRate(mtype, m_speed_rate[mtype])`. `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:8415-8430` also has a deeper minion/follow movement adjustment branch in `UpdateSpeed`, which remains a runtime gap.
+
+Implemented Rust seam: represented player speed-rate changes now propagate the changed `UnitMoveTypeLikeCpp` rate into a represented active-pet speed-rate array when `represented_pet_guid_like_cpp` is present and the player is not in combat. The represented pet propagation follows C++ `SetSpeedRate` early-return semantics by ignoring unchanged rates, and it resets the represented pet speed rates when the represented pet is cleared. This intentionally does not create pet Unit packets or a canonical pet runtime.
+
+Validation evidence: `cargo fmt --all --check`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world represented_player_speed_change --lib`. Remaining gaps: no full pet/minion `Unit::UpdateSpeed` runtime, no follow-distance speed multiplier, no pet movement packet fanout, no owner/charm/minion canonical entity propagation, no live client/bot validation, and no manual validation.
+
+### #NEXT.R8.ENTITIES.1055 — represented pet spline speed packet
+
+Status: bugfix-partial for represented pet `Unit::SetSpeedRate` packet visibility; not full pet/minion Unit runtime parity and not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:8460-8522` implements `Unit::SetSpeedRate`: player units increment forced-speed counters and may call `Pet::SetSpeedRate`; non-player controlled movers send `MoveSetSpeed`/`MoveUpdateSpeed`, while non-player/non-controlled units send `MoveSplineSetSpeed` through `SendMessageToSet(packet.Write(), true)`. The represented pet path follows the latter branch.
+
+Implemented Rust seam: `wow-packet` now has a dynamic-opcode `MoveSplineSetSpeed` writer. When represented player speed propagation changes an active represented pet rate, Rust now serializes the matching `SMSG_MOVE_SPLINE_SET_*_SPEED` packet for the pet GUID and sends it only to sessions that have the pet in `client_visible_guids_like_cpp` (`HaveAtClient` gate). Owner delivery is direct when the pet is visible; other-session fanout uses the existing `SendIfVisibleLikeCpp` command rail and same-map/range candidate filtering, with pet canonical position when available and owner position as fallback while pet runtime remains partial.
+
+Validation evidence: `cargo fmt --all`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-packet move_spline_set_speed_matches_cpp_opcode_and_tail --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world represented_player_speed_change --lib`. Remaining gaps: no full pet/minion `Unit::UpdateSpeed` runtime, no follow-distance speed multiplier, no canonical pet movement owner/follow state, no live-client/bot visibility validation, and no manual validation.
+
+### #NEXT.R8.ENTITIES.1056 — represented mounted-flight movement flags
+
+Status: bugfix-partial for represented `SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED` movement-flag side effects; not full flight/motion runtime parity and not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraEffects.cpp:3174-3195` calls `UpdateSpeed(MOVE_FLIGHT)` and, only for `SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED`, calls `SetCanTransitionBetweenSwimAndFly(apply)` and `SetCanFly(apply)` unless another mounted-flight or fly aura remains. `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:12675-12711` and `12903-12929` update movement flags and send `MoveSetFlag` packets (`SMSG_MOVE_SET_CAN_FLY`, `SMSG_MOVE_UNSET_CAN_FLY`, `SMSG_MOVE_ENABLE_TRANSITION_BETWEEN_SWIM_AND_FLY`, `SMSG_MOVE_DISABLE_TRANSITION_BETWEEN_SWIM_AND_FLY`).
+
+Implemented Rust seam: `wow-packet` now has a dynamic-opcode `MoveSetFlag` writer. Applying represented mounted-flight speed now tracks `CAN_FLY` and `CAN_SWIM_TO_FLY_TRANS` represented movement state, sends the matching direct `MoveSetFlag` packets, and includes represented flags in `current_player_movement_info_like_cpp` snapshots used by movement-set updates. Removing the last represented mounted-flight/fly source unsets both flags and sends the matching disable/unset packets.
+
+Validation evidence: `cargo fmt --all --check`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-packet move_set_flag_matches_cpp_opcode_and_tail --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world represented_mounted_flight_speed --lib`. Remaining gaps: no full `SPELL_AURA_FLY` apply/remove packet side effects, no `MoveFall` on flight removal, no exact movement-flag ACK validation, no controlled-unit vehicle flight runtime, no live-client/bot validation, and no manual validation.
+
+### #NEXT.R8.ENTITIES.1057 — logout save diagnostics and account mount spell persistence
+
+Status: bugfix-partial for represented logout/disconnect save observability and account-mount spell persistence; not full `Player::SaveToDB` parity and not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Server/WorldSession.cpp:552-641` keeps the player alive during logout and calls `Player::SaveToDB()` before cleanup; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:19318-19630` persists the live `Player` state across character tables; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:17719` calls `CollectionMgr::LoadMounts()` on login after spell load; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/CollectionMgr.cpp:324-392` loads account mounts, adds each mount to the collection, and learns the mount spell through `Player::LearnSpell` when needed.
+
+Implemented Rust seam: `save_current_player_to_db_like_cpp` now emits an explicit warning if no coherent represented save snapshot can be produced, instead of silently returning and making disconnect-save failures hard to diagnose. The represented save path also persists account-collection mount spells into `character_spell` with the existing `INSERT IGNORE` statement. This mirrors the C++ persistence boundary for collection mounts without granting riding skill, inventing mount collection rows, or bypassing `Unit::GetMountCapability` checks.
+
+Operational findings from the local DB: the active account path has battlenet account `1` with mount collection rows for spells `17229`, `32243`, and `64658`; `Luqedos` has riding skill `300`, while `Luqe` has riding skill `10`. That means a failed mount cast can still be valid C++ behavior if the tested character lacks riding skill, lacks the account mount rows, is in an invalid area/water state, or fails mount capability checks.
+
+Validation evidence: `cargo fmt --all --check`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world logout_save_snapshot --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world account_mount_load_learns_mount_spells_before_use_condition_like_cpp --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world account_mount_spell_save_statement_matches_cpp_learn_spell_persistence --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world cast_known_account_mount_spell_applies_mounted_aura_like_cpp --lib`. Remaining gaps: full C++ `Player::SaveToDB` remains partial (items, quests, auras, action bars, cooldowns, spell history, full transactions, and more), TerrainMgr-derived zone/area refresh remains incomplete, account mount collection fixture data is not seeded by this slice, and live-client/bot/manual disconnect and mount validation remain open.
+
+### #NEXT.R8.ENTITIES.1058 — represented fly aura flight flags
+
+Status: bugfix-partial for represented `SPELL_AURA_FLY` movement-flag side effects and fall-info reset; not full flight/motion runtime parity and not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraDefines.h:296` defines `SPELL_AURA_FLY = 201`. `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraEffects.cpp:2667-2690` implements `AuraEffect::HandleAuraAllowFlight`: when applied it calls `SetCanTransitionBetweenSwimAndFly(true)` and `SetCanFly(true)`; when removed it keeps flight while another `SPELL_AURA_FLY` or mounted-flight source remains, otherwise disables both flags and calls `MoveFall()` if gravity is enabled. `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraEffects.cpp:3178-3194` applies the same last-source guard for mounted-flight speed removal. `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:12675-12711` and `12903-12929` update movement flags, reset player fall information on `SetCanFly(false)`, and send the matching direct movement-flag packets.
+
+Implemented Rust seam: `wow-data` now exposes `SPELL_AURA_FLY = 201`. Applying represented `SPELL_AURA_FLY` now records a represented fly aura and applies the same `SetCanTransitionBetweenSwimAndFly`/`SetCanFly` side effects used by mounted-flight. Removing a represented fly aura now preserves flight flags while another fly or mounted-flight source remains, and when the last source is removed it disables represented swim-to-fly/can-fly flags, sends the matching direct movement flag packets, and resets represented fall information to `(0, current_z)` like the player branch of C++ `SetCanFly(false)`.
+
+Validation evidence: `cargo fmt --all --check`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-data spell_effect_constants_match_cpp_shared_defines --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world represented_fly_aura --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world represented_mounted_flight_speed --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p wow-data -p wow-world`. Remaining gaps after this slice: no full `MotionMaster::MoveFall` generator, no represented player falling flag yet, no non-player spline flag branch, no exact flight movement ACK validation, no controlled-unit vehicle flight runtime, no live-client/bot validation, and no manual validation. The represented player falling flag and gravity-disabled guard are closed in `#NEXT.R8.ENTITIES.1059`.
+
+### #NEXT.R8.ENTITIES.1059 — represented flight removal starts player fall
+
+Status: bugfix-partial for represented player `MotionMaster::MoveFall` side effects on flight removal; not full movement-generator/runtime falling parity and not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraEffects.cpp:2667-2690` and `3178-3194` call `GetMotionMaster()->MoveFall()` after the last fly or mounted-flight source is removed, but only when `!target->IsGravityDisabled()`. `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.h:1100` defines `IsGravityDisabled()` as `MOVEMENTFLAG_DISABLE_GRAVITY`. `/home/server/woltk-trinity-legacy/src/server/game/Movement/MotionMaster.cpp:1008-1030` sets `SetFall(true)` and, for players, `SetFallInformation(0, currentZ)` without launching a spline. `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:12635-12649` defines `SetFall(true)` as adding `MOVEMENTFLAG_FALLING` and resetting movement fall time.
+
+Implemented Rust seam: after represented `SetCanFly(false)` actually changes state, removing the last fly/mounted-flight source now calls a represented player fall helper. That helper preserves the C++ gravity guard by doing nothing while `MovementFlag::DISABLE_GRAVITY` is active; otherwise it marks the represented player movement state as `FALLING` and refreshes fall information to `(0, current_z)`. `SetCanFly(false)` still resets fall information before this guard, matching the C++ player branch.
+
+Validation evidence: `cargo fmt --all --check`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world represented_fly_aura --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world represented_mounted_flight_speed --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p wow-world`. Remaining gaps: no terrain/vmap ground-height lookup, no full `MotionMaster` movement-generator ownership, no non-player falling spline launch, no hover-offset landing, no exact flight/fall movement ACK validation, no controlled-unit vehicle flight runtime, no live-client/bot validation, and no manual validation.
+
+### #NEXT.R8.ENTITIES.1060 — represented character skill save persistence
+
+Status: bugfix-partial for represented `Player::SaveToDB` skill persistence; not full C++ `SkillStatusMap` tracking and not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:19652` calls `_SaveSkills(trans)` from `Player::SaveToDB`. `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:20354-20413` iterates `mSkillStatus`, deletes changed rows when needed, inserts `SKILL_NEW`, updates `SKILL_CHANGED`, deletes `SKILL_DELETED`, and resets state to unchanged. `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:25732-25856` loads `character_skills` as `skill`, `value`, `max`, and `professionSlot`.
+
+Implemented Rust seam: represented login now preserves loaded `character_skills` records as `skill_id/value/max/professionSlot` instead of keeping only the value. Represented `Player::SaveToDB` now writes the current represented skill set through a deterministic `DELETE character_skills WHERE guid = ?` plus sorted `INSERT INTO character_skills (guid, skill, value, max, professionSlot)` transaction. This preserves Riding and other represented skill gates across logout/disconnect saves without inventing C++'s missing `SkillStatusMap` state in Rust. If the skill load fails, Rust skips the represented skill save with a warning instead of deleting DB rows from an incoherent empty snapshot.
+
+Validation evidence: `cargo fmt --all --check`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world character_skill_save --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world set_player_skill_values_builds_represented_skill_records --lib`. Remaining gaps: exact C++ `SkillStatusMap` changed/new/deleted tracking, race/class skill validation and fixed-range recalculation, profession-slot assignment, full skill reward spell learning runtime, live-client/bot validation, and manual validation.
+
+### #NEXT.R8.ENTITIES.1100 — mounted aura amount recalculation
+
+Status: bugfix-partial for represented `SPELL_AURA_MOUNTED` speed-aura application; not full mount runtime parity and not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraEffects.cpp:659-700` implements `AuraEffect::CalculateAmount` and replaces the default amount for `SPELL_AURA_MOUNTED` with `MountCapabilityEntry::ID` from `Unit::GetMountCapability`. `/home/server/woltk-trinity-legacy/src/server/game/Spells/Auras/SpellAuraEffects.cpp:2581-2665` applies/removes the mount and casts/removes `MountCapabilityEntry::ModSpellAuraID` from `GetAmount()`. `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:7891-7999` selects the mount capability by mount type, riding skill, area flags, liquid state, map, required area, aura, and known spell.
+
+Implemented Rust seam: represented mounted aura application now calculates the mounted aura amount like C++ before inserting the represented aura. It resolves `EffectMiscValueB` or the `Mount.db2` source-spell row to a mount type, reuses the represented `Unit::GetMountCapability` selector, stores the selected `MountCapabilityEntry::ID` as the mounted aura amount, and uses that recalculated amount to apply/remove the capability speed aura. This closes the mismatch where DB2 mounted auras with raw base points `0` could set the mount display/flag without applying the C++ capability speed aura. The existing mount broadcast test was also updated to assert the current `SendIfVisibleLikeCpp` fanout contract instead of the older direct-send assumption.
+
+Validation evidence: `cargo fmt --all --check`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world represented_mount --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world cast_mount_spell --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`; `git diff --check`. Remaining gaps: no full TerrainMgr-derived area/liquid refresh, no DB fixture/migration for granting test characters riding/account mounts, no full vehicle/passenger mount runtime parity, no install/restart validation, no bot/live-client/manual validation, and no complete runtime parity.
+
+### #NEXT.R8.ENTITIES.1061 — live mount/save diagnostics
+
+Status: bugfix-partial for represented mount capability diagnostics and logout-position save observability; not full mount runtime parity and not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:7890-7985` implements `Unit::GetMountCapability` with the ordered riding-skill, area, liquid, aura, known-spell, and mount-data gates. `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/CollectionMgr.cpp:330-408` loads account mounts through `AddMount`, and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:19329-19635` saves player state during `Player::SaveToDB`. `/home/server/woltk-trinity-legacy/src/server/game/Handlers/MovementHandler.cpp:312-430` keeps the live movement state current before the later save.
+
+Implemented Rust seam: represented mount capability selection now exposes the exact C++-ordered rejection reason in logs, without relaxing any gate. Represented logout/disconnect position persistence now logs the affected row count plus saved map, instance, zone, and coordinates, so live-client disconnect testing can distinguish SQL/no-row failures from stale movement-state failures.
+
+Validation evidence: `cargo fmt --all --check`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-data mount_capability_selection_matches_cpp_filter_order --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world represented_mount_capability_for_type_uses_session_state_like_cpp --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world handle_movement_syncs_canonical_player_position_for_logout_save_like_cpp --lib`. Remaining gaps: no gameplay restriction is relaxed; real client mount use still requires validation against the new logs, and full `Player::SaveToDB` remains partial with transport, taxi, transaction, and zone-refresh gaps.
+
+### #NEXT.R8.ENTITIES.1062 — account mount spells after MountStore injection
+
+Status: bugfix-partial for represented account-mount spell learning order; not full account-collection runtime parity and not manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:17719` calls `CollectionMgr::LoadMounts()` during player load. `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/CollectionMgr.cpp:324-392` iterates account mounts through `AddMount`, validates the mount source spell against `Mount.db2`, stores the collection entry, treats `PlayerConditionID` as a use-time condition, and calls `Player::LearnSpell(spellId, true)` when the player does not already know the spell.
+
+Implemented Rust seam: `WorldSession::set_mount_store` now re-runs represented account-mount spell learning after the `MountStore` is injected. This fixes the load-order case where account mount rows are present before Mount.db2 source-spell data is available: unavailable source spells stay unlearned, then become known through the controller-backed spell set once the C++ `Mount.db2` lookup can succeed.
+
+Validation evidence: `cargo fmt --all --check`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world mount_store_injection_relearns_account_mount_spells_with_controller_like_cpp --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world cast_known_account_mount_spell_applies_mounted_aura_like_cpp --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p wow-world`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`. Remaining gaps: this does not seed account mount rows, grant riding skill, bypass C++ mount capability checks, prove the latest live client mount attempt, or complete full account collection runtime parity.
+
+### #NEXT.R8.ENTITIES.1063 — SendKnownSpells disabled/favorite filtering
+
+Status: bugfix-partial for represented initial `SendKnownSpells` login parity; not full spell history or full `Player::_SaveSpells` parity.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:18930-18955` implements `Player::_LoadSpells`: DB spell rows are added with active/disabled flags, and `character_spell_favorite` rows mark existing loaded spells as favorite. `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:2535-2558` implements `Player::SendKnownSpells`: it skips removed, inactive, and disabled spells, pushes only sent spells into `KnownSpells`, and pushes a spell into `FavoriteSpells` only while iterating a sent favorite spell.
+
+Implemented Rust seam: character login now filters `character_spell` rows with the same active/disabled send gate, loads `character_spell_favorite`, and passes a favorite subset into `SendKnownSpells`. The packet test now covers non-empty favorite serialization so the field is not silently dead.
+
+Validation evidence: `cargo fmt --all --check`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world send_known_spells --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-packet send_known_spells --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p wow-world`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`; `git diff --check`. Remaining gaps: `SendSpellHistory` and `SendSpellCharges` are still empty; spell cooldown/charge DB load/save, runtime favorite mutation/save, and exact C++ `Player::_SaveSpells` changed/new/deleted state tracking remain open.
+
+### #NEXT.R8.ENTITIES.1064 — initial SendSpellHistory/SendSpellCharges DB load
+
+Status: bugfix-partial for represented initial login spell cooldown/charge packet parity; not full `SpellHistory` runtime ownership or save parity.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:17780` loads spell cooldowns/charges through `GetSpellHistory()->LoadFromDB<Player>()`; `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:23490-23497` sends `SendSpellHistory` and `SendSpellCharges` immediately after `SendUnlearnSpells`; `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellHistory.cpp:38-90` validates player cooldown spells and charge categories while reading DB rows; `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellHistory.cpp:147-218` loads and saves spell history storage; `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellHistory.cpp:301-357` writes packet entries by skipping expired cooldowns, splitting spell/category recovery times, and grouping charge rows by category; `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/SpellPackets.cpp:637-712` defines the wire order.
+
+Implemented Rust seam: `SendSpellHistory` and `SendSpellCharges` now carry entry vectors with C++ packet field order instead of hard-coded empty counts. Character login queries `character_spell_cooldown` and `character_spell_charges`, skips expired rows, skips unknown spell/category rows when the corresponding stores are available, converts future cooldowns into C++ `SpellHistoryEntry` fields, groups charges by category with the earliest recharge end and consumed count, and passes those packets through the existing login sequence at the C++ position.
+
+Validation evidence: `cargo fmt --all --check`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-packet send_spell --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world spell_history_entry --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world spell_charge_entry --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p wow-world`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`; `git diff --check`. Later code now also persists represented `character_spell_cooldown` and `character_spell_charges` during `save_current_player_to_db_like_cpp` when the corresponding tables were loaded coherently. Remaining gaps: no full runtime `SpellHistory` owner/state map yet, no `OnHold` cooldown support, no pet spell history save parity, no live-client/bot/manual validation, and stale R3 prepared-statement docs still need a separate reconciliation pass because the Rust statements now exist.
+
+### #NEXT.R8.ENTITIES.1094 — represented CheckAreaExploreAndOutdoor discovery
+
+Status: represented-partial for the `Player::CheckAreaExploreAndOutdoor` area-discovery branch; not full movement-runtime wiring, indoor/outdoor aura removal, achievement runtime, or manual-test-ready. Exploration XP is closed by `#NEXT.R8.ENTITIES.1096`.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:6136` calls `CheckAreaExploreAndOutdoor()` from `Player::UpdatePosition`. `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:6195-6268` rejects dead/in-flight players, optionally removes indoor/outdoor-only auras, looks up `AreaTableEntry`, derives `offset = AreaBit / PLAYER_EXPLORED_ZONES_BITS`, rejects invalid offsets, sets `ActivePlayerData::ExploredZones[offset]`, updates `CriteriaType::RevealWorldMapOverlay`, and then awards/sends exploration XP from `ExplorationLevel`. `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Structure.h:130,137` and `DB2LoadInfo.h:170,177` define `AreaBit` and `ExplorationLevel`; `/home/server/woltk-trinity-legacy/src/server/game/Achievements/CriteriaHandler.cpp:1520-1527,2269-2274` and `Conditions/ConditionMgr.cpp:3067` consume explored-zone bits for criteria/conditions.
+
+Implemented Rust seam: `AreaTableEntry` now loads the C++ `AreaBit` and `ExplorationLevel` fields from DB2 and hotfix rows, and exposes the C++ explored-zone `(offset, mask)` calculation. `WorldSession::check_area_explore_and_outdoor_represented_like_cpp` now looks up the area, rejects zero/missing/negative/out-of-range area bits, marks the represented `ActivePlayerData::ExploredZones` snapshot, syncs the canonical `Player` and sends `UpdateObject` when the canonical player is present, and records represented `CriteriaType::RevealWorldMapOverlay` evidence once per newly discovered area.
+
+Validation evidence: `cargo fmt --all`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-data area_table_entry --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world check_area_explore --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p wow-data`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`; `git diff --check`. Remaining gaps: movement wiring is closed by `#NEXT.R8.ENTITIES.1095`; exploration XP is closed by `#NEXT.R8.ENTITIES.1096`; real VMAP-derived `IsOutdoors` state is not represented here, criteria/achievement and player-condition consumers are evidence-only/partial, and live-client/bot/manual validation remain open.
+
+### #NEXT.R8.ENTITIES.1095 — movement hook for represented area discovery
+
+Status: represented-partial for the `Player::UpdatePosition -> CheckAreaExploreAndOutdoor` movement hook; not full terrain/vmap area recomputation, `UpdateArea`/`UpdateZone`, indoor/outdoor aura removal, or manual-test-ready. Exploration XP is closed by `#NEXT.R8.ENTITIES.1096`.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:6124-6138` calls `CheckAreaExploreAndOutdoor()` only after `Unit::UpdatePosition(...)` succeeds, after group-position flagging. `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:6195-6268` contains the alive/in-flight guards and the discovery branch implemented in `#NEXT.R8.ENTITIES.1094`.
+
+Implemented Rust seam: accepted `CMSG_MOVE_*` packets now call `check_area_explore_and_outdoor_represented_like_cpp` after the server-side session position and canonical `Player` relocation are updated. The hook uses the current represented `player_zone_area_like_cpp().1` area id because Rust still lacks the C++ terrain/vmap area recomputation path. The represented discovery method now preserves the C++ `IsAlive()` and `IsInFlight()` guards before mutating explored-zone state.
+
+Validation evidence: `cargo fmt --all --check`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world handle_movement_discovers_current_area_like_cpp --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world check_area_explore --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server`; `git diff --check`. Remaining gaps: no coordinate-to-area refresh from maps/vmaps, no full `UpdateArea`/`UpdateZone` side effects, exploration XP is closed by `#NEXT.R8.ENTITIES.1096`, no real VMAP-derived `IsOutdoors` state, no full achievement/condition consumers, and no live-client/bot/manual validation.
+
+### #NEXT.R8.ENTITIES.1096 — represented exploration XP and packet
+
+Status: represented-partial for the `Player::CheckAreaExploreAndOutdoor` exploration XP branch; not full terrain/vmap area recomputation, indoor/outdoor aura removal, full criteria runtime, or manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:6230-6268` awards exploration XP from `AreaTableEntry::ExplorationLevel`, uses `sObjectMgr->GetBaseXP`, `RATE_XP_EXPLORE`, and `CONFIG_MIN_DISCOVERED_SCALED_XP_RATIO`, calls `GiveXP`, and sends exploration XP. `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:20646-20649` calls `WorldPackets::Misc::ExplorationExperience(Experience, Area).Write()`. `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/MiscPackets.cpp:390-396` writes `AreaID` before `Experience`; the constructor order is not the wire order. `/home/server/woltk-trinity-legacy/src/server/game/World/World.cpp:649,881-885` loads `Rate.XP.Explore` and clamps `MinDiscoveredScaledXPRatio`.
+
+Implemented Rust seam: `wow-packet` now has `SMSG_EXPLORATION_EXPERIENCE` with C++ payload order `AreaID, Experience`. `wow-data::ExplorationBaseXpStoreLikeCpp` now exposes the C++ exploration XP branch calculation. `world-server` loads `exploration_basexp`, resolves `RATE_XP_EXPLORE` and `CONFIG_MIN_DISCOVERED_SCALED_XP_RATIO`, and injects them through `SessionResources`. `WorldSession::check_area_explore_and_outdoor_represented_like_cpp` is async so the discovery branch can call `GiveXP` and persist through the existing XP path before sending `ExplorationExperience`; max-level players receive XP 0 without a `LogXpGain`, like C++.
+
+Validation evidence: `cargo fmt --all --check`; `cargo test -p wow-packet exploration_experience --lib`; `cargo test -p wow-data exploration_xp --lib`; `cargo test -p wow-world check_area_explore --lib`; `cargo check -p world-server`; `git diff --check`. Remaining gaps: no coordinate-to-area refresh from maps/vmaps, no full `UpdateArea`/`UpdateZone` side effects, no real VMAP-derived `IsOutdoors` state, criteria/achievement and player-condition consumers are still represented/evidence-only, and no live-client/bot/manual validation was performed in this slice.
+
+### #NEXT.R8.ENTITIES.1097 — represented PlayerCondition explored/area consumers
+
+Status: represented-partial for PlayerCondition consumers of explored areas and area parent matching; not full achievement/criteria runtime, terrain/vmap area recomputation, `UpdateArea`/`UpdateZone`, or manual-test-ready.
+
+C++ anchors contrasted: `/home/server/woltk-trinity-legacy/src/server/game/Conditions/ConditionMgr.cpp:3067-3075` checks `PlayerCondition::Explored` by looking up each `AreaTableEntry`, deriving `AreaBit / PLAYER_EXPLORED_ZONES_BITS`, and testing `player->m_activePlayerData->ExploredZones`. `/home/server/woltk-trinity-legacy/src/server/game/Conditions/ConditionMgr.cpp:3153-3161` evaluates `PlayerCondition::AreaID` through `DB2Manager::IsInArea(player->GetAreaId(), condition->AreaID[i])`, so parent areas must match. `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:6195-6268` is the producer that sets explored-zone bits in `CheckAreaExploreAndOutdoor`.
+
+Implemented Rust seam: `AreaTableStore` now exposes C++-like helpers to build an area parent chain and to derive explored area ids by mapping represented explored-zone blocks through each `AreaTableEntry::AreaBit`. `WorldSession::represented_player_condition_context_like_cpp` now populates `explored_area_ids` and `parent_area_ids` from the loaded `AreaTableStore` and the represented explored-zone snapshot, so `represented_meets_player_condition_id_like_cpp` can satisfy/fail `PlayerCondition::Explored` and parent-area requirements from live represented session state.
+
+Validation evidence: `cargo fmt --all --check`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-data area_table_store_derives --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world represented_player_condition_explored_uses_area_bit_blocks_like_cpp --lib`; `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p wow-world represented_player_condition_area_uses_parent_chain_like_cpp --lib`; `cargo check -p world-server`; `git diff --check`. Remaining gaps: this does not implement full Achievement/Criteria manager persistence/runtime, terrain/vmap coordinate-to-area recomputation, `UpdateArea`/`UpdateZone` side effects, real VMAP-derived `IsOutdoors` state, bot/live-client validation, or manual validation.

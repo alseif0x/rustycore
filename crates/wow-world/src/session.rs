@@ -18,9 +18,10 @@ use rand::{Rng, RngCore, SeedableRng, rngs::StdRng, seq::SliceRandom};
 use tracing::{debug, info, trace, warn};
 
 use crate::entity_update_bridge::{
-    dynamic_object_values_update_to_update_object, game_object_values_update_to_update_object,
-    item_values_update_to_update_object, player_values_update_to_update_object,
-    unit_values_update_to_packet, unit_values_update_to_update_object,
+    bag_values_update_to_update_object, dynamic_object_values_update_to_update_object,
+    game_object_values_update_to_update_object, item_values_update_to_update_object,
+    player_values_update_to_update_object, unit_values_update_to_packet,
+    unit_values_update_to_update_object,
 };
 use crate::map_manager::{
     PendingRespawn, RecipientRule, RuntimeEvent, RuntimeOutput, RuntimePlan, RuntimeTickOwner,
@@ -39,7 +40,9 @@ use wow_ai::{
     select_creature_ai_like_cpp,
 };
 use wow_constants::creature::{CreatureFlagsExtra, CreatureType, CreatureTypeFlags};
-use wow_constants::item::{CurrencyTypes, CurrencyTypesFlags, EnchantmentSlot};
+use wow_constants::item::{
+    CurrencyTypes, CurrencyTypesFlags, EnchantmentSlot, ItemBonusType, ItemFieldFlags2,
+};
 use wow_constants::movement::MovementFlag;
 use wow_constants::shared::DifficultyFlags;
 use wow_constants::unit::{
@@ -48,55 +51,63 @@ use wow_constants::unit::{
 };
 use wow_constants::{
     BagFamilyMask, BuyResult, ClientOpcodes, InventoryResult, InventoryType, ItemBondingType,
-    ItemClass, ItemContext, ItemEnchantmentType, ItemFlags, ItemFlags2, ItemFlags3, ItemQuality,
-    ItemSubClassArmor, ItemSubClassWeapon, SellResult, SpellCastResult, SpellItemEnchantmentFlags,
-    TypeId, UnitState,
+    ItemClass, ItemContext, ItemEnchantmentType, ItemFlags, ItemFlags2, ItemFlags3, ItemModifier,
+    ItemQuality, ItemSubClassArmor, ItemSubClassWeapon, SellResult, ServerOpcodes, SpellCastResult,
+    SpellItemEnchantmentFlags, Stats, TypeId, UnitState,
 };
 use wow_core::{ObjectGuid, ObjectGuidGenerator, Position, guid::HighGuid};
 use wow_data::character_progression::{ChrClassesStore, ChrRacesStore};
+use wow_data::trait_tree::TraitDefinitionStore;
 use wow_data::{
     AccessRequirementStoreLikeCpp, AdventureMapPoiStore, AreaTableStore, AreaTriggerStore,
     BankBagSlotPricesStore, BattlePetBreedQualityStore, BattlePetBreedStateStore,
     BattlePetSpeciesStateStore, BattlePetSpeciesStore, BattlePetXpGameTableLikeCpp,
     BattlemasterListStore, ChrSpecializationStore, CinematicSequencesStore,
-    ConditionEntriesByTypeStore, CreatureDisplayInfoStore, CreatureModelDataStore,
-    CreatureTemplateMountStoreLikeCpp, CurrencyTypesEntry, CurrencyTypesStore,
-    DISABLE_TYPE_BATTLEGROUND, DISABLE_TYPE_MAP, DifficultyStore, DisableMgrLikeCpp,
-    DisableWorldObjectRefLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
-    DurabilityQualityStore, FishingBaseSkillStoreLikeCpp, GameObjectDisplayInfoStore,
-    GameObjectTemplateLifecycleStoreLikeCpp, HeirloomEntry, HeirloomStore, HotfixBlobCache,
-    ImportPriceStores, ItemAppearanceStore, ItemClassStore, ItemCurrencyCostStore,
-    ItemDisenchantLootStore, ItemEffectStore, ItemExtendedCostStore,
-    ItemLimitCategoryConditionStore, ItemLimitCategoryStore, ItemModifiedAppearanceStore,
-    ItemPriceBaseStore, ItemRandomEnchantmentTemplateStore, ItemRandomPropertiesStore,
-    ItemRandomPropertyTemplateEntry, ItemRandomSuffixStore, ItemSearchNameStore,
+    ConditionEntriesByTypeStore, CreatureDisplayInfoExtraStore, CreatureDisplayInfoStore,
+    CreatureModelDataStore, CreatureTemplateMountStoreLikeCpp, CurrencyTypesEntry,
+    CurrencyTypesStore, DISABLE_TYPE_BATTLEGROUND, DISABLE_TYPE_MAP, DifficultyStore,
+    DisableMgrLikeCpp, DisableWorldObjectRefLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
+    DurabilityQualityStore, ExplorationBaseXpStoreLikeCpp, FishingBaseSkillStoreLikeCpp,
+    GameObjectDisplayInfoStore, GameObjectTemplateLifecycleStoreLikeCpp, GlyphPropertiesStore,
+    HeirloomEntry, HeirloomStore, HotfixBlobCache, ImportPriceStores, ItemAppearanceStore,
+    ItemBonusDb2Store, ItemClassStore, ItemCurrencyCostStore, ItemDisenchantLootStore,
+    ItemEffectStore, ItemExtendedCostStore, ItemLimitCategoryConditionStore,
+    ItemLimitCategoryStore, ItemModifiedAppearanceStore, ItemPriceBaseStore,
+    ItemRandomEnchantmentTemplateStore, ItemRandomPropertiesStore, ItemRandomPropertyTemplateEntry,
+    ItemRandomSuffixStore, ItemSearchNameStore, ItemSetSpellStore, ItemSetStore,
     ItemSpecOverrideStore, ItemStatsStore, ItemStore, LfgDungeonsStore, LockStore,
-    MapDifficultyStore, MapDifficultyXConditionStore, MapStore, MountCapabilityStore, MountStore,
-    MountTypeXCapabilityStore, MountXDisplayStore, MovieStore, NpcSpellClickStoreLikeCpp,
-    PetDefaultSpellStoreLikeCpp, PetDefaultSpellsEntryLikeCpp, PetFamilySpellStoreLikeCpp,
-    PetLevelupSpellSetLikeCpp, PetLevelupSpellStoreLikeCpp, PhaseGroupStore, PhaseStore,
-    PlayerConditionAuraLikeCpp, PlayerConditionContextLikeCpp, PlayerConditionCountLikeCpp,
-    PlayerConditionPartyStatusLikeCpp, PlayerConditionQuestKillLikeCpp,
-    PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp, PlayerConditionStore,
-    PlayerStatsStore, RandPropPointsStore, ScriptIdLikeCpp, ScriptNameInternerLikeCpp,
-    ServersideSpellInfoLikeCpp, ServersideSpellStoreLikeCpp, SkillLineStore, SkillStore,
-    SpellAreaLikeCpp, SpellAreaStoreLikeCpp, SpellAuraOptionsStore, SpellCategoryStore,
-    SpellChainStoreLikeCpp, SpellCustomAttributeStoreLikeCpp, SpellDurationStore,
-    SpellEnchantProcEntryLikeCpp, SpellEnchantProcStoreLikeCpp, SpellGroupStackRuleLikeCpp,
-    SpellGroupStackRuleStoreLikeCpp, SpellGroupStoreLikeCpp, SpellItemEnchantmentStore,
-    SpellLearnSkillNodeLikeCpp, SpellLearnSkillStoreLikeCpp, SpellLearnSpellNodeLikeCpp,
-    SpellLearnSpellStoreLikeCpp, SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp, SpellMiscStore,
-    SpellPetAuraStoreLikeCpp, SpellProcEntryLikeCpp, SpellProcStoreLikeCpp, SpellRadiusStore,
-    SpellRangeStore, SpellRequiredStoreLikeCpp, SpellStore, SpellTargetPositionStoreLikeCpp,
-    SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp, SpellTotemModelStoreLikeCpp,
-    SummonPropertiesEntry, ToyStore, TransmogSetEntry, TransmogSetItemStore,
-    TrinityStringStoreLikeCpp, VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp,
-    VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
-    calculate_battle_pet_stats_like_cpp, is_player_meeting_condition_like_cpp,
+    MapDifficultyStore, MapDifficultyXConditionStore, MapStore, MountCapabilityStore,
+    MountDefinitionStoreLikeCpp, MountStore, MountTypeXCapabilityStore, MountXDisplayStore,
+    MovieStore, NpcSpellClickStoreLikeCpp, PetDefaultSpellStoreLikeCpp,
+    PetDefaultSpellsEntryLikeCpp, PetFamilySpellStoreLikeCpp, PetLevelupSpellSetLikeCpp,
+    PetLevelupSpellStoreLikeCpp, PhaseGroupStore, PhaseStore, PlayerConditionAuraLikeCpp,
+    PlayerConditionContextLikeCpp, PlayerConditionCountLikeCpp, PlayerConditionPartyStatusLikeCpp,
+    PlayerConditionQuestKillLikeCpp, PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp,
+    PlayerConditionStore, PlayerCreateInfoCastSpellStoreLikeCpp,
+    PlayerCreateInfoCustomSpellStoreLikeCpp, PlayerStatsStore, PvpItemStore, RandPropPointsStore,
+    ScriptIdLikeCpp, ScriptNameInternerLikeCpp, ServersideSpellInfoLikeCpp,
+    ServersideSpellStoreLikeCpp, ShieldBlockRegularGameTableLikeCpp, SkillLineStore,
+    SkillRangeTypeLikeCpp, SkillStore, SkillTiersStoreLikeCpp, SpellAreaLikeCpp,
+    SpellAreaStoreLikeCpp, SpellAuraOptionsStore, SpellCategoryStore, SpellChainStoreLikeCpp,
+    SpellCustomAttributeStoreLikeCpp, SpellDurationStore, SpellEnchantProcEntryLikeCpp,
+    SpellEnchantProcStoreLikeCpp, SpellGroupStackRuleLikeCpp, SpellGroupStackRuleStoreLikeCpp,
+    SpellGroupStoreLikeCpp, SpellItemEnchantmentStore, SpellLearnSkillNodeLikeCpp,
+    SpellLearnSkillStoreLikeCpp, SpellLearnSpellNodeLikeCpp, SpellLearnSpellStoreLikeCpp,
+    SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp, SpellMiscStore, SpellPetAuraStoreLikeCpp,
+    SpellProcEntryLikeCpp, SpellProcStoreLikeCpp, SpellRadiusStore, SpellRangeStore,
+    SpellRequiredStoreLikeCpp, SpellShapeshiftFormStore, SpellStore,
+    SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp,
+    SpellTotemModelStoreLikeCpp, SummonPropertiesEntry, TalentStore, TalentTabStore, ToyStore,
+    TransmogSetEntry, TransmogSetItemStore, TrinityStringStoreLikeCpp,
+    VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore,
+    VehicleTemplateStoreLikeCpp, calculate_battle_pet_stats_like_cpp,
+    is_player_meeting_condition_like_cpp,
     progression_rewards::{
-        ContentTuningStore, FactionEntry, FactionStore, FactionTemplateStore,
-        FriendshipRepReactionStore, ParagonReputationStore, QuestFactionRewardStore,
-        QuestInfoStore, QuestPackageItemStore, QuestV2Store,
+        ContentTuningStore, CurvePointStore, CurveStore, FactionEntry, FactionStore,
+        FactionTemplateStore, FriendshipRepReactionStore, NumTalentsAtLevelStore,
+        ParagonReputationStore, QuestFactionRewardStore, QuestInfoStore, QuestPackageItemStore,
+        QuestV2Store, ScalingStatDistributionEntry, ScalingStatDistributionStore,
+        ScalingStatValuesStore,
     },
     reputation::{
         CreatureOnKillReputationStoreLikeCpp, RepSpilloverTemplateStoreLikeCpp,
@@ -113,31 +124,44 @@ use wow_database::{
     SqlTransaction, StatementDef, WorldDatabase,
 };
 use wow_entities::{
-    AccessorObjectKind, ActiveState, ApplyEnchantmentArgs, ApplyEnchantmentEffectRef,
-    ApplyEnchantmentPlan, ApplyEnchantmentRandomSuffixRef, ApplyEnchantmentTemplateRef,
-    BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_COUNT, BUYBACK_SLOT_END,
-    BUYBACK_SLOT_START, BagTemplateRef, CanStoreItemArgs, CanUnequipItemArgs, CanUseItemArgs,
-    CanUseItemTemplateArgs, EQUIPMENT_SLOT_BACK, EQUIPMENT_SLOT_BODY, EQUIPMENT_SLOT_CHEST,
-    EQUIPMENT_SLOT_END, EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_HANDS, EQUIPMENT_SLOT_HEAD,
-    EQUIPMENT_SLOT_LEGS, EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND, EQUIPMENT_SLOT_SHOULDERS,
-    EQUIPMENT_SLOT_TABARD, EQUIPMENT_SLOT_WAIST, EQUIPMENT_SLOT_WRISTS, GAMEOBJECT_TYPE_GUILD_BANK,
-    GameObject, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END,
-    INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS, ITEM_DATA_DURABILITY_BIT,
-    Item, ItemCreateInfo, ItemDataUpdate, ItemLimitCategoryTemplate, ItemPosCount, ItemSlotRef,
-    ItemStorageRef, ItemStorageTemplate, ItemValuesUpdate, MAX_BAG_SIZE, MAX_ITEM_SPELLS,
-    MAX_MONEY_AMOUNT, MAX_POWERS, NULL_BAG, NULL_SLOT, ObjectAccessor, PLAYER_SLOT_END, Pet,
+    AccessorObjectKind, ActiveState, ApplyEnchantmentArgs, ApplyEnchantmentEffectAction,
+    ApplyEnchantmentEffectRef, ApplyEnchantmentPlan, ApplyEnchantmentRandomSuffixRef,
+    ApplyEnchantmentTemplateRef, BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_COUNT,
+    BUYBACK_SLOT_END, BUYBACK_SLOT_START, BagTemplateRef, CanEquipItemArgs, CanEquipUniqueItemArgs,
+    CanStoreItemArgs, CanUnequipItemArgs, CanUseItemArgs, CanUseItemTemplateArgs,
+    EQUIPMENT_SLOT_BACK, EQUIPMENT_SLOT_BODY, EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_END,
+    EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_FINGER1, EQUIPMENT_SLOT_FINGER2, EQUIPMENT_SLOT_HANDS,
+    EQUIPMENT_SLOT_HEAD, EQUIPMENT_SLOT_LEGS, EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_NECK,
+    EQUIPMENT_SLOT_OFFHAND, EQUIPMENT_SLOT_SHOULDERS, EQUIPMENT_SLOT_TABARD,
+    EQUIPMENT_SLOT_TRINKET1, EQUIPMENT_SLOT_TRINKET2, EQUIPMENT_SLOT_WAIST, EQUIPMENT_SLOT_WRISTS,
+    EquippedGemRef, GAMEOBJECT_TYPE_GUILD_BANK, GameObject, INVENTORY_DEFAULT_SIZE,
+    INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
+    INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS, ITEM_DATA_CONTAINED_IN_BIT,
+    ITEM_DATA_DURABILITY_BIT, Item, ItemCreateInfo, ItemDataUpdate, ItemLimitCategoryTemplate,
+    ItemPosCount, ItemSlotRef, ItemStorageRef, ItemStorageTemplate, ItemValuesUpdate, MAX_BAG_SIZE,
+    MAX_ITEM_SPELLS, MAX_MONEY_AMOUNT, MAX_POWERS, MovementGeneratorKind, MovementSlot, NULL_BAG,
+    NULL_SLOT, ObjectAccessor, PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP, PLAYER_SLOT_END, Pet,
     PetAuraLikeCpp, PetDeclinedNamesLikeCpp, PetSaveMode, PetSpellState, PetSpellType, PetStable,
     PetStableInfo, PetType, PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerInventoryStorage,
     PlayerItemTimeUpdate, QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE,
     REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, ReactState, SendNewItemDelivery,
-    SendNewItemDisplayText, SendNewItemPlan, TYPEID_ITEM, UNIT_DATA_HEALTH_BIT, Unit,
-    UnitDataUpdate, UnitDataValues, UnitVisibilityDetectionStateLikeCpp, UpdateMask, Vehicle,
-    VehicleAccessory, VisibleItemValues, WorldObject, is_bag_pos, is_equipment_packed_pos,
-    is_inventory_pos, make_item_pos,
+    SendNewItemDisplayText, SendNewItemPlan, SocketedGemUniqueRef, TYPEID_CONTAINER, TYPEID_ITEM,
+    TitanGripPenaltyAction, UNIT_DATA_HEALTH_BIT, Unit, UnitDataUpdate, UnitDataValues,
+    UnitVisibilityDetectionStateLikeCpp, UpdateMask, Vehicle, VehicleAccessory, VisibleItemValues,
+    WorldObject, explored_zones_db_string_from_blocks_like_cpp, is_bag_pos,
+    is_equipment_packed_pos, is_inventory_pos, item_resistance_bonus_actions_like_cpp,
+    item_scaling_stat_bonus_actions_like_cpp, item_shield_block_bonus_action_like_cpp,
+    item_stat_bonus_actions_like_cpp, item_weapon_damage_actions_like_cpp, make_item_pos,
+    parse_explored_zones_db_string_like_cpp,
+};
+use wow_entities::{
+    BagValuesUpdate, CONTAINER_DATA_BITS, CONTAINER_DATA_SLOTS_FIRST_BIT,
+    CONTAINER_DATA_SLOTS_PARENT_BIT, ContainerDataUpdate, ContainerDataValues,
 };
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus, build_dispatch_table};
 use wow_loot::{LootStoreKind, LootStores};
 use wow_map::coords::SIZE_OF_GRID_CELL;
+use wow_network::player_registry::SendIfVisibleLikeCppCommand;
 use wow_network::session_mgr::{InstanceLink, SessionManager};
 use wow_network::{
     ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp,
@@ -155,8 +179,9 @@ use wow_packet::packets::item::{
 use wow_packet::packets::misc::{
     AccountHeirloom, AccountHeirloomUpdate, AccountMount, AccountMountUpdate, AccountToy,
     AccountToyUpdate, BuyFailed, DungeonDifficultySet, EQUIP_ERR_NOT_ENOUGH_MONEY_LIKE_CPP,
-    NUM_ACCOUNT_DATA_TYPES, RaidDifficultySet, SellResponse, SetupCurrency, SetupCurrencyRecord,
-    TRADE_SLOT_COUNT_LIKE_CPP, TRADE_STATUS_ACCEPTED_LIKE_CPP, TRADE_STATUS_CANCELLED_LIKE_CPP,
+    MOUNT_RESULT_SHAPESHIFTED_LIKE_CPP, MountResult, NUM_ACCOUNT_DATA_TYPES, RaidDifficultySet,
+    SellResponse, SetupCurrency, SetupCurrencyRecord, TRADE_SLOT_COUNT_LIKE_CPP,
+    TRADE_STATUS_ACCEPTED_LIKE_CPP, TRADE_STATUS_CANCELLED_LIKE_CPP,
     TRADE_STATUS_STATE_CHANGED_LIKE_CPP, TRADE_STATUS_UNACCEPTED_LIKE_CPP, TradeStatus,
 };
 use wow_packet::packets::quest::{
@@ -172,6 +197,8 @@ const QUEST_OBJECTIVE_CURRENCY_LIKE_CPP: u8 = 4;
 const QUEST_OBJECTIVE_MIN_REPUTATION_LIKE_CPP: u8 = 6;
 const QUEST_OBJECTIVE_MAX_REPUTATION_LIKE_CPP: u8 = 7;
 const QUEST_OBJECTIVE_MONEY_LIKE_CPP: u8 = 8;
+const COPPER_PER_GOLD_LIKE_CPP: u32 = 10_000;
+const TALENT_RESET_MONTH_SECS_LIKE_CPP: u64 = 30 * 24 * 60 * 60;
 const QUEST_OBJECTIVE_PLAYERKILLS_LIKE_CPP: u8 = 9;
 const QUEST_OBJECTIVE_HAVE_CURRENCY_LIKE_CPP: u8 = 16;
 const QUEST_OBJECTIVE_OBTAIN_CURRENCY_LIKE_CPP: u8 = 17;
@@ -180,6 +207,8 @@ const DEFAULT_VISIBILITY_DISTANCE_YARDS_LIKE_CPP: u32 = 100;
 const QUEST_OBJECTIVE_FLAG_KILL_PLAYERS_SAME_FACTION_LIKE_CPP: u32 = 0x0080;
 const QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP: u32 = 0x1;
 const MAX_GAMEOBJECT_SLOT_LIKE_CPP: usize = 4;
+pub(crate) const MAX_SPECIALIZATIONS_LIKE_CPP: usize = 4;
+const NEEDED_TALENT_POINT_PER_TIER_LIKE_CPP: u32 = 5;
 const PLAYER_FLAGS_UBER_LIKE_CPP: u32 = 0x0008_0000;
 const PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP: u32 = 0x0000_0001;
 const PLAYER_FLAGS_AFK_LIKE_CPP: u32 = 0x0000_0002;
@@ -195,6 +224,11 @@ const PLAYER_FLAGS_IN_PVP_LIKE_CPP: u32 = 0x0000_0200;
 const PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP: u32 = 0x0002_0000;
 const PLAYER_FLAGS_PVP_TIMER_LIKE_CPP: u32 = 0x0004_0000;
 const PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP: u32 = 0x0800_0000;
+const SPELL_PVP_RULES_ENABLED_LIKE_CPP: i32 = 134_735;
+const LANG_RESET_SPELLS_LIKE_CPP: u32 = 215;
+const LANG_RESET_TALENTS_LIKE_CPP: u32 = 216;
+const LANG_RESET_SPELLS_TEXT_LIKE_CPP: &str = "Your spells have been reset.";
+const LANG_RESET_TALENTS_TEXT_LIKE_CPP: &str = "Your talents have been reset.";
 pub(crate) const TRADE_STATUS_PLAYER_BUSY_LIKE_CPP: u8 = 0;
 const PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP: u32 = 0x0000_0800;
 const CURRENCY_DB_UNUSED_FLAGS_LIKE_CPP: u8 = 0x13;
@@ -554,6 +588,7 @@ pub(crate) enum RepresentedPushQuestToPartyOutcomeReasonLikeCpp {
     ReceiverSatisfyQuestDependentBreadcrumbQuestsPrerequisite,
     ReceiverSatisfyQuestExpansionRequiredExpansion,
     ReceiverCanTakeQuestInvalid,
+    #[allow(dead_code)]
     ReceiverRepeatableTurnInRequestItemsUnrepresented,
     ReceiverRepeatableTurnInRequestItemsPrompted,
     ReceiverRepeatableTurnInRequestItemsPromptCommandFailed,
@@ -630,6 +665,40 @@ pub(crate) struct RepresentedConfirmRespecWipeLikeCpp {
     pub respec_type: u8,
 }
 
+/// Evidence for C++ `sScriptMgr->OnPlayerTalentsReset(this, noCost)`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedTalentResetScriptHookLikeCpp {
+    pub no_cost: bool,
+}
+
+/// Evidence for C++ `RemoveAtLoginFlag(flags, persist=true)`.
+///
+/// Non-persistent at-login removals intentionally mutate only the represented
+/// in-memory flag field and do not push this boundary record.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedAtLoginFlagRemovalLikeCpp {
+    pub flags: u16,
+    pub persist: bool,
+    pub db_statement_unrepresented: bool,
+}
+
+/// Evidence for `unit->CastSpell(_player, 14867, true)` after talent reset.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedTalentRespecVisualSpellCastLikeCpp {
+    pub caster_guid: ObjectGuid,
+    pub target_guid: ObjectGuid,
+    pub spell_id: u32,
+    pub triggered: bool,
+    pub spell_runtime_unrepresented: bool,
+}
+
+/// Evidence for the two C++ `Player::ResetTalents` achievement criteria updates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RepresentedTalentRespecCriteriaEventLikeCpp {
+    MoneySpentOnRespecs { amount: u32 },
+    TotalRespecs { quantity: u32 },
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedAdventureMapStartQuestLikeCpp {
     pub quest_id: u32,
@@ -658,6 +727,7 @@ pub(crate) enum RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp {
     ReceiverGiveQuestSourceItemBoundObjectiveNoGrant,
     GiveQuestSourceItemStoreNewItemUnrepresented,
     ReceiverAddQuestLocalStateRepresented,
+    #[allow(dead_code)]
     AddQuestRuntimeUnrepresented,
 }
 
@@ -946,6 +1016,7 @@ pub(crate) struct RepresentedLootRollState {
 pub(crate) struct PlayerSaveToDbSnapshotLikeCpp {
     pub guid: ObjectGuid,
     pub map_id: u16,
+    pub instance_id: u32,
     pub position: Position,
     pub level: u8,
     pub xp: u32,
@@ -1521,6 +1592,7 @@ pub(crate) struct RepresentedCreatureAccessLikeCpp {
     pub position: wow_core::Position,
     pub npc_flags: u32,
     pub npc_flags2: u32,
+    pub trainer_class: u8,
     pub faction_template_id: u32,
 }
 
@@ -1642,6 +1714,184 @@ pub(crate) struct RepresentedItemModsReapplyEventLikeCpp {
     pub item_guid: ObjectGuid,
     pub slot: u8,
     pub apply: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RepresentedItemBonusActionLikeCpp {
+    pub item_guid: ObjectGuid,
+    pub slot: u8,
+    pub action: ApplyEnchantmentEffectAction,
+}
+
+const ITEM_SET_FLAG_LEGACY_INACTIVE_LIKE_CPP: u32 = 0x01;
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub(crate) struct RepresentedItemSetEffectLikeCpp {
+    pub item_set_id: u32,
+    pub equipped_items: HashSet<ObjectGuid>,
+    pub set_bonuses: BTreeSet<u32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedItemSetSpellEventLikeCpp {
+    pub item_set_id: u32,
+    pub spell_entry_id: u32,
+    pub spell_id: u32,
+    pub threshold: u8,
+    pub apply: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RepresentedItemSetAuraRefreshEventLikeCpp {
+    pub item_set_id: u32,
+    pub spell_entry_id: u32,
+    pub spell_id: u32,
+    pub apply: bool,
+    pub form_change: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct RepresentedItemBonusStateLikeCpp {
+    pub mana_base: i32,
+    pub health_base: i32,
+    pub armor_base: i32,
+    pub armor_total: i32,
+    pub stats_base: [i32; 5],
+    pub attack_power_total: i32,
+    pub ranged_attack_power_total: i32,
+    pub resistances_base: [i32; 7],
+    pub combat_ratings: [i32; 32],
+    pub mana_regen_bonus: i32,
+    pub spell_power_bonus: i32,
+    pub health_regen_bonus: i32,
+    pub spell_penetration_bonus: i32,
+    pub shield_block_base_mod: i32,
+    pub shield_block_value: u32,
+    pub weapon_damage: [[f32; 2]; 3],
+    pub base_attack_time: [u32; 3],
+    pub stat_buff_updates: Vec<Stats>,
+    pub damage_physical_updates: Vec<WeaponAttackType>,
+}
+
+impl Default for RepresentedItemBonusStateLikeCpp {
+    fn default() -> Self {
+        Self {
+            mana_base: 0,
+            health_base: 0,
+            armor_base: 0,
+            armor_total: 0,
+            stats_base: [0; 5],
+            attack_power_total: 0,
+            ranged_attack_power_total: 0,
+            resistances_base: [0; 7],
+            combat_ratings: [0; 32],
+            mana_regen_bonus: 0,
+            spell_power_bonus: 0,
+            health_regen_bonus: 0,
+            spell_penetration_bonus: 0,
+            shield_block_base_mod: 0,
+            shield_block_value: 0,
+            weapon_damage: [[0.0; 2]; 3],
+            base_attack_time: [0; 3],
+            stat_buff_updates: Vec::new(),
+            damage_physical_updates: Vec::new(),
+        }
+    }
+}
+
+impl RepresentedItemBonusStateLikeCpp {
+    fn represented_player_stat_changes_like_cpp(
+        &self,
+    ) -> wow_packet::packets::update::PlayerStatChanges {
+        let mut changes = wow_packet::packets::update::PlayerStatChanges {
+            base_mana: self.mana_base,
+            base_health: self.health_base,
+            attack_power: self.attack_power_total,
+            ranged_attack_power: self.ranged_attack_power_total,
+            stats: self.stats_base,
+            stat_pos_buff: self.stats_base,
+            armor: self.armor_base + self.armor_total + self.resistances_base[0],
+            combat_ratings: self.combat_ratings,
+            spell_power: self.spell_power_bonus,
+            shield_block: i32::try_from(self.shield_block_value).unwrap_or(i32::MAX),
+            ..Default::default()
+        };
+
+        changes.min_damage =
+            self.weapon_damage[wow_constants::WeaponAttackType::BaseAttack as usize][0];
+        changes.max_damage =
+            self.weapon_damage[wow_constants::WeaponAttackType::BaseAttack as usize][1];
+        changes.min_ranged_damage =
+            self.weapon_damage[wow_constants::WeaponAttackType::RangedAttack as usize][0];
+        changes.max_ranged_damage =
+            self.weapon_damage[wow_constants::WeaponAttackType::RangedAttack as usize][1];
+        changes
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct RepresentedScalingStatContextLikeCpp {
+    stat_id: [i32; 10],
+    bonus: [i32; 10],
+    ssd_multiplier: i32,
+    spell_bonus: i32,
+    armor_mod: i32,
+    dps_mod: i32,
+    is_two_hand: bool,
+}
+
+const CR_ARMOR_PENETRATION_LIKE_CPP: u8 = 24;
+
+fn apply_represented_i32_delta_like_cpp(target: &mut i32, amount: u32, apply: bool) {
+    let amount = i32::try_from(amount).unwrap_or(i32::MAX);
+    if apply {
+        *target = target.saturating_add(amount);
+    } else {
+        *target = target.saturating_sub(amount);
+    }
+}
+
+fn represented_unit_mod_stat_index_like_cpp(
+    unit_mod: wow_entities::ApplyEnchantmentUnitMod,
+) -> Option<usize> {
+    match unit_mod {
+        wow_entities::ApplyEnchantmentUnitMod::StatStrength => Some(Stats::Strength as usize),
+        wow_entities::ApplyEnchantmentUnitMod::StatAgility => Some(Stats::Agility as usize),
+        wow_entities::ApplyEnchantmentUnitMod::StatStamina => Some(Stats::Stamina as usize),
+        wow_entities::ApplyEnchantmentUnitMod::StatIntellect => Some(Stats::Intellect as usize),
+        wow_entities::ApplyEnchantmentUnitMod::StatSpirit => Some(Stats::Spirit as usize),
+        _ => None,
+    }
+}
+
+fn represented_combat_rating_index_like_cpp(
+    rating: wow_entities::ApplyEnchantmentCombatRating,
+) -> Option<usize> {
+    match rating {
+        wow_entities::ApplyEnchantmentCombatRating::DefenseSkill => Some(1),
+        wow_entities::ApplyEnchantmentCombatRating::Dodge => Some(2),
+        wow_entities::ApplyEnchantmentCombatRating::Parry => Some(3),
+        wow_entities::ApplyEnchantmentCombatRating::Block => Some(4),
+        wow_entities::ApplyEnchantmentCombatRating::HitMelee => Some(5),
+        wow_entities::ApplyEnchantmentCombatRating::HitRanged => Some(6),
+        wow_entities::ApplyEnchantmentCombatRating::HitSpell => Some(7),
+        wow_entities::ApplyEnchantmentCombatRating::CritMelee => Some(8),
+        wow_entities::ApplyEnchantmentCombatRating::CritRanged => Some(9),
+        wow_entities::ApplyEnchantmentCombatRating::CritSpell => Some(10),
+        wow_entities::ApplyEnchantmentCombatRating::HasteMelee => Some(17),
+        wow_entities::ApplyEnchantmentCombatRating::HasteRanged => Some(18),
+        wow_entities::ApplyEnchantmentCombatRating::HasteSpell => Some(19),
+        wow_entities::ApplyEnchantmentCombatRating::Expertise => Some(23),
+        wow_entities::ApplyEnchantmentCombatRating::ArmorPenetration => {
+            Some(CR_ARMOR_PENETRATION_LIKE_CPP as usize)
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RepresentedCombatStatRecalculationLikeCpp {
+    Expertise { attack: WeaponAttackType },
+    Rating { combat_rating: u8 },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1975,6 +2225,14 @@ pub(crate) struct MoveTeleportAckEventLikeCpp {
     pub delayed_operations_processed: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RepresentedAreaZoneCriteriaLikeCpp {
+    EnterArea(u32),
+    LeaveArea(u32),
+    EnterTopLevelArea(u32),
+    LeaveTopLevelArea(u32),
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct RepresentedTaxiFlightStateLikeCpp {
     current_node: RepresentedTaxiFlightNodeLikeCpp,
@@ -2200,6 +2458,28 @@ impl AccountTransmogIllusionSavePlanLikeCpp {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct AccountMountSaveRowLikeCpp {
+    pub(crate) bnet_account_id: u32,
+    pub(crate) mount_spell_id: u32,
+    pub(crate) flags: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct AccountToySaveRowLikeCpp {
+    pub(crate) bnet_account_id: u32,
+    pub(crate) item_id: u32,
+    pub(crate) is_favorite: bool,
+    pub(crate) has_fanfare: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct AccountHeirloomSaveRowLikeCpp {
+    pub(crate) bnet_account_id: u32,
+    pub(crate) item_id: u32,
+    pub(crate) flags: u32,
+}
+
 const DEFAULT_TRANSMOG_ILLUSIONS_LIKE_CPP: [u32; 7] = [
     3,  // Lifestealing
     13, // Crusader
@@ -2214,6 +2494,7 @@ pub(crate) const BATTLE_PET_FLAG_FANFARE_NEEDED_LIKE_CPP: u16 = 0x01;
 pub(crate) const BATTLE_PET_FLAGS_CONTROL_TYPE_APPLY_LIKE_CPP: u8 = 1;
 pub(crate) const BATTLE_PET_SLOT_COUNT_LIKE_CPP: usize = 3;
 pub(crate) const BATTLE_PET_CAGE_ITEM_ID_LIKE_CPP: u32 = 82_800;
+#[allow(dead_code)]
 pub(crate) const BATTLE_PET_BREED_QUALITY_RARE_LIKE_CPP: u8 = 3;
 pub(crate) const BATTLE_PET_SPELL_VISUAL_UNCAGE_PET_LIKE_CPP: u32 = 222;
 pub(crate) const DEFAULT_MAX_BATTLE_PETS_PER_SPECIES_LIKE_CPP: u8 = 3;
@@ -2230,6 +2511,7 @@ pub(crate) enum RepresentedBattlePetXpSourceLikeCpp {
 pub(crate) enum RepresentedBattlePetSaveInfoLikeCpp {
     New,
     Changed,
+    #[allow(dead_code)]
     Unchanged,
     Removed,
 }
@@ -2262,6 +2544,7 @@ pub(crate) struct RepresentedBattlePetCalculatedStatsLikeCpp {
     pub(crate) speed: u32,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedBattlePetQualityOutcomeLikeCpp {
     Changed,
@@ -2443,6 +2726,9 @@ const TOY_FLAG_HAS_FANFARE_LIKE_CPP: u32 = 0x02;
 const DAMAGE_FALL_LIKE_CPP: u8 = 2;
 const DAMAGE_FIRE_LIKE_CPP: u8 = 5;
 const DAMAGE_FALL_TO_VOID_LIKE_CPP: u8 = 6;
+const SPELL_SHAPESHIFT_FORM_FLAG_STANCE_LIKE_CPP: i32 = 0x0000_0001;
+const CREATURE_MODEL_DATA_FLAG_CAN_MOUNT_WHILE_TRANSFORMED_AS_THIS_LIKE_CPP: u32 = 0x0000_0080;
+const CHR_RACES_FLAG_CAN_MOUNT_LIKE_CPP: i32 = 0x0000_0004;
 pub(crate) const SPELL_DUEL_LIKE_CPP: u32 = 7266;
 pub(crate) const SPELL_MOUNTED_DUEL_LIKE_CPP: u32 = 62875;
 pub(crate) const SPELL_DUEL_BEG_LIKE_CPP: u32 = 7267;
@@ -2754,6 +3040,92 @@ fn represented_pet_aura_slot_like_cpp(index: usize) -> Option<u8> {
     u8::try_from(index).ok().filter(|slot| *slot < u8::MAX)
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedPlayerSkillLikeCpp {
+    pub skill_id: u16,
+    pub value: u16,
+    pub max: u16,
+    pub profession_slot: i8,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RepresentedPlayerSpellStateLikeCpp {
+    Unchanged,
+    Changed,
+    New,
+    Removed,
+    Temporary,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedPlayerSpellLikeCpp {
+    pub spell_id: i32,
+    pub active: bool,
+    pub disabled: bool,
+    pub dependent: bool,
+    pub favorite: bool,
+    pub state: RepresentedPlayerSpellStateLikeCpp,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedCharacterSpellCooldownLikeCpp {
+    pub spell_id: u32,
+    pub item_id: u32,
+    pub cooldown_end_unix_secs: i64,
+    pub category_id: u32,
+    pub category_end_unix_secs: i64,
+}
+
+impl RepresentedCharacterSpellCooldownLikeCpp {
+    fn is_active_at_like_cpp(&self, now_unix_secs: i64) -> bool {
+        self.cooldown_end_unix_secs > now_unix_secs || self.category_end_unix_secs > now_unix_secs
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedCharacterSpellChargeLikeCpp {
+    pub category_id: u32,
+    pub recharge_start_unix_secs: i64,
+    pub recharge_end_unix_secs: i64,
+}
+
+impl RepresentedCharacterSpellChargeLikeCpp {
+    fn is_active_at_like_cpp(&self, now_unix_secs: i64) -> bool {
+        self.recharge_end_unix_secs > now_unix_secs
+    }
+}
+
+#[allow(dead_code)]
+fn represented_skill_records_from_values_like_cpp(
+    skill_values: &HashMap<u16, u16>,
+) -> HashMap<u16, RepresentedPlayerSkillLikeCpp> {
+    skill_values
+        .iter()
+        .map(|(&skill_id, &value)| {
+            (
+                skill_id,
+                RepresentedPlayerSkillLikeCpp {
+                    skill_id,
+                    value,
+                    max: value,
+                    profession_slot: -1,
+                },
+            )
+        })
+        .collect()
+}
+
+fn represented_skill_values_from_records_like_cpp(
+    skill_records: &HashMap<u16, RepresentedPlayerSkillLikeCpp>,
+) -> HashMap<u16, u16> {
+    skill_records
+        .iter()
+        .map(|(&skill_id, record)| (skill_id, record.value))
+        .collect()
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct SessionPlayerController {
     guid: ObjectGuid,
@@ -2766,11 +3138,13 @@ pub(crate) struct SessionPlayerController {
     gender: u8,
     gold: u64,
     bank_bag_slot_count: u8,
+    character_points: i32,
     xp: u32,
     next_level_xp: u32,
     selection_guid: Option<ObjectGuid>,
     known_spells: Vec<i32>,
     skill_values: HashMap<u16, u16>,
+    skill_records: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
     currencies: HashMap<u32, PlayerCurrency>,
     inventory: SessionPlayerInventoryRuntime,
 }
@@ -2820,11 +3194,13 @@ impl SessionPlayerController {
             gender,
             gold: 0,
             bank_bag_slot_count: 0,
+            character_points: 0,
             xp: 0,
             next_level_xp: 400,
             selection_guid: None,
             known_spells: Vec::new(),
             skill_values: HashMap::new(),
+            skill_records: HashMap::new(),
             currencies: HashMap::new(),
             inventory: SessionPlayerInventoryRuntime::default(),
         }
@@ -2874,6 +3250,10 @@ impl SessionPlayerController {
         self.bank_bag_slot_count
     }
 
+    pub(crate) fn character_points(&self) -> i32 {
+        self.character_points
+    }
+
     pub(crate) fn xp(&self) -> u32 {
         self.xp
     }
@@ -2893,6 +3273,10 @@ impl SessionPlayerController {
 
     pub(crate) fn skill_values(&self) -> &HashMap<u16, u16> {
         &self.skill_values
+    }
+
+    pub(crate) fn skill_records(&self) -> &HashMap<u16, RepresentedPlayerSkillLikeCpp> {
+        &self.skill_records
     }
 
     pub(crate) fn currencies(&self) -> &HashMap<u32, PlayerCurrency> {
@@ -2924,6 +3308,10 @@ impl SessionPlayerController {
         self.bank_bag_slot_count = count;
     }
 
+    fn set_character_points(&mut self, points: i32) {
+        self.character_points = points;
+    }
+
     fn set_xp(&mut self, xp: u32) {
         self.xp = xp;
     }
@@ -2940,14 +3328,19 @@ impl SessionPlayerController {
         self.known_spells = spells;
     }
 
-    fn set_skill_values(&mut self, skill_values: HashMap<u16, u16>) {
-        self.skill_values = skill_values;
+    fn set_skill_records(&mut self, skill_records: HashMap<u16, RepresentedPlayerSkillLikeCpp>) {
+        self.skill_values = represented_skill_values_from_records_like_cpp(&skill_records);
+        self.skill_records = skill_records;
     }
 
     fn learn_spell(&mut self, spell_id: i32) {
         if !self.known_spells.contains(&spell_id) {
             self.known_spells.push(spell_id);
         }
+    }
+
+    fn remove_spell(&mut self, spell_id: i32) {
+        self.known_spells.retain(|known| *known != spell_id);
     }
 
     fn set_currencies(&mut self, currencies: HashMap<u32, PlayerCurrency>) {
@@ -3046,6 +3439,9 @@ impl SpellCastMetadata {
     }
 }
 
+const SPELL_QUEUE_TIME_WINDOW_LIKE_CPP_MS: u32 = 400;
+const SPELL_FAILED_DONT_REPORT_LIKE_CPP: i32 = 32;
+
 /// Spell casting state — tracks an in-progress spell cast with a timer.
 ///
 /// Used for spells with cast time > 0. When the player initiates a cast,
@@ -3068,6 +3464,22 @@ pub struct SpellCastState {
     /// Spell visual IDs.
     pub spell_visual: wow_packet::packets::spell::SpellCastVisual,
     /// C++ `Spell` metadata that must survive delayed completion.
+    pub metadata: SpellCastMetadata,
+}
+
+/// Minimal represented state for C++ `Player::_pendingSpellCastRequest`.
+///
+/// This covers the represented player-caster queue path and the fields C++
+/// `CancelPendingCastRequest` needs to clear the queued button highlight
+/// without touching the currently active spell cast.
+#[derive(Debug, Clone)]
+pub(crate) struct RepresentedPendingSpellCastRequestLikeCpp {
+    pub cast_id: ObjectGuid,
+    pub spell_id: i32,
+    pub casting_unit_guid: ObjectGuid,
+    pub target_guid: ObjectGuid,
+    pub target_data: SpellTargetData,
+    pub spell_visual: wow_packet::packets::spell::SpellCastVisual,
     pub metadata: SpellCastMetadata,
 }
 
@@ -3147,6 +3559,11 @@ pub struct WorldSession {
     instance_ignore_raid_like_cpp: bool,
     instance_ignore_level_like_cpp: bool,
     max_instances_per_hour_like_cpp: u32,
+    start_all_explored_like_cpp: bool,
+    start_all_reputation_like_cpp: bool,
+    start_all_spells_like_cpp: bool,
+    player_create_cast_spell_store_like_cpp: Option<Arc<PlayerCreateInfoCastSpellStoreLikeCpp>>,
+    player_create_custom_spell_store_like_cpp: Option<Arc<PlayerCreateInfoCustomSpellStoreLikeCpp>>,
     pub build: u32,
     pub session_key: Vec<u8>,
     pub locale: String,
@@ -3235,6 +3652,9 @@ pub struct WorldSession {
     battle_pet_species_state_store: Option<Arc<BattlePetSpeciesStateStore>>,
     battle_pet_xp_game_table: Option<Arc<BattlePetXpGameTableLikeCpp>>,
 
+    // C++ `sShieldBlockRegularGameTable` used by `ItemTemplate::GetShieldBlockValue`.
+    shield_block_regular_game_table: Option<Arc<ShieldBlockRegularGameTableLikeCpp>>,
+
     // Transmog set item store (TransmogSetItem.db2 data)
     transmog_set_item_store: Option<Arc<TransmogSetItemStore>>,
 
@@ -3249,8 +3669,14 @@ pub struct WorldSession {
 
     // Player level stats store (race/class/level → base stats)
     player_stats: Option<Arc<PlayerStatsStore>>,
+    represented_item_level_caps_like_cpp: RepresentedItemLevelCapsLikeCpp,
+    represented_using_pvp_item_levels_like_cpp: bool,
 
     // Item stat modifiers store (item_id → stat bonuses from ItemSparse.db2)
+    item_bonus_db2_store: Option<Arc<ItemBonusDb2Store>>,
+    pvp_item_store: Option<Arc<PvpItemStore>>,
+    item_set_store: Option<Arc<ItemSetStore>>,
+    item_set_spell_store: Option<Arc<ItemSetSpellStore>>,
     item_stats_store: Option<Arc<ItemStatsStore>>,
     durability_costs_store: Option<Arc<DurabilityCostsStore>>,
     durability_quality_store: Option<Arc<DurabilityQualityStore>>,
@@ -3289,6 +3715,10 @@ pub struct WorldSession {
 
     // C++ ContentTuning.db2 store used by level gates such as Meeting Stone.
     content_tuning_store: Option<Arc<ContentTuningStore>>,
+    curve_store: Option<Arc<CurveStore>>,
+    curve_point_store: Option<Arc<CurvePointStore>>,
+    scaling_stat_distribution_store: Option<Arc<ScalingStatDistributionStore>>,
+    scaling_stat_values_store: Option<Arc<ScalingStatValuesStore>>,
 
     // C++ DisableMgr store loaded from world.disables.
     disable_mgr: Option<Arc<DisableMgrLikeCpp>>,
@@ -3309,8 +3739,14 @@ pub struct WorldSession {
     // Skill store (auto-learned spells from SkillLineAbility.db2 + SkillRaceClassInfo.db2)
     skill_store: Option<Arc<SkillStore>>,
 
+    // TraitDefinition.db2 store used by represented PlayerSpell::TraitDefinitionId cleanup.
+    trait_definition_store: Option<Arc<TraitDefinitionStore>>,
+
     // SkillLine.db2 store for C++ parent/expansion skill resolution.
     skill_line_store: Option<Arc<SkillLineStore>>,
+
+    // C++ ObjectMgr::_skillTiers loaded from world.skill_tiers.
+    skill_tiers_store: Option<Arc<SkillTiersStoreLikeCpp>>,
 
     // Area table store (area hierarchy + mount flags)
     area_table_store: Option<Arc<AreaTableStore>>,
@@ -3348,12 +3784,15 @@ pub struct WorldSession {
     championing_faction_like_cpp: u32,
     creature_template_mount_store: Option<Arc<CreatureTemplateMountStoreLikeCpp>>,
     creature_display_info_store: Option<Arc<CreatureDisplayInfoStore>>,
+    creature_display_info_extra_store: Option<Arc<CreatureDisplayInfoExtraStore>>,
     gameobject_display_info_store: Option<Arc<GameObjectDisplayInfoStore>>,
     creature_model_data_store: Option<Arc<CreatureModelDataStore>>,
     mount_store: Option<Arc<MountStore>>,
+    mount_definition_store_like_cpp: Option<Arc<MountDefinitionStoreLikeCpp>>,
     mount_capability_store: Option<Arc<MountCapabilityStore>>,
     mount_type_x_capability_store: Option<Arc<MountTypeXCapabilityStore>>,
     mount_x_display_store: Option<Arc<MountXDisplayStore>>,
+    spell_shapeshift_form_store: Option<Arc<SpellShapeshiftFormStore>>,
     vehicle_store: Option<Arc<VehicleStore>>,
     vehicle_seat_store: Option<Arc<VehicleSeatStore>>,
     vehicle_template_store: Option<Arc<VehicleTemplateStoreLikeCpp>>,
@@ -3385,6 +3824,8 @@ pub struct WorldSession {
     pub(crate) pass_on_group_loot: bool,
     pub(crate) represented_enchanting_skill: u16,
     player_skill_values_like_cpp: HashMap<u16, u16>,
+    player_skill_records_like_cpp: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
+    player_skill_records_loaded_like_cpp: bool,
     represented_gray_level_script_overrides_like_cpp: HashMap<u8, u8>,
 
     // Realm ID for GUID creation
@@ -3452,8 +3893,14 @@ pub struct WorldSession {
     /// Player's current money in copper (1 gold = 10,000 copper).
     /// Loaded from `characters.money` on login; saved on logout + buy/sell.
     player_gold: u64,
+    /// C++ `Player::m_resetTalentsCost`, represented until character DB load/save owns it.
+    represented_talent_reset_cost_like_cpp: u32,
+    /// C++ `Player::m_resetTalentsTime`, represented as Unix seconds.
+    represented_talent_reset_time_secs_like_cpp: u64,
     /// C++ `Player::GetBankBagSlotCount`, loaded from `characters.bankSlots`.
     player_bank_bag_slot_count_like_cpp: u8,
+    /// C++ `UF::ActivePlayerData::CharacterPoints`, recalculated by InitTalentForLevel/LearnTalent.
+    player_character_points_like_cpp: i32,
     represented_bank_bag_slot_flags_like_cpp: [u32; 7],
     represented_current_banker_guid_like_cpp: Option<ObjectGuid>,
     represented_bank_item_moves_like_cpp: Vec<RepresentedBankItemMoveLikeCpp>,
@@ -3465,6 +3912,7 @@ pub struct WorldSession {
     represented_auction_place_bids_like_cpp: Vec<RepresentedAuctionPlaceBidLikeCpp>,
     represented_auction_remove_items_like_cpp: Vec<RepresentedAuctionRemoveItemLikeCpp>,
     represented_auction_sell_items_like_cpp: Vec<RepresentedAuctionSellItemLikeCpp>,
+    represented_auto_unequip_offhand_requests_like_cpp: Vec<RepresentedAutoUnequipOffhandLikeCpp>,
     player_xp: u32,
     /// XP required to reach next level, cached from player_xp_for_level.
     player_next_level_xp: u32,
@@ -3477,6 +3925,11 @@ pub struct WorldSession {
     player_controller: Option<SessionPlayerController>,
     /// C++ `WorldSession::_accountData`, represented in-memory until DB load/save is wired.
     account_data_like_cpp: [AccountDataLikeCpp; NUM_ACCOUNT_DATA_TYPES],
+    /// C++ `WorldSession::_tutorials`, account-scoped tutorial completion flags.
+    tutorials_like_cpp: [u32; 8],
+    tutorials_loaded_from_db_like_cpp: bool,
+    tutorials_loaded_coherently_like_cpp: bool,
+    tutorials_changed_like_cpp: bool,
 
     /// Pending creature spawn request (set during login, processed async).
     pub(crate) pending_creature_spawn: Option<PendingCreatureSpawn>,
@@ -3494,6 +3947,15 @@ pub struct WorldSession {
     buyback_timestamp: [i64; BUYBACK_SLOT_COUNT],
     current_buyback_slot: u8,
     represented_item_mod_reapply_events_like_cpp: Vec<RepresentedItemModsReapplyEventLikeCpp>,
+    represented_item_bonus_actions_like_cpp: Vec<RepresentedItemBonusActionLikeCpp>,
+    represented_item_bonus_state_like_cpp: RepresentedItemBonusStateLikeCpp,
+    represented_item_set_effects_like_cpp: HashMap<u32, RepresentedItemSetEffectLikeCpp>,
+    represented_item_set_spell_events_like_cpp: Vec<RepresentedItemSetSpellEventLikeCpp>,
+    represented_item_set_aura_refresh_events_like_cpp:
+        Vec<RepresentedItemSetAuraRefreshEventLikeCpp>,
+    represented_combat_stat_recalculations_like_cpp: Vec<RepresentedCombatStatRecalculationLikeCpp>,
+    represented_titan_grip_penalty_actions_like_cpp: Vec<TitanGripPenaltyAction>,
+    represented_avg_equipped_item_level_updates_like_cpp: Vec<f32>,
     represented_guild_id_like_cpp: u64,
     represented_guild_id_invited_like_cpp: u64,
     represented_guild_accept_invites_like_cpp: Vec<u64>,
@@ -3546,14 +4008,32 @@ pub struct WorldSession {
     player_level: u8,
     /// Gender of the currently logged-in character (set at login).
     player_gender: u8,
+    /// C++ `Player::m_createMode`, loaded from `characters.createMode`.
+    player_create_mode_like_cpp: u8,
+    /// Represented C++ `Player::GetShapeshiftForm()` until shapeshift aura state owns it.
+    represented_shapeshift_form_like_cpp: u32,
     /// C++ ActivePlayerData::LootSpecID represented session state.
     loot_specialization_id: u32,
+    /// Represented C++ ActivePlayerData::CurrentSpecID / GetPrimarySpecialization.
+    represented_primary_specialization_id_like_cpp: u32,
     /// All known spell IDs for the logged-in character (DB + DBC merged).
     known_spells: Vec<i32>,
+    /// Represented C++ `PlayerSpell::dependent` for known spells that must not
+    /// be persisted by `_SaveSpells`.
+    represented_dependent_known_spells_like_cpp: HashSet<i32>,
+    /// Represented C++ `PLAYERSPELL_REMOVED` rows for known spells removed
+    /// after a coherent character spell load.
+    represented_removed_known_spells_like_cpp: HashSet<i32>,
+    /// Represented C++ `PlayerSpell::favorite` rows loaded from
+    /// `character_spell_favorite`.
+    represented_favorite_known_spells_like_cpp: HashSet<i32>,
+    /// Represented C++ `PlayerSpell::TraitDefinitionId`, keyed by learned spell id.
+    represented_spell_trait_definition_ids_like_cpp: HashMap<i32, i32>,
     /// C++ `CollectionMgr::_mounts` represented account mount collection.
     account_mounts_like_cpp: HashMap<i32, u8>,
     /// C++ `Player::_CUFProfiles`, represented until full player save/load owns it.
     cuf_profiles_like_cpp: Vec<Option<wow_packet::packets::misc::CufProfile>>,
+    cuf_profiles_loaded_like_cpp: bool,
 
     // ── Dual-connection (realm + instance) ───────────────────────
     // After ConnectTo completes, the session uses the instance socket for
@@ -3570,6 +4050,8 @@ pub struct WorldSession {
     player_position: Option<wow_core::Position>,
     /// Last accepted player movement flags, mirroring C++ `Unit::m_movementInfo`.
     player_movement_flags_like_cpp: MovementFlag,
+    /// Represented C++ `MOVEMENTFLAG2_CAN_SWIM_TO_FLY_TRANS` server-controlled state.
+    represented_can_swim_to_fly_transition_like_cpp: bool,
     /// Represented `m_unitMovedByMe->GetVehicle()->GetVehicleInfo()->Flags & VEHICLE_FLAG_FIXED_POSITION`.
     represented_mover_fixed_position_vehicle_like_cpp: bool,
     /// Last terrain liquid status, mirroring C++ `WorldObject::m_liquidStatus`.
@@ -3633,6 +4115,8 @@ pub struct WorldSession {
     player_max_health_like_cpp: u32,
     /// Represented `Unit::m_movementInfo.time` for client movement ACK side effects.
     player_movement_time_like_cpp: u32,
+    /// Represented `Unit::m_movementInfo.jump`, reset by `Player::TeleportTo`.
+    player_movement_jump_like_cpp: wow_packet::packets::movement::JumpInfo,
     /// C++ `Player::m_lastFallTime`.
     last_fall_time_like_cpp: u32,
     /// C++ `Player::m_lastFallZ`.
@@ -3657,6 +4141,7 @@ pub struct WorldSession {
     active_player_multi_action_bars_like_cpp: u8,
     /// C++ `Player::m_actionButtons` represented as packed action-button data.
     represented_action_buttons_like_cpp: [u32; wow_packet::packets::misc::MAX_ACTION_BUTTONS],
+    represented_action_buttons_loaded_like_cpp: bool,
     /// C++ `Player::_advancedCombatLoggingEnabled`; consumed when combat-log fanout selects full/basic payloads.
     advanced_combat_logging_enabled_like_cpp: bool,
     /// C++ `Player::GetUnitBeingMoved()` represented GUID.
@@ -3676,8 +4161,21 @@ pub struct WorldSession {
         Vec<RepresentedConfirmBarbersChoiceLikeCpp>,
     /// Represented accepted talent-respec wipe requests until Player::ResetTalents is canonical.
     represented_confirm_respec_wipe_requests_like_cpp: Vec<RepresentedConfirmRespecWipeLikeCpp>,
+    /// C++ `Player::m_atLoginFlags`, represented for reset-on-login side effects.
+    represented_at_login_flags_like_cpp: u16,
+    /// Represented `sScriptMgr->OnPlayerTalentsReset` calls until ScriptMgr is live.
+    represented_talent_reset_script_hooks_like_cpp: Vec<RepresentedTalentResetScriptHookLikeCpp>,
+    /// Represented persistent `RemoveAtLoginFlag` calls until direct character DB execution is live.
+    represented_at_login_flag_removals_like_cpp: Vec<RepresentedAtLoginFlagRemovalLikeCpp>,
+    /// Represented `unit->CastSpell(_player, 14867, true)` after successful talent reset.
+    represented_talent_respec_visual_spell_casts_like_cpp:
+        Vec<RepresentedTalentRespecVisualSpellCastLikeCpp>,
+    /// Represented `CriteriaType::MoneySpentOnRespecs` / `TotalRespecs` events.
+    represented_talent_respec_criteria_events_like_cpp:
+        Vec<RepresentedTalentRespecCriteriaEventLikeCpp>,
     /// C++ `Player::_equipmentSets`, represented until DB-backed save/load is canonical.
     represented_equipment_sets_like_cpp: BTreeMap<u64, RepresentedEquipmentSetLikeCpp>,
+    represented_equipment_sets_loaded_like_cpp: bool,
     /// Represented stand-in for `ObjectMgr::GenerateEquipmentSetGuid`.
     represented_next_equipment_set_guid_like_cpp: u64,
     /// Represented accepted Adventure Map quest starts until AddQuestAndCheckCompletion is canonical.
@@ -3842,6 +4340,12 @@ pub struct WorldSession {
     /// that initiate teleport and must apply after WorldPortResponse.
     represented_delayed_resurrection_after_teleport_like_cpp:
         Option<RepresentedResurrectionRequestLikeCpp>,
+    /// C++ `ActivePlayerData::SelfResSpells`, represented until update-field
+    /// ownership is canonical.
+    represented_self_res_spells_like_cpp: BTreeSet<i32>,
+    /// C++ `Player::m_overrideSpells`, represented until active player spell
+    /// cast resolution owns override lookup.
+    represented_override_spells_like_cpp: HashMap<i32, BTreeSet<i32>>,
     /// C++ `CONFIG_CAST_UNSTUCK` represented until World config is injected into spell effects.
     represented_cast_unstuck_enabled_like_cpp: bool,
     /// C++ `Player::GetDeathTimer()` represented for `Spell::EffectStuck`.
@@ -3856,6 +4360,10 @@ pub struct WorldSession {
     forced_speed_changes_like_cpp: [u8; UnitMoveTypeLikeCpp::COUNT],
     /// C++ `Unit::m_speed_rate[MAX_MOVE_TYPE]` represented state for player-controlled movers.
     movement_speed_rates_like_cpp: [f32; UnitMoveTypeLikeCpp::COUNT],
+    /// C++ `Player::GetPet()->SetSpeedRate` propagation represented until pet Unit runtime owns it.
+    represented_pet_movement_speed_rates_like_cpp: [f32; UnitMoveTypeLikeCpp::COUNT],
+    /// Count of represented player speed changes propagated to the active pet.
+    represented_pet_speed_propagations_like_cpp: u32,
     /// Represented transport guard for speed ACK anticheat; C++ skips speed mismatch while on transport.
     player_on_transport_like_cpp: bool,
     /// C++ `Player::m_movementForceModMagnitudeChanges` represented state.
@@ -3872,6 +4380,10 @@ pub struct WorldSession {
     // ── Spell casting ──────────────────────────────────────────────
     /// Spell store (metadata for all known spells: cast time, cooldown, effects, etc.)
     pub spell_store: Option<Arc<SpellStore>>,
+    talent_store: Option<Arc<TalentStore>>,
+    talent_tab_store: Option<Arc<TalentTabStore>>,
+    num_talents_at_level_store: Option<Arc<NumTalentsAtLevelStore>>,
+    glyph_properties_store: Option<Arc<GlyphPropertiesStore>>,
     spell_chain_store: Option<Arc<SpellChainStoreLikeCpp>>,
     spell_category_store: Option<Arc<SpellCategoryStore>>,
     npc_spell_click_store: Option<Arc<NpcSpellClickStoreLikeCpp>>,
@@ -3916,11 +4428,29 @@ pub struct WorldSession {
     gameobject_template_lifecycle_store: Option<Arc<GameObjectTemplateLifecycleStoreLikeCpp>>,
     /// Currently active spell cast (if any). Set when a cast starts, cleared when it completes.
     pub(crate) active_spell_cast: Option<SpellCastState>,
+    /// C++ `Player::_pendingSpellCastRequest`, represented separately from
+    /// `active_spell_cast` so cancel queued spell does not interrupt a cast
+    /// already in progress.
+    pub(crate) represented_pending_spell_cast_request_like_cpp:
+        Option<RepresentedPendingSpellCastRequestLikeCpp>,
     /// Last time a spell was executed (used to enforce global cooldown timers).
     pub(crate) last_spell_cast_time: Option<Instant>,
     /// Per-spell cooldown tracking: spell_id → last cast time.
     /// Used to enforce spell-specific cooldown timers.
     pub(crate) last_spell_cast_time_per_spell: HashMap<i32, Instant>,
+    represented_character_spell_cooldowns_like_cpp:
+        HashMap<u32, RepresentedCharacterSpellCooldownLikeCpp>,
+    represented_character_spell_cooldowns_loaded_like_cpp: bool,
+    represented_character_spell_charges_like_cpp:
+        BTreeMap<u32, Vec<RepresentedCharacterSpellChargeLikeCpp>>,
+    represented_character_spell_charges_loaded_like_cpp: bool,
+    represented_active_talent_group_like_cpp: u8,
+    represented_bonus_talent_groups_like_cpp: u8,
+    represented_talents_like_cpp: [BTreeMap<u32, u8>; MAX_SPECIALIZATIONS_LIKE_CPP],
+    represented_talents_loaded_like_cpp: bool,
+    represented_glyphs_like_cpp: [[u16; wow_packet::packets::misc::MAX_GLYPH_SLOT_INDEX_LIKE_CPP];
+        MAX_SPECIALIZATIONS_LIKE_CPP],
+    represented_glyphs_loaded_like_cpp: bool,
 
     // ── Quest system ───────────────────────────────────────────────
     /// Quest template store (loaded from world DB at startup).
@@ -3933,6 +4463,9 @@ pub struct WorldSession {
     pub(crate) quest_package_item_store: Option<Arc<QuestPackageItemStore>>,
     pub(crate) quest_faction_reward_store: Option<Arc<QuestFactionRewardStore>>,
     pub(crate) player_xp_table: Option<Arc<Vec<u32>>>,
+    pub(crate) exploration_base_xp_store: Option<Arc<ExplorationBaseXpStoreLikeCpp>>,
+    pub(crate) exploration_xp_rate_like_cpp: f32,
+    pub(crate) min_discovered_scaled_xp_ratio_like_cpp: u32,
     /// Active quests for this player: quest_id → status.
     pub(crate) player_quests: HashMap<u32, crate::handlers::quest::PlayerQuestStatus>,
     /// Quests the player has already been rewarded for (non-repeatable quests cannot be re-taken).
@@ -4028,6 +4561,14 @@ pub struct WorldSession {
         Vec<RepresentedQuestRewardReputationLikeCpp>,
     /// Bridge for quest completed unique-bit state loaded before the canonical Player snapshot exists.
     pub(crate) represented_quest_completed_bits_like_cpp: BTreeSet<u32>,
+    /// C++ `ActivePlayerData::ExploredZones`, represented before the canonical Player owns persistence.
+    represented_explored_zones_like_cpp: [u64; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP],
+    /// Represented `CriteriaType::RevealWorldMapOverlay` events from area discovery.
+    #[allow(dead_code)]
+    represented_reveal_world_map_overlay_criteria_like_cpp: Vec<u32>,
+    /// Represented `Player::UpdateArea` / `Player::UpdateZone` criteria side effects.
+    #[allow(dead_code)]
+    represented_area_zone_criteria_like_cpp: Vec<RepresentedAreaZoneCriteriaLikeCpp>,
     /// Session-local evidence for represented `ScriptMgr::OnQuestAcknowledgeAutoAccept` calls.
     pub(crate) represented_auto_accept_acknowledged_quests_like_cpp: Vec<u32>,
     /// Session-local representation of C++ pending shared quest sender + quest id.
@@ -4073,6 +4614,14 @@ pub struct WorldSession {
     repair_cost_rate_like_cpp: f32,
     /// C++ `CONFIG_RESET_SCHEDULE_{HOUR,WEEK_DAY}` consumed by `InstanceLockMgr::GetNextResetTime`.
     reset_schedule_like_cpp: wow_instances::ResetSchedule,
+    /// C++ `CONFIG_NO_RESET_TALENT_COST` represented switch.
+    no_reset_talent_cost_like_cpp: bool,
+    /// C++ `CONFIG_OFFHAND_CHECK_AT_SPELL_UNLEARN` represented switch.
+    represented_offhand_check_at_spell_unlearn_like_cpp: bool,
+    /// C++ `CONFIG_VMAP_INDOOR_CHECK` represented switch.
+    vmap_indoor_check_like_cpp: bool,
+    /// Represented C++ `WorldObject::IsOutdoors()` result until VMAP owns it.
+    represented_is_outdoors_like_cpp: Option<bool>,
     /// C++ `ReputationMgr` per-player state foundation.
     reputation_mgr_like_cpp: ReputationMgrLikeCpp,
     /// C++ `ActivePlayerData::WatchedFactionIndex` represented state.
@@ -4192,6 +4741,22 @@ pub struct InventoryItem {
     /// InventoryType from Item.db2 (e.g. 1=Head, 5=Chest, 13=Weapon).
     /// Loaded from the item store at login, with slot-based fallback.
     pub inventory_type: Option<u8>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RepresentedAutoUnequipOffhandReasonLikeCpp {
+    Forced,
+    LostDualWield,
+    InvalidTwoHandState,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedAutoUnequipOffhandLikeCpp {
+    pub item_guid: ObjectGuid,
+    pub item_entry: u32,
+    pub reason: RepresentedAutoUnequipOffhandReasonLikeCpp,
+    pub stored_destination: Option<(u8, u8)>,
+    pub needs_mail_fallback: bool,
 }
 
 pub(crate) const MAX_EQUIPMENT_SET_INDEX_LIKE_CPP: u32 = 20;
@@ -4392,6 +4957,15 @@ pub(crate) struct RepresentedPlayerConditionContextLikeCpp {
     mainhand_weapon_subclass: Option<u8>,
 }
 
+/// Represented subset of C++ `Player::m_unitData` item-level cap fields
+/// consumed by `Item::GetItemLevel(Player const*)`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct RepresentedItemLevelCapsLikeCpp {
+    pub min_item_level_cutoff: u32,
+    pub min_item_level: u32,
+    pub max_item_level: u32,
+}
+
 impl RepresentedPlayerConditionContextLikeCpp {
     pub(crate) fn as_context<'a>(
         &'a self,
@@ -4411,8 +4985,9 @@ impl RepresentedPlayerConditionContextLikeCpp {
             power_type: -1,
             power: 0,
             max_power: 0,
-            primary_specialization_id: (session.loot_specialization_id != 0)
-                .then_some(session.loot_specialization_id),
+            primary_specialization_id: (session.represented_primary_specialization_id_like_cpp
+                != 0)
+                .then_some(session.represented_primary_specialization_id_like_cpp),
             skills: &self.skills,
             language_skill: 0,
             reputations: &self.reputations,
@@ -4468,9 +5043,20 @@ pub(crate) struct PlayerCurrencyDelta {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedQuestObjectiveProgressEventLikeCpp {
-    MoneyChanged { old_money: u64, new_money: u64 },
-    CurrencyChanged { currency_id: u32, change: i32 },
-    ReputationChanged { faction_id: u32, change: i32 },
+    MoneyChanged {
+        old_money: u64,
+        new_money: u64,
+    },
+    #[allow(dead_code)]
+    CurrencyChanged {
+        currency_id: u32,
+        change: i32,
+    },
+    #[allow(dead_code)]
+    ReputationChanged {
+        faction_id: u32,
+        change: i32,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -4489,6 +5075,18 @@ pub(crate) fn player_team_for_race_cpp(race: u8) -> Team {
         _ => Team::Alliance,
     }
 }
+
+const FIRST_LOGIN_START_REPUTATION_STANDING_LIKE_CPP: i32 = 42_999;
+const FIRST_LOGIN_START_REPUTATION_COMMON_FACTIONS_LIKE_CPP: &[u32] = &[
+    942, 935, 936, 1011, 970, 967, 989, 932, 934, 1038, 1077, 1106, 1104, 1090, 1098, 1156, 1073,
+    1105, 1119, 1091,
+];
+const FIRST_LOGIN_START_REPUTATION_ALLIANCE_FACTIONS_LIKE_CPP: &[u32] = &[
+    72, 47, 69, 930, 730, 978, 54, 946, 1037, 1068, 1126, 1094, 1050,
+];
+const FIRST_LOGIN_START_REPUTATION_HORDE_FACTIONS_LIKE_CPP: &[u32] = &[
+    76, 68, 81, 911, 729, 941, 530, 947, 1052, 1067, 1124, 1064, 1085,
+];
 
 const WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP: u8 = 80;
 
@@ -4575,6 +5173,7 @@ pub(crate) const SPELL_AURA_INTERRUPT_FLAG_MOVING_OR_TURNING_LIKE_CPP: u32 =
     SPELL_AURA_INTERRUPT_FLAG_MOVING_LIKE_CPP | SPELL_AURA_INTERRUPT_FLAG_TURNING_LIKE_CPP;
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG_LANDING_OR_FLIGHT_LIKE_CPP: u32 = 0x0200_0000;
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG2_JUMP_LIKE_CPP: u32 = 0x0000_0020;
+pub(crate) const SPELL_AURA_INTERRUPT_FLAG2_CHANGE_TALENT_LIKE_CPP: u32 = 0x0000_4000;
 pub(crate) const PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP: u32 = 0x0000_8000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -4649,16 +5248,39 @@ pub enum RepresentedAuraEffectLikeCpp {
     Ghost,
     Invisibility,
     Mounted,
+    SwimSpeed,
+    Speed,
+    SpeedAlways,
+    SpeedNotStack,
+    UseNormalMovementSpeed,
+    DecreaseSpeed,
+    MinimumSpeed,
+    MinimumSpeedRate,
+    MountedSpeed,
+    MountedSpeedAlways,
+    MountedSpeedNotStack,
+    FlightSpeed,
+    VehicleFlightSpeed,
     MountedFlightSpeed,
+    MountedFlightSpeedAlways,
+    FlightSpeedNotStack,
     ModifyFallDamagePct,
     ModDetectRange,
     ModDetectedRange,
     ModFactionReputationGain,
+    ModScale,
+    ModSpeedNoControl,
     ModBattlePetXpPct,
     ModReputationGain,
     ProvideSpellFocus,
     Stealth,
     WaterWalk,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RepresentedMountSpellCheckOutcomeLikeCpp {
+    CastFailed(SpellCastResult),
+    DontReport,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -4771,6 +5393,14 @@ fn player_class_mask_for_transmog_like_cpp(class_id: u8) -> u32 {
     }
 }
 
+fn player_class_mask_for_talent_like_cpp(class_id: u8) -> Option<u32> {
+    if class_id == 0 || class_id > 32 {
+        None
+    } else {
+        Some(1_u32 << u32::from(class_id - 1))
+    }
+}
+
 fn player_class_by_armor_subclass_like_cpp(subclass: u32) -> u32 {
     match subclass {
         x if x == ItemSubClassArmor::Miscellaneous as u32 => 0x0FFF,
@@ -4799,7 +5429,11 @@ fn player_class_by_armor_subclass_like_cpp(subclass: u32) -> u32 {
     }
 }
 
+#[allow(dead_code)]
 impl WorldSession {
+    const MIN_ITEM_LEVEL_LIKE_CPP: u32 = 1;
+    const MAX_ITEM_LEVEL_LIKE_CPP: u32 = 1300;
+
     /// Create a new session with the given account info and channels.
     pub fn new(
         account_id: u32,
@@ -4828,6 +5462,11 @@ impl WorldSession {
             instance_ignore_raid_like_cpp: false,
             instance_ignore_level_like_cpp: false,
             max_instances_per_hour_like_cpp: 5,
+            start_all_explored_like_cpp: false,
+            start_all_reputation_like_cpp: false,
+            start_all_spells_like_cpp: false,
+            player_create_cast_spell_store_like_cpp: None,
+            player_create_custom_spell_store_like_cpp: None,
             build,
             session_key,
             locale,
@@ -4869,11 +5508,18 @@ impl WorldSession {
             battle_pet_species_store: None,
             battle_pet_species_state_store: None,
             battle_pet_xp_game_table: None,
+            shield_block_regular_game_table: None,
             transmog_set_item_store: None,
             item_price_base_store: None,
             item_limit_category_store: None,
             item_limit_category_condition_store: None,
             player_stats: None,
+            represented_item_level_caps_like_cpp: RepresentedItemLevelCapsLikeCpp::default(),
+            represented_using_pvp_item_levels_like_cpp: false,
+            item_bonus_db2_store: None,
+            pvp_item_store: None,
+            item_set_store: None,
+            item_set_spell_store: None,
             item_stats_store: None,
             durability_costs_store: None,
             durability_quality_store: None,
@@ -4890,6 +5536,10 @@ impl WorldSession {
             player_condition_store: None,
             adventure_map_poi_store: None,
             content_tuning_store: None,
+            curve_store: None,
+            curve_point_store: None,
+            scaling_stat_distribution_store: None,
+            scaling_stat_values_store: None,
             disable_mgr: None,
             difficulty_store: None,
             lock_store: None,
@@ -4897,7 +5547,9 @@ impl WorldSession {
             spell_enchant_proc_store: None,
             hotfix_blob_cache: None,
             skill_store: None,
+            trait_definition_store: None,
             skill_line_store: None,
+            skill_tiers_store: None,
             area_table_store: None,
             fishing_base_skill_store: None,
             area_trigger_store: None,
@@ -4923,12 +5575,15 @@ impl WorldSession {
             championing_faction_like_cpp: 0,
             creature_template_mount_store: None,
             creature_display_info_store: None,
+            creature_display_info_extra_store: None,
             gameobject_display_info_store: None,
             creature_model_data_store: None,
             mount_store: None,
+            mount_definition_store_like_cpp: None,
             mount_capability_store: None,
             mount_type_x_capability_store: None,
             mount_x_display_store: None,
+            spell_shapeshift_form_store: None,
             vehicle_store: None,
             vehicle_seat_store: None,
             vehicle_template_store: None,
@@ -4947,6 +5602,8 @@ impl WorldSession {
             pass_on_group_loot: false,
             represented_enchanting_skill: 0,
             player_skill_values_like_cpp: HashMap::new(),
+            player_skill_records_like_cpp: HashMap::new(),
+            player_skill_records_loaded_like_cpp: false,
             represented_gray_level_script_overrides_like_cpp: HashMap::new(),
             realm_id: 1,
             realm_region: 1,
@@ -4976,7 +5633,10 @@ impl WorldSession {
             total_played_time: 0,
             level_played_time: 0,
             player_gold: 0,
+            represented_talent_reset_cost_like_cpp: 0,
+            represented_talent_reset_time_secs_like_cpp: 0,
             player_bank_bag_slot_count_like_cpp: 0,
+            player_character_points_like_cpp: 0,
             represented_bank_bag_slot_flags_like_cpp: [0; 7],
             represented_current_banker_guid_like_cpp: None,
             represented_bank_item_moves_like_cpp: Vec::new(),
@@ -4988,13 +5648,21 @@ impl WorldSession {
             represented_auction_place_bids_like_cpp: Vec::new(),
             represented_auction_remove_items_like_cpp: Vec::new(),
             represented_auction_sell_items_like_cpp: Vec::new(),
+            represented_auto_unequip_offhand_requests_like_cpp: Vec::new(),
             player_xp: 0,
             player_next_level_xp: 400,
             player_xp_table: None,
+            exploration_base_xp_store: None,
+            exploration_xp_rate_like_cpp: 1.0,
+            min_discovered_scaled_xp_ratio_like_cpp: 0,
             selection_guid: None,
             player_guid: None,
             player_controller: None,
             account_data_like_cpp: default_account_data_like_cpp(),
+            tutorials_like_cpp: [0; 8],
+            tutorials_loaded_from_db_like_cpp: false,
+            tutorials_loaded_coherently_like_cpp: false,
+            tutorials_changed_like_cpp: false,
             pending_creature_spawn: None,
             pending_creature_kill_loot_like_cpp: Vec::new(),
             pending_creature_kill_rewards_like_cpp: Vec::new(),
@@ -5005,6 +5673,14 @@ impl WorldSession {
             buyback_timestamp: [0; BUYBACK_SLOT_COUNT],
             current_buyback_slot: BUYBACK_SLOT_START,
             represented_item_mod_reapply_events_like_cpp: Vec::new(),
+            represented_item_bonus_actions_like_cpp: Vec::new(),
+            represented_item_bonus_state_like_cpp: RepresentedItemBonusStateLikeCpp::default(),
+            represented_item_set_effects_like_cpp: HashMap::new(),
+            represented_item_set_spell_events_like_cpp: Vec::new(),
+            represented_item_set_aura_refresh_events_like_cpp: Vec::new(),
+            represented_combat_stat_recalculations_like_cpp: Vec::new(),
+            represented_titan_grip_penalty_actions_like_cpp: Vec::new(),
+            represented_avg_equipped_item_level_updates_like_cpp: Vec::new(),
             represented_guild_id_like_cpp: 0,
             represented_guild_id_invited_like_cpp: 0,
             represented_guild_accept_invites_like_cpp: Vec::new(),
@@ -5044,14 +5720,23 @@ impl WorldSession {
             player_class: 0,
             player_level: 0,
             player_gender: 0,
+            player_create_mode_like_cpp: wow_data::PLAYER_CREATE_MODE_NORMAL_LIKE_CPP,
+            represented_shapeshift_form_like_cpp: 0,
             loot_specialization_id: 0,
+            represented_primary_specialization_id_like_cpp: 0,
             known_spells: Vec::new(),
+            represented_dependent_known_spells_like_cpp: HashSet::new(),
+            represented_removed_known_spells_like_cpp: HashSet::new(),
+            represented_favorite_known_spells_like_cpp: HashSet::new(),
+            represented_spell_trait_definition_ids_like_cpp: HashMap::new(),
             account_mounts_like_cpp: HashMap::new(),
             cuf_profiles_like_cpp: vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP],
+            cuf_profiles_loaded_like_cpp: false,
             realm_packet_rx: None,
             realm_send_tx: None,
             player_position: None,
             player_movement_flags_like_cpp: MovementFlag::NONE,
+            represented_can_swim_to_fly_transition_like_cpp: false,
             represented_mover_fixed_position_vehicle_like_cpp: false,
             player_liquid_status_like_cpp: 0,
             player_name: None,
@@ -5076,6 +5761,7 @@ impl WorldSession {
             player_health_like_cpp: 100,
             player_max_health_like_cpp: 100,
             player_movement_time_like_cpp: 0,
+            player_movement_jump_like_cpp: wow_packet::packets::movement::JumpInfo::default(),
             last_fall_time_like_cpp: 0,
             last_fall_z_like_cpp: 0.0,
             fall_damage_events_like_cpp: Vec::new(),
@@ -5088,6 +5774,7 @@ impl WorldSession {
             active_player_transport_server_time_like_cpp: 0,
             active_player_multi_action_bars_like_cpp: 0,
             represented_action_buttons_like_cpp: [0; wow_packet::packets::misc::MAX_ACTION_BUTTONS],
+            represented_action_buttons_loaded_like_cpp: false,
             advanced_combat_logging_enabled_like_cpp: false,
             player_moved_unit_guid_like_cpp: ObjectGuid::EMPTY,
             movement_visibility_refresh_requests_like_cpp: 0,
@@ -5097,7 +5784,13 @@ impl WorldSession {
             represented_alter_appearance_requests_like_cpp: Vec::new(),
             represented_confirm_barbers_choice_requests_like_cpp: Vec::new(),
             represented_confirm_respec_wipe_requests_like_cpp: Vec::new(),
+            represented_at_login_flags_like_cpp: 0,
+            represented_talent_reset_script_hooks_like_cpp: Vec::new(),
+            represented_at_login_flag_removals_like_cpp: Vec::new(),
+            represented_talent_respec_visual_spell_casts_like_cpp: Vec::new(),
+            represented_talent_respec_criteria_events_like_cpp: Vec::new(),
             represented_equipment_sets_like_cpp: BTreeMap::new(),
+            represented_equipment_sets_loaded_like_cpp: false,
             represented_next_equipment_set_guid_like_cpp: 1,
             represented_adventure_map_start_quest_requests_like_cpp: Vec::new(),
             taxi_node_map_ids_like_cpp: HashMap::new(),
@@ -5178,6 +5871,8 @@ impl WorldSession {
             represented_homebind_like_cpp: None,
             represented_resurrection_request_like_cpp: None,
             represented_delayed_resurrection_after_teleport_like_cpp: None,
+            represented_self_res_spells_like_cpp: BTreeSet::new(),
+            represented_override_spells_like_cpp: HashMap::new(),
             represented_cast_unstuck_enabled_like_cpp: true,
             represented_death_timer_active_like_cpp: false,
             move_teleport_ack_events_like_cpp: Vec::new(),
@@ -5185,12 +5880,18 @@ impl WorldSession {
             delayed_operations_processed_like_cpp: 0,
             forced_speed_changes_like_cpp: [0; UnitMoveTypeLikeCpp::COUNT],
             movement_speed_rates_like_cpp: [1.0; UnitMoveTypeLikeCpp::COUNT],
+            represented_pet_movement_speed_rates_like_cpp: [1.0; UnitMoveTypeLikeCpp::COUNT],
+            represented_pet_speed_propagations_like_cpp: 0,
             player_on_transport_like_cpp: false,
             movement_force_mod_magnitude_changes_like_cpp: 0,
             movement_force_mod_magnitude_like_cpp: 1.0,
             movement_speed_ack_events_like_cpp: Vec::new(),
             visible_auras: HashMap::new(),
             spell_store: None,
+            talent_store: None,
+            talent_tab_store: None,
+            num_talents_at_level_store: None,
+            glyph_properties_store: None,
             spell_chain_store: None,
             spell_category_store: None,
             npc_spell_click_store: None,
@@ -5285,6 +5986,9 @@ impl WorldSession {
             represented_quest_reward_mails_like_cpp: Vec::new(),
             represented_quest_reward_reputations_like_cpp: Vec::new(),
             represented_quest_completed_bits_like_cpp: BTreeSet::new(),
+            represented_explored_zones_like_cpp: [0; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP],
+            represented_reveal_world_map_overlay_criteria_like_cpp: Vec::new(),
+            represented_area_zone_criteria_like_cpp: Vec::new(),
             represented_auto_accept_acknowledged_quests_like_cpp: Vec::new(),
             represented_pending_quest_sharing_like_cpp: None,
             represented_quest_push_result_responses_like_cpp: Vec::new(),
@@ -5293,8 +5997,21 @@ impl WorldSession {
             represented_quest_complete_status_updates_like_cpp: Vec::new(),
             represented_push_quest_to_party_outcomes_like_cpp: Vec::new(),
             active_spell_cast: None,
+            represented_pending_spell_cast_request_like_cpp: None,
             last_spell_cast_time: None,
             last_spell_cast_time_per_spell: HashMap::new(),
+            represented_character_spell_cooldowns_like_cpp: HashMap::new(),
+            represented_character_spell_cooldowns_loaded_like_cpp: false,
+            represented_character_spell_charges_like_cpp: BTreeMap::new(),
+            represented_character_spell_charges_loaded_like_cpp: false,
+            represented_active_talent_group_like_cpp: 0,
+            represented_bonus_talent_groups_like_cpp: 0,
+            represented_talents_like_cpp: std::array::from_fn(|_| BTreeMap::new()),
+            represented_talents_loaded_like_cpp: false,
+            represented_glyphs_like_cpp: [[0;
+                wow_packet::packets::misc::MAX_GLYPH_SLOT_INDEX_LIKE_CPP];
+                MAX_SPECIALIZATIONS_LIKE_CPP],
+            represented_glyphs_loaded_like_cpp: false,
             loot_table: std::collections::HashMap::new(),
             active_loot_guid: ObjectGuid::EMPTY,
             active_loot_view_owners: std::collections::HashSet::new(),
@@ -5309,6 +6026,10 @@ impl WorldSession {
             reputation_rates: ReputationRatesLikeCpp::default(),
             repair_cost_rate_like_cpp: 1.0,
             reset_schedule_like_cpp: wow_instances::ResetSchedule::default(),
+            no_reset_talent_cost_like_cpp: false,
+            represented_offhand_check_at_spell_unlearn_like_cpp: true,
+            vmap_indoor_check_like_cpp: false,
+            represented_is_outdoors_like_cpp: None,
             reputation_mgr_like_cpp: ReputationMgrLikeCpp::new_like_cpp(),
             watched_faction_index_like_cpp: -1,
             enable_ae_loot_like_cpp: false,
@@ -5374,6 +6095,128 @@ impl WorldSession {
     ) {
         self.represented_equipment_sets_like_cpp
             .insert(guid, equipment_set);
+    }
+
+    pub(crate) fn clear_represented_equipment_sets_like_cpp(&mut self) {
+        self.represented_equipment_sets_like_cpp.clear();
+        self.represented_equipment_sets_loaded_like_cpp = false;
+        self.represented_next_equipment_set_guid_like_cpp = 1;
+    }
+
+    pub(crate) fn mark_represented_equipment_sets_loaded_like_cpp(&mut self) {
+        self.represented_equipment_sets_loaded_like_cpp = true;
+    }
+
+    pub(crate) fn load_represented_equipment_set_row_like_cpp(
+        &mut self,
+        guid: u64,
+        set_id: u32,
+        set_name: String,
+        set_icon: String,
+        ignore_mask: u32,
+        assigned_spec_index: i32,
+        pieces: [ObjectGuid; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
+    ) -> bool {
+        if set_id >= MAX_EQUIPMENT_SET_INDEX_LIKE_CPP {
+            return false;
+        }
+
+        let equipment_set = RepresentedEquipmentSetLikeCpp {
+            raw_set_type: RepresentedEquipmentSetTypeLikeCpp::Equipment.as_i32_like_cpp(),
+            set_type: RepresentedEquipmentSetTypeLikeCpp::Equipment,
+            guid,
+            set_id,
+            ignore_mask,
+            pieces,
+            appearances: [0; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
+            enchants: [0; 2],
+            secondary_shoulder_appearance_id: 0,
+            secondary_shoulder_slot: 0,
+            secondary_weapon_appearance_id: 0,
+            secondary_weapon_slot: 0,
+            assigned_spec_index,
+            set_name,
+            set_icon,
+            state: RepresentedEquipmentSetUpdateStateLikeCpp::Unchanged,
+        };
+        self.represented_next_equipment_set_guid_like_cpp = self
+            .represented_next_equipment_set_guid_like_cpp
+            .max(guid.saturating_add(1));
+        self.represented_equipment_sets_like_cpp
+            .insert(guid, equipment_set);
+        true
+    }
+
+    pub(crate) fn load_represented_transmog_outfit_row_like_cpp(
+        &mut self,
+        guid: u64,
+        set_id: u32,
+        set_name: String,
+        set_icon: String,
+        ignore_mask: u32,
+        appearances: [i32; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
+        enchants: [i32; 2],
+    ) -> bool {
+        if set_id >= MAX_EQUIPMENT_SET_INDEX_LIKE_CPP {
+            return false;
+        }
+
+        let equipment_set = RepresentedEquipmentSetLikeCpp {
+            raw_set_type: RepresentedEquipmentSetTypeLikeCpp::Transmog.as_i32_like_cpp(),
+            set_type: RepresentedEquipmentSetTypeLikeCpp::Transmog,
+            guid,
+            set_id,
+            ignore_mask,
+            pieces: [ObjectGuid::EMPTY; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
+            appearances,
+            enchants,
+            secondary_shoulder_appearance_id: 0,
+            secondary_shoulder_slot: 0,
+            secondary_weapon_appearance_id: 0,
+            secondary_weapon_slot: 0,
+            assigned_spec_index: -1,
+            set_name,
+            set_icon,
+            state: RepresentedEquipmentSetUpdateStateLikeCpp::Unchanged,
+        };
+        self.represented_next_equipment_set_guid_like_cpp = self
+            .represented_next_equipment_set_guid_like_cpp
+            .max(guid.saturating_add(1));
+        self.represented_equipment_sets_like_cpp
+            .insert(guid, equipment_set);
+        true
+    }
+
+    pub(crate) fn represented_load_equipment_set_packet_like_cpp(
+        &self,
+    ) -> wow_packet::packets::misc::LoadEquipmentSet {
+        let sets = self
+            .represented_equipment_sets_like_cpp
+            .values()
+            .filter(|equipment_set| {
+                equipment_set.state != RepresentedEquipmentSetUpdateStateLikeCpp::Deleted
+            })
+            .map(
+                |equipment_set| wow_packet::packets::misc::EquipmentSetDataLikeCpp {
+                    set_type: equipment_set.raw_set_type,
+                    guid: equipment_set.guid,
+                    set_id: equipment_set.set_id,
+                    ignore_mask: equipment_set.ignore_mask,
+                    pieces: equipment_set.pieces,
+                    appearances: equipment_set.appearances,
+                    enchants: equipment_set.enchants,
+                    secondary_shoulder_appearance_id: equipment_set
+                        .secondary_shoulder_appearance_id,
+                    secondary_shoulder_slot: equipment_set.secondary_shoulder_slot,
+                    secondary_weapon_appearance_id: equipment_set.secondary_weapon_appearance_id,
+                    secondary_weapon_slot: equipment_set.secondary_weapon_slot,
+                    assigned_spec_index: equipment_set.assigned_spec_index,
+                    set_name: equipment_set.set_name.clone(),
+                    set_icon: equipment_set.set_icon.clone(),
+                },
+            )
+            .collect();
+        wow_packet::packets::misc::LoadEquipmentSet { sets }
     }
 
     #[cfg(test)]
@@ -5600,11 +6443,18 @@ impl WorldSession {
         };
 
         self.insert_inventory_item_like_cpp(dst, src_item.clone());
-        self.set_inventory_item_object_slot(src_item.guid, dst);
+        let player_guid = self.player_guid().unwrap_or(ObjectGuid::EMPTY);
+        self.update_inventory_item_object_like_cpp(src_item.guid, |item| {
+            item.set_contained_in(player_guid);
+            item.set_slot(dst);
+        });
 
         if let Some(dst_item) = dst_item {
             self.insert_inventory_item_like_cpp(src, dst_item.clone());
-            self.set_inventory_item_object_slot(dst_item.guid, src);
+            self.update_inventory_item_object_like_cpp(dst_item.guid, |item| {
+                item.set_contained_in(player_guid);
+                item.set_slot(src);
+            });
         } else {
             self.remove_inventory_item_like_cpp(src);
         }
@@ -5612,12 +6462,167 @@ impl WorldSession {
         true
     }
 
+    pub(crate) fn move_represented_direct_inventory_item_with_item_mods_like_cpp(
+        &mut self,
+        src: u8,
+        dst: u8,
+    ) -> Option<bool> {
+        if src == dst {
+            return Some(false);
+        }
+
+        let src_item = self.inventory_items_like_cpp().get(&src).cloned()?;
+        let dst_item = self.inventory_items_like_cpp().get(&dst).cloned();
+        let mut item_mods_changed = false;
+
+        if src < INVENTORY_SLOT_BAG_END {
+            let _ = self.record_direct_inventory_item_set_remove_like_cpp(
+                INVENTORY_SLOT_BAG_0,
+                src,
+                src_item.guid,
+            );
+        }
+
+        if src < INVENTORY_SLOT_BAG_END
+            && self
+                .inventory_item_objects_like_cpp()
+                .get(&src_item.guid)
+                .is_some_and(|item| !item.is_broken())
+        {
+            self.record_represented_item_mods_like_cpp(src_item.guid, src, false);
+            item_mods_changed = true;
+        }
+
+        if dst < INVENTORY_SLOT_BAG_END
+            && let Some(dst_item) = dst_item.as_ref()
+        {
+            let _ = self.record_direct_inventory_item_set_remove_like_cpp(
+                INVENTORY_SLOT_BAG_0,
+                dst,
+                dst_item.guid,
+            );
+        }
+
+        if dst < INVENTORY_SLOT_BAG_END
+            && dst_item.as_ref().is_some_and(|item| {
+                self.inventory_item_objects_like_cpp()
+                    .get(&item.guid)
+                    .is_some_and(|item_object| !item_object.is_broken())
+            })
+        {
+            let dst_item = dst_item.as_ref().expect("checked Some above");
+            self.record_represented_item_mods_like_cpp(dst_item.guid, dst, false);
+            item_mods_changed = true;
+        }
+
+        if !self.move_represented_direct_inventory_item_like_cpp(src, dst) {
+            return None;
+        }
+
+        if dst < INVENTORY_SLOT_BAG_END {
+            let _ = self.record_represented_items_set_item_like_cpp(src_item.guid, true);
+        }
+
+        if dst < INVENTORY_SLOT_BAG_END
+            && self
+                .inventory_item_objects_like_cpp()
+                .get(&src_item.guid)
+                .is_some_and(|item| !item.is_broken())
+        {
+            self.record_represented_item_mods_like_cpp(src_item.guid, dst, true);
+            item_mods_changed = true;
+        }
+
+        if src < INVENTORY_SLOT_BAG_END
+            && let Some(dst_item) = dst_item.as_ref()
+        {
+            let _ = self.record_represented_items_set_item_like_cpp(dst_item.guid, true);
+        }
+
+        if src < INVENTORY_SLOT_BAG_END
+            && dst_item.as_ref().is_some_and(|item| {
+                self.inventory_item_objects_like_cpp()
+                    .get(&item.guid)
+                    .is_some_and(|item_object| !item_object.is_broken())
+            })
+        {
+            let dst_item = dst_item.as_ref().expect("checked Some above");
+            self.record_represented_item_mods_like_cpp(dst_item.guid, src, true);
+            item_mods_changed = true;
+        }
+
+        Some(item_mods_changed)
+    }
+
+    pub(crate) fn move_represented_direct_inventory_item_to_pos_like_cpp(
+        &mut self,
+        src: u8,
+        dst_bag: u8,
+        dst_slot: u8,
+    ) -> bool {
+        if dst_bag == INVENTORY_SLOT_BAG_0 {
+            return self.move_represented_direct_inventory_item_like_cpp(src, dst_slot);
+        }
+        if !is_represented_bag_slot(dst_bag)
+            || self.get_inventory_item_by_pos(dst_bag, dst_slot).is_some()
+        {
+            return false;
+        }
+
+        let Some(src_item) = self.inventory_items_like_cpp().get(&src).cloned() else {
+            return false;
+        };
+        let Some(bag_item) = self.inventory_items_like_cpp().get(&dst_bag).cloned() else {
+            return false;
+        };
+        if !self
+            .inventory_item_objects_like_cpp()
+            .contains_key(&src_item.guid)
+            || !self
+                .inventory_item_objects_like_cpp()
+                .contains_key(&bag_item.guid)
+        {
+            return false;
+        }
+
+        self.remove_inventory_item_like_cpp(src);
+        self.update_inventory_item_object_like_cpp(src_item.guid, |item| {
+            item.set_contained_in(bag_item.guid);
+            item.set_slot(dst_slot);
+            item.set_container_guid_and_slot(bag_item.guid, dst_bag);
+        })
+    }
+
+    fn sync_canonical_direct_inventory_move_like_cpp(
+        &mut self,
+        src: u8,
+        dst_bag: u8,
+        dst_slot: u8,
+        item_guid: ObjectGuid,
+    ) {
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            let _ = player.remove_top_level_item(src);
+            if dst_bag == INVENTORY_SLOT_BAG_0 {
+                let _ = player.store_top_level_item(dst_slot, item_guid);
+            } else {
+                let _ = player.store_bag_item(dst_bag, dst_slot, item_guid);
+            }
+        });
+    }
+
+    fn sync_canonical_direct_inventory_remove_like_cpp(&mut self, src: u8) {
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            let _ = player.remove_top_level_item(src);
+        });
+    }
+
     pub(crate) fn use_represented_equipment_set_like_cpp(
         &mut self,
         request: &wow_packet::packets::misc::UseEquipmentSet,
-    ) {
+    ) -> bool {
         let ignored_guid = Self::ignored_equipment_set_item_guid_like_cpp();
         let mut changed_equipment = false;
+        let mut represented_item_mods_changed = false;
 
         for (slot_index, set_item) in request.items.iter().enumerate() {
             let dst = slot_index as u8;
@@ -5635,7 +6640,10 @@ impl WorldSession {
                 if src == dst {
                     continue;
                 }
-                if self.move_represented_direct_inventory_item_like_cpp(src, dst) {
+                if let Some(item_mods_changed) =
+                    self.move_represented_direct_inventory_item_with_item_mods_like_cpp(src, dst)
+                {
+                    represented_item_mods_changed |= item_mods_changed;
                     changed_equipment |= dst < EQUIPMENT_SLOT_END;
                     changed_equipment |= src < EQUIPMENT_SLOT_END;
                 }
@@ -5649,7 +6657,10 @@ impl WorldSession {
             let Some(backpack_slot) = self.find_free_backpack_slot_like_cpp() else {
                 continue;
             };
-            if self.move_represented_direct_inventory_item_like_cpp(dst, backpack_slot) {
+            if let Some(item_mods_changed) = self
+                .move_represented_direct_inventory_item_with_item_mods_like_cpp(dst, backpack_slot)
+            {
+                represented_item_mods_changed |= item_mods_changed;
                 changed_equipment = true;
             }
         }
@@ -5658,6 +6669,8 @@ impl WorldSession {
             self.sync_object_accessor_player();
             self.sync_player_registry_state_like_cpp();
         }
+
+        represented_item_mods_changed
     }
 
     pub(crate) fn represented_money_loot_with_rate_like_cpp(
@@ -5786,6 +6799,7 @@ impl WorldSession {
         for quest_bit in &self.represented_quest_completed_bits_like_cpp {
             player.set_quest_completed_bit_like_cpp(*quest_bit, true);
         }
+        player.set_explored_zones_blocks_like_cpp(&self.represented_explored_zones_like_cpp);
         player.set_game_master_like_cpp(self.player_game_master_like_cpp);
         player
             .unit_mut()
@@ -5857,29 +6871,84 @@ impl WorldSession {
         &self,
     ) -> Option<PlayerSaveToDbSnapshotLikeCpp> {
         let guid = self.player_guid()?;
+        let pending_teleport_destination = self.pending_teleport_save_destination_like_cpp();
         if let Some(manager) = self.canonical_map_manager.as_ref()
             && let Ok(manager) = manager.lock()
-            && let Some(map) = manager.find_map(u32::from(self.player_map_id_like_cpp()), 0)
-            && let Some(player) = map.map().get_typed_player(guid)
         {
-            return Some(PlayerSaveToDbSnapshotLikeCpp {
-                guid,
-                map_id: player.unit().world().map_id() as u16,
-                position: player.unit().world().position(),
-                level: player.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8,
-                xp: player.active_data().xp.max(0) as u32,
-                money: player.active_data().coinage,
+            let mut snapshot = None;
+            manager.do_for_all_maps(|managed| {
+                if snapshot.is_some() {
+                    return;
+                }
+                let Some(player) = managed.map().get_typed_player(guid) else {
+                    return;
+                };
+                // C++ has one live Player object, and Player::SaveToDB reads a
+                // coherent snapshot from that object. Rust still has split
+                // session/canonical state: accepted client movement updates the
+                // session immediately, while other gameplay fields may only
+                // touch the canonical typed Player. Keep canonical gameplay
+                // fields, but prefer the latest accepted session map/position
+                // for logout/disconnect persistence.
+                let (map_id, instance_id, position) =
+                    if let Some((map_id, position)) = pending_teleport_destination {
+                        (map_id, 0, position)
+                    } else {
+                        (
+                            self.player_map_id_like_cpp(),
+                            managed.instance_id(),
+                            self.player_position_like_cpp()
+                                .unwrap_or_else(|| player.unit().world().position()),
+                        )
+                    };
+
+                snapshot = Some(PlayerSaveToDbSnapshotLikeCpp {
+                    guid,
+                    map_id,
+                    instance_id,
+                    position,
+                    level: player.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8,
+                    xp: player.active_data().xp.max(0) as u32,
+                    money: player.active_data().coinage,
+                });
             });
+            if snapshot.is_some() {
+                return snapshot;
+            }
         }
+
+        let (map_id, instance_id, position) =
+            if let Some((map_id, position)) = pending_teleport_destination {
+                (map_id, 0, position)
+            } else {
+                (
+                    self.player_map_id_like_cpp(),
+                    self.current_canonical_player_map_key_like_cpp()
+                        .map(|key| key.instance_id)
+                        .unwrap_or(0),
+                    self.player_position_like_cpp()?,
+                )
+            };
 
         Some(PlayerSaveToDbSnapshotLikeCpp {
             guid,
-            map_id: self.player_map_id_like_cpp(),
-            position: self.player_position_like_cpp()?,
+            map_id,
+            instance_id,
+            position,
             level: self.player_level_like_cpp(),
             xp: self.player_xp_like_cpp(),
             money: self.player_gold_like_cpp(),
         })
+    }
+
+    fn pending_teleport_save_destination_like_cpp(&self) -> Option<(u16, Position)> {
+        if let Some((map_id, position)) = self.pending_teleport {
+            return Some((u16::try_from(map_id).unwrap_or(u16::MAX), position));
+        }
+        if self.near_teleport_pending_like_cpp {
+            return self.near_teleport_destination_like_cpp;
+        }
+        None
     }
 
     pub(crate) fn sync_session_from_save_to_db_snapshot_like_cpp(
@@ -6050,6 +7119,26 @@ impl WorldSession {
                     .map()
                     .get_typed_player(guid)
                     .map(|player| player.has_player_flag(flag));
+            }
+        });
+        result
+    }
+
+    fn canonical_player_display_ids_like_cpp(&self) -> Option<(u32, u32)> {
+        let guid = self.player_guid()?;
+        let map_id = u32::from(self.player_map_id_like_cpp());
+        let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
+        let manager = manager.lock().ok()?;
+        let mut result = None;
+        manager.do_for_all_maps_with_map_id(map_id, |managed| {
+            if result.is_none() {
+                result = managed.map().get_typed_player(guid).map(|player| {
+                    let data = player.unit().data();
+                    (
+                        u32::try_from(data.display_id).unwrap_or_default(),
+                        u32::try_from(data.native_display_id).unwrap_or_default(),
+                    )
+                });
             }
         });
         result
@@ -9069,6 +10158,7 @@ impl WorldSession {
             position: creature.unit().world().position(),
             npc_flags: creature.ai_ownership().npc_flags,
             npc_flags2: creature.ai_ownership().npc_flags2,
+            trainer_class: creature.trainer_class_like_cpp(),
             faction_template_id: creature.unit().data().faction_template.max(0) as u32,
         })
     }
@@ -10420,6 +11510,7 @@ impl WorldSession {
             position: creature.unit().world().position(),
             npc_flags: creature.ai_ownership().npc_flags,
             npc_flags2: creature.ai_ownership().npc_flags2,
+            trainer_class: creature.trainer_class_like_cpp(),
             faction_template_id: creature.unit().data().faction_template.max(0) as u32,
         })
     }
@@ -11901,6 +12992,13 @@ impl WorldSession {
         self.battle_pet_xp_game_table = Some(table);
     }
 
+    pub fn set_shield_block_regular_game_table(
+        &mut self,
+        table: Arc<ShieldBlockRegularGameTableLikeCpp>,
+    ) {
+        self.shield_block_regular_game_table = Some(table);
+    }
+
     pub(crate) fn battle_pet_calculate_stats_like_cpp(
         &self,
         breed: u16,
@@ -12379,6 +13477,19 @@ impl WorldSession {
             .collect()
     }
 
+    /// C++ `CollectionMgr::SaveAccountHeirlooms`.
+    pub(crate) fn account_heirloom_save_rows_like_cpp(&self) -> Vec<AccountHeirloomSaveRowLikeCpp> {
+        let bnet_account_id = self.battlenet_account_id();
+        self.account_heirloom_rows_like_cpp()
+            .into_iter()
+            .map(|(item_id, flags)| AccountHeirloomSaveRowLikeCpp {
+                bnet_account_id,
+                item_id,
+                flags,
+            })
+            .collect()
+    }
+
     /// C++ `CollectionMgr::GetHeirloomBonus`.
     pub(crate) fn account_heirloom_bonus_like_cpp(&self, item_id: u32) -> u32 {
         self.represented_account_heirlooms_like_cpp
@@ -12408,8 +13519,23 @@ impl WorldSession {
             .collect()
     }
 
+    fn account_heirloom_update_opcode_resolved_like_cpp() -> bool {
+        // The inspected 3.4.3 legacy C++ tree still declares
+        // SMSG_ACCOUNT_HEIRLOOM_UPDATE as NULL_OPCODE/0xBADD. Keep the data
+        // model ported, but do not send a placeholder opcode to the real client.
+        <AccountHeirloomUpdate as wow_packet::ServerPacket>::OPCODE
+            != ServerOpcodes::UpdateCapturePoint
+    }
+
     /// C++ `WorldPackets::Misc::AccountHeirloomUpdate` full login update.
     pub fn send_account_heirlooms_like_cpp(&self) {
+        if !Self::account_heirloom_update_opcode_resolved_like_cpp() {
+            warn!(
+                "Skipping AccountHeirloomUpdate: legacy C++ opcode is unresolved 0xBADD for 54261"
+            );
+            return;
+        }
+
         self.send_packet(&AccountHeirloomUpdate::full(
             self.account_heirloom_packet_rows_like_cpp(),
         ));
@@ -12603,6 +13729,22 @@ impl WorldSession {
             .collect()
     }
 
+    /// C++ `CollectionMgr::SaveAccountToys`.
+    pub(crate) fn account_toy_save_rows_like_cpp(&self) -> Vec<AccountToySaveRowLikeCpp> {
+        let bnet_account_id = self.battlenet_account_id();
+        self.account_toy_rows_like_cpp()
+            .into_iter()
+            .map(
+                |(item_id, is_favorite, has_fanfare)| AccountToySaveRowLikeCpp {
+                    bnet_account_id,
+                    item_id,
+                    is_favorite,
+                    has_fanfare,
+                },
+            )
+            .collect()
+    }
+
     /// C++ `CollectionMgr::GetAccountToys` full update payload.
     pub(crate) fn account_toy_packet_rows_like_cpp(&self) -> Vec<AccountToy> {
         self.represented_account_toys_like_cpp
@@ -12697,6 +13839,100 @@ impl WorldSession {
         let last_cast = self.last_spell_cast_time_per_spell.get(&spell_id)?;
         let elapsed_ms = last_cast.elapsed().as_millis() as u32;
         (elapsed_ms < cooldown_ms).then_some(cooldown_ms - elapsed_ms)
+    }
+
+    pub(crate) fn reset_represented_character_spell_cooldowns_like_cpp(&mut self) {
+        self.represented_character_spell_cooldowns_like_cpp.clear();
+        self.represented_character_spell_cooldowns_loaded_like_cpp = false;
+    }
+
+    pub(crate) fn mark_represented_character_spell_cooldowns_loaded_like_cpp(&mut self) {
+        self.represented_character_spell_cooldowns_loaded_like_cpp = true;
+    }
+
+    pub(crate) fn record_loaded_character_spell_cooldown_like_cpp(
+        &mut self,
+        spell_id: u32,
+        item_id: u32,
+        cooldown_end_unix_secs: i64,
+        category_id: u32,
+        category_end_unix_secs: i64,
+    ) {
+        self.represented_character_spell_cooldowns_like_cpp.insert(
+            spell_id,
+            RepresentedCharacterSpellCooldownLikeCpp {
+                spell_id,
+                item_id,
+                cooldown_end_unix_secs,
+                category_id,
+                category_end_unix_secs,
+            },
+        );
+    }
+
+    fn record_cast_character_spell_cooldown_like_cpp(&mut self, spell_id: i32, cooldown_ms: u32) {
+        if !self.represented_character_spell_cooldowns_loaded_like_cpp || cooldown_ms == 0 {
+            return;
+        }
+        let Ok(spell_id) = u32::try_from(spell_id) else {
+            return;
+        };
+        let cooldown_secs = i64::from(cooldown_ms.saturating_add(999) / 1_000);
+        if cooldown_secs == 0 {
+            return;
+        }
+        self.record_loaded_character_spell_cooldown_like_cpp(
+            spell_id,
+            0,
+            unix_now().saturating_add(cooldown_secs),
+            0,
+            0,
+        );
+    }
+
+    pub(crate) fn reset_represented_character_spell_charges_like_cpp(&mut self) {
+        self.represented_character_spell_charges_like_cpp.clear();
+        self.represented_character_spell_charges_loaded_like_cpp = false;
+    }
+
+    pub(crate) fn mark_represented_character_spell_charges_loaded_like_cpp(&mut self) {
+        self.represented_character_spell_charges_loaded_like_cpp = true;
+    }
+
+    pub(crate) fn record_loaded_character_spell_charge_like_cpp(
+        &mut self,
+        category_id: u32,
+        recharge_start_unix_secs: i64,
+        recharge_end_unix_secs: i64,
+    ) {
+        self.represented_character_spell_charges_like_cpp
+            .entry(category_id)
+            .or_default()
+            .push(RepresentedCharacterSpellChargeLikeCpp {
+                category_id,
+                recharge_start_unix_secs,
+                recharge_end_unix_secs,
+            });
+    }
+
+    fn restore_represented_character_spell_charge_like_cpp(&mut self, category_id: u32) -> bool {
+        if !self.represented_character_spell_charges_loaded_like_cpp {
+            return false;
+        }
+        let Some(charges) = self
+            .represented_character_spell_charges_like_cpp
+            .get_mut(&category_id)
+        else {
+            return false;
+        };
+        if charges.pop().is_none() {
+            return false;
+        }
+        if charges.is_empty() {
+            self.represented_character_spell_charges_like_cpp
+                .remove(&category_id);
+        }
+        true
     }
 
     /// C++ `CollectionMgr::AddToy` / `UpdateAccountToys`.
@@ -12899,6 +14135,13 @@ impl WorldSession {
         };
 
         if changed {
+            if !Self::account_transmog_update_opcode_resolved_like_cpp() {
+                warn!(
+                    "Skipping AccountTransmogUpdate favorite delta: legacy C++ opcode is unresolved 0xBADD for 54261"
+                );
+                return changed;
+            }
+
             self.send_packet(
                 &wow_packet::packets::collection::AccountTransmogUpdate::favorite_delta(
                     item_modified_appearance_id,
@@ -12910,8 +14153,23 @@ impl WorldSession {
         changed
     }
 
+    fn account_transmog_update_opcode_resolved_like_cpp() -> bool {
+        // The inspected 3.4.3 legacy C++ tree still declares
+        // SMSG_ACCOUNT_TRANSMOG_UPDATE as NULL_OPCODE/0xBADD. Sending it during
+        // login can make the client close the connection after the initial burst.
+        <wow_packet::packets::collection::AccountTransmogUpdate as wow_packet::ServerPacket>::OPCODE
+            != ServerOpcodes::UpdateCapturePoint
+    }
+
     /// C++ `CollectionMgr::SendFavoriteAppearances`.
     pub fn send_favorite_appearances_like_cpp(&self) {
+        if !Self::account_transmog_update_opcode_resolved_like_cpp() {
+            warn!(
+                "Skipping AccountTransmogUpdate full update: legacy C++ opcode is unresolved 0xBADD for 54261"
+            );
+            return;
+        }
+
         let favorite_appearances = self
             .represented_favorite_item_appearances_like_cpp
             .iter()
@@ -13237,9 +14495,1002 @@ impl WorldSession {
         self.player_stats.as_ref()
     }
 
+    pub fn set_player_create_cast_spell_store_like_cpp(
+        &mut self,
+        store: Arc<PlayerCreateInfoCastSpellStoreLikeCpp>,
+    ) {
+        self.player_create_cast_spell_store_like_cpp = Some(store);
+    }
+
+    pub fn set_player_create_custom_spell_store_like_cpp(
+        &mut self,
+        store: Arc<PlayerCreateInfoCustomSpellStoreLikeCpp>,
+    ) {
+        self.player_create_custom_spell_store_like_cpp = Some(store);
+    }
+
     /// Set the item stats store for this session.
+    pub fn set_item_bonus_db2_store(&mut self, store: Arc<ItemBonusDb2Store>) {
+        self.item_bonus_db2_store = Some(store);
+    }
+
+    pub fn set_pvp_item_store(&mut self, store: Arc<PvpItemStore>) {
+        self.pvp_item_store = Some(store);
+    }
+
+    pub fn set_item_set_store(&mut self, store: Arc<ItemSetStore>) {
+        self.item_set_store = Some(store);
+    }
+
+    pub fn set_item_set_spell_store(&mut self, store: Arc<ItemSetSpellStore>) {
+        self.item_set_spell_store = Some(store);
+    }
+
+    pub(crate) fn item_set_for_item_id_like_cpp(
+        &self,
+        item_id: u32,
+    ) -> Option<&wow_data::ItemSetEntry> {
+        self.item_set_store
+            .as_ref()
+            .and_then(|store| store.item_set_for_item_id_like_cpp(item_id))
+    }
+
+    pub(crate) fn item_set_spells_like_cpp(
+        &self,
+        item_set_id: u32,
+    ) -> Vec<&wow_data::ItemSetSpellEntry> {
+        self.item_set_spell_store
+            .as_ref()
+            .map(|store| store.item_set_spells_like_cpp(item_set_id))
+            .unwrap_or_default()
+    }
+
     pub fn set_item_stats_store(&mut self, store: Arc<ItemStatsStore>) {
         self.item_stats_store = Some(store);
+    }
+
+    pub(crate) fn set_represented_item_level_caps_like_cpp(
+        &mut self,
+        caps: RepresentedItemLevelCapsLikeCpp,
+    ) {
+        self.represented_item_level_caps_like_cpp = caps;
+    }
+
+    pub(crate) fn set_represented_using_pvp_item_levels_like_cpp(&mut self, active: bool) {
+        self.represented_using_pvp_item_levels_like_cpp = active;
+    }
+
+    pub(crate) fn represented_using_pvp_item_levels_like_cpp(&self) -> bool {
+        self.represented_using_pvp_item_levels_like_cpp
+    }
+
+    fn represented_has_pvp_rules_enabled_like_cpp(&self) -> bool {
+        self.visible_auras
+            .values()
+            .any(|aura| aura.spell_id == SPELL_PVP_RULES_ENABLED_LIKE_CPP)
+    }
+
+    pub(crate) fn update_represented_item_level_area_based_scaling_like_cpp(&mut self) -> bool {
+        let map_pvp_activity = self
+            .map_store()
+            .and_then(|store| store.get(u32::from(self.player_map_id_like_cpp())))
+            .is_some_and(|entry| {
+                entry.is_battleground_or_arena() || entry.activates_pvp_item_levels_like_cpp()
+            });
+        let pvp_activity = map_pvp_activity || self.represented_has_pvp_rules_enabled_like_cpp();
+        if self.represented_using_pvp_item_levels_like_cpp == pvp_activity {
+            return false;
+        }
+
+        let health_before = self.player_health_like_cpp;
+        let max_health_before = self.player_max_health_like_cpp.max(1);
+        let item_mod_targets = self.represented_top_level_item_mod_targets_like_cpp();
+        self.record_represented_all_item_mods_like_cpp(&item_mod_targets, false);
+        self.represented_using_pvp_item_levels_like_cpp = pvp_activity;
+        self.record_represented_all_item_mods_like_cpp(&item_mod_targets, true);
+        self.restore_represented_health_pct_after_item_mod_scaling_like_cpp(
+            health_before,
+            max_health_before,
+        );
+        if !item_mod_targets.is_empty() {
+            self.send_represented_item_bonus_player_stat_update_like_cpp();
+        }
+        true
+    }
+
+    fn represented_top_level_item_mod_targets_like_cpp(&self) -> Vec<(u8, ObjectGuid)> {
+        let mut targets = self
+            .inventory_item_objects_like_cpp()
+            .values()
+            .filter(|item| {
+                item.container_guid().is_empty()
+                    && item.slot() < INVENTORY_SLOT_BAG_END
+                    && !item.is_broken()
+            })
+            .map(|item| (item.slot(), item.object().guid()))
+            .collect::<Vec<_>>();
+        targets.sort_by_key(|(slot, guid)| (*slot, guid.counter()));
+        targets
+    }
+
+    fn record_represented_all_item_mods_like_cpp(
+        &mut self,
+        targets: &[(u8, ObjectGuid)],
+        apply: bool,
+    ) {
+        for (slot, item_guid) in targets {
+            self.record_represented_item_mods_like_cpp(*item_guid, *slot, apply);
+        }
+    }
+
+    fn record_represented_item_mods_like_cpp(
+        &mut self,
+        item_guid: ObjectGuid,
+        slot: u8,
+        apply: bool,
+    ) {
+        self.represented_item_mod_reapply_events_like_cpp.push(
+            RepresentedItemModsReapplyEventLikeCpp {
+                item_guid,
+                slot,
+                apply,
+            },
+        );
+
+        let Some(item_entry) = self
+            .inventory_item_objects_like_cpp()
+            .get(&item_guid)
+            .map(|item| item.object().entry())
+        else {
+            return;
+        };
+        let Some(item_stats_store) = self.item_stats_store.as_ref().cloned() else {
+            return;
+        };
+        let action_start = self.represented_item_bonus_actions_like_cpp.len();
+
+        let scaling_context = self.represented_scaling_stat_context_like_cpp(item_entry);
+        if let Some(context) = scaling_context {
+            self.represented_item_bonus_actions_like_cpp.extend(
+                item_scaling_stat_bonus_actions_like_cpp(
+                    &context.stat_id,
+                    &context.bonus,
+                    context.ssd_multiplier,
+                    apply,
+                )
+                .into_iter()
+                .map(|action| RepresentedItemBonusActionLikeCpp {
+                    item_guid,
+                    slot,
+                    action,
+                }),
+            );
+            if context.spell_bonus > 0 {
+                self.represented_item_bonus_actions_like_cpp.push(
+                    RepresentedItemBonusActionLikeCpp {
+                        item_guid,
+                        slot,
+                        action: ApplyEnchantmentEffectAction::SpellPowerBonus {
+                            amount: context.spell_bonus as u32,
+                            apply,
+                        },
+                    },
+                );
+            } else if context.spell_bonus < 0 {
+                self.represented_item_bonus_actions_like_cpp.push(
+                    RepresentedItemBonusActionLikeCpp {
+                        item_guid,
+                        slot,
+                        action: ApplyEnchantmentEffectAction::UnhandledStatModifier {
+                            item_mod: wow_constants::ItemModType::SpellPower,
+                            amount: context.spell_bonus.unsigned_abs(),
+                            apply,
+                        },
+                    },
+                );
+            }
+        } else if let Some(stat_entry) = item_stats_store.get(item_entry) {
+            self.represented_item_bonus_actions_like_cpp.extend(
+                item_stat_bonus_actions_like_cpp(&stat_entry.stats, apply)
+                    .into_iter()
+                    .map(|action| RepresentedItemBonusActionLikeCpp {
+                        item_guid,
+                        slot,
+                        action,
+                    }),
+            );
+        }
+
+        if let Some(stat_entry) = item_stats_store.get(item_entry) {
+            let resistances = self.represented_resistances_with_scaling_armor_like_cpp(
+                &stat_entry.resistances,
+                scaling_context,
+            );
+            self.represented_item_bonus_actions_like_cpp.extend(
+                item_resistance_bonus_actions_like_cpp(&resistances, apply)
+                    .into_iter()
+                    .map(|action| RepresentedItemBonusActionLikeCpp {
+                        item_guid,
+                        slot,
+                        action,
+                    }),
+            );
+        }
+
+        if let Some(action) =
+            self.item_shield_block_value_like_cpp(item_entry)
+                .and_then(|shield_block_value| {
+                    item_shield_block_bonus_action_like_cpp(shield_block_value, true, apply)
+                })
+        {
+            self.represented_item_bonus_actions_like_cpp
+                .push(RepresentedItemBonusActionLikeCpp {
+                    item_guid,
+                    slot,
+                    action,
+                });
+        }
+
+        if let (Some(weapon), Some(inventory_type)) = (
+            item_stats_store.weapon_template(item_entry),
+            self.represented_item_inventory_type_like_cpp(item_entry, item_guid),
+        ) {
+            let (min_damage, max_damage) =
+                self.represented_weapon_damage_bounds_like_cpp(item_entry, weapon);
+            self.represented_item_bonus_actions_like_cpp.extend(
+                item_weapon_damage_actions_like_cpp(
+                    slot,
+                    inventory_type,
+                    min_damage,
+                    max_damage,
+                    weapon.item_delay,
+                    apply,
+                    false,
+                    true,
+                    false,
+                    true,
+                )
+                .into_iter()
+                .map(|action| RepresentedItemBonusActionLikeCpp {
+                    item_guid,
+                    slot,
+                    action,
+                }),
+            );
+        }
+
+        let planned_actions: Vec<_> = self.represented_item_bonus_actions_like_cpp[action_start..]
+            .iter()
+            .map(|planned| planned.action)
+            .collect();
+        for action in planned_actions {
+            self.apply_represented_item_bonus_action_state_like_cpp(action);
+        }
+    }
+
+    pub(crate) fn record_destroyed_inventory_item_mod_remove_like_cpp(
+        &mut self,
+        bag: u8,
+        slot: u8,
+        item_guid: ObjectGuid,
+    ) -> bool {
+        if bag != INVENTORY_SLOT_BAG_0 || slot >= INVENTORY_SLOT_BAG_END {
+            return false;
+        }
+        if self
+            .inventory_item_objects_like_cpp()
+            .get(&item_guid)
+            .is_some_and(|item| item.is_broken())
+        {
+            return false;
+        }
+
+        let action_start = self.represented_item_bonus_actions_like_cpp.len();
+        self.record_represented_item_mods_like_cpp(item_guid, slot, false);
+        self.represented_item_bonus_actions_like_cpp.len() != action_start
+    }
+
+    pub(crate) fn record_direct_inventory_item_set_remove_like_cpp(
+        &mut self,
+        bag: u8,
+        slot: u8,
+        item_guid: ObjectGuid,
+    ) -> bool {
+        if bag != INVENTORY_SLOT_BAG_0 || slot >= INVENTORY_SLOT_BAG_END {
+            return false;
+        }
+
+        self.record_represented_items_set_item_like_cpp(item_guid, false)
+    }
+
+    pub(crate) fn record_represented_items_set_item_like_cpp(
+        &mut self,
+        item_guid: ObjectGuid,
+        apply: bool,
+    ) -> bool {
+        let Some(item_entry) = self
+            .inventory_item_objects_like_cpp()
+            .get(&item_guid)
+            .map(|item| item.object().entry())
+        else {
+            return false;
+        };
+        let Some(item_set) = self.item_set_for_item_id_like_cpp(item_entry).cloned() else {
+            return false;
+        };
+
+        if apply {
+            self.record_represented_add_items_set_item_like_cpp(item_guid, &item_set)
+        } else {
+            self.record_represented_remove_items_set_item_like_cpp(item_guid, &item_set)
+        }
+    }
+
+    fn record_represented_add_items_set_item_like_cpp(
+        &mut self,
+        item_guid: ObjectGuid,
+        item_set: &wow_data::ItemSetEntry,
+    ) -> bool {
+        if item_set.required_skill != 0
+            && self.player_skill_value_like_cpp(item_set.required_skill as u16)
+                < item_set.required_skill_rank
+        {
+            return false;
+        }
+        if item_set.set_flags & ITEM_SET_FLAG_LEGACY_INACTIVE_LIKE_CPP != 0 {
+            return false;
+        }
+        if self.represented_heirloom_item_set_bonus_over_level_cap_like_cpp(item_guid) {
+            return false;
+        }
+
+        let before_events = self.represented_item_set_spell_events_like_cpp.len();
+        let equipped_count_after = {
+            let effect = self
+                .represented_item_set_effects_like_cpp
+                .entry(item_set.id)
+                .or_insert_with(|| RepresentedItemSetEffectLikeCpp {
+                    item_set_id: item_set.id,
+                    ..Default::default()
+                });
+            effect.equipped_items.insert(item_guid);
+            effect.equipped_items.len()
+        };
+
+        let primary_spec = self.represented_primary_specialization_id_like_cpp();
+        let spells: Vec<_> = self
+            .item_set_spells_like_cpp(item_set.id)
+            .into_iter()
+            .cloned()
+            .collect();
+        for item_set_spell in spells {
+            if usize::from(item_set_spell.threshold) > equipped_count_after {
+                continue;
+            }
+            if !self.represented_item_set_spell_exists_like_cpp(item_set_spell.spell_id) {
+                continue;
+            }
+            let effect = self
+                .represented_item_set_effects_like_cpp
+                .get_mut(&item_set.id)
+                .expect("item set effect exists after insert");
+            if !effect.set_bonuses.insert(item_set_spell.id) {
+                continue;
+            }
+            if item_set_spell.chr_spec_id != 0
+                && u32::from(item_set_spell.chr_spec_id) != primary_spec
+            {
+                continue;
+            }
+            self.represented_item_set_spell_events_like_cpp.push(
+                RepresentedItemSetSpellEventLikeCpp {
+                    item_set_id: item_set.id,
+                    spell_entry_id: item_set_spell.id,
+                    spell_id: item_set_spell.spell_id,
+                    threshold: item_set_spell.threshold,
+                    apply: true,
+                },
+            );
+        }
+
+        self.represented_item_set_spell_events_like_cpp.len() != before_events
+    }
+
+    fn represented_item_set_spell_exists_like_cpp(&self, spell_id: u32) -> bool {
+        let Ok(spell_id) = i32::try_from(spell_id) else {
+            return false;
+        };
+        self.spell_store
+            .as_ref()
+            .is_none_or(|store| store.get(spell_id).is_some())
+    }
+
+    fn represented_heirloom_item_set_bonus_over_level_cap_like_cpp(
+        &self,
+        item_guid: ObjectGuid,
+    ) -> bool {
+        let Some(item_entry) = self
+            .inventory_item_objects_like_cpp()
+            .get(&item_guid)
+            .map(|item| item.object().entry())
+        else {
+            return false;
+        };
+        if !self
+            .heirloom_store
+            .as_ref()
+            .is_some_and(|store| store.get_by_item_id_like_cpp(item_entry).is_some())
+        {
+            return false;
+        }
+
+        let Some(template) = self
+            .item_stats_store
+            .as_ref()
+            .and_then(|store| store.sparse_template(item_entry))
+        else {
+            return false;
+        };
+        let curve_id = template.player_level_to_item_level_curve_id_like_cpp();
+        if curve_id == 0 {
+            return false;
+        }
+
+        let Some((curve_store, curve_point_store)) = self
+            .curve_store
+            .as_ref()
+            .zip(self.curve_point_store.as_ref())
+        else {
+            return false;
+        };
+        let Some((_min_level, max_level)) =
+            curve_store.curve_x_axis_range_like_cpp(curve_point_store, curve_id)
+        else {
+            return false;
+        };
+        if !max_level.is_finite() || max_level < 0.0 {
+            return false;
+        }
+        let mut max_level = max_level as u32;
+
+        if let Some(content_tuning) = self.content_tuning_store.as_ref().and_then(|store| {
+            store
+                .content_tuning_data_like_cpp(template.scaling_stat_content_tuning_like_cpp(), true)
+        }) {
+            max_level = max_level.min(u32::try_from(content_tuning.max_level).unwrap_or(0));
+        }
+
+        u32::from(self.player_level_like_cpp()) > max_level
+    }
+
+    fn represented_equip_spell_fits_shapeshift_like_cpp(&self, spell_id: u32) -> bool {
+        let Some(spell_store) = self.spell_store.as_ref() else {
+            return true;
+        };
+        let Ok(spell_id) = i32::try_from(spell_id) else {
+            return false;
+        };
+
+        spell_store
+            .check_shapeshift_like_cpp(
+                spell_id,
+                self.represented_shapeshift_form_like_cpp(),
+                |form| {
+                    self.spell_shapeshift_form_store
+                        .as_ref()
+                        .and_then(|store| store.get(form))
+                },
+            )
+            .unwrap_or(SpellCastResult::Success)
+            == SpellCastResult::Success
+    }
+
+    fn record_represented_remove_items_set_item_like_cpp(
+        &mut self,
+        item_guid: ObjectGuid,
+        item_set: &wow_data::ItemSetEntry,
+    ) -> bool {
+        let Some(effect) = self
+            .represented_item_set_effects_like_cpp
+            .get_mut(&item_set.id)
+        else {
+            return false;
+        };
+        effect.equipped_items.remove(&item_guid);
+        let equipped_count_after = effect.equipped_items.len();
+        let before_events = self.represented_item_set_spell_events_like_cpp.len();
+
+        let spells: Vec<_> = self
+            .item_set_spells_like_cpp(item_set.id)
+            .into_iter()
+            .cloned()
+            .collect();
+        for item_set_spell in spells {
+            if usize::from(item_set_spell.threshold) <= equipped_count_after {
+                continue;
+            }
+            let Some(effect) = self
+                .represented_item_set_effects_like_cpp
+                .get_mut(&item_set.id)
+            else {
+                continue;
+            };
+            if !effect.set_bonuses.remove(&item_set_spell.id) {
+                continue;
+            }
+            self.represented_item_set_spell_events_like_cpp.push(
+                RepresentedItemSetSpellEventLikeCpp {
+                    item_set_id: item_set.id,
+                    spell_entry_id: item_set_spell.id,
+                    spell_id: item_set_spell.spell_id,
+                    threshold: item_set_spell.threshold,
+                    apply: false,
+                },
+            );
+        }
+
+        if self
+            .represented_item_set_effects_like_cpp
+            .get(&item_set.id)
+            .is_some_and(|effect| effect.equipped_items.is_empty())
+        {
+            self.represented_item_set_effects_like_cpp
+                .remove(&item_set.id);
+        }
+
+        self.represented_item_set_spell_events_like_cpp.len() != before_events
+    }
+
+    pub(crate) fn record_represented_update_item_set_auras_like_cpp(
+        &mut self,
+        form_change: bool,
+    ) -> usize {
+        let before_events = self.represented_item_set_aura_refresh_events_like_cpp.len();
+        let primary_spec = self.represented_primary_specialization_id_like_cpp();
+        let active_effects: Vec<_> = self
+            .represented_item_set_effects_like_cpp
+            .values()
+            .cloned()
+            .collect();
+
+        for effect in active_effects {
+            let active_bonus_ids = effect.set_bonuses.clone();
+            let spells: Vec<_> = self
+                .item_set_spells_like_cpp(effect.item_set_id)
+                .into_iter()
+                .filter(|spell| active_bonus_ids.contains(&spell.id))
+                .cloned()
+                .collect();
+
+            for item_set_spell in spells {
+                if item_set_spell.chr_spec_id != 0
+                    && u32::from(item_set_spell.chr_spec_id) != primary_spec
+                {
+                    self.represented_item_set_aura_refresh_events_like_cpp.push(
+                        RepresentedItemSetAuraRefreshEventLikeCpp {
+                            item_set_id: effect.item_set_id,
+                            spell_entry_id: item_set_spell.id,
+                            spell_id: item_set_spell.spell_id,
+                            apply: false,
+                            form_change: false,
+                        },
+                    );
+                    continue;
+                }
+
+                let fits_shapeshift =
+                    self.represented_equip_spell_fits_shapeshift_like_cpp(item_set_spell.spell_id);
+                if !form_change || !fits_shapeshift {
+                    self.represented_item_set_aura_refresh_events_like_cpp.push(
+                        RepresentedItemSetAuraRefreshEventLikeCpp {
+                            item_set_id: effect.item_set_id,
+                            spell_entry_id: item_set_spell.id,
+                            spell_id: item_set_spell.spell_id,
+                            apply: false,
+                            form_change,
+                        },
+                    );
+                }
+                if fits_shapeshift {
+                    self.represented_item_set_aura_refresh_events_like_cpp.push(
+                        RepresentedItemSetAuraRefreshEventLikeCpp {
+                            item_set_id: effect.item_set_id,
+                            spell_entry_id: item_set_spell.id,
+                            spell_id: item_set_spell.spell_id,
+                            apply: true,
+                            form_change,
+                        },
+                    );
+                }
+            }
+        }
+
+        self.represented_item_set_aura_refresh_events_like_cpp.len() - before_events
+    }
+
+    pub(crate) fn apply_represented_item_set_aura_refresh_events_like_cpp(
+        &mut self,
+        form_change: bool,
+    ) -> usize {
+        let start = self.represented_item_set_aura_refresh_events_like_cpp.len();
+        let recorded = self.record_represented_update_item_set_auras_like_cpp(form_change);
+        let events = self.represented_item_set_aura_refresh_events_like_cpp[start..].to_vec();
+        let Some(player_guid) = self.player_guid() else {
+            return recorded;
+        };
+
+        for event in events {
+            let Ok(spell_id) = i32::try_from(event.spell_id) else {
+                continue;
+            };
+            if event.apply {
+                if event.form_change
+                    && self
+                        .visible_auras
+                        .values()
+                        .any(|aura| aura.spell_id == spell_id)
+                {
+                    continue;
+                }
+                let _ = self.apply_aura_with_effect_mask_like_cpp(
+                    spell_id,
+                    player_guid,
+                    0,
+                    0x0000_0001,
+                    0x0000_0001,
+                );
+            } else {
+                let _ = self.remove_represented_auras_due_to_spell_like_cpp(spell_id);
+            }
+        }
+
+        recorded
+    }
+
+    fn represented_item_bonus_player_stat_update_object_like_cpp(
+        &self,
+    ) -> Option<wow_packet::packets::update::UpdateObject> {
+        let player_guid = self.player_guid()?;
+        Some(
+            wow_packet::packets::update::UpdateObject::player_stat_update(
+                player_guid,
+                self.player_map_id_like_cpp(),
+                self.represented_item_bonus_state_like_cpp
+                    .represented_player_stat_changes_like_cpp(),
+            ),
+        )
+    }
+
+    pub(crate) fn send_represented_item_bonus_player_stat_update_like_cpp(&self) -> bool {
+        let Some(update) = self.represented_item_bonus_player_stat_update_object_like_cpp() else {
+            return false;
+        };
+        self.send_packet(&update);
+        true
+    }
+
+    fn apply_represented_item_bonus_action_state_like_cpp(
+        &mut self,
+        action: ApplyEnchantmentEffectAction,
+    ) {
+        match action {
+            ApplyEnchantmentEffectAction::UnitModifier {
+                unit_mod,
+                modifier,
+                amount,
+                apply,
+            } => self.apply_represented_unit_modifier_like_cpp(unit_mod, modifier, amount, apply),
+            ApplyEnchantmentEffectAction::UpdateStatBuffMod(stat) => self
+                .represented_item_bonus_state_like_cpp
+                .stat_buff_updates
+                .push(stat),
+            ApplyEnchantmentEffectAction::RatingModifier {
+                rating,
+                amount,
+                apply,
+            } => {
+                if let Some(index) = represented_combat_rating_index_like_cpp(rating) {
+                    apply_represented_i32_delta_like_cpp(
+                        &mut self.represented_item_bonus_state_like_cpp.combat_ratings[index],
+                        amount,
+                        apply,
+                    );
+                }
+            }
+            ApplyEnchantmentEffectAction::ManaRegenBonus { amount, apply } => {
+                apply_represented_i32_delta_like_cpp(
+                    &mut self.represented_item_bonus_state_like_cpp.mana_regen_bonus,
+                    amount,
+                    apply,
+                );
+            }
+            ApplyEnchantmentEffectAction::SpellPowerBonus { amount, apply } => {
+                apply_represented_i32_delta_like_cpp(
+                    &mut self.represented_item_bonus_state_like_cpp.spell_power_bonus,
+                    amount,
+                    apply,
+                );
+            }
+            ApplyEnchantmentEffectAction::HealthRegenBonus { amount, apply } => {
+                apply_represented_i32_delta_like_cpp(
+                    &mut self
+                        .represented_item_bonus_state_like_cpp
+                        .health_regen_bonus,
+                    amount,
+                    apply,
+                );
+            }
+            ApplyEnchantmentEffectAction::SpellPenetrationBonus { amount, apply } => {
+                apply_represented_i32_delta_like_cpp(
+                    &mut self
+                        .represented_item_bonus_state_like_cpp
+                        .spell_penetration_bonus,
+                    amount,
+                    apply,
+                );
+            }
+            ApplyEnchantmentEffectAction::BaseModFlatValue {
+                base_mod: wow_entities::ApplyEnchantmentBaseMod::ShieldBlockValue,
+                amount,
+                apply,
+            } => {
+                apply_represented_i32_delta_like_cpp(
+                    &mut self
+                        .represented_item_bonus_state_like_cpp
+                        .shield_block_base_mod,
+                    amount,
+                    apply,
+                );
+            }
+            ApplyEnchantmentEffectAction::SetShieldBlockValue { amount } => {
+                self.represented_item_bonus_state_like_cpp
+                    .shield_block_value = amount;
+            }
+            ApplyEnchantmentEffectAction::SetBaseWeaponDamage {
+                attack_type,
+                bound,
+                amount_bits,
+            } => {
+                let attack = attack_type as usize;
+                if attack
+                    < self
+                        .represented_item_bonus_state_like_cpp
+                        .weapon_damage
+                        .len()
+                {
+                    let bound = match bound {
+                        wow_entities::WeaponDamageBoundLikeCpp::Min => 0,
+                        wow_entities::WeaponDamageBoundLikeCpp::Max => 1,
+                    };
+                    self.represented_item_bonus_state_like_cpp.weapon_damage[attack][bound] =
+                        f32::from_bits(amount_bits);
+                }
+            }
+            ApplyEnchantmentEffectAction::SetBaseAttackTime {
+                attack_type,
+                time_ms,
+            } => {
+                let attack = attack_type as usize;
+                if attack
+                    < self
+                        .represented_item_bonus_state_like_cpp
+                        .base_attack_time
+                        .len()
+                {
+                    self.represented_item_bonus_state_like_cpp.base_attack_time[attack] = time_ms;
+                }
+            }
+            ApplyEnchantmentEffectAction::UpdateDamagePhysical { attack_type } => self
+                .represented_item_bonus_state_like_cpp
+                .damage_physical_updates
+                .push(attack_type),
+            ApplyEnchantmentEffectAction::Noop
+            | ApplyEnchantmentEffectAction::DeferredCombatSpell
+            | ApplyEnchantmentEffectAction::DeferredUseSpell
+            | ApplyEnchantmentEffectAction::UpdateDamageDoneMods { .. }
+            | ApplyEnchantmentEffectAction::CastEquipSpell { .. }
+            | ApplyEnchantmentEffectAction::RemoveEquipSpellAura { .. }
+            | ApplyEnchantmentEffectAction::UnhandledStatModifier { .. }
+            | ApplyEnchantmentEffectAction::MissingItemTemplateForAttack { .. }
+            | ApplyEnchantmentEffectAction::Unknown { .. } => {}
+        }
+    }
+
+    fn apply_represented_unit_modifier_like_cpp(
+        &mut self,
+        unit_mod: wow_entities::ApplyEnchantmentUnitMod,
+        modifier: wow_entities::ApplyEnchantmentUnitModifier,
+        amount: u32,
+        apply: bool,
+    ) {
+        match (unit_mod, modifier) {
+            (
+                wow_entities::ApplyEnchantmentUnitMod::Mana,
+                wow_entities::ApplyEnchantmentUnitModifier::BaseValue,
+            ) => apply_represented_i32_delta_like_cpp(
+                &mut self.represented_item_bonus_state_like_cpp.mana_base,
+                amount,
+                apply,
+            ),
+            (
+                wow_entities::ApplyEnchantmentUnitMod::Health,
+                wow_entities::ApplyEnchantmentUnitModifier::BaseValue,
+            ) => apply_represented_i32_delta_like_cpp(
+                &mut self.represented_item_bonus_state_like_cpp.health_base,
+                amount,
+                apply,
+            ),
+            (
+                wow_entities::ApplyEnchantmentUnitMod::Armor,
+                wow_entities::ApplyEnchantmentUnitModifier::BaseValue,
+            ) => apply_represented_i32_delta_like_cpp(
+                &mut self.represented_item_bonus_state_like_cpp.armor_base,
+                amount,
+                apply,
+            ),
+            (
+                wow_entities::ApplyEnchantmentUnitMod::Armor,
+                wow_entities::ApplyEnchantmentUnitModifier::TotalValue,
+            ) => apply_represented_i32_delta_like_cpp(
+                &mut self.represented_item_bonus_state_like_cpp.armor_total,
+                amount,
+                apply,
+            ),
+            (
+                wow_entities::ApplyEnchantmentUnitMod::AttackPower,
+                wow_entities::ApplyEnchantmentUnitModifier::TotalValue,
+            ) => apply_represented_i32_delta_like_cpp(
+                &mut self
+                    .represented_item_bonus_state_like_cpp
+                    .attack_power_total,
+                amount,
+                apply,
+            ),
+            (
+                wow_entities::ApplyEnchantmentUnitMod::AttackPowerRanged,
+                wow_entities::ApplyEnchantmentUnitModifier::TotalValue,
+            ) => apply_represented_i32_delta_like_cpp(
+                &mut self
+                    .represented_item_bonus_state_like_cpp
+                    .ranged_attack_power_total,
+                amount,
+                apply,
+            ),
+            (wow_entities::ApplyEnchantmentUnitMod::Resistance(school), _) => {
+                let school = school as usize;
+                if school
+                    < self
+                        .represented_item_bonus_state_like_cpp
+                        .resistances_base
+                        .len()
+                {
+                    apply_represented_i32_delta_like_cpp(
+                        &mut self.represented_item_bonus_state_like_cpp.resistances_base[school],
+                        amount,
+                        apply,
+                    );
+                }
+            }
+            (unit_mod, wow_entities::ApplyEnchantmentUnitModifier::BaseValue) => {
+                if let Some(index) = represented_unit_mod_stat_index_like_cpp(unit_mod) {
+                    apply_represented_i32_delta_like_cpp(
+                        &mut self.represented_item_bonus_state_like_cpp.stats_base[index],
+                        amount,
+                        apply,
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn represented_weapon_damage_bounds_like_cpp(
+        &self,
+        item_entry: u32,
+        weapon: &wow_data::ItemWeaponTemplateEntry,
+    ) -> (f32, f32) {
+        let mut min_damage = f32::from(weapon.min_damage[0]);
+        let mut max_damage = f32::from(weapon.max_damage[0]);
+        let Some(context) = self.represented_scaling_stat_context_like_cpp(item_entry) else {
+            return (min_damage, max_damage);
+        };
+
+        if context.dps_mod != 0 {
+            let average = context.dps_mod as f32 * f32::from(weapon.item_delay) / 1000.0;
+            let modifier = if context.is_two_hand { 0.2 } else { 0.3 };
+            min_damage = (1.0 - modifier) * average;
+            max_damage = (1.0 + modifier) * average;
+        }
+
+        (min_damage, max_damage)
+    }
+
+    fn represented_scaling_stat_context_like_cpp(
+        &self,
+        item_entry: u32,
+    ) -> Option<RepresentedScalingStatContextLikeCpp> {
+        let item_store = self.item_store.as_ref()?;
+        let scaling_stat_distribution_id = item_store.scaling_stat_distribution_id(item_entry);
+        let scaling_stat_value = item_store.scaling_stat_value(item_entry);
+        if scaling_stat_distribution_id == 0 || scaling_stat_value == 0 {
+            return None;
+        }
+        let distribution_store = self.scaling_stat_distribution_store.as_ref()?;
+        let values_store = self.scaling_stat_values_store.as_ref()?;
+        let distribution = distribution_store.get(u32::from(scaling_stat_distribution_id))?;
+        let character_level = self.represented_scaling_stat_character_level_like_cpp(distribution);
+        let values = values_store.get_for_character_level_like_cpp(character_level)?;
+        let mask = scaling_stat_value as u32;
+        Some(RepresentedScalingStatContextLikeCpp {
+            stat_id: distribution.stat_id,
+            bonus: distribution.bonus,
+            ssd_multiplier: values.ssd_multiplier_like_cpp(mask),
+            spell_bonus: values.spell_bonus_like_cpp(mask),
+            armor_mod: values.armor_mod_like_cpp(mask),
+            dps_mod: values.dps_mod_like_cpp(mask),
+            is_two_hand: values.is_two_hand_like_cpp(mask),
+        })
+    }
+
+    fn represented_scaling_stat_character_level_like_cpp(
+        &self,
+        distribution: &ScalingStatDistributionEntry,
+    ) -> u32 {
+        let min_level = u32::try_from(distribution.min_level).unwrap_or(0);
+        let max_level = u32::try_from(distribution.max_level).unwrap_or(min_level);
+        let (min_level, max_level) = if min_level <= max_level {
+            (min_level, max_level)
+        } else {
+            (max_level, min_level)
+        };
+        u32::from(self.player_level_like_cpp()).clamp(min_level, max_level)
+    }
+
+    fn represented_resistances_with_scaling_armor_like_cpp(
+        &self,
+        resistances: &[i16; 7],
+        scaling_context: Option<RepresentedScalingStatContextLikeCpp>,
+    ) -> [i16; 7] {
+        let mut adjusted = *resistances;
+        if let Some(context) = scaling_context {
+            if context.armor_mod > 0 {
+                adjusted[0] = i16::try_from(context.armor_mod).unwrap_or(i16::MAX);
+            } else if context.armor_mod < 0 {
+                adjusted[0] = i16::MIN;
+            }
+        }
+        adjusted
+    }
+
+    fn represented_item_inventory_type_like_cpp(
+        &self,
+        item_entry: u32,
+        item_guid: ObjectGuid,
+    ) -> Option<InventoryType> {
+        self.inventory_items
+            .values()
+            .find(|item| item.guid == item_guid)
+            .and_then(|item| item.inventory_type)
+            .and_then(<InventoryType as num_traits::FromPrimitive>::from_u8)
+            .or_else(|| {
+                self.item_store
+                    .as_ref()
+                    .and_then(|store| store.get(item_entry))
+                    .and_then(|record| {
+                        <InventoryType as num_traits::FromPrimitive>::from_i8(record.inventory_type)
+                    })
+            })
+    }
+
+    fn restore_represented_health_pct_after_item_mod_scaling_like_cpp(
+        &mut self,
+        health_before: u32,
+        max_health_before: u32,
+    ) {
+        let max_health_after = self.player_max_health_like_cpp.max(1);
+        let restored = (u64::from(max_health_after) * u64::from(health_before)
+            / u64::from(max_health_before.max(1))) as u32;
+        self.set_player_health_like_cpp(restored, max_health_after);
     }
 
     pub fn set_item_spec_override_store(&mut self, store: Arc<ItemSpecOverrideStore>) {
@@ -13278,6 +15529,46 @@ impl WorldSession {
 
     pub fn set_reset_schedule_like_cpp(&mut self, schedule: wow_instances::ResetSchedule) {
         self.reset_schedule_like_cpp = schedule;
+    }
+
+    pub fn set_no_reset_talent_cost_like_cpp(&mut self, no_cost: bool) {
+        self.no_reset_talent_cost_like_cpp = no_cost;
+    }
+
+    pub fn set_offhand_check_at_spell_unlearn_like_cpp(&mut self, enabled: bool) {
+        self.represented_offhand_check_at_spell_unlearn_like_cpp = enabled;
+    }
+
+    pub fn set_vmap_indoor_check_like_cpp(&mut self, enabled: bool) {
+        self.vmap_indoor_check_like_cpp = enabled;
+    }
+
+    pub fn set_represented_is_outdoors_like_cpp(&mut self, is_outdoors: bool) {
+        self.represented_is_outdoors_like_cpp = Some(is_outdoors);
+    }
+
+    pub fn set_start_all_explored_like_cpp(&mut self, enabled: bool) {
+        self.start_all_explored_like_cpp = enabled;
+    }
+
+    pub fn set_start_all_reputation_like_cpp(&mut self, enabled: bool) {
+        self.start_all_reputation_like_cpp = enabled;
+    }
+
+    pub fn set_start_all_spells_like_cpp(&mut self, enabled: bool) {
+        self.start_all_spells_like_cpp = enabled;
+    }
+
+    pub(crate) fn start_all_explored_like_cpp(&self) -> bool {
+        self.start_all_explored_like_cpp
+    }
+
+    pub(crate) fn start_all_reputation_like_cpp(&self) -> bool {
+        self.start_all_reputation_like_cpp
+    }
+
+    pub(crate) fn start_all_spells_like_cpp(&self) -> bool {
+        self.start_all_spells_like_cpp
     }
 
     pub(crate) const fn reset_schedule_like_cpp(&self) -> wow_instances::ResetSchedule {
@@ -13368,6 +15659,7 @@ impl WorldSession {
         self.watched_faction_index_like_cpp = index;
     }
 
+    #[allow(dead_code)]
     pub(crate) fn reputation_rank_like_cpp(
         &self,
         faction_entry: &FactionEntry,
@@ -13919,6 +16211,7 @@ impl WorldSession {
             | ClientOpcodes::SaveGuildEmblem
             | ClientOpcodes::PetitionRenameGuild
             | ClientOpcodes::ConfirmRespecWipe
+            | ClientOpcodes::LearnTalent
             | ClientOpcodes::SetDungeonDifficulty
             | ClientOpcodes::SetRaidDifficulty
             | ClientOpcodes::SetPartyAssignment
@@ -14394,13 +16687,8 @@ impl WorldSession {
             if let Some(slot) = equipped_slot
                 && was_broken
             {
-                self.represented_item_mod_reapply_events_like_cpp.push(
-                    RepresentedItemModsReapplyEventLikeCpp {
-                        item_guid,
-                        slot,
-                        apply: true,
-                    },
-                );
+                self.record_represented_item_mods_like_cpp(item_guid, slot, true);
+                self.send_represented_item_bonus_player_stat_update_like_cpp();
             }
             self.sync_object_accessor_player();
         }
@@ -14656,6 +16944,23 @@ impl WorldSession {
             .as_ref()
             .and_then(|store| store.random_property_template(item_id))
             .copied()
+    }
+
+    fn item_shield_block_value_like_cpp(&self, item_id: u32) -> Option<i16> {
+        let basic = self.item_store.as_ref()?.get(item_id)?;
+        if basic.class_id != ItemClass::Armor as u8
+            || basic.subclass_id != ItemSubClassArmor::Shield as u8
+        {
+            return None;
+        }
+
+        let template = self.item_random_property_template(item_id)?;
+        let item_level = u32::from(template.item_level);
+        let quality = u32::try_from(template.quality).ok()?;
+        self.shield_block_regular_game_table
+            .as_ref()?
+            .shield_block_for_quality_like_cpp(item_level, quality)
+            .filter(|value| *value != 0)
     }
 
     pub fn item_template_max_durability(&self, item_id: u32) -> u32 {
@@ -15108,6 +17413,15 @@ impl WorldSession {
         item: &InventoryItem,
         runtime_item: Option<&Item>,
     ) -> InventoryResult {
+        self.can_use_inventory_item_represented_with_loading_like_cpp(item, runtime_item, true)
+    }
+
+    fn can_use_inventory_item_represented_with_loading_like_cpp(
+        &self,
+        item: &InventoryItem,
+        runtime_item: Option<&Item>,
+        not_loading: bool,
+    ) -> InventoryResult {
         let Some(player) = self.direct_inventory_player_snapshot() else {
             return InventoryResult::ItemNotFound;
         };
@@ -15214,7 +17528,7 @@ impl WorldSession {
         player.can_use_item(CanUseItemArgs {
             source_item: runtime_item,
             proto: proto.as_ref(),
-            not_loading: true,
+            not_loading,
             is_alive: true,
             player_level: self.player_level_like_cpp(),
             item_required_level: base_required_level,
@@ -15244,7 +17558,7 @@ impl WorldSession {
                 effect1_spell_id,
                 has_effect1_spell,
                 artifact_specialization: None,
-                primary_specialization: self.loot_specialization_id,
+                primary_specialization: self.represented_primary_specialization_id_like_cpp(),
             },
             item_skill: 0,
             item_skill_value: 0,
@@ -15665,6 +17979,34 @@ impl WorldSession {
         bag: u8,
         slot: u8,
     ) -> Option<(InventoryResult, Vec<ItemPosCount>, Option<u32>)> {
+        self.plan_store_direct_inventory_item_like_cpp(entry_id, count, bag, slot, None)
+    }
+
+    pub(crate) fn plan_store_existing_direct_inventory_item_like_cpp(
+        &self,
+        source_slot: u8,
+    ) -> Option<(InventoryResult, Vec<ItemPosCount>, Option<u32>)> {
+        let inventory_item = self.inventory_items_like_cpp().get(&source_slot)?;
+        let source_item = self
+            .inventory_item_objects_like_cpp()
+            .get(&inventory_item.guid)?;
+        self.plan_store_direct_inventory_item_like_cpp(
+            inventory_item.entry_id,
+            source_item.count(),
+            NULL_BAG,
+            NULL_SLOT,
+            Some(source_item),
+        )
+    }
+
+    fn plan_store_direct_inventory_item_like_cpp(
+        &self,
+        entry_id: u32,
+        count: u32,
+        bag: u8,
+        slot: u8,
+        source_item: Option<&Item>,
+    ) -> Option<(InventoryResult, Vec<ItemPosCount>, Option<u32>)> {
         let player = self.direct_inventory_player_snapshot()?;
         let proto = self.item_storage_template(entry_id);
         let inventory_items = self.inventory_items_like_cpp();
@@ -15743,7 +18085,7 @@ impl WorldSession {
                 entry: entry_id,
                 count,
                 proto: proto.as_ref(),
-                source_item: None,
+                source_item,
                 source_is_not_empty_bag: false,
                 source_bop_trade_allowed_for_player: false,
                 swap: false,
@@ -15848,6 +18190,25 @@ impl WorldSession {
 
     pub fn set_content_tuning_store(&mut self, store: Arc<ContentTuningStore>) {
         self.content_tuning_store = Some(store);
+    }
+
+    pub fn set_curve_store(&mut self, store: Arc<CurveStore>) {
+        self.curve_store = Some(store);
+    }
+
+    pub fn set_curve_point_store(&mut self, store: Arc<CurvePointStore>) {
+        self.curve_point_store = Some(store);
+    }
+
+    pub fn set_scaling_stat_distribution_store(
+        &mut self,
+        store: Arc<ScalingStatDistributionStore>,
+    ) {
+        self.scaling_stat_distribution_store = Some(store);
+    }
+
+    pub fn set_scaling_stat_values_store(&mut self, store: Arc<ScalingStatValuesStore>) {
+        self.scaling_stat_values_store = Some(store);
     }
 
     /// Get the loaded PlayerCondition.db2 store reference.
@@ -16730,6 +19091,13 @@ impl WorldSession {
         self.creature_display_info_store = Some(store);
     }
 
+    pub fn set_creature_display_info_extra_store(
+        &mut self,
+        store: Arc<CreatureDisplayInfoExtraStore>,
+    ) {
+        self.creature_display_info_extra_store = Some(store);
+    }
+
     pub fn set_gameobject_display_info_store(&mut self, store: Arc<GameObjectDisplayInfoStore>) {
         self.gameobject_display_info_store = Some(store);
     }
@@ -16744,10 +19112,18 @@ impl WorldSession {
 
     pub fn set_mount_store(&mut self, store: Arc<MountStore>) {
         self.mount_store = Some(store);
+        self.expand_account_mount_faction_definitions_like_cpp();
+        self.learn_account_mount_spells_like_cpp();
     }
 
     pub(crate) fn mount_store(&self) -> Option<&Arc<MountStore>> {
         self.mount_store.as_ref()
+    }
+
+    pub fn set_mount_definition_store_like_cpp(&mut self, store: Arc<MountDefinitionStoreLikeCpp>) {
+        self.mount_definition_store_like_cpp = Some(store);
+        self.expand_account_mount_faction_definitions_like_cpp();
+        self.learn_account_mount_spells_like_cpp();
     }
 
     pub fn set_mount_capability_store(&mut self, store: Arc<MountCapabilityStore>) {
@@ -16760,6 +19136,10 @@ impl WorldSession {
 
     pub fn set_mount_x_display_store(&mut self, store: Arc<MountXDisplayStore>) {
         self.mount_x_display_store = Some(store);
+    }
+
+    pub fn set_spell_shapeshift_form_store(&mut self, store: Arc<SpellShapeshiftFormStore>) {
+        self.spell_shapeshift_form_store = Some(store);
     }
 
     pub fn set_vehicle_store(&mut self, store: Arc<VehicleStore>) {
@@ -16791,6 +19171,11 @@ impl WorldSession {
     #[allow(dead_code)]
     pub(crate) fn mount_x_display_store(&self) -> Option<&Arc<MountXDisplayStore>> {
         self.mount_x_display_store.as_ref()
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn spell_shapeshift_form_store(&self) -> Option<&Arc<SpellShapeshiftFormStore>> {
+        self.spell_shapeshift_form_store.as_ref()
     }
 
     pub fn set_terrain_swap_store(&mut self, store: Arc<wow_data::TerrainSwapStore>) {
@@ -16903,12 +19288,28 @@ impl WorldSession {
         self.skill_store.as_ref()
     }
 
+    pub fn set_trait_definition_store(&mut self, store: Arc<TraitDefinitionStore>) {
+        self.trait_definition_store = Some(store);
+    }
+
+    pub(crate) fn trait_definition_store(&self) -> Option<&Arc<TraitDefinitionStore>> {
+        self.trait_definition_store.as_ref()
+    }
+
     pub fn set_skill_line_store(&mut self, store: Arc<SkillLineStore>) {
         self.skill_line_store = Some(store);
     }
 
     pub(crate) fn skill_line_store(&self) -> Option<&Arc<SkillLineStore>> {
         self.skill_line_store.as_ref()
+    }
+
+    pub fn set_skill_tiers_store(&mut self, store: Arc<SkillTiersStoreLikeCpp>) {
+        self.skill_tiers_store = Some(store);
+    }
+
+    pub(crate) fn skill_tiers_store(&self) -> Option<&Arc<SkillTiersStoreLikeCpp>> {
+        self.skill_tiers_store.as_ref()
     }
 
     /// Set the spell store for this session.
@@ -16921,12 +19322,66 @@ impl WorldSession {
         self.spell_store.as_ref()
     }
 
+    pub fn set_talent_store(&mut self, store: Arc<TalentStore>) {
+        self.talent_store = Some(store);
+    }
+
+    pub(crate) fn talent_store(&self) -> Option<&Arc<TalentStore>> {
+        self.talent_store.as_ref()
+    }
+
+    pub fn set_talent_tab_store(&mut self, store: Arc<TalentTabStore>) {
+        self.talent_tab_store = Some(store);
+    }
+
+    pub(crate) fn talent_tab_store(&self) -> Option<&Arc<TalentTabStore>> {
+        self.talent_tab_store.as_ref()
+    }
+
+    pub fn set_num_talents_at_level_store(&mut self, store: Arc<NumTalentsAtLevelStore>) {
+        self.num_talents_at_level_store = Some(store);
+        self.refresh_represented_talent_points_like_cpp();
+    }
+
+    pub(crate) fn num_talents_at_level_store(&self) -> Option<&Arc<NumTalentsAtLevelStore>> {
+        self.num_talents_at_level_store.as_ref()
+    }
+
+    pub fn set_glyph_properties_store(&mut self, store: Arc<GlyphPropertiesStore>) {
+        self.glyph_properties_store = Some(store);
+    }
+
+    pub(crate) fn glyph_properties_store(&self) -> Option<&Arc<GlyphPropertiesStore>> {
+        self.glyph_properties_store.as_ref()
+    }
+
     pub fn set_spell_chain_store(&mut self, store: Arc<SpellChainStoreLikeCpp>) {
         self.spell_chain_store = Some(store);
     }
 
     pub(crate) fn spell_chain_store(&self) -> Option<&Arc<SpellChainStoreLikeCpp>> {
         self.spell_chain_store.as_ref()
+    }
+
+    pub(crate) fn next_spell_in_chain_like_cpp(&self, spell_id: u32) -> u32 {
+        self.spell_chain_store
+            .as_ref()
+            .map(|store| store.next_spell_in_chain_like_cpp(spell_id))
+            .unwrap_or(0)
+    }
+
+    pub(crate) fn first_spell_in_chain_like_cpp(&self, spell_id: u32) -> u32 {
+        self.spell_chain_store
+            .as_ref()
+            .map(|store| store.first_spell_in_chain_like_cpp(spell_id))
+            .unwrap_or(spell_id)
+    }
+
+    pub(crate) fn prev_spell_in_chain_like_cpp(&self, spell_id: u32) -> u32 {
+        self.spell_chain_store
+            .as_ref()
+            .map(|store| store.prev_spell_in_chain_like_cpp(spell_id))
+            .unwrap_or(0)
     }
 
     pub fn set_spell_category_store(&mut self, store: Arc<SpellCategoryStore>) {
@@ -16941,6 +19396,7 @@ impl WorldSession {
         self.npc_spell_click_store = Some(store);
     }
 
+    #[allow(dead_code)]
     pub(crate) fn npc_spell_click_store(&self) -> Option<&Arc<NpcSpellClickStoreLikeCpp>> {
         self.npc_spell_click_store.as_ref()
     }
@@ -17246,6 +19702,7 @@ impl WorldSession {
         self.spell_proc_store = Some(store);
     }
 
+    #[allow(dead_code)]
     pub(crate) fn spell_proc_store(&self) -> Option<&Arc<SpellProcStoreLikeCpp>> {
         self.spell_proc_store.as_ref()
     }
@@ -17341,6 +19798,7 @@ impl WorldSession {
         self.script_name_interner = Some(store);
     }
 
+    #[allow(dead_code)]
     pub(crate) fn script_name_like_cpp(&self, id: ScriptIdLikeCpp) -> &str {
         self.script_name_interner
             .as_ref()
@@ -17348,6 +19806,7 @@ impl WorldSession {
             .unwrap_or("")
     }
 
+    #[allow(dead_code)]
     pub(crate) fn script_id_bound_in_database_like_cpp(&self, id: ScriptIdLikeCpp) -> bool {
         self.script_name_interner
             .as_ref()
@@ -17643,19 +20102,1990 @@ impl WorldSession {
         }
     }
 
-    pub(crate) async fn save_current_player_to_db_like_cpp(&mut self) {
-        if self
-            .sync_session_from_save_to_db_snapshot_like_cpp()
-            .is_none()
-        {
+    fn build_character_talent_reset_state_save_statement_like_cpp(
+        reset_cost: u32,
+        reset_time_secs: u64,
+        guid_counter: u64,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::UPD_CHAR_TALENT_RESET_STATE.sql());
+        stmt.set_u32(0, reset_cost);
+        stmt.set_u64(1, reset_time_secs);
+        stmt.set_u64(2, guid_counter);
+        stmt
+    }
+
+    async fn save_player_talent_reset_state_like_cpp(&self) {
+        let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
+        else {
             return;
+        };
+        let stmt = Self::build_character_talent_reset_state_save_statement_like_cpp(
+            self.represented_talent_reset_cost_like_cpp,
+            self.represented_talent_reset_time_secs_like_cpp,
+            guid.counter() as u64,
+        );
+        if let Err(err) = char_db.execute(&stmt).await {
+            warn!(
+                "Failed to save represented talent reset state for guid {}: {err}",
+                guid.counter()
+            );
         }
+    }
+
+    fn build_character_explored_zones_save_statement_like_cpp(
+        explored_zones: String,
+        guid_counter: u64,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::UPD_CHAR_EXPLORED_ZONES.sql());
+        stmt.set_string(0, explored_zones);
+        stmt.set_u64(1, guid_counter);
+        stmt
+    }
+
+    async fn save_player_explored_zones_like_cpp(&mut self) {
+        let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
+        else {
+            return;
+        };
+
+        self.sync_represented_explored_zones_from_canonical_like_cpp();
+        let stmt = Self::build_character_explored_zones_save_statement_like_cpp(
+            self.represented_explored_zones_db_string_like_cpp(),
+            guid.counter() as u64,
+        );
+        if let Err(err) = char_db.execute(&stmt).await {
+            warn!(
+                "Failed to save represented explored zones for guid {}: {err}",
+                guid.counter()
+            );
+        }
+    }
+
+    fn build_character_position_save_statement_like_cpp(
+        position: Position,
+        map_id: u16,
+        instance_id: u32,
+        zone_id: u32,
+        guid_counter: u64,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::UPD_CHARACTER_POSITION.sql());
+        stmt.set_f32(0, position.x);
+        stmt.set_f32(1, position.y);
+        stmt.set_f32(2, position.z);
+        stmt.set_f32(3, position.orientation);
+        stmt.set_u16(4, map_id);
+        stmt.set_u32(5, instance_id);
+        stmt.set_u16(6, zone_id as u16);
+        stmt.set_u64(7, guid_counter);
+        stmt
+    }
+
+    fn build_character_position_save_statement_from_snapshot_like_cpp(
+        snapshot: &PlayerSaveToDbSnapshotLikeCpp,
+        zone_id: u32,
+    ) -> PreparedStatement {
+        Self::build_character_position_save_statement_like_cpp(
+            snapshot.position,
+            snapshot.map_id,
+            snapshot.instance_id,
+            zone_id,
+            snapshot.guid.counter() as u64,
+        )
+    }
+
+    async fn save_player_position_like_cpp(&self, snapshot: &PlayerSaveToDbSnapshotLikeCpp) {
+        let Some(char_db) = self.char_db().map(Arc::clone) else {
+            return;
+        };
+
+        let stmt = Self::build_character_position_save_statement_from_snapshot_like_cpp(
+            snapshot,
+            self.player_zone_id_like_cpp as u32,
+        );
+        match char_db.execute(&stmt).await {
+            Ok(0) => {
+                warn!(
+                    guid = snapshot.guid.counter(),
+                    map_id = snapshot.map_id,
+                    instance_id = snapshot.instance_id,
+                    zone_id = self.player_zone_id_like_cpp,
+                    x = snapshot.position.x,
+                    y = snapshot.position.y,
+                    z = snapshot.position.z,
+                    orientation = snapshot.position.orientation,
+                    "Player::SaveToDB represented position save affected zero rows"
+                );
+            }
+            Ok(rows) => {
+                info!(
+                    guid = snapshot.guid.counter(),
+                    rows,
+                    map_id = snapshot.map_id,
+                    instance_id = snapshot.instance_id,
+                    zone_id = self.player_zone_id_like_cpp,
+                    x = snapshot.position.x,
+                    y = snapshot.position.y,
+                    z = snapshot.position.z,
+                    orientation = snapshot.position.orientation,
+                    "Player::SaveToDB represented position saved"
+                );
+            }
+            Err(err) => {
+                warn!(
+                    guid = snapshot.guid.counter(),
+                    map_id = snapshot.map_id,
+                    instance_id = snapshot.instance_id,
+                    zone_id = self.player_zone_id_like_cpp,
+                    x = snapshot.position.x,
+                    y = snapshot.position.y,
+                    z = snapshot.position.z,
+                    orientation = snapshot.position.orientation,
+                    "Failed to save player position: {err}"
+                );
+            }
+        }
+    }
+
+    pub(crate) async fn save_current_player_to_db_like_cpp(&mut self) {
+        let Some(snapshot) = self.sync_session_from_save_to_db_snapshot_like_cpp() else {
+            warn!(
+                account = self.account_id,
+                player_guid = ?self.player_guid(),
+                has_session_position = self.player_position_like_cpp().is_some(),
+                has_canonical_map_manager = self.canonical_map_manager.is_some(),
+                "Skipping Player::SaveToDB represented save because no coherent player snapshot is available"
+            );
+            return;
+        };
+        self.save_player_position_like_cpp(&snapshot).await;
         self.save_player_level_xp_like_cpp().await;
         self.save_player_gold().await;
+        self.save_player_talent_reset_state_like_cpp().await;
+        self.save_player_explored_zones_like_cpp().await;
+        self.save_player_skills_like_cpp().await;
         self.save_player_difficulties_like_cpp().await;
+        self.save_player_glyphs_like_cpp().await;
+        self.save_player_talents_like_cpp().await;
+        self.save_player_spell_cooldowns_like_cpp().await;
+        self.save_player_spell_charges_like_cpp().await;
+        self.save_player_action_buttons_like_cpp().await;
+        self.save_player_equipment_sets_like_cpp().await;
+        self.save_tutorials_data_like_cpp().await;
         self.save_instance_time_restrictions_like_cpp().await;
         self.save_played_time().await;
         self.save_reputation_to_db_like_cpp().await;
+        self.save_cuf_profiles_like_cpp().await;
+    }
+
+    pub(crate) fn reset_represented_glyphs_like_cpp(&mut self) {
+        self.represented_glyphs_like_cpp = [[0;
+            wow_packet::packets::misc::MAX_GLYPH_SLOT_INDEX_LIKE_CPP];
+            MAX_SPECIALIZATIONS_LIKE_CPP];
+        self.represented_glyphs_loaded_like_cpp = false;
+    }
+
+    pub(crate) fn mark_represented_glyphs_loaded_like_cpp(&mut self) {
+        self.represented_glyphs_loaded_like_cpp = true;
+    }
+
+    pub(crate) fn set_represented_active_talent_group_like_cpp(&mut self, active_group: u8) {
+        self.represented_active_talent_group_like_cpp =
+            active_group.min((MAX_SPECIALIZATIONS_LIKE_CPP - 1) as u8);
+    }
+
+    pub(crate) fn set_represented_bonus_talent_groups_like_cpp(&mut self, bonus_groups: u8) {
+        self.represented_bonus_talent_groups_like_cpp =
+            bonus_groups.min((MAX_SPECIALIZATIONS_LIKE_CPP - 1) as u8);
+    }
+
+    pub(crate) fn reset_represented_talents_like_cpp(&mut self) {
+        for talents in &mut self.represented_talents_like_cpp {
+            talents.clear();
+        }
+        self.represented_talents_loaded_like_cpp = false;
+    }
+
+    pub(crate) fn reset_represented_active_talents_like_cpp(&mut self) -> bool {
+        if !self.represented_talents_loaded_like_cpp {
+            return false;
+        }
+
+        let talent_group = self.represented_active_talent_group_like_cpp;
+        let talent_group_index = usize::from(talent_group);
+        if talent_group_index >= MAX_SPECIALIZATIONS_LIKE_CPP {
+            return false;
+        }
+
+        let active_talents =
+            std::mem::take(&mut self.represented_talents_like_cpp[talent_group_index]);
+        for (talent_id, rank) in active_talents {
+            self.remove_represented_active_talent_side_effects_like_cpp(talent_id, rank);
+        }
+        self.refresh_represented_talent_points_like_cpp();
+        true
+    }
+
+    pub(crate) fn apply_represented_login_talent_reset_if_needed_like_cpp(&mut self) -> bool {
+        const AT_LOGIN_RESET_TALENTS_LIKE_CPP: u16 = 0x004;
+
+        if (self.represented_at_login_flags_like_cpp & AT_LOGIN_RESET_TALENTS_LIKE_CPP) == 0 {
+            return false;
+        }
+
+        self.record_represented_talent_reset_script_hook_like_cpp(true);
+        self.remove_represented_at_login_flag_like_cpp(AT_LOGIN_RESET_TALENTS_LIKE_CPP, true);
+        self.remove_represented_pet_not_in_slot_like_cpp();
+
+        if self.reset_represented_active_talents_like_cpp() {
+            self.send_packet(&self.represented_update_talent_data_packet_like_cpp());
+            self.send_notification_like_cpp(self.reset_talents_notification_text_like_cpp());
+            return true;
+        }
+
+        false
+    }
+
+    pub(crate) fn apply_represented_login_spell_reset_if_needed_like_cpp(&mut self) -> bool {
+        const AT_LOGIN_RESET_SPELLS_LIKE_CPP: u16 = 0x002;
+
+        if (self.represented_at_login_flags_like_cpp & AT_LOGIN_RESET_SPELLS_LIKE_CPP) == 0 {
+            return false;
+        }
+
+        self.remove_represented_at_login_flag_like_cpp(AT_LOGIN_RESET_SPELLS_LIKE_CPP, true);
+        let spells = self.known_spells_like_cpp().to_vec();
+        for spell_id in spells {
+            self.remove_known_spell_like_cpp(spell_id);
+        }
+        self.apply_represented_quest_rewarded_spells_like_cpp();
+        self.send_notification_like_cpp(self.reset_spells_notification_text_like_cpp());
+        true
+    }
+
+    pub(crate) fn apply_represented_first_login_flag_if_needed_like_cpp(&mut self) -> bool {
+        const AT_LOGIN_FIRST_LIKE_CPP: u16 = 0x020;
+
+        if (self.represented_at_login_flags_like_cpp & AT_LOGIN_FIRST_LIKE_CPP) == 0 {
+            return false;
+        }
+
+        self.remove_represented_at_login_flag_like_cpp(AT_LOGIN_FIRST_LIKE_CPP, false)
+    }
+
+    pub(crate) fn load_represented_explored_zones_like_cpp(&mut self, input: &str) -> usize {
+        let blocks = parse_explored_zones_db_string_like_cpp(input);
+        let changed = self.represented_explored_zones_like_cpp != blocks;
+        self.represented_explored_zones_like_cpp = blocks;
+
+        if let Some(update) = self
+            .mutate_canonical_player_like_cpp(|player| {
+                let applied = player.set_explored_zones_blocks_like_cpp(&blocks);
+                (applied > 0).then(|| player.values_update(true))
+            })
+            .flatten()
+        {
+            self.send_player_values_update_like_cpp(&update);
+        }
+
+        if changed {
+            self.represented_explored_zones_like_cpp
+                .iter()
+                .filter(|block| **block != 0)
+                .count()
+        } else {
+            0
+        }
+    }
+
+    pub(crate) fn represented_explored_zones_db_string_like_cpp(&self) -> String {
+        explored_zones_db_string_from_blocks_like_cpp(&self.represented_explored_zones_like_cpp)
+    }
+
+    /// Represented C++ `Player::UpdateArea` criteria branch.
+    ///
+    /// C++ records `EnterArea`/`LeaveArea` after updating area-dependent state when
+    /// `oldArea != newArea`; this represented slice records only those criteria
+    /// side effects. PvP/rest flags, phasing, aura checks, quest push, mount
+    /// capability refresh, and chat-channel updates remain runtime gaps.
+    pub(crate) fn update_area_represented_like_cpp(&mut self, new_area: u32) -> bool {
+        let old_area = self.player_area_id_like_cpp;
+        self.player_area_id_like_cpp = new_area;
+
+        if old_area == new_area {
+            return false;
+        }
+
+        self.represented_area_zone_criteria_like_cpp
+            .push(RepresentedAreaZoneCriteriaLikeCpp::EnterArea(new_area));
+        self.represented_area_zone_criteria_like_cpp
+            .push(RepresentedAreaZoneCriteriaLikeCpp::LeaveArea(old_area));
+        true
+    }
+
+    /// Represented C++ `Player::UpdateZone` criteria branch.
+    ///
+    /// C++ first updates `m_zoneUpdateId`, then calls `UpdateArea(newArea)`, then
+    /// returns early if the new zone has no `AreaTableEntry`. Therefore top-level
+    /// area criteria are recorded only when the zone changes and the new zone row
+    /// exists, while area criteria may already have been recorded by `UpdateArea`.
+    pub(crate) fn update_zone_represented_like_cpp(
+        &mut self,
+        new_zone: u32,
+        new_area: u32,
+    ) -> bool {
+        if self.player_guid().is_none() {
+            return false;
+        }
+
+        let old_zone = self.player_zone_id_like_cpp;
+        self.player_zone_id_like_cpp = new_zone;
+        self.update_area_represented_like_cpp(new_area);
+
+        if old_zone == new_zone {
+            return false;
+        }
+
+        if !self
+            .area_table_store
+            .as_ref()
+            .is_some_and(|store| store.get(new_zone).is_some())
+        {
+            return true;
+        }
+
+        self.represented_area_zone_criteria_like_cpp.push(
+            RepresentedAreaZoneCriteriaLikeCpp::EnterTopLevelArea(new_zone),
+        );
+        self.represented_area_zone_criteria_like_cpp.push(
+            RepresentedAreaZoneCriteriaLikeCpp::LeaveTopLevelArea(old_zone),
+        );
+        true
+    }
+
+    /// Represented C++ `Player::CheckAreaExploreAndOutdoor` discovery branch.
+    ///
+    /// This slice covers `AreaTableEntry::AreaBit`, `AddExploredZones`, the player-values update,
+    /// `CriteriaType::RevealWorldMapOverlay`, the exploration XP branch, and the
+    /// `CONFIG_VMAP_INDOOR_CHECK` aura-removal branch when a represented
+    /// `WorldObject::IsOutdoors()` value is available. Terrain/VMAP ownership of
+    /// the outdoors state remains a map-runtime gap.
+    pub(crate) async fn check_area_explore_and_outdoor_represented_like_cpp(
+        &mut self,
+        area_id: u32,
+    ) -> bool {
+        if !self.player_is_alive_like_cpp() {
+            return false;
+        }
+
+        if self.taxi_flight_state_like_cpp.is_some() {
+            return false;
+        }
+
+        self.remove_indoor_outdoor_auras_for_current_position_represented_like_cpp();
+
+        if area_id == 0 {
+            return false;
+        }
+
+        let Some(area_entry) = self
+            .area_table_store
+            .as_ref()
+            .and_then(|store| store.get(area_id))
+            .copied()
+        else {
+            return false;
+        };
+
+        let Some((offset, mask)) =
+            area_entry.explored_zone_bit_like_cpp(PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP)
+        else {
+            return false;
+        };
+
+        if self.represented_explored_zones_like_cpp[offset] & mask != 0 {
+            return false;
+        }
+
+        self.represented_explored_zones_like_cpp[offset] |= mask;
+        self.represented_reveal_world_map_overlay_criteria_like_cpp
+            .push(area_id);
+
+        if let Some(update) = self.mutate_canonical_player_like_cpp(|player| {
+            player.add_explored_zones_like_cpp(offset, mask);
+            player.values_update(true)
+        }) {
+            self.send_player_values_update_like_cpp(&update);
+        }
+
+        if area_entry.exploration_level > 0 {
+            use wow_packet::packets::misc::ExplorationExperience;
+
+            let max_level = max_level_for_expansion_like_cpp(self.server_expansion_like_cpp);
+            let xp = if self.player_level_like_cpp() >= max_level {
+                0
+            } else {
+                self.exploration_base_xp_store
+                    .as_ref()
+                    .map(|store| {
+                        store.exploration_xp_reward_like_cpp(
+                            self.player_level_like_cpp(),
+                            area_entry.exploration_level,
+                            self.exploration_xp_rate_like_cpp,
+                            self.min_discovered_scaled_xp_ratio_like_cpp,
+                        )
+                    })
+                    .unwrap_or(0)
+            };
+
+            if xp != 0 {
+                self.give_xp(xp, ObjectGuid::EMPTY, false).await;
+            }
+            self.send_packet(&ExplorationExperience {
+                area_id: area_id as i32,
+                experience: xp as i32,
+            });
+        }
+
+        true
+    }
+
+    fn remove_indoor_outdoor_auras_for_current_position_represented_like_cpp(&mut self) -> usize {
+        if !self.vmap_indoor_check_like_cpp {
+            return 0;
+        }
+
+        let Some(is_outdoors) = self.represented_is_outdoors_like_cpp else {
+            return 0;
+        };
+
+        let attribute = if is_outdoors {
+            wow_data::spell::attributes::SPELL_ATTR0_ONLY_INDOORS
+        } else {
+            wow_data::spell::attributes::SPELL_ATTR0_ONLY_OUTDOORS
+        };
+        self.remove_represented_auras_with_attribute0_like_cpp(attribute)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_reveal_world_map_overlay_criteria_like_cpp(&self) -> &[u32] {
+        &self.represented_reveal_world_map_overlay_criteria_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_area_zone_criteria_like_cpp(
+        &self,
+    ) -> &[RepresentedAreaZoneCriteriaLikeCpp] {
+        &self.represented_area_zone_criteria_like_cpp
+    }
+
+    fn sync_represented_explored_zones_from_canonical_like_cpp(&mut self) {
+        if let Some(blocks) =
+            self.mutate_canonical_player_like_cpp(|player| *player.explored_zones_blocks_like_cpp())
+        {
+            self.represented_explored_zones_like_cpp = blocks;
+        }
+    }
+
+    /// Represented C++ first-login `PlayerInfo::castSpells[GetCreateMode()]`.
+    ///
+    /// C++ executes these casts after clearing `AT_LOGIN_FIRST` and before
+    /// `CONFIG_START_ALL_EXPLORED` / `CONFIG_START_ALL_REP`. This slice uses the
+    /// represented spell executor; full triggered-cast semantics still depend on
+    /// the remaining Spell runtime port.
+    pub(crate) async fn apply_represented_first_login_cast_spells_like_cpp(&mut self) -> usize {
+        let Some(player_guid) = self.player_guid() else {
+            return 0;
+        };
+        let spells = self
+            .player_create_cast_spell_store_like_cpp
+            .as_ref()
+            .map(|store| {
+                store
+                    .cast_spells_like_cpp(
+                        self.player_race_like_cpp(),
+                        self.player_class_like_cpp(),
+                        self.player_create_mode_like_cpp(),
+                    )
+                    .to_vec()
+            })
+            .unwrap_or_default();
+
+        let mut cast_count = 0usize;
+        for spell_id in spells {
+            if self
+                .execute_spell(spell_id as i32, player_guid)
+                .await
+                .is_ok()
+            {
+                cast_count += 1;
+            }
+        }
+
+        cast_count
+    }
+
+    /// Represented C++ `Player::LearnCustomSpells` / `CONFIG_START_ALL_SPELLS`.
+    ///
+    /// C++ calls `AddSpell` while the player is not in world, so the full port
+    /// still needs character_spell persistence semantics. This represented slice
+    /// mirrors the login spell snapshot: configured custom spells are included in
+    /// `INITIAL_SPELLS` without duplicating spells already loaded from DB/DBC.
+    pub(crate) fn apply_represented_start_all_spells_like_cpp(
+        &mut self,
+        known_spells: &mut Vec<i32>,
+    ) -> usize {
+        if !self.start_all_spells_like_cpp() {
+            return 0;
+        }
+
+        let spells = self
+            .player_create_custom_spell_store_like_cpp
+            .as_ref()
+            .map(|store| {
+                store
+                    .custom_spells_like_cpp(
+                        self.player_race_like_cpp(),
+                        self.player_class_like_cpp(),
+                    )
+                    .to_vec()
+            })
+            .unwrap_or_default();
+
+        let mut applied = 0usize;
+        for spell_id in spells {
+            let Ok(spell_id) = i32::try_from(spell_id) else {
+                continue;
+            };
+            if !known_spells.contains(&spell_id) {
+                known_spells.push(spell_id);
+                applied += 1;
+            }
+            self.represented_dependent_known_spells_like_cpp
+                .insert(spell_id);
+        }
+
+        applied
+    }
+
+    /// Represented C++ `Player::LearnQuestRewardedSpells`.
+    ///
+    /// C++ casts each rewarded quest's `RewardSpell` only when that spell exists,
+    /// has a missing `SPELL_EFFECT_LEARN_SPELL` trigger, and the first learned
+    /// spell is tied to `SKILL_LINE_ABILITY_REWARDED_FROM_QUEST` when it is not
+    /// already known. This represented slice applies only the resulting direct
+    /// learned-spell side effect; full `CastSpell` runtime semantics remain in
+    /// the spell-system roadmap.
+    pub(crate) fn apply_represented_quest_rewarded_spells_like_cpp(&mut self) -> usize {
+        let Some(quest_store) = self.quest_store.clone() else {
+            return 0;
+        };
+
+        let mut quest_ids = self.rewarded_quests.iter().copied().collect::<Vec<_>>();
+        quest_ids.sort_unstable();
+
+        let mut learned = 0usize;
+        for quest_id in quest_ids {
+            let Some(quest) = quest_store.get(quest_id) else {
+                continue;
+            };
+            if quest.reward_spell == u32::MAX && quest.source_spell_id != 0 {
+                let Ok(source_spell_id) = i32::try_from(quest.source_spell_id) else {
+                    continue;
+                };
+                learned += self.remove_represented_auras_due_to_spell_like_cpp(source_spell_id);
+                continue;
+            }
+            for spell_id in self.represented_quest_rewarded_spell_triggers_like_cpp(quest) {
+                self.learn_known_spell_like_cpp(spell_id);
+                learned += 1;
+            }
+        }
+
+        learned
+    }
+
+    fn represented_quest_rewarded_spell_triggers_like_cpp(
+        &self,
+        quest: &wow_data::quest::QuestTemplate,
+    ) -> Vec<i32> {
+        if quest.reward_spell == 0 {
+            return Vec::new();
+        }
+
+        let Ok(reward_spell_id) = i32::try_from(quest.reward_spell) else {
+            return Vec::new();
+        };
+
+        let Some(spell_info) = self
+            .spell_store()
+            .and_then(|store| store.get(reward_spell_id))
+        else {
+            return Vec::new();
+        };
+
+        let missing_learn_triggers = spell_info
+            .effects()
+            .iter()
+            .filter(|effect| {
+                effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_SPELL
+                    && effect.effect_trigger_spell > 0
+                    && !self
+                        .known_spells_like_cpp()
+                        .contains(&effect.effect_trigger_spell)
+            })
+            .map(|effect| effect.effect_trigger_spell)
+            .collect::<Vec<_>>();
+
+        if missing_learn_triggers.is_empty() || spell_info.effects().is_empty() {
+            return Vec::new();
+        }
+
+        let learned_0 = spell_info.effects()[0].effect_trigger_spell;
+        if learned_0 > 0
+            && !self.known_spells_like_cpp().contains(&learned_0)
+            && !self.skill_store().is_some_and(|store| {
+                store
+                    .get_skill_line_ability_map_bounds_like_cpp(learned_0)
+                    .iter()
+                    .any(|ability| {
+                        ability.acquire_method
+                            == wow_data::skill::SKILL_LINE_ABILITY_REWARDED_FROM_QUEST_LIKE_CPP
+                    })
+            })
+        {
+            return Vec::new();
+        }
+
+        missing_learn_triggers
+    }
+
+    pub(crate) fn remove_represented_auras_due_to_spell_like_cpp(
+        &mut self,
+        spell_id: i32,
+    ) -> usize {
+        let slots = self
+            .visible_auras
+            .values()
+            .filter_map(|aura| (aura.spell_id == spell_id).then_some(aura.slot))
+            .collect::<Vec<_>>();
+        let removed = slots.len();
+        for slot in slots {
+            let _ = self.remove_aura(slot);
+        }
+        removed
+    }
+
+    pub(crate) fn apply_represented_first_login_reputation_like_cpp(&mut self) -> usize {
+        if !self.start_all_reputation_like_cpp() {
+            return 0;
+        }
+
+        let Some(faction_store) = self.faction_store().map(Arc::clone) else {
+            return 0;
+        };
+        let friendship_rep_reaction_store = self.friendship_rep_reaction_store().map(Arc::clone);
+        let paragon_reputation_store = self.paragon_reputation_store().map(Arc::clone);
+        let currency_types_store = self.currency_types_store().map(Arc::clone);
+        let player_race = self.player_race_like_cpp();
+        let player_class = self.player_class_like_cpp();
+        let team_factions = match player_team_for_race_cpp(player_race) {
+            Team::Horde => FIRST_LOGIN_START_REPUTATION_HORDE_FACTIONS_LIKE_CPP,
+            _ => FIRST_LOGIN_START_REPUTATION_ALLIANCE_FACTIONS_LIKE_CPP,
+        };
+
+        let mut applied = 0usize;
+        for faction_id in FIRST_LOGIN_START_REPUTATION_COMMON_FACTIONS_LIKE_CPP
+            .iter()
+            .chain(team_factions.iter())
+        {
+            let Some(faction_entry) = faction_store.get(*faction_id).cloned() else {
+                continue;
+            };
+            let outcome = self
+                .reputation_mgr_like_cpp_mut()
+                .set_one_faction_reputation_like_cpp(
+                    &faction_entry,
+                    FIRST_LOGIN_START_REPUTATION_STANDING_LIKE_CPP,
+                    false,
+                    1.0,
+                    friendship_rep_reaction_store.as_deref(),
+                    paragon_reputation_store.as_deref(),
+                    true,
+                    currency_types_store.as_deref(),
+                    0,
+                    0,
+                    player_race,
+                    player_class,
+                );
+            if outcome.applied {
+                applied += 1;
+            }
+        }
+
+        if applied > 0 {
+            let packet = self
+                .reputation_mgr_like_cpp_mut()
+                .set_faction_standing_packet_like_cpp(None);
+            self.send_packet(&packet);
+        }
+
+        applied
+    }
+
+    /// C++ `Player::AddExploredZones` loop for `CONFIG_START_ALL_EXPLORED` on first login.
+    pub(crate) fn apply_represented_first_login_explored_zones_like_cpp(&mut self) -> usize {
+        if !self.start_all_explored_like_cpp() {
+            return 0;
+        }
+
+        let Some((applied, update)) = self
+            .mutate_canonical_player_like_cpp(|player| {
+                let mut applied = 0usize;
+                for index in 0..wow_entities::PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP {
+                    if player.add_explored_zones_like_cpp(index, u64::MAX) {
+                        applied += 1;
+                    }
+                }
+
+                (applied > 0).then(|| (applied, player.values_update(true)))
+            })
+            .flatten()
+        else {
+            return 0;
+        };
+
+        self.represented_explored_zones_like_cpp = [u64::MAX; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP];
+        self.send_player_values_update_like_cpp(&update);
+        applied
+    }
+
+    pub(crate) fn mark_represented_talents_loaded_like_cpp(&mut self) {
+        self.represented_talents_loaded_like_cpp = true;
+        self.refresh_represented_talent_points_like_cpp();
+    }
+
+    pub(crate) fn represented_talents_loaded_like_cpp(&self) -> bool {
+        self.represented_talents_loaded_like_cpp
+    }
+
+    pub(crate) fn learn_represented_talent_like_cpp(
+        &mut self,
+        talent_id: u32,
+        requested_rank: u16,
+    ) -> bool {
+        if !self.represented_talents_loaded_like_cpp {
+            return false;
+        }
+
+        let Ok(rank) = u8::try_from(requested_rank) else {
+            return false;
+        };
+
+        if !self.validate_represented_talent_learn_like_cpp(talent_id, rank) {
+            return false;
+        }
+
+        let talent_group = self.represented_active_talent_group_like_cpp;
+        let previous_rank = self
+            .represented_talents_like_cpp
+            .get(usize::from(talent_group))
+            .and_then(|talents| talents.get(&talent_id).copied());
+        let learned = self.load_represented_talent_row_like_cpp(talent_id, rank, talent_group);
+        if learned {
+            self.apply_represented_active_talent_spell_side_effects_like_cpp(
+                talent_id,
+                previous_rank,
+                rank,
+                talent_group,
+            );
+            self.refresh_represented_talent_points_like_cpp();
+        }
+        learned
+    }
+
+    fn validate_represented_talent_learn_like_cpp(&self, talent_id: u32, rank: u8) -> bool {
+        let available_points = self.player_character_points_like_cpp().max(0) as u32;
+        if available_points == 0 {
+            return false;
+        }
+
+        let talent_group_index = usize::from(self.represented_active_talent_group_like_cpp);
+        if talent_group_index >= MAX_SPECIALIZATIONS_LIKE_CPP {
+            return false;
+        }
+
+        let Some(talent) = self.talent_store().and_then(|store| store.get(talent_id)) else {
+            return false;
+        };
+
+        let talents = &self.represented_talents_like_cpp[talent_group_index];
+        if let Some(current_rank) = talents.get(&talent_id) {
+            if *current_rank >= rank {
+                return false;
+            }
+        }
+
+        let needed_talent_points =
+            self.represented_needed_talent_points_for_learn_like_cpp(talent_id, rank);
+        if needed_talent_points > available_points {
+            return false;
+        }
+
+        for (prereq_talent, prereq_rank) in talent.prereq_talent.iter().zip(talent.prereq_rank) {
+            let Ok(prereq_talent_id) = u32::try_from(*prereq_talent) else {
+                return false;
+            };
+            if prereq_talent_id == 0 {
+                continue;
+            }
+
+            let Ok(required_rank) = u8::try_from(prereq_rank) else {
+                return false;
+            };
+            if talents
+                .get(&prereq_talent_id)
+                .is_none_or(|known_rank| *known_rank < required_rank)
+            {
+                return false;
+            }
+        }
+
+        if talent.tier_id > 0 {
+            let Some(talent_store) = self.talent_store() else {
+                return false;
+            };
+            let spent_points = talent_store
+                .iter()
+                .filter(|entry| entry.tab_id == talent.tab_id)
+                .filter_map(|entry| {
+                    talents
+                        .get(&entry.id)
+                        .map(|rank| {
+                            entry
+                                .spell_rank
+                                .get(usize::from(*rank))
+                                .copied()
+                                .unwrap_or(0)
+                        })
+                        .filter(|spell_id| *spell_id != 0)
+                        .map(|_| u32::from(talents[&entry.id]) + 1)
+                })
+                .sum::<u32>();
+
+            if spent_points < u32::from(talent.tier_id) * NEEDED_TALENT_POINT_PER_TIER_LIKE_CPP {
+                return false;
+            }
+        }
+
+        true
+    }
+
+    fn represented_needed_talent_points_for_learn_like_cpp(&self, talent_id: u32, rank: u8) -> u32 {
+        let talent_group_index = usize::from(self.represented_active_talent_group_like_cpp);
+        let Some(talents) = self.represented_talents_like_cpp.get(talent_group_index) else {
+            return u32::from(rank) + 1;
+        };
+        if let Some(current_rank) = talents.get(&talent_id) {
+            (i32::from(*current_rank) - i32::from(rank) + 1).max(0) as u32
+        } else {
+            u32::from(rank) + 1
+        }
+    }
+
+    fn represented_spent_talent_points_count_like_cpp(&self) -> u32 {
+        let talent_group_index = usize::from(self.represented_active_talent_group_like_cpp);
+        self.represented_talents_like_cpp
+            .get(talent_group_index)
+            .into_iter()
+            .flat_map(|talents| talents.iter())
+            .filter(|(talent_id, rank)| {
+                self.represented_talent_info_like_cpp(**talent_id, **rank)
+                    .is_some()
+            })
+            .map(|(_, rank)| u32::from(*rank) + 1)
+            .sum()
+    }
+
+    fn represented_quest_rewarded_talent_points_like_cpp(&self) -> u32 {
+        self.represented_quest_reward_talent_points_like_cpp
+            .iter()
+            .map(|reward| reward.points)
+            .sum()
+    }
+
+    fn represented_calculate_talents_points_like_cpp(&self) -> u32 {
+        let base_points = self
+            .num_talents_at_level_store()
+            .map(|store| {
+                store.num_talents_at_level_like_cpp(
+                    u32::from(self.player_level_like_cpp()),
+                    self.player_class_like_cpp(),
+                )
+            })
+            .unwrap_or(0);
+        base_points + self.represented_quest_rewarded_talent_points_like_cpp()
+    }
+
+    pub(crate) fn refresh_represented_talent_points_like_cpp(&mut self) {
+        let available = self
+            .represented_calculate_talents_points_like_cpp()
+            .saturating_sub(self.represented_spent_talent_points_count_like_cpp());
+        self.set_player_character_points_like_cpp(available.min(i32::MAX as u32) as i32);
+    }
+
+    pub(crate) fn load_represented_talent_row_like_cpp(
+        &mut self,
+        talent_id: u32,
+        rank: u8,
+        talent_group: u8,
+    ) -> bool {
+        let talent_group_index = usize::from(talent_group);
+        if talent_group_index >= MAX_SPECIALIZATIONS_LIKE_CPP {
+            return false;
+        }
+
+        let Some(talent) = self
+            .talent_store()
+            .and_then(|store| store.get(talent_id))
+            .cloned()
+        else {
+            return false;
+        };
+
+        let Some(talent_tab) = self
+            .talent_tab_store()
+            .and_then(|store| store.get(u32::from(talent.tab_id)))
+        else {
+            return false;
+        };
+
+        let Some(class_mask) = player_class_mask_for_talent_like_cpp(self.player_class_like_cpp())
+        else {
+            return false;
+        };
+
+        let Ok(talent_class_mask) = u32::try_from(talent_tab.class_mask) else {
+            return false;
+        };
+        if (class_mask & talent_class_mask) == 0 {
+            return false;
+        }
+
+        let rank_index = usize::from(rank);
+        let Some(spell_id) = talent.spell_rank.get(rank_index).copied() else {
+            return false;
+        };
+        if spell_id <= 0 {
+            return false;
+        }
+
+        if !self.represented_spell_valid_for_talent_like_cpp(spell_id) {
+            return false;
+        }
+
+        self.represented_talents_like_cpp[talent_group_index].insert(talent_id, rank);
+        true
+    }
+
+    fn represented_talent_info_like_cpp(
+        &self,
+        talent_id: u32,
+        rank: u8,
+    ) -> Option<wow_packet::packets::misc::TalentInfoLikeCpp> {
+        let talent = self.talent_store()?.get(talent_id)?;
+        let spell_id = talent.spell_rank.get(usize::from(rank)).copied()?;
+        if spell_id <= 0 {
+            return None;
+        }
+        if !self.represented_spell_valid_for_talent_like_cpp(spell_id) {
+            return None;
+        }
+
+        Some(wow_packet::packets::misc::TalentInfoLikeCpp { talent_id, rank })
+    }
+
+    fn represented_spell_valid_for_talent_like_cpp(&self, spell_id: i32) -> bool {
+        let Some(spell_store) = self.spell_store() else {
+            return true;
+        };
+        Self::represented_spell_valid_for_talent_with_seen_like_cpp(
+            spell_store,
+            spell_id,
+            &mut HashSet::new(),
+        )
+    }
+
+    fn represented_spell_valid_for_talent_with_seen_like_cpp(
+        spell_store: &wow_data::SpellStore,
+        spell_id: i32,
+        seen: &mut HashSet<i32>,
+    ) -> bool {
+        if !seen.insert(spell_id) {
+            return true;
+        }
+
+        let Some(spell_info) = spell_store.get(spell_id) else {
+            return false;
+        };
+
+        spell_info.effects().iter().all(|effect| {
+            if effect.effect != wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_SPELL {
+                return true;
+            }
+            if effect.effect_trigger_spell <= 0 {
+                return false;
+            }
+            Self::represented_spell_valid_for_talent_with_seen_like_cpp(
+                spell_store,
+                effect.effect_trigger_spell,
+                seen,
+            )
+        })
+    }
+
+    fn apply_represented_active_talent_spell_side_effects_like_cpp(
+        &mut self,
+        talent_id: u32,
+        previous_rank: Option<u8>,
+        rank: u8,
+        talent_group: u8,
+    ) {
+        if self.represented_active_talent_group_like_cpp != talent_group {
+            return;
+        }
+
+        if let Some(previous_rank) = previous_rank {
+            if let Some(previous_spell_id) =
+                self.represented_talent_spell_id_like_cpp(talent_id, previous_rank)
+            {
+                self.remove_known_spell_like_cpp(previous_spell_id);
+                for trigger_spell in
+                    self.represented_direct_learn_spell_triggers_like_cpp(previous_spell_id)
+                {
+                    self.remove_known_spell_like_cpp(trigger_spell);
+                }
+            }
+        }
+
+        if let Some(spell_id) = self.represented_talent_spell_id_like_cpp(talent_id, rank) {
+            self.learn_known_spell_like_cpp(spell_id);
+            for trigger_spell in self.represented_direct_learn_spell_triggers_like_cpp(spell_id) {
+                self.learn_known_spell_like_cpp(trigger_spell);
+            }
+        }
+
+        if let Some((overriden_spell_id, new_spell_id)) =
+            self.represented_talent_override_spell_pair_like_cpp(talent_id)
+        {
+            self.add_represented_override_spell_like_cpp(overriden_spell_id, new_spell_id);
+        }
+
+        self.remove_auras_with_interrupt_flags_like_cpp(
+            0,
+            SPELL_AURA_INTERRUPT_FLAG2_CHANGE_TALENT_LIKE_CPP,
+        );
+    }
+
+    fn remove_represented_active_talent_side_effects_like_cpp(&mut self, talent_id: u32, rank: u8) {
+        if let Some(spell_id) = self.represented_talent_spell_id_like_cpp(talent_id, rank) {
+            self.remove_known_spell_like_cpp(spell_id);
+            for trigger_spell in self.represented_direct_learn_spell_triggers_like_cpp(spell_id) {
+                self.remove_known_spell_like_cpp(trigger_spell);
+            }
+        }
+
+        if let Some((overriden_spell_id, new_spell_id)) =
+            self.represented_talent_override_spell_pair_like_cpp(talent_id)
+        {
+            self.remove_represented_override_spell_like_cpp(overriden_spell_id, new_spell_id);
+        }
+    }
+
+    fn represented_talent_spell_id_like_cpp(&self, talent_id: u32, rank: u8) -> Option<i32> {
+        self.talent_store()?
+            .get(talent_id)?
+            .spell_rank
+            .get(usize::from(rank))
+            .copied()
+            .filter(|spell_id| *spell_id > 0)
+    }
+
+    fn represented_talent_override_spell_pair_like_cpp(
+        &self,
+        talent_id: u32,
+    ) -> Option<(i32, i32)> {
+        let talent = self.talent_store()?.get(talent_id)?;
+        (talent.overrides_spell_id > 0 && talent.spell_id > 0)
+            .then_some((talent.overrides_spell_id, talent.spell_id))
+    }
+
+    fn represented_direct_learn_spell_triggers_like_cpp(&self, spell_id: i32) -> Vec<i32> {
+        self.spell_store()
+            .and_then(|store| store.get(spell_id))
+            .map(|spell_info| {
+                spell_info
+                    .effects()
+                    .iter()
+                    .filter(|effect| {
+                        effect.effect
+                            == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_SPELL
+                            && effect.effect_trigger_spell > 0
+                    })
+                    .map(|effect| effect.effect_trigger_spell)
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn build_character_talent_delete_statement_like_cpp(
+        guid_counter: u64,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::DEL_CHAR_TALENT.sql());
+        stmt.set_u64(0, guid_counter);
+        stmt
+    }
+
+    pub(crate) fn build_character_talent_insert_statement_like_cpp(
+        guid_counter: u64,
+        talent_id: u32,
+        rank: u8,
+        talent_group: u8,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::INS_CHAR_TALENT.sql());
+        stmt.set_u64(0, guid_counter);
+        stmt.set_u32(1, talent_id);
+        stmt.set_u8(2, rank);
+        stmt.set_u8(3, talent_group);
+        stmt
+    }
+
+    pub(crate) fn character_talent_save_statements_like_cpp(
+        &self,
+        guid_counter: u64,
+    ) -> Option<Vec<PreparedStatement>> {
+        if !self.represented_talents_loaded_like_cpp {
+            return None;
+        }
+
+        let mut statements = vec![Self::build_character_talent_delete_statement_like_cpp(
+            guid_counter,
+        )];
+        for (talent_group, talents) in self.represented_talents_like_cpp.iter().enumerate() {
+            for (talent_id, rank) in talents {
+                if self
+                    .represented_talent_info_like_cpp(*talent_id, *rank)
+                    .is_none()
+                {
+                    continue;
+                }
+                statements.push(Self::build_character_talent_insert_statement_like_cpp(
+                    guid_counter,
+                    *talent_id,
+                    *rank,
+                    talent_group as u8,
+                ));
+            }
+        }
+        Some(statements)
+    }
+
+    pub(crate) fn load_represented_glyph_row_like_cpp(
+        &mut self,
+        talent_group: u8,
+        glyph_slot: u8,
+        glyph_id: u16,
+    ) -> bool {
+        let talent_group_index = usize::from(talent_group);
+        if talent_group_index >= MAX_SPECIALIZATIONS_LIKE_CPP {
+            return false;
+        }
+
+        let glyph_slot_index = usize::from(glyph_slot);
+        if glyph_slot_index >= wow_packet::packets::misc::MAX_GLYPH_SLOT_INDEX_LIKE_CPP {
+            return false;
+        }
+
+        if glyph_id != 0
+            && self
+                .glyph_properties_store()
+                .is_some_and(|store| store.get(u32::from(glyph_id)).is_none())
+        {
+            return false;
+        }
+
+        self.represented_glyphs_like_cpp[talent_group_index][glyph_slot_index] = glyph_id;
+        true
+    }
+
+    pub(crate) fn represented_update_talent_data_packet_like_cpp(
+        &self,
+    ) -> wow_packet::packets::misc::UpdateTalentData {
+        let group_count = (1 + usize::from(self.represented_bonus_talent_groups_like_cpp))
+            .min(MAX_SPECIALIZATIONS_LIKE_CPP);
+        let mut groups = Vec::with_capacity(group_count);
+        for (group_index, glyph_ids) in self
+            .represented_glyphs_like_cpp
+            .iter()
+            .take(group_count)
+            .copied()
+            .enumerate()
+        {
+            let talents = self.represented_talents_like_cpp[group_index]
+                .iter()
+                .filter_map(|(talent_id, rank)| {
+                    self.represented_talent_info_like_cpp(*talent_id, *rank)
+                })
+                .collect();
+            groups.push(wow_packet::packets::misc::TalentGroupInfoLikeCpp {
+                spec_id: MAX_SPECIALIZATIONS_LIKE_CPP as u8,
+                talents,
+                glyph_ids,
+            });
+        }
+
+        wow_packet::packets::misc::UpdateTalentData {
+            unspent_talent_points: self.player_character_points_like_cpp().max(0) as u32,
+            active_group: self.represented_active_talent_group_like_cpp,
+            groups,
+            is_pet_talents: false,
+        }
+    }
+
+    pub(crate) fn represented_active_glyphs_packet_like_cpp(
+        &self,
+    ) -> wow_packet::packets::misc::ActiveGlyphs {
+        // C++ maps active glyphs to bindable spell ids through GlyphBindableSpell.db2.
+        // That store is not session-wired yet, so this remains an intentionally empty
+        // full update while UpdateTalentData carries the loaded glyph ids.
+        wow_packet::packets::misc::ActiveGlyphs {
+            glyphs: Vec::new(),
+            is_full_update: true,
+        }
+    }
+
+    pub(crate) fn build_character_glyph_delete_statement_like_cpp(
+        guid_counter: u64,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::DEL_CHAR_GLYPHS.sql());
+        stmt.set_u64(0, guid_counter);
+        stmt
+    }
+
+    pub(crate) fn build_character_glyph_insert_statement_like_cpp(
+        guid_counter: u64,
+        talent_group: u8,
+        glyph_slot: u8,
+        glyph_id: u16,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::INS_CHAR_GLYPHS.sql());
+        stmt.set_u64(0, guid_counter);
+        stmt.set_u8(1, talent_group);
+        stmt.set_u8(2, glyph_slot);
+        stmt.set_u16(3, glyph_id);
+        stmt
+    }
+
+    pub(crate) fn character_glyph_save_statements_like_cpp(
+        &self,
+        guid_counter: u64,
+    ) -> Option<Vec<PreparedStatement>> {
+        if !self.represented_glyphs_loaded_like_cpp {
+            return None;
+        }
+
+        let mut statements = vec![Self::build_character_glyph_delete_statement_like_cpp(
+            guid_counter,
+        )];
+        for (talent_group, glyphs) in self.represented_glyphs_like_cpp.iter().enumerate() {
+            for (glyph_slot, glyph_id) in glyphs.iter().copied().enumerate() {
+                statements.push(Self::build_character_glyph_insert_statement_like_cpp(
+                    guid_counter,
+                    talent_group as u8,
+                    glyph_slot as u8,
+                    glyph_id,
+                ));
+            }
+        }
+        Some(statements)
+    }
+
+    pub(crate) fn build_character_spell_cooldown_delete_statement_like_cpp(
+        guid_counter: u64,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::DEL_CHAR_SPELL_COOLDOWNS.sql());
+        stmt.set_u64(0, guid_counter);
+        stmt
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn build_character_spell_delete_by_spell_statement_like_cpp(
+        guid_counter: u64,
+        spell_id: i32,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::DEL_CHAR_SPELL_BY_SPELL.sql());
+        stmt.set_i32(0, spell_id);
+        stmt.set_u64(1, guid_counter);
+        stmt
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn build_character_spell_insert_statement_like_cpp(
+        guid_counter: u64,
+        spell: RepresentedPlayerSpellLikeCpp,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::INS_CHAR_SPELL.sql());
+        stmt.set_u64(0, guid_counter);
+        stmt.set_i32(1, spell.spell_id);
+        stmt.set_bool(2, spell.active);
+        stmt.set_bool(3, spell.disabled);
+        stmt
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn build_character_spell_favorite_delete_statement_like_cpp(
+        guid_counter: u64,
+        spell_id: i32,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::DEL_CHAR_SPELL_FAVORITE.sql());
+        stmt.set_u64(0, guid_counter);
+        stmt.set_i32(1, spell_id);
+        stmt
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn build_character_spell_favorite_insert_statement_like_cpp(
+        guid_counter: u64,
+        spell_id: i32,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::INS_CHAR_SPELL_FAVORITE.sql());
+        stmt.set_u64(0, guid_counter);
+        stmt.set_i32(1, spell_id);
+        stmt
+    }
+
+    /// Builds the represented statement sequence for C++ `Player::_SaveSpells`.
+    ///
+    /// This is intentionally a plan helper for the represented spell state. The
+    /// runtime logout path must not call it until `PlayerSpellMap` ownership is
+    /// complete enough to preserve inactive/disabled/temporary rows exactly.
+    #[allow(dead_code)]
+    pub(crate) fn character_spell_save_statements_like_cpp(
+        guid_counter: u64,
+        spells: impl IntoIterator<Item = RepresentedPlayerSpellLikeCpp>,
+    ) -> Vec<PreparedStatement> {
+        let mut statements = Vec::new();
+        let mut spells: Vec<RepresentedPlayerSpellLikeCpp> = spells.into_iter().collect();
+        spells.sort_by_key(|spell| spell.spell_id);
+
+        for spell in spells {
+            match spell.state {
+                RepresentedPlayerSpellStateLikeCpp::Removed
+                | RepresentedPlayerSpellStateLikeCpp::Changed => statements.push(
+                    Self::build_character_spell_delete_by_spell_statement_like_cpp(
+                        guid_counter,
+                        spell.spell_id,
+                    ),
+                ),
+                RepresentedPlayerSpellStateLikeCpp::Unchanged
+                | RepresentedPlayerSpellStateLikeCpp::New
+                | RepresentedPlayerSpellStateLikeCpp::Temporary => {}
+            }
+
+            match spell.state {
+                RepresentedPlayerSpellStateLikeCpp::New
+                | RepresentedPlayerSpellStateLikeCpp::Changed => {
+                    if !spell.dependent {
+                        statements.push(Self::build_character_spell_insert_statement_like_cpp(
+                            guid_counter,
+                            spell,
+                        ));
+                    }
+
+                    statements.push(
+                        Self::build_character_spell_favorite_delete_statement_like_cpp(
+                            guid_counter,
+                            spell.spell_id,
+                        ),
+                    );
+
+                    if spell.favorite {
+                        statements.push(
+                            Self::build_character_spell_favorite_insert_statement_like_cpp(
+                                guid_counter,
+                                spell.spell_id,
+                            ),
+                        );
+                    }
+                }
+                RepresentedPlayerSpellStateLikeCpp::Unchanged
+                | RepresentedPlayerSpellStateLikeCpp::Removed
+                | RepresentedPlayerSpellStateLikeCpp::Temporary => {}
+            }
+        }
+
+        statements
+    }
+
+    pub(crate) fn build_character_spell_cooldown_insert_statement_like_cpp(
+        guid_counter: u64,
+        cooldown: RepresentedCharacterSpellCooldownLikeCpp,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::INS_CHAR_SPELL_COOLDOWN.sql());
+        stmt.set_u64(0, guid_counter);
+        stmt.set_u32(1, cooldown.spell_id);
+        stmt.set_u32(2, cooldown.item_id);
+        stmt.set_i64(3, cooldown.cooldown_end_unix_secs);
+        stmt.set_u32(4, cooldown.category_id);
+        stmt.set_i64(5, cooldown.category_end_unix_secs);
+        stmt
+    }
+
+    pub(crate) fn character_spell_cooldown_save_statements_like_cpp(
+        &self,
+        guid_counter: u64,
+        now_unix_secs: i64,
+    ) -> Option<Vec<PreparedStatement>> {
+        if !self.represented_character_spell_cooldowns_loaded_like_cpp {
+            return None;
+        }
+
+        let mut statements =
+            vec![Self::build_character_spell_cooldown_delete_statement_like_cpp(guid_counter)];
+        let mut cooldowns: Vec<RepresentedCharacterSpellCooldownLikeCpp> = self
+            .represented_character_spell_cooldowns_like_cpp
+            .values()
+            .copied()
+            .filter(|cooldown| cooldown.is_active_at_like_cpp(now_unix_secs))
+            .collect();
+        cooldowns.sort_by_key(|cooldown| cooldown.spell_id);
+        statements.extend(cooldowns.into_iter().map(|cooldown| {
+            Self::build_character_spell_cooldown_insert_statement_like_cpp(guid_counter, cooldown)
+        }));
+        Some(statements)
+    }
+
+    pub(crate) fn build_character_spell_charge_delete_statement_like_cpp(
+        guid_counter: u64,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::DEL_CHAR_SPELL_CHARGES.sql());
+        stmt.set_u64(0, guid_counter);
+        stmt
+    }
+
+    pub(crate) fn build_character_spell_charge_insert_statement_like_cpp(
+        guid_counter: u64,
+        charge: RepresentedCharacterSpellChargeLikeCpp,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::INS_CHAR_SPELL_CHARGES.sql());
+        stmt.set_u64(0, guid_counter);
+        stmt.set_u32(1, charge.category_id);
+        stmt.set_i64(2, charge.recharge_start_unix_secs);
+        stmt.set_i64(3, charge.recharge_end_unix_secs);
+        stmt
+    }
+
+    pub(crate) fn character_spell_charge_save_statements_like_cpp(
+        &self,
+        guid_counter: u64,
+        now_unix_secs: i64,
+    ) -> Option<Vec<PreparedStatement>> {
+        if !self.represented_character_spell_charges_loaded_like_cpp {
+            return None;
+        }
+
+        let mut statements =
+            vec![Self::build_character_spell_charge_delete_statement_like_cpp(guid_counter)];
+        for charges in self.represented_character_spell_charges_like_cpp.values() {
+            statements.extend(
+                charges
+                    .iter()
+                    .copied()
+                    .filter(|charge| charge.is_active_at_like_cpp(now_unix_secs))
+                    .map(|charge| {
+                        Self::build_character_spell_charge_insert_statement_like_cpp(
+                            guid_counter,
+                            charge,
+                        )
+                    }),
+            );
+        }
+        Some(statements)
+    }
+
+    pub(crate) fn build_character_skill_delete_all_statement_like_cpp(
+        guid_counter: u64,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::DEL_CHAR_SKILLS.sql());
+        stmt.set_u64(0, guid_counter);
+        stmt
+    }
+
+    pub(crate) fn build_character_skill_insert_statement_like_cpp(
+        guid_counter: u64,
+        skill: RepresentedPlayerSkillLikeCpp,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::INS_CHAR_SKILLS.sql());
+        stmt.set_u64(0, guid_counter);
+        stmt.set_u16(1, skill.skill_id);
+        stmt.set_u16(2, skill.value);
+        stmt.set_u16(3, skill.max);
+        stmt.set_i8(4, skill.profession_slot);
+        stmt
+    }
+
+    pub(crate) fn character_skill_save_statements_like_cpp(
+        &self,
+        guid_counter: u64,
+    ) -> Vec<PreparedStatement> {
+        let mut statements = vec![Self::build_character_skill_delete_all_statement_like_cpp(
+            guid_counter,
+        )];
+        let mut skills: Vec<RepresentedPlayerSkillLikeCpp> = self
+            .player_skill_records_like_cpp()
+            .values()
+            .copied()
+            .collect();
+        skills.sort_by_key(|skill| skill.skill_id);
+        statements.extend(skills.into_iter().map(|skill| {
+            Self::build_character_skill_insert_statement_like_cpp(guid_counter, skill)
+        }));
+        statements
+    }
+
+    pub(crate) fn build_character_action_delete_all_statement_like_cpp(
+        guid_counter: u64,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::DEL_CHAR_ACTION.sql());
+        stmt.set_u64(0, guid_counter);
+        stmt
+    }
+
+    pub(crate) fn build_character_action_insert_statement_like_cpp(
+        guid_counter: u64,
+        button: u8,
+        packed_action: u32,
+    ) -> Option<PreparedStatement> {
+        if packed_action == 0 {
+            return None;
+        }
+
+        let mut stmt = PreparedStatement::new(CharStatements::INS_CHAR_ACTION.sql());
+        stmt.set_u64(0, guid_counter);
+        stmt.set_u8(1, 0);
+        stmt.set_i32(2, 0);
+        stmt.set_u8(3, button);
+        stmt.set_u32(4, action_button_action_like_cpp(packed_action));
+        stmt.set_u8(5, action_button_type_like_cpp(packed_action));
+        Some(stmt)
+    }
+
+    pub(crate) fn character_action_button_save_statements_like_cpp(
+        &self,
+        guid_counter: u64,
+    ) -> Option<Vec<PreparedStatement>> {
+        if !self.represented_action_buttons_loaded_like_cpp {
+            return None;
+        }
+
+        let mut statements = vec![Self::build_character_action_delete_all_statement_like_cpp(
+            guid_counter,
+        )];
+        statements.extend(
+            self.represented_action_buttons_like_cpp
+                .iter()
+                .enumerate()
+                .filter_map(|(button, packed_action)| {
+                    let Ok(button) = u8::try_from(button) else {
+                        return None;
+                    };
+                    Self::build_character_action_insert_statement_like_cpp(
+                        guid_counter,
+                        button,
+                        *packed_action,
+                    )
+                }),
+        );
+        Some(statements)
+    }
+
+    pub(crate) fn build_equipment_set_insert_statement_like_cpp(
+        player_guid_counter: u64,
+        equipment_set: &RepresentedEquipmentSetLikeCpp,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::INS_EQUIP_SET.sql());
+        stmt.set_u64(0, player_guid_counter);
+        stmt.set_u64(1, equipment_set.guid);
+        stmt.set_u32(2, equipment_set.set_id);
+        stmt.set_string(3, equipment_set.set_name.clone());
+        stmt.set_string(4, equipment_set.set_icon.clone());
+        stmt.set_u32(5, equipment_set.ignore_mask);
+        stmt.set_i32(6, equipment_set.assigned_spec_index);
+        for (offset, item_guid) in equipment_set.pieces.iter().enumerate() {
+            stmt.set_u64(7 + offset, item_guid.counter() as u64);
+        }
+        stmt
+    }
+
+    pub(crate) fn build_equipment_set_update_statement_like_cpp(
+        player_guid_counter: u64,
+        equipment_set: &RepresentedEquipmentSetLikeCpp,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::UPD_EQUIP_SET.sql());
+        stmt.set_string(0, equipment_set.set_name.clone());
+        stmt.set_string(1, equipment_set.set_icon.clone());
+        stmt.set_u32(2, equipment_set.ignore_mask);
+        stmt.set_i32(3, equipment_set.assigned_spec_index);
+        for (offset, item_guid) in equipment_set.pieces.iter().enumerate() {
+            stmt.set_u64(4 + offset, item_guid.counter() as u64);
+        }
+        stmt.set_u64(23, player_guid_counter);
+        stmt.set_u64(24, equipment_set.guid);
+        stmt.set_u32(25, equipment_set.set_id);
+        stmt
+    }
+
+    pub(crate) fn build_transmog_outfit_insert_statement_like_cpp(
+        player_guid_counter: u64,
+        equipment_set: &RepresentedEquipmentSetLikeCpp,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::INS_TRANSMOG_OUTFIT.sql());
+        stmt.set_u64(0, player_guid_counter);
+        stmt.set_u64(1, equipment_set.guid);
+        stmt.set_u32(2, equipment_set.set_id);
+        stmt.set_string(3, equipment_set.set_name.clone());
+        stmt.set_string(4, equipment_set.set_icon.clone());
+        stmt.set_u32(5, equipment_set.ignore_mask);
+        for (offset, appearance) in equipment_set.appearances.iter().enumerate() {
+            stmt.set_i32(6 + offset, *appearance);
+        }
+        stmt.set_i32(25, equipment_set.enchants[0]);
+        stmt.set_i32(26, equipment_set.enchants[1]);
+        stmt
+    }
+
+    pub(crate) fn build_transmog_outfit_update_statement_like_cpp(
+        player_guid_counter: u64,
+        equipment_set: &RepresentedEquipmentSetLikeCpp,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::UPD_TRANSMOG_OUTFIT.sql());
+        stmt.set_string(0, equipment_set.set_name.clone());
+        stmt.set_string(1, equipment_set.set_icon.clone());
+        stmt.set_u32(2, equipment_set.ignore_mask);
+        for (offset, appearance) in equipment_set.appearances.iter().enumerate() {
+            stmt.set_i32(3 + offset, *appearance);
+        }
+        stmt.set_i32(22, equipment_set.enchants[0]);
+        stmt.set_i32(23, equipment_set.enchants[1]);
+        stmt.set_u64(24, player_guid_counter);
+        stmt.set_u64(25, equipment_set.guid);
+        stmt.set_u32(26, equipment_set.set_id);
+        stmt
+    }
+
+    pub(crate) fn build_equipment_set_delete_statement_like_cpp(
+        equipment_set: &RepresentedEquipmentSetLikeCpp,
+    ) -> PreparedStatement {
+        let statement = match equipment_set.set_type {
+            RepresentedEquipmentSetTypeLikeCpp::Equipment => CharStatements::DEL_EQUIP_SET,
+            RepresentedEquipmentSetTypeLikeCpp::Transmog => CharStatements::DEL_TRANSMOG_OUTFIT,
+        };
+        let mut stmt = PreparedStatement::new(statement.sql());
+        stmt.set_u64(0, equipment_set.guid);
+        stmt
+    }
+
+    pub(crate) fn equipment_set_save_statements_like_cpp(
+        &self,
+        player_guid_counter: u64,
+    ) -> Option<Vec<PreparedStatement>> {
+        if !self.represented_equipment_sets_loaded_like_cpp {
+            return None;
+        }
+
+        let mut statements = Vec::new();
+        for equipment_set in self.represented_equipment_sets_like_cpp.values() {
+            let statement = match (equipment_set.state, equipment_set.set_type) {
+                (RepresentedEquipmentSetUpdateStateLikeCpp::Unchanged, _) => None,
+                (RepresentedEquipmentSetUpdateStateLikeCpp::Deleted, _) => Some(
+                    Self::build_equipment_set_delete_statement_like_cpp(equipment_set),
+                ),
+                (
+                    RepresentedEquipmentSetUpdateStateLikeCpp::New,
+                    RepresentedEquipmentSetTypeLikeCpp::Equipment,
+                ) => Some(Self::build_equipment_set_insert_statement_like_cpp(
+                    player_guid_counter,
+                    equipment_set,
+                )),
+                (
+                    RepresentedEquipmentSetUpdateStateLikeCpp::Changed,
+                    RepresentedEquipmentSetTypeLikeCpp::Equipment,
+                ) => Some(Self::build_equipment_set_update_statement_like_cpp(
+                    player_guid_counter,
+                    equipment_set,
+                )),
+                (
+                    RepresentedEquipmentSetUpdateStateLikeCpp::New,
+                    RepresentedEquipmentSetTypeLikeCpp::Transmog,
+                ) => Some(Self::build_transmog_outfit_insert_statement_like_cpp(
+                    player_guid_counter,
+                    equipment_set,
+                )),
+                (
+                    RepresentedEquipmentSetUpdateStateLikeCpp::Changed,
+                    RepresentedEquipmentSetTypeLikeCpp::Transmog,
+                ) => Some(Self::build_transmog_outfit_update_statement_like_cpp(
+                    player_guid_counter,
+                    equipment_set,
+                )),
+            };
+            if let Some(statement) = statement {
+                statements.push(statement);
+            }
+        }
+        Some(statements)
+    }
+
+    fn mark_equipment_sets_saved_like_cpp(&mut self) {
+        self.represented_equipment_sets_like_cpp
+            .retain(|_, equipment_set| {
+                if equipment_set.state == RepresentedEquipmentSetUpdateStateLikeCpp::Deleted {
+                    return false;
+                }
+                equipment_set.state = RepresentedEquipmentSetUpdateStateLikeCpp::Unchanged;
+                true
+            });
+    }
+
+    async fn save_player_skills_like_cpp(&self) {
+        if !self.player_skill_records_loaded_like_cpp() {
+            warn!(
+                account = self.account_id,
+                player_guid = ?self.player_guid(),
+                "Skipping represented player skill save because character_skills were not loaded coherently"
+            );
+            return;
+        }
+
+        let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
+        else {
+            return;
+        };
+
+        let mut tx = SqlTransaction::new();
+        for statement in self.character_skill_save_statements_like_cpp(guid.counter() as u64) {
+            tx.append(statement);
+        }
+        if let Err(err) = char_db.commit_transaction(tx).await {
+            warn!(
+                "Failed to save represented player skills for guid {}: {err}",
+                guid.counter()
+            );
+        }
+    }
+
+    async fn save_player_action_buttons_like_cpp(&self) {
+        let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
+        else {
+            return;
+        };
+
+        let Some(statements) =
+            self.character_action_button_save_statements_like_cpp(guid.counter() as u64)
+        else {
+            warn!(
+                account = self.account_id,
+                player_guid = ?self.player_guid(),
+                "Skipping represented player action-button save because character_action was not loaded coherently"
+            );
+            return;
+        };
+
+        let mut tx = SqlTransaction::new();
+        for statement in statements {
+            tx.append(statement);
+        }
+        if let Err(err) = char_db.commit_transaction(tx).await {
+            warn!(
+                "Failed to save represented player action buttons for guid {}: {err}",
+                guid.counter()
+            );
+        }
+    }
+
+    async fn save_player_glyphs_like_cpp(&self) {
+        let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
+        else {
+            return;
+        };
+
+        let Some(statements) = self.character_glyph_save_statements_like_cpp(guid.counter() as u64)
+        else {
+            warn!(
+                account = self.account_id,
+                player_guid = ?self.player_guid(),
+                "Skipping represented player glyph save because character_glyphs was not loaded coherently"
+            );
+            return;
+        };
+
+        let mut tx = SqlTransaction::new();
+        for statement in statements {
+            tx.append(statement);
+        }
+        if let Err(err) = char_db.commit_transaction(tx).await {
+            warn!(
+                "Failed to save represented player glyphs for guid {}: {err}",
+                guid.counter()
+            );
+        }
+    }
+
+    async fn save_player_talents_like_cpp(&self) {
+        let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
+        else {
+            return;
+        };
+
+        let Some(statements) =
+            self.character_talent_save_statements_like_cpp(guid.counter() as u64)
+        else {
+            warn!(
+                account = self.account_id,
+                player_guid = ?self.player_guid(),
+                "Skipping represented player talent save because character_talent was not loaded coherently"
+            );
+            return;
+        };
+
+        let mut tx = SqlTransaction::new();
+        for statement in statements {
+            tx.append(statement);
+        }
+        if let Err(err) = char_db.commit_transaction(tx).await {
+            warn!(
+                "Failed to save represented player talents for guid {}: {err}",
+                guid.counter()
+            );
+        }
+    }
+
+    async fn save_player_equipment_sets_like_cpp(&mut self) {
+        let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
+        else {
+            return;
+        };
+
+        let Some(statements) = self.equipment_set_save_statements_like_cpp(guid.counter() as u64)
+        else {
+            warn!(
+                account = self.account_id,
+                player_guid = ?self.player_guid(),
+                "Skipping represented equipment-set save because character_equipmentsets/character_transmog_outfits were not loaded coherently"
+            );
+            return;
+        };
+
+        if statements.is_empty() {
+            return;
+        }
+
+        let mut tx = SqlTransaction::new();
+        for statement in statements {
+            tx.append(statement);
+        }
+        match char_db.commit_transaction(tx).await {
+            Ok(()) => self.mark_equipment_sets_saved_like_cpp(),
+            Err(err) => warn!(
+                "Failed to save represented equipment sets for guid {}: {err}",
+                guid.counter()
+            ),
+        }
+    }
+
+    async fn save_cuf_profiles_like_cpp(&self) {
+        let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
+        else {
+            return;
+        };
+
+        let Some(statements) = self.cuf_profile_save_statements_like_cpp(guid.counter() as u64)
+        else {
+            warn!(
+                account = self.account_id,
+                player_guid = ?self.player_guid(),
+                "Skipping represented CUF profile save because character_cuf_profiles was not loaded coherently"
+            );
+            return;
+        };
+
+        let mut tx = SqlTransaction::new();
+        for statement in statements {
+            tx.append(statement);
+        }
+        if let Err(err) = char_db.commit_transaction(tx).await {
+            warn!(
+                "Failed to save represented CUF profiles for guid {}: {err}",
+                guid.counter()
+            );
+        }
+    }
+
+    async fn save_player_spell_cooldowns_like_cpp(&self) {
+        let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
+        else {
+            return;
+        };
+
+        let Some(statements) = self
+            .character_spell_cooldown_save_statements_like_cpp(guid.counter() as u64, unix_now())
+        else {
+            warn!(
+                account = self.account_id,
+                player_guid = ?self.player_guid(),
+                "Skipping represented player spell cooldown save because character_spell_cooldown was not loaded coherently"
+            );
+            return;
+        };
+
+        let mut tx = SqlTransaction::new();
+        for statement in statements {
+            tx.append(statement);
+        }
+        if let Err(err) = char_db.commit_transaction(tx).await {
+            warn!(
+                "Failed to save represented player spell cooldowns for guid {}: {err}",
+                guid.counter()
+            );
+        }
+    }
+
+    async fn save_player_spell_charges_like_cpp(&self) {
+        let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
+        else {
+            return;
+        };
+
+        let Some(statements) =
+            self.character_spell_charge_save_statements_like_cpp(guid.counter() as u64, unix_now())
+        else {
+            warn!(
+                account = self.account_id,
+                player_guid = ?self.player_guid(),
+                "Skipping represented player spell charge save because character_spell_charges was not loaded coherently"
+            );
+            return;
+        };
+
+        let mut tx = SqlTransaction::new();
+        for statement in statements {
+            tx.append(statement);
+        }
+        if let Err(err) = char_db.commit_transaction(tx).await {
+            warn!(
+                "Failed to save represented player spell charges for guid {}: {err}",
+                guid.counter()
+            );
+        }
     }
 
     async fn save_player_difficulties_like_cpp(&self) {
@@ -17726,17 +22156,21 @@ impl WorldSession {
         }
     }
 
-    /// Give XP to the player, leveling up if threshold reached.
-    /// C# ref: Player.GiveXP(xp, victim)
-    pub(crate) async fn give_xp(&mut self, xp: u32, victim: wow_core::ObjectGuid, is_kill: bool) {
-        use wow_packet::ServerPacket;
+    /// Apply XP to the live session state, leveling up if threshold reached.
+    /// C++ `Player::GiveXP` visible side effects; persistence is handled by async wrappers.
+    pub(crate) fn give_xp_runtime_like_cpp(
+        &mut self,
+        xp: u32,
+        victim: wow_core::ObjectGuid,
+        is_kill: bool,
+    ) -> bool {
         use wow_packet::packets::misc::{LevelUpInfo, LogXpGain};
 
         if xp == 0 {
-            return;
+            return false;
         }
         if self.player_level_like_cpp() >= 80 {
-            return;
+            return false;
         } // max level
 
         // Send floating XP text — C# LogXPGain
@@ -17774,8 +22208,20 @@ impl WorldSession {
 
             self.set_player_level_like_cpp(new_level);
             self.refresh_next_level_xp();
+        }
 
-            // Persist new level to DB
+        true
+    }
+
+    /// Give XP to the player, leveling up if threshold reached.
+    /// C# ref: Player.GiveXP(xp, victim)
+    pub(crate) async fn give_xp(&mut self, xp: u32, victim: wow_core::ObjectGuid, is_kill: bool) {
+        let old_level = self.player_level_like_cpp();
+        if !self.give_xp_runtime_like_cpp(xp, victim, is_kill) {
+            return;
+        }
+
+        if self.player_level_like_cpp() != old_level {
             if let Some(guid) = self.player_guid() {
                 let char_db = self.char_db().map(Arc::clone);
                 if let Some(db) = char_db {
@@ -19085,6 +23531,81 @@ impl WorldSession {
             .await;
     }
 
+    pub(crate) fn represented_next_reset_talents_cost_like_cpp(&self, now_secs: u64) -> u32 {
+        Self::next_reset_talents_cost_like_cpp(
+            self.represented_talent_reset_cost_like_cpp,
+            self.represented_talent_reset_time_secs_like_cpp,
+            now_secs,
+        )
+    }
+
+    pub(crate) async fn apply_represented_talent_reset_cost_like_cpp(&mut self) -> bool {
+        let now_secs = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        self.apply_represented_talent_reset_cost_at_like_cpp(now_secs)
+            .await
+    }
+
+    pub(crate) async fn apply_represented_talent_reset_cost_at_like_cpp(
+        &mut self,
+        now_secs: u64,
+    ) -> bool {
+        let cost = if self.no_reset_talent_cost_like_cpp {
+            0
+        } else {
+            u64::from(self.represented_next_reset_talents_cost_like_cpp(now_secs))
+        };
+        let old_money = self.player_gold_like_cpp();
+        if !self.no_reset_talent_cost_like_cpp && old_money < cost {
+            self.send_buy_error(BuyResult::NotEnoughtMoney, None, 0);
+            return false;
+        }
+
+        self.apply_player_money_change_like_cpp(old_money, old_money - cost)
+            .await;
+        self.record_represented_talent_respec_criteria_like_cpp(cost as u32);
+        self.represented_talent_reset_cost_like_cpp = cost as u32;
+        self.represented_talent_reset_time_secs_like_cpp = now_secs;
+        true
+    }
+
+    fn record_represented_talent_respec_criteria_like_cpp(&mut self, cost: u32) {
+        self.represented_talent_respec_criteria_events_like_cpp
+            .push(
+                RepresentedTalentRespecCriteriaEventLikeCpp::MoneySpentOnRespecs { amount: cost },
+            );
+        self.represented_talent_respec_criteria_events_like_cpp
+            .push(RepresentedTalentRespecCriteriaEventLikeCpp::TotalRespecs { quantity: 1 });
+    }
+
+    fn next_reset_talents_cost_like_cpp(
+        reset_cost: u32,
+        reset_time_secs: u64,
+        now_secs: u64,
+    ) -> u32 {
+        let gold = COPPER_PER_GOLD_LIKE_CPP;
+        if reset_cost < gold {
+            return gold;
+        }
+        if reset_cost < 5 * gold {
+            return 5 * gold;
+        }
+        if reset_cost < 10 * gold {
+            return 10 * gold;
+        }
+
+        let months = now_secs.saturating_sub(reset_time_secs) / TALENT_RESET_MONTH_SECS_LIKE_CPP;
+        if months > 0 {
+            let reduced = i64::from(reset_cost)
+                - i64::try_from(5 * u64::from(gold) * months).unwrap_or(i64::MAX);
+            return reduced.max(i64::from(10 * gold)) as u32;
+        }
+
+        reset_cost.saturating_add(5 * gold).min(50 * gold)
+    }
+
     pub(crate) async fn currency_changed_like_cpp(&mut self, currency_id: u32, change: i32) {
         self.enqueue_represented_quest_objective_progress_like_cpp(
             RepresentedQuestObjectiveProgressEventLikeCpp::CurrencyChanged {
@@ -19157,6 +23678,21 @@ impl WorldSession {
         self.refresh_next_level_xp();
     }
 
+    pub fn set_exploration_base_xp_store_like_cpp(
+        &mut self,
+        store: Arc<ExplorationBaseXpStoreLikeCpp>,
+    ) {
+        self.exploration_base_xp_store = Some(store);
+    }
+
+    pub fn set_exploration_xp_rate_like_cpp(&mut self, rate: f32) {
+        self.exploration_xp_rate_like_cpp = rate.max(0.0);
+    }
+
+    pub fn set_min_discovered_scaled_xp_ratio_like_cpp(&mut self, ratio: u32) {
+        self.min_discovered_scaled_xp_ratio_like_cpp = ratio.min(100);
+    }
+
     /// Update player_next_level_xp from the table based on current level.
     pub(crate) fn refresh_next_level_xp(&mut self) {
         if let Some(table) = &self.player_xp_table {
@@ -19225,21 +23761,54 @@ impl WorldSession {
         self.player_registry.as_ref()
     }
 
-    pub(crate) fn broadcast_to_movement_set_like_cpp(&self, bytes: Vec<u8>, include_self: bool) {
+    pub(crate) fn broadcast_to_movement_set_like_cpp(&self, bytes: Vec<u8>, _include_self: bool) {
         let (Some(guid), Some(registry)) = (self.player_guid(), self.player_registry()) else {
             return;
         };
-        let current_map_id = self.player_map_id_like_cpp();
+        let Some(source_position) = self.player_position_like_cpp() else {
+            return;
+        };
+        let map_id = self.player_map_id_like_cpp();
+        let instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let range_sq =
+            crate::map_manager::VISIBILITY_RADIUS * crate::map_manager::VISIBILITY_RADIUS;
 
-        for entry in registry.iter() {
-            let (other_guid, other_info): (&ObjectGuid, &PlayerBroadcastInfo) = entry.pair();
-            if !include_self && *other_guid == guid {
-                continue;
-            }
-            if other_info.map_id != current_map_id {
-                continue;
-            }
-            let _ = other_info.send_tx.send(bytes.clone());
+        let candidates: Vec<_> = registry
+            .iter()
+            .filter_map(|entry| {
+                let (other_guid, other_info): (&ObjectGuid, &PlayerBroadcastInfo) = entry.pair();
+                // C++ `MessageDistDeliverer::SendPacket` never sends to the
+                // source object itself, even for the bool-self overload.
+                if *other_guid == guid {
+                    return None;
+                }
+                if !other_info.is_in_world
+                    || other_info.map_id != map_id
+                    || other_info.instance_id != instance_id
+                {
+                    return None;
+                }
+                let dx = other_info.position.x - source_position.x;
+                let dy = other_info.position.y - source_position.y;
+                if dx * dx + dy * dy > range_sq {
+                    return None;
+                }
+                Some(other_info.command_tx.clone())
+            })
+            .collect();
+
+        for command_tx in candidates {
+            let _ = command_tx.try_send(SessionCommand::SendIfVisibleLikeCpp(
+                SendIfVisibleLikeCppCommand {
+                    source_guid: guid,
+                    map_id,
+                    instance_id,
+                    packet_bytes: bytes.clone(),
+                },
+            ));
         }
     }
 
@@ -19812,6 +24381,37 @@ impl WorldSession {
         self.cleanup_shared_runtime_state();
     }
 
+    pub async fn save_disconnect_player_to_db_like_cpp(&mut self) {
+        let Some(player_guid) = self.player_guid() else {
+            self.mark_login_account_offline_on_disconnect_like_cpp()
+                .await;
+            return;
+        };
+
+        info!(
+            account = self.account_id,
+            guid = player_guid.counter(),
+            "Saving player on disconnect"
+        );
+        self.set_player_logout_like_cpp(true);
+        self.clear_buyback_on_logout().await;
+        self.save_current_player_to_db_like_cpp().await;
+        self.save_account_mounts_like_cpp().await;
+        self.save_account_toys_like_cpp().await;
+        self.save_account_heirlooms_like_cpp().await;
+        self.save_account_item_appearances_like_cpp().await;
+        self.save_account_transmog_illusions_like_cpp().await;
+        self.mark_character_offline().await;
+        self.mark_character_account_offline_like_cpp().await;
+        self.mark_login_account_offline_on_disconnect_like_cpp()
+            .await;
+        info!(
+            account = self.account_id,
+            guid = player_guid.counter(),
+            "Finished disconnect save"
+        );
+    }
+
     /// Remove this session from the player registry.
     /// Called on logout or disconnect.
     pub(crate) fn unregister_from_player_registry(&self) {
@@ -20366,6 +24966,9 @@ impl WorldSession {
 
         // Send SMSG_AURA_UPDATE
         self.send_aura_update_applied(spell_id, slot, caster_guid, duration_ms, aura_flags);
+        if spell_id == SPELL_PVP_RULES_ENABLED_LIKE_CPP {
+            let _ = self.update_represented_item_level_area_based_scaling_like_cpp();
+        }
 
         Ok(())
     }
@@ -20376,6 +24979,8 @@ impl WorldSession {
         caster_guid: ObjectGuid,
         effect: &wow_data::SpellEffectInfo,
     ) -> Result<(), &'static str> {
+        let mounted_amount =
+            self.calculate_represented_mounted_aura_amount_like_cpp(spell_id, effect);
         let selected_display_id = u32::try_from(spell_id)
             .ok()
             .and_then(|spell_id| self.select_represented_mount_aura_display_like_cpp(spell_id))
@@ -20415,7 +25020,7 @@ impl WorldSession {
             aura_interrupt_flags: 0,
             aura_interrupt_flags2: 0,
             represented_effect: Some(RepresentedAuraEffectLikeCpp::Mounted),
-            represented_amount: effect.effect_base_points,
+            represented_amount: mounted_amount,
             represented_effect_amounts: represented_aura_effect_amounts_like_cpp(effect),
             represented_misc_value: Some(effect.effect_misc_value_1),
             represented_multiplier: 1.0,
@@ -20447,11 +25052,147 @@ impl WorldSession {
         self.send_movement_set_collision_height_like_cpp(
             wow_packet::packets::movement::UPDATE_COLLISION_HEIGHT_REASON_MOUNT_LIKE_CPP,
         );
+        self.apply_represented_mount_capability_speed_aura_like_cpp(mounted_amount, caster_guid);
 
         self.send_aura_update_applied(spell_id, slot, caster_guid, 0, 0x0000_0001);
         self.send_represented_mount_unit_update_like_cpp(display_id);
 
         Ok(())
+    }
+
+    fn calculate_represented_mounted_aura_amount_like_cpp(
+        &self,
+        spell_id: i32,
+        effect: &wow_data::SpellEffectInfo,
+    ) -> i32 {
+        let mut mount_type_id = u16::try_from(effect.effect_misc_value_2).unwrap_or_default();
+        if let Some(mount_entry) = self.mount_store.as_ref().and_then(|store| {
+            u32::try_from(spell_id)
+                .ok()
+                .and_then(|spell_id| store.get_by_source_spell_id_like_cpp(spell_id))
+        }) {
+            mount_type_id = mount_entry.mount_type_id;
+        }
+
+        if mount_type_id != 0 {
+            let (is_submerged, is_in_water) = self.represented_player_mount_liquid_state_like_cpp();
+            if let Ok(capability) = self.represented_mount_capability_selection_for_type_like_cpp(
+                mount_type_id,
+                u32::from(self.player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP)),
+                None,
+                is_submerged,
+                is_in_water,
+            ) {
+                return i32::try_from(capability.id).unwrap_or(effect.effect_base_points);
+            }
+        }
+
+        effect.effect_base_points
+    }
+
+    fn apply_represented_mount_capability_speed_aura_like_cpp(
+        &mut self,
+        mount_capability_id: i32,
+        caster_guid: ObjectGuid,
+    ) {
+        let Some(mod_spell_aura_id) =
+            self.represented_mount_capability_mod_spell_like_cpp(mount_capability_id)
+        else {
+            return;
+        };
+
+        let Some(spell_info) = self
+            .spell_store()
+            .and_then(|store| store.get(mod_spell_aura_id))
+            .cloned()
+        else {
+            return;
+        };
+
+        for effect in spell_info.effects().iter().filter(|effect| {
+            effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA
+        }) {
+            let represented_effect = match effect.effect_aura {
+                aura if aura == wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED => {
+                    RepresentedAuraEffectLikeCpp::MountedSpeed
+                }
+                aura if aura == wow_data::spell::aura_types::SPELL_AURA_MOD_MOUNTED_SPEED_ALWAYS => {
+                    RepresentedAuraEffectLikeCpp::MountedSpeedAlways
+                }
+                aura if aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_MOUNTED_SPEED_NOT_STACK =>
+                {
+                    RepresentedAuraEffectLikeCpp::MountedSpeedNotStack
+                }
+                aura if aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED =>
+                {
+                    RepresentedAuraEffectLikeCpp::MountedFlightSpeed
+                }
+                aura if aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_MOUNTED_FLIGHT_SPEED_ALWAYS =>
+                {
+                    RepresentedAuraEffectLikeCpp::MountedFlightSpeedAlways
+                }
+                aura if aura == wow_data::spell::aura_types::SPELL_AURA_MOD_FLIGHT_SPEED_NOT_STACK => {
+                    RepresentedAuraEffectLikeCpp::FlightSpeedNotStack
+                }
+                _ => continue,
+            };
+
+            if self
+                .apply_represented_aura_modifier_like_cpp(
+                    mod_spell_aura_id,
+                    caster_guid,
+                    effect,
+                    represented_effect,
+                    0,
+                )
+                .is_ok()
+            {
+                self.recompute_represented_mounted_speed_rates_like_cpp();
+            }
+        }
+    }
+
+    fn represented_mount_capability_mod_spell_like_cpp(
+        &self,
+        mount_capability_id: i32,
+    ) -> Option<i32> {
+        u32::try_from(mount_capability_id)
+            .ok()
+            .and_then(|id| self.mount_capability_store.as_ref()?.get(id))
+            .map(|capability| capability.mod_spell_aura_id)
+            .filter(|spell_id| *spell_id > 0)
+    }
+
+    fn remove_represented_mount_capability_speed_auras_like_cpp(
+        &mut self,
+        mount_capability_id: i32,
+    ) {
+        let Some(mod_spell_aura_id) =
+            self.represented_mount_capability_mod_spell_like_cpp(mount_capability_id)
+        else {
+            return;
+        };
+        let slots: Vec<u8> = self
+            .visible_auras
+            .values()
+            .filter_map(|aura| (aura.spell_id == mod_spell_aura_id).then_some(aura.slot))
+            .collect();
+        for slot in slots {
+            let _ = self.remove_aura(slot);
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn apply_represented_mounted_aura_for_test_like_cpp(
+        &mut self,
+        spell_id: i32,
+        caster_guid: ObjectGuid,
+        effect: &wow_data::SpellEffectInfo,
+    ) -> Result<(), &'static str> {
+        self.apply_represented_mounted_aura_like_cpp(spell_id, caster_guid, effect)
     }
 
     fn apply_represented_provide_spell_focus_aura_like_cpp(
@@ -20789,6 +25530,12 @@ impl WorldSession {
             position: self
                 .player_position_like_cpp()
                 .unwrap_or(wow_core::Position::ZERO),
+            flags: self.player_movement_flags_like_cpp,
+            flags2: if self.represented_can_swim_to_fly_transition_like_cpp {
+                wow_constants::movement::MovementFlag2::CAN_SWIM_TO_FLY_TRANS
+            } else {
+                wow_constants::movement::MovementFlag2::NONE
+            },
             time: self.player_movement_time_like_cpp(),
             ..wow_packet::packets::movement::MovementInfo::default()
         }
@@ -20822,6 +25569,7 @@ impl WorldSession {
         if aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::Mounted) {
             let was_mounted = self.player_mounted_like_cpp;
             let vehicle_id = self.player_mount_vehicle_id_like_cpp;
+            let mount_capability_id = aura.represented_amount;
             self.player_mount_display_id_like_cpp = 0;
             self.player_mount_vehicle_id_like_cpp = 0;
             if let Some(vehicle_kit) = self.player_mount_vehicle_kit_like_cpp.as_mut() {
@@ -20855,10 +25603,72 @@ impl WorldSession {
                 );
             }
             self.send_represented_mount_unit_update_like_cpp(0);
+            self.remove_represented_mount_capability_speed_auras_like_cpp(mount_capability_id);
+        }
+        if matches!(
+            aura.represented_effect,
+            Some(
+                RepresentedAuraEffectLikeCpp::MountedSpeed
+                    | RepresentedAuraEffectLikeCpp::Speed
+                    | RepresentedAuraEffectLikeCpp::SpeedAlways
+                    | RepresentedAuraEffectLikeCpp::SpeedNotStack
+                    | RepresentedAuraEffectLikeCpp::UseNormalMovementSpeed
+                    | RepresentedAuraEffectLikeCpp::DecreaseSpeed
+                    | RepresentedAuraEffectLikeCpp::MinimumSpeed
+                    | RepresentedAuraEffectLikeCpp::MinimumSpeedRate
+                    | RepresentedAuraEffectLikeCpp::MountedSpeedAlways
+                    | RepresentedAuraEffectLikeCpp::MountedSpeedNotStack
+            )
+        ) {
+            self.recompute_represented_run_speed_rate_like_cpp();
+        }
+        if matches!(
+            aura.represented_effect,
+            Some(
+                RepresentedAuraEffectLikeCpp::MountedFlightSpeed
+                    | RepresentedAuraEffectLikeCpp::Fly
+                    | RepresentedAuraEffectLikeCpp::FlightSpeed
+                    | RepresentedAuraEffectLikeCpp::VehicleFlightSpeed
+                    | RepresentedAuraEffectLikeCpp::MountedFlightSpeedAlways
+                    | RepresentedAuraEffectLikeCpp::FlightSpeedNotStack
+            )
+        ) {
+            if matches!(
+                aura.represented_effect,
+                Some(
+                    RepresentedAuraEffectLikeCpp::MountedFlightSpeed
+                        | RepresentedAuraEffectLikeCpp::Fly
+                )
+            ) {
+                self.update_represented_flight_flags_for_flight_aura_like_cpp(false);
+            }
+            self.recompute_represented_flight_speed_rate_like_cpp();
+        }
+        if matches!(
+            aura.represented_effect,
+            Some(RepresentedAuraEffectLikeCpp::SwimSpeed)
+        ) {
+            self.recompute_represented_swim_speed_rate_like_cpp();
+        }
+        if matches!(
+            aura.represented_effect,
+            Some(
+                RepresentedAuraEffectLikeCpp::DecreaseSpeed
+                    | RepresentedAuraEffectLikeCpp::UseNormalMovementSpeed
+            )
+        ) {
+            self.recompute_represented_swim_speed_rate_like_cpp();
+            self.recompute_represented_flight_speed_rate_like_cpp();
+        }
+        if aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::DecreaseSpeed) {
+            self.recompute_represented_backward_speed_rates_like_cpp();
         }
 
         // Send SMSG_AURA_UPDATE (removal)
         self.send_aura_update_removed(slot);
+        if aura.spell_id == SPELL_PVP_RULES_ENABLED_LIKE_CPP {
+            let _ = self.update_represented_item_level_area_based_scaling_like_cpp();
+        }
 
         Ok(())
     }
@@ -20868,6 +25678,31 @@ impl WorldSession {
             SPELL_AURA_INTERRUPT_FLAG_LOOTING_LIKE_CPP,
             0,
         )
+    }
+
+    pub(crate) fn remove_represented_auras_with_attribute0_like_cpp(
+        &mut self,
+        attribute: u32,
+    ) -> usize {
+        let Some(spell_store) = self.spell_store.as_ref() else {
+            return 0;
+        };
+
+        let slots: Vec<u8> = self
+            .visible_auras
+            .values()
+            .filter_map(|aura| {
+                spell_store
+                    .has_attribute0_like_cpp(aura.spell_id, attribute)
+                    .then_some(aura.slot)
+            })
+            .collect();
+
+        let removed = slots.len();
+        for slot in slots {
+            let _ = self.remove_aura(slot);
+        }
+        removed
     }
 
     pub(crate) fn remove_moving_or_turning_interrupt_auras_for_far_teleport_like_cpp(
@@ -20927,6 +25762,110 @@ impl WorldSession {
             player.unit_mut().clear_unit_state(UnitState::DIED.bits());
         });
         true
+    }
+
+    pub(crate) fn remove_represented_mount_auras_cancelable_like_cpp(&mut self) -> usize {
+        self.remove_represented_cancelable_auras_by_effect_like_cpp(
+            RepresentedAuraEffectLikeCpp::Mounted,
+        )
+    }
+
+    pub(crate) fn remove_represented_growth_auras_cancelable_like_cpp(&mut self) -> usize {
+        self.remove_represented_cancelable_auras_by_effect_like_cpp(
+            RepresentedAuraEffectLikeCpp::ModScale,
+        )
+    }
+
+    pub(crate) fn remove_represented_mod_speed_no_control_auras_cancelable_like_cpp(
+        &mut self,
+    ) -> usize {
+        self.remove_represented_cancelable_auras_by_effect_like_cpp(
+            RepresentedAuraEffectLikeCpp::ModSpeedNoControl,
+        )
+    }
+
+    fn remove_represented_cancelable_auras_by_effect_like_cpp(
+        &mut self,
+        represented_effect: RepresentedAuraEffectLikeCpp,
+    ) -> usize {
+        let no_aura_cancel = wow_data::spell::attributes::SPELL_ATTR0_NO_AURA_CANCEL;
+        let slots: Vec<u8> = self
+            .visible_auras
+            .values()
+            .filter_map(|aura| {
+                // C++ removes SPELL_AURA_MOUNTED only when its SpellInfo is
+                // cancelable, positive, and non-passive; the same predicate is
+                // used for SPELL_AURA_MOD_SCALE in CancelGrowthAura. These
+                // represented effects model positive player-cancelable paths;
+                // SpellMisc attributes preserve the C++ no-player-cancel gate.
+                if self.spell_store.as_ref().is_some_and(|store| {
+                    store.has_attribute0_like_cpp(aura.spell_id, no_aura_cancel)
+                }) {
+                    return None;
+                }
+                (aura.represented_effect == Some(represented_effect)).then_some(aura.slot)
+            })
+            .collect();
+
+        let removed = slots.len();
+        for slot in slots {
+            let _ = self.remove_aura(slot);
+        }
+        removed
+    }
+
+    pub(crate) fn remove_represented_cancelable_owned_aura_like_cpp(
+        &mut self,
+        spell_id: i32,
+        caster_guid: ObjectGuid,
+    ) -> usize {
+        let Some(spell_store) = self.spell_store.as_ref() else {
+            return 0;
+        };
+        if spell_store.get(spell_id).is_none()
+            || spell_store.has_attribute0_like_cpp(
+                spell_id,
+                wow_data::spell::attributes::SPELL_ATTR0_NO_AURA_CANCEL,
+            )
+            || spell_store.is_channeled_like_cpp(spell_id)
+            || spell_store.is_passive_like_cpp(spell_id)
+        {
+            return 0;
+        }
+
+        let slots: Vec<u8> = self
+            .visible_auras
+            .values()
+            .filter_map(|aura| {
+                if aura.spell_id != spell_id {
+                    return None;
+                }
+                if !caster_guid.is_empty() && aura.caster_guid != caster_guid {
+                    return None;
+                }
+                // C++ checks SpellInfo before RemoveOwnedAura: no
+                // SPELL_ATTR0_NO_AURA_CANCEL, positive, and non-passive.
+                // Full SpellInfo::IsPositive is not represented yet; allow
+                // the locally materialized positive/cancelable aura shapes,
+                // including the single-effect generic represented aura.
+                (aura.represented_effect.is_none()
+                    || matches!(
+                        aura.represented_effect,
+                        Some(
+                            RepresentedAuraEffectLikeCpp::Mounted
+                                | RepresentedAuraEffectLikeCpp::ModScale
+                                | RepresentedAuraEffectLikeCpp::ModSpeedNoControl
+                        )
+                    ))
+                .then_some(aura.slot)
+            })
+            .collect();
+
+        let removed = slots.len();
+        for slot in slots {
+            let _ = self.remove_aura(slot);
+        }
+        removed
     }
 
     pub(crate) fn remove_auras_with_interrupt_flags_like_cpp(
@@ -20994,7 +25933,6 @@ impl WorldSession {
         duration: u32,
         flags: u32,
     ) {
-        use wow_packet::ServerPacket;
         use wow_packet::packets::aura::{AuraData, AuraUpdate};
 
         let update = AuraUpdate {
@@ -21157,6 +26095,7 @@ impl WorldSession {
             self.send_represented_capture_point_removed_from_last_update_like_cpp();
             self.send_represented_gameobject_visual_despawn_from_last_update_like_cpp();
             self.tick_active_spell_cast().await;
+            self.tick_pending_spell_cast_request_like_cpp().await;
             self.sync_represented_farsight_clear_from_canonical_like_cpp();
             self.send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp();
         }
@@ -21378,6 +26317,9 @@ impl WorldSession {
             }
             ClientOpcodes::ConfirmRespecWipe => {
                 self.handle_confirm_respec_wipe(pkt).await;
+            }
+            ClientOpcodes::LearnTalent => {
+                self.handle_learn_talent(pkt).await;
             }
             ClientOpcodes::SetPlayerDeclinedNames => {
                 self.handle_set_player_declined_names(pkt).await;
@@ -21997,9 +26939,24 @@ impl WorldSession {
                 // CMSG_CLEAR_RAID_MARKER (uint8 payload) and
                 // CMSG_SET_LOOT_SPECIALIZATION (uint32 payload), and this fork
                 // also assigns it to CMSG_SET_SAVED_INSTANCE_EXTEND
-                // (int32+uint32+bit payload). Rust keeps one enum variant and
+                // (int32+uint32+bit payload) and
+                // CMSG_CANCEL_MOD_SPEED_NO_CONTROL_AURAS (packed GUID payload)
+                // plus CMSG_CLIENT_PORT_GRAVEYARD (empty payload).
+                // Rust keeps one enum variant and
                 // splits by payload length until the real opcode table is
                 // resolved.
+                if self
+                    .try_handle_cancel_mod_speed_no_control_auras_like_cpp(pkt.clone())
+                    .await
+                {
+                    return;
+                }
+                if self
+                    .try_handle_client_port_graveyard_like_cpp(pkt.clone())
+                    .await
+                {
+                    return;
+                }
                 if pkt.remaining() == 1 {
                     self.handle_clear_raid_marker(pkt).await;
                 } else if pkt.remaining() == 4 {
@@ -22233,6 +27190,9 @@ impl WorldSession {
             }
             ClientOpcodes::SaveCufProfiles => {
                 self.handle_save_cuf_profiles(pkt).await;
+            }
+            ClientOpcodes::Tutorial => {
+                self.handle_tutorial(pkt).await;
             }
             ClientOpcodes::GuildSetAchievementTracking => {
                 self.handle_guild_set_achievement_tracking(pkt).await;
@@ -23042,6 +28002,9 @@ impl WorldSession {
             return;
         };
 
+        self.exit_represented_vehicle_for_teleport_like_cpp();
+        self.reset_teleport_movement_state_like_cpp();
+
         if self.player_class_like_cpp() == CLASS_DEATH_KNIGHT_LIKE_CPP
             && self.player_map_id_like_cpp() == DEATH_KNIGHT_START_MAP_LIKE_CPP
             && u32::from(self.player_map_id_like_cpp()) != new_map
@@ -23164,6 +28127,30 @@ impl WorldSession {
             new_pos.y,
             new_pos.z
         );
+    }
+
+    fn exit_represented_vehicle_for_teleport_like_cpp(&mut self) -> bool {
+        if self.player_vehicle_seat_flags_like_cpp.is_none() {
+            return false;
+        }
+
+        self.player_vehicle_seat_flags_like_cpp = None;
+        self.player_vehicle_seat_id_like_cpp = None;
+        self.sync_player_registry_state_like_cpp();
+        true
+    }
+
+    fn reset_teleport_movement_state_like_cpp(&mut self) {
+        let movement_flags =
+            self.player_movement_flags_like_cpp & MovementFlag::MASK_HAS_PLAYER_STATUS_OPCODE;
+        self.set_player_movement_flags_like_cpp(movement_flags);
+        self.player_movement_jump_like_cpp = wow_packet::packets::movement::JumpInfo::default();
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            let motion = &mut player.unit_mut().subsystems_mut().motion;
+            motion.interrupt_spline();
+            let _ =
+                motion.remove_generator_kind(MovementGeneratorKind::Effect, MovementSlot::Active);
+        });
     }
 
     fn teleport_options_after_seamless_gate_like_cpp(
@@ -23575,6 +28562,7 @@ impl WorldSession {
                 .map(|map| map.instance_encounter_in_progress_like_cpp()),
             _ => None,
         };
+        let decision_key = create_map_decision_key_like_cpp(&decision);
         drop(manager);
 
         if let wow_map::CreateMapDecision::Existing {
@@ -23608,13 +28596,14 @@ impl WorldSession {
                     return Some((deny_reason as u32, 0, 0));
                 }
             }
+        }
 
-            if !map_entry.ignores_instance_farm_limit_like_cpp()
-                && !self.check_instance_count_probe_like_cpp(key.instance_id)
-                && self.player_is_alive_like_cpp()
-            {
-                return Some((TRANSFER_ABORT_TOO_MANY_INSTANCES_LIKE_CPP, 0, 0));
-            }
+        if !map_entry.ignores_instance_farm_limit_like_cpp()
+            && let Some(key) = decision_key
+            && !self.check_instance_count_probe_like_cpp(key.instance_id)
+            && self.player_is_alive_like_cpp()
+        {
+            return Some((TRANSFER_ABORT_TOO_MANY_INSTANCES_LIKE_CPP, 0, 0));
         }
 
         None
@@ -23678,6 +28667,24 @@ impl WorldSession {
 
     fn send_notification_like_cpp(&self, text: String) {
         self.send_packet(&PrintNotification { notify_text: text });
+    }
+
+    fn reset_talents_notification_text_like_cpp(&self) -> String {
+        let text = self.trinity_string_like_cpp(LANG_RESET_TALENTS_LIKE_CPP);
+        if text == "<error>" {
+            LANG_RESET_TALENTS_TEXT_LIKE_CPP.to_string()
+        } else {
+            text.to_string()
+        }
+    }
+
+    fn reset_spells_notification_text_like_cpp(&self) -> String {
+        let text = self.trinity_string_like_cpp(LANG_RESET_SPELLS_LIKE_CPP);
+        if text == "<error>" {
+            LANG_RESET_SPELLS_TEXT_LIKE_CPP.to_string()
+        } else {
+            text.to_string()
+        }
     }
 
     fn trinity_string_like_cpp(&self, entry: u32) -> &str {
@@ -23998,7 +29005,7 @@ impl WorldSession {
         );
 
         // 7. TutorialFlags
-        self.send_packet(&TutorialFlags::all_shown());
+        self.send_packet(&self.tutorial_flags_packet_like_cpp());
 
         // 8. ConnectionStatus (State=1, SuppressNotification=true)
         // C# BattlenetPackets.cs: ConnectionStatus has no ConnectionType override,
@@ -24059,6 +29066,163 @@ impl WorldSession {
         account_data.time = time;
         account_data.data = data;
         true
+    }
+
+    pub(crate) fn tutorial_flags_packet_like_cpp(
+        &self,
+    ) -> wow_packet::packets::misc::TutorialFlags {
+        wow_packet::packets::misc::TutorialFlags {
+            tutorial_data: self.tutorials_like_cpp,
+        }
+    }
+
+    pub(crate) fn load_tutorials_data_values_like_cpp(&mut self, values: Option<[u32; 8]>) {
+        self.tutorials_like_cpp = values.unwrap_or([0; 8]);
+        self.tutorials_loaded_from_db_like_cpp = values.is_some();
+        self.tutorials_loaded_coherently_like_cpp = true;
+        self.tutorials_changed_like_cpp = false;
+    }
+
+    pub async fn load_tutorials_data_like_cpp(&mut self) {
+        self.tutorials_like_cpp = [0; 8];
+        self.tutorials_loaded_from_db_like_cpp = false;
+        self.tutorials_loaded_coherently_like_cpp = false;
+        self.tutorials_changed_like_cpp = false;
+
+        let Some(char_db) = self.char_db().map(Arc::clone) else {
+            warn!(
+                account = self.account_id,
+                "LoadTutorialsData skipped: character database unavailable"
+            );
+            return;
+        };
+
+        let mut stmt = char_db.prepare(CharStatements::SEL_TUTORIALS);
+        stmt.set_u32(0, self.account_id);
+        let result = match char_db.query(&stmt).await {
+            Ok(result) => result,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    "LoadTutorialsData query failed: {error}"
+                );
+                return;
+            }
+        };
+
+        if result.is_empty() {
+            self.load_tutorials_data_values_like_cpp(None);
+            return;
+        }
+
+        let mut tutorials = [0u32; 8];
+        for (index, tutorial) in tutorials.iter_mut().enumerate() {
+            *tutorial = result.try_read::<u32>(index).unwrap_or(0);
+        }
+        self.load_tutorials_data_values_like_cpp(Some(tutorials));
+    }
+
+    pub(crate) fn set_tutorial_int_like_cpp(&mut self, index: usize, value: u32) -> bool {
+        let Some(current) = self.tutorials_like_cpp.get_mut(index) else {
+            return false;
+        };
+
+        if *current != value {
+            *current = value;
+            self.tutorials_changed_like_cpp = true;
+        }
+        true
+    }
+
+    pub(crate) fn apply_tutorial_action_like_cpp(
+        &mut self,
+        action: u8,
+        tutorial_bit: Option<u32>,
+    ) -> bool {
+        match action {
+            wow_packet::packets::misc::TUTORIAL_ACTION_UPDATE_LIKE_CPP => {
+                let Some(tutorial_bit) = tutorial_bit else {
+                    return false;
+                };
+                let index = (tutorial_bit >> 5) as usize;
+                if index >= self.tutorials_like_cpp.len() {
+                    return false;
+                }
+                let flag = self.tutorials_like_cpp[index] | (1u32 << (tutorial_bit & 0x1F));
+                self.set_tutorial_int_like_cpp(index, flag)
+            }
+            wow_packet::packets::misc::TUTORIAL_ACTION_CLEAR_LIKE_CPP => {
+                for index in 0..self.tutorials_like_cpp.len() {
+                    self.set_tutorial_int_like_cpp(index, u32::MAX);
+                }
+                true
+            }
+            wow_packet::packets::misc::TUTORIAL_ACTION_RESET_LIKE_CPP => {
+                for index in 0..self.tutorials_like_cpp.len() {
+                    self.set_tutorial_int_like_cpp(index, 0);
+                }
+                true
+            }
+            _ => false,
+        }
+    }
+
+    pub(crate) fn tutorial_save_statement_like_cpp(
+        &self,
+        account_id: u32,
+    ) -> Option<PreparedStatement> {
+        if !self.tutorials_changed_like_cpp || !self.tutorials_loaded_coherently_like_cpp {
+            return None;
+        }
+
+        let mut stmt = PreparedStatement::new(if self.tutorials_loaded_from_db_like_cpp {
+            CharStatements::UPD_TUTORIALS.sql()
+        } else {
+            CharStatements::INS_TUTORIALS.sql()
+        });
+        for (index, value) in self.tutorials_like_cpp.iter().copied().enumerate() {
+            stmt.set_u32(index, value);
+        }
+        stmt.set_u32(self.tutorials_like_cpp.len(), account_id);
+        Some(stmt)
+    }
+
+    async fn save_tutorials_data_like_cpp(&mut self) {
+        if !self.tutorials_changed_like_cpp {
+            return;
+        }
+
+        let Some(char_db) = self.char_db().map(Arc::clone) else {
+            warn!(
+                account = self.account_id,
+                "Skipping SaveTutorialsData because character database is unavailable"
+            );
+            return;
+        };
+
+        let Some(stmt) = self.tutorial_save_statement_like_cpp(self.account_id) else {
+            warn!(
+                account = self.account_id,
+                "Skipping SaveTutorialsData because tutorial data was not loaded coherently"
+            );
+            return;
+        };
+
+        let was_insert = !self.tutorials_loaded_from_db_like_cpp;
+        let mut tx = SqlTransaction::new();
+        tx.append(stmt);
+        match char_db.commit_transaction(tx).await {
+            Ok(()) => {
+                if was_insert {
+                    self.tutorials_loaded_from_db_like_cpp = true;
+                }
+                self.tutorials_changed_like_cpp = false;
+            }
+            Err(error) => warn!(
+                account = self.account_id,
+                "SaveTutorialsData failed: {error}"
+            ),
+        }
     }
 
     pub async fn load_global_account_data_like_cpp(&mut self) {
@@ -24230,6 +29394,7 @@ impl WorldSession {
             controller.gender = gender;
         }
         self.initialize_reputation_mgr_like_cpp();
+        self.refresh_represented_talent_points_like_cpp();
     }
 
     pub(crate) fn attach_player_controller_like_cpp(
@@ -24237,6 +29402,7 @@ impl WorldSession {
         mut controller: SessionPlayerController,
     ) {
         controller.set_gold(self.player_gold);
+        controller.set_character_points(self.player_character_points_like_cpp);
         controller.set_xp(self.player_xp);
         controller.set_next_level_xp(self.player_next_level_xp);
         controller.set_selection_guid(self.selection_guid);
@@ -24300,10 +29466,23 @@ impl WorldSession {
 
     pub(crate) fn set_player_movement_time_like_cpp(&mut self, time: u32) {
         self.player_movement_time_like_cpp = time;
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_movement_time_like_cpp(time);
+        });
     }
 
     pub(crate) fn set_player_movement_flags_like_cpp(&mut self, flags: MovementFlag) {
         self.player_movement_flags_like_cpp = flags;
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_movement_flags_like_cpp(flags);
+        });
+    }
+
+    pub(crate) fn set_player_movement_jump_like_cpp(
+        &mut self,
+        jump: wow_packet::packets::movement::JumpInfo,
+    ) {
+        self.player_movement_jump_like_cpp = jump;
     }
 
     pub(crate) fn set_represented_mover_fixed_position_vehicle_like_cpp(&mut self, fixed: bool) {
@@ -24320,6 +29499,7 @@ impl WorldSession {
         if let Some(controller) = &mut self.player_controller {
             controller.set_level(level);
         }
+        self.refresh_represented_talent_points_like_cpp();
     }
 
     #[cfg(test)]
@@ -24328,6 +29508,11 @@ impl WorldSession {
         if let Some(controller) = &mut self.player_controller {
             controller.class = class;
         }
+        self.refresh_represented_talent_points_like_cpp();
+    }
+
+    pub(crate) fn set_player_create_mode_like_cpp(&mut self, create_mode: u8) {
+        self.player_create_mode_like_cpp = create_mode;
     }
 
     pub(crate) fn set_player_gold_like_cpp(&mut self, gold: u64) {
@@ -24337,10 +29522,26 @@ impl WorldSession {
         }
     }
 
+    pub(crate) fn set_represented_talent_reset_state_like_cpp(
+        &mut self,
+        reset_cost: u32,
+        reset_time_secs: u64,
+    ) {
+        self.represented_talent_reset_cost_like_cpp = reset_cost;
+        self.represented_talent_reset_time_secs_like_cpp = reset_time_secs;
+    }
+
     pub(crate) fn set_player_bank_bag_slot_count_like_cpp(&mut self, count: u8) {
         self.player_bank_bag_slot_count_like_cpp = count;
         if let Some(controller) = &mut self.player_controller {
             controller.set_bank_bag_slot_count(count);
+        }
+    }
+
+    pub(crate) fn set_player_character_points_like_cpp(&mut self, points: i32) {
+        self.player_character_points_like_cpp = points;
+        if let Some(controller) = &mut self.player_controller {
+            controller.set_character_points(points);
         }
     }
 
@@ -24375,6 +29576,12 @@ impl WorldSession {
 
     pub(crate) fn represented_bank_item_moves_like_cpp(&self) -> &[RepresentedBankItemMoveLikeCpp] {
         &self.represented_bank_item_moves_like_cpp
+    }
+
+    pub(crate) fn represented_auto_unequip_offhand_requests_like_cpp(
+        &self,
+    ) -> &[RepresentedAutoUnequipOffhandLikeCpp] {
+        &self.represented_auto_unequip_offhand_requests_like_cpp
     }
 
     pub(crate) fn represented_guild_bank_can_interact_like_cpp(
@@ -24698,9 +29905,17 @@ impl WorldSession {
     }
 
     pub(crate) fn set_known_spells_like_cpp(&mut self, spells: Vec<i32>) {
-        self.known_spells = spells.clone();
+        self.known_spells = spells;
+        self.represented_removed_known_spells_like_cpp.clear();
+        self.represented_dependent_known_spells_like_cpp
+            .retain(|spell_id| self.known_spells.contains(spell_id));
+        self.represented_favorite_known_spells_like_cpp
+            .retain(|spell_id| self.known_spells.contains(spell_id));
+        self.represented_spell_trait_definition_ids_like_cpp
+            .retain(|spell_id, _| self.known_spells.contains(spell_id));
+        self.learn_account_mount_spells_like_cpp();
         if let Some(controller) = &mut self.player_controller {
-            controller.set_known_spells(spells);
+            controller.set_known_spells(self.known_spells.clone());
         }
     }
 
@@ -24709,6 +29924,107 @@ impl WorldSession {
             .into_iter()
             .map(|mount| (mount.spell_id, mount.flags))
             .collect();
+        self.expand_account_mount_faction_definitions_like_cpp();
+        self.learn_account_mount_spells_like_cpp();
+    }
+
+    pub(crate) fn promote_loaded_character_mount_spells_like_cpp(
+        &mut self,
+        spells: &[i32],
+    ) -> usize {
+        if self.mount_store.is_none() {
+            return 0;
+        }
+
+        let mut added = 0usize;
+        for &spell_id in spells {
+            added +=
+                usize::from(self.add_account_mount_with_faction_counterpart_like_cpp(spell_id, 0));
+        }
+        added
+    }
+
+    fn add_account_mount_with_faction_counterpart_like_cpp(
+        &mut self,
+        spell_id: i32,
+        flags: u8,
+    ) -> bool {
+        self.add_account_mount_like_cpp(spell_id, flags, true)
+    }
+
+    fn add_account_mount_like_cpp(
+        &mut self,
+        spell_id: i32,
+        flags: u8,
+        include_faction_counterpart: bool,
+    ) -> bool {
+        let Ok(spell_id_u32) = u32::try_from(spell_id) else {
+            return false;
+        };
+        if self.mount_store.as_ref().is_some_and(|store| {
+            store
+                .get_by_source_spell_id_like_cpp(spell_id_u32)
+                .is_none()
+        }) {
+            return false;
+        }
+
+        if include_faction_counterpart
+            && let Some(other_faction_spell_id) = self
+                .mount_definition_store_like_cpp
+                .as_ref()
+                .and_then(|store| store.other_faction_spell_id_like_cpp(spell_id_u32))
+            && let Ok(other_faction_spell_id) = i32::try_from(other_faction_spell_id)
+        {
+            self.add_account_mount_like_cpp(other_faction_spell_id, flags, false);
+        }
+
+        match self.account_mounts_like_cpp.entry(spell_id) {
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                entry.insert(flags);
+                true
+            }
+            std::collections::hash_map::Entry::Occupied(_) => false,
+        }
+    }
+
+    fn expand_account_mount_faction_definitions_like_cpp(&mut self) {
+        let mounts: Vec<(i32, u8)> = self
+            .account_mounts_like_cpp
+            .iter()
+            .map(|(&spell_id, &flags)| (spell_id, flags))
+            .collect();
+        for (spell_id, flags) in mounts {
+            self.add_account_mount_with_faction_counterpart_like_cpp(spell_id, flags);
+        }
+    }
+
+    fn learn_account_mount_spells_like_cpp(&mut self) -> usize {
+        let mut spell_ids: Vec<i32> = self.account_mounts_like_cpp.keys().copied().collect();
+        spell_ids.sort_unstable();
+        spell_ids.dedup();
+
+        let mut learned = 0usize;
+        for spell_id in spell_ids {
+            let Ok(spell_id_u32) = u32::try_from(spell_id) else {
+                continue;
+            };
+            if !self.mount_store.as_ref().is_none_or(|store| {
+                store
+                    .get_by_source_spell_id_like_cpp(spell_id_u32)
+                    .is_some()
+            }) {
+                continue;
+            }
+            let before = self.known_spells.len();
+            self.learn_dependent_known_spell_like_cpp(spell_id);
+            learned += usize::from(self.known_spells.len() != before);
+        }
+        learned
+    }
+
+    pub(crate) const fn account_mount_spells_are_session_dependent_like_cpp() -> bool {
+        true
     }
 
     #[allow(dead_code)]
@@ -24739,6 +30055,7 @@ impl WorldSession {
         if pet_guid.is_none() {
             self.represented_temporary_unsummoned_pet_number_like_cpp = 0;
             self.represented_old_pet_spell_like_cpp = 0;
+            self.represented_pet_movement_speed_rates_like_cpp = [1.0; UnitMoveTypeLikeCpp::COUNT];
         }
         self.represented_pet_react_state_like_cpp = react_state;
         self.represented_pet_command_state_like_cpp = command_state;
@@ -24747,6 +30064,79 @@ impl WorldSession {
 
     pub(crate) fn set_represented_pet_stable_like_cpp(&mut self, stable: PetStable) {
         self.represented_pet_stable_like_cpp = stable;
+    }
+
+    pub(crate) fn apply_represented_login_pet_talent_reset_like_cpp(&mut self) -> bool {
+        const AT_LOGIN_RESET_PET_TALENTS_LIKE_CPP: u16 = 0x010;
+
+        if (self.represented_at_login_flags_like_cpp & AT_LOGIN_RESET_PET_TALENTS_LIKE_CPP) == 0 {
+            return false;
+        }
+
+        for pet in self
+            .represented_pet_stable_like_cpp
+            .active_pets
+            .iter_mut()
+            .flatten()
+        {
+            pet.specialization_id = 0;
+        }
+        for pet in self
+            .represented_pet_stable_like_cpp
+            .stabled_pets
+            .iter_mut()
+            .flatten()
+        {
+            pet.specialization_id = 0;
+        }
+        for pet in &mut self.represented_pet_stable_like_cpp.unslotted_pets {
+            pet.specialization_id = 0;
+        }
+        self.represented_pet_spells_like_cpp.clear();
+        true
+    }
+
+    /// C++ `Player::RemovePet(nullptr, PET_SAVE_NOT_IN_SLOT, true)`.
+    ///
+    /// Represented boundary: clears the active represented pet link, resets
+    /// `PetStable::CurrentPetIndex`, and removes the live typed pet from the
+    /// canonical map if present. Reagent return and exact `Pet::SavePetToDB`
+    /// remain owned by the future full pet/inventory persistence runtime.
+    pub(crate) fn remove_represented_pet_not_in_slot_like_cpp(&mut self) {
+        let pet_guid = self.represented_pet_guid_like_cpp;
+        if let Some(pet_guid) = pet_guid
+            && let Some(manager) = self.canonical_map_manager.as_ref().map(Arc::clone)
+            && let Ok(mut manager) = manager.lock()
+        {
+            let mut removed = false;
+            manager.do_for_all_maps_mut(|managed| {
+                if removed {
+                    return;
+                }
+                match managed.map_mut().remove_from_map_like_cpp(pet_guid, false) {
+                    Ok(_) => removed = true,
+                    Err(wow_map::RemoveFromMapError::ObjectNotFound { .. }) => {}
+                    Err(_) => {}
+                }
+            });
+        }
+
+        if self.represented_pet_guid_like_cpp.is_some() {
+            self.represented_pet_guid_like_cpp = None;
+            self.represented_pet_created_by_spell_like_cpp = 0;
+            self.represented_pet_react_state_like_cpp =
+                wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP;
+            self.represented_pet_command_state_like_cpp =
+                wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP;
+            self.temporary_mount_pet_react_state_like_cpp = None;
+            self.represented_pet_movement_speed_rates_like_cpp = [1.0; UnitMoveTypeLikeCpp::COUNT];
+        }
+        self.represented_pet_stable_like_cpp.current_pet_index = None;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_pet_stable_current_index_like_cpp(&self) -> Option<u32> {
+        self.represented_pet_stable_like_cpp.current_pet_index
     }
 
     pub(crate) fn load_represented_pet_stable_rows_like_cpp(
@@ -25011,9 +30401,27 @@ impl WorldSession {
     }
 
     pub(crate) fn account_mount_rows_like_cpp(&self) -> Vec<AccountMount> {
-        self.account_mounts_like_cpp
+        let mut mounts = self
+            .account_mounts_like_cpp
             .iter()
             .map(|(&spell_id, &flags)| AccountMount { spell_id, flags })
+            .collect::<Vec<_>>();
+        mounts.sort_by_key(|mount| mount.spell_id);
+        mounts
+    }
+
+    /// C++ `CollectionMgr::SaveAccountMounts`.
+    pub(crate) fn account_mount_save_rows_like_cpp(&self) -> Vec<AccountMountSaveRowLikeCpp> {
+        let bnet_account_id = self.battlenet_account_id();
+        self.account_mount_rows_like_cpp()
+            .into_iter()
+            .filter_map(|mount| {
+                Some(AccountMountSaveRowLikeCpp {
+                    bnet_account_id,
+                    mount_spell_id: u32::try_from(mount.spell_id).ok()?,
+                    flags: mount.flags,
+                })
+            })
             .collect()
     }
 
@@ -25043,20 +30451,813 @@ impl WorldSession {
         true
     }
 
+    #[allow(dead_code)]
     pub(crate) fn set_player_skill_values_like_cpp(&mut self, skill_values: HashMap<u16, u16>) {
+        let skill_records = represented_skill_records_from_values_like_cpp(&skill_values);
         self.player_skill_values_like_cpp = skill_values.clone();
+        self.player_skill_records_like_cpp = skill_records.clone();
+        self.player_skill_records_loaded_like_cpp = true;
         if let Some(controller) = &mut self.player_controller {
-            controller.set_skill_values(skill_values);
+            controller.set_skill_records(skill_records);
         }
+    }
+
+    pub(crate) fn set_player_skill_records_like_cpp(
+        &mut self,
+        skill_records: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
+    ) {
+        self.player_skill_values_like_cpp =
+            represented_skill_values_from_records_like_cpp(&skill_records);
+        self.player_skill_records_like_cpp = skill_records.clone();
+        self.player_skill_records_loaded_like_cpp = true;
+        if let Some(controller) = &mut self.player_controller {
+            controller.set_skill_records(skill_records);
+        }
+    }
+
+    pub(crate) fn player_skill_records_loaded_like_cpp(&self) -> bool {
+        self.player_skill_records_loaded_like_cpp
+    }
+
+    fn set_represented_player_skill_like_cpp(&mut self, skill_id: u16, value: u16, max: u16) {
+        let profession_slot = self
+            .player_skill_records_like_cpp()
+            .get(&skill_id)
+            .map(|skill| skill.profession_slot)
+            .unwrap_or(-1);
+        let mut skill_records = self.player_skill_records_like_cpp().clone();
+        skill_records.insert(
+            skill_id,
+            RepresentedPlayerSkillLikeCpp {
+                skill_id,
+                value,
+                max,
+                profession_slot,
+            },
+        );
+        self.set_player_skill_records_like_cpp(skill_records);
+    }
+
+    fn player_skill_max_value_like_cpp(&self, skill_id: u16) -> u16 {
+        self.player_skill_records_like_cpp()
+            .get(&skill_id)
+            .map(|skill| skill.max)
+            .unwrap_or(0)
+    }
+
+    fn max_skill_value_for_level_like_cpp(&self) -> u16 {
+        u16::from(self.player_level_like_cpp()).saturating_mul(5)
+    }
+
+    fn previous_spell_learn_skill_like_cpp(
+        &self,
+        mut prev_spell: u32,
+    ) -> Option<SpellLearnSkillNodeLikeCpp> {
+        let mut prev_skill = self.spell_learn_skill_like_cpp(prev_spell).copied();
+        while prev_skill.is_none() && prev_spell != 0 {
+            prev_spell = self.prev_spell_in_chain_like_cpp(prev_spell);
+            let first_spell_id = self.first_spell_in_chain_like_cpp(prev_spell);
+            prev_skill = self.spell_learn_skill_like_cpp(first_spell_id).copied();
+        }
+        prev_skill
+    }
+
+    fn downgrade_represented_spell_learn_skill_like_cpp(
+        &mut self,
+        learned_skill: SpellLearnSkillNodeLikeCpp,
+        current_spell_id: u32,
+    ) {
+        let prev_spell = self.prev_spell_in_chain_like_cpp(current_spell_id);
+        if prev_spell == 0 {
+            self.set_represented_player_skill_like_cpp(learned_skill.skill, 0, 0);
+            return;
+        }
+
+        let Some(prev_skill) = self.previous_spell_learn_skill_like_cpp(prev_spell) else {
+            self.set_represented_player_skill_like_cpp(learned_skill.skill, 0, 0);
+            return;
+        };
+
+        let mut skill_value = self.player_skill_value_like_cpp(prev_skill.skill);
+        let mut skill_max_value = self.player_skill_max_value_like_cpp(prev_skill.skill);
+        let mut new_skill_max_value = prev_skill.maxvalue;
+
+        if new_skill_max_value == 0 {
+            if let (Some(skill_store), Some(skill_line_store), Some(skill_tiers_store)) = (
+                self.skill_store(),
+                self.skill_line_store(),
+                self.skill_tiers_store(),
+            ) {
+                if let Some(rc_info) = skill_store.skill_race_class_info_like_cpp(
+                    prev_skill.skill,
+                    self.player_race_like_cpp(),
+                    self.player_class_like_cpp(),
+                ) {
+                    match skill_store.skill_range_type_like_cpp(
+                        rc_info,
+                        skill_line_store,
+                        skill_tiers_store,
+                    ) {
+                        SkillRangeTypeLikeCpp::Language => {
+                            skill_value = 300;
+                            new_skill_max_value = 300;
+                        }
+                        SkillRangeTypeLikeCpp::Level => {
+                            new_skill_max_value = self.max_skill_value_for_level_like_cpp();
+                        }
+                        SkillRangeTypeLikeCpp::Mono => {
+                            new_skill_max_value = 1;
+                        }
+                        SkillRangeTypeLikeCpp::Rank => {
+                            if let Some(tier) = u32::try_from(rc_info.skill_tier_id).ok().and_then(
+                                |skill_tier_id| {
+                                    skill_tiers_store.get_skill_tier_like_cpp(skill_tier_id)
+                                },
+                            ) {
+                                new_skill_max_value = tier
+                                    .get_value_for_tier_index_like_cpp(u32::from(
+                                        prev_skill.step.saturating_sub(1),
+                                    ))
+                                    .try_into()
+                                    .unwrap_or(u16::MAX);
+                            }
+                        }
+                        SkillRangeTypeLikeCpp::None => {}
+                    }
+
+                    if rc_info.flags & wow_data::SKILL_FLAG_ALWAYS_MAX_VALUE_LIKE_CPP != 0 {
+                        skill_value = new_skill_max_value;
+                    }
+                }
+            }
+        } else if skill_value > prev_skill.value {
+            skill_value = prev_skill.value;
+        }
+
+        if skill_max_value > new_skill_max_value {
+            skill_max_value = new_skill_max_value;
+        }
+        if skill_value > new_skill_max_value {
+            skill_value = new_skill_max_value;
+        }
+
+        self.set_represented_player_skill_like_cpp(prev_skill.skill, skill_value, skill_max_value);
     }
 
     pub(crate) fn learn_known_spell_like_cpp(&mut self, spell_id: i32) {
         if !self.known_spells.contains(&spell_id) {
             self.known_spells.push(spell_id);
         }
+        self.represented_removed_known_spells_like_cpp
+            .remove(&spell_id);
         if let Some(controller) = &mut self.player_controller {
             controller.learn_spell(spell_id);
         }
+    }
+
+    pub(crate) fn learn_dependent_known_spell_like_cpp(&mut self, spell_id: i32) {
+        self.learn_known_spell_like_cpp(spell_id);
+        self.represented_dependent_known_spells_like_cpp
+            .insert(spell_id);
+        self.represented_favorite_known_spells_like_cpp
+            .remove(&spell_id);
+    }
+
+    pub(crate) fn set_represented_spell_trait_definition_id_like_cpp(
+        &mut self,
+        spell_id: i32,
+        trait_definition_id: i32,
+    ) {
+        if self.known_spells.contains(&spell_id) && trait_definition_id > 0 {
+            self.represented_spell_trait_definition_ids_like_cpp
+                .insert(spell_id, trait_definition_id);
+        }
+    }
+
+    pub(crate) fn remove_known_spell_like_cpp(&mut self, spell_id: i32) {
+        self.remove_known_spell_with_suppress_messaging_like_cpp(spell_id, false);
+    }
+
+    pub(crate) fn remove_known_spell_with_suppress_messaging_like_cpp(
+        &mut self,
+        spell_id: i32,
+        suppress_messaging: bool,
+    ) {
+        let mut seen = HashSet::new();
+        self.remove_known_spell_with_seen_like_cpp(spell_id, true, suppress_messaging, &mut seen);
+    }
+
+    fn remove_known_spell_with_seen_like_cpp(
+        &mut self,
+        spell_id: i32,
+        learn_low_rank: bool,
+        suppress_messaging: bool,
+        seen: &mut HashSet<i32>,
+    ) {
+        if !self.known_spells.contains(&spell_id) {
+            return;
+        }
+
+        if !seen.insert(spell_id) {
+            return;
+        }
+
+        if let Ok(current_spell_id) = u32::try_from(spell_id) {
+            let next_spell_id = self.next_spell_in_chain_like_cpp(current_spell_id);
+            if next_spell_id != 0 {
+                if let Ok(next_known_spell_id) = i32::try_from(next_spell_id) {
+                    let next_spell_is_talent = self
+                        .spell_custom_attributes_for_difficulty_like_cpp(next_spell_id, 0)
+                        & wow_data::SPELL_ATTR0_CU_IS_TALENT_LIKE_CPP
+                        != 0;
+                    if self.known_spells.contains(&next_known_spell_id) && !next_spell_is_talent {
+                        self.remove_known_spell_with_seen_like_cpp(
+                            next_known_spell_id,
+                            false,
+                            false,
+                            seen,
+                        );
+                    }
+                }
+            }
+
+            let spells_requiring_removed: Vec<i32> = self
+                .spells_requiring_spell_like_cpp(current_spell_id)
+                .iter()
+                .filter_map(|spell| i32::try_from(*spell).ok())
+                .collect();
+            for requiring_spell_id in spells_requiring_removed {
+                if self.known_spells.contains(&requiring_spell_id) {
+                    self.remove_known_spell_with_seen_like_cpp(
+                        requiring_spell_id,
+                        true,
+                        false,
+                        seen,
+                    );
+                }
+            }
+        }
+
+        let was_known = self.known_spells.contains(&spell_id);
+        let was_dependent = self
+            .represented_dependent_known_spells_like_cpp
+            .contains(&spell_id);
+        self.known_spells.retain(|known| *known != spell_id);
+        self.represented_dependent_known_spells_like_cpp
+            .remove(&spell_id);
+        self.represented_favorite_known_spells_like_cpp
+            .remove(&spell_id);
+        if was_known && !was_dependent {
+            self.represented_removed_known_spells_like_cpp
+                .insert(spell_id);
+        }
+
+        let mut unlearned_spells_packet_like_cpp = None;
+
+        if let Ok(current_spell_id) = u32::try_from(spell_id) {
+            let mut prev_activate = false;
+
+            if let Some(learned_skill) = self.spell_learn_skill_like_cpp(current_spell_id).copied()
+            {
+                self.downgrade_represented_spell_learn_skill_like_cpp(
+                    learned_skill,
+                    current_spell_id,
+                );
+            }
+
+            let learned_spells: Vec<SpellLearnSpellNodeLikeCpp> = self
+                .spell_learn_spell_map_bounds_like_cpp(current_spell_id)
+                .to_vec();
+            for learned_spell in learned_spells {
+                if let Ok(learned_spell_id) = i32::try_from(learned_spell.spell) {
+                    self.remove_known_spell_with_seen_like_cpp(learned_spell_id, true, false, seen);
+                    if learned_spell.overrides_spell != 0 {
+                        if let Ok(overrides_spell_id) = i32::try_from(learned_spell.overrides_spell)
+                        {
+                            self.remove_represented_override_spell_like_cpp(
+                                overrides_spell_id,
+                                learned_spell_id,
+                            );
+                        }
+                    }
+                }
+            }
+
+            if learn_low_rank {
+                let prev_spell_id = self.prev_spell_in_chain_like_cpp(current_spell_id);
+                if prev_spell_id != 0 {
+                    if let Ok(prev_known_spell_id) = i32::try_from(prev_spell_id) {
+                        let current_spell_is_ranked = self
+                            .spell_chain_store()
+                            .and_then(|store| store.spell_chain_node_like_cpp(current_spell_id))
+                            .is_some();
+                        if current_spell_is_ranked
+                            && self.known_spells.contains(&prev_known_spell_id)
+                        {
+                            if was_dependent {
+                                self.learn_dependent_known_spell_like_cpp(prev_known_spell_id);
+                            } else {
+                                self.learn_known_spell_like_cpp(prev_known_spell_id);
+                                self.represented_dependent_known_spells_like_cpp
+                                    .remove(&prev_known_spell_id);
+                            }
+                            self.send_packet(
+                                &wow_packet::packets::trainer::SupercededSpells::single(
+                                    spell_id,
+                                    prev_known_spell_id,
+                                ),
+                            );
+                            prev_activate = true;
+                        }
+                    }
+                }
+            }
+
+            if !prev_activate {
+                unlearned_spells_packet_like_cpp = Some((current_spell_id, suppress_messaging));
+            }
+        }
+
+        if let Some(trait_definition_id) = self
+            .represented_spell_trait_definition_ids_like_cpp
+            .remove(&spell_id)
+        {
+            if let Ok(trait_definition_id) = u32::try_from(trait_definition_id) {
+                let override_spell_id = self
+                    .trait_definition_store()
+                    .and_then(|store| store.get(trait_definition_id))
+                    .map(|definition| definition.overrides_spell_id)
+                    .unwrap_or(0);
+                if override_spell_id > 0 {
+                    self.remove_represented_override_spell_like_cpp(override_spell_id, spell_id);
+                }
+            }
+        }
+        self.represented_override_spells_like_cpp.remove(&spell_id);
+
+        self.cleanup_removed_spell_titan_grip_like_cpp(spell_id);
+        self.cleanup_removed_spell_dual_wield_like_cpp(spell_id);
+        if self.represented_offhand_check_at_spell_unlearn_like_cpp {
+            self.represented_auto_unequip_offhand_if_need_like_cpp(false);
+        }
+
+        if let Some(controller) = &mut self.player_controller {
+            controller.remove_spell(spell_id);
+        }
+
+        if let Some((spell_id, suppress_messaging)) = unlearned_spells_packet_like_cpp {
+            self.send_packet(&wow_packet::packets::trainer::UnlearnedSpells::single(
+                spell_id,
+                suppress_messaging,
+            ));
+        }
+    }
+
+    fn cleanup_removed_spell_titan_grip_like_cpp(&mut self, spell_id: i32) {
+        let Some(spell_store) = self.spell_store() else {
+            return;
+        };
+        let Some(spell_info) = spell_store.get(spell_id) else {
+            return;
+        };
+        if !spell_store.is_passive_like_cpp(spell_id)
+            || !spell_info
+                .has_effect_like_cpp(wow_data::spell::spell_effect_types::SPELL_EFFECT_TITAN_GRIP)
+        {
+            return;
+        }
+
+        let Some(penalty_spell_id) = self.mutate_canonical_player_like_cpp(|player| {
+            player
+                .can_titan_grip()
+                .then_some(player.titan_grip_penalty_spell_id())
+        }) else {
+            return;
+        };
+        let Some(penalty_spell_id) = penalty_spell_id else {
+            return;
+        };
+
+        if penalty_spell_id > 0 {
+            let _ = self.remove_represented_auras_due_to_spell_like_cpp(
+                i32::try_from(penalty_spell_id).unwrap_or(i32::MAX),
+            );
+        }
+
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            player.set_can_titan_grip(false, 0);
+        });
+    }
+
+    fn cleanup_removed_spell_dual_wield_like_cpp(&mut self, spell_id: i32) {
+        let Some(spell_store) = self.spell_store() else {
+            return;
+        };
+        let Some(spell_info) = spell_store.get(spell_id) else {
+            return;
+        };
+        if !spell_store.is_passive_like_cpp(spell_id)
+            || !spell_info
+                .has_effect_like_cpp(wow_data::spell::spell_effect_types::SPELL_EFFECT_DUAL_WIELD)
+        {
+            return;
+        }
+
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            if player.unit().can_dual_wield_like_cpp() {
+                player.unit_mut().set_can_dual_wield_like_cpp(false);
+            }
+        });
+    }
+
+    fn represented_auto_unequip_offhand_if_need_like_cpp(&mut self, force: bool) -> bool {
+        let Some(offhand_item) = self
+            .inventory_items_like_cpp()
+            .get(&EQUIPMENT_SLOT_OFFHAND)
+            .cloned()
+        else {
+            return false;
+        };
+        let Some(offhand_template) = self.item_storage_template(offhand_item.entry_id) else {
+            return false;
+        };
+        let mainhand_template = self
+            .inventory_items_like_cpp()
+            .get(&EQUIPMENT_SLOT_MAINHAND)
+            .and_then(|item| self.item_storage_template(item.entry_id));
+        let (can_dual_wield, can_titan_grip) = self
+            .canonical_player_snapshot_like_cpp(|player| {
+                (
+                    player.unit().can_dual_wield_like_cpp(),
+                    player.can_titan_grip(),
+                )
+            })
+            .unwrap_or((false, false));
+
+        let always_allow_dual_wield = self
+            .item_template_flags3(offhand_item.entry_id)
+            .is_some_and(|flags| (flags & ItemFlags3::AlwaysAllowDualWield as u32) != 0);
+        let lost_dual_wield = !can_dual_wield
+            && ((offhand_template.inventory_type == InventoryType::WeaponOffhand
+                && !always_allow_dual_wield)
+                || offhand_template.inventory_type == InventoryType::Weapon);
+        let is_two_hand_used = mainhand_template.is_some_and(|template| {
+            (template.inventory_type == InventoryType::Weapon2Hand && !can_titan_grip)
+                || template.inventory_type == InventoryType::Ranged
+                || (template.inventory_type == InventoryType::RangedRight
+                    && template.class_id == ItemClass::Weapon
+                    && template.subclass_id != ItemSubClassWeapon::Wand as u32)
+        });
+
+        let reason = if force {
+            Some(RepresentedAutoUnequipOffhandReasonLikeCpp::Forced)
+        } else if lost_dual_wield {
+            Some(RepresentedAutoUnequipOffhandReasonLikeCpp::LostDualWield)
+        } else if !can_titan_grip
+            && (offhand_template.inventory_type == InventoryType::Weapon2Hand || is_two_hand_used)
+        {
+            Some(RepresentedAutoUnequipOffhandReasonLikeCpp::InvalidTwoHandState)
+        } else {
+            None
+        };
+
+        let Some(reason) = reason else {
+            return false;
+        };
+
+        self.remove_represented_offhand_duration_refs_like_cpp(offhand_item.guid);
+        self.clear_represented_offhand_equipped_flag_like_cpp(offhand_item.guid);
+        self.remove_represented_offhand_tradeable_item_like_cpp(offhand_item.guid);
+        let _item_set_changed = self.record_direct_inventory_item_set_remove_like_cpp(
+            INVENTORY_SLOT_BAG_0,
+            EQUIPMENT_SLOT_OFFHAND,
+            offhand_item.guid,
+        );
+        let item_mods_changed =
+            self.record_represented_offhand_item_mod_remove_like_cpp(offhand_item.guid);
+        self.record_represented_offhand_combat_stat_recalculations_like_cpp();
+
+        let mut stored_destination = None;
+        let mut needs_mail_fallback = true;
+        if let Some((InventoryResult::Ok, destinations, _)) =
+            self.plan_store_existing_direct_inventory_item_like_cpp(EQUIPMENT_SLOT_OFFHAND)
+            && let Some(destination) = destinations.first()
+        {
+            let [bag, slot] = destination.pos.to_be_bytes();
+            if self.move_represented_direct_inventory_item_to_pos_like_cpp(
+                EQUIPMENT_SLOT_OFFHAND,
+                bag,
+                slot,
+            ) {
+                self.sync_canonical_direct_inventory_move_like_cpp(
+                    EQUIPMENT_SLOT_OFFHAND,
+                    bag,
+                    slot,
+                    offhand_item.guid,
+                );
+                self.send_auto_unequip_offhand_values_update_like_cpp(
+                    Some((bag, slot)),
+                    offhand_item.guid,
+                );
+                self.send_item_contained_in_values_update_like_cpp(offhand_item.guid);
+                if bag != INVENTORY_SLOT_BAG_0 {
+                    self.send_bag_slot_values_update_like_cpp(bag, slot);
+                }
+                if item_mods_changed {
+                    self.send_represented_item_bonus_player_stat_update_like_cpp();
+                }
+                stored_destination = Some((bag, slot));
+                needs_mail_fallback = false;
+            }
+        }
+        if needs_mail_fallback {
+            self.remove_inventory_item_like_cpp(EQUIPMENT_SLOT_OFFHAND);
+            self.sync_canonical_direct_inventory_remove_like_cpp(EQUIPMENT_SLOT_OFFHAND);
+            self.send_auto_unequip_offhand_values_update_like_cpp(None, offhand_item.guid);
+            self.update_inventory_item_object_like_cpp(offhand_item.guid, |item| {
+                item.set_contained_in(ObjectGuid::EMPTY);
+                item.set_container_guid(ObjectGuid::EMPTY);
+                item.set_slot(NULL_SLOT);
+            });
+            self.send_item_contained_in_values_update_like_cpp(offhand_item.guid);
+            if item_mods_changed {
+                self.send_represented_item_bonus_player_stat_update_like_cpp();
+            }
+        }
+
+        self.record_represented_titan_grip_penalty_action_like_cpp();
+        self.record_represented_avg_equipped_item_level_update_like_cpp();
+
+        self.represented_auto_unequip_offhand_requests_like_cpp
+            .push(RepresentedAutoUnequipOffhandLikeCpp {
+                item_guid: offhand_item.guid,
+                item_entry: offhand_item.entry_id,
+                reason,
+                stored_destination,
+                needs_mail_fallback,
+            });
+        true
+    }
+
+    fn clear_represented_offhand_equipped_flag_like_cpp(&mut self, item_guid: ObjectGuid) {
+        self.update_inventory_item_object_like_cpp(item_guid, |item| {
+            item.remove_item_flag2(ItemFieldFlags2::EQUIPPED);
+        });
+    }
+
+    fn remove_represented_offhand_duration_refs_like_cpp(&mut self, item_guid: ObjectGuid) {
+        let Some(mut item) = self
+            .inventory_item_objects_like_cpp()
+            .get(&item_guid)
+            .cloned()
+        else {
+            return;
+        };
+
+        let Some(removed_enchantments) = self.mutate_canonical_player_like_cpp(|player| {
+            let removed_enchantments = player.remove_enchantment_durations(&mut item);
+            let _ = player.remove_item_durations(&item);
+            removed_enchantments
+        }) else {
+            return;
+        };
+
+        if removed_enchantments.is_empty() {
+            return;
+        }
+
+        let _ = self.update_inventory_item_object_like_cpp(item_guid, |stored_item| {
+            for duration in removed_enchantments {
+                stored_item.set_enchantment_duration(duration.slot, duration.left_duration_ms);
+            }
+        });
+    }
+
+    fn remove_represented_offhand_tradeable_item_like_cpp(&mut self, item_guid: ObjectGuid) {
+        let Some(item) = self
+            .inventory_item_objects_like_cpp()
+            .get(&item_guid)
+            .cloned()
+        else {
+            return;
+        };
+
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            player.remove_tradeable_item(&item);
+        });
+    }
+
+    fn record_represented_offhand_item_mod_remove_like_cpp(
+        &mut self,
+        item_guid: ObjectGuid,
+    ) -> bool {
+        if self
+            .inventory_item_objects_like_cpp()
+            .get(&item_guid)
+            .is_some_and(|item| item.is_broken())
+        {
+            return false;
+        }
+
+        let action_start = self.represented_item_bonus_actions_like_cpp.len();
+        self.record_represented_item_mods_like_cpp(item_guid, EQUIPMENT_SLOT_OFFHAND, false);
+        self.represented_item_bonus_actions_like_cpp.len() != action_start
+    }
+
+    fn record_represented_offhand_combat_stat_recalculations_like_cpp(&mut self) {
+        self.represented_combat_stat_recalculations_like_cpp.push(
+            RepresentedCombatStatRecalculationLikeCpp::Expertise {
+                attack: WeaponAttackType::OffAttack,
+            },
+        );
+        self.represented_combat_stat_recalculations_like_cpp.push(
+            RepresentedCombatStatRecalculationLikeCpp::Rating {
+                combat_rating: CR_ARMOR_PENETRATION_LIKE_CPP,
+            },
+        );
+    }
+
+    fn record_represented_titan_grip_penalty_action_like_cpp(&mut self) {
+        let main_template = self
+            .inventory_items_like_cpp()
+            .get(&EQUIPMENT_SLOT_MAINHAND)
+            .and_then(|item| self.item_storage_template(item.entry_id));
+        let off_template = self
+            .inventory_items_like_cpp()
+            .get(&EQUIPMENT_SLOT_OFFHAND)
+            .and_then(|item| self.item_storage_template(item.entry_id));
+        let using_two_handed_weapon_in_one_hand =
+            Player::is_using_two_handed_weapon_in_one_hand_template(
+                main_template.as_ref(),
+                off_template.as_ref(),
+            );
+
+        let Some(action) = self.canonical_player_snapshot_like_cpp(|player| {
+            let penalty_spell_id = player.titan_grip_penalty_spell_id();
+            let has_penalty_aura = penalty_spell_id > 0
+                && self
+                    .visible_auras
+                    .values()
+                    .any(|aura| aura.spell_id == penalty_spell_id as i32);
+
+            player.check_titan_grip_penalty_action(
+                using_two_handed_weapon_in_one_hand,
+                has_penalty_aura,
+            )
+        }) else {
+            return;
+        };
+
+        if action != TitanGripPenaltyAction::None {
+            self.represented_titan_grip_penalty_actions_like_cpp
+                .push(action);
+        }
+    }
+
+    fn record_represented_avg_equipped_item_level_update_like_cpp(&mut self) {
+        let avg_equipped_item_level = self.represented_avg_equipped_item_level_like_cpp();
+        self.represented_avg_equipped_item_level_updates_like_cpp
+            .push(avg_equipped_item_level);
+    }
+
+    fn send_auto_unequip_offhand_values_update_like_cpp(
+        &self,
+        stored_destination: Option<(u8, u8)>,
+        item_guid: ObjectGuid,
+    ) {
+        let mut inv_slot_changes = vec![(EQUIPMENT_SLOT_OFFHAND, ObjectGuid::EMPTY)];
+        if let Some((INVENTORY_SLOT_BAG_0, slot)) = stored_destination {
+            inv_slot_changes.push((slot, item_guid));
+        }
+
+        self.send_player_values_update_from_entity_bridge(
+            &inv_slot_changes,
+            &[(EQUIPMENT_SLOT_OFFHAND, 0, 0, 0)],
+            &[],
+            &[],
+            None,
+        );
+    }
+
+    fn send_bag_slot_values_update_like_cpp(&self, bag_slot: u8, changed_slot: u8) {
+        if changed_slot as usize >= MAX_BAG_SIZE {
+            return;
+        }
+        let Some((bag_guid, bag_size, slot_values)) = self
+            .canonical_player_snapshot_like_cpp(|player| {
+                let bag = player
+                    .inventory()
+                    .bags
+                    .get(bag_slot as usize)
+                    .and_then(Option::as_ref)?;
+                let mut slots = [ObjectGuid::EMPTY; MAX_BAG_SIZE];
+                for (index, slot) in bag.slots.iter().enumerate() {
+                    slots[index] = slot.unwrap_or(ObjectGuid::EMPTY);
+                }
+                Some((bag.bag_guid, bag.bag_size, slots))
+            })
+            .flatten()
+        else {
+            return;
+        };
+
+        let mut container_data_mask = UpdateMask::new(CONTAINER_DATA_BITS);
+        container_data_mask.set(CONTAINER_DATA_SLOTS_PARENT_BIT);
+        container_data_mask.set(CONTAINER_DATA_SLOTS_FIRST_BIT + changed_slot as usize);
+        let update = BagValuesUpdate {
+            changed_object_type_mask: 1 << TYPEID_CONTAINER,
+            object_data: None,
+            item_data: None,
+            container_data: Some(ContainerDataUpdate {
+                mask: container_data_mask,
+                values: ContainerDataValues {
+                    num_slots: u32::from(bag_size),
+                    slots: slot_values,
+                },
+            }),
+        };
+        if let Some(packet) =
+            bag_values_update_to_update_object(bag_guid, self.player_map_id_like_cpp(), &update)
+        {
+            self.send_packet(&packet);
+        }
+    }
+
+    fn send_item_contained_in_values_update_like_cpp(&self, item_guid: ObjectGuid) {
+        let Some(item) = self.inventory_item_objects_like_cpp().get(&item_guid) else {
+            return;
+        };
+        let mut item_data_mask = UpdateMask::new(ITEM_DATA_BITS);
+        item_data_mask.set(ITEM_DATA_CONTAINED_IN_BIT);
+        let update = ItemValuesUpdate {
+            changed_object_type_mask: 1 << TYPEID_ITEM,
+            object_data: None,
+            item_data: Some(ItemDataUpdate {
+                mask: item_data_mask,
+                values: item.data().clone(),
+            }),
+        };
+        if let Some(packet) =
+            item_values_update_to_update_object(item_guid, self.player_map_id_like_cpp(), &update)
+        {
+            self.send_packet(&packet);
+        }
+    }
+
+    pub(crate) fn add_represented_override_spell_like_cpp(
+        &mut self,
+        overriden_spell_id: i32,
+        new_spell_id: i32,
+    ) {
+        if overriden_spell_id <= 0 || new_spell_id <= 0 {
+            return;
+        }
+        self.represented_override_spells_like_cpp
+            .entry(overriden_spell_id)
+            .or_default()
+            .insert(new_spell_id);
+    }
+
+    pub(crate) fn remove_represented_override_spell_like_cpp(
+        &mut self,
+        overriden_spell_id: i32,
+        new_spell_id: i32,
+    ) {
+        if let Some(overrides) = self
+            .represented_override_spells_like_cpp
+            .get_mut(&overriden_spell_id)
+        {
+            overrides.remove(&new_spell_id);
+            if overrides.is_empty() {
+                self.represented_override_spells_like_cpp
+                    .remove(&overriden_spell_id);
+            }
+        }
+    }
+
+    pub(crate) fn represented_cast_spell_info_like_cpp(
+        &self,
+        spell_info: &wow_data::SpellInfo,
+    ) -> wow_data::SpellInfo {
+        if let Some(overrides) = self
+            .represented_override_spells_like_cpp
+            .get(&spell_info.spell_id)
+        {
+            if let Some(store) = self.spell_store() {
+                for new_spell_id in overrides {
+                    if let Some(new_info) = store.get(*new_spell_id) {
+                        return new_info.clone();
+                    }
+                }
+            }
+        }
+
+        spell_info.clone()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_override_spells_like_cpp(&self) -> &HashMap<i32, BTreeSet<i32>> {
+        &self.represented_override_spells_like_cpp
     }
 
     pub(crate) fn sync_player_currencies_like_cpp(&mut self) {
@@ -25160,6 +31361,11 @@ impl WorldSession {
         self.player_movement_flags_like_cpp
     }
 
+    #[cfg(test)]
+    pub(crate) fn represented_can_swim_to_fly_transition_like_cpp(&self) -> bool {
+        self.represented_can_swim_to_fly_transition_like_cpp
+    }
+
     pub(crate) fn player_liquid_status_like_cpp(&self) -> u32 {
         self.player_liquid_status_like_cpp
     }
@@ -25176,6 +31382,10 @@ impl WorldSession {
             .as_ref()
             .map(SessionPlayerController::class)
             .unwrap_or(self.player_class)
+    }
+
+    pub(crate) fn player_create_mode_like_cpp(&self) -> u8 {
+        self.player_create_mode_like_cpp
     }
 
     pub(crate) fn player_level_like_cpp(&self) -> u8 {
@@ -25200,6 +31410,22 @@ impl WorldSession {
         self.loot_specialization_id = spec_id;
     }
 
+    pub(crate) fn represented_shapeshift_form_like_cpp(&self) -> u32 {
+        self.represented_shapeshift_form_like_cpp
+    }
+
+    pub(crate) fn set_represented_shapeshift_form_like_cpp(&mut self, form_id: u32) {
+        self.represented_shapeshift_form_like_cpp = form_id;
+    }
+
+    pub(crate) fn represented_primary_specialization_id_like_cpp(&self) -> u32 {
+        self.represented_primary_specialization_id_like_cpp
+    }
+
+    pub(crate) fn set_represented_primary_specialization_id_like_cpp(&mut self, spec_id: u32) {
+        self.represented_primary_specialization_id_like_cpp = spec_id;
+    }
+
     pub(crate) fn player_gold_like_cpp(&self) -> u64 {
         self.player_controller
             .as_ref()
@@ -25207,11 +31433,26 @@ impl WorldSession {
             .unwrap_or(self.player_gold)
     }
 
+    pub(crate) fn represented_talent_reset_cost_like_cpp(&self) -> u32 {
+        self.represented_talent_reset_cost_like_cpp
+    }
+
+    pub(crate) fn represented_talent_reset_time_secs_like_cpp(&self) -> u64 {
+        self.represented_talent_reset_time_secs_like_cpp
+    }
+
     pub(crate) fn player_bank_bag_slot_count_like_cpp(&self) -> u8 {
         self.player_controller
             .as_ref()
             .map(SessionPlayerController::bank_bag_slot_count)
             .unwrap_or(self.player_bank_bag_slot_count_like_cpp)
+    }
+
+    pub(crate) fn player_character_points_like_cpp(&self) -> i32 {
+        self.player_controller
+            .as_ref()
+            .map(SessionPlayerController::character_points)
+            .unwrap_or(self.player_character_points_like_cpp)
     }
 
     pub(crate) fn player_xp_like_cpp(&self) -> u32 {
@@ -25243,11 +31484,79 @@ impl WorldSession {
             .unwrap_or(&self.known_spells)
     }
 
+    #[cfg(test)]
+    pub(crate) fn represented_dependent_known_spells_like_cpp(&self) -> &HashSet<i32> {
+        &self.represented_dependent_known_spells_like_cpp
+    }
+
+    pub(crate) fn set_represented_favorite_known_spells_like_cpp(
+        &mut self,
+        favorite_spells: HashSet<i32>,
+    ) {
+        self.represented_favorite_known_spells_like_cpp = favorite_spells
+            .into_iter()
+            .filter(|spell_id| self.known_spells.contains(spell_id))
+            .collect();
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn represented_player_spell_rows_like_cpp(
+        &self,
+    ) -> Vec<RepresentedPlayerSpellLikeCpp> {
+        let mut rows = self
+            .known_spells_like_cpp()
+            .iter()
+            .copied()
+            .map(|spell_id| RepresentedPlayerSpellLikeCpp {
+                spell_id,
+                active: true,
+                disabled: false,
+                dependent: self
+                    .represented_dependent_known_spells_like_cpp
+                    .contains(&spell_id),
+                favorite: self
+                    .represented_favorite_known_spells_like_cpp
+                    .contains(&spell_id),
+                state: RepresentedPlayerSpellStateLikeCpp::Unchanged,
+            })
+            .collect::<Vec<_>>();
+
+        rows.extend(
+            self.represented_removed_known_spells_like_cpp
+                .iter()
+                .copied()
+                .map(|spell_id| RepresentedPlayerSpellLikeCpp {
+                    spell_id,
+                    active: false,
+                    disabled: false,
+                    dependent: false,
+                    favorite: false,
+                    state: RepresentedPlayerSpellStateLikeCpp::Removed,
+                }),
+        );
+        rows.sort_by_key(|spell| spell.spell_id);
+        rows
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_favorite_known_spells_like_cpp(&self) -> &HashSet<i32> {
+        &self.represented_favorite_known_spells_like_cpp
+    }
+
     pub(crate) fn player_skill_values_like_cpp(&self) -> &HashMap<u16, u16> {
         self.player_controller
             .as_ref()
             .map(SessionPlayerController::skill_values)
             .unwrap_or(&self.player_skill_values_like_cpp)
+    }
+
+    pub(crate) fn player_skill_records_like_cpp(
+        &self,
+    ) -> &HashMap<u16, RepresentedPlayerSkillLikeCpp> {
+        self.player_controller
+            .as_ref()
+            .map(SessionPlayerController::skill_records)
+            .unwrap_or(&self.player_skill_records_like_cpp)
     }
 
     pub(crate) fn player_skill_value_like_cpp(&self, skill_id: u16) -> u16 {
@@ -25318,27 +31627,22 @@ impl WorldSession {
             .iter()
             .map(|(&id, &value)| PlayerConditionSkillLikeCpp { id, value })
             .collect();
+        let (_, area_id) = self.player_zone_area_like_cpp();
+        let (explored_area_ids, parent_area_ids) = self
+            .area_table_store
+            .as_ref()
+            .map(|store| {
+                (
+                    store.explored_area_ids_from_blocks_like_cpp(
+                        &self.represented_explored_zones_like_cpp,
+                    ),
+                    store.parent_area_ids_like_cpp(area_id),
+                )
+            })
+            .unwrap_or_default();
 
-        let mut item_level_sum = 0u32;
-        let mut item_level_count = 0u32;
-        let mut equipped_level_sum = 0u32;
-        let mut equipped_level_count = 0u32;
         let mut mainhand_weapon_subclass = None;
         for (&slot, inventory_item) in self.inventory_items_like_cpp() {
-            let Some(template) = self
-                .item_stats_store
-                .as_ref()
-                .and_then(|store| store.random_property_template(inventory_item.entry_id))
-            else {
-                continue;
-            };
-            item_level_sum = item_level_sum.saturating_add(u32::from(template.item_level));
-            item_level_count = item_level_count.saturating_add(1);
-            if is_equipment_packed_pos(make_item_pos(INVENTORY_SLOT_BAG_0, slot)) {
-                equipped_level_sum =
-                    equipped_level_sum.saturating_add(u32::from(template.item_level));
-                equipped_level_count = equipped_level_count.saturating_add(1);
-            }
             if slot == EQUIPMENT_SLOT_MAINHAND {
                 mainhand_weapon_subclass = self
                     .item_store
@@ -25357,19 +31661,664 @@ impl WorldSession {
             complete_quests,
             auras,
             skills,
-            avg_item_level: if item_level_count == 0 {
-                0.0
-            } else {
-                item_level_sum as f32 / item_level_count as f32
-            },
-            avg_equipped_item_level: if equipped_level_count == 0 {
-                0.0
-            } else {
-                equipped_level_sum as f32 / equipped_level_count as f32
-            },
+            explored_area_ids,
+            parent_area_ids,
+            avg_item_level: self.represented_avg_total_item_level_like_cpp(),
+            avg_equipped_item_level: self.represented_avg_equipped_item_level_like_cpp(),
             mainhand_weapon_subclass,
             ..Default::default()
         }
+    }
+
+    fn represented_avg_total_item_level_like_cpp(&self) -> f32 {
+        let can_dual_wield = self
+            .canonical_player_snapshot_like_cpp(|player| player.unit().can_dual_wield_like_cpp())
+            .unwrap_or(false);
+        let can_titan_grip = self
+            .canonical_player_snapshot_like_cpp(Player::can_titan_grip)
+            .unwrap_or(false);
+        let mut best_item_levels =
+            vec![(InventoryType::NonEquip, 0u32, ObjectGuid::EMPTY); EQUIPMENT_SLOT_END as usize];
+        let mut sum = 0u32;
+
+        let item_objects = self.inventory_item_objects_like_cpp();
+        for (&slot, inventory_item) in self.inventory_items_like_cpp() {
+            let runtime_item = item_objects.get(&inventory_item.guid);
+            self.represented_avg_total_item_level_consume_candidate_like_cpp(
+                &mut best_item_levels,
+                &mut sum,
+                Some(slot),
+                inventory_item.entry_id,
+                inventory_item.guid,
+                runtime_item,
+                can_dual_wield,
+                can_titan_grip,
+            );
+        }
+
+        for item in item_objects.values() {
+            if item.is_in_trade()
+                || item.container_guid().is_empty()
+                || !item_objects.contains_key(&item.container_guid())
+            {
+                continue;
+            }
+
+            self.represented_avg_total_item_level_consume_candidate_like_cpp(
+                &mut best_item_levels,
+                &mut sum,
+                None,
+                item.object().entry(),
+                item.object().guid(),
+                Some(item),
+                can_dual_wield,
+                can_titan_grip,
+            );
+        }
+
+        if !can_titan_grip
+            && best_item_levels[EQUIPMENT_SLOT_MAINHAND as usize].0 == InventoryType::Weapon2Hand
+        {
+            sum = sum.saturating_add(best_item_levels[EQUIPMENT_SLOT_MAINHAND as usize].1);
+        }
+
+        sum as f32 / 16.0
+    }
+
+    fn represented_avg_total_item_level_consume_candidate_like_cpp(
+        &self,
+        best_item_levels: &mut [(InventoryType, u32, ObjectGuid)],
+        sum: &mut u32,
+        direct_slot: Option<u8>,
+        entry_id: u32,
+        item_guid: ObjectGuid,
+        runtime_item: Option<&Item>,
+        can_dual_wield: bool,
+        can_titan_grip: bool,
+    ) {
+        let Some(storage_template) = self.item_storage_template(entry_id) else {
+            return;
+        };
+        let Some(item_level) = self.represented_item_level_like_cpp(entry_id, runtime_item) else {
+            return;
+        };
+        let inventory_type = storage_template.inventory_type;
+
+        if let Some(slot) = direct_slot.filter(|slot| *slot < EQUIPMENT_SLOT_END) {
+            Self::represented_avg_total_item_level_maybe_replace_slot_like_cpp(
+                best_item_levels,
+                sum,
+                slot,
+                inventory_type,
+                item_level,
+                item_guid,
+                false,
+            );
+            return;
+        }
+
+        if let Some(runtime_item) = runtime_item {
+            let represented_item = InventoryItem {
+                guid: item_guid,
+                entry_id,
+                db_guid: item_guid.counter() as u64,
+                inventory_type: Some(inventory_type as u8),
+            };
+            if self.can_use_inventory_item_represented_with_loading_like_cpp(
+                &represented_item,
+                Some(runtime_item),
+                false,
+            ) != InventoryResult::Ok
+            {
+                return;
+            }
+
+            if self
+                .represented_avg_total_item_level_can_equip_unique_like_cpp(entry_id, runtime_item)
+                != InventoryResult::Ok
+            {
+                return;
+            }
+
+            if self.represented_avg_total_item_level_can_equip_item_like_cpp(
+                entry_id,
+                runtime_item,
+                can_dual_wield,
+                can_titan_grip,
+            ) != InventoryResult::Ok
+            {
+                return;
+            }
+        }
+
+        for (candidate_slot, check_duplicate_guid) in
+            Self::represented_total_avg_equipment_slot_candidates_like_cpp(
+                inventory_type,
+                can_dual_wield,
+                can_titan_grip,
+            )
+        {
+            Self::represented_avg_total_item_level_maybe_replace_slot_like_cpp(
+                best_item_levels,
+                sum,
+                candidate_slot,
+                inventory_type,
+                item_level,
+                item_guid,
+                check_duplicate_guid,
+            );
+        }
+    }
+
+    fn represented_avg_total_item_level_can_equip_unique_like_cpp(
+        &self,
+        entry_id: u32,
+        runtime_item: &Item,
+    ) -> InventoryResult {
+        let Some(player) = self.direct_inventory_player_snapshot() else {
+            return InventoryResult::ItemNotFound;
+        };
+        let Some(proto) = self.item_storage_template(entry_id) else {
+            return InventoryResult::ItemNotFound;
+        };
+
+        let item_objects = self.inventory_item_objects_like_cpp();
+        let mut equipped_templates = Vec::new();
+        let mut equipped_items_with_templates = Vec::new();
+        let mut equipped_gems = Vec::new();
+        for (&slot, inventory_item) in self.inventory_items_like_cpp() {
+            if slot >= EQUIPMENT_SLOT_END {
+                continue;
+            }
+            let Some(item) = item_objects.get(&inventory_item.guid) else {
+                continue;
+            };
+            let Some(template) = self.item_storage_template(inventory_item.entry_id) else {
+                continue;
+            };
+            for gem in &item.data().gems {
+                let Ok(gem_entry) = u32::try_from(gem.item_id) else {
+                    continue;
+                };
+                let Some(gem_template) = self.item_storage_template(gem_entry) else {
+                    continue;
+                };
+                equipped_gems.push(EquippedGemRef::new(
+                    slot,
+                    gem_entry,
+                    gem_template.item_limit_category,
+                ));
+            }
+            equipped_templates.push((slot, item, template));
+        }
+
+        for (slot, item, template) in &equipped_templates {
+            equipped_items_with_templates.push(ItemStorageRef::new(
+                INVENTORY_SLOT_BAG_0,
+                *slot,
+                *item,
+                Some(template),
+            ));
+        }
+
+        let mut socketed_gem_templates = Vec::new();
+        for gem in &runtime_item.data().gems {
+            let Ok(gem_entry) = u32::try_from(gem.item_id) else {
+                continue;
+            };
+            let Some(gem_template) = self.item_storage_template(gem_entry) else {
+                continue;
+            };
+            let source_limit_category_count = if gem_template.item_limit_category == 0 {
+                1
+            } else {
+                runtime_item
+                    .data()
+                    .gems
+                    .iter()
+                    .filter_map(|source_gem| u32::try_from(source_gem.item_id).ok())
+                    .filter_map(|source_gem_entry| self.item_storage_template(source_gem_entry))
+                    .filter(|source_gem_template| {
+                        source_gem_template.item_limit_category == gem_template.item_limit_category
+                    })
+                    .count() as u32
+            };
+            let unique_equippable = gem_template.flags.contains(ItemFlags::UNIQUE_EQUIPPABLE);
+            let limit_category =
+                self.item_limit_category_template_like_cpp(gem_template.item_limit_category);
+            socketed_gem_templates.push((
+                gem_template,
+                unique_equippable,
+                limit_category,
+                source_limit_category_count,
+            ));
+        }
+        let mut socketed_gems = Vec::new();
+        for (gem_template, unique_equippable, limit_category, source_limit_category_count) in
+            &socketed_gem_templates
+        {
+            socketed_gems.push(SocketedGemUniqueRef::new(
+                Some(gem_template),
+                *unique_equippable,
+                limit_category.as_ref(),
+                *source_limit_category_count,
+            ));
+        }
+
+        let unique_equippable = proto.flags.contains(ItemFlags::UNIQUE_EQUIPPABLE);
+        let limit_category = self.item_limit_category_template_like_cpp(proto.item_limit_category);
+        player.can_equip_unique_item(CanEquipUniqueItemArgs {
+            source_item: Some(runtime_item),
+            proto: Some(&proto),
+            except_slot: NULL_SLOT,
+            limit_count: 1,
+            unique_equippable,
+            limit_category: limit_category.as_ref(),
+            equipped_items: &equipped_items_with_templates,
+            equipped_gems: &equipped_gems,
+            socketed_gems: &socketed_gems,
+        })
+    }
+
+    fn represented_avg_total_item_level_can_equip_item_like_cpp(
+        &self,
+        entry_id: u32,
+        runtime_item: &Item,
+        can_dual_wield: bool,
+        can_titan_grip: bool,
+    ) -> InventoryResult {
+        let Some(mut player) = self.direct_inventory_player_snapshot() else {
+            return InventoryResult::ItemNotFound;
+        };
+        let Some(proto) = self.item_storage_template(entry_id) else {
+            return InventoryResult::ItemNotFound;
+        };
+
+        player
+            .unit_mut()
+            .set_can_dual_wield_like_cpp(can_dual_wield);
+        player.set_can_titan_grip(can_titan_grip, 0);
+
+        let item_objects = self.inventory_item_objects_like_cpp();
+        let inventory_items = self.inventory_items_like_cpp();
+        let mut template_cache = HashMap::new();
+        for item in item_objects.values() {
+            let item_entry = item.object().entry();
+            if let std::collections::hash_map::Entry::Vacant(entry) =
+                template_cache.entry(item_entry)
+            {
+                if let Some(template) = self.item_storage_template(item_entry) {
+                    entry.insert(template);
+                }
+            }
+        }
+
+        let mut represented_bag_slots_by_guid = HashMap::new();
+        for (&slot, inventory_item) in inventory_items {
+            if Self::is_buyback_slot(slot) {
+                continue;
+            }
+            if is_represented_bag_slot(slot) && item_objects.contains_key(&inventory_item.guid) {
+                represented_bag_slots_by_guid.insert(inventory_item.guid, slot);
+            }
+        }
+
+        let mut storage_rows = Vec::new();
+        let mut equipped_items = Vec::new();
+        for (&slot, inventory_item) in inventory_items {
+            if Self::is_buyback_slot(slot) {
+                continue;
+            }
+            let Some(item) = item_objects.get(&inventory_item.guid) else {
+                continue;
+            };
+            let Some(template) = template_cache.get(&inventory_item.entry_id) else {
+                continue;
+            };
+            storage_rows.push((INVENTORY_SLOT_BAG_0, slot, item, template));
+            if slot < EQUIPMENT_SLOT_END {
+                equipped_items.push(ItemSlotRef::new(INVENTORY_SLOT_BAG_0, slot, item));
+            }
+        }
+        for item in item_objects.values() {
+            if item.is_in_trade() {
+                continue;
+            }
+            let container_guid = item.container_guid();
+            if container_guid.is_empty() {
+                continue;
+            }
+            let Some(&bag_slot) = represented_bag_slots_by_guid.get(&container_guid) else {
+                continue;
+            };
+            let item_entry = item.object().entry();
+            let Some(template) = template_cache.get(&item_entry) else {
+                continue;
+            };
+            storage_rows.push((bag_slot, item.slot(), item, template));
+        }
+        let stored_items: Vec<_> = storage_rows
+            .iter()
+            .map(|(bag, slot, item, template)| {
+                ItemStorageRef::new(*bag, *slot, *item, Some(template))
+            })
+            .collect();
+
+        let mainhand_template = self
+            .inventory_items_like_cpp()
+            .get(&EQUIPMENT_SLOT_MAINHAND)
+            .and_then(|item| self.item_storage_template(item.entry_id));
+        let is_two_hand_used = player.is_two_hand_used_template(mainhand_template.as_ref());
+        let can_use_result = self.can_use_inventory_item_represented_with_loading_like_cpp(
+            &InventoryItem {
+                guid: runtime_item.object().guid(),
+                entry_id,
+                db_guid: runtime_item.object().guid().counter() as u64,
+                inventory_type: Some(proto.inventory_type as u8),
+            },
+            Some(runtime_item),
+            false,
+        );
+        let can_equip_unique_result =
+            self.represented_avg_total_item_level_can_equip_unique_like_cpp(entry_id, runtime_item);
+        let proto_always_allow_dual_wield = self
+            .item_template_flags3(entry_id)
+            .is_some_and(|flags| (flags & ItemFlags3::AlwaysAllowDualWield as u32) != 0);
+        let limit_category = self.item_limit_category_template_like_cpp(proto.item_limit_category);
+
+        player
+            .can_equip_item(CanEquipItemArgs {
+                slot: NULL_SLOT,
+                proto: Some(&proto),
+                source_item: Some(runtime_item),
+                source_bop_trade_allowed_for_player: false,
+                swap: true,
+                not_loading: false,
+                is_stunned: false,
+                is_charmed: false,
+                is_in_combat: false,
+                is_in_progress_arena: false,
+                weapon_change_timer_active: false,
+                current_generic_spell_allows_equip: None,
+                current_channeled_spell_allows_equip: None,
+                heirloom_required_level_failed: false,
+                can_use_result,
+                can_equip_unique_result,
+                can_dual_wield,
+                can_titan_grip,
+                is_two_hand_used,
+                proto_always_allow_dual_wield,
+                has_required_profession_skill: false,
+                profession_slot: None,
+                offhand_can_unequip_result: InventoryResult::Ok,
+                offhand_can_store_result: InventoryResult::Ok,
+                limit_category: limit_category.as_ref(),
+                equipped_items: &equipped_items,
+                stored_items: &stored_items,
+            })
+            .result
+    }
+
+    fn represented_item_level_like_cpp(
+        &self,
+        entry_id: u32,
+        runtime_item: Option<&Item>,
+    ) -> Option<u32> {
+        let item_stats_store = self.item_stats_store.as_ref()?;
+        let random_property_template = item_stats_store.random_property_template(entry_id)?;
+        let sparse_template = item_stats_store.sparse_template(entry_id);
+        let template_item_level = i64::from(random_property_template.item_level);
+        let runtime_item_level = runtime_item
+            .map(|item| i64::from(item.data().debug_item_level))
+            .filter(|level| *level != 0);
+        let item_level = runtime_item_level.unwrap_or_else(|| {
+            let mut item_level = sparse_template
+                .and_then(|template| {
+                    self.represented_player_level_curve_item_level_like_cpp(template, runtime_item)
+                })
+                .unwrap_or(template_item_level);
+            item_level += self.represented_item_level_bonus_like_cpp(runtime_item);
+            let item_level_before_upgrades = item_level;
+            if self.represented_using_pvp_item_levels_like_cpp {
+                item_level += i64::from(self.represented_pvp_item_level_bonus_like_cpp(entry_id));
+            }
+
+            let inventory_type = sparse_template
+                .map(|template| template.inventory_type)
+                .unwrap_or(random_property_template.inventory_type);
+            let is_equipable =
+                <InventoryType as num_traits::FromPrimitive>::from_i8(inventory_type)
+                    .is_some_and(|inventory_type| inventory_type != InventoryType::NonEquip);
+            if !is_equipable {
+                return item_level;
+            }
+
+            let caps = self.represented_item_level_caps_like_cpp;
+            if caps.min_item_level != 0
+                && (caps.min_item_level_cutoff == 0
+                    || item_level_before_upgrades >= i64::from(caps.min_item_level_cutoff))
+                && item_level < i64::from(caps.min_item_level)
+            {
+                item_level = i64::from(caps.min_item_level);
+            }
+
+            let flags3 = sparse_template
+                .map(|template| template.flags[2])
+                .unwrap_or_default();
+            let ignore_max_cap = (flags3 & ItemFlags3::IgnoreItemLevelCapInPvp as u32) != 0;
+            if caps.max_item_level != 0
+                && !ignore_max_cap
+                && item_level > i64::from(caps.max_item_level)
+            {
+                item_level = i64::from(caps.max_item_level);
+            }
+
+            item_level
+        });
+        Some(
+            item_level
+                .clamp(
+                    i64::from(Self::MIN_ITEM_LEVEL_LIKE_CPP),
+                    i64::from(Self::MAX_ITEM_LEVEL_LIKE_CPP),
+                )
+                .try_into()
+                .expect("clamped item level fits u32"),
+        )
+    }
+
+    fn represented_player_level_curve_item_level_like_cpp(
+        &self,
+        template: &wow_data::item_stats::ItemSparseTemplateEntry,
+        runtime_item: Option<&Item>,
+    ) -> Option<i64> {
+        let curve_id = template.player_level_to_item_level_curve_id_like_cpp();
+        if curve_id == 0 {
+            return None;
+        }
+
+        let fixed_level = runtime_item
+            .map(|item| item.get_modifier(ItemModifier::TimewalkerLevel))
+            .unwrap_or(0);
+        let mut level = if fixed_level != 0 {
+            fixed_level
+        } else {
+            u32::from(self.player_level_like_cpp())
+        };
+
+        if fixed_level == 0
+            && let Some(levels) = self.content_tuning_store.as_ref().and_then(|store| {
+                store.content_tuning_data_like_cpp(
+                    template.scaling_stat_content_tuning_like_cpp(),
+                    true,
+                )
+            })
+        {
+            let clamped = (level as i32).clamp(levels.min_level, levels.max_level);
+            level = u32::try_from(clamped).unwrap_or(level);
+        }
+
+        let Some((curve_store, curve_point_store)) = self
+            .curve_store
+            .as_ref()
+            .zip(self.curve_point_store.as_ref())
+        else {
+            return Some(0);
+        };
+        let curve_value =
+            curve_store.curve_value_at_like_cpp(curve_point_store, curve_id, level as f32);
+
+        Some(curve_value as i64)
+    }
+
+    fn represented_item_level_bonus_like_cpp(&self, runtime_item: Option<&Item>) -> i64 {
+        let Some(item) = runtime_item else {
+            return 0;
+        };
+        let Some(store) = self.item_bonus_db2_store.as_ref() else {
+            return 0;
+        };
+
+        item.data()
+            .item_bonus_key
+            .bonus_list_ids
+            .iter()
+            .filter_map(|bonus_list_id| u16::try_from(*bonus_list_id).ok())
+            .flat_map(|bonus_list_id| store.entries_for_bonus_list_like_cpp(bonus_list_id))
+            .filter(|bonus| {
+                <ItemBonusType as num_traits::FromPrimitive>::from_u8(bonus.bonus_type)
+                    == Some(ItemBonusType::ItemLevel)
+            })
+            .map(|bonus| i64::from(bonus.value[0]))
+            .sum()
+    }
+
+    fn represented_pvp_item_level_bonus_like_cpp(&self, entry_id: u32) -> u8 {
+        self.pvp_item_store
+            .as_ref()
+            .map(|store| store.item_level_bonus_like_cpp(entry_id))
+            .unwrap_or(0)
+    }
+
+    fn represented_avg_total_item_level_maybe_replace_slot_like_cpp(
+        best_item_levels: &mut [(InventoryType, u32, ObjectGuid)],
+        sum: &mut u32,
+        slot: u8,
+        inventory_type: InventoryType,
+        item_level: u32,
+        item_guid: ObjectGuid,
+        check_duplicate_guid: bool,
+    ) {
+        if check_duplicate_guid
+            && best_item_levels
+                .iter()
+                .any(|(_, _, existing_guid)| *existing_guid == item_guid)
+        {
+            return;
+        }
+
+        let slot_data = &mut best_item_levels[slot as usize];
+        if item_level > slot_data.1 {
+            *sum = sum.saturating_add(item_level.saturating_sub(slot_data.1));
+            *slot_data = (inventory_type, item_level, item_guid);
+        }
+    }
+
+    fn represented_total_avg_equipment_slot_candidates_like_cpp(
+        inventory_type: InventoryType,
+        can_dual_wield: bool,
+        can_titan_grip: bool,
+    ) -> Vec<(u8, bool)> {
+        match inventory_type {
+            InventoryType::Head => vec![(EQUIPMENT_SLOT_HEAD, false)],
+            InventoryType::Neck => vec![(EQUIPMENT_SLOT_NECK, false)],
+            InventoryType::Shoulders => vec![(EQUIPMENT_SLOT_SHOULDERS, false)],
+            InventoryType::Body => vec![(EQUIPMENT_SLOT_BODY, false)],
+            InventoryType::Robe | InventoryType::Chest => vec![(EQUIPMENT_SLOT_CHEST, false)],
+            InventoryType::Waist => vec![(EQUIPMENT_SLOT_WAIST, false)],
+            InventoryType::Legs => vec![(EQUIPMENT_SLOT_LEGS, false)],
+            InventoryType::Feet => vec![(EQUIPMENT_SLOT_FEET, false)],
+            InventoryType::Wrists => vec![(EQUIPMENT_SLOT_WRISTS, false)],
+            InventoryType::Hands => vec![(EQUIPMENT_SLOT_HANDS, false)],
+            InventoryType::Cloak => vec![(EQUIPMENT_SLOT_BACK, false)],
+            InventoryType::Finger => {
+                vec![
+                    (EQUIPMENT_SLOT_FINGER1, false),
+                    (EQUIPMENT_SLOT_FINGER2, true),
+                ]
+            }
+            InventoryType::Trinket => {
+                vec![
+                    (EQUIPMENT_SLOT_TRINKET1, false),
+                    (EQUIPMENT_SLOT_TRINKET2, true),
+                ]
+            }
+            InventoryType::Weapon => {
+                let mut slots = vec![(EQUIPMENT_SLOT_MAINHAND, false)];
+                if can_dual_wield {
+                    slots.push((EQUIPMENT_SLOT_OFFHAND, true));
+                }
+                slots
+            }
+            InventoryType::Weapon2Hand => {
+                let mut slots = vec![(EQUIPMENT_SLOT_MAINHAND, false)];
+                if can_dual_wield && can_titan_grip {
+                    slots.push((EQUIPMENT_SLOT_OFFHAND, true));
+                }
+                slots
+            }
+            InventoryType::Ranged | InventoryType::RangedRight | InventoryType::WeaponMainhand => {
+                vec![(EQUIPMENT_SLOT_MAINHAND, false)]
+            }
+            InventoryType::Shield | InventoryType::Holdable | InventoryType::WeaponOffhand => {
+                vec![(EQUIPMENT_SLOT_OFFHAND, false)]
+            }
+            InventoryType::NonEquip
+            | InventoryType::Bag
+            | InventoryType::Tabard
+            | InventoryType::Ammo
+            | InventoryType::Thrown
+            | InventoryType::Quiver
+            | InventoryType::Relic
+            | InventoryType::ProfessionTool
+            | InventoryType::ProfessionGear
+            | InventoryType::EquipableSpellOffensive
+            | InventoryType::EquipableSpellUtility
+            | InventoryType::EquipableSpellDefensive
+            | InventoryType::EquipableSpellMobility => Vec::new(),
+        }
+    }
+
+    fn represented_avg_equipped_item_level_like_cpp(&self) -> f32 {
+        let can_titan_grip = self
+            .canonical_player_snapshot_like_cpp(Player::can_titan_grip)
+            .unwrap_or(false);
+        let mut total_item_level = 0u32;
+        for slot in 0..EQUIPMENT_SLOT_END {
+            let Some(inventory_item) = self.inventory_items_like_cpp().get(&slot) else {
+                continue;
+            };
+            let runtime_item = self
+                .inventory_item_objects_like_cpp()
+                .get(&inventory_item.guid);
+            let Some(item_level) =
+                self.represented_item_level_like_cpp(inventory_item.entry_id, runtime_item)
+            else {
+                continue;
+            };
+            total_item_level = total_item_level.saturating_add(item_level);
+            let is_mainhand_two_hand = slot == EQUIPMENT_SLOT_MAINHAND
+                && !can_titan_grip
+                && self
+                    .item_storage_template(inventory_item.entry_id)
+                    .is_some_and(|item_template| {
+                        item_template.inventory_type == InventoryType::Weapon2Hand
+                    });
+            if is_mainhand_two_hand {
+                total_item_level = total_item_level.saturating_add(item_level);
+            }
+        }
+
+        total_item_level as f32 / 16.0
     }
 
     pub(crate) fn represented_meets_player_condition_id_like_cpp(
@@ -25529,17 +32478,26 @@ impl WorldSession {
     }
 
     #[allow(dead_code)]
-    pub(crate) fn represented_mount_capability_for_type_like_cpp(
+    fn represented_mount_capability_selection_for_type_like_cpp(
         &self,
         mount_type_id: u16,
         riding_skill: u32,
         mount_restriction_flags: Option<u8>,
         is_submerged: bool,
         is_in_water: bool,
-    ) -> Option<wow_data::MountCapabilityEntry> {
-        let capability_store = self.mount_capability_store.as_ref()?;
-        let type_store = self.mount_type_x_capability_store.as_ref()?;
-        let area_store = self.area_table_store.as_ref()?;
+    ) -> Result<wow_data::MountCapabilityEntry, wow_data::MountCapabilityRejectLikeCpp> {
+        let capability_store = self
+            .mount_capability_store
+            .as_ref()
+            .ok_or(wow_data::MountCapabilityRejectLikeCpp::MissingCapabilityRow)?;
+        let type_store = self
+            .mount_type_x_capability_store
+            .as_ref()
+            .ok_or(wow_data::MountCapabilityRejectLikeCpp::MissingMountTypeCapabilities)?;
+        let area_store = self
+            .area_table_store
+            .as_ref()
+            .ok_or(wow_data::MountCapabilityRejectLikeCpp::Area)?;
 
         let map_id = u32::from(self.player_map_id_like_cpp());
         let map = self.map_store.as_ref().and_then(|store| store.get(map_id));
@@ -25548,7 +32506,17 @@ impl WorldSession {
             area_store
                 .get(area_id)
                 .map(|area| area.mount_flags as u8)
-                .unwrap_or(0)
+                .unwrap_or_else(|| {
+                    if area_id == 0 {
+                        // C++ reaches this check after TerrainMgr resolved the
+                        // player's area. Until Rust has that full terrain bridge,
+                        // an area 0 placeholder should not make ordinary ground
+                        // mounts fail SPELL_FAILED_NOT_HERE.
+                        wow_data::AREA_MOUNT_FLAG_ALLOW_GROUND_MOUNTS
+                    } else {
+                        0
+                    }
+                })
         });
         let context = wow_data::MountCapabilityContextLikeCpp {
             riding_skill,
@@ -25565,7 +32533,7 @@ impl WorldSession {
         };
 
         capability_store
-            .select_for_mount_type_like_cpp(
+            .select_for_mount_type_with_reject_like_cpp(
                 type_store,
                 mount_type_id,
                 &context,
@@ -25580,6 +32548,24 @@ impl WorldSession {
                 |spell_id| self.known_spells_like_cpp().contains(&spell_id),
             )
             .copied()
+    }
+
+    pub(crate) fn represented_mount_capability_for_type_like_cpp(
+        &self,
+        mount_type_id: u16,
+        riding_skill: u32,
+        mount_restriction_flags: Option<u8>,
+        is_submerged: bool,
+        is_in_water: bool,
+    ) -> Option<wow_data::MountCapabilityEntry> {
+        self.represented_mount_capability_selection_for_type_like_cpp(
+            mount_type_id,
+            riding_skill,
+            mount_restriction_flags,
+            is_submerged,
+            is_in_water,
+        )
+        .ok()
     }
 
     #[allow(dead_code)]
@@ -26601,6 +33587,11 @@ impl WorldSession {
     }
 
     #[cfg(test)]
+    pub(crate) fn player_mounted_like_cpp(&self) -> bool {
+        self.player_mounted_like_cpp
+    }
+
+    #[cfg(test)]
     pub(crate) fn set_player_cheat_god_like_cpp(&mut self, enabled: bool) {
         self.player_cheat_god_like_cpp = enabled;
     }
@@ -26688,6 +33679,21 @@ impl WorldSession {
         };
 
         self.apply_represented_resurrection_health_like_cpp(request.health);
+    }
+
+    pub(crate) fn add_represented_self_res_spell_like_cpp(&mut self, spell_id: i32) {
+        if spell_id != 0 {
+            self.represented_self_res_spells_like_cpp.insert(spell_id);
+        }
+    }
+
+    pub(crate) fn remove_represented_self_res_spell_like_cpp(&mut self, spell_id: i32) -> bool {
+        self.represented_self_res_spells_like_cpp.remove(&spell_id)
+    }
+
+    pub(crate) fn has_represented_self_res_spell_like_cpp(&self, spell_id: i32) -> bool {
+        self.represented_self_res_spells_like_cpp
+            .contains(&spell_id)
     }
 
     #[cfg(test)]
@@ -27140,6 +34146,61 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedItemModsReapplyEventLikeCpp] {
         &self.represented_item_mod_reapply_events_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_item_bonus_actions_like_cpp(
+        &self,
+    ) -> &[RepresentedItemBonusActionLikeCpp] {
+        &self.represented_item_bonus_actions_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_item_set_spell_events_like_cpp(
+        &self,
+    ) -> &[RepresentedItemSetSpellEventLikeCpp] {
+        &self.represented_item_set_spell_events_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_item_set_aura_refresh_events_like_cpp(
+        &self,
+    ) -> &[RepresentedItemSetAuraRefreshEventLikeCpp] {
+        &self.represented_item_set_aura_refresh_events_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_item_set_effect_like_cpp(
+        &self,
+        item_set_id: u32,
+    ) -> Option<&RepresentedItemSetEffectLikeCpp> {
+        self.represented_item_set_effects_like_cpp.get(&item_set_id)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_item_bonus_state_like_cpp(
+        &self,
+    ) -> &RepresentedItemBonusStateLikeCpp {
+        &self.represented_item_bonus_state_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_combat_stat_recalculations_like_cpp(
+        &self,
+    ) -> &[RepresentedCombatStatRecalculationLikeCpp] {
+        &self.represented_combat_stat_recalculations_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_titan_grip_penalty_actions_like_cpp(
+        &self,
+    ) -> &[TitanGripPenaltyAction] {
+        &self.represented_titan_grip_penalty_actions_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_avg_equipped_item_level_updates_like_cpp(&self) -> &[f32] {
+        &self.represented_avg_equipped_item_level_updates_like_cpp
     }
 
     pub(crate) fn set_represented_guild_id_like_cpp(&mut self, guild_id: u64) {
@@ -32989,6 +40050,28 @@ impl WorldSession {
         true
     }
 
+    pub(crate) fn reset_represented_action_buttons_like_cpp(&mut self) {
+        self.represented_action_buttons_like_cpp =
+            [0; wow_packet::packets::misc::MAX_ACTION_BUTTONS];
+        self.represented_action_buttons_loaded_like_cpp = false;
+    }
+
+    pub(crate) fn mark_represented_action_buttons_loaded_like_cpp(&mut self) {
+        self.represented_action_buttons_loaded_like_cpp = true;
+    }
+
+    pub(crate) fn record_loaded_action_button_like_cpp(
+        &mut self,
+        index: u8,
+        action: u32,
+        action_type: u8,
+    ) -> bool {
+        self.represented_set_action_button_like_cpp(
+            index,
+            make_action_button_like_cpp(action, action_type),
+        )
+    }
+
     #[cfg(test)]
     pub(crate) fn represented_action_button_like_cpp(&self, index: u8) -> Option<u32> {
         self.represented_action_buttons_like_cpp
@@ -33105,6 +40188,112 @@ impl WorldSession {
         true
     }
 
+    pub(crate) fn clear_represented_cuf_profiles_like_cpp(&mut self) {
+        self.cuf_profiles_like_cpp =
+            vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP];
+        self.cuf_profiles_loaded_like_cpp = false;
+    }
+
+    pub(crate) fn mark_represented_cuf_profiles_loaded_like_cpp(&mut self) {
+        self.cuf_profiles_loaded_like_cpp = true;
+    }
+
+    pub(crate) fn load_represented_cuf_profile_like_cpp(
+        &mut self,
+        id: u8,
+        profile: wow_packet::packets::misc::CufProfile,
+    ) -> bool {
+        let index = usize::from(id);
+        if index >= wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP {
+            return false;
+        }
+
+        if self.cuf_profiles_like_cpp.len() != wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP
+        {
+            self.cuf_profiles_like_cpp =
+                vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP];
+        }
+        self.cuf_profiles_like_cpp[index] = Some(profile);
+        true
+    }
+
+    pub(crate) fn represented_load_cuf_profiles_packet_like_cpp(
+        &self,
+    ) -> wow_packet::packets::misc::LoadCufProfiles {
+        wow_packet::packets::misc::LoadCufProfiles {
+            profiles: self
+                .cuf_profiles_like_cpp
+                .iter()
+                .filter_map(Clone::clone)
+                .collect(),
+        }
+    }
+
+    pub(crate) fn build_cuf_profile_replace_statement_like_cpp(
+        guid_counter: u64,
+        id: u8,
+        profile: &wow_packet::packets::misc::CufProfile,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::REP_CHAR_CUF_PROFILES.sql());
+        stmt.set_u64(0, guid_counter);
+        stmt.set_u8(1, id);
+        stmt.set_string(2, profile.profile_name.clone());
+        stmt.set_u16(3, profile.frame_height);
+        stmt.set_u16(4, profile.frame_width);
+        stmt.set_u8(5, profile.sort_by);
+        stmt.set_u8(6, profile.health_text);
+        stmt.set_u32(7, profile.bool_options);
+        stmt.set_u8(8, profile.top_point);
+        stmt.set_u8(9, profile.bottom_point);
+        stmt.set_u8(10, profile.left_point);
+        stmt.set_u16(11, profile.top_offset);
+        stmt.set_u16(12, profile.bottom_offset);
+        stmt.set_u16(13, profile.left_offset);
+        stmt
+    }
+
+    pub(crate) fn build_cuf_profile_delete_statement_like_cpp(
+        guid_counter: u64,
+        id: u8,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::DEL_CHAR_CUF_PROFILES_BY_ID.sql());
+        stmt.set_u64(0, guid_counter);
+        stmt.set_u8(1, id);
+        stmt
+    }
+
+    pub(crate) fn cuf_profile_save_statements_like_cpp(
+        &self,
+        guid_counter: u64,
+    ) -> Option<Vec<PreparedStatement>> {
+        if !self.cuf_profiles_loaded_like_cpp {
+            return None;
+        }
+
+        let mut statements =
+            Vec::with_capacity(wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP);
+        for id in 0..wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP {
+            let id = id as u8;
+            if let Some(profile) = self
+                .cuf_profiles_like_cpp
+                .get(usize::from(id))
+                .and_then(Option::as_ref)
+            {
+                statements.push(Self::build_cuf_profile_replace_statement_like_cpp(
+                    guid_counter,
+                    id,
+                    profile,
+                ));
+            } else {
+                statements.push(Self::build_cuf_profile_delete_statement_like_cpp(
+                    guid_counter,
+                    id,
+                ));
+            }
+        }
+        Some(statements)
+    }
+
     #[cfg(test)]
     pub(crate) fn represented_cuf_profiles_like_cpp(
         &self,
@@ -33203,7 +40392,7 @@ impl WorldSession {
 
         let mut status = ack.status.clone();
         status.time = self.adjust_client_movement_time_like_cpp(status.time);
-        self.player_movement_time_like_cpp = status.time;
+        self.set_player_movement_time_like_cpp(status.time);
         self.set_player_movement_flags_like_cpp(status.flags);
         self.set_player_position_like_cpp(status.position);
         self.record_movement_ack_event_like_cpp(MovementAckEventLikeCpp {
@@ -33228,9 +40417,10 @@ impl WorldSession {
     ) -> bool {
         let accepted = self.player_guid() == Some(mover_guid);
         if accepted {
-            self.player_movement_time_like_cpp = self
-                .player_movement_time_like_cpp
-                .saturating_add(time_skipped);
+            self.set_player_movement_time_like_cpp(
+                self.player_movement_time_like_cpp
+                    .saturating_add(time_skipped),
+            );
         }
 
         self.record_movement_ack_event_like_cpp(MovementAckEventLikeCpp {
@@ -33586,8 +40776,7 @@ impl WorldSession {
         let (new_zone, new_area) = self
             .near_teleport_destination_zone_area_like_cpp
             .unwrap_or((self.player_zone_id_like_cpp, self.player_area_id_like_cpp));
-        self.player_zone_id_like_cpp = new_zone;
-        self.player_area_id_like_cpp = new_area;
+        self.update_zone_represented_like_cpp(new_zone, new_area);
 
         let zone_changed = old_zone != new_zone;
         let honorless_target_cast = zone_changed && self.player_pvp_hostile_like_cpp;
@@ -33725,11 +40914,82 @@ impl WorldSession {
             .push(request);
     }
 
+    pub(crate) fn record_represented_talent_reset_script_hook_like_cpp(&mut self, no_cost: bool) {
+        self.represented_talent_reset_script_hooks_like_cpp
+            .push(RepresentedTalentResetScriptHookLikeCpp { no_cost });
+    }
+
+    pub(crate) fn remove_represented_at_login_flag_like_cpp(
+        &mut self,
+        flags: u16,
+        persist: bool,
+    ) -> bool {
+        if (self.represented_at_login_flags_like_cpp & flags) == 0 {
+            return false;
+        }
+
+        self.represented_at_login_flags_like_cpp &= !flags;
+        if persist {
+            self.represented_at_login_flag_removals_like_cpp.push(
+                RepresentedAtLoginFlagRemovalLikeCpp {
+                    flags,
+                    persist,
+                    db_statement_unrepresented: true,
+                },
+            );
+        }
+        true
+    }
+
+    pub(crate) fn set_represented_at_login_flags_like_cpp(&mut self, flags: u16) {
+        self.represented_at_login_flags_like_cpp = flags;
+    }
+
+    pub(crate) fn represented_at_login_flags_like_cpp(&self) -> u16 {
+        self.represented_at_login_flags_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_talent_reset_script_hooks_like_cpp(
+        &self,
+    ) -> &[RepresentedTalentResetScriptHookLikeCpp] {
+        &self.represented_talent_reset_script_hooks_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_at_login_flag_removals_like_cpp(
+        &self,
+    ) -> &[RepresentedAtLoginFlagRemovalLikeCpp] {
+        &self.represented_at_login_flag_removals_like_cpp
+    }
+
     #[cfg(test)]
     pub(crate) fn represented_confirm_respec_wipe_requests_like_cpp(
         &self,
     ) -> &[RepresentedConfirmRespecWipeLikeCpp] {
         &self.represented_confirm_respec_wipe_requests_like_cpp
+    }
+
+    pub(crate) fn record_represented_talent_respec_visual_spell_cast_like_cpp(
+        &mut self,
+        cast: RepresentedTalentRespecVisualSpellCastLikeCpp,
+    ) {
+        self.represented_talent_respec_visual_spell_casts_like_cpp
+            .push(cast);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_talent_respec_visual_spell_casts_like_cpp(
+        &self,
+    ) -> &[RepresentedTalentRespecVisualSpellCastLikeCpp] {
+        &self.represented_talent_respec_visual_spell_casts_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_talent_respec_criteria_events_like_cpp(
+        &self,
+    ) -> &[RepresentedTalentRespecCriteriaEventLikeCpp] {
+        &self.represented_talent_respec_criteria_events_like_cpp
     }
 
     pub(crate) fn record_represented_adventure_map_start_quest_like_cpp(
@@ -33801,7 +41061,6 @@ impl WorldSession {
         &self.move_spline_done_taxi_events_like_cpp
     }
 
-    #[cfg(test)]
     pub(crate) fn set_player_zone_area_like_cpp(&mut self, zone_id: u32, area_id: u32) {
         self.player_zone_id_like_cpp = zone_id;
         self.player_area_id_like_cpp = area_id;
@@ -33886,6 +41145,11 @@ impl WorldSession {
         self.player_movement_time_like_cpp
     }
 
+    #[cfg(test)]
+    pub(crate) fn player_movement_jump_like_cpp(&self) -> &wow_packet::packets::movement::JumpInfo {
+        &self.player_movement_jump_like_cpp
+    }
+
     pub(crate) fn latest_movement_ack_adjusted_time_like_cpp(&self) -> Option<u32> {
         self.movement_ack_events_like_cpp
             .last()
@@ -33914,6 +41178,543 @@ impl WorldSession {
     pub(crate) fn player_movement_speed_like_cpp(&self, move_type: UnitMoveTypeLikeCpp) -> f32 {
         PLAYER_BASE_MOVE_SPEED_LIKE_CPP[move_type.index()]
             * self.movement_speed_rates_like_cpp[move_type.index()]
+    }
+
+    fn max_represented_aura_amount_like_cpp(&self, effect: RepresentedAuraEffectLikeCpp) -> i32 {
+        self.visible_auras
+            .values()
+            .filter(|aura| aura.represented_effect == Some(effect))
+            .map(|aura| aura.represented_amount)
+            .filter(|amount| *amount > 0)
+            .max()
+            .unwrap_or(0)
+    }
+
+    fn max_negative_represented_aura_amount_like_cpp(
+        &self,
+        effect: RepresentedAuraEffectLikeCpp,
+    ) -> i32 {
+        self.visible_auras
+            .values()
+            .filter(|aura| aura.represented_effect == Some(effect))
+            .map(|aura| aura.represented_amount)
+            .filter(|amount| *amount < 0)
+            .min()
+            .unwrap_or(0)
+    }
+
+    fn total_represented_aura_amount_multiplier_like_cpp(
+        &self,
+        effect: RepresentedAuraEffectLikeCpp,
+    ) -> f32 {
+        self.visible_auras
+            .values()
+            .filter(|aura| aura.represented_effect == Some(effect))
+            .fold(1.0, |multiplier, aura| {
+                multiplier * (1.0 + aura.represented_amount.max(0) as f32 / 100.0)
+            })
+    }
+
+    fn total_represented_aura_amount_like_cpp(&self, effect: RepresentedAuraEffectLikeCpp) -> i32 {
+        self.visible_auras
+            .values()
+            .filter(|aura| aura.represented_effect == Some(effect))
+            .map(|aura| aura.represented_amount)
+            .sum()
+    }
+
+    fn represented_run_speed_rate_like_cpp(&self) -> f32 {
+        let (main_mod_effect, stack_effect, not_stack_effect) = if self.player_mounted_like_cpp {
+            (
+                RepresentedAuraEffectLikeCpp::MountedSpeed,
+                RepresentedAuraEffectLikeCpp::MountedSpeedAlways,
+                RepresentedAuraEffectLikeCpp::MountedSpeedNotStack,
+            )
+        } else {
+            (
+                RepresentedAuraEffectLikeCpp::Speed,
+                RepresentedAuraEffectLikeCpp::SpeedAlways,
+                RepresentedAuraEffectLikeCpp::SpeedNotStack,
+            )
+        };
+        let main_mod = self.max_represented_aura_amount_like_cpp(main_mod_effect);
+        let stack_bonus = self.total_represented_aura_amount_multiplier_like_cpp(stack_effect);
+        let not_stack_bonus = 1.0
+            + self
+                .max_represented_aura_amount_like_cpp(not_stack_effect)
+                .max(0) as f32
+                / 100.0;
+
+        let speed = stack_bonus.max(not_stack_bonus) * (1.0 + main_mod.max(0) as f32 / 100.0);
+        self.apply_represented_forward_speed_adjustments_like_cpp(UnitMoveTypeLikeCpp::Run, speed)
+    }
+
+    fn apply_represented_forward_speed_adjustments_like_cpp(
+        &self,
+        move_type: UnitMoveTypeLikeCpp,
+        mut speed: f32,
+    ) -> f32 {
+        let normal_speed_cap = self.max_represented_aura_amount_like_cpp(
+            RepresentedAuraEffectLikeCpp::UseNormalMovementSpeed,
+        ) as f32
+            / PLAYER_BASE_MOVE_SPEED_LIKE_CPP[move_type.index()];
+        if normal_speed_cap > 0.0 && speed > normal_speed_cap {
+            speed = normal_speed_cap;
+        }
+        if move_type == UnitMoveTypeLikeCpp::Run {
+            let minimum_speed_rate = self.max_represented_aura_amount_like_cpp(
+                RepresentedAuraEffectLikeCpp::MinimumSpeedRate,
+            ) as f32
+                / PLAYER_BASE_MOVE_SPEED_LIKE_CPP[move_type.index()];
+            if speed < minimum_speed_rate {
+                speed = minimum_speed_rate;
+            }
+        }
+        let slow = self.max_negative_represented_aura_amount_like_cpp(
+            RepresentedAuraEffectLikeCpp::DecreaseSpeed,
+        );
+        if slow < 0 {
+            speed *= 1.0 + slow as f32 / 100.0;
+        }
+        let minimum_speed = self
+            .max_represented_aura_amount_like_cpp(RepresentedAuraEffectLikeCpp::MinimumSpeed)
+            as f32
+            / 100.0;
+        if speed < minimum_speed {
+            speed = minimum_speed;
+        }
+        speed
+    }
+
+    fn represented_flight_speed_rate_like_cpp(&self) -> f32 {
+        let (flight_mod, flight_always) = if self.player_mounted_like_cpp {
+            (
+                self.max_represented_aura_amount_like_cpp(
+                    RepresentedAuraEffectLikeCpp::MountedFlightSpeed,
+                ),
+                self.total_represented_aura_amount_multiplier_like_cpp(
+                    RepresentedAuraEffectLikeCpp::MountedFlightSpeedAlways,
+                ),
+            )
+        } else {
+            (
+                self.total_represented_aura_amount_like_cpp(
+                    RepresentedAuraEffectLikeCpp::FlightSpeed,
+                ) + self.total_represented_aura_amount_like_cpp(
+                    RepresentedAuraEffectLikeCpp::VehicleFlightSpeed,
+                ),
+                1.0,
+            )
+        };
+        let flight_not_stack = 1.0
+            + self
+                .max_represented_aura_amount_like_cpp(
+                    RepresentedAuraEffectLikeCpp::FlightSpeedNotStack,
+                )
+                .max(0) as f32
+                / 100.0;
+
+        let speed = flight_always.max(flight_not_stack) * (1.0 + flight_mod.max(0) as f32 / 100.0);
+        self.apply_represented_forward_speed_adjustments_like_cpp(
+            UnitMoveTypeLikeCpp::Flight,
+            speed,
+        )
+    }
+
+    fn represented_swim_speed_rate_like_cpp(&self) -> f32 {
+        let speed = 1.0
+            + self
+                .max_represented_aura_amount_like_cpp(RepresentedAuraEffectLikeCpp::SwimSpeed)
+                .max(0) as f32
+                / 100.0;
+        self.apply_represented_forward_speed_adjustments_like_cpp(UnitMoveTypeLikeCpp::Swim, speed)
+    }
+
+    fn represented_backward_speed_rate_like_cpp(&self) -> f32 {
+        let mut speed = 1.0;
+        let slow = self.max_negative_represented_aura_amount_like_cpp(
+            RepresentedAuraEffectLikeCpp::DecreaseSpeed,
+        );
+        if slow < 0 {
+            speed *= 1.0 + slow as f32 / 100.0;
+        }
+        let minimum_speed = self
+            .max_represented_aura_amount_like_cpp(RepresentedAuraEffectLikeCpp::MinimumSpeed)
+            as f32
+            / 100.0;
+        if speed < minimum_speed {
+            speed = minimum_speed;
+        }
+        speed
+    }
+
+    fn recompute_represented_run_speed_rate_like_cpp(&mut self) {
+        self.set_player_movement_speed_rate_and_notify_like_cpp(
+            UnitMoveTypeLikeCpp::Run,
+            self.represented_run_speed_rate_like_cpp(),
+        );
+    }
+
+    fn recompute_represented_flight_speed_rate_like_cpp(&mut self) {
+        self.set_player_movement_speed_rate_and_notify_like_cpp(
+            UnitMoveTypeLikeCpp::Flight,
+            self.represented_flight_speed_rate_like_cpp(),
+        );
+    }
+
+    fn recompute_represented_swim_speed_rate_like_cpp(&mut self) {
+        self.set_player_movement_speed_rate_and_notify_like_cpp(
+            UnitMoveTypeLikeCpp::Swim,
+            self.represented_swim_speed_rate_like_cpp(),
+        );
+    }
+
+    fn recompute_represented_backward_speed_rates_like_cpp(&mut self) {
+        let speed = self.represented_backward_speed_rate_like_cpp();
+        self.set_player_movement_speed_rate_and_notify_like_cpp(
+            UnitMoveTypeLikeCpp::RunBack,
+            speed,
+        );
+        self.set_player_movement_speed_rate_and_notify_like_cpp(
+            UnitMoveTypeLikeCpp::SwimBack,
+            speed,
+        );
+        self.set_player_movement_speed_rate_and_notify_like_cpp(
+            UnitMoveTypeLikeCpp::FlightBack,
+            speed,
+        );
+    }
+
+    fn recompute_represented_mounted_speed_rates_like_cpp(&mut self) {
+        self.recompute_represented_run_speed_rate_like_cpp();
+        self.recompute_represented_flight_speed_rate_like_cpp();
+    }
+
+    fn recompute_represented_forward_speed_rates_like_cpp(&mut self) {
+        self.recompute_represented_run_speed_rate_like_cpp();
+        self.recompute_represented_swim_speed_rate_like_cpp();
+        self.recompute_represented_flight_speed_rate_like_cpp();
+    }
+
+    fn player_movement_speed_opcodes_like_cpp(
+        move_type: UnitMoveTypeLikeCpp,
+    ) -> Option<(ServerOpcodes, ServerOpcodes)> {
+        match move_type {
+            UnitMoveTypeLikeCpp::Run => Some((
+                ServerOpcodes::MoveSetRunSpeed,
+                ServerOpcodes::MoveUpdateRunSpeed,
+            )),
+            UnitMoveTypeLikeCpp::Flight => Some((
+                ServerOpcodes::MoveSetFlightSpeed,
+                ServerOpcodes::MoveUpdateFlightSpeed,
+            )),
+            UnitMoveTypeLikeCpp::Swim => Some((
+                ServerOpcodes::MoveSetSwimSpeed,
+                ServerOpcodes::MoveUpdateSwimSpeed,
+            )),
+            UnitMoveTypeLikeCpp::RunBack => Some((
+                ServerOpcodes::MoveSetRunBackSpeed,
+                ServerOpcodes::MoveUpdateRunBackSpeed,
+            )),
+            UnitMoveTypeLikeCpp::SwimBack => Some((
+                ServerOpcodes::MoveSetSwimBackSpeed,
+                ServerOpcodes::MoveUpdateSwimBackSpeed,
+            )),
+            UnitMoveTypeLikeCpp::FlightBack => Some((
+                ServerOpcodes::MoveSetFlightBackSpeed,
+                ServerOpcodes::MoveUpdateFlightBackSpeed,
+            )),
+            _ => None,
+        }
+    }
+
+    fn creature_movement_spline_speed_opcode_like_cpp(
+        move_type: UnitMoveTypeLikeCpp,
+    ) -> Option<ServerOpcodes> {
+        match move_type {
+            UnitMoveTypeLikeCpp::Walk => Some(ServerOpcodes::MoveSplineSetWalkSpeed),
+            UnitMoveTypeLikeCpp::Run => Some(ServerOpcodes::MoveSplineSetRunSpeed),
+            UnitMoveTypeLikeCpp::RunBack => Some(ServerOpcodes::MoveSplineSetRunBackSpeed),
+            UnitMoveTypeLikeCpp::Swim => Some(ServerOpcodes::MoveSplineSetSwimSpeed),
+            UnitMoveTypeLikeCpp::SwimBack => Some(ServerOpcodes::MoveSplineSetSwimBackSpeed),
+            UnitMoveTypeLikeCpp::TurnRate => Some(ServerOpcodes::MoveSplineSetTurnRate),
+            UnitMoveTypeLikeCpp::Flight => Some(ServerOpcodes::MoveSplineSetFlightSpeed),
+            UnitMoveTypeLikeCpp::FlightBack => Some(ServerOpcodes::MoveSplineSetFlightBackSpeed),
+            UnitMoveTypeLikeCpp::PitchRate => Some(ServerOpcodes::MoveSplineSetPitchRate),
+        }
+    }
+
+    fn represented_pet_position_like_cpp(&self, pet_guid: ObjectGuid) -> Option<Position> {
+        let map_id = u32::from(self.player_map_id_like_cpp());
+        let instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
+        let managed = manager.find_map(map_id, instance_id)?;
+        Some(
+            managed
+                .map()
+                .map_object_record(pet_guid)?
+                .object()
+                .position(),
+        )
+    }
+
+    fn send_represented_pet_spline_speed_like_cpp(
+        &self,
+        pet_guid: ObjectGuid,
+        move_type: UnitMoveTypeLikeCpp,
+        rate: f32,
+    ) {
+        let Some(opcode) = Self::creature_movement_spline_speed_opcode_like_cpp(move_type) else {
+            return;
+        };
+        let packet_bytes = wow_packet::packets::movement::MoveSplineSetSpeed {
+            opcode,
+            mover_guid: pet_guid,
+            speed: PLAYER_BASE_MOVE_SPEED_LIKE_CPP[move_type.index()] * rate,
+        }
+        .to_bytes();
+        let map_id = self.player_map_id_like_cpp();
+        let instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+
+        if self.client_visible_guids_like_cpp.contains(&pet_guid)
+            && self.send_tx.send(packet_bytes.clone()).is_err()
+        {
+            warn!("Send channel closed for account {}", self.account_id);
+        }
+
+        let (Some(player_guid), Some(registry)) = (self.player_guid(), self.player_registry())
+        else {
+            return;
+        };
+        let Some(source_position) = self
+            .represented_pet_position_like_cpp(pet_guid)
+            .or_else(|| self.player_position_like_cpp())
+        else {
+            return;
+        };
+        let range_sq =
+            crate::map_manager::VISIBILITY_RADIUS * crate::map_manager::VISIBILITY_RADIUS;
+
+        let candidates: Vec<_> = registry
+            .iter()
+            .filter_map(|entry| {
+                let (other_guid, other_info): (&ObjectGuid, &PlayerBroadcastInfo) = entry.pair();
+                if *other_guid == player_guid {
+                    return None;
+                }
+                if !other_info.is_in_world
+                    || other_info.map_id != map_id
+                    || other_info.instance_id != instance_id
+                {
+                    return None;
+                }
+                let dx = other_info.position.x - source_position.x;
+                let dy = other_info.position.y - source_position.y;
+                if dx * dx + dy * dy > range_sq {
+                    return None;
+                }
+                Some(other_info.command_tx.clone())
+            })
+            .collect();
+
+        for command_tx in candidates {
+            let _ = command_tx.try_send(SessionCommand::SendIfVisibleLikeCpp(
+                SendIfVisibleLikeCppCommand {
+                    source_guid: pet_guid,
+                    map_id,
+                    instance_id,
+                    packet_bytes: packet_bytes.clone(),
+                },
+            ));
+        }
+    }
+
+    fn send_player_move_set_flag_like_cpp(&mut self, opcode: ServerOpcodes) {
+        use wow_packet::ServerPacket;
+
+        let Some(player_guid) = self.player_guid() else {
+            return;
+        };
+        let sequence_index = self.mount_vehicle_movement_sequence_like_cpp;
+        self.mount_vehicle_movement_sequence_like_cpp = self
+            .mount_vehicle_movement_sequence_like_cpp
+            .wrapping_add(1);
+
+        let self_packet = wow_packet::packets::movement::MoveSetFlag {
+            opcode,
+            mover_guid: player_guid,
+            sequence_index,
+        }
+        .to_bytes();
+        if self.send_tx.send(self_packet).is_err() {
+            warn!("Send channel closed for account {}", self.account_id);
+        }
+
+        let mut status = self.current_player_movement_info_like_cpp(player_guid);
+        status.time = self.player_movement_time_like_cpp();
+        self.broadcast_to_movement_set_like_cpp(
+            wow_packet::packets::movement::MoveUpdate { info: status }.to_bytes(),
+            false,
+        );
+    }
+
+    fn set_represented_can_fly_like_cpp(&mut self, enable: bool) -> bool {
+        let currently_enabled = self
+            .player_movement_flags_like_cpp
+            .contains(MovementFlag::CAN_FLY);
+        if enable == currently_enabled {
+            return false;
+        }
+
+        if enable {
+            self.player_movement_flags_like_cpp
+                .insert(MovementFlag::CAN_FLY);
+            self.player_movement_flags_like_cpp
+                .remove(MovementFlag::SWIMMING | MovementFlag::SPLINE_ELEVATION);
+        } else {
+            self.player_movement_flags_like_cpp
+                .remove(MovementFlag::CAN_FLY | MovementFlag::MASK_MOVING_FLY);
+            if let Some(position) = self.player_position_like_cpp() {
+                self.set_fall_information_like_cpp(0, position.z);
+            }
+        }
+
+        self.send_player_move_set_flag_like_cpp(if enable {
+            ServerOpcodes::MoveSetCanFly
+        } else {
+            ServerOpcodes::MoveUnsetCanFly
+        });
+        true
+    }
+
+    fn move_represented_player_fall_like_cpp(&mut self) -> bool {
+        if self
+            .player_movement_flags_like_cpp
+            .contains(MovementFlag::DISABLE_GRAVITY)
+        {
+            return false;
+        }
+
+        self.player_movement_flags_like_cpp
+            .insert(MovementFlag::FALLING);
+        if let Some(position) = self.player_position_like_cpp() {
+            self.set_fall_information_like_cpp(0, position.z);
+        }
+        true
+    }
+
+    fn set_represented_can_swim_to_fly_transition_like_cpp(&mut self, enable: bool) -> bool {
+        if enable == self.represented_can_swim_to_fly_transition_like_cpp {
+            return false;
+        }
+
+        self.represented_can_swim_to_fly_transition_like_cpp = enable;
+        self.send_player_move_set_flag_like_cpp(if enable {
+            ServerOpcodes::MoveEnableTransitionBetweenSwimAndFly
+        } else {
+            ServerOpcodes::MoveDisableTransitionBetweenSwimAndFly
+        });
+        true
+    }
+
+    fn update_represented_flight_flags_for_flight_aura_like_cpp(&mut self, apply: bool) {
+        let should_enable = apply
+            || self.has_represented_aura_effect_like_cpp(RepresentedAuraEffectLikeCpp::Fly)
+            || self.has_represented_aura_effect_like_cpp(
+                RepresentedAuraEffectLikeCpp::MountedFlightSpeed,
+            );
+        self.set_represented_can_swim_to_fly_transition_like_cpp(should_enable);
+        let can_fly_changed = self.set_represented_can_fly_like_cpp(should_enable);
+        if !should_enable && can_fly_changed {
+            self.move_represented_player_fall_like_cpp();
+        }
+    }
+
+    fn propagate_represented_player_speed_to_pet_like_cpp(
+        &mut self,
+        move_type: UnitMoveTypeLikeCpp,
+        rate: f32,
+    ) {
+        let Some(pet_guid) = self.represented_pet_guid_like_cpp else {
+            return;
+        };
+        if self.in_combat {
+            return;
+        }
+
+        let rate = rate.max(0.01);
+        let index = move_type.index();
+        if self.represented_pet_movement_speed_rates_like_cpp[index] == rate {
+            return;
+        }
+
+        self.represented_pet_movement_speed_rates_like_cpp[index] = rate;
+        self.represented_pet_speed_propagations_like_cpp = self
+            .represented_pet_speed_propagations_like_cpp
+            .saturating_add(1);
+        self.send_represented_pet_spline_speed_like_cpp(pet_guid, move_type, rate);
+    }
+
+    fn set_player_movement_speed_rate_and_notify_like_cpp(
+        &mut self,
+        move_type: UnitMoveTypeLikeCpp,
+        rate: f32,
+    ) {
+        let rate = rate.max(0.01);
+        let index = move_type.index();
+        if self.movement_speed_rates_like_cpp[index] == rate {
+            return;
+        }
+
+        self.movement_speed_rates_like_cpp[index] = rate;
+        self.propagate_represented_player_speed_to_pet_like_cpp(move_type, rate);
+
+        let Some(player_guid) = self.player_guid() else {
+            return;
+        };
+        let Some((set_opcode, update_opcode)) =
+            Self::player_movement_speed_opcodes_like_cpp(move_type)
+        else {
+            return;
+        };
+
+        self.forced_speed_changes_like_cpp[index] =
+            self.forced_speed_changes_like_cpp[index].saturating_add(1);
+
+        let speed = self.player_movement_speed_like_cpp(move_type);
+        let sequence_index = self.mount_vehicle_movement_sequence_like_cpp;
+        self.mount_vehicle_movement_sequence_like_cpp = self
+            .mount_vehicle_movement_sequence_like_cpp
+            .wrapping_add(1);
+
+        let self_packet = wow_packet::packets::movement::MoveSetSpeed {
+            opcode: set_opcode,
+            mover_guid: player_guid,
+            sequence_index,
+            speed,
+        }
+        .to_bytes();
+        if self.send_tx.send(self_packet).is_err() {
+            warn!("Send channel closed for account {}", self.account_id);
+        }
+
+        let mut status = self.current_player_movement_info_like_cpp(player_guid);
+        status.time = self.player_movement_time_like_cpp();
+        self.broadcast_to_movement_set_like_cpp(
+            wow_packet::packets::movement::MoveUpdateSpeed {
+                opcode: update_opcode,
+                status,
+                speed,
+            }
+            .to_bytes(),
+            false,
+        );
     }
 
     pub(crate) fn trace_anticheat_violation_like_cpp(
@@ -34095,12 +41896,30 @@ impl WorldSession {
     }
 
     #[cfg(test)]
+    pub(crate) fn forced_speed_changes_like_cpp(&self, move_type: UnitMoveTypeLikeCpp) -> u8 {
+        self.forced_speed_changes_like_cpp[move_type.index()]
+    }
+
+    #[cfg(test)]
     pub(crate) fn set_player_movement_speed_rate_like_cpp(
         &mut self,
         move_type: UnitMoveTypeLikeCpp,
         rate: f32,
     ) {
         self.movement_speed_rates_like_cpp[move_type.index()] = rate.max(0.01);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_pet_movement_speed_rate_like_cpp(
+        &self,
+        move_type: UnitMoveTypeLikeCpp,
+    ) -> f32 {
+        self.represented_pet_movement_speed_rates_like_cpp[move_type.index()]
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_pet_speed_propagations_like_cpp(&self) -> u32 {
+        self.represented_pet_speed_propagations_like_cpp
     }
 
     #[cfg(test)]
@@ -34127,6 +41946,114 @@ impl WorldSession {
         self.active_spell_cast.take().is_some()
     }
 
+    pub(crate) fn cancel_pending_spell_cast_request_like_cpp(&mut self) -> bool {
+        let Some(request) = self.represented_pending_spell_cast_request_like_cpp.take() else {
+            return false;
+        };
+
+        self.send_packet(&wow_packet::packets::spell::CastFailed {
+            cast_id: request.cast_id,
+            spell_id: request.spell_id,
+            reason: SPELL_FAILED_DONT_REPORT_LIKE_CPP,
+            fail_arg1: 0,
+            fail_arg2: 0,
+        });
+        true
+    }
+
+    pub(crate) fn remaining_global_cooldown_ms_like_cpp(
+        &self,
+        spell_info: &wow_data::SpellInfo,
+    ) -> u32 {
+        let Some(last_cast) = self.last_spell_cast_time else {
+            return 0;
+        };
+        let cooldown_ms = spell_info.cooldown_ms;
+        let elapsed_ms = last_cast.elapsed().as_millis() as u32;
+        cooldown_ms.saturating_sub(elapsed_ms)
+    }
+
+    pub(crate) fn remaining_active_spell_cast_ms_like_cpp(&self) -> u32 {
+        let Some(active_cast) = self.active_spell_cast.as_ref() else {
+            return 0;
+        };
+        let elapsed_ms = active_cast.cast_start_time.elapsed().as_millis() as u32;
+        active_cast.cast_time_ms.saturating_sub(elapsed_ms)
+    }
+
+    pub(crate) fn can_request_represented_spell_cast_like_cpp(
+        &self,
+        spell_info: &wow_data::SpellInfo,
+    ) -> bool {
+        self.remaining_global_cooldown_ms_like_cpp(spell_info)
+            <= SPELL_QUEUE_TIME_WINDOW_LIKE_CPP_MS
+            && self.remaining_active_spell_cast_ms_like_cpp() <= SPELL_QUEUE_TIME_WINDOW_LIKE_CPP_MS
+    }
+
+    pub(crate) fn request_represented_spell_cast_like_cpp(
+        &mut self,
+        request: RepresentedPendingSpellCastRequestLikeCpp,
+    ) {
+        if self
+            .represented_pending_spell_cast_request_like_cpp
+            .is_some()
+        {
+            self.cancel_pending_spell_cast_request_like_cpp();
+        }
+        self.represented_pending_spell_cast_request_like_cpp = Some(request);
+    }
+
+    pub(crate) async fn tick_pending_spell_cast_request_like_cpp(&mut self) {
+        let Some(request) = self.represented_pending_spell_cast_request_like_cpp.clone() else {
+            return;
+        };
+        if Some(request.casting_unit_guid) != self.player_guid() {
+            self.cancel_pending_spell_cast_request_like_cpp();
+            return;
+        }
+        let Some(spell_info) = self
+            .spell_store()
+            .and_then(|store| store.get(request.spell_id))
+            .cloned()
+        else {
+            self.cancel_pending_spell_cast_request_like_cpp();
+            return;
+        };
+
+        if self.remaining_global_cooldown_ms_like_cpp(&spell_info) > 0 {
+            return;
+        }
+        if self.remaining_active_spell_cast_ms_like_cpp() > 0 {
+            return;
+        }
+
+        self.represented_pending_spell_cast_request_like_cpp = None;
+        if let Err(error) = self
+            .execute_spell_with_visual_and_target_data_with_metadata(
+                request.spell_id,
+                request.target_guid,
+                request.cast_id,
+                request.spell_visual,
+                request.target_data,
+                request.metadata,
+            )
+            .await
+        {
+            warn!(
+                account = self.account_id,
+                spell_id = request.spell_id,
+                "Pending spell execution failed: {error}"
+            );
+            self.send_packet(&wow_packet::packets::spell::CastFailed {
+                cast_id: request.cast_id,
+                spell_id: request.spell_id,
+                reason: SpellCastResult::NotKnown as i32,
+                fail_arg1: 0,
+                fail_arg2: 0,
+            });
+        }
+    }
+
     pub(crate) fn interrupt_non_melee_spells_for_far_teleport_like_cpp(&mut self) -> bool {
         let session_cast_interrupted = self.active_spell_cast.take().is_some();
         let canonical_spells_interrupted = self
@@ -34144,6 +42071,198 @@ impl WorldSession {
         }
 
         session_cast_interrupted || canonical_spells_interrupted
+    }
+
+    pub(crate) fn interrupt_current_channeled_spell_like_cpp(&mut self, spell_id: i32) -> bool {
+        let Ok(spell_id) = u32::try_from(spell_id) else {
+            return false;
+        };
+        if spell_id == 0 {
+            return false;
+        }
+
+        let interrupted = self
+            .mutate_canonical_player_like_cpp(|player| {
+                let unit = player.unit_mut();
+                if unit
+                    .current_spell(wow_entities::CurrentSpellSlot::Channeled)
+                    .is_none_or(|current| current.spell_id != spell_id)
+                {
+                    return false;
+                }
+                unit.interrupt_spell(wow_entities::CurrentSpellSlot::Channeled, true, true)
+                    .is_some()
+            })
+            .unwrap_or(false);
+
+        if interrupted {
+            if self
+                .active_spell_cast
+                .as_ref()
+                .is_some_and(|active| active.spell_id == spell_id as i32)
+            {
+                self.active_spell_cast = None;
+            }
+            self.sync_object_accessor_player();
+        }
+
+        interrupted
+    }
+
+    pub(crate) fn destroy_represented_totem_like_cpp(
+        &mut self,
+        client_slot: u8,
+        requested_totem_guid: ObjectGuid,
+    ) -> bool {
+        let Some(player_guid) = self.player_guid() else {
+            return false;
+        };
+        if self.player_moved_unit_guid_like_cpp() != player_guid {
+            return false;
+        }
+
+        let slot_id = usize::from(client_slot).saturating_add(wow_entities::UNIT_SUMMON_SLOT_TOTEM);
+        if slot_id >= wow_entities::MAX_UNIT_TOTEM_SLOT {
+            return false;
+        }
+
+        let Some(manager) = self.canonical_map_manager.as_ref().map(Arc::clone) else {
+            return false;
+        };
+        let Ok(mut manager) = manager.lock() else {
+            return false;
+        };
+        let map_id = u32::from(self.player_map_id_like_cpp());
+        let mut instance_id = None;
+        manager.do_for_all_maps_with_map_id(map_id, |managed| {
+            if instance_id.is_none() && managed.map().get_typed_player(player_guid).is_some() {
+                instance_id = Some(managed.instance_id());
+            }
+        });
+        let Some(managed) = manager.find_map_mut(map_id, instance_id.unwrap_or(0)) else {
+            return false;
+        };
+        let map = managed.map_mut();
+        let Some(slot_totem_guid) = map
+            .get_typed_player(player_guid)
+            .map(|player| player.unit().subsystems().control.summon_slots[slot_id])
+        else {
+            return false;
+        };
+        if slot_totem_guid.is_empty() {
+            return false;
+        }
+
+        let matches_cpp_totem = map
+            .get_typed_creature(slot_totem_guid)
+            .is_some_and(|totem| {
+                totem.is_totem_unit_type_like_cpp()
+                    && (requested_totem_guid.is_empty() || totem.guid() == requested_totem_guid)
+            });
+        if !matches_cpp_totem {
+            return false;
+        }
+
+        let destroyed = match map.remove_from_map_like_cpp(slot_totem_guid, true) {
+            Ok(_) => true,
+            Err(wow_map::RemoveFromMapError::ObjectNotFound { .. }) => false,
+            Err(_) => false,
+        };
+        if !destroyed {
+            return false;
+        }
+
+        if let Some(player) = map.get_typed_player_mut(player_guid) {
+            let _ = player
+                .unit_mut()
+                .subsystems_mut()
+                .control
+                .clear_summon_slot(slot_id);
+        }
+        drop(manager);
+        self.sync_object_accessor_player();
+        true
+    }
+
+    pub(crate) fn cancel_represented_pet_aura_like_cpp(
+        &mut self,
+        pet_guid: ObjectGuid,
+        spell_id: u32,
+    ) -> bool {
+        if self
+            .spell_store()
+            .and_then(|store| store.get(spell_id as i32))
+            .is_none()
+        {
+            return false;
+        }
+
+        let Some(player_guid) = self.player_guid() else {
+            return false;
+        };
+        let Some(manager) = self.canonical_map_manager.as_ref().map(Arc::clone) else {
+            return false;
+        };
+        let Ok(mut manager) = manager.lock() else {
+            return false;
+        };
+        let map_id = u32::from(self.player_map_id_like_cpp());
+        let mut instance_id = None;
+        manager.do_for_all_maps_with_map_id(map_id, |managed| {
+            if instance_id.is_none() && managed.map().get_typed_player(player_guid).is_some() {
+                instance_id = Some(managed.instance_id());
+            }
+        });
+        let Some(managed) = manager.find_map_mut(map_id, instance_id.unwrap_or(0)) else {
+            return false;
+        };
+        let map = managed.map_mut();
+        let owned_or_charmed = map.get_typed_player(player_guid).is_some_and(|player| {
+            let control = &player.unit().subsystems().control;
+            control.pet_guid() == pet_guid || control.charmed_guid == Some(pet_guid)
+        });
+        if !owned_or_charmed {
+            return false;
+        }
+
+        if let Some(pet) = map.get_typed_pet_mut(pet_guid) {
+            if !pet.creature().is_alive() {
+                drop(manager);
+                self.send_packet(&wow_packet::packets::pet::PetActionFeedback {
+                    spell_id: 0,
+                    response: wow_packet::packets::pet::PET_ACTION_FEEDBACK_DEAD_LIKE_CPP,
+                });
+                return false;
+            }
+            let removed = !pet
+                .creature_mut()
+                .unit_mut()
+                .subsystems_mut()
+                .auras
+                .remove_auras_due_to_spell_like_cpp(spell_id, ObjectGuid::EMPTY, 0)
+                .is_empty();
+            return removed;
+        }
+
+        if let Some(creature) = map.get_typed_creature_mut(pet_guid) {
+            if !creature.is_alive() {
+                drop(manager);
+                self.send_packet(&wow_packet::packets::pet::PetActionFeedback {
+                    spell_id: 0,
+                    response: wow_packet::packets::pet::PET_ACTION_FEEDBACK_DEAD_LIKE_CPP,
+                });
+                return false;
+            }
+            let removed = !creature
+                .unit_mut()
+                .subsystems_mut()
+                .auras
+                .remove_auras_due_to_spell_like_cpp(spell_id, ObjectGuid::EMPTY, 0)
+                .is_empty();
+            return removed;
+        }
+
+        false
     }
 
     pub(crate) fn set_represented_pending_quest_sharing_like_cpp(
@@ -35168,14 +43287,18 @@ impl WorldSession {
         self.update_visibility().await;
     }
 
-    /// Complete the logout: send LogoutComplete and mark session for disconnect.
+    /// Complete timed logout.
+    ///
+    /// C++ `WorldSession::LogoutPlayer(true)` saves while `_player` still
+    /// exists, then removes the player from the world. Keep the represented
+    /// player identity alive until the session loop runs the disconnect-save
+    /// path; clearing it here would make the later save a no-op.
     fn complete_logout(&mut self) {
         use wow_packet::packets::misc::LogoutComplete;
 
         info!("Logout complete for account {}", self.account_id);
         self.send_packet(&LogoutComplete);
-        self.set_player_guid(None);
-        self.state = SessionState::Authed;
+        self.state = SessionState::Disconnecting;
     }
 
     /// Kick the session (mark as disconnecting).
@@ -36930,6 +45053,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
 
 // ── Creature AI / Combat tick methods ────────────────────────────
 
+#[allow(dead_code)]
 impl WorldSession {
     /// Called every ~200ms from the update loop.
     /// Advances creature movement state and sends MonsterMove packets.
@@ -37120,7 +45244,6 @@ impl WorldSession {
             {
                 warn!(account = self.account_id, "Spell execution failed: {}", e);
                 // Send CastFailed so client cancels cast animation
-                use wow_packet::ServerPacket;
                 use wow_packet::packets::spell::CastFailed;
                 self.send_packet(&CastFailed {
                     cast_id,
@@ -37519,7 +45642,7 @@ impl WorldSession {
             .unwrap_or(RuntimeTickOwner::Session)
     }
 
-    /// Broadcast the newly logged-in player's CREATE block to all other players on the same map.
+    /// Broadcast the newly logged-in player's CREATE block to nearby players on the same map.
     ///
     /// Called after login is complete. Iterates through all players in the registry
     /// who are on the same map, creates an UpdateObject with the new player's CREATE block,
@@ -37540,6 +45663,12 @@ impl WorldSession {
             return;
         };
         let map_id = self.player_map_id_like_cpp();
+        let instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let range_sq =
+            crate::map_manager::VISIBILITY_RADIUS * crate::map_manager::VISIBILITY_RADIUS;
         let race = self.player_race_like_cpp();
         let class = self.player_class_like_cpp();
         let gender = self.player_gender_like_cpp();
@@ -37584,21 +45713,31 @@ impl WorldSession {
         // Count players to broadcast to
         let mut broadcast_count = 0;
 
-        // Iterate through all players in the registry on the same map
+        // Iterate through visible player candidates. C++ `Player::UpdateVisibilityOf`
+        // creates objects only when `CanSeeOrDetect` passes; Rust does the
+        // bounded candidate part here and leaves exact phase/shared-vision
+        // parity for the full visibility runtime.
         for entry in registry.iter() {
             let (other_guid, broadcast_info) = entry.pair();
             // Don't send to ourselves
             if *other_guid == guid {
                 continue;
             }
-            // Only send to players on the same map
-            if broadcast_info.map_id != map_id {
+            if !broadcast_info.is_in_world
+                || broadcast_info.map_id != map_id
+                || broadcast_info.instance_id != instance_id
+            {
+                continue;
+            }
+            let dx = broadcast_info.position.x - pos.x;
+            let dy = broadcast_info.position.y - pos.y;
+            if dx * dx + dy * dy > range_sq {
                 continue;
             }
 
             broadcast_count += 1;
 
-            if let Err(_) = broadcast_info.send_tx.send(bytes.clone()) {
+            if let Err(_) = broadcast_info.send_tx.try_send(bytes.clone()) {
                 debug!("Failed to broadcast CreatePlayer to {:?}", other_guid);
             } else {
                 trace!("Broadcast CreatePlayer {:?} to {:?}", guid, other_guid);
@@ -37624,7 +45763,16 @@ impl WorldSession {
         let Some(registry) = &self.player_registry else {
             return;
         };
+        let Some(pos) = self.player_position_like_cpp() else {
+            return;
+        };
         let map_id = self.player_map_id_like_cpp();
+        let instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let range_sq =
+            crate::map_manager::VISIBILITY_RADIUS * crate::map_manager::VISIBILITY_RADIUS;
 
         let destroy = UpdateObject::destroy_objects(vec![guid], map_id);
         let bytes = destroy.to_bytes();
@@ -37635,10 +45783,26 @@ impl WorldSession {
             if *other_guid == guid {
                 continue;
             }
-            if info.map_id != map_id {
+            if !info.is_in_world || info.map_id != map_id || info.instance_id != instance_id {
                 continue;
             }
-            if info.send_tx.send(bytes.clone()).is_ok() {
+            let dx = info.position.x - pos.x;
+            let dy = info.position.y - pos.y;
+            if dx * dx + dy * dy > range_sq {
+                continue;
+            }
+            if info
+                .command_tx
+                .try_send(SessionCommand::SendIfVisibleLikeCpp(
+                    SendIfVisibleLikeCppCommand {
+                        source_guid: guid,
+                        map_id,
+                        instance_id,
+                        packet_bytes: bytes.clone(),
+                    },
+                ))
+                .is_ok()
+            {
                 count += 1;
             }
         }
@@ -37663,7 +45827,16 @@ impl WorldSession {
         let Some(registry) = &self.player_registry else {
             return;
         };
+        let Some(pos) = self.player_position_like_cpp() else {
+            return;
+        };
         let map_id = self.player_map_id_like_cpp();
+        let instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let range_sq =
+            crate::map_manager::VISIBILITY_RADIUS * crate::map_manager::VISIBILITY_RADIUS;
 
         let empty_inv_slots = [ObjectGuid::EMPTY; 141];
         let empty_skills = Vec::new();
@@ -37675,8 +45848,18 @@ impl WorldSession {
         for entry in registry.iter() {
             let (other_guid, broadcast_info) = entry.pair();
 
-            // Skip self and players on different maps
-            if *other_guid == guid || broadcast_info.map_id != map_id {
+            // Skip self and players outside this session's bounded visibility
+            // candidate set.
+            if *other_guid == guid
+                || !broadcast_info.is_in_world
+                || broadcast_info.map_id != map_id
+                || broadcast_info.instance_id != instance_id
+            {
+                continue;
+            }
+            let dx = broadcast_info.position.x - pos.x;
+            let dy = broadcast_info.position.y - pos.y;
+            if dx * dx + dy * dy > range_sq {
                 continue;
             }
 
@@ -37998,6 +46181,34 @@ impl WorldSession {
             return Ok(());
         }
 
+        if let Some(outcome) = self.check_represented_mount_spell_like_cpp(&spell_info) {
+            match outcome {
+                RepresentedMountSpellCheckOutcomeLikeCpp::CastFailed(reason) => {
+                    self.send_packet(&wow_packet::packets::spell::CastFailed {
+                        cast_id,
+                        spell_id,
+                        reason: reason as i32,
+                        fail_arg1: 0,
+                        fail_arg2: 0,
+                    });
+                    debug!(
+                        account = self.account_id,
+                        spell_id = spell_id,
+                        reason = reason as i32,
+                        "Failing represented mount spell because C++ Spell::CheckCast rejected it"
+                    );
+                }
+                RepresentedMountSpellCheckOutcomeLikeCpp::DontReport => {
+                    debug!(
+                        account = self.account_id,
+                        spell_id = spell_id,
+                        "Failing represented mount spell with C++ SPELL_FAILED_DONT_REPORT"
+                    );
+                }
+            }
+            return Ok(());
+        }
+
         if self.represented_gameobject_summon_missing_nearby_entry_destination_like_cpp(
             spell_id,
             &spell_info,
@@ -38276,6 +46487,9 @@ impl WorldSession {
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_DUAL_WIELD => {
                     self.apply_dual_wield_effect_like_cpp(target_guid)?;
                 }
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_TITAN_GRIP => {
+                    self.apply_titan_grip_effect_like_cpp(direct_effect_misc_value_1)?;
+                }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PARRY => {
                     self.apply_parry_effect_like_cpp()?;
                 }
@@ -38507,6 +46721,211 @@ impl WorldSession {
                         RepresentedAuraEffectLikeCpp::ModDetectedRange,
                         30_000,
                     )?;
+                } else if effect.effect_aura == wow_data::spell::aura_types::SPELL_AURA_MOD_SCALE {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::ModScale,
+                        30_000,
+                    )?;
+                } else if effect.effect_aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_SPEED_NO_CONTROL
+                {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::ModSpeedNoControl,
+                        30_000,
+                    )?;
+                } else if effect.effect_aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED
+                {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::Speed,
+                        30_000,
+                    )?;
+                    self.recompute_represented_run_speed_rate_like_cpp();
+                } else if effect.effect_aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SWIM_SPEED
+                {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::SwimSpeed,
+                        30_000,
+                    )?;
+                    self.recompute_represented_swim_speed_rate_like_cpp();
+                } else if effect.effect_aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_DECREASE_SPEED
+                {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::DecreaseSpeed,
+                        30_000,
+                    )?;
+                    self.recompute_represented_forward_speed_rates_like_cpp();
+                    self.recompute_represented_backward_speed_rates_like_cpp();
+                } else if effect.effect_aura
+                    == wow_data::spell::aura_types::SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED
+                {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::UseNormalMovementSpeed,
+                        30_000,
+                    )?;
+                    self.recompute_represented_forward_speed_rates_like_cpp();
+                } else if effect.effect_aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_MINIMUM_SPEED
+                {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::MinimumSpeed,
+                        30_000,
+                    )?;
+                    self.recompute_represented_run_speed_rate_like_cpp();
+                } else if effect.effect_aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_MINIMUM_SPEED_RATE
+                {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::MinimumSpeedRate,
+                        30_000,
+                    )?;
+                    self.recompute_represented_run_speed_rate_like_cpp();
+                } else if effect.effect_aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_SPEED_ALWAYS
+                {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::SpeedAlways,
+                        30_000,
+                    )?;
+                    self.recompute_represented_run_speed_rate_like_cpp();
+                } else if effect.effect_aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_SPEED_NOT_STACK
+                {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::SpeedNotStack,
+                        30_000,
+                    )?;
+                    self.recompute_represented_run_speed_rate_like_cpp();
+                } else if effect.effect_aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED
+                {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::MountedSpeed,
+                        30_000,
+                    )?;
+                    self.recompute_represented_mounted_speed_rates_like_cpp();
+                } else if effect.effect_aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_MOUNTED_SPEED_ALWAYS
+                {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::MountedSpeedAlways,
+                        30_000,
+                    )?;
+                    self.recompute_represented_mounted_speed_rates_like_cpp();
+                } else if effect.effect_aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_MOUNTED_SPEED_NOT_STACK
+                {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::MountedSpeedNotStack,
+                        30_000,
+                    )?;
+                    self.recompute_represented_mounted_speed_rates_like_cpp();
+                } else if effect.effect_aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED
+                {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::MountedFlightSpeed,
+                        30_000,
+                    )?;
+                    self.update_represented_flight_flags_for_flight_aura_like_cpp(true);
+                    self.recompute_represented_mounted_speed_rates_like_cpp();
+                } else if effect.effect_aura == wow_data::spell::aura_types::SPELL_AURA_FLY {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::Fly,
+                        30_000,
+                    )?;
+                    self.update_represented_flight_flags_for_flight_aura_like_cpp(true);
+                } else if effect.effect_aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_FLIGHT_SPEED
+                {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::FlightSpeed,
+                        30_000,
+                    )?;
+                    self.recompute_represented_flight_speed_rate_like_cpp();
+                } else if effect.effect_aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_VEHICLE_FLIGHT_SPEED
+                {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::VehicleFlightSpeed,
+                        30_000,
+                    )?;
+                    self.recompute_represented_flight_speed_rate_like_cpp();
+                } else if effect.effect_aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_MOUNTED_FLIGHT_SPEED_ALWAYS
+                {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::MountedFlightSpeedAlways,
+                        30_000,
+                    )?;
+                    self.recompute_represented_mounted_speed_rates_like_cpp();
+                } else if effect.effect_aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_FLIGHT_SPEED_NOT_STACK
+                {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::FlightSpeedNotStack,
+                        30_000,
+                    )?;
+                    self.recompute_represented_mounted_speed_rates_like_cpp();
                 } else if generic_apply_aura_rows_like_cpp == 1 && apply_aura_rows_like_cpp == 1 {
                     self.apply_aura_with_effect_mask_like_cpp(
                         spell_id,
@@ -38594,6 +47013,10 @@ impl WorldSession {
         // Set per-spell cooldown
         self.last_spell_cast_time_per_spell
             .insert(spell_id, Instant::now());
+        self.record_cast_character_spell_cooldown_like_cpp(
+            spell_id,
+            spell_info.recovery_time_ms.max(spell_info.cooldown_ms),
+        );
 
         // Notify client so action bar shows the cooldown animation
         use wow_packet::packets::spell::CooldownEvent;
@@ -38852,6 +47275,233 @@ impl WorldSession {
         }
 
         None
+    }
+
+    /// C++ `SpellInfo::CheckLocation` aura limitation plus
+    /// `Spell::CheckCast` per-effect water gate for represented mount spells.
+    fn check_represented_mount_spell_like_cpp(
+        &self,
+        spell_info: &wow_data::SpellInfo,
+    ) -> Option<RepresentedMountSpellCheckOutcomeLikeCpp> {
+        for effect in spell_info.effects() {
+            if effect.is_mod_shapeshift_aura_like_cpp() {
+                if let Some(form) = self.spell_shapeshift_form_store.as_ref().and_then(|store| {
+                    u32::try_from(effect.effect_misc_value_1)
+                        .ok()
+                        .and_then(|form_id| store.get(form_id))
+                }) {
+                    let (is_submerged, is_in_water) =
+                        self.represented_player_mount_liquid_state_like_cpp();
+                    if form.mount_type_id != 0
+                        && let Err(reject_reason) = self
+                            .represented_mount_capability_selection_for_type_like_cpp(
+                                form.mount_type_id,
+                                u32::from(self.player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP)),
+                                None,
+                                is_submerged,
+                                is_in_water,
+                            )
+                    {
+                        info!(
+                            account = self.account_id,
+                            spell_id = spell_info.spell_id,
+                            form_id = effect.effect_misc_value_1,
+                            mount_type_id = form.mount_type_id,
+                            riding_skill = self.player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP),
+                            map_id = self.player_map_id_like_cpp(),
+                            ?reject_reason,
+                            "Rejecting represented shapeshift mount form cast: no mount capability"
+                        );
+                        return Some(RepresentedMountSpellCheckOutcomeLikeCpp::CastFailed(
+                            SpellCastResult::NotHere,
+                        ));
+                    }
+                }
+            }
+
+            if !effect.is_mounted_aura_like_cpp() {
+                continue;
+            }
+
+            let (_, is_in_water) = self.represented_player_mount_liquid_state_like_cpp();
+            if is_in_water
+                && spell_info.has_aura_like_cpp(
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED,
+                )
+            {
+                info!(
+                    account = self.account_id,
+                    spell_id = spell_info.spell_id,
+                    "Rejecting represented flying mount cast while in water"
+                );
+                return Some(RepresentedMountSpellCheckOutcomeLikeCpp::CastFailed(
+                    SpellCastResult::OnlyAbovewater,
+                ));
+            }
+
+            if let Some(disallowed_source_id) = self.represented_disallowed_mount_form_like_cpp() {
+                self.send_packet(&MountResult {
+                    result: MOUNT_RESULT_SHAPESHIFTED_LIKE_CPP,
+                });
+                info!(
+                    account = self.account_id,
+                    spell_id = spell_info.spell_id,
+                    disallowed_source_id,
+                    "Rejecting represented mount cast: player is in a disallowed shapeshift form"
+                );
+                return Some(RepresentedMountSpellCheckOutcomeLikeCpp::DontReport);
+            }
+
+            let mut mount_type_id = u16::try_from(effect.effect_misc_value_2).unwrap_or_default();
+            if let Some(mount_entry) = self.mount_store.as_ref().and_then(|store| {
+                u32::try_from(spell_info.spell_id)
+                    .ok()
+                    .and_then(|spell_id| store.get_by_source_spell_id_like_cpp(spell_id))
+            }) {
+                mount_type_id = mount_entry.mount_type_id;
+            }
+
+            if mount_type_id != 0 {
+                let (is_submerged, is_in_water) =
+                    self.represented_player_mount_liquid_state_like_cpp();
+                if let Err(reject_reason) = self
+                    .represented_mount_capability_selection_for_type_like_cpp(
+                        mount_type_id,
+                        u32::from(self.player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP)),
+                        None,
+                        is_submerged,
+                        is_in_water,
+                    )
+                {
+                    info!(
+                        account = self.account_id,
+                        spell_id = spell_info.spell_id,
+                        mount_type_id,
+                        riding_skill = self.player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP),
+                        map_id = self.player_map_id_like_cpp(),
+                        area_id = self.player_zone_area_like_cpp().1,
+                        is_submerged,
+                        is_in_water,
+                        ?reject_reason,
+                        "Rejecting represented mount cast: no mount capability"
+                    );
+                    return Some(RepresentedMountSpellCheckOutcomeLikeCpp::CastFailed(
+                        SpellCastResult::NotHere,
+                    ));
+                }
+                info!(
+                    account = self.account_id,
+                    spell_id = spell_info.spell_id,
+                    mount_type_id,
+                    riding_skill = self.player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP),
+                    map_id = self.player_map_id_like_cpp(),
+                    area_id = self.player_zone_area_like_cpp().1,
+                    is_submerged,
+                    is_in_water,
+                    "Represented mount cast passed C++ mount capability check"
+                );
+            }
+        }
+
+        None
+    }
+
+    fn represented_disallowed_mount_form_like_cpp(&self) -> Option<u32> {
+        if self.represented_transform_spell_allows_mount_like_cpp() {
+            return None;
+        }
+
+        if let (Some(spell_store), Some(shapeshift_form_store)) = (
+            self.spell_store(),
+            self.spell_shapeshift_form_store.as_ref(),
+        ) {
+            for aura in self.visible_auras.values() {
+                let Some(spell_info) = spell_store.get(aura.spell_id) else {
+                    continue;
+                };
+
+                for effect in spell_info
+                    .effects()
+                    .iter()
+                    .filter(|effect| effect.is_mod_shapeshift_aura_like_cpp())
+                {
+                    let Ok(form_id) = u32::try_from(effect.effect_misc_value_1) else {
+                        continue;
+                    };
+                    let Some(form) = shapeshift_form_store.get(form_id) else {
+                        return Some(form_id);
+                    };
+                    if form.flags & SPELL_SHAPESHIFT_FORM_FLAG_STANCE_LIKE_CPP == 0 {
+                        return Some(form_id);
+                    }
+                }
+            }
+        }
+
+        let (display_id, native_display_id) = self.canonical_player_display_ids_like_cpp()?;
+        if display_id == 0 || display_id == native_display_id {
+            return None;
+        }
+
+        let Some(display_store) = self.creature_display_info_store.as_ref() else {
+            return None;
+        };
+        let Some(display_extra_store) = self.creature_display_info_extra_store.as_ref() else {
+            return None;
+        };
+        let Some(display) = display_store.get(display_id) else {
+            return Some(display_id);
+        };
+        let Ok(display_extra_id) = u32::try_from(display.extended_display_info_id) else {
+            return Some(display_id);
+        };
+        let Some(display_extra) = display_extra_store.get(display_extra_id) else {
+            return Some(display_id);
+        };
+
+        if let (Some(model_store), Some(chr_races_store)) = (
+            self.creature_model_data_store.as_ref(),
+            self.chr_races_store.as_ref(),
+        ) {
+            let model_cannot_mount =
+                model_store
+                    .get(u32::from(display.model_id))
+                    .is_some_and(|model| {
+                        model.flags
+                            & CREATURE_MODEL_DATA_FLAG_CAN_MOUNT_WHILE_TRANSFORMED_AS_THIS_LIKE_CPP
+                            == 0
+                    });
+            let race_cannot_mount = u32::try_from(display_extra.display_race_id)
+                .ok()
+                .and_then(|race_id| chr_races_store.get(race_id))
+                .is_some_and(|race| race.flags & CHR_RACES_FLAG_CAN_MOUNT_LIKE_CPP == 0);
+            if model_cannot_mount && race_cannot_mount {
+                return Some(display_id);
+            }
+        }
+
+        None
+    }
+
+    fn represented_transform_spell_allows_mount_like_cpp(&self) -> bool {
+        let Some(spell_store) = self.spell_store() else {
+            return false;
+        };
+
+        self.visible_auras.values().any(|aura| {
+            let Some(spell_info) = spell_store.get(aura.spell_id) else {
+                return false;
+            };
+            let is_transform_spell = spell_info.effects().iter().any(|effect| {
+                effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA
+                    && effect.effect_aura == wow_data::spell::aura_types::SPELL_AURA_TRANSFORM
+            });
+            is_transform_spell
+                && spell_store.has_attribute0_like_cpp(
+                    aura.spell_id,
+                    wow_data::spell::attributes::SPELL_ATTR0_ALLOW_WHILE_MOUNTED,
+                )
+        })
     }
 
     async fn apply_effect_teleport_units_like_cpp(
@@ -39315,6 +47965,30 @@ impl WorldSession {
         let Some(player_map_key) = self.current_canonical_player_map_key_like_cpp() else {
             return None;
         };
+        let has_implicit_conditions =
+            implicit_conditions.is_some_and(|conditions| !conditions.is_empty());
+        let caster_object = if has_implicit_conditions {
+            self.build_condition_player_object_like_cpp()
+        } else {
+            None
+        };
+        let player_unit_snapshot = self.condition_player_unit_snapshot_like_cpp();
+        let player_snapshot = self.condition_player_snapshot_like_cpp();
+        let player_condition_context = if has_implicit_conditions {
+            Some(self.represented_player_condition_context_like_cpp())
+        } else {
+            None
+        };
+        let player_condition_store = if has_implicit_conditions {
+            self.player_condition_store.as_ref().cloned()
+        } else {
+            None
+        };
+        let area_table_store = if has_implicit_conditions {
+            self.area_table_store.as_ref().cloned()
+        } else {
+            None
+        };
         let Some(manager) = &self.canonical_map_manager else {
             return None;
         };
@@ -39328,14 +48002,6 @@ impl WorldSession {
             map.map()
                 .nearby_cell_guids_like_cpp(caster_position.x, caster_position.y, range);
         let mut best: Option<(f32, Position)> = None;
-        let caster_object = if implicit_conditions.is_some_and(|conditions| !conditions.is_empty())
-        {
-            self.build_condition_player_object_like_cpp()
-        } else {
-            None
-        };
-        let player_unit_snapshot = self.condition_player_unit_snapshot_like_cpp();
-        let player_snapshot = self.condition_player_snapshot_like_cpp();
 
         for guid in nearby
             .world
@@ -39372,6 +48038,9 @@ impl WorldSession {
                     caster_object.as_ref(),
                     player_unit_snapshot,
                     player_snapshot,
+                    player_condition_store.as_deref(),
+                    player_condition_context.as_ref(),
+                    area_table_store.as_deref(),
                 )
             {
                 best = Some((distance, position));
@@ -39396,6 +48065,9 @@ impl WorldSession {
                     caster_object.as_ref(),
                     player_unit_snapshot,
                     player_snapshot,
+                    player_condition_store.as_deref(),
+                    player_condition_context.as_ref(),
+                    area_table_store.as_deref(),
                 )
             {
                 best = Some((distance, position));
@@ -39413,6 +48085,9 @@ impl WorldSession {
         caster_object: Option<&WorldObject>,
         player_unit_snapshot: crate::conditions::ConditionUnitSnapshot,
         player_snapshot: crate::conditions::ConditionPlayerSnapshot,
+        player_condition_store: Option<&wow_data::PlayerConditionStore>,
+        player_condition_context: Option<&RepresentedPlayerConditionContextLikeCpp>,
+        area_table_store: Option<&wow_data::AreaTableStore>,
     ) -> bool {
         let Some(conditions) = implicit_conditions.filter(|conditions| !conditions.is_empty())
         else {
@@ -39424,7 +48099,6 @@ impl WorldSession {
 
         // C++ `WorldObjectSpellTargetCheck` builds `ConditionSourceInfo(nullptr, caster)`
         // and then assigns the tested target to condition slot 0.
-        let player_condition_context = self.represented_player_condition_context_like_cpp();
         let mut source_info = crate::conditions::ConditionSourceInfo::from_targets(
             Some(candidate),
             caster_object,
@@ -39435,11 +48109,10 @@ impl WorldSession {
         }
         source_info.set_unit_target_snapshot(1, player_unit_snapshot);
         source_info.set_player_target_snapshot(1, player_snapshot);
-        if let Some(store) = self.player_condition_store.as_ref() {
-            source_info.set_player_condition_store(store.as_ref());
-            source_info.set_player_condition_context(1, player_condition_context.as_context(self));
+        if let (Some(store), Some(context)) = (player_condition_store, player_condition_context) {
+            source_info.set_player_condition_store(store);
+            source_info.set_player_condition_context(1, context.as_context(self));
         }
-        let area_table_store = self.area_table_store.as_ref().cloned();
 
         crate::conditions::is_object_meet_to_conditions_like_cpp(
             &mut source_info,
@@ -39450,7 +48123,7 @@ impl WorldSession {
                     condition,
                     source_info,
                     |area_id, required_area_id| {
-                        area_table_store.as_ref().is_some_and(|store| {
+                        area_table_store.is_some_and(|store| {
                             store.is_in_area_like_cpp(area_id, required_area_id)
                         })
                     },
@@ -40610,6 +49283,20 @@ impl WorldSession {
         Ok(())
     }
 
+    fn apply_titan_grip_effect_like_cpp(
+        &mut self,
+        penalty_spell_id: i32,
+    ) -> Result<(), &'static str> {
+        let _ = self.player_guid().ok_or("No player GUID")?;
+
+        let penalty_spell_id = u32::try_from(penalty_spell_id).unwrap_or(0);
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            player.set_can_titan_grip(true, penalty_spell_id);
+        });
+
+        Ok(())
+    }
+
     fn apply_parry_effect_like_cpp(&mut self) -> Result<(), &'static str> {
         let _ = self.player_guid().ok_or("No player GUID")?;
 
@@ -40861,17 +49548,27 @@ impl WorldSession {
             return 0;
         }
 
-        self.mutate_canonical_player_like_cpp(|player| {
-            let history = &mut player.unit_mut().subsystems_mut().spells.history;
-            let mut restored = 0;
-            for _ in 0..damage {
-                if history.restore_charge(charge_category_id) {
-                    restored += 1;
+        let restored = self
+            .mutate_canonical_player_like_cpp(|player| {
+                let history = &mut player.unit_mut().subsystems_mut().spells.history;
+                let mut restored = 0;
+                for _ in 0..damage {
+                    if history.restore_charge(charge_category_id) {
+                        restored += 1;
+                    }
                 }
+                restored
+            })
+            .unwrap_or(0);
+
+        let mut represented_restored = 0;
+        for _ in 0..damage {
+            if self.restore_represented_character_spell_charge_like_cpp(charge_category_id) {
+                represented_restored += 1;
             }
-            restored
-        })
-        .unwrap_or(0)
+        }
+
+        restored.max(represented_restored)
     }
 
     fn current_map_is_dungeon_like_cpp(&self) -> bool {
@@ -41281,14 +49978,20 @@ impl WorldSession {
             self.teleport_to(homebind.map_id, homebind.position).await;
         }
 
-        let Some(spell_store) = self.spell_store.as_deref() else {
+        let Some(hearthstone_cooldown_ms) = self
+            .spell_store
+            .as_deref()
+            .and_then(|store| store.get(HEARTHSTONE_SPELL_ID_LIKE_CPP))
+            .map(|spell_info| spell_info.recovery_time_ms.max(spell_info.cooldown_ms))
+        else {
             return;
         };
-        if spell_store.get(HEARTHSTONE_SPELL_ID_LIKE_CPP).is_none() {
-            return;
-        }
         self.last_spell_cast_time_per_spell
             .insert(HEARTHSTONE_SPELL_ID_LIKE_CPP, Instant::now());
+        self.record_cast_character_spell_cooldown_like_cpp(
+            HEARTHSTONE_SPELL_ID_LIKE_CPP,
+            hearthstone_cooldown_ms,
+        );
         self.send_packet(&wow_packet::packets::spell::CooldownEvent {
             spell_id: HEARTHSTONE_SPELL_ID_LIKE_CPP,
             is_pet: false,
@@ -41595,6 +50298,16 @@ fn create_map_decision_difficulty_id_like_cpp(
     }
 }
 
+fn create_map_decision_key_like_cpp(
+    decision: &wow_map::CreateMapDecision,
+) -> Option<wow_map::MapKey> {
+    match decision {
+        wow_map::CreateMapDecision::Existing { key, .. }
+        | wow_map::CreateMapDecision::Create { key, .. } => Some(*key),
+        wow_map::CreateMapDecision::Reject { .. } => None,
+    }
+}
+
 /// Available race/class combinations from `class_expansion_requirement` table.
 ///
 /// Data matches exactly what C# ObjectManager loads from the world DB.
@@ -41757,6 +50470,7 @@ fn default_available_classes() -> Vec<wow_packet::packets::auth::RaceClassAvaila
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wow_constants::ItemModType;
     use wow_constants::{
         BagFamilyMask, ConditionSourceType, ConditionType, EnchantmentSlot, InventoryResult,
         InventoryType, ItemBondingType, ItemClass, ItemContext, ItemFieldFlags, ItemFlags,
@@ -41770,30 +50484,37 @@ mod tests {
         DurabilityQualityStore, HeirloomEntry, HeirloomStore, ImportPriceArmorEntry,
         ImportPriceArmorStore, ImportPriceQualityEntry, ImportPriceQualityStore,
         ImportPriceShieldEntry, ImportPriceShieldStore, ImportPriceStores, ImportPriceWeaponEntry,
-        ImportPriceWeaponStore, ItemAppearanceEntry, ItemAppearanceStore, ItemClassEntry,
-        ItemClassStore, ItemCurrencyCostEntry, ItemCurrencyCostStore, ItemDisenchantLootEntry,
-        ItemDisenchantLootStore, ItemEffectEntry, ItemEffectStore, ItemLimitCategoryConditionEntry,
-        ItemLimitCategoryConditionStore, ItemLimitCategoryEntry, ItemLimitCategoryStore,
-        ItemModifiedAppearanceEntry, ItemModifiedAppearanceStore, ItemPriceBaseEntry,
-        ItemPriceBaseStore, ItemRandomPropertyTemplateEntry, ItemRandomSuffixEntry,
-        ItemRandomSuffixStore, ItemRecord, ItemSearchNameEntry, ItemSearchNameStore,
-        ItemSparseTemplateEntry, ItemSpecOverrideEntry, ItemSpecOverrideStore, ItemStatsStore,
-        ItemStore, LockEntry, LockStore, MapDifficultyEntry, MapDifficultyStore,
-        PlayerConditionEntry, PlayerConditionStore, SpellItemEnchantmentEntry,
-        SpellItemEnchantmentStore, ToyEntry, ToyStore, TransmogSetEntry, TransmogSetItemEntry,
-        TransmogSetItemStore,
+        ImportPriceWeaponStore, ItemAppearanceEntry, ItemAppearanceStore, ItemBonusDb2Entry,
+        ItemBonusDb2Store, ItemClassEntry, ItemClassStore, ItemCurrencyCostEntry,
+        ItemCurrencyCostStore, ItemDisenchantLootEntry, ItemDisenchantLootStore, ItemEffectEntry,
+        ItemEffectStore, ItemLimitCategoryConditionEntry, ItemLimitCategoryConditionStore,
+        ItemLimitCategoryEntry, ItemLimitCategoryStore, ItemModifiedAppearanceEntry,
+        ItemModifiedAppearanceStore, ItemPriceBaseEntry, ItemPriceBaseStore,
+        ItemRandomPropertyTemplateEntry, ItemRandomSuffixEntry, ItemRandomSuffixStore, ItemRecord,
+        ItemSearchNameEntry, ItemSearchNameStore, ItemSetEntry, ItemSetSpellEntry,
+        ItemSetSpellStore, ItemSetStore, ItemSparseTemplateEntry, ItemSpecOverrideEntry,
+        ItemSpecOverrideStore, ItemStatsStore, ItemStore, ItemWeaponTemplateEntry, LockEntry,
+        LockStore, MapDifficultyEntry, MapDifficultyStore, PlayerConditionEntry,
+        PlayerConditionStore, ShieldBlockRegularEntryLikeCpp, ShieldBlockRegularGameTableLikeCpp,
+        SpellInfo, SpellItemEnchantmentEntry, SpellItemEnchantmentStore, SpellStore, ToyEntry,
+        ToyStore, TransmogSetEntry, TransmogSetItemEntry, TransmogSetItemStore,
         progression_rewards::{
-            FactionEntry, FactionStore, QUEST_PACKAGE_FILTER_CLASS_LIKE_CPP,
+            ContentTuningEntry, ContentTuningStore, CurveEntry, CurvePointEntry, CurvePointStore,
+            CurveStore, FactionEntry, FactionStore, QUEST_PACKAGE_FILTER_CLASS_LIKE_CPP,
             QUEST_PACKAGE_FILTER_UNMATCHED_LIKE_CPP, QuestPackageItemEntry, QuestPackageItemStore,
+            ScalingStatDistributionEntry, ScalingStatDistributionStore, ScalingStatValuesEntry,
+            ScalingStatValuesStore,
         },
         reputation::ReputationFlagsLikeCpp,
     };
+    use wow_data::{ItemStatEntry, PvpItemEntry};
     use wow_entities::{
         AccessorObjectRef, ApplyEnchantmentDurationAction, ApplyEnchantmentResult,
-        BANK_SLOT_BAG_START, CharmType, EQUIPMENT_SLOT_CHEST, INVENTORY_SLOT_BAG_START,
-        INVENTORY_SLOT_ITEM_START, MapObjectRecord, REAGENT_BAG_SLOT_START,
-        SendNewItemInstancePlan, SendNewItemModifier, TYPEID_UNIT, UNIT_DATA_BITS, UnitDataUpdate,
-        UnitDataValues, UnitValuesUpdate, UpdateMask,
+        BANK_SLOT_BAG_START, BANK_SLOT_ITEM_START, CharmType, EQUIPMENT_SLOT_CHEST,
+        EQUIPMENT_SLOT_HANDS, INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, ItemBonusKey,
+        MapObjectRecord, PlayerEnchantDuration, REAGENT_BAG_SLOT_START, SendNewItemInstancePlan,
+        SendNewItemModifier, TYPEID_UNIT, UNIT_DATA_BITS, UnitDataUpdate, UnitDataValues,
+        UnitValuesUpdate, UpdateMask,
     };
     use wow_movement::MoveSplineFlag;
     use wow_network::player_registry::{
@@ -41822,7 +50543,7 @@ mod tests {
         flume::Receiver<Vec<u8>>,
     ) {
         let (pkt_tx, pkt_rx) = flume::bounded(100);
-        let (send_tx, send_rx) = flume::bounded(100);
+        let (send_tx, send_rx) = flume::unbounded();
 
         let mut session = WorldSession::new(
             1,
@@ -42223,6 +50944,117 @@ mod tests {
         outcome.store
     }
 
+    fn test_spell_learn_skill_rank_store_like_cpp(
+        skill_id: u16,
+    ) -> wow_data::SpellLearnSkillStoreLikeCpp {
+        wow_data::SpellLearnSkillStoreLikeCpp {
+            skill_by_spell_id: BTreeMap::from([
+                (
+                    10,
+                    wow_data::SpellLearnSkillNodeLikeCpp {
+                        skill: skill_id,
+                        step: 2,
+                        value: 0,
+                        maxvalue: 0,
+                    },
+                ),
+                (
+                    20,
+                    wow_data::SpellLearnSkillNodeLikeCpp {
+                        skill: skill_id,
+                        step: 3,
+                        value: 0,
+                        maxvalue: 0,
+                    },
+                ),
+            ]),
+        }
+    }
+
+    fn test_skill_line_entry_like_cpp(skill_id: u16, category_id: i8) -> wow_data::SkillLineEntry {
+        wow_data::SkillLineEntry {
+            id: u32::from(skill_id),
+            display_name: String::new(),
+            alternate_verb: String::new(),
+            description: String::new(),
+            horde_display_name: String::new(),
+            override_source_info_display_name: String::new(),
+            category_id,
+            spell_icon_file_id: 0,
+            can_link: 0,
+            parent_skill_line_id: 0,
+            parent_tier_index: 0,
+            flags: 0,
+            spell_book_spell_id: 0,
+        }
+    }
+
+    fn test_skill_race_class_info_like_cpp(
+        skill_id: u16,
+        flags: u16,
+        skill_tier_id: i16,
+    ) -> wow_data::SkillRaceClassInfoRecord {
+        wow_data::SkillRaceClassInfoRecord {
+            id: u32::from(skill_id),
+            race_mask: 0,
+            skill_id,
+            class_mask: 0,
+            flags,
+            availability: 0,
+            min_level: 0,
+            skill_tier_id,
+        }
+    }
+
+    fn prepare_remove_spell_skill_range_fixture_like_cpp(
+        session: &mut WorldSession,
+        skill_id: u16,
+        category_id: i8,
+        race_class_flags: u16,
+        skill_tier_id: i16,
+        skill_tiers_store: wow_data::SkillTiersStoreLikeCpp,
+        skill_value: u16,
+        skill_max: u16,
+    ) {
+        session.set_loaded_player_identity_like_cpp(0, 1, 1, 12, 0);
+        session.set_spell_chain_store(Arc::new(
+            wow_data::SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(
+                [wow_data::SpellRankEdgeLikeCpp {
+                    spell_id: 20,
+                    supercedes_spell_id: 10,
+                }],
+                |_| true,
+            ),
+        ));
+        session.set_spell_learn_skill_store(Arc::new(test_spell_learn_skill_rank_store_like_cpp(
+            skill_id,
+        )));
+        session.set_skill_line_store(Arc::new(wow_data::SkillLineStore::from_entries([
+            test_skill_line_entry_like_cpp(skill_id, category_id),
+        ])));
+        session.set_skill_store(Arc::new(
+            wow_data::SkillStore::from_skill_line_abilities_and_race_class_like_cpp(
+                std::iter::empty::<wow_data::SkillLineAbilityRecord>(),
+                [test_skill_race_class_info_like_cpp(
+                    skill_id,
+                    race_class_flags,
+                    skill_tier_id,
+                )],
+            ),
+        ));
+        session.set_skill_tiers_store(Arc::new(skill_tiers_store));
+        session.set_player_skill_records_like_cpp(HashMap::from([(
+            skill_id,
+            RepresentedPlayerSkillLikeCpp {
+                skill_id,
+                value: skill_value,
+                max: skill_max,
+                profession_slot: 0,
+            },
+        )]));
+        session.set_known_spells_like_cpp(vec![20]);
+    }
+
     fn test_spell_learn_spell_store_like_cpp() -> wow_data::SpellLearnSpellStoreLikeCpp {
         let outcome = wow_data::SpellLearnSpellStoreLikeCpp::from_sources_like_cpp(
             [wow_data::SpellLearnSpellSqlRowLikeCpp {
@@ -42540,6 +51372,109 @@ mod tests {
     }
 
     #[test]
+    fn next_spell_in_chain_returns_zero_without_store_like_cpp() {
+        let (session, _, _) = make_session();
+
+        assert_eq!(session.next_spell_in_chain_like_cpp(10), 0);
+    }
+
+    #[test]
+    fn prev_spell_in_chain_returns_zero_without_store_like_cpp() {
+        let (session, _, _) = make_session();
+
+        assert_eq!(session.prev_spell_in_chain_like_cpp(10), 0);
+    }
+
+    #[test]
+    fn first_spell_in_chain_returns_input_without_store_like_cpp() {
+        let (session, _, _) = make_session();
+
+        assert_eq!(session.first_spell_in_chain_like_cpp(10), 10);
+    }
+
+    #[test]
+    fn remove_known_spell_removes_non_talent_higher_ranks_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_spell_chain_store(Arc::new(
+            wow_data::SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(
+                [
+                    wow_data::SpellRankEdgeLikeCpp {
+                        spell_id: 20,
+                        supercedes_spell_id: 10,
+                    },
+                    wow_data::SpellRankEdgeLikeCpp {
+                        spell_id: 30,
+                        supercedes_spell_id: 20,
+                    },
+                ],
+                |_| true,
+            ),
+        ));
+        session.set_known_spells_like_cpp(vec![10, 20, 30, 40]);
+
+        session.remove_known_spell_like_cpp(10);
+
+        assert_eq!(
+            session.known_spells_like_cpp(),
+            &[40],
+            "C++ Player::RemoveSpell recursively removes known non-talent higher ranks before removing the current spell"
+        );
+        let statements = WorldSession::character_spell_save_statements_like_cpp(
+            42,
+            session.represented_player_spell_rows_like_cpp(),
+        );
+        let deleted_spells: BTreeSet<i32> = statements
+            .iter()
+            .filter(|stmt| stmt.sql() == CharStatements::DEL_CHAR_SPELL_BY_SPELL.sql())
+            .filter_map(|stmt| match stmt.params().first() {
+                Some(wow_database::SqlParam::I32(spell_id)) => Some(*spell_id),
+                _ => None,
+            })
+            .collect();
+
+        assert_eq!(deleted_spells, BTreeSet::from([10, 20, 30]));
+    }
+
+    #[test]
+    fn remove_known_spell_preserves_talent_higher_rank_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_spell_chain_store(Arc::new(
+            wow_data::SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(
+                [wow_data::SpellRankEdgeLikeCpp {
+                    spell_id: 20,
+                    supercedes_spell_id: 10,
+                }],
+                |_| true,
+            ),
+        ));
+        let outcome = wow_data::SpellCustomAttributeStoreLikeCpp::from_sql_rows_like_cpp(
+            [wow_data::SpellCustomAttributeRowLikeCpp {
+                spell_id: 20,
+                attributes: wow_data::SPELL_ATTR0_CU_IS_TALENT_LIKE_CPP,
+            }],
+            |spell_id| {
+                (spell_id == 20)
+                    .then_some(vec![wow_data::SpellCustomAttributeSourceSpellInfoLikeCpp {
+                        spell_id,
+                        difficulty: 0,
+                        effects: Vec::new(),
+                    }])
+                    .unwrap_or_default()
+            },
+        );
+        session.set_spell_custom_attribute_store(Arc::new(outcome.store));
+        session.set_known_spells_like_cpp(vec![10, 20]);
+
+        session.remove_known_spell_like_cpp(10);
+
+        assert_eq!(
+            session.known_spells_like_cpp(),
+            &[20],
+            "C++ skips recursive higher-rank removal when the next spell has SPELL_ATTR0_CU_IS_TALENT"
+        );
+    }
+
+    #[test]
     fn spell_required_queries_return_empty_without_store_like_cpp() {
         let (session, _, _) = make_session();
 
@@ -42557,6 +51492,4523 @@ mod tests {
         assert_eq!(session.spells_requiring_spell_like_cpp(10), &[100, 101]);
         assert!(session.is_spell_requiring_spell_like_cpp(100, 10));
         assert!(!session.is_spell_requiring_spell_like_cpp(11, 100));
+    }
+
+    #[test]
+    fn remove_known_spell_removes_spells_requiring_it_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_spell_required_store(Arc::new(test_spell_required_store_like_cpp()));
+        session.set_known_spells_like_cpp(vec![10, 100, 101, 200]);
+
+        session.remove_known_spell_like_cpp(10);
+
+        assert_eq!(
+            session.known_spells_like_cpp(),
+            &[200],
+            "C++ Player::RemoveSpell removes spells returned by GetSpellsRequiringSpellBounds recursively"
+        );
+        let statements = WorldSession::character_spell_save_statements_like_cpp(
+            42,
+            session.represented_player_spell_rows_like_cpp(),
+        );
+        let deleted_spells: BTreeSet<i32> = statements
+            .iter()
+            .filter(|stmt| stmt.sql() == CharStatements::DEL_CHAR_SPELL_BY_SPELL.sql())
+            .filter_map(|stmt| match stmt.params().first() {
+                Some(wow_database::SqlParam::I32(spell_id)) => Some(*spell_id),
+                _ => None,
+            })
+            .collect();
+
+        assert_eq!(
+            deleted_spells,
+            BTreeSet::from([10, 100, 101]),
+            "C++ marks the removed required spell and its non-dependent known dependants as PLAYERSPELL_REMOVED"
+        );
+
+        session.remove_known_spell_like_cpp(11);
+        assert_eq!(
+            session.known_spells_like_cpp(),
+            &[200],
+            "C++ returns before recursive required-spell cleanup when the removed spell is not known"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_removes_learned_dependent_spells_and_overrides_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_spell_learn_spell_store(Arc::new(wow_data::SpellLearnSpellStoreLikeCpp {
+            learned_by_spell_id: BTreeMap::from([(
+                10,
+                vec![wow_data::SpellLearnSpellNodeLikeCpp {
+                    spell: 20,
+                    overrides_spell: 100,
+                    active: true,
+                    auto_learned: false,
+                }],
+            )]),
+        }));
+        session.set_known_spells_like_cpp(vec![10, 20, 30]);
+        session.add_represented_override_spell_like_cpp(100, 20);
+
+        session.remove_known_spell_like_cpp(10);
+
+        assert_eq!(
+            session.known_spells_like_cpp(),
+            &[30],
+            "C++ Player::RemoveSpell removes spells returned by GetSpellLearnSpellMapBounds"
+        );
+        assert!(
+            session.represented_override_spells_like_cpp().is_empty(),
+            "C++ removes OverridesSpell pairs for learned dependent spells"
+        );
+        let statements = WorldSession::character_spell_save_statements_like_cpp(
+            42,
+            session.represented_player_spell_rows_like_cpp(),
+        );
+        let deleted_spells: BTreeSet<i32> = statements
+            .iter()
+            .filter(|stmt| stmt.sql() == CharStatements::DEL_CHAR_SPELL_BY_SPELL.sql())
+            .filter_map(|stmt| match stmt.params().first() {
+                Some(wow_database::SqlParam::I32(spell_id)) => Some(*spell_id),
+                _ => None,
+            })
+            .collect();
+
+        assert_eq!(deleted_spells, BTreeSet::from([10, 20]));
+    }
+
+    #[test]
+    fn remove_known_spell_removes_first_rank_learned_skill_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_spell_learn_skill_store(Arc::new(test_spell_learn_skill_store_like_cpp()));
+        session.set_player_skill_records_like_cpp(HashMap::from([(
+            755,
+            RepresentedPlayerSkillLikeCpp {
+                skill_id: 755,
+                value: 150,
+                max: 225,
+                profession_slot: 0,
+            },
+        )]));
+        session.set_known_spells_like_cpp(vec![10, 30]);
+
+        session.remove_known_spell_like_cpp(10);
+
+        assert_eq!(
+            session.known_spells_like_cpp(),
+            &[30],
+            "C++ Player::RemoveSpell removes the known first-rank spell itself"
+        );
+        assert_eq!(
+            session.player_skill_records_like_cpp().get(&755),
+            Some(&RepresentedPlayerSkillLikeCpp {
+                skill_id: 755,
+                value: 0,
+                max: 0,
+                profession_slot: 0,
+            }),
+            "C++ SetSkill(skill, 0, 0, 0) resets the learned skill for first-rank SpellLearnSkill nodes"
+        );
+
+        let statements = session.character_skill_save_statements_like_cpp(42);
+        let skill_insert = statements
+            .iter()
+            .find(|stmt| stmt.sql() == CharStatements::INS_CHAR_SKILLS.sql())
+            .expect("skill insert for reset skill");
+        assert!(matches!(
+            skill_insert.params()[1],
+            wow_database::SqlParam::U16(755)
+        ));
+        assert!(matches!(
+            skill_insert.params()[2],
+            wow_database::SqlParam::U16(0)
+        ));
+        assert!(matches!(
+            skill_insert.params()[3],
+            wow_database::SqlParam::U16(0)
+        ));
+    }
+
+    #[test]
+    fn remove_known_spell_downgrades_to_previous_learned_skill_with_explicit_max_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_spell_chain_store(Arc::new(
+            wow_data::SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(
+                [wow_data::SpellRankEdgeLikeCpp {
+                    spell_id: 20,
+                    supercedes_spell_id: 10,
+                }],
+                |_| true,
+            ),
+        ));
+        session.set_spell_learn_skill_store(Arc::new(wow_data::SpellLearnSkillStoreLikeCpp {
+            skill_by_spell_id: BTreeMap::from([
+                (
+                    10,
+                    wow_data::SpellLearnSkillNodeLikeCpp {
+                        skill: 755,
+                        step: 1,
+                        value: 75,
+                        maxvalue: 75,
+                    },
+                ),
+                (
+                    20,
+                    wow_data::SpellLearnSkillNodeLikeCpp {
+                        skill: 755,
+                        step: 2,
+                        value: 150,
+                        maxvalue: 150,
+                    },
+                ),
+            ]),
+        }));
+        session.set_player_skill_records_like_cpp(HashMap::from([(
+            755,
+            RepresentedPlayerSkillLikeCpp {
+                skill_id: 755,
+                value: 180,
+                max: 225,
+                profession_slot: 0,
+            },
+        )]));
+        session.set_known_spells_like_cpp(vec![20]);
+
+        session.remove_known_spell_like_cpp(20);
+
+        assert_eq!(
+            session.player_skill_records_like_cpp().get(&755),
+            Some(&RepresentedPlayerSkillLikeCpp {
+                skill_id: 755,
+                value: 75,
+                max: 75,
+                profession_slot: 0,
+            }),
+            "C++ clamps GetPureSkillValue/GetPureMaxSkillValue to the previous SpellLearnSkill explicit value/maxvalue before SetSkill"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_resets_skill_when_previous_learned_skill_missing_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_spell_chain_store(Arc::new(
+            wow_data::SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(
+                [wow_data::SpellRankEdgeLikeCpp {
+                    spell_id: 20,
+                    supercedes_spell_id: 10,
+                }],
+                |_| true,
+            ),
+        ));
+        session.set_spell_learn_skill_store(Arc::new(wow_data::SpellLearnSkillStoreLikeCpp {
+            skill_by_spell_id: BTreeMap::from([(
+                20,
+                wow_data::SpellLearnSkillNodeLikeCpp {
+                    skill: 755,
+                    step: 2,
+                    value: 150,
+                    maxvalue: 150,
+                },
+            )]),
+        }));
+        session.set_player_skill_records_like_cpp(HashMap::from([(
+            755,
+            RepresentedPlayerSkillLikeCpp {
+                skill_id: 755,
+                value: 150,
+                max: 225,
+                profession_slot: 0,
+            },
+        )]));
+        session.set_known_spells_like_cpp(vec![20]);
+
+        session.remove_known_spell_like_cpp(20);
+
+        assert_eq!(
+            session.player_skill_records_like_cpp().get(&755),
+            Some(&RepresentedPlayerSkillLikeCpp {
+                skill_id: 755,
+                value: 0,
+                max: 0,
+                profession_slot: 0,
+            }),
+            "C++ removes the current learned skill when no previous SpellLearnSkill setting is found"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_marks_previous_rank_dependent_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_spell_chain_store(Arc::new(
+            wow_data::SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(
+                [wow_data::SpellRankEdgeLikeCpp {
+                    spell_id: 20,
+                    supercedes_spell_id: 10,
+                }],
+                |_| true,
+            ),
+        ));
+        session.set_known_spells_like_cpp(vec![10, 20]);
+        session.learn_dependent_known_spell_like_cpp(20);
+
+        session.remove_known_spell_like_cpp(20);
+
+        assert_eq!(session.known_spells_like_cpp(), &[10]);
+        assert!(
+            session
+                .represented_dependent_known_spells_like_cpp()
+                .contains(&10),
+            "C++ RemoveSpell copies cur_dependent to the previous rank before AddSpell reactivates it"
+        );
+        assert!(
+            !session
+                .represented_player_spell_rows_like_cpp()
+                .iter()
+                .any(|spell| {
+                    spell.spell_id == 20
+                        && spell.state == RepresentedPlayerSpellStateLikeCpp::Removed
+                }),
+            "represented dependent spells are still skipped from normal removed-spell save evidence"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_clears_previous_rank_dependent_when_current_is_independent_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_spell_chain_store(Arc::new(
+            wow_data::SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(
+                [wow_data::SpellRankEdgeLikeCpp {
+                    spell_id: 20,
+                    supercedes_spell_id: 10,
+                }],
+                |_| true,
+            ),
+        ));
+        session.set_known_spells_like_cpp(vec![10, 20]);
+        session.learn_dependent_known_spell_like_cpp(10);
+
+        session.remove_known_spell_like_cpp(20);
+
+        assert_eq!(session.known_spells_like_cpp(), &[10]);
+        assert!(
+            !session
+                .represented_dependent_known_spells_like_cpp()
+                .contains(&10),
+            "C++ RemoveSpell updates previous-rank dependent state when it differs from the removed rank"
+        );
+        assert!(
+            session
+                .represented_player_spell_rows_like_cpp()
+                .iter()
+                .any(|spell| {
+                    spell.spell_id == 20
+                        && spell.state == RepresentedPlayerSpellStateLikeCpp::Removed
+                }),
+            "non-dependent removed current rank still carries represented _SaveSpells delete evidence"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_does_not_create_missing_previous_rank_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_spell_chain_store(Arc::new(
+            wow_data::SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(
+                [wow_data::SpellRankEdgeLikeCpp {
+                    spell_id: 20,
+                    supercedes_spell_id: 10,
+                }],
+                |_| true,
+            ),
+        ));
+        session.set_known_spells_like_cpp(vec![20]);
+
+        session.remove_known_spell_like_cpp(20);
+
+        assert!(
+            session.known_spells_like_cpp().is_empty(),
+            "C++ RemoveSpell only reactivates a previous rank when prev_id already exists in PlayerSpellMap; Rust does not invent an absent previous row in the represented model"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_erases_override_source_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_known_spells_like_cpp(vec![10, 30]);
+        session.add_represented_override_spell_like_cpp(10, 20);
+        session.add_represented_override_spell_like_cpp(30, 40);
+
+        session.remove_known_spell_like_cpp(10);
+
+        assert!(
+            !session
+                .represented_override_spells_like_cpp()
+                .contains_key(&10),
+            "C++ Player::RemoveSpell erases m_overrideSpells[spell_id] after removing the spell"
+        );
+        assert_eq!(
+            session
+                .represented_override_spells_like_cpp()
+                .get(&30)
+                .cloned()
+                .unwrap_or_default()
+                .into_iter()
+                .collect::<Vec<_>>(),
+            vec![40],
+            "unrelated override spell entries are not removed by m_overrideSpells.erase(spell_id)"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_removes_trait_definition_override_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_known_spells_like_cpp(vec![20, 40]);
+        session.set_trait_definition_store(Arc::new(TraitDefinitionStore::from_entries([
+            wow_data::trait_tree::TraitDefinitionEntry {
+                id: 7,
+                override_name: String::new(),
+                override_subtext: String::new(),
+                override_description: String::new(),
+                spell_id: 20,
+                override_icon: 0,
+                overrides_spell_id: 10,
+                visible_spell_id: 0,
+            },
+        ])));
+        session.add_represented_override_spell_like_cpp(10, 20);
+        session.add_represented_override_spell_like_cpp(30, 40);
+        session.set_represented_spell_trait_definition_id_like_cpp(20, 7);
+
+        session.remove_known_spell_like_cpp(20);
+
+        assert!(
+            !session
+                .represented_override_spells_like_cpp()
+                .get(&10)
+                .is_some_and(|spells| spells.contains(&20)),
+            "C++ Player::RemoveSpell removes TraitDefinition OverridesSpellID -> spell_id pairs"
+        );
+        assert_eq!(
+            session
+                .represented_override_spells_like_cpp()
+                .get(&30)
+                .cloned()
+                .unwrap_or_default()
+                .into_iter()
+                .collect::<Vec<_>>(),
+            vec![40],
+            "trait-definition cleanup must not remove unrelated override mappings"
+        );
+        assert!(
+            !session
+                .represented_spell_trait_definition_ids_like_cpp
+                .contains_key(&20),
+            "removed PlayerSpell no longer owns a represented TraitDefinitionId"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_sends_unlearned_spells_with_suppress_flag_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_known_spells_like_cpp(vec![20, 40]);
+
+        session.remove_known_spell_with_suppress_messaging_like_cpp(20, true);
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 1);
+        let mut packet = WorldPacket::from_bytes(&packets[0]);
+        assert_eq!(
+            packet.read_uint16().expect("opcode"),
+            ServerOpcodes::UnlearnedSpells as u16
+        );
+        assert_eq!(packet.read_uint32().expect("count"), 1);
+        assert_eq!(packet.read_uint32().expect("spell id"), 20);
+        assert!(packet.read_bit().expect("SuppressMessaging"));
+        packet.flush_bits();
+        assert!(packet.is_empty());
+    }
+
+    #[test]
+    fn remove_known_spell_sends_superceded_packet_when_previous_rank_reactivates_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_spell_chain_store(Arc::new(
+            wow_data::SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(
+                [wow_data::SpellRankEdgeLikeCpp {
+                    spell_id: 20,
+                    supercedes_spell_id: 10,
+                }],
+                |_| true,
+            ),
+        ));
+        session.set_known_spells_like_cpp(vec![10, 20]);
+
+        session.remove_known_spell_with_suppress_messaging_like_cpp(20, true);
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 1);
+        let mut packet = WorldPacket::from_bytes(&packets[0]);
+        assert_eq!(
+            packet.read_uint16().expect("opcode"),
+            ServerOpcodes::SupercededSpells as u16
+        );
+        assert_eq!(packet.read_uint32().expect("count"), 1);
+        assert_eq!(packet.read_int32().expect("new spell id"), 10);
+        assert!(!packet.read_bit().expect("IsFavorite"));
+        assert!(!packet.read_bit().expect("field_8.HasValue"));
+        assert!(packet.read_bit().expect("Superceded.HasValue"));
+        assert!(!packet.read_bit().expect("TraitDefinitionID.HasValue"));
+        packet.flush_bits();
+        assert_eq!(packet.read_int32().expect("old spell id"), 20);
+        assert!(
+            packet.is_empty(),
+            "C++ sends SendSupercededSpell instead of UnlearnedSpells when the lower rank reactivates"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_clears_titan_grip_and_penalty_aura_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let spell_id = 774_i32;
+        let penalty_spell_id = 49152_i32;
+        let player_guid = ObjectGuid::create_player(1, 154);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "RemoveTitanGrip".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        let _ = session.mutate_canonical_player_like_cpp(|player| {
+            player.set_can_titan_grip(true, penalty_spell_id as u32);
+        });
+        session
+            .apply_aura(penalty_spell_id, player_guid, 0, 0)
+            .expect("represented penalty aura");
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_TITAN_GRIP,
+                    effect_misc_value_1: penalty_spell_id,
+                    ..Default::default()
+                }],
+            },
+        );
+        let mut attributes = [0_u32; 15];
+        attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_PASSIVE;
+        spell_store.insert_spell_misc_attributes_like_cpp(spell_id, attributes);
+        session.set_spell_store(Arc::new(spell_store));
+        session.set_known_spells_like_cpp(vec![spell_id]);
+
+        session.remove_known_spell_like_cpp(spell_id);
+
+        assert_eq!(
+            session.mutate_canonical_player_like_cpp(|player| {
+                (
+                    player.can_titan_grip(),
+                    player.titan_grip_penalty_spell_id(),
+                )
+            }),
+            Some((false, 0)),
+            "C++ Player::RemoveSpell clears m_canTitanGrip when the removed spell is passive and has SPELL_EFFECT_TITAN_GRIP"
+        );
+        assert!(
+            !session
+                .visible_auras
+                .values()
+                .any(|aura| aura.spell_id == penalty_spell_id),
+            "C++ RemoveSpell removes m_titanGripPenaltySpellId auras before SetCanTitanGrip(false)"
+        );
+    }
+
+    fn install_remove_spell_offhand_templates_like_cpp(
+        session: &mut WorldSession,
+        items: &[(u32, InventoryType, u32, ItemClass, u8)],
+    ) {
+        session.set_item_store(Arc::new(ItemStore::from_records(items.iter().map(
+            |&(item_id, inventory_type, _, class_id, subclass_id)| ItemRecord {
+                id: item_id,
+                class_id: class_id as u8,
+                subclass_id,
+                material: 0,
+                inventory_type: inventory_type as i8,
+                sheathe_type: 0,
+                random_select: 0,
+                random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
+            },
+        ))));
+        session.set_item_stats_store(Arc::new(ItemStatsStore::from_sparse_templates(
+            items
+                .iter()
+                .map(|&(item_id, inventory_type, flags3, _, _)| {
+                    (
+                        item_id,
+                        ItemSparseTemplateEntry {
+                            flags: [0, 0, flags3, 0],
+                            bag_family: 0,
+                            start_quest_id: 0,
+                            stackable: 1,
+                            max_count: 0,
+                            lock_id: 0,
+                            required_reputation_rank: 0,
+                            sell_price: 0,
+                            buy_price: 0,
+                            vendor_stack_count: 1,
+                            price_variance: 0.0,
+                            price_random_value: 0.0,
+                            max_durability: 0,
+                            other_faction_item_id: 0,
+                            content_tuning_id: 0,
+                            player_level_to_item_level_curve_id: 0,
+                            limit_category: 0,
+                            instance_bound: 0,
+                            zone_bound: [0, 0],
+                            required_reputation_faction: 0,
+                            allowable_class: -1,
+                            required_expansion: 0,
+                            bonding: ItemBondingType::None as u8,
+                            container_slots: if inventory_type == InventoryType::Bag {
+                                4
+                            } else {
+                                0
+                            },
+                            inventory_type: inventory_type as i8,
+                        },
+                    )
+                }),
+        )));
+    }
+
+    fn sparse_template_for_inventory_type_like_cpp(
+        inventory_type: InventoryType,
+        flags3: u32,
+    ) -> ItemSparseTemplateEntry {
+        sparse_template_with_scaling_like_cpp(inventory_type, flags3, 0, 0)
+    }
+
+    fn sparse_template_with_scaling_like_cpp(
+        inventory_type: InventoryType,
+        flags3: u32,
+        content_tuning_id: i32,
+        player_level_to_item_level_curve_id: i32,
+    ) -> ItemSparseTemplateEntry {
+        ItemSparseTemplateEntry {
+            flags: [0, 0, flags3, 0],
+            bag_family: 0,
+            start_quest_id: 0,
+            stackable: 1,
+            max_count: 0,
+            lock_id: 0,
+            required_reputation_rank: 0,
+            sell_price: 0,
+            buy_price: 0,
+            vendor_stack_count: 1,
+            price_variance: 0.0,
+            price_random_value: 0.0,
+            max_durability: 0,
+            other_faction_item_id: 0,
+            content_tuning_id,
+            player_level_to_item_level_curve_id,
+            limit_category: 0,
+            instance_bound: 0,
+            zone_bound: [0, 0],
+            required_reputation_faction: 0,
+            allowable_class: -1,
+            required_expansion: 0,
+            bonding: ItemBondingType::None as u8,
+            container_slots: if inventory_type == InventoryType::Bag {
+                4
+            } else {
+                0
+            },
+            inventory_type: inventory_type as i8,
+        }
+    }
+
+    fn equip_represented_test_item_like_cpp(
+        session: &mut WorldSession,
+        slot: u8,
+        item_guid: ObjectGuid,
+        item_id: u32,
+        inventory_type: InventoryType,
+    ) {
+        let owner = session.player_guid().unwrap_or(ObjectGuid::EMPTY);
+        let item = session.make_inventory_item_object(
+            item_guid,
+            item_id,
+            owner,
+            1,
+            0,
+            ItemContext::None,
+            slot,
+        );
+        session.insert_inventory_item_object(item);
+        session.insert_inventory_item_like_cpp(
+            slot,
+            InventoryItem {
+                guid: item_guid,
+                entry_id: item_id,
+                db_guid: item_guid.counter() as u64,
+                inventory_type: Some(inventory_type as u8),
+            },
+        );
+    }
+
+    fn install_represented_item_level_curve_fixture_like_cpp(
+        session: &mut WorldSession,
+        item_id: u32,
+        content_tuning_id: i32,
+        curve_id: i32,
+    ) {
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [(
+                    item_id,
+                    sparse_template_with_scaling_like_cpp(
+                        InventoryType::Chest,
+                        0,
+                        content_tuning_id,
+                        curve_id,
+                    ),
+                )],
+                [(
+                    item_id,
+                    ItemRandomPropertyTemplateEntry {
+                        item_level: 10,
+                        quality: ItemQuality::Epic as i8,
+                        inventory_type: InventoryType::Chest as i8,
+                    },
+                )],
+            ),
+        ));
+        session.set_curve_store(Arc::new(CurveStore::from_entries([CurveEntry {
+            id: curve_id as u32,
+            curve_type: 0,
+            flags: 0,
+        }])));
+        session.set_curve_point_store(Arc::new(CurvePointStore::from_entries([
+            CurvePointEntry {
+                id: 1,
+                pos: [1.0, 101.0],
+                pre_sl_squish_pos: [0.0, 0.0],
+                curve_id: curve_id as u32,
+                order_index: 0,
+            },
+            CurvePointEntry {
+                id: 2,
+                pos: [60.0, 160.0],
+                pre_sl_squish_pos: [0.0, 0.0],
+                curve_id: curve_id as u32,
+                order_index: 1,
+            },
+        ])));
+    }
+
+    fn represented_test_item_record_like_cpp(
+        item_id: u32,
+        inventory_type: InventoryType,
+        class_id: ItemClass,
+        subclass_id: u8,
+    ) -> ItemRecord {
+        ItemRecord {
+            id: item_id,
+            class_id: class_id as u8,
+            subclass_id,
+            material: 0,
+            inventory_type: inventory_type as i8,
+            sheathe_type: 0,
+            random_select: 0,
+            random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
+        }
+    }
+
+    #[test]
+    fn remove_known_spell_clears_dual_wield_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let spell_id = 775_i32;
+        let player_guid = ObjectGuid::create_player(1, 155);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "RemoveDualWield".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        let _ = session.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_can_dual_wield_like_cpp(true);
+        });
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_DUAL_WIELD,
+                    ..Default::default()
+                }],
+            },
+        );
+        let mut attributes = [0_u32; 15];
+        attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_PASSIVE;
+        spell_store.insert_spell_misc_attributes_like_cpp(spell_id, attributes);
+        session.set_spell_store(Arc::new(spell_store));
+        session.set_known_spells_like_cpp(vec![spell_id]);
+
+        session.remove_known_spell_like_cpp(spell_id);
+
+        assert_eq!(
+            session.mutate_canonical_player_like_cpp(|player| {
+                player.unit().can_dual_wield_like_cpp()
+            }),
+            Some(false),
+            "C++ Player::RemoveSpell clears m_canDualWield when the removed spell is passive and has SPELL_EFFECT_DUAL_WIELD"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_records_offhand_auto_unequip_after_losing_dual_wield_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let spell_id = 776_i32;
+        let offhand_item_id = 30_001_u32;
+        let offhand_guid = ObjectGuid::create_item(1, 30_001);
+        let player_guid = ObjectGuid::create_player(1, 156);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "RemoveDualWieldOffhand".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        let _ = session.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_can_dual_wield_like_cpp(true);
+            let _ = player.visualize_item(
+                EQUIPMENT_SLOT_OFFHAND,
+                offhand_guid,
+                VisibleItemValues {
+                    item_id: offhand_item_id as i32,
+                    item_appearance_mod_id: 0,
+                    item_visual: 0,
+                },
+            );
+        });
+        install_remove_spell_offhand_templates_like_cpp(
+            &mut session,
+            &[(
+                offhand_item_id,
+                InventoryType::WeaponOffhand,
+                0,
+                ItemClass::Weapon,
+                ItemSubClassWeapon::Axe as u8,
+            )],
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_OFFHAND,
+            offhand_guid,
+            offhand_item_id,
+            InventoryType::WeaponOffhand,
+        );
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_DUAL_WIELD,
+                    ..Default::default()
+                }],
+            },
+        );
+        let mut attributes = [0_u32; 15];
+        attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_PASSIVE;
+        spell_store.insert_spell_misc_attributes_like_cpp(spell_id, attributes);
+        session.set_spell_store(Arc::new(spell_store));
+        session.set_known_spells_like_cpp(vec![spell_id]);
+
+        session.remove_known_spell_like_cpp(spell_id);
+
+        assert_eq!(
+            session.represented_auto_unequip_offhand_requests_like_cpp(),
+            &[RepresentedAutoUnequipOffhandLikeCpp {
+                item_guid: offhand_guid,
+                item_entry: offhand_item_id,
+                reason: RepresentedAutoUnequipOffhandReasonLikeCpp::LostDualWield,
+                stored_destination: Some((INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)),
+                needs_mail_fallback: false,
+            }],
+            "C++ RemoveSpell calls AutoUnequipOffhandIfNeed after losing dual wield"
+        );
+        assert!(
+            !session
+                .inventory_items_like_cpp()
+                .contains_key(&EQUIPMENT_SLOT_OFFHAND),
+            "C++ RemoveItem removes the item from EQUIPMENT_SLOT_OFFHAND before StoreItem"
+        );
+        assert_eq!(
+            session
+                .inventory_items_like_cpp()
+                .get(&INVENTORY_SLOT_ITEM_START)
+                .map(|item| item.guid),
+            Some(offhand_guid),
+            "represented StoreItem moves the offhand item to the selected backpack slot"
+        );
+        assert_eq!(
+            session.canonical_player_snapshot_like_cpp(|player| {
+                (
+                    player.active_data().inv_slots[EQUIPMENT_SLOT_OFFHAND as usize],
+                    player.active_data().inv_slots[INVENTORY_SLOT_ITEM_START as usize],
+                    player.data().visible_items[EQUIPMENT_SLOT_OFFHAND as usize],
+                )
+            }),
+            Some((
+                ObjectGuid::EMPTY,
+                offhand_guid,
+                VisibleItemValues::default()
+            )),
+            "C++ RemoveItem clears offhand InvSlot/VisibleItem and StoreItem sets the backpack InvSlot"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_honors_offhand_unlearn_config_and_always_allow_flag_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let spell_id = 777_i32;
+        let offhand_item_id = 30_002_u32;
+        let offhand_guid = ObjectGuid::create_item(1, 30_002);
+        let player_guid = ObjectGuid::create_player(1, 157);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "RemoveDualWieldConfig".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        let _ = session.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_can_dual_wield_like_cpp(true);
+        });
+        install_remove_spell_offhand_templates_like_cpp(
+            &mut session,
+            &[(
+                offhand_item_id,
+                InventoryType::WeaponOffhand,
+                ItemFlags3::AlwaysAllowDualWield as u32,
+                ItemClass::Weapon,
+                ItemSubClassWeapon::Axe as u8,
+            )],
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_OFFHAND,
+            offhand_guid,
+            offhand_item_id,
+            InventoryType::WeaponOffhand,
+        );
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_DUAL_WIELD,
+                    ..Default::default()
+                }],
+            },
+        );
+        let mut attributes = [0_u32; 15];
+        attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_PASSIVE;
+        spell_store.insert_spell_misc_attributes_like_cpp(spell_id, attributes);
+        session.set_spell_store(Arc::new(spell_store));
+        session.set_known_spells_like_cpp(vec![spell_id]);
+
+        session.remove_known_spell_like_cpp(spell_id);
+
+        assert!(
+            session
+                .represented_auto_unequip_offhand_requests_like_cpp()
+                .is_empty(),
+            "C++ skips forced offhand unequip for ITEM_FLAG3_ALWAYS_ALLOW_DUAL_WIELD"
+        );
+
+        let _ = session.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_can_dual_wield_like_cpp(true);
+        });
+        session.set_known_spells_like_cpp(vec![spell_id]);
+        session.set_offhand_check_at_spell_unlearn_like_cpp(false);
+        session.set_item_stats_store(Arc::new(ItemStatsStore::from_sparse_templates([(
+            offhand_item_id,
+            ItemSparseTemplateEntry {
+                flags: [0, 0, 0, 0],
+                bag_family: 0,
+                start_quest_id: 0,
+                stackable: 1,
+                max_count: 0,
+                lock_id: 0,
+                required_reputation_rank: 0,
+                sell_price: 0,
+                buy_price: 0,
+                vendor_stack_count: 1,
+                price_variance: 0.0,
+                price_random_value: 0.0,
+                max_durability: 0,
+                other_faction_item_id: 0,
+                content_tuning_id: 0,
+                player_level_to_item_level_curve_id: 0,
+                limit_category: 0,
+                instance_bound: 0,
+                zone_bound: [0, 0],
+                required_reputation_faction: 0,
+                allowable_class: -1,
+                required_expansion: 0,
+                bonding: ItemBondingType::None as u8,
+                container_slots: 0,
+                inventory_type: InventoryType::WeaponOffhand as i8,
+            },
+        )])));
+
+        session.remove_known_spell_like_cpp(spell_id);
+
+        assert!(
+            session
+                .represented_auto_unequip_offhand_requests_like_cpp()
+                .is_empty(),
+            "C++ RemoveSpell skips AutoUnequipOffhandIfNeed when CONFIG_OFFHAND_CHECK_AT_SPELL_UNLEARN is false"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_auto_unequip_records_invalid_two_hand_state_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let mainhand_item_id = 30_003_u32;
+        let offhand_item_id = 30_004_u32;
+        let mainhand_guid = ObjectGuid::create_item(1, 30_003);
+        let offhand_guid = ObjectGuid::create_item(1, 30_004);
+        let player_guid = ObjectGuid::create_player(1, 158);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "InvalidTwoHandOffhand".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        let _ = session.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_can_dual_wield_like_cpp(true);
+            player.set_can_titan_grip(false, 0);
+        });
+        install_remove_spell_offhand_templates_like_cpp(
+            &mut session,
+            &[
+                (
+                    mainhand_item_id,
+                    InventoryType::Weapon2Hand,
+                    0,
+                    ItemClass::Weapon,
+                    ItemSubClassWeapon::Axe2 as u8,
+                ),
+                (
+                    offhand_item_id,
+                    InventoryType::Shield,
+                    0,
+                    ItemClass::Armor,
+                    ItemSubClassArmor::Shield as u8,
+                ),
+            ],
+        );
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_stats_sparse_and_random_property_templates(
+                [(
+                    offhand_item_id,
+                    ItemStatEntry {
+                        stats: [
+                            (ItemModType::Strength as i8, 7),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                        ],
+                        resistances: [0; 7],
+                        armor: 0,
+                    },
+                )],
+                [
+                    (
+                        mainhand_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Weapon2Hand, 0),
+                    ),
+                    (
+                        offhand_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Shield, 0),
+                    ),
+                ],
+                [],
+            ),
+        ));
+        session.set_item_set_store(Arc::new(ItemSetStore::from_entries([ItemSetEntry {
+            id: 705,
+            name: "Offhand Set".to_string(),
+            set_flags: 0,
+            required_skill: 0,
+            required_skill_rank: 0,
+            item_id: std::array::from_fn(|i| if i == 0 { offhand_item_id } else { 0 }),
+        }])));
+        session.set_item_set_spell_store(Arc::new(ItemSetSpellStore::from_entries([
+            ItemSetSpellEntry {
+                id: 21,
+                chr_spec_id: 0,
+                spell_id: 9021,
+                threshold: 1,
+                item_set_id: 705,
+            },
+        ])));
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_MAINHAND,
+            mainhand_guid,
+            mainhand_item_id,
+            InventoryType::Weapon2Hand,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_OFFHAND,
+            offhand_guid,
+            offhand_item_id,
+            InventoryType::Shield,
+        );
+        session.update_inventory_item_object_like_cpp(offhand_guid, |item| {
+            item.set_soulbound_tradeable([player_guid]);
+            item.set_item_flag2(ItemFieldFlags2::EQUIPPED);
+            item.set_expiration(300);
+            item.set_enchantment(EnchantmentSlot::EnhancementTemporary, 905, 12_000, 0);
+        });
+        let tradeable_offhand = session.inventory_item_objects_like_cpp()[&offhand_guid].clone();
+        let _ = session.mutate_canonical_player_like_cpp(|player| {
+            let mut duration_item = tradeable_offhand.clone();
+            player.add_tradeable_item(&duration_item);
+            let _ = player.add_item_durations(&duration_item);
+            let _ = player.add_enchantment_duration(
+                &mut duration_item,
+                EnchantmentSlot::EnhancementTemporary,
+                7_000,
+            );
+        });
+        assert!(
+            session.inventory_item_objects_like_cpp()[&offhand_guid]
+                .has_item_flag2(ItemFieldFlags2::EQUIPPED),
+            "fixture starts with the offhand ITEM_FIELD_FLAG2_EQUIPPED bit set"
+        );
+        assert!(session.record_represented_items_set_item_like_cpp(offhand_guid, true));
+        assert_eq!(
+            session.represented_item_set_spell_events_like_cpp(),
+            &[RepresentedItemSetSpellEventLikeCpp {
+                item_set_id: 705,
+                spell_entry_id: 21,
+                spell_id: 9021,
+                threshold: 1,
+                apply: true,
+            }]
+        );
+
+        assert_eq!(
+            session.canonical_player_snapshot_like_cpp(|player| player
+                .soulbound_tradeable_items()
+                .contains(&offhand_guid)),
+            Some(true),
+            "fixture starts with the offhand in C++ m_itemSoulboundTradeable"
+        );
+        assert_eq!(
+            session.canonical_player_snapshot_like_cpp(|player| (
+                player.item_durations().to_vec(),
+                player.enchant_durations().to_vec()
+            )),
+            Some((
+                vec![offhand_guid],
+                vec![PlayerEnchantDuration {
+                    item_guid: offhand_guid,
+                    slot: EnchantmentSlot::EnhancementTemporary,
+                    left_duration_ms: 7_000,
+                }]
+            )),
+            "fixture starts with C++ item/enchantment duration refs registered on the player"
+        );
+
+        assert!(session.represented_auto_unequip_offhand_if_need_like_cpp(false));
+
+        assert_eq!(
+            session.represented_auto_unequip_offhand_requests_like_cpp(),
+            &[RepresentedAutoUnequipOffhandLikeCpp {
+                item_guid: offhand_guid,
+                item_entry: offhand_item_id,
+                reason: RepresentedAutoUnequipOffhandReasonLikeCpp::InvalidTwoHandState,
+                stored_destination: Some((INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)),
+                needs_mail_fallback: false,
+            }],
+            "C++ AutoUnequipOffhandIfNeed unequips offhand when the main hand is a 2H weapon without Titan Grip"
+        );
+        assert_eq!(
+            session.canonical_player_snapshot_like_cpp(|player| player
+                .soulbound_tradeable_items()
+                .contains(&offhand_guid)),
+            Some(false),
+            "C++ RemoveItem removes the item from m_itemSoulboundTradeable before item mod cleanup"
+        );
+        assert_eq!(
+            session.canonical_player_snapshot_like_cpp(|player| (
+                player.item_durations().to_vec(),
+                player.enchant_durations().to_vec()
+            )),
+            Some((Vec::new(), Vec::new())),
+            "C++ RemoveItem removes item and enchantment duration refs before item mod cleanup"
+        );
+        assert!(
+            !session.inventory_item_objects_like_cpp()[&offhand_guid]
+                .has_item_flag2(ItemFieldFlags2::EQUIPPED),
+            "C++ RemoveItem clears ITEM_FIELD_FLAG2_EQUIPPED for equipped top-level slots"
+        );
+        assert_eq!(
+            session.represented_item_mod_reapply_events_like_cpp(),
+            &[RepresentedItemModsReapplyEventLikeCpp {
+                item_guid: offhand_guid,
+                slot: EQUIPMENT_SLOT_OFFHAND,
+                apply: false,
+            }],
+            "C++ RemoveItem calls _ApplyItemMods(offhand, false) before clearing the equipment slot"
+        );
+        assert_eq!(
+            session.represented_item_set_spell_events_like_cpp()[1],
+            RepresentedItemSetSpellEventLikeCpp {
+                item_set_id: 705,
+                spell_entry_id: 21,
+                spell_id: 9021,
+                threshold: 1,
+                apply: false,
+            },
+            "C++ RemoveItem removes item-set bonuses before _ApplyItemMods for equipped top-level slots"
+        );
+        assert_eq!(
+            session.represented_combat_stat_recalculations_like_cpp(),
+            &[
+                RepresentedCombatStatRecalculationLikeCpp::Expertise {
+                    attack: WeaponAttackType::OffAttack,
+                },
+                RepresentedCombatStatRecalculationLikeCpp::Rating {
+                    combat_rating: CR_ARMOR_PENETRATION_LIKE_CPP,
+                },
+            ],
+            "C++ RemoveItem updates offhand expertise and recalculates armor penetration for weapon/armor slots"
+        );
+        let runtime_item = session
+            .inventory_item_objects_like_cpp()
+            .get(&offhand_guid)
+            .expect("stored backpack item remains a runtime item object");
+        assert_eq!(
+            runtime_item.data().enchantments[EnchantmentSlot::EnhancementTemporary as usize]
+                .duration,
+            7_000,
+            "C++ RemoveEnchantmentDurations writes the remaining duration back onto the item"
+        );
+        assert_eq!(runtime_item.data().contained_in, player_guid);
+        assert_eq!(runtime_item.container_guid(), ObjectGuid::EMPTY);
+        assert_eq!(runtime_item.slot(), INVENTORY_SLOT_ITEM_START);
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![
+                ServerOpcodes::UpdateObject,
+                ServerOpcodes::UpdateObject,
+                ServerOpcodes::UpdateObject
+            ],
+            "C++ RemoveItem(update=true) + StoreItem(update=true) send player/item values updates; the represented item-mod stat delta is emitted after the offhand leaves equipment"
+        );
+    }
+
+    #[test]
+    fn auto_unequip_offhand_records_titan_grip_penalty_check_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let mainhand_item_id = 30_012_u32;
+        let offhand_item_id = 30_013_u32;
+        let mainhand_guid = ObjectGuid::create_item(1, 30_012);
+        let offhand_guid = ObjectGuid::create_item(1, 30_013);
+        let player_guid = ObjectGuid::create_player(1, 162);
+        let penalty_spell_id = 49_152_u32;
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TitanGripPenaltyRemoveItem".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        let _ = session.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_can_dual_wield_like_cpp(true);
+            player.set_can_titan_grip(true, penalty_spell_id);
+        });
+        session
+            .apply_aura(penalty_spell_id as i32, player_guid, 0, 0)
+            .expect("represented Titan Grip penalty aura");
+        install_remove_spell_offhand_templates_like_cpp(
+            &mut session,
+            &[
+                (
+                    mainhand_item_id,
+                    InventoryType::Weapon2Hand,
+                    0,
+                    ItemClass::Weapon,
+                    ItemSubClassWeapon::Axe2 as u8,
+                ),
+                (
+                    offhand_item_id,
+                    InventoryType::Weapon2Hand,
+                    0,
+                    ItemClass::Weapon,
+                    ItemSubClassWeapon::Axe2 as u8,
+                ),
+            ],
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_MAINHAND,
+            mainhand_guid,
+            mainhand_item_id,
+            InventoryType::Weapon2Hand,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_OFFHAND,
+            offhand_guid,
+            offhand_item_id,
+            InventoryType::Weapon2Hand,
+        );
+
+        assert!(session.represented_auto_unequip_offhand_if_need_like_cpp(true));
+
+        assert_eq!(
+            session.represented_titan_grip_penalty_actions_like_cpp(),
+            &[TitanGripPenaltyAction::Remove(penalty_spell_id)],
+            "C++ RemoveItem calls CheckTitanGripPenalty after clearing the offhand slot; once only the main-hand 2H remains, the Titan Grip penalty aura is removed"
+        );
+    }
+
+    #[test]
+    fn auto_unequip_offhand_records_average_equipped_item_level_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let mainhand_item_id = 30_014_u32;
+        let offhand_item_id = 30_015_u32;
+        let mainhand_guid = ObjectGuid::create_item(1, 30_014);
+        let offhand_guid = ObjectGuid::create_item(1, 30_015);
+        let player_guid = ObjectGuid::create_player(1, 163);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AverageItemLevelRemoveItem".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        let _ = session.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_can_dual_wield_like_cpp(true);
+            player.set_can_titan_grip(false, 0);
+        });
+        session.set_item_store(Arc::new(ItemStore::from_records([
+            ItemRecord {
+                id: mainhand_item_id,
+                class_id: ItemClass::Weapon as u8,
+                subclass_id: ItemSubClassWeapon::Axe2 as u8,
+                material: 0,
+                inventory_type: InventoryType::Weapon2Hand as i8,
+                sheathe_type: 0,
+                random_select: 0,
+                random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
+            },
+            ItemRecord {
+                id: offhand_item_id,
+                class_id: ItemClass::Weapon as u8,
+                subclass_id: ItemSubClassWeapon::Axe2 as u8,
+                material: 0,
+                inventory_type: InventoryType::Weapon2Hand as i8,
+                sheathe_type: 0,
+                random_select: 0,
+                random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
+            },
+        ])));
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [
+                    (
+                        mainhand_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Weapon2Hand, 0),
+                    ),
+                    (
+                        offhand_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Weapon2Hand, 0),
+                    ),
+                ],
+                [
+                    (
+                        mainhand_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 200,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Weapon2Hand as i8,
+                        },
+                    ),
+                    (
+                        offhand_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 100,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Weapon2Hand as i8,
+                        },
+                    ),
+                ],
+            ),
+        ));
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_MAINHAND,
+            mainhand_guid,
+            mainhand_item_id,
+            InventoryType::Weapon2Hand,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_OFFHAND,
+            offhand_guid,
+            offhand_item_id,
+            InventoryType::Weapon2Hand,
+        );
+
+        assert!(session.represented_auto_unequip_offhand_if_need_like_cpp(true));
+
+        assert_eq!(
+            session.represented_avg_equipped_item_level_updates_like_cpp(),
+            &[25.0],
+            "C++ UpdateAverageItemLevelEquipped divides equipped item-level sum by 16 and counts a remaining main-hand 2H twice without Titan Grip"
+        );
+        let owned = session.represented_player_condition_context_like_cpp();
+        let context = owned.as_context(&session);
+        assert_eq!(
+            context.avg_equipped_item_level, 25.0,
+            "C++ PlayerCondition uses PlayerData::AvgItemLevel[1], so the represented context must use the same equipped-average formula"
+        );
+    }
+
+    #[test]
+    fn represented_condition_total_avg_item_level_uses_cpp_slot_formula_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let mainhand_item_id = 30_016_u32;
+        let mainhand_guid = ObjectGuid::create_item(1, 30_016);
+        let player_guid = ObjectGuid::create_player(1, 164);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AverageItemLevelTotal".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        let _ = session.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_can_dual_wield_like_cpp(true);
+            player.set_can_titan_grip(false, 0);
+        });
+        session.set_item_store(Arc::new(ItemStore::from_records([ItemRecord {
+            id: mainhand_item_id,
+            class_id: ItemClass::Weapon as u8,
+            subclass_id: ItemSubClassWeapon::Axe2 as u8,
+            material: 0,
+            inventory_type: InventoryType::Weapon2Hand as i8,
+            sheathe_type: 0,
+            random_select: 0,
+            random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
+        }])));
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [(
+                    mainhand_item_id,
+                    sparse_template_for_inventory_type_like_cpp(InventoryType::Weapon2Hand, 0),
+                )],
+                [(
+                    mainhand_item_id,
+                    ItemRandomPropertyTemplateEntry {
+                        item_level: 200,
+                        quality: ItemQuality::Epic as i8,
+                        inventory_type: InventoryType::Weapon2Hand as i8,
+                    },
+                )],
+            ),
+        ));
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_MAINHAND,
+            mainhand_guid,
+            mainhand_item_id,
+            InventoryType::Weapon2Hand,
+        );
+
+        let owned = session.represented_player_condition_context_like_cpp();
+        let context = owned.as_context(&session);
+
+        assert_eq!(
+            context.avg_item_level, 25.0,
+            "C++ UpdateAverageItemLevelTotal divides the best-slot item-level sum by 16 and counts a main-hand 2H twice without Titan Grip"
+        );
+        assert_eq!(
+            context.avg_equipped_item_level, 25.0,
+            "The represented equipped boundary has the same result when only equipped items are known"
+        );
+    }
+
+    #[test]
+    fn represented_condition_total_avg_item_level_uses_best_represented_slot_candidate_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let equipped_chest_item_id = 30_017_u32;
+        let bag_chest_item_id = 30_018_u32;
+        let equipped_chest_guid = ObjectGuid::create_item(1, 30_017);
+        let bag_chest_guid = ObjectGuid::create_item(1, 30_018);
+        let player_guid = ObjectGuid::create_player(1, 165);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AverageItemLevelBestCandidate".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        session.set_item_store(Arc::new(ItemStore::from_records([
+            represented_test_item_record_like_cpp(
+                equipped_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+            represented_test_item_record_like_cpp(
+                bag_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+        ])));
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [
+                    (
+                        equipped_chest_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                    ),
+                    (
+                        bag_chest_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                    ),
+                ],
+                [
+                    (
+                        equipped_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 100,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                    (
+                        bag_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 200,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                ],
+            ),
+        ));
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            equipped_chest_guid,
+            equipped_chest_item_id,
+            InventoryType::Chest,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            INVENTORY_SLOT_ITEM_START,
+            bag_chest_guid,
+            bag_chest_item_id,
+            InventoryType::Chest,
+        );
+
+        let owned = session.represented_player_condition_context_like_cpp();
+        let context = owned.as_context(&session);
+
+        assert_eq!(
+            context.avg_item_level, 12.5,
+            "C++ UpdateAverageItemLevelTotal keeps the highest represented equipable candidate per equipment slot and divides by 16"
+        );
+        assert_eq!(
+            context.avg_equipped_item_level, 6.25,
+            "C++ UpdateAverageItemLevelEquipped only uses currently equipped items"
+        );
+    }
+
+    #[test]
+    fn represented_condition_avg_item_level_uses_runtime_item_level_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let equipped_chest_item_id = 30_046_u32;
+        let bag_chest_item_id = 30_047_u32;
+        let equipped_chest_guid = ObjectGuid::create_item(1, 30_046);
+        let bag_chest_guid = ObjectGuid::create_item(1, 30_047);
+        let player_guid = ObjectGuid::create_player(1, 176);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AverageItemLevelRuntimeLevel".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        session.set_item_store(Arc::new(ItemStore::from_records([
+            represented_test_item_record_like_cpp(
+                equipped_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+            represented_test_item_record_like_cpp(
+                bag_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+        ])));
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [
+                    (
+                        equipped_chest_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                    ),
+                    (
+                        bag_chest_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                    ),
+                ],
+                [
+                    (
+                        equipped_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 100,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                    (
+                        bag_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 100,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                ],
+            ),
+        ));
+        let owner = session.player_guid().unwrap_or(ObjectGuid::EMPTY);
+        let mut equipped_chest = session.make_inventory_item_object(
+            equipped_chest_guid,
+            equipped_chest_item_id,
+            owner,
+            1,
+            0,
+            ItemContext::None,
+            EQUIPMENT_SLOT_CHEST,
+        );
+        equipped_chest.set_debug_item_level(180);
+        session.insert_inventory_item_object(equipped_chest);
+        session.insert_inventory_item_like_cpp(
+            EQUIPMENT_SLOT_CHEST,
+            InventoryItem {
+                guid: equipped_chest_guid,
+                entry_id: equipped_chest_item_id,
+                db_guid: equipped_chest_guid.counter() as u64,
+                inventory_type: Some(InventoryType::Chest as u8),
+            },
+        );
+        let mut bag_chest = session.make_inventory_item_object(
+            bag_chest_guid,
+            bag_chest_item_id,
+            owner,
+            1,
+            0,
+            ItemContext::None,
+            INVENTORY_SLOT_ITEM_START,
+        );
+        bag_chest.set_debug_item_level(260);
+        session.insert_inventory_item_object(bag_chest);
+        session.insert_inventory_item_like_cpp(
+            INVENTORY_SLOT_ITEM_START,
+            InventoryItem {
+                guid: bag_chest_guid,
+                entry_id: bag_chest_item_id,
+                db_guid: bag_chest_guid.counter() as u64,
+                inventory_type: Some(InventoryType::Chest as u8),
+            },
+        );
+
+        let owned = session.represented_player_condition_context_like_cpp();
+        let context = owned.as_context(&session);
+
+        assert_eq!(
+            context.avg_item_level, 16.25,
+            "C++ UpdateAverageItemLevelTotal calls Item::GetItemLevel(owner), so a runtime item level can replace the static template item level for best-slot candidates"
+        );
+        assert_eq!(
+            context.avg_equipped_item_level, 11.25,
+            "C++ UpdateAverageItemLevelEquipped also calls Item::GetItemLevel(owner) for equipped items"
+        );
+    }
+
+    #[test]
+    fn represented_condition_avg_item_level_applies_item_bonus_level_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let chest_item_id = 30_048_u32;
+        let chest_guid = ObjectGuid::create_item(1, 30_048);
+        let player_guid = ObjectGuid::create_player(1, 177);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AverageItemLevelBonusLevel".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        session.set_item_store(Arc::new(ItemStore::from_records([
+            represented_test_item_record_like_cpp(
+                chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+        ])));
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [(
+                    chest_item_id,
+                    sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                )],
+                [(
+                    chest_item_id,
+                    ItemRandomPropertyTemplateEntry {
+                        item_level: 100,
+                        quality: ItemQuality::Epic as i8,
+                        inventory_type: InventoryType::Chest as i8,
+                    },
+                )],
+            ),
+        ));
+        session.set_item_bonus_db2_store(Arc::new(ItemBonusDb2Store::from_entries([
+            ItemBonusDb2Entry {
+                id: 1,
+                value: [55, 0, 0, 0],
+                parent_item_bonus_list_id: 77,
+                bonus_type: ItemBonusType::ItemLevel as u8,
+                order_index: 0,
+            },
+            ItemBonusDb2Entry {
+                id: 2,
+                value: [900, 0, 0, 0],
+                parent_item_bonus_list_id: 78,
+                bonus_type: ItemBonusType::Quality as u8,
+                order_index: 0,
+            },
+        ])));
+        let owner = session.player_guid().unwrap_or(ObjectGuid::EMPTY);
+        let mut chest = session.make_inventory_item_object(
+            chest_guid,
+            chest_item_id,
+            owner,
+            1,
+            0,
+            ItemContext::None,
+            EQUIPMENT_SLOT_CHEST,
+        );
+        chest.set_item_bonus_key(ItemBonusKey {
+            item_id: chest_item_id as i32,
+            bonus_list_ids: vec![77, 78],
+        });
+        session.insert_inventory_item_object(chest);
+        session.insert_inventory_item_like_cpp(
+            EQUIPMENT_SLOT_CHEST,
+            InventoryItem {
+                guid: chest_guid,
+                entry_id: chest_item_id,
+                db_guid: chest_guid.counter() as u64,
+                inventory_type: Some(InventoryType::Chest as u8),
+            },
+        );
+
+        let owned = session.represented_player_condition_context_like_cpp();
+        let context = owned.as_context(&session);
+
+        assert_eq!(
+            context.avg_item_level, 9.6875,
+            "C++ BonusData::ItemLevelBonus is added before PlayerData::AvgItemLevel[0] is computed"
+        );
+        assert_eq!(
+            context.avg_equipped_item_level, 9.6875,
+            "C++ UpdateAverageItemLevelEquipped also consumes Item::GetItemLevel(owner) with item bonus levels"
+        );
+    }
+
+    #[test]
+    fn represented_item_level_uses_player_level_curve_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_158_u32;
+        session.set_player_level_like_cpp(45);
+        install_represented_item_level_curve_fixture_like_cpp(&mut session, item_id, 0, 9_001);
+
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(145),
+            "C++ Item::GetItemLevel replaces template item level with DB2Manager::GetCurveValueAt(PlayerLevelToItemLevelCurveId, owner level) before bonus/caps"
+        );
+    }
+
+    #[test]
+    fn represented_item_level_curve_clamps_owner_level_by_content_tuning_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_159_u32;
+        session.set_player_level_like_cpp(80);
+        install_represented_item_level_curve_fixture_like_cpp(&mut session, item_id, 55, 9_002);
+        session.set_content_tuning_store(Arc::new(ContentTuningStore::from_entries([
+            ContentTuningEntry {
+                id: 55,
+                min_level: 10,
+                max_level: 40,
+                flags: 0,
+                expected_stat_mod_id: 0,
+                difficulty_esm_id: 0,
+            },
+        ])));
+
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(140),
+            "C++ clamps owner level through GetContentTuningData(contentTuningId, true) before evaluating the item-level curve"
+        );
+    }
+
+    #[test]
+    fn represented_item_level_curve_fixed_level_overrides_content_tuning_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_160_u32;
+        let item_guid = ObjectGuid::create_item(1, 30_160);
+        session.set_player_level_like_cpp(80);
+        install_represented_item_level_curve_fixture_like_cpp(&mut session, item_id, 56, 9_003);
+        session.set_content_tuning_store(Arc::new(ContentTuningStore::from_entries([
+            ContentTuningEntry {
+                id: 56,
+                min_level: 10,
+                max_level: 40,
+                flags: 0,
+                expected_stat_mod_id: 0,
+                difficulty_esm_id: 0,
+            },
+        ])));
+        let owner = session.player_guid().unwrap_or(ObjectGuid::EMPTY);
+        let mut item = session.make_inventory_item_object(
+            item_guid,
+            item_id,
+            owner,
+            1,
+            0,
+            ItemContext::None,
+            EQUIPMENT_SLOT_CHEST,
+        );
+        item.set_modifier(ItemModifier::TimewalkerLevel, 50);
+
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, Some(&item)),
+            Some(150),
+            "C++ fixedLevel/ITEM_MODIFIER_TIMEWALKER_LEVEL bypasses ContentTuning clamp for Item::GetItemLevel"
+        );
+    }
+
+    #[test]
+    fn represented_item_level_curve_missing_data_does_not_fall_back_to_template_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_161_u32;
+        session.set_player_level_like_cpp(45);
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [(
+                    item_id,
+                    sparse_template_with_scaling_like_cpp(InventoryType::Chest, 0, 0, 9_004),
+                )],
+                [(
+                    item_id,
+                    ItemRandomPropertyTemplateEntry {
+                        item_level: 100,
+                        quality: ItemQuality::Epic as i8,
+                        inventory_type: InventoryType::Chest as i8,
+                    },
+                )],
+            ),
+        ));
+
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(WorldSession::MIN_ITEM_LEVEL_LIKE_CPP),
+            "C++ GetCurveValueAt returns 0 for missing curve data; Item::GetItemLevel then clamps to MIN_ITEM_LEVEL instead of falling back to proto ItemLevel"
+        );
+    }
+
+    #[test]
+    fn represented_item_level_applies_min_cap_to_equipable_item_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_049_u32;
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [(
+                    item_id,
+                    sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                )],
+                [(
+                    item_id,
+                    ItemRandomPropertyTemplateEntry {
+                        item_level: 100,
+                        quality: ItemQuality::Epic as i8,
+                        inventory_type: InventoryType::Chest as i8,
+                    },
+                )],
+            ),
+        ));
+        session.set_represented_item_level_caps_like_cpp(RepresentedItemLevelCapsLikeCpp {
+            min_item_level: 150,
+            ..Default::default()
+        });
+
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(150),
+            "C++ Item::GetItemLevel(owner) raises equipable items below MinItemLevel"
+        );
+    }
+
+    #[test]
+    fn represented_item_level_respects_min_cap_cutoff_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_050_u32;
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [(
+                    item_id,
+                    sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                )],
+                [(
+                    item_id,
+                    ItemRandomPropertyTemplateEntry {
+                        item_level: 100,
+                        quality: ItemQuality::Epic as i8,
+                        inventory_type: InventoryType::Chest as i8,
+                    },
+                )],
+            ),
+        ));
+        session.set_represented_item_level_caps_like_cpp(RepresentedItemLevelCapsLikeCpp {
+            min_item_level_cutoff: 120,
+            min_item_level: 150,
+            ..Default::default()
+        });
+
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(100),
+            "C++ only applies MinItemLevel when itemLevelBeforeUpgrades reaches MinItemLevelCutoff"
+        );
+
+        session.set_represented_item_level_caps_like_cpp(RepresentedItemLevelCapsLikeCpp {
+            min_item_level_cutoff: 90,
+            min_item_level: 150,
+            ..Default::default()
+        });
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(150),
+            "C++ cutoff uses itemLevelBeforeUpgrades, not the capped item level"
+        );
+    }
+
+    #[test]
+    fn represented_item_level_applies_max_cap_to_equipable_item_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_051_u32;
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [(
+                    item_id,
+                    sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                )],
+                [(
+                    item_id,
+                    ItemRandomPropertyTemplateEntry {
+                        item_level: 200,
+                        quality: ItemQuality::Epic as i8,
+                        inventory_type: InventoryType::Chest as i8,
+                    },
+                )],
+            ),
+        ));
+        session.set_represented_item_level_caps_like_cpp(RepresentedItemLevelCapsLikeCpp {
+            max_item_level: 120,
+            ..Default::default()
+        });
+
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(120),
+            "C++ Item::GetItemLevel(owner) caps equipable items above MaxItemLevel"
+        );
+    }
+
+    #[test]
+    fn represented_item_level_ignores_max_cap_with_pvp_cap_flag_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_052_u32;
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [(
+                    item_id,
+                    sparse_template_for_inventory_type_like_cpp(
+                        InventoryType::Chest,
+                        ItemFlags3::IgnoreItemLevelCapInPvp as u32,
+                    ),
+                )],
+                [(
+                    item_id,
+                    ItemRandomPropertyTemplateEntry {
+                        item_level: 200,
+                        quality: ItemQuality::Epic as i8,
+                        inventory_type: InventoryType::Chest as i8,
+                    },
+                )],
+            ),
+        ));
+        session.set_represented_item_level_caps_like_cpp(RepresentedItemLevelCapsLikeCpp {
+            max_item_level: 120,
+            ..Default::default()
+        });
+
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(200),
+            "C++ clears maxItemLevel when ITEM_FLAG3_IGNORE_ITEM_LEVEL_CAP_IN_PVP is present"
+        );
+    }
+
+    fn install_represented_pvp_item_level_fixture_like_cpp(
+        session: &mut WorldSession,
+        item_id: u32,
+        pvp_delta: u8,
+    ) {
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [(
+                    item_id,
+                    sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                )],
+                [(
+                    item_id,
+                    ItemRandomPropertyTemplateEntry {
+                        item_level: 100,
+                        quality: ItemQuality::Epic as i8,
+                        inventory_type: InventoryType::Chest as i8,
+                    },
+                )],
+            ),
+        ));
+        session.set_pvp_item_store(Arc::new(PvpItemStore::from_entries([PvpItemEntry {
+            id: 1,
+            item_id: item_id as i32,
+            item_level_delta: pvp_delta,
+        }])));
+    }
+
+    fn represented_item_level_area_map_like_cpp(
+        map_id: u32,
+        instance_type: i8,
+        flags2: u32,
+    ) -> wow_data::map::MapEntry {
+        wow_data::map::MapEntry {
+            id: map_id,
+            instance_type,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+            flags2,
+        }
+    }
+
+    #[test]
+    fn represented_item_level_area_scaling_activates_on_battleground_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_154_u32;
+        install_represented_pvp_item_level_fixture_like_cpp(&mut session, item_id, 25);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            represented_item_level_area_map_like_cpp(489, wow_data::map::MAP_BATTLEGROUND, 0),
+        ])));
+        session.set_player_map_position_like_cpp(489, Position::ZERO);
+
+        assert!(session.update_represented_item_level_area_based_scaling_like_cpp());
+        assert!(session.represented_using_pvp_item_levels_like_cpp());
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(125)
+        );
+    }
+
+    #[test]
+    fn represented_item_level_area_scaling_activates_on_map_flag_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_155_u32;
+        install_represented_pvp_item_level_fixture_like_cpp(&mut session, item_id, 15);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            represented_item_level_area_map_like_cpp(
+                30_155,
+                wow_data::map::MAP_COMMON,
+                wow_data::map::MAP_FLAG2_ACTIVATES_PVP_ITEM_LEVELS_LIKE_CPP,
+            ),
+        ])));
+        session.set_player_map_position_like_cpp(30_155, Position::ZERO);
+
+        assert!(session.update_represented_item_level_area_based_scaling_like_cpp());
+        assert!(session.represented_using_pvp_item_levels_like_cpp());
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(115)
+        );
+    }
+
+    #[test]
+    fn represented_item_level_area_scaling_activates_on_pvp_rules_aura_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_156_u32;
+        install_represented_pvp_item_level_fixture_like_cpp(&mut session, item_id, 30);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            represented_item_level_area_map_like_cpp(30_156, wow_data::map::MAP_COMMON, 0),
+        ])));
+        session.set_player_map_position_like_cpp(30_156, Position::ZERO);
+        session
+            .visible_auras
+            .insert(1, test_visible_aura(1, SPELL_PVP_RULES_ENABLED_LIKE_CPP));
+
+        assert!(session.update_represented_item_level_area_based_scaling_like_cpp());
+        assert!(session.represented_using_pvp_item_levels_like_cpp());
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(130)
+        );
+    }
+
+    #[test]
+    fn represented_pvp_rules_aura_application_recalculates_item_level_scaling_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_158_u32;
+        install_represented_pvp_item_level_fixture_like_cpp(&mut session, item_id, 35);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            represented_item_level_area_map_like_cpp(30_158, wow_data::map::MAP_COMMON, 0),
+        ])));
+        session.set_player_map_position_like_cpp(30_158, Position::ZERO);
+
+        assert!(!session.represented_using_pvp_item_levels_like_cpp());
+        session
+            .apply_aura(
+                SPELL_PVP_RULES_ENABLED_LIKE_CPP,
+                ObjectGuid::EMPTY,
+                30_000,
+                0x0000_0001,
+            )
+            .expect("represented PvP rules aura should apply");
+
+        assert!(
+            session.represented_using_pvp_item_levels_like_cpp(),
+            "C++ Player::EnablePvpRules calls UpdateItemLevelAreaBasedScaling after applying SPELL_PVP_RULES_ENABLED"
+        );
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(135)
+        );
+    }
+
+    #[test]
+    fn represented_pvp_rules_aura_removal_recalculates_item_level_scaling_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_159_u32;
+        install_represented_pvp_item_level_fixture_like_cpp(&mut session, item_id, 40);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            represented_item_level_area_map_like_cpp(30_159, wow_data::map::MAP_COMMON, 0),
+        ])));
+        session.set_player_map_position_like_cpp(30_159, Position::ZERO);
+        session
+            .apply_aura(
+                SPELL_PVP_RULES_ENABLED_LIKE_CPP,
+                ObjectGuid::EMPTY,
+                30_000,
+                0x0000_0001,
+            )
+            .expect("represented PvP rules aura should apply");
+        let slot = session
+            .visible_auras
+            .values()
+            .find_map(|aura| {
+                (aura.spell_id == SPELL_PVP_RULES_ENABLED_LIKE_CPP).then_some(aura.slot)
+            })
+            .expect("PvP rules aura slot");
+
+        session
+            .remove_aura(slot)
+            .expect("represented PvP rules aura should remove");
+
+        assert!(
+            !session.represented_using_pvp_item_levels_like_cpp(),
+            "C++ Player::DisablePvpRules removes SPELL_PVP_RULES_ENABLED and then calls UpdateItemLevelAreaBasedScaling"
+        );
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(100)
+        );
+    }
+
+    #[test]
+    fn represented_item_level_area_scaling_deactivates_without_activity_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_157_u32;
+        install_represented_pvp_item_level_fixture_like_cpp(&mut session, item_id, 20);
+        session.set_represented_using_pvp_item_levels_like_cpp(true);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            represented_item_level_area_map_like_cpp(30_157, wow_data::map::MAP_COMMON, 0),
+        ])));
+        session.set_player_map_position_like_cpp(30_157, Position::ZERO);
+
+        assert!(session.update_represented_item_level_area_based_scaling_like_cpp());
+        assert!(!session.represented_using_pvp_item_levels_like_cpp());
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(100)
+        );
+    }
+
+    #[test]
+    fn represented_item_level_area_scaling_reapplies_top_level_item_mods_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 30_160);
+        let item_id = 30_160_u32;
+        let item_guid = ObjectGuid::create_item(1, 30_160);
+        session.set_player_guid(Some(player_guid));
+        install_represented_pvp_item_level_fixture_like_cpp(&mut session, item_id, 10);
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            item_guid,
+            item_id,
+            InventoryType::Chest,
+        );
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            represented_item_level_area_map_like_cpp(489, wow_data::map::MAP_BATTLEGROUND, 0),
+        ])));
+        session.set_player_map_position_like_cpp(489, Position::ZERO);
+        session.set_player_health_like_cpp(35, 80);
+
+        assert!(session.update_represented_item_level_area_based_scaling_like_cpp());
+
+        assert_eq!(
+            session.represented_item_mod_reapply_events_like_cpp(),
+            &[
+                RepresentedItemModsReapplyEventLikeCpp {
+                    item_guid,
+                    slot: EQUIPMENT_SLOT_CHEST,
+                    apply: false,
+                },
+                RepresentedItemModsReapplyEventLikeCpp {
+                    item_guid,
+                    slot: EQUIPMENT_SLOT_CHEST,
+                    apply: true,
+                },
+            ],
+            "C++ Player::UpdateItemLevelAreaBasedScaling wraps ActivatePvpItemLevels with _RemoveAllItemMods/_ApplyAllItemMods"
+        );
+        assert_eq!(
+            session.player_health_like_cpp(),
+            35,
+            "C++ restores health with CalculatePct(GetMaxHealth(), previous GetHealthPct()) after item mods are reapplied"
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::UpdateObject],
+            "C++ item-mod setters mark update fields; this represented path emits the current-session VALUES delta after the reapply sequence"
+        );
+    }
+
+    #[test]
+    fn represented_item_level_area_scaling_noop_does_not_reapply_item_mods_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_161_u32;
+        let item_guid = ObjectGuid::create_item(1, 30_161);
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            item_guid,
+            item_id,
+            InventoryType::Chest,
+        );
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            represented_item_level_area_map_like_cpp(30_161, wow_data::map::MAP_COMMON, 0),
+        ])));
+        session.set_player_map_position_like_cpp(30_161, Position::ZERO);
+
+        assert!(!session.update_represented_item_level_area_based_scaling_like_cpp());
+        assert!(
+            session
+                .represented_item_mod_reapply_events_like_cpp()
+                .is_empty(),
+            "C++ only removes/reapplies item mods when _usePvpItemLevels changes"
+        );
+    }
+
+    #[test]
+    fn represented_item_level_area_scaling_skips_broken_item_mods_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_162_u32;
+        let item_guid = ObjectGuid::create_item(1, 30_162);
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            item_guid,
+            item_id,
+            InventoryType::Chest,
+        );
+        session.update_inventory_item_object_like_cpp(item_guid, |item| {
+            item.set_max_durability(40);
+            item.set_durability(0);
+        });
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            represented_item_level_area_map_like_cpp(489, wow_data::map::MAP_BATTLEGROUND, 0),
+        ])));
+        session.set_player_map_position_like_cpp(489, Position::ZERO);
+
+        assert!(session.update_represented_item_level_area_based_scaling_like_cpp());
+        assert!(
+            session
+                .represented_item_mod_reapply_events_like_cpp()
+                .is_empty(),
+            "C++ _RemoveAllItemMods/_ApplyAllItemMods skip broken items for represented mod removal/reapplication"
+        );
+    }
+
+    #[test]
+    fn represented_item_level_applies_pvp_item_level_bonus_when_active_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_054_u32;
+        install_represented_pvp_item_level_fixture_like_cpp(&mut session, item_id, 25);
+
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(100),
+            "C++ only adds GetPvpItemLevelBonus when Player::IsUsingPvpItemLevels is true"
+        );
+
+        session.set_represented_using_pvp_item_levels_like_cpp(true);
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(125),
+            "C++ Item::GetItemLevel(owner) adds DB2Manager::GetPvpItemLevelBonus after BonusData::ItemLevelBonus"
+        );
+    }
+
+    #[test]
+    fn represented_item_level_applies_max_cap_after_pvp_bonus_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_055_u32;
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [(
+                    item_id,
+                    sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                )],
+                [(
+                    item_id,
+                    ItemRandomPropertyTemplateEntry {
+                        item_level: 100,
+                        quality: ItemQuality::Epic as i8,
+                        inventory_type: InventoryType::Chest as i8,
+                    },
+                )],
+            ),
+        ));
+        session.set_pvp_item_store(Arc::new(PvpItemStore::from_entries([PvpItemEntry {
+            id: 1,
+            item_id: item_id as i32,
+            item_level_delta: 75,
+        }])));
+        session.set_represented_using_pvp_item_levels_like_cpp(true);
+        session.set_represented_item_level_caps_like_cpp(RepresentedItemLevelCapsLikeCpp {
+            max_item_level: 150,
+            ..Default::default()
+        });
+
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(150),
+            "C++ applies MaxItemLevel after adding the PvP item-level bonus"
+        );
+    }
+
+    #[test]
+    fn represented_item_level_min_cutoff_uses_pre_pvp_item_level_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_056_u32;
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [(
+                    item_id,
+                    sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                )],
+                [(
+                    item_id,
+                    ItemRandomPropertyTemplateEntry {
+                        item_level: 100,
+                        quality: ItemQuality::Epic as i8,
+                        inventory_type: InventoryType::Chest as i8,
+                    },
+                )],
+            ),
+        ));
+        session.set_pvp_item_store(Arc::new(PvpItemStore::from_entries([PvpItemEntry {
+            id: 1,
+            item_id: item_id as i32,
+            item_level_delta: 50,
+        }])));
+        session.set_represented_using_pvp_item_levels_like_cpp(true);
+        session.set_represented_item_level_caps_like_cpp(RepresentedItemLevelCapsLikeCpp {
+            min_item_level_cutoff: 120,
+            min_item_level: 200,
+            ..Default::default()
+        });
+
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(150),
+            "C++ stores itemLevelBeforeUpgrades before PvP bonus and checks MinItemLevelCutoff against that value"
+        );
+    }
+
+    #[test]
+    fn represented_item_level_does_not_apply_caps_to_non_equip_items_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let item_id = 30_053_u32;
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [(
+                    item_id,
+                    sparse_template_for_inventory_type_like_cpp(InventoryType::NonEquip, 0),
+                )],
+                [(
+                    item_id,
+                    ItemRandomPropertyTemplateEntry {
+                        item_level: 100,
+                        quality: ItemQuality::Epic as i8,
+                        inventory_type: InventoryType::NonEquip as i8,
+                    },
+                )],
+            ),
+        ));
+        session.set_represented_item_level_caps_like_cpp(RepresentedItemLevelCapsLikeCpp {
+            min_item_level: 150,
+            max_item_level: 80,
+            ..Default::default()
+        });
+
+        assert_eq!(
+            session.represented_item_level_like_cpp(item_id, None),
+            Some(100),
+            "C++ skips MinItemLevel/MaxItemLevel caps for INVTYPE_NON_EQUIP"
+        );
+    }
+
+    #[test]
+    fn represented_condition_total_avg_item_level_skips_can_use_rejected_candidates_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let equipped_chest_item_id = 30_031_u32;
+        let rejected_chest_item_id = 30_032_u32;
+        let equipped_chest_guid = ObjectGuid::create_item(1, 30_031);
+        let rejected_chest_guid = ObjectGuid::create_item(1, 30_032);
+        let player_guid = ObjectGuid::create_player(1, 171);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AverageItemLevelCanUseRejected".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        session.set_item_store(Arc::new(ItemStore::from_records([
+            represented_test_item_record_like_cpp(
+                equipped_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+            represented_test_item_record_like_cpp(
+                rejected_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+        ])));
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [
+                    (
+                        equipped_chest_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                    ),
+                    (
+                        rejected_chest_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                    ),
+                ],
+                [
+                    (
+                        equipped_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 100,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                    (
+                        rejected_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 300,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                ],
+            ),
+        ));
+        session.set_item_search_name_store(Arc::new(ItemSearchNameStore::from_entries([
+            ItemSearchNameEntry {
+                id: equipped_chest_item_id,
+                allowable_race: 0,
+                display: String::new(),
+                overall_quality_id: ItemQuality::Epic as u8,
+                expansion_id: 0,
+                min_faction_id: 0,
+                min_reputation: 0,
+                allowable_class: 0,
+                required_level: 0,
+                required_skill: 0,
+                required_skill_rank: 0,
+                required_ability: 0,
+                item_level: 100,
+                flags: [0; 4],
+            },
+            ItemSearchNameEntry {
+                id: rejected_chest_item_id,
+                allowable_race: 0,
+                display: String::new(),
+                overall_quality_id: ItemQuality::Epic as u8,
+                expansion_id: 0,
+                min_faction_id: 0,
+                min_reputation: 0,
+                allowable_class: 1 << 1,
+                required_level: 0,
+                required_skill: 0,
+                required_skill_rank: 0,
+                required_ability: 0,
+                item_level: 300,
+                flags: [0; 4],
+            },
+        ])));
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            equipped_chest_guid,
+            equipped_chest_item_id,
+            InventoryType::Chest,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            INVENTORY_SLOT_ITEM_START,
+            rejected_chest_guid,
+            rejected_chest_item_id,
+            InventoryType::Chest,
+        );
+
+        let owned = session.represented_player_condition_context_like_cpp();
+        let context = owned.as_context(&session);
+
+        assert_eq!(
+            context.avg_item_level, 6.25,
+            "C++ UpdateAverageItemLevelTotal calls CanEquipItem for non-equipped candidates, and CanEquipItem rejects CanUseItem class/race failures before replacing the best slot"
+        );
+        assert_eq!(
+            context.avg_equipped_item_level, 6.25,
+            "C++ UpdateAverageItemLevelEquipped still uses only equipped items"
+        );
+    }
+
+    #[test]
+    fn represented_condition_total_avg_item_level_skips_unique_limit_candidates_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let equipped_chest_item_id = 30_033_u32;
+        let rejected_chest_item_id = 30_034_u32;
+        let equipped_chest_guid = ObjectGuid::create_item(1, 30_033);
+        let rejected_chest_guid = ObjectGuid::create_item(1, 30_034);
+        let limit_category_id = 44_u32;
+        let player_guid = ObjectGuid::create_player(1, 172);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AverageItemLevelUniqueLimitRejected".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        session.set_item_store(Arc::new(ItemStore::from_records([
+            represented_test_item_record_like_cpp(
+                equipped_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+            represented_test_item_record_like_cpp(
+                rejected_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+        ])));
+
+        let mut equipped_sparse =
+            sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0);
+        equipped_sparse.limit_category = limit_category_id as u16;
+        let mut rejected_sparse =
+            sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0);
+        rejected_sparse.limit_category = limit_category_id as u16;
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [
+                    (equipped_chest_item_id, equipped_sparse),
+                    (rejected_chest_item_id, rejected_sparse),
+                ],
+                [
+                    (
+                        equipped_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 100,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                    (
+                        rejected_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 300,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                ],
+            ),
+        ));
+        session.set_item_search_name_store(Arc::new(ItemSearchNameStore::from_entries([
+            ItemSearchNameEntry {
+                id: equipped_chest_item_id,
+                allowable_race: 0,
+                display: String::new(),
+                overall_quality_id: ItemQuality::Epic as u8,
+                expansion_id: 0,
+                min_faction_id: 0,
+                min_reputation: 0,
+                allowable_class: 0,
+                required_level: 0,
+                required_skill: 0,
+                required_skill_rank: 0,
+                required_ability: 0,
+                item_level: 100,
+                flags: [0; 4],
+            },
+            ItemSearchNameEntry {
+                id: rejected_chest_item_id,
+                allowable_race: 0,
+                display: String::new(),
+                overall_quality_id: ItemQuality::Epic as u8,
+                expansion_id: 0,
+                min_faction_id: 0,
+                min_reputation: 0,
+                allowable_class: 0,
+                required_level: 0,
+                required_skill: 0,
+                required_skill_rank: 0,
+                required_ability: 0,
+                item_level: 300,
+                flags: [0; 4],
+            },
+        ])));
+        session.set_item_limit_category_store(Arc::new(ItemLimitCategoryStore::from_entries([
+            ItemLimitCategoryEntry {
+                id: limit_category_id,
+                name: String::new(),
+                quantity: 1,
+                flags: wow_entities::ITEM_LIMIT_CATEGORY_MODE_EQUIP,
+            },
+        ])));
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            equipped_chest_guid,
+            equipped_chest_item_id,
+            InventoryType::Chest,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            INVENTORY_SLOT_ITEM_START,
+            rejected_chest_guid,
+            rejected_chest_item_id,
+            InventoryType::Chest,
+        );
+
+        let owned = session.represented_player_condition_context_like_cpp();
+        let context = owned.as_context(&session);
+
+        assert_eq!(
+            context.avg_item_level, 6.25,
+            "C++ CanEquipItem calls CanEquipUniqueItem for non-equipped candidates, so an equip-limit category candidate cannot replace an already equipped item in the same limited category"
+        );
+        assert_eq!(
+            context.avg_equipped_item_level, 6.25,
+            "C++ UpdateAverageItemLevelEquipped still uses only equipped items"
+        );
+    }
+
+    #[test]
+    fn represented_condition_total_avg_item_level_skips_socketed_gem_limit_candidates_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let equipped_chest_item_id = 30_035_u32;
+        let rejected_chest_item_id = 30_036_u32;
+        let equipped_gem_item_id = 30_037_u32;
+        let candidate_gem_item_id = 30_038_u32;
+        let equipped_chest_guid = ObjectGuid::create_item(1, 30_035);
+        let rejected_chest_guid = ObjectGuid::create_item(1, 30_036);
+        let gem_limit_category_id = 45_u32;
+        let player_guid = ObjectGuid::create_player(1, 173);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AverageItemLevelSocketedGemLimitRejected".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        session.set_item_store(Arc::new(ItemStore::from_records([
+            represented_test_item_record_like_cpp(
+                equipped_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+            represented_test_item_record_like_cpp(
+                rejected_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+            represented_test_item_record_like_cpp(
+                equipped_gem_item_id,
+                InventoryType::NonEquip,
+                ItemClass::Gem,
+                0,
+            ),
+            represented_test_item_record_like_cpp(
+                candidate_gem_item_id,
+                InventoryType::NonEquip,
+                ItemClass::Gem,
+                0,
+            ),
+        ])));
+
+        let mut equipped_gem_sparse =
+            sparse_template_for_inventory_type_like_cpp(InventoryType::NonEquip, 0);
+        equipped_gem_sparse.limit_category = gem_limit_category_id as u16;
+        let mut candidate_gem_sparse =
+            sparse_template_for_inventory_type_like_cpp(InventoryType::NonEquip, 0);
+        candidate_gem_sparse.limit_category = gem_limit_category_id as u16;
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [
+                    (
+                        equipped_chest_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                    ),
+                    (
+                        rejected_chest_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                    ),
+                    (equipped_gem_item_id, equipped_gem_sparse),
+                    (candidate_gem_item_id, candidate_gem_sparse),
+                ],
+                [
+                    (
+                        equipped_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 100,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                    (
+                        rejected_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 300,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                ],
+            ),
+        ));
+        session.set_item_search_name_store(Arc::new(ItemSearchNameStore::from_entries([
+            ItemSearchNameEntry {
+                id: equipped_chest_item_id,
+                allowable_race: 0,
+                display: String::new(),
+                overall_quality_id: ItemQuality::Epic as u8,
+                expansion_id: 0,
+                min_faction_id: 0,
+                min_reputation: 0,
+                allowable_class: 0,
+                required_level: 0,
+                required_skill: 0,
+                required_skill_rank: 0,
+                required_ability: 0,
+                item_level: 100,
+                flags: [0; 4],
+            },
+            ItemSearchNameEntry {
+                id: rejected_chest_item_id,
+                allowable_race: 0,
+                display: String::new(),
+                overall_quality_id: ItemQuality::Epic as u8,
+                expansion_id: 0,
+                min_faction_id: 0,
+                min_reputation: 0,
+                allowable_class: 0,
+                required_level: 0,
+                required_skill: 0,
+                required_skill_rank: 0,
+                required_ability: 0,
+                item_level: 300,
+                flags: [0; 4],
+            },
+        ])));
+        session.set_item_limit_category_store(Arc::new(ItemLimitCategoryStore::from_entries([
+            ItemLimitCategoryEntry {
+                id: gem_limit_category_id,
+                name: String::new(),
+                quantity: 1,
+                flags: wow_entities::ITEM_LIMIT_CATEGORY_MODE_EQUIP,
+            },
+        ])));
+        let owner = session.player_guid().unwrap_or(ObjectGuid::EMPTY);
+        let mut equipped_chest = session.make_inventory_item_object(
+            equipped_chest_guid,
+            equipped_chest_item_id,
+            owner,
+            1,
+            0,
+            ItemContext::None,
+            EQUIPMENT_SLOT_CHEST,
+        );
+        equipped_chest.set_gems(vec![wow_entities::SocketedGem {
+            item_id: equipped_gem_item_id as i32,
+            context: 0,
+            bonus_list_ids: Vec::new(),
+        }]);
+        session.insert_inventory_item_object(equipped_chest);
+        session.insert_inventory_item_like_cpp(
+            EQUIPMENT_SLOT_CHEST,
+            InventoryItem {
+                guid: equipped_chest_guid,
+                entry_id: equipped_chest_item_id,
+                db_guid: equipped_chest_guid.counter() as u64,
+                inventory_type: Some(InventoryType::Chest as u8),
+            },
+        );
+
+        let mut candidate_chest = session.make_inventory_item_object(
+            rejected_chest_guid,
+            rejected_chest_item_id,
+            owner,
+            1,
+            0,
+            ItemContext::None,
+            INVENTORY_SLOT_ITEM_START,
+        );
+        candidate_chest.set_gems(vec![wow_entities::SocketedGem {
+            item_id: candidate_gem_item_id as i32,
+            context: 0,
+            bonus_list_ids: Vec::new(),
+        }]);
+        session.insert_inventory_item_object(candidate_chest);
+        session.insert_inventory_item_like_cpp(
+            INVENTORY_SLOT_ITEM_START,
+            InventoryItem {
+                guid: rejected_chest_guid,
+                entry_id: rejected_chest_item_id,
+                db_guid: rejected_chest_guid.counter() as u64,
+                inventory_type: Some(InventoryType::Chest as u8),
+            },
+        );
+
+        let owned = session.represented_player_condition_context_like_cpp();
+        let context = owned.as_context(&session);
+
+        assert_eq!(
+            context.avg_item_level, 6.25,
+            "C++ CanEquipUniqueItem checks socketed gems after the item template, so a candidate with a gem from an already-equipped limited category cannot replace the best slot"
+        );
+        assert_eq!(
+            context.avg_equipped_item_level, 6.25,
+            "C++ UpdateAverageItemLevelEquipped still uses only equipped items"
+        );
+    }
+
+    #[test]
+    fn represented_condition_total_avg_item_level_rejects_twohand_candidate_with_offhand_like_cpp()
+    {
+        let (mut session, _, _send_rx) = make_session();
+        let equipped_mainhand_item_id = 30_039_u32;
+        let equipped_offhand_item_id = 30_040_u32;
+        let rejected_twohand_item_id = 30_041_u32;
+        let equipped_mainhand_guid = ObjectGuid::create_item(1, 30_039);
+        let equipped_offhand_guid = ObjectGuid::create_item(1, 30_040);
+        let rejected_twohand_guid = ObjectGuid::create_item(1, 30_041);
+        let player_guid = ObjectGuid::create_player(1, 174);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AverageItemLevelTwoHandOffhandRejected".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        let _ = session.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_can_dual_wield_like_cpp(true);
+            player.set_can_titan_grip(false, 0);
+        });
+        session.set_item_store(Arc::new(ItemStore::from_records([
+            represented_test_item_record_like_cpp(
+                equipped_mainhand_item_id,
+                InventoryType::Weapon,
+                ItemClass::Weapon,
+                ItemSubClassWeapon::Axe as u8,
+            ),
+            represented_test_item_record_like_cpp(
+                equipped_offhand_item_id,
+                InventoryType::Shield,
+                ItemClass::Armor,
+                ItemSubClassArmor::Shield as u8,
+            ),
+            represented_test_item_record_like_cpp(
+                rejected_twohand_item_id,
+                InventoryType::Weapon2Hand,
+                ItemClass::Weapon,
+                ItemSubClassWeapon::Axe2 as u8,
+            ),
+        ])));
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [
+                    (
+                        equipped_mainhand_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Weapon, 0),
+                    ),
+                    (
+                        equipped_offhand_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Shield, 0),
+                    ),
+                    (
+                        rejected_twohand_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Weapon2Hand, 0),
+                    ),
+                ],
+                [
+                    (
+                        equipped_mainhand_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 100,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Weapon as i8,
+                        },
+                    ),
+                    (
+                        equipped_offhand_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 100,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Shield as i8,
+                        },
+                    ),
+                    (
+                        rejected_twohand_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 300,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Weapon2Hand as i8,
+                        },
+                    ),
+                ],
+            ),
+        ));
+        session.set_item_search_name_store(Arc::new(ItemSearchNameStore::from_entries([
+            ItemSearchNameEntry {
+                id: equipped_mainhand_item_id,
+                allowable_race: 0,
+                display: String::new(),
+                overall_quality_id: ItemQuality::Epic as u8,
+                expansion_id: 0,
+                min_faction_id: 0,
+                min_reputation: 0,
+                allowable_class: 0,
+                required_level: 0,
+                required_skill: 0,
+                required_skill_rank: 0,
+                required_ability: 0,
+                item_level: 100,
+                flags: [0; 4],
+            },
+            ItemSearchNameEntry {
+                id: equipped_offhand_item_id,
+                allowable_race: 0,
+                display: String::new(),
+                overall_quality_id: ItemQuality::Epic as u8,
+                expansion_id: 0,
+                min_faction_id: 0,
+                min_reputation: 0,
+                allowable_class: 0,
+                required_level: 0,
+                required_skill: 0,
+                required_skill_rank: 0,
+                required_ability: 0,
+                item_level: 100,
+                flags: [0; 4],
+            },
+            ItemSearchNameEntry {
+                id: rejected_twohand_item_id,
+                allowable_race: 0,
+                display: String::new(),
+                overall_quality_id: ItemQuality::Epic as u8,
+                expansion_id: 0,
+                min_faction_id: 0,
+                min_reputation: 0,
+                allowable_class: 0,
+                required_level: 0,
+                required_skill: 0,
+                required_skill_rank: 0,
+                required_ability: 0,
+                item_level: 300,
+                flags: [0; 4],
+            },
+        ])));
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_MAINHAND,
+            equipped_mainhand_guid,
+            equipped_mainhand_item_id,
+            InventoryType::Weapon,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_OFFHAND,
+            equipped_offhand_guid,
+            equipped_offhand_item_id,
+            InventoryType::Shield,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            INVENTORY_SLOT_ITEM_START,
+            rejected_twohand_guid,
+            rejected_twohand_item_id,
+            InventoryType::Weapon2Hand,
+        );
+
+        let owned = session.represented_player_condition_context_like_cpp();
+        let context = owned.as_context(&session);
+
+        assert_eq!(
+            context.avg_item_level, 12.5,
+            "C++ UpdateAverageItemLevelTotal calls CanEquipItem(..., swap=true, not_loading=false); a non-TitanGrip 2H candidate is rejected while the offhand slot is occupied"
+        );
+        assert_eq!(
+            context.avg_equipped_item_level, 12.5,
+            "C++ UpdateAverageItemLevelEquipped still counts the currently equipped mainhand and offhand only"
+        );
+    }
+
+    #[test]
+    fn represented_condition_total_avg_item_level_counts_contained_items_for_max_count_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let equipped_chest_item_id = 30_042_u32;
+        let bag_item_id = 30_043_u32;
+        let limited_chest_item_id = 30_044_u32;
+        let equipped_chest_guid = ObjectGuid::create_item(1, 30_042);
+        let bag_guid = ObjectGuid::create_item(1, 30_043);
+        let contained_chest_guid = ObjectGuid::create_item(1, 30_044);
+        let second_contained_chest_guid = ObjectGuid::create_item(1, 30_045);
+        let player_guid = ObjectGuid::create_player(1, 175);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AverageItemLevelContainedMaxCountRejected".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        session.set_item_store(Arc::new(ItemStore::from_records([
+            represented_test_item_record_like_cpp(
+                equipped_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+            represented_test_item_record_like_cpp(
+                bag_item_id,
+                InventoryType::Bag,
+                ItemClass::Container,
+                0,
+            ),
+            represented_test_item_record_like_cpp(
+                limited_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+        ])));
+        let mut limited_sparse =
+            sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0);
+        limited_sparse.max_count = 1;
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [
+                    (
+                        equipped_chest_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                    ),
+                    (
+                        bag_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Bag, 0),
+                    ),
+                    (limited_chest_item_id, limited_sparse),
+                ],
+                [
+                    (
+                        equipped_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 100,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                    (
+                        limited_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 300,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                ],
+            ),
+        ));
+        session.set_item_search_name_store(Arc::new(ItemSearchNameStore::from_entries([
+            ItemSearchNameEntry {
+                id: equipped_chest_item_id,
+                allowable_race: 0,
+                display: String::new(),
+                overall_quality_id: ItemQuality::Epic as u8,
+                expansion_id: 0,
+                min_faction_id: 0,
+                min_reputation: 0,
+                allowable_class: 0,
+                required_level: 0,
+                required_skill: 0,
+                required_skill_rank: 0,
+                required_ability: 0,
+                item_level: 100,
+                flags: [0; 4],
+            },
+            ItemSearchNameEntry {
+                id: limited_chest_item_id,
+                allowable_race: 0,
+                display: String::new(),
+                overall_quality_id: ItemQuality::Epic as u8,
+                expansion_id: 0,
+                min_faction_id: 0,
+                min_reputation: 0,
+                allowable_class: 0,
+                required_level: 0,
+                required_skill: 0,
+                required_skill_rank: 0,
+                required_ability: 0,
+                item_level: 300,
+                flags: [0; 4],
+            },
+        ])));
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            equipped_chest_guid,
+            equipped_chest_item_id,
+            InventoryType::Chest,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            INVENTORY_SLOT_BAG_START,
+            bag_guid,
+            bag_item_id,
+            InventoryType::Bag,
+        );
+        let owner = session.player_guid().unwrap_or(ObjectGuid::EMPTY);
+        let mut contained_chest = session.make_inventory_item_object(
+            contained_chest_guid,
+            limited_chest_item_id,
+            owner,
+            1,
+            0,
+            ItemContext::None,
+            0,
+        );
+        contained_chest.set_container_guid_and_slot(bag_guid, 0);
+        session.insert_inventory_item_object(contained_chest);
+        let mut second_contained_chest = session.make_inventory_item_object(
+            second_contained_chest_guid,
+            limited_chest_item_id,
+            owner,
+            1,
+            0,
+            ItemContext::None,
+            1,
+        );
+        second_contained_chest.set_container_guid_and_slot(bag_guid, 1);
+        session.insert_inventory_item_object(second_contained_chest);
+
+        let owned = session.represented_player_condition_context_like_cpp();
+        let context = owned.as_context(&session);
+
+        assert_eq!(
+            context.avg_item_level, 6.25,
+            "C++ CanEquipItem calls CanTakeMoreSimilarItems, which counts contained items through GetItemCount(..., inBankAlso=true); two MaxCount=1 contained candidates are both rejected"
+        );
+        assert_eq!(
+            context.avg_equipped_item_level, 6.25,
+            "C++ UpdateAverageItemLevelEquipped still ignores contained inventory candidates"
+        );
+    }
+
+    #[test]
+    fn represented_condition_total_avg_item_level_uses_represented_bag_contents_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let equipped_chest_item_id = 30_020_u32;
+        let bag_item_id = 30_021_u32;
+        let contained_chest_item_id = 30_022_u32;
+        let equipped_chest_guid = ObjectGuid::create_item(1, 30_020);
+        let bag_guid = ObjectGuid::create_item(1, 30_021);
+        let contained_chest_guid = ObjectGuid::create_item(1, 30_022);
+        let player_guid = ObjectGuid::create_player(1, 167);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AverageItemLevelBagContents".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        session.set_item_store(Arc::new(ItemStore::from_records([
+            represented_test_item_record_like_cpp(
+                equipped_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+            represented_test_item_record_like_cpp(
+                bag_item_id,
+                InventoryType::Bag,
+                ItemClass::Container,
+                0,
+            ),
+            represented_test_item_record_like_cpp(
+                contained_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+        ])));
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [
+                    (
+                        equipped_chest_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                    ),
+                    (
+                        bag_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Bag, 0),
+                    ),
+                    (
+                        contained_chest_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                    ),
+                ],
+                [
+                    (
+                        equipped_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 100,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                    (
+                        contained_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 220,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                ],
+            ),
+        ));
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            equipped_chest_guid,
+            equipped_chest_item_id,
+            InventoryType::Chest,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            INVENTORY_SLOT_BAG_START,
+            bag_guid,
+            bag_item_id,
+            InventoryType::Bag,
+        );
+        let owner = session.player_guid().unwrap_or(ObjectGuid::EMPTY);
+        let mut contained_chest = session.make_inventory_item_object(
+            contained_chest_guid,
+            contained_chest_item_id,
+            owner,
+            1,
+            0,
+            ItemContext::None,
+            0,
+        );
+        contained_chest.set_container_guid_and_slot(bag_guid, INVENTORY_SLOT_BAG_START);
+        session.insert_inventory_item_object(contained_chest);
+
+        let owned = session.represented_player_condition_context_like_cpp();
+        let context = owned.as_context(&session);
+
+        assert_eq!(
+            context.avg_item_level, 13.75,
+            "C++ UpdateAverageItemLevelTotal uses ForEachItem(Everywhere), so represented bag-contained candidates can replace equipped lower item-level candidates"
+        );
+        assert_eq!(
+            context.avg_equipped_item_level, 6.25,
+            "C++ UpdateAverageItemLevelEquipped still ignores bag-contained items"
+        );
+    }
+
+    #[test]
+    fn represented_condition_total_avg_item_level_uses_represented_bank_item_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let equipped_chest_item_id = 30_023_u32;
+        let bank_chest_item_id = 30_024_u32;
+        let equipped_chest_guid = ObjectGuid::create_item(1, 30_023);
+        let bank_chest_guid = ObjectGuid::create_item(1, 30_024);
+        let player_guid = ObjectGuid::create_player(1, 168);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AverageItemLevelBankItem".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        session.set_item_store(Arc::new(ItemStore::from_records([
+            represented_test_item_record_like_cpp(
+                equipped_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+            represented_test_item_record_like_cpp(
+                bank_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+        ])));
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [
+                    (
+                        equipped_chest_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                    ),
+                    (
+                        bank_chest_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                    ),
+                ],
+                [
+                    (
+                        equipped_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 100,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                    (
+                        bank_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 240,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                ],
+            ),
+        ));
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            equipped_chest_guid,
+            equipped_chest_item_id,
+            InventoryType::Chest,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            BANK_SLOT_ITEM_START,
+            bank_chest_guid,
+            bank_chest_item_id,
+            InventoryType::Chest,
+        );
+
+        let owned = session.represented_player_condition_context_like_cpp();
+        let context = owned.as_context(&session);
+
+        assert_eq!(
+            context.avg_item_level, 15.0,
+            "C++ ItemSearchLocation::Everywhere includes bank slots, so represented bank candidates can replace equipped lower item-level candidates"
+        );
+        assert_eq!(
+            context.avg_equipped_item_level, 6.25,
+            "C++ UpdateAverageItemLevelEquipped still ignores bank items"
+        );
+    }
+
+    #[test]
+    fn represented_condition_total_avg_item_level_uses_represented_bank_bag_contents_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let equipped_chest_item_id = 30_025_u32;
+        let bank_bag_item_id = 30_026_u32;
+        let contained_chest_item_id = 30_027_u32;
+        let equipped_chest_guid = ObjectGuid::create_item(1, 30_025);
+        let bank_bag_guid = ObjectGuid::create_item(1, 30_026);
+        let contained_chest_guid = ObjectGuid::create_item(1, 30_027);
+        let player_guid = ObjectGuid::create_player(1, 169);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AverageItemLevelBankBagContents".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        session.set_item_store(Arc::new(ItemStore::from_records([
+            represented_test_item_record_like_cpp(
+                equipped_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+            represented_test_item_record_like_cpp(
+                bank_bag_item_id,
+                InventoryType::Bag,
+                ItemClass::Container,
+                0,
+            ),
+            represented_test_item_record_like_cpp(
+                contained_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+        ])));
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [
+                    (
+                        equipped_chest_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                    ),
+                    (
+                        bank_bag_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Bag, 0),
+                    ),
+                    (
+                        contained_chest_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                    ),
+                ],
+                [
+                    (
+                        equipped_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 100,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                    (
+                        contained_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 260,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                ],
+            ),
+        ));
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            equipped_chest_guid,
+            equipped_chest_item_id,
+            InventoryType::Chest,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            BANK_SLOT_BAG_START,
+            bank_bag_guid,
+            bank_bag_item_id,
+            InventoryType::Bag,
+        );
+        let owner = session.player_guid().unwrap_or(ObjectGuid::EMPTY);
+        let mut contained_chest = session.make_inventory_item_object(
+            contained_chest_guid,
+            contained_chest_item_id,
+            owner,
+            1,
+            0,
+            ItemContext::None,
+            0,
+        );
+        contained_chest.set_container_guid_and_slot(bank_bag_guid, BANK_SLOT_BAG_START);
+        session.insert_inventory_item_object(contained_chest);
+
+        let owned = session.represented_player_condition_context_like_cpp();
+        let context = owned.as_context(&session);
+
+        assert_eq!(
+            context.avg_item_level, 16.25,
+            "C++ ItemSearchLocation::Everywhere includes bank bag contents, so represented bank-bag candidates can replace equipped lower item-level candidates"
+        );
+        assert_eq!(
+            context.avg_equipped_item_level, 6.25,
+            "C++ UpdateAverageItemLevelEquipped still ignores bank-bag contents"
+        );
+    }
+
+    #[test]
+    fn represented_condition_total_avg_item_level_uses_represented_reagent_bank_contents_like_cpp()
+    {
+        let (mut session, _, _send_rx) = make_session();
+        let equipped_chest_item_id = 30_028_u32;
+        let reagent_bag_item_id = 30_029_u32;
+        let contained_chest_item_id = 30_030_u32;
+        let equipped_chest_guid = ObjectGuid::create_item(1, 30_028);
+        let reagent_bag_guid = ObjectGuid::create_item(1, 30_029);
+        let contained_chest_guid = ObjectGuid::create_item(1, 30_030);
+        let player_guid = ObjectGuid::create_player(1, 170);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AverageItemLevelReagentBankContents".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        session.set_item_store(Arc::new(ItemStore::from_records([
+            represented_test_item_record_like_cpp(
+                equipped_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+            represented_test_item_record_like_cpp(
+                reagent_bag_item_id,
+                InventoryType::Bag,
+                ItemClass::Container,
+                0,
+            ),
+            represented_test_item_record_like_cpp(
+                contained_chest_item_id,
+                InventoryType::Chest,
+                ItemClass::Armor,
+                ItemSubClassArmor::Cloth as u8,
+            ),
+        ])));
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [
+                    (
+                        equipped_chest_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                    ),
+                    (
+                        reagent_bag_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Bag, 0),
+                    ),
+                    (
+                        contained_chest_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+                    ),
+                ],
+                [
+                    (
+                        equipped_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 100,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                    (
+                        contained_chest_item_id,
+                        ItemRandomPropertyTemplateEntry {
+                            item_level: 280,
+                            quality: ItemQuality::Epic as i8,
+                            inventory_type: InventoryType::Chest as i8,
+                        },
+                    ),
+                ],
+            ),
+        ));
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            equipped_chest_guid,
+            equipped_chest_item_id,
+            InventoryType::Chest,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            REAGENT_BAG_SLOT_START,
+            reagent_bag_guid,
+            reagent_bag_item_id,
+            InventoryType::Bag,
+        );
+        let owner = session.player_guid().unwrap_or(ObjectGuid::EMPTY);
+        let mut contained_chest = session.make_inventory_item_object(
+            contained_chest_guid,
+            contained_chest_item_id,
+            owner,
+            1,
+            0,
+            ItemContext::None,
+            0,
+        );
+        contained_chest.set_container_guid_and_slot(reagent_bag_guid, REAGENT_BAG_SLOT_START);
+        session.insert_inventory_item_object(contained_chest);
+
+        let owned = session.represented_player_condition_context_like_cpp();
+        let context = owned.as_context(&session);
+
+        assert_eq!(
+            context.avg_item_level, 17.5,
+            "C++ ItemSearchLocation::Everywhere includes reagent-bank contents, so represented reagent-bank candidates can replace equipped lower item-level candidates"
+        );
+        assert_eq!(
+            context.avg_equipped_item_level, 6.25,
+            "C++ UpdateAverageItemLevelEquipped still ignores reagent-bank contents"
+        );
+    }
+
+    #[test]
+    fn represented_condition_total_avg_item_level_does_not_count_same_ring_twice_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let ring_item_id = 30_019_u32;
+        let ring_guid = ObjectGuid::create_item(1, 30_019);
+        let player_guid = ObjectGuid::create_player(1, 166);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "AverageItemLevelRingDuplicate".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        session.set_item_store(Arc::new(ItemStore::from_records([
+            represented_test_item_record_like_cpp(
+                ring_item_id,
+                InventoryType::Finger,
+                ItemClass::Armor,
+                ItemSubClassArmor::Miscellaneous as u8,
+            ),
+        ])));
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [(
+                    ring_item_id,
+                    sparse_template_for_inventory_type_like_cpp(InventoryType::Finger, 0),
+                )],
+                [(
+                    ring_item_id,
+                    ItemRandomPropertyTemplateEntry {
+                        item_level: 100,
+                        quality: ItemQuality::Epic as i8,
+                        inventory_type: InventoryType::Finger as i8,
+                    },
+                )],
+            ),
+        ));
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            INVENTORY_SLOT_ITEM_START,
+            ring_guid,
+            ring_item_id,
+            InventoryType::Finger,
+        );
+
+        let owned = session.represented_player_condition_context_like_cpp();
+        let context = owned.as_context(&session);
+
+        assert_eq!(
+            context.avg_item_level, 6.25,
+            "C++ ForEachEquipmentSlot duplicate-GUID gate prevents the same ring candidate from filling both finger slots"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_auto_unequip_skips_item_mod_remove_for_broken_offhand_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let mainhand_item_id = 30_010_u32;
+        let offhand_item_id = 30_011_u32;
+        let mainhand_guid = ObjectGuid::create_item(1, 30_010);
+        let offhand_guid = ObjectGuid::create_item(1, 30_011);
+        let player_guid = ObjectGuid::create_player(1, 161);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "BrokenOffhandMods".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        let _ = session.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_can_dual_wield_like_cpp(true);
+            player.set_can_titan_grip(false, 0);
+        });
+        install_remove_spell_offhand_templates_like_cpp(
+            &mut session,
+            &[
+                (
+                    mainhand_item_id,
+                    InventoryType::Weapon2Hand,
+                    0,
+                    ItemClass::Weapon,
+                    ItemSubClassWeapon::Axe2 as u8,
+                ),
+                (
+                    offhand_item_id,
+                    InventoryType::Shield,
+                    0,
+                    ItemClass::Armor,
+                    ItemSubClassArmor::Shield as u8,
+                ),
+            ],
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_MAINHAND,
+            mainhand_guid,
+            mainhand_item_id,
+            InventoryType::Weapon2Hand,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_OFFHAND,
+            offhand_guid,
+            offhand_item_id,
+            InventoryType::Shield,
+        );
+        session.update_inventory_item_object_like_cpp(offhand_guid, |item| {
+            item.set_max_durability(40);
+            item.set_durability(0);
+        });
+
+        assert!(session.represented_auto_unequip_offhand_if_need_like_cpp(false));
+
+        assert!(
+            session
+                .represented_item_mod_reapply_events_like_cpp()
+                .is_empty(),
+            "C++ _ApplyItemMods returns without applying/removing mods for broken items"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_auto_unequip_delinks_offhand_when_store_fails_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let offhand_item_id = 30_005_u32;
+        let filler_item_id = 30_006_u32;
+        let offhand_guid = ObjectGuid::create_item(1, 30_005);
+        let player_guid = ObjectGuid::create_player(1, 159);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "RemoveOffhandFallback".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        install_remove_spell_offhand_templates_like_cpp(
+            &mut session,
+            &[
+                (
+                    offhand_item_id,
+                    InventoryType::WeaponOffhand,
+                    0,
+                    ItemClass::Weapon,
+                    ItemSubClassWeapon::Axe as u8,
+                ),
+                (
+                    filler_item_id,
+                    InventoryType::NonEquip,
+                    0,
+                    ItemClass::Consumable,
+                    0,
+                ),
+            ],
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_OFFHAND,
+            offhand_guid,
+            offhand_item_id,
+            InventoryType::WeaponOffhand,
+        );
+        let _ = session.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_can_dual_wield_like_cpp(false);
+            let _ = player.visualize_item(
+                EQUIPMENT_SLOT_OFFHAND,
+                offhand_guid,
+                VisibleItemValues {
+                    item_id: offhand_item_id as i32,
+                    item_appearance_mod_id: 0,
+                    item_visual: 0,
+                },
+            );
+        });
+        for offset in 0..INVENTORY_DEFAULT_SIZE {
+            let slot = INVENTORY_SLOT_ITEM_START + offset;
+            let guid = ObjectGuid::create_item(1, 40_000 + i64::from(offset));
+            equip_represented_test_item_like_cpp(
+                &mut session,
+                slot,
+                guid,
+                filler_item_id,
+                InventoryType::NonEquip,
+            );
+        }
+
+        assert!(session.represented_auto_unequip_offhand_if_need_like_cpp(false));
+
+        assert_eq!(
+            session.represented_auto_unequip_offhand_requests_like_cpp(),
+            &[RepresentedAutoUnequipOffhandLikeCpp {
+                item_guid: offhand_guid,
+                item_entry: offhand_item_id,
+                reason: RepresentedAutoUnequipOffhandReasonLikeCpp::LostDualWield,
+                stored_destination: None,
+                needs_mail_fallback: true,
+            }],
+            "C++ AutoUnequipOffhandIfNeed falls back to MoveItemFromInventory + mail when CanStoreItem fails"
+        );
+        assert!(
+            !session
+                .inventory_items_like_cpp()
+                .contains_key(&EQUIPMENT_SLOT_OFFHAND),
+            "C++ MoveItemFromInventory removes the item from the offhand slot"
+        );
+        let runtime_item = session
+            .inventory_item_objects_like_cpp()
+            .get(&offhand_guid)
+            .expect("mail fallback keeps the standalone item object represented");
+        assert_eq!(runtime_item.data().contained_in, ObjectGuid::EMPTY);
+        assert_eq!(runtime_item.container_guid(), ObjectGuid::EMPTY);
+        assert_eq!(runtime_item.slot(), NULL_SLOT);
+        assert_eq!(
+            session.canonical_player_snapshot_like_cpp(|player| {
+                (
+                    player.active_data().inv_slots[EQUIPMENT_SLOT_OFFHAND as usize],
+                    player.data().visible_items[EQUIPMENT_SLOT_OFFHAND as usize],
+                )
+            }),
+            Some((ObjectGuid::EMPTY, VisibleItemValues::default())),
+            "C++ MoveItemFromInventory clears offhand InvSlot/VisibleItem before mail fallback"
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::UpdateObject, ServerOpcodes::UpdateObject],
+            "C++ MoveItemFromInventory(update=true) sends player and item values updates before the represented mail fallback"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_auto_unequip_stores_offhand_in_represented_bag_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let offhand_item_id = 30_007_u32;
+        let filler_item_id = 30_008_u32;
+        let bag_item_id = 30_009_u32;
+        let offhand_guid = ObjectGuid::create_item(1, 30_007);
+        let bag_guid = ObjectGuid::create_item(1, 30_009);
+        let player_guid = ObjectGuid::create_player(1, 160);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "RemoveOffhandBagStore".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        install_remove_spell_offhand_templates_like_cpp(
+            &mut session,
+            &[
+                (
+                    offhand_item_id,
+                    InventoryType::WeaponOffhand,
+                    0,
+                    ItemClass::Weapon,
+                    ItemSubClassWeapon::Axe as u8,
+                ),
+                (
+                    filler_item_id,
+                    InventoryType::NonEquip,
+                    0,
+                    ItemClass::Consumable,
+                    0,
+                ),
+                (bag_item_id, InventoryType::Bag, 0, ItemClass::Container, 0),
+            ],
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_OFFHAND,
+            offhand_guid,
+            offhand_item_id,
+            InventoryType::WeaponOffhand,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            INVENTORY_SLOT_BAG_START,
+            bag_guid,
+            bag_item_id,
+            InventoryType::Bag,
+        );
+        let _ = session.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_can_dual_wield_like_cpp(false);
+            let _ = player.visualize_item(
+                EQUIPMENT_SLOT_OFFHAND,
+                offhand_guid,
+                VisibleItemValues {
+                    item_id: offhand_item_id as i32,
+                    item_appearance_mod_id: 0,
+                    item_visual: 0,
+                },
+            );
+            let _ = player.store_top_level_item(INVENTORY_SLOT_BAG_START, bag_guid);
+            let _ = player.register_bag_storage(INVENTORY_SLOT_BAG_START, bag_guid, 4);
+        });
+        for offset in 0..INVENTORY_DEFAULT_SIZE {
+            let slot = INVENTORY_SLOT_ITEM_START + offset;
+            let guid = ObjectGuid::create_item(1, 41_000 + i64::from(offset));
+            equip_represented_test_item_like_cpp(
+                &mut session,
+                slot,
+                guid,
+                filler_item_id,
+                InventoryType::NonEquip,
+            );
+        }
+
+        assert!(session.represented_auto_unequip_offhand_if_need_like_cpp(false));
+
+        assert_eq!(
+            session.represented_auto_unequip_offhand_requests_like_cpp(),
+            &[RepresentedAutoUnequipOffhandLikeCpp {
+                item_guid: offhand_guid,
+                item_entry: offhand_item_id,
+                reason: RepresentedAutoUnequipOffhandReasonLikeCpp::LostDualWield,
+                stored_destination: Some((INVENTORY_SLOT_BAG_START, 0)),
+                needs_mail_fallback: false,
+            }],
+            "C++ StoreItem stores the offhand item inside an equipped bag when backpack slots are full"
+        );
+        assert!(
+            !session
+                .inventory_items_like_cpp()
+                .contains_key(&EQUIPMENT_SLOT_OFFHAND),
+            "C++ RemoveItem removes the direct offhand slot before Bag::StoreItem"
+        );
+        assert_eq!(
+            session
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_START, 0)
+                .map(|item| item.guid),
+            Some(offhand_guid),
+            "represented Bag::StoreItem lookup resolves the moved offhand item"
+        );
+        let runtime_item = session
+            .inventory_item_objects_like_cpp()
+            .get(&offhand_guid)
+            .expect("stored bag item remains a runtime item object");
+        assert_eq!(runtime_item.data().contained_in, bag_guid);
+        assert_eq!(runtime_item.container_guid(), bag_guid);
+        assert_eq!(runtime_item.bag_slot(), INVENTORY_SLOT_BAG_START);
+        assert_eq!(runtime_item.slot(), 0);
+        assert_eq!(
+            session.canonical_player_snapshot_like_cpp(|player| {
+                (
+                    player.active_data().inv_slots[EQUIPMENT_SLOT_OFFHAND as usize],
+                    player.data().visible_items[EQUIPMENT_SLOT_OFFHAND as usize],
+                    player
+                        .inventory()
+                        .bags
+                        .get(INVENTORY_SLOT_BAG_START as usize)
+                        .and_then(Option::as_ref)
+                        .and_then(|bag| bag.item_by_pos(0)),
+                )
+            }),
+            Some((
+                ObjectGuid::EMPTY,
+                VisibleItemValues::default(),
+                Some(offhand_guid)
+            )),
+            "C++ RemoveItem clears offhand InvSlot/VisibleItem and Bag::StoreItem stores the child item in the equipped bag"
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![
+                ServerOpcodes::UpdateObject,
+                ServerOpcodes::UpdateObject,
+                ServerOpcodes::UpdateObject
+            ],
+            "C++ RemoveItem(update=true) + Bag::StoreItem(update=true) emit player, item, and bag slot values updates"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_downgrades_learned_skill_language_range_like_cpp() {
+        let (mut session, _, _) = make_session();
+        prepare_remove_spell_skill_range_fixture_like_cpp(
+            &mut session,
+            777,
+            wow_data::SKILL_CATEGORY_LANGUAGES_LIKE_CPP,
+            0,
+            0,
+            wow_data::SkillTiersStoreLikeCpp::default(),
+            50,
+            75,
+        );
+
+        session.remove_known_spell_like_cpp(20);
+
+        assert_eq!(
+            session.player_skill_records_like_cpp().get(&777),
+            Some(&RepresentedPlayerSkillLikeCpp {
+                skill_id: 777,
+                value: 300,
+                max: 75,
+                profession_slot: 0,
+            }),
+            "C++ GetSkillRangeType LANGUAGE forces value to 300 but only clamps existing max downward, so max is not raised when it was already below 300"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_downgrades_learned_skill_level_range_like_cpp() {
+        let (mut session, _, _) = make_session();
+        prepare_remove_spell_skill_range_fixture_like_cpp(
+            &mut session,
+            778,
+            9,
+            0,
+            0,
+            wow_data::SkillTiersStoreLikeCpp::default(),
+            80,
+            100,
+        );
+
+        session.remove_known_spell_like_cpp(20);
+
+        assert_eq!(
+            session.player_skill_records_like_cpp().get(&778),
+            Some(&RepresentedPlayerSkillLikeCpp {
+                skill_id: 778,
+                value: 60,
+                max: 60,
+                profession_slot: 0,
+            }),
+            "C++ LEVEL range uses GetMaxSkillValueForLevel (level * 5) and then clamps current value/max"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_downgrades_learned_skill_always_max_level_range_like_cpp() {
+        let (mut session, _, _) = make_session();
+        prepare_remove_spell_skill_range_fixture_like_cpp(
+            &mut session,
+            779,
+            9,
+            wow_data::SKILL_FLAG_ALWAYS_MAX_VALUE_LIKE_CPP,
+            0,
+            wow_data::SkillTiersStoreLikeCpp::default(),
+            10,
+            100,
+        );
+
+        session.remove_known_spell_like_cpp(20);
+
+        assert_eq!(
+            session.player_skill_records_like_cpp().get(&779),
+            Some(&RepresentedPlayerSkillLikeCpp {
+                skill_id: 779,
+                value: 60,
+                max: 60,
+                profession_slot: 0,
+            }),
+            "C++ SKILL_FLAG_ALWAYS_MAX_VALUE sets value to the computed max before SetSkill"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_downgrades_learned_skill_mono_range_like_cpp() {
+        let (mut session, _, _) = make_session();
+        prepare_remove_spell_skill_range_fixture_like_cpp(
+            &mut session,
+            780,
+            wow_data::SKILL_CATEGORY_ARMOR_LIKE_CPP,
+            0,
+            0,
+            wow_data::SkillTiersStoreLikeCpp::default(),
+            10,
+            100,
+        );
+
+        session.remove_known_spell_like_cpp(20);
+
+        assert_eq!(
+            session.player_skill_records_like_cpp().get(&780),
+            Some(&RepresentedPlayerSkillLikeCpp {
+                skill_id: 780,
+                value: 1,
+                max: 1,
+                profession_slot: 0,
+            }),
+            "C++ MONO range caps the downgraded learned skill to 1"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_downgrades_learned_skill_rank_range_like_cpp() {
+        let (mut session, _, _) = make_session();
+        prepare_remove_spell_skill_range_fixture_like_cpp(
+            &mut session,
+            781,
+            9,
+            0,
+            12,
+            wow_data::SkillTiersStoreLikeCpp::from_rows_like_cpp([
+                wow_data::SkillTiersRowLikeCpp {
+                    id: 12,
+                    value: [75, 150, 225, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                },
+            ]),
+            200,
+            225,
+        );
+
+        session.remove_known_spell_like_cpp(20);
+
+        assert_eq!(
+            session.player_skill_records_like_cpp().get(&781),
+            Some(&RepresentedPlayerSkillLikeCpp {
+                skill_id: 781,
+                value: 150,
+                max: 150,
+                profession_slot: 0,
+            }),
+            "C++ RANK range resolves SkillTiers[prevSkill.step - 1] when previous SpellLearnSkill maxvalue is 0"
+        );
+    }
+
+    #[test]
+    fn remove_known_spell_downgrades_learned_skill_without_race_class_info_to_zero_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_loaded_player_identity_like_cpp(0, 1, 1, 12, 0);
+        session.set_spell_chain_store(Arc::new(
+            wow_data::SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(
+                [wow_data::SpellRankEdgeLikeCpp {
+                    spell_id: 20,
+                    supercedes_spell_id: 10,
+                }],
+                |_| true,
+            ),
+        ));
+        session
+            .set_spell_learn_skill_store(Arc::new(test_spell_learn_skill_rank_store_like_cpp(782)));
+        session.set_skill_line_store(Arc::new(wow_data::SkillLineStore::from_entries([
+            test_skill_line_entry_like_cpp(782, 9),
+        ])));
+        session.set_skill_store(Arc::new(
+            wow_data::SkillStore::from_skill_line_abilities_and_race_class_like_cpp(
+                std::iter::empty::<wow_data::SkillLineAbilityRecord>(),
+                std::iter::empty::<wow_data::SkillRaceClassInfoRecord>(),
+            ),
+        ));
+        session.set_skill_tiers_store(Arc::new(wow_data::SkillTiersStoreLikeCpp::default()));
+        session.set_player_skill_records_like_cpp(HashMap::from([(
+            782,
+            RepresentedPlayerSkillLikeCpp {
+                skill_id: 782,
+                value: 80,
+                max: 100,
+                profession_slot: 0,
+            },
+        )]));
+        session.set_known_spells_like_cpp(vec![20]);
+
+        session.remove_known_spell_like_cpp(20);
+
+        assert_eq!(
+            session.player_skill_records_like_cpp().get(&782),
+            Some(&RepresentedPlayerSkillLikeCpp {
+                skill_id: 782,
+                value: 0,
+                max: 0,
+                profession_slot: 0,
+            }),
+            "C++ leaves new_skill_max_value at 0 when SkillRaceClassInfo is missing, then clamps value/max to 0"
+        );
     }
 
     #[test]
@@ -48087,6 +61539,94 @@ mod tests {
     }
 
     #[test]
+    fn represented_player_condition_explored_uses_area_bit_blocks_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
+            wow_data::AreaTableEntry {
+                id: 900,
+                continent_id: 0,
+                parent_area_id: 0,
+                area_bit: 65,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: 0,
+            },
+            wow_data::AreaTableEntry {
+                id: 901,
+                continent_id: 0,
+                parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: 0,
+            },
+        ])));
+        session.set_player_condition_store(Arc::new(wow_data::PlayerConditionStore::from_entries(
+            [
+                wow_data::PlayerConditionEntry {
+                    id: 42,
+                    explored: [900, 0],
+                    ..Default::default()
+                },
+                wow_data::PlayerConditionEntry {
+                    id: 43,
+                    explored: [901, 0],
+                    ..Default::default()
+                },
+            ],
+        )));
+
+        assert!(!session.represented_meets_player_condition_id_like_cpp(42));
+
+        session.represented_explored_zones_like_cpp[1] = 2;
+        assert!(session.represented_meets_player_condition_id_like_cpp(42));
+        assert!(!session.represented_meets_player_condition_id_like_cpp(43));
+    }
+
+    #[test]
+    fn represented_player_condition_area_uses_parent_chain_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_player_zone_area_like_cpp(12, 901);
+        session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
+            wow_data::AreaTableEntry {
+                id: 900,
+                continent_id: 0,
+                parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: 0,
+            },
+            wow_data::AreaTableEntry {
+                id: 901,
+                continent_id: 0,
+                parent_area_id: 900,
+                area_bit: -1,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: 0,
+            },
+        ])));
+        session.set_player_condition_store(Arc::new(wow_data::PlayerConditionStore::from_entries(
+            [
+                wow_data::PlayerConditionEntry {
+                    id: 42,
+                    area_id: [900, 0, 0, 0],
+                    ..Default::default()
+                },
+                wow_data::PlayerConditionEntry {
+                    id: 43,
+                    area_id: [902, 0, 0, 0],
+                    ..Default::default()
+                },
+            ],
+        )));
+
+        assert!(session.represented_meets_player_condition_id_like_cpp(42));
+        assert!(!session.represented_meets_player_condition_id_like_cpp(43));
+    }
+
+    #[test]
     fn represented_taxi_edge_distance_matches_cpp_condition_filter() {
         let (mut session, _, _) = make_session();
         session.player_class = 1;
@@ -51661,6 +65201,128 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn generic_owned_aura_cancel_removes_single_effect_row_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 728_i32;
+        let player_guid = ObjectGuid::create_player(1, 7033);
+        session.set_player_guid(Some(player_guid));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_DUMMY,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: spell_id as u32,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("single represented generic apply-aura effect row should execute");
+        let _ = drain_server_opcodes(&send_rx);
+
+        let removed =
+            session.remove_represented_cancelable_owned_aura_like_cpp(spell_id, player_guid);
+
+        assert_eq!(removed, 1);
+        assert!(
+            !session
+                .visible_auras
+                .values()
+                .any(|aura| aura.spell_id == spell_id)
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::AuraUpdate]
+        );
+    }
+
+    #[tokio::test]
+    async fn generic_owned_aura_cancel_preserves_passive_spell_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 729_i32;
+        let player_guid = ObjectGuid::create_player(1, 7034);
+        session.set_player_guid(Some(player_guid));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_DUMMY,
+                    ..Default::default()
+                }],
+            },
+        );
+        let mut attributes = [0; 15];
+        attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_PASSIVE;
+        spell_store.insert_spell_misc_attributes_like_cpp(spell_id, attributes);
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: spell_id as u32,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("single represented generic apply-aura effect row should execute");
+        let _ = drain_server_opcodes(&send_rx);
+
+        let removed =
+            session.remove_represented_cancelable_owned_aura_like_cpp(spell_id, player_guid);
+
+        assert_eq!(removed, 0);
+        assert!(
+            session
+                .visible_auras
+                .values()
+                .any(|aura| aura.spell_id == spell_id)
+        );
+        assert!(send_rx.is_empty());
+    }
+
+    #[tokio::test]
     async fn generic_apply_aura_multi_row_waits_for_effect_mask_grouping_like_cpp() {
         let (mut session, _, send_rx) = make_session();
         let spell_id = 727_i32;
@@ -51877,10 +65539,12 @@ mod tests {
         let pet_guid =
             ObjectGuid::create_world_object(wow_core::guid::HighGuid::Pet, 0, 1, 0, 0, 500, 44);
         let registry = Arc::new(PlayerRegistry::default());
-        let (other_tx, other_rx) = flume::bounded(8);
+        let (other_tx, _other_rx) = flume::bounded(8);
+        let (other_command_tx, other_command_rx) = flume::bounded(8);
         session.set_player_guid(Some(player_guid));
         session.set_player_registry(Arc::clone(&registry));
         session.set_player_position_like_cpp(Position::new(1.0, 2.0, 3.0, 0.5));
+        session.client_visible_guids_like_cpp.insert(other_guid);
         session.set_represented_pet_mode_state_like_cpp(
             Some(pet_guid),
             wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
@@ -51892,7 +65556,10 @@ mod tests {
             player_guid,
             broadcast_info(player_guid, flume::bounded(1).0),
         );
-        registry.insert(other_guid, broadcast_info(other_guid, other_tx));
+        registry.insert(
+            other_guid,
+            broadcast_info_with_command(other_guid, other_tx, other_command_tx),
+        );
         session.set_creature_template_mount_store(Arc::new(
             wow_data::CreatureTemplateMountStoreLikeCpp::from_entries([
                 wow_data::CreatureTemplateMountEntryLikeCpp {
@@ -51915,11 +65582,13 @@ mod tests {
                 wow_data::CreatureDisplayInfoEntry {
                     id: native_display_id,
                     model_id: 100,
+                    extended_display_info_id: 0,
                     creature_model_scale: 1.2,
                 },
                 wow_data::CreatureDisplayInfoEntry {
                     id: 4321,
                     model_id: 200,
+                    extended_display_info_id: 0,
                     creature_model_scale: 1.5,
                 },
             ]),
@@ -51928,12 +65597,14 @@ mod tests {
             wow_data::CreatureModelDataStore::from_entries([
                 wow_data::CreatureModelDataEntry {
                     id: 100,
+                    flags: 0,
                     collision_height: 2.0,
                     model_scale: 1.1,
                     mount_height: 0.0,
                 },
                 wow_data::CreatureModelDataEntry {
                     id: 200,
+                    flags: 0,
                     collision_height: 0.0,
                     model_scale: 1.0,
                     mount_height: 4.0,
@@ -52056,7 +65727,15 @@ mod tests {
         assert!(opcodes.contains(&wow_constants::ServerOpcodes::OnCancelExpectedRideVehicleAura));
         assert!(opcodes.contains(&wow_constants::ServerOpcodes::PetMode));
         assert!(opcodes.contains(&wow_constants::ServerOpcodes::MoveSetCollisionHeight));
-        let broadcast = wow_packet::WorldPacket::from_bytes(&other_rx.try_recv().unwrap());
+        let command = other_command_rx.try_recv().unwrap();
+        let broadcast = match command {
+            SessionCommand::SendIfVisibleLikeCpp(command) => {
+                wow_packet::WorldPacket::from_bytes(&command.packet_bytes)
+            }
+            other => {
+                panic!("expected SendIfVisibleLikeCpp collision-height command, got {other:?}")
+            }
+        };
         assert_eq!(
             broadcast.server_opcode(),
             Some(wow_constants::ServerOpcodes::MoveUpdateCollisionHeight)
@@ -52103,7 +65782,15 @@ mod tests {
         assert!(opcodes.contains(&wow_constants::ServerOpcodes::SetVehicleRecId));
         assert!(opcodes.contains(&wow_constants::ServerOpcodes::PetMode));
         assert!(opcodes.contains(&wow_constants::ServerOpcodes::MoveSetCollisionHeight));
-        let broadcast = wow_packet::WorldPacket::from_bytes(&other_rx.try_recv().unwrap());
+        let command = other_command_rx.try_recv().unwrap();
+        let broadcast = match command {
+            SessionCommand::SendIfVisibleLikeCpp(command) => {
+                wow_packet::WorldPacket::from_bytes(&command.packet_bytes)
+            }
+            other => {
+                panic!("expected SendIfVisibleLikeCpp collision-height command, got {other:?}")
+            }
+        };
         assert_eq!(
             broadcast.server_opcode(),
             Some(wow_constants::ServerOpcodes::MoveUpdateCollisionHeight)
@@ -52181,6 +65868,1938 @@ mod tests {
     }
 
     #[test]
+    fn represented_mount_capability_applies_mounted_speed_aura_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        session.set_mount_capability_store(Arc::new(wow_data::MountCapabilityStore::from_entries(
+            [wow_data::MountCapabilityEntry {
+                id: 77,
+                flags: wow_data::MOUNT_CAPABILITY_FLAG_GROUND,
+                req_riding_skill: 0,
+                req_area_id: 0,
+                req_spell_aura_id: 0,
+                req_spell_known_id: 0,
+                mod_spell_aura_id: 12_346,
+                req_map_id: 0,
+            }],
+        )));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            12_346,
+            wow_data::SpellInfo {
+                spell_id: 12_346,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED,
+                    effect_base_points: 100,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+        let effect = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
+            effect_base_points: 77,
+            effect_misc_value_1: 0,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_mounted_aura_like_cpp(100, ObjectGuid::EMPTY, &effect)
+            .unwrap();
+
+        assert!(session.visible_auras.values().any(|aura| {
+            aura.spell_id == 12_346
+                && aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::MountedSpeed)
+                && aura.represented_amount == 100
+        }));
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 14.0).abs()
+                < 0.0001
+        );
+        assert_eq!(
+            session.forced_speed_changes_like_cpp(UnitMoveTypeLikeCpp::Run),
+            1
+        );
+        assert!(
+            drain_server_opcodes(&send_rx).contains(&ServerOpcodes::MoveSetRunSpeed),
+            "C++ Unit::SetSpeedRate sends SMSG_MOVE_SET_RUN_SPEED when the mounted run rate changes"
+        );
+    }
+
+    #[test]
+    fn represented_mounted_aura_recalculates_amount_from_mount_capability_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([
+            wow_data::MountEntry {
+                id: 1,
+                mount_type_id: 7,
+                flags: 0,
+                source_type_enum: 0,
+                source_spell_id: 100,
+                player_condition_id: 0,
+                mount_fly_ride_height: 0.0,
+                ui_model_scene_id: 0,
+            },
+        ])));
+        session.set_mount_capability_store(Arc::new(wow_data::MountCapabilityStore::from_entries(
+            [wow_data::MountCapabilityEntry {
+                id: 77,
+                flags: wow_data::MOUNT_CAPABILITY_FLAG_GROUND,
+                req_riding_skill: 0,
+                req_area_id: 0,
+                req_spell_aura_id: 0,
+                req_spell_known_id: 0,
+                mod_spell_aura_id: 12_346,
+                req_map_id: -1,
+            }],
+        )));
+        session.set_mount_type_x_capability_store(Arc::new(
+            wow_data::MountTypeXCapabilityStore::from_entries([
+                wow_data::MountTypeXCapabilityEntry {
+                    id: 1,
+                    mount_type_id: 7,
+                    mount_capability_id: 77,
+                    order_index: 0,
+                },
+            ]),
+        ));
+        session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([])));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            12_346,
+            wow_data::SpellInfo {
+                spell_id: 12_346,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED,
+                    effect_base_points: 100,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+        let effect = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
+            effect_base_points: 0,
+            effect_misc_value_1: 0,
+            effect_misc_value_2: 0,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_mounted_aura_like_cpp(100, ObjectGuid::EMPTY, &effect)
+            .unwrap();
+
+        assert!(session.visible_auras.values().any(|aura| {
+            aura.spell_id == 100
+                && aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::Mounted)
+                && aura.represented_amount == 77
+        }));
+        assert!(session.visible_auras.values().any(|aura| {
+            aura.spell_id == 12_346
+                && aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::MountedSpeed)
+                && aura.represented_amount == 100
+        }));
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 14.0).abs()
+                < 0.0001
+        );
+        assert!(
+            drain_server_opcodes(&send_rx).contains(&ServerOpcodes::MoveSetRunSpeed),
+            "C++ AuraEffect::CalculateAmount turns SPELL_AURA_MOUNTED amount into MountCapabilityEntry::ID before HandleAuraMounted casts the speed aura"
+        );
+    }
+
+    #[test]
+    fn represented_player_speed_change_propagates_to_active_pet_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let pet_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 7_001, 9_001);
+        session.client_visible_guids_like_cpp.insert(pet_guid);
+        session.set_represented_pet_mode_state_like_cpp(
+            Some(pet_guid),
+            wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
+            wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP,
+        );
+
+        session.set_player_movement_speed_rate_and_notify_like_cpp(UnitMoveTypeLikeCpp::Run, 2.0);
+
+        assert_eq!(
+            session.represented_pet_movement_speed_rate_like_cpp(UnitMoveTypeLikeCpp::Run),
+            2.0
+        );
+        assert_eq!(session.represented_pet_speed_propagations_like_cpp(), 1);
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert!(
+            opcodes.contains(&ServerOpcodes::MoveSplineSetRunSpeed),
+            "C++ Pet::SetSpeedRate sends SMSG_MOVE_SPLINE_SET_RUN_SPEED for the pet"
+        );
+        assert!(
+            opcodes.contains(&ServerOpcodes::MoveSetRunSpeed),
+            "C++ player SetSpeedRate still sends the player-controlled mover speed packet"
+        );
+
+        session.set_player_movement_speed_rate_and_notify_like_cpp(UnitMoveTypeLikeCpp::Run, 2.0);
+        assert_eq!(
+            session.represented_pet_speed_propagations_like_cpp(),
+            1,
+            "C++ Pet::SetSpeedRate returns early when the rate is unchanged"
+        );
+    }
+
+    #[test]
+    fn represented_player_speed_change_does_not_propagate_to_pet_in_combat_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let pet_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 7_001, 9_002);
+        session.set_represented_pet_mode_state_like_cpp(
+            Some(pet_guid),
+            wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
+            wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP,
+        );
+        session.in_combat = true;
+
+        session.set_player_movement_speed_rate_and_notify_like_cpp(UnitMoveTypeLikeCpp::Run, 2.0);
+
+        assert_eq!(
+            session.represented_pet_movement_speed_rate_like_cpp(UnitMoveTypeLikeCpp::Run),
+            1.0
+        );
+        assert_eq!(session.represented_pet_speed_propagations_like_cpp(), 0);
+    }
+
+    #[test]
+    fn represented_player_speed_change_does_not_send_pet_spline_when_pet_not_visible_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let pet_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 7_001, 9_003);
+        session.set_represented_pet_mode_state_like_cpp(
+            Some(pet_guid),
+            wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
+            wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP,
+        );
+
+        session.set_player_movement_speed_rate_and_notify_like_cpp(UnitMoveTypeLikeCpp::Run, 2.0);
+
+        assert_eq!(
+            session.represented_pet_movement_speed_rate_like_cpp(UnitMoveTypeLikeCpp::Run),
+            2.0
+        );
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert!(
+            !opcodes.contains(&ServerOpcodes::MoveSplineSetRunSpeed),
+            "C++ SendMessageToSet only reaches sessions that have the pet at client"
+        );
+        assert!(
+            opcodes.contains(&ServerOpcodes::MoveSetRunSpeed),
+            "the player's own speed update is independent from pet visibility"
+        );
+    }
+
+    #[test]
+    fn represented_mount_speed_uses_cpp_not_stack_bonus_order_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        session.set_mount_capability_store(Arc::new(wow_data::MountCapabilityStore::from_entries(
+            [wow_data::MountCapabilityEntry {
+                id: 77,
+                flags: wow_data::MOUNT_CAPABILITY_FLAG_GROUND,
+                req_riding_skill: 0,
+                req_area_id: 0,
+                req_spell_aura_id: 0,
+                req_spell_known_id: 0,
+                mod_spell_aura_id: 12_347,
+                req_map_id: 0,
+            }],
+        )));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            12_347,
+            wow_data::SpellInfo {
+                spell_id: 12_347,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![
+                    wow_data::SpellEffectInfo {
+                        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                        effect_aura:
+                            wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED,
+                        effect_base_points: 60,
+                        effect_index: 0,
+                        ..Default::default()
+                    },
+                    wow_data::SpellEffectInfo {
+                        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                        effect_aura:
+                            wow_data::spell::aura_types::SPELL_AURA_MOD_MOUNTED_SPEED_NOT_STACK,
+                        effect_base_points: 150,
+                        effect_index: 1,
+                        ..Default::default()
+                    },
+                ],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+        let effect = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
+            effect_base_points: 77,
+            effect_misc_value_1: 0,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_mounted_aura_like_cpp(100, ObjectGuid::EMPTY, &effect)
+            .unwrap();
+
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 28.0).abs()
+                < 0.0001,
+            "C++ Unit::UpdateSpeed uses max(stack_bonus, non_stack_bonus) before AddPct(main_speed_mod)"
+        );
+        assert!(
+            drain_server_opcodes(&send_rx).contains(&ServerOpcodes::MoveSetRunSpeed),
+            "not-stack mounted speed changes are client-visible through Unit::SetSpeedRate"
+        );
+    }
+
+    #[test]
+    fn represented_non_mounted_flight_speed_sums_cpp_flight_modifiers_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let caster = ObjectGuid::create_player(1, 42);
+        let flight = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_FLIGHT_SPEED,
+            effect_base_points: 20,
+            effect_index: 0,
+            ..Default::default()
+        };
+        let vehicle_flight = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_VEHICLE_FLIGHT_SPEED,
+            effect_base_points: 30,
+            effect_index: 1,
+            ..Default::default()
+        };
+        let not_stack = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_FLIGHT_SPEED_NOT_STACK,
+            effect_base_points: 100,
+            effect_index: 2,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_024,
+                caster,
+                &flight,
+                RepresentedAuraEffectLikeCpp::FlightSpeed,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_025,
+                caster,
+                &vehicle_flight,
+                RepresentedAuraEffectLikeCpp::VehicleFlightSpeed,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_026,
+                caster,
+                &not_stack,
+                RepresentedAuraEffectLikeCpp::FlightSpeedNotStack,
+                30_000,
+            )
+            .unwrap();
+        session.recompute_represented_flight_speed_rate_like_cpp();
+
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Flight) - 21.0).abs()
+                < 0.0001,
+            "C++ MOVE_FLIGHT non-mounted branch sums flight and vehicle-flight mods after max(not-stack, stack)"
+        );
+        assert!(
+            drain_server_opcodes(&send_rx).contains(&ServerOpcodes::MoveSetFlightSpeed),
+            "non-mounted flight speed changes are observable through Unit::SetSpeedRate"
+        );
+    }
+
+    #[test]
+    fn represented_non_mounted_flight_speed_removal_recomputes_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let caster = ObjectGuid::create_player(1, 42);
+        let flight = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_FLIGHT_SPEED,
+            effect_base_points: 20,
+            effect_index: 0,
+            ..Default::default()
+        };
+        let vehicle_flight = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_VEHICLE_FLIGHT_SPEED,
+            effect_base_points: 30,
+            effect_index: 1,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_027,
+                caster,
+                &flight,
+                RepresentedAuraEffectLikeCpp::FlightSpeed,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_028,
+                caster,
+                &vehicle_flight,
+                RepresentedAuraEffectLikeCpp::VehicleFlightSpeed,
+                30_000,
+            )
+            .unwrap();
+        session.recompute_represented_flight_speed_rate_like_cpp();
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Flight) - 10.5).abs()
+                < 0.0001
+        );
+        let vehicle_flight_slot = session
+            .visible_auras
+            .iter()
+            .find_map(|(&slot, aura)| {
+                (aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::VehicleFlightSpeed))
+                    .then_some(slot)
+            })
+            .unwrap();
+
+        session.remove_aura(vehicle_flight_slot).unwrap();
+
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Flight) - 8.4).abs()
+                < 0.0001,
+            "C++ aura removal recomputes MOVE_FLIGHT and drops the removed vehicle-flight modifier"
+        );
+    }
+
+    #[tokio::test]
+    async fn represented_mounted_flight_speed_sets_can_fly_flags_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_map_position_like_cpp(571, Position::ZERO);
+        let spell_id = 20_031;
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura:
+                        wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED,
+                    effect_base_points: 60,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 725,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("mounted flight apply-aura row should execute");
+
+        assert!(
+            session
+                .player_movement_flags_like_cpp()
+                .contains(MovementFlag::CAN_FLY)
+        );
+        assert!(session.represented_can_swim_to_fly_transition_like_cpp());
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert!(
+            opcodes.contains(&ServerOpcodes::MoveEnableTransitionBetweenSwimAndFly),
+            "C++ mounted-flight aura enables swim-to-fly transition"
+        );
+        assert!(
+            opcodes.contains(&ServerOpcodes::MoveSetCanFly),
+            "C++ mounted-flight aura enables CanFly"
+        );
+    }
+
+    #[test]
+    fn represented_mounted_flight_speed_removal_unsets_can_fly_when_last_source_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let caster = ObjectGuid::create_player(1, 42);
+        let mounted_flight = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED,
+            effect_base_points: 60,
+            effect_index: 0,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_032,
+                caster,
+                &mounted_flight,
+                RepresentedAuraEffectLikeCpp::MountedFlightSpeed,
+                30_000,
+            )
+            .unwrap();
+        session.update_represented_flight_flags_for_flight_aura_like_cpp(true);
+        let slot = session
+            .visible_auras
+            .iter()
+            .find_map(|(&slot, aura)| {
+                (aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::MountedFlightSpeed))
+                    .then_some(slot)
+            })
+            .unwrap();
+        let _ = drain_server_opcodes(&send_rx);
+
+        session.remove_aura(slot).unwrap();
+
+        assert!(
+            !session
+                .player_movement_flags_like_cpp()
+                .contains(MovementFlag::CAN_FLY)
+        );
+        assert!(!session.represented_can_swim_to_fly_transition_like_cpp());
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert!(
+            opcodes.contains(&ServerOpcodes::MoveDisableTransitionBetweenSwimAndFly),
+            "C++ removes swim-to-fly transition when the last mounted-flight/fly aura is gone"
+        );
+        assert!(
+            opcodes.contains(&ServerOpcodes::MoveUnsetCanFly),
+            "C++ unsets CanFly when the last mounted-flight/fly aura is gone"
+        );
+    }
+
+    #[tokio::test]
+    async fn represented_fly_aura_sets_can_fly_flags_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_map_position_like_cpp(571, Position::new(1.0, 2.0, 30.0, 0.0));
+        let spell_id = 20_033;
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_FLY,
+                    effect_base_points: 0,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 725,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("fly apply-aura row should execute");
+
+        assert!(
+            session
+                .player_movement_flags_like_cpp()
+                .contains(MovementFlag::CAN_FLY)
+        );
+        assert!(session.represented_can_swim_to_fly_transition_like_cpp());
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert!(
+            opcodes.contains(&ServerOpcodes::MoveEnableTransitionBetweenSwimAndFly),
+            "C++ HandleAuraAllowFlight enables swim-to-fly transition"
+        );
+        assert!(
+            opcodes.contains(&ServerOpcodes::MoveSetCanFly),
+            "C++ HandleAuraAllowFlight enables CanFly"
+        );
+    }
+
+    #[test]
+    fn represented_fly_aura_removal_unsets_can_fly_and_resets_fall_info_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        session.set_player_map_position_like_cpp(571, Position::new(1.0, 2.0, 44.0, 0.0));
+        session.set_fall_information_like_cpp(1_200, 80.0);
+        let caster = ObjectGuid::create_player(1, 42);
+        let fly = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_FLY,
+            effect_base_points: 0,
+            effect_index: 0,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_034,
+                caster,
+                &fly,
+                RepresentedAuraEffectLikeCpp::Fly,
+                30_000,
+            )
+            .unwrap();
+        session.update_represented_flight_flags_for_flight_aura_like_cpp(true);
+        let slot = session
+            .visible_auras
+            .iter()
+            .find_map(|(&slot, aura)| {
+                (aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::Fly)).then_some(slot)
+            })
+            .unwrap();
+        let _ = drain_server_opcodes(&send_rx);
+
+        session.remove_aura(slot).unwrap();
+
+        assert!(
+            !session
+                .player_movement_flags_like_cpp()
+                .contains(MovementFlag::CAN_FLY)
+        );
+        assert!(
+            session
+                .player_movement_flags_like_cpp()
+                .contains(MovementFlag::FALLING),
+            "C++ HandleAuraAllowFlight calls MotionMaster::MoveFall after the last flight source is removed"
+        );
+        assert!(!session.represented_can_swim_to_fly_transition_like_cpp());
+        assert_eq!(session.fall_information_like_cpp(), (0, 44.0));
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert!(
+            opcodes.contains(&ServerOpcodes::MoveDisableTransitionBetweenSwimAndFly),
+            "C++ HandleAuraAllowFlight disables swim-to-fly transition on last flight source removal"
+        );
+        assert!(
+            opcodes.contains(&ServerOpcodes::MoveUnsetCanFly),
+            "C++ HandleAuraAllowFlight unsets CanFly and starts fall handling on last flight source removal"
+        );
+    }
+
+    #[test]
+    fn represented_fly_aura_removal_skips_move_fall_when_gravity_disabled_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        session.set_player_map_position_like_cpp(571, Position::new(1.0, 2.0, 44.0, 0.0));
+        session.set_player_movement_flags_like_cpp(MovementFlag::DISABLE_GRAVITY);
+        session.set_fall_information_like_cpp(1_200, 80.0);
+        let caster = ObjectGuid::create_player(1, 42);
+        let fly = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_FLY,
+            effect_base_points: 0,
+            effect_index: 0,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_037,
+                caster,
+                &fly,
+                RepresentedAuraEffectLikeCpp::Fly,
+                30_000,
+            )
+            .unwrap();
+        session.update_represented_flight_flags_for_flight_aura_like_cpp(true);
+        let slot = session
+            .visible_auras
+            .iter()
+            .find_map(|(&slot, aura)| {
+                (aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::Fly)).then_some(slot)
+            })
+            .unwrap();
+        let _ = drain_server_opcodes(&send_rx);
+
+        session.remove_aura(slot).unwrap();
+
+        assert!(
+            session
+                .player_movement_flags_like_cpp()
+                .contains(MovementFlag::DISABLE_GRAVITY)
+        );
+        assert!(
+            !session
+                .player_movement_flags_like_cpp()
+                .contains(MovementFlag::FALLING),
+            "C++ HandleAuraAllowFlight skips MotionMaster::MoveFall while IsGravityDisabled"
+        );
+        assert_eq!(
+            session.fall_information_like_cpp(),
+            (0, 44.0),
+            "C++ SetCanFly(false) still resets player fall information before the gravity guard"
+        );
+    }
+
+    #[test]
+    fn represented_fly_aura_removal_preserves_flags_when_mounted_flight_remains_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let caster = ObjectGuid::create_player(1, 42);
+        let fly = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_FLY,
+            effect_base_points: 0,
+            effect_index: 0,
+            ..Default::default()
+        };
+        let mounted_flight = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED,
+            effect_base_points: 60,
+            effect_index: 0,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_035,
+                caster,
+                &fly,
+                RepresentedAuraEffectLikeCpp::Fly,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_036,
+                caster,
+                &mounted_flight,
+                RepresentedAuraEffectLikeCpp::MountedFlightSpeed,
+                30_000,
+            )
+            .unwrap();
+        session.update_represented_flight_flags_for_flight_aura_like_cpp(true);
+        let fly_slot = session
+            .visible_auras
+            .iter()
+            .find_map(|(&slot, aura)| {
+                (aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::Fly)).then_some(slot)
+            })
+            .unwrap();
+        let _ = drain_server_opcodes(&send_rx);
+
+        session.remove_aura(fly_slot).unwrap();
+
+        assert!(
+            session
+                .player_movement_flags_like_cpp()
+                .contains(MovementFlag::CAN_FLY),
+            "C++ keeps CanFly while a mounted-flight aura is still present"
+        );
+        assert!(session.represented_can_swim_to_fly_transition_like_cpp());
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert!(
+            !opcodes.contains(&ServerOpcodes::MoveUnsetCanFly),
+            "C++ does not unset CanFly until the last SPELL_AURA_FLY/mounted-flight source is gone"
+        );
+        assert!(
+            !opcodes.contains(&ServerOpcodes::MoveDisableTransitionBetweenSwimAndFly),
+            "C++ keeps swim-to-fly transition while a mounted-flight aura remains"
+        );
+    }
+
+    #[test]
+    fn represented_swim_speed_increase_updates_move_swim_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let caster = ObjectGuid::create_player(1, 42);
+        let swim = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SWIM_SPEED,
+            effect_base_points: 50,
+            effect_index: 0,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_029,
+                caster,
+                &swim,
+                RepresentedAuraEffectLikeCpp::SwimSpeed,
+                30_000,
+            )
+            .unwrap();
+        session.recompute_represented_swim_speed_rate_like_cpp();
+
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Swim) - 7.083333).abs()
+                < 0.0001,
+            "C++ MOVE_SWIM applies SPELL_AURA_MOD_INCREASE_SWIM_SPEED as AddPct on base swim speed"
+        );
+        assert!(
+            drain_server_opcodes(&send_rx).contains(&ServerOpcodes::MoveSetSwimSpeed),
+            "swim speed changes are observable through Unit::SetSpeedRate"
+        );
+    }
+
+    #[test]
+    fn represented_swim_speed_removal_recomputes_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let caster = ObjectGuid::create_player(1, 42);
+        let swim = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SWIM_SPEED,
+            effect_base_points: 50,
+            effect_index: 0,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_030,
+                caster,
+                &swim,
+                RepresentedAuraEffectLikeCpp::SwimSpeed,
+                30_000,
+            )
+            .unwrap();
+        session.recompute_represented_swim_speed_rate_like_cpp();
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Swim) - 7.083333).abs()
+                < 0.0001
+        );
+        let swim_slot = session
+            .visible_auras
+            .iter()
+            .find_map(|(&slot, aura)| {
+                (aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::SwimSpeed))
+                    .then_some(slot)
+            })
+            .unwrap();
+
+        session.remove_aura(swim_slot).unwrap();
+
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Swim) - 4.722222).abs()
+                < 0.0001,
+            "C++ aura removal recomputes MOVE_SWIM and drops the swim-speed modifier"
+        );
+    }
+
+    #[test]
+    fn represented_forward_speed_slow_applies_to_swim_and_flight_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let caster = ObjectGuid::create_player(1, 42);
+        let swim = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SWIM_SPEED,
+            effect_base_points: 200,
+            effect_index: 0,
+            ..Default::default()
+        };
+        let flight = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_FLIGHT_SPEED,
+            effect_base_points: 200,
+            effect_index: 1,
+            ..Default::default()
+        };
+        let slow = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_DECREASE_SPEED,
+            effect_base_points: -50,
+            effect_index: 2,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_031,
+                caster,
+                &swim,
+                RepresentedAuraEffectLikeCpp::SwimSpeed,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_032,
+                caster,
+                &flight,
+                RepresentedAuraEffectLikeCpp::FlightSpeed,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_033,
+                caster,
+                &slow,
+                RepresentedAuraEffectLikeCpp::DecreaseSpeed,
+                30_000,
+            )
+            .unwrap();
+        session.recompute_represented_forward_speed_rates_like_cpp();
+
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Swim) - 7.083333).abs()
+                < 0.0001,
+            "C++ applies the strongest SPELL_AURA_MOD_DECREASE_SPEED after MOVE_SWIM positive speed math"
+        );
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Flight) - 10.5).abs()
+                < 0.0001,
+            "C++ applies the strongest SPELL_AURA_MOD_DECREASE_SPEED after MOVE_FLIGHT positive speed math"
+        );
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert!(opcodes.contains(&ServerOpcodes::MoveSetSwimSpeed));
+        assert!(opcodes.contains(&ServerOpcodes::MoveSetFlightSpeed));
+    }
+
+    #[test]
+    fn represented_forward_speed_cap_and_minimum_floor_apply_to_swim_and_flight_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let caster = ObjectGuid::create_player(1, 42);
+        let swim = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SWIM_SPEED,
+            effect_base_points: 200,
+            effect_index: 0,
+            ..Default::default()
+        };
+        let flight = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_FLIGHT_SPEED,
+            effect_base_points: 200,
+            effect_index: 1,
+            ..Default::default()
+        };
+        let normal_cap = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED,
+            effect_base_points: 1,
+            effect_index: 2,
+            ..Default::default()
+        };
+        let minimum = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_MINIMUM_SPEED,
+            effect_base_points: 80,
+            effect_index: 3,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_034,
+                caster,
+                &swim,
+                RepresentedAuraEffectLikeCpp::SwimSpeed,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_035,
+                caster,
+                &flight,
+                RepresentedAuraEffectLikeCpp::FlightSpeed,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_036,
+                caster,
+                &normal_cap,
+                RepresentedAuraEffectLikeCpp::UseNormalMovementSpeed,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_037,
+                caster,
+                &minimum,
+                RepresentedAuraEffectLikeCpp::MinimumSpeed,
+                30_000,
+            )
+            .unwrap();
+        session.recompute_represented_forward_speed_rates_like_cpp();
+
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Swim) - 3.7777777).abs()
+                < 0.0001,
+            "C++ applies SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED before the final minimum-speed floor for MOVE_SWIM"
+        );
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Flight) - 5.6).abs()
+                < 0.0001,
+            "C++ applies SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED before the final minimum-speed floor for MOVE_FLIGHT"
+        );
+    }
+
+    #[test]
+    fn represented_backward_speed_slow_updates_all_backward_move_types_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let caster = ObjectGuid::create_player(1, 42);
+        let slow = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_DECREASE_SPEED,
+            effect_base_points: -50,
+            effect_index: 0,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_038,
+                caster,
+                &slow,
+                RepresentedAuraEffectLikeCpp::DecreaseSpeed,
+                30_000,
+            )
+            .unwrap();
+        session.recompute_represented_backward_speed_rates_like_cpp();
+
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::RunBack) - 2.25).abs()
+                < 0.0001,
+            "C++ Unit::UpdateSpeed applies SPELL_AURA_MOD_DECREASE_SPEED to MOVE_RUN_BACK"
+        );
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::SwimBack) - 1.25).abs()
+                < 0.0001,
+            "C++ Unit::UpdateSpeed applies SPELL_AURA_MOD_DECREASE_SPEED to MOVE_SWIM_BACK"
+        );
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::FlightBack) - 2.25).abs()
+                < 0.0001,
+            "C++ Unit::UpdateSpeed applies SPELL_AURA_MOD_DECREASE_SPEED to MOVE_FLIGHT_BACK"
+        );
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert!(opcodes.contains(&ServerOpcodes::MoveSetRunBackSpeed));
+        assert!(opcodes.contains(&ServerOpcodes::MoveSetSwimBackSpeed));
+        assert!(opcodes.contains(&ServerOpcodes::MoveSetFlightBackSpeed));
+    }
+
+    #[test]
+    fn represented_backward_speed_slow_removal_restores_base_speeds_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let caster = ObjectGuid::create_player(1, 42);
+        let slow = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_DECREASE_SPEED,
+            effect_base_points: -50,
+            effect_index: 0,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_039,
+                caster,
+                &slow,
+                RepresentedAuraEffectLikeCpp::DecreaseSpeed,
+                30_000,
+            )
+            .unwrap();
+        session.recompute_represented_backward_speed_rates_like_cpp();
+        let _ = drain_server_opcodes(&send_rx);
+        let slow_slot = session
+            .visible_auras
+            .iter()
+            .find_map(|(&slot, aura)| {
+                (aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::DecreaseSpeed))
+                    .then_some(slot)
+            })
+            .unwrap();
+
+        session.remove_aura(slow_slot).unwrap();
+
+        assert_eq!(
+            session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::RunBack),
+            4.5
+        );
+        assert_eq!(
+            session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::SwimBack),
+            2.5
+        );
+        assert_eq!(
+            session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::FlightBack),
+            4.5
+        );
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert!(opcodes.contains(&ServerOpcodes::MoveSetRunBackSpeed));
+        assert!(opcodes.contains(&ServerOpcodes::MoveSetSwimBackSpeed));
+        assert!(opcodes.contains(&ServerOpcodes::MoveSetFlightBackSpeed));
+    }
+
+    #[test]
+    fn represented_normal_run_speed_uses_cpp_stack_and_not_stack_order_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let caster = ObjectGuid::create_player(1, 42);
+        let main = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED,
+            effect_base_points: 40,
+            effect_index: 0,
+            ..Default::default()
+        };
+        let stack = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_SPEED_ALWAYS,
+            effect_base_points: 20,
+            effect_index: 1,
+            ..Default::default()
+        };
+        let not_stack = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_SPEED_NOT_STACK,
+            effect_base_points: 80,
+            effect_index: 2,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_001,
+                caster,
+                &main,
+                RepresentedAuraEffectLikeCpp::Speed,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_002,
+                caster,
+                &stack,
+                RepresentedAuraEffectLikeCpp::SpeedAlways,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_003,
+                caster,
+                &not_stack,
+                RepresentedAuraEffectLikeCpp::SpeedNotStack,
+                30_000,
+            )
+            .unwrap();
+        session.recompute_represented_run_speed_rate_like_cpp();
+
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 17.64).abs()
+                < 0.0001,
+            "C++ Unit::UpdateSpeed uses max(SPEED_ALWAYS, SPEED_NOT_STACK) before AddPct(INCREASE_SPEED)"
+        );
+        assert_eq!(
+            session.forced_speed_changes_like_cpp(UnitMoveTypeLikeCpp::Run),
+            1
+        );
+        assert!(
+            drain_server_opcodes(&send_rx).contains(&ServerOpcodes::MoveSetRunSpeed),
+            "normal run-speed auras are observable through Unit::SetSpeedRate"
+        );
+    }
+
+    #[test]
+    fn represented_dismount_restores_active_normal_run_speed_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let caster = ObjectGuid::create_player(1, 42);
+        let normal = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED,
+            effect_base_points: 50,
+            effect_index: 0,
+            ..Default::default()
+        };
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_004,
+                caster,
+                &normal,
+                RepresentedAuraEffectLikeCpp::Speed,
+                30_000,
+            )
+            .unwrap();
+        session.recompute_represented_run_speed_rate_like_cpp();
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 10.5).abs()
+                < 0.0001
+        );
+
+        session.set_mount_capability_store(Arc::new(wow_data::MountCapabilityStore::from_entries(
+            [wow_data::MountCapabilityEntry {
+                id: 77,
+                flags: wow_data::MOUNT_CAPABILITY_FLAG_GROUND,
+                req_riding_skill: 0,
+                req_area_id: 0,
+                req_spell_aura_id: 0,
+                req_spell_known_id: 0,
+                mod_spell_aura_id: 12_346,
+                req_map_id: 0,
+            }],
+        )));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            12_346,
+            wow_data::SpellInfo {
+                spell_id: 12_346,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED,
+                    effect_base_points: 100,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+        let mounted = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
+            effect_base_points: 77,
+            effect_misc_value_1: 0,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_mounted_aura_like_cpp(100, caster, &mounted)
+            .unwrap();
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 14.0).abs()
+                < 0.0001
+        );
+        let mounted_slot = session
+            .visible_auras
+            .iter()
+            .find_map(|(&slot, aura)| {
+                (aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::Mounted))
+                    .then_some(slot)
+            })
+            .unwrap();
+
+        session.remove_aura(mounted_slot).unwrap();
+
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 10.5).abs()
+                < 0.0001,
+            "C++ dismount recomputes MOVE_RUN with the still-active non-mounted speed auras"
+        );
+    }
+
+    #[test]
+    fn represented_run_speed_applies_cpp_strongest_slow_after_positive_bonus_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let caster = ObjectGuid::create_player(1, 42);
+        let speed = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED,
+            effect_base_points: 100,
+            effect_index: 0,
+            ..Default::default()
+        };
+        let weak_slow = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_DECREASE_SPEED,
+            effect_base_points: -20,
+            effect_index: 1,
+            ..Default::default()
+        };
+        let strong_slow = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_DECREASE_SPEED,
+            effect_base_points: -40,
+            effect_index: 2,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_005,
+                caster,
+                &speed,
+                RepresentedAuraEffectLikeCpp::Speed,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_006,
+                caster,
+                &weak_slow,
+                RepresentedAuraEffectLikeCpp::DecreaseSpeed,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_007,
+                caster,
+                &strong_slow,
+                RepresentedAuraEffectLikeCpp::DecreaseSpeed,
+                30_000,
+            )
+            .unwrap();
+        session.recompute_represented_run_speed_rate_like_cpp();
+
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 8.4).abs() < 0.0001,
+            "C++ Unit::UpdateSpeed applies strongest SPELL_AURA_MOD_DECREASE_SPEED after positive speed bonuses"
+        );
+        assert!(
+            drain_server_opcodes(&send_rx).contains(&ServerOpcodes::MoveSetRunSpeed),
+            "slow-driven run-speed changes are observable through Unit::SetSpeedRate"
+        );
+    }
+
+    #[test]
+    fn represented_run_speed_slow_removal_recomputes_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let caster = ObjectGuid::create_player(1, 42);
+        let speed = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED,
+            effect_base_points: 100,
+            effect_index: 0,
+            ..Default::default()
+        };
+        let slow = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_DECREASE_SPEED,
+            effect_base_points: -50,
+            effect_index: 1,
+            ..Default::default()
+        };
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_008,
+                caster,
+                &speed,
+                RepresentedAuraEffectLikeCpp::Speed,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_009,
+                caster,
+                &slow,
+                RepresentedAuraEffectLikeCpp::DecreaseSpeed,
+                30_000,
+            )
+            .unwrap();
+        session.recompute_represented_run_speed_rate_like_cpp();
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 7.0).abs() < 0.0001
+        );
+        let slow_slot = session
+            .visible_auras
+            .iter()
+            .find_map(|(&slot, aura)| {
+                (aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::DecreaseSpeed))
+                    .then_some(slot)
+            })
+            .unwrap();
+
+        session.remove_aura(slow_slot).unwrap();
+
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 14.0).abs()
+                < 0.0001,
+            "C++ aura removal recomputes MOVE_RUN and drops the removed slow"
+        );
+    }
+
+    #[test]
+    fn represented_run_speed_use_normal_movement_speed_caps_before_slow_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let caster = ObjectGuid::create_player(1, 42);
+        let speed = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED,
+            effect_base_points: 200,
+            effect_index: 0,
+            ..Default::default()
+        };
+        let normal_cap = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED,
+            effect_base_points: 10,
+            effect_index: 1,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_020,
+                caster,
+                &speed,
+                RepresentedAuraEffectLikeCpp::Speed,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_021,
+                caster,
+                &normal_cap,
+                RepresentedAuraEffectLikeCpp::UseNormalMovementSpeed,
+                30_000,
+            )
+            .unwrap();
+        session.recompute_represented_run_speed_rate_like_cpp();
+
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 10.0).abs()
+                < 0.0001,
+            "C++ SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED caps MOVE_RUN before slow/min-speed floors"
+        );
+        assert!(
+            drain_server_opcodes(&send_rx).contains(&ServerOpcodes::MoveSetRunSpeed),
+            "normal-movement-speed cap changes are observable through Unit::SetSpeedRate"
+        );
+    }
+
+    #[test]
+    fn represented_run_speed_use_normal_movement_speed_removal_recomputes_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let caster = ObjectGuid::create_player(1, 42);
+        let speed = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED,
+            effect_base_points: 200,
+            effect_index: 0,
+            ..Default::default()
+        };
+        let normal_cap = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED,
+            effect_base_points: 10,
+            effect_index: 1,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_022,
+                caster,
+                &speed,
+                RepresentedAuraEffectLikeCpp::Speed,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_023,
+                caster,
+                &normal_cap,
+                RepresentedAuraEffectLikeCpp::UseNormalMovementSpeed,
+                30_000,
+            )
+            .unwrap();
+        session.recompute_represented_run_speed_rate_like_cpp();
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 10.0).abs()
+                < 0.0001
+        );
+        let normal_cap_slot = session
+            .visible_auras
+            .iter()
+            .find_map(|(&slot, aura)| {
+                (aura.represented_effect
+                    == Some(RepresentedAuraEffectLikeCpp::UseNormalMovementSpeed))
+                .then_some(slot)
+            })
+            .unwrap();
+
+        session.remove_aura(normal_cap_slot).unwrap();
+
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 21.0).abs()
+                < 0.0001,
+            "C++ aura removal recomputes MOVE_RUN and drops the normal-movement-speed cap"
+        );
+    }
+
+    #[test]
+    fn represented_run_speed_minimum_speed_floor_applies_after_slow_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let caster = ObjectGuid::create_player(1, 42);
+        let speed = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED,
+            effect_base_points: 100,
+            effect_index: 0,
+            ..Default::default()
+        };
+        let slow = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_DECREASE_SPEED,
+            effect_base_points: -80,
+            effect_index: 1,
+            ..Default::default()
+        };
+        let minimum = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_MINIMUM_SPEED,
+            effect_base_points: 75,
+            effect_index: 2,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_010,
+                caster,
+                &speed,
+                RepresentedAuraEffectLikeCpp::Speed,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_011,
+                caster,
+                &slow,
+                RepresentedAuraEffectLikeCpp::DecreaseSpeed,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_012,
+                caster,
+                &minimum,
+                RepresentedAuraEffectLikeCpp::MinimumSpeed,
+                30_000,
+            )
+            .unwrap();
+        session.recompute_represented_run_speed_rate_like_cpp();
+
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 5.25).abs()
+                < 0.0001,
+            "C++ SPELL_AURA_MOD_MINIMUM_SPEED floors the final slowed MOVE_RUN rate"
+        );
+        assert!(
+            drain_server_opcodes(&send_rx).contains(&ServerOpcodes::MoveSetRunSpeed),
+            "minimum-speed floor changes are observable through Unit::SetSpeedRate"
+        );
+    }
+
+    #[test]
+    fn represented_run_speed_minimum_speed_removal_recomputes_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let caster = ObjectGuid::create_player(1, 42);
+        let speed = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED,
+            effect_base_points: 100,
+            effect_index: 0,
+            ..Default::default()
+        };
+        let slow = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_DECREASE_SPEED,
+            effect_base_points: -80,
+            effect_index: 1,
+            ..Default::default()
+        };
+        let minimum = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_MINIMUM_SPEED,
+            effect_base_points: 75,
+            effect_index: 2,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_013,
+                caster,
+                &speed,
+                RepresentedAuraEffectLikeCpp::Speed,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_014,
+                caster,
+                &slow,
+                RepresentedAuraEffectLikeCpp::DecreaseSpeed,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_015,
+                caster,
+                &minimum,
+                RepresentedAuraEffectLikeCpp::MinimumSpeed,
+                30_000,
+            )
+            .unwrap();
+        session.recompute_represented_run_speed_rate_like_cpp();
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 5.25).abs()
+                < 0.0001
+        );
+        let minimum_slot = session
+            .visible_auras
+            .iter()
+            .find_map(|(&slot, aura)| {
+                (aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::MinimumSpeed))
+                    .then_some(slot)
+            })
+            .unwrap();
+
+        session.remove_aura(minimum_slot).unwrap();
+
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 2.8).abs() < 0.0001,
+            "C++ aura removal recomputes MOVE_RUN and drops the removed minimum-speed floor"
+        );
+    }
+
+    #[test]
+    fn represented_run_speed_minimum_speed_rate_floor_applies_before_slow_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let caster = ObjectGuid::create_player(1, 42);
+        let slow = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_DECREASE_SPEED,
+            effect_base_points: -50,
+            effect_index: 0,
+            ..Default::default()
+        };
+        let minimum_rate = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_MINIMUM_SPEED_RATE,
+            effect_base_points: 10,
+            effect_index: 1,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_016,
+                caster,
+                &slow,
+                RepresentedAuraEffectLikeCpp::DecreaseSpeed,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_017,
+                caster,
+                &minimum_rate,
+                RepresentedAuraEffectLikeCpp::MinimumSpeedRate,
+                30_000,
+            )
+            .unwrap();
+        session.recompute_represented_run_speed_rate_like_cpp();
+
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 5.0).abs() < 0.0001,
+            "C++ SPELL_AURA_MOD_MINIMUM_SPEED_RATE floors MOVE_RUN before the strongest slow"
+        );
+        assert!(
+            drain_server_opcodes(&send_rx).contains(&ServerOpcodes::MoveSetRunSpeed),
+            "minimum-speed-rate changes are observable through Unit::SetSpeedRate"
+        );
+    }
+
+    #[test]
+    fn represented_run_speed_minimum_speed_rate_removal_recomputes_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let caster = ObjectGuid::create_player(1, 42);
+        let slow = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_DECREASE_SPEED,
+            effect_base_points: -50,
+            effect_index: 0,
+            ..Default::default()
+        };
+        let minimum_rate = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_MINIMUM_SPEED_RATE,
+            effect_base_points: 10,
+            effect_index: 1,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_018,
+                caster,
+                &slow,
+                RepresentedAuraEffectLikeCpp::DecreaseSpeed,
+                30_000,
+            )
+            .unwrap();
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                20_019,
+                caster,
+                &minimum_rate,
+                RepresentedAuraEffectLikeCpp::MinimumSpeedRate,
+                30_000,
+            )
+            .unwrap();
+        session.recompute_represented_run_speed_rate_like_cpp();
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 5.0).abs() < 0.0001
+        );
+        let minimum_rate_slot = session
+            .visible_auras
+            .iter()
+            .find_map(|(&slot, aura)| {
+                (aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::MinimumSpeedRate))
+                    .then_some(slot)
+            })
+            .unwrap();
+
+        session.remove_aura(minimum_rate_slot).unwrap();
+
+        assert!(
+            (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 3.5).abs() < 0.0001,
+            "C++ aura removal recomputes MOVE_RUN and drops the pre-slow minimum-speed-rate floor"
+        );
+    }
+
+    #[test]
+    fn represented_mount_removal_removes_capability_speed_aura_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        session.set_mount_capability_store(Arc::new(wow_data::MountCapabilityStore::from_entries(
+            [wow_data::MountCapabilityEntry {
+                id: 77,
+                flags: wow_data::MOUNT_CAPABILITY_FLAG_GROUND,
+                req_riding_skill: 0,
+                req_area_id: 0,
+                req_spell_aura_id: 0,
+                req_spell_known_id: 0,
+                mod_spell_aura_id: 12_346,
+                req_map_id: 0,
+            }],
+        )));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            12_346,
+            wow_data::SpellInfo {
+                spell_id: 12_346,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED,
+                    effect_base_points: 100,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+        let effect = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
+            effect_base_points: 77,
+            effect_misc_value_1: 0,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_mounted_aura_like_cpp(100, ObjectGuid::EMPTY, &effect)
+            .unwrap();
+        let _ = drain_server_opcodes(&send_rx);
+        let mounted_slot = session
+            .visible_auras
+            .values()
+            .find_map(|aura| {
+                (aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::Mounted))
+                    .then_some(aura.slot)
+            })
+            .unwrap();
+
+        session.remove_aura(mounted_slot).unwrap();
+
+        assert!(!session.visible_auras.values().any(|aura| {
+            aura.spell_id == 12_346
+                || aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::MountedSpeed)
+        }));
+        assert_eq!(
+            session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run),
+            7.0
+        );
+        assert_eq!(
+            session.forced_speed_changes_like_cpp(UnitMoveTypeLikeCpp::Run),
+            2
+        );
+        assert!(
+            drain_server_opcodes(&send_rx).contains(&ServerOpcodes::MoveSetRunSpeed),
+            "C++ Unit::SetSpeedRate sends SMSG_MOVE_SET_RUN_SPEED when dismount restores run speed"
+        );
+    }
+
+    #[test]
+    fn cancel_mount_aura_removes_represented_mounted_aura_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let effect = wow_data::SpellEffectInfo {
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,
+            effect_base_points: 77,
+            effect_misc_value_1: 0,
+            ..Default::default()
+        };
+
+        session
+            .apply_represented_mounted_aura_like_cpp(100, ObjectGuid::EMPTY, &effect)
+            .unwrap();
+
+        assert!(session.player_mounted_like_cpp);
+        assert!(
+            session
+                .player_unit_flags_like_cpp
+                .contains(UnitFlags::MOUNT)
+        );
+        assert!(session.visible_auras.values().any(|aura| {
+            aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::Mounted)
+        }));
+
+        assert_eq!(
+            session.remove_represented_mount_auras_cancelable_like_cpp(),
+            1
+        );
+
+        assert!(!session.player_mounted_like_cpp);
+        assert!(
+            !session
+                .player_unit_flags_like_cpp
+                .contains(UnitFlags::MOUNT)
+        );
+        assert!(!session.visible_auras.values().any(|aura| {
+            aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::Mounted)
+        }));
+        assert_eq!(
+            session.remove_represented_mount_auras_cancelable_like_cpp(),
+            0
+        );
+    }
+
+    #[test]
     fn represented_mount_source_spell_usable_matches_cpp_mount_condition_filter() {
         let (mut session, _, _) = make_session();
         session.player_class = 1;
@@ -52227,6 +67846,307 @@ mod tests {
     }
 
     #[test]
+    fn account_mount_load_learns_mount_spells_before_use_condition_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.player_class = 1;
+        session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([
+            wow_data::MountEntry {
+                id: 1,
+                mount_type_id: 0,
+                flags: 0,
+                source_type_enum: 0,
+                source_spell_id: 100,
+                player_condition_id: 42,
+                mount_fly_ride_height: 0.0,
+                ui_model_scene_id: 0,
+            },
+            wow_data::MountEntry {
+                id: 2,
+                mount_type_id: 0,
+                flags: 0,
+                source_type_enum: 0,
+                source_spell_id: 101,
+                player_condition_id: 43,
+                mount_fly_ride_height: 0.0,
+                ui_model_scene_id: 0,
+            },
+        ])));
+        session.set_player_condition_store(Arc::new(wow_data::PlayerConditionStore::from_entries(
+            [
+                wow_data::PlayerConditionEntry {
+                    id: 42,
+                    class_mask: 1,
+                    ..Default::default()
+                },
+                wow_data::PlayerConditionEntry {
+                    id: 43,
+                    class_mask: 1 << 1,
+                    ..Default::default()
+                },
+            ],
+        )));
+
+        session.set_account_mounts_like_cpp(vec![
+            wow_packet::packets::misc::AccountMount {
+                spell_id: 100,
+                flags: 0,
+            },
+            wow_packet::packets::misc::AccountMount {
+                spell_id: 101,
+                flags: 0,
+            },
+        ]);
+        assert!(session.known_spells_like_cpp().contains(&100));
+        assert!(
+            session.known_spells_like_cpp().contains(&101),
+            "C++ CollectionMgr::AddMount stores/learns mounts before PlayerCondition; that condition applies to using the mount"
+        );
+        assert!(
+            session
+                .represented_dependent_known_spells_like_cpp()
+                .contains(&100)
+        );
+        assert!(
+            session
+                .represented_dependent_known_spells_like_cpp()
+                .contains(&101),
+            "C++ CollectionMgr::AddMount calls Player::LearnSpell(spellId, true), which creates dependent spells skipped by _SaveSpells"
+        );
+
+        session.set_known_spells_like_cpp(vec![635]);
+        assert!(session.known_spells_like_cpp().contains(&635));
+        assert!(session.known_spells_like_cpp().contains(&100));
+        assert!(session.known_spells_like_cpp().contains(&101));
+        assert!(
+            !session
+                .represented_dependent_known_spells_like_cpp()
+                .contains(&635)
+        );
+        assert!(
+            session
+                .represented_dependent_known_spells_like_cpp()
+                .contains(&100)
+        );
+        assert!(
+            session
+                .represented_dependent_known_spells_like_cpp()
+                .contains(&101)
+        );
+    }
+
+    #[test]
+    fn loaded_character_mount_spells_promote_to_account_collection_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([
+            wow_data::MountEntry {
+                id: 1,
+                mount_type_id: 0,
+                flags: 0,
+                source_type_enum: 0,
+                source_spell_id: 300,
+                player_condition_id: 0,
+                mount_fly_ride_height: 0.0,
+                ui_model_scene_id: 0,
+            },
+            wow_data::MountEntry {
+                id: 2,
+                mount_type_id: 0,
+                flags: 0,
+                source_type_enum: 0,
+                source_spell_id: 100,
+                player_condition_id: 0,
+                mount_fly_ride_height: 0.0,
+                ui_model_scene_id: 0,
+            },
+        ])));
+        session.set_account_mounts_like_cpp(vec![wow_packet::packets::misc::AccountMount {
+            spell_id: 300,
+            flags: 1,
+        }]);
+
+        let added = session.promote_loaded_character_mount_spells_like_cpp(&[100, 200, 300]);
+
+        assert_eq!(
+            added, 1,
+            "C++ Player::_LoadSpells calls AddSpell; AddSpell promotes DB-backed mount spells into CollectionMgr while preserving existing account mount rows"
+        );
+        assert_eq!(
+            session.account_mount_rows_like_cpp(),
+            vec![
+                wow_packet::packets::misc::AccountMount {
+                    spell_id: 100,
+                    flags: 0
+                },
+                wow_packet::packets::misc::AccountMount {
+                    spell_id: 300,
+                    flags: 1
+                },
+            ],
+            "C++ CollectionMgr stores mounts in std::map, so the full AccountMountUpdate is sorted by source spell id"
+        );
+    }
+
+    #[test]
+    fn account_mount_load_adds_faction_counterpart_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_battlenet_account_id(77);
+        session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([
+            wow_data::MountEntry {
+                id: 1,
+                mount_type_id: 0,
+                flags: 0,
+                source_type_enum: 0,
+                source_spell_id: 100,
+                player_condition_id: 0,
+                mount_fly_ride_height: 0.0,
+                ui_model_scene_id: 0,
+            },
+            wow_data::MountEntry {
+                id: 2,
+                mount_type_id: 0,
+                flags: 0,
+                source_type_enum: 0,
+                source_spell_id: 101,
+                player_condition_id: 0,
+                mount_fly_ride_height: 0.0,
+                ui_model_scene_id: 0,
+            },
+        ])));
+        session.set_mount_definition_store_like_cpp(Arc::new(
+            wow_data::MountDefinitionStoreLikeCpp::from_entries([(100, 101)]),
+        ));
+
+        session.set_account_mounts_like_cpp(vec![wow_packet::packets::misc::AccountMount {
+            spell_id: 100,
+            flags: 2,
+        }]);
+
+        assert_eq!(
+            session.account_mount_rows_like_cpp(),
+            vec![
+                wow_packet::packets::misc::AccountMount {
+                    spell_id: 100,
+                    flags: 2
+                },
+                wow_packet::packets::misc::AccountMount {
+                    spell_id: 101,
+                    flags: 2
+                },
+            ],
+            "C++ CollectionMgr::AddMount recursively stores the faction-specific counterpart with the same flags"
+        );
+        assert!(session.known_spells_like_cpp().contains(&100));
+        assert!(session.known_spells_like_cpp().contains(&101));
+        assert_eq!(
+            session.account_mount_save_rows_like_cpp(),
+            vec![
+                AccountMountSaveRowLikeCpp {
+                    bnet_account_id: 77,
+                    mount_spell_id: 100,
+                    flags: 2,
+                },
+                AccountMountSaveRowLikeCpp {
+                    bnet_account_id: 77,
+                    mount_spell_id: 101,
+                    flags: 2,
+                },
+            ],
+            "C++ CollectionMgr::SaveAccountMounts persists the final std::map collection, including faction-specific mounts"
+        );
+    }
+
+    #[test]
+    fn loaded_character_mount_spell_promotes_faction_counterpart_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([
+            wow_data::MountEntry {
+                id: 1,
+                mount_type_id: 0,
+                flags: 0,
+                source_type_enum: 0,
+                source_spell_id: 100,
+                player_condition_id: 0,
+                mount_fly_ride_height: 0.0,
+                ui_model_scene_id: 0,
+            },
+            wow_data::MountEntry {
+                id: 2,
+                mount_type_id: 0,
+                flags: 0,
+                source_type_enum: 0,
+                source_spell_id: 101,
+                player_condition_id: 0,
+                mount_fly_ride_height: 0.0,
+                ui_model_scene_id: 0,
+            },
+        ])));
+        session.set_mount_definition_store_like_cpp(Arc::new(
+            wow_data::MountDefinitionStoreLikeCpp::from_entries([(100, 101)]),
+        ));
+
+        let added = session.promote_loaded_character_mount_spells_like_cpp(&[100]);
+
+        assert_eq!(added, 1);
+        assert_eq!(
+            session.account_mount_rows_like_cpp(),
+            vec![
+                wow_packet::packets::misc::AccountMount {
+                    spell_id: 100,
+                    flags: 0
+                },
+                wow_packet::packets::misc::AccountMount {
+                    spell_id: 101,
+                    flags: 0
+                },
+            ],
+            "C++ Player::_LoadSpells -> AddSpell -> CollectionMgr::AddMount includes faction-specific counterpart mounts"
+        );
+    }
+
+    #[test]
+    fn mount_store_injection_relearns_account_mount_spells_with_controller_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "MountedPlayer".to_string(),
+            Position::new(0.0, 0.0, 0.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([])));
+        session.set_account_mounts_like_cpp(vec![wow_packet::packets::misc::AccountMount {
+            spell_id: 100,
+            flags: 0,
+        }]);
+        assert!(
+            !session.known_spells_like_cpp().contains(&100),
+            "an unavailable Mount.db2 source spell must not become castable"
+        );
+
+        session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([
+            wow_data::MountEntry {
+                id: 1,
+                mount_type_id: 0,
+                flags: 0,
+                source_type_enum: 0,
+                source_spell_id: 100,
+                player_condition_id: 0,
+                mount_fly_ride_height: 0.0,
+                ui_model_scene_id: 0,
+            },
+        ])));
+
+        assert!(
+            session.known_spells_like_cpp().contains(&100),
+            "C++ CollectionMgr account mounts must be castable through Player::HasSpell after the mount store is available"
+        );
+    }
+
+    #[test]
     fn represented_mount_capability_for_type_uses_session_state_like_cpp() {
         let (mut session, _, _) = make_session();
         session.current_map_id = 1;
@@ -52241,6 +68161,8 @@ mod tests {
                 id: 10,
                 continent_id: 0,
                 parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
                 mount_flags: i32::from(wow_data::AREA_MOUNT_FLAG_ALLOW_GROUND_MOUNTS),
                 flags: 0,
             },
@@ -52248,6 +68170,8 @@ mod tests {
                 id: 77,
                 continent_id: 0,
                 parent_area_id: 10,
+                area_bit: -1,
+                exploration_level: 0,
                 mount_flags: i32::from(wow_data::AREA_MOUNT_FLAG_ALLOW_GROUND_MOUNTS),
                 flags: 0,
             },
@@ -52324,6 +68248,87 @@ mod tests {
             session
                 .represented_mount_capability_for_type_from_session_like_cpp(7, None)
                 .is_none()
+        );
+        assert_eq!(
+            session
+                .represented_mount_capability_selection_for_type_like_cpp(
+                    7,
+                    u32::from(session.player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP)),
+                    None,
+                    false,
+                    false,
+                )
+                .unwrap_err(),
+            wow_data::MountCapabilityRejectLikeCpp::RidingSkill
+        );
+        session.set_player_skill_values_like_cpp(HashMap::from([(SKILL_RIDING_LIKE_CPP, 75)]));
+        session.set_known_spells_like_cpp(vec![]);
+        assert_eq!(
+            session
+                .represented_mount_capability_selection_for_type_like_cpp(7, 75, None, false, false)
+                .unwrap_err(),
+            wow_data::MountCapabilityRejectLikeCpp::KnownSpell
+        );
+    }
+
+    #[test]
+    fn represented_mount_capability_uses_login_zone_area_fallback_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.current_map_id = 571;
+        session.set_player_skill_values_like_cpp(HashMap::from([(SKILL_RIDING_LIKE_CPP, 75)]));
+        session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
+            wow_data::AreaTableEntry {
+                id: 1519,
+                continent_id: 0,
+                parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
+                mount_flags: i32::from(wow_data::AREA_MOUNT_FLAG_ALLOW_GROUND_MOUNTS),
+                flags: 0,
+            },
+        ])));
+        session.set_mount_capability_store(Arc::new(wow_data::MountCapabilityStore::from_entries(
+            [wow_data::MountCapabilityEntry {
+                id: 11,
+                flags: wow_data::MOUNT_CAPABILITY_FLAG_GROUND,
+                req_riding_skill: 75,
+                req_area_id: 0,
+                req_spell_aura_id: 0,
+                req_spell_known_id: 0,
+                mod_spell_aura_id: 1001,
+                req_map_id: -1,
+            }],
+        )));
+        session.set_mount_type_x_capability_store(Arc::new(
+            wow_data::MountTypeXCapabilityStore::from_entries([
+                wow_data::MountTypeXCapabilityEntry {
+                    id: 2,
+                    mount_type_id: 7,
+                    mount_capability_id: 11,
+                    order_index: 1,
+                },
+            ]),
+        ));
+
+        assert_eq!(session.player_zone_area_like_cpp(), (0, 0));
+        assert_eq!(
+            session
+                .represented_mount_capability_for_type_from_session_like_cpp(7, None)
+                .map(|capability| capability.id),
+            Some(11),
+            "Rust uses a ground-mount fallback for represented area 0 until TerrainMgr can resolve C++ area ids"
+        );
+
+        // C++ resolves the exact area from terrain after adding the player to
+        // the map. Rust currently seeds the represented runtime from the DB
+        // zone until TerrainMgr parity exists; using the zone as area is still
+        // closer than evaluating mount restrictions against area 0.
+        session.set_player_zone_area_like_cpp(1519, 1519);
+        assert_eq!(
+            session
+                .represented_mount_capability_for_type_from_session_like_cpp(7, None)
+                .map(|capability| capability.id),
+            Some(11)
         );
     }
 
@@ -52525,11 +68530,13 @@ mod tests {
                 wow_data::CreatureDisplayInfoEntry {
                     id: native_display_id,
                     model_id: 100,
+                    extended_display_info_id: 0,
                     creature_model_scale: 1.2,
                 },
                 wow_data::CreatureDisplayInfoEntry {
                     id: 4321,
                     model_id: 200,
+                    extended_display_info_id: 0,
                     creature_model_scale: 1.5,
                 },
             ]),
@@ -52538,12 +68545,14 @@ mod tests {
             wow_data::CreatureModelDataStore::from_entries([
                 wow_data::CreatureModelDataEntry {
                     id: 100,
+                    flags: 0,
                     collision_height: 2.0,
                     model_scale: 1.1,
                     mount_height: 0.0,
                 },
                 wow_data::CreatureModelDataEntry {
                     id: 200,
+                    flags: 0,
                     collision_height: 0.0,
                     model_scale: 1.0,
                     mount_height: 4.0,
@@ -59437,6 +75446,7 @@ mod tests {
                 npc_flags: wow_constants::unit::NPCFlags1::TRAINER.bits(),
                 npc_flags2: 0,
                 faction_template_id: 35,
+                trainer_class: 0,
             })
         );
         assert_eq!(
@@ -59451,6 +75461,7 @@ mod tests {
                 npc_flags: wow_constants::unit::NPCFlags1::TRAINER.bits(),
                 npc_flags2: 0,
                 faction_template_id: 35,
+                trainer_class: 0,
             })
         );
         assert_eq!(
@@ -59465,6 +75476,7 @@ mod tests {
                 npc_flags: wow_constants::unit::NPCFlags1::TRAINER.bits(),
                 npc_flags2: 0,
                 faction_template_id: 35,
+                trainer_class: 0,
             })
         );
         session
@@ -59509,6 +75521,7 @@ mod tests {
                 npc_flags: wow_constants::unit::NPCFlags1::VENDOR.bits(),
                 npc_flags2: wow_constants::unit::NPCFlags2::TRADESKILL_NPC.bits(),
                 faction_template_id: 35,
+                trainer_class: 0,
             })
         );
 
@@ -59612,6 +75625,7 @@ mod tests {
                 npc_flags: wow_constants::unit::NPCFlags1::TRAINER.bits(),
                 npc_flags2: 0,
                 faction_template_id: 35,
+                trainer_class: 0,
             })
         );
 
@@ -62188,6 +78202,7 @@ mod tests {
                 unit_flags3: 0,
                 creature_type: 0,
                 family: 0,
+                trainer_class: 0,
                 unit_class: 1,
                 vehicle_id: 0,
                 movement_type: 0,
@@ -63568,6 +79583,8 @@ mod tests {
             sheathe_type: 0,
             random_select: 0,
             random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
         }])));
         session.set_item_stats_store(Arc::new(ItemStatsStore::from_sparse_templates([(
             entry,
@@ -63586,6 +79603,8 @@ mod tests {
                 price_random_value: 1.0,
                 max_durability: 0,
                 other_faction_item_id: 0,
+                content_tuning_id: 0,
+                player_level_to_item_level_curve_id: 0,
                 limit_category: 0,
                 instance_bound: 0,
                 zone_bound: [0, 0],
@@ -63639,6 +79658,14 @@ mod tests {
 
     fn broadcast_info(guid: ObjectGuid, send_tx: flume::Sender<Vec<u8>>) -> PlayerBroadcastInfo {
         let (command_tx, _command_rx) = flume::bounded(1);
+        broadcast_info_with_command(guid, send_tx, command_tx)
+    }
+
+    fn broadcast_info_with_command(
+        guid: ObjectGuid,
+        send_tx: flume::Sender<Vec<u8>>,
+        command_tx: flume::Sender<SessionCommand>,
+    ) -> PlayerBroadcastInfo {
         PlayerBroadcastInfo {
             map_id: 0,
             instance_id: 0,
@@ -63710,6 +79737,103 @@ mod tests {
             lifetime_max_rank: 0,
             honor_level: 0,
         }
+    }
+
+    #[test]
+    fn create_player_broadcast_skips_out_of_visibility_range_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 42);
+        let nearby_guid = ObjectGuid::create_player(1, 43);
+        let far_guid = ObjectGuid::create_player(1, 44);
+        let registry = Arc::new(PlayerRegistry::default());
+        let (nearby_tx, nearby_rx) = flume::bounded(1);
+        let (far_tx, far_rx) = flume::bounded(1);
+
+        session.set_player_guid(Some(guid));
+        session.set_player_registry(Arc::clone(&registry));
+        session.set_player_position_like_cpp(Position::ZERO);
+
+        registry.insert(nearby_guid, broadcast_info(nearby_guid, nearby_tx));
+        let mut far_info = broadcast_info(far_guid, far_tx);
+        far_info.position =
+            Position::new(crate::map_manager::VISIBILITY_RADIUS + 1.0, 0.0, 0.0, 0.0);
+        registry.insert(far_guid, far_info);
+
+        session.broadcast_create_player_to_others();
+
+        let bytes = nearby_rx.try_recv().expect("nearby player create");
+        let pkt = WorldPacket::from_bytes(&bytes);
+        assert_eq!(pkt.server_opcode(), Some(ServerOpcodes::UpdateObject));
+        assert!(far_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn destroy_player_broadcast_uses_visible_command_gate_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 42);
+        let nearby_guid = ObjectGuid::create_player(1, 43);
+        let far_guid = ObjectGuid::create_player(1, 44);
+        let registry = Arc::new(PlayerRegistry::default());
+        let (nearby_tx, nearby_rx) = flume::bounded(1);
+        let (nearby_command_tx, nearby_command_rx) = flume::bounded(1);
+        let (far_tx, far_rx) = flume::bounded(1);
+        let (far_command_tx, far_command_rx) = flume::bounded(1);
+
+        session.set_player_guid(Some(guid));
+        session.set_player_registry(Arc::clone(&registry));
+        session.set_player_position_like_cpp(Position::ZERO);
+
+        registry.insert(
+            nearby_guid,
+            broadcast_info_with_command(nearby_guid, nearby_tx, nearby_command_tx),
+        );
+        let mut far_info = broadcast_info_with_command(far_guid, far_tx, far_command_tx);
+        far_info.position =
+            Position::new(crate::map_manager::VISIBILITY_RADIUS + 1.0, 0.0, 0.0, 0.0);
+        registry.insert(far_guid, far_info);
+
+        session.broadcast_destroy_player_to_others();
+
+        assert!(nearby_rx.try_recv().is_err());
+        let command = nearby_command_rx
+            .try_recv()
+            .expect("nearby visible destroy command");
+        let SessionCommand::SendIfVisibleLikeCpp(command) = command else {
+            panic!("expected SendIfVisibleLikeCpp destroy command");
+        };
+        assert_eq!(command.source_guid, guid);
+        let pkt = WorldPacket::from_bytes(&command.packet_bytes);
+        assert_eq!(pkt.server_opcode(), Some(ServerOpcodes::UpdateObject));
+        assert!(far_rx.try_recv().is_err());
+        assert!(far_command_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn receive_other_players_on_map_skips_out_of_visibility_range_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let guid = ObjectGuid::create_player(1, 42);
+        let nearby_guid = ObjectGuid::create_player(1, 43);
+        let far_guid = ObjectGuid::create_player(1, 44);
+        let registry = Arc::new(PlayerRegistry::default());
+        let (nearby_tx, _nearby_rx) = flume::bounded(1);
+        let (far_tx, _far_rx) = flume::bounded(1);
+
+        session.set_player_guid(Some(guid));
+        session.set_player_registry(Arc::clone(&registry));
+        session.set_player_position_like_cpp(Position::ZERO);
+
+        registry.insert(nearby_guid, broadcast_info(nearby_guid, nearby_tx));
+        let mut far_info = broadcast_info(far_guid, far_tx);
+        far_info.position =
+            Position::new(crate::map_manager::VISIBILITY_RADIUS + 1.0, 0.0, 0.0, 0.0);
+        registry.insert(far_guid, far_info);
+
+        session.receive_other_players_on_map();
+
+        let bytes = send_rx.try_recv().expect("nearby player create to self");
+        let pkt = WorldPacket::from_bytes(&bytes);
+        assert_eq!(pkt.server_opcode(), Some(ServerOpcodes::UpdateObject));
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[test]
@@ -67276,6 +83400,57 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn teleport_to_instance_rejects_new_instance_farm_limit_before_transfer_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 795);
+        let destination = Position::new(5795.0, 2095.0, 640.0, 3.5);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TeleportInstanceCap".to_string(),
+            Position::new(3700.0, 1500.0, 120.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.represented_raid_difficulty_id_like_cpp = 3;
+        session.set_max_instances_per_hour_like_cpp(5);
+        install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
+        for instance_id in 100..105 {
+            session
+                .represented_instance_reset_times_like_cpp
+                .insert(instance_id, u64::MAX);
+        }
+
+        session.teleport_to(631, destination).await;
+
+        assert_eq!(
+            send_rx.try_recv().expect("too many instances abort"),
+            wow_packet::packets::misc::TransferAborted {
+                map_id: 631,
+                arg: 0,
+                map_difficulty_x_condition_id: 0,
+                transfer_abort: TRANSFER_ABORT_TOO_MANY_INSTANCES_LIKE_CPP,
+            }
+            .to_bytes()
+        );
+        assert!(
+            send_rx.try_recv().is_err(),
+            "C++ Player::TeleportTo returns before SMSG_TRANSFER_PENDING when Map::PlayerCannotEnter rejects the instance cap"
+        );
+        assert_eq!(session.pending_teleport, None);
+        assert_ne!(session.state, SessionState::Transfer);
+        assert!(
+            canonical.lock().unwrap().find_map(631, 0).is_none(),
+            "teleport preflight must not create the target instance before the client transfer"
+        );
+    }
+
+    #[tokio::test]
     async fn teleport_to_instance_allows_transfer_after_player_cannot_enter_passes_like_cpp() {
         let (mut session, _, send_rx) = make_session();
         let legacy_manager = shared_map_manager();
@@ -67455,6 +83630,62 @@ mod tests {
         assert!(send_rx.try_recv().is_err());
         assert_eq!(session.pending_teleport, None);
         assert_ne!(session.state, SessionState::Transfer);
+    }
+
+    #[tokio::test]
+    async fn teleport_to_expansion_abort_preserves_vehicle_state_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 829);
+        let registry = Arc::new(PlayerRegistry::default());
+        let destination = Position::new(100.0, 200.0, 30.0, 1.5);
+        session.expansion = 1;
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 870,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 2,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.set_player_registry(Arc::clone(&registry));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TeleportExpansionRejectVehicle".to_string(),
+            Position::new(10.0, 20.0, 30.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.player_vehicle_seat_flags_like_cpp = Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK);
+        session.player_vehicle_seat_id_like_cpp = Some(1004);
+        session.register_in_player_registry();
+
+        session.teleport_to(870, destination).await;
+
+        assert_eq!(
+            send_rx.try_recv().expect("SMSG_TRANSFER_ABORTED"),
+            wow_packet::packets::misc::TransferAborted {
+                map_id: 870,
+                arg: 2,
+                map_difficulty_x_condition_id: 0,
+                transfer_abort: TRANSFER_ABORT_INSUF_EXPAN_LVL_LIKE_CPP,
+            }
+            .to_bytes()
+        );
+        assert_eq!(
+            session.player_vehicle_seat_flags_like_cpp,
+            Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK),
+            "C++ returns from the expansion gate before Player::TeleportTo calls ExitVehicle"
+        );
+        assert_eq!(session.player_vehicle_seat_id_like_cpp, Some(1004));
+        let info = registry.get(&player_guid).expect("registered player");
+        assert!(info.in_vehicle);
+        assert_eq!(info.party_member_vehicle_seat, 1004);
     }
 
     #[tokio::test]
@@ -67929,6 +84160,487 @@ mod tests {
             session.represented_pet_stable_like_cpp.current_pet_index,
             Some(0)
         );
+    }
+
+    #[test]
+    fn login_pet_talent_reset_clears_pet_spells_and_specs_without_clearing_flag_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        const AT_LOGIN_RESET_PET_TALENTS_LIKE_CPP: u16 = 0x010;
+
+        session.set_represented_at_login_flags_like_cpp(AT_LOGIN_RESET_PET_TALENTS_LIKE_CPP);
+        session.load_represented_pet_stable_rows_like_cpp(
+            42,
+            [
+                character_pet_stable_row_like_cpp(42, PetSaveMode::active_slot(0), 1),
+                character_pet_stable_row_like_cpp(43, PetSaveMode::stable_slot(0), 1),
+                character_pet_stable_row_like_cpp(44, PetSaveMode::NotInSlot as i16, 1),
+            ],
+        );
+        session.load_represented_pet_spell_rows_like_cpp(
+            42,
+            [CharacterPetSpellRowLikeCpp {
+                spell_id: 123,
+                active: ActiveState::Enabled as u8,
+            }],
+        );
+        session.load_represented_pet_spell_cooldown_rows_like_cpp(
+            42,
+            [CharacterPetSpellCooldownRowLikeCpp {
+                spell_id: 123,
+                cooldown_end_unix_secs: 1_000,
+                category_id: 7,
+                category_end_unix_secs: 2_000,
+            }],
+        );
+        session.load_represented_pet_spell_charge_rows_like_cpp(
+            42,
+            [CharacterPetSpellChargeRowLikeCpp {
+                category_id: 7,
+                recharge_start_unix_secs: 1_000,
+                recharge_end_unix_secs: 2_000,
+            }],
+        );
+
+        assert!(session.apply_represented_login_pet_talent_reset_like_cpp());
+
+        assert!(
+            session.represented_pet_spells_like_cpp.is_empty(),
+            "C++ deletes pet_spell rows for all pets owned by the player"
+        );
+        assert_eq!(
+            session.represented_pet_stable_like_cpp.active_pets[0]
+                .as_ref()
+                .map(|pet| pet.specialization_id),
+            Some(0)
+        );
+        assert_eq!(
+            session.represented_pet_stable_like_cpp.stabled_pets[0]
+                .as_ref()
+                .map(|pet| pet.specialization_id),
+            Some(0)
+        );
+        assert_eq!(
+            session.represented_pet_stable_like_cpp.unslotted_pets[0].specialization_id,
+            0
+        );
+        assert!(
+            !session.represented_pet_spell_cooldowns_like_cpp.is_empty(),
+            "C++ AT_LOGIN_RESET_PET_TALENTS does not delete pet_spell_cooldown rows in this block"
+        );
+        assert!(
+            !session.represented_pet_spell_charges_like_cpp.is_empty(),
+            "C++ AT_LOGIN_RESET_PET_TALENTS does not delete pet_spell_charges rows in this block"
+        );
+        assert_eq!(
+            session.represented_at_login_flags_like_cpp(),
+            AT_LOGIN_RESET_PET_TALENTS_LIKE_CPP,
+            "C++ does not call RemoveAtLoginFlag for AT_LOGIN_RESET_PET_TALENTS in CharacterHandler"
+        );
+        assert!(
+            session
+                .represented_at_login_flag_removals_like_cpp()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn first_login_flag_removal_is_not_persisted_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        const AT_LOGIN_FIRST_LIKE_CPP: u16 = 0x020;
+
+        session.set_represented_at_login_flags_like_cpp(AT_LOGIN_FIRST_LIKE_CPP);
+
+        assert!(session.apply_represented_first_login_flag_if_needed_like_cpp());
+        assert_eq!(
+            session.represented_at_login_flags_like_cpp() & AT_LOGIN_FIRST_LIKE_CPP,
+            0,
+            "C++ CharacterHandler removes AT_LOGIN_FIRST from the in-memory player flags"
+        );
+        assert!(
+            session
+                .represented_at_login_flag_removals_like_cpp()
+                .is_empty(),
+            "C++ calls RemoveAtLoginFlag(AT_LOGIN_FIRST) with persist=false"
+        );
+    }
+
+    fn first_login_cast_spell_store_like_cpp(
+        normal_spell: u32,
+        npe_spell: u32,
+    ) -> PlayerCreateInfoCastSpellStoreLikeCpp {
+        PlayerCreateInfoCastSpellStoreLikeCpp::from_rows_like_cpp([
+            wow_data::PlayerCreateInfoCastSpellRowLikeCpp {
+                race_mask: 1,
+                class_mask: 1,
+                spell_id: normal_spell,
+                create_mode: wow_data::PLAYER_CREATE_MODE_NORMAL_LIKE_CPP as i8,
+            },
+            wow_data::PlayerCreateInfoCastSpellRowLikeCpp {
+                race_mask: 1,
+                class_mask: 1,
+                spell_id: npe_spell,
+                create_mode: wow_data::PLAYER_CREATE_MODE_NPE_LIKE_CPP as i8,
+            },
+        ])
+    }
+
+    fn player_create_custom_spell_store_like_cpp() -> PlayerCreateInfoCustomSpellStoreLikeCpp {
+        PlayerCreateInfoCustomSpellStoreLikeCpp::from_rows_like_cpp([
+            wow_data::PlayerCreateInfoCustomSpellRowLikeCpp {
+                race_mask: 1,
+                class_mask: 1,
+                spell_id: 80_001,
+            },
+            wow_data::PlayerCreateInfoCustomSpellRowLikeCpp {
+                race_mask: 1,
+                class_mask: 1,
+                spell_id: 80_002,
+            },
+            wow_data::PlayerCreateInfoCustomSpellRowLikeCpp {
+                race_mask: 2,
+                class_mask: 1,
+                spell_id: 80_003,
+            },
+        ])
+    }
+
+    fn first_login_noop_spell_store_like_cpp(
+        spell_ids: impl IntoIterator<Item = i32>,
+    ) -> SpellStore {
+        let mut store = SpellStore::new();
+        for spell_id in spell_ids {
+            store.insert(
+                spell_id,
+                wow_data::SpellInfo {
+                    spell_id,
+                    cast_time_ms: 0,
+                    cooldown_ms: 0,
+                    recovery_time_ms: 0,
+                    effect_type: 0,
+                    effect_base_points: 0,
+                    effect_bonus_coefficient: 0.0,
+                    aura_type: None,
+                    display_flags: 0,
+                    requires_spell_focus: 0,
+                    effects: Vec::new(),
+                },
+            );
+        }
+        store
+    }
+
+    #[tokio::test]
+    async fn first_login_cast_spells_use_player_create_mode_before_other_first_login_work_like_cpp()
+    {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 0xC501);
+        session.player_guid = Some(player_guid);
+        session.set_loaded_player_identity_like_cpp(0, 1, 1, 1, 0);
+        session.set_player_create_mode_like_cpp(wow_data::PLAYER_CREATE_MODE_NPE_LIKE_CPP);
+        session.set_player_create_cast_spell_store_like_cpp(Arc::new(
+            first_login_cast_spell_store_like_cpp(70_001, 70_002),
+        ));
+        session.set_spell_store(Arc::new(first_login_noop_spell_store_like_cpp([
+            70_001, 70_002,
+        ])));
+
+        let cast_count = session
+            .apply_represented_first_login_cast_spells_like_cpp()
+            .await;
+
+        assert_eq!(
+            cast_count, 1,
+            "C++ indexes PlayerInfo::castSpells with Player::GetCreateMode"
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent],
+            "first-login cast spells execute through the represented spell path before explored/reputation branches"
+        );
+    }
+
+    #[tokio::test]
+    async fn first_login_cast_spells_noop_without_store_or_player_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        assert_eq!(
+            session
+                .apply_represented_first_login_cast_spells_like_cpp()
+                .await,
+            0
+        );
+        assert!(send_rx.try_recv().is_err());
+
+        session.player_guid = Some(ObjectGuid::create_player(1, 0xC502));
+        session.set_loaded_player_identity_like_cpp(0, 1, 1, 1, 0);
+        assert_eq!(
+            session
+                .apply_represented_first_login_cast_spells_like_cpp()
+                .await,
+            0
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    fn first_login_reputation_faction_store_like_cpp() -> FactionStore {
+        let mut entries = Vec::new();
+        for (rep_index, faction_id) in FIRST_LOGIN_START_REPUTATION_COMMON_FACTIONS_LIKE_CPP
+            .iter()
+            .chain(FIRST_LOGIN_START_REPUTATION_ALLIANCE_FACTIONS_LIKE_CPP.iter())
+            .chain(FIRST_LOGIN_START_REPUTATION_HORDE_FACTIONS_LIKE_CPP.iter())
+            .enumerate()
+        {
+            let mut entry = FactionEntry::for_test_like_cpp(*faction_id, rep_index as i16);
+            entry.reputation_race_mask[0] = 1;
+            entry.reputation_max[0] = wow_data::reputation::REPUTATION_CAP_LIKE_CPP;
+            entries.push(entry);
+        }
+        FactionStore::from_entries(entries)
+    }
+
+    #[test]
+    fn start_all_spells_applies_custom_player_create_spells_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        session.set_loaded_player_identity_like_cpp(0, 1, 1, 1, 0);
+        session.set_player_create_custom_spell_store_like_cpp(Arc::new(
+            player_create_custom_spell_store_like_cpp(),
+        ));
+        let mut known_spells = vec![80_001];
+
+        assert_eq!(
+            session.apply_represented_start_all_spells_like_cpp(&mut known_spells),
+            0,
+            "C++ Player::LearnCustomSpells is gated by CONFIG_START_ALL_SPELLS"
+        );
+        assert_eq!(known_spells, vec![80_001]);
+        assert!(
+            session
+                .represented_dependent_known_spells_like_cpp()
+                .is_empty()
+        );
+
+        session.set_start_all_spells_like_cpp(true);
+        assert_eq!(
+            session.apply_represented_start_all_spells_like_cpp(&mut known_spells),
+            1,
+            "C++ AddSpell semantics do not duplicate an already known spell"
+        );
+        assert_eq!(known_spells, vec![80_001, 80_002]);
+        assert!(
+            session
+                .represented_dependent_known_spells_like_cpp()
+                .contains(&80_001),
+            "C++ AddSpell(... dependent=true) marks even an already-known custom spell as dependent"
+        );
+        assert!(
+            session
+                .represented_dependent_known_spells_like_cpp()
+                .contains(&80_002)
+        );
+    }
+
+    #[test]
+    fn start_all_spells_uses_loaded_race_class_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        session.set_loaded_player_identity_like_cpp(0, 2, 1, 1, 0);
+        session.set_player_create_custom_spell_store_like_cpp(Arc::new(
+            player_create_custom_spell_store_like_cpp(),
+        ));
+        session.set_start_all_spells_like_cpp(true);
+        let mut known_spells = Vec::new();
+
+        assert_eq!(
+            session.apply_represented_start_all_spells_like_cpp(&mut known_spells),
+            1
+        );
+        assert_eq!(known_spells, vec![80_003]);
+        assert!(
+            session
+                .represented_dependent_known_spells_like_cpp()
+                .contains(&80_003)
+        );
+    }
+
+    #[test]
+    fn first_login_start_all_reputation_applies_cpp_common_and_alliance_lists() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_loaded_player_identity_like_cpp(0, 1, 1, 1, 0);
+        session.set_faction_store(Arc::new(first_login_reputation_faction_store_like_cpp()));
+        let _ = session
+            .reputation_mgr_like_cpp_mut()
+            .initialize_factions_packet_like_cpp();
+        session.set_start_all_reputation_like_cpp(true);
+
+        let applied = session.apply_represented_first_login_reputation_like_cpp();
+
+        assert_eq!(
+            applied,
+            FIRST_LOGIN_START_REPUTATION_COMMON_FACTIONS_LIKE_CPP.len()
+                + FIRST_LOGIN_START_REPUTATION_ALLIANCE_FACTIONS_LIKE_CPP.len()
+        );
+        let faction_store = session.faction_store().expect("faction store").clone();
+        for faction_id in FIRST_LOGIN_START_REPUTATION_COMMON_FACTIONS_LIKE_CPP
+            .iter()
+            .chain(FIRST_LOGIN_START_REPUTATION_ALLIANCE_FACTIONS_LIKE_CPP.iter())
+        {
+            let faction = faction_store.get(*faction_id).expect("configured faction");
+            let state = session
+                .reputation_mgr_like_cpp()
+                .get_state(faction.reputation_index as u32)
+                .expect("reputation state");
+            assert_eq!(
+                state.standing,
+                wow_data::reputation::REPUTATION_CAP_LIKE_CPP,
+                "C++ CharacterHandler passes 42999, then ReputationMgr clamps at GetMaxReputation"
+            );
+        }
+        let horde = faction_store.get(76).expect("horde faction");
+        assert_eq!(
+            session
+                .reputation_mgr_like_cpp()
+                .get_state(horde.reputation_index as u32)
+                .expect("horde state")
+                .standing,
+            0,
+            "Alliance first login must not apply the Horde-only branch"
+        );
+
+        let packet = drain_server_packet_bytes(&send_rx)
+            .into_iter()
+            .find(|bytes| {
+                wow_packet::WorldPacket::from_bytes(bytes).server_opcode()
+                    == Some(ServerOpcodes::SetFactionStanding)
+            })
+            .expect("C++ repMgr.SendState(nullptr) equivalent");
+        let mut reader = wow_packet::WorldPacket::from_bytes(&packet);
+        reader.skip_opcode();
+        assert_eq!(reader.read_float().unwrap(), 0.0);
+        assert_eq!(reader.read_uint32().unwrap(), applied as u32);
+    }
+
+    #[test]
+    fn first_login_start_all_reputation_is_config_gated_and_uses_horde_branch() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_loaded_player_identity_like_cpp(0, 2, 1, 1, 0);
+        session.set_faction_store(Arc::new(first_login_reputation_faction_store_like_cpp()));
+        let _ = session
+            .reputation_mgr_like_cpp_mut()
+            .initialize_factions_packet_like_cpp();
+
+        assert_eq!(
+            session.apply_represented_first_login_reputation_like_cpp(),
+            0
+        );
+        assert!(send_rx.try_recv().is_err());
+
+        session.set_start_all_reputation_like_cpp(true);
+        let applied = session.apply_represented_first_login_reputation_like_cpp();
+
+        assert_eq!(
+            applied,
+            FIRST_LOGIN_START_REPUTATION_COMMON_FACTIONS_LIKE_CPP.len()
+                + FIRST_LOGIN_START_REPUTATION_HORDE_FACTIONS_LIKE_CPP.len()
+        );
+        let faction_store = session.faction_store().expect("faction store").clone();
+        let orgrimmar = faction_store.get(76).expect("horde faction");
+        assert_eq!(
+            session
+                .reputation_mgr_like_cpp()
+                .get_state(orgrimmar.reputation_index as u32)
+                .expect("horde state")
+                .standing,
+            wow_data::reputation::REPUTATION_CAP_LIKE_CPP
+        );
+        let stormwind = faction_store.get(72).expect("alliance faction");
+        assert_eq!(
+            session
+                .reputation_mgr_like_cpp()
+                .get_state(stormwind.reputation_index as u32)
+                .expect("alliance state")
+                .standing,
+            0,
+            "Horde first login must not apply the Alliance-only branch"
+        );
+    }
+
+    #[test]
+    fn first_login_start_all_explored_sets_all_cpp_blocks_and_sends_update() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 0xE001);
+        session.ensure_login_player_controller_like_cpp(
+            player_guid,
+            "Explorer".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        );
+        let canonical = shared_canonical_map_manager();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
+
+        assert_eq!(
+            session.apply_represented_first_login_explored_zones_like_cpp(),
+            0
+        );
+        assert!(send_rx.try_recv().is_err());
+
+        session.set_start_all_explored_like_cpp(true);
+        let applied = session.apply_represented_first_login_explored_zones_like_cpp();
+
+        assert_eq!(
+            applied,
+            wow_entities::PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP,
+            "C++ loops PLAYER_EXPLORED_ZONES_SIZE and applies UI64_MAX to each block"
+        );
+        assert!(
+            session
+                .represented_explored_zones_db_string_like_cpp()
+                .split_whitespace()
+                .take(2)
+                .eq(["4294967295", "4294967295"]),
+            "first-login AddExploredZones must also update the represented DB snapshot"
+        );
+        {
+            let manager = canonical.lock().unwrap();
+            let player = manager
+                .find_map(571, 0)
+                .unwrap()
+                .map()
+                .get_typed_player(player_guid)
+                .unwrap();
+            assert!(
+                (0..wow_entities::PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP)
+                    .all(|index| player.explored_zones_block_like_cpp(index) == Some(u64::MAX))
+            );
+        }
+
+        let packet = drain_server_packet_bytes(&send_rx)
+            .into_iter()
+            .find(|bytes| {
+                wow_packet::WorldPacket::from_bytes(bytes).server_opcode()
+                    == Some(ServerOpcodes::UpdateObject)
+            })
+            .expect("explored-zone field update");
+        assert!(!packet.is_empty());
+    }
+
+    #[test]
+    fn player_start_config_snapshot_defaults_and_setters_match_cpp_keys() {
+        let (mut session, _, _send_rx) = make_session();
+
+        assert!(!session.start_all_explored_like_cpp());
+        assert!(!session.start_all_reputation_like_cpp());
+        assert!(!session.start_all_spells_like_cpp());
+
+        session.set_start_all_explored_like_cpp(true);
+        session.set_start_all_reputation_like_cpp(true);
+        session.set_start_all_spells_like_cpp(true);
+
+        assert!(session.start_all_explored_like_cpp());
+        assert!(session.start_all_reputation_like_cpp());
+        assert!(session.start_all_spells_like_cpp());
     }
 
     #[test]
@@ -70125,6 +86837,79 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn teleport_to_dk_escape_abort_still_masks_movement_flags_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 828);
+        let destination = Position::new(104.0, 204.0, 34.0, 1.9);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 1,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.expansion = 1;
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TeleportDkRejectMovementReset".to_string(),
+            Position::new(10.0, 20.0, 30.0, 0.0),
+            DEATH_KNIGHT_START_MAP_LIKE_CPP,
+            1,
+            CLASS_DEATH_KNIGHT_LIKE_CPP,
+            58,
+            0,
+        ));
+        session.set_player_movement_flags_like_cpp(
+            MovementFlag::DISABLE_GRAVITY
+                | MovementFlag::HOVER
+                | MovementFlag::FORWARD
+                | MovementFlag::FALLING
+                | MovementFlag::FLYING,
+        );
+        session.set_player_movement_jump_like_cpp(wow_packet::packets::movement::JumpInfo {
+            fall_time: 1_500,
+            z_speed: 4.25,
+            has_direction: true,
+            sin_angle: 0.25,
+            cos_angle: 0.75,
+            xy_speed: 6.5,
+        });
+
+        session.teleport_to(571, destination).await;
+
+        assert_eq!(
+            send_rx.try_recv().expect("SMSG_TRANSFER_ABORTED"),
+            wow_packet::packets::misc::TransferAborted {
+                map_id: 571,
+                arg: 1,
+                map_difficulty_x_condition_id: 0,
+                transfer_abort: TRANSFER_ABORT_UNIQUE_MESSAGE_LIKE_CPP,
+            }
+            .to_bytes()
+        );
+        assert_eq!(
+            session.player_movement_flags_like_cpp(),
+            MovementFlag::DISABLE_GRAVITY | MovementFlag::HOVER,
+            "C++ resets movement flags before the far-branch DK escape abort"
+        );
+        assert_eq!(
+            session.player_movement_jump_like_cpp().fall_time,
+            0,
+            "C++ Player::TeleportTo calls MovementInfo::ResetJump before the DK escape abort"
+        );
+        assert!(
+            send_rx.try_recv().is_err(),
+            "C++ Player::TeleportTo returns before SMSG_TRANSFER_PENDING for unescaped DKs leaving map 609"
+        );
+        assert_eq!(session.pending_teleport, None);
+        assert_ne!(session.state, SessionState::Transfer);
+    }
+
+    #[tokio::test]
     async fn teleport_to_allows_death_knight_after_escape_spell_like_cpp() {
         let (mut session, _, send_rx) = make_session();
         let player_guid = ObjectGuid::create_player(1, 797);
@@ -70225,6 +87010,153 @@ mod tests {
         assert_eq!(session.pending_teleport, None);
         assert_ne!(session.state, SessionState::Transfer);
         assert_eq!(session.fall_information_like_cpp(), (0, source.z));
+    }
+
+    #[tokio::test]
+    async fn teleport_to_same_map_masks_movement_flags_before_near_teleport_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let canonical = Arc::new(Mutex::new(wow_map::MapManager::default()));
+        let player_guid = ObjectGuid::create_player(1, 827);
+        let source = Position::new(10.0, 20.0, 30.0, 0.0);
+        let destination = Position::new(119.0, 219.0, 49.0, 3.4);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 1,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.expansion = 1;
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "NearTeleportMovementReset".to_string(),
+            source,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session
+            .ensure_canonical_world_map_for_current_player_like_cpp()
+            .expect("canonical world map/player");
+        session.mutate_canonical_player_like_cpp(|player| {
+            let motion = &mut player.unit_mut().subsystems_mut().motion;
+            motion.start_spline(77, 1_000);
+            motion.launch_generic_movement(MovementGeneratorKind::Effect, 3, 1_000, None);
+        });
+        session.set_player_movement_flags_like_cpp(
+            MovementFlag::ROOT
+                | MovementFlag::CAN_FLY
+                | MovementFlag::FORWARD
+                | MovementFlag::FLYING
+                | MovementFlag::FALLING
+                | MovementFlag::SPLINE_ELEVATION,
+        );
+        session.set_player_movement_jump_like_cpp(wow_packet::packets::movement::JumpInfo {
+            fall_time: 2_250,
+            z_speed: 8.0,
+            has_direction: true,
+            sin_angle: 0.4,
+            cos_angle: 0.6,
+            xy_speed: 7.0,
+        });
+
+        session.teleport_to(571, destination).await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::CancelCombat, ServerOpcodes::MoveTeleport]
+        );
+        assert_eq!(
+            session.player_movement_flags_like_cpp(),
+            MovementFlag::ROOT | MovementFlag::CAN_FLY,
+            "C++ Player::TeleportTo keeps only MOVEMENTFLAG_MASK_HAS_PLAYER_STATUS_OPCODE before the same-map branch"
+        );
+        assert_eq!(
+            session.player_movement_jump_like_cpp().fall_time,
+            0,
+            "C++ Player::TeleportTo resets MovementInfo::jump before the same-map branch"
+        );
+        let canonical = canonical.lock().unwrap();
+        let player = canonical
+            .find_map(571, 0)
+            .and_then(|map| map.map().get_typed_player(player_guid))
+            .expect("canonical player after teleport");
+        assert_eq!(
+            player.unit().movement_flags_like_cpp(),
+            MovementFlag::ROOT | MovementFlag::CAN_FLY,
+            "C++ Player::TeleportTo writes the masked flags back to Unit::m_movementInfo"
+        );
+        let motion = &player.unit().subsystems().motion;
+        assert!(
+            motion.spline.finalized,
+            "C++ Player::TeleportTo calls Unit::DisableSpline before the same-map branch"
+        );
+        assert!(
+            !motion
+                .active_generators
+                .iter()
+                .any(|generator| generator.kind == MovementGeneratorKind::Effect),
+            "C++ Player::TeleportTo removes EFFECT_MOTION_TYPE before the same-map branch"
+        );
+        assert!(session.near_teleport_pending_like_cpp());
+    }
+
+    #[tokio::test]
+    async fn teleport_to_same_map_forces_vehicle_exit_before_near_teleport_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let registry = Arc::new(PlayerRegistry::default());
+        let player_guid = ObjectGuid::create_player(1, 830);
+        let source = Position::new(10.0, 20.0, 30.0, 0.0);
+        let destination = Position::new(119.0, 219.0, 49.0, 3.4);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 1,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.expansion = 1;
+        session.set_player_registry(Arc::clone(&registry));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "NearTeleportVehicleExit".to_string(),
+            source,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.player_vehicle_seat_flags_like_cpp = Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK);
+        session.player_vehicle_seat_id_like_cpp = Some(1004);
+        session.register_in_player_registry();
+
+        session.teleport_to(571, destination).await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::CancelCombat, ServerOpcodes::MoveTeleport]
+        );
+        assert!(
+            session.player_vehicle_seat_flags_like_cpp.is_none(),
+            "C++ Player::TeleportTo calls ExitVehicle directly; this is not gated by client seat-exit permissions"
+        );
+        assert!(session.player_vehicle_seat_id_like_cpp.is_none());
+        let info = registry.get(&player_guid).expect("registered player");
+        assert!(!info.in_vehicle);
+        assert_eq!(info.party_member_vehicle_seat, 0);
+        assert!(session.near_teleport_pending_like_cpp());
     }
 
     #[tokio::test]
@@ -74317,6 +91249,92 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn spell_titan_grip_effect_row_sets_canonical_player_flag_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 853_i32;
+        let penalty_spell_id = 49152_i32;
+        let player_guid = ObjectGuid::create_player(1, 153);
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TitanGrip".to_string(),
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        assert_eq!(
+            session.mutate_canonical_player_like_cpp(|player| {
+                (
+                    player.can_titan_grip(),
+                    player.titan_grip_penalty_spell_id(),
+                )
+            }),
+            Some((false, 0))
+        );
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_TITAN_GRIP,
+                    effect_misc_value_1: penalty_spell_id,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("represented titan-grip spell row should execute");
+
+        assert_eq!(
+            session.mutate_canonical_player_like_cpp(|player| {
+                (
+                    player.can_titan_grip(),
+                    player.titan_grip_penalty_spell_id(),
+                )
+            }),
+            Some((true, penalty_spell_id as u32)),
+            "C++ Spell::EffectTitanGrip sets m_canTitanGrip and stores MiscValue as the penalty spell id"
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
     async fn spell_dual_wield_effect_row_ignores_non_current_player_target_like_cpp() {
         let (mut session, _, send_rx) = make_session();
         let spell_id = 752_i32;
@@ -77417,11 +94435,12 @@ mod tests {
     }
 
     #[test]
-    fn logout_save_snapshot_uses_canonical_player_state_like_cpp() {
+    fn logout_save_snapshot_uses_latest_session_position_and_canonical_gameplay_like_cpp() {
         let (mut session, _, _) = make_session();
         let canonical = shared_canonical_map_manager();
         let player_guid = ObjectGuid::create_player(1, 70);
-        let saved_position = Position::new(44.0, 55.0, 66.0, 1.25);
+        let stale_canonical_position = Position::new(44.0, 55.0, 66.0, 1.25);
+        let latest_session_position = Position::new(77.0, 88.0, 99.0, 2.5);
 
         canonical.lock().unwrap().create_world_map(571, 0);
         session.set_canonical_map_manager(Arc::clone(&canonical));
@@ -77451,12 +94470,16 @@ mod tests {
         let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
         session
             .mutate_canonical_player_like_cpp(|player| {
-                player.unit_mut().world_mut().relocate(saved_position);
+                player
+                    .unit_mut()
+                    .world_mut()
+                    .relocate(stale_canonical_position);
                 player.unit_mut().set_level(42);
                 player.set_xp(1234);
                 player.set_money(5678);
             })
             .unwrap();
+        session.set_player_position_like_cpp(latest_session_position);
 
         let snapshot = session
             .sync_session_from_save_to_db_snapshot_like_cpp()
@@ -77466,16 +94489,1832 @@ mod tests {
             PlayerSaveToDbSnapshotLikeCpp {
                 guid: player_guid,
                 map_id: 571,
-                position: saved_position,
+                instance_id: 0,
+                position: latest_session_position,
                 level: 42,
                 xp: 1234,
                 money: 5678,
             }
         );
-        assert_eq!(session.player_position_like_cpp(), Some(saved_position));
+        assert_eq!(
+            session.player_position_like_cpp(),
+            Some(latest_session_position)
+        );
         assert_eq!(session.player_level_like_cpp(), 42);
         assert_eq!(session.player_xp_like_cpp(), 1234);
         assert_eq!(session.player_gold_like_cpp(), 5678);
+    }
+
+    #[test]
+    fn logout_save_snapshot_falls_back_to_session_position_without_canonical_player_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 71);
+        let login_position = Position::new(10.0, 20.0, 30.0, 0.0);
+        let moved_position = Position::new(44.0, 55.0, 66.0, 1.25);
+
+        canonical.lock().unwrap().create_world_map(571, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "Mover".to_string(),
+            login_position,
+            571,
+            1,
+            3,
+            10,
+            0,
+        ));
+        session.set_player_level_like_cpp(42);
+        session.set_player_xp_like_cpp(1234);
+        session.set_player_gold_like_cpp(5678);
+        session.set_player_position_like_cpp(moved_position);
+
+        let snapshot = session
+            .sync_session_from_save_to_db_snapshot_like_cpp()
+            .unwrap();
+        assert_eq!(snapshot.position, moved_position);
+        assert_eq!(snapshot.map_id, 571);
+        assert_eq!(snapshot.level, 42);
+        assert_eq!(snapshot.xp, 1234);
+        assert_eq!(snapshot.money, 5678);
+    }
+
+    #[test]
+    fn logout_save_snapshot_uses_pending_far_teleport_destination_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 72);
+        let current_position = Position::new(10.0, 20.0, 30.0, 0.0);
+        let teleport_destination = Position::new(100.0, 200.0, 300.0, 1.5);
+
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "Teleporter".to_string(),
+            current_position,
+            571,
+            1,
+            3,
+            80,
+            0,
+        ));
+        session.pending_teleport = Some((0, teleport_destination));
+
+        let snapshot = session
+            .current_player_save_to_db_snapshot_like_cpp()
+            .expect("snapshot should exist");
+
+        assert_eq!(snapshot.map_id, 0);
+        assert_eq!(
+            snapshot.instance_id, 0,
+            "C++ Player::SaveToDB stores instance 0 while IsBeingTeleported() and saving GetTeleportDest"
+        );
+        assert_eq!(snapshot.position, teleport_destination);
+    }
+
+    #[test]
+    fn logout_save_snapshot_uses_pending_near_teleport_destination_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 73);
+        let current_position = Position::new(10.0, 20.0, 30.0, 0.0);
+        let teleport_destination = Position::new(44.0, 55.0, 66.0, 2.25);
+
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "NearTeleporter".to_string(),
+            current_position,
+            571,
+            1,
+            3,
+            80,
+            0,
+        ));
+        session.set_near_teleport_pending_like_cpp(
+            true,
+            Some((571, teleport_destination)),
+            Some((10, 20)),
+        );
+
+        let snapshot = session
+            .current_player_save_to_db_snapshot_like_cpp()
+            .expect("snapshot should exist");
+
+        assert_eq!(snapshot.map_id, 571);
+        assert_eq!(
+            snapshot.instance_id, 0,
+            "C++ Player::SaveToDB also stores instance 0 for same-map pending teleport destinations"
+        );
+        assert_eq!(snapshot.position, teleport_destination);
+    }
+
+    #[test]
+    fn character_position_save_statement_matches_cpp_bind_order() {
+        let guid = ObjectGuid::create_player(1, 5002);
+        let position = Position::new(101.0, 202.0, 303.0, 4.5);
+
+        let stmt = WorldSession::build_character_position_save_statement_like_cpp(
+            position,
+            571,
+            9001,
+            495,
+            guid.counter() as u64,
+        );
+
+        assert_eq!(stmt.sql(), CharStatements::UPD_CHARACTER_POSITION.sql());
+        assert!(matches!(stmt.params()[0], wow_database::SqlParam::F32(v) if v == 101.0));
+        assert!(matches!(stmt.params()[1], wow_database::SqlParam::F32(v) if v == 202.0));
+        assert!(matches!(stmt.params()[2], wow_database::SqlParam::F32(v) if v == 303.0));
+        assert!(matches!(stmt.params()[3], wow_database::SqlParam::F32(v) if v == 4.5));
+        assert!(matches!(stmt.params()[4], wow_database::SqlParam::U16(571)));
+        assert!(matches!(
+            stmt.params()[5],
+            wow_database::SqlParam::U32(9001)
+        ));
+        assert!(matches!(stmt.params()[6], wow_database::SqlParam::U16(495)));
+        assert!(
+            matches!(stmt.params()[7], wow_database::SqlParam::U64(v) if v == guid.counter() as u64)
+        );
+    }
+
+    #[test]
+    fn character_position_save_uses_captured_snapshot_map_instance_like_cpp() {
+        let guid = ObjectGuid::create_player(1, 5003);
+        let snapshot = PlayerSaveToDbSnapshotLikeCpp {
+            guid,
+            map_id: 632,
+            instance_id: 12_345,
+            position: Position::new(11.0, 22.0, 33.0, 1.5),
+            level: 80,
+            xp: 0,
+            money: 42,
+        };
+
+        let stmt = WorldSession::build_character_position_save_statement_from_snapshot_like_cpp(
+            &snapshot, 210,
+        );
+
+        assert_eq!(stmt.sql(), CharStatements::UPD_CHARACTER_POSITION.sql());
+        assert!(matches!(stmt.params()[0], wow_database::SqlParam::F32(v) if v == 11.0));
+        assert!(matches!(stmt.params()[1], wow_database::SqlParam::F32(v) if v == 22.0));
+        assert!(matches!(stmt.params()[2], wow_database::SqlParam::F32(v) if v == 33.0));
+        assert!(matches!(stmt.params()[3], wow_database::SqlParam::F32(v) if v == 1.5));
+        assert!(matches!(stmt.params()[4], wow_database::SqlParam::U16(632)));
+        assert!(matches!(
+            stmt.params()[5],
+            wow_database::SqlParam::U32(12_345)
+        ));
+        assert!(matches!(stmt.params()[6], wow_database::SqlParam::U16(210)));
+        assert!(
+            matches!(stmt.params()[7], wow_database::SqlParam::U64(v) if v == guid.counter() as u64)
+        );
+    }
+
+    #[test]
+    fn character_talent_reset_state_save_statement_matches_cpp_bind_order() {
+        let guid = ObjectGuid::create_player(1, 5004);
+
+        let stmt = WorldSession::build_character_talent_reset_state_save_statement_like_cpp(
+            150_000,
+            1_723_456_789,
+            guid.counter() as u64,
+        );
+
+        assert_eq!(
+            stmt.sql(),
+            CharStatements::UPD_CHAR_TALENT_RESET_STATE.sql()
+        );
+        assert!(matches!(
+            stmt.params()[0],
+            wow_database::SqlParam::U32(150_000)
+        ));
+        assert!(matches!(
+            stmt.params()[1],
+            wow_database::SqlParam::U64(1_723_456_789)
+        ));
+        assert!(
+            matches!(stmt.params()[2], wow_database::SqlParam::U64(v) if v == guid.counter() as u64)
+        );
+    }
+
+    #[test]
+    fn character_explored_zones_save_statement_matches_cpp_bind_order() {
+        let guid = ObjectGuid::create_player(1, 5005);
+
+        let stmt = WorldSession::build_character_explored_zones_save_statement_like_cpp(
+            "1 2 0 0 ".to_string(),
+            guid.counter() as u64,
+        );
+
+        assert_eq!(stmt.sql(), CharStatements::UPD_CHAR_EXPLORED_ZONES.sql());
+        assert!(matches!(
+            &stmt.params()[0],
+            wow_database::SqlParam::String(value) if value == "1 2 0 0 "
+        ));
+        assert!(
+            matches!(stmt.params()[1], wow_database::SqlParam::U64(v) if v == guid.counter() as u64)
+        );
+    }
+
+    #[test]
+    fn represented_explored_zones_load_preserves_canonical_snapshot_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 0xE101);
+
+        assert_eq!(
+            session.load_represented_explored_zones_like_cpp("1 2 5 6"),
+            2
+        );
+        session.ensure_login_player_controller_like_cpp(
+            player_guid,
+            "Explorer".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        );
+
+        let player = session.canonical_player_entity_snapshot_like_cpp().unwrap();
+        assert_eq!(
+            player.explored_zones_block_like_cpp(0),
+            Some(0x0000_0002_0000_0001)
+        );
+        assert_eq!(
+            player.explored_zones_block_like_cpp(1),
+            Some(0x0000_0006_0000_0005)
+        );
+        assert_eq!(
+            session
+                .represented_explored_zones_db_string_like_cpp()
+                .split_whitespace()
+                .take(4)
+                .collect::<Vec<_>>(),
+            vec!["1", "2", "5", "6"]
+        );
+    }
+
+    #[test]
+    fn update_area_records_enter_leave_area_criteria_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_player_zone_area_like_cpp(10, 100);
+
+        assert!(session.update_area_represented_like_cpp(101));
+        assert_eq!(session.player_zone_area_like_cpp(), (10, 101));
+        assert_eq!(
+            session.represented_area_zone_criteria_like_cpp(),
+            &[
+                RepresentedAreaZoneCriteriaLikeCpp::EnterArea(101),
+                RepresentedAreaZoneCriteriaLikeCpp::LeaveArea(100),
+            ],
+            "C++ Player::UpdateArea records EnterArea then LeaveArea after m_areaUpdateId changes"
+        );
+
+        assert!(!session.update_area_represented_like_cpp(101));
+        assert_eq!(session.represented_area_zone_criteria_like_cpp().len(), 2);
+    }
+
+    #[test]
+    fn update_zone_records_area_then_top_level_criteria_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 0xE1A0);
+        session.ensure_login_player_controller_like_cpp(
+            player_guid,
+            "ZoneCriteria".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        );
+        session.set_player_zone_area_like_cpp(10, 100);
+        session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
+            wow_data::AreaTableEntry {
+                id: 20,
+                continent_id: 571,
+                parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: 0,
+            },
+        ])));
+
+        assert!(session.update_zone_represented_like_cpp(20, 101));
+        assert_eq!(session.player_zone_area_like_cpp(), (20, 101));
+        assert_eq!(
+            session.represented_area_zone_criteria_like_cpp(),
+            &[
+                RepresentedAreaZoneCriteriaLikeCpp::EnterArea(101),
+                RepresentedAreaZoneCriteriaLikeCpp::LeaveArea(100),
+                RepresentedAreaZoneCriteriaLikeCpp::EnterTopLevelArea(20),
+                RepresentedAreaZoneCriteriaLikeCpp::LeaveTopLevelArea(10),
+            ],
+            "C++ Player::UpdateZone calls UpdateArea before EnterTopLevelArea/LeaveTopLevelArea"
+        );
+    }
+
+    #[test]
+    fn update_zone_missing_zone_keeps_area_criteria_but_skips_top_level_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 0xE1A1);
+        session.ensure_login_player_controller_like_cpp(
+            player_guid,
+            "MissingZone".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        );
+        session.set_player_zone_area_like_cpp(10, 100);
+        session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([])));
+
+        assert!(session.update_zone_represented_like_cpp(20, 101));
+        assert_eq!(session.player_zone_area_like_cpp(), (20, 101));
+        assert_eq!(
+            session.represented_area_zone_criteria_like_cpp(),
+            &[
+                RepresentedAreaZoneCriteriaLikeCpp::EnterArea(101),
+                RepresentedAreaZoneCriteriaLikeCpp::LeaveArea(100),
+            ],
+            "C++ Player::UpdateZone returns after UpdateArea when AreaTable lacks the new zone"
+        );
+    }
+
+    #[tokio::test]
+    async fn check_area_explore_marks_block_sends_update_and_records_criteria_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 0xE202);
+        session.ensure_login_player_controller_like_cpp(
+            player_guid,
+            "Explorer".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        );
+        session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
+            wow_data::AreaTableEntry {
+                id: 9_001,
+                continent_id: 571,
+                parent_area_id: 0,
+                area_bit: 65,
+                exploration_level: 12,
+                mount_flags: 0,
+                flags: 0,
+            },
+        ])));
+        let canonical = shared_canonical_map_manager();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
+
+        assert!(
+            session
+                .check_area_explore_and_outdoor_represented_like_cpp(9_001)
+                .await
+        );
+        assert_eq!(
+            session
+                .represented_explored_zones_db_string_like_cpp()
+                .split_whitespace()
+                .take(4)
+                .collect::<Vec<_>>(),
+            vec!["0", "0", "2", "0"]
+        );
+        assert_eq!(
+            session.represented_reveal_world_map_overlay_criteria_like_cpp(),
+            &[9_001]
+        );
+        {
+            let manager = canonical.lock().unwrap();
+            let player = manager
+                .find_map(571, 0)
+                .unwrap()
+                .map()
+                .get_typed_player(player_guid)
+                .unwrap();
+            assert_eq!(player.explored_zones_block_like_cpp(1), Some(2));
+        }
+        assert!(
+            drain_server_opcodes(&send_rx).contains(&ServerOpcodes::UpdateObject),
+            "C++ SetUpdateFieldFlagValue must be visible to the player through UpdateObject"
+        );
+
+        assert!(
+            !session
+                .check_area_explore_and_outdoor_represented_like_cpp(9_001)
+                .await
+        );
+        assert!(send_rx.try_recv().is_err());
+        assert_eq!(
+            session.represented_reveal_world_map_overlay_criteria_like_cpp(),
+            &[9_001],
+            "C++ only updates criteria when the area bit was newly discovered"
+        );
+    }
+
+    #[tokio::test]
+    async fn check_area_explore_awards_exploration_xp_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 0xE204);
+        session.ensure_login_player_controller_like_cpp(
+            player_guid,
+            "ExplorerXp".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            1,
+            1,
+            10,
+            0,
+        );
+        session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
+            wow_data::AreaTableEntry {
+                id: 9_004,
+                continent_id: 571,
+                parent_area_id: 0,
+                area_bit: 66,
+                exploration_level: 12,
+                mount_flags: 0,
+                flags: 0,
+            },
+        ])));
+        session.set_exploration_base_xp_store_like_cpp(Arc::new(
+            ExplorationBaseXpStoreLikeCpp::from_rows_like_cpp([
+                wow_data::ExplorationBaseXpRowLikeCpp {
+                    level: 12,
+                    base_xp: 120,
+                },
+            ]),
+        ));
+        session.set_exploration_xp_rate_like_cpp(1.5);
+        session.set_min_discovered_scaled_xp_ratio_like_cpp(0);
+
+        assert!(
+            session
+                .check_area_explore_and_outdoor_represented_like_cpp(9_004)
+                .await
+        );
+        assert_eq!(session.player_xp_like_cpp(), 180);
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert!(packets.iter().any(|bytes| {
+            wow_packet::WorldPacket::from_bytes(bytes).server_opcode()
+                == Some(ServerOpcodes::LogXpGain)
+        }));
+        let exploration = packets
+            .iter()
+            .find(|bytes| {
+                wow_packet::WorldPacket::from_bytes(bytes).server_opcode()
+                    == Some(ServerOpcodes::ExplorationExperience)
+            })
+            .expect("C++ sends SMSG_EXPLORATION_EXPERIENCE after GiveXP");
+        let mut pkt = wow_packet::WorldPacket::from_bytes(exploration);
+        pkt.skip_opcode();
+        assert_eq!(pkt.read_int32().unwrap(), 9_004);
+        assert_eq!(pkt.read_int32().unwrap(), 180);
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[tokio::test]
+    async fn check_area_explore_max_level_sends_zero_exploration_xp_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 0xE205);
+        session.ensure_login_player_controller_like_cpp(
+            player_guid,
+            "ExplorerMax".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        );
+        session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
+            wow_data::AreaTableEntry {
+                id: 9_005,
+                continent_id: 571,
+                parent_area_id: 0,
+                area_bit: 67,
+                exploration_level: 12,
+                mount_flags: 0,
+                flags: 0,
+            },
+        ])));
+        session.set_exploration_base_xp_store_like_cpp(Arc::new(
+            ExplorationBaseXpStoreLikeCpp::from_rows_like_cpp([
+                wow_data::ExplorationBaseXpRowLikeCpp {
+                    level: 12,
+                    base_xp: 120,
+                },
+            ]),
+        ));
+
+        assert!(
+            session
+                .check_area_explore_and_outdoor_represented_like_cpp(9_005)
+                .await
+        );
+        assert_eq!(session.player_xp_like_cpp(), 0);
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert!(!packets.iter().any(|bytes| {
+            wow_packet::WorldPacket::from_bytes(bytes).server_opcode()
+                == Some(ServerOpcodes::LogXpGain)
+        }));
+        let exploration = packets
+            .iter()
+            .find(|bytes| {
+                wow_packet::WorldPacket::from_bytes(bytes).server_opcode()
+                    == Some(ServerOpcodes::ExplorationExperience)
+            })
+            .expect("C++ sends SMSG_EXPLORATION_EXPERIENCE with zero at max level");
+        let mut pkt = wow_packet::WorldPacket::from_bytes(exploration);
+        pkt.skip_opcode();
+        assert_eq!(pkt.read_int32().unwrap(), 9_005);
+        assert_eq!(pkt.read_int32().unwrap(), 0);
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[tokio::test]
+    async fn check_area_explore_rejects_missing_and_invalid_area_bits_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
+            wow_data::AreaTableEntry {
+                id: 9_002,
+                continent_id: 571,
+                parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: 0,
+            },
+            wow_data::AreaTableEntry {
+                id: 9_003,
+                continent_id: 571,
+                parent_area_id: 0,
+                area_bit: (wow_entities::PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP * 64) as i16,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: 0,
+            },
+        ])));
+
+        assert!(
+            !session
+                .check_area_explore_and_outdoor_represented_like_cpp(0)
+                .await
+        );
+        assert!(
+            !session
+                .check_area_explore_and_outdoor_represented_like_cpp(123_456)
+                .await
+        );
+        assert!(
+            !session
+                .check_area_explore_and_outdoor_represented_like_cpp(9_002)
+                .await
+        );
+        assert!(
+            !session
+                .check_area_explore_and_outdoor_represented_like_cpp(9_003)
+                .await
+        );
+        assert!(
+            session
+                .represented_explored_zones_db_string_like_cpp()
+                .split_whitespace()
+                .all(|token| token == "0")
+        );
+        assert!(
+            session
+                .represented_reveal_world_map_overlay_criteria_like_cpp()
+                .is_empty()
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn check_area_explore_removes_indoor_outdoor_auras_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(9_101, test_spell_info_like_cpp(9_101));
+        spell_store.insert(9_102, test_spell_info_like_cpp(9_102));
+        spell_store.insert(9_103, test_spell_info_like_cpp(9_103));
+        let mut indoor_attributes = [0; 15];
+        indoor_attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_ONLY_INDOORS;
+        spell_store.insert_spell_misc_attributes_like_cpp(9_101, indoor_attributes);
+        let mut outdoor_attributes = [0; 15];
+        outdoor_attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_ONLY_OUTDOORS;
+        spell_store.insert_spell_misc_attributes_like_cpp(9_102, outdoor_attributes);
+        session.set_spell_store(Arc::new(spell_store));
+        session.visible_auras.insert(1, test_visible_aura(1, 9_101));
+        session.visible_auras.insert(2, test_visible_aura(2, 9_102));
+        session.visible_auras.insert(3, test_visible_aura(3, 9_103));
+
+        session.set_vmap_indoor_check_like_cpp(true);
+        session.set_represented_is_outdoors_like_cpp(true);
+
+        assert!(
+            !session
+                .check_area_explore_and_outdoor_represented_like_cpp(0)
+                .await,
+            "C++ still returns after area_id==0, but aura removal already ran"
+        );
+        assert!(!session.visible_auras.contains_key(&1));
+        assert!(session.visible_auras.contains_key(&2));
+        assert!(session.visible_auras.contains_key(&3));
+
+        session.set_represented_is_outdoors_like_cpp(false);
+        assert!(
+            !session
+                .check_area_explore_and_outdoor_represented_like_cpp(0)
+                .await
+        );
+        assert!(!session.visible_auras.contains_key(&2));
+        assert!(session.visible_auras.contains_key(&3));
+    }
+
+    #[tokio::test]
+    async fn check_area_explore_indoor_outdoor_removal_is_config_gated_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(9_201, test_spell_info_like_cpp(9_201));
+        let mut indoor_attributes = [0; 15];
+        indoor_attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_ONLY_INDOORS;
+        spell_store.insert_spell_misc_attributes_like_cpp(9_201, indoor_attributes);
+        session.set_spell_store(Arc::new(spell_store));
+        session.visible_auras.insert(1, test_visible_aura(1, 9_201));
+        session.set_represented_is_outdoors_like_cpp(true);
+
+        assert!(
+            !session
+                .check_area_explore_and_outdoor_represented_like_cpp(0)
+                .await
+        );
+        assert!(
+            session.visible_auras.contains_key(&1),
+            "C++ only calls RemoveAurasWithAttribute when CONFIG_VMAP_INDOOR_CHECK is enabled"
+        );
+    }
+
+    #[test]
+    fn set_player_skill_values_builds_represented_skill_records_for_tests_like_cpp() {
+        let (mut session, _, _) = make_session();
+
+        assert!(!session.player_skill_records_loaded_like_cpp());
+        session.set_player_skill_values_like_cpp(HashMap::from([(762, 75), (333, 150)]));
+
+        assert!(session.player_skill_records_loaded_like_cpp());
+        let riding = session.player_skill_records_like_cpp().get(&762).unwrap();
+        assert_eq!(
+            *riding,
+            RepresentedPlayerSkillLikeCpp {
+                skill_id: 762,
+                value: 75,
+                max: 75,
+                profession_slot: -1,
+            }
+        );
+        assert_eq!(session.player_skill_value_like_cpp(333), 150);
+    }
+
+    #[test]
+    fn character_skill_save_statements_preserve_loaded_riding_skill_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_player_skill_records_like_cpp(HashMap::from([
+            (
+                333,
+                RepresentedPlayerSkillLikeCpp {
+                    skill_id: 333,
+                    value: 150,
+                    max: 225,
+                    profession_slot: 0,
+                },
+            ),
+            (
+                762,
+                RepresentedPlayerSkillLikeCpp {
+                    skill_id: 762,
+                    value: 75,
+                    max: 75,
+                    profession_slot: -1,
+                },
+            ),
+        ]));
+
+        let statements = session.character_skill_save_statements_like_cpp(42);
+
+        assert_eq!(statements.len(), 3);
+        assert_eq!(statements[0].sql(), CharStatements::DEL_CHAR_SKILLS.sql());
+        assert!(matches!(
+            statements[0].params()[0],
+            wow_database::SqlParam::U64(42)
+        ));
+
+        assert_eq!(statements[1].sql(), CharStatements::INS_CHAR_SKILLS.sql());
+        assert!(matches!(
+            statements[1].params()[0],
+            wow_database::SqlParam::U64(42)
+        ));
+        assert!(matches!(
+            statements[1].params()[1],
+            wow_database::SqlParam::U16(333)
+        ));
+        assert!(matches!(
+            statements[1].params()[2],
+            wow_database::SqlParam::U16(150)
+        ));
+        assert!(matches!(
+            statements[1].params()[3],
+            wow_database::SqlParam::U16(225)
+        ));
+        assert!(matches!(
+            statements[1].params()[4],
+            wow_database::SqlParam::I8(0)
+        ));
+
+        assert_eq!(statements[2].sql(), CharStatements::INS_CHAR_SKILLS.sql());
+        assert!(matches!(
+            statements[2].params()[1],
+            wow_database::SqlParam::U16(762)
+        ));
+        assert!(matches!(
+            statements[2].params()[2],
+            wow_database::SqlParam::U16(75)
+        ));
+        assert!(matches!(
+            statements[2].params()[3],
+            wow_database::SqlParam::U16(75)
+        ));
+        assert!(matches!(
+            statements[2].params()[4],
+            wow_database::SqlParam::I8(-1)
+        ));
+        assert_eq!(
+            CharStatements::INS_CHAR_SKILLS.sql(),
+            "INSERT INTO character_skills (guid, skill, value, max, professionSlot) VALUES (?, ?, ?, ?, ?)",
+            "C++ Player::SaveToDB delegates to _SaveSkills; represented Rust preserves value/max/professionSlot so Riding survives logout saves"
+        );
+    }
+
+    #[test]
+    fn character_spell_cooldown_save_requires_coherent_load_like_cpp() {
+        let (session, _, _) = make_session();
+
+        assert!(
+            session
+                .character_spell_cooldown_save_statements_like_cpp(42, 1_000)
+                .is_none(),
+            "Rust must not emulate C++ SpellHistory::SaveToDB delete-all unless the character_spell_cooldown runtime was loaded coherently"
+        );
+    }
+
+    #[test]
+    fn character_spell_save_plan_skips_dependent_inserts_like_cpp() {
+        let statements = WorldSession::character_spell_save_statements_like_cpp(
+            42,
+            [
+                RepresentedPlayerSpellLikeCpp {
+                    spell_id: 100,
+                    active: true,
+                    disabled: false,
+                    dependent: false,
+                    favorite: true,
+                    state: RepresentedPlayerSpellStateLikeCpp::New,
+                },
+                RepresentedPlayerSpellLikeCpp {
+                    spell_id: 200,
+                    active: true,
+                    disabled: false,
+                    dependent: true,
+                    favorite: true,
+                    state: RepresentedPlayerSpellStateLikeCpp::New,
+                },
+            ],
+        );
+
+        assert_eq!(statements.len(), 5);
+        assert_eq!(statements[0].sql(), CharStatements::INS_CHAR_SPELL.sql());
+        assert_eq!(
+            statements[0].params(),
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::I32(100),
+                wow_database::SqlParam::Bool(true),
+                wow_database::SqlParam::Bool(false),
+            ]
+        );
+        assert_eq!(
+            statements[1].sql(),
+            CharStatements::DEL_CHAR_SPELL_FAVORITE.sql()
+        );
+        assert_eq!(
+            statements[2].sql(),
+            CharStatements::INS_CHAR_SPELL_FAVORITE.sql()
+        );
+        assert_eq!(
+            statements[3].sql(),
+            CharStatements::DEL_CHAR_SPELL_FAVORITE.sql(),
+            "C++ still deletes stale favorite state for new/changed dependent spells"
+        );
+        assert_eq!(
+            statements[4].sql(),
+            CharStatements::INS_CHAR_SPELL_FAVORITE.sql(),
+            "C++ persists favorites independently from the dependent character_spell insert skip"
+        );
+        assert!(
+            statements
+                .iter()
+                .filter(|stmt| stmt.sql() == CharStatements::INS_CHAR_SPELL.sql())
+                .all(|stmt| stmt.params()[1] != wow_database::SqlParam::I32(200)),
+            "C++ Player::_SaveSpells does not insert dependent spells into character_spell"
+        );
+    }
+
+    #[test]
+    fn character_spell_save_plan_deletes_changed_and_removed_like_cpp() {
+        let statements = WorldSession::character_spell_save_statements_like_cpp(
+            7,
+            [
+                RepresentedPlayerSpellLikeCpp {
+                    spell_id: 300,
+                    active: false,
+                    disabled: true,
+                    dependent: false,
+                    favorite: false,
+                    state: RepresentedPlayerSpellStateLikeCpp::Changed,
+                },
+                RepresentedPlayerSpellLikeCpp {
+                    spell_id: 400,
+                    active: true,
+                    disabled: false,
+                    dependent: false,
+                    favorite: true,
+                    state: RepresentedPlayerSpellStateLikeCpp::Removed,
+                },
+                RepresentedPlayerSpellLikeCpp {
+                    spell_id: 500,
+                    active: true,
+                    disabled: false,
+                    dependent: false,
+                    favorite: true,
+                    state: RepresentedPlayerSpellStateLikeCpp::Unchanged,
+                },
+                RepresentedPlayerSpellLikeCpp {
+                    spell_id: 600,
+                    active: true,
+                    disabled: false,
+                    dependent: false,
+                    favorite: true,
+                    state: RepresentedPlayerSpellStateLikeCpp::Temporary,
+                },
+            ],
+        );
+
+        let sqls: Vec<&str> = statements.iter().map(|stmt| stmt.sql()).collect();
+        assert_eq!(
+            sqls,
+            vec![
+                CharStatements::DEL_CHAR_SPELL_BY_SPELL.sql(),
+                CharStatements::INS_CHAR_SPELL.sql(),
+                CharStatements::DEL_CHAR_SPELL_FAVORITE.sql(),
+                CharStatements::DEL_CHAR_SPELL_BY_SPELL.sql(),
+            ],
+            "C++ _SaveSpells deletes changed/removed spells, reinserts only changed/new non-dependent spells, and ignores unchanged/temporary rows"
+        );
+        assert_eq!(
+            statements[0].params(),
+            &[
+                wow_database::SqlParam::I32(300),
+                wow_database::SqlParam::U64(7),
+            ]
+        );
+        assert_eq!(
+            statements[1].params(),
+            &[
+                wow_database::SqlParam::U64(7),
+                wow_database::SqlParam::I32(300),
+                wow_database::SqlParam::Bool(false),
+                wow_database::SqlParam::Bool(true),
+            ]
+        );
+        assert_eq!(
+            statements[3].params(),
+            &[
+                wow_database::SqlParam::I32(400),
+                wow_database::SqlParam::U64(7),
+            ]
+        );
+    }
+
+    #[test]
+    fn represented_favorite_known_spells_are_retained_only_for_known_spells_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_known_spells_like_cpp(vec![100, 200]);
+        session.set_represented_favorite_known_spells_like_cpp(HashSet::from([100, 300]));
+
+        assert_eq!(
+            session.represented_favorite_known_spells_like_cpp(),
+            &HashSet::from([100])
+        );
+
+        session.remove_known_spell_like_cpp(100);
+        assert!(
+            session
+                .represented_favorite_known_spells_like_cpp()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn character_spell_cooldown_save_deletes_and_reinserts_active_rows_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.reset_represented_character_spell_cooldowns_like_cpp();
+        session.record_loaded_character_spell_cooldown_like_cpp(200, 0, 1_030, 0, 0);
+        session.record_loaded_character_spell_cooldown_like_cpp(100, 6948, 1_010, 12, 1_020);
+        session.record_loaded_character_spell_cooldown_like_cpp(300, 0, 1_000, 0, 1_000);
+        session.mark_represented_character_spell_cooldowns_loaded_like_cpp();
+
+        let statements = session
+            .character_spell_cooldown_save_statements_like_cpp(42, 1_000)
+            .expect("loaded cooldown state should be persisted");
+
+        assert_eq!(statements.len(), 3);
+        assert_eq!(
+            statements[0].sql(),
+            CharStatements::DEL_CHAR_SPELL_COOLDOWNS.sql()
+        );
+        assert!(matches!(
+            statements[0].params()[0],
+            wow_database::SqlParam::U64(42)
+        ));
+
+        assert_eq!(
+            statements[1].sql(),
+            CharStatements::INS_CHAR_SPELL_COOLDOWN.sql()
+        );
+        assert_eq!(
+            statements[1].params(),
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U32(100),
+                wow_database::SqlParam::U32(6948),
+                wow_database::SqlParam::I64(1_010),
+                wow_database::SqlParam::U32(12),
+                wow_database::SqlParam::I64(1_020),
+            ]
+        );
+
+        assert_eq!(
+            statements[2].params(),
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U32(200),
+                wow_database::SqlParam::U32(0),
+                wow_database::SqlParam::I64(1_030),
+                wow_database::SqlParam::U32(0),
+                wow_database::SqlParam::I64(0),
+            ]
+        );
+    }
+
+    #[test]
+    fn character_spell_cooldown_save_keeps_delete_when_all_rows_expired_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.record_loaded_character_spell_cooldown_like_cpp(100, 0, 999, 0, 999);
+        session.mark_represented_character_spell_cooldowns_loaded_like_cpp();
+
+        let statements = session
+            .character_spell_cooldown_save_statements_like_cpp(42, 1_000)
+            .expect("loaded cooldown state should still clear expired rows");
+
+        assert_eq!(statements.len(), 1);
+        assert_eq!(
+            statements[0].sql(),
+            CharStatements::DEL_CHAR_SPELL_COOLDOWNS.sql(),
+            "C++ SpellHistory::SaveToDB deletes existing rows before inserting active runtime cooldowns"
+        );
+    }
+
+    #[test]
+    fn character_spell_charge_save_requires_coherent_load_like_cpp() {
+        let (session, _, _) = make_session();
+
+        assert!(
+            session
+                .character_spell_charge_save_statements_like_cpp(42, 1_000)
+                .is_none(),
+            "Rust must not emulate C++ SpellHistory::SaveToDB charge delete-all unless character_spell_charges was loaded coherently"
+        );
+    }
+
+    #[test]
+    fn character_spell_charge_save_deletes_and_reinserts_active_rows_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.reset_represented_character_spell_charges_like_cpp();
+        session.record_loaded_character_spell_charge_like_cpp(12, 1_001, 1_030);
+        session.record_loaded_character_spell_charge_like_cpp(7, 1_002, 1_020);
+        session.record_loaded_character_spell_charge_like_cpp(7, 1_003, 1_040);
+        session.record_loaded_character_spell_charge_like_cpp(20, 900, 1_000);
+        session.mark_represented_character_spell_charges_loaded_like_cpp();
+
+        let statements = session
+            .character_spell_charge_save_statements_like_cpp(42, 1_000)
+            .expect("loaded charge state should be persisted");
+
+        assert_eq!(statements.len(), 4);
+        assert_eq!(
+            statements[0].sql(),
+            CharStatements::DEL_CHAR_SPELL_CHARGES.sql()
+        );
+        assert!(matches!(
+            statements[0].params()[0],
+            wow_database::SqlParam::U64(42)
+        ));
+
+        assert_eq!(
+            statements[1].sql(),
+            CharStatements::INS_CHAR_SPELL_CHARGES.sql()
+        );
+        assert_eq!(
+            statements[1].params(),
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U32(7),
+                wow_database::SqlParam::I64(1_002),
+                wow_database::SqlParam::I64(1_020),
+            ]
+        );
+        assert_eq!(
+            statements[2].params(),
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U32(7),
+                wow_database::SqlParam::I64(1_003),
+                wow_database::SqlParam::I64(1_040),
+            ]
+        );
+        assert_eq!(
+            statements[3].params(),
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U32(12),
+                wow_database::SqlParam::I64(1_001),
+                wow_database::SqlParam::I64(1_030),
+            ]
+        );
+    }
+
+    #[test]
+    fn character_spell_charge_save_keeps_delete_when_all_rows_expired_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.record_loaded_character_spell_charge_like_cpp(7, 900, 999);
+        session.mark_represented_character_spell_charges_loaded_like_cpp();
+
+        let statements = session
+            .character_spell_charge_save_statements_like_cpp(42, 1_000)
+            .expect("loaded charge state should still clear expired rows");
+
+        assert_eq!(statements.len(), 1);
+        assert_eq!(
+            statements[0].sql(),
+            CharStatements::DEL_CHAR_SPELL_CHARGES.sql(),
+            "C++ SpellHistory::SaveToDB deletes existing charge rows before inserting active runtime charges"
+        );
+    }
+
+    #[test]
+    fn represented_spell_charge_restore_pops_last_charge_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        session.set_player_guid(Some(player_guid));
+        session.record_loaded_character_spell_charge_like_cpp(7, 1_001, 1_020);
+        session.record_loaded_character_spell_charge_like_cpp(7, 1_002, 1_040);
+        session.mark_represented_character_spell_charges_loaded_like_cpp();
+
+        assert_eq!(
+            session.apply_modify_spell_charges_effect_like_cpp(1, 7, player_guid),
+            1
+        );
+
+        let statements = session
+            .character_spell_charge_save_statements_like_cpp(42, 1_000)
+            .expect("loaded charge state should be persisted");
+        assert_eq!(statements.len(), 2);
+        assert_eq!(
+            statements[1].params(),
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U32(7),
+                wow_database::SqlParam::I64(1_001),
+                wow_database::SqlParam::I64(1_020),
+            ]
+        );
+    }
+
+    fn test_talent_entry_like_cpp(id: u32, rank: u8, spell_id: i32) -> wow_data::TalentEntry {
+        let mut spell_rank = [0; 9];
+        spell_rank[usize::from(rank)] = spell_id;
+        wow_data::TalentEntry {
+            id,
+            description: String::new(),
+            tier_id: 0,
+            flags: 0,
+            column_index: 0,
+            tab_id: 0,
+            class_id: 0,
+            spec_id: 0,
+            spell_id,
+            overrides_spell_id: 0,
+            required_spell_id: 0,
+            category_mask: [0; 2],
+            spell_rank,
+            prereq_talent: [0; 3],
+            prereq_rank: [0; 3],
+        }
+    }
+
+    fn test_spell_info_like_cpp(spell_id: i32) -> wow_data::SpellInfo {
+        wow_data::SpellInfo {
+            spell_id,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: 0,
+            effect_base_points: 0,
+            effect_bonus_coefficient: 0.0,
+            aura_type: None,
+            display_flags: 0,
+            requires_spell_focus: 0,
+            effects: Vec::new(),
+        }
+    }
+
+    fn test_visible_aura(slot: u8, spell_id: i32) -> AuraApplication {
+        AuraApplication {
+            spell_id,
+            caster_guid: ObjectGuid::EMPTY,
+            slot,
+            duration_total: 30_000,
+            duration_remaining: 30_000,
+            stack_count: 1,
+            aura_flags: 0x1,
+            effect_mask: 0x1,
+            aura_interrupt_flags: 0,
+            aura_interrupt_flags2: 0,
+            represented_effect: None,
+            represented_amount: 0,
+            represented_effect_amounts: Vec::new(),
+            represented_misc_value: None,
+            represented_multiplier: 1.0,
+            applied_at: Instant::now(),
+        }
+    }
+
+    fn install_test_talent_tab_store_like_cpp(session: &mut WorldSession) {
+        session.set_talent_tab_store(Arc::new(wow_data::TalentTabStore::from_entries([
+            wow_data::TalentTabEntry {
+                id: 0,
+                name: String::new(),
+                background_file: String::new(),
+                order_index: 0,
+                race_mask: 0,
+                class_mask: 1,
+                pet_talent_mask: 0,
+                spell_icon_id: 0,
+            },
+        ])));
+        session.set_player_class_like_cpp(1);
+    }
+
+    #[test]
+    fn character_talent_load_filters_invalid_rows_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_talent_store(Arc::new(wow_data::TalentStore::from_entries([
+            test_talent_entry_like_cpp(101, 2, 50_101),
+            test_talent_entry_like_cpp(102, 0, 0),
+            test_talent_entry_like_cpp(103, 0, 50_103),
+        ])));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(50_101, test_spell_info_like_cpp(50_101));
+        session.set_spell_store(Arc::new(spell_store));
+        install_test_talent_tab_store_like_cpp(&mut session);
+
+        assert!(session.load_represented_talent_row_like_cpp(101, 2, 0));
+        assert!(!session.load_represented_talent_row_like_cpp(999, 0, 0));
+        assert!(!session.load_represented_talent_row_like_cpp(101, 9, 0));
+        assert!(!session.load_represented_talent_row_like_cpp(101, 2, 4));
+        assert!(!session.load_represented_talent_row_like_cpp(102, 0, 0));
+        assert!(!session.load_represented_talent_row_like_cpp(103, 0, 0));
+
+        let packet = session.represented_update_talent_data_packet_like_cpp();
+        assert_eq!(
+            packet.groups[0].talents,
+            vec![wow_packet::packets::misc::TalentInfoLikeCpp {
+                talent_id: 101,
+                rank: 2,
+            }]
+        );
+    }
+
+    #[test]
+    fn update_talent_data_includes_loaded_talents_and_glyphs_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_talent_store(Arc::new(wow_data::TalentStore::from_entries([
+            test_talent_entry_like_cpp(101, 2, 50_101),
+            test_talent_entry_like_cpp(202, 1, 50_202),
+        ])));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(50_101, test_spell_info_like_cpp(50_101));
+        spell_store.insert(50_202, test_spell_info_like_cpp(50_202));
+        session.set_spell_store(Arc::new(spell_store));
+        install_test_talent_tab_store_like_cpp(&mut session);
+
+        session.set_represented_active_talent_group_like_cpp(1);
+        session.set_represented_bonus_talent_groups_like_cpp(1);
+        assert!(session.load_represented_talent_row_like_cpp(101, 2, 0));
+        assert!(session.load_represented_talent_row_like_cpp(202, 1, 1));
+        assert!(session.load_represented_glyph_row_like_cpp(1, 3, 456));
+
+        let packet = session.represented_update_talent_data_packet_like_cpp();
+
+        assert_eq!(packet.active_group, 1);
+        assert_eq!(packet.groups.len(), 2);
+        assert_eq!(
+            packet.groups[0].talents,
+            vec![wow_packet::packets::misc::TalentInfoLikeCpp {
+                talent_id: 101,
+                rank: 2,
+            }]
+        );
+        assert_eq!(
+            packet.groups[1].talents,
+            vec![wow_packet::packets::misc::TalentInfoLikeCpp {
+                talent_id: 202,
+                rank: 1,
+            }]
+        );
+        assert_eq!(packet.groups[1].glyph_ids[3], 456);
+    }
+
+    #[test]
+    fn character_talent_save_requires_coherent_load_like_cpp() {
+        let (session, _, _) = make_session();
+
+        assert!(
+            session
+                .character_talent_save_statements_like_cpp(42)
+                .is_none(),
+            "Rust must not emulate C++ _SaveTalents delete-all unless character_talent was loaded coherently"
+        );
+    }
+
+    #[test]
+    fn character_talent_save_deletes_and_reinserts_loaded_talents_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_talent_store(Arc::new(wow_data::TalentStore::from_entries([
+            test_talent_entry_like_cpp(101, 2, 50_101),
+            test_talent_entry_like_cpp(202, 1, 50_202),
+            test_talent_entry_like_cpp(303, 0, 0),
+        ])));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(50_101, test_spell_info_like_cpp(50_101));
+        spell_store.insert(50_202, test_spell_info_like_cpp(50_202));
+        session.set_spell_store(Arc::new(spell_store));
+        install_test_talent_tab_store_like_cpp(&mut session);
+
+        session.reset_represented_talents_like_cpp();
+        assert!(session.load_represented_talent_row_like_cpp(101, 2, 0));
+        assert!(session.load_represented_talent_row_like_cpp(202, 1, 2));
+        assert!(!session.load_represented_talent_row_like_cpp(303, 0, 3));
+        session.mark_represented_talents_loaded_like_cpp();
+
+        let statements = session
+            .character_talent_save_statements_like_cpp(42)
+            .expect("loaded talent state should be persisted");
+
+        assert_eq!(statements.len(), 3);
+        assert_eq!(statements[0].sql(), CharStatements::DEL_CHAR_TALENT.sql());
+        assert_eq!(statements[0].params(), &[wow_database::SqlParam::U64(42)]);
+        assert_eq!(
+            statements[1].params(),
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U32(101),
+                wow_database::SqlParam::U8(2),
+                wow_database::SqlParam::U8(0),
+            ]
+        );
+        assert_eq!(
+            statements[2].params(),
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U32(202),
+                wow_database::SqlParam::U8(1),
+                wow_database::SqlParam::U8(2),
+            ],
+            "C++ _SaveTalents writes every non-removed talent with its talent group"
+        );
+    }
+
+    #[test]
+    fn character_glyph_save_requires_coherent_load_like_cpp() {
+        let (session, _, _) = make_session();
+
+        assert!(
+            session
+                .character_glyph_save_statements_like_cpp(42)
+                .is_none(),
+            "Rust must not emulate C++ _SaveGlyphs delete-all unless character_glyphs was loaded coherently"
+        );
+    }
+
+    #[test]
+    fn character_glyph_load_filters_invalid_rows_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_glyph_properties_store(Arc::new(wow_data::GlyphPropertiesStore::from_entries(
+            [wow_data::GlyphPropertiesEntry {
+                id: 123,
+                spell_id: 10,
+                glyph_type: 1,
+                glyph_exclusive_category_id: 0,
+                spell_icon_file_data_id: 0,
+                glyph_slot_flags: 0,
+            }],
+        )));
+
+        assert!(session.load_represented_glyph_row_like_cpp(0, 0, 123));
+        assert!(!session.load_represented_glyph_row_like_cpp(4, 0, 123));
+        assert!(!session.load_represented_glyph_row_like_cpp(0, 6, 123));
+        assert!(!session.load_represented_glyph_row_like_cpp(0, 1, 999));
+        session.mark_represented_glyphs_loaded_like_cpp();
+
+        let packet = session.represented_update_talent_data_packet_like_cpp();
+        assert_eq!(packet.groups[0].glyph_ids[0], 123);
+        assert_eq!(packet.groups[0].glyph_ids[1], 0);
+    }
+
+    #[test]
+    fn update_talent_data_uses_bonus_talent_group_count_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_represented_active_talent_group_like_cpp(1);
+        session.set_represented_bonus_talent_groups_like_cpp(1);
+        assert!(session.load_represented_glyph_row_like_cpp(1, 2, 321));
+
+        let packet = session.represented_update_talent_data_packet_like_cpp();
+
+        assert_eq!(packet.active_group, 1);
+        assert_eq!(packet.groups.len(), 2);
+        assert_eq!(packet.groups[1].glyph_ids[2], 321);
+    }
+
+    #[test]
+    fn character_glyph_save_deletes_and_reinserts_all_specs_slots_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.reset_represented_glyphs_like_cpp();
+        assert!(session.load_represented_glyph_row_like_cpp(0, 0, 123));
+        assert!(session.load_represented_glyph_row_like_cpp(3, 5, 456));
+        session.mark_represented_glyphs_loaded_like_cpp();
+
+        let statements = session
+            .character_glyph_save_statements_like_cpp(42)
+            .expect("loaded glyph state should be persisted");
+
+        assert_eq!(statements.len(), 1 + MAX_SPECIALIZATIONS_LIKE_CPP * 6);
+        assert_eq!(statements[0].sql(), CharStatements::DEL_CHAR_GLYPHS.sql());
+        assert_eq!(statements[0].params(), &[wow_database::SqlParam::U64(42)]);
+        assert_eq!(
+            statements[1].params(),
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U8(0),
+                wow_database::SqlParam::U8(0),
+                wow_database::SqlParam::U16(123),
+            ]
+        );
+        assert_eq!(
+            statements[24].params(),
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U8(3),
+                wow_database::SqlParam::U8(5),
+                wow_database::SqlParam::U16(456),
+            ],
+            "C++ _SaveGlyphs inserts every spec/slot, including zero glyph ids"
+        );
+    }
+
+    #[test]
+    fn character_action_button_save_requires_coherent_load_like_cpp() {
+        let (session, _, _) = make_session();
+
+        assert!(
+            session
+                .character_action_button_save_statements_like_cpp(42)
+                .is_none(),
+            "Rust must not delete character_action unless the represented action buttons were loaded coherently"
+        );
+    }
+
+    #[test]
+    fn character_action_button_save_deletes_and_reinserts_non_empty_buttons_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.reset_represented_action_buttons_like_cpp();
+        assert!(session.record_loaded_action_button_like_cpp(7, 12_345, 0x80));
+        assert!(session.record_loaded_action_button_like_cpp(2, 1_337, 0x40));
+        session.mark_represented_action_buttons_loaded_like_cpp();
+
+        let statements = session
+            .character_action_button_save_statements_like_cpp(42)
+            .expect("loaded action buttons should be persisted");
+
+        assert_eq!(statements.len(), 3);
+        assert_eq!(statements[0].sql(), CharStatements::DEL_CHAR_ACTION.sql());
+        assert_eq!(statements[0].params(), &[wow_database::SqlParam::U64(42)]);
+
+        assert_eq!(statements[1].sql(), CharStatements::INS_CHAR_ACTION.sql());
+        assert_eq!(
+            statements[1].params(),
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U8(0),
+                wow_database::SqlParam::I32(0),
+                wow_database::SqlParam::U8(2),
+                wow_database::SqlParam::U32(1_337),
+                wow_database::SqlParam::U8(0x40),
+            ]
+        );
+        assert_eq!(
+            statements[2].params(),
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U8(0),
+                wow_database::SqlParam::I32(0),
+                wow_database::SqlParam::U8(7),
+                wow_database::SqlParam::U32(12_345),
+                wow_database::SqlParam::U8(0x80),
+            ]
+        );
+    }
+
+    #[test]
+    fn character_action_button_save_reflects_represented_set_action_button_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.reset_represented_action_buttons_like_cpp();
+        session.mark_represented_action_buttons_loaded_like_cpp();
+        assert!(session.represented_set_action_button_like_cpp(9, 1_337 | (0x40 << 24)));
+        assert!(session.represented_set_action_button_like_cpp(9, 0));
+
+        let statements = session
+            .character_action_button_save_statements_like_cpp(42)
+            .expect("loaded action buttons should be persisted");
+
+        assert_eq!(statements.len(), 1);
+        assert_eq!(
+            statements[0].sql(),
+            CharStatements::DEL_CHAR_ACTION.sql(),
+            "C++ RemoveActionButton persists by deleting changed/deleted buttons; represented Rust uses a coherent delete+insert snapshot"
+        );
+    }
+
+    #[test]
+    fn equipment_set_save_requires_coherent_load_like_cpp() {
+        let (session, _, _) = make_session();
+
+        assert!(
+            session.equipment_set_save_statements_like_cpp(42).is_none(),
+            "Rust must not mutate equipment-set DB rows unless both equipment/transmog set tables were loaded coherently"
+        );
+    }
+
+    #[test]
+    fn equipment_set_save_builds_cpp_insert_update_delete_statements() {
+        let (mut session, _, _) = make_session();
+        session.mark_represented_equipment_sets_loaded_like_cpp();
+
+        let mut new_equipment = RepresentedEquipmentSetLikeCpp::equipment(
+            3,
+            1,
+            RepresentedEquipmentSetUpdateStateLikeCpp::New,
+        );
+        new_equipment.guid = 100;
+        new_equipment.set_name = "Tank".to_string();
+        new_equipment.set_icon = "INV_Shield".to_string();
+        new_equipment.ignore_mask = 7;
+        new_equipment.pieces[0] = ObjectGuid::create_item(1, 55);
+        session.insert_represented_equipment_set_like_cpp(100, new_equipment);
+
+        let mut changed_transmog = RepresentedEquipmentSetLikeCpp::transmog(
+            4,
+            -1,
+            RepresentedEquipmentSetUpdateStateLikeCpp::Changed,
+        );
+        changed_transmog.guid = 200;
+        changed_transmog.set_name = "Look".to_string();
+        changed_transmog.set_icon = "INV_Chest".to_string();
+        changed_transmog.ignore_mask = 9;
+        changed_transmog.appearances[0] = 11;
+        changed_transmog.enchants = [123, 456];
+        session.insert_represented_equipment_set_like_cpp(200, changed_transmog);
+
+        let mut deleted_equipment = RepresentedEquipmentSetLikeCpp::equipment(
+            5,
+            -1,
+            RepresentedEquipmentSetUpdateStateLikeCpp::Deleted,
+        );
+        deleted_equipment.guid = 300;
+        session.insert_represented_equipment_set_like_cpp(300, deleted_equipment);
+
+        let statements = session
+            .equipment_set_save_statements_like_cpp(42)
+            .expect("coherently loaded equipment sets should be saveable");
+
+        assert_eq!(statements.len(), 3);
+        assert_eq!(statements[0].sql(), CharStatements::INS_EQUIP_SET.sql());
+        assert_eq!(
+            &statements[0].params()[0..8],
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U64(100),
+                wow_database::SqlParam::U32(3),
+                wow_database::SqlParam::String("Tank".to_string()),
+                wow_database::SqlParam::String("INV_Shield".to_string()),
+                wow_database::SqlParam::U32(7),
+                wow_database::SqlParam::I32(1),
+                wow_database::SqlParam::U64(55),
+            ]
+        );
+
+        assert_eq!(
+            statements[1].sql(),
+            CharStatements::UPD_TRANSMOG_OUTFIT.sql()
+        );
+        assert_eq!(
+            &statements[1].params()[0..6],
+            &[
+                wow_database::SqlParam::String("Look".to_string()),
+                wow_database::SqlParam::String("INV_Chest".to_string()),
+                wow_database::SqlParam::U32(9),
+                wow_database::SqlParam::I32(11),
+                wow_database::SqlParam::I32(0),
+                wow_database::SqlParam::I32(0),
+            ]
+        );
+        assert_eq!(
+            &statements[1].params()[22..27],
+            &[
+                wow_database::SqlParam::I32(123),
+                wow_database::SqlParam::I32(456),
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U64(200),
+                wow_database::SqlParam::U32(4),
+            ]
+        );
+
+        assert_eq!(statements[2].sql(), CharStatements::DEL_EQUIP_SET.sql());
+        assert_eq!(statements[2].params(), &[wow_database::SqlParam::U64(300)]);
+    }
+
+    #[test]
+    fn equipment_set_save_marks_written_sets_unchanged_and_removes_deleted_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.mark_represented_equipment_sets_loaded_like_cpp();
+
+        let mut changed = RepresentedEquipmentSetLikeCpp::equipment(
+            7,
+            0,
+            RepresentedEquipmentSetUpdateStateLikeCpp::Changed,
+        );
+        changed.guid = 700;
+        session.insert_represented_equipment_set_like_cpp(700, changed);
+
+        let mut deleted = RepresentedEquipmentSetLikeCpp::transmog(
+            8,
+            -1,
+            RepresentedEquipmentSetUpdateStateLikeCpp::Deleted,
+        );
+        deleted.guid = 800;
+        session.insert_represented_equipment_set_like_cpp(800, deleted);
+
+        session.mark_equipment_sets_saved_like_cpp();
+
+        assert_eq!(
+            session
+                .represented_equipment_set_like_cpp(700)
+                .unwrap()
+                .state,
+            RepresentedEquipmentSetUpdateStateLikeCpp::Unchanged
+        );
+        assert!(session.represented_equipment_set_like_cpp(800).is_none());
+    }
+
+    fn cuf_profile_for_save_test(name: &str, height: u16) -> wow_packet::packets::misc::CufProfile {
+        wow_packet::packets::misc::CufProfile {
+            profile_name: name.to_string(),
+            frame_height: height,
+            frame_width: 120,
+            sort_by: 1,
+            health_text: 2,
+            top_point: 3,
+            bottom_point: 4,
+            left_point: 5,
+            top_offset: 6,
+            bottom_offset: 7,
+            left_offset: 8,
+            bool_options: 0b10101,
+        }
+    }
+
+    #[test]
+    fn cuf_profile_save_requires_coherent_load_like_cpp() {
+        let (session, _, _) = make_session();
+
+        assert!(
+            session.cuf_profile_save_statements_like_cpp(42).is_none(),
+            "Rust must not mutate character_cuf_profiles unless CUF profiles were loaded coherently"
+        );
+    }
+
+    #[test]
+    fn cuf_profile_save_replaces_present_and_deletes_missing_slots_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.clear_represented_cuf_profiles_like_cpp();
+        assert!(
+            session.load_represented_cuf_profile_like_cpp(1, cuf_profile_for_save_test("Raid", 72))
+        );
+        session.mark_represented_cuf_profiles_loaded_like_cpp();
+
+        let statements = session
+            .cuf_profile_save_statements_like_cpp(42)
+            .expect("loaded CUF profiles should be persisted");
+
+        assert_eq!(
+            statements.len(),
+            wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP
+        );
+        assert_eq!(
+            statements[0].sql(),
+            CharStatements::DEL_CHAR_CUF_PROFILES_BY_ID.sql()
+        );
+        assert_eq!(
+            statements[0].params(),
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U8(0),
+            ]
+        );
+
+        assert_eq!(
+            statements[1].sql(),
+            CharStatements::REP_CHAR_CUF_PROFILES.sql()
+        );
+        assert_eq!(
+            statements[1].params(),
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U8(1),
+                wow_database::SqlParam::String("Raid".to_string()),
+                wow_database::SqlParam::U16(72),
+                wow_database::SqlParam::U16(120),
+                wow_database::SqlParam::U8(1),
+                wow_database::SqlParam::U8(2),
+                wow_database::SqlParam::U32(0b10101),
+                wow_database::SqlParam::U8(3),
+                wow_database::SqlParam::U8(4),
+                wow_database::SqlParam::U8(5),
+                wow_database::SqlParam::U16(6),
+                wow_database::SqlParam::U16(7),
+                wow_database::SqlParam::U16(8),
+            ]
+        );
+
+        assert_eq!(
+            statements[4].params(),
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U8(4),
+            ]
+        );
+    }
+
+    #[test]
+    fn tutorial_flags_default_to_zeroes_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.load_tutorials_data_values_like_cpp(None);
+
+        assert_eq!(
+            session.tutorial_flags_packet_like_cpp().tutorial_data,
+            [0; 8],
+            "C++ LoadTutorialsData zeroes _tutorials when account_tutorial has no row"
+        );
+        assert!(session.tutorial_save_statement_like_cpp(77).is_none());
+    }
+
+    #[test]
+    fn tutorial_update_builds_insert_statement_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.load_tutorials_data_values_like_cpp(None);
+
+        assert!(session.apply_tutorial_action_like_cpp(
+            wow_packet::packets::misc::TUTORIAL_ACTION_UPDATE_LIKE_CPP,
+            Some(37)
+        ));
+        let stmt = session
+            .tutorial_save_statement_like_cpp(77)
+            .expect("changed tutorial flags should save");
+
+        assert_eq!(stmt.sql(), CharStatements::INS_TUTORIALS.sql());
+        assert_eq!(stmt.params().len(), 9);
+        assert_eq!(stmt.params()[0], wow_database::SqlParam::U32(0));
+        assert_eq!(stmt.params()[1], wow_database::SqlParam::U32(1 << 5));
+        assert_eq!(stmt.params()[8], wow_database::SqlParam::U32(77));
+    }
+
+    #[test]
+    fn tutorial_loaded_row_builds_update_statement_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.load_tutorials_data_values_like_cpp(Some([0, 1, 2, 3, 4, 5, 6, 7]));
+
+        assert!(session.apply_tutorial_action_like_cpp(
+            wow_packet::packets::misc::TUTORIAL_ACTION_UPDATE_LIKE_CPP,
+            Some(64)
+        ));
+        let stmt = session
+            .tutorial_save_statement_like_cpp(88)
+            .expect("changed tutorial flags should save");
+
+        assert_eq!(stmt.sql(), CharStatements::UPD_TUTORIALS.sql());
+        assert_eq!(stmt.params()[0], wow_database::SqlParam::U32(0));
+        assert_eq!(stmt.params()[2], wow_database::SqlParam::U32(3));
+        assert_eq!(stmt.params()[8], wow_database::SqlParam::U32(88));
+    }
+
+    #[test]
+    fn tutorial_clear_and_reset_match_cpp_actions() {
+        let (mut session, _, _) = make_session();
+        session.load_tutorials_data_values_like_cpp(Some([1, 2, 3, 4, 5, 6, 7, 8]));
+
+        assert!(session.apply_tutorial_action_like_cpp(
+            wow_packet::packets::misc::TUTORIAL_ACTION_CLEAR_LIKE_CPP,
+            None
+        ));
+        assert_eq!(
+            session.tutorial_flags_packet_like_cpp().tutorial_data,
+            [u32::MAX; 8]
+        );
+
+        assert!(session.apply_tutorial_action_like_cpp(
+            wow_packet::packets::misc::TUTORIAL_ACTION_RESET_LIKE_CPP,
+            None
+        ));
+        assert_eq!(
+            session.tutorial_flags_packet_like_cpp().tutorial_data,
+            [0; 8]
+        );
+    }
+
+    #[test]
+    fn tutorial_save_requires_coherent_load_like_cpp() {
+        let (mut session, _, _) = make_session();
+
+        assert!(session.set_tutorial_int_like_cpp(0, 1));
+        assert!(
+            session.tutorial_save_statement_like_cpp(77).is_none(),
+            "Rust must not insert/update account_tutorial after a failed or skipped load"
+        );
+    }
+
+    #[test]
+    fn cuf_profile_loader_rejects_cpp_oob_id_bug() {
+        let (mut session, _, _) = make_session();
+        session.clear_represented_cuf_profiles_like_cpp();
+
+        assert!(!session.load_represented_cuf_profile_like_cpp(
+            wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP as u8,
+            cuf_profile_for_save_test("Invalid", 99)
+        ));
+        assert!(
+            session
+                .represented_load_cuf_profiles_packet_like_cpp()
+                .profiles
+                .is_empty(),
+            "C++ checks id > MAX_CUF_PROFILES before indexing an array of MAX_CUF_PROFILES; Rust rejects id == MAX to avoid the legacy OOB bug"
+        );
     }
 
     #[test]
@@ -79406,6 +98245,26 @@ mod tests {
     }
 
     #[test]
+    fn timed_logout_preserves_player_until_disconnect_save_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let guid = ObjectGuid::create_player(1, 77);
+        session.set_player_guid(Some(guid));
+        session.set_state(SessionState::LoggedIn);
+        session.logout_time = Some(Instant::now() - Duration::from_secs(1));
+
+        session.update(100);
+
+        let packet = send_rx.try_recv().expect("LogoutComplete packet");
+        let mut packet = WorldPacket::from_bytes(&packet);
+        assert_eq!(
+            packet.read_uint16().unwrap(),
+            wow_constants::ServerOpcodes::LogoutComplete as u16
+        );
+        assert_eq!(session.player_guid(), Some(guid));
+        assert!(session.is_disconnecting());
+    }
+
+    #[test]
     fn update_resets_socket_timeout_on_regular_packet_like_cpp() {
         let (mut session, pkt_tx, _) = make_session();
         session.set_socket_timeouts_like_cpp(SocketTimeoutsLikeCpp {
@@ -80309,6 +99168,8 @@ mod tests {
                     sheathe_type: 0,
                     random_select: 0,
                     random_suffix_group_id: 0,
+                    scaling_stat_distribution_id: 0,
+                    scaling_stat_value: 0,
                 },
             ),
         )));
@@ -80356,6 +99217,8 @@ mod tests {
                                 price_random_value: 0.0,
                                 max_durability: 0,
                                 other_faction_item_id: 0,
+                                content_tuning_id: 0,
+                                player_level_to_item_level_curve_id: 0,
                                 limit_category: 0,
                                 instance_bound: 0,
                                 zone_bound: [0, 0],
@@ -81074,8 +99937,25 @@ mod tests {
     }
 
     #[test]
+    fn account_transmog_update_is_not_sent_while_opcode_is_unresolved_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session
+            .represented_favorite_item_appearances_like_cpp
+            .insert(65, FavoriteAppearanceStateLikeCpp::Unchanged);
+
+        session.send_favorite_appearances_like_cpp();
+
+        assert_eq!(
+            send_rx.try_recv(),
+            Err(flume::TryRecvError::Empty),
+            "do not send SMSG_ACCOUNT_TRANSMOG_UPDATE while legacy C++ keeps it at NULL_OPCODE/0xBADD"
+        );
+    }
+
+    #[test]
     fn account_heirloom_rows_filter_by_heirloom_store_like_cpp() {
         let (mut session, _, _) = make_session();
+        session.set_battlenet_account_id(77);
         session.set_heirloom_store(Arc::new(HeirloomStore::from_entries([HeirloomEntry {
             id: 1,
             source_text: "known".to_string(),
@@ -81096,6 +99976,15 @@ mod tests {
             vec![(44_000, 0x03)]
         );
         assert_eq!(
+            session.account_heirloom_save_rows_like_cpp(),
+            vec![AccountHeirloomSaveRowLikeCpp {
+                bnet_account_id: 77,
+                item_id: 44_000,
+                flags: 0x03,
+            }],
+            "C++ CollectionMgr::SaveAccountHeirlooms appends the battlenet account id to the LoginDatabase transaction"
+        );
+        assert_eq!(
             session.account_heirloom_packet_rows_like_cpp(),
             vec![AccountHeirloom {
                 item_id: 44_000,
@@ -81108,6 +99997,33 @@ mod tests {
         );
         assert_eq!(session.account_heirloom_bonus_like_cpp(44_000), 20);
         assert_eq!(session.account_heirloom_bonus_like_cpp(44_001), 0);
+    }
+
+    #[test]
+    fn account_heirloom_update_is_not_sent_while_opcode_is_unresolved_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_heirloom_store(Arc::new(HeirloomStore::from_entries([HeirloomEntry {
+            id: 1,
+            source_text: "known".to_string(),
+            item_id: 44_000,
+            legacy_upgraded_item_id: 0,
+            static_upgraded_item_id: 0,
+            source_type_enum: 0,
+            flags: 0,
+            legacy_item_id: 0,
+            upgrade_item_id: [0; 6],
+            upgrade_item_bonus_list_id: [0; 6],
+        }])));
+        session.load_represented_account_heirlooms_like_cpp([(44_000, 0x03)]);
+
+        assert_eq!(session.account_heirloom_packet_rows_like_cpp().len(), 1);
+        session.send_account_heirlooms_like_cpp();
+
+        assert_eq!(
+            send_rx.try_recv(),
+            Err(flume::TryRecvError::Empty),
+            "do not send SMSG_ACCOUNT_HEIRLOOM_UPDATE while legacy C++ keeps it at NULL_OPCODE/0xBADD"
+        );
     }
 
     #[test]
@@ -81436,6 +100352,7 @@ mod tests {
     #[test]
     fn account_toy_rows_preserve_cpp_flags_like_cpp() {
         let (mut session, _, _) = make_session();
+        session.set_battlenet_account_id(77);
 
         session
             .load_represented_account_toys_like_cpp([(30_001, false, true), (30_000, true, false)]);
@@ -81443,6 +100360,24 @@ mod tests {
         assert_eq!(
             session.account_toy_rows_like_cpp(),
             vec![(30_000, true, false), (30_001, false, true)]
+        );
+        assert_eq!(
+            session.account_toy_save_rows_like_cpp(),
+            vec![
+                AccountToySaveRowLikeCpp {
+                    bnet_account_id: 77,
+                    item_id: 30_000,
+                    is_favorite: true,
+                    has_fanfare: false,
+                },
+                AccountToySaveRowLikeCpp {
+                    bnet_account_id: 77,
+                    item_id: 30_001,
+                    is_favorite: false,
+                    has_fanfare: true,
+                },
+            ],
+            "C++ CollectionMgr::SaveAccountToys appends the battlenet account id to the LoginDatabase transaction"
         );
         assert_eq!(
             session.account_toy_packet_rows_like_cpp(),
@@ -85249,6 +104184,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
             ItemRecord {
                 id: 778,
@@ -85259,6 +104196,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
             ItemRecord {
                 id: 779,
@@ -85269,6 +104208,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
         ])));
 
@@ -85344,6 +104285,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
             ItemRecord {
                 id: 778,
@@ -85354,6 +104297,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
         ])));
 
@@ -85447,6 +104392,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
             ItemRecord {
                 id: 778,
@@ -85457,6 +104404,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
         ])));
         session.mutate_canonical_player_like_cpp(|player| player.clear_data_changes());
@@ -85750,13 +104699,15 @@ mod tests {
         session.set_item_store(Arc::new(ItemStore::from_records([
             ItemRecord {
                 id: 100,
-                class_id: ItemClass::Weapon as u8,
-                subclass_id: 7,
+                class_id: ItemClass::Armor as u8,
+                subclass_id: ItemSubClassArmor::Shield as u8,
                 material: 0,
-                inventory_type: InventoryType::Weapon as i8,
+                inventory_type: InventoryType::Shield as i8,
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
             ItemRecord {
                 id: 101,
@@ -85767,6 +104718,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
         ])));
         session.set_item_stats_store(Arc::new(ItemStatsStore::from_random_property_templates([
@@ -85775,7 +104728,7 @@ mod tests {
                 ItemRandomPropertyTemplateEntry {
                     item_level: 57,
                     quality: ItemQuality::Rare as i8,
-                    inventory_type: InventoryType::Weapon as i8,
+                    inventory_type: InventoryType::Shield as i8,
                 },
             ),
             (
@@ -85790,8 +104743,16 @@ mod tests {
         session.set_durability_costs_store(Arc::new(DurabilityCostsStore::from_entries([
             DurabilityCostsEntry {
                 id: 57,
-                weapon_sub_class_cost: std::array::from_fn(|i| if i == 7 { 13 } else { 0 }),
-                armor_sub_class_cost: std::array::from_fn(|i| if i == 4 { 5 } else { 0 }),
+                weapon_sub_class_cost: [0; 21],
+                armor_sub_class_cost: std::array::from_fn(|i| {
+                    if i == ItemSubClassArmor::Shield as usize {
+                        13
+                    } else if i == 4 {
+                        5
+                    } else {
+                        0
+                    }
+                }),
             },
         ])));
         session.set_durability_quality_store(Arc::new(DurabilityQualityStore::from_entries([
@@ -85831,6 +104792,8 @@ mod tests {
             sheathe_type: 0,
             random_select: 0,
             random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
         }])));
         session.set_item_stats_store(Arc::new(
             ItemStatsStore::from_sparse_and_random_property_templates(
@@ -85851,6 +104814,8 @@ mod tests {
                         price_random_value: 0.0,
                         max_durability: 50,
                         other_faction_item_id: 0,
+                        content_tuning_id: 0,
+                        player_level_to_item_level_curve_id: 0,
                         limit_category: 0,
                         instance_bound: 0,
                         zone_bound: [0; 2],
@@ -85927,7 +104892,8 @@ mod tests {
         );
         assert_eq!(
             drain_server_opcodes(&send_rx),
-            vec![ServerOpcodes::UpdateObject]
+            vec![ServerOpcodes::UpdateObject, ServerOpcodes::UpdateObject],
+            "C++ DurabilityRepair sets item durability and reapplies equipped broken-item mods, both visible through update fields"
         );
 
         session.set_player_gold_like_cpp(10);
@@ -85946,6 +104912,1589 @@ mod tests {
             40
         );
         assert!(drain_server_opcodes(&send_rx).is_empty());
+    }
+
+    #[test]
+    fn represented_item_mods_records_weapon_damage_without_stat_entry_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let item_guid = ObjectGuid::create_item(1, 900);
+        session.set_player_guid(Some(player_guid));
+        session.set_item_store(Arc::new(ItemStore::from_records([ItemRecord {
+            id: 100,
+            class_id: ItemClass::Weapon as u8,
+            subclass_id: 7,
+            material: 0,
+            inventory_type: InventoryType::Weapon as i8,
+            sheathe_type: 0,
+            random_select: 0,
+            random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
+        }])));
+        session.set_item_stats_store(Arc::new(ItemStatsStore::from_weapon_templates([(
+            100,
+            ItemWeaponTemplateEntry {
+                dmg_variance: 1.0,
+                item_delay: 2600,
+                min_damage: [12, 0, 0, 0, 0],
+                max_damage: [18, 0, 0, 0, 0],
+                damage_damage_type: 0,
+            },
+        )])));
+        session.inventory_items.insert(
+            EQUIPMENT_SLOT_MAINHAND,
+            InventoryItem {
+                guid: item_guid,
+                entry_id: 100,
+                db_guid: item_guid.counter() as u64,
+                inventory_type: Some(InventoryType::Weapon as u8),
+            },
+        );
+        let item = session.make_inventory_item_object(
+            item_guid,
+            100,
+            player_guid,
+            1,
+            0,
+            ItemContext::None,
+            EQUIPMENT_SLOT_MAINHAND,
+        );
+        session.insert_inventory_item_object(item);
+
+        session.record_represented_item_mods_like_cpp(item_guid, EQUIPMENT_SLOT_MAINHAND, true);
+
+        assert_eq!(
+            session.represented_item_bonus_actions_like_cpp(),
+            &[
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid,
+                    slot: EQUIPMENT_SLOT_MAINHAND,
+                    action: ApplyEnchantmentEffectAction::SetBaseWeaponDamage {
+                        attack_type: wow_constants::WeaponAttackType::BaseAttack,
+                        bound: wow_entities::WeaponDamageBoundLikeCpp::Min,
+                        amount_bits: 12.0f32.to_bits(),
+                    },
+                },
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid,
+                    slot: EQUIPMENT_SLOT_MAINHAND,
+                    action: ApplyEnchantmentEffectAction::SetBaseWeaponDamage {
+                        attack_type: wow_constants::WeaponAttackType::BaseAttack,
+                        bound: wow_entities::WeaponDamageBoundLikeCpp::Max,
+                        amount_bits: 18.0f32.to_bits(),
+                    },
+                },
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid,
+                    slot: EQUIPMENT_SLOT_MAINHAND,
+                    action: ApplyEnchantmentEffectAction::SetBaseAttackTime {
+                        attack_type: wow_constants::WeaponAttackType::BaseAttack,
+                        time_ms: 2600,
+                    },
+                },
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid,
+                    slot: EQUIPMENT_SLOT_MAINHAND,
+                    action: ApplyEnchantmentEffectAction::UpdateDamagePhysical {
+                        attack_type: wow_constants::WeaponAttackType::BaseAttack,
+                    },
+                },
+            ],
+            "C++ Player::_ApplyItemBonuses reaches _ApplyWeaponDamage even when ItemSparse has no stat modifiers"
+        );
+    }
+
+    #[test]
+    fn represented_item_mods_apply_scaling_weapon_dps_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let item_guid = ObjectGuid::create_item(1, 901);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_level_like_cpp(80);
+        session.set_item_store(Arc::new(ItemStore::from_records([ItemRecord {
+            id: 101,
+            class_id: ItemClass::Weapon as u8,
+            subclass_id: 7,
+            material: 0,
+            inventory_type: InventoryType::Weapon as i8,
+            sheathe_type: 0,
+            random_select: 0,
+            random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 77,
+            scaling_stat_value: 0x0000_0200,
+        }])));
+        session.set_item_stats_store(Arc::new(ItemStatsStore::from_weapon_templates([(
+            101,
+            ItemWeaponTemplateEntry {
+                dmg_variance: 1.0,
+                item_delay: 2000,
+                min_damage: [1, 0, 0, 0, 0],
+                max_damage: [2, 0, 0, 0, 0],
+                damage_damage_type: 0,
+            },
+        )])));
+        session.set_scaling_stat_distribution_store(Arc::new(
+            ScalingStatDistributionStore::from_entries([ScalingStatDistributionEntry {
+                id: 77,
+                player_level_to_item_level_curve_id: 0,
+                min_level: 10,
+                max_level: 20,
+                bonus: [0; 10],
+                stat_id: [0; 10],
+            }]),
+        ));
+        session.set_scaling_stat_values_store(Arc::new(ScalingStatValuesStore::from_entries([
+            ScalingStatValuesEntry {
+                id: 20,
+                char_level: 20,
+                weapon_dps_1h: 100,
+                weapon_dps_2h: 0,
+                spellcaster_dps_1h: 0,
+                spellcaster_dps_2h: 0,
+                ranged_dps: 0,
+                wand_dps: 0,
+                spell_power: 0,
+                shoulder_budget: 0,
+                trinket_budget: 0,
+                weapon_budget_1h: 0,
+                primary_budget: 0,
+                ranged_budget: 0,
+                tertiary_budget: 0,
+                cloth_shoulder_armor: 0,
+                leather_shoulder_armor: 0,
+                mail_shoulder_armor: 0,
+                plate_shoulder_armor: 0,
+                cloth_cloak_armor: 0,
+                cloth_chest_armor: 0,
+                leather_chest_armor: 0,
+                mail_chest_armor: 0,
+                plate_chest_armor: 0,
+            },
+        ])));
+        session.inventory_items.insert(
+            EQUIPMENT_SLOT_MAINHAND,
+            InventoryItem {
+                guid: item_guid,
+                entry_id: 101,
+                db_guid: item_guid.counter() as u64,
+                inventory_type: Some(InventoryType::Weapon as u8),
+            },
+        );
+        let item = session.make_inventory_item_object(
+            item_guid,
+            101,
+            player_guid,
+            1,
+            0,
+            ItemContext::None,
+            EQUIPMENT_SLOT_MAINHAND,
+        );
+        session.insert_inventory_item_object(item);
+
+        session.record_represented_item_mods_like_cpp(item_guid, EQUIPMENT_SLOT_MAINHAND, true);
+
+        assert_eq!(
+            session.represented_item_bonus_actions_like_cpp(),
+            &[
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid,
+                    slot: EQUIPMENT_SLOT_MAINHAND,
+                    action: ApplyEnchantmentEffectAction::SetBaseWeaponDamage {
+                        attack_type: wow_constants::WeaponAttackType::BaseAttack,
+                        bound: wow_entities::WeaponDamageBoundLikeCpp::Min,
+                        amount_bits: 140.0f32.to_bits(),
+                    },
+                },
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid,
+                    slot: EQUIPMENT_SLOT_MAINHAND,
+                    action: ApplyEnchantmentEffectAction::SetBaseWeaponDamage {
+                        attack_type: wow_constants::WeaponAttackType::BaseAttack,
+                        bound: wow_entities::WeaponDamageBoundLikeCpp::Max,
+                        amount_bits: 260.0f32.to_bits(),
+                    },
+                },
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid,
+                    slot: EQUIPMENT_SLOT_MAINHAND,
+                    action: ApplyEnchantmentEffectAction::SetBaseAttackTime {
+                        attack_type: wow_constants::WeaponAttackType::BaseAttack,
+                        time_ms: 2000,
+                    },
+                },
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid,
+                    slot: EQUIPMENT_SLOT_MAINHAND,
+                    action: ApplyEnchantmentEffectAction::UpdateDamagePhysical {
+                        attack_type: wow_constants::WeaponAttackType::BaseAttack,
+                    },
+                },
+            ],
+            "C++ clamps player level to ScalingStatDistribution range and replaces weapon min/max from ScalingStatValues::getDPSMod"
+        );
+        assert_eq!(
+            session
+                .represented_item_bonus_state_like_cpp()
+                .weapon_damage[wow_constants::WeaponAttackType::BaseAttack as usize],
+            [140.0, 260.0],
+            "represented runtime state now applies the planned SetBaseWeaponDamage actions"
+        );
+        assert_eq!(
+            session
+                .represented_item_bonus_state_like_cpp()
+                .base_attack_time[wow_constants::WeaponAttackType::BaseAttack as usize],
+            2000
+        );
+        assert_eq!(
+            session
+                .represented_item_bonus_state_like_cpp()
+                .damage_physical_updates,
+            &[wow_constants::WeaponAttackType::BaseAttack]
+        );
+        let stat_changes = session
+            .represented_item_bonus_state_like_cpp()
+            .represented_player_stat_changes_like_cpp();
+        assert_eq!(stat_changes.min_damage, 140.0);
+        assert_eq!(stat_changes.max_damage, 260.0);
+        assert_eq!(
+            stat_changes.min_ranged_damage, 0.0,
+            "the represented packet projection does not invent ranged/offhand values when C++ only changed BASE_ATTACK"
+        );
+    }
+
+    #[test]
+    fn represented_item_mods_apply_scaling_stat_loop_spell_bonus_and_armor_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let item_guid = ObjectGuid::create_item(1, 902);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_level_like_cpp(80);
+        session.set_item_store(Arc::new(ItemStore::from_records([ItemRecord {
+            id: 102,
+            class_id: ItemClass::Armor as u8,
+            subclass_id: 1,
+            material: 0,
+            inventory_type: InventoryType::Chest as i8,
+            sheathe_type: 0,
+            random_select: 0,
+            random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 78,
+            scaling_stat_value: 0x0010_8008,
+        }])));
+        session.set_item_stats_store(Arc::new(ItemStatsStore::from_parts(
+            [(
+                102,
+                ItemStatEntry {
+                    stats: [
+                        (ItemModType::Intellect as i8, 999),
+                        (-1, 0),
+                        (-1, 0),
+                        (-1, 0),
+                        (-1, 0),
+                        (-1, 0),
+                        (-1, 0),
+                        (-1, 0),
+                        (-1, 0),
+                        (-1, 0),
+                    ],
+                    resistances: [17, 0, 0, 0, 0, 0, 0],
+                    armor: 17,
+                },
+            )],
+            [],
+        )));
+        let mut stat_id = [-1; 10];
+        stat_id[0] = ItemModType::Strength as i32;
+        let mut bonus = [0; 10];
+        bonus[0] = 5_000;
+        session.set_scaling_stat_distribution_store(Arc::new(
+            ScalingStatDistributionStore::from_entries([ScalingStatDistributionEntry {
+                id: 78,
+                player_level_to_item_level_curve_id: 0,
+                min_level: 10,
+                max_level: 20,
+                bonus,
+                stat_id,
+            }]),
+        ));
+        session.set_scaling_stat_values_store(Arc::new(ScalingStatValuesStore::from_entries([
+            ScalingStatValuesEntry {
+                id: 20,
+                char_level: 20,
+                weapon_dps_1h: 0,
+                weapon_dps_2h: 0,
+                spellcaster_dps_1h: 0,
+                spellcaster_dps_2h: 0,
+                ranged_dps: 0,
+                wand_dps: 0,
+                spell_power: 33,
+                shoulder_budget: 0,
+                trinket_budget: 0,
+                weapon_budget_1h: 0,
+                primary_budget: 200,
+                ranged_budget: 0,
+                tertiary_budget: 0,
+                cloth_shoulder_armor: 0,
+                leather_shoulder_armor: 0,
+                mail_shoulder_armor: 0,
+                plate_shoulder_armor: 0,
+                cloth_cloak_armor: 0,
+                cloth_chest_armor: 77,
+                leather_chest_armor: 0,
+                mail_chest_armor: 0,
+                plate_chest_armor: 0,
+            },
+        ])));
+        session.inventory_items.insert(
+            EQUIPMENT_SLOT_CHEST,
+            InventoryItem {
+                guid: item_guid,
+                entry_id: 102,
+                db_guid: item_guid.counter() as u64,
+                inventory_type: Some(InventoryType::Chest as u8),
+            },
+        );
+        let item = session.make_inventory_item_object(
+            item_guid,
+            102,
+            player_guid,
+            1,
+            0,
+            ItemContext::None,
+            EQUIPMENT_SLOT_CHEST,
+        );
+        session.insert_inventory_item_object(item);
+
+        session.record_represented_item_mods_like_cpp(item_guid, EQUIPMENT_SLOT_CHEST, true);
+
+        assert_eq!(
+            session.represented_item_bonus_actions_like_cpp(),
+            &[
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid,
+                    slot: EQUIPMENT_SLOT_CHEST,
+                    action: ApplyEnchantmentEffectAction::UnitModifier {
+                        unit_mod: wow_entities::ApplyEnchantmentUnitMod::StatStrength,
+                        modifier: wow_entities::ApplyEnchantmentUnitModifier::BaseValue,
+                        amount: 100,
+                        apply: true,
+                    },
+                },
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid,
+                    slot: EQUIPMENT_SLOT_CHEST,
+                    action: ApplyEnchantmentEffectAction::UpdateStatBuffMod(
+                        wow_constants::Stats::Strength,
+                    ),
+                },
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid,
+                    slot: EQUIPMENT_SLOT_CHEST,
+                    action: ApplyEnchantmentEffectAction::SpellPowerBonus {
+                        amount: 33,
+                        apply: true,
+                    },
+                },
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid,
+                    slot: EQUIPMENT_SLOT_CHEST,
+                    action: ApplyEnchantmentEffectAction::UnitModifier {
+                        unit_mod: wow_entities::ApplyEnchantmentUnitMod::Resistance(
+                            wow_constants::spell::SpellSchools::Normal as u32,
+                        ),
+                        modifier: wow_entities::ApplyEnchantmentUnitModifier::BaseValue,
+                        amount: 77,
+                        apply: true,
+                    },
+                },
+            ],
+            "C++ uses ScalingStatDistribution stat slots instead of ItemSparse stats, then applies getSpellBonus and getArmorMod"
+        );
+        assert_eq!(
+            session.represented_item_bonus_state_like_cpp().stats_base
+                [wow_constants::Stats::Strength as usize],
+            100
+        );
+        assert_eq!(
+            session
+                .represented_item_bonus_state_like_cpp()
+                .spell_power_bonus,
+            33
+        );
+        assert_eq!(
+            session
+                .represented_item_bonus_state_like_cpp()
+                .resistances_base[wow_constants::spell::SpellSchools::Normal as usize],
+            77
+        );
+        assert_eq!(
+            session
+                .represented_item_bonus_state_like_cpp()
+                .stat_buff_updates,
+            &[wow_constants::Stats::Strength]
+        );
+        let stat_changes = session
+            .represented_item_bonus_state_like_cpp()
+            .represented_player_stat_changes_like_cpp();
+        assert_eq!(
+            stat_changes.stats[wow_constants::Stats::Strength as usize],
+            100
+        );
+        assert_eq!(
+            stat_changes.stat_pos_buff[wow_constants::Stats::Strength as usize],
+            100
+        );
+        assert_eq!(
+            stat_changes.spell_power, 33,
+            "C++ ApplySpellPowerBonus updates ModHealingDonePos and magic ModDamageDonePos update fields"
+        );
+        assert_eq!(
+            stat_changes.armor, 77,
+            "C++ armor/resistance item mods surface as UnitData::Resistances[0]"
+        );
+
+        session.record_represented_item_mods_like_cpp(item_guid, EQUIPMENT_SLOT_CHEST, false);
+
+        assert_eq!(
+            session.represented_item_bonus_state_like_cpp().stats_base
+                [wow_constants::Stats::Strength as usize],
+            0,
+            "C++ _ApplyItemBonuses(..., false) removes the same represented stat delta"
+        );
+        assert_eq!(
+            session
+                .represented_item_bonus_state_like_cpp()
+                .spell_power_bonus,
+            0
+        );
+        assert_eq!(
+            session
+                .represented_item_bonus_state_like_cpp()
+                .resistances_base[wow_constants::spell::SpellSchools::Normal as usize],
+            0
+        );
+        let removed_changes = session
+            .represented_item_bonus_state_like_cpp()
+            .represented_player_stat_changes_like_cpp();
+        assert_eq!(
+            removed_changes.stats[wow_constants::Stats::Strength as usize],
+            0
+        );
+        assert_eq!(removed_changes.spell_power, 0);
+        assert_eq!(removed_changes.armor, 0);
+    }
+
+    #[test]
+    fn destroyed_inventory_item_mod_remove_matches_cpp_destroy_item_equipment_branch() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let item_guid = ObjectGuid::create_item(1, 903);
+        session.set_player_guid(Some(player_guid));
+        session.set_item_stats_store(Arc::new(ItemStatsStore::from_parts(
+            [(
+                103,
+                ItemStatEntry {
+                    stats: [
+                        (ItemModType::Strength as i8, 12),
+                        (-1, 0),
+                        (-1, 0),
+                        (-1, 0),
+                        (-1, 0),
+                        (-1, 0),
+                        (-1, 0),
+                        (-1, 0),
+                        (-1, 0),
+                        (-1, 0),
+                    ],
+                    resistances: [0; 7],
+                    armor: 0,
+                },
+            )],
+            [],
+        )));
+        session.inventory_items.insert(
+            EQUIPMENT_SLOT_CHEST,
+            InventoryItem {
+                guid: item_guid,
+                entry_id: 103,
+                db_guid: item_guid.counter() as u64,
+                inventory_type: Some(InventoryType::Chest as u8),
+            },
+        );
+        let item = session.make_inventory_item_object(
+            item_guid,
+            103,
+            player_guid,
+            1,
+            0,
+            ItemContext::None,
+            EQUIPMENT_SLOT_CHEST,
+        );
+        session.insert_inventory_item_object(item);
+
+        session.record_represented_item_mods_like_cpp(item_guid, EQUIPMENT_SLOT_CHEST, true);
+        assert_eq!(
+            session.represented_item_bonus_state_like_cpp().stats_base
+                [wow_constants::Stats::Strength as usize],
+            12
+        );
+        let actions_before_destroy = session.represented_item_bonus_actions_like_cpp().len();
+
+        assert!(session.record_destroyed_inventory_item_mod_remove_like_cpp(
+            INVENTORY_SLOT_BAG_0,
+            EQUIPMENT_SLOT_CHEST,
+            item_guid,
+        ));
+
+        assert_eq!(
+            session.represented_item_bonus_state_like_cpp().stats_base
+                [wow_constants::Stats::Strength as usize],
+            0,
+            "C++ Player::DestroyItem calls _ApplyItemMods(pItem, slot, false) for bag 0 slots below INVENTORY_SLOT_BAG_END"
+        );
+        assert!(session.represented_item_bonus_actions_like_cpp().len() > actions_before_destroy);
+    }
+
+    #[test]
+    fn destroyed_inventory_item_mod_remove_skips_backpack_and_broken_items_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let backpack_item_guid = ObjectGuid::create_item(1, 904);
+        let broken_item_guid = ObjectGuid::create_item(1, 905);
+        session.set_player_guid(Some(player_guid));
+        session.set_item_stats_store(Arc::new(ItemStatsStore::from_parts(
+            [(
+                104,
+                ItemStatEntry {
+                    stats: [
+                        (ItemModType::Strength as i8, 12),
+                        (-1, 0),
+                        (-1, 0),
+                        (-1, 0),
+                        (-1, 0),
+                        (-1, 0),
+                        (-1, 0),
+                        (-1, 0),
+                        (-1, 0),
+                        (-1, 0),
+                    ],
+                    resistances: [0; 7],
+                    armor: 0,
+                },
+            )],
+            [],
+        )));
+
+        let backpack_item = session.make_inventory_item_object(
+            backpack_item_guid,
+            104,
+            player_guid,
+            1,
+            0,
+            ItemContext::None,
+            INVENTORY_SLOT_ITEM_START,
+        );
+        session.insert_inventory_item_object(backpack_item);
+
+        let mut broken_item = session.make_inventory_item_object(
+            broken_item_guid,
+            104,
+            player_guid,
+            1,
+            0,
+            ItemContext::None,
+            EQUIPMENT_SLOT_CHEST,
+        );
+        broken_item.set_max_durability(10);
+        broken_item.set_durability(0);
+        session.insert_inventory_item_object(broken_item);
+
+        let actions_before = session.represented_item_bonus_actions_like_cpp().len();
+        assert!(
+            !session.record_destroyed_inventory_item_mod_remove_like_cpp(
+                INVENTORY_SLOT_BAG_0,
+                INVENTORY_SLOT_ITEM_START,
+                backpack_item_guid,
+            )
+        );
+        assert!(
+            !session.record_destroyed_inventory_item_mod_remove_like_cpp(
+                INVENTORY_SLOT_BAG_0,
+                EQUIPMENT_SLOT_CHEST,
+                broken_item_guid,
+            )
+        );
+        assert_eq!(
+            session.represented_item_bonus_actions_like_cpp().len(),
+            actions_before,
+            "C++ _ApplyItemMods skips non-applied inventory slots and broken equipped items"
+        );
+    }
+
+    #[test]
+    fn destroyed_inventory_item_set_remove_matches_cpp_even_for_broken_equipped_item() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let chest_guid = ObjectGuid::create_item(1, 912);
+        let hands_guid = ObjectGuid::create_item(1, 913);
+        let backpack_guid = ObjectGuid::create_item(1, 914);
+        session.set_player_guid(Some(player_guid));
+        session.set_item_set_store(Arc::new(ItemSetStore::from_entries([ItemSetEntry {
+            id: 704,
+            name: "Destroy Set".to_string(),
+            set_flags: 0,
+            required_skill: 0,
+            required_skill_rank: 0,
+            item_id: std::array::from_fn(|i| match i {
+                0 => 106,
+                1 => 107,
+                2 => 108,
+                _ => 0,
+            }),
+        }])));
+        session.set_item_set_spell_store(Arc::new(ItemSetSpellStore::from_entries([
+            ItemSetSpellEntry {
+                id: 20,
+                chr_spec_id: 0,
+                spell_id: 9020,
+                threshold: 2,
+                item_set_id: 704,
+            },
+        ])));
+
+        let mut broken_chest = session.make_inventory_item_object(
+            chest_guid,
+            106,
+            player_guid,
+            1,
+            0,
+            ItemContext::None,
+            EQUIPMENT_SLOT_CHEST,
+        );
+        broken_chest.set_max_durability(10);
+        broken_chest.set_durability(0);
+        session.insert_inventory_item_object(broken_chest);
+        session.insert_inventory_item_like_cpp(
+            EQUIPMENT_SLOT_CHEST,
+            InventoryItem {
+                guid: chest_guid,
+                entry_id: 106,
+                db_guid: chest_guid.counter() as u64,
+                inventory_type: Some(InventoryType::Chest as u8),
+            },
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_HANDS,
+            hands_guid,
+            107,
+            InventoryType::Hands,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            INVENTORY_SLOT_ITEM_START,
+            backpack_guid,
+            108,
+            InventoryType::Chest,
+        );
+
+        assert!(!session.record_represented_items_set_item_like_cpp(chest_guid, true));
+        assert!(session.record_represented_items_set_item_like_cpp(hands_guid, true));
+        assert_eq!(
+            session.represented_item_set_spell_events_like_cpp(),
+            &[RepresentedItemSetSpellEventLikeCpp {
+                item_set_id: 704,
+                spell_entry_id: 20,
+                spell_id: 9020,
+                threshold: 2,
+                apply: true,
+            }]
+        );
+
+        assert!(!session.record_direct_inventory_item_set_remove_like_cpp(
+            INVENTORY_SLOT_BAG_0,
+            INVENTORY_SLOT_ITEM_START,
+            backpack_guid,
+        ));
+        assert_eq!(
+            session.represented_item_set_spell_events_like_cpp().len(),
+            1
+        );
+
+        assert!(session.record_direct_inventory_item_set_remove_like_cpp(
+            INVENTORY_SLOT_BAG_0,
+            EQUIPMENT_SLOT_CHEST,
+            chest_guid,
+        ));
+        assert_eq!(
+            session.represented_item_set_spell_events_like_cpp()[1],
+            RepresentedItemSetSpellEventLikeCpp {
+                item_set_id: 704,
+                spell_entry_id: 20,
+                spell_id: 9020,
+                threshold: 2,
+                apply: false,
+            },
+            "C++ DestroyItem removes item-set bonuses for equipped/equipped-bag slots, and item-set bonuses still count broken items"
+        );
+    }
+
+    #[test]
+    fn represented_item_set_add_remove_tracks_threshold_spell_events_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let chest_guid = ObjectGuid::create_item(1, 906);
+        let hands_guid = ObjectGuid::create_item(1, 907);
+        session.set_player_guid(Some(player_guid));
+        session.set_item_set_store(Arc::new(ItemSetStore::from_entries([ItemSetEntry {
+            id: 700,
+            name: "Test Set".to_string(),
+            set_flags: 0,
+            required_skill: 0,
+            required_skill_rank: 0,
+            item_id: std::array::from_fn(|i| match i {
+                0 => 100,
+                1 => 101,
+                _ => 0,
+            }),
+        }])));
+        session.set_item_set_spell_store(Arc::new(ItemSetSpellStore::from_entries([
+            ItemSetSpellEntry {
+                id: 1,
+                chr_spec_id: 0,
+                spell_id: 9001,
+                threshold: 2,
+                item_set_id: 700,
+            },
+            ItemSetSpellEntry {
+                id: 2,
+                chr_spec_id: 0,
+                spell_id: 9002,
+                threshold: 3,
+                item_set_id: 700,
+            },
+        ])));
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            chest_guid,
+            100,
+            InventoryType::Chest,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_HANDS,
+            hands_guid,
+            101,
+            InventoryType::Hands,
+        );
+
+        assert!(!session.record_represented_items_set_item_like_cpp(chest_guid, true));
+        assert!(session.record_represented_items_set_item_like_cpp(hands_guid, true));
+        assert_eq!(
+            session.represented_item_set_spell_events_like_cpp(),
+            &[RepresentedItemSetSpellEventLikeCpp {
+                item_set_id: 700,
+                spell_entry_id: 1,
+                spell_id: 9001,
+                threshold: 2,
+                apply: true,
+            }]
+        );
+        assert_eq!(
+            session
+                .represented_item_set_effect_like_cpp(700)
+                .expect("set effect")
+                .equipped_items
+                .len(),
+            2
+        );
+
+        assert!(session.record_represented_items_set_item_like_cpp(chest_guid, false));
+        assert_eq!(
+            session.represented_item_set_spell_events_like_cpp()[1],
+            RepresentedItemSetSpellEventLikeCpp {
+                item_set_id: 700,
+                spell_entry_id: 1,
+                spell_id: 9001,
+                threshold: 2,
+                apply: false,
+            }
+        );
+    }
+
+    #[test]
+    fn represented_item_set_guards_skill_legacy_flag_spec_and_broken_items_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let chest_guid = ObjectGuid::create_item(1, 908);
+        let hands_guid = ObjectGuid::create_item(1, 909);
+        session.set_player_guid(Some(player_guid));
+        session.set_represented_primary_specialization_id_like_cpp(66);
+        session.set_item_set_store(Arc::new(ItemSetStore::from_entries([
+            ItemSetEntry {
+                id: 701,
+                name: "Skill Set".to_string(),
+                set_flags: 0,
+                required_skill: 333,
+                required_skill_rank: 80,
+                item_id: std::array::from_fn(|i| if i == 0 { 102 } else { 0 }),
+            },
+            ItemSetEntry {
+                id: 702,
+                name: "Inactive Set".to_string(),
+                set_flags: ITEM_SET_FLAG_LEGACY_INACTIVE_LIKE_CPP,
+                required_skill: 0,
+                required_skill_rank: 0,
+                item_id: std::array::from_fn(|i| if i == 0 { 103 } else { 0 }),
+            },
+            ItemSetEntry {
+                id: 703,
+                name: "Spec Set".to_string(),
+                set_flags: 0,
+                required_skill: 0,
+                required_skill_rank: 0,
+                item_id: std::array::from_fn(|i| match i {
+                    0 => 104,
+                    1 => 105,
+                    _ => 0,
+                }),
+            },
+        ])));
+        session.set_item_set_spell_store(Arc::new(ItemSetSpellStore::from_entries([
+            ItemSetSpellEntry {
+                id: 10,
+                chr_spec_id: 0,
+                spell_id: 9010,
+                threshold: 1,
+                item_set_id: 701,
+            },
+            ItemSetSpellEntry {
+                id: 11,
+                chr_spec_id: 0,
+                spell_id: 9011,
+                threshold: 1,
+                item_set_id: 702,
+            },
+            ItemSetSpellEntry {
+                id: 12,
+                chr_spec_id: 65,
+                spell_id: 9012,
+                threshold: 2,
+                item_set_id: 703,
+            },
+            ItemSetSpellEntry {
+                id: 13,
+                chr_spec_id: 66,
+                spell_id: 9013,
+                threshold: 2,
+                item_set_id: 703,
+            },
+        ])));
+
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            chest_guid,
+            102,
+            InventoryType::Chest,
+        );
+        assert!(!session.record_represented_items_set_item_like_cpp(chest_guid, true));
+        session.set_player_skill_values_like_cpp(HashMap::from([(333, 80)]));
+        assert!(session.record_represented_items_set_item_like_cpp(chest_guid, true));
+
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_HANDS,
+            hands_guid,
+            103,
+            InventoryType::Hands,
+        );
+        assert!(!session.record_represented_items_set_item_like_cpp(hands_guid, true));
+
+        let first_spec_guid = ObjectGuid::create_item(1, 910);
+        let second_spec_guid = ObjectGuid::create_item(1, 911);
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            first_spec_guid,
+            104,
+            InventoryType::Chest,
+        );
+        let mut broken_second = session.make_inventory_item_object(
+            second_spec_guid,
+            105,
+            player_guid,
+            1,
+            0,
+            ItemContext::None,
+            EQUIPMENT_SLOT_HANDS,
+        );
+        broken_second.set_max_durability(10);
+        broken_second.set_durability(0);
+        session.insert_inventory_item_object(broken_second);
+        session.insert_inventory_item_like_cpp(
+            EQUIPMENT_SLOT_HANDS,
+            InventoryItem {
+                guid: second_spec_guid,
+                entry_id: 105,
+                db_guid: second_spec_guid.counter() as u64,
+                inventory_type: Some(InventoryType::Hands as u8),
+            },
+        );
+
+        assert!(!session.record_represented_items_set_item_like_cpp(first_spec_guid, true));
+        assert!(session.record_represented_items_set_item_like_cpp(second_spec_guid, true));
+        assert!(
+            !session
+                .represented_item_set_spell_events_like_cpp()
+                .iter()
+                .any(|event| event.spell_id == 9012),
+            "C++ AddItemsSetItem does not cast set spells for a non-primary ChrSpecID"
+        );
+        assert!(
+            session
+                .represented_item_set_spell_events_like_cpp()
+                .iter()
+                .any(|event| event.spell_id == 9013 && event.apply),
+            "C++ item set bonuses are not dependent on item broken state"
+        );
+    }
+
+    #[test]
+    fn represented_item_set_heirloom_max_level_guard_matches_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let chest_guid = ObjectGuid::create_item(1, 918);
+        let hands_guid = ObjectGuid::create_item(1, 919);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_level_like_cpp(19);
+        session.set_item_set_store(Arc::new(ItemSetStore::from_entries([ItemSetEntry {
+            id: 709,
+            name: "Heirloom Curve Set".to_string(),
+            set_flags: 0,
+            required_skill: 0,
+            required_skill_rank: 0,
+            item_id: std::array::from_fn(|i| match i {
+                0 => 112,
+                1 => 113,
+                _ => 0,
+            }),
+        }])));
+        session.set_item_set_spell_store(Arc::new(ItemSetSpellStore::from_entries([
+            ItemSetSpellEntry {
+                id: 33,
+                chr_spec_id: 0,
+                spell_id: 9033,
+                threshold: 2,
+                item_set_id: 709,
+            },
+        ])));
+        session.set_heirloom_store(Arc::new(HeirloomStore::from_entries([
+            HeirloomEntry {
+                id: 112,
+                source_text: "test".to_string(),
+                item_id: 112,
+                legacy_upgraded_item_id: 0,
+                static_upgraded_item_id: 0,
+                source_type_enum: 0,
+                flags: 0,
+                legacy_item_id: 0,
+                upgrade_item_id: [0; 6],
+                upgrade_item_bonus_list_id: [0; 6],
+            },
+            HeirloomEntry {
+                id: 113,
+                source_text: "test".to_string(),
+                item_id: 113,
+                legacy_upgraded_item_id: 0,
+                static_upgraded_item_id: 0,
+                source_type_enum: 0,
+                flags: 0,
+                legacy_item_id: 0,
+                upgrade_item_id: [0; 6],
+                upgrade_item_bonus_list_id: [0; 6],
+            },
+        ])));
+        let sparse = ItemSparseTemplateEntry {
+            flags: [0; 4],
+            bag_family: 0,
+            start_quest_id: 0,
+            stackable: 1,
+            max_count: 0,
+            lock_id: 0,
+            required_reputation_rank: 0,
+            sell_price: 0,
+            buy_price: 0,
+            vendor_stack_count: 1,
+            price_variance: 1.0,
+            price_random_value: 0.0,
+            max_durability: 0,
+            other_faction_item_id: 0,
+            content_tuning_id: 55,
+            player_level_to_item_level_curve_id: 77,
+            limit_category: 0,
+            instance_bound: 0,
+            zone_bound: [0; 2],
+            required_reputation_faction: 0,
+            allowable_class: 0,
+            required_expansion: 0,
+            bonding: ItemBondingType::None as u8,
+            container_slots: 0,
+            inventory_type: InventoryType::Chest as i8,
+        };
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [(112, sparse), (113, sparse)],
+                [],
+            ),
+        ));
+        session.set_curve_store(Arc::new(CurveStore::from_entries([CurveEntry {
+            id: 77,
+            curve_type: 0,
+            flags: 0,
+        }])));
+        session.set_curve_point_store(Arc::new(CurvePointStore::from_entries([
+            CurvePointEntry {
+                id: 1,
+                pos: [1.0, 10.0],
+                pre_sl_squish_pos: [0.0, 0.0],
+                curve_id: 77,
+                order_index: 0,
+            },
+            CurvePointEntry {
+                id: 2,
+                pos: [20.0, 20.0],
+                pre_sl_squish_pos: [0.0, 0.0],
+                curve_id: 77,
+                order_index: 1,
+            },
+        ])));
+        session.set_content_tuning_store(Arc::new(ContentTuningStore::from_entries([
+            ContentTuningEntry {
+                id: 55,
+                min_level: 1,
+                max_level: 18,
+                flags: 0,
+                expected_stat_mod_id: 0,
+                difficulty_esm_id: 0,
+            },
+        ])));
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            chest_guid,
+            112,
+            InventoryType::Chest,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_HANDS,
+            hands_guid,
+            113,
+            InventoryType::Hands,
+        );
+
+        assert!(
+            !session.record_represented_items_set_item_like_cpp(chest_guid, true),
+            "C++ AddItemsSetItem returns before creating the set effect when player level exceeds heirloom max level"
+        );
+        assert!(session.represented_item_set_effect_like_cpp(709).is_none());
+
+        session.set_player_level_like_cpp(18);
+        assert!(!session.record_represented_items_set_item_like_cpp(chest_guid, true));
+        assert!(session.record_represented_items_set_item_like_cpp(hands_guid, true));
+        assert_eq!(
+            session.represented_item_set_spell_events_like_cpp(),
+            &[RepresentedItemSetSpellEventLikeCpp {
+                item_set_id: 709,
+                spell_entry_id: 33,
+                spell_id: 9033,
+                threshold: 2,
+                apply: true,
+            }],
+            "C++ only blocks heirloom item-set bonuses when player level is greater than the derived max level"
+        );
+    }
+
+    #[test]
+    fn represented_item_set_skips_unknown_spell_info_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let chest_guid = ObjectGuid::create_item(1, 920);
+        let hands_guid = ObjectGuid::create_item(1, 921);
+        let mut spell_store = SpellStore::new();
+        spell_store.insert(
+            9041,
+            SpellInfo {
+                spell_id: 9041,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: Vec::new(),
+            },
+        );
+
+        session.set_player_guid(Some(player_guid));
+        session.set_spell_store(Arc::new(spell_store));
+        session.set_item_set_store(Arc::new(ItemSetStore::from_entries([ItemSetEntry {
+            id: 710,
+            name: "Unknown Spell Set".to_string(),
+            set_flags: 0,
+            required_skill: 0,
+            required_skill_rank: 0,
+            item_id: std::array::from_fn(|i| match i {
+                0 => 114,
+                1 => 115,
+                _ => 0,
+            }),
+        }])));
+        session.set_item_set_spell_store(Arc::new(ItemSetSpellStore::from_entries([
+            ItemSetSpellEntry {
+                id: 34,
+                chr_spec_id: 0,
+                spell_id: 9040,
+                threshold: 2,
+                item_set_id: 710,
+            },
+            ItemSetSpellEntry {
+                id: 35,
+                chr_spec_id: 0,
+                spell_id: 9041,
+                threshold: 2,
+                item_set_id: 710,
+            },
+        ])));
+
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            chest_guid,
+            114,
+            InventoryType::Chest,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_HANDS,
+            hands_guid,
+            115,
+            InventoryType::Hands,
+        );
+
+        assert!(!session.record_represented_items_set_item_like_cpp(chest_guid, true));
+        assert!(session.record_represented_items_set_item_like_cpp(hands_guid, true));
+        assert_eq!(
+            session.represented_item_set_spell_events_like_cpp(),
+            &[RepresentedItemSetSpellEventLikeCpp {
+                item_set_id: 710,
+                spell_entry_id: 35,
+                spell_id: 9041,
+                threshold: 2,
+                apply: true,
+            }],
+            "C++ AddItemsSetItem logs and continues before SetBonuses.insert when sSpellMgr has no SpellInfo"
+        );
+        assert_eq!(
+            session
+                .represented_item_set_effect_like_cpp(710)
+                .expect("known spell still creates represented set effect")
+                .set_bonuses,
+            BTreeSet::from([35])
+        );
+    }
+
+    #[test]
+    fn represented_update_item_set_auras_replays_active_bonuses_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let chest_guid = ObjectGuid::create_item(1, 915);
+        let hands_guid = ObjectGuid::create_item(1, 916);
+        session.set_player_guid(Some(player_guid));
+        session.set_represented_primary_specialization_id_like_cpp(66);
+        session.set_item_set_store(Arc::new(ItemSetStore::from_entries([ItemSetEntry {
+            id: 707,
+            name: "Refresh Set".to_string(),
+            set_flags: 0,
+            required_skill: 0,
+            required_skill_rank: 0,
+            item_id: std::array::from_fn(|i| match i {
+                0 => 109,
+                1 => 110,
+                _ => 0,
+            }),
+        }])));
+        session.set_item_set_spell_store(Arc::new(ItemSetSpellStore::from_entries([
+            ItemSetSpellEntry {
+                id: 30,
+                chr_spec_id: 65,
+                spell_id: 9030,
+                threshold: 2,
+                item_set_id: 707,
+            },
+            ItemSetSpellEntry {
+                id: 31,
+                chr_spec_id: 66,
+                spell_id: 9031,
+                threshold: 2,
+                item_set_id: 707,
+            },
+        ])));
+
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            chest_guid,
+            109,
+            InventoryType::Chest,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_HANDS,
+            hands_guid,
+            110,
+            InventoryType::Hands,
+        );
+
+        assert!(!session.record_represented_items_set_item_like_cpp(chest_guid, true));
+        assert!(session.record_represented_items_set_item_like_cpp(hands_guid, true));
+        assert_eq!(
+            session.represented_item_set_spell_events_like_cpp(),
+            &[RepresentedItemSetSpellEventLikeCpp {
+                item_set_id: 707,
+                spell_entry_id: 31,
+                spell_id: 9031,
+                threshold: 2,
+                apply: true,
+            }],
+            "C++ AddItemsSetItem stores all threshold-met set bonuses but only casts the current-spec spell"
+        );
+        assert_eq!(
+            session
+                .represented_item_set_effect_like_cpp(707)
+                .expect("set effect")
+                .set_bonuses,
+            BTreeSet::from([30, 31])
+        );
+
+        session.set_represented_primary_specialization_id_like_cpp(65);
+        assert_eq!(
+            session.record_represented_update_item_set_auras_like_cpp(true),
+            2
+        );
+        assert_eq!(
+            session.represented_item_set_aura_refresh_events_like_cpp(),
+            &[
+                RepresentedItemSetAuraRefreshEventLikeCpp {
+                    item_set_id: 707,
+                    spell_entry_id: 30,
+                    spell_id: 9030,
+                    apply: true,
+                    form_change: true,
+                },
+                RepresentedItemSetAuraRefreshEventLikeCpp {
+                    item_set_id: 707,
+                    spell_entry_id: 31,
+                    spell_id: 9031,
+                    apply: false,
+                    form_change: false,
+                },
+            ],
+            "C++ ApplyEquipSpell(false, formChange=true) skips removal when the spell still fits the current shapeshift"
+        );
+    }
+
+    #[test]
+    fn represented_update_item_set_auras_skips_apply_when_shapeshift_rejected_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let item_guid = ObjectGuid::create_item(1, 922);
+        let mut spell_store = SpellStore::new();
+        spell_store.insert(9042, test_spell_info_like_cpp(9042));
+        spell_store.insert_spell_shapeshift_masks_like_cpp(9042, 1 << 4, 0);
+
+        session.set_player_guid(Some(player_guid));
+        session.set_spell_store(Arc::new(spell_store));
+        session.set_item_set_store(Arc::new(ItemSetStore::from_entries([ItemSetEntry {
+            id: 711,
+            name: "Form Restricted Set".to_string(),
+            set_flags: 0,
+            required_skill: 0,
+            required_skill_rank: 0,
+            item_id: std::array::from_fn(|i| if i == 0 { 116 } else { 0 }),
+        }])));
+        session.set_item_set_spell_store(Arc::new(ItemSetSpellStore::from_entries([
+            ItemSetSpellEntry {
+                id: 36,
+                chr_spec_id: 0,
+                spell_id: 9042,
+                threshold: 1,
+                item_set_id: 711,
+            },
+        ])));
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            item_guid,
+            116,
+            InventoryType::Chest,
+        );
+
+        assert!(session.record_represented_items_set_item_like_cpp(item_guid, true));
+        assert_eq!(
+            session.record_represented_update_item_set_auras_like_cpp(false),
+            1
+        );
+        assert_eq!(
+            session.represented_item_set_aura_refresh_events_like_cpp(),
+            &[RepresentedItemSetAuraRefreshEventLikeCpp {
+                item_set_id: 711,
+                spell_entry_id: 36,
+                spell_id: 9042,
+                apply: false,
+                form_change: false,
+            }],
+            "C++ ApplyEquipSpell(true) returns without casting when CheckShapeshift is not OK"
+        );
+    }
+
+    #[test]
+    fn represented_update_item_set_auras_form_change_skips_remove_when_form_still_fits_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let item_guid = ObjectGuid::create_item(1, 923);
+        let mut spell_store = SpellStore::new();
+        spell_store.insert(9043, test_spell_info_like_cpp(9043));
+        spell_store.insert_spell_shapeshift_masks_like_cpp(9043, 1 << 4, 0);
+
+        session.set_player_guid(Some(player_guid));
+        session.set_spell_store(Arc::new(spell_store));
+        session.set_represented_shapeshift_form_like_cpp(5);
+        session.set_item_set_store(Arc::new(ItemSetStore::from_entries([ItemSetEntry {
+            id: 712,
+            name: "Matching Form Set".to_string(),
+            set_flags: 0,
+            required_skill: 0,
+            required_skill_rank: 0,
+            item_id: std::array::from_fn(|i| if i == 0 { 117 } else { 0 }),
+        }])));
+        session.set_item_set_spell_store(Arc::new(ItemSetSpellStore::from_entries([
+            ItemSetSpellEntry {
+                id: 37,
+                chr_spec_id: 0,
+                spell_id: 9043,
+                threshold: 1,
+                item_set_id: 712,
+            },
+        ])));
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            item_guid,
+            117,
+            InventoryType::Chest,
+        );
+
+        assert!(session.record_represented_items_set_item_like_cpp(item_guid, true));
+        assert_eq!(
+            session.record_represented_update_item_set_auras_like_cpp(true),
+            1
+        );
+        assert_eq!(
+            session.represented_item_set_aura_refresh_events_like_cpp(),
+            &[RepresentedItemSetAuraRefreshEventLikeCpp {
+                item_set_id: 712,
+                spell_entry_id: 37,
+                spell_id: 9043,
+                apply: true,
+                form_change: true,
+            }],
+            "C++ ApplyEquipSpell(false, formChange=true) returns early when CheckShapeshift is OK"
+        );
+    }
+
+    #[test]
+    fn represented_item_set_aura_refresh_materializes_remove_then_apply_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let item_guid = ObjectGuid::create_item(1, 924);
+
+        session.set_player_guid(Some(player_guid));
+        session.visible_auras.insert(1, test_visible_aura(1, 9044));
+        session.visible_auras.insert(2, test_visible_aura(2, 9999));
+        session.set_item_set_store(Arc::new(ItemSetStore::from_entries([ItemSetEntry {
+            id: 713,
+            name: "Materialized Refresh Set".to_string(),
+            set_flags: 0,
+            required_skill: 0,
+            required_skill_rank: 0,
+            item_id: std::array::from_fn(|i| if i == 0 { 118 } else { 0 }),
+        }])));
+        session.set_item_set_spell_store(Arc::new(ItemSetSpellStore::from_entries([
+            ItemSetSpellEntry {
+                id: 38,
+                chr_spec_id: 0,
+                spell_id: 9044,
+                threshold: 1,
+                item_set_id: 713,
+            },
+        ])));
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            item_guid,
+            118,
+            InventoryType::Chest,
+        );
+
+        assert!(session.record_represented_items_set_item_like_cpp(item_guid, true));
+        assert_eq!(
+            session.apply_represented_item_set_aura_refresh_events_like_cpp(false),
+            2
+        );
+        assert_eq!(
+            session
+                .visible_auras
+                .values()
+                .filter(|aura| aura.spell_id == 9044)
+                .count(),
+            1,
+            "C++ UpdateItemSetAuras calls RemoveAurasDueToSpell before CastSpell for item-set auras"
+        );
+        assert!(
+            session
+                .visible_auras
+                .values()
+                .any(|aura| aura.spell_id == 9999),
+            "C++ RemoveAurasDueToSpell removes only matching spell ids"
+        );
+    }
+
+    #[test]
+    fn represented_item_set_aura_refresh_form_change_does_not_duplicate_active_aura_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let item_guid = ObjectGuid::create_item(1, 925);
+        let mut spell_store = SpellStore::new();
+        spell_store.insert(9045, test_spell_info_like_cpp(9045));
+        spell_store.insert_spell_shapeshift_masks_like_cpp(9045, 1 << 4, 0);
+
+        session.set_player_guid(Some(player_guid));
+        session.set_spell_store(Arc::new(spell_store));
+        session.set_represented_shapeshift_form_like_cpp(5);
+        session.visible_auras.insert(1, test_visible_aura(1, 9045));
+        session.set_item_set_store(Arc::new(ItemSetStore::from_entries([ItemSetEntry {
+            id: 714,
+            name: "Active Aura Refresh Set".to_string(),
+            set_flags: 0,
+            required_skill: 0,
+            required_skill_rank: 0,
+            item_id: std::array::from_fn(|i| if i == 0 { 119 } else { 0 }),
+        }])));
+        session.set_item_set_spell_store(Arc::new(ItemSetSpellStore::from_entries([
+            ItemSetSpellEntry {
+                id: 39,
+                chr_spec_id: 0,
+                spell_id: 9045,
+                threshold: 1,
+                item_set_id: 714,
+            },
+        ])));
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            item_guid,
+            119,
+            InventoryType::Chest,
+        );
+
+        assert!(session.record_represented_items_set_item_like_cpp(item_guid, true));
+        assert_eq!(
+            session.apply_represented_item_set_aura_refresh_events_like_cpp(true),
+            1
+        );
+        assert_eq!(
+            session
+                .visible_auras
+                .values()
+                .filter(|aura| aura.spell_id == 9045)
+                .count(),
+            1,
+            "C++ ApplyEquipSpell(true, formChange=true) returns when the item-set aura is already active"
+        );
+    }
+
+    #[test]
+    fn represented_item_set_uses_primary_spec_not_loot_spec_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let item_guid = ObjectGuid::create_item(1, 917);
+        session.set_player_guid(Some(player_guid));
+        session.set_loot_specialization_id_like_cpp(66);
+        session.set_item_set_store(Arc::new(ItemSetStore::from_entries([ItemSetEntry {
+            id: 708,
+            name: "Primary Spec Set".to_string(),
+            set_flags: 0,
+            required_skill: 0,
+            required_skill_rank: 0,
+            item_id: std::array::from_fn(|i| if i == 0 { 111 } else { 0 }),
+        }])));
+        session.set_item_set_spell_store(Arc::new(ItemSetSpellStore::from_entries([
+            ItemSetSpellEntry {
+                id: 32,
+                chr_spec_id: 66,
+                spell_id: 9032,
+                threshold: 1,
+                item_set_id: 708,
+            },
+        ])));
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            item_guid,
+            111,
+            InventoryType::Chest,
+        );
+
+        assert!(!session.record_represented_items_set_item_like_cpp(item_guid, true));
+        assert!(
+            session
+                .represented_item_set_spell_events_like_cpp()
+                .is_empty(),
+            "C++ HandleSetLootSpecialization changes LootSpecID only; item-set ChrSpecID uses GetPrimarySpecialization"
+        );
+
+        session.set_represented_primary_specialization_id_like_cpp(66);
+        assert_eq!(
+            session.record_represented_update_item_set_auras_like_cpp(false),
+            2
+        );
+        assert_eq!(
+            session.represented_item_set_aura_refresh_events_like_cpp(),
+            &[
+                RepresentedItemSetAuraRefreshEventLikeCpp {
+                    item_set_id: 708,
+                    spell_entry_id: 32,
+                    spell_id: 9032,
+                    apply: false,
+                    form_change: false,
+                },
+                RepresentedItemSetAuraRefreshEventLikeCpp {
+                    item_set_id: 708,
+                    spell_entry_id: 32,
+                    spell_id: 9032,
+                    apply: true,
+                    form_change: false,
+                },
+            ],
+            "C++ UpdateItemSetAuras uses the current primary specialization, not LootSpecID"
+        );
     }
 
     #[tokio::test]
@@ -86022,6 +106571,8 @@ mod tests {
             sheathe_type: 0,
             random_select: 0,
             random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
         }])));
         session.set_item_stats_store(Arc::new(
             ItemStatsStore::from_sparse_and_random_property_templates(
@@ -86042,6 +106593,8 @@ mod tests {
                         price_random_value: 0.0,
                         max_durability: 50,
                         other_faction_item_id: 0,
+                        content_tuning_id: 0,
+                        player_level_to_item_level_curve_id: 0,
                         limit_category: 0,
                         instance_bound: 0,
                         zone_bound: [0; 2],
@@ -86151,23 +106704,25 @@ mod tests {
 
     #[tokio::test]
     async fn repair_all_inventory_item_durability_charges_once_like_cpp() {
-        let (mut session, _, _) = make_session();
+        let (mut session, _, send_rx) = make_session();
         let player_guid = ObjectGuid::create_player(1, 42);
         let weapon_guid = ObjectGuid::create_item(1, 900);
         let bag_guid = ObjectGuid::create_item(1, 901);
         let armor_guid = ObjectGuid::create_item(1, 902);
         session.set_player_guid(Some(player_guid));
-        session.set_player_gold_like_cpp(500);
+        session.set_player_gold_like_cpp(2_000);
         session.set_item_store(Arc::new(ItemStore::from_records([
             ItemRecord {
                 id: 100,
-                class_id: ItemClass::Weapon as u8,
-                subclass_id: 7,
+                class_id: ItemClass::Armor as u8,
+                subclass_id: ItemSubClassArmor::Shield as u8,
                 material: 0,
-                inventory_type: InventoryType::Weapon as i8,
+                inventory_type: InventoryType::Shield as i8,
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
             ItemRecord {
                 id: 101,
@@ -86178,6 +106733,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
             ItemRecord {
                 id: 200,
@@ -86188,6 +106745,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
         ])));
         let sparse = |inventory_type: InventoryType, max_durability: u32| ItemSparseTemplateEntry {
@@ -86205,6 +106764,8 @@ mod tests {
             price_random_value: 0.0,
             max_durability,
             other_faction_item_id: 0,
+            content_tuning_id: 0,
+            player_level_to_item_level_curve_id: 0,
             limit_category: 0,
             instance_bound: 0,
             zone_bound: [0; 2],
@@ -86220,9 +106781,28 @@ mod tests {
             inventory_type: inventory_type as i8,
         };
         session.set_item_stats_store(Arc::new(
-            ItemStatsStore::from_sparse_and_random_property_templates(
+            ItemStatsStore::from_stats_sparse_and_random_property_templates(
+                [(
+                    100,
+                    ItemStatEntry {
+                        stats: [
+                            (ItemModType::Strength as i8, 12),
+                            (ItemModType::HitRating as i8, 5),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                        ],
+                        resistances: [17, 0, 7, 0, 0, 0, 0],
+                        armor: 17,
+                    },
+                )],
                 [
-                    (100, sparse(InventoryType::Weapon, 50)),
+                    (100, sparse(InventoryType::Shield, 50)),
                     (101, sparse(InventoryType::Chest, 13)),
                     (200, sparse(InventoryType::Bag, 0)),
                 ],
@@ -86232,7 +106812,7 @@ mod tests {
                         ItemRandomPropertyTemplateEntry {
                             item_level: 57,
                             quality: ItemQuality::Rare as i8,
-                            inventory_type: InventoryType::Weapon as i8,
+                            inventory_type: InventoryType::Shield as i8,
                         },
                     ),
                     (
@@ -86257,10 +106837,23 @@ mod tests {
         session.set_durability_costs_store(Arc::new(DurabilityCostsStore::from_entries([
             DurabilityCostsEntry {
                 id: 57,
-                weapon_sub_class_cost: std::array::from_fn(|i| if i == 7 { 13 } else { 0 }),
-                armor_sub_class_cost: std::array::from_fn(|i| if i == 4 { 5 } else { 0 }),
+                weapon_sub_class_cost: std::array::from_fn(|_| 0),
+                armor_sub_class_cost: std::array::from_fn(|i| {
+                    if i == ItemSubClassArmor::Shield as usize {
+                        13
+                    } else if i == 4 {
+                        5
+                    } else {
+                        0
+                    }
+                }),
             },
         ])));
+        let mut shield_block_rows = vec![ShieldBlockRegularEntryLikeCpp::default(); 57];
+        shield_block_rows[56].superior = 42.0;
+        session.set_shield_block_regular_game_table(Arc::new(
+            ShieldBlockRegularGameTableLikeCpp::from_rows(shield_block_rows),
+        ));
         session.set_durability_quality_store(Arc::new(DurabilityQualityStore::from_entries([
             DurabilityQualityEntry {
                 id: (ItemQuality::Rare as u32 + 1) * 2,
@@ -86268,12 +106861,12 @@ mod tests {
             },
         ])));
         session.inventory_items.insert(
-            EQUIPMENT_SLOT_MAINHAND,
+            EQUIPMENT_SLOT_OFFHAND,
             InventoryItem {
                 guid: weapon_guid,
                 entry_id: 100,
                 db_guid: weapon_guid.counter() as u64,
-                inventory_type: Some(InventoryType::Weapon as u8),
+                inventory_type: Some(InventoryType::Shield as u8),
             },
         );
         session.inventory_items.insert(
@@ -86290,9 +106883,9 @@ mod tests {
             100,
             player_guid,
             1,
-            40,
+            0,
             ItemContext::None,
-            EQUIPMENT_SLOT_MAINHAND,
+            EQUIPMENT_SLOT_OFFHAND,
         );
         let bag = session.make_inventory_item_object(
             bag_guid,
@@ -86322,7 +106915,7 @@ mod tests {
                 .repair_all_inventory_item_durability_with_player_money_like_cpp(0.8, 2.0)
                 .await
         );
-        assert_eq!(session.player_gold_like_cpp(), 210);
+        assert_eq!(session.player_gold_like_cpp(), 670);
         assert_eq!(
             session.inventory_item_objects_like_cpp()[&weapon_guid]
                 .data()
@@ -86334,6 +106927,103 @@ mod tests {
                 .data()
                 .durability,
             13
+        );
+        assert_eq!(
+            session.represented_item_mod_reapply_events_like_cpp(),
+            &[RepresentedItemModsReapplyEventLikeCpp {
+                item_guid: weapon_guid,
+                slot: EQUIPMENT_SLOT_OFFHAND,
+                apply: true,
+            }],
+            "C++ DurabilityRepairAll delegates each item to DurabilityRepair, which reapplies item mods when an equipped item was broken before repair"
+        );
+        assert_eq!(
+            session.represented_item_bonus_actions_like_cpp(),
+            &[
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid: weapon_guid,
+                    slot: EQUIPMENT_SLOT_OFFHAND,
+                    action: ApplyEnchantmentEffectAction::UnitModifier {
+                        unit_mod: wow_entities::ApplyEnchantmentUnitMod::StatStrength,
+                        modifier: wow_entities::ApplyEnchantmentUnitModifier::BaseValue,
+                        amount: 12,
+                        apply: true,
+                    },
+                },
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid: weapon_guid,
+                    slot: EQUIPMENT_SLOT_OFFHAND,
+                    action: ApplyEnchantmentEffectAction::UpdateStatBuffMod(
+                        wow_constants::Stats::Strength,
+                    ),
+                },
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid: weapon_guid,
+                    slot: EQUIPMENT_SLOT_OFFHAND,
+                    action: ApplyEnchantmentEffectAction::RatingModifier {
+                        rating: wow_entities::ApplyEnchantmentCombatRating::HitMelee,
+                        amount: 5,
+                        apply: true,
+                    },
+                },
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid: weapon_guid,
+                    slot: EQUIPMENT_SLOT_OFFHAND,
+                    action: ApplyEnchantmentEffectAction::RatingModifier {
+                        rating: wow_entities::ApplyEnchantmentCombatRating::HitRanged,
+                        amount: 5,
+                        apply: true,
+                    },
+                },
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid: weapon_guid,
+                    slot: EQUIPMENT_SLOT_OFFHAND,
+                    action: ApplyEnchantmentEffectAction::RatingModifier {
+                        rating: wow_entities::ApplyEnchantmentCombatRating::HitSpell,
+                        amount: 5,
+                        apply: true,
+                    },
+                },
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid: weapon_guid,
+                    slot: EQUIPMENT_SLOT_OFFHAND,
+                    action: ApplyEnchantmentEffectAction::UnitModifier {
+                        unit_mod: wow_entities::ApplyEnchantmentUnitMod::Resistance(
+                            wow_constants::spell::SpellSchools::Normal as u32,
+                        ),
+                        modifier: wow_entities::ApplyEnchantmentUnitModifier::BaseValue,
+                        amount: 17,
+                        apply: true,
+                    },
+                },
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid: weapon_guid,
+                    slot: EQUIPMENT_SLOT_OFFHAND,
+                    action: ApplyEnchantmentEffectAction::UnitModifier {
+                        unit_mod: wow_entities::ApplyEnchantmentUnitMod::Resistance(
+                            wow_constants::spell::SpellSchools::Fire as u32,
+                        ),
+                        modifier: wow_entities::ApplyEnchantmentUnitModifier::BaseValue,
+                        amount: 7,
+                        apply: true,
+                    },
+                },
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid: weapon_guid,
+                    slot: EQUIPMENT_SLOT_OFFHAND,
+                    action: ApplyEnchantmentEffectAction::SetShieldBlockValue { amount: 42 },
+                },
+            ],
+            "C++ _ApplyItemMods calls _ApplyItemBonuses before equip spells/auras/enchantments"
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![
+                ServerOpcodes::UpdateObject,
+                ServerOpcodes::UpdateObject,
+                ServerOpcodes::UpdateObject
+            ],
+            "C++ DurabilityRepairAll delegates DurabilityRepair per item: repaired items send durability updates, and the equipped broken item reapply sends a stat VALUES delta"
         );
 
         session.set_player_gold_like_cpp(10);
@@ -86379,13 +107069,15 @@ mod tests {
         session.set_item_store(Arc::new(ItemStore::from_records([
             ItemRecord {
                 id: 100,
-                class_id: ItemClass::Weapon as u8,
-                subclass_id: 7,
+                class_id: ItemClass::Armor as u8,
+                subclass_id: ItemSubClassArmor::Shield as u8,
                 material: 0,
-                inventory_type: InventoryType::Weapon as i8,
+                inventory_type: InventoryType::Shield as i8,
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
             ItemRecord {
                 id: 101,
@@ -86396,6 +107088,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
             ItemRecord {
                 id: 200,
@@ -86406,6 +107100,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
         ])));
         let sparse = |inventory_type: InventoryType, max_durability: u32| ItemSparseTemplateEntry {
@@ -86423,6 +107119,8 @@ mod tests {
             price_random_value: 0.0,
             max_durability,
             other_faction_item_id: 0,
+            content_tuning_id: 0,
+            player_level_to_item_level_curve_id: 0,
             limit_category: 0,
             instance_bound: 0,
             zone_bound: [0; 2],
@@ -86438,9 +107136,28 @@ mod tests {
             inventory_type: inventory_type as i8,
         };
         session.set_item_stats_store(Arc::new(
-            ItemStatsStore::from_sparse_and_random_property_templates(
+            ItemStatsStore::from_stats_sparse_and_random_property_templates(
+                [(
+                    100,
+                    ItemStatEntry {
+                        stats: [
+                            (ItemModType::Strength as i8, 12),
+                            (ItemModType::HitRating as i8, 5),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                        ],
+                        resistances: [17, 0, 7, 0, 0, 0, 0],
+                        armor: 17,
+                    },
+                )],
                 [
-                    (100, sparse(InventoryType::Weapon, 50)),
+                    (100, sparse(InventoryType::Shield, 50)),
                     (101, sparse(InventoryType::Chest, 13)),
                     (200, sparse(InventoryType::Bag, 0)),
                 ],
@@ -86450,7 +107167,7 @@ mod tests {
                         ItemRandomPropertyTemplateEntry {
                             item_level: 57,
                             quality: ItemQuality::Rare as i8,
-                            inventory_type: InventoryType::Weapon as i8,
+                            inventory_type: InventoryType::Shield as i8,
                         },
                     ),
                     (
@@ -86475,10 +107192,23 @@ mod tests {
         session.set_durability_costs_store(Arc::new(DurabilityCostsStore::from_entries([
             DurabilityCostsEntry {
                 id: 57,
-                weapon_sub_class_cost: std::array::from_fn(|i| if i == 7 { 13 } else { 0 }),
-                armor_sub_class_cost: std::array::from_fn(|i| if i == 4 { 5 } else { 0 }),
+                weapon_sub_class_cost: std::array::from_fn(|_| 0),
+                armor_sub_class_cost: std::array::from_fn(|i| {
+                    if i == ItemSubClassArmor::Shield as usize {
+                        13
+                    } else if i == 4 {
+                        5
+                    } else {
+                        0
+                    }
+                }),
             },
         ])));
+        let mut shield_block_rows = vec![ShieldBlockRegularEntryLikeCpp::default(); 57];
+        shield_block_rows[56].superior = 42.0;
+        session.set_shield_block_regular_game_table(Arc::new(
+            ShieldBlockRegularGameTableLikeCpp::from_rows(shield_block_rows),
+        ));
         session.set_durability_quality_store(Arc::new(DurabilityQualityStore::from_entries([
             DurabilityQualityEntry {
                 id: (ItemQuality::Rare as u32 + 1) * 2,
@@ -86486,12 +107216,12 @@ mod tests {
             },
         ])));
         session.inventory_items.insert(
-            EQUIPMENT_SLOT_MAINHAND,
+            EQUIPMENT_SLOT_OFFHAND,
             InventoryItem {
                 guid: weapon_guid,
                 entry_id: 100,
                 db_guid: weapon_guid.counter() as u64,
-                inventory_type: Some(InventoryType::Weapon as u8),
+                inventory_type: Some(InventoryType::Shield as u8),
             },
         );
         session.inventory_items.insert(
@@ -86510,7 +107240,7 @@ mod tests {
             1,
             40,
             ItemContext::None,
-            EQUIPMENT_SLOT_MAINHAND,
+            EQUIPMENT_SLOT_OFFHAND,
         );
         let bag = session.make_inventory_item_object(
             bag_guid,
@@ -86537,7 +107267,7 @@ mod tests {
 
         session.set_represented_guild_repair_bank_state_like_cpp(Some(
             RepresentedGuildRepairBankStateLikeCpp {
-                available_repair_money: 40,
+                available_repair_money: 290,
                 withdraw_repair_money_allowed: true,
             },
         ));
@@ -86557,12 +107287,12 @@ mod tests {
             session.inventory_item_objects_like_cpp()[&weapon_guid]
                 .data()
                 .durability,
-            40
+            50
         );
         assert_eq!(
             session.represented_guild_repair_bank_withdraws_like_cpp(),
             &[RepresentedGuildRepairBankWithdrawLikeCpp {
-                amount: 30,
+                amount: 290,
                 repair: true,
                 success: true,
             }]
@@ -86572,7 +107302,7 @@ mod tests {
             .inventory_item_objects
             .get_mut(&weapon_guid)
             .unwrap()
-            .set_durability(40);
+            .set_durability(0);
         session
             .inventory_item_objects
             .get_mut(&armor_guid)
@@ -86580,7 +107310,7 @@ mod tests {
             .set_durability(10);
         session.set_represented_guild_repair_bank_state_like_cpp(Some(
             RepresentedGuildRepairBankStateLikeCpp {
-                available_repair_money: 500,
+                available_repair_money: 2_000,
                 withdraw_repair_money_allowed: false,
             },
         ));
@@ -86607,10 +107337,34 @@ mod tests {
                 .represented_guild_repair_bank_withdraws_like_cpp()
                 .last(),
             Some(&RepresentedGuildRepairBankWithdrawLikeCpp {
-                amount: 290,
+                amount: 1330,
                 repair: true,
                 success: false,
             })
+        );
+        assert_eq!(
+            session.represented_item_mod_reapply_events_like_cpp(),
+            &[RepresentedItemModsReapplyEventLikeCpp {
+                item_guid: weapon_guid,
+                slot: EQUIPMENT_SLOT_OFFHAND,
+                apply: true,
+            }],
+            "C++ guild-bank repair also calls DurabilityRepair for each selected item before the final guild withdrawal"
+        );
+        assert_eq!(
+            session.represented_item_bonus_actions_like_cpp().len(),
+            8,
+            "represented guild-bank repair records the same static _ApplyItemBonuses action plan for the broken equipped item"
+        );
+        assert!(
+            session
+                .represented_item_bonus_actions_like_cpp()
+                .iter()
+                .any(|action| matches!(
+                    action.action,
+                    ApplyEnchantmentEffectAction::SetShieldBlockValue { amount: 42 }
+                )),
+            "C++ _ApplyItemBonuses sets ActivePlayerData::ShieldBlock for repaired armor shields"
         );
     }
 
@@ -86626,6 +107380,8 @@ mod tests {
             sheathe_type: 0,
             random_select: 0,
             random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
         }])));
         session.set_item_stats_store(Arc::new(ItemStatsStore::from_sparse_templates([(
             100,
@@ -86649,6 +107405,8 @@ mod tests {
                 price_random_value: 0.75,
                 max_durability: 88,
                 other_faction_item_id: 0,
+                content_tuning_id: 0,
+                player_level_to_item_level_curve_id: 0,
                 limit_category: 44,
                 instance_bound: 7,
                 zone_bound: [8, 9],
@@ -86758,6 +107516,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
             ItemRecord {
                 id: 201,
@@ -86768,6 +107528,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
         ])));
         session.set_item_stats_store(Arc::new(ItemStatsStore::from_sparse_templates([
@@ -86788,6 +107550,8 @@ mod tests {
                     price_random_value: 2.0,
                     max_durability: 0,
                     other_faction_item_id: 0,
+                    content_tuning_id: 0,
+                    player_level_to_item_level_curve_id: 0,
                     limit_category: 0,
                     instance_bound: 0,
                     zone_bound: [0, 0],
@@ -86816,6 +107580,8 @@ mod tests {
                     price_random_value: 1.0,
                     max_durability: 0,
                     other_faction_item_id: 0,
+                    content_tuning_id: 0,
+                    player_level_to_item_level_curve_id: 0,
                     limit_category: 0,
                     instance_bound: 0,
                     zone_bound: [0, 0],
@@ -86974,6 +107740,8 @@ mod tests {
                 price_random_value: 1.0,
                 max_durability: 0,
                 other_faction_item_id: 0,
+                content_tuning_id: 0,
+                player_level_to_item_level_curve_id: 0,
                 limit_category: 0,
                 instance_bound: 0,
                 zone_bound: [0, 0],
@@ -87057,6 +107825,8 @@ mod tests {
                 price_random_value: 1.0,
                 max_durability: 0,
                 other_faction_item_id: 0,
+                content_tuning_id: 0,
+                player_level_to_item_level_curve_id: 0,
                 limit_category: 0,
                 instance_bound: 0,
                 zone_bound: [0, 0],
@@ -87300,6 +108070,8 @@ mod tests {
             sheathe_type: 0,
             random_select: 0,
             random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
         }])));
         session.set_item_stats_store(Arc::new(ItemStatsStore::from_sparse_templates([(
             200,
@@ -87318,6 +108090,8 @@ mod tests {
                 price_random_value: 1.0,
                 max_durability: 40,
                 other_faction_item_id: 0,
+                content_tuning_id: 0,
+                player_level_to_item_level_curve_id: 0,
                 limit_category: 0,
                 instance_bound: 0,
                 zone_bound: [0, 0],
@@ -87583,6 +108357,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
             ItemRecord {
                 id: 101,
@@ -87593,6 +108369,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
         ])));
         session.set_item_stats_store(Arc::new(ItemStatsStore::from_sparse_templates([
@@ -87613,6 +108391,8 @@ mod tests {
                     price_random_value: 1.0,
                     max_durability: 0,
                     other_faction_item_id: 0,
+                    content_tuning_id: 0,
+                    player_level_to_item_level_curve_id: 0,
                     limit_category: 0,
                     instance_bound: 0,
                     zone_bound: [0, 0],
@@ -87641,6 +108421,8 @@ mod tests {
                     price_random_value: 1.0,
                     max_durability: 0,
                     other_faction_item_id: 0,
+                    content_tuning_id: 0,
+                    player_level_to_item_level_curve_id: 0,
                     limit_category: 0,
                     instance_bound: 0,
                     zone_bound: [0, 0],
@@ -87909,6 +108691,8 @@ mod tests {
                 price_random_value: 1.0,
                 max_durability: 55,
                 other_faction_item_id: 0,
+                content_tuning_id: 0,
+                player_level_to_item_level_curve_id: 0,
                 limit_category: 0,
                 instance_bound: 0,
                 zone_bound: [0, 0],
@@ -89186,6 +109970,8 @@ mod tests {
             sheathe_type: 0,
             random_select: 0,
             random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
         }])));
         session.set_item_stats_store(Arc::new(ItemStatsStore::from_sparse_templates([(
             700,
@@ -89204,6 +109990,8 @@ mod tests {
                 price_random_value: 1.0,
                 max_durability: 0,
                 other_faction_item_id: 0,
+                content_tuning_id: 0,
+                player_level_to_item_level_curve_id: 0,
                 limit_category: 0,
                 instance_bound: 0,
                 zone_bound: [0, 0],
@@ -89337,6 +110125,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
             ItemRecord {
                 id: 700,
@@ -89347,6 +110137,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
         ])));
         session.set_item_stats_store(Arc::new(ItemStatsStore::from_sparse_templates([
@@ -89367,6 +110159,8 @@ mod tests {
                     price_random_value: 1.0,
                     max_durability: 0,
                     other_faction_item_id: 0,
+                    content_tuning_id: 0,
+                    player_level_to_item_level_curve_id: 0,
                     limit_category: 0,
                     instance_bound: 0,
                     zone_bound: [0, 0],
@@ -89395,6 +110189,8 @@ mod tests {
                     price_random_value: 1.0,
                     max_durability: 0,
                     other_faction_item_id: 0,
+                    content_tuning_id: 0,
+                    player_level_to_item_level_curve_id: 0,
                     limit_category: 44,
                     instance_bound: 0,
                     zone_bound: [0, 0],
@@ -89472,6 +110268,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
             ItemRecord {
                 id: 700,
@@ -89482,6 +110280,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
             ItemRecord {
                 id: 701,
@@ -89492,6 +110292,8 @@ mod tests {
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
+                scaling_stat_distribution_id: 0,
+                scaling_stat_value: 0,
             },
         ])));
         let sparse = |inventory_type: InventoryType,
@@ -89513,6 +110315,8 @@ mod tests {
                 price_random_value: 1.0,
                 max_durability: 0,
                 other_faction_item_id: 0,
+                content_tuning_id: 0,
+                player_level_to_item_level_curve_id: 0,
                 limit_category: 0,
                 instance_bound: 0,
                 zone_bound: [0, 0],
@@ -93160,6 +113964,8 @@ mod tests {
                 id: 900,
                 continent_id: 0,
                 parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
                 mount_flags: 0,
                 flags: 0,
             },
@@ -93167,6 +113973,8 @@ mod tests {
                 id: 901,
                 continent_id: 0,
                 parent_area_id: 900,
+                area_bit: -1,
+                exploration_level: 0,
                 mount_flags: 0,
                 flags: 0,
             },
@@ -93251,6 +114059,8 @@ mod tests {
                 id: 900,
                 continent_id: 0,
                 parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
                 mount_flags: 0,
                 flags: 0,
             },
@@ -97034,6 +117844,7 @@ mod tests {
                 ai.wander_delay_ms = 0;
                 ai.move_start_ms = 0;
                 ai.wander_radius = 3.0;
+                creature.seed_runtime_rng_like_cpp(0x5757);
             })
             .unwrap();
 
@@ -97748,6 +118559,7 @@ mod tests {
                     ai_name: String::new(),
                     script_name: String::new(),
                     required_expansion: 1,
+                    trainer_class: 0,
                     unit_class: 1,
                     faction: 14,
                     npc_flags: 0,
@@ -101171,6 +121983,7 @@ mod tests {
                 ai.wander_delay_ms = 0;
                 ai.move_start_ms = 0;
                 ai.wander_radius = 3.0;
+                creature.seed_runtime_rng_like_cpp(0x9005);
             })
             .unwrap();
 
@@ -101451,6 +122264,7 @@ mod tests {
             ai.move_start_ms = 0;
             ai.wander_radius = 3.0;
         }
+        creature.seed_runtime_rng_like_cpp(0x5757);
         let config = MMapRuntimeConfigLikeCpp {
             enabled: false, // disable pathfinding → simple straight-line spline
             ..Default::default()

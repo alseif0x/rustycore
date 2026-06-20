@@ -53,6 +53,7 @@ pub struct ResolvedCreatureTemplateLikeCpp {
     pub script_name: String,
     pub required_expansion: u8,
     pub unit_class: u8,
+    pub trainer_class: u8,
     pub faction: u32,
     pub npc_flags: u64,
     pub display_id: u32,
@@ -373,6 +374,7 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
         script_name: template.script_name.clone(),
         required_expansion: template.required_expansion,
         unit_class: template.unit_class,
+        trainer_class: template.trainer_class,
         faction: template.faction,
         npc_flags,
         display_id: selected_display_id,
@@ -523,6 +525,7 @@ fn template_lifecycle_record(
         script_name: template.script_name.clone(),
         required_expansion: template.required_expansion,
         unit_class: template.unit_class,
+        trainer_class: template.trainer_class,
         faction: template.faction,
         npc_flags: template.npc_flags,
         display_id: template.display_id,
@@ -603,6 +606,7 @@ mod tests {
             script_name: "npc_loaded_grid_test".to_string(),
             required_expansion: 2,
             unit_class: 1,
+            trainer_class: 0,
             faction: 35,
             npc_flags: 0x1_0000_0040,
             display_id: 9001,
@@ -775,6 +779,7 @@ mod tests {
                 unit_flags3: wow_constants::UnitFlags3::AI_OBSTACLE.bits(),
                 creature_type: 0,
                 family: 0,
+                trainer_class: 4,
                 unit_class: 1,
                 vehicle_id,
                 movement_type: 1,
@@ -910,6 +915,7 @@ mod tests {
         assert_eq!(template.ai_name, "AggressorAI");
         assert_eq!(template.script_name, "npc_db_creature");
         assert_eq!(template.faction, 35);
+        assert_eq!(template.trainer_class, 4);
         assert_eq!(template.npc_flags, 0x2_0000_0080);
         assert_eq!(template.spells[0..2], [10, 20]);
         assert_eq!(

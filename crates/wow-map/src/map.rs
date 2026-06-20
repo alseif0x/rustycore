@@ -12662,6 +12662,14 @@ where
         record.pet()
     }
 
+    pub fn get_typed_pet_mut(&mut self, guid: ObjectGuid) -> Option<&mut Pet> {
+        let record = self.map_objects.get_mut(&guid)?;
+        if record.kind() != AccessorObjectKind::Pet {
+            return None;
+        }
+        record.pet_mut()
+    }
+
     pub fn get_game_object(&self, guid: ObjectGuid) -> Option<&WorldObject> {
         self.map_object_by_kind(
             guid,

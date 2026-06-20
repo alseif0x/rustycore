@@ -20,12 +20,14 @@ pub const DEFAULT_COLLISION_HEIGHT_LIKE_CPP: f32 = 2.03128;
 pub struct CreatureDisplayInfoEntry {
     pub id: u32,
     pub model_id: u16,
+    pub extended_display_info_id: i32,
     pub creature_model_scale: f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CreatureModelDataEntry {
     pub id: u32,
+    pub flags: u32,
     pub collision_height: f32,
     pub model_scale: f32,
     pub mount_height: f32,
@@ -45,6 +47,7 @@ pub struct CreatureModelDataStore {
 const CREATURE_MODEL_DATA_COLLISION_HEIGHT_DB2_FIELD: usize = 14;
 const CREATURE_MODEL_DATA_MODEL_SCALE_DB2_FIELD: usize = 19;
 const CREATURE_MODEL_DATA_MOUNT_HEIGHT_DB2_FIELD: usize = 23;
+const CREATURE_MODEL_DATA_FLAGS_DB2_FIELD: usize = 1;
 
 impl CreatureDisplayInfoStore {
     pub fn from_entries(entries: impl IntoIterator<Item = CreatureDisplayInfoEntry>) -> Self {
@@ -66,6 +69,7 @@ impl CreatureDisplayInfoStore {
             entries.push(CreatureDisplayInfoEntry {
                 id,
                 model_id: reader.get_field_u16(idx, 1),
+                extended_display_info_id: reader.get_field_i32(idx, 7),
                 creature_model_scale: f32::from_bits(reader.get_field_u32(idx, 4)),
             });
         }
@@ -104,6 +108,7 @@ impl CreatureDisplayInfoStore {
             let entry = CreatureDisplayInfoEntry {
                 id: result.read(0),
                 model_id: result.read(1),
+                extended_display_info_id: result.read(7),
                 creature_model_scale: result.read(4),
             };
             self.entries.insert(entry.id, entry);
@@ -148,6 +153,7 @@ impl CreatureModelDataStore {
         for (id, idx) in reader.iter_records() {
             entries.push(CreatureModelDataEntry {
                 id,
+                flags: reader.get_field_u32(idx, CREATURE_MODEL_DATA_FLAGS_DB2_FIELD),
                 collision_height: f32::from_bits(
                     reader.get_field_u32(idx, CREATURE_MODEL_DATA_COLLISION_HEIGHT_DB2_FIELD),
                 ),
@@ -193,6 +199,7 @@ impl CreatureModelDataStore {
         loop {
             let entry = CreatureModelDataEntry {
                 id: result.read(0),
+                flags: result.read(7),
                 collision_height: result.read(20),
                 model_scale: result.read(25),
                 mount_height: result.read(29),
@@ -269,23 +276,27 @@ mod tests {
             CreatureDisplayInfoEntry {
                 id: 10,
                 model_id: 100,
+                extended_display_info_id: 0,
                 creature_model_scale: 1.2,
             },
             CreatureDisplayInfoEntry {
                 id: 20,
                 model_id: 200,
+                extended_display_info_id: 0,
                 creature_model_scale: 1.5,
             },
         ]);
         let models = CreatureModelDataStore::from_entries([
             CreatureModelDataEntry {
                 id: 100,
+                flags: 0,
                 collision_height: 2.0,
                 model_scale: 1.1,
                 mount_height: 0.0,
             },
             CreatureModelDataEntry {
                 id: 200,
+                flags: 0,
                 collision_height: 3.0,
                 model_scale: 1.0,
                 mount_height: 4.0,
@@ -302,10 +313,12 @@ mod tests {
         let displays = CreatureDisplayInfoStore::from_entries([CreatureDisplayInfoEntry {
             id: 10,
             model_id: 100,
+            extended_display_info_id: 0,
             creature_model_scale: 1.2,
         }]);
         let models = CreatureModelDataStore::from_entries([CreatureModelDataEntry {
             id: 100,
+            flags: 0,
             collision_height: 0.0,
             model_scale: 1.1,
             mount_height: 0.0,

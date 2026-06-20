@@ -10,9 +10,9 @@
 //!   2. Sanitize movement flags like `Player::ValidateMovementInfo`
 //!   3. Validate: GUID must match the player, position must be finite
 //!   4. Update server-side player position
-//!   5. Broadcast SMSG_MOVE_UPDATE to nearby sessions (TODO: multi-session map)
+//!   5. Broadcast SMSG_MOVE_UPDATE to nearby visible sessions
 //!
-//! Reference: C# Game/Handlers/MovementHandler.cs
+//! Reference: C++ `WorldSession::HandleMovementOpcode`.
 
 use tracing::{trace, warn};
 
@@ -88,7 +88,7 @@ impl WorldSession {
     /// and queues a broadcast to nearby players.
     pub async fn handle_movement(&mut self, mut pkt: wow_packet::WorldPacket) {
         let opcode = pkt.client_opcode();
-        let mut info = match ClientPlayerMovement::read(&mut pkt) {
+        let info = match ClientPlayerMovement::read(&mut pkt) {
             Ok(m) => m,
             Err(e) => {
                 warn!(
@@ -99,6 +99,14 @@ impl WorldSession {
             }
         };
 
+        self.handle_movement_info_like_cpp(opcode, info.info).await;
+    }
+
+    pub(crate) async fn handle_movement_info_like_cpp(
+        &mut self,
+        opcode: Option<ClientOpcodes>,
+        mut info: MovementInfo,
+    ) {
         let Some(player_guid) = self.player_guid() else {
             warn!(
                 account = self.account_id,
@@ -109,7 +117,7 @@ impl WorldSession {
 
         // C++ calls Player::ValidateMovementInfo before rejecting mismatched
         // GUIDs or invalid positions, then broadcasts only the sanitized state.
-        let movement_validation = self.sanitize_movement_info_represented_like_cpp(&mut info.info);
+        let movement_validation = self.sanitize_movement_info_represented_like_cpp(&mut info);
         if !movement_validation.removed_flags.is_empty() {
             for rule in movement_validation
                 .stripped_rules
@@ -131,7 +139,7 @@ impl WorldSession {
             );
         }
 
-        if info.info.guid != player_guid {
+        if info.guid != player_guid {
             self.trace_anticheat_violation_like_cpp(
                 "HandleMovementOpcode.GuidMismatch",
                 opcode,
@@ -139,12 +147,12 @@ impl WorldSession {
             );
             warn!(
                 account = self.account_id,
-                "Movement GUID mismatch: expected {:?}, got {:?}", player_guid, info.info.guid
+                "Movement GUID mismatch: expected {:?}, got {:?}", player_guid, info.guid
             );
             return;
         }
 
-        let pos = info.info.position;
+        let pos = info.position;
         if !pos.is_valid_map_coord_like_cpp() {
             self.trace_anticheat_violation_like_cpp(
                 "HandleMovementOpcode.InvalidPosition",
@@ -158,7 +166,7 @@ impl WorldSession {
             return;
         }
 
-        if let Some(transport) = &info.info.transport {
+        if let Some(transport) = &info.transport {
             if self.player_position_like_cpp().is_some_and(|current| {
                 pos.distance_2d(&current) > wow_core::Position::GRID_SIZE_LIKE_CPP
             }) {
@@ -193,13 +201,20 @@ impl WorldSession {
             }
         }
 
-        self.apply_movement_side_effects_like_cpp(opcode, &info.info);
-        info.info.time = self.adjust_client_movement_time_like_cpp(info.info.time);
-        self.set_player_movement_time_like_cpp(info.info.time);
-        self.set_player_movement_flags_like_cpp(info.info.flags);
+        self.apply_movement_side_effects_like_cpp(opcode, &info);
+        info.time = self.adjust_client_movement_time_like_cpp(info.time);
+        self.set_player_movement_time_like_cpp(info.time);
+        self.set_player_movement_flags_like_cpp(info.flags);
+        self.set_player_movement_jump_like_cpp(info.jump.clone());
 
         // Update server-side player position.
-        self.set_player_position_like_cpp(info.info.position);
+        self.set_player_position_like_cpp(info.position);
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().world_mut().relocate(info.position);
+        });
+        let (_, area_id) = self.player_zone_area_like_cpp();
+        self.check_area_explore_and_outdoor_represented_like_cpp(area_id)
+            .await;
         // Keep the broadcast registry in sync so chat range checks are accurate.
         self.update_registry_position();
         trace!(
@@ -220,24 +235,52 @@ impl WorldSession {
         // TODO: aggro proximity check re-enable once combat system is stable
         // self.check_creature_aggro().await;
 
-        // Broadcast movement to other players on the same map.
+        // C++ `mover->SendMessageToSet(moveUpdate.Write(), _player)` uses
+        // the mover visibility range and skips the mover's own session.
+        // Candidate routing is cheap here; the receiver session applies the
+        // final HaveAtClient gate through `SendIfVisibleLikeCpp`.
         if let (Some(guid), Some(registry)) = (self.player_guid(), self.player_registry()) {
-            use wow_core::ObjectGuid;
-            use wow_network::PlayerBroadcastInfo;
+            let move_update = MoveUpdate { info };
+            let packet_bytes = move_update.to_bytes();
+            let map_id = self.player_map_id_like_cpp();
+            let instance_id = self
+                .current_canonical_player_map_key_like_cpp()
+                .map(|key| key.instance_id)
+                .unwrap_or(0);
+            let range_sq =
+                crate::map_manager::VISIBILITY_RADIUS * crate::map_manager::VISIBILITY_RADIUS;
 
-            let move_update = MoveUpdate { info: info.info };
-            let bytes = move_update.to_bytes();
-            let current_map_id = self.player_map_id_like_cpp();
+            let candidates: Vec<_> = registry
+                .iter()
+                .filter_map(|entry| {
+                    let (other_guid, other_info) = entry.pair();
+                    if *other_guid == guid {
+                        return None;
+                    }
+                    if !other_info.is_in_world
+                        || other_info.map_id != map_id
+                        || other_info.instance_id != instance_id
+                    {
+                        return None;
+                    }
+                    let dx = other_info.position.x - pos.x;
+                    let dy = other_info.position.y - pos.y;
+                    if dx * dx + dy * dy > range_sq {
+                        return None;
+                    }
+                    Some(other_info.command_tx.clone())
+                })
+                .collect();
 
-            for entry in registry.iter() {
-                let (other_guid, other_info): (&ObjectGuid, &PlayerBroadcastInfo) = entry.pair();
-                if *other_guid == guid {
-                    continue;
-                }
-                if other_info.map_id != current_map_id {
-                    continue;
-                }
-                let _ = other_info.send_tx.send(bytes.clone());
+            for command_tx in candidates {
+                let _ = command_tx.try_send(wow_network::SessionCommand::SendIfVisibleLikeCpp(
+                    wow_network::player_registry::SendIfVisibleLikeCppCommand {
+                        source_guid: guid,
+                        map_id,
+                        instance_id,
+                        packet_bytes: packet_bytes.clone(),
+                    },
+                ));
             }
         }
     }
@@ -527,12 +570,13 @@ mod tests {
     use crate::session::{
         AuraApplication, MoveSplineDoneTaxiActionLikeCpp, MoveTeleportAckActionLikeCpp,
         MovementSpeedAckActionLikeCpp, RepresentedAuraEffectLikeCpp,
-        RepresentedTaxiFlightNodeLikeCpp, UnitMoveTypeLikeCpp,
+        RepresentedTaxiFlightNodeLikeCpp, SessionPlayerController, UnitMoveTypeLikeCpp,
     };
+    use std::sync::{Arc, Mutex};
     use wow_constants::ServerOpcodes;
     use wow_constants::movement::MovementFlag;
     use wow_constants::unit::UnitFlags;
-    use wow_core::ObjectGuid;
+    use wow_core::{ObjectGuid, Position};
 
     fn make_session() -> WorldSession {
         make_session_with_send_rx().0
@@ -554,6 +598,24 @@ mod tests {
             send_tx,
         );
         (session, send_rx)
+    }
+
+    fn movement_packet(opcode: ClientOpcodes, movement: &MovementInfo) -> wow_packet::WorldPacket {
+        let mut inbound = wow_packet::WorldPacket::new_empty();
+        inbound.write_uint16(opcode as u16);
+        movement.write(&mut inbound);
+        inbound.read_uint16().expect("movement opcode");
+        inbound
+    }
+
+    fn drain_server_opcodes(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<ServerOpcodes> {
+        let mut opcodes = Vec::new();
+        while let Ok(bytes) = send_rx.try_recv() {
+            if let Some(opcode) = wow_packet::WorldPacket::from_bytes(&bytes).server_opcode() {
+                opcodes.push(opcode);
+            }
+        }
+        opcodes
     }
 
     fn visible_aura(slot: u8, flags: u32, flags2: u32) -> AuraApplication {
@@ -635,6 +697,39 @@ mod tests {
             UnitStandStateType::Stand
         );
         assert_eq!(session.temporary_pet_unsummon_requests_like_cpp(), 1);
+    }
+
+    #[tokio::test]
+    async fn accepted_movement_updates_represented_jump_info_like_cpp() {
+        let mut session = make_session();
+        let guid = ObjectGuid::create_player(1, 44);
+        session.set_player_guid(Some(guid));
+        session.set_player_position_like_cpp(wow_core::Position::new(1.0, 2.0, 3.0, 0.0));
+
+        let mut info = MovementInfo {
+            guid,
+            time: 2_000,
+            position: wow_core::Position::new(10.0, 20.0, 30.0, 1.0),
+            ..MovementInfo::default()
+        };
+        info.jump.fall_time = 1_234;
+        info.jump.z_speed = 6.25;
+        info.jump.has_direction = true;
+        info.jump.sin_angle = 0.1;
+        info.jump.cos_angle = 0.9;
+        info.jump.xy_speed = 7.5;
+
+        session
+            .handle_movement_info_like_cpp(Some(ClientOpcodes::MoveJump), info)
+            .await;
+
+        let jump = session.player_movement_jump_like_cpp();
+        assert_eq!(jump.fall_time, 1_234);
+        assert_eq!(jump.z_speed, 6.25);
+        assert!(jump.has_direction);
+        assert_eq!(jump.sin_angle, 0.1);
+        assert_eq!(jump.cos_angle, 0.9);
+        assert_eq!(jump.xy_speed, 7.5);
     }
 
     #[test]
@@ -1390,11 +1485,19 @@ mod tests {
         let registry = std::sync::Arc::new(wow_network::PlayerRegistry::default());
         let (self_tx, self_rx) = flume::bounded(1);
         let (other_tx, other_rx) = flume::bounded(1);
+        let (self_command_tx, self_command_rx) = flume::bounded(1);
+        let (other_command_tx, other_command_rx) = flume::bounded(1);
 
         session.set_player_guid(Some(guid));
         session.set_player_registry(std::sync::Arc::clone(&registry));
-        registry.insert(guid, broadcast_info(guid, self_tx));
-        registry.insert(other_guid, broadcast_info(other_guid, other_tx));
+        registry.insert(
+            guid,
+            broadcast_info_with_command(guid, self_tx, self_command_tx),
+        );
+        registry.insert(
+            other_guid,
+            broadcast_info_with_command(other_guid, other_tx, other_command_tx),
+        );
 
         let movement = MovementInfo {
             guid,
@@ -1412,7 +1515,18 @@ mod tests {
         session.handle_movement(inbound).await;
 
         assert!(self_rx.try_recv().is_err());
-        let bytes = other_rx.try_recv().expect("movement broadcast");
+        assert!(other_rx.try_recv().is_err());
+        assert!(self_command_rx.try_recv().is_err());
+        let command = other_command_rx
+            .try_recv()
+            .expect("visible movement command");
+        let wow_network::SessionCommand::SendIfVisibleLikeCpp(command) = command else {
+            panic!("expected SendIfVisibleLikeCpp movement command");
+        };
+        assert_eq!(command.source_guid, guid);
+        assert_eq!(command.map_id, 0);
+        assert_eq!(command.instance_id, 0);
+        let bytes = command.packet_bytes;
         let mut packet = wow_packet::WorldPacket::from_bytes(&bytes);
         assert_eq!(
             packet.server_opcode(),
@@ -1424,6 +1538,264 @@ mod tests {
         assert_eq!(
             session.player_movement_flags_like_cpp(),
             MovementFlag::empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn handle_movement_does_not_broadcast_outside_visibility_range_like_cpp() {
+        let mut session = make_session();
+        let guid = ObjectGuid::create_player(1, 42);
+        let far_guid = ObjectGuid::create_player(1, 44);
+        let registry = std::sync::Arc::new(wow_network::PlayerRegistry::default());
+        let (self_tx, _self_rx) = flume::bounded(1);
+        let (far_tx, far_rx) = flume::bounded(1);
+        let (self_command_tx, self_command_rx) = flume::bounded(1);
+        let (far_command_tx, far_command_rx) = flume::bounded(1);
+
+        session.set_player_guid(Some(guid));
+        session.set_player_registry(std::sync::Arc::clone(&registry));
+        registry.insert(
+            guid,
+            broadcast_info_with_command(guid, self_tx, self_command_tx),
+        );
+        let mut far_info = broadcast_info_with_command(far_guid, far_tx, far_command_tx);
+        far_info.position =
+            wow_core::Position::new(crate::map_manager::VISIBILITY_RADIUS + 10.0, 0.0, 0.0, 0.0);
+        registry.insert(far_guid, far_info);
+
+        let movement = MovementInfo {
+            guid,
+            flags: MovementFlag::FORWARD,
+            position: wow_core::Position::ZERO,
+            ..MovementInfo::default()
+        };
+        let mut inbound = wow_packet::WorldPacket::new_empty();
+        inbound.write_uint16(ClientOpcodes::MoveHeartbeat as u16);
+        movement.write(&mut inbound);
+        inbound.read_uint16().expect("movement opcode");
+        session.handle_movement(inbound).await;
+
+        assert!(self_command_rx.try_recv().is_err());
+        assert!(far_command_rx.try_recv().is_err());
+        assert!(far_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn handle_movement_syncs_canonical_player_position_for_logout_save_like_cpp() {
+        let mut session = make_session();
+        let canonical = Arc::new(Mutex::new(wow_map::MapManager::default()));
+        let guid = ObjectGuid::create_player(1, 1042);
+        let login_position = Position::new(1.0, 2.0, 3.0, 0.25);
+        let moved_position = Position::new(10.0, 20.0, 30.0, 1.0);
+
+        canonical.lock().unwrap().create_world_map(571, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            guid,
+            "MovementSaver".to_string(),
+            login_position,
+            571,
+            1,
+            3,
+            10,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+
+        let movement = MovementInfo {
+            guid,
+            flags: MovementFlag::FORWARD,
+            time: 12_345,
+            position: moved_position,
+            ..MovementInfo::default()
+        };
+        let mut inbound = wow_packet::WorldPacket::new_empty();
+        inbound.write_uint16(ClientOpcodes::MoveHeartbeat as u16);
+        movement.write(&mut inbound);
+        inbound.read_uint16().expect("movement opcode");
+        session.handle_movement(inbound).await;
+
+        let canonical_position = canonical
+            .lock()
+            .unwrap()
+            .find_map(571, 0)
+            .and_then(|map| map.map().get_typed_player(guid))
+            .map(|player| player.unit().world().position())
+            .expect("canonical player");
+        assert_eq!(canonical_position, moved_position);
+        let canonical_movement_flags = canonical
+            .lock()
+            .unwrap()
+            .find_map(571, 0)
+            .and_then(|map| map.map().get_typed_player(guid))
+            .map(|player| player.unit().movement_flags_like_cpp())
+            .expect("canonical player movement flags");
+        assert_eq!(
+            canonical_movement_flags,
+            MovementFlag::FORWARD,
+            "C++ stores accepted player MovementInfo flags on Unit::m_movementInfo"
+        );
+        let canonical_movement_time = canonical
+            .lock()
+            .unwrap()
+            .find_map(571, 0)
+            .and_then(|map| map.map().get_typed_player(guid))
+            .map(|player| player.unit().movement_time_like_cpp())
+            .expect("canonical player movement time");
+        assert_eq!(
+            canonical_movement_time,
+            session.player_movement_time_like_cpp(),
+            "C++ stores accepted player MovementInfo time on Unit::m_movementInfo"
+        );
+        assert_eq!(
+            session
+                .sync_session_from_save_to_db_snapshot_like_cpp()
+                .unwrap()
+                .position,
+            moved_position
+        );
+    }
+
+    #[tokio::test]
+    async fn handle_movement_discovers_current_area_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_rx();
+        let canonical = Arc::new(Mutex::new(wow_map::MapManager::default()));
+        let guid = ObjectGuid::create_player(1, 1094);
+        let login_position = Position::new(1.0, 2.0, 3.0, 0.25);
+        let moved_position = Position::new(11.0, 22.0, 33.0, 1.0);
+
+        canonical.lock().unwrap().create_world_map(571, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
+            wow_data::AreaTableEntry {
+                id: 9_104,
+                continent_id: 571,
+                parent_area_id: 0,
+                area_bit: 65,
+                exploration_level: 12,
+                mount_flags: 0,
+                flags: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            guid,
+            "MovementExplorer".to_string(),
+            login_position,
+            571,
+            1,
+            3,
+            10,
+            0,
+        ));
+        session.set_player_zone_area_like_cpp(9_104, 9_104);
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+
+        let movement = MovementInfo {
+            guid,
+            flags: MovementFlag::FORWARD,
+            position: moved_position,
+            ..MovementInfo::default()
+        };
+        session
+            .handle_movement(movement_packet(ClientOpcodes::MoveHeartbeat, &movement))
+            .await;
+
+        assert_eq!(
+            session
+                .represented_explored_zones_db_string_like_cpp()
+                .split_whitespace()
+                .take(4)
+                .collect::<Vec<_>>(),
+            vec!["0", "0", "2", "0"]
+        );
+        assert_eq!(
+            session.represented_reveal_world_map_overlay_criteria_like_cpp(),
+            &[9_104]
+        );
+        assert!(drain_server_opcodes(&send_rx).contains(&ServerOpcodes::UpdateObject));
+
+        session
+            .handle_movement(movement_packet(ClientOpcodes::MoveHeartbeat, &movement))
+            .await;
+        assert_eq!(
+            session.represented_reveal_world_map_overlay_criteria_like_cpp(),
+            &[9_104],
+            "C++ discovery criteria only fires when the explored-zone bit changes"
+        );
+        assert!(!drain_server_opcodes(&send_rx).contains(&ServerOpcodes::UpdateObject));
+    }
+
+    #[tokio::test]
+    async fn logout_save_snapshot_prefers_latest_session_position_like_cpp() {
+        let mut session = make_session();
+        let canonical = Arc::new(Mutex::new(wow_map::MapManager::default()));
+        let guid = ObjectGuid::create_player(1, 1043);
+        let login_position = Position::new(1.0, 2.0, 3.0, 0.25);
+        let latest_session_position = Position::new(4.0, 5.0, 6.0, 0.5);
+        let stale_canonical_position = Position::new(10.0, 20.0, 30.0, 1.0);
+
+        canonical.lock().unwrap().create_world_map(571, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            guid,
+            "LogoutSaver".to_string(),
+            login_position,
+            571,
+            1,
+            3,
+            10,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        session.set_player_position_like_cpp(latest_session_position);
+        session.mutate_canonical_player_like_cpp(|player| {
+            player
+                .unit_mut()
+                .world_mut()
+                .relocate(stale_canonical_position);
+        });
+
+        let snapshot = session
+            .sync_session_from_save_to_db_snapshot_like_cpp()
+            .expect("save snapshot");
+
+        assert_eq!(snapshot.position, latest_session_position);
+        assert_eq!(
+            session.player_position_like_cpp(),
+            Some(latest_session_position)
         );
     }
 
@@ -1579,6 +1951,14 @@ mod tests {
         send_tx: flume::Sender<Vec<u8>>,
     ) -> wow_network::PlayerBroadcastInfo {
         let (command_tx, _command_rx) = flume::bounded(1);
+        broadcast_info_with_command(guid, send_tx, command_tx)
+    }
+
+    fn broadcast_info_with_command(
+        guid: ObjectGuid,
+        send_tx: flume::Sender<Vec<u8>>,
+        command_tx: flume::Sender<wow_network::SessionCommand>,
+    ) -> wow_network::PlayerBroadcastInfo {
         wow_network::PlayerBroadcastInfo {
             map_id: 0,
             instance_id: 0,
@@ -1660,12 +2040,21 @@ mod tests {
         let registry = std::sync::Arc::new(wow_network::PlayerRegistry::default());
         let (self_tx, self_rx) = flume::bounded(1);
         let (other_tx, other_rx) = flume::bounded(1);
+        let (self_command_tx, self_command_rx) = flume::bounded(1);
+        let (other_command_tx, other_command_rx) = flume::bounded(1);
 
         session.set_player_guid(Some(guid));
         session.set_player_registry(std::sync::Arc::clone(&registry));
+        session.set_player_position_like_cpp(wow_core::Position::ZERO);
         session.set_player_movement_time_like_cpp(100);
-        registry.insert(guid, broadcast_info(guid, self_tx));
-        registry.insert(other_guid, broadcast_info(other_guid, other_tx));
+        registry.insert(
+            guid,
+            broadcast_info_with_command(guid, self_tx, self_command_tx),
+        );
+        registry.insert(
+            other_guid,
+            broadcast_info_with_command(other_guid, other_tx, other_command_tx),
+        );
 
         session
             .handle_move_time_skipped(wow_packet::packets::movement::MoveTimeSkipped {
@@ -1675,7 +2064,16 @@ mod tests {
             .await;
 
         assert!(self_rx.try_recv().is_err());
-        let bytes = other_rx.try_recv().unwrap();
+        assert!(other_rx.try_recv().is_err());
+        assert!(self_command_rx.try_recv().is_err());
+        let command = other_command_rx
+            .try_recv()
+            .expect("visible movement-set command");
+        let wow_network::SessionCommand::SendIfVisibleLikeCpp(command) = command else {
+            panic!("expected SendIfVisibleLikeCpp move-skip-time command");
+        };
+        assert_eq!(command.source_guid, guid);
+        let bytes = command.packet_bytes;
         let pkt = wow_packet::WorldPacket::from_bytes(&bytes);
         assert_eq!(
             pkt.server_opcode(),

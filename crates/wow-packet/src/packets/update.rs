@@ -1328,6 +1328,52 @@ pub struct PlayerStatChanges {
     pub mod_spell_power_pct: f32,      // bit 63 (1.0)
 }
 
+impl Default for PlayerStatChanges {
+    fn default() -> Self {
+        Self {
+            health: 0,
+            max_health: 0,
+            min_damage: 0.0,
+            max_damage: 0.0,
+            base_mana: 0,
+            base_health: 0,
+            attack_power: 0,
+            ranged_attack_power: 0,
+            min_ranged_damage: 0.0,
+            max_ranged_damage: 0.0,
+            power0: 0,
+            max_power0: 0,
+            stats: [0; 5],
+            stat_pos_buff: [0; 5],
+            armor: 0,
+            combat_ratings: [0; 32],
+            spell_power: 0,
+            block_pct: 0.0,
+            dodge_pct: 0.0,
+            parry_pct: 0.0,
+            crit_pct: 0.0,
+            ranged_crit_pct: 0.0,
+            spell_crit_pct: [0.0; 7],
+            mana_regen: 0.0,
+            mana_regen_combat: 0.0,
+            mana_regen_mp5: 0.0,
+            mainhand_expertise: 0.0,
+            offhand_expertise: 0.0,
+            ranged_expertise: 0.0,
+            combat_rating_expertise: 0.0,
+            dodge_from_attr: 0.0,
+            parry_from_attr: 0.0,
+            offhand_crit_pct: 0.0,
+            shield_block: 0,
+            shield_block_crit_pct: 0.0,
+            mod_healing_pct: 1.0,
+            mod_healing_done_pct: 1.0,
+            mod_periodic_healing_pct: 1.0,
+            mod_spell_power_pct: 1.0,
+        }
+    }
+}
+
 // ── PlayerCombatStats ──────────────────────────────────────────────
 
 /// All combat-related stats computed from base stats + gear.
@@ -3613,13 +3659,9 @@ fn write_movement_update(buf: &mut WorldPacket, guid: &ObjectGuid, mv: &Movement
     // MoveIndex
     buf.write_uint32(0);
 
-    // 9 conditional sub-bits, flushed to 2 bytes, before the 9 speeds.
-    // Empirically verified against the real 3.4.3.54261 client: it reads 9
-    // movement sub-bits here (the trailing HasAdvFlying + HasDriveStatus). With
-    // only 7 (or 8), flush_bits emits 1 byte instead of 2, so the speed block
-    // lands 1 byte early and the client reads garbage RunBack/FlightBack/TurnRate
-    // -> physics out-of-bounds write -> ERROR#132 at world entry. With 9, the
-    // client decodes Walk=2.5/Run=7.0/RunBack=4.5/Swim=4.722/... correctly.
+    // C++ 3.4.3 `Object::BuildMovementUpdate` writes eight conditional
+    // sub-bits here, ending at HasAdvFlying. A previous Rust-only ninth
+    // HasDriveStatus bit crashed the 54261 client while parsing player CREATE.
     buf.write_bit(false); // HasStandingOnGameObjectGUID
     buf.write_bit(false); // HasTransport
     buf.write_bit(false); // HasFall
@@ -3628,10 +3670,9 @@ fn write_movement_update(buf: &mut WorldPacket, guid: &ObjectGuid, mv: &Movement
     buf.write_bit(false); // RemoteTimeValid
     buf.write_bit(false); // HasInertia
     buf.write_bit(false); // HasAdvFlying
-    buf.write_bit(false); // HasDriveStatus
     buf.flush_bits();
 
-    // No transport, standing, inertia, advFlying, fall, drive blocks (all bits false)
+    // No transport, standing, inertia, advFlying, or fall blocks.
 
     // 9 movement speeds
     buf.write_float(mv.walk_speed);
@@ -7637,20 +7678,8 @@ impl UpdateObject {
 mod tests {
     use super::*;
 
-    /// Pins the movement create-block layout that the real 3.4.3.54261 client
-    /// requires: 9 conditional sub-bits (ending HasAdvFlying + HasDriveStatus)
-    /// flushed to exactly 2 bytes before the 9 movement speeds — matching the
-    /// current TrinityCore wotlk_classic `Object.cpp` create-block (9 `WriteBit`
-    /// then `FlushBits`, with `HasDriveStatus` the 9th bit).
-    ///
-    /// 9 bits flush to 2 bytes; 7 or 8 bits flush to 1, which shifts the speed
-    /// block one byte early. The 54261 client then reads garbage
-    /// RunBack/FlightBack/TurnRate and crashes with ERROR#132 (physics
-    /// out-of-bounds write) at world entry. A regression to 7/8 sub-bits moves
-    /// the speeds off the +2-byte boundary and fails this test.
     #[test]
-    fn movement_create_block_flushes_nine_subbits_to_two_bytes_before_speeds_like_cpp() {
-        // Unique per-speed values so the decoded order is unambiguous.
+    fn movement_create_block_flushes_cpp_eight_subbits_before_speeds_for_54261() {
         let mv = MovementBlock {
             position: Position::ZERO,
             walk_speed: 1.0,
@@ -7668,41 +7697,34 @@ mod tests {
         write_movement_update(&mut buf, &ObjectGuid::EMPTY, &mv);
         let bytes = buf.data();
 
-        // Fixed header before the conditional sub-bits, with an EMPTY packed guid:
-        //   packed_guid(EMPTY) = 2  (low_mask=0, high_mask=0, no value bytes)
-        // + MovementFlags / Flags2 / ExtraFlags2 (3 * u32) = 12
-        // + MoveTime (u32)                                 = 4
-        // + Position x / y / z / o (4 * f32)               = 16
-        // + Pitch (f32)                                    = 4
-        // + StepUpStartElevation (f32)                     = 4
-        // + RemoveForcesIDs.Count (u32)                    = 4
-        // + MoveIndex (u32)                                = 4
-        const HEADER_BEFORE_SUBBITS: usize = 2 + 12 + 4 + 16 + 4 + 4 + 4 + 4; // 50
-        const SUBBIT_BYTES: usize = 2; // 9 sub-bits -> flush_bits -> 2 bytes
-        const SPEEDS_OFFSET: usize = HEADER_BEFORE_SUBBITS + SUBBIT_BYTES; // 52
+        // EMPTY packed GUID = 2 bytes, then movement flags/flags2/extra2,
+        // time, position, pitch, step elevation, remove-forces count, move index.
+        const HEADER_BEFORE_SUBBITS: usize = 2 + 12 + 4 + 16 + 4 + 4 + 4 + 4;
+        const SPEEDS_OFFSET: usize = HEADER_BEFORE_SUBBITS + 1;
+
+        assert_eq!(
+            &bytes[HEADER_BEFORE_SUBBITS..SPEEDS_OFFSET],
+            &[0x00],
+            "C++ 3.4.3 movement create writes eight false sub-bits before speeds"
+        );
 
         let read_f32 = |off: usize| f32::from_le_bytes(bytes[off..off + 4].try_into().unwrap());
-
-        // The 9 speeds must decode in order at the +2-byte boundary.
-        let speeds = [1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0];
-        for (i, want) in speeds.iter().enumerate() {
+        for (index, expected) in [1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
+            .into_iter()
+            .enumerate()
+        {
             assert_eq!(
-                read_f32(SPEEDS_OFFSET + i * 4),
-                *want,
-                "speed[{i}] misaligned: the flushed sub-bit region is not exactly 2 bytes"
+                read_f32(SPEEDS_OFFSET + index * 4),
+                expected,
+                "movement speed {index} is not aligned after the 54261 sub-bit block"
             );
         }
 
-        // Directly reject the 7/8-bit failure mode: if only one byte of sub-bits
-        // were flushed, walk_speed would decode one byte earlier.
         assert_ne!(
-            read_f32(HEADER_BEFORE_SUBBITS + 1),
+            read_f32(HEADER_BEFORE_SUBBITS + 2),
             1.0,
-            "walk_speed decodes at the 1-byte boundary -> only 7/8 sub-bits written -> 54261 crash"
+            "speed block shifted to the old Rust-only nine-sub-bit boundary"
         );
-
-        // All nine sub-bits are false here, so the flushed region is two zero bytes.
-        assert_eq!(&bytes[HEADER_BEFORE_SUBBITS..SPEEDS_OFFSET], &[0x00, 0x00]);
     }
 
     #[test]

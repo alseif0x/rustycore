@@ -35,6 +35,10 @@ pub struct ItemRecord {
     pub random_select: u16,
     /// C++ `ItemEntry::ItemRandomSuffixGroupID`.
     pub random_suffix_group_id: u16,
+    /// C++ `ItemEntry::ScalingStatDistributionID`.
+    pub scaling_stat_distribution_id: u16,
+    /// C++ `ItemEntry::ScalingStatValue`.
+    pub scaling_stat_value: i32,
 }
 
 /// In-memory store of all items loaded from Item.db2.
@@ -75,6 +79,8 @@ impl ItemStore {
                 sheathe_type: reader.get_field_u8(idx, 5),
                 random_select: reader.get_field_u16(idx, 6),
                 random_suffix_group_id: reader.get_field_u16(idx, 7),
+                scaling_stat_distribution_id: reader.get_field_u16(idx, 9),
+                scaling_stat_value: reader.get_field_i32(idx, 15),
             };
             items.insert(id, record);
         }
@@ -112,6 +118,20 @@ impl ItemStore {
         self.items
             .get(&entry_id)
             .map(|record| record.random_suffix_group_id)
+            .unwrap_or(0)
+    }
+
+    pub fn scaling_stat_distribution_id(&self, entry_id: u32) -> u16 {
+        self.items
+            .get(&entry_id)
+            .map(|record| record.scaling_stat_distribution_id)
+            .unwrap_or(0)
+    }
+
+    pub fn scaling_stat_value(&self, entry_id: u32) -> i32 {
+        self.items
+            .get(&entry_id)
+            .map(|record| record.scaling_stat_value)
             .unwrap_or(0)
     }
 
@@ -180,6 +200,8 @@ mod tests {
                         sheathe_type: 0,
                         random_select: 0,
                         random_suffix_group_id: 0,
+                        scaling_stat_distribution_id: 0,
+                        scaling_stat_value: 0,
                     },
                 ),
                 (
@@ -193,6 +215,8 @@ mod tests {
                         sheathe_type: 0,
                         random_select: 0,
                         random_suffix_group_id: 0,
+                        scaling_stat_distribution_id: 0,
+                        scaling_stat_value: 0,
                     },
                 ),
                 (
@@ -206,6 +230,8 @@ mod tests {
                         sheathe_type: 3,
                         random_select: 0,
                         random_suffix_group_id: 0,
+                        scaling_stat_distribution_id: 77,
+                        scaling_stat_value: 0x200,
                     },
                 ),
             ]),
@@ -214,5 +240,9 @@ mod tests {
         assert_eq!(store.inventory_type(1), None);
         assert_eq!(store.inventory_type(2), None);
         assert_eq!(store.inventory_type(3), Some(13));
+        assert_eq!(store.scaling_stat_distribution_id(3), 77);
+        assert_eq!(store.scaling_stat_value(3), 0x200);
+        assert_eq!(store.scaling_stat_distribution_id(4), 0);
+        assert_eq!(store.scaling_stat_value(4), 0);
     }
 }
