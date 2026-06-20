@@ -3659,7 +3659,9 @@ fn write_movement_update(buf: &mut WorldPacket, guid: &ObjectGuid, mv: &Movement
     // MoveIndex
     buf.write_uint32(0);
 
-    // 7 conditional bits
+    // 3.4.3.54261 CreateObject movement layout expects nine conditional
+    // sub-bits before speeds. The local legacy C++ tree stops at HasAdvFlying
+    // (8 bits), but 54261 clients parse the later Drive-status bit here.
     buf.write_bit(false); // HasStandingOnGameObjectGUID
     buf.write_bit(false); // HasTransport
     buf.write_bit(false); // HasFall
@@ -3667,9 +3669,11 @@ fn write_movement_update(buf: &mut WorldPacket, guid: &ObjectGuid, mv: &Movement
     buf.write_bit(false); // HeightChangeFailed
     buf.write_bit(false); // RemoteTimeValid
     buf.write_bit(false); // HasInertia
-    // Note: no FlushBits here — we continue writing after conditional blocks
+    buf.write_bit(false); // HasAdvFlying
+    buf.write_bit(false); // HasDriveStatus
+    buf.flush_bits();
 
-    // No transport, standing, inertia, advFlying, fall blocks (all bits false)
+    // No transport, standing, inertia, advFlying, fall, or drive blocks.
 
     // 9 movement speeds
     buf.write_float(mv.walk_speed);
@@ -7674,6 +7678,55 @@ impl UpdateObject {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn movement_create_block_flushes_nine_subbits_before_speeds_for_54261() {
+        let mv = MovementBlock {
+            position: Position::ZERO,
+            walk_speed: 1.0,
+            run_speed: 2.0,
+            run_back_speed: 3.0,
+            swim_speed: 4.0,
+            swim_back_speed: 5.0,
+            fly_speed: 6.0,
+            fly_back_speed: 7.0,
+            turn_rate: 8.0,
+            pitch_rate: 9.0,
+        };
+
+        let mut buf = WorldPacket::new_empty();
+        write_movement_update(&mut buf, &ObjectGuid::EMPTY, &mv);
+        let bytes = buf.data();
+
+        // EMPTY packed GUID = 2 bytes, then movement flags/flags2/extra2,
+        // time, position, pitch, step elevation, remove-forces count, move index.
+        const HEADER_BEFORE_SUBBITS: usize = 2 + 12 + 4 + 16 + 4 + 4 + 4 + 4;
+        const SPEEDS_OFFSET: usize = HEADER_BEFORE_SUBBITS + 2;
+
+        assert_eq!(
+            &bytes[HEADER_BEFORE_SUBBITS..SPEEDS_OFFSET],
+            &[0x00, 0x00],
+            "nine false movement sub-bits must flush to two bytes for 54261"
+        );
+
+        let read_f32 = |off: usize| f32::from_le_bytes(bytes[off..off + 4].try_into().unwrap());
+        for (index, expected) in [1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
+            .into_iter()
+            .enumerate()
+        {
+            assert_eq!(
+                read_f32(SPEEDS_OFFSET + index * 4),
+                expected,
+                "movement speed {index} is not aligned after the 54261 sub-bit block"
+            );
+        }
+
+        assert_ne!(
+            read_f32(HEADER_BEFORE_SUBBITS + 1),
+            1.0,
+            "speed block still starts at the old one-byte 7/8-bit boundary"
+        );
+    }
 
     #[test]
     fn gameobject_create_values_serializes_created_by_guid_like_cpp() {
