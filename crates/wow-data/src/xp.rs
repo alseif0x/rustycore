@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 
 use anyhow::Result;
 use tracing::info;
-use wow_database::{WorldDatabase, WorldStatements};
+use wow_database::{SqlResult, WorldDatabase, WorldStatements};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ExplorationBaseXpRowLikeCpp {
@@ -43,7 +43,9 @@ impl ExplorationBaseXpStoreLikeCpp {
             loop {
                 rows.push(ExplorationBaseXpRowLikeCpp {
                     level: result.read(0),
-                    base_xp: result.read(1),
+                    // C++ `ObjectMgr::LoadExplorationBaseXP` reads `basexp`
+                    // with `Field::GetInt32()` and assigns it to `uint32`.
+                    base_xp: read_db_u32_or_i32_like_cpp(&result, 1),
                 });
 
                 if !result.next_row() {
@@ -106,6 +108,17 @@ impl ExplorationBaseXpStoreLikeCpp {
 
         xp
     }
+}
+
+fn read_db_u32_or_i32_like_cpp(result: &SqlResult, column: usize) -> u32 {
+    if let Some(value) = result.try_read::<u32>(column) {
+        return value;
+    }
+
+    result
+        .try_read::<i32>(column)
+        .map(|value| value as u32)
+        .unwrap_or(0)
 }
 
 #[cfg(test)]

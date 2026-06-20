@@ -3024,7 +3024,10 @@ async fn main() -> Result<ExitCode> {
             let mut r = result;
             loop {
                 let lvl: u8 = r.try_read::<u8>(0).unwrap_or(0);
-                let xp: u32 = r.try_read::<u32>(1).unwrap_or(0);
+                let xp: u32 = r
+                    .try_read::<u32>(1)
+                    .or_else(|| r.try_read::<i32>(1).map(|value| value as u32))
+                    .unwrap_or(0);
                 if (lvl as usize) < table.len() {
                     table[lvl as usize] = xp;
                 }

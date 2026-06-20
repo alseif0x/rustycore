@@ -4977,14 +4977,14 @@ impl SpellEffectInfo {
     where
         F: FnMut(i32, i32) -> i32,
     {
-        let mut value = self.effect_base_points;
+        let mut value = f64::from(self.effect_base_points);
         match self.effect_die_sides {
             0 => {}
-            1 => value += 1,
-            die_sides if die_sides > 1 => value += roll_die(1, die_sides),
-            die_sides => value += roll_die(die_sides, 1),
+            1 => value += 1.0,
+            die_sides if die_sides > 1 => value += f64::from(roll_die(1, die_sides)),
+            die_sides => value += f64::from(roll_die(die_sides, 1)),
         }
-        value
+        value.round() as i32
     }
 
     pub fn calc_value_no_caster_like_cpp(&self) -> i32 {
@@ -6084,6 +6084,32 @@ mod tests {
                 -2
             }),
             8
+        );
+    }
+
+    #[test]
+    fn spell_effect_calc_value_no_caster_uses_cpp_double_accumulator() {
+        let overflowing_int_add = SpellEffectInfo {
+            effect_base_points: i32::MAX,
+            effect_die_sides: 1,
+            ..Default::default()
+        };
+        assert_eq!(
+            overflowing_int_add.calc_value_no_caster_with_die_roll_like_cpp(|_, _| unreachable!()),
+            i32::MAX
+        );
+
+        let underflowing_int_add = SpellEffectInfo {
+            effect_base_points: i32::MIN,
+            effect_die_sides: -1,
+            ..Default::default()
+        };
+        assert_eq!(
+            underflowing_int_add.calc_value_no_caster_with_die_roll_like_cpp(|min, max| {
+                assert_eq!((min, max), (-1, 1));
+                -1
+            }),
+            i32::MIN
         );
     }
 
