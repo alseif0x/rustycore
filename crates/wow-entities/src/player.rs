@@ -2556,8 +2556,8 @@ pub fn item_shield_block_bonus_action_like_cpp(
 pub fn item_weapon_damage_actions_like_cpp(
     slot: u8,
     inventory_type: InventoryType,
-    min_damage: u16,
-    max_damage: u16,
+    min_damage: f32,
+    max_damage: f32,
     item_delay: u16,
     apply: bool,
     is_in_feral_form: bool,
@@ -2576,12 +2576,8 @@ pub fn item_weapon_damage_actions_like_cpp(
     let mut actions = Vec::new();
     let mut changed_damage = false;
 
-    if min_damage > 0 {
-        let amount = if apply {
-            f32::from(min_damage)
-        } else {
-            BASE_MINDAMAGE
-        };
+    if min_damage > 0.0 {
+        let amount = if apply { min_damage } else { BASE_MINDAMAGE };
         actions.push(ApplyEnchantmentEffectAction::SetBaseWeaponDamage {
             attack_type,
             bound: WeaponDamageBoundLikeCpp::Min,
@@ -2590,12 +2586,8 @@ pub fn item_weapon_damage_actions_like_cpp(
         changed_damage = true;
     }
 
-    if max_damage > 0 {
-        let amount = if apply {
-            f32::from(max_damage)
-        } else {
-            BASE_MAXDAMAGE
-        };
+    if max_damage > 0.0 {
+        let amount = if apply { max_damage } else { BASE_MAXDAMAGE };
         actions.push(ApplyEnchantmentEffectAction::SetBaseWeaponDamage {
             attack_type,
             bound: WeaponDamageBoundLikeCpp::Max,
@@ -16030,8 +16022,8 @@ mod tests {
             item_weapon_damage_actions_like_cpp(
                 EQUIPMENT_SLOT_MAINHAND,
                 InventoryType::Weapon,
-                12,
-                18,
+                12.0,
+                18.0,
                 2600,
                 true,
                 false,
@@ -16064,8 +16056,8 @@ mod tests {
             item_weapon_damage_actions_like_cpp(
                 EQUIPMENT_SLOT_MAINHAND,
                 InventoryType::Weapon,
-                12,
-                18,
+                12.0,
+                18.0,
                 2600,
                 false,
                 false,
@@ -16101,8 +16093,8 @@ mod tests {
             item_weapon_damage_actions_like_cpp(
                 EQUIPMENT_SLOT_MAINHAND,
                 InventoryType::RangedRight,
-                20,
-                30,
+                20.0,
+                30.0,
                 1800,
                 true,
                 false,
@@ -16131,8 +16123,8 @@ mod tests {
             item_weapon_damage_actions_like_cpp(
                 EQUIPMENT_SLOT_OFFHAND,
                 InventoryType::WeaponOffhand,
-                9,
-                11,
+                9.0,
+                11.0,
                 0,
                 true,
                 false,
@@ -16158,8 +16150,8 @@ mod tests {
             item_weapon_damage_actions_like_cpp(
                 EQUIPMENT_SLOT_MAINHAND,
                 InventoryType::Weapon,
-                12,
-                18,
+                12.0,
+                18.0,
                 2600,
                 true,
                 false,
@@ -16173,8 +16165,8 @@ mod tests {
             item_weapon_damage_actions_like_cpp(
                 EQUIPMENT_SLOT_HEAD,
                 InventoryType::Weapon,
-                12,
-                18,
+                12.0,
+                18.0,
                 2600,
                 true,
                 false,

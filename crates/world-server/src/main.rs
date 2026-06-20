@@ -1711,10 +1711,23 @@ async fn main() -> Result<ExitCode> {
         wow_data::progression_rewards::CurvePointStore::load(&data_dir, &locale)
             .context("Failed to load CurvePoint.db2 for C++ curve evaluation")?,
     );
+    let scaling_stat_distribution_store = Arc::new(
+        wow_data::progression_rewards::ScalingStatDistributionStore::load(&data_dir, &locale)
+            .context(
+                "Failed to load ScalingStatDistribution.db2 — check DataDir and DBC.Locale config",
+            )?,
+    );
+    let scaling_stat_values_store = Arc::new(
+        wow_data::progression_rewards::ScalingStatValuesStore::load(&data_dir, &locale).context(
+            "Failed to load ScalingStatValues.db2 — check DataDir and DBC.Locale config",
+        )?,
+    );
     info!(
-        "Loaded {} curves and {} curve points from Curve.db2/CurvePoint.db2",
+        "Loaded {} curves, {} curve points, {} scaling-stat distributions, and {} scaling-stat values from DB2",
         curve_store.len(),
-        curve_point_store.len()
+        curve_point_store.len(),
+        scaling_stat_distribution_store.len(),
+        scaling_stat_values_store.len()
     );
     let area_trigger_template_outcome = wow_data::AreaTriggerTemplateStore::load_like_cpp(
         world_db.as_ref(),
@@ -4289,6 +4302,8 @@ async fn main() -> Result<ExitCode> {
         content_tuning_store: Some(Arc::clone(&content_tuning_store)),
         curve_store: Some(Arc::clone(&curve_store)),
         curve_point_store: Some(Arc::clone(&curve_point_store)),
+        scaling_stat_distribution_store: Some(Arc::clone(&scaling_stat_distribution_store)),
+        scaling_stat_values_store: Some(Arc::clone(&scaling_stat_values_store)),
         disable_mgr: Some(Arc::clone(&disable_mgr)),
         difficulty_store: Some(Arc::clone(&difficulty_store)),
         lock_store: Some(Arc::clone(&lock_store)),
@@ -10788,6 +10803,12 @@ async fn create_session(
     }
     if let Some(ref store) = resources.curve_point_store {
         session.set_curve_point_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.scaling_stat_distribution_store {
+        session.set_scaling_stat_distribution_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.scaling_stat_values_store {
+        session.set_scaling_stat_values_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.disable_mgr {
         session.set_disable_mgr(Arc::clone(store));

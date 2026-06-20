@@ -105,7 +105,7 @@ use wow_data::{
         ContentTuningStore, CurvePointStore, CurveStore, FactionEntry, FactionStore,
         FactionTemplateStore, FriendshipRepReactionStore, NumTalentsAtLevelStore,
         ParagonReputationStore, QuestFactionRewardStore, QuestInfoStore, QuestPackageItemStore,
-        QuestV2Store,
+        QuestV2Store, ScalingStatDistributionStore, ScalingStatValuesStore,
     },
     reputation::{
         CreatureOnKillReputationStoreLikeCpp, RepSpilloverTemplateStoreLikeCpp,
@@ -3549,6 +3549,8 @@ pub struct WorldSession {
     content_tuning_store: Option<Arc<ContentTuningStore>>,
     curve_store: Option<Arc<CurveStore>>,
     curve_point_store: Option<Arc<CurvePointStore>>,
+    scaling_stat_distribution_store: Option<Arc<ScalingStatDistributionStore>>,
+    scaling_stat_values_store: Option<Arc<ScalingStatValuesStore>>,
 
     // C++ DisableMgr store loaded from world.disables.
     disable_mgr: Option<Arc<DisableMgrLikeCpp>>,
@@ -5356,6 +5358,8 @@ impl WorldSession {
             content_tuning_store: None,
             curve_store: None,
             curve_point_store: None,
+            scaling_stat_distribution_store: None,
+            scaling_stat_values_store: None,
             disable_mgr: None,
             difficulty_store: None,
             lock_store: None,
@@ -14324,12 +14328,14 @@ impl WorldSession {
             item_stats_store.weapon_template(item_entry),
             self.represented_item_inventory_type_like_cpp(item_entry, item_guid),
         ) {
+            let (min_damage, max_damage) =
+                self.represented_weapon_damage_bounds_like_cpp(item_entry, weapon);
             self.represented_item_bonus_actions_like_cpp.extend(
                 item_weapon_damage_actions_like_cpp(
                     slot,
                     inventory_type,
-                    weapon.min_damage[0],
-                    weapon.max_damage[0],
+                    min_damage,
+                    max_damage,
                     weapon.item_delay,
                     apply,
                     false,
@@ -14345,6 +14351,60 @@ impl WorldSession {
                 }),
             );
         }
+    }
+
+    fn represented_weapon_damage_bounds_like_cpp(
+        &self,
+        item_entry: u32,
+        weapon: &wow_data::ItemWeaponTemplateEntry,
+    ) -> (f32, f32) {
+        let mut min_damage = f32::from(weapon.min_damage[0]);
+        let mut max_damage = f32::from(weapon.max_damage[0]);
+        let Some(item_store) = self.item_store.as_ref() else {
+            return (min_damage, max_damage);
+        };
+        let scaling_stat_distribution_id = item_store.scaling_stat_distribution_id(item_entry);
+        let scaling_stat_value = item_store.scaling_stat_value(item_entry);
+        if scaling_stat_distribution_id == 0 || scaling_stat_value == 0 {
+            return (min_damage, max_damage);
+        }
+        let Some(distribution_store) = self.scaling_stat_distribution_store.as_ref() else {
+            return (min_damage, max_damage);
+        };
+        let Some(values_store) = self.scaling_stat_values_store.as_ref() else {
+            return (min_damage, max_damage);
+        };
+        let Some(distribution) = distribution_store.get(u32::from(scaling_stat_distribution_id))
+        else {
+            return (min_damage, max_damage);
+        };
+
+        let min_level = u32::try_from(distribution.min_level).unwrap_or(0);
+        let max_level = u32::try_from(distribution.max_level).unwrap_or(min_level);
+        let (min_level, max_level) = if min_level <= max_level {
+            (min_level, max_level)
+        } else {
+            (max_level, min_level)
+        };
+        let character_level = u32::from(self.player_level_like_cpp()).clamp(min_level, max_level);
+        let Some(values) = values_store.get_for_character_level_like_cpp(character_level) else {
+            return (min_damage, max_damage);
+        };
+
+        let mask = scaling_stat_value as u32;
+        let extra_dps = values.dps_mod_like_cpp(mask);
+        if extra_dps != 0 {
+            let average = extra_dps as f32 * f32::from(weapon.item_delay) / 1000.0;
+            let modifier = if values.is_two_hand_like_cpp(mask) {
+                0.2
+            } else {
+                0.3
+            };
+            min_damage = (1.0 - modifier) * average;
+            max_damage = (1.0 + modifier) * average;
+        }
+
+        (min_damage, max_damage)
     }
 
     fn represented_item_inventory_type_like_cpp(
@@ -17082,6 +17142,17 @@ impl WorldSession {
 
     pub fn set_curve_point_store(&mut self, store: Arc<CurvePointStore>) {
         self.curve_point_store = Some(store);
+    }
+
+    pub fn set_scaling_stat_distribution_store(
+        &mut self,
+        store: Arc<ScalingStatDistributionStore>,
+    ) {
+        self.scaling_stat_distribution_store = Some(store);
+    }
+
+    pub fn set_scaling_stat_values_store(&mut self, store: Arc<ScalingStatValuesStore>) {
+        self.scaling_stat_values_store = Some(store);
     }
 
     /// Get the loaded PlayerCondition.db2 store reference.
@@ -49318,6 +49389,8 @@ mod tests {
             ContentTuningEntry, ContentTuningStore, CurveEntry, CurvePointEntry, CurvePointStore,
             CurveStore, FactionEntry, FactionStore, QUEST_PACKAGE_FILTER_CLASS_LIKE_CPP,
             QUEST_PACKAGE_FILTER_UNMATCHED_LIKE_CPP, QuestPackageItemEntry, QuestPackageItemStore,
+            ScalingStatDistributionEntry, ScalingStatDistributionStore, ScalingStatValuesEntry,
+            ScalingStatValuesStore,
         },
         reputation::ReputationFlagsLikeCpp,
     };
@@ -103688,6 +103761,136 @@ mod tests {
                 },
             ],
             "C++ Player::_ApplyItemBonuses reaches _ApplyWeaponDamage even when ItemSparse has no stat modifiers"
+        );
+    }
+
+    #[test]
+    fn represented_item_mods_apply_scaling_weapon_dps_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let item_guid = ObjectGuid::create_item(1, 901);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_level_like_cpp(80);
+        session.set_item_store(Arc::new(ItemStore::from_records([ItemRecord {
+            id: 101,
+            class_id: ItemClass::Weapon as u8,
+            subclass_id: 7,
+            material: 0,
+            inventory_type: InventoryType::Weapon as i8,
+            sheathe_type: 0,
+            random_select: 0,
+            random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 77,
+            scaling_stat_value: 0x0000_0200,
+        }])));
+        session.set_item_stats_store(Arc::new(ItemStatsStore::from_weapon_templates([(
+            101,
+            ItemWeaponTemplateEntry {
+                dmg_variance: 1.0,
+                item_delay: 2000,
+                min_damage: [1, 0, 0, 0, 0],
+                max_damage: [2, 0, 0, 0, 0],
+                damage_damage_type: 0,
+            },
+        )])));
+        session.set_scaling_stat_distribution_store(Arc::new(
+            ScalingStatDistributionStore::from_entries([ScalingStatDistributionEntry {
+                id: 77,
+                player_level_to_item_level_curve_id: 0,
+                min_level: 10,
+                max_level: 20,
+                bonus: [0; 10],
+                stat_id: [0; 10],
+            }]),
+        ));
+        session.set_scaling_stat_values_store(Arc::new(ScalingStatValuesStore::from_entries([
+            ScalingStatValuesEntry {
+                id: 20,
+                char_level: 20,
+                weapon_dps_1h: 100,
+                weapon_dps_2h: 0,
+                spellcaster_dps_1h: 0,
+                spellcaster_dps_2h: 0,
+                ranged_dps: 0,
+                wand_dps: 0,
+                spell_power: 0,
+                shoulder_budget: 0,
+                trinket_budget: 0,
+                weapon_budget_1h: 0,
+                primary_budget: 0,
+                ranged_budget: 0,
+                tertiary_budget: 0,
+                cloth_shoulder_armor: 0,
+                leather_shoulder_armor: 0,
+                mail_shoulder_armor: 0,
+                plate_shoulder_armor: 0,
+                cloth_cloak_armor: 0,
+                cloth_chest_armor: 0,
+                leather_chest_armor: 0,
+                mail_chest_armor: 0,
+                plate_chest_armor: 0,
+            },
+        ])));
+        session.inventory_items.insert(
+            EQUIPMENT_SLOT_MAINHAND,
+            InventoryItem {
+                guid: item_guid,
+                entry_id: 101,
+                db_guid: item_guid.counter() as u64,
+                inventory_type: Some(InventoryType::Weapon as u8),
+            },
+        );
+        let item = session.make_inventory_item_object(
+            item_guid,
+            101,
+            player_guid,
+            1,
+            0,
+            ItemContext::None,
+            EQUIPMENT_SLOT_MAINHAND,
+        );
+        session.insert_inventory_item_object(item);
+
+        session.record_represented_item_mods_like_cpp(item_guid, EQUIPMENT_SLOT_MAINHAND, true);
+
+        assert_eq!(
+            session.represented_item_bonus_actions_like_cpp(),
+            &[
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid,
+                    slot: EQUIPMENT_SLOT_MAINHAND,
+                    action: ApplyEnchantmentEffectAction::SetBaseWeaponDamage {
+                        attack_type: wow_constants::WeaponAttackType::BaseAttack,
+                        bound: wow_entities::WeaponDamageBoundLikeCpp::Min,
+                        amount_bits: 140.0f32.to_bits(),
+                    },
+                },
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid,
+                    slot: EQUIPMENT_SLOT_MAINHAND,
+                    action: ApplyEnchantmentEffectAction::SetBaseWeaponDamage {
+                        attack_type: wow_constants::WeaponAttackType::BaseAttack,
+                        bound: wow_entities::WeaponDamageBoundLikeCpp::Max,
+                        amount_bits: 260.0f32.to_bits(),
+                    },
+                },
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid,
+                    slot: EQUIPMENT_SLOT_MAINHAND,
+                    action: ApplyEnchantmentEffectAction::SetBaseAttackTime {
+                        attack_type: wow_constants::WeaponAttackType::BaseAttack,
+                        time_ms: 2000,
+                    },
+                },
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid,
+                    slot: EQUIPMENT_SLOT_MAINHAND,
+                    action: ApplyEnchantmentEffectAction::UpdateDamagePhysical {
+                        attack_type: wow_constants::WeaponAttackType::BaseAttack,
+                    },
+                },
+            ],
+            "C++ clamps player level to ScalingStatDistribution range and replaces weapon min/max from ScalingStatValues::getDPSMod"
         );
     }
 

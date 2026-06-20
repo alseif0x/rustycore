@@ -223,6 +223,10 @@ pub struct SessionResources {
     pub content_tuning_store: Option<Arc<wow_data::progression_rewards::ContentTuningStore>>,
     pub curve_store: Option<Arc<wow_data::progression_rewards::CurveStore>>,
     pub curve_point_store: Option<Arc<wow_data::progression_rewards::CurvePointStore>>,
+    pub scaling_stat_distribution_store:
+        Option<Arc<wow_data::progression_rewards::ScalingStatDistributionStore>>,
+    pub scaling_stat_values_store:
+        Option<Arc<wow_data::progression_rewards::ScalingStatValuesStore>>,
     pub progression_faction_store: Option<Arc<wow_data::progression_rewards::FactionStore>>,
     pub faction_template_store: Option<Arc<wow_data::progression_rewards::FactionTemplateStore>>,
     pub friendship_rep_reaction_store:

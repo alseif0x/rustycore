@@ -1,3 +1,22 @@
+- `#NEXT.R8.ENTITIES.1177` — represented `Player::_ApplyWeaponDamage` now
+  consumes the C++ scaling weapon-DPS override path. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7984-8015`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Structure.h:3181-3262`.
+  `world-server` loads `ScalingStatDistribution.db2` and
+  `ScalingStatValues.db2` into session resources, `WorldSession` clamps the
+  player level to `ScalingStatDistribution.MinLevel/MaxLevel`, resolves
+  `DB2Manager::GetScalingStatValuesForLevel`, and uses `getDPSMod/isTwoHand`
+  to replace min/max float weapon damage before recording attack time and
+  `UpdateDamagePhysical`. Coverage: `cargo test -p wow-entities
+  item_weapon_damage_actions_match_cpp --lib`, `cargo test -p wow-world
+  represented_item_mods_apply_scaling_weapon_dps_like_cpp --lib`, `cargo check
+  -p wow-world`, and `cargo check -p world-server`. Boundary remains partial:
+  this is represented action planning only; real feral/shapeshift
+  `CombatRoundTime`, class/weapon-proficiency `CanUseAttackType`, live
+  player damage/attack-time-field mutation, update-field fanout, persistence,
+  bot validation, live-client validation, and manual validation remain open.
+
 - `#NEXT.R8.ENTITIES.1176` — `wow-data::ItemRecord` now exposes the C++
   basic item fields required by scaling weapon damage:
   `ScalingStatDistributionID` and `ScalingStatValue`. Source of truth:
