@@ -122220,6 +122220,7 @@ mod tests {
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
+            random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
             npc_flags: 0,
             unit_flags: 0,
             map_id: 0,
