@@ -2482,11 +2482,7 @@ fn apply_enchantment_stat_actions(
     }
 }
 
-/// C++ `Player::_ApplyItemBonuses` stat-loop subset for represented callers.
-///
-/// This intentionally covers only static `ItemSparse` stat modifier slots. The
-/// remaining `_ApplyItemBonuses` branches (scaling stats, resistances, shield
-/// block, weapon damage and attack time) require their own runtime state.
+/// C++ `Player::_ApplyItemBonuses` static ItemSparse stat-loop subset.
 pub fn item_stat_bonus_actions_like_cpp(
     stats: &[(i8, i16); 10],
     apply: bool,
@@ -2509,6 +2505,38 @@ pub fn item_stat_bonus_actions_like_cpp(
             item_mod,
             amount as u32,
             apply,
+        ));
+    }
+    actions
+}
+
+/// C++ `Player::_ApplyItemBonuses` scaling-stat stat loop.
+pub fn item_scaling_stat_bonus_actions_like_cpp(
+    stat_ids: &[i32; 10],
+    bonuses: &[i32; 10],
+    ssd_multiplier: i32,
+    apply: bool,
+) -> Vec<ApplyEnchantmentEffectAction> {
+    let mut actions = Vec::new();
+    for (&stat_type, &bonus) in stat_ids.iter().zip(bonuses.iter()) {
+        if stat_type == -1 {
+            continue;
+        }
+        let val = (ssd_multiplier * bonus) / 10_000;
+        if val == 0 {
+            continue;
+        }
+        if val < 0 {
+            actions.push(ApplyEnchantmentEffectAction::UnhandledStatModifier {
+                item_mod: item_mod_type_from_u32(stat_type as u32),
+                amount: val.unsigned_abs(),
+                apply,
+            });
+            continue;
+        }
+        let item_mod = item_mod_type_from_u32(stat_type as u32);
+        actions.extend(item_bonus_stat_actions_like_cpp(
+            item_mod, val as u32, apply,
         ));
     }
     actions
@@ -15899,6 +15927,47 @@ mod tests {
                     apply: true,
                 },
             ],
+        );
+    }
+
+    #[test]
+    fn item_scaling_stat_bonus_actions_match_cpp_scaled_stat_loop() {
+        let mut stat_ids = [-1; 10];
+        stat_ids[0] = ItemModType::Strength as i32;
+        stat_ids[1] = ItemModType::HitRating as i32;
+        stat_ids[2] = ItemModType::SpellPower as i32;
+        let mut bonuses = [0; 10];
+        bonuses[0] = 5_000;
+        bonuses[1] = 2_500;
+        bonuses[2] = 0;
+
+        assert_eq!(
+            item_scaling_stat_bonus_actions_like_cpp(&stat_ids, &bonuses, 200, true),
+            vec![
+                ApplyEnchantmentEffectAction::UnitModifier {
+                    unit_mod: ApplyEnchantmentUnitMod::StatStrength,
+                    modifier: ApplyEnchantmentUnitModifier::BaseValue,
+                    amount: 100,
+                    apply: true,
+                },
+                ApplyEnchantmentEffectAction::UpdateStatBuffMod(Stats::Strength),
+                ApplyEnchantmentEffectAction::RatingModifier {
+                    rating: ApplyEnchantmentCombatRating::HitMelee,
+                    amount: 50,
+                    apply: true,
+                },
+                ApplyEnchantmentEffectAction::RatingModifier {
+                    rating: ApplyEnchantmentCombatRating::HitRanged,
+                    amount: 50,
+                    apply: true,
+                },
+                ApplyEnchantmentEffectAction::RatingModifier {
+                    rating: ApplyEnchantmentCombatRating::HitSpell,
+                    amount: 50,
+                    apply: true,
+                },
+            ],
+            "C++ computes val = getssdMultiplier(mask) * ScalingStatDistribution::Bonus[i] / 10000"
         );
     }
 

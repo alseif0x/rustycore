@@ -245,9 +245,9 @@ pub use player::{
     WeaponDamageBoundLikeCpp, explored_zones_db_string_from_blocks_like_cpp, is_bag_pos,
     is_bank_packed_pos, is_bank_pos, is_child_equipment_packed_pos, is_child_equipment_pos,
     is_equipment_packed_pos, is_equipment_pos, is_inventory_packed_pos, is_inventory_pos,
-    item_resistance_bonus_actions_like_cpp, item_shield_block_bonus_action_like_cpp,
-    item_stat_bonus_actions_like_cpp, item_weapon_damage_actions_like_cpp, make_item_pos,
-    parse_explored_zones_db_string_like_cpp,
+    item_resistance_bonus_actions_like_cpp, item_scaling_stat_bonus_actions_like_cpp,
+    item_shield_block_bonus_action_like_cpp, item_stat_bonus_actions_like_cpp,
+    item_weapon_damage_actions_like_cpp, make_item_pos, parse_explored_zones_db_string_like_cpp,
 };
 pub use scene_object::{
     SCENE_OBJECT_DATA_CREATED_BY_BIT, SCENE_OBJECT_DATA_PARENT_BIT,

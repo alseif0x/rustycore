@@ -105,7 +105,8 @@ use wow_data::{
         ContentTuningStore, CurvePointStore, CurveStore, FactionEntry, FactionStore,
         FactionTemplateStore, FriendshipRepReactionStore, NumTalentsAtLevelStore,
         ParagonReputationStore, QuestFactionRewardStore, QuestInfoStore, QuestPackageItemStore,
-        QuestV2Store, ScalingStatDistributionStore, ScalingStatValuesStore,
+        QuestV2Store, ScalingStatDistributionEntry, ScalingStatDistributionStore,
+        ScalingStatValuesStore,
     },
     reputation::{
         CreatureOnKillReputationStoreLikeCpp, RepSpilloverTemplateStoreLikeCpp,
@@ -148,8 +149,9 @@ use wow_entities::{
     UnitVisibilityDetectionStateLikeCpp, UpdateMask, Vehicle, VehicleAccessory, VisibleItemValues,
     WorldObject, explored_zones_db_string_from_blocks_like_cpp, is_bag_pos,
     is_equipment_packed_pos, is_inventory_pos, item_resistance_bonus_actions_like_cpp,
-    item_shield_block_bonus_action_like_cpp, item_stat_bonus_actions_like_cpp,
-    item_weapon_damage_actions_like_cpp, make_item_pos, parse_explored_zones_db_string_like_cpp,
+    item_scaling_stat_bonus_actions_like_cpp, item_shield_block_bonus_action_like_cpp,
+    item_stat_bonus_actions_like_cpp, item_weapon_damage_actions_like_cpp, make_item_pos,
+    parse_explored_zones_db_string_like_cpp,
 };
 use wow_entities::{
     BagValuesUpdate, CONTAINER_DATA_BITS, CONTAINER_DATA_SLOTS_FIRST_BIT,
@@ -1718,6 +1720,17 @@ pub(crate) struct RepresentedItemBonusActionLikeCpp {
     pub item_guid: ObjectGuid,
     pub slot: u8,
     pub action: ApplyEnchantmentEffectAction,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct RepresentedScalingStatContextLikeCpp {
+    stat_id: [i32; 10],
+    bonus: [i32; 10],
+    ssd_multiplier: i32,
+    spell_bonus: i32,
+    armor_mod: i32,
+    dps_mod: i32,
+    is_two_hand: bool,
 }
 
 const CR_ARMOR_PENETRATION_LIKE_CPP: u8 = 24;
@@ -14294,14 +14307,66 @@ impl WorldSession {
             return;
         };
 
-        if let Some(stat_entry) = item_stats_store.get(item_entry) {
+        let scaling_context = self.represented_scaling_stat_context_like_cpp(item_entry);
+        if let Some(context) = scaling_context {
+            self.represented_item_bonus_actions_like_cpp.extend(
+                item_scaling_stat_bonus_actions_like_cpp(
+                    &context.stat_id,
+                    &context.bonus,
+                    context.ssd_multiplier,
+                    apply,
+                )
+                .into_iter()
+                .map(|action| RepresentedItemBonusActionLikeCpp {
+                    item_guid,
+                    slot,
+                    action,
+                }),
+            );
+            if context.spell_bonus > 0 {
+                self.represented_item_bonus_actions_like_cpp.push(
+                    RepresentedItemBonusActionLikeCpp {
+                        item_guid,
+                        slot,
+                        action: ApplyEnchantmentEffectAction::SpellPowerBonus {
+                            amount: context.spell_bonus as u32,
+                            apply,
+                        },
+                    },
+                );
+            } else if context.spell_bonus < 0 {
+                self.represented_item_bonus_actions_like_cpp.push(
+                    RepresentedItemBonusActionLikeCpp {
+                        item_guid,
+                        slot,
+                        action: ApplyEnchantmentEffectAction::UnhandledStatModifier {
+                            item_mod: wow_constants::ItemModType::SpellPower,
+                            amount: context.spell_bonus.unsigned_abs(),
+                            apply,
+                        },
+                    },
+                );
+            }
+        } else if let Some(stat_entry) = item_stats_store.get(item_entry) {
             self.represented_item_bonus_actions_like_cpp.extend(
                 item_stat_bonus_actions_like_cpp(&stat_entry.stats, apply)
                     .into_iter()
-                    .chain(item_resistance_bonus_actions_like_cpp(
-                        &stat_entry.resistances,
-                        apply,
-                    ))
+                    .map(|action| RepresentedItemBonusActionLikeCpp {
+                        item_guid,
+                        slot,
+                        action,
+                    }),
+            );
+        }
+
+        if let Some(stat_entry) = item_stats_store.get(item_entry) {
+            let resistances = self.represented_resistances_with_scaling_armor_like_cpp(
+                &stat_entry.resistances,
+                scaling_context,
+            );
+            self.represented_item_bonus_actions_like_cpp.extend(
+                item_resistance_bonus_actions_like_cpp(&resistances, apply)
+                    .into_iter()
                     .map(|action| RepresentedItemBonusActionLikeCpp {
                         item_guid,
                         slot,
@@ -14360,25 +14425,51 @@ impl WorldSession {
     ) -> (f32, f32) {
         let mut min_damage = f32::from(weapon.min_damage[0]);
         let mut max_damage = f32::from(weapon.max_damage[0]);
-        let Some(item_store) = self.item_store.as_ref() else {
-            return (min_damage, max_damage);
-        };
-        let scaling_stat_distribution_id = item_store.scaling_stat_distribution_id(item_entry);
-        let scaling_stat_value = item_store.scaling_stat_value(item_entry);
-        if scaling_stat_distribution_id == 0 || scaling_stat_value == 0 {
-            return (min_damage, max_damage);
-        }
-        let Some(distribution_store) = self.scaling_stat_distribution_store.as_ref() else {
-            return (min_damage, max_damage);
-        };
-        let Some(values_store) = self.scaling_stat_values_store.as_ref() else {
-            return (min_damage, max_damage);
-        };
-        let Some(distribution) = distribution_store.get(u32::from(scaling_stat_distribution_id))
-        else {
+        let Some(context) = self.represented_scaling_stat_context_like_cpp(item_entry) else {
             return (min_damage, max_damage);
         };
 
+        if context.dps_mod != 0 {
+            let average = context.dps_mod as f32 * f32::from(weapon.item_delay) / 1000.0;
+            let modifier = if context.is_two_hand { 0.2 } else { 0.3 };
+            min_damage = (1.0 - modifier) * average;
+            max_damage = (1.0 + modifier) * average;
+        }
+
+        (min_damage, max_damage)
+    }
+
+    fn represented_scaling_stat_context_like_cpp(
+        &self,
+        item_entry: u32,
+    ) -> Option<RepresentedScalingStatContextLikeCpp> {
+        let item_store = self.item_store.as_ref()?;
+        let scaling_stat_distribution_id = item_store.scaling_stat_distribution_id(item_entry);
+        let scaling_stat_value = item_store.scaling_stat_value(item_entry);
+        if scaling_stat_distribution_id == 0 || scaling_stat_value == 0 {
+            return None;
+        }
+        let distribution_store = self.scaling_stat_distribution_store.as_ref()?;
+        let values_store = self.scaling_stat_values_store.as_ref()?;
+        let distribution = distribution_store.get(u32::from(scaling_stat_distribution_id))?;
+        let character_level = self.represented_scaling_stat_character_level_like_cpp(distribution);
+        let values = values_store.get_for_character_level_like_cpp(character_level)?;
+        let mask = scaling_stat_value as u32;
+        Some(RepresentedScalingStatContextLikeCpp {
+            stat_id: distribution.stat_id,
+            bonus: distribution.bonus,
+            ssd_multiplier: values.ssd_multiplier_like_cpp(mask),
+            spell_bonus: values.spell_bonus_like_cpp(mask),
+            armor_mod: values.armor_mod_like_cpp(mask),
+            dps_mod: values.dps_mod_like_cpp(mask),
+            is_two_hand: values.is_two_hand_like_cpp(mask),
+        })
+    }
+
+    fn represented_scaling_stat_character_level_like_cpp(
+        &self,
+        distribution: &ScalingStatDistributionEntry,
+    ) -> u32 {
         let min_level = u32::try_from(distribution.min_level).unwrap_or(0);
         let max_level = u32::try_from(distribution.max_level).unwrap_or(min_level);
         let (min_level, max_level) = if min_level <= max_level {
@@ -14386,25 +14477,23 @@ impl WorldSession {
         } else {
             (max_level, min_level)
         };
-        let character_level = u32::from(self.player_level_like_cpp()).clamp(min_level, max_level);
-        let Some(values) = values_store.get_for_character_level_like_cpp(character_level) else {
-            return (min_damage, max_damage);
-        };
+        u32::from(self.player_level_like_cpp()).clamp(min_level, max_level)
+    }
 
-        let mask = scaling_stat_value as u32;
-        let extra_dps = values.dps_mod_like_cpp(mask);
-        if extra_dps != 0 {
-            let average = extra_dps as f32 * f32::from(weapon.item_delay) / 1000.0;
-            let modifier = if values.is_two_hand_like_cpp(mask) {
-                0.2
-            } else {
-                0.3
-            };
-            min_damage = (1.0 - modifier) * average;
-            max_damage = (1.0 + modifier) * average;
+    fn represented_resistances_with_scaling_armor_like_cpp(
+        &self,
+        resistances: &[i16; 7],
+        scaling_context: Option<RepresentedScalingStatContextLikeCpp>,
+    ) -> [i16; 7] {
+        let mut adjusted = *resistances;
+        if let Some(context) = scaling_context {
+            if context.armor_mod > 0 {
+                adjusted[0] = i16::try_from(context.armor_mod).unwrap_or(i16::MAX);
+            } else if context.armor_mod < 0 {
+                adjusted[0] = i16::MIN;
+            }
         }
-
-        (min_damage, max_damage)
+        adjusted
     }
 
     fn represented_item_inventory_type_like_cpp(
@@ -103891,6 +103980,156 @@ mod tests {
                 },
             ],
             "C++ clamps player level to ScalingStatDistribution range and replaces weapon min/max from ScalingStatValues::getDPSMod"
+        );
+    }
+
+    #[test]
+    fn represented_item_mods_apply_scaling_stat_loop_spell_bonus_and_armor_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let item_guid = ObjectGuid::create_item(1, 902);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_level_like_cpp(80);
+        session.set_item_store(Arc::new(ItemStore::from_records([ItemRecord {
+            id: 102,
+            class_id: ItemClass::Armor as u8,
+            subclass_id: 1,
+            material: 0,
+            inventory_type: InventoryType::Chest as i8,
+            sheathe_type: 0,
+            random_select: 0,
+            random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 78,
+            scaling_stat_value: 0x0010_8008,
+        }])));
+        session.set_item_stats_store(Arc::new(ItemStatsStore::from_parts(
+            [(
+                102,
+                ItemStatEntry {
+                    stats: [
+                        (ItemModType::Intellect as i8, 999),
+                        (-1, 0),
+                        (-1, 0),
+                        (-1, 0),
+                        (-1, 0),
+                        (-1, 0),
+                        (-1, 0),
+                        (-1, 0),
+                        (-1, 0),
+                        (-1, 0),
+                    ],
+                    resistances: [17, 0, 0, 0, 0, 0, 0],
+                    armor: 17,
+                },
+            )],
+            [],
+        )));
+        let mut stat_id = [-1; 10];
+        stat_id[0] = ItemModType::Strength as i32;
+        let mut bonus = [0; 10];
+        bonus[0] = 5_000;
+        session.set_scaling_stat_distribution_store(Arc::new(
+            ScalingStatDistributionStore::from_entries([ScalingStatDistributionEntry {
+                id: 78,
+                player_level_to_item_level_curve_id: 0,
+                min_level: 10,
+                max_level: 20,
+                bonus,
+                stat_id,
+            }]),
+        ));
+        session.set_scaling_stat_values_store(Arc::new(ScalingStatValuesStore::from_entries([
+            ScalingStatValuesEntry {
+                id: 20,
+                char_level: 20,
+                weapon_dps_1h: 0,
+                weapon_dps_2h: 0,
+                spellcaster_dps_1h: 0,
+                spellcaster_dps_2h: 0,
+                ranged_dps: 0,
+                wand_dps: 0,
+                spell_power: 33,
+                shoulder_budget: 0,
+                trinket_budget: 0,
+                weapon_budget_1h: 0,
+                primary_budget: 200,
+                ranged_budget: 0,
+                tertiary_budget: 0,
+                cloth_shoulder_armor: 0,
+                leather_shoulder_armor: 0,
+                mail_shoulder_armor: 0,
+                plate_shoulder_armor: 0,
+                cloth_cloak_armor: 0,
+                cloth_chest_armor: 77,
+                leather_chest_armor: 0,
+                mail_chest_armor: 0,
+                plate_chest_armor: 0,
+            },
+        ])));
+        session.inventory_items.insert(
+            EQUIPMENT_SLOT_CHEST,
+            InventoryItem {
+                guid: item_guid,
+                entry_id: 102,
+                db_guid: item_guid.counter() as u64,
+                inventory_type: Some(InventoryType::Chest as u8),
+            },
+        );
+        let item = session.make_inventory_item_object(
+            item_guid,
+            102,
+            player_guid,
+            1,
+            0,
+            ItemContext::None,
+            EQUIPMENT_SLOT_CHEST,
+        );
+        session.insert_inventory_item_object(item);
+
+        session.record_represented_item_mods_like_cpp(item_guid, EQUIPMENT_SLOT_CHEST, true);
+
+        assert_eq!(
+            session.represented_item_bonus_actions_like_cpp(),
+            &[
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid,
+                    slot: EQUIPMENT_SLOT_CHEST,
+                    action: ApplyEnchantmentEffectAction::UnitModifier {
+                        unit_mod: wow_entities::ApplyEnchantmentUnitMod::StatStrength,
+                        modifier: wow_entities::ApplyEnchantmentUnitModifier::BaseValue,
+                        amount: 100,
+                        apply: true,
+                    },
+                },
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid,
+                    slot: EQUIPMENT_SLOT_CHEST,
+                    action: ApplyEnchantmentEffectAction::UpdateStatBuffMod(
+                        wow_constants::Stats::Strength,
+                    ),
+                },
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid,
+                    slot: EQUIPMENT_SLOT_CHEST,
+                    action: ApplyEnchantmentEffectAction::SpellPowerBonus {
+                        amount: 33,
+                        apply: true,
+                    },
+                },
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid,
+                    slot: EQUIPMENT_SLOT_CHEST,
+                    action: ApplyEnchantmentEffectAction::UnitModifier {
+                        unit_mod: wow_entities::ApplyEnchantmentUnitMod::Resistance(
+                            wow_constants::spell::SpellSchools::Normal as u32,
+                        ),
+                        modifier: wow_entities::ApplyEnchantmentUnitModifier::BaseValue,
+                        amount: 77,
+                        apply: true,
+                    },
+                },
+            ],
+            "C++ uses ScalingStatDistribution stat slots instead of ItemSparse stats, then applies getSpellBonus and getArmorMod"
         );
     }
 

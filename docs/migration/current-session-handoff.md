@@ -1,3 +1,22 @@
+- `#NEXT.R8.ENTITIES.1178` — represented `Player::_ApplyItemBonuses` now
+  consumes the non-DPS C++ scaling-stat branches. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7692-7970`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:8020-8033`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Structure.h:3181-3262`.
+  When `ssd && ssv` exists, Rust now substitutes the static `ItemSparse`
+  stat loop with `ScalingStatDistribution.StatID/Bonus` scaled by
+  `ScalingStatValuesEntry::getssdMultiplier`, applies `getSpellBonus` after
+  the stat loop, and replaces normal-school armor resistance with
+  `getArmorMod` before direct resistance actions. Coverage: `cargo test -p
+  wow-entities item_scaling_stat_bonus_actions_match_cpp_scaled_stat_loop
+  --lib`, `cargo test -p wow-world represented_item_mods_apply_scaling --lib`,
+  `cargo check -p wow-world`, and `cargo check -p world-server`. Boundary
+  remains partial: this is represented action planning only; negative scaling
+  bonuses still fall into the unsigned/unhandled seam, and real stat/armor/
+  spell-power mutation, update-field fanout, persistence, bot validation,
+  live-client validation, and manual validation remain open.
+
 - `#NEXT.R8.ENTITIES.1177` — represented `Player::_ApplyWeaponDamage` now
   consumes the C++ scaling weapon-DPS override path. Source of truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7984-8015`
