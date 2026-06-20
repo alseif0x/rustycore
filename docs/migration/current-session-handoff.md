@@ -1,3 +1,18 @@
+- `#NEXT.R8.ENTITIES.1174` — represented `_ApplyItemBonuses` now wires the
+  direct, non-scaling weapon-damage branch after shield block, matching the C++
+  order in
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7972-8029`.
+  The Rust path no longer returns early just because an item lacks represented
+  stat/resistance modifiers; C++ still reaches shield block and
+  `_ApplyWeaponDamage` in that case. The new `wow-world` coverage records
+  `SetBaseWeaponDamage`, `SetBaseAttackTime`, and `UpdateDamagePhysical` for an
+  equipped main-hand weapon with no stat entry. Boundary remains partial:
+  represented wiring currently passes the direct non-feral/common gates only;
+  scaling-stat DPS override, real feral/shapeshift `CombatRoundTime`,
+  class/weapon-proficiency `CanUseAttackType`, real player
+  damage/attack-time-field mutation, update-field fanout, persistence, bot
+  validation, live-client validation, and manual validation remain open.
+
 - `#NEXT.R8.ENTITIES.1173` — `wow-entities` now represents the direct,
   non-scaling action plan for C++ `Player::_ApplyWeaponDamage`. Source of
   truth:

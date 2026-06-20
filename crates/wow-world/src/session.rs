@@ -148,8 +148,8 @@ use wow_entities::{
     UnitVisibilityDetectionStateLikeCpp, UpdateMask, Vehicle, VehicleAccessory, VisibleItemValues,
     WorldObject, explored_zones_db_string_from_blocks_like_cpp, is_bag_pos,
     is_equipment_packed_pos, is_inventory_pos, item_resistance_bonus_actions_like_cpp,
-    item_shield_block_bonus_action_like_cpp, item_stat_bonus_actions_like_cpp, make_item_pos,
-    parse_explored_zones_db_string_like_cpp,
+    item_shield_block_bonus_action_like_cpp, item_stat_bonus_actions_like_cpp,
+    item_weapon_damage_actions_like_cpp, make_item_pos, parse_explored_zones_db_string_like_cpp,
 };
 use wow_entities::{
     BagValuesUpdate, CONTAINER_DATA_BITS, CONTAINER_DATA_SLOTS_FIRST_BIT,
@@ -14286,27 +14286,25 @@ impl WorldSession {
         else {
             return;
         };
-        let Some(stat_entry) = self
-            .item_stats_store
-            .as_ref()
-            .and_then(|store| store.get(item_entry))
-        else {
+        let Some(item_stats_store) = self.item_stats_store.as_ref().cloned() else {
             return;
         };
 
-        self.represented_item_bonus_actions_like_cpp.extend(
-            item_stat_bonus_actions_like_cpp(&stat_entry.stats, apply)
-                .into_iter()
-                .chain(item_resistance_bonus_actions_like_cpp(
-                    &stat_entry.resistances,
-                    apply,
-                ))
-                .map(|action| RepresentedItemBonusActionLikeCpp {
-                    item_guid,
-                    slot,
-                    action,
-                }),
-        );
+        if let Some(stat_entry) = item_stats_store.get(item_entry) {
+            self.represented_item_bonus_actions_like_cpp.extend(
+                item_stat_bonus_actions_like_cpp(&stat_entry.stats, apply)
+                    .into_iter()
+                    .chain(item_resistance_bonus_actions_like_cpp(
+                        &stat_entry.resistances,
+                        apply,
+                    ))
+                    .map(|action| RepresentedItemBonusActionLikeCpp {
+                        item_guid,
+                        slot,
+                        action,
+                    }),
+            );
+        }
 
         if let Some(action) =
             self.item_shield_block_value_like_cpp(item_entry)
@@ -14321,6 +14319,52 @@ impl WorldSession {
                     action,
                 });
         }
+
+        if let (Some(weapon), Some(inventory_type)) = (
+            item_stats_store.weapon_template(item_entry),
+            self.represented_item_inventory_type_like_cpp(item_entry, item_guid),
+        ) {
+            self.represented_item_bonus_actions_like_cpp.extend(
+                item_weapon_damage_actions_like_cpp(
+                    slot,
+                    inventory_type,
+                    weapon.min_damage[0],
+                    weapon.max_damage[0],
+                    weapon.item_delay,
+                    apply,
+                    false,
+                    true,
+                    false,
+                    true,
+                )
+                .into_iter()
+                .map(|action| RepresentedItemBonusActionLikeCpp {
+                    item_guid,
+                    slot,
+                    action,
+                }),
+            );
+        }
+    }
+
+    fn represented_item_inventory_type_like_cpp(
+        &self,
+        item_entry: u32,
+        item_guid: ObjectGuid,
+    ) -> Option<InventoryType> {
+        self.inventory_items
+            .values()
+            .find(|item| item.guid == item_guid)
+            .and_then(|item| item.inventory_type)
+            .and_then(<InventoryType as num_traits::FromPrimitive>::from_u8)
+            .or_else(|| {
+                self.item_store
+                    .as_ref()
+                    .and_then(|store| store.get(item_entry))
+                    .and_then(|record| {
+                        <InventoryType as num_traits::FromPrimitive>::from_i8(record.inventory_type)
+                    })
+            })
     }
 
     fn restore_represented_health_pct_after_item_mod_scaling_like_cpp(
@@ -49265,9 +49309,9 @@ mod tests {
         ItemModifiedAppearanceStore, ItemPriceBaseEntry, ItemPriceBaseStore,
         ItemRandomPropertyTemplateEntry, ItemRandomSuffixEntry, ItemRandomSuffixStore, ItemRecord,
         ItemSearchNameEntry, ItemSearchNameStore, ItemSparseTemplateEntry, ItemSpecOverrideEntry,
-        ItemSpecOverrideStore, ItemStatsStore, ItemStore, LockEntry, LockStore, MapDifficultyEntry,
-        MapDifficultyStore, PlayerConditionEntry, PlayerConditionStore,
-        ShieldBlockRegularEntryLikeCpp, ShieldBlockRegularGameTableLikeCpp,
+        ItemSpecOverrideStore, ItemStatsStore, ItemStore, ItemWeaponTemplateEntry, LockEntry,
+        LockStore, MapDifficultyEntry, MapDifficultyStore, PlayerConditionEntry,
+        PlayerConditionStore, ShieldBlockRegularEntryLikeCpp, ShieldBlockRegularGameTableLikeCpp,
         SpellItemEnchantmentEntry, SpellItemEnchantmentStore, ToyEntry, ToyStore, TransmogSetEntry,
         TransmogSetItemEntry, TransmogSetItemStore,
         progression_rewards::{
@@ -103339,7 +103383,7 @@ mod tests {
                 ItemRandomPropertyTemplateEntry {
                     item_level: 57,
                     quality: ItemQuality::Rare as i8,
-                    inventory_type: InventoryType::Weapon as i8,
+                    inventory_type: InventoryType::Shield as i8,
                 },
             ),
             (
@@ -103354,8 +103398,16 @@ mod tests {
         session.set_durability_costs_store(Arc::new(DurabilityCostsStore::from_entries([
             DurabilityCostsEntry {
                 id: 57,
-                weapon_sub_class_cost: std::array::from_fn(|i| if i == 7 { 13 } else { 0 }),
-                armor_sub_class_cost: std::array::from_fn(|i| if i == 4 { 5 } else { 0 }),
+                weapon_sub_class_cost: [0; 21],
+                armor_sub_class_cost: std::array::from_fn(|i| {
+                    if i == ItemSubClassArmor::Shield as usize {
+                        13
+                    } else if i == 4 {
+                        5
+                    } else {
+                        0
+                    }
+                }),
             },
         ])));
         session.set_durability_quality_store(Arc::new(DurabilityQualityStore::from_entries([
@@ -103512,6 +103564,95 @@ mod tests {
             40
         );
         assert!(drain_server_opcodes(&send_rx).is_empty());
+    }
+
+    #[test]
+    fn represented_item_mods_records_weapon_damage_without_stat_entry_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let item_guid = ObjectGuid::create_item(1, 900);
+        session.set_player_guid(Some(player_guid));
+        session.set_item_store(Arc::new(ItemStore::from_records([ItemRecord {
+            id: 100,
+            class_id: ItemClass::Weapon as u8,
+            subclass_id: 7,
+            material: 0,
+            inventory_type: InventoryType::Weapon as i8,
+            sheathe_type: 0,
+            random_select: 0,
+            random_suffix_group_id: 0,
+        }])));
+        session.set_item_stats_store(Arc::new(ItemStatsStore::from_weapon_templates([(
+            100,
+            ItemWeaponTemplateEntry {
+                dmg_variance: 1.0,
+                item_delay: 2600,
+                min_damage: [12, 0, 0, 0, 0],
+                max_damage: [18, 0, 0, 0, 0],
+                damage_damage_type: 0,
+            },
+        )])));
+        session.inventory_items.insert(
+            EQUIPMENT_SLOT_MAINHAND,
+            InventoryItem {
+                guid: item_guid,
+                entry_id: 100,
+                db_guid: item_guid.counter() as u64,
+                inventory_type: Some(InventoryType::Weapon as u8),
+            },
+        );
+        let item = session.make_inventory_item_object(
+            item_guid,
+            100,
+            player_guid,
+            1,
+            0,
+            ItemContext::None,
+            EQUIPMENT_SLOT_MAINHAND,
+        );
+        session.insert_inventory_item_object(item);
+
+        session.record_represented_item_mods_like_cpp(item_guid, EQUIPMENT_SLOT_MAINHAND, true);
+
+        assert_eq!(
+            session.represented_item_bonus_actions_like_cpp(),
+            &[
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid,
+                    slot: EQUIPMENT_SLOT_MAINHAND,
+                    action: ApplyEnchantmentEffectAction::SetBaseWeaponDamage {
+                        attack_type: wow_constants::WeaponAttackType::BaseAttack,
+                        bound: wow_entities::WeaponDamageBoundLikeCpp::Min,
+                        amount_bits: 12.0f32.to_bits(),
+                    },
+                },
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid,
+                    slot: EQUIPMENT_SLOT_MAINHAND,
+                    action: ApplyEnchantmentEffectAction::SetBaseWeaponDamage {
+                        attack_type: wow_constants::WeaponAttackType::BaseAttack,
+                        bound: wow_entities::WeaponDamageBoundLikeCpp::Max,
+                        amount_bits: 18.0f32.to_bits(),
+                    },
+                },
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid,
+                    slot: EQUIPMENT_SLOT_MAINHAND,
+                    action: ApplyEnchantmentEffectAction::SetBaseAttackTime {
+                        attack_type: wow_constants::WeaponAttackType::BaseAttack,
+                        time_ms: 2600,
+                    },
+                },
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid,
+                    slot: EQUIPMENT_SLOT_MAINHAND,
+                    action: ApplyEnchantmentEffectAction::UpdateDamagePhysical {
+                        attack_type: wow_constants::WeaponAttackType::BaseAttack,
+                    },
+                },
+            ],
+            "C++ Player::_ApplyItemBonuses reaches _ApplyWeaponDamage even when ItemSparse has no stat modifiers"
+        );
     }
 
     #[tokio::test]
