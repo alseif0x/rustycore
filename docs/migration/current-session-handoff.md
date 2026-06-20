@@ -1,3 +1,22 @@
+- `#NEXT.R8.ENTITIES.1179` — represented `Player::_ApplyItemBonuses` now
+  mutates a represented item-bonus runtime snapshot from the same action plan
+  introduced in the previous slices. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7694-8033`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.h:303-329`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/StatSystem.cpp:152-170`.
+  Rust now applies unit modifier add/remove deltas to represented stats, armor,
+  resistances, attack power and resource bases; maps represented combat ratings
+  to the C++ `CombatRatings[]` indices, including `CR_ARMOR_PENETRATION=24`;
+  and accumulates spell power, shield block, weapon min/max damage, base attack
+  time and `UpdateDamagePhysical` evidence from the same planned actions.
+  Coverage: `cargo fmt --all --check`, `cargo test -p wow-world
+  represented_item_mods_apply_scaling --lib`, `cargo check -p wow-world`,
+  `cargo check -p world-server`, and `git diff --check`. Boundary remains partial: this is an in-session
+  represented snapshot, not canonical `Player`/`UnitMods` mutation, update-field
+  packet/fanout, persistence, bot validation, live-client validation, or manual
+  validation.
+
 - `#NEXT.R8.ENTITIES.1178` — represented `Player::_ApplyItemBonuses` now
   consumes the non-DPS C++ scaling-stat branches. Source of truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7692-7970`,

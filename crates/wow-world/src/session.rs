@@ -53,7 +53,7 @@ use wow_constants::{
     BagFamilyMask, BuyResult, ClientOpcodes, InventoryResult, InventoryType, ItemBondingType,
     ItemClass, ItemContext, ItemEnchantmentType, ItemFlags, ItemFlags2, ItemFlags3, ItemModifier,
     ItemQuality, ItemSubClassArmor, ItemSubClassWeapon, SellResult, ServerOpcodes, SpellCastResult,
-    SpellItemEnchantmentFlags, TypeId, UnitState,
+    SpellItemEnchantmentFlags, Stats, TypeId, UnitState,
 };
 use wow_core::{ObjectGuid, ObjectGuidGenerator, Position, guid::HighGuid};
 use wow_data::character_progression::{ChrClassesStore, ChrRacesStore};
@@ -1722,6 +1722,55 @@ pub(crate) struct RepresentedItemBonusActionLikeCpp {
     pub action: ApplyEnchantmentEffectAction,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct RepresentedItemBonusStateLikeCpp {
+    pub mana_base: i32,
+    pub health_base: i32,
+    pub armor_base: i32,
+    pub armor_total: i32,
+    pub stats_base: [i32; 5],
+    pub attack_power_total: i32,
+    pub ranged_attack_power_total: i32,
+    pub resistances_base: [i32; 7],
+    pub combat_ratings: [i32; 32],
+    pub mana_regen_bonus: i32,
+    pub spell_power_bonus: i32,
+    pub health_regen_bonus: i32,
+    pub spell_penetration_bonus: i32,
+    pub shield_block_base_mod: i32,
+    pub shield_block_value: u32,
+    pub weapon_damage: [[f32; 2]; 3],
+    pub base_attack_time: [u32; 3],
+    pub stat_buff_updates: Vec<Stats>,
+    pub damage_physical_updates: Vec<WeaponAttackType>,
+}
+
+impl Default for RepresentedItemBonusStateLikeCpp {
+    fn default() -> Self {
+        Self {
+            mana_base: 0,
+            health_base: 0,
+            armor_base: 0,
+            armor_total: 0,
+            stats_base: [0; 5],
+            attack_power_total: 0,
+            ranged_attack_power_total: 0,
+            resistances_base: [0; 7],
+            combat_ratings: [0; 32],
+            mana_regen_bonus: 0,
+            spell_power_bonus: 0,
+            health_regen_bonus: 0,
+            spell_penetration_bonus: 0,
+            shield_block_base_mod: 0,
+            shield_block_value: 0,
+            weapon_damage: [[0.0; 2]; 3],
+            base_attack_time: [0; 3],
+            stat_buff_updates: Vec::new(),
+            damage_physical_updates: Vec::new(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct RepresentedScalingStatContextLikeCpp {
     stat_id: [i32; 10],
@@ -1734,6 +1783,52 @@ struct RepresentedScalingStatContextLikeCpp {
 }
 
 const CR_ARMOR_PENETRATION_LIKE_CPP: u8 = 24;
+
+fn apply_represented_i32_delta_like_cpp(target: &mut i32, amount: u32, apply: bool) {
+    let amount = i32::try_from(amount).unwrap_or(i32::MAX);
+    if apply {
+        *target = target.saturating_add(amount);
+    } else {
+        *target = target.saturating_sub(amount);
+    }
+}
+
+fn represented_unit_mod_stat_index_like_cpp(
+    unit_mod: wow_entities::ApplyEnchantmentUnitMod,
+) -> Option<usize> {
+    match unit_mod {
+        wow_entities::ApplyEnchantmentUnitMod::StatStrength => Some(Stats::Strength as usize),
+        wow_entities::ApplyEnchantmentUnitMod::StatAgility => Some(Stats::Agility as usize),
+        wow_entities::ApplyEnchantmentUnitMod::StatStamina => Some(Stats::Stamina as usize),
+        wow_entities::ApplyEnchantmentUnitMod::StatIntellect => Some(Stats::Intellect as usize),
+        wow_entities::ApplyEnchantmentUnitMod::StatSpirit => Some(Stats::Spirit as usize),
+        _ => None,
+    }
+}
+
+fn represented_combat_rating_index_like_cpp(
+    rating: wow_entities::ApplyEnchantmentCombatRating,
+) -> Option<usize> {
+    match rating {
+        wow_entities::ApplyEnchantmentCombatRating::DefenseSkill => Some(1),
+        wow_entities::ApplyEnchantmentCombatRating::Dodge => Some(2),
+        wow_entities::ApplyEnchantmentCombatRating::Parry => Some(3),
+        wow_entities::ApplyEnchantmentCombatRating::Block => Some(4),
+        wow_entities::ApplyEnchantmentCombatRating::HitMelee => Some(5),
+        wow_entities::ApplyEnchantmentCombatRating::HitRanged => Some(6),
+        wow_entities::ApplyEnchantmentCombatRating::HitSpell => Some(7),
+        wow_entities::ApplyEnchantmentCombatRating::CritMelee => Some(8),
+        wow_entities::ApplyEnchantmentCombatRating::CritRanged => Some(9),
+        wow_entities::ApplyEnchantmentCombatRating::CritSpell => Some(10),
+        wow_entities::ApplyEnchantmentCombatRating::HasteMelee => Some(17),
+        wow_entities::ApplyEnchantmentCombatRating::HasteRanged => Some(18),
+        wow_entities::ApplyEnchantmentCombatRating::HasteSpell => Some(19),
+        wow_entities::ApplyEnchantmentCombatRating::Expertise => Some(23),
+        wow_entities::ApplyEnchantmentCombatRating::ArmorPenetration => {
+            Some(CR_ARMOR_PENETRATION_LIKE_CPP as usize)
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedCombatStatRecalculationLikeCpp {
@@ -3793,6 +3888,7 @@ pub struct WorldSession {
     current_buyback_slot: u8,
     represented_item_mod_reapply_events_like_cpp: Vec<RepresentedItemModsReapplyEventLikeCpp>,
     represented_item_bonus_actions_like_cpp: Vec<RepresentedItemBonusActionLikeCpp>,
+    represented_item_bonus_state_like_cpp: RepresentedItemBonusStateLikeCpp,
     represented_combat_stat_recalculations_like_cpp: Vec<RepresentedCombatStatRecalculationLikeCpp>,
     represented_titan_grip_penalty_actions_like_cpp: Vec<TitanGripPenaltyAction>,
     represented_avg_equipped_item_level_updates_like_cpp: Vec<f32>,
@@ -5507,6 +5603,7 @@ impl WorldSession {
             current_buyback_slot: BUYBACK_SLOT_START,
             represented_item_mod_reapply_events_like_cpp: Vec::new(),
             represented_item_bonus_actions_like_cpp: Vec::new(),
+            represented_item_bonus_state_like_cpp: RepresentedItemBonusStateLikeCpp::default(),
             represented_combat_stat_recalculations_like_cpp: Vec::new(),
             represented_titan_grip_penalty_actions_like_cpp: Vec::new(),
             represented_avg_equipped_item_level_updates_like_cpp: Vec::new(),
@@ -14306,6 +14403,7 @@ impl WorldSession {
         let Some(item_stats_store) = self.item_stats_store.as_ref().cloned() else {
             return;
         };
+        let action_start = self.represented_item_bonus_actions_like_cpp.len();
 
         let scaling_context = self.represented_scaling_stat_context_like_cpp(item_entry);
         if let Some(context) = scaling_context {
@@ -14415,6 +14513,229 @@ impl WorldSession {
                     action,
                 }),
             );
+        }
+
+        let planned_actions: Vec<_> = self.represented_item_bonus_actions_like_cpp[action_start..]
+            .iter()
+            .map(|planned| planned.action)
+            .collect();
+        for action in planned_actions {
+            self.apply_represented_item_bonus_action_state_like_cpp(action);
+        }
+    }
+
+    fn apply_represented_item_bonus_action_state_like_cpp(
+        &mut self,
+        action: ApplyEnchantmentEffectAction,
+    ) {
+        match action {
+            ApplyEnchantmentEffectAction::UnitModifier {
+                unit_mod,
+                modifier,
+                amount,
+                apply,
+            } => self.apply_represented_unit_modifier_like_cpp(unit_mod, modifier, amount, apply),
+            ApplyEnchantmentEffectAction::UpdateStatBuffMod(stat) => self
+                .represented_item_bonus_state_like_cpp
+                .stat_buff_updates
+                .push(stat),
+            ApplyEnchantmentEffectAction::RatingModifier {
+                rating,
+                amount,
+                apply,
+            } => {
+                if let Some(index) = represented_combat_rating_index_like_cpp(rating) {
+                    apply_represented_i32_delta_like_cpp(
+                        &mut self.represented_item_bonus_state_like_cpp.combat_ratings[index],
+                        amount,
+                        apply,
+                    );
+                }
+            }
+            ApplyEnchantmentEffectAction::ManaRegenBonus { amount, apply } => {
+                apply_represented_i32_delta_like_cpp(
+                    &mut self.represented_item_bonus_state_like_cpp.mana_regen_bonus,
+                    amount,
+                    apply,
+                );
+            }
+            ApplyEnchantmentEffectAction::SpellPowerBonus { amount, apply } => {
+                apply_represented_i32_delta_like_cpp(
+                    &mut self.represented_item_bonus_state_like_cpp.spell_power_bonus,
+                    amount,
+                    apply,
+                );
+            }
+            ApplyEnchantmentEffectAction::HealthRegenBonus { amount, apply } => {
+                apply_represented_i32_delta_like_cpp(
+                    &mut self
+                        .represented_item_bonus_state_like_cpp
+                        .health_regen_bonus,
+                    amount,
+                    apply,
+                );
+            }
+            ApplyEnchantmentEffectAction::SpellPenetrationBonus { amount, apply } => {
+                apply_represented_i32_delta_like_cpp(
+                    &mut self
+                        .represented_item_bonus_state_like_cpp
+                        .spell_penetration_bonus,
+                    amount,
+                    apply,
+                );
+            }
+            ApplyEnchantmentEffectAction::BaseModFlatValue {
+                base_mod: wow_entities::ApplyEnchantmentBaseMod::ShieldBlockValue,
+                amount,
+                apply,
+            } => {
+                apply_represented_i32_delta_like_cpp(
+                    &mut self
+                        .represented_item_bonus_state_like_cpp
+                        .shield_block_base_mod,
+                    amount,
+                    apply,
+                );
+            }
+            ApplyEnchantmentEffectAction::SetShieldBlockValue { amount } => {
+                self.represented_item_bonus_state_like_cpp
+                    .shield_block_value = amount;
+            }
+            ApplyEnchantmentEffectAction::SetBaseWeaponDamage {
+                attack_type,
+                bound,
+                amount_bits,
+            } => {
+                let attack = attack_type as usize;
+                if attack
+                    < self
+                        .represented_item_bonus_state_like_cpp
+                        .weapon_damage
+                        .len()
+                {
+                    let bound = match bound {
+                        wow_entities::WeaponDamageBoundLikeCpp::Min => 0,
+                        wow_entities::WeaponDamageBoundLikeCpp::Max => 1,
+                    };
+                    self.represented_item_bonus_state_like_cpp.weapon_damage[attack][bound] =
+                        f32::from_bits(amount_bits);
+                }
+            }
+            ApplyEnchantmentEffectAction::SetBaseAttackTime {
+                attack_type,
+                time_ms,
+            } => {
+                let attack = attack_type as usize;
+                if attack
+                    < self
+                        .represented_item_bonus_state_like_cpp
+                        .base_attack_time
+                        .len()
+                {
+                    self.represented_item_bonus_state_like_cpp.base_attack_time[attack] = time_ms;
+                }
+            }
+            ApplyEnchantmentEffectAction::UpdateDamagePhysical { attack_type } => self
+                .represented_item_bonus_state_like_cpp
+                .damage_physical_updates
+                .push(attack_type),
+            ApplyEnchantmentEffectAction::Noop
+            | ApplyEnchantmentEffectAction::DeferredCombatSpell
+            | ApplyEnchantmentEffectAction::DeferredUseSpell
+            | ApplyEnchantmentEffectAction::UpdateDamageDoneMods { .. }
+            | ApplyEnchantmentEffectAction::CastEquipSpell { .. }
+            | ApplyEnchantmentEffectAction::RemoveEquipSpellAura { .. }
+            | ApplyEnchantmentEffectAction::UnhandledStatModifier { .. }
+            | ApplyEnchantmentEffectAction::MissingItemTemplateForAttack { .. }
+            | ApplyEnchantmentEffectAction::Unknown { .. } => {}
+        }
+    }
+
+    fn apply_represented_unit_modifier_like_cpp(
+        &mut self,
+        unit_mod: wow_entities::ApplyEnchantmentUnitMod,
+        modifier: wow_entities::ApplyEnchantmentUnitModifier,
+        amount: u32,
+        apply: bool,
+    ) {
+        match (unit_mod, modifier) {
+            (
+                wow_entities::ApplyEnchantmentUnitMod::Mana,
+                wow_entities::ApplyEnchantmentUnitModifier::BaseValue,
+            ) => apply_represented_i32_delta_like_cpp(
+                &mut self.represented_item_bonus_state_like_cpp.mana_base,
+                amount,
+                apply,
+            ),
+            (
+                wow_entities::ApplyEnchantmentUnitMod::Health,
+                wow_entities::ApplyEnchantmentUnitModifier::BaseValue,
+            ) => apply_represented_i32_delta_like_cpp(
+                &mut self.represented_item_bonus_state_like_cpp.health_base,
+                amount,
+                apply,
+            ),
+            (
+                wow_entities::ApplyEnchantmentUnitMod::Armor,
+                wow_entities::ApplyEnchantmentUnitModifier::BaseValue,
+            ) => apply_represented_i32_delta_like_cpp(
+                &mut self.represented_item_bonus_state_like_cpp.armor_base,
+                amount,
+                apply,
+            ),
+            (
+                wow_entities::ApplyEnchantmentUnitMod::Armor,
+                wow_entities::ApplyEnchantmentUnitModifier::TotalValue,
+            ) => apply_represented_i32_delta_like_cpp(
+                &mut self.represented_item_bonus_state_like_cpp.armor_total,
+                amount,
+                apply,
+            ),
+            (
+                wow_entities::ApplyEnchantmentUnitMod::AttackPower,
+                wow_entities::ApplyEnchantmentUnitModifier::TotalValue,
+            ) => apply_represented_i32_delta_like_cpp(
+                &mut self
+                    .represented_item_bonus_state_like_cpp
+                    .attack_power_total,
+                amount,
+                apply,
+            ),
+            (
+                wow_entities::ApplyEnchantmentUnitMod::AttackPowerRanged,
+                wow_entities::ApplyEnchantmentUnitModifier::TotalValue,
+            ) => apply_represented_i32_delta_like_cpp(
+                &mut self
+                    .represented_item_bonus_state_like_cpp
+                    .ranged_attack_power_total,
+                amount,
+                apply,
+            ),
+            (wow_entities::ApplyEnchantmentUnitMod::Resistance(school), _) => {
+                let school = school as usize;
+                if school
+                    < self
+                        .represented_item_bonus_state_like_cpp
+                        .resistances_base
+                        .len()
+                {
+                    apply_represented_i32_delta_like_cpp(
+                        &mut self.represented_item_bonus_state_like_cpp.resistances_base[school],
+                        amount,
+                        apply,
+                    );
+                }
+            }
+            (unit_mod, wow_entities::ApplyEnchantmentUnitModifier::BaseValue) => {
+                if let Some(index) = represented_unit_mod_stat_index_like_cpp(unit_mod) {
+                    apply_represented_i32_delta_like_cpp(
+                        &mut self.represented_item_bonus_state_like_cpp.stats_base[index],
+                        amount,
+                        apply,
+                    );
+                }
+            }
+            _ => {}
         }
     }
 
@@ -33159,6 +33480,13 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedItemBonusActionLikeCpp] {
         &self.represented_item_bonus_actions_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_item_bonus_state_like_cpp(
+        &self,
+    ) -> &RepresentedItemBonusStateLikeCpp {
+        &self.represented_item_bonus_state_like_cpp
     }
 
     #[cfg(test)]
@@ -103981,6 +104309,25 @@ mod tests {
             ],
             "C++ clamps player level to ScalingStatDistribution range and replaces weapon min/max from ScalingStatValues::getDPSMod"
         );
+        assert_eq!(
+            session
+                .represented_item_bonus_state_like_cpp()
+                .weapon_damage[wow_constants::WeaponAttackType::BaseAttack as usize],
+            [140.0, 260.0],
+            "represented runtime state now applies the planned SetBaseWeaponDamage actions"
+        );
+        assert_eq!(
+            session
+                .represented_item_bonus_state_like_cpp()
+                .base_attack_time[wow_constants::WeaponAttackType::BaseAttack as usize],
+            2000
+        );
+        assert_eq!(
+            session
+                .represented_item_bonus_state_like_cpp()
+                .damage_physical_updates,
+            &[wow_constants::WeaponAttackType::BaseAttack]
+        );
     }
 
     #[test]
@@ -104130,6 +104477,50 @@ mod tests {
                 },
             ],
             "C++ uses ScalingStatDistribution stat slots instead of ItemSparse stats, then applies getSpellBonus and getArmorMod"
+        );
+        assert_eq!(
+            session.represented_item_bonus_state_like_cpp().stats_base
+                [wow_constants::Stats::Strength as usize],
+            100
+        );
+        assert_eq!(
+            session
+                .represented_item_bonus_state_like_cpp()
+                .spell_power_bonus,
+            33
+        );
+        assert_eq!(
+            session
+                .represented_item_bonus_state_like_cpp()
+                .resistances_base[wow_constants::spell::SpellSchools::Normal as usize],
+            77
+        );
+        assert_eq!(
+            session
+                .represented_item_bonus_state_like_cpp()
+                .stat_buff_updates,
+            &[wow_constants::Stats::Strength]
+        );
+
+        session.record_represented_item_mods_like_cpp(item_guid, EQUIPMENT_SLOT_CHEST, false);
+
+        assert_eq!(
+            session.represented_item_bonus_state_like_cpp().stats_base
+                [wow_constants::Stats::Strength as usize],
+            0,
+            "C++ _ApplyItemBonuses(..., false) removes the same represented stat delta"
+        );
+        assert_eq!(
+            session
+                .represented_item_bonus_state_like_cpp()
+                .spell_power_bonus,
+            0
+        );
+        assert_eq!(
+            session
+                .represented_item_bonus_state_like_cpp()
+                .resistances_base[wow_constants::spell::SpellSchools::Normal as usize],
+            0
         );
     }
 
