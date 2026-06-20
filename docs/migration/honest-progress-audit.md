@@ -1,6 +1,6 @@
 # Honest progress audit — RustyCore port (R8-entities miniphase)
 
-**Date:** 2026-06-20 · **Base commit:** `develop` after `#NEXT.R8.ENTITIES.1191`
+**Date:** 2026-06-20 · **Base commit:** `develop` after `#NEXT.R8.ENTITIES.1192`
 
 This document exists to prevent the headline `98.14%` from being read as "almost a
 finished, gap-free server." It records what the number actually measures, with three
@@ -8,32 +8,32 @@ honest percentages instead of one.
 
 ## Raw data (from `docs/migration/inventory/r8-entities-miniphase.tsv`)
 
-1183 rows total. Breakdown by `status` column:
+1184 rows total. Breakdown by `status` column:
 
 | status | rows | meaning |
 |---|---:|---|
 | `complete` | 419 | genuinely complete |
 | `represented-complete` | 191 | complete **within the "represented" per-session model** (not live runtime) |
-| `represented-partial` | 496 | **partial — carries documented open boundaries (gaps)** |
+| `represented-partial` | 497 | **partial — carries documented open boundaries (gaps)** |
 | `bugfix-partial` | 35 | bugfix slice with explicit remaining boundaries |
 | `reviewed-validated` | 17 | validated |
 | `pending` | 22 | not started |
 | other (`partial` / `represented` / `test-fixture-unblock`) | 3 | — |
 
-- **532 of the 1161 "addressed" rows (45.82%) are partial-boundary rows** (`represented-partial`, `bugfix-partial`, or `partial`) — each has open boundaries by definition.
+- **533 of the 1162 "addressed" rows (45.87%) are partial-boundary rows** (`represented-partial`, `bugfix-partial`, or `partial`) — each has open boundaries by definition.
 - **Many rows explicitly declare `manual-test-ready` / `install/restart` as OPEN** — this audit must not be read as real-client/server validation unless a row says that validation was performed.
 
 ## Three honest percentages (not one)
 
 | Metric | Value | Reading |
 |---|---:|---|
-| Items "addressed" (not `pending`) | **98.14%** (1161/1183) | the headline number — real but generous |
-| No declared partial gaps (`complete` + `represented` + `represented-complete` + `reviewed-validated` + `test-fixture-unblock`) | **53.17%** (629/1183) | items with no open boundary |
+| Items "addressed" (not `pending`) | **98.14%** (1162/1184) | the headline number — real but generous |
+| No declared partial gaps (`complete` + `represented` + `represented-complete` + `reviewed-validated` + `test-fixture-unblock`) | **53.13%** (629/1184) | items with no open boundary |
 | Live-runtime / manual-test-ready verified | **low / not globally quantified** | login/realm smoke has been exercised before, but most gameplay rows still explicitly lack live client/bot/manual validation |
 
 ## The two big caveats
 
-1. **`98.13%` measures "represented game logic addressed", not "gap-free server."**
+1. **`98.14%` measures "represented game logic addressed", not "gap-free server."**
    The macro-gap — split-engine live runtime — is now partially bridged but not fully
    closed. Since the original #764 finding, the legacy `wow_world::MapManager` gained an
    experimental global creature runtime (`RustyCore.LegacyCreatureGlobalRuntime`, default
@@ -42,12 +42,12 @@ honest percentages instead of one.
    manual-test-ready and does not by itself prove full runtime parity.
 
 2. **This is ONE miniphase (R8-entities).** The full port also has the r7-l1/l2/l3
-   infra/packets/maps miniphases and more. 1179 R8 rows are not "the whole server".
+   infra/packets/maps miniphases and more. 1184 R8 rows are not "the whole server".
 
 ## Honest one-line status
 
 The bulk of the game logic is ported and contrasted against C++ in a per-session
-"represented" model (~53.35% with no declared partial gaps, ~98.13% of inventory rows touched).
+"represented" model (~53.13% with no declared partial gaps, ~98.14% of inventory rows touched).
 What remains is to convert represented-partial boundaries into live runtime behavior and
 verify them on a running server/client path. The live-runtime roadmap (steps 2-7) is the
 work that actually moves toward "no gaps"; closing more represented-partial items advances

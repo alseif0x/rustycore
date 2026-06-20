@@ -1,3 +1,29 @@
+- `#NEXT.R8.ENTITIES.1192` — represented primary specialization is now
+  separate from loot specialization for item-set and item-use gates. Source of
+  truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/LootHandler.cpp:498-508`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.h:1794-1812`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:8180-8260`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:26917-27034`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:57-145`.
+  C++ `HandleSetLootSpecialization` only updates `LootSpecID`; item-set
+  `ChrSpecID`, player-condition primary-specialization checks, and item-use
+  primary-specialization gates use `GetPrimarySpecialization()` /
+  `CurrentSpecID`. Rust now carries represented `CurrentSpecID` independently
+  and uses it instead of `LootSpecID` for those represented gates. Coverage
+  proves setting only loot spec does not activate a spec-gated item-set spell,
+  then setting represented primary spec lets represented `UpdateItemSetAuras`
+  replay the remove/apply sequence. Checks: `cargo fmt --all --check`,
+  `cargo test -p wow-world
+  represented_item_set_uses_primary_spec_not_loot_spec_like_cpp --lib`,
+  `cargo test -p wow-world
+  represented_update_item_set_auras_replays_active_bonuses_like_cpp --lib`,
+  `cargo check -p wow-world`, `cargo check -p world-server`, and
+  `git diff --check`. Boundary remains partial: represented state only; not
+  wired to real `ActivateTalentGroup`, DB load/save of current spec, update-field
+  emission, real `ApplyEquipSpell`, aura presence/shapeshift checks, fanout,
+  bot/live/manual validation, or final aura state.
+
 - `#NEXT.R8.ENTITIES.1191` — represented `UpdateItemSetAuras` now replays
   active item-set bonuses like C++ when spec/form state changes. Source of
   truth:

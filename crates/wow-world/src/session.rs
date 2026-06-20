@@ -4012,6 +4012,8 @@ pub struct WorldSession {
     player_create_mode_like_cpp: u8,
     /// C++ ActivePlayerData::LootSpecID represented session state.
     loot_specialization_id: u32,
+    /// Represented C++ ActivePlayerData::CurrentSpecID / GetPrimarySpecialization.
+    represented_primary_specialization_id_like_cpp: u32,
     /// All known spell IDs for the logged-in character (DB + DBC merged).
     known_spells: Vec<i32>,
     /// Represented C++ `PlayerSpell::dependent` for known spells that must not
@@ -4981,8 +4983,9 @@ impl RepresentedPlayerConditionContextLikeCpp {
             power_type: -1,
             power: 0,
             max_power: 0,
-            primary_specialization_id: (session.loot_specialization_id != 0)
-                .then_some(session.loot_specialization_id),
+            primary_specialization_id: (session.represented_primary_specialization_id_like_cpp
+                != 0)
+                .then_some(session.represented_primary_specialization_id_like_cpp),
             skills: &self.skills,
             language_skill: 0,
             reputations: &self.reputations,
@@ -5717,6 +5720,7 @@ impl WorldSession {
             player_gender: 0,
             player_create_mode_like_cpp: wow_data::PLAYER_CREATE_MODE_NORMAL_LIKE_CPP,
             loot_specialization_id: 0,
+            represented_primary_specialization_id_like_cpp: 0,
             known_spells: Vec::new(),
             represented_dependent_known_spells_like_cpp: HashSet::new(),
             represented_removed_known_spells_like_cpp: HashSet::new(),
@@ -14810,7 +14814,7 @@ impl WorldSession {
             effect.equipped_items.len()
         };
 
-        let primary_spec = self.loot_specialization_id_like_cpp();
+        let primary_spec = self.represented_primary_specialization_id_like_cpp();
         let spells: Vec<_> = self
             .item_set_spells_like_cpp(item_set.id)
             .into_iter()
@@ -14907,7 +14911,7 @@ impl WorldSession {
         form_change: bool,
     ) -> usize {
         let before_events = self.represented_item_set_aura_refresh_events_like_cpp.len();
-        let primary_spec = self.loot_specialization_id_like_cpp();
+        let primary_spec = self.represented_primary_specialization_id_like_cpp();
         let active_effects: Vec<_> = self
             .represented_item_set_effects_like_cpp
             .values()
@@ -17374,7 +17378,7 @@ impl WorldSession {
                 effect1_spell_id,
                 has_effect1_spell,
                 artifact_specialization: None,
-                primary_specialization: self.loot_specialization_id,
+                primary_specialization: self.represented_primary_specialization_id_like_cpp(),
             },
             item_skill: 0,
             item_skill_value: 0,
@@ -31224,6 +31228,14 @@ impl WorldSession {
 
     pub(crate) fn set_loot_specialization_id_like_cpp(&mut self, spec_id: u32) {
         self.loot_specialization_id = spec_id;
+    }
+
+    pub(crate) fn represented_primary_specialization_id_like_cpp(&self) -> u32 {
+        self.represented_primary_specialization_id_like_cpp
+    }
+
+    pub(crate) fn set_represented_primary_specialization_id_like_cpp(&mut self, spec_id: u32) {
+        self.represented_primary_specialization_id_like_cpp = spec_id;
     }
 
     pub(crate) fn player_gold_like_cpp(&self) -> u64 {
@@ -105488,7 +105500,7 @@ mod tests {
         let chest_guid = ObjectGuid::create_item(1, 908);
         let hands_guid = ObjectGuid::create_item(1, 909);
         session.set_player_guid(Some(player_guid));
-        session.set_loot_specialization_id_like_cpp(66);
+        session.set_represented_primary_specialization_id_like_cpp(66);
         session.set_item_set_store(Arc::new(ItemSetStore::from_entries([
             ItemSetEntry {
                 id: 701,
@@ -105626,7 +105638,7 @@ mod tests {
         let chest_guid = ObjectGuid::create_item(1, 915);
         let hands_guid = ObjectGuid::create_item(1, 916);
         session.set_player_guid(Some(player_guid));
-        session.set_loot_specialization_id_like_cpp(66);
+        session.set_represented_primary_specialization_id_like_cpp(66);
         session.set_item_set_store(Arc::new(ItemSetStore::from_entries([ItemSetEntry {
             id: 707,
             name: "Refresh Set".to_string(),
@@ -105692,7 +105704,7 @@ mod tests {
             BTreeSet::from([30, 31])
         );
 
-        session.set_loot_specialization_id_like_cpp(65);
+        session.set_represented_primary_specialization_id_like_cpp(65);
         assert_eq!(
             session.record_represented_update_item_set_auras_like_cpp(true),
             3
@@ -105723,6 +105735,73 @@ mod tests {
                 },
             ],
             "C++ UpdateItemSetAuras removes non-current-spec set auras, otherwise remove/applies with formChange"
+        );
+    }
+
+    #[test]
+    fn represented_item_set_uses_primary_spec_not_loot_spec_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let item_guid = ObjectGuid::create_item(1, 917);
+        session.set_player_guid(Some(player_guid));
+        session.set_loot_specialization_id_like_cpp(66);
+        session.set_item_set_store(Arc::new(ItemSetStore::from_entries([ItemSetEntry {
+            id: 708,
+            name: "Primary Spec Set".to_string(),
+            set_flags: 0,
+            required_skill: 0,
+            required_skill_rank: 0,
+            item_id: std::array::from_fn(|i| if i == 0 { 111 } else { 0 }),
+        }])));
+        session.set_item_set_spell_store(Arc::new(ItemSetSpellStore::from_entries([
+            ItemSetSpellEntry {
+                id: 32,
+                chr_spec_id: 66,
+                spell_id: 9032,
+                threshold: 1,
+                item_set_id: 708,
+            },
+        ])));
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            item_guid,
+            111,
+            InventoryType::Chest,
+        );
+
+        assert!(!session.record_represented_items_set_item_like_cpp(item_guid, true));
+        assert!(
+            session
+                .represented_item_set_spell_events_like_cpp()
+                .is_empty(),
+            "C++ HandleSetLootSpecialization changes LootSpecID only; item-set ChrSpecID uses GetPrimarySpecialization"
+        );
+
+        session.set_represented_primary_specialization_id_like_cpp(66);
+        assert_eq!(
+            session.record_represented_update_item_set_auras_like_cpp(false),
+            2
+        );
+        assert_eq!(
+            session.represented_item_set_aura_refresh_events_like_cpp(),
+            &[
+                RepresentedItemSetAuraRefreshEventLikeCpp {
+                    item_set_id: 708,
+                    spell_entry_id: 32,
+                    spell_id: 9032,
+                    apply: false,
+                    form_change: false,
+                },
+                RepresentedItemSetAuraRefreshEventLikeCpp {
+                    item_set_id: 708,
+                    spell_entry_id: 32,
+                    spell_id: 9032,
+                    apply: true,
+                    form_change: false,
+                },
+            ],
+            "C++ UpdateItemSetAuras uses the current primary specialization, not LootSpecID"
         );
     }
 
