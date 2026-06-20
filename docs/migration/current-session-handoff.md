@@ -1,3 +1,23 @@
+- `#NEXT.R8.ENTITIES.1197` — represented item-set aura refresh now applies the
+  C++ `ApplyEquipSpell(..., formChange)` shapeshift gate for regular
+  `SpellInfo`. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:8187-8220`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:8238-8260`.
+  C++ skips the remove branch on a form change when `CheckShapeshift` is OK,
+  and skips the apply/cast branch when `CheckShapeshift` is not OK. Rust now
+  tracks a represented current shapeshift form, uses the regular
+  `SpellStore::check_shapeshift_like_cpp` decision for represented item-set
+  refresh events, emits remove-only for form-incompatible set spells, and emits
+  apply-only for still-compatible form-change refreshes. Coverage proves both
+  branches and updates the prior item-set refresh expectation to the exact C++
+  form-change remove-skip behavior. Checks so far: `cargo fmt --all` and
+  `cargo test -p wow-world represented_update_item_set_auras --lib`; final
+  check suite is recorded in the TSV row. Boundary remains partial: represented
+  event shaping only; no real `CastSpell`, `RemoveAurasDueToSpell`,
+  active-aura duplicate check for form changes, update-field emission,
+  persistence, fanout, bot/live/manual validation, or final aura state.
+
 - `#NEXT.R8.ENTITIES.1196` — regular `SpellStore` now hydrates the C++
   `SpellInfo::Stances` / `StancesNot` data needed by real equip-spell
   shapeshift checks. Source of truth:

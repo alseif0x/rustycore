@@ -4010,6 +4010,8 @@ pub struct WorldSession {
     player_gender: u8,
     /// C++ `Player::m_createMode`, loaded from `characters.createMode`.
     player_create_mode_like_cpp: u8,
+    /// Represented C++ `Player::GetShapeshiftForm()` until shapeshift aura state owns it.
+    represented_shapeshift_form_like_cpp: u32,
     /// C++ ActivePlayerData::LootSpecID represented session state.
     loot_specialization_id: u32,
     /// Represented C++ ActivePlayerData::CurrentSpecID / GetPrimarySpecialization.
@@ -5719,6 +5721,7 @@ impl WorldSession {
             player_level: 0,
             player_gender: 0,
             player_create_mode_like_cpp: wow_data::PLAYER_CREATE_MODE_NORMAL_LIKE_CPP,
+            represented_shapeshift_form_like_cpp: 0,
             loot_specialization_id: 0,
             represented_primary_specialization_id_like_cpp: 0,
             known_spells: Vec::new(),
@@ -14923,6 +14926,28 @@ impl WorldSession {
         u32::from(self.player_level_like_cpp()) > max_level
     }
 
+    fn represented_equip_spell_fits_shapeshift_like_cpp(&self, spell_id: u32) -> bool {
+        let Some(spell_store) = self.spell_store.as_ref() else {
+            return true;
+        };
+        let Ok(spell_id) = i32::try_from(spell_id) else {
+            return false;
+        };
+
+        spell_store
+            .check_shapeshift_like_cpp(
+                spell_id,
+                self.represented_shapeshift_form_like_cpp(),
+                |form| {
+                    self.spell_shapeshift_form_store
+                        .as_ref()
+                        .and_then(|store| store.get(form))
+                },
+            )
+            .unwrap_or(SpellCastResult::Success)
+            == SpellCastResult::Success
+    }
+
     fn record_represented_remove_items_set_item_like_cpp(
         &mut self,
         item_guid: ObjectGuid,
@@ -15016,24 +15041,30 @@ impl WorldSession {
                     continue;
                 }
 
-                self.represented_item_set_aura_refresh_events_like_cpp.push(
-                    RepresentedItemSetAuraRefreshEventLikeCpp {
-                        item_set_id: effect.item_set_id,
-                        spell_entry_id: item_set_spell.id,
-                        spell_id: item_set_spell.spell_id,
-                        apply: false,
-                        form_change,
-                    },
-                );
-                self.represented_item_set_aura_refresh_events_like_cpp.push(
-                    RepresentedItemSetAuraRefreshEventLikeCpp {
-                        item_set_id: effect.item_set_id,
-                        spell_entry_id: item_set_spell.id,
-                        spell_id: item_set_spell.spell_id,
-                        apply: true,
-                        form_change,
-                    },
-                );
+                let fits_shapeshift =
+                    self.represented_equip_spell_fits_shapeshift_like_cpp(item_set_spell.spell_id);
+                if !form_change || !fits_shapeshift {
+                    self.represented_item_set_aura_refresh_events_like_cpp.push(
+                        RepresentedItemSetAuraRefreshEventLikeCpp {
+                            item_set_id: effect.item_set_id,
+                            spell_entry_id: item_set_spell.id,
+                            spell_id: item_set_spell.spell_id,
+                            apply: false,
+                            form_change,
+                        },
+                    );
+                }
+                if fits_shapeshift {
+                    self.represented_item_set_aura_refresh_events_like_cpp.push(
+                        RepresentedItemSetAuraRefreshEventLikeCpp {
+                            item_set_id: effect.item_set_id,
+                            spell_entry_id: item_set_spell.id,
+                            spell_id: item_set_spell.spell_id,
+                            apply: true,
+                            form_change,
+                        },
+                    );
+                }
             }
         }
 
@@ -31301,6 +31332,14 @@ impl WorldSession {
 
     pub(crate) fn set_loot_specialization_id_like_cpp(&mut self, spec_id: u32) {
         self.loot_specialization_id = spec_id;
+    }
+
+    pub(crate) fn represented_shapeshift_form_like_cpp(&self) -> u32 {
+        self.represented_shapeshift_form_like_cpp
+    }
+
+    pub(crate) fn set_represented_shapeshift_form_like_cpp(&mut self, form_id: u32) {
+        self.represented_shapeshift_form_like_cpp = form_id;
     }
 
     pub(crate) fn represented_primary_specialization_id_like_cpp(&self) -> u32 {
@@ -106028,18 +106067,11 @@ mod tests {
         session.set_represented_primary_specialization_id_like_cpp(65);
         assert_eq!(
             session.record_represented_update_item_set_auras_like_cpp(true),
-            3
+            2
         );
         assert_eq!(
             session.represented_item_set_aura_refresh_events_like_cpp(),
             &[
-                RepresentedItemSetAuraRefreshEventLikeCpp {
-                    item_set_id: 707,
-                    spell_entry_id: 30,
-                    spell_id: 9030,
-                    apply: false,
-                    form_change: true,
-                },
                 RepresentedItemSetAuraRefreshEventLikeCpp {
                     item_set_id: 707,
                     spell_entry_id: 30,
@@ -106055,7 +106087,116 @@ mod tests {
                     form_change: false,
                 },
             ],
-            "C++ UpdateItemSetAuras removes non-current-spec set auras, otherwise remove/applies with formChange"
+            "C++ ApplyEquipSpell(false, formChange=true) skips removal when the spell still fits the current shapeshift"
+        );
+    }
+
+    #[test]
+    fn represented_update_item_set_auras_skips_apply_when_shapeshift_rejected_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let item_guid = ObjectGuid::create_item(1, 922);
+        let mut spell_store = SpellStore::new();
+        spell_store.insert(9042, test_spell_info_like_cpp(9042));
+        spell_store.insert_spell_shapeshift_masks_like_cpp(9042, 1 << 4, 0);
+
+        session.set_player_guid(Some(player_guid));
+        session.set_spell_store(Arc::new(spell_store));
+        session.set_item_set_store(Arc::new(ItemSetStore::from_entries([ItemSetEntry {
+            id: 711,
+            name: "Form Restricted Set".to_string(),
+            set_flags: 0,
+            required_skill: 0,
+            required_skill_rank: 0,
+            item_id: std::array::from_fn(|i| if i == 0 { 116 } else { 0 }),
+        }])));
+        session.set_item_set_spell_store(Arc::new(ItemSetSpellStore::from_entries([
+            ItemSetSpellEntry {
+                id: 36,
+                chr_spec_id: 0,
+                spell_id: 9042,
+                threshold: 1,
+                item_set_id: 711,
+            },
+        ])));
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            item_guid,
+            116,
+            InventoryType::Chest,
+        );
+
+        assert!(session.record_represented_items_set_item_like_cpp(item_guid, true));
+        assert_eq!(
+            session.record_represented_update_item_set_auras_like_cpp(false),
+            1
+        );
+        assert_eq!(
+            session.represented_item_set_aura_refresh_events_like_cpp(),
+            &[RepresentedItemSetAuraRefreshEventLikeCpp {
+                item_set_id: 711,
+                spell_entry_id: 36,
+                spell_id: 9042,
+                apply: false,
+                form_change: false,
+            }],
+            "C++ ApplyEquipSpell(true) returns without casting when CheckShapeshift is not OK"
+        );
+    }
+
+    #[test]
+    fn represented_update_item_set_auras_form_change_skips_remove_when_form_still_fits_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let item_guid = ObjectGuid::create_item(1, 923);
+        let mut spell_store = SpellStore::new();
+        spell_store.insert(9043, test_spell_info_like_cpp(9043));
+        spell_store.insert_spell_shapeshift_masks_like_cpp(9043, 1 << 4, 0);
+
+        session.set_player_guid(Some(player_guid));
+        session.set_spell_store(Arc::new(spell_store));
+        session.set_represented_shapeshift_form_like_cpp(5);
+        session.set_item_set_store(Arc::new(ItemSetStore::from_entries([ItemSetEntry {
+            id: 712,
+            name: "Matching Form Set".to_string(),
+            set_flags: 0,
+            required_skill: 0,
+            required_skill_rank: 0,
+            item_id: std::array::from_fn(|i| if i == 0 { 117 } else { 0 }),
+        }])));
+        session.set_item_set_spell_store(Arc::new(ItemSetSpellStore::from_entries([
+            ItemSetSpellEntry {
+                id: 37,
+                chr_spec_id: 0,
+                spell_id: 9043,
+                threshold: 1,
+                item_set_id: 712,
+            },
+        ])));
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            item_guid,
+            117,
+            InventoryType::Chest,
+        );
+
+        assert!(session.record_represented_items_set_item_like_cpp(item_guid, true));
+        assert_eq!(
+            session.record_represented_update_item_set_auras_like_cpp(true),
+            1
+        );
+        assert_eq!(
+            session.represented_item_set_aura_refresh_events_like_cpp(),
+            &[RepresentedItemSetAuraRefreshEventLikeCpp {
+                item_set_id: 712,
+                spell_entry_id: 37,
+                spell_id: 9043,
+                apply: true,
+                form_change: true,
+            }],
+            "C++ ApplyEquipSpell(false, formChange=true) returns early when CheckShapeshift is OK"
         );
     }
 

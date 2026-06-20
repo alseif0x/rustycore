@@ -5710,6 +5710,17 @@ ORDER BY sm.ID, se.EffectIndex
         self.spell_misc_attributes.insert(spell_id, attributes);
     }
 
+    #[allow(dead_code)]
+    pub fn insert_spell_shapeshift_masks_like_cpp(
+        &mut self,
+        spell_id: i32,
+        stances: u64,
+        stances_not: u64,
+    ) {
+        self.spell_shapeshift_masks
+            .insert(spell_id, (stances, stances_not));
+    }
+
     /// Get the total number of loaded spells.
     pub fn len(&self) -> usize {
         self.spells.len()
