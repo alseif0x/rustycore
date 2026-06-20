@@ -11806,11 +11806,35 @@ impl WorldSession {
         // 27. InitialSetup (expansion level)
         self.send_packet(&InitialSetup::wotlk());
 
-        // 27b. MoveSetActiveMover — CRITICAL: tells the client which unit it
-        //      controls for movement. Without this, `m_mover` is null and the
-        //      client crashes with ACCESS_VIOLATION when processing movement.
-        //      C# sends via SetMovedUnit(this) at Player.cs line 5610.
-        self.send_packet(&MoveSetActiveMover { mover_guid: guid });
+        let login_update_object_diagnostic =
+            std::env::var("RUSTYCORE_LOGIN_UPDATEOBJECT_DIAGNOSTIC").ok();
+        let diagnostic_modes: Vec<&str> = login_update_object_diagnostic
+            .as_deref()
+            .map(|value| {
+                value
+                    .split(',')
+                    .map(str::trim)
+                    .filter(|mode| !mode.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default();
+        let skip_active_mover_packet = diagnostic_modes.contains(&"no_active_mover");
+        let active_mover_after_create = diagnostic_modes.contains(&"active_mover_after_create");
+
+        // 27b. MoveSetActiveMover diagnostic.
+        //
+        // C++ 3.4.3 `Player::SendInitialPacketsBeforeAddToMap` ends with
+        // `SetMovedUnit(this)`, but that is server-side state, not an immediate
+        // `SMSG_MOVE_SET_ACTIVE_MOVER` in this login position. Keep this gated
+        // while we isolate the 54261 client crash around player CREATE.
+        if skip_active_mover_packet || active_mover_after_create {
+            warn!(
+                diagnostic = login_update_object_diagnostic.as_deref().unwrap_or(""),
+                "Skipping pre-UpdateObject MoveSetActiveMover for login diagnostic"
+            );
+        } else {
+            self.send_packet(&MoveSetActiveMover { mover_guid: guid });
+        }
 
         // ── Phase 3: AddToMap → UpdateObject ──
 
@@ -11825,18 +11849,6 @@ impl WorldSession {
             // StateFlags: 0=None, 1=Complete (QuestSlotStateMask)
             let quest_log: Vec<(u32, u32, i64, [u16; 24])> =
                 self.quest_log_create_entries_like_cpp();
-            let login_update_object_diagnostic =
-                std::env::var("RUSTYCORE_LOGIN_UPDATEOBJECT_DIAGNOSTIC").ok();
-            let diagnostic_modes: Vec<&str> = login_update_object_diagnostic
-                .as_deref()
-                .map(|value| {
-                    value
-                        .split(',')
-                        .map(str::trim)
-                        .filter(|mode| !mode.is_empty())
-                        .collect()
-                })
-                .unwrap_or_default();
             let skip_inventory_create = diagnostic_modes.contains(&"no_items");
             let skip_collection_create = diagnostic_modes.contains(&"no_collections");
 
@@ -11915,6 +11927,10 @@ impl WorldSession {
             }
 
             self.send_packet(&player_pkt);
+        }
+        if active_mover_after_create {
+            warn!("Sending MoveSetActiveMover after player CREATE for login diagnostic");
+            self.send_packet(&MoveSetActiveMover { mover_guid: guid });
         }
 
         // ── Phase 3b: Send nearby creatures + gameobjects ──
