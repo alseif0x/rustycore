@@ -11825,13 +11825,38 @@ impl WorldSession {
             // StateFlags: 0=None, 1=Complete (QuestSlotStateMask)
             let quest_log: Vec<(u32, u32, i64, [u16; 24])> =
                 self.quest_log_create_entries_like_cpp();
-            let account_toys = self.account_toy_active_player_rows_like_cpp();
-            let account_heirlooms = self.account_heirloom_active_player_rows_like_cpp();
-
             let login_update_object_diagnostic =
                 std::env::var("RUSTYCORE_LOGIN_UPDATEOBJECT_DIAGNOSTIC").ok();
-            let skip_inventory_create =
-                login_update_object_diagnostic.as_deref() == Some("no_items");
+            let diagnostic_modes: Vec<&str> = login_update_object_diagnostic
+                .as_deref()
+                .map(|value| {
+                    value
+                        .split(',')
+                        .map(str::trim)
+                        .filter(|mode| !mode.is_empty())
+                        .collect()
+                })
+                .unwrap_or_default();
+            let skip_inventory_create = diagnostic_modes.contains(&"no_items");
+            let skip_collection_create = diagnostic_modes.contains(&"no_collections");
+
+            let mut account_toys = self.account_toy_active_player_rows_like_cpp();
+            let mut account_heirlooms = self.account_heirloom_active_player_rows_like_cpp();
+            info!(
+                toys = account_toys.len(),
+                heirlooms = account_heirlooms.len(),
+                diagnostic = login_update_object_diagnostic.as_deref().unwrap_or(""),
+                "Building player CREATE collection dynamic fields"
+            );
+            if skip_collection_create {
+                warn!(
+                    toys = account_toys.len(),
+                    heirlooms = account_heirlooms.len(),
+                    "RUSTYCORE_LOGIN_UPDATEOBJECT_DIAGNOSTIC=no_collections: sending player CREATE without account collection dynamic fields"
+                );
+                account_toys.clear();
+                account_heirlooms.clear();
+            }
             let visible_items_for_create = if skip_inventory_create {
                 warn!(
                     "RUSTYCORE_LOGIN_UPDATEOBJECT_DIAGNOSTIC=no_items: sending player CREATE without item CREATE blocks or inventory references"
