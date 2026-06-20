@@ -1,3 +1,24 @@
+- `#NEXT.R8.ENTITIES.1183` — represented direct equipment moves now feed the
+  item-bonus snapshot around C++ `RemoveItem` / `EquipItem` boundaries. Source
+  of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11366-11479`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11559-11587`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7660-7690`.
+  Rust adds a direct-inventory move wrapper that calls represented
+  `_ApplyItemMods(..., false)` for non-broken items leaving equipment slots and
+  represented `_ApplyItemMods(..., true)` for non-broken items entering
+  equipment slots, then `AutoEquipItemSlot` / direct `SwapInvItem` emit one
+  current-session represented stat VALUES delta after the inventory/visual
+  update path. Coverage: `cargo fmt --all --check`, `cargo test -p wow-world
+  auto_equip_item_slot --lib`, `cargo test -p wow-world
+  direct_inventory_move_from_equipment_removes_represented_item_mods_like_cpp
+  --lib`, `cargo check -p wow-world`, `cargo check -p world-server`, and `git
+  diff --check`. Boundary remains partial: direct top-level inventory only;
+  nested bag/container equip parity, authoritative Player/UnitMods mutation,
+  exact C++ update batching, multi-session fanout, persistence proof,
+  bot/live/manual validation remain open.
+
 - `#NEXT.R8.ENTITIES.1182` — represented `Player::DurabilityRepair` now emits a
   current-session `SMSG_UPDATE_OBJECT` stat VALUES delta after repairing a
   broken equipped item and reapplying item mods. Source of truth:

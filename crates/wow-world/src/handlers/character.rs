@@ -10276,19 +10276,17 @@ impl WorldSession {
             None => return,
         };
 
-        // Perform the swap in memory
-        if let Some(ref item) = src_item {
-            self.insert_inventory_item_like_cpp(dst, item.clone());
-            self.set_inventory_item_object_slot(item.guid, dst);
+        // Perform the swap in memory. When the move crosses equipment slots,
+        // mirror C++ RemoveItem/EquipItem around the slot mutation.
+        let represented_item_mods_changed = if src_item.is_some() {
+            self.move_represented_direct_inventory_item_with_item_mods_like_cpp(src, dst)
+                .unwrap_or(false)
+        } else if dst_item.is_some() {
+            self.move_represented_direct_inventory_item_with_item_mods_like_cpp(dst, src)
+                .unwrap_or(false)
         } else {
-            self.remove_inventory_item_like_cpp(dst);
-        }
-        if let Some(ref item) = dst_item {
-            self.insert_inventory_item_like_cpp(src, item.clone());
-            self.set_inventory_item_object_slot(item.guid, src);
-        } else {
-            self.remove_inventory_item_like_cpp(src);
-        }
+            false
+        };
         self.sync_object_accessor_player();
 
         // Update DB
@@ -10374,6 +10372,9 @@ impl WorldSession {
         // If any affected slot is a gear slot (0-18), recalculate and send stats
         if src < 19 || dst < 19 {
             self.send_stat_update();
+        }
+        if represented_item_mods_changed {
+            self.send_represented_item_bonus_player_stat_update_like_cpp();
         }
 
         info!(
@@ -10497,11 +10498,19 @@ impl WorldSession {
             return;
         }
 
-        if self.move_represented_direct_inventory_item_like_cpp(src_slot, equip.item_dst_slot) {
+        if let Some(represented_item_mods_changed) = self
+            .move_represented_direct_inventory_item_with_item_mods_like_cpp(
+                src_slot,
+                equip.item_dst_slot,
+            )
+        {
             self.sync_object_accessor_player();
             self.sync_player_registry_state_like_cpp();
             if src_slot < 19 || equip.item_dst_slot < 19 {
                 self.send_stat_update();
+            }
+            if represented_item_mods_changed {
+                self.send_represented_item_bonus_player_stat_update_like_cpp();
             }
             debug!(
                 "AutoEquipItemSlot: swapped item {:?} from slot {} to {} for {:?}",
@@ -11989,6 +11998,7 @@ mod tests {
     use wow_data::character_progression::{
         ChrClassesEntry, ChrClassesStore, ChrRacesEntry, ChrRacesStore,
     };
+    use wow_data::item_stats::{ItemModType, ItemStatEntry, ItemStatsStore};
     use wow_data::quest::{
         QUEST_ITEM_DROP_COUNT, QUEST_REWARD_CHOICES_COUNT, QUEST_REWARD_DISPLAY_SPELL_COUNT,
         QUEST_REWARD_ITEM_COUNT, QUEST_REWARD_REPUTATIONS_COUNT, QuestStore, QuestTemplate,
@@ -12037,6 +12047,37 @@ mod tests {
         session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
         session.set_player_position_like_cpp(Position::new(10.0, 0.0, 0.0, 0.0));
         (session, send_rx)
+    }
+
+    fn strength_item_stats_store(entry_id: u32, amount: i16) -> ItemStatsStore {
+        ItemStatsStore::from_parts(
+            [(
+                entry_id,
+                ItemStatEntry {
+                    stats: std::array::from_fn(|i| {
+                        if i == 0 {
+                            (ItemModType::Strength as i8, amount)
+                        } else {
+                            (ItemModType::None as i8, 0)
+                        }
+                    }),
+                    resistances: [0; 7],
+                    armor: 0,
+                },
+            )],
+            [],
+        )
+    }
+
+    fn drain_server_opcodes(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<ServerOpcodes> {
+        let mut opcodes = Vec::new();
+        while let Ok(bytes) = send_rx.try_recv() {
+            let packet = WorldPacket::from_bytes(&bytes);
+            if let Some(opcode) = packet.server_opcode() {
+                opcodes.push(opcode);
+            }
+        }
+        opcodes
     }
 
     #[test]
@@ -13060,6 +13101,108 @@ mod tests {
             session
                 .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)
                 .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn auto_equip_item_slot_applies_represented_item_mods_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(4);
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let item_guid = ObjectGuid::create_item(1, 64);
+        let entry_id = 109;
+        session.set_player_guid(Some(player_guid));
+        session.set_item_stats_store(Arc::new(strength_item_stats_store(entry_id, 7)));
+        session.insert_inventory_item_like_cpp(
+            INVENTORY_SLOT_ITEM_START,
+            InventoryItem {
+                guid: item_guid,
+                entry_id,
+                db_guid: 64,
+                inventory_type: Some(InventoryType::Weapon as u8),
+            },
+        );
+        let item = session.make_inventory_item_object(
+            item_guid,
+            entry_id,
+            player_guid,
+            1,
+            0,
+            ItemContext::None,
+            INVENTORY_SLOT_ITEM_START,
+        );
+        session.insert_inventory_item_object(item);
+
+        session
+            .handle_auto_equip_item_slot(AutoEquipItemSlot {
+                inv_update: InvUpdate {
+                    items: vec![(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)],
+                },
+                item: item_guid,
+                item_dst_slot: EQUIPMENT_SLOT_MAINHAND,
+            })
+            .await;
+
+        assert_eq!(
+            session.represented_item_bonus_state_like_cpp().stats_base[0],
+            7,
+            "C++ EquipItem calls _ApplyItemMods(..., true) for alive equipped items"
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::UpdateObject],
+            "represented item-mod equip emits one current-session stat VALUES delta"
+        );
+    }
+
+    #[test]
+    fn direct_inventory_move_from_equipment_removes_represented_item_mods_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send_capacity(1);
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let item_guid = ObjectGuid::create_item(1, 65);
+        let entry_id = 110;
+        session.set_player_guid(Some(player_guid));
+        session.set_item_stats_store(Arc::new(strength_item_stats_store(entry_id, 9)));
+        session.insert_inventory_item_like_cpp(
+            INVENTORY_SLOT_ITEM_START,
+            InventoryItem {
+                guid: item_guid,
+                entry_id,
+                db_guid: 65,
+                inventory_type: Some(InventoryType::Weapon as u8),
+            },
+        );
+        let item = session.make_inventory_item_object(
+            item_guid,
+            entry_id,
+            player_guid,
+            1,
+            0,
+            ItemContext::None,
+            INVENTORY_SLOT_ITEM_START,
+        );
+        session.insert_inventory_item_object(item);
+        assert_eq!(
+            session.move_represented_direct_inventory_item_with_item_mods_like_cpp(
+                INVENTORY_SLOT_ITEM_START,
+                EQUIPMENT_SLOT_MAINHAND
+            ),
+            Some(true)
+        );
+        assert_eq!(
+            session.represented_item_bonus_state_like_cpp().stats_base[0],
+            9
+        );
+        assert_eq!(
+            session.move_represented_direct_inventory_item_with_item_mods_like_cpp(
+                EQUIPMENT_SLOT_MAINHAND,
+                INVENTORY_SLOT_ITEM_START
+            ),
+            Some(true)
+        );
+        assert_eq!(
+            session.represented_item_bonus_state_like_cpp().stats_base[0],
+            0,
+            "C++ RemoveItem calls _ApplyItemMods(..., false) before taking equipped items out of storage"
         );
     }
 

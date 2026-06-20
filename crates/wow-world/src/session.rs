@@ -6416,6 +6416,70 @@ impl WorldSession {
         true
     }
 
+    pub(crate) fn move_represented_direct_inventory_item_with_item_mods_like_cpp(
+        &mut self,
+        src: u8,
+        dst: u8,
+    ) -> Option<bool> {
+        if src == dst {
+            return Some(false);
+        }
+
+        let src_item = self.inventory_items_like_cpp().get(&src).cloned()?;
+        let dst_item = self.inventory_items_like_cpp().get(&dst).cloned();
+        let mut item_mods_changed = false;
+
+        if src < INVENTORY_SLOT_BAG_END
+            && self
+                .inventory_item_objects_like_cpp()
+                .get(&src_item.guid)
+                .is_some_and(|item| !item.is_broken())
+        {
+            self.record_represented_item_mods_like_cpp(src_item.guid, src, false);
+            item_mods_changed = true;
+        }
+
+        if dst < INVENTORY_SLOT_BAG_END
+            && dst_item.as_ref().is_some_and(|item| {
+                self.inventory_item_objects_like_cpp()
+                    .get(&item.guid)
+                    .is_some_and(|item_object| !item_object.is_broken())
+            })
+        {
+            let dst_item = dst_item.as_ref().expect("checked Some above");
+            self.record_represented_item_mods_like_cpp(dst_item.guid, dst, false);
+            item_mods_changed = true;
+        }
+
+        if !self.move_represented_direct_inventory_item_like_cpp(src, dst) {
+            return None;
+        }
+
+        if dst < INVENTORY_SLOT_BAG_END
+            && self
+                .inventory_item_objects_like_cpp()
+                .get(&src_item.guid)
+                .is_some_and(|item| !item.is_broken())
+        {
+            self.record_represented_item_mods_like_cpp(src_item.guid, dst, true);
+            item_mods_changed = true;
+        }
+
+        if src < INVENTORY_SLOT_BAG_END
+            && dst_item.as_ref().is_some_and(|item| {
+                self.inventory_item_objects_like_cpp()
+                    .get(&item.guid)
+                    .is_some_and(|item_object| !item_object.is_broken())
+            })
+        {
+            let dst_item = dst_item.as_ref().expect("checked Some above");
+            self.record_represented_item_mods_like_cpp(dst_item.guid, src, true);
+            item_mods_changed = true;
+        }
+
+        Some(item_mods_changed)
+    }
+
     pub(crate) fn move_represented_direct_inventory_item_to_pos_like_cpp(
         &mut self,
         src: u8,
@@ -14571,7 +14635,7 @@ impl WorldSession {
         )
     }
 
-    fn send_represented_item_bonus_player_stat_update_like_cpp(&self) -> bool {
+    pub(crate) fn send_represented_item_bonus_player_stat_update_like_cpp(&self) -> bool {
         let Some(update) = self.represented_item_bonus_player_stat_update_object_like_cpp() else {
             return false;
         };
