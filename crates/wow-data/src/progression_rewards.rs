@@ -618,6 +618,19 @@ impl CurveStore {
 
         curve_value_at_points_like_cpp(determine_curve_type_like_cpp(curve, points), points, x)
     }
+
+    /// C++ `DB2Manager::GetCurveXAxisRange`.
+    pub fn curve_x_axis_range_like_cpp(
+        &self,
+        curve_points: &CurvePointStore,
+        curve_id: u32,
+    ) -> Option<(f32, f32)> {
+        let grouped_points = curve_points.points_by_curve_like_cpp(self);
+        let points = grouped_points.get(&curve_id)?;
+        let first = points.first()?;
+        let last = points.last()?;
+        Some((first[0], last[0]))
+    }
 }
 
 impl CurvePointStore {
@@ -1586,6 +1599,23 @@ mod tests {
             &vec![[0.0, 100.0], [10.0, 150.0], [20.0, 200.0]]
         );
         assert!(!grouped.contains_key(&999));
+    }
+
+    #[test]
+    fn curve_x_axis_range_uses_ordered_curve_points_like_cpp() {
+        let curves = CurveStore::from_entries([curve(10, 0)]);
+        let points = CurvePointStore::from_entries([
+            point(1, 10, 2, 20.0, 200.0),
+            point(2, 999, 0, 1.0, 1.0),
+            point(3, 10, 0, 0.0, 100.0),
+            point(4, 10, 1, 10.0, 150.0),
+        ]);
+
+        assert_eq!(
+            curves.curve_x_axis_range_like_cpp(&points, 10),
+            Some((0.0, 20.0))
+        );
+        assert_eq!(curves.curve_x_axis_range_like_cpp(&points, 999), None);
     }
 
     #[test]

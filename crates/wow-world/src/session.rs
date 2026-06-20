@@ -14800,6 +14800,9 @@ impl WorldSession {
         if item_set.set_flags & ITEM_SET_FLAG_LEGACY_INACTIVE_LIKE_CPP != 0 {
             return false;
         }
+        if self.represented_heirloom_item_set_bonus_over_level_cap_like_cpp(item_guid) {
+            return false;
+        }
 
         let before_events = self.represented_item_set_spell_events_like_cpp.len();
         let equipped_count_after = {
@@ -14848,6 +14851,64 @@ impl WorldSession {
         }
 
         self.represented_item_set_spell_events_like_cpp.len() != before_events
+    }
+
+    fn represented_heirloom_item_set_bonus_over_level_cap_like_cpp(
+        &self,
+        item_guid: ObjectGuid,
+    ) -> bool {
+        let Some(item_entry) = self
+            .inventory_item_objects_like_cpp()
+            .get(&item_guid)
+            .map(|item| item.object().entry())
+        else {
+            return false;
+        };
+        if !self
+            .heirloom_store
+            .as_ref()
+            .is_some_and(|store| store.get_by_item_id_like_cpp(item_entry).is_some())
+        {
+            return false;
+        }
+
+        let Some(template) = self
+            .item_stats_store
+            .as_ref()
+            .and_then(|store| store.sparse_template(item_entry))
+        else {
+            return false;
+        };
+        let curve_id = template.player_level_to_item_level_curve_id_like_cpp();
+        if curve_id == 0 {
+            return false;
+        }
+
+        let Some((curve_store, curve_point_store)) = self
+            .curve_store
+            .as_ref()
+            .zip(self.curve_point_store.as_ref())
+        else {
+            return false;
+        };
+        let Some((_min_level, max_level)) =
+            curve_store.curve_x_axis_range_like_cpp(curve_point_store, curve_id)
+        else {
+            return false;
+        };
+        if !max_level.is_finite() || max_level < 0.0 {
+            return false;
+        }
+        let mut max_level = max_level as u32;
+
+        if let Some(content_tuning) = self.content_tuning_store.as_ref().and_then(|store| {
+            store
+                .content_tuning_data_like_cpp(template.scaling_stat_content_tuning_like_cpp(), true)
+        }) {
+            max_level = max_level.min(u32::try_from(content_tuning.max_level).unwrap_or(0));
+        }
+
+        u32::from(self.player_level_like_cpp()) > max_level
     }
 
     fn record_represented_remove_items_set_item_like_cpp(
@@ -105628,6 +105689,162 @@ mod tests {
                 .iter()
                 .any(|event| event.spell_id == 9013 && event.apply),
             "C++ item set bonuses are not dependent on item broken state"
+        );
+    }
+
+    #[test]
+    fn represented_item_set_heirloom_max_level_guard_matches_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let chest_guid = ObjectGuid::create_item(1, 918);
+        let hands_guid = ObjectGuid::create_item(1, 919);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_level_like_cpp(19);
+        session.set_item_set_store(Arc::new(ItemSetStore::from_entries([ItemSetEntry {
+            id: 709,
+            name: "Heirloom Curve Set".to_string(),
+            set_flags: 0,
+            required_skill: 0,
+            required_skill_rank: 0,
+            item_id: std::array::from_fn(|i| match i {
+                0 => 112,
+                1 => 113,
+                _ => 0,
+            }),
+        }])));
+        session.set_item_set_spell_store(Arc::new(ItemSetSpellStore::from_entries([
+            ItemSetSpellEntry {
+                id: 33,
+                chr_spec_id: 0,
+                spell_id: 9033,
+                threshold: 2,
+                item_set_id: 709,
+            },
+        ])));
+        session.set_heirloom_store(Arc::new(HeirloomStore::from_entries([
+            HeirloomEntry {
+                id: 112,
+                source_text: "test".to_string(),
+                item_id: 112,
+                legacy_upgraded_item_id: 0,
+                static_upgraded_item_id: 0,
+                source_type_enum: 0,
+                flags: 0,
+                legacy_item_id: 0,
+                upgrade_item_id: [0; 6],
+                upgrade_item_bonus_list_id: [0; 6],
+            },
+            HeirloomEntry {
+                id: 113,
+                source_text: "test".to_string(),
+                item_id: 113,
+                legacy_upgraded_item_id: 0,
+                static_upgraded_item_id: 0,
+                source_type_enum: 0,
+                flags: 0,
+                legacy_item_id: 0,
+                upgrade_item_id: [0; 6],
+                upgrade_item_bonus_list_id: [0; 6],
+            },
+        ])));
+        let sparse = ItemSparseTemplateEntry {
+            flags: [0; 4],
+            bag_family: 0,
+            start_quest_id: 0,
+            stackable: 1,
+            max_count: 0,
+            lock_id: 0,
+            required_reputation_rank: 0,
+            sell_price: 0,
+            buy_price: 0,
+            vendor_stack_count: 1,
+            price_variance: 1.0,
+            price_random_value: 0.0,
+            max_durability: 0,
+            other_faction_item_id: 0,
+            content_tuning_id: 55,
+            player_level_to_item_level_curve_id: 77,
+            limit_category: 0,
+            instance_bound: 0,
+            zone_bound: [0; 2],
+            required_reputation_faction: 0,
+            allowable_class: 0,
+            required_expansion: 0,
+            bonding: ItemBondingType::None as u8,
+            container_slots: 0,
+            inventory_type: InventoryType::Chest as i8,
+        };
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_and_random_property_templates(
+                [(112, sparse), (113, sparse)],
+                [],
+            ),
+        ));
+        session.set_curve_store(Arc::new(CurveStore::from_entries([CurveEntry {
+            id: 77,
+            curve_type: 0,
+            flags: 0,
+        }])));
+        session.set_curve_point_store(Arc::new(CurvePointStore::from_entries([
+            CurvePointEntry {
+                id: 1,
+                pos: [1.0, 10.0],
+                pre_sl_squish_pos: [0.0, 0.0],
+                curve_id: 77,
+                order_index: 0,
+            },
+            CurvePointEntry {
+                id: 2,
+                pos: [20.0, 20.0],
+                pre_sl_squish_pos: [0.0, 0.0],
+                curve_id: 77,
+                order_index: 1,
+            },
+        ])));
+        session.set_content_tuning_store(Arc::new(ContentTuningStore::from_entries([
+            ContentTuningEntry {
+                id: 55,
+                min_level: 1,
+                max_level: 18,
+                flags: 0,
+                expected_stat_mod_id: 0,
+                difficulty_esm_id: 0,
+            },
+        ])));
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            chest_guid,
+            112,
+            InventoryType::Chest,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_HANDS,
+            hands_guid,
+            113,
+            InventoryType::Hands,
+        );
+
+        assert!(
+            !session.record_represented_items_set_item_like_cpp(chest_guid, true),
+            "C++ AddItemsSetItem returns before creating the set effect when player level exceeds heirloom max level"
+        );
+        assert!(session.represented_item_set_effect_like_cpp(709).is_none());
+
+        session.set_player_level_like_cpp(18);
+        assert!(!session.record_represented_items_set_item_like_cpp(chest_guid, true));
+        assert!(session.record_represented_items_set_item_like_cpp(hands_guid, true));
+        assert_eq!(
+            session.represented_item_set_spell_events_like_cpp(),
+            &[RepresentedItemSetSpellEventLikeCpp {
+                item_set_id: 709,
+                spell_entry_id: 33,
+                spell_id: 9033,
+                threshold: 2,
+                apply: true,
+            }],
+            "C++ only blocks heirloom item-set bonuses when player level is greater than the derived max level"
         );
     }
 

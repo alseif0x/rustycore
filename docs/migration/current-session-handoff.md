@@ -1,3 +1,26 @@
+- `#NEXT.R8.ENTITIES.1193` — represented item-set apply now includes the C++
+  heirloom max-level guard. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:57-145`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:8621-8641`.
+  C++ skips `AddItemsSetItem` for heirloom items when the item bonus
+  `PlayerLevelToItemLevelCurveId` exists and the player level is greater than
+  the curve's max X, capped by `ContentTuningData(..., forItem=true).MaxLevel`
+  when present. Rust now exposes represented `CurveStore::curve_x_axis_range_like_cpp`
+  and applies that guard before creating/updating represented item-set effects.
+  Coverage proves an heirloom set item above the derived max level creates no
+  set effect, while the same item at the max level counts and activates the
+  threshold spell. Checks: `cargo fmt --all --check`, `cargo test -p wow-data
+  curve_x_axis_range_uses_ordered_curve_points_like_cpp --lib`, `cargo test -p
+  wow-world represented_item_set_heirloom_max_level_guard_matches_cpp --lib`,
+  `cargo test -p wow-world represented_item_set --lib`, `cargo check -p
+  wow-data`, `cargo check -p wow-world`, `cargo check -p world-server`, and
+  `git diff --check`. Boundary remains partial: the guard uses represented
+  `ItemSparse` scaling metadata for the runtime item, not a final C++
+  `item->GetBonus()` object; no real `ApplyEquipSpell`, aura/update-field
+  emission, persistence, fanout, bot/live/manual validation, or final aura
+  state.
+
 - `#NEXT.R8.ENTITIES.1192` — represented primary specialization is now
   separate from loot specialization for item-set and item-use gates. Source of
   truth:
