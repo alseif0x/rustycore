@@ -4984,7 +4984,6 @@ impl WorldSession {
             return;
         }
 
-        let realm_id = self.realm_id();
         let mut blocks = Vec::new();
         let mut visible_guids = Vec::new();
         let mut result = result;
@@ -5214,15 +5213,7 @@ impl WorldSession {
                 cur_health,
             );
 
-            let guid = ObjectGuid::create_world_object(
-                HighGuid::Creature,
-                0,
-                realm_id,
-                map_id,
-                1,
-                entry,
-                spawn_guid as i64,
-            );
+            let guid = ObjectGuid::create_creature_like_cpp(map_id, entry, spawn_guid as i64);
 
             let creature_pos = Position::new(pos_x, pos_y, pos_z, orientation);
             let create_data = CreatureCreateData {
@@ -5804,15 +5795,7 @@ impl WorldSession {
                     cur_health,
                 );
 
-                let guid = ObjectGuid::create_world_object(
-                    HighGuid::Creature,
-                    0,
-                    realm_id,
-                    map_id,
-                    1,
-                    entry,
-                    spawn_guid as i64,
-                );
+                let guid = ObjectGuid::create_creature_like_cpp(map_id, entry, spawn_guid as i64);
                 new_visible_creatures.insert(guid);
 
                 // Only create a new block if this creature isn't already visible.

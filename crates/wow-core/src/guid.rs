@@ -427,6 +427,14 @@ impl ObjectGuid {
         )
     }
 
+    /// Matches TrinityCore `ObjectGuid::Create<HighGuid::Creature>(mapId, entry, counter)`.
+    ///
+    /// C++ routes this through `CreateWorldObject(type, 0, 0, mapId, 0, entry, counter)`,
+    /// so creature map GUIDs do not carry realm or server ids.
+    pub fn create_creature_like_cpp(map_id: u16, entry: u32, counter: i64) -> Self {
+        Self::create_world_object(HighGuid::Creature, 0, 0, map_id, 0, entry, counter)
+    }
+
     pub fn create_transport(guid_type: HighGuid, counter: i64) -> Self {
         Self::new(((guid_type as i64) << 58) | (counter << 38), 0)
     }
@@ -657,17 +665,15 @@ mod tests {
 
     #[test]
     fn test_create_creature() {
-        let guid = ObjectGuid::create_world_object(
-            HighGuid::Creature,
-            0,    // sub_type
-            1,    // realm_id
+        let guid = ObjectGuid::create_creature_like_cpp(
             530,  // map_id (Outland)
-            0,    // server_id
             1234, // entry
             5678, // counter
         );
         assert!(guid.is_creature());
         assert_eq!(guid.high_type(), HighGuid::Creature);
+        assert_eq!(guid.realm_id(), 0);
+        assert_eq!(guid.server_id(), 0);
         assert_eq!(guid.map_id(), 530);
         assert_eq!(guid.entry(), 1234);
         assert_eq!(guid.counter(), 5678);

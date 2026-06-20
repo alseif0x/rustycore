@@ -683,7 +683,7 @@ mod tests {
     }
 
     fn map_creature_guid(entry: u32, map_id: u16, counter: i64) -> ObjectGuid {
-        ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, map_id, 1, entry, counter)
+        ObjectGuid::create_creature_like_cpp(map_id, entry, counter)
     }
 
     fn map_vehicle_guid(entry: u32, map_id: u16, counter: i64) -> ObjectGuid {
