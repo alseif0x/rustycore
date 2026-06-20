@@ -13519,8 +13519,23 @@ impl WorldSession {
             .collect()
     }
 
+    fn account_heirloom_update_opcode_resolved_like_cpp() -> bool {
+        // The inspected 3.4.3 legacy C++ tree still declares
+        // SMSG_ACCOUNT_HEIRLOOM_UPDATE as NULL_OPCODE/0xBADD. Keep the data
+        // model ported, but do not send a placeholder opcode to the real client.
+        <AccountHeirloomUpdate as wow_packet::ServerPacket>::OPCODE
+            != ServerOpcodes::UpdateCapturePoint
+    }
+
     /// C++ `WorldPackets::Misc::AccountHeirloomUpdate` full login update.
     pub fn send_account_heirlooms_like_cpp(&self) {
+        if !Self::account_heirloom_update_opcode_resolved_like_cpp() {
+            warn!(
+                "Skipping AccountHeirloomUpdate: legacy C++ opcode is unresolved 0xBADD for 54261"
+            );
+            return;
+        }
+
         self.send_packet(&AccountHeirloomUpdate::full(
             self.account_heirloom_packet_rows_like_cpp(),
         ));
@@ -14120,6 +14135,13 @@ impl WorldSession {
         };
 
         if changed {
+            if !Self::account_transmog_update_opcode_resolved_like_cpp() {
+                warn!(
+                    "Skipping AccountTransmogUpdate favorite delta: legacy C++ opcode is unresolved 0xBADD for 54261"
+                );
+                return changed;
+            }
+
             self.send_packet(
                 &wow_packet::packets::collection::AccountTransmogUpdate::favorite_delta(
                     item_modified_appearance_id,
@@ -14131,8 +14153,23 @@ impl WorldSession {
         changed
     }
 
+    fn account_transmog_update_opcode_resolved_like_cpp() -> bool {
+        // The inspected 3.4.3 legacy C++ tree still declares
+        // SMSG_ACCOUNT_TRANSMOG_UPDATE as NULL_OPCODE/0xBADD. Sending it during
+        // login can make the client close the connection after the initial burst.
+        <wow_packet::packets::collection::AccountTransmogUpdate as wow_packet::ServerPacket>::OPCODE
+            != ServerOpcodes::UpdateCapturePoint
+    }
+
     /// C++ `CollectionMgr::SendFavoriteAppearances`.
     pub fn send_favorite_appearances_like_cpp(&self) {
+        if !Self::account_transmog_update_opcode_resolved_like_cpp() {
+            warn!(
+                "Skipping AccountTransmogUpdate full update: legacy C++ opcode is unresolved 0xBADD for 54261"
+            );
+            return;
+        }
+
         let favorite_appearances = self
             .represented_favorite_item_appearances_like_cpp
             .iter()
@@ -99900,6 +99937,22 @@ mod tests {
     }
 
     #[test]
+    fn account_transmog_update_is_not_sent_while_opcode_is_unresolved_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session
+            .represented_favorite_item_appearances_like_cpp
+            .insert(65, FavoriteAppearanceStateLikeCpp::Unchanged);
+
+        session.send_favorite_appearances_like_cpp();
+
+        assert_eq!(
+            send_rx.try_recv(),
+            Err(flume::TryRecvError::Empty),
+            "do not send SMSG_ACCOUNT_TRANSMOG_UPDATE while legacy C++ keeps it at NULL_OPCODE/0xBADD"
+        );
+    }
+
+    #[test]
     fn account_heirloom_rows_filter_by_heirloom_store_like_cpp() {
         let (mut session, _, _) = make_session();
         session.set_battlenet_account_id(77);
@@ -99944,6 +99997,33 @@ mod tests {
         );
         assert_eq!(session.account_heirloom_bonus_like_cpp(44_000), 20);
         assert_eq!(session.account_heirloom_bonus_like_cpp(44_001), 0);
+    }
+
+    #[test]
+    fn account_heirloom_update_is_not_sent_while_opcode_is_unresolved_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_heirloom_store(Arc::new(HeirloomStore::from_entries([HeirloomEntry {
+            id: 1,
+            source_text: "known".to_string(),
+            item_id: 44_000,
+            legacy_upgraded_item_id: 0,
+            static_upgraded_item_id: 0,
+            source_type_enum: 0,
+            flags: 0,
+            legacy_item_id: 0,
+            upgrade_item_id: [0; 6],
+            upgrade_item_bonus_list_id: [0; 6],
+        }])));
+        session.load_represented_account_heirlooms_like_cpp([(44_000, 0x03)]);
+
+        assert_eq!(session.account_heirloom_packet_rows_like_cpp().len(), 1);
+        session.send_account_heirlooms_like_cpp();
+
+        assert_eq!(
+            send_rx.try_recv(),
+            Err(flume::TryRecvError::Empty),
+            "do not send SMSG_ACCOUNT_HEIRLOOM_UPDATE while legacy C++ keeps it at NULL_OPCODE/0xBADD"
+        );
     }
 
     #[test]
