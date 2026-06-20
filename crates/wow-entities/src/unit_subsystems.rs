@@ -3287,8 +3287,8 @@ impl MotionSubsystem {
 
     pub fn initialize_default_generator_like_cpp(&mut self, kind: MovementGeneratorKind) {
         self.default_generator = match kind {
-            MovementGeneratorKind::Waypoint => {
-                MovementGeneratorRef::new(MovementGeneratorKind::Waypoint, MovementSlot::Default)
+            MovementGeneratorKind::Random | MovementGeneratorKind::Waypoint => {
+                MovementGeneratorRef::new(kind, MovementSlot::Default)
                     .with_priority(MovementGeneratorPriority::Normal)
                     .with_flags(MOVEMENTGENERATOR_FLAG_INITIALIZATION_PENDING)
                     .with_base_unit_state(UnitState::ROAMING.bits())
@@ -5371,6 +5371,34 @@ mod unit_subsystems_tests {
         );
         assert_eq!(current.priority, MovementGeneratorPriority::Normal);
         assert_eq!(current.base_unit_state, UnitState::ROAMING.bits());
+        assert!(current.has_flag(MOVEMENTGENERATOR_FLAG_INITIALIZATION_PENDING));
+        assert!(!current.has_flag(MOVEMENTGENERATOR_FLAG_INITIALIZED));
+    }
+
+    #[test]
+    fn motion_direct_initialize_preserves_selected_random_default_like_cpp() {
+        let mut motion = MotionSubsystem::default();
+        motion.initialize_default_generator_like_cpp(MovementGeneratorKind::Random);
+        motion.add_generator(
+            MovementGeneratorRef::new(MovementGeneratorKind::Point, MovementSlot::Active)
+                .with_priority(MovementGeneratorPriority::Normal),
+        );
+
+        motion.direct_initialize_like_cpp();
+
+        assert!(motion.active_generators.is_empty());
+        let current = motion.current_movement_generator();
+        assert_eq!(
+            current.kind,
+            MovementGeneratorKind::Random,
+            "C++ FactorySelector::SelectMovementGenerator returns RandomMovementGenerator for RANDOM_MOTION_TYPE"
+        );
+        assert_eq!(current.priority, MovementGeneratorPriority::Normal);
+        assert_eq!(
+            current.base_unit_state,
+            UnitState::ROAMING.bits(),
+            "C++ RandomMovementGenerator constructor sets BaseUnitState=UNIT_STATE_ROAMING"
+        );
         assert!(current.has_flag(MOVEMENTGENERATOR_FLAG_INITIALIZATION_PENDING));
         assert!(!current.has_flag(MOVEMENTGENERATOR_FLAG_INITIALIZED));
     }
