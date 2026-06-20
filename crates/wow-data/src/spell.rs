@@ -17,6 +17,7 @@ use std::f32::consts::TAU;
 
 use anyhow::Result;
 use tracing::info;
+use wow_constants::SpellCastResult;
 use wow_database::{HotfixDatabase, StatementDef, WorldDatabase, WorldStatements};
 use wow_entities::PetAuraLikeCpp;
 
@@ -500,6 +501,8 @@ pub const TOTAL_SPELL_TARGETS_LIKE_CPP: i32 = 153;
 pub mod attributes {
     /// C++ `SPELL_ATTR0_PASSIVE` (`SharedDefines.h`).
     pub const SPELL_ATTR0_PASSIVE: u32 = 0x0000_0040;
+    /// C++ `SPELL_ATTR0_NOT_SHAPESHIFTED` (`SharedDefines.h`).
+    pub const SPELL_ATTR0_NOT_SHAPESHIFTED: u32 = 0x0001_0000;
     /// C++ `SPELL_ATTR0_ONLY_INDOORS` (`SharedDefines.h`).
     pub const SPELL_ATTR0_ONLY_INDOORS: u32 = 0x0000_4000;
     /// C++ `SPELL_ATTR0_ONLY_OUTDOORS` (`SharedDefines.h`).
@@ -516,11 +519,20 @@ pub mod attributes {
     pub const SPELL_ATTR1_IS_SELF_CHANNELLED: u32 = 0x0000_0040;
     /// C++ `SPELL_ATTR1_NO_AUTOCAST_AI` (`SharedDefines.h`).
     pub const SPELL_ATTR1_NO_AUTOCAST_AI: u32 = 0x0002_0000;
+    /// C++ `SPELL_ATTR2_ALLOW_WHILE_NOT_SHAPESHIFTED_CASTER_FORM` (`SharedDefines.h`).
+    pub const SPELL_ATTR2_ALLOW_WHILE_NOT_SHAPESHIFTED_CASTER_FORM: u32 = 0x0008_0000;
     /// C++ `SPELL_ATTR3_CAN_PROC_FROM_PROCS` (`SharedDefines.h`).
     pub const SPELL_ATTR3_CAN_PROC_FROM_PROCS: u32 = 0x0400_0000;
     /// C++ `SPELL_ATTR4_AURA_EXPIRES_OFFLINE` (`SharedDefines.h`).
     pub const SPELL_ATTR4_AURA_EXPIRES_OFFLINE: u32 = 0x0000_0004;
     pub const SPELL_ATTR4_USE_FACING_FROM_SPELL: u32 = 0x8000_0000;
+}
+
+pub mod shapeshift_form_flags {
+    /// C++ `SpellShapeshiftFormFlags::Stance` (`DBCEnums.h`).
+    pub const STANCE: i32 = 0x0000_0001;
+    /// C++ `SpellShapeshiftFormFlags::CanOnlyCastShapeshiftSpells` (`DBCEnums.h`).
+    pub const CAN_ONLY_CAST_SHAPESHIFT_SPELLS: i32 = 0x0000_0400;
 }
 
 /// Metadata for a spell from Spell.db2 and related tables.
@@ -985,6 +997,57 @@ pub struct ServersideSpellRowLikeCpp {
 pub struct ServersideSpellInfoLikeCpp {
     pub row: ServersideSpellRowLikeCpp,
     pub effects: Vec<ServersideSpellEffectLikeCpp>,
+}
+
+impl ServersideSpellInfoLikeCpp {
+    /// Port of C++ `SpellInfo::CheckShapeshift` (`SpellInfo.cpp`).
+    pub fn check_shapeshift_like_cpp<'a, F>(&self, form: u32, mut lookup_form: F) -> SpellCastResult
+    where
+        F: FnMut(u32) -> Option<&'a crate::spell_db2::SpellShapeshiftFormEntry>,
+    {
+        let stance_mask = form
+            .checked_sub(1)
+            .and_then(|shift| 1u64.checked_shl(shift))
+            .unwrap_or(0);
+
+        if stance_mask & self.row.stances_not != 0 {
+            return SpellCastResult::NotShapeshift;
+        }
+
+        if stance_mask & self.row.stances != 0 {
+            return SpellCastResult::Success;
+        }
+
+        let mut act_as_shifted = false;
+        let mut form_flags = 0;
+        if form > 0 {
+            let Some(shape_info) = lookup_form(form) else {
+                return SpellCastResult::Success;
+            };
+            form_flags = shape_info.flags;
+            act_as_shifted = form_flags & shapeshift_form_flags::STANCE == 0;
+        }
+
+        if act_as_shifted {
+            if self.row.attributes & attributes::SPELL_ATTR0_NOT_SHAPESHIFTED != 0
+                || form_flags & shapeshift_form_flags::CAN_ONLY_CAST_SHAPESHIFT_SPELLS != 0
+            {
+                return SpellCastResult::NotShapeshift;
+            }
+
+            if self.row.stances != 0 {
+                return SpellCastResult::OnlyShapeshift;
+            }
+        } else if self.row.attributes_ex[1]
+            & attributes::SPELL_ATTR2_ALLOW_WHILE_NOT_SHAPESHIFTED_CASTER_FORM
+            == 0
+            && self.row.stances != 0
+        {
+            return SpellCastResult::OnlyShapeshift;
+        }
+
+        SpellCastResult::Success
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -9380,6 +9443,132 @@ mod tests {
             school_mask: 77,
             charge_category_id: 78,
         }
+    }
+
+    fn serverside_spell_info_for_shapeshift(
+        stances: u64,
+        stances_not: u64,
+        attributes: u32,
+        attributes_ex2: u32,
+    ) -> ServersideSpellInfoLikeCpp {
+        let mut row = serverside_spell_row(7000, 0);
+        row.attributes = attributes;
+        row.attributes_ex = [0; 14];
+        row.attributes_ex[1] = attributes_ex2;
+        row.stances = stances;
+        row.stances_not = stances_not;
+        ServersideSpellInfoLikeCpp {
+            row,
+            effects: Vec::new(),
+        }
+    }
+
+    fn shapeshift_form(flags: i32) -> crate::spell_db2::SpellShapeshiftFormEntry {
+        crate::spell_db2::SpellShapeshiftFormEntry {
+            id: 1,
+            name: "Test Form".to_string(),
+            creature_type: 0,
+            flags,
+            attack_icon_file_id: 0,
+            bonus_action_bar: 0,
+            combat_round_time: 0,
+            damage_variance: 0.0,
+            mount_type_id: 0,
+            creature_display_id: [0; 4],
+            preset_spell_id: [0; crate::spell_db2::MAX_SHAPESHIFT_SPELLS],
+        }
+    }
+
+    #[test]
+    fn serverside_spell_check_shapeshift_rejects_excluded_form_like_cpp() {
+        let spell = serverside_spell_info_for_shapeshift(0, 1 << 2, 0, 0);
+        let form = shapeshift_form(shapeshift_form_flags::STANCE);
+
+        assert_eq!(
+            spell.check_shapeshift_like_cpp(3, |_| Some(&form)),
+            SpellCastResult::NotShapeshift
+        );
+    }
+
+    #[test]
+    fn serverside_spell_check_shapeshift_allows_explicit_form_like_cpp() {
+        let spell = serverside_spell_info_for_shapeshift(1 << 4, 0, 0, 0);
+        let form = shapeshift_form(shapeshift_form_flags::STANCE);
+
+        assert_eq!(
+            spell.check_shapeshift_like_cpp(5, |_| Some(&form)),
+            SpellCastResult::Success
+        );
+    }
+
+    #[test]
+    fn serverside_spell_check_shapeshift_missing_form_allows_like_cpp() {
+        let spell =
+            serverside_spell_info_for_shapeshift(0, 0, attributes::SPELL_ATTR0_NOT_SHAPESHIFTED, 0);
+
+        assert_eq!(
+            spell.check_shapeshift_like_cpp(7, |_| None),
+            SpellCastResult::Success
+        );
+    }
+
+    #[test]
+    fn serverside_spell_check_shapeshift_rejects_not_shapeshifted_attr_like_cpp() {
+        let spell =
+            serverside_spell_info_for_shapeshift(0, 0, attributes::SPELL_ATTR0_NOT_SHAPESHIFTED, 0);
+        let form = shapeshift_form(0);
+
+        assert_eq!(
+            spell.check_shapeshift_like_cpp(1, |_| Some(&form)),
+            SpellCastResult::NotShapeshift
+        );
+    }
+
+    #[test]
+    fn serverside_spell_check_shapeshift_rejects_can_only_cast_shapeshift_spells_like_cpp() {
+        let spell = serverside_spell_info_for_shapeshift(0, 0, 0, 0);
+        let form = shapeshift_form(shapeshift_form_flags::CAN_ONLY_CAST_SHAPESHIFT_SPELLS);
+
+        assert_eq!(
+            spell.check_shapeshift_like_cpp(1, |_| Some(&form)),
+            SpellCastResult::NotShapeshift
+        );
+    }
+
+    #[test]
+    fn serverside_spell_check_shapeshift_requires_other_shifted_form_like_cpp() {
+        let spell = serverside_spell_info_for_shapeshift(1 << 4, 0, 0, 0);
+        let form = shapeshift_form(0);
+
+        assert_eq!(
+            spell.check_shapeshift_like_cpp(2, |_| Some(&form)),
+            SpellCastResult::OnlyShapeshift
+        );
+    }
+
+    #[test]
+    fn serverside_spell_check_shapeshift_requires_form_when_unshifted_like_cpp() {
+        let spell = serverside_spell_info_for_shapeshift(1 << 4, 0, 0, 0);
+
+        assert_eq!(
+            spell.check_shapeshift_like_cpp(0, |_| None),
+            SpellCastResult::OnlyShapeshift
+        );
+    }
+
+    #[test]
+    fn serverside_spell_check_shapeshift_allows_unshifted_with_attr2_like_cpp() {
+        let spell = serverside_spell_info_for_shapeshift(
+            1 << 4,
+            0,
+            0,
+            attributes::SPELL_ATTR2_ALLOW_WHILE_NOT_SHAPESHIFTED_CASTER_FORM,
+        );
+
+        assert_eq!(
+            spell.check_shapeshift_like_cpp(0, |_| None),
+            SpellCastResult::Success
+        );
     }
 
     #[test]

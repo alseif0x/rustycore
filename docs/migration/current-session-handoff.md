@@ -1,3 +1,28 @@
+- `#NEXT.R8.ENTITIES.1195` — represented server-side spell data now exposes a
+  C++-mirrored `SpellInfo::CheckShapeshift` decision for stances/forms. Source
+  of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellInfo.cpp:1921-1967`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellInfo.cpp:1312-1313`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:447`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:524`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/DBCEnums.h:1949-1961`.
+  C++ checks `StancesNot` before `Stances`, treats unknown form ids as
+  cast-OK, then applies the shifted/unshifted branches using
+  `SPELL_ATTR0_NOT_SHAPESHIFTED`,
+  `SPELL_ATTR2_ALLOW_WHILE_NOT_SHAPESHIFTED_CASTER_FORM`, and
+  `SpellShapeshiftFormFlags::CanOnlyCastShapeshiftSpells`. Rust now exposes the
+  same pure decision on `ServersideSpellInfoLikeCpp::check_shapeshift_like_cpp`
+  with branch coverage for explicit allow/deny, missing forms, shifted-only
+  restrictions, other-form requirements, and unshifted allow-while-not-shifted.
+  Checks: `cargo fmt --all --check`, `cargo test -p wow-data check_shapeshift
+  --lib`, `cargo check -p wow-data`, `cargo check -p wow-world`, `cargo check -p
+  world-server`, and `git diff --check`. Boundary remains partial: this is a
+  reusable server-side spell decision only; it is not yet consumed by real
+  `ApplyEquipSpell`, current shapeshift state, aura add/remove, update-field
+  emission, persistence, fanout, bot/live/manual validation, or final aura
+  state.
+
 - `#NEXT.R8.ENTITIES.1194` — represented item-set apply now mirrors the C++
   `SpellInfo` existence gate before inserting set-bonus entries. Source of
   truth:
