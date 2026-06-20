@@ -3661,7 +3661,18 @@ fn write_movement_update(buf: &mut WorldPacket, guid: &ObjectGuid, mv: &Movement
 
     // 3.4.3.54261 CreateObject movement layout expects nine conditional
     // sub-bits before speeds. The local legacy C++ tree stops at HasAdvFlying
-    // (8 bits), but 54261 clients parse the later Drive-status bit here.
+    // (8 bits), but PR #3 reported that 54261 clients parse the later
+    // Drive-status bit here. `cpp_movement_8bits` is a temporary login
+    // diagnostic to isolate client crash regressions against the local C++
+    // truth without reverting the PR by default.
+    let use_cpp_legacy_8_subbits = std::env::var("RUSTYCORE_LOGIN_UPDATEOBJECT_DIAGNOSTIC")
+        .ok()
+        .is_some_and(|value| {
+            value
+                .split(',')
+                .map(str::trim)
+                .any(|mode| mode == "cpp_movement_8bits")
+        });
     buf.write_bit(false); // HasStandingOnGameObjectGUID
     buf.write_bit(false); // HasTransport
     buf.write_bit(false); // HasFall
@@ -3670,7 +3681,9 @@ fn write_movement_update(buf: &mut WorldPacket, guid: &ObjectGuid, mv: &Movement
     buf.write_bit(false); // RemoteTimeValid
     buf.write_bit(false); // HasInertia
     buf.write_bit(false); // HasAdvFlying
-    buf.write_bit(false); // HasDriveStatus
+    if !use_cpp_legacy_8_subbits {
+        buf.write_bit(false); // HasDriveStatus
+    }
     buf.flush_bits();
 
     // No transport, standing, inertia, advFlying, fall, or drive blocks.
