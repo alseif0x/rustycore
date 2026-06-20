@@ -63,10 +63,12 @@ use wow_data::{
     BankBagSlotPricesStore, BattlePetBreedQualityStore, BattlePetBreedStateStore,
     BattlePetSpeciesStateStore, BattlePetSpeciesStore, BattlePetXpGameTableLikeCpp,
     BattlemasterListStore, ChrSpecializationStore, CinematicSequencesStore,
-    ConditionEntriesByTypeStore, CreatureDisplayInfoExtraStore, CreatureDisplayInfoStore,
-    CreatureModelDataStore, CreatureTemplateMountStoreLikeCpp, CurrencyTypesEntry,
-    CurrencyTypesStore, DISABLE_TYPE_BATTLEGROUND, DISABLE_TYPE_MAP, DifficultyStore,
-    DisableMgrLikeCpp, DisableWorldObjectRefLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
+    ConditionEntriesByTypeStore, CreatureBaseStatsStoreLikeCpp,
+    CreatureClassificationHealthRatesLikeCpp, CreatureDifficultyStoreLikeCpp,
+    CreatureDisplayInfoExtraStore, CreatureDisplayInfoStore, CreatureModelDataStore,
+    CreatureTemplateMountStoreLikeCpp, CurrencyTypesEntry, CurrencyTypesStore,
+    DISABLE_TYPE_BATTLEGROUND, DISABLE_TYPE_MAP, DifficultyStore, DisableMgrLikeCpp,
+    DisableWorldObjectRefLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
     DurabilityQualityStore, ExplorationBaseXpStoreLikeCpp, FishingBaseSkillStoreLikeCpp,
     GameObjectDisplayInfoStore, GameObjectTemplateLifecycleStoreLikeCpp, GlyphPropertiesStore,
     HeirloomEntry, HeirloomStore, HotfixBlobCache, ImportPriceStores, ItemAppearanceStore,
@@ -3787,6 +3789,9 @@ pub struct WorldSession {
     creature_display_info_extra_store: Option<Arc<CreatureDisplayInfoExtraStore>>,
     gameobject_display_info_store: Option<Arc<GameObjectDisplayInfoStore>>,
     creature_model_info_store: Option<Arc<wow_data::CreatureModelInfoStoreLikeCpp>>,
+    creature_difficulty_store_like_cpp: Option<Arc<CreatureDifficultyStoreLikeCpp>>,
+    creature_base_stats_store_like_cpp: Option<Arc<CreatureBaseStatsStoreLikeCpp>>,
+    creature_health_rates_like_cpp: CreatureClassificationHealthRatesLikeCpp,
     creature_model_data_store: Option<Arc<CreatureModelDataStore>>,
     mount_store: Option<Arc<MountStore>>,
     mount_definition_store_like_cpp: Option<Arc<MountDefinitionStoreLikeCpp>>,
@@ -5388,6 +5393,13 @@ pub(crate) struct CreatureCreateModelScalarsLikeCpp {
     pub combat_reach: f32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct CreatureCreateStatsLikeCpp {
+    pub health: i64,
+    pub max_health: i64,
+    pub base_mana: i32,
+}
+
 fn is_represented_bag_slot(slot: u8) -> bool {
     (INVENTORY_SLOT_BAG_START..INVENTORY_SLOT_BAG_END).contains(&slot)
         || (BANK_SLOT_BAG_START..BANK_SLOT_BAG_END).contains(&slot)
@@ -5587,6 +5599,9 @@ impl WorldSession {
             creature_display_info_extra_store: None,
             gameobject_display_info_store: None,
             creature_model_info_store: None,
+            creature_difficulty_store_like_cpp: None,
+            creature_base_stats_store_like_cpp: None,
+            creature_health_rates_like_cpp: CreatureClassificationHealthRatesLikeCpp::default(),
             creature_model_data_store: None,
             mount_store: None,
             mount_definition_store_like_cpp: None,
@@ -19144,6 +19159,27 @@ impl WorldSession {
         self.creature_model_info_store = Some(store);
     }
 
+    pub fn set_creature_difficulty_store_like_cpp(
+        &mut self,
+        store: Arc<CreatureDifficultyStoreLikeCpp>,
+    ) {
+        self.creature_difficulty_store_like_cpp = Some(store);
+    }
+
+    pub fn set_creature_base_stats_store_like_cpp(
+        &mut self,
+        store: Arc<CreatureBaseStatsStoreLikeCpp>,
+    ) {
+        self.creature_base_stats_store_like_cpp = Some(store);
+    }
+
+    pub fn set_creature_health_rates_like_cpp(
+        &mut self,
+        rates: CreatureClassificationHealthRatesLikeCpp,
+    ) {
+        self.creature_health_rates_like_cpp = rates;
+    }
+
     pub(crate) fn creature_create_model_scalars_like_cpp(
         &self,
         display_id: u32,
@@ -19162,6 +19198,62 @@ impl WorldSession {
             bounding_radius: model.bounding_radius * object_scale * display_scale,
             combat_reach: model.combat_reach * object_scale * display_scale,
         })
+    }
+
+    pub(crate) fn creature_create_stats_like_cpp(
+        &self,
+        entry: u32,
+        level: u8,
+        unit_class: u8,
+        classification: u32,
+        regen_health: bool,
+        db_cur_health: u32,
+    ) -> CreatureCreateStatsLikeCpp {
+        let Some(difficulty_store) = self.creature_difficulty_store_like_cpp.as_ref() else {
+            let health = i64::from(db_cur_health.max(1));
+            return CreatureCreateStatsLikeCpp {
+                health,
+                max_health: health,
+                base_mana: 0,
+            };
+        };
+        let Some(base_stats_store) = self.creature_base_stats_store_like_cpp.as_ref() else {
+            let health = i64::from(db_cur_health.max(1));
+            return CreatureCreateStatsLikeCpp {
+                health,
+                max_health: health,
+                base_mana: 0,
+            };
+        };
+        let Some(difficulty) = difficulty_store.get_like_cpp(entry, 0) else {
+            let health = i64::from(db_cur_health.max(1));
+            return CreatureCreateStatsLikeCpp {
+                health,
+                max_health: health,
+                base_mana: 0,
+            };
+        };
+
+        let base_stats = base_stats_store.get_like_cpp(level, unit_class);
+        let health_rate = self
+            .creature_health_rates_like_cpp
+            .modifier_for_classification_like_cpp(classification);
+        let max_health = i64::from(
+            (base_stats.generate_health_like_cpp(difficulty) as f32 * health_rate) as u32,
+        );
+        let health = if regen_health {
+            max_health
+        } else if db_cur_health != 0 {
+            i64::from(((db_cur_health as f32 * health_rate) as u32).max(1))
+        } else {
+            0
+        };
+
+        CreatureCreateStatsLikeCpp {
+            health,
+            max_health,
+            base_mana: i32::try_from(base_stats.base_mana).unwrap_or(i32::MAX),
+        }
     }
 
     pub(crate) fn creature_display_power_for_class_like_cpp(&self, unit_class: u8) -> u8 {

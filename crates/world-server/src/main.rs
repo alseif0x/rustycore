@@ -4399,6 +4399,9 @@ async fn main() -> Result<ExitCode> {
         creature_display_info_extra_store: Some(Arc::clone(&creature_display_info_extra_store)),
         gameobject_display_info_store: Some(Arc::clone(&gameobject_display_info_store)),
         creature_model_info_store: Some(Arc::clone(&creature_model_info_store)),
+        creature_difficulty_store: Some(Arc::clone(&creature_difficulty_store)),
+        creature_base_stats_store: Some(Arc::clone(&creature_base_stats_store)),
+        creature_health_rates,
         creature_model_data_store: Some(Arc::clone(&creature_model_data_store)),
         mount_store: Some(Arc::clone(&mount_store)),
         mount_definition_store: Some(Arc::clone(&mount_definition_store)),
@@ -11030,6 +11033,13 @@ async fn create_session(
     if let Some(ref store) = resources.creature_model_info_store {
         session.set_creature_model_info_store(Arc::clone(store));
     }
+    if let Some(ref store) = resources.creature_difficulty_store {
+        session.set_creature_difficulty_store_like_cpp(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.creature_base_stats_store {
+        session.set_creature_base_stats_store_like_cpp(Arc::clone(store));
+    }
+    session.set_creature_health_rates_like_cpp(resources.creature_health_rates);
     if let Some(ref store) = resources.creature_model_data_store {
         session.set_creature_model_data_store(Arc::clone(store));
     }

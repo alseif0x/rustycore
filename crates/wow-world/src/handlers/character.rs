@@ -79,6 +79,8 @@ const CREATURE_SPAWN_WANDER_DISTANCE_COLUMN: usize = 39;
 const CREATURE_SPAWN_EFFECTIVE_MOVEMENT_TYPE_COLUMN: usize = 40;
 const CREATURE_SPAWN_WAYPOINT_PATH_ID_COLUMN: usize = 41;
 const CREATURE_SPAWN_DISPLAY_SCALE_COLUMN: usize = 42;
+const CREATURE_SPAWN_CLASSIFICATION_COLUMN: usize = 43;
+const CREATURE_SPAWN_REGEN_HEALTH_COLUMN: usize = 44;
 const WAYPOINT_MOTION_TYPE_LIKE_CPP: u8 = 2;
 const TACT_KEY_TABLE_HASH_LIKE_CPP: u32 = 0xD3F6_1A9E;
 const QUEST_GIVER_STATUS_TRACKED_QUERY_MAX_GUIDS_LIKE_CPP: u32 = 1000;
@@ -5033,6 +5035,18 @@ impl WorldSession {
             let scale: f32 = result.try_read(18).unwrap_or(1.0);
             let unit_class: u8 = result.try_read(19).unwrap_or(1);
             let flags_extra: u32 = result.try_read(20).unwrap_or(0);
+            let classification: u32 = result
+                .try_read::<u32>(CREATURE_SPAWN_CLASSIFICATION_COLUMN)
+                .unwrap_or(0);
+            let regen_health: bool = result
+                .try_read::<u8>(CREATURE_SPAWN_REGEN_HEALTH_COLUMN)
+                .map(|value| value != 0)
+                .or_else(|| {
+                    result
+                        .try_read::<i8>(CREATURE_SPAWN_REGEN_HEALTH_COLUMN)
+                        .map(|value| value != 0)
+                })
+                .unwrap_or(true);
             let base_attack_time: u32 = result.try_read(21).unwrap_or(2000);
             let _ranged_attack_time: u32 = result.try_read(22).unwrap_or(0);
             let template_display_id: u32 =
@@ -5191,11 +5205,14 @@ impl WorldSession {
                 continue;
             }
 
-            let health = if cur_health > 0 {
-                cur_health as i64
-            } else {
-                100
-            };
+            let creature_stats = self.creature_create_stats_like_cpp(
+                entry,
+                min_level,
+                unit_class,
+                classification,
+                regen_health,
+                cur_health,
+            );
 
             let guid = ObjectGuid::create_world_object(
                 HighGuid::Creature,
@@ -5217,8 +5234,8 @@ impl WorldSession {
                 native_x_display_scale: model_scalars.native_x_display_scale,
                 bounding_radius: model_scalars.bounding_radius,
                 combat_reach: model_scalars.combat_reach,
-                health,
-                max_health: health,
+                health: creature_stats.health,
+                max_health: creature_stats.max_health,
                 level: min_level,
                 faction_template: faction,
                 npc_flags,
@@ -5229,7 +5246,7 @@ impl WorldSession {
                 scale,
                 unit_class,
                 display_power: self.creature_display_power_for_class_like_cpp(unit_class),
-                base_mana: 0,
+                base_mana: creature_stats.base_mana,
                 virtual_items: [(0, 0, 0); 3],
                 base_attack_time,
                 ranged_attack_time: base_attack_time,
@@ -5615,6 +5632,17 @@ impl WorldSession {
                 let scale: f32 = cr.try_read(18).unwrap_or(1.0);
                 let unit_class: u8 = cr.try_read(19).unwrap_or(1);
                 let flags_extra: u32 = cr.try_read(20).unwrap_or(0);
+                let classification: u32 = cr
+                    .try_read::<u32>(CREATURE_SPAWN_CLASSIFICATION_COLUMN)
+                    .unwrap_or(0);
+                let regen_health: bool = cr
+                    .try_read::<u8>(CREATURE_SPAWN_REGEN_HEALTH_COLUMN)
+                    .map(|value| value != 0)
+                    .or_else(|| {
+                        cr.try_read::<i8>(CREATURE_SPAWN_REGEN_HEALTH_COLUMN)
+                            .map(|value| value != 0)
+                    })
+                    .unwrap_or(true);
                 let base_attack_time: u32 = cr.try_read(21).unwrap_or(2000);
                 let template_display_id: u32 =
                     cr.try_read::<Option<u32>>(23).flatten().unwrap_or(0);
@@ -5767,11 +5795,14 @@ impl WorldSession {
                     continue;
                 }
 
-                let health = if cur_health > 0 {
-                    cur_health as i64
-                } else {
-                    100
-                };
+                let creature_stats = self.creature_create_stats_like_cpp(
+                    entry,
+                    min_level,
+                    unit_class,
+                    classification,
+                    regen_health,
+                    cur_health,
+                );
 
                 let guid = ObjectGuid::create_world_object(
                     HighGuid::Creature,
@@ -5796,8 +5827,8 @@ impl WorldSession {
                         native_x_display_scale: model_scalars.native_x_display_scale,
                         bounding_radius: model_scalars.bounding_radius,
                         combat_reach: model_scalars.combat_reach,
-                        health,
-                        max_health: health,
+                        health: creature_stats.health,
+                        max_health: creature_stats.max_health,
                         level: min_level,
                         faction_template: faction,
                         npc_flags,
@@ -5808,7 +5839,7 @@ impl WorldSession {
                         scale,
                         unit_class,
                         display_power: self.creature_display_power_for_class_like_cpp(unit_class),
-                        base_mana: 0,
+                        base_mana: creature_stats.base_mana,
                         virtual_items: [(0, 0, 0); 3],
                         base_attack_time,
                         ranged_attack_time: base_attack_time,
