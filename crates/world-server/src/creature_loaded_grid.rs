@@ -359,7 +359,11 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
     let addon = addon_store.get_for_creature_like_cpp(spawn.spawn_id, template.entry);
     let selected_db_movement_type = addon_store
         .movement_type_after_spawn_addon_load_like_cpp(spawn.spawn_id, runtime_row.movement_type);
-    let movement_type = movement_type_like_cpp(selected_db_movement_type, template.movement_type);
+    let movement_type = movement_type_like_cpp(
+        selected_db_movement_type,
+        template.movement_type,
+        runtime_row.wander_distance,
+    );
     let npc_flags = runtime_row.npc_flags.unwrap_or(template.npc_flags);
     let unit_flags = runtime_row.unit_flags.unwrap_or(template.unit_flags);
     let unit_flags2 = runtime_row.unit_flags2.unwrap_or(template.unit_flags2);
@@ -474,13 +478,16 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
 fn movement_type_like_cpp(
     db_movement_type: u8,
     _template_movement_type: u8,
+    wander_distance: f32,
 ) -> MovementGeneratorType {
     // C++ `Creature::CreateFromProto` takes concrete spawn `CreatureData::movementType` when a
     // spawn exists. The spawn-addon PathId=0 waypoint downgrade has already been applied by
     // `CreatureAddonStoreLikeCpp::movement_type_after_spawn_addon_load_like_cpp`.
+    const RANDOM_MOTION_TYPE_LIKE_CPP: u8 = 1;
     const WAYPOINT_MOTION_TYPE_LIKE_CPP: u8 = 2;
     match db_movement_type {
         WAYPOINT_MOTION_TYPE_LIKE_CPP => MovementGeneratorType::Waypoint,
+        RANDOM_MOTION_TYPE_LIKE_CPP if wander_distance > 0.0 => MovementGeneratorType::Random,
         _ => MovementGeneratorType::Idle,
     }
 }
@@ -664,6 +671,20 @@ mod tests {
 
     fn map_vehicle_guid(entry: u32, map_id: u16, counter: i64) -> ObjectGuid {
         ObjectGuid::create_world_object(HighGuid::Vehicle, 0, 1, map_id, 1, entry, counter)
+    }
+
+    #[test]
+    fn movement_type_random_requires_positive_wander_distance_like_cpp() {
+        assert_eq!(
+            movement_type_like_cpp(1, 0, 0.0),
+            MovementGeneratorType::Idle,
+            "C++ Creature::Create forces RANDOM_MOTION_TYPE to IDLE_MOTION_TYPE when m_wanderDistance is zero"
+        );
+        assert_eq!(
+            movement_type_like_cpp(1, 0, 7.5),
+            MovementGeneratorType::Random,
+            "C++ preserves RANDOM_MOTION_TYPE only when CreatureData::wander_distance is positive"
+        );
     }
 
     fn spawn(spawn_id: u64, entry: u32, add_to_map: bool) -> ResolvedCreatureSpawnLikeCpp {

@@ -68,6 +68,7 @@ pub enum ReactState {
 #[repr(u8)]
 pub enum MovementGeneratorType {
     Idle = 0,
+    Random = 1,
     Waypoint = 2,
 }
 
@@ -2143,6 +2144,7 @@ impl Creature {
     fn sync_motion_default_generator_like_cpp(&mut self) {
         let kind = match self.default_movement_type {
             MovementGeneratorType::Idle => MovementGeneratorKind::Idle,
+            MovementGeneratorType::Random => MovementGeneratorKind::Random,
             MovementGeneratorType::Waypoint => MovementGeneratorKind::Waypoint,
         };
         self.unit

@@ -107,9 +107,12 @@ fn bind_create_character_difficulties_like_cpp(stmt: &mut PreparedStatement) {
 
 fn creature_movement_generator_type_from_db_like_cpp(
     db_movement_type: u8,
+    wander_distance: f32,
 ) -> MovementGeneratorType {
+    const RANDOM_MOTION_TYPE_LIKE_CPP: u8 = 1;
     match db_movement_type {
         WAYPOINT_MOTION_TYPE_LIKE_CPP => MovementGeneratorType::Waypoint,
+        RANDOM_MOTION_TYPE_LIKE_CPP if wander_distance > 0.0 => MovementGeneratorType::Random,
         _ => MovementGeneratorType::Idle,
     }
 }
@@ -5078,7 +5081,12 @@ impl WorldSession {
                         .try_read::<i16>(CREATURE_SPAWN_EFFECTIVE_MOVEMENT_TYPE_COLUMN)
                         .map(|value| value.max(0) as u8)
                 })
-                .map(creature_movement_generator_type_from_db_like_cpp)
+                .map(|movement_type| {
+                    creature_movement_generator_type_from_db_like_cpp(
+                        movement_type,
+                        wander_distance,
+                    )
+                })
                 .unwrap_or(MovementGeneratorType::Idle);
             let waypoint_path_id: u32 = result
                 .try_read::<Option<u32>>(CREATURE_SPAWN_WAYPOINT_PATH_ID_COLUMN)
@@ -5582,7 +5590,12 @@ impl WorldSession {
                         cr.try_read::<i16>(CREATURE_SPAWN_EFFECTIVE_MOVEMENT_TYPE_COLUMN)
                             .map(|value| value.max(0) as u8)
                     })
-                    .map(creature_movement_generator_type_from_db_like_cpp)
+                    .map(|movement_type| {
+                        creature_movement_generator_type_from_db_like_cpp(
+                            movement_type,
+                            wander_distance,
+                        )
+                    })
                     .unwrap_or(MovementGeneratorType::Idle);
                 let waypoint_path_id: u32 = cr
                     .try_read::<Option<u32>>(CREATURE_SPAWN_WAYPOINT_PATH_ID_COLUMN)
@@ -12255,6 +12268,24 @@ mod tests {
         assert_eq!(normalize_creature_template_speed_run_like_cpp(0.0), 1.14286);
         assert_eq!(normalize_creature_template_speed_walk_like_cpp(0.75), 0.75);
         assert_eq!(normalize_creature_template_speed_run_like_cpp(2.0), 2.0);
+    }
+
+    #[test]
+    fn sql_creature_movement_type_random_requires_wander_distance_like_cpp() {
+        assert_eq!(
+            creature_movement_generator_type_from_db_like_cpp(1, 0.0),
+            MovementGeneratorType::Idle,
+            "C++ Creature::Create forces RANDOM_MOTION_TYPE to IDLE_MOTION_TYPE when m_wanderDistance is zero"
+        );
+        assert_eq!(
+            creature_movement_generator_type_from_db_like_cpp(1, 6.0),
+            MovementGeneratorType::Random,
+            "C++ preserves RANDOM_MOTION_TYPE only when CreatureData::wander_distance is positive"
+        );
+        assert_eq!(
+            creature_movement_generator_type_from_db_like_cpp(WAYPOINT_MOTION_TYPE_LIKE_CPP, 0.0),
+            MovementGeneratorType::Waypoint
+        );
     }
 
     fn make_session_with_send_capacity(

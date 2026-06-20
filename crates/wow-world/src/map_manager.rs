@@ -1817,6 +1817,7 @@ impl WorldCreature {
     pub fn should_wander(&self) -> bool {
         self.is_alive()
             && self.state() == CreatureAiState::Idle
+            && self.creature.default_movement_type() == wow_entities::MovementGeneratorType::Random
             && self.can_wander()
             && self.creature.ai_ownership().wander_radius > 0.0
             && self

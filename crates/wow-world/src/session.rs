@@ -79496,6 +79496,11 @@ mod tests {
         register_test_creature(&mut session, manager, guid, 25);
         session
             .mutate_world_creature(guid, |creature| {
+                creature
+                    .creature
+                    .set_default_movement_type_runtime_like_cpp(
+                        wow_entities::MovementGeneratorType::Random,
+                    );
                 let ai = creature.creature.ai_ownership_mut();
                 ai.wander_delay_ms = 0;
                 ai.move_start_ms = 0;
@@ -117699,6 +117704,11 @@ mod tests {
         register_test_creature(&mut session_a, manager.clone(), guid, 25);
         session_a
             .mutate_world_creature(guid, |creature| {
+                creature
+                    .creature
+                    .set_default_movement_type_runtime_like_cpp(
+                        wow_entities::MovementGeneratorType::Random,
+                    );
                 let ai = creature.creature.ai_ownership_mut();
                 ai.wander_delay_ms = 0;
                 ai.move_start_ms = 0;
@@ -117843,6 +117853,11 @@ mod tests {
         register_test_creature(&mut session, manager.clone(), guid, 25);
         session
             .mutate_world_creature(guid, |creature| {
+                creature
+                    .creature
+                    .set_default_movement_type_runtime_like_cpp(
+                        wow_entities::MovementGeneratorType::Random,
+                    );
                 let ai = creature.creature.ai_ownership_mut();
                 ai.wander_delay_ms = 0;
                 ai.move_start_ms = 0;
@@ -117925,6 +117940,11 @@ mod tests {
         register_test_creature(&mut session, manager.clone(), guid, 25);
         session
             .mutate_world_creature(guid, |creature| {
+                creature
+                    .creature
+                    .set_default_movement_type_runtime_like_cpp(
+                        wow_entities::MovementGeneratorType::Random,
+                    );
                 let ai = creature.creature.ai_ownership_mut();
                 ai.wander_delay_ms = 0;
                 ai.move_start_ms = 0;
@@ -118006,6 +118026,11 @@ mod tests {
         register_test_creature(&mut session, manager.clone(), guid, 25);
         session
             .mutate_world_creature(guid, |creature| {
+                creature
+                    .creature
+                    .set_default_movement_type_runtime_like_cpp(
+                        wow_entities::MovementGeneratorType::Random,
+                    );
                 let ai = creature.creature.ai_ownership_mut();
                 ai.wander_delay_ms = 0;
                 ai.move_start_ms = 0;
@@ -121923,6 +121948,11 @@ mod tests {
         register_test_creature(&mut session1, manager.clone(), guid, 100);
         session1
             .mutate_world_creature(guid, |creature| {
+                creature
+                    .creature
+                    .set_default_movement_type_runtime_like_cpp(
+                        wow_entities::MovementGeneratorType::Random,
+                    );
                 let ai = creature.creature.ai_ownership_mut();
                 ai.wander_delay_ms = 0;
                 ai.move_start_ms = 0;
@@ -121982,6 +122012,11 @@ mod tests {
         register_test_creature(&mut session_c, manager.clone(), guid_c, 25);
         session_c
             .mutate_world_creature(guid_c, |creature| {
+                creature
+                    .creature
+                    .set_default_movement_type_runtime_like_cpp(
+                        wow_entities::MovementGeneratorType::Random,
+                    );
                 let ai = creature.creature.ai_ownership_mut();
                 ai.wander_delay_ms = 0;
                 ai.move_start_ms = 0;
@@ -122258,10 +122293,15 @@ mod tests {
     }
 
     #[test]
-    fn step_creature_movement_idle_should_wander_returns_monster_move_and_state_walking_random() {
+    fn step_creature_movement_random_should_wander_returns_monster_move_and_state_walking_random() {
         let guid = test_creature_guid(200_001);
         let mut creature = make_test_world_creature(guid);
-        // Trigger wander: delay=0, wander_radius=3.0, move_start_ms=0.
+        creature
+            .creature
+            .set_default_movement_type_runtime_like_cpp(
+                wow_entities::MovementGeneratorType::Random,
+            );
+        // Trigger random wander: delay=0, wander_radius=3.0, move_start_ms=0.
         {
             let ai = creature.creature.ai_ownership_mut();
             ai.wander_delay_ms = 0;
@@ -122279,7 +122319,7 @@ mod tests {
         // Must return Some with a serialised MonsterMove packet.
         assert!(
             result.is_some(),
-            "Idle + should_wander must produce a MonsterMove packet"
+            "Random + should_wander must produce a MonsterMove packet"
         );
         let bytes = result.unwrap();
         // Opcode bytes [0..2] must equal OnMonsterMove.
@@ -122317,6 +122357,31 @@ mod tests {
         assert!(
             result.is_none(),
             "C++ Creature::Create forces RANDOM_MOTION_TYPE to IDLE_MOTION_TYPE when m_wanderDistance is zero"
+        );
+        assert_eq!(creature.state(), wow_entities::CreatureAiState::Idle);
+        assert!(creature.creature.ai_ownership().move_target.is_none());
+    }
+
+    #[test]
+    fn step_creature_movement_idle_positive_wander_radius_stays_still_like_cpp() {
+        let guid = test_creature_guid(200_012);
+        let mut creature = make_test_world_creature(guid);
+        {
+            let ai = creature.creature.ai_ownership_mut();
+            ai.wander_delay_ms = 0;
+            ai.move_start_ms = 0;
+            ai.wander_radius = 3.0;
+        }
+        let config = MMapRuntimeConfigLikeCpp {
+            enabled: false,
+            ..Default::default()
+        };
+
+        let result = step_creature_movement_like_cpp(&mut creature, guid, &config, None, 200);
+
+        assert!(
+            result.is_none(),
+            "C++ IdleMovementGenerator must not use RandomMovementGenerator wander distance"
         );
         assert_eq!(creature.state(), wow_entities::CreatureAiState::Idle);
         assert!(creature.creature.ai_ownership().move_target.is_none());
