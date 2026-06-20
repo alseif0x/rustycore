@@ -2317,6 +2317,15 @@ async fn main() -> Result<ExitCode> {
         battle_pet_xp_game_table.len()
     );
 
+    let shield_block_regular_game_table = Arc::new(
+        wow_data::ShieldBlockRegularGameTableLikeCpp::load(&data_dir)
+            .context("Failed to load gt/ShieldBlockRegular.txt - check DataDir config")?,
+    );
+    info!(
+        "Loaded ShieldBlockRegular game table: {} rows",
+        shield_block_regular_game_table.len()
+    );
+
     // Load TransmogSet.db2 and TransmogSetItem.db2 for DB2Manager transmog indexes.
     let transmog_set_store = Arc::new(
         wow_data::TransmogSetStore::load(&data_dir, &locale)
@@ -4251,6 +4260,7 @@ async fn main() -> Result<ExitCode> {
         battle_pet_species_store: Some(Arc::clone(&battle_pet_species_entry_store)),
         battle_pet_species_state_store: Some(Arc::clone(&battle_pet_species_state_store)),
         battle_pet_xp_game_table: Some(Arc::clone(&battle_pet_xp_game_table)),
+        shield_block_regular_game_table: Some(Arc::clone(&shield_block_regular_game_table)),
         transmog_set_item_store: Some(Arc::clone(&transmog_set_item_store)),
         item_price_base_store: Some(Arc::clone(&item_price_base_store)),
         item_limit_category_store: Some(Arc::clone(&item_limit_category_store)),
@@ -10697,6 +10707,9 @@ async fn create_session(
     }
     if let Some(ref table) = resources.battle_pet_xp_game_table {
         session.set_battle_pet_xp_game_table(Arc::clone(table));
+    }
+    if let Some(ref table) = resources.shield_block_regular_game_table {
+        session.set_shield_block_regular_game_table(Arc::clone(table));
     }
     if let Some(ref store) = resources.transmog_set_item_store {
         session.set_transmog_set_item_store(Arc::clone(store));

@@ -1912,6 +1912,9 @@ pub enum ApplyEnchantmentEffectAction {
         amount: u32,
         apply: bool,
     },
+    SetShieldBlockValue {
+        amount: u32,
+    },
     UnhandledStatModifier {
         item_mod: ItemModType,
         amount: u32,
@@ -2514,6 +2517,21 @@ pub fn item_resistance_bonus_actions_like_cpp(
         ));
     }
     actions
+}
+
+/// C++ `_ApplyItemBonuses` direct `ActivePlayerData::ShieldBlock` assignment.
+pub fn item_shield_block_bonus_action_like_cpp(
+    shield_block_value: i16,
+    is_armor_shield: bool,
+    apply: bool,
+) -> Option<ApplyEnchantmentEffectAction> {
+    if !is_armor_shield || shield_block_value <= 0 {
+        return None;
+    }
+
+    Some(ApplyEnchantmentEffectAction::SetShieldBlockValue {
+        amount: if apply { shield_block_value as u32 } else { 0 },
+    })
 }
 
 fn item_bonus_stat_actions_like_cpp(
@@ -15899,6 +15917,23 @@ mod tests {
                 },
             ],
         );
+    }
+
+    #[test]
+    fn item_shield_block_bonus_action_matches_cpp_direct_update_field_assignment() {
+        assert_eq!(
+            item_shield_block_bonus_action_like_cpp(42, true, true),
+            Some(ApplyEnchantmentEffectAction::SetShieldBlockValue { amount: 42 }),
+        );
+        assert_eq!(
+            item_shield_block_bonus_action_like_cpp(42, true, false),
+            Some(ApplyEnchantmentEffectAction::SetShieldBlockValue { amount: 0 }),
+        );
+        assert_eq!(
+            item_shield_block_bonus_action_like_cpp(42, false, true),
+            None
+        );
+        assert_eq!(item_shield_block_bonus_action_like_cpp(0, true, true), None);
     }
 
     #[test]

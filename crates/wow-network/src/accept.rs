@@ -193,6 +193,7 @@ pub struct SessionResources {
     pub battle_pet_species_store: Option<Arc<wow_data::BattlePetSpeciesStore>>,
     pub battle_pet_species_state_store: Option<Arc<wow_data::BattlePetSpeciesStateStore>>,
     pub battle_pet_xp_game_table: Option<Arc<wow_data::BattlePetXpGameTableLikeCpp>>,
+    pub shield_block_regular_game_table: Option<Arc<wow_data::ShieldBlockRegularGameTableLikeCpp>>,
     pub transmog_set_item_store: Option<Arc<wow_data::TransmogSetItemStore>>,
     pub item_price_base_store: Option<Arc<wow_data::ItemPriceBaseStore>>,
     pub item_limit_category_store: Option<Arc<wow_data::ItemLimitCategoryStore>>,

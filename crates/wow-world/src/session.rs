@@ -85,18 +85,19 @@ use wow_data::{
     PlayerConditionStore, PlayerCreateInfoCastSpellStoreLikeCpp,
     PlayerCreateInfoCustomSpellStoreLikeCpp, PlayerStatsStore, PvpItemStore, RandPropPointsStore,
     ScriptIdLikeCpp, ScriptNameInternerLikeCpp, ServersideSpellInfoLikeCpp,
-    ServersideSpellStoreLikeCpp, SkillLineStore, SkillRangeTypeLikeCpp, SkillStore,
-    SkillTiersStoreLikeCpp, SpellAreaLikeCpp, SpellAreaStoreLikeCpp, SpellAuraOptionsStore,
-    SpellCategoryStore, SpellChainStoreLikeCpp, SpellCustomAttributeStoreLikeCpp,
-    SpellDurationStore, SpellEnchantProcEntryLikeCpp, SpellEnchantProcStoreLikeCpp,
-    SpellGroupStackRuleLikeCpp, SpellGroupStackRuleStoreLikeCpp, SpellGroupStoreLikeCpp,
-    SpellItemEnchantmentStore, SpellLearnSkillNodeLikeCpp, SpellLearnSkillStoreLikeCpp,
-    SpellLearnSpellNodeLikeCpp, SpellLearnSpellStoreLikeCpp, SpellLinkedStoreLikeCpp,
-    SpellLinkedTypeLikeCpp, SpellMiscStore, SpellPetAuraStoreLikeCpp, SpellProcEntryLikeCpp,
-    SpellProcStoreLikeCpp, SpellRadiusStore, SpellRangeStore, SpellRequiredStoreLikeCpp,
-    SpellShapeshiftFormStore, SpellStore, SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp,
-    SpellThreatStoreLikeCpp, SpellTotemModelStoreLikeCpp, SummonPropertiesEntry, TalentStore,
-    TalentTabStore, ToyStore, TransmogSetEntry, TransmogSetItemStore, TrinityStringStoreLikeCpp,
+    ServersideSpellStoreLikeCpp, ShieldBlockRegularGameTableLikeCpp, SkillLineStore,
+    SkillRangeTypeLikeCpp, SkillStore, SkillTiersStoreLikeCpp, SpellAreaLikeCpp,
+    SpellAreaStoreLikeCpp, SpellAuraOptionsStore, SpellCategoryStore, SpellChainStoreLikeCpp,
+    SpellCustomAttributeStoreLikeCpp, SpellDurationStore, SpellEnchantProcEntryLikeCpp,
+    SpellEnchantProcStoreLikeCpp, SpellGroupStackRuleLikeCpp, SpellGroupStackRuleStoreLikeCpp,
+    SpellGroupStoreLikeCpp, SpellItemEnchantmentStore, SpellLearnSkillNodeLikeCpp,
+    SpellLearnSkillStoreLikeCpp, SpellLearnSpellNodeLikeCpp, SpellLearnSpellStoreLikeCpp,
+    SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp, SpellMiscStore, SpellPetAuraStoreLikeCpp,
+    SpellProcEntryLikeCpp, SpellProcStoreLikeCpp, SpellRadiusStore, SpellRangeStore,
+    SpellRequiredStoreLikeCpp, SpellShapeshiftFormStore, SpellStore,
+    SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp,
+    SpellTotemModelStoreLikeCpp, SummonPropertiesEntry, TalentStore, TalentTabStore, ToyStore,
+    TransmogSetEntry, TransmogSetItemStore, TrinityStringStoreLikeCpp,
     VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore,
     VehicleTemplateStoreLikeCpp, calculate_battle_pet_stats_like_cpp,
     is_player_meeting_condition_like_cpp,
@@ -147,7 +148,8 @@ use wow_entities::{
     UnitVisibilityDetectionStateLikeCpp, UpdateMask, Vehicle, VehicleAccessory, VisibleItemValues,
     WorldObject, explored_zones_db_string_from_blocks_like_cpp, is_bag_pos,
     is_equipment_packed_pos, is_inventory_pos, item_resistance_bonus_actions_like_cpp,
-    item_stat_bonus_actions_like_cpp, make_item_pos, parse_explored_zones_db_string_like_cpp,
+    item_shield_block_bonus_action_like_cpp, item_stat_bonus_actions_like_cpp, make_item_pos,
+    parse_explored_zones_db_string_like_cpp,
 };
 use wow_entities::{
     BagValuesUpdate, CONTAINER_DATA_BITS, CONTAINER_DATA_SLOTS_FIRST_BIT,
@@ -3484,6 +3486,9 @@ pub struct WorldSession {
     battle_pet_species_state_store: Option<Arc<BattlePetSpeciesStateStore>>,
     battle_pet_xp_game_table: Option<Arc<BattlePetXpGameTableLikeCpp>>,
 
+    // C++ `sShieldBlockRegularGameTable` used by `ItemTemplate::GetShieldBlockValue`.
+    shield_block_regular_game_table: Option<Arc<ShieldBlockRegularGameTableLikeCpp>>,
+
     // Transmog set item store (TransmogSetItem.db2 data)
     transmog_set_item_store: Option<Arc<TransmogSetItemStore>>,
 
@@ -5323,6 +5328,7 @@ impl WorldSession {
             battle_pet_species_store: None,
             battle_pet_species_state_store: None,
             battle_pet_xp_game_table: None,
+            shield_block_regular_game_table: None,
             transmog_set_item_store: None,
             item_price_base_store: None,
             item_limit_category_store: None,
@@ -12695,6 +12701,13 @@ impl WorldSession {
         self.battle_pet_xp_game_table = Some(table);
     }
 
+    pub fn set_shield_block_regular_game_table(
+        &mut self,
+        table: Arc<ShieldBlockRegularGameTableLikeCpp>,
+    ) {
+        self.shield_block_regular_game_table = Some(table);
+    }
+
     pub(crate) fn battle_pet_calculate_stats_like_cpp(
         &self,
         breed: u16,
@@ -14294,6 +14307,20 @@ impl WorldSession {
                     action,
                 }),
         );
+
+        if let Some(action) =
+            self.item_shield_block_value_like_cpp(item_entry)
+                .and_then(|shield_block_value| {
+                    item_shield_block_bonus_action_like_cpp(shield_block_value, true, apply)
+                })
+        {
+            self.represented_item_bonus_actions_like_cpp
+                .push(RepresentedItemBonusActionLikeCpp {
+                    item_guid,
+                    slot,
+                    action,
+                });
+        }
     }
 
     fn restore_represented_health_pct_after_item_mod_scaling_like_cpp(
@@ -15757,6 +15784,23 @@ impl WorldSession {
             .as_ref()
             .and_then(|store| store.random_property_template(item_id))
             .copied()
+    }
+
+    fn item_shield_block_value_like_cpp(&self, item_id: u32) -> Option<i16> {
+        let basic = self.item_store.as_ref()?.get(item_id)?;
+        if basic.class_id != ItemClass::Armor as u8
+            || basic.subclass_id != ItemSubClassArmor::Shield as u8
+        {
+            return None;
+        }
+
+        let template = self.item_random_property_template(item_id)?;
+        let item_level = u32::from(template.item_level);
+        let quality = u32::try_from(template.quality).ok()?;
+        self.shield_block_regular_game_table
+            .as_ref()?
+            .shield_block_for_quality_like_cpp(item_level, quality)
+            .filter(|value| *value != 0)
     }
 
     pub fn item_template_max_durability(&self, item_id: u32) -> u32 {
@@ -49222,9 +49266,10 @@ mod tests {
         ItemRandomPropertyTemplateEntry, ItemRandomSuffixEntry, ItemRandomSuffixStore, ItemRecord,
         ItemSearchNameEntry, ItemSearchNameStore, ItemSparseTemplateEntry, ItemSpecOverrideEntry,
         ItemSpecOverrideStore, ItemStatsStore, ItemStore, LockEntry, LockStore, MapDifficultyEntry,
-        MapDifficultyStore, PlayerConditionEntry, PlayerConditionStore, SpellItemEnchantmentEntry,
-        SpellItemEnchantmentStore, ToyEntry, ToyStore, TransmogSetEntry, TransmogSetItemEntry,
-        TransmogSetItemStore,
+        MapDifficultyStore, PlayerConditionEntry, PlayerConditionStore,
+        ShieldBlockRegularEntryLikeCpp, ShieldBlockRegularGameTableLikeCpp,
+        SpellItemEnchantmentEntry, SpellItemEnchantmentStore, ToyEntry, ToyStore, TransmogSetEntry,
+        TransmogSetItemEntry, TransmogSetItemStore,
         progression_rewards::{
             ContentTuningEntry, ContentTuningStore, CurveEntry, CurvePointEntry, CurvePointStore,
             CurveStore, FactionEntry, FactionStore, QUEST_PACKAGE_FILTER_CLASS_LIKE_CPP,
@@ -103269,10 +103314,10 @@ mod tests {
         session.set_item_store(Arc::new(ItemStore::from_records([
             ItemRecord {
                 id: 100,
-                class_id: ItemClass::Weapon as u8,
-                subclass_id: 7,
+                class_id: ItemClass::Armor as u8,
+                subclass_id: ItemSubClassArmor::Shield as u8,
                 material: 0,
-                inventory_type: InventoryType::Weapon as i8,
+                inventory_type: InventoryType::Shield as i8,
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
@@ -103684,10 +103729,10 @@ mod tests {
         session.set_item_store(Arc::new(ItemStore::from_records([
             ItemRecord {
                 id: 100,
-                class_id: ItemClass::Weapon as u8,
-                subclass_id: 7,
+                class_id: ItemClass::Armor as u8,
+                subclass_id: ItemSubClassArmor::Shield as u8,
                 material: 0,
-                inventory_type: InventoryType::Weapon as i8,
+                inventory_type: InventoryType::Shield as i8,
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
@@ -103766,7 +103811,7 @@ mod tests {
                     },
                 )],
                 [
-                    (100, sparse(InventoryType::Weapon, 50)),
+                    (100, sparse(InventoryType::Shield, 50)),
                     (101, sparse(InventoryType::Chest, 13)),
                     (200, sparse(InventoryType::Bag, 0)),
                 ],
@@ -103776,7 +103821,7 @@ mod tests {
                         ItemRandomPropertyTemplateEntry {
                             item_level: 57,
                             quality: ItemQuality::Rare as i8,
-                            inventory_type: InventoryType::Weapon as i8,
+                            inventory_type: InventoryType::Shield as i8,
                         },
                     ),
                     (
@@ -103801,10 +103846,23 @@ mod tests {
         session.set_durability_costs_store(Arc::new(DurabilityCostsStore::from_entries([
             DurabilityCostsEntry {
                 id: 57,
-                weapon_sub_class_cost: std::array::from_fn(|i| if i == 7 { 13 } else { 0 }),
-                armor_sub_class_cost: std::array::from_fn(|i| if i == 4 { 5 } else { 0 }),
+                weapon_sub_class_cost: std::array::from_fn(|_| 0),
+                armor_sub_class_cost: std::array::from_fn(|i| {
+                    if i == ItemSubClassArmor::Shield as usize {
+                        13
+                    } else if i == 4 {
+                        5
+                    } else {
+                        0
+                    }
+                }),
             },
         ])));
+        let mut shield_block_rows = vec![ShieldBlockRegularEntryLikeCpp::default(); 57];
+        shield_block_rows[56].superior = 42.0;
+        session.set_shield_block_regular_game_table(Arc::new(
+            ShieldBlockRegularGameTableLikeCpp::from_rows(shield_block_rows),
+        ));
         session.set_durability_quality_store(Arc::new(DurabilityQualityStore::from_entries([
             DurabilityQualityEntry {
                 id: (ItemQuality::Rare as u32 + 1) * 2,
@@ -103812,12 +103870,12 @@ mod tests {
             },
         ])));
         session.inventory_items.insert(
-            EQUIPMENT_SLOT_MAINHAND,
+            EQUIPMENT_SLOT_OFFHAND,
             InventoryItem {
                 guid: weapon_guid,
                 entry_id: 100,
                 db_guid: weapon_guid.counter() as u64,
-                inventory_type: Some(InventoryType::Weapon as u8),
+                inventory_type: Some(InventoryType::Shield as u8),
             },
         );
         session.inventory_items.insert(
@@ -103836,7 +103894,7 @@ mod tests {
             1,
             0,
             ItemContext::None,
-            EQUIPMENT_SLOT_MAINHAND,
+            EQUIPMENT_SLOT_OFFHAND,
         );
         let bag = session.make_inventory_item_object(
             bag_guid,
@@ -103883,7 +103941,7 @@ mod tests {
             session.represented_item_mod_reapply_events_like_cpp(),
             &[RepresentedItemModsReapplyEventLikeCpp {
                 item_guid: weapon_guid,
-                slot: EQUIPMENT_SLOT_MAINHAND,
+                slot: EQUIPMENT_SLOT_OFFHAND,
                 apply: true,
             }],
             "C++ DurabilityRepairAll delegates each item to DurabilityRepair, which reapplies item mods when an equipped item was broken before repair"
@@ -103893,7 +103951,7 @@ mod tests {
             &[
                 RepresentedItemBonusActionLikeCpp {
                     item_guid: weapon_guid,
-                    slot: EQUIPMENT_SLOT_MAINHAND,
+                    slot: EQUIPMENT_SLOT_OFFHAND,
                     action: ApplyEnchantmentEffectAction::UnitModifier {
                         unit_mod: wow_entities::ApplyEnchantmentUnitMod::StatStrength,
                         modifier: wow_entities::ApplyEnchantmentUnitModifier::BaseValue,
@@ -103903,14 +103961,14 @@ mod tests {
                 },
                 RepresentedItemBonusActionLikeCpp {
                     item_guid: weapon_guid,
-                    slot: EQUIPMENT_SLOT_MAINHAND,
+                    slot: EQUIPMENT_SLOT_OFFHAND,
                     action: ApplyEnchantmentEffectAction::UpdateStatBuffMod(
                         wow_constants::Stats::Strength,
                     ),
                 },
                 RepresentedItemBonusActionLikeCpp {
                     item_guid: weapon_guid,
-                    slot: EQUIPMENT_SLOT_MAINHAND,
+                    slot: EQUIPMENT_SLOT_OFFHAND,
                     action: ApplyEnchantmentEffectAction::RatingModifier {
                         rating: wow_entities::ApplyEnchantmentCombatRating::HitMelee,
                         amount: 5,
@@ -103919,7 +103977,7 @@ mod tests {
                 },
                 RepresentedItemBonusActionLikeCpp {
                     item_guid: weapon_guid,
-                    slot: EQUIPMENT_SLOT_MAINHAND,
+                    slot: EQUIPMENT_SLOT_OFFHAND,
                     action: ApplyEnchantmentEffectAction::RatingModifier {
                         rating: wow_entities::ApplyEnchantmentCombatRating::HitRanged,
                         amount: 5,
@@ -103928,7 +103986,7 @@ mod tests {
                 },
                 RepresentedItemBonusActionLikeCpp {
                     item_guid: weapon_guid,
-                    slot: EQUIPMENT_SLOT_MAINHAND,
+                    slot: EQUIPMENT_SLOT_OFFHAND,
                     action: ApplyEnchantmentEffectAction::RatingModifier {
                         rating: wow_entities::ApplyEnchantmentCombatRating::HitSpell,
                         amount: 5,
@@ -103937,7 +103995,7 @@ mod tests {
                 },
                 RepresentedItemBonusActionLikeCpp {
                     item_guid: weapon_guid,
-                    slot: EQUIPMENT_SLOT_MAINHAND,
+                    slot: EQUIPMENT_SLOT_OFFHAND,
                     action: ApplyEnchantmentEffectAction::UnitModifier {
                         unit_mod: wow_entities::ApplyEnchantmentUnitMod::Resistance(
                             wow_constants::spell::SpellSchools::Normal as u32,
@@ -103949,7 +104007,7 @@ mod tests {
                 },
                 RepresentedItemBonusActionLikeCpp {
                     item_guid: weapon_guid,
-                    slot: EQUIPMENT_SLOT_MAINHAND,
+                    slot: EQUIPMENT_SLOT_OFFHAND,
                     action: ApplyEnchantmentEffectAction::UnitModifier {
                         unit_mod: wow_entities::ApplyEnchantmentUnitMod::Resistance(
                             wow_constants::spell::SpellSchools::Fire as u32,
@@ -103958,6 +104016,11 @@ mod tests {
                         amount: 7,
                         apply: true,
                     },
+                },
+                RepresentedItemBonusActionLikeCpp {
+                    item_guid: weapon_guid,
+                    slot: EQUIPMENT_SLOT_OFFHAND,
+                    action: ApplyEnchantmentEffectAction::SetShieldBlockValue { amount: 42 },
                 },
             ],
             "C++ _ApplyItemMods calls _ApplyItemBonuses before equip spells/auras/enchantments"
@@ -104006,10 +104069,10 @@ mod tests {
         session.set_item_store(Arc::new(ItemStore::from_records([
             ItemRecord {
                 id: 100,
-                class_id: ItemClass::Weapon as u8,
-                subclass_id: 7,
+                class_id: ItemClass::Armor as u8,
+                subclass_id: ItemSubClassArmor::Shield as u8,
                 material: 0,
-                inventory_type: InventoryType::Weapon as i8,
+                inventory_type: InventoryType::Shield as i8,
                 sheathe_type: 0,
                 random_select: 0,
                 random_suffix_group_id: 0,
@@ -104088,7 +104151,7 @@ mod tests {
                     },
                 )],
                 [
-                    (100, sparse(InventoryType::Weapon, 50)),
+                    (100, sparse(InventoryType::Shield, 50)),
                     (101, sparse(InventoryType::Chest, 13)),
                     (200, sparse(InventoryType::Bag, 0)),
                 ],
@@ -104098,7 +104161,7 @@ mod tests {
                         ItemRandomPropertyTemplateEntry {
                             item_level: 57,
                             quality: ItemQuality::Rare as i8,
-                            inventory_type: InventoryType::Weapon as i8,
+                            inventory_type: InventoryType::Shield as i8,
                         },
                     ),
                     (
@@ -104123,10 +104186,23 @@ mod tests {
         session.set_durability_costs_store(Arc::new(DurabilityCostsStore::from_entries([
             DurabilityCostsEntry {
                 id: 57,
-                weapon_sub_class_cost: std::array::from_fn(|i| if i == 7 { 13 } else { 0 }),
-                armor_sub_class_cost: std::array::from_fn(|i| if i == 4 { 5 } else { 0 }),
+                weapon_sub_class_cost: std::array::from_fn(|_| 0),
+                armor_sub_class_cost: std::array::from_fn(|i| {
+                    if i == ItemSubClassArmor::Shield as usize {
+                        13
+                    } else if i == 4 {
+                        5
+                    } else {
+                        0
+                    }
+                }),
             },
         ])));
+        let mut shield_block_rows = vec![ShieldBlockRegularEntryLikeCpp::default(); 57];
+        shield_block_rows[56].superior = 42.0;
+        session.set_shield_block_regular_game_table(Arc::new(
+            ShieldBlockRegularGameTableLikeCpp::from_rows(shield_block_rows),
+        ));
         session.set_durability_quality_store(Arc::new(DurabilityQualityStore::from_entries([
             DurabilityQualityEntry {
                 id: (ItemQuality::Rare as u32 + 1) * 2,
@@ -104134,12 +104210,12 @@ mod tests {
             },
         ])));
         session.inventory_items.insert(
-            EQUIPMENT_SLOT_MAINHAND,
+            EQUIPMENT_SLOT_OFFHAND,
             InventoryItem {
                 guid: weapon_guid,
                 entry_id: 100,
                 db_guid: weapon_guid.counter() as u64,
-                inventory_type: Some(InventoryType::Weapon as u8),
+                inventory_type: Some(InventoryType::Shield as u8),
             },
         );
         session.inventory_items.insert(
@@ -104158,7 +104234,7 @@ mod tests {
             1,
             40,
             ItemContext::None,
-            EQUIPMENT_SLOT_MAINHAND,
+            EQUIPMENT_SLOT_OFFHAND,
         );
         let bag = session.make_inventory_item_object(
             bag_guid,
@@ -104185,7 +104261,7 @@ mod tests {
 
         session.set_represented_guild_repair_bank_state_like_cpp(Some(
             RepresentedGuildRepairBankStateLikeCpp {
-                available_repair_money: 40,
+                available_repair_money: 290,
                 withdraw_repair_money_allowed: true,
             },
         ));
@@ -104205,12 +104281,12 @@ mod tests {
             session.inventory_item_objects_like_cpp()[&weapon_guid]
                 .data()
                 .durability,
-            40
+            50
         );
         assert_eq!(
             session.represented_guild_repair_bank_withdraws_like_cpp(),
             &[RepresentedGuildRepairBankWithdrawLikeCpp {
-                amount: 30,
+                amount: 290,
                 repair: true,
                 success: true,
             }]
@@ -104264,15 +104340,25 @@ mod tests {
             session.represented_item_mod_reapply_events_like_cpp(),
             &[RepresentedItemModsReapplyEventLikeCpp {
                 item_guid: weapon_guid,
-                slot: EQUIPMENT_SLOT_MAINHAND,
+                slot: EQUIPMENT_SLOT_OFFHAND,
                 apply: true,
             }],
             "C++ guild-bank repair also calls DurabilityRepair for each selected item before the final guild withdrawal"
         );
         assert_eq!(
             session.represented_item_bonus_actions_like_cpp().len(),
-            7,
+            8,
             "represented guild-bank repair records the same static _ApplyItemBonuses action plan for the broken equipped item"
+        );
+        assert!(
+            session
+                .represented_item_bonus_actions_like_cpp()
+                .iter()
+                .any(|action| matches!(
+                    action.action,
+                    ApplyEnchantmentEffectAction::SetShieldBlockValue { amount: 42 }
+                )),
+            "C++ _ApplyItemBonuses sets ActivePlayerData::ShieldBlock for repaired armor shields"
         );
     }
 

@@ -1,3 +1,19 @@
+- `#NEXT.R8.ENTITIES.1171` — represented `_ApplyItemBonuses` now consumes the
+  direct shield-block branch after the resistance loop. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7972-7974`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/ItemTemplate.cpp:218-222`.
+  `world-server` loads `gt/ShieldBlockRegular.txt` into session resources,
+  `WorldSession` resolves armor-shield templates through `Item.db2` class/subclass
+  plus item level/quality, and represented repair reapply records the C++
+  direct `ActivePlayerData::ShieldBlock = apply ? value : 0` assignment as
+  `SetShieldBlockValue`. Coverage: `cargo test -p wow-entities
+  item_shield_block_bonus_action_matches_cpp_direct_update_field_assignment
+  --lib` and `cargo test -p wow-world repair_all_inventory_item_durability
+  --lib`. Boundary remains partial: this is represented action planning only;
+  it does not yet mutate real player update fields, emit/fanout update packets,
+  persist shield-block state, or validate with bot/live client/manual testing.
+
 - `#NEXT.R8.ENTITIES.1170` — `wow-data` now exposes the C++
   `sShieldBlockRegularGameTable` / `GtShieldBlockRegularEntry` prerequisite for
   `ItemTemplate::GetShieldBlockValue(itemLevel)`. Source of truth:
@@ -8,10 +24,10 @@
   like `LoadGameTable`, maps item quality columns exactly (`Poor` through
   `ScalingStat`), defaults malformed floats to zero, and returns zero for
   unknown qualities. Coverage: `cargo test -p wow-data shield_block_regular
-  --lib`. Boundary remains partial/prerequisite only: `_ApplyItemBonuses` does
-  not yet consume this table, shield items do not yet mutate
-  `ActivePlayerData::ShieldBlock`, update-field fanout/persistence/live-client
-  validation remain open.
+  --lib`. Boundary remains partial/prerequisite only: represented
+  `_ApplyItemBonuses` consumption was closed by `#NEXT.R8.ENTITIES.1171`, but
+  real `ActivePlayerData::ShieldBlock` mutation, update-field
+  fanout/persistence/live-client validation remain open.
 
 - `#NEXT.R8.ENTITIES.1169` — represented `_ApplyItemBonuses` now consumes
   direct `ItemTemplate::GetResistance(school)` data from `ItemSparse`
