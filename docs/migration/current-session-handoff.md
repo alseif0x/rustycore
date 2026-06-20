@@ -1,3 +1,18 @@
+- `#NEXT.R8.ENTITIES.1170` — `wow-data` now exposes the C++
+  `sShieldBlockRegularGameTable` / `GtShieldBlockRegularEntry` prerequisite for
+  `ItemTemplate::GetShieldBlockValue(itemLevel)`. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/ItemTemplate.cpp:218-222`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/DataStores/GameTables.h:184-194,388-416`.
+  The Rust table reads `gt/ShieldBlockRegular.txt`, indexes rows by position
+  like `LoadGameTable`, maps item quality columns exactly (`Poor` through
+  `ScalingStat`), defaults malformed floats to zero, and returns zero for
+  unknown qualities. Coverage: `cargo test -p wow-data shield_block_regular
+  --lib`. Boundary remains partial/prerequisite only: `_ApplyItemBonuses` does
+  not yet consume this table, shield items do not yet mutate
+  `ActivePlayerData::ShieldBlock`, update-field fanout/persistence/live-client
+  validation remain open.
+
 - `#NEXT.R8.ENTITIES.1169` — represented `_ApplyItemBonuses` now consumes
   direct `ItemTemplate::GetResistance(school)` data from `ItemSparse`
   `Resistances[7]`. Source of truth:
