@@ -975,6 +975,22 @@ async fn main() -> Result<ExitCode> {
         "Loaded {} PvP item bonus rows from PVPItem.db2",
         pvp_item_store.len()
     );
+    let item_set_store = Arc::new(
+        wow_data::ItemSetStore::load(&data_dir, &locale)
+            .context("Failed to load ItemSet.db2 — check DataDir and DBC.Locale config")?,
+    );
+    info!(
+        "Loaded {} item set rows from ItemSet.db2",
+        item_set_store.len()
+    );
+    let item_set_spell_store = Arc::new(
+        wow_data::ItemSetSpellStore::load(&data_dir, &locale)
+            .context("Failed to load ItemSetSpell.db2 — check DataDir and DBC.Locale config")?,
+    );
+    info!(
+        "Loaded {} item set spell rows from ItemSetSpell.db2",
+        item_set_spell_store.len()
+    );
 
     // Load ChrSpecialization.db2 for C++ loot-specialization validation.
     let chr_specialization_store = Arc::new(
@@ -4283,6 +4299,8 @@ async fn main() -> Result<ExitCode> {
         player_stats: Some(Arc::clone(&player_stats)),
         item_bonus_db2_store: Some(Arc::clone(&item_bonus_db2_store)),
         pvp_item_store: Some(Arc::clone(&pvp_item_store)),
+        item_set_store: Some(Arc::clone(&item_set_store)),
+        item_set_spell_store: Some(Arc::clone(&item_set_spell_store)),
         item_stats_store: Some(Arc::clone(&item_stats_store)),
         durability_costs_store: Some(Arc::clone(&durability_costs_store)),
         durability_quality_store: Some(Arc::clone(&durability_quality_store)),
@@ -10752,6 +10770,12 @@ async fn create_session(
     }
     if let Some(ref store) = resources.pvp_item_store {
         session.set_pvp_item_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.item_set_store {
+        session.set_item_set_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.item_set_spell_store {
+        session.set_item_set_spell_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.item_stats_store {
         session.set_item_stats_store(Arc::clone(store));

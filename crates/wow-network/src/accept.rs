@@ -205,6 +205,8 @@ pub struct SessionResources {
     pub player_stats: Option<Arc<wow_data::PlayerStatsStore>>,
     pub item_bonus_db2_store: Option<Arc<wow_data::ItemBonusDb2Store>>,
     pub pvp_item_store: Option<Arc<wow_data::PvpItemStore>>,
+    pub item_set_store: Option<Arc<wow_data::ItemSetStore>>,
+    pub item_set_spell_store: Option<Arc<wow_data::ItemSetSpellStore>>,
     pub item_stats_store: Option<Arc<wow_data::ItemStatsStore>>,
     pub durability_costs_store: Option<Arc<wow_data::DurabilityCostsStore>>,
     pub durability_quality_store: Option<Arc<wow_data::DurabilityQualityStore>>,

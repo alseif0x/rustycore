@@ -74,10 +74,11 @@ use wow_data::{
     ItemEffectStore, ItemExtendedCostStore, ItemLimitCategoryConditionStore,
     ItemLimitCategoryStore, ItemModifiedAppearanceStore, ItemPriceBaseStore,
     ItemRandomEnchantmentTemplateStore, ItemRandomPropertiesStore, ItemRandomPropertyTemplateEntry,
-    ItemRandomSuffixStore, ItemSearchNameStore, ItemSpecOverrideStore, ItemStatsStore, ItemStore,
-    LfgDungeonsStore, LockStore, MapDifficultyStore, MapDifficultyXConditionStore, MapStore,
-    MountCapabilityStore, MountDefinitionStoreLikeCpp, MountStore, MountTypeXCapabilityStore,
-    MountXDisplayStore, MovieStore, NpcSpellClickStoreLikeCpp, PetDefaultSpellStoreLikeCpp,
+    ItemRandomSuffixStore, ItemSearchNameStore, ItemSetSpellStore, ItemSetStore,
+    ItemSpecOverrideStore, ItemStatsStore, ItemStore, LfgDungeonsStore, LockStore,
+    MapDifficultyStore, MapDifficultyXConditionStore, MapStore, MountCapabilityStore,
+    MountDefinitionStoreLikeCpp, MountStore, MountTypeXCapabilityStore, MountXDisplayStore,
+    MovieStore, NpcSpellClickStoreLikeCpp, PetDefaultSpellStoreLikeCpp,
     PetDefaultSpellsEntryLikeCpp, PetFamilySpellStoreLikeCpp, PetLevelupSpellSetLikeCpp,
     PetLevelupSpellStoreLikeCpp, PhaseGroupStore, PhaseStore, PlayerConditionAuraLikeCpp,
     PlayerConditionContextLikeCpp, PlayerConditionCountLikeCpp, PlayerConditionPartyStatusLikeCpp,
@@ -1720,6 +1721,24 @@ pub(crate) struct RepresentedItemBonusActionLikeCpp {
     pub item_guid: ObjectGuid,
     pub slot: u8,
     pub action: ApplyEnchantmentEffectAction,
+}
+
+const ITEM_SET_FLAG_LEGACY_INACTIVE_LIKE_CPP: u32 = 0x01;
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub(crate) struct RepresentedItemSetEffectLikeCpp {
+    pub item_set_id: u32,
+    pub equipped_items: HashSet<ObjectGuid>,
+    pub set_bonuses: BTreeSet<u32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedItemSetSpellEventLikeCpp {
+    pub item_set_id: u32,
+    pub spell_entry_id: u32,
+    pub spell_id: u32,
+    pub threshold: u8,
+    pub apply: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -3647,6 +3666,8 @@ pub struct WorldSession {
     // Item stat modifiers store (item_id → stat bonuses from ItemSparse.db2)
     item_bonus_db2_store: Option<Arc<ItemBonusDb2Store>>,
     pvp_item_store: Option<Arc<PvpItemStore>>,
+    item_set_store: Option<Arc<ItemSetStore>>,
+    item_set_spell_store: Option<Arc<ItemSetSpellStore>>,
     item_stats_store: Option<Arc<ItemStatsStore>>,
     durability_costs_store: Option<Arc<DurabilityCostsStore>>,
     durability_quality_store: Option<Arc<DurabilityQualityStore>>,
@@ -3919,6 +3940,8 @@ pub struct WorldSession {
     represented_item_mod_reapply_events_like_cpp: Vec<RepresentedItemModsReapplyEventLikeCpp>,
     represented_item_bonus_actions_like_cpp: Vec<RepresentedItemBonusActionLikeCpp>,
     represented_item_bonus_state_like_cpp: RepresentedItemBonusStateLikeCpp,
+    represented_item_set_effects_like_cpp: HashMap<u32, RepresentedItemSetEffectLikeCpp>,
+    represented_item_set_spell_events_like_cpp: Vec<RepresentedItemSetSpellEventLikeCpp>,
     represented_combat_stat_recalculations_like_cpp: Vec<RepresentedCombatStatRecalculationLikeCpp>,
     represented_titan_grip_penalty_actions_like_cpp: Vec<TitanGripPenaltyAction>,
     represented_avg_equipped_item_level_updates_like_cpp: Vec<f32>,
@@ -5479,6 +5502,8 @@ impl WorldSession {
             represented_using_pvp_item_levels_like_cpp: false,
             item_bonus_db2_store: None,
             pvp_item_store: None,
+            item_set_store: None,
+            item_set_spell_store: None,
             item_stats_store: None,
             durability_costs_store: None,
             durability_quality_store: None,
@@ -5634,6 +5659,8 @@ impl WorldSession {
             represented_item_mod_reapply_events_like_cpp: Vec::new(),
             represented_item_bonus_actions_like_cpp: Vec::new(),
             represented_item_bonus_state_like_cpp: RepresentedItemBonusStateLikeCpp::default(),
+            represented_item_set_effects_like_cpp: HashMap::new(),
+            represented_item_set_spell_events_like_cpp: Vec::new(),
             represented_combat_stat_recalculations_like_cpp: Vec::new(),
             represented_titan_grip_penalty_actions_like_cpp: Vec::new(),
             represented_avg_equipped_item_level_updates_like_cpp: Vec::new(),
@@ -14407,6 +14434,33 @@ impl WorldSession {
         self.pvp_item_store = Some(store);
     }
 
+    pub fn set_item_set_store(&mut self, store: Arc<ItemSetStore>) {
+        self.item_set_store = Some(store);
+    }
+
+    pub fn set_item_set_spell_store(&mut self, store: Arc<ItemSetSpellStore>) {
+        self.item_set_spell_store = Some(store);
+    }
+
+    pub(crate) fn item_set_for_item_id_like_cpp(
+        &self,
+        item_id: u32,
+    ) -> Option<&wow_data::ItemSetEntry> {
+        self.item_set_store
+            .as_ref()
+            .and_then(|store| store.item_set_for_item_id_like_cpp(item_id))
+    }
+
+    pub(crate) fn item_set_spells_like_cpp(
+        &self,
+        item_set_id: u32,
+    ) -> Vec<&wow_data::ItemSetSpellEntry> {
+        self.item_set_spell_store
+            .as_ref()
+            .map(|store| store.item_set_spells_like_cpp(item_set_id))
+            .unwrap_or_default()
+    }
+
     pub fn set_item_stats_store(&mut self, store: Arc<ItemStatsStore>) {
         self.item_stats_store = Some(store);
     }
@@ -14650,6 +14704,149 @@ impl WorldSession {
         let action_start = self.represented_item_bonus_actions_like_cpp.len();
         self.record_represented_item_mods_like_cpp(item_guid, slot, false);
         self.represented_item_bonus_actions_like_cpp.len() != action_start
+    }
+
+    pub(crate) fn record_represented_items_set_item_like_cpp(
+        &mut self,
+        item_guid: ObjectGuid,
+        apply: bool,
+    ) -> bool {
+        let Some(item_entry) = self
+            .inventory_item_objects_like_cpp()
+            .get(&item_guid)
+            .map(|item| item.object().entry())
+        else {
+            return false;
+        };
+        let Some(item_set) = self.item_set_for_item_id_like_cpp(item_entry).cloned() else {
+            return false;
+        };
+
+        if apply {
+            self.record_represented_add_items_set_item_like_cpp(item_guid, &item_set)
+        } else {
+            self.record_represented_remove_items_set_item_like_cpp(item_guid, &item_set)
+        }
+    }
+
+    fn record_represented_add_items_set_item_like_cpp(
+        &mut self,
+        item_guid: ObjectGuid,
+        item_set: &wow_data::ItemSetEntry,
+    ) -> bool {
+        if item_set.required_skill != 0
+            && self.player_skill_value_like_cpp(item_set.required_skill as u16)
+                < item_set.required_skill_rank
+        {
+            return false;
+        }
+        if item_set.set_flags & ITEM_SET_FLAG_LEGACY_INACTIVE_LIKE_CPP != 0 {
+            return false;
+        }
+
+        let before_events = self.represented_item_set_spell_events_like_cpp.len();
+        let equipped_count_after = {
+            let effect = self
+                .represented_item_set_effects_like_cpp
+                .entry(item_set.id)
+                .or_insert_with(|| RepresentedItemSetEffectLikeCpp {
+                    item_set_id: item_set.id,
+                    ..Default::default()
+                });
+            effect.equipped_items.insert(item_guid);
+            effect.equipped_items.len()
+        };
+
+        let primary_spec = self.loot_specialization_id_like_cpp();
+        let spells: Vec<_> = self
+            .item_set_spells_like_cpp(item_set.id)
+            .into_iter()
+            .cloned()
+            .collect();
+        for item_set_spell in spells {
+            if usize::from(item_set_spell.threshold) > equipped_count_after {
+                continue;
+            }
+            let effect = self
+                .represented_item_set_effects_like_cpp
+                .get_mut(&item_set.id)
+                .expect("item set effect exists after insert");
+            if !effect.set_bonuses.insert(item_set_spell.id) {
+                continue;
+            }
+            if item_set_spell.chr_spec_id != 0
+                && u32::from(item_set_spell.chr_spec_id) != primary_spec
+            {
+                continue;
+            }
+            self.represented_item_set_spell_events_like_cpp.push(
+                RepresentedItemSetSpellEventLikeCpp {
+                    item_set_id: item_set.id,
+                    spell_entry_id: item_set_spell.id,
+                    spell_id: item_set_spell.spell_id,
+                    threshold: item_set_spell.threshold,
+                    apply: true,
+                },
+            );
+        }
+
+        self.represented_item_set_spell_events_like_cpp.len() != before_events
+    }
+
+    fn record_represented_remove_items_set_item_like_cpp(
+        &mut self,
+        item_guid: ObjectGuid,
+        item_set: &wow_data::ItemSetEntry,
+    ) -> bool {
+        let Some(effect) = self
+            .represented_item_set_effects_like_cpp
+            .get_mut(&item_set.id)
+        else {
+            return false;
+        };
+        effect.equipped_items.remove(&item_guid);
+        let equipped_count_after = effect.equipped_items.len();
+        let before_events = self.represented_item_set_spell_events_like_cpp.len();
+
+        let spells: Vec<_> = self
+            .item_set_spells_like_cpp(item_set.id)
+            .into_iter()
+            .cloned()
+            .collect();
+        for item_set_spell in spells {
+            if usize::from(item_set_spell.threshold) <= equipped_count_after {
+                continue;
+            }
+            let Some(effect) = self
+                .represented_item_set_effects_like_cpp
+                .get_mut(&item_set.id)
+            else {
+                continue;
+            };
+            if !effect.set_bonuses.remove(&item_set_spell.id) {
+                continue;
+            }
+            self.represented_item_set_spell_events_like_cpp.push(
+                RepresentedItemSetSpellEventLikeCpp {
+                    item_set_id: item_set.id,
+                    spell_entry_id: item_set_spell.id,
+                    spell_id: item_set_spell.spell_id,
+                    threshold: item_set_spell.threshold,
+                    apply: false,
+                },
+            );
+        }
+
+        if self
+            .represented_item_set_effects_like_cpp
+            .get(&item_set.id)
+            .is_some_and(|effect| effect.equipped_items.is_empty())
+        {
+            self.represented_item_set_effects_like_cpp
+                .remove(&item_set.id);
+        }
+
+        self.represented_item_set_spell_events_like_cpp.len() != before_events
     }
 
     fn represented_item_bonus_player_stat_update_object_like_cpp(
@@ -33640,6 +33837,21 @@ impl WorldSession {
     }
 
     #[cfg(test)]
+    pub(crate) fn represented_item_set_spell_events_like_cpp(
+        &self,
+    ) -> &[RepresentedItemSetSpellEventLikeCpp] {
+        &self.represented_item_set_spell_events_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_item_set_effect_like_cpp(
+        &self,
+        item_set_id: u32,
+    ) -> Option<&RepresentedItemSetEffectLikeCpp> {
+        self.represented_item_set_effects_like_cpp.get(&item_set_id)
+    }
+
+    #[cfg(test)]
     pub(crate) fn represented_item_bonus_state_like_cpp(
         &self,
     ) -> &RepresentedItemBonusStateLikeCpp {
@@ -49953,7 +50165,8 @@ mod tests {
         ItemLimitCategoryEntry, ItemLimitCategoryStore, ItemModifiedAppearanceEntry,
         ItemModifiedAppearanceStore, ItemPriceBaseEntry, ItemPriceBaseStore,
         ItemRandomPropertyTemplateEntry, ItemRandomSuffixEntry, ItemRandomSuffixStore, ItemRecord,
-        ItemSearchNameEntry, ItemSearchNameStore, ItemSparseTemplateEntry, ItemSpecOverrideEntry,
+        ItemSearchNameEntry, ItemSearchNameStore, ItemSetEntry, ItemSetSpellEntry,
+        ItemSetSpellStore, ItemSetStore, ItemSparseTemplateEntry, ItemSpecOverrideEntry,
         ItemSpecOverrideStore, ItemStatsStore, ItemStore, ItemWeaponTemplateEntry, LockEntry,
         LockStore, MapDifficultyEntry, MapDifficultyStore, PlayerConditionEntry,
         PlayerConditionStore, ShieldBlockRegularEntryLikeCpp, ShieldBlockRegularGameTableLikeCpp,
@@ -49972,8 +50185,8 @@ mod tests {
     use wow_entities::{
         AccessorObjectRef, ApplyEnchantmentDurationAction, ApplyEnchantmentResult,
         BANK_SLOT_BAG_START, BANK_SLOT_ITEM_START, CharmType, EQUIPMENT_SLOT_CHEST,
-        INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, ItemBonusKey, MapObjectRecord,
-        PlayerEnchantDuration, REAGENT_BAG_SLOT_START, SendNewItemInstancePlan,
+        EQUIPMENT_SLOT_HANDS, INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, ItemBonusKey,
+        MapObjectRecord, PlayerEnchantDuration, REAGENT_BAG_SLOT_START, SendNewItemInstancePlan,
         SendNewItemModifier, TYPEID_UNIT, UNIT_DATA_BITS, UnitDataUpdate, UnitDataValues,
         UnitValuesUpdate, UpdateMask,
     };
@@ -104908,6 +105121,228 @@ mod tests {
             session.represented_item_bonus_actions_like_cpp().len(),
             actions_before,
             "C++ _ApplyItemMods skips non-applied inventory slots and broken equipped items"
+        );
+    }
+
+    #[test]
+    fn represented_item_set_add_remove_tracks_threshold_spell_events_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let chest_guid = ObjectGuid::create_item(1, 906);
+        let hands_guid = ObjectGuid::create_item(1, 907);
+        session.set_player_guid(Some(player_guid));
+        session.set_item_set_store(Arc::new(ItemSetStore::from_entries([ItemSetEntry {
+            id: 700,
+            name: "Test Set".to_string(),
+            set_flags: 0,
+            required_skill: 0,
+            required_skill_rank: 0,
+            item_id: std::array::from_fn(|i| match i {
+                0 => 100,
+                1 => 101,
+                _ => 0,
+            }),
+        }])));
+        session.set_item_set_spell_store(Arc::new(ItemSetSpellStore::from_entries([
+            ItemSetSpellEntry {
+                id: 1,
+                chr_spec_id: 0,
+                spell_id: 9001,
+                threshold: 2,
+                item_set_id: 700,
+            },
+            ItemSetSpellEntry {
+                id: 2,
+                chr_spec_id: 0,
+                spell_id: 9002,
+                threshold: 3,
+                item_set_id: 700,
+            },
+        ])));
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            chest_guid,
+            100,
+            InventoryType::Chest,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_HANDS,
+            hands_guid,
+            101,
+            InventoryType::Hands,
+        );
+
+        assert!(!session.record_represented_items_set_item_like_cpp(chest_guid, true));
+        assert!(session.record_represented_items_set_item_like_cpp(hands_guid, true));
+        assert_eq!(
+            session.represented_item_set_spell_events_like_cpp(),
+            &[RepresentedItemSetSpellEventLikeCpp {
+                item_set_id: 700,
+                spell_entry_id: 1,
+                spell_id: 9001,
+                threshold: 2,
+                apply: true,
+            }]
+        );
+        assert_eq!(
+            session
+                .represented_item_set_effect_like_cpp(700)
+                .expect("set effect")
+                .equipped_items
+                .len(),
+            2
+        );
+
+        assert!(session.record_represented_items_set_item_like_cpp(chest_guid, false));
+        assert_eq!(
+            session.represented_item_set_spell_events_like_cpp()[1],
+            RepresentedItemSetSpellEventLikeCpp {
+                item_set_id: 700,
+                spell_entry_id: 1,
+                spell_id: 9001,
+                threshold: 2,
+                apply: false,
+            }
+        );
+    }
+
+    #[test]
+    fn represented_item_set_guards_skill_legacy_flag_spec_and_broken_items_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let chest_guid = ObjectGuid::create_item(1, 908);
+        let hands_guid = ObjectGuid::create_item(1, 909);
+        session.set_player_guid(Some(player_guid));
+        session.set_loot_specialization_id_like_cpp(66);
+        session.set_item_set_store(Arc::new(ItemSetStore::from_entries([
+            ItemSetEntry {
+                id: 701,
+                name: "Skill Set".to_string(),
+                set_flags: 0,
+                required_skill: 333,
+                required_skill_rank: 80,
+                item_id: std::array::from_fn(|i| if i == 0 { 102 } else { 0 }),
+            },
+            ItemSetEntry {
+                id: 702,
+                name: "Inactive Set".to_string(),
+                set_flags: ITEM_SET_FLAG_LEGACY_INACTIVE_LIKE_CPP,
+                required_skill: 0,
+                required_skill_rank: 0,
+                item_id: std::array::from_fn(|i| if i == 0 { 103 } else { 0 }),
+            },
+            ItemSetEntry {
+                id: 703,
+                name: "Spec Set".to_string(),
+                set_flags: 0,
+                required_skill: 0,
+                required_skill_rank: 0,
+                item_id: std::array::from_fn(|i| match i {
+                    0 => 104,
+                    1 => 105,
+                    _ => 0,
+                }),
+            },
+        ])));
+        session.set_item_set_spell_store(Arc::new(ItemSetSpellStore::from_entries([
+            ItemSetSpellEntry {
+                id: 10,
+                chr_spec_id: 0,
+                spell_id: 9010,
+                threshold: 1,
+                item_set_id: 701,
+            },
+            ItemSetSpellEntry {
+                id: 11,
+                chr_spec_id: 0,
+                spell_id: 9011,
+                threshold: 1,
+                item_set_id: 702,
+            },
+            ItemSetSpellEntry {
+                id: 12,
+                chr_spec_id: 65,
+                spell_id: 9012,
+                threshold: 2,
+                item_set_id: 703,
+            },
+            ItemSetSpellEntry {
+                id: 13,
+                chr_spec_id: 66,
+                spell_id: 9013,
+                threshold: 2,
+                item_set_id: 703,
+            },
+        ])));
+
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            chest_guid,
+            102,
+            InventoryType::Chest,
+        );
+        assert!(!session.record_represented_items_set_item_like_cpp(chest_guid, true));
+        session.set_player_skill_values_like_cpp(HashMap::from([(333, 80)]));
+        assert!(session.record_represented_items_set_item_like_cpp(chest_guid, true));
+
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_HANDS,
+            hands_guid,
+            103,
+            InventoryType::Hands,
+        );
+        assert!(!session.record_represented_items_set_item_like_cpp(hands_guid, true));
+
+        let first_spec_guid = ObjectGuid::create_item(1, 910);
+        let second_spec_guid = ObjectGuid::create_item(1, 911);
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            first_spec_guid,
+            104,
+            InventoryType::Chest,
+        );
+        let mut broken_second = session.make_inventory_item_object(
+            second_spec_guid,
+            105,
+            player_guid,
+            1,
+            0,
+            ItemContext::None,
+            EQUIPMENT_SLOT_HANDS,
+        );
+        broken_second.set_max_durability(10);
+        broken_second.set_durability(0);
+        session.insert_inventory_item_object(broken_second);
+        session.insert_inventory_item_like_cpp(
+            EQUIPMENT_SLOT_HANDS,
+            InventoryItem {
+                guid: second_spec_guid,
+                entry_id: 105,
+                db_guid: second_spec_guid.counter() as u64,
+                inventory_type: Some(InventoryType::Hands as u8),
+            },
+        );
+
+        assert!(!session.record_represented_items_set_item_like_cpp(first_spec_guid, true));
+        assert!(session.record_represented_items_set_item_like_cpp(second_spec_guid, true));
+        assert!(
+            !session
+                .represented_item_set_spell_events_like_cpp()
+                .iter()
+                .any(|event| event.spell_id == 9012),
+            "C++ AddItemsSetItem does not cast set spells for a non-primary ChrSpecID"
+        );
+        assert!(
+            session
+                .represented_item_set_spell_events_like_cpp()
+                .iter()
+                .any(|event| event.spell_id == 9013 && event.apply),
+            "C++ item set bonuses are not dependent on item broken state"
         );
     }
 

@@ -1,3 +1,28 @@
+- `#NEXT.R8.ENTITIES.1187` — represented item-set effect state now models the
+  C++ `AddItemsSetItem` / `RemoveItemsSetItem` threshold machine. Source of
+  truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:57-190`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:8238-8260`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11384-11386`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11580-11583`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11731-11733`.
+  Rust now loads `ItemSet.db2` and `ItemSetSpell.db2` into session resources,
+  exposes C++-shaped `item_id -> item set` and `item set -> spells` helpers,
+  tracks represented equipped items and active set-bonus spell entries per set,
+  respects required skill, `ITEM_SET_FLAG_LEGACY_INACTIVE`, and ChrSpec gating
+  on apply, and emits represented set-spell apply/remove events when thresholds
+  cross. Broken items still participate in set bonuses like C++. Coverage:
+  `cargo fmt --all --check`, `cargo test -p wow-data
+  item_set_stores_expose_cpp_item_set_and_spell_indexes --lib`, `cargo test -p
+  wow-world represented_item_set --lib`, `cargo check -p wow-world`, `cargo
+  check -p world-server`, and `git diff --check`. Boundary remains partial:
+  represented events only; they are not yet connected to `DestroyItem`,
+  `RemoveItem`, equip/swap, `UpdateItemSetAuras`, real `ApplyEquipSpell`,
+  the C++ heirloom max-level set-bonus guard, aura/update-field emission,
+  persistence, fanout, bot/live/manual validation, or exact C++
+  spec/form-change aura behavior.
+
 - `#NEXT.R8.ENTITIES.1186` — represented `CMSG_DESTROY_ITEM` full-stack direct
   inventory destroy now emits the current-session represented item-bonus stat
   VALUES delta when C++ `Player::DestroyItem(bag=0, slot, update=true)` removes

@@ -473,6 +473,16 @@ impl ItemSetStore {
             item_id: std::array::from_fn(|i| r.get_array_element(idx, 4, i, 32)),
         })
     }
+
+    /// C++ `ItemTemplate::GetItemSet()` reverse lookup through `ItemSet::ItemID`.
+    pub fn item_set_for_item_id_like_cpp(&self, item_id: u32) -> Option<&ItemSetEntry> {
+        self.entries.values().find(|entry| {
+            entry
+                .item_id
+                .iter()
+                .any(|set_item_id| *set_item_id == item_id)
+        })
+    }
 }
 
 impl ItemSetSpellStore {
@@ -486,6 +496,17 @@ impl ItemSetSpellStore {
                 item_set_id: r.get_relationship_id(idx).unwrap_or(0),
             }
         })
+    }
+
+    /// C++ `DB2Manager::GetItemSetSpells`.
+    pub fn item_set_spells_like_cpp(&self, item_set_id: u32) -> Vec<&ItemSetSpellEntry> {
+        let mut spells: Vec<_> = self
+            .entries
+            .values()
+            .filter(|entry| entry.item_set_id == item_set_id)
+            .collect();
+        spells.sort_by_key(|entry| entry.id);
+        spells
     }
 }
 
@@ -647,6 +668,67 @@ mod tests {
             vec![66, 65]
         );
         assert!(store.overrides_for_item_like_cpp(999).is_none());
+    }
+
+    #[test]
+    fn item_set_stores_expose_cpp_item_set_and_spell_indexes() {
+        let item_set_store = ItemSetStore::from_entries([
+            ItemSetEntry {
+                id: 10,
+                name: "A".to_string(),
+                set_flags: 0,
+                required_skill: 0,
+                required_skill_rank: 0,
+                item_id: std::array::from_fn(|i| if i == 0 { 100 } else { 0 }),
+            },
+            ItemSetEntry {
+                id: 11,
+                name: "B".to_string(),
+                set_flags: 0,
+                required_skill: 0,
+                required_skill_rank: 0,
+                item_id: std::array::from_fn(|i| if i == 4 { 200 } else { 0 }),
+            },
+        ]);
+        assert_eq!(
+            item_set_store
+                .item_set_for_item_id_like_cpp(200)
+                .map(|entry| entry.id),
+            Some(11)
+        );
+        assert!(item_set_store.item_set_for_item_id_like_cpp(999).is_none());
+
+        let item_set_spell_store = ItemSetSpellStore::from_entries([
+            ItemSetSpellEntry {
+                id: 3,
+                chr_spec_id: 0,
+                spell_id: 300,
+                threshold: 4,
+                item_set_id: 10,
+            },
+            ItemSetSpellEntry {
+                id: 1,
+                chr_spec_id: 0,
+                spell_id: 100,
+                threshold: 2,
+                item_set_id: 10,
+            },
+            ItemSetSpellEntry {
+                id: 2,
+                chr_spec_id: 0,
+                spell_id: 200,
+                threshold: 2,
+                item_set_id: 11,
+            },
+        ]);
+        let spells = item_set_spell_store.item_set_spells_like_cpp(10);
+        assert_eq!(
+            spells
+                .iter()
+                .map(|entry| entry.spell_id)
+                .collect::<Vec<_>>(),
+            vec![100, 300]
+        );
     }
 
     #[test]
