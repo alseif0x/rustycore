@@ -1,3 +1,24 @@
+- `#NEXT.R8.ENTITIES.1184` — represented `UseEquipmentSet` now feeds the same
+  direct equipment-move item-mod snapshot as `AutoEquipItemSlot` / `SwapInvItem`.
+  Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/CharacterHandler.cpp:1967-2023`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:12277-12647`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11366-11587`.
+  C++ `HandleUseEquipmentSet` resolves each requested item and calls
+  `Player::SwapItem`; Rust now routes represented equipment-set moves through
+  the same direct-inventory item-mod wrapper, emits a single current-session
+  represented stat VALUES delta when those mods change, then sends
+  `UseEquipmentSetResult`. Coverage: `cargo fmt --all --check`, `cargo test -p
+  wow-world use_equipment_set --lib`, `cargo test -p wow-world
+  auto_equip_item_slot --lib`, `cargo test -p wow-world
+  direct_inventory_move_from_equipment_removes_represented_item_mods_like_cpp
+  --lib`, `cargo check -p wow-world`, `cargo check -p world-server`, and `git
+  diff --check`. Boundary remains partial: represented direct inventory only;
+  full C++ `CanEquipItem`/`CanStoreItem`, nested bag/container routing,
+  authoritative stat mutation, DB persistence, multi-session fanout,
+  bot/live/manual validation remain open.
+
 - `#NEXT.R8.ENTITIES.1183` — represented direct equipment moves now feed the
   item-bonus snapshot around C++ `RemoveItem` / `EquipItem` boundaries. Source
   of truth:

@@ -6545,9 +6545,10 @@ impl WorldSession {
     pub(crate) fn use_represented_equipment_set_like_cpp(
         &mut self,
         request: &wow_packet::packets::misc::UseEquipmentSet,
-    ) {
+    ) -> bool {
         let ignored_guid = Self::ignored_equipment_set_item_guid_like_cpp();
         let mut changed_equipment = false;
+        let mut represented_item_mods_changed = false;
 
         for (slot_index, set_item) in request.items.iter().enumerate() {
             let dst = slot_index as u8;
@@ -6565,7 +6566,10 @@ impl WorldSession {
                 if src == dst {
                     continue;
                 }
-                if self.move_represented_direct_inventory_item_like_cpp(src, dst) {
+                if let Some(item_mods_changed) =
+                    self.move_represented_direct_inventory_item_with_item_mods_like_cpp(src, dst)
+                {
+                    represented_item_mods_changed |= item_mods_changed;
                     changed_equipment |= dst < EQUIPMENT_SLOT_END;
                     changed_equipment |= src < EQUIPMENT_SLOT_END;
                 }
@@ -6579,7 +6583,10 @@ impl WorldSession {
             let Some(backpack_slot) = self.find_free_backpack_slot_like_cpp() else {
                 continue;
             };
-            if self.move_represented_direct_inventory_item_like_cpp(dst, backpack_slot) {
+            if let Some(item_mods_changed) = self
+                .move_represented_direct_inventory_item_with_item_mods_like_cpp(dst, backpack_slot)
+            {
+                represented_item_mods_changed |= item_mods_changed;
                 changed_equipment = true;
             }
         }
@@ -6588,6 +6595,8 @@ impl WorldSession {
             self.sync_object_accessor_player();
             self.sync_player_registry_state_like_cpp();
         }
+
+        represented_item_mods_changed
     }
 
     pub(crate) fn represented_money_loot_with_rate_like_cpp(

@@ -2801,7 +2801,10 @@ impl WorldSession {
             }
         };
 
-        self.use_represented_equipment_set_like_cpp(&request);
+        let represented_item_mods_changed = self.use_represented_equipment_set_like_cpp(&request);
+        if represented_item_mods_changed {
+            self.send_represented_item_bonus_player_stat_update_like_cpp();
+        }
         self.send_packet(&UseEquipmentSetResult {
             guid: request.guid,
             reason: 0,
@@ -12926,6 +12929,55 @@ mod tests {
             session
                 .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)
                 .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn use_equipment_set_applies_represented_item_mods_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(4);
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let item_guid = ObjectGuid::create_item(1, 66);
+        let entry_id = 111;
+        session.set_player_guid(Some(player_guid));
+        session.set_item_stats_store(Arc::new(strength_item_stats_store(entry_id, 11)));
+        session.insert_inventory_item_like_cpp(
+            INVENTORY_SLOT_ITEM_START,
+            InventoryItem {
+                guid: item_guid,
+                entry_id,
+                db_guid: 66,
+                inventory_type: Some(InventoryType::Weapon as u8),
+            },
+        );
+        let item = session.make_inventory_item_object(
+            item_guid,
+            entry_id,
+            player_guid,
+            1,
+            0,
+            ItemContext::None,
+            INVENTORY_SLOT_ITEM_START,
+        );
+        session.insert_inventory_item_object(item);
+        let mut items =
+            [ObjectGuid::EMPTY; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP];
+        items[EQUIPMENT_SLOT_MAINHAND as usize] = item_guid;
+
+        session
+            .handle_use_equipment_set(use_equipment_set_packet(0x0203, items))
+            .await;
+
+        assert_eq!(
+            session.represented_item_bonus_state_like_cpp().stats_base[0],
+            11,
+            "C++ HandleUseEquipmentSet reaches SwapItem -> EquipItem -> _ApplyItemMods"
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![
+                ServerOpcodes::UpdateObject,
+                ServerOpcodes::UseEquipmentSetResult
+            ]
         );
     }
 
