@@ -10,12 +10,15 @@ use std::sync::Arc;
 
 use rand::Rng;
 use tracing::{debug, info, trace, warn};
-use wow_constants::unit::NPCFlags1;
+use wow_constants::unit::{
+    NPCFlags1, UNIT_FLAGS_ALLOWED_LIKE_CPP, UNIT_FLAGS2_ALLOWED_LIKE_CPP,
+    UNIT_FLAGS3_ALLOWED_LIKE_CPP, UnitFlags,
+};
 use wow_constants::{
-    ClientOpcodes, ConditionSourceType, CreatureRandomMovementType, EnchantmentSlot,
-    InventoryResult, InventoryType, ItemBondingType, ItemContext, ItemExtendedCostFlags,
-    ItemFieldFlags, ItemFlags, ItemFlags2, ItemUpdateState, ItemVendorType, Team, TypeId, TypeMask,
-    UnitStandStateType,
+    ClientOpcodes, ConditionSourceType, CreatureFlagsExtra, CreatureRandomMovementType,
+    EnchantmentSlot, InventoryResult, InventoryType, ItemBondingType, ItemContext,
+    ItemExtendedCostFlags, ItemFieldFlags, ItemFlags, ItemFlags2, ItemUpdateState, ItemVendorType,
+    Team, TypeId, TypeMask, UnitStandStateType,
 };
 use wow_core::guid::HighGuid;
 use wow_core::{ObjectGuid, Position};
@@ -26,8 +29,8 @@ use wow_data::{
     is_player_meeting_condition_like_cpp,
 };
 use wow_database::{
-    CharStatements, CharacterDatabase, LoginStatements, PreparedStatement, SqlTransaction,
-    StatementDef, WorldDatabase, WorldStatements,
+    CharStatements, CharacterDatabase, LoginStatements, PreparedStatement, SqlResult,
+    SqlTransaction, StatementDef, WorldDatabase, WorldStatements,
 };
 use wow_entities::{
     BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_START, GAMEOBJECT_TYPE_FISHING_HOLE,
@@ -81,6 +84,10 @@ const CREATURE_SPAWN_WAYPOINT_PATH_ID_COLUMN: usize = 41;
 const CREATURE_SPAWN_DISPLAY_SCALE_COLUMN: usize = 42;
 const CREATURE_SPAWN_CLASSIFICATION_COLUMN: usize = 43;
 const CREATURE_SPAWN_REGEN_HEALTH_COLUMN: usize = 44;
+const CREATURE_SPAWN_NPC_FLAGS_OVERRIDE_COLUMN: usize = 45;
+const CREATURE_SPAWN_UNIT_FLAGS_OVERRIDE_COLUMN: usize = 46;
+const CREATURE_SPAWN_UNIT_FLAGS2_OVERRIDE_COLUMN: usize = 47;
+const CREATURE_SPAWN_UNIT_FLAGS3_OVERRIDE_COLUMN: usize = 48;
 const WAYPOINT_MOTION_TYPE_LIKE_CPP: u8 = 2;
 const TACT_KEY_TABLE_HASH_LIKE_CPP: u32 = 0xD3F6_1A9E;
 const QUEST_GIVER_STATUS_TRACKED_QUERY_MAX_GUIDS_LIKE_CPP: u32 = 1000;
@@ -132,6 +139,61 @@ fn normalize_creature_template_speed_walk_like_cpp(speed_walk: f32) -> f32 {
 
 fn normalize_creature_template_speed_run_like_cpp(speed_run: f32) -> f32 {
     if speed_run == 0.0 { 1.14286 } else { speed_run }
+}
+
+fn optional_u64_column_like_cpp(row: &SqlResult, column: usize) -> Option<u64> {
+    row.try_read::<Option<i64>>(column)
+        .flatten()
+        .map(|value| value as u64)
+        .or_else(|| row.try_read::<Option<u64>>(column).flatten())
+        .or_else(|| row.try_read::<i64>(column).map(|value| value as u64))
+        .or_else(|| row.try_read::<u64>(column))
+}
+
+fn optional_u32_column_like_cpp(row: &SqlResult, column: usize) -> Option<u32> {
+    row.try_read::<Option<u32>>(column)
+        .flatten()
+        .or_else(|| {
+            row.try_read::<Option<i64>>(column)
+                .flatten()
+                .map(|value| value.max(0) as u32)
+        })
+        .or_else(|| row.try_read::<u32>(column))
+        .or_else(|| row.try_read::<i64>(column).map(|value| value.max(0) as u32))
+}
+
+fn choose_creature_flags_like_cpp(
+    template_npc_flags: u64,
+    template_unit_flags: u32,
+    template_unit_flags2: u32,
+    template_unit_flags3: u32,
+    spawn_npc_flags: Option<u64>,
+    spawn_unit_flags: Option<u32>,
+    spawn_unit_flags2: Option<u32>,
+    spawn_unit_flags3: Option<u32>,
+    flags_extra: u32,
+) -> (u64, u32, u32, u32) {
+    // C++ ObjectMgr::ChooseCreatureFlags: spawn overrides are optional;
+    // missing values fall back to creature_template.
+    let npc_flags = spawn_npc_flags.unwrap_or(template_npc_flags);
+    let mut unit_flags =
+        spawn_unit_flags.unwrap_or(template_unit_flags) & UNIT_FLAGS_ALLOWED_LIKE_CPP;
+    let unit_flags2 =
+        spawn_unit_flags2.unwrap_or(template_unit_flags2) & UNIT_FLAGS2_ALLOWED_LIKE_CPP;
+    let unit_flags3 =
+        spawn_unit_flags3.unwrap_or(template_unit_flags3) & UNIT_FLAGS3_ALLOWED_LIKE_CPP;
+
+    // C++ Creature::UpdateEntry clears template combat state on create and
+    // only restores it when the creature is already in combat.
+    unit_flags &= !UnitFlags::IN_COMBAT.bits();
+
+    // C++ Creature::UpdateEntry calls SetUninteractible(true) for triggers
+    // after selecting DB flags.
+    if CreatureFlagsExtra::from_bits_truncate(flags_extra).contains(CreatureFlagsExtra::TRIGGER) {
+        unit_flags |= UnitFlags::UNINTERACTIBLE.bits();
+    }
+
+    (npc_flags, unit_flags, unit_flags2, unit_flags3)
 }
 
 fn is_within_2d_visibility_range_like_cpp(
@@ -5018,14 +5080,14 @@ impl WorldSession {
             let _max_level: u8 = result.try_read::<Option<u8>>(10).flatten().unwrap_or(1);
             let faction: i32 = result.try_read::<u16>(11).unwrap_or(35) as i32;
             // BIGINT UNSIGNED may fail as u64 in sqlx — read as i64 first
-            let npc_flags: u64 = result
+            let template_npc_flags: u64 = result
                 .try_read::<i64>(12)
                 .map(|v| v as u64)
                 .or_else(|| result.try_read::<u64>(12))
                 .unwrap_or(0);
-            let unit_flags: u32 = result.try_read(13).unwrap_or(0);
-            let unit_flags2: u32 = result.try_read(14).unwrap_or(0);
-            let unit_flags3: u32 = result.try_read(15).unwrap_or(0);
+            let template_unit_flags: u32 = result.try_read(13).unwrap_or(0);
+            let template_unit_flags2: u32 = result.try_read(14).unwrap_or(0);
+            let template_unit_flags3: u32 = result.try_read(15).unwrap_or(0);
             let speed_walk: f32 =
                 normalize_creature_template_speed_walk_like_cpp(result.try_read(16).unwrap_or(1.0));
             let speed_run: f32 = normalize_creature_template_speed_run_like_cpp(
@@ -5034,6 +5096,17 @@ impl WorldSession {
             let scale: f32 = result.try_read(18).unwrap_or(1.0);
             let unit_class: u8 = result.try_read(19).unwrap_or(1);
             let flags_extra: u32 = result.try_read(20).unwrap_or(0);
+            let (npc_flags, unit_flags, unit_flags2, unit_flags3) = choose_creature_flags_like_cpp(
+                template_npc_flags,
+                template_unit_flags,
+                template_unit_flags2,
+                template_unit_flags3,
+                optional_u64_column_like_cpp(&result, CREATURE_SPAWN_NPC_FLAGS_OVERRIDE_COLUMN),
+                optional_u32_column_like_cpp(&result, CREATURE_SPAWN_UNIT_FLAGS_OVERRIDE_COLUMN),
+                optional_u32_column_like_cpp(&result, CREATURE_SPAWN_UNIT_FLAGS2_OVERRIDE_COLUMN),
+                optional_u32_column_like_cpp(&result, CREATURE_SPAWN_UNIT_FLAGS3_OVERRIDE_COLUMN),
+                flags_extra,
+            );
             let classification: u32 = result
                 .try_read::<u32>(CREATURE_SPAWN_CLASSIFICATION_COLUMN)
                 .unwrap_or(0);
@@ -5607,14 +5680,14 @@ impl WorldSession {
                 let model_id: u32 = cr.try_read(8).unwrap_or(0);
                 let min_level: u8 = cr.try_read::<Option<u8>>(9).flatten().unwrap_or(1);
                 let faction: i32 = cr.try_read::<u16>(11).unwrap_or(35) as i32;
-                let npc_flags: u64 = cr
+                let template_npc_flags: u64 = cr
                     .try_read::<i64>(12)
                     .map(|v| v as u64)
                     .or_else(|| cr.try_read::<u64>(12))
                     .unwrap_or(0);
-                let unit_flags: u32 = cr.try_read(13).unwrap_or(0);
-                let unit_flags2: u32 = cr.try_read(14).unwrap_or(0);
-                let unit_flags3: u32 = cr.try_read(15).unwrap_or(0);
+                let template_unit_flags: u32 = cr.try_read(13).unwrap_or(0);
+                let template_unit_flags2: u32 = cr.try_read(14).unwrap_or(0);
+                let template_unit_flags3: u32 = cr.try_read(15).unwrap_or(0);
                 let speed_walk: f32 =
                     normalize_creature_template_speed_walk_like_cpp(cr.try_read(16).unwrap_or(1.0));
                 let speed_run: f32 = normalize_creature_template_speed_run_like_cpp(
@@ -5623,6 +5696,27 @@ impl WorldSession {
                 let scale: f32 = cr.try_read(18).unwrap_or(1.0);
                 let unit_class: u8 = cr.try_read(19).unwrap_or(1);
                 let flags_extra: u32 = cr.try_read(20).unwrap_or(0);
+                let (npc_flags, unit_flags, unit_flags2, unit_flags3) =
+                    choose_creature_flags_like_cpp(
+                        template_npc_flags,
+                        template_unit_flags,
+                        template_unit_flags2,
+                        template_unit_flags3,
+                        optional_u64_column_like_cpp(&cr, CREATURE_SPAWN_NPC_FLAGS_OVERRIDE_COLUMN),
+                        optional_u32_column_like_cpp(
+                            &cr,
+                            CREATURE_SPAWN_UNIT_FLAGS_OVERRIDE_COLUMN,
+                        ),
+                        optional_u32_column_like_cpp(
+                            &cr,
+                            CREATURE_SPAWN_UNIT_FLAGS2_OVERRIDE_COLUMN,
+                        ),
+                        optional_u32_column_like_cpp(
+                            &cr,
+                            CREATURE_SPAWN_UNIT_FLAGS3_OVERRIDE_COLUMN,
+                        ),
+                        flags_extra,
+                    );
                 let classification: u32 = cr
                     .try_read::<u32>(CREATURE_SPAWN_CLASSIFICATION_COLUMN)
                     .unwrap_or(0);
@@ -12432,6 +12526,43 @@ mod tests {
         assert_eq!(normalize_creature_template_speed_run_like_cpp(0.0), 1.14286);
         assert_eq!(normalize_creature_template_speed_walk_like_cpp(0.75), 0.75);
         assert_eq!(normalize_creature_template_speed_run_like_cpp(2.0), 2.0);
+    }
+
+    #[test]
+    fn creature_flags_choose_spawn_override_and_sanitize_like_cpp() {
+        let (npc_flags, unit_flags, unit_flags2, unit_flags3) = choose_creature_flags_like_cpp(
+            0x10,
+            UnitFlags::CAN_SWIM.bits(),
+            0,
+            0,
+            Some(0x20),
+            Some(UnitFlags::IN_COMBAT.bits() | UnitFlags::IMMUNE_TO_PC.bits()),
+            Some(u32::MAX),
+            Some(u32::MAX),
+            CreatureFlagsExtra::TRIGGER.bits(),
+        );
+
+        assert_eq!(
+            npc_flags, 0x20,
+            "C++ ObjectMgr::ChooseCreatureFlags prefers CreatureData optional npcflag over template npcflag"
+        );
+        assert_eq!(
+            unit_flags & UnitFlags::IN_COMBAT.bits(),
+            0,
+            "C++ Creature::UpdateEntry clears UNIT_FLAG_IN_COMBAT for newly-created creatures"
+        );
+        assert_ne!(
+            unit_flags & UnitFlags::IMMUNE_TO_PC.bits(),
+            0,
+            "allowed UNIT_FIELD_FLAGS bits survive DB sanitization"
+        );
+        assert_ne!(
+            unit_flags & UnitFlags::UNINTERACTIBLE.bits(),
+            0,
+            "C++ Creature::UpdateEntry sets uninteractible for trigger creatures"
+        );
+        assert_eq!(unit_flags2, UNIT_FLAGS2_ALLOWED_LIKE_CPP);
+        assert_eq!(unit_flags3, UNIT_FLAGS3_ALLOWED_LIKE_CPP);
     }
 
     #[test]

@@ -154,6 +154,13 @@ bitflags! {
     }
 }
 
+/// C++ `UNIT_FLAG_ALLOWED` from `UnitDefines.h`.
+///
+/// Trinity sanitizes DB-backed creature template/spawn flags while loading
+/// `creature_template` and `creature`. Runtime creature create data must use
+/// the sanitized mask, not raw SQL values.
+pub const UNIT_FLAGS_ALLOWED_LIKE_CPP: u32 = 0x0200_E340;
+
 bitflags! {
     /// Primary unit flags.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -193,6 +200,9 @@ bitflags! {
     }
 }
 
+/// C++ `UNIT_FLAG2_ALLOWED` from `UnitDefines.h`.
+pub const UNIT_FLAGS2_ALLOWED_LIKE_CPP: u32 = 0x0403_C822;
+
 bitflags! {
     /// Secondary unit flags.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -231,6 +241,9 @@ bitflags! {
         const UNUSED13                                         = 0x80000000;
     }
 }
+
+/// C++ `UNIT_FLAG3_ALLOWED` from `UnitDefines.h`.
+pub const UNIT_FLAGS3_ALLOWED_LIKE_CPP: u32 = 0x014D_E0B6;
 
 bitflags! {
     /// Tertiary unit flags.
