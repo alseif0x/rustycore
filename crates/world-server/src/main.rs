@@ -1263,6 +1263,18 @@ async fn main() -> Result<ExitCode> {
         "Loaded {} creature display info rows",
         creature_display_info_store.len()
     );
+    let creature_model_info_store = Arc::new(
+        wow_data::CreatureModelInfoStoreLikeCpp::load_like_cpp(
+            world_db.as_ref(),
+            creature_display_info_store.as_ref(),
+        )
+        .await
+        .context("Failed to load creature_model_info rows")?,
+    );
+    info!(
+        "Loaded {} creature model info rows",
+        creature_model_info_store.len()
+    );
     let creature_display_info_extra_store = Arc::new(
         wow_data::CreatureDisplayInfoExtraStore::load(&data_dir, &locale)
             .context("Failed to load CreatureDisplayInfoExtra.db2")?,
@@ -4386,6 +4398,7 @@ async fn main() -> Result<ExitCode> {
         creature_display_info_store: Some(Arc::clone(&creature_display_info_store)),
         creature_display_info_extra_store: Some(Arc::clone(&creature_display_info_extra_store)),
         gameobject_display_info_store: Some(Arc::clone(&gameobject_display_info_store)),
+        creature_model_info_store: Some(Arc::clone(&creature_model_info_store)),
         creature_model_data_store: Some(Arc::clone(&creature_model_data_store)),
         mount_store: Some(Arc::clone(&mount_store)),
         mount_definition_store: Some(Arc::clone(&mount_definition_store)),
@@ -11013,6 +11026,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.gameobject_display_info_store {
         session.set_gameobject_display_info_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.creature_model_info_store {
+        session.set_creature_model_info_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.creature_model_data_store {
         session.set_creature_model_data_store(Arc::clone(store));

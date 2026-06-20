@@ -78,6 +78,7 @@ const CREATURE_SPAWN_INTERACTION_PAUSE_TIMER_COLUMN: usize = 38;
 const CREATURE_SPAWN_WANDER_DISTANCE_COLUMN: usize = 39;
 const CREATURE_SPAWN_EFFECTIVE_MOVEMENT_TYPE_COLUMN: usize = 40;
 const CREATURE_SPAWN_WAYPOINT_PATH_ID_COLUMN: usize = 41;
+const CREATURE_SPAWN_DISPLAY_SCALE_COLUMN: usize = 42;
 const WAYPOINT_MOTION_TYPE_LIKE_CPP: u8 = 2;
 const TACT_KEY_TABLE_HASH_LIKE_CPP: u32 = 0xD3F6_1A9E;
 const QUEST_GIVER_STATUS_TRACKED_QUERY_MAX_GUIDS_LIKE_CPP: u32 = 1000;
@@ -5036,6 +5037,11 @@ impl WorldSession {
             let _ranged_attack_time: u32 = result.try_read(22).unwrap_or(0);
             let template_display_id: u32 =
                 result.try_read::<Option<u32>>(23).flatten().unwrap_or(0);
+            let template_display_scale: f32 = result
+                .try_read::<Option<f32>>(CREATURE_SPAWN_DISPLAY_SCALE_COLUMN)
+                .flatten()
+                .or_else(|| result.try_read::<f32>(CREATURE_SPAWN_DISPLAY_SCALE_COLUMN))
+                .unwrap_or(1.0);
             let loot_id: u32 = result.try_read::<Option<u32>>(24).flatten().unwrap_or(0);
             let skin_loot_id: u32 = result.try_read::<Option<u32>>(25).flatten().unwrap_or(0);
             let gold_min: u32 = result.try_read::<Option<u32>>(26).flatten().unwrap_or(0);
@@ -5153,6 +5159,23 @@ impl WorldSession {
                 }
                 continue;
             };
+            let display_scale = if model_id > 0 {
+                1.0
+            } else {
+                template_display_scale
+            };
+            let Some(model_scalars) =
+                self.creature_create_model_scalars_like_cpp(display_id, scale, display_scale)
+            else {
+                warn!(
+                    "Skipping creature entry={} spawn={} display={} because creature_model_info is missing, matching C++ CreateFromProto failure",
+                    entry, spawn_guid, display_id
+                );
+                if !result.next_row() {
+                    break;
+                }
+                continue;
+            };
 
             let (target_phase_shift, _) = self.db_spawn_phase_shift_like_cpp(
                 map_id,
@@ -5190,6 +5213,10 @@ impl WorldSession {
                 entry,
                 display_id,
                 native_display_id: display_id,
+                display_scale: model_scalars.display_scale,
+                native_x_display_scale: model_scalars.native_x_display_scale,
+                bounding_radius: model_scalars.bounding_radius,
+                combat_reach: model_scalars.combat_reach,
                 health,
                 max_health: health,
                 level: min_level,
@@ -5201,6 +5228,9 @@ impl WorldSession {
                 damage_school: wow_constants::spell::SpellSchools::Normal as u8,
                 scale,
                 unit_class,
+                display_power: self.creature_display_power_for_class_like_cpp(unit_class),
+                base_mana: 0,
+                virtual_items: [(0, 0, 0); 3],
                 base_attack_time,
                 ranged_attack_time: base_attack_time,
                 zone_id,
@@ -5588,6 +5618,11 @@ impl WorldSession {
                 let base_attack_time: u32 = cr.try_read(21).unwrap_or(2000);
                 let template_display_id: u32 =
                     cr.try_read::<Option<u32>>(23).flatten().unwrap_or(0);
+                let template_display_scale: f32 = cr
+                    .try_read::<Option<f32>>(CREATURE_SPAWN_DISPLAY_SCALE_COLUMN)
+                    .flatten()
+                    .or_else(|| cr.try_read::<f32>(CREATURE_SPAWN_DISPLAY_SCALE_COLUMN))
+                    .unwrap_or(1.0);
                 let loot_id: u32 = cr.try_read::<Option<u32>>(24).flatten().unwrap_or(0);
                 let skin_loot_id: u32 = cr.try_read::<Option<u32>>(25).flatten().unwrap_or(0);
                 let gold_min: u32 = cr.try_read::<Option<u32>>(26).flatten().unwrap_or(0);
@@ -5700,6 +5735,23 @@ impl WorldSession {
                     }
                     continue;
                 };
+                let display_scale = if model_id > 0 {
+                    1.0
+                } else {
+                    template_display_scale
+                };
+                let Some(model_scalars) =
+                    self.creature_create_model_scalars_like_cpp(display_id, scale, display_scale)
+                else {
+                    warn!(
+                        "Skipping creature entry={} spawn={} display={} because creature_model_info is missing, matching C++ CreateFromProto failure",
+                        entry, spawn_guid, display_id
+                    );
+                    if !cr.next_row() {
+                        break;
+                    }
+                    continue;
+                };
 
                 let (target_phase_shift, _) = self.db_spawn_phase_shift_like_cpp(
                     map_id,
@@ -5740,6 +5792,10 @@ impl WorldSession {
                         entry,
                         display_id,
                         native_display_id: display_id,
+                        display_scale: model_scalars.display_scale,
+                        native_x_display_scale: model_scalars.native_x_display_scale,
+                        bounding_radius: model_scalars.bounding_radius,
+                        combat_reach: model_scalars.combat_reach,
                         health,
                         max_health: health,
                         level: min_level,
@@ -5751,6 +5807,9 @@ impl WorldSession {
                         damage_school: wow_constants::spell::SpellSchools::Normal as u8,
                         scale,
                         unit_class,
+                        display_power: self.creature_display_power_for_class_like_cpp(unit_class),
+                        base_mana: 0,
+                        virtual_items: [(0, 0, 0); 3],
                         base_attack_time,
                         ranged_attack_time: base_attack_time,
                         zone_id: 0,

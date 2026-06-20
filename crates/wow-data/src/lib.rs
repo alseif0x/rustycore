@@ -16,6 +16,7 @@ pub mod chr_specialization;
 pub mod condition_attachments;
 pub mod conditions;
 pub mod creature_display;
+pub mod creature_model_info;
 pub mod creature_template;
 pub mod currency;
 pub mod db2_id_store;
@@ -143,6 +144,7 @@ pub use creature_display::{
     CreatureDisplayInfoEntry, CreatureDisplayInfoStore, CreatureModelDataEntry,
     CreatureModelDataStore, DEFAULT_COLLISION_HEIGHT_LIKE_CPP, unit_collision_height_like_cpp,
 };
+pub use creature_model_info::{CreatureModelInfoLikeCpp, CreatureModelInfoStoreLikeCpp};
 pub use creature_template::{
     CREATURE_CURRENT_EXPANSION_LIKE_CPP, CREATURE_EXPANSION_LEVEL_CURRENT_LIKE_CPP,
     CreatureAddonRowLikeCpp, CreatureAddonStoreLikeCpp, CreatureBaseStatsRecordLikeCpp,

@@ -3786,6 +3786,7 @@ pub struct WorldSession {
     creature_display_info_store: Option<Arc<CreatureDisplayInfoStore>>,
     creature_display_info_extra_store: Option<Arc<CreatureDisplayInfoExtraStore>>,
     gameobject_display_info_store: Option<Arc<GameObjectDisplayInfoStore>>,
+    creature_model_info_store: Option<Arc<wow_data::CreatureModelInfoStoreLikeCpp>>,
     creature_model_data_store: Option<Arc<CreatureModelDataStore>>,
     mount_store: Option<Arc<MountStore>>,
     mount_definition_store_like_cpp: Option<Arc<MountDefinitionStoreLikeCpp>>,
@@ -5379,6 +5380,14 @@ pub(crate) enum RepresentedCreatureKillEventLikeCpp {
     },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct CreatureCreateModelScalarsLikeCpp {
+    pub display_scale: f32,
+    pub native_x_display_scale: f32,
+    pub bounding_radius: f32,
+    pub combat_reach: f32,
+}
+
 fn is_represented_bag_slot(slot: u8) -> bool {
     (INVENTORY_SLOT_BAG_START..INVENTORY_SLOT_BAG_END).contains(&slot)
         || (BANK_SLOT_BAG_START..BANK_SLOT_BAG_END).contains(&slot)
@@ -5577,6 +5586,7 @@ impl WorldSession {
             creature_display_info_store: None,
             creature_display_info_extra_store: None,
             gameobject_display_info_store: None,
+            creature_model_info_store: None,
             creature_model_data_store: None,
             mount_store: None,
             mount_definition_store_like_cpp: None,
@@ -19125,6 +19135,46 @@ impl WorldSession {
 
     pub(crate) fn gameobject_display_info_store(&self) -> Option<&Arc<GameObjectDisplayInfoStore>> {
         self.gameobject_display_info_store.as_ref()
+    }
+
+    pub fn set_creature_model_info_store(
+        &mut self,
+        store: Arc<wow_data::CreatureModelInfoStoreLikeCpp>,
+    ) {
+        self.creature_model_info_store = Some(store);
+    }
+
+    pub(crate) fn creature_create_model_scalars_like_cpp(
+        &self,
+        display_id: u32,
+        object_scale: f32,
+        display_scale: f32,
+    ) -> Option<CreatureCreateModelScalarsLikeCpp> {
+        let model = self.creature_model_info_store.as_ref()?.get(display_id)?;
+        let display_scale = if display_scale <= 0.0 {
+            1.0
+        } else {
+            display_scale
+        };
+        Some(CreatureCreateModelScalarsLikeCpp {
+            display_scale,
+            native_x_display_scale: display_scale,
+            bounding_radius: model.bounding_radius * object_scale * display_scale,
+            combat_reach: model.combat_reach * object_scale * display_scale,
+        })
+    }
+
+    pub(crate) fn creature_display_power_for_class_like_cpp(&self, unit_class: u8) -> u8 {
+        self.chr_classes_store
+            .as_ref()
+            .and_then(|store| store.get(u32::from(unit_class)))
+            .map(|entry| entry.display_power)
+            .unwrap_or_else(|| match unit_class {
+                1 => PowerType::Rage as u8,
+                4 => PowerType::Energy as u8,
+                6 => PowerType::RunicPower as u8,
+                _ => PowerType::Mana as u8,
+            })
     }
 
     pub fn set_creature_model_data_store(&mut self, store: Arc<CreatureModelDataStore>) {
@@ -78151,6 +78201,10 @@ mod tests {
             entry,
             display_id: 100,
             native_display_id: 100,
+            display_scale: 1.0,
+            native_x_display_scale: 1.0,
+            bounding_radius: 0.389,
+            combat_reach: 1.5,
             health: hp as i64,
             max_health: hp as i64,
             level: 2,
@@ -78162,6 +78216,9 @@ mod tests {
             damage_school: wow_constants::spell::SpellSchools::Normal as u8,
             scale: 1.0,
             unit_class: 1,
+            display_power: 1,
+            base_mana: 0,
+            virtual_items: [(0, 0, 0); 3],
             base_attack_time: 2000,
             ranged_attack_time: 0,
             zone_id: 0,

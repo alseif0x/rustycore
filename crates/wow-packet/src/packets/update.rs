@@ -7,9 +7,9 @@
 //! in the client's view.
 //!
 //! C++ is the canonical reference for this wire format. Some field layouts
-//! were originally ported from the legacy C# server, but any touched layout
-//! must be verified against `/home/server/woltk-trinity-legacy` before it is
-//! treated as correct.
+//! were originally ported from the legacy C# server, but any touched live
+//! layout must be verified against canonical C++ before it is treated as
+//! correct.
 
 use std::collections::BTreeSet;
 
@@ -2346,6 +2346,10 @@ pub struct CreatureCreateData {
     pub entry: u32,
     pub display_id: u32,
     pub native_display_id: u32,
+    pub display_scale: f32,
+    pub native_x_display_scale: f32,
+    pub bounding_radius: f32,
+    pub combat_reach: f32,
     pub health: i64,
     pub max_health: i64,
     pub level: u8,
@@ -2357,6 +2361,9 @@ pub struct CreatureCreateData {
     pub damage_school: u8,
     pub scale: f32,
     pub unit_class: u8,
+    pub display_power: u8,
+    pub base_mana: i32,
+    pub virtual_items: [(i32, u16, u16); 3],
     pub base_attack_time: u32,
     pub ranged_attack_time: u32,
     pub zone_id: u32,
@@ -2434,7 +2441,7 @@ impl CreatureCreateData {
         buf.write_uint8(self.unit_class);
         buf.write_uint8(0); // PlayerClassId (0 for creatures)
         buf.write_uint8(0); // Sex
-        buf.write_uint8(0); // DisplayPower (mana)
+        buf.write_uint8(self.display_power);
 
         // OverrideDisplayPowerID
         buf.write_int32(0);
@@ -2463,10 +2470,10 @@ impl CreatureCreateData {
         buf.write_int32(self.faction_template);
 
         // VirtualItems[3]
-        for _ in 0..3 {
-            buf.write_int32(0);
-            buf.write_uint16(0);
-            buf.write_uint16(0);
+        for (item_id, appearance_mod_id, item_visual) in self.virtual_items {
+            buf.write_int32(item_id);
+            buf.write_uint16(appearance_mod_id);
+            buf.write_uint16(item_visual);
         }
 
         // Flags, Flags2, Flags3, AuraState
@@ -2482,13 +2489,13 @@ impl CreatureCreateData {
         // NO RangedAttackRoundBaseTime (Owner-only)
 
         // BoundingRadius, CombatReach, DisplayScale
-        buf.write_float(0.389); // BoundingRadius (common default)
-        buf.write_float(1.5); // CombatReach
-        buf.write_float(1.0); // DisplayScale
+        buf.write_float(self.bounding_radius);
+        buf.write_float(self.combat_reach);
+        buf.write_float(self.display_scale);
 
         // NativeDisplayID, NativeXDisplayScale, MountDisplayID
         buf.write_int32(self.native_display_id as i32);
-        buf.write_float(1.0);
+        buf.write_float(self.native_x_display_scale);
         buf.write_int32(0);
 
         // NO damage floats (Owner|Empath only)
@@ -2532,7 +2539,7 @@ impl CreatureCreateData {
         }
 
         // BaseMana
-        buf.write_int32(0);
+        buf.write_int32(self.base_mana);
 
         // NO BaseHealth (Owner-only)
 
@@ -2862,7 +2869,7 @@ pub enum UpdateBlock {
 
 /// The main update packet used to create, update, or destroy objects.
 ///
-/// Wire format (matches C# UpdateData.BuildPacket + UpdateObject.Write):
+/// Wire format (matches C++ UpdateData::BuildPacket + UpdateObject write):
 /// ```text
 /// [u32] NumObjUpdates
 /// [u16] MapID
@@ -3422,7 +3429,7 @@ impl ServerPacket for UpdateObject {
         pkt.write_uint32(self.num_updates);
         pkt.write_uint16(self.map_id);
 
-        // Build the Data buffer (matches C# UpdateData.BuildPacket)
+        // Build the Data buffer (matches C++ UpdateData::BuildPacket)
         let mut data_buf = WorldPacket::new_empty();
         let destroy_guids: BTreeSet<ObjectGuid> = self.destroy_guids.iter().copied().collect();
         let out_of_range_guids: BTreeSet<ObjectGuid> =
@@ -3710,7 +3717,7 @@ fn write_movement_update(buf: &mut WorldPacket, guid: &ObjectGuid, mv: &Movement
     buf.write_int32(0);
     buf.write_float(1.0);
 
-    // 17 AdvancedFlying parameters (hardcoded defaults from C#)
+    // 17 AdvancedFlying parameters (default zero-state values for C++ create movement)
     buf.write_float(2.0); // airFriction
     buf.write_float(65.0); // maxVel
     buf.write_float(1.0); // liftCoefficient
@@ -3770,7 +3777,7 @@ fn write_creature_create_block(
     create_data: &CreatureCreateData,
 ) {
     // UpdateType: CreateObject2 — always used when object appears for the first time
-    // to a player (matches C# Map.AddToMap → SetIsNewObject(true) → CreateObject2).
+    // to a player (matches C++ Map::AddToMap → SetIsNewObject(true) → CreateObject2).
     buf.write_uint8(UpdateType::CreateObject2 as u8);
 
     // Object GUID
@@ -9398,6 +9405,10 @@ mod tests {
             entry: 1234,
             display_id: 856,
             native_display_id: 856,
+            display_scale: 1.0,
+            native_x_display_scale: 1.0,
+            bounding_radius: 0.389,
+            combat_reach: 1.5,
             health: 500,
             max_health: 500,
             level: 5,
@@ -9409,6 +9420,9 @@ mod tests {
             damage_school: wow_constants::spell::SpellSchools::Normal as u8,
             scale: 1.0,
             unit_class: 1,
+            display_power: 1,
+            base_mana: 0,
+            virtual_items: [(0, 0, 0); 3],
             base_attack_time: 2000,
             ranged_attack_time: 0,
             zone_id: 12,
@@ -9451,6 +9465,10 @@ mod tests {
             entry: 1234,
             display_id: 856,
             native_display_id: 856,
+            display_scale: 1.0,
+            native_x_display_scale: 1.0,
+            bounding_radius: 0.389,
+            combat_reach: 1.5,
             health: 500,
             max_health: 500,
             level: 5,
@@ -9462,6 +9480,9 @@ mod tests {
             damage_school: wow_constants::spell::SpellSchools::Normal as u8,
             scale: 1.0,
             unit_class: 1,
+            display_power: 1,
+            base_mana: 0,
+            virtual_items: [(0, 0, 0); 3],
             base_attack_time: 2000,
             ranged_attack_time: 0,
             zone_id: 12,
@@ -9514,6 +9535,10 @@ mod tests {
             entry: 100,
             display_id: 856,
             native_display_id: 856,
+            display_scale: 1.0,
+            native_x_display_scale: 1.0,
+            bounding_radius: 0.389,
+            combat_reach: 1.5,
             health: 100,
             max_health: 100,
             level: 1,
@@ -9525,6 +9550,9 @@ mod tests {
             damage_school: wow_constants::spell::SpellSchools::Normal as u8,
             scale: 1.0,
             unit_class: 1,
+            display_power: 1,
+            base_mana: 0,
+            virtual_items: [(0, 0, 0); 3],
             base_attack_time: 2000,
             ranged_attack_time: 0,
             zone_id: 12,
@@ -9568,6 +9596,10 @@ mod tests {
                 entry: 100,
                 display_id: 856,
                 native_display_id: 856,
+                display_scale: 1.0,
+                native_x_display_scale: 1.0,
+                bounding_radius: 0.389,
+                combat_reach: 1.5,
                 health: 100,
                 max_health: 100,
                 level: 1,
@@ -9579,6 +9611,9 @@ mod tests {
                 damage_school: wow_constants::spell::SpellSchools::Normal as u8,
                 scale: 1.0,
                 unit_class: 1,
+                display_power: 1,
+                base_mana: 0,
+                virtual_items: [(0, 0, 0); 3],
                 base_attack_time: 2000,
                 ranged_attack_time: 0,
                 zone_id: 12,
@@ -9624,6 +9659,10 @@ mod tests {
             entry: 3296,
             display_id: 4500,
             native_display_id: 4500,
+            display_scale: 1.0,
+            native_x_display_scale: 1.0,
+            bounding_radius: 0.389,
+            combat_reach: 1.5,
             health: 500,
             max_health: 500,
             level: 55,
@@ -9635,6 +9674,9 @@ mod tests {
             damage_school: wow_constants::spell::SpellSchools::Normal as u8,
             scale: 1.0,
             unit_class: 1,
+            display_power: 1,
+            base_mana: 0,
+            virtual_items: [(0, 0, 0); 3],
             base_attack_time: 2000,
             ranged_attack_time: 0,
             zone_id: 1637,
