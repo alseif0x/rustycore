@@ -14827,6 +14827,9 @@ impl WorldSession {
             if usize::from(item_set_spell.threshold) > equipped_count_after {
                 continue;
             }
+            if !self.represented_item_set_spell_exists_like_cpp(item_set_spell.spell_id) {
+                continue;
+            }
             let effect = self
                 .represented_item_set_effects_like_cpp
                 .get_mut(&item_set.id)
@@ -14851,6 +14854,15 @@ impl WorldSession {
         }
 
         self.represented_item_set_spell_events_like_cpp.len() != before_events
+    }
+
+    fn represented_item_set_spell_exists_like_cpp(&self, spell_id: u32) -> bool {
+        let Ok(spell_id) = i32::try_from(spell_id) else {
+            return false;
+        };
+        self.spell_store
+            .as_ref()
+            .is_none_or(|store| store.get(spell_id).is_some())
     }
 
     fn represented_heirloom_item_set_bonus_over_level_cap_like_cpp(
@@ -50369,8 +50381,8 @@ mod tests {
         ItemSpecOverrideStore, ItemStatsStore, ItemStore, ItemWeaponTemplateEntry, LockEntry,
         LockStore, MapDifficultyEntry, MapDifficultyStore, PlayerConditionEntry,
         PlayerConditionStore, ShieldBlockRegularEntryLikeCpp, ShieldBlockRegularGameTableLikeCpp,
-        SpellItemEnchantmentEntry, SpellItemEnchantmentStore, ToyEntry, ToyStore, TransmogSetEntry,
-        TransmogSetItemEntry, TransmogSetItemStore,
+        SpellInfo, SpellItemEnchantmentEntry, SpellItemEnchantmentStore, SpellStore, ToyEntry,
+        ToyStore, TransmogSetEntry, TransmogSetItemEntry, TransmogSetItemStore,
         progression_rewards::{
             ContentTuningEntry, ContentTuningStore, CurveEntry, CurvePointEntry, CurvePointStore,
             CurveStore, FactionEntry, FactionStore, QUEST_PACKAGE_FILTER_CLASS_LIKE_CPP,
@@ -105845,6 +105857,98 @@ mod tests {
                 apply: true,
             }],
             "C++ only blocks heirloom item-set bonuses when player level is greater than the derived max level"
+        );
+    }
+
+    #[test]
+    fn represented_item_set_skips_unknown_spell_info_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let chest_guid = ObjectGuid::create_item(1, 920);
+        let hands_guid = ObjectGuid::create_item(1, 921);
+        let mut spell_store = SpellStore::new();
+        spell_store.insert(
+            9041,
+            SpellInfo {
+                spell_id: 9041,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: Vec::new(),
+            },
+        );
+
+        session.set_player_guid(Some(player_guid));
+        session.set_spell_store(Arc::new(spell_store));
+        session.set_item_set_store(Arc::new(ItemSetStore::from_entries([ItemSetEntry {
+            id: 710,
+            name: "Unknown Spell Set".to_string(),
+            set_flags: 0,
+            required_skill: 0,
+            required_skill_rank: 0,
+            item_id: std::array::from_fn(|i| match i {
+                0 => 114,
+                1 => 115,
+                _ => 0,
+            }),
+        }])));
+        session.set_item_set_spell_store(Arc::new(ItemSetSpellStore::from_entries([
+            ItemSetSpellEntry {
+                id: 34,
+                chr_spec_id: 0,
+                spell_id: 9040,
+                threshold: 2,
+                item_set_id: 710,
+            },
+            ItemSetSpellEntry {
+                id: 35,
+                chr_spec_id: 0,
+                spell_id: 9041,
+                threshold: 2,
+                item_set_id: 710,
+            },
+        ])));
+
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            chest_guid,
+            114,
+            InventoryType::Chest,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_HANDS,
+            hands_guid,
+            115,
+            InventoryType::Hands,
+        );
+
+        assert!(!session.record_represented_items_set_item_like_cpp(chest_guid, true));
+        assert!(session.record_represented_items_set_item_like_cpp(hands_guid, true));
+        assert_eq!(
+            session.represented_item_set_spell_events_like_cpp(),
+            &[RepresentedItemSetSpellEventLikeCpp {
+                item_set_id: 710,
+                spell_entry_id: 35,
+                spell_id: 9041,
+                threshold: 2,
+                apply: true,
+            }],
+            "C++ AddItemsSetItem logs and continues before SetBonuses.insert when sSpellMgr has no SpellInfo"
+        );
+        assert_eq!(
+            session
+                .represented_item_set_effect_like_cpp(710)
+                .expect("known spell still creates represented set effect")
+                .set_bonuses,
+            BTreeSet::from([35])
         );
     }
 

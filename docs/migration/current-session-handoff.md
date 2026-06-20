@@ -1,3 +1,24 @@
+- `#NEXT.R8.ENTITIES.1194` — represented item-set apply now mirrors the C++
+  `SpellInfo` existence gate before inserting set-bonus entries. Source of
+  truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:57-145`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:8187-8220`.
+  C++ `AddItemsSetItem` resolves `sSpellMgr->GetSpellInfo(...)` before
+  `eff->SetBonuses.insert(itemSetSpell)` and logs/continues for unknown spells;
+  Rust now does the same in the represented path when `SpellStore` is available,
+  so an unknown item-set spell neither becomes an active represented set bonus
+  nor emits an apply event. Coverage proves an unknown threshold-met set spell is
+  skipped while a known spell in the same set still applies. Checks: `cargo fmt
+  --all --check`, `cargo test -p wow-world
+  represented_item_set_skips_unknown_spell_info_like_cpp --lib`, `cargo test -p
+  wow-world represented_item_set --lib`, `cargo check -p wow-world`, `cargo
+  check -p world-server`, and `git diff --check`. Boundary remains partial:
+  this is represented `SpellInfo` existence filtering only; no real
+  `ApplyEquipSpell`, shapeshift/aura active-state handling, aura add/remove,
+  update-field emission, persistence, fanout, bot/live/manual validation, or
+  final aura state.
+
 - `#NEXT.R8.ENTITIES.1193` — represented item-set apply now includes the C++
   heirloom max-level guard. Source of truth:
   `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:57-145`
