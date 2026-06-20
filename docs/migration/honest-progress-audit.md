@@ -1,6 +1,6 @@
 # Honest progress audit — RustyCore port (R8-entities miniphase)
 
-**Date:** 2026-06-20 · **Base commit:** `develop` after `#NEXT.R8.ENTITIES.1197`
+**Date:** 2026-06-20 · **Base commit:** `develop` after `#NEXT.R8.ENTITIES.1198`
 
 This document exists to prevent the headline `98.15%` from being read as "almost a
 finished, gap-free server." It records what the number actually measures, with three
@@ -8,27 +8,27 @@ honest percentages instead of one.
 
 ## Raw data (from `docs/migration/inventory/r8-entities-miniphase.tsv`)
 
-1189 rows total. Breakdown by `status` column:
+1190 rows total. Breakdown by `status` column:
 
 | status | rows | meaning |
 |---|---:|---|
 | `complete` | 419 | genuinely complete |
 | `represented-complete` | 191 | complete **within the "represented" per-session model** (not live runtime) |
-| `represented-partial` | 502 | **partial — carries documented open boundaries (gaps)** |
+| `represented-partial` | 503 | **partial — carries documented open boundaries (gaps)** |
 | `bugfix-partial` | 35 | bugfix slice with explicit remaining boundaries |
 | `reviewed-validated` | 17 | validated |
 | `pending` | 22 | not started |
 | other (`partial` / `represented` / `test-fixture-unblock`) | 3 | — |
 
-- **538 of the 1167 "addressed" rows (46.10%) are partial-boundary rows** (`represented-partial`, `bugfix-partial`, or `partial`) — each has open boundaries by definition.
+- **539 of the 1168 "addressed" rows (46.15%) are partial-boundary rows** (`represented-partial`, `bugfix-partial`, or `partial`) — each has open boundaries by definition.
 - **Many rows explicitly declare `manual-test-ready` / `install/restart` as OPEN** — this audit must not be read as real-client/server validation unless a row says that validation was performed.
 
 ## Three honest percentages (not one)
 
 | Metric | Value | Reading |
 |---|---:|---|
-| Items "addressed" (not `pending`) | **98.15%** (1167/1189) | the headline number — real but generous |
-| No declared partial gaps (`complete` + `represented` + `represented-complete` + `reviewed-validated` + `test-fixture-unblock`) | **52.90%** (629/1189) | items with no open boundary |
+| Items "addressed" (not `pending`) | **98.15%** (1168/1190) | the headline number — real but generous |
+| No declared partial gaps (`complete` + `represented` + `represented-complete` + `reviewed-validated` + `test-fixture-unblock`) | **52.86%** (629/1190) | items with no open boundary |
 | Live-runtime / manual-test-ready verified | **low / not globally quantified** | login/realm smoke has been exercised before, but most gameplay rows still explicitly lack live client/bot/manual validation |
 
 ## The two big caveats
@@ -42,7 +42,7 @@ honest percentages instead of one.
    manual-test-ready and does not by itself prove full runtime parity.
 
 2. **This is ONE miniphase (R8-entities).** The full port also has the r7-l1/l2/l3
-   infra/packets/maps miniphases and more. 1189 R8 rows are not "the whole server".
+   infra/packets/maps miniphases and more. 1190 R8 rows are not "the whole server".
 
 ## Honest one-line status
 

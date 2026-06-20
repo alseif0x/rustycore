@@ -1,3 +1,27 @@
+- `#NEXT.R8.ENTITIES.1198` — represented item-set aura refresh events can now
+  materialize the C++ item-set `ApplyEquipSpell` remove/apply effects into the
+  session aura state. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:8187-8220`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:8238-8260`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:3806`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Unit/Unit.cpp:3951`.
+  C++ item-set refresh removes with `RemoveAurasDueToSpell(spellId)` before
+  casting the set spell again, and the `formChange` apply branch returns early
+  when the same spell aura is already active. Rust now exposes
+  `apply_represented_item_set_aura_refresh_events_like_cpp`, which records the
+  existing C++-ordered refresh events, removes matching visible auras for remove
+  events, applies a permanent represented item-set aura for apply events, and
+  avoids duplicating active item-set auras during form-change refresh. Coverage
+  proves remove-then-apply leaves one matching aura while preserving unrelated
+  auras, and that form-change apply does not duplicate an active set aura.
+  Checks so far: `cargo fmt --all` and `cargo test -p wow-world
+  represented_item_set_aura_refresh --lib`; final check suite is recorded in
+  the TSV row. Boundary remains partial: this is still a represented
+  item-set-specific materializer, not full `CastSpell`, item GUID
+  `RemoveAurasDueToItemSpell`, update-field emission, persistence, fanout,
+  bot/live/manual validation, or full spell-effect runtime parity.
+
 - `#NEXT.R8.ENTITIES.1197` — represented item-set aura refresh now applies the
   C++ `ApplyEquipSpell(..., formChange)` shapeshift gate for regular
   `SpellInfo`. Source of truth:
