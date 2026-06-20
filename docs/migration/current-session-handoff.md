@@ -1,3 +1,25 @@
+- `#NEXT.R8.ENTITIES.1191` — represented `UpdateItemSetAuras` now replays
+  active item-set bonuses like C++ when spec/form state changes. Source of
+  truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:8238-8260`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:8187-8235`,
+  and `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:57-145`.
+  C++ keeps threshold-met `SetBonuses` even when a spell is not cast because
+  its `ChrSpecID` does not match, then `UpdateItemSetAuras(formChange)` removes
+  non-current-spec set auras and otherwise remove/applies the current-spec aura
+  with the `formChange` flag. Rust now records represented aura-refresh events
+  for that same active-bonus loop. Coverage proves a two-spec set stores both
+  active bonus entries, only casts the initial current-spec spell, then after a
+  represented spec switch emits current-spec remove/apply with `form_change=true`
+  plus remove-only for the old spec. Checks: `cargo fmt --all --check`,
+  `cargo test -p wow-world
+  represented_update_item_set_auras_replays_active_bonuses_like_cpp --lib`,
+  `cargo check -p wow-world`, `cargo check -p world-server`, and
+  `git diff --check`. Boundary remains partial: represented refresh events
+  only; not wired to real spec/form change runtime, no real `ApplyEquipSpell`,
+  no shapeshift/aura-presence checks, no update-field emission, persistence,
+  fanout, bot/live/manual validation, or final aura state.
+
 - `#NEXT.R8.ENTITIES.1190` — represented direct inventory equip now invokes
   the C++ `AddItemsSetItem` hook before represented item-mod apply. Source of
   truth:

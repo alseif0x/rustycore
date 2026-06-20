@@ -1741,6 +1741,15 @@ pub(crate) struct RepresentedItemSetSpellEventLikeCpp {
     pub apply: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RepresentedItemSetAuraRefreshEventLikeCpp {
+    pub item_set_id: u32,
+    pub spell_entry_id: u32,
+    pub spell_id: u32,
+    pub apply: bool,
+    pub form_change: bool,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct RepresentedItemBonusStateLikeCpp {
     pub mana_base: i32,
@@ -3942,6 +3951,8 @@ pub struct WorldSession {
     represented_item_bonus_state_like_cpp: RepresentedItemBonusStateLikeCpp,
     represented_item_set_effects_like_cpp: HashMap<u32, RepresentedItemSetEffectLikeCpp>,
     represented_item_set_spell_events_like_cpp: Vec<RepresentedItemSetSpellEventLikeCpp>,
+    represented_item_set_aura_refresh_events_like_cpp:
+        Vec<RepresentedItemSetAuraRefreshEventLikeCpp>,
     represented_combat_stat_recalculations_like_cpp: Vec<RepresentedCombatStatRecalculationLikeCpp>,
     represented_titan_grip_penalty_actions_like_cpp: Vec<TitanGripPenaltyAction>,
     represented_avg_equipped_item_level_updates_like_cpp: Vec<f32>,
@@ -5661,6 +5672,7 @@ impl WorldSession {
             represented_item_bonus_state_like_cpp: RepresentedItemBonusStateLikeCpp::default(),
             represented_item_set_effects_like_cpp: HashMap::new(),
             represented_item_set_spell_events_like_cpp: Vec::new(),
+            represented_item_set_aura_refresh_events_like_cpp: Vec::new(),
             represented_combat_stat_recalculations_like_cpp: Vec::new(),
             represented_titan_grip_penalty_actions_like_cpp: Vec::new(),
             represented_avg_equipped_item_level_updates_like_cpp: Vec::new(),
@@ -14888,6 +14900,67 @@ impl WorldSession {
         }
 
         self.represented_item_set_spell_events_like_cpp.len() != before_events
+    }
+
+    pub(crate) fn record_represented_update_item_set_auras_like_cpp(
+        &mut self,
+        form_change: bool,
+    ) -> usize {
+        let before_events = self.represented_item_set_aura_refresh_events_like_cpp.len();
+        let primary_spec = self.loot_specialization_id_like_cpp();
+        let active_effects: Vec<_> = self
+            .represented_item_set_effects_like_cpp
+            .values()
+            .cloned()
+            .collect();
+
+        for effect in active_effects {
+            let active_bonus_ids = effect.set_bonuses.clone();
+            let spells: Vec<_> = self
+                .item_set_spells_like_cpp(effect.item_set_id)
+                .into_iter()
+                .filter(|spell| active_bonus_ids.contains(&spell.id))
+                .cloned()
+                .collect();
+
+            for item_set_spell in spells {
+                if item_set_spell.chr_spec_id != 0
+                    && u32::from(item_set_spell.chr_spec_id) != primary_spec
+                {
+                    self.represented_item_set_aura_refresh_events_like_cpp.push(
+                        RepresentedItemSetAuraRefreshEventLikeCpp {
+                            item_set_id: effect.item_set_id,
+                            spell_entry_id: item_set_spell.id,
+                            spell_id: item_set_spell.spell_id,
+                            apply: false,
+                            form_change: false,
+                        },
+                    );
+                    continue;
+                }
+
+                self.represented_item_set_aura_refresh_events_like_cpp.push(
+                    RepresentedItemSetAuraRefreshEventLikeCpp {
+                        item_set_id: effect.item_set_id,
+                        spell_entry_id: item_set_spell.id,
+                        spell_id: item_set_spell.spell_id,
+                        apply: false,
+                        form_change,
+                    },
+                );
+                self.represented_item_set_aura_refresh_events_like_cpp.push(
+                    RepresentedItemSetAuraRefreshEventLikeCpp {
+                        item_set_id: effect.item_set_id,
+                        spell_entry_id: item_set_spell.id,
+                        spell_id: item_set_spell.spell_id,
+                        apply: true,
+                        form_change,
+                    },
+                );
+            }
+        }
+
+        self.represented_item_set_aura_refresh_events_like_cpp.len() - before_events
     }
 
     fn represented_item_bonus_player_stat_update_object_like_cpp(
@@ -33887,6 +33960,13 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedItemSetSpellEventLikeCpp] {
         &self.represented_item_set_spell_events_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_item_set_aura_refresh_events_like_cpp(
+        &self,
+    ) -> &[RepresentedItemSetAuraRefreshEventLikeCpp] {
+        &self.represented_item_set_aura_refresh_events_like_cpp
     }
 
     #[cfg(test)]
@@ -105536,6 +105616,113 @@ mod tests {
                 .iter()
                 .any(|event| event.spell_id == 9013 && event.apply),
             "C++ item set bonuses are not dependent on item broken state"
+        );
+    }
+
+    #[test]
+    fn represented_update_item_set_auras_replays_active_bonuses_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let chest_guid = ObjectGuid::create_item(1, 915);
+        let hands_guid = ObjectGuid::create_item(1, 916);
+        session.set_player_guid(Some(player_guid));
+        session.set_loot_specialization_id_like_cpp(66);
+        session.set_item_set_store(Arc::new(ItemSetStore::from_entries([ItemSetEntry {
+            id: 707,
+            name: "Refresh Set".to_string(),
+            set_flags: 0,
+            required_skill: 0,
+            required_skill_rank: 0,
+            item_id: std::array::from_fn(|i| match i {
+                0 => 109,
+                1 => 110,
+                _ => 0,
+            }),
+        }])));
+        session.set_item_set_spell_store(Arc::new(ItemSetSpellStore::from_entries([
+            ItemSetSpellEntry {
+                id: 30,
+                chr_spec_id: 65,
+                spell_id: 9030,
+                threshold: 2,
+                item_set_id: 707,
+            },
+            ItemSetSpellEntry {
+                id: 31,
+                chr_spec_id: 66,
+                spell_id: 9031,
+                threshold: 2,
+                item_set_id: 707,
+            },
+        ])));
+
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            chest_guid,
+            109,
+            InventoryType::Chest,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_HANDS,
+            hands_guid,
+            110,
+            InventoryType::Hands,
+        );
+
+        assert!(!session.record_represented_items_set_item_like_cpp(chest_guid, true));
+        assert!(session.record_represented_items_set_item_like_cpp(hands_guid, true));
+        assert_eq!(
+            session.represented_item_set_spell_events_like_cpp(),
+            &[RepresentedItemSetSpellEventLikeCpp {
+                item_set_id: 707,
+                spell_entry_id: 31,
+                spell_id: 9031,
+                threshold: 2,
+                apply: true,
+            }],
+            "C++ AddItemsSetItem stores all threshold-met set bonuses but only casts the current-spec spell"
+        );
+        assert_eq!(
+            session
+                .represented_item_set_effect_like_cpp(707)
+                .expect("set effect")
+                .set_bonuses,
+            BTreeSet::from([30, 31])
+        );
+
+        session.set_loot_specialization_id_like_cpp(65);
+        assert_eq!(
+            session.record_represented_update_item_set_auras_like_cpp(true),
+            3
+        );
+        assert_eq!(
+            session.represented_item_set_aura_refresh_events_like_cpp(),
+            &[
+                RepresentedItemSetAuraRefreshEventLikeCpp {
+                    item_set_id: 707,
+                    spell_entry_id: 30,
+                    spell_id: 9030,
+                    apply: false,
+                    form_change: true,
+                },
+                RepresentedItemSetAuraRefreshEventLikeCpp {
+                    item_set_id: 707,
+                    spell_entry_id: 30,
+                    spell_id: 9030,
+                    apply: true,
+                    form_change: true,
+                },
+                RepresentedItemSetAuraRefreshEventLikeCpp {
+                    item_set_id: 707,
+                    spell_entry_id: 31,
+                    spell_id: 9031,
+                    apply: false,
+                    form_change: false,
+                },
+            ],
+            "C++ UpdateItemSetAuras removes non-current-spec set auras, otherwise remove/applies with formChange"
         );
     }
 
