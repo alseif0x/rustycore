@@ -1128,6 +1128,12 @@ impl SpellScalingStore {
 }
 
 impl SpellShapeshiftStore {
+    pub fn entries_like_cpp(&self) -> impl Iterator<Item = &SpellShapeshiftEntry> {
+        self.entries.values()
+    }
+}
+
+impl SpellShapeshiftStore {
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "SpellShapeshift.db2", |id, idx, r| {
             SpellShapeshiftEntry {

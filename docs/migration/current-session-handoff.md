@@ -1,3 +1,24 @@
+- `#NEXT.R8.ENTITIES.1196` — regular `SpellStore` now hydrates the C++
+  `SpellInfo::Stances` / `StancesNot` data needed by real equip-spell
+  shapeshift checks. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellInfo.cpp:1312-1313`
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Spells/SpellInfo.cpp:1921-1967`.
+  C++ composes `Stances` from `SpellShapeshiftEntry::ShapeshiftMask` and
+  `StancesNot` from `ShapeshiftExclude` using `MAKE_PAIR64`; Rust now loads
+  `SpellShapeshift.db2` as part of `SpellStore::load_with_db2_and_hotfixes`,
+  records the same masks in the regular `SpellStore`, and exposes
+  `SpellStore::check_shapeshift_like_cpp` so normal `SpellInfo` consumers do
+  not depend on the narrower `serverside_spell` table. Coverage proves DB2 mask
+  composition drives explicit allow/deny/unshifted outcomes and that
+  `SpellMisc` attr2 allows unshifted casts like C++. Checks so far: `cargo fmt
+  --all` and `cargo test -p wow-data shapeshift --lib`; final check suite is
+  recorded in the TSV row. Boundary remains partial: this is the regular
+  SpellInfo data/decision foundation only; it is not yet consumed by represented
+  or live `ApplyEquipSpell`, current shapeshift state, aura add/remove,
+  update-field emission, persistence, fanout, bot/live/manual validation, or
+  final aura state.
+
 - `#NEXT.R8.ENTITIES.1195` — represented server-side spell data now exposes a
   C++-mirrored `SpellInfo::CheckShapeshift` decision for stances/forms. Source
   of truth:

@@ -5229,6 +5229,7 @@ const fn implicit_target_category_accepts_conditions_like_cpp(target: u32) -> bo
 pub struct SpellStore {
     spells: HashMap<i32, SpellInfo>,
     spell_misc_attributes: HashMap<i32, [u32; 15]>,
+    spell_shapeshift_masks: HashMap<i32, (u64, u64)>,
     implicit_target_conditions: HashMap<(i32, u32), ConditionsReference>,
 }
 
@@ -5238,8 +5239,13 @@ impl SpellStore {
         Self {
             spells: HashMap::new(),
             spell_misc_attributes: HashMap::new(),
+            spell_shapeshift_masks: HashMap::new(),
             implicit_target_conditions: HashMap::new(),
         }
+    }
+
+    fn make_pair64_like_cpp(low: i32, high: i32) -> u64 {
+        u64::from(low as u32) | (u64::from(high as u32) << 32)
     }
 
     fn empty_spell_info_like_cpp(spell_id: i32) -> SpellInfo {
@@ -5333,8 +5339,13 @@ impl SpellStore {
     ) -> Result<Self> {
         let spell_misc_store = crate::spell_db2::SpellMiscStore::load(data_dir, locale)?;
         let spell_effect_store = crate::spell_db2::SpellEffectDb2Store::load(data_dir, locale)?;
-        let mut store =
-            Self::from_spell_db2_stores_like_cpp(&spell_misc_store, &spell_effect_store);
+        let spell_shapeshift_store =
+            crate::spell_db2::SpellShapeshiftStore::load(data_dir, locale)?;
+        let mut store = Self::from_spell_db2_stores_like_cpp(
+            &spell_misc_store,
+            &spell_effect_store,
+            &spell_shapeshift_store,
+        );
 
         let hotfix_store = Self::load(hotfix_db).await?;
         for spell in hotfix_store.spells.into_values() {
@@ -5352,6 +5363,7 @@ impl SpellStore {
     fn from_spell_db2_stores_like_cpp(
         spell_misc_store: &crate::spell_db2::SpellMiscStore,
         spell_effect_store: &crate::spell_db2::SpellEffectDb2Store,
+        spell_shapeshift_store: &crate::spell_db2::SpellShapeshiftStore,
     ) -> Self {
         let mut store = Self::new();
 
@@ -5385,6 +5397,25 @@ impl SpellStore {
             spell
                 .effects
                 .push(Self::spell_effect_from_db2_like_cpp(effect));
+        }
+
+        for shapeshift in spell_shapeshift_store.entries_like_cpp() {
+            if shapeshift.spell_id <= 0 {
+                continue;
+            }
+            store.spell_shapeshift_masks.insert(
+                shapeshift.spell_id,
+                (
+                    Self::make_pair64_like_cpp(
+                        shapeshift.shapeshift_mask[0],
+                        shapeshift.shapeshift_mask[1],
+                    ),
+                    Self::make_pair64_like_cpp(
+                        shapeshift.shapeshift_exclude[0],
+                        shapeshift.shapeshift_exclude[1],
+                    ),
+                ),
+            );
         }
 
         for spell in store.spells.values_mut() {
@@ -5555,6 +5586,72 @@ ORDER BY sm.ID, se.EffectIndex
         )
     }
 
+    /// Port of C++ `SpellInfo::CheckShapeshift` for regular `SpellInfo`
+    /// entries composed by `SpellMgr::LoadSpellInfoStore`.
+    pub fn check_shapeshift_like_cpp<'a, F>(
+        &self,
+        spell_id: i32,
+        form: u32,
+        mut lookup_form: F,
+    ) -> Option<SpellCastResult>
+    where
+        F: FnMut(u32) -> Option<&'a crate::spell_db2::SpellShapeshiftFormEntry>,
+    {
+        self.spells.get(&spell_id)?;
+
+        let (stances, stances_not) = self
+            .spell_shapeshift_masks
+            .get(&spell_id)
+            .copied()
+            .unwrap_or((0, 0));
+        let attributes = self
+            .spell_misc_attributes
+            .get(&spell_id)
+            .copied()
+            .unwrap_or([0; 15]);
+        let stance_mask = form
+            .checked_sub(1)
+            .and_then(|shift| 1u64.checked_shl(shift))
+            .unwrap_or(0);
+
+        if stance_mask & stances_not != 0 {
+            return Some(SpellCastResult::NotShapeshift);
+        }
+
+        if stance_mask & stances != 0 {
+            return Some(SpellCastResult::Success);
+        }
+
+        let mut act_as_shifted = false;
+        let mut form_flags = 0;
+        if form > 0 {
+            let Some(shape_info) = lookup_form(form) else {
+                return Some(SpellCastResult::Success);
+            };
+            form_flags = shape_info.flags;
+            act_as_shifted = form_flags & shapeshift_form_flags::STANCE == 0;
+        }
+
+        if act_as_shifted {
+            if attributes[0] & attributes::SPELL_ATTR0_NOT_SHAPESHIFTED != 0
+                || form_flags & shapeshift_form_flags::CAN_ONLY_CAST_SHAPESHIFT_SPELLS != 0
+            {
+                return Some(SpellCastResult::NotShapeshift);
+            }
+
+            if stances != 0 {
+                return Some(SpellCastResult::OnlyShapeshift);
+            }
+        } else if attributes[2] & attributes::SPELL_ATTR2_ALLOW_WHILE_NOT_SHAPESHIFTED_CASTER_FORM
+            == 0
+            && stances != 0
+        {
+            return Some(SpellCastResult::OnlyShapeshift);
+        }
+
+        Some(SpellCastResult::Success)
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = &SpellInfo> {
         self.spells.values()
     }
@@ -5677,7 +5774,12 @@ mod tests {
             },
         ]);
 
-        let store = SpellStore::from_spell_db2_stores_like_cpp(&misc_store, &effect_store);
+        let shapeshift_store = crate::spell_db2::SpellShapeshiftStore::from_entries([]);
+        let store = SpellStore::from_spell_db2_stores_like_cpp(
+            &misc_store,
+            &effect_store,
+            &shapeshift_store,
+        );
         let spell = store.get(spell_id as i32).expect("mount spell loaded");
 
         assert_eq!(
@@ -5704,13 +5806,85 @@ mod tests {
         let misc_store = crate::spell_db2::SpellMiscStore::from_entries([misc]);
         let effect_store = crate::spell_db2::SpellEffectDb2Store::from_entries([]);
 
-        let store = SpellStore::from_spell_db2_stores_like_cpp(&misc_store, &effect_store);
+        let shapeshift_store = crate::spell_db2::SpellShapeshiftStore::from_entries([]);
+        let store = SpellStore::from_spell_db2_stores_like_cpp(
+            &misc_store,
+            &effect_store,
+            &shapeshift_store,
+        );
 
         assert!(
             store.has_attribute1_like_cpp(spell_id as i32, attributes::SPELL_ATTR1_IS_CHANNELLED)
         );
         assert!(store.is_channeled_like_cpp(spell_id as i32));
         assert!(!store.is_channeled_like_cpp(99_999));
+    }
+
+    #[test]
+    fn spell_store_db2_loader_composes_shapeshift_masks_like_cpp() {
+        let spell_id = 70_001;
+        let misc_store =
+            crate::spell_db2::SpellMiscStore::from_entries([test_spell_misc_entry_like_cpp(
+                1, spell_id, 0, 0,
+            )]);
+        let effect_store = crate::spell_db2::SpellEffectDb2Store::from_entries([]);
+        let shapeshift_store = crate::spell_db2::SpellShapeshiftStore::from_entries([
+            crate::spell_db2::SpellShapeshiftEntry {
+                id: 1,
+                spell_id: spell_id as i32,
+                stance_bar_order: 0,
+                shapeshift_exclude: [1 << 2, 0],
+                shapeshift_mask: [1 << 4, 0],
+            },
+        ]);
+        let form = shapeshift_form(shapeshift_form_flags::STANCE);
+        let store = SpellStore::from_spell_db2_stores_like_cpp(
+            &misc_store,
+            &effect_store,
+            &shapeshift_store,
+        );
+
+        assert_eq!(
+            store.check_shapeshift_like_cpp(spell_id as i32, 3, |_| Some(&form)),
+            Some(SpellCastResult::NotShapeshift)
+        );
+        assert_eq!(
+            store.check_shapeshift_like_cpp(spell_id as i32, 5, |_| Some(&form)),
+            Some(SpellCastResult::Success)
+        );
+        assert_eq!(
+            store.check_shapeshift_like_cpp(spell_id as i32, 0, |_| None),
+            Some(SpellCastResult::OnlyShapeshift)
+        );
+    }
+
+    #[test]
+    fn spell_store_check_shapeshift_uses_spell_misc_attr2_like_cpp() {
+        let spell_id = 70_002;
+        let mut misc = test_spell_misc_entry_like_cpp(1, spell_id, 0, 0);
+        misc.attributes[2] =
+            attributes::SPELL_ATTR2_ALLOW_WHILE_NOT_SHAPESHIFTED_CASTER_FORM as i32;
+        let misc_store = crate::spell_db2::SpellMiscStore::from_entries([misc]);
+        let effect_store = crate::spell_db2::SpellEffectDb2Store::from_entries([]);
+        let shapeshift_store = crate::spell_db2::SpellShapeshiftStore::from_entries([
+            crate::spell_db2::SpellShapeshiftEntry {
+                id: 2,
+                spell_id: spell_id as i32,
+                stance_bar_order: 0,
+                shapeshift_exclude: [0, 0],
+                shapeshift_mask: [1 << 4, 0],
+            },
+        ]);
+        let store = SpellStore::from_spell_db2_stores_like_cpp(
+            &misc_store,
+            &effect_store,
+            &shapeshift_store,
+        );
+
+        assert_eq!(
+            store.check_shapeshift_like_cpp(spell_id as i32, 0, |_| None),
+            Some(SpellCastResult::Success)
+        );
     }
 
     #[test]
