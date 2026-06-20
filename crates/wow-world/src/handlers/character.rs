@@ -11828,6 +11828,24 @@ impl WorldSession {
             let account_toys = self.account_toy_active_player_rows_like_cpp();
             let account_heirlooms = self.account_heirloom_active_player_rows_like_cpp();
 
+            let login_update_object_diagnostic =
+                std::env::var("RUSTYCORE_LOGIN_UPDATEOBJECT_DIAGNOSTIC").ok();
+            let skip_inventory_create =
+                login_update_object_diagnostic.as_deref() == Some("no_items");
+            let visible_items_for_create = if skip_inventory_create {
+                warn!(
+                    "RUSTYCORE_LOGIN_UPDATEOBJECT_DIAGNOSTIC=no_items: sending player CREATE without item CREATE blocks or inventory references"
+                );
+                [(0, 0, 0); 19]
+            } else {
+                visible_items
+            };
+            let inv_slots_for_create = if skip_inventory_create {
+                [wow_core::guid::ObjectGuid::EMPTY; 141]
+            } else {
+                inv_slots
+            };
+
             let mut player_pkt = UpdateObject::create_player_with_party_type(
                 guid,
                 race,
@@ -11839,8 +11857,8 @@ impl WorldSession {
                 map_id as u16,
                 zone_id as u32,
                 true,
-                visible_items,
-                inv_slots,
+                visible_items_for_create,
+                inv_slots_for_create,
                 combat,
                 skill_info,
                 self.player_gold_like_cpp(),
@@ -11850,7 +11868,7 @@ impl WorldSession {
             player_pkt
                 .set_player_collection_dynamic_fields_like_cpp(account_toys, account_heirlooms);
 
-            if !item_creates.is_empty() {
+            if !item_creates.is_empty() && !skip_inventory_create {
                 info!(
                     "Sending {} item CREATE blocks + player in single UpdateObject",
                     item_creates.len()
