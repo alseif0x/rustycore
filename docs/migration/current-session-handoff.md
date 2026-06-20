@@ -1,3 +1,25 @@
+- `#NEXT.R8.ENTITIES.1186` — represented `CMSG_DESTROY_ITEM` full-stack direct
+  inventory destroy now emits the current-session represented item-bonus stat
+  VALUES delta when C++ `Player::DestroyItem(bag=0, slot, update=true)` removes
+  non-broken item mods for applied slots below `INVENTORY_SLOT_BAG_END`.
+  Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/ItemHandler.cpp:294-332`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11689-11770`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7660-7690`.
+  Rust now records represented `_ApplyItemMods(..., false)` after the delete
+  DB transaction succeeds and before the runtime item is removed, then sends
+  the represented player stat `UpdateObject` only when represented item-bonus
+  actions were produced. Backpack slots and broken equipped items keep the
+  previous no-op behavior like C++. Coverage: `cargo fmt --all --check`,
+  `cargo test -p wow-world destroyed_inventory_item_mod_remove --lib`, `cargo
+  test -p wow-world destroy_item --lib`, `cargo check -p wow-world`, `cargo
+  check -p world-server`, and `git diff --check`. Boundary remains partial:
+  current-session represented packet only; item set removal, exact C++ update
+  batching, authoritative Player/UnitMods mutation, DB fixture/integration
+  proof, multi-session fanout, bot/live/manual validation, and nested container
+  destroy parity remain open.
+
 - `#NEXT.R8.ENTITIES.1185` — represented `AutoUnequipOffhandIfNeed` now emits
   the current-session represented item-bonus stat VALUES delta when C++
   `RemoveItem(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_OFFHAND, true)` removes

@@ -10820,6 +10820,9 @@ impl WorldSession {
             return false;
         }
 
+        let represented_item_mods_changed =
+            self.record_destroyed_inventory_item_mod_remove_like_cpp(bag, slot, item.guid);
+
         self.remove_fully_looted_runtime_item(bag, slot, item.guid);
 
         if should_expire_refund {
@@ -10850,6 +10853,9 @@ impl WorldSession {
 
             if slot < 19 {
                 self.send_stat_update();
+            }
+            if represented_item_mods_changed {
+                self.send_represented_item_bonus_player_stat_update_like_cpp();
             }
         }
 
