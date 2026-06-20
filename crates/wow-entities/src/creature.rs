@@ -5,9 +5,9 @@ use std::{
 
 use wow_constants::{
     CreatureFlagsExtra, CreatureFlightMovementType, CreatureGroundMovementType,
-    CreatureStaticFlags, CreatureTypeFlags, DeathState, PowerType, ShapeShiftForm, SheathState,
-    TypeId, TypeMask, UnitDynFlags, UnitFlags, UnitFlags2, UnitFlags3, UnitPvpFlags,
-    UnitStandStateType, UnitState, WeaponAttackType, movement::MovementFlag,
+    CreatureRandomMovementType, CreatureStaticFlags, CreatureTypeFlags, DeathState, PowerType,
+    ShapeShiftForm, SheathState, TypeId, TypeMask, UnitDynFlags, UnitFlags, UnitFlags2, UnitFlags3,
+    UnitPvpFlags, UnitStandStateType, UnitState, WeaponAttackType, movement::MovementFlag,
 };
 use wow_core::{ObjectGuid, Position};
 
@@ -32,6 +32,7 @@ pub const CREATURE_Z_ATTACK_RANGE_LIKE_CPP: f32 = 3.0;
 pub const MAX_AGGRO_RESET_TIME_SECS_LIKE_CPP: i64 = 10;
 const CREATURE_GROUND_MOVEMENT_TYPE_MAX_LIKE_CPP: u8 = 3;
 const CREATURE_FLIGHT_MOVEMENT_TYPE_MAX_LIKE_CPP: u8 = 3;
+const CREATURE_RANDOM_MOVEMENT_TYPE_MAX_LIKE_CPP: u8 = 3;
 
 pub fn game_time_secs_like_cpp() -> i64 {
     SystemTime::now()
@@ -53,6 +54,14 @@ pub const fn normalize_creature_ground_movement_type_like_cpp(ground_movement_ty
         ground_movement_type
     } else {
         CreatureGroundMovementType::Run as u8
+    }
+}
+
+pub const fn normalize_creature_random_movement_type_like_cpp(random_movement_type: u8) -> u8 {
+    if random_movement_type < CREATURE_RANDOM_MOVEMENT_TYPE_MAX_LIKE_CPP {
+        random_movement_type
+    } else {
+        CreatureRandomMovementType::Walk as u8
     }
 }
 
@@ -256,6 +265,7 @@ pub struct CreatureTemplateLifecycleRecord {
     pub ground_movement_type: u8,
     pub swim_allowed: bool,
     pub flight_movement_type: u8,
+    pub random_movement_type: u8,
     pub min_level: u8,
     pub max_level: u8,
     pub equipment_id: u8,
@@ -436,6 +446,7 @@ pub struct CreatureLifecycleMetadata {
     pub ground_movement_type: u8,
     pub swim_allowed: bool,
     pub flight_movement_type: u8,
+    pub random_movement_type: u8,
     pub creature_type: u32,
     pub type_flags: u32,
     pub selected_level: u8,
@@ -491,6 +502,7 @@ impl Default for CreatureLifecycleMetadata {
             ground_movement_type: CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: CreatureFlightMovementType::None as u8,
+            random_movement_type: CreatureRandomMovementType::Walk as u8,
             creature_type: 0,
             type_flags: 0,
             selected_level: 0,
@@ -1115,6 +1127,9 @@ impl Creature {
             swim_allowed: template.swim_allowed,
             flight_movement_type: normalize_creature_flight_movement_type_like_cpp(
                 template.flight_movement_type,
+            ),
+            random_movement_type: normalize_creature_random_movement_type_like_cpp(
+                template.random_movement_type,
             ),
             creature_type: template.creature_type,
             type_flags: template.type_flags,
@@ -2003,6 +2018,15 @@ impl Creature {
     pub fn set_flight_movement_type_runtime_like_cpp(&mut self, flight_movement_type: u8) {
         self.lifecycle_metadata.flight_movement_type =
             normalize_creature_flight_movement_type_like_cpp(flight_movement_type);
+    }
+
+    pub const fn random_movement_type_like_cpp(&self) -> u8 {
+        self.lifecycle_metadata.random_movement_type
+    }
+
+    pub fn set_random_movement_type_runtime_like_cpp(&mut self, random_movement_type: u8) {
+        self.lifecycle_metadata.random_movement_type =
+            normalize_creature_random_movement_type_like_cpp(random_movement_type);
     }
 
     pub fn configure_ai_runtime(

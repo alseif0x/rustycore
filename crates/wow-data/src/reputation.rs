@@ -806,6 +806,7 @@ mod tests {
                 ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
                 swim_allowed: true,
                 flight_movement_type: 0,
+                random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
                 flags_extra: 0,
                 string_id: String::new(),
                 regen_health: true,

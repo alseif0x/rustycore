@@ -74,7 +74,7 @@ pub use creature::{
     DEFAULT_BOUNDARY_CHECK_TIME_MS, DEFAULT_CORPSE_DELAY_SECS, DEFAULT_MONSTER_SIGHT_DISTANCE,
     DEFAULT_RESPAWN_DELAY_SECS, LOOT_MODE_DEFAULT, MAX_AGGRO_RESET_TIME_SECS_LIKE_CPP,
     MAX_CREATURE_SPELLS, MovementGeneratorType, ReactState, VehicleKitCreateInputLikeCpp,
-    game_time_secs_like_cpp,
+    game_time_secs_like_cpp, normalize_creature_random_movement_type_like_cpp,
 };
 pub use dynamic_object::{
     DYNAMIC_OBJECT_DATA_CAST_TIME_BIT, DYNAMIC_OBJECT_DATA_CASTER_BIT,

@@ -3240,6 +3240,7 @@ pub struct CreatureSpawnRuntimeRowLikeCpp {
     pub ground_movement_type: u8,
     pub swim_allowed: bool,
     pub flight_movement_type: u8,
+    pub random_movement_type: u8,
     pub string_id: String,
     pub spawn_time_secs: i32,
 }
@@ -3284,6 +3285,7 @@ struct CreatureSpawnRow {
     ground_movement_type: u8,
     swim_allowed: bool,
     flight_movement_type: u8,
+    random_movement_type: u8,
     spawn_difficulties: String,
     event_entry: i16,
     pool_id: u32,
@@ -5043,6 +5045,7 @@ async fn load_creature_spawns_like_cpp(
                 .unwrap_or(wow_constants::CreatureGroundMovementType::Run as u8),
             swim_allowed: result.try_read::<Option<u8>>(29).flatten().unwrap_or(1) != 0,
             flight_movement_type: result.try_read::<Option<u8>>(30).flatten().unwrap_or(0),
+            random_movement_type: result.try_read::<Option<u8>>(31).flatten().unwrap_or(0),
         };
         let runtime_row = creature_row_to_runtime_row_like_cpp(&row);
         report.creature.rows += 1;
@@ -5587,6 +5590,7 @@ fn creature_row_to_runtime_row_like_cpp(row: &CreatureSpawnRow) -> CreatureSpawn
         ground_movement_type: row.ground_movement_type,
         swim_allowed: row.swim_allowed,
         flight_movement_type: row.flight_movement_type,
+        random_movement_type: row.random_movement_type,
         string_id: row.string_id.clone(),
         spawn_time_secs: row.spawn_time_secs,
     }
@@ -6346,6 +6350,7 @@ mod tests {
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
+            random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
             spawn_difficulties: difficulties.to_string(),
             event_entry,
             pool_id: 0,
@@ -10023,6 +10028,7 @@ mod tests {
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
+            random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
             string_id: String::new(),
             spawn_time_secs: 120,
         }

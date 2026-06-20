@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use anyhow::Result;
 use rand::Rng;
 use wow_constants::{
-    CreatureFlightMovementType, CreatureGroundMovementType, SheathState, UnitPvpFlags,
-    UnitStandStateType,
+    CreatureFlightMovementType, CreatureGroundMovementType, CreatureRandomMovementType,
+    SheathState, UnitPvpFlags, UnitStandStateType,
 };
 use wow_database::WorldDatabase;
 use wow_entities::{CreatureAddonLifecycleRecordLikeCpp, VisibilityDistanceTypeLikeCpp};
@@ -18,6 +18,7 @@ pub const MAX_CREATURE_SPELLS_LIKE_CPP: usize = 8;
 pub const MAX_SPELL_SCHOOL_LIKE_CPP: u8 = 7;
 const CREATURE_GROUND_MOVEMENT_TYPE_MAX_LIKE_CPP: u8 = 3;
 const CREATURE_FLIGHT_MOVEMENT_TYPE_MAX_LIKE_CPP: u8 = 3;
+const CREATURE_RANDOM_MOVEMENT_TYPE_MAX_LIKE_CPP: u8 = 3;
 const IDLE_MOTION_TYPE_LIKE_CPP: u8 = 0;
 const WAYPOINT_MOTION_TYPE_LIKE_CPP: u8 = 2;
 const MAX_ANIM_TIER_LIKE_CPP: u8 = 5;
@@ -37,6 +38,14 @@ fn normalize_creature_flight_movement_type_like_cpp(flight_movement_type: u8) ->
         flight_movement_type
     } else {
         CreatureFlightMovementType::None as u8
+    }
+}
+
+fn normalize_creature_random_movement_type_like_cpp(random_movement_type: u8) -> u8 {
+    if random_movement_type < CREATURE_RANDOM_MOVEMENT_TYPE_MAX_LIKE_CPP {
+        random_movement_type
+    } else {
+        CreatureRandomMovementType::Walk as u8
     }
 }
 
@@ -178,6 +187,7 @@ pub struct CreatureTemplateLifecycleRecordLikeCpp {
     pub ground_movement_type: u8,
     pub swim_allowed: bool,
     pub flight_movement_type: u8,
+    pub random_movement_type: u8,
     pub flags_extra: u32,
     pub string_id: String,
     pub regen_health: bool,
@@ -618,7 +628,7 @@ impl CreatureTemplateLifecycleStoreLikeCpp {
         let mut templates = HashMap::new();
         let mut result = db
             .direct_query(
-                "SELECT ct.entry, ct.name, ct.AIName, ct.ScriptName, ct.RequiredExpansion, ct.faction, ct.npcflag, ct.speed_walk, ct.speed_run, ct.scale, ct.Classification, ct.dmgschool, ct.unit_flags, ct.unit_flags2, ct.unit_flags3, ct.`type`, ct.family, ct.trainer_class, ct.unit_class, ct.VehicleId, ct.MovementType, COALESCE(ctm.Ground, 1), COALESCE(ctm.Swim, 1), COALESCE(ctm.Flight, 0), ct.flags_extra, ct.StringId, ct.RegenHealth FROM creature_template ct LEFT JOIN creature_template_movement ctm ON ct.entry = ctm.CreatureId",
+                "SELECT ct.entry, ct.name, ct.AIName, ct.ScriptName, ct.RequiredExpansion, ct.faction, ct.npcflag, ct.speed_walk, ct.speed_run, ct.scale, ct.Classification, ct.dmgschool, ct.unit_flags, ct.unit_flags2, ct.unit_flags3, ct.`type`, ct.family, ct.trainer_class, ct.unit_class, ct.VehicleId, ct.MovementType, COALESCE(ctm.Ground, 1), COALESCE(ctm.Swim, 1), COALESCE(ctm.Flight, 0), COALESCE(ctm.Random, 0), ct.flags_extra, ct.StringId, ct.RegenHealth FROM creature_template ct LEFT JOIN creature_template_movement ctm ON ct.entry = ctm.CreatureId",
             )
             .await?;
         if !result.is_empty() {
@@ -651,9 +661,10 @@ impl CreatureTemplateLifecycleStoreLikeCpp {
                         .unwrap_or(CreatureGroundMovementType::Run as u8),
                     swim_allowed: result.try_read::<Option<u8>>(22).flatten().unwrap_or(1) != 0,
                     flight_movement_type: result.try_read::<Option<u8>>(23).flatten().unwrap_or(0),
-                    flags_extra: result.try_read::<u32>(24).unwrap_or(0),
-                    string_id: result.try_read::<String>(25).unwrap_or_default(),
-                    regen_health: result.try_read::<u8>(26).unwrap_or(0) != 0,
+                    random_movement_type: result.try_read::<Option<u8>>(24).flatten().unwrap_or(0),
+                    flags_extra: result.try_read::<u32>(25).unwrap_or(0),
+                    string_id: result.try_read::<String>(26).unwrap_or_default(),
+                    regen_health: result.try_read::<u8>(27).unwrap_or(0) != 0,
                     spells: [0; MAX_CREATURE_SPELLS_LIKE_CPP],
                     models: Vec::new(),
                 };
@@ -760,6 +771,8 @@ impl CreatureTemplateLifecycleRecordLikeCpp {
             normalize_creature_ground_movement_type_like_cpp(self.ground_movement_type);
         self.flight_movement_type =
             normalize_creature_flight_movement_type_like_cpp(self.flight_movement_type);
+        self.random_movement_type =
+            normalize_creature_random_movement_type_like_cpp(self.random_movement_type);
         if self.required_expansion >= MAX_EXPANSIONS_LIKE_CPP {
             self.required_expansion = 0;
         }
@@ -1351,6 +1364,7 @@ mod tests {
             ground_movement_type: CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: CreatureFlightMovementType::None as u8,
+            random_movement_type: CreatureRandomMovementType::Walk as u8,
             flags_extra: 0,
             string_id: String::new(),
             regen_health: true,
@@ -1397,6 +1411,7 @@ mod tests {
                 ground_movement_type: CreatureGroundMovementType::Hover as u8,
                 swim_allowed: false,
                 flight_movement_type: CreatureFlightMovementType::CanFly as u8,
+                random_movement_type: CreatureRandomMovementType::AlwaysRun as u8,
                 flags_extra: 0x20,
                 string_id: "template_string".to_string(),
                 regen_health: true,
@@ -1436,6 +1451,10 @@ mod tests {
         assert_eq!(
             template.flight_movement_type,
             CreatureFlightMovementType::CanFly as u8
+        );
+        assert_eq!(
+            template.random_movement_type,
+            CreatureRandomMovementType::AlwaysRun as u8
         );
         assert_eq!(template.flags_extra, 0x20);
         assert_eq!(template.string_id, "template_string");
@@ -1495,6 +1514,7 @@ mod tests {
             ground_movement_type: 0,
             swim_allowed: true,
             flight_movement_type: CREATURE_FLIGHT_MOVEMENT_TYPE_MAX_LIKE_CPP,
+            random_movement_type: CreatureRandomMovementType::Walk as u8,
             flags_extra: 0,
             string_id: String::new(),
             regen_health: true,
@@ -1508,6 +1528,19 @@ mod tests {
             CreatureFlightMovementType::None as u8
         );
         assert_eq!(invalid.required_expansion, 0);
+    }
+
+    #[test]
+    fn creature_template_lifecycle_normalizes_invalid_random_like_cpp() {
+        let mut invalid = creature_template_lifecycle_record_for_test(44);
+        invalid.random_movement_type = CREATURE_RANDOM_MOVEMENT_TYPE_MAX_LIKE_CPP;
+
+        invalid = invalid.normalize_like_cpp();
+
+        assert_eq!(
+            invalid.random_movement_type,
+            CreatureRandomMovementType::Walk as u8
+        );
     }
 
     #[test]
@@ -1537,6 +1570,7 @@ mod tests {
             ground_movement_type: CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: CreatureFlightMovementType::None as u8,
+            random_movement_type: CreatureRandomMovementType::Walk as u8,
             flags_extra: 0,
             string_id: String::new(),
             regen_health: true,
@@ -1584,6 +1618,7 @@ mod tests {
             ground_movement_type: CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
+            random_movement_type: CreatureRandomMovementType::Walk as u8,
             flags_extra: 0,
             string_id: String::new(),
             regen_health: false,
@@ -1627,6 +1662,7 @@ mod tests {
             ground_movement_type: CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
+            random_movement_type: CreatureRandomMovementType::Walk as u8,
             flags_extra: 0,
             string_id: String::new(),
             regen_health: false,
@@ -1689,6 +1725,7 @@ mod tests {
             ground_movement_type: CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
+            random_movement_type: CreatureRandomMovementType::Walk as u8,
             flags_extra: 0,
             string_id: String::new(),
             regen_health: false,

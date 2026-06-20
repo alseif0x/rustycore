@@ -76,6 +76,7 @@ pub struct ResolvedCreatureTemplateLikeCpp {
     pub ground_movement_type: u8,
     pub swim_allowed: bool,
     pub flight_movement_type: u8,
+    pub random_movement_type: u8,
     pub min_level: u8,
     pub max_level: u8,
     pub equipment_id: u8,
@@ -401,6 +402,7 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
         ground_movement_type: runtime_row.ground_movement_type,
         swim_allowed: runtime_row.swim_allowed,
         flight_movement_type: runtime_row.flight_movement_type,
+        random_movement_type: runtime_row.random_movement_type,
         min_level: difficulty.min_level,
         max_level: difficulty.max_level,
         equipment_id,
@@ -554,6 +556,7 @@ fn template_lifecycle_record(
         ground_movement_type: template.ground_movement_type,
         swim_allowed: template.swim_allowed,
         flight_movement_type: template.flight_movement_type,
+        random_movement_type: template.random_movement_type,
         min_level: template.min_level,
         max_level: template.max_level,
         equipment_id: template.equipment_id,
@@ -639,6 +642,7 @@ mod tests {
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
+            random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
             min_level: 18,
             max_level: 20,
             equipment_id: 3,
@@ -807,6 +811,7 @@ mod tests {
                 ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
                 swim_allowed: true,
                 flight_movement_type: 0,
+                random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
                 flags_extra: 0x40,
                 string_id: "template-string".to_string(),
                 regen_health,
@@ -901,6 +906,7 @@ mod tests {
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: wow_constants::CreatureFlightMovementType::CanFly as u8,
+            random_movement_type: wow_constants::CreatureRandomMovementType::AlwaysRun as u8,
             string_id: "runtime-string".to_string(),
             spawn_time_secs: 300,
         };
@@ -957,6 +963,10 @@ mod tests {
             template.flight_movement_type,
             wow_constants::CreatureFlightMovementType::CanFly as u8
         );
+        assert_eq!(
+            template.random_movement_type,
+            wow_constants::CreatureRandomMovementType::AlwaysRun as u8
+        );
         assert_eq!(template.equipment_id, 0);
         assert_eq!(template.original_equipment_id, -7);
         assert_eq!(resolved_spawn.spawn_id, 70);
@@ -1004,6 +1014,7 @@ mod tests {
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
+            random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
             string_id: String::new(),
             spawn_time_secs: 20,
         };
@@ -1110,6 +1121,7 @@ mod tests {
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
+            random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
             string_id: String::new(),
             spawn_time_secs: 20,
         };
@@ -1163,6 +1175,7 @@ mod tests {
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
+            random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
             string_id: String::new(),
             spawn_time_secs: 20,
         };
@@ -1223,6 +1236,7 @@ mod tests {
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
+            random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
             string_id: String::new(),
             spawn_time_secs: 10,
         };
@@ -1292,6 +1306,7 @@ mod tests {
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
+            random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
             string_id: String::new(),
             spawn_time_secs: 20,
         };
@@ -1351,6 +1366,7 @@ mod tests {
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
+            random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
             string_id: String::new(),
             spawn_time_secs: 20,
         };
@@ -1410,6 +1426,7 @@ mod tests {
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
+            random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
             string_id: String::new(),
             spawn_time_secs: 20,
         };
@@ -1482,6 +1499,7 @@ mod tests {
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
+            random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
             string_id: String::new(),
             spawn_time_secs: 20,
         };
