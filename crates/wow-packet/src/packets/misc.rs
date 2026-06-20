@@ -4639,7 +4639,7 @@ impl ServerPacket for HotfixConnect {
 /// **Critical**: Without this packet the client's `m_mover` pointer is null.
 /// Any camera/movement processing will dereference null → ACCESS_VIOLATION.
 ///
-/// C# format: just a single PackedGuid.
+/// C++ format: just a single full `ObjectGuid`.
 pub struct MoveSetActiveMover {
     pub mover_guid: ObjectGuid,
 }
@@ -4648,7 +4648,7 @@ impl ServerPacket for MoveSetActiveMover {
     const OPCODE: ServerOpcodes = ServerOpcodes::MoveSetActiveMover;
 
     fn write(&self, pkt: &mut WorldPacket) {
-        pkt.write_packed_guid(&self.mover_guid);
+        pkt.write_guid(&self.mover_guid);
     }
 }
 
@@ -11487,8 +11487,16 @@ mod tests {
         let bytes = pkt.to_bytes();
         let opcode = u16::from_le_bytes([bytes[0], bytes[1]]);
         assert_eq!(opcode, 0x2dd5);
-        // After opcode: packed guid (variable length, but > 0)
-        assert!(bytes.len() > 2);
+        // C++ writes `ObjectGuid` directly: low i64 followed by high i64.
+        assert_eq!(bytes.len(), 18);
+        assert_eq!(
+            i64::from_le_bytes(bytes[2..10].try_into().unwrap()),
+            guid.low_value()
+        );
+        assert_eq!(
+            i64::from_le_bytes(bytes[10..18].try_into().unwrap()),
+            guid.high_value()
+        );
     }
 
     #[test]
