@@ -1,3 +1,21 @@
+- `#NEXT.R8.ENTITIES.1185` — represented `AutoUnequipOffhandIfNeed` now emits
+  the current-session represented item-bonus stat VALUES delta when C++
+  `RemoveItem(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_OFFHAND, true)` removes
+  non-broken offhand item mods. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:24596-24629`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11559-11587`,
+  and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:7660-7690`.
+  Rust now reuses the represented `_ApplyItemMods(..., false)` path for the
+  offhand removal, emits an extra player stat `UpdateObject` only when that
+  path produced represented item-bonus actions, and still skips broken items
+  like C++. Coverage: `cargo fmt --all --check`, `cargo test -p wow-world
+  remove_known_spell_auto_unequip --lib`, `cargo test -p wow-world
+  auto_unequip_offhand --lib`. Boundary remains partial: current-session
+  represented packet only; exact C++ batching, authoritative Player/UnitMods
+  mutation, DB persistence, multi-session fanout, bot/live/manual validation,
+  and full nested container equip parity remain open.
+
 - `#NEXT.R8.ENTITIES.1184` — represented `UseEquipmentSet` now feeds the same
   direct equipment-move item-mod snapshot as `AutoEquipItemSlot` / `SwapInvItem`.
   Source of truth:

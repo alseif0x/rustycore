@@ -30411,7 +30411,8 @@ impl WorldSession {
         self.remove_represented_offhand_duration_refs_like_cpp(offhand_item.guid);
         self.clear_represented_offhand_equipped_flag_like_cpp(offhand_item.guid);
         self.remove_represented_offhand_tradeable_item_like_cpp(offhand_item.guid);
-        self.record_represented_offhand_item_mod_remove_like_cpp(offhand_item.guid);
+        let item_mods_changed =
+            self.record_represented_offhand_item_mod_remove_like_cpp(offhand_item.guid);
         self.record_represented_offhand_combat_stat_recalculations_like_cpp();
 
         let mut stored_destination = None;
@@ -30440,6 +30441,9 @@ impl WorldSession {
                 if bag != INVENTORY_SLOT_BAG_0 {
                     self.send_bag_slot_values_update_like_cpp(bag, slot);
                 }
+                if item_mods_changed {
+                    self.send_represented_item_bonus_player_stat_update_like_cpp();
+                }
                 stored_destination = Some((bag, slot));
                 needs_mail_fallback = false;
             }
@@ -30454,6 +30458,9 @@ impl WorldSession {
                 item.set_slot(NULL_SLOT);
             });
             self.send_item_contained_in_values_update_like_cpp(offhand_item.guid);
+            if item_mods_changed {
+                self.send_represented_item_bonus_player_stat_update_like_cpp();
+            }
         }
 
         self.record_represented_titan_grip_penalty_action_like_cpp();
@@ -30518,22 +30525,21 @@ impl WorldSession {
         });
     }
 
-    fn record_represented_offhand_item_mod_remove_like_cpp(&mut self, item_guid: ObjectGuid) {
+    fn record_represented_offhand_item_mod_remove_like_cpp(
+        &mut self,
+        item_guid: ObjectGuid,
+    ) -> bool {
         if self
             .inventory_item_objects_like_cpp()
             .get(&item_guid)
             .is_some_and(|item| item.is_broken())
         {
-            return;
+            return false;
         }
 
-        self.represented_item_mod_reapply_events_like_cpp.push(
-            RepresentedItemModsReapplyEventLikeCpp {
-                item_guid,
-                slot: EQUIPMENT_SLOT_OFFHAND,
-                apply: false,
-            },
-        );
+        let action_start = self.represented_item_bonus_actions_like_cpp.len();
+        self.record_represented_item_mods_like_cpp(item_guid, EQUIPMENT_SLOT_OFFHAND, false);
+        self.represented_item_bonus_actions_like_cpp.len() != action_start
     }
 
     fn record_represented_offhand_combat_stat_recalculations_like_cpp(&mut self) {
@@ -52075,6 +52081,40 @@ mod tests {
                 ),
             ],
         );
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_stats_sparse_and_random_property_templates(
+                [(
+                    offhand_item_id,
+                    ItemStatEntry {
+                        stats: [
+                            (ItemModType::Strength as i8, 7),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                            (-1, 0),
+                        ],
+                        resistances: [0; 7],
+                        armor: 0,
+                    },
+                )],
+                [
+                    (
+                        mainhand_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Weapon2Hand, 0),
+                    ),
+                    (
+                        offhand_item_id,
+                        sparse_template_for_inventory_type_like_cpp(InventoryType::Shield, 0),
+                    ),
+                ],
+                [],
+            ),
+        ));
         equip_represented_test_item_like_cpp(
             &mut session,
             EQUIPMENT_SLOT_MAINHAND,
@@ -52204,8 +52244,12 @@ mod tests {
         assert_eq!(runtime_item.slot(), INVENTORY_SLOT_ITEM_START);
         assert_eq!(
             drain_server_opcodes(&send_rx),
-            vec![ServerOpcodes::UpdateObject, ServerOpcodes::UpdateObject],
-            "C++ RemoveItem(update=true) + StoreItem(update=true) send player and item values updates after offhand auto-store"
+            vec![
+                ServerOpcodes::UpdateObject,
+                ServerOpcodes::UpdateObject,
+                ServerOpcodes::UpdateObject
+            ],
+            "C++ RemoveItem(update=true) + StoreItem(update=true) send player/item values updates; the represented item-mod stat delta is emitted after the offhand leaves equipment"
         );
     }
 
