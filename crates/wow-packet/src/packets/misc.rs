@@ -4639,7 +4639,8 @@ impl ServerPacket for HotfixConnect {
 /// **Critical**: Without this packet the client's `m_mover` pointer is null.
 /// Any camera/movement processing will dereference null → ACCESS_VIOLATION.
 ///
-/// C++ format: just a single full `ObjectGuid`.
+/// C++ format: `ObjectGuid` through `operator<<`, which is the packed
+/// low/high-mask GUID layout in TrinityCore 3.4.3.
 pub struct MoveSetActiveMover {
     pub mover_guid: ObjectGuid,
 }
@@ -4648,7 +4649,7 @@ impl ServerPacket for MoveSetActiveMover {
     const OPCODE: ServerOpcodes = ServerOpcodes::MoveSetActiveMover;
 
     fn write(&self, pkt: &mut WorldPacket) {
-        pkt.write_guid(&self.mover_guid);
+        pkt.write_packed_guid(&self.mover_guid);
     }
 }
 
@@ -11500,16 +11501,11 @@ mod tests {
         let bytes = pkt.to_bytes();
         let opcode = u16::from_le_bytes([bytes[0], bytes[1]]);
         assert_eq!(opcode, 0x2dd5);
-        // C++ writes `ObjectGuid` directly: low i64 followed by high i64.
-        assert_eq!(bytes.len(), 18);
-        assert_eq!(
-            i64::from_le_bytes(bytes[2..10].try_into().unwrap()),
-            guid.low_value()
-        );
-        assert_eq!(
-            i64::from_le_bytes(bytes[10..18].try_into().unwrap()),
-            guid.high_value()
-        );
+        // C++ writes `ObjectGuid` directly through operator<<, which is the
+        // packed ObjectGuid layout: low/high masks followed by non-zero bytes.
+        let mut body = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(body.read_packed_guid().unwrap(), guid);
+        assert_eq!(body.remaining(), 0);
     }
 
     #[test]

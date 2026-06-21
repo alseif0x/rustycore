@@ -232,7 +232,7 @@ impl WorldPacket {
         Ok(self.read_uint64()? as i64)
     }
 
-    /// Read TrinityCore's full 128-bit ObjectGuid (`operator>> ObjectGuid`).
+    /// Read TrinityCore's full 128-bit ObjectGuid in fixed raw layout.
     pub fn read_guid(&mut self) -> Result<ObjectGuid, PacketError> {
         let low = self.read_int64()?;
         let high = self.read_int64()?;
@@ -322,7 +322,7 @@ impl WorldPacket {
         self.write_uint64(v as u64);
     }
 
-    /// Write TrinityCore's full 128-bit ObjectGuid (`operator<< ObjectGuid`).
+    /// Write a full 128-bit ObjectGuid in fixed raw layout.
     pub fn write_guid(&mut self, guid: &ObjectGuid) {
         self.write_int64(guid.low_value());
         self.write_int64(guid.high_value());
