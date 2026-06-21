@@ -1051,6 +1051,10 @@ impl Creature {
             .set_speed_rate_like_cpp(UnitMoveType::Run, template.speed_run);
         self.unit.set_speed_rate_like_cpp(UnitMoveType::Swim, 1.0);
         self.unit.set_speed_rate_like_cpp(UnitMoveType::Flight, 1.0);
+        self.unit.set_can_dual_wield_like_cpp(
+            CreatureFlagsExtra::from_bits_truncate(template.flags_extra)
+                .contains(CreatureFlagsExtra::USE_OFFHAND_ATTACK),
+        );
         self.spells = template.spells;
         self.equipment_id = equipment_id;
         self.original_equipment_id = original_equipment_id;
@@ -4288,7 +4292,8 @@ mod tests {
             unit_flags: UnitFlags::IMMUNE_TO_NPC.bits(),
             unit_flags2: UnitFlags2::FEIGN_DEATH.bits(),
             unit_flags3: UnitFlags3::AI_OBSTACLE.bits(),
-            flags_extra: 0x10,
+            flags_extra: CreatureFlagsExtra::CIVILIAN.bits()
+                | CreatureFlagsExtra::USE_OFFHAND_ATTACK.bits(),
             static_flags: [0; 8],
             creature_type: 9,
             type_flags: 0x20,
@@ -4443,6 +4448,7 @@ mod tests {
         assert_eq!(creature.unit().data().mod_ranged_haste, 1.0);
         assert_eq!(creature.unit().data().mod_haste_regen, 1.0);
         assert_eq!(creature.unit().data().mod_time_rate, 1.0);
+        assert!(creature.unit().can_dual_wield_like_cpp());
         assert_eq!(creature.spells()[0], 133);
         assert_eq!(creature.spells()[3], 116);
         assert_eq!(
