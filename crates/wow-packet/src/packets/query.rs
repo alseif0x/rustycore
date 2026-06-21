@@ -13,7 +13,7 @@ use crate::{ClientPacket, ServerPacket, WorldPacket};
 
 // ── Constants ────────────────────────────────────────────────────────
 
-/// Maximum creature name slots (matches C# SharedConst.MaxCreatureNames).
+/// C++ `MAX_CREATURE_NAMES` (`Entities/Creature/CreatureData.h:442`).
 const MAX_CREATURE_NAMES: usize = 4;
 
 /// Maximum creature kill credit slots.
@@ -272,7 +272,8 @@ impl ServerPacket for QueryCreatureResponse {
         pkt.write_bit(stats.civilian);
         pkt.write_bit(stats.leader);
 
-        // C# interleaves Name[i] and NameAlt[i] lengths in one loop
+        // C++ `QueryCreatureResponse::Write` interleaves Name[i] and NameAlt[i]
+        // lengths in one loop (`Server/Packets/QueryPackets.cpp:83-87`).
         for i in 0..MAX_CREATURE_NAMES {
             let name_len = stats.names[i].len() as u32 + 1;
             let alt_len = stats.name_alts[i].len() as u32 + 1;
@@ -282,7 +283,8 @@ impl ServerPacket for QueryCreatureResponse {
         pkt.flush_bits();
 
         // ── Name strings (BEFORE integer fields!) ────────────────
-        // C# writes names interleaved: Name[0], NameAlt[0], Name[1], NameAlt[1], ...
+        // C++ writes names interleaved: Name[0], NameAlt[0], Name[1], NameAlt[1], ...
+        // (`Server/Packets/QueryPackets.cpp:91-98`).
         for i in 0..MAX_CREATURE_NAMES {
             if !stats.names[i].is_empty() {
                 pkt.write_cstring(&stats.names[i]);

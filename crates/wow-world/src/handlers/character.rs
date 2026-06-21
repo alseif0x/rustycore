@@ -7735,7 +7735,9 @@ impl WorldSession {
             selected
         };
 
-        // Resolve BroadcastTextID from npc_text (C# uses BroadcastTextID, NOT TextID)
+        // Resolve BroadcastTextID from npc_text; C++ `GossipMessage::Write`
+        // carries optional TextID and BroadcastTextID separately
+        // (`Server/Packets/NPCPackets.cpp:106-130`).
         let broadcast_text_id: Option<i32> = {
             let mut stmt = world_db.prepare(WorldStatements::SEL_NPC_TEXT);
             stmt.set_u32(0, npc_text_id);
@@ -8010,7 +8012,8 @@ impl WorldSession {
     // ── NPC activation handlers ───────────────────────────────────────────────
 
     /// CMSG_AUCTION_HELLO_REQUEST — player talks to an auctioneer.
-    /// C# ref: AuctionHandler.HandleAuctionHello → SendAuctionHello
+    /// C++ refs: `HandleAuctionHelloOpcode` / `SendAuctionHello`
+    /// (`Handlers/AuctionHouseHandler.cpp:192-205,995-1007`).
     pub async fn handle_auction_hello_request(&mut self, mut pkt: wow_packet::WorldPacket) {
         use wow_packet::packets::misc::AuctionHelloResponse;
         let guid = pkt
@@ -8024,7 +8027,8 @@ impl WorldSession {
     }
 
     /// CMSG_BANKER_ACTIVATE — player talks to a banker.
-    /// C# ref: BankHandler.HandleBankerActivate → SendShowBank → NpcInteractionOpenResult(Banker=8)
+    /// C++ ref: `HandleBankerActivateOpcode`
+    /// (`Handlers/BankHandler.cpp:60-65`) opens banker interaction UI.
     pub async fn handle_banker_activate(&mut self, hello: Hello) {
         use wow_packet::packets::misc::NpcInteractionOpenResult;
         info!(
@@ -8196,7 +8200,8 @@ impl WorldSession {
     }
 
     /// CMSG_BINDER_ACTIVATE — player sets hearthstone at innkeeper.
-    /// C# ref: NPCHandler.HandleBinderActivate → SendBindPoint → NpcInteractionOpenResult(Binder=20)
+    /// C++ ref: `HandleBinderActivateOpcode`
+    /// (`Handlers/NPCHandler.cpp:373-381`).
     pub async fn handle_binder_activate(&mut self, hello: Hello) {
         use wow_packet::packets::misc::NpcInteractionOpenResult;
         info!(
@@ -8208,7 +8213,8 @@ impl WorldSession {
     }
 
     /// CMSG_TABARD_VENDOR_ACTIVATE — player talks to a tabard designer.
-    /// C# ref: NPCHandler.HandleTabardVendorActivate → NpcInteractionOpenResult(GuildTabardVendor=14)
+    /// C++ refs: `HandleTabardVendorActivateOpcode` /
+    /// `SendTabardVendorActivate` (`Handlers/NPCHandler.cpp:49-91`).
     pub async fn handle_tabard_vendor_activate(&mut self, mut pkt: wow_packet::WorldPacket) {
         use wow_packet::packets::misc::NpcInteractionOpenResult;
         let guid = pkt
@@ -8616,9 +8622,9 @@ impl WorldSession {
                     .unwrap_or(false);
 
                 // Solo enviar items con ID válido; 0 o negativo el cliente lo muestra como ? y nombre vacío
-                // Además filtrar items que no existen en Item.db2 — igual que C#:
-                //   ObjectManager::GetItemTemplate → null si no está en ItemStorage (Item.db2)
-                //   → "non-existed item, ignore"
+                // Ademas filtrar items que no existen en Item.db2, matching
+                // C++ `SendListInventory` item-template validation
+                // (`Handlers/ItemHandler.cpp:617-626`).
                 // Items 58260, 58274, etc. no están en Item.db2 de este cliente → se omiten.
                 if item_id > 0 {
                     let muid = raw_slot.saturating_add(1);
@@ -8988,7 +8994,8 @@ impl WorldSession {
 
     /// Handle CMSG_BUY_ITEM — player buys an item from a vendor.
     ///
-    /// C# ref: `ItemHandler.HandleBuyItem` → `Player.BuyItemFromVendorSlot`.
+    /// C++ refs: `HandleBuyItemOpcode` (`Handlers/ItemHandler.cpp:530-564`)
+    /// delegates to `Player::BuyItemFromVendorSlot` (`Player.cpp:22362+`).
     /// Simplified: no reputation discount, no extended cost, no stack logic.
     pub async fn handle_buy_item(&mut self, buy: BuyItem) {
         use wow_packet::packets::update::{ItemCreateData, UpdateObject};
@@ -9912,7 +9919,7 @@ impl WorldSession {
 
     /// Handle CMSG_SELL_ITEM — player sells an item to a vendor.
     ///
-    /// C# ref: `ItemHandler.HandleSellItem` → `Player.SellItemToVendor`.
+    /// C++ ref: `HandleSellItemOpcode` (`Handlers/ItemHandler.cpp:365+`).
     pub async fn handle_sell_item(&mut self, sell: SellItem) {
         use wow_packet::packets::update::UpdateObject;
 
