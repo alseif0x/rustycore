@@ -386,6 +386,12 @@ fn unit_data_update_to_packet(update: &UnitDataUpdate) -> UnitDataValuesDeltaUpd
     packet_update.pvp_flags = update.values.pvp_flags;
     packet_update.pet_flags = update.values.pet_flags;
     packet_update.shapeshift_form = update.values.shapeshift_form;
+    packet_update.mod_casting_speed = update.values.mod_casting_speed;
+    packet_update.mod_spell_haste = update.values.mod_spell_haste;
+    packet_update.mod_haste = update.values.mod_haste;
+    packet_update.mod_ranged_haste = update.values.mod_ranged_haste;
+    packet_update.mod_haste_regen = update.values.mod_haste_regen;
+    packet_update.mod_time_rate = update.values.mod_time_rate;
     packet_update.wild_battle_pet_level = update.values.wild_battle_pet_level;
     packet_update.power = update.values.power;
     packet_update.max_power = update.values.max_power;

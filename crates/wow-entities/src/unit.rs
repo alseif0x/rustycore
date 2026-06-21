@@ -60,6 +60,12 @@ pub const UNIT_DATA_PLAYER_CLASS_ID_BIT: usize = 26;
 pub const UNIT_DATA_SEX_BIT: usize = 27;
 pub const UNIT_DATA_NPC_FLAGS_PARENT_BIT: usize = 113;
 pub const UNIT_DATA_NPC_FLAGS_FIRST_BIT: usize = 114;
+pub const UNIT_DATA_MOD_CASTING_SPEED_BIT: usize = 65;
+pub const UNIT_DATA_MOD_SPELL_HASTE_BIT: usize = 66;
+pub const UNIT_DATA_MOD_HASTE_BIT: usize = 67;
+pub const UNIT_DATA_MOD_RANGED_HASTE_BIT: usize = 68;
+pub const UNIT_DATA_MOD_HASTE_REGEN_BIT: usize = 69;
+pub const UNIT_DATA_MOD_TIME_RATE_BIT: usize = 70;
 pub const UNIT_DATA_POWER_PARENT_BIT: usize = 116;
 pub const UNIT_DATA_POWER_FIRST_BIT: usize = 137;
 pub const UNIT_DATA_MAX_POWER_FIRST_BIT: usize = 147;
@@ -99,6 +105,12 @@ pub struct UnitDataValues {
     pub pvp_flags: u8,
     pub pet_flags: u8,
     pub shapeshift_form: u8,
+    pub mod_casting_speed: f32,
+    pub mod_spell_haste: f32,
+    pub mod_haste: f32,
+    pub mod_ranged_haste: f32,
+    pub mod_haste_regen: f32,
+    pub mod_time_rate: f32,
     pub wild_battle_pet_level: i32,
     pub npc_flags: [u32; 2],
     pub power: [i32; MAX_POWERS_PER_CLASS],
@@ -136,6 +148,12 @@ impl Default for UnitDataValues {
             pvp_flags: 0,
             pet_flags: 0,
             shapeshift_form: ShapeShiftForm::None as u8,
+            mod_casting_speed: 1.0,
+            mod_spell_haste: 1.0,
+            mod_haste: 1.0,
+            mod_ranged_haste: 1.0,
+            mod_haste_regen: 1.0,
+            mod_time_rate: 1.0,
             wild_battle_pet_level: 0,
             npc_flags: [0; 2],
             power: [0; MAX_POWERS_PER_CLASS],
@@ -1483,6 +1501,40 @@ impl Unit {
         if slot < MAX_MOVE_TYPE {
             self.speed_rate[slot] = rate.max(0.0);
         }
+    }
+
+    pub fn set_mod_casting_speed_like_cpp(&mut self, casting_speed: f32) {
+        self.set_f32_field(UNIT_DATA_MOD_CASTING_SPEED_BIT, casting_speed, |data| {
+            &mut data.mod_casting_speed
+        });
+    }
+
+    pub fn set_mod_spell_haste_like_cpp(&mut self, spell_haste: f32) {
+        self.set_f32_field(UNIT_DATA_MOD_SPELL_HASTE_BIT, spell_haste, |data| {
+            &mut data.mod_spell_haste
+        });
+    }
+
+    pub fn set_mod_haste_like_cpp(&mut self, haste: f32) {
+        self.set_f32_field(UNIT_DATA_MOD_HASTE_BIT, haste, |data| &mut data.mod_haste);
+    }
+
+    pub fn set_mod_ranged_haste_like_cpp(&mut self, ranged_haste: f32) {
+        self.set_f32_field(UNIT_DATA_MOD_RANGED_HASTE_BIT, ranged_haste, |data| {
+            &mut data.mod_ranged_haste
+        });
+    }
+
+    pub fn set_mod_haste_regen_like_cpp(&mut self, haste_regen: f32) {
+        self.set_f32_field(UNIT_DATA_MOD_HASTE_REGEN_BIT, haste_regen, |data| {
+            &mut data.mod_haste_regen
+        });
+    }
+
+    pub fn set_mod_time_rate_like_cpp(&mut self, time_rate: f32) {
+        self.set_f32_field(UNIT_DATA_MOD_TIME_RATE_BIT, time_rate, |data| {
+            &mut data.mod_time_rate
+        });
     }
 
     pub fn unit_data_changes_mask(&self) -> &UpdateMask {
