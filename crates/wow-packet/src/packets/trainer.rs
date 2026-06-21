@@ -7,8 +7,8 @@
 //! SMSG_TRAINER_BUY_FAILED, SMSG_LEARNED_SPELLS, SMSG_SUPERCEDED_SPELLS,
 //! SMSG_UNLEARNED_SPELLS.
 //!
-//! C# reference: Game/Networking/Packets/NPCPackets.cs, SpellPackets.cs
-//! Handler ref:  Game/Handlers/NPCHandler.cs
+//! C++ refs: `WorldPackets::NPC::TrainerList`, `TrainerBuySpell`, and
+//! `TrainerBuyFailed` (`Server/Packets/NPCPackets.cpp:163-252`).
 
 use wow_constants::{ClientOpcodes, ServerOpcodes};
 use wow_core::ObjectGuid;
@@ -73,7 +73,8 @@ pub struct TrainerListSpell {
 
 /// SMSG_TRAINER_LIST — full trainer spell list response.
 ///
-/// C# write order:
+/// C++ `WorldPackets::NPC::TrainerList::Write` order
+/// (`Server/Packets/NPCPackets.cpp:163-187`):
 /// ```text
 /// WritePackedGuid(TrainerGUID)
 /// WriteInt32(TrainerType)
@@ -151,7 +152,11 @@ pub struct LearnedSpellEntry {
 
 /// SMSG_LEARNED_SPELLS — sent after a player learns one or more spells.
 ///
-/// C# write order (SpellPackets.cs LearnedSpells):
+/// TODO(CREATURE-P1): this packet is trainer-adjacent but not yet contrasted
+/// against C++ spell packet code. Do not treat this historical order as
+/// canonical for Creature closure until it has exact C++ refs.
+///
+/// Historical write order:
 /// ```text
 /// WriteInt32(ClientLearnedSpellData.Count)
 /// WriteUInt32(SpecializationID)

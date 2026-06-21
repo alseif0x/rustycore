@@ -19,7 +19,9 @@
 //!   3. Deduct gold, persist to DB, insert character_spell, update known_spells.
 //!   4. Send SMSG_LEARNED_SPELLS (success) or SMSG_TRAINER_BUY_FAILED (error).
 //!
-//! C# reference: Game/Handlers/NPCHandler.cs, Game/Entities/Creature/Trainer.cs
+//! C++ refs: `WorldSession::HandleTrainerListOpcode` / `SendTrainerList`
+//! (`Handlers/NPCHandler.cpp:98-132`) and `Trainer::SendSpells` /
+//! `Trainer::TeachSpell` (`Entities/Creature/Trainer.cpp:41-231`).
 
 use std::sync::Arc;
 

@@ -6,10 +6,9 @@
 //! UpdateObject packet — used to create, update, and destroy game objects
 //! in the client's view.
 //!
-//! C++ is the canonical reference for this wire format. Some field layouts
-//! were originally ported from the legacy C# server, but any touched live
-//! layout must be verified against canonical C++ before it is treated as
-//! correct.
+//! C++ is the canonical reference for this wire format. Creature-facing create
+//! and update layouts must be verified against `Object.cpp`, `MovementPackets.*`,
+//! and `Object/Updates/UpdateFields.cpp` before closure.
 
 use std::collections::BTreeSet;
 
@@ -6374,14 +6373,15 @@ fn write_full_active_player_values_update_block(
 
 /// UnitData VALUES update: VirtualItems[3] and/or stat fields.
 ///
-/// C# UnitData.WriteUpdate format:
+/// C++ `UF::UnitData::WriteUpdate` format
+/// (`Entities/Object/Updates/UpdateFields.cpp:852-900`):
 ///   WriteBits(blocksMask, 8) — which of 8 blocks have changes
 ///   for each active block: WriteBits(block, 32)
 ///   [dynamic arrays if block 0 active]
 ///   FlushBits()
-///   [field values in C# field definition order]
+///   [field values in generated C++ update-field definition order]
 ///
-/// Field write order (C# UnitData.WriteUpdate):
+/// Field write order (C++ `UnitData::WriteUpdate`):
 ///   Block 0: Health(5), MaxHealth(6)
 ///   Block 1: MinDamage(52→20), MaxDamage(53→21)
 ///   Block 2: BaseMana(75→11), BaseHealth(76→12), AttackPower(81→17),
@@ -6444,11 +6444,11 @@ fn write_unit_data_values_update(
         }
     }
 
-    // Dynamic arrays: block 0 bit 0 set → C# enters dynamic array check,
-    // but bits 1-4 are NOT set, so nothing to write.
+    // Dynamic arrays: block 0 bit 0 set enters the generated C++ dynamic-array
+    // check, but bits 1-4 are NOT set, so nothing is written.
     buf.flush_bits();
 
-    // ── Field values in C# definition order ──
+    // ── Field values in generated C++ definition order ──
     // Blocks 0-4: only stat fields
     if let Some(sc) = stat_changes {
         // Block 0: Health, MaxHealth
@@ -6469,7 +6469,8 @@ fn write_unit_data_values_update(
         buf.write_float(sc.max_ranged_damage);
 
         // Blocks 3-4: Power interleaved loop (index 0)
-        // C# writes PowerRegenFlat, PowerRegenInterrupted, Power, MaxPower, ModPowerRegen
+        // C++ writes PowerRegenFlat, PowerRegenInterrupted, Power, MaxPower,
+        // ModPowerRegen in generated update-field order.
         buf.write_float(sc.mana_regen); // PowerRegenFlatModifier[0]
         buf.write_float(sc.mana_regen_combat); // PowerRegenInterruptedFlatModifier[0]
         buf.write_int32(sc.power0); // Power[0]
@@ -6490,8 +6491,8 @@ fn write_unit_data_values_update(
         }
     }
 
-    // Stats/StatPosBuff/StatNegBuff INTERLEAVED per index (C# lines 1728-1744),
-    // then Resistances — after VirtualItems in block 5
+    // Stats/StatPosBuff/StatNegBuff are interleaved per index in generated C++
+    // update-field order, then Resistances after VirtualItems in block 5.
     if let Some(sc) = stat_changes {
         for i in 0..5 {
             buf.write_int32(sc.stats[i]); // Stats[i]

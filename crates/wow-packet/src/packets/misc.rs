@@ -5265,10 +5265,11 @@ impl ServerPacket for PhaseShiftChange {
 
 // ── Vendor packets ───────────────────────────────────────────────────────────
 //
-// C# ref: NpcPackets.cs — VendorInventory, BuyItem, BuySucceeded, BuyFailed, SellItem
+// C++ refs: `WorldPackets::NPC::VendorInventory` (`Server/Packets/NPCPackets.cpp:152-160`)
+// and item vendor packets (`Server/Packets/ItemPackets.cpp:26-52,130-135`).
 
 /// One item in the vendor's inventory list.
-/// C#: VendorItemPkt
+/// C++ `WorldPackets::NPC::VendorItem` (`Server/Packets/NPCPackets.cpp:132-150`).
 #[derive(Debug, Clone)]
 pub struct VendorItem {
     pub muid: i32, // slot/muid index
@@ -5286,7 +5287,7 @@ pub struct VendorItem {
 }
 
 /// SMSG_VENDOR_INVENTORY — list of items a vendor is selling.
-/// C#: VendorInventory
+/// C++ `WorldPackets::NPC::VendorInventory::Write`.
 pub struct VendorInventory {
     pub vendor_guid: ObjectGuid,
     pub reason: u8, // 0 = ok, non-0 = error (no items etc)
@@ -5333,7 +5334,7 @@ impl ServerPacket for VendorInventory {
 }
 
 /// CMSG_BUY_ITEM — client wants to buy an item from a vendor.
-/// C#: BuyItem
+/// C++ `WorldPackets::Item::BuyItem::Read`.
 #[derive(Debug)]
 pub struct BuyItem {
     pub vendor_guid: ObjectGuid,
@@ -5405,7 +5406,7 @@ impl ClientPacket for BuyBackItem {
 }
 
 /// SMSG_BUY_SUCCEEDED — item bought successfully.
-/// C#: BuySucceeded
+/// C++ `WorldPackets::Item::BuySucceeded::Write`.
 pub struct BuySucceeded {
     pub vendor_guid: ObjectGuid,
     pub muid: i32,
@@ -5425,7 +5426,7 @@ impl ServerPacket for BuySucceeded {
 }
 
 /// SMSG_BUY_FAILED — buy failed with reason code.
-/// C#: BuyFailed
+/// C++ `WorldPackets::Item::BuyFailed::Write`.
 pub struct BuyFailed {
     pub vendor_guid: ObjectGuid,
     pub muid: i32,
@@ -5443,7 +5444,7 @@ impl ServerPacket for BuyFailed {
 }
 
 /// CMSG_SELL_ITEM — client wants to sell an item to a vendor.
-/// C#: SellItem
+/// C++ `WorldPackets::Item::SellItem::Read`.
 #[derive(Debug)]
 pub struct SellItem {
     pub vendor_guid: ObjectGuid,
@@ -5737,7 +5738,8 @@ impl ClientPacket for RequestStabledPets {
 }
 
 /// SMSG_SELL_RESPONSE — result of a sell operation.
-/// C#: SellResponse
+/// C++ `WorldPackets::Item::SellResponse::Write`
+/// (`Server/Packets/ItemPackets.cpp:238-247`).
 pub struct SellResponse {
     pub vendor_guid: ObjectGuid,
     pub item_guids: Vec<ObjectGuid>,
@@ -5898,7 +5900,8 @@ impl ServerPacket for AuctionHelloResponse {
 // ── NpcInteractionOpenResult ──────────────────────────────────────────────────
 
 /// SMSG_NPC_INTERACTION_OPEN_RESULT — opens an NPC interaction UI on client.
-/// C# ref: NPCPackets.NPCInteractionOpenResult
+/// C++ `WorldPackets::NPC::NPCInteractionOpenResult::Write`
+/// (`Server/Packets/NPCPackets.cpp:96-104`).
 /// PlayerInteractionType values: Banker=8, Binder=20, Auctioneer=21,
 /// StableMaster=22, GuildTabardVendor=14, TaxiNode=6, Merchant=5, Trainer=7.
 pub struct NpcInteractionOpenResult {

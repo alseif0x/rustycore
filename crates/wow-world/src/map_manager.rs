@@ -3035,8 +3035,8 @@ pub fn grid_corner(grid_x: i16, grid_y: i16) -> (f32, f32) {
 /// A creature waiting to respawn after its corpse despawned.
 ///
 /// Owned by `MapInstance::respawn_queue`; processed by `tick_creatures_sync`.
-/// C++ ref: `Map::_respawnTimes` / `Map::ProcessRespawns` (Map.h:748-750, Map.cpp:2191).
-/// C# ref: `Creature::AllLootRemovedFromCorpse` → `m_respawnTime` → `Map::AddToMap`.
+/// C++ refs: `Creature::AllLootRemovedFromCorpse` (`Creature.cpp:2942+`) feeds
+/// creature respawn state owned by `Map` (`Map.cpp:2187+`).
 #[derive(Debug)]
 pub struct PendingRespawn {
     /// When to respawn.
