@@ -1039,6 +1039,12 @@ impl Creature {
         // C++ `Creature::InitEntry` sets walk/run from creature_template and
         // swim/flight to 1.0 immediately after haste/time-rate defaults
         // (`Creature.cpp:540-550`).
+        self.unit.set_mod_casting_speed_like_cpp(1.0);
+        self.unit.set_mod_spell_haste_like_cpp(1.0);
+        self.unit.set_mod_haste_like_cpp(1.0);
+        self.unit.set_mod_ranged_haste_like_cpp(1.0);
+        self.unit.set_mod_haste_regen_like_cpp(1.0);
+        self.unit.set_mod_time_rate_like_cpp(1.0);
         self.unit
             .set_speed_rate_like_cpp(UnitMoveType::Walk, template.speed_walk);
         self.unit
@@ -4431,6 +4437,12 @@ mod tests {
         assert_eq!(speed_rate[UnitMoveType::Run as usize], 1.25);
         assert_eq!(speed_rate[UnitMoveType::Swim as usize], 1.0);
         assert_eq!(speed_rate[UnitMoveType::Flight as usize], 1.0);
+        assert_eq!(creature.unit().data().mod_casting_speed, 1.0);
+        assert_eq!(creature.unit().data().mod_spell_haste, 1.0);
+        assert_eq!(creature.unit().data().mod_haste, 1.0);
+        assert_eq!(creature.unit().data().mod_ranged_haste, 1.0);
+        assert_eq!(creature.unit().data().mod_haste_regen, 1.0);
+        assert_eq!(creature.unit().data().mod_time_rate, 1.0);
         assert_eq!(creature.spells()[0], 133);
         assert_eq!(creature.spells()[3], 116);
         assert_eq!(
