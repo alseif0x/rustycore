@@ -33,7 +33,8 @@ use wow_core::{ObjectGuid, Position, guid::HighGuid};
 use wow_data::{
     CreatureAddonStoreLikeCpp, CreatureBaseStatsStoreLikeCpp,
     CreatureClassificationHealthRatesLikeCpp, CreatureDifficultyStoreLikeCpp,
-    CreatureDisplayInfoStore, CreatureModelDataStore, CreatureTemplateLifecycleStoreLikeCpp,
+    CreatureDisplayInfoStore, CreatureEquipmentStoreLikeCpp, CreatureModelDataStore,
+    CreatureTemplateLifecycleStoreLikeCpp,
 };
 use wow_entities::{
     Creature, CreatureAddToWorldVehicleResetContextLikeCpp, CreatureAddonLifecycleRecordLikeCpp,
@@ -131,6 +132,7 @@ pub struct ResolvedCreatureRuntimeSelectionLikeCpp {
     pub selected_model_dimensions: Option<CreatureModelDimensions>,
     pub selected_equipment_id: u8,
     pub selected_original_equipment_id: i8,
+    pub selected_virtual_items: [(i32, u16, u16); 3],
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -233,6 +235,7 @@ impl CreatureLoadedGridLifecycleResolverLikeCpp {
                 selected_model_dimensions: selection.selected_model_dimensions,
                 selected_equipment_id: selection.selected_equipment_id,
                 selected_original_equipment_id: selection.selected_original_equipment_id,
+                selected_virtual_items: selection.selected_virtual_items,
                 corpse_delay: template.corpse_delay,
                 ignore_corpse_decay_ratio: template.ignore_corpse_decay_ratio,
                 addon: template.addon.clone(),
@@ -275,6 +278,7 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
     health_rates: &CreatureClassificationHealthRatesLikeCpp,
     display_store: &CreatureDisplayInfoStore,
     model_store: &CreatureModelDataStore,
+    equipment_store: Option<&CreatureEquipmentStoreLikeCpp>,
     addon_store: &CreatureAddonStoreLikeCpp,
     difficulty_id: u8,
     instance_id: u32,
@@ -360,6 +364,11 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
         .flatten();
     let equipment_id = u8::try_from(runtime_row.equipment_id.max(0)).unwrap_or(0);
     let original_equipment_id = runtime_row.equipment_id;
+    let selected_virtual_items = creature_virtual_items_for_selected_equipment_like_cpp(
+        template.entry,
+        equipment_id,
+        equipment_store,
+    );
     let addon = addon_store.get_for_creature_like_cpp(spawn.spawn_id, template.entry);
     let selected_db_movement_type = addon_store
         .movement_type_after_spawn_addon_load_like_cpp(spawn.spawn_id, runtime_row.movement_type);
@@ -478,6 +487,7 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
         selected_model_dimensions,
         selected_equipment_id: equipment_id,
         selected_original_equipment_id: original_equipment_id,
+        selected_virtual_items,
     };
 
     Ok((resolved_template, resolved_spawn, runtime_selection))
@@ -599,6 +609,28 @@ fn spawn_lifecycle_record(spawn: &ResolvedCreatureSpawnLikeCpp) -> CreatureSpawn
         add_to_map: spawn.add_to_map,
         respawn_compatibility_mode: spawn.respawn_compatibility_mode,
     }
+}
+
+fn creature_virtual_items_for_selected_equipment_like_cpp(
+    entry: u32,
+    equipment_id: u8,
+    equipment_store: Option<&CreatureEquipmentStoreLikeCpp>,
+) -> [(i32, u16, u16); 3] {
+    if equipment_id == 0 {
+        return [(0, 0, 0); 3];
+    }
+
+    let Some(equipment) = equipment_store.and_then(|store| store.get(entry, equipment_id)) else {
+        return [(0, 0, 0); 3];
+    };
+
+    equipment.items.map(|item| {
+        (
+            i32::try_from(item.item_id).unwrap_or(0),
+            item.appearance_mod_id,
+            item.item_visual,
+        )
+    })
 }
 
 #[cfg(test)]
@@ -752,6 +784,7 @@ mod tests {
                 selected_model_dimensions: None,
                 selected_equipment_id: 6,
                 selected_original_equipment_id: -6,
+                selected_virtual_items: [(0, 0, 0); 3],
             },
         )
     }
@@ -945,6 +978,7 @@ mod tests {
                 &CreatureClassificationHealthRatesLikeCpp::default(),
                 &display_store,
                 &model_store,
+                None,
                 &CreatureAddonStoreLikeCpp::default(),
                 2,
                 9,
@@ -1014,6 +1048,98 @@ mod tests {
         assert_eq!(runtime.stats.mana, 150);
         assert_eq!(runtime.stats.min_damage, 20.0);
         assert_eq!(runtime.stats.max_damage, 30.0);
+    }
+
+    #[test]
+    fn loaded_grid_db_backed_builder_applies_creature_equipment_like_cpp() {
+        let entry = 12_401;
+        let spawn = db_backed_spawn(entry);
+        let runtime_row = CreatureSpawnRuntimeRowLikeCpp {
+            spawn_id: spawn.spawn_id,
+            model_id: 0,
+            equipment_id: 6,
+            wander_distance: 0.0,
+            curhealth: 77,
+            curmana: 33,
+            movement_type: 0,
+            npc_flags: None,
+            unit_flags: None,
+            unit_flags2: None,
+            unit_flags3: None,
+            ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
+            swim_allowed: true,
+            flight_movement_type: 0,
+            rooted: false,
+            chase_movement_type: wow_constants::CreatureChaseMovementType::Run as u8,
+            random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
+            interaction_pause_timer_ms:
+                wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
+            string_id: String::new(),
+            spawn_time_secs: 300,
+        };
+        let equipment_store = CreatureEquipmentStoreLikeCpp::from_entries([(
+            entry,
+            6,
+            wow_data::CreatureEquipmentInfoLikeCpp {
+                items: [
+                    wow_data::CreatureEquipmentItemLikeCpp {
+                        item_id: 10_001,
+                        appearance_mod_id: 3,
+                        item_visual: 4,
+                    },
+                    wow_data::CreatureEquipmentItemLikeCpp {
+                        item_id: 10_002,
+                        appearance_mod_id: 5,
+                        item_visual: 6,
+                    },
+                    wow_data::CreatureEquipmentItemLikeCpp::default(),
+                ],
+            },
+        )]);
+        let (display_store, model_store) = empty_display_stores();
+
+        let (template, resolved_spawn, runtime) =
+            build_loaded_grid_creature_inputs_from_db_like_cpp(
+                &spawn,
+                &runtime_row,
+                &db_backed_template_store(entry),
+                &db_backed_difficulty_store(entry),
+                &db_backed_base_stats_store(),
+                &CreatureClassificationHealthRatesLikeCpp::default(),
+                &display_store,
+                &model_store,
+                Some(&equipment_store),
+                &CreatureAddonStoreLikeCpp::default(),
+                2,
+                9,
+                123,
+                true,
+                None,
+                |_, _| 19,
+            )
+            .expect("DB-backed equipment should resolve");
+
+        assert_eq!(
+            runtime.selected_virtual_items,
+            [(10_001, 3, 4), (10_002, 5, 6), (0, 0, 0)]
+        );
+
+        let guid = map_creature_guid(entry, 571, spawn.spawn_id as i64);
+        let resolved = CreatureLoadedGridLifecycleResolverLikeCpp::new(
+            [template],
+            [resolved_spawn],
+            [(entry, runtime)],
+        )
+        .resolve_loaded_grid_creature_like_cpp(spawn.spawn_id, guid)
+        .expect("resolved equipment creature");
+        let virtual_items = resolved.creature.unit().data().virtual_items;
+        assert_eq!(virtual_items[0].item_id, 10_001);
+        assert_eq!(virtual_items[0].item_appearance_mod_id, 3);
+        assert_eq!(virtual_items[0].item_visual, 4);
+        assert_eq!(virtual_items[1].item_id, 10_002);
+        assert_eq!(virtual_items[1].item_appearance_mod_id, 5);
+        assert_eq!(virtual_items[1].item_visual, 6);
+        assert_eq!(virtual_items[2].item_id, 0);
     }
 
     #[test]
@@ -1096,6 +1222,7 @@ mod tests {
             &CreatureClassificationHealthRatesLikeCpp::default(),
             &display_store,
             &model_store,
+            None,
             &addon_store,
             2,
             0,
@@ -1169,6 +1296,7 @@ mod tests {
             &health_rates,
             &display_store,
             &model_store,
+            None,
             &CreatureAddonStoreLikeCpp::default(),
             2,
             0,
@@ -1229,6 +1357,7 @@ mod tests {
             &health_rates,
             &display_store,
             &model_store,
+            None,
             &CreatureAddonStoreLikeCpp::default(),
             2,
             0,
@@ -1289,6 +1418,7 @@ mod tests {
                 &CreatureClassificationHealthRatesLikeCpp::default(),
                 &display_store,
                 &model_store,
+                None,
                 &CreatureAddonStoreLikeCpp::default(),
                 2,
                 0,
@@ -1309,6 +1439,7 @@ mod tests {
                 &CreatureClassificationHealthRatesLikeCpp::default(),
                 &display_store,
                 &model_store,
+                None,
                 &CreatureAddonStoreLikeCpp::default(),
                 2,
                 0,
@@ -1371,6 +1502,7 @@ mod tests {
             &CreatureClassificationHealthRatesLikeCpp::default(),
             &display_store,
             &model_store,
+            None,
             &CreatureAddonStoreLikeCpp::default(),
             2,
             0,
@@ -1430,6 +1562,7 @@ mod tests {
             &health_rates,
             &display_store,
             &model_store,
+            None,
             &CreatureAddonStoreLikeCpp::default(),
             2,
             0,
@@ -1488,6 +1621,7 @@ mod tests {
             &health_rates,
             &display_store,
             &model_store,
+            None,
             &CreatureAddonStoreLikeCpp::default(),
             2,
             0,
@@ -1515,6 +1649,7 @@ mod tests {
             &health_rates,
             &display_store,
             &model_store,
+            None,
             &CreatureAddonStoreLikeCpp::default(),
             2,
             0,
@@ -1567,6 +1702,7 @@ mod tests {
             &CreatureClassificationHealthRatesLikeCpp::default(),
             &display_store,
             &model_store,
+            None,
             &CreatureAddonStoreLikeCpp::default(),
             2,
             0,

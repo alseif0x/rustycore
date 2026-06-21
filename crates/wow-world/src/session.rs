@@ -119263,6 +119263,7 @@ mod tests {
                 selected_model_dimensions: None,
                 selected_equipment_id: 0,
                 selected_original_equipment_id: 0,
+                selected_virtual_items: [(0, 0, 0); 3],
                 corpse_delay: 30,
                 ignore_corpse_decay_ratio: false,
                 addon: None,

@@ -16,7 +16,7 @@ use crate::{
     BASE_MAXDAMAGE, BASE_MINDAMAGE, MoveFallPlan, MovementGeneratorKind,
     UNIT_MASK_CONTROLABLE_GUARDIAN, UNIT_MASK_GUARDIAN, UNIT_MASK_MINION, UNIT_MASK_PET,
     UNIT_MASK_TOTEM, UNIT_MASK_VEHICLE, Unit, VehicleAccessory, VehicleSeatAddon, VehicleSeatInfo,
-    VisibilityDistanceTypeLikeCpp,
+    VisibilityDistanceTypeLikeCpp, VisibleItemValues,
 };
 
 pub const CREATURE_REGEN_INTERVAL_MS: u32 = 2_000;
@@ -432,6 +432,7 @@ pub struct CreatureCreateLifecycleRecord {
     pub selected_model_dimensions: Option<CreatureModelDimensions>,
     pub selected_equipment_id: u8,
     pub selected_original_equipment_id: i8,
+    pub selected_virtual_items: [(i32, u16, u16); 3],
     pub corpse_delay: u32,
     pub ignore_corpse_decay_ratio: bool,
     pub addon: Option<CreatureAddonLifecycleRecordLikeCpp>,
@@ -1058,6 +1059,17 @@ impl Creature {
         self.spells = template.spells;
         self.equipment_id = equipment_id;
         self.original_equipment_id = original_equipment_id;
+        for (index, &(item_id, item_appearance_mod_id, item_visual)) in
+            record.selected_virtual_items.iter().enumerate()
+        {
+            let visible = (item_id != 0 || item_appearance_mod_id != 0 || item_visual != 0)
+                .then_some(VisibleItemValues {
+                    item_id,
+                    item_appearance_mod_id,
+                    item_visual,
+                });
+            self.unit.set_virtual_item(index, visible);
+        }
         if record.vehicle_id.is_some() {
             // C++ `Creature::CreateFromProto` calls `CreateVehicleKit(vehId, entry, true)` here.
             // The bounded seam creates the local DB2 seat-backed `Vehicle` only when the caller
@@ -4426,6 +4438,7 @@ mod tests {
             }),
             selected_equipment_id: 6,
             selected_original_equipment_id: -6,
+            selected_virtual_items: [(10_001, 3, 4), (10_002, 5, 6), (0, 0, 0)],
             corpse_delay: 90,
             ignore_corpse_decay_ratio: true,
             addon: None,
@@ -4486,6 +4499,22 @@ mod tests {
         assert_eq!(creature.unit().data().mod_haste_regen, 1.0);
         assert_eq!(creature.unit().data().mod_time_rate, 1.0);
         assert!(creature.unit().can_dual_wield_like_cpp());
+        assert_eq!(creature.unit().data().virtual_items[0].item_id, 10_001);
+        assert_eq!(
+            creature.unit().data().virtual_items[0].item_appearance_mod_id,
+            3
+        );
+        assert_eq!(creature.unit().data().virtual_items[0].item_visual, 4);
+        assert_eq!(creature.unit().data().virtual_items[1].item_id, 10_002);
+        assert_eq!(
+            creature.unit().data().virtual_items[1].item_appearance_mod_id,
+            5
+        );
+        assert_eq!(creature.unit().data().virtual_items[1].item_visual, 6);
+        assert_eq!(
+            creature.unit().data().virtual_items[2],
+            VisibleItemValues::default()
+        );
         assert_eq!(creature.spells()[0], 133);
         assert_eq!(creature.spells()[3], 116);
         assert_eq!(
