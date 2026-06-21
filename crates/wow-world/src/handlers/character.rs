@@ -12455,10 +12455,12 @@ impl WorldSession {
         // 27. InitialSetup (expansion level)
         self.send_packet(&InitialSetup::wotlk());
 
-        // C++ 3.4.3 `Player::SendInitialPacketsBeforeAddToMap` ends with
-        // `SetMovedUnit(this)`, which only updates server-side movement state.
-        // It does not send `SMSG_MOVE_SET_ACTIVE_MOVER` during login before the
-        // player create block.
+        // C++ `Player::SendInitialPacketsBeforeAddToMap` ends with
+        // `SetMovedUnit(this)`. `Unit::SetMovedUnit` updates server-side mover
+        // state and sends `SMSG_MOVE_SET_ACTIVE_MOVER` to bind client input to
+        // the player before the create block.
+        self.set_player_moved_unit_guid_like_cpp(guid);
+        self.send_packet(&MoveSetActiveMover { mover_guid: guid });
 
         // ── Phase 3: AddToMap → UpdateObject ──
 
@@ -12639,7 +12641,7 @@ impl WorldSession {
         self.send_stat_update();
 
         info!(
-            "Login sequence complete for {:?} (37 packets including broadcasts)",
+            "Login sequence complete for {:?} (38 packets including broadcasts)",
             guid
         );
     }
