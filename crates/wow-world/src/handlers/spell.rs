@@ -3270,7 +3270,9 @@ mod tests {
             wow_data::CreatureModelDataStore::from_entries([wow_data::CreatureModelDataEntry {
                 id: u32::from(model_id),
                 flags: model_flags,
+                file_data_id: 0,
                 collision_height: 2.0,
+                hover_height: 1.0,
                 model_scale: 1.0,
                 mount_height: 0.0,
             }]),

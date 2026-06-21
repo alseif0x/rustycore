@@ -375,7 +375,19 @@ impl MapDifficultyStore {
                 reset_interval: reader.get_field_u8(idx, 5),
                 max_players: reader.get_field_u32(idx, 6),
                 flags: reader.get_field_u8(idx, 7),
-                map_id: reader.get_field_u32(idx, 8),
+                // In 3.4.3 WDC4 data, C++ field `MapID` is sometimes exposed
+                // as the physical payload field and sometimes only as the
+                // relationship id. Prefer the non-zero physical field, matching
+                // older rows, and fall back to the WDC4 relationship for rows
+                // such as Northrend normal (map 571, difficulty 0).
+                map_id: {
+                    let physical_map_id = reader.get_field_u32(idx, 8);
+                    if physical_map_id != 0 {
+                        physical_map_id
+                    } else {
+                        reader.get_relationship_id(idx).unwrap_or(0)
+                    }
+                },
             });
         }
 
@@ -1100,5 +1112,11 @@ mod tests {
         assert_eq!(known_difficulty.map_id, 32);
         assert_eq!(known_difficulty.difficulty_id, 4);
         assert_eq!(known_difficulty.reset_interval, 2);
+
+        let northrend_normal = difficulties
+            .get(571, 0)
+            .expect("known MapDifficulty row for Northrend map 571 difficulty 0 missing");
+        assert_eq!(northrend_normal.map_id, 571);
+        assert_eq!(northrend_normal.difficulty_id, 0);
     }
 }

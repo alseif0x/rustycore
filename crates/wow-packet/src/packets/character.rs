@@ -288,6 +288,43 @@ impl ServerPacket for LoginVerifyWorld {
     }
 }
 
+// ── Server: CharacterLoginFailed (SMSG 0x2705) ───────────────────────
+
+/// C++ `WorldPackets::Character::LoginFailureReason`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum LoginFailureReasonLikeCpp {
+    Failed = 0,
+    NoWorld = 1,
+    DuplicateCharacter = 2,
+    NoInstances = 3,
+    Disabled = 4,
+    NoCharacter = 5,
+    LockedForTransfer = 6,
+    LockedByBilling = 7,
+    LockedByMobileAh = 8,
+    TemporaryGmLock = 9,
+    LockedByCharacterUpgrade = 10,
+    LockedByRevokedCharacterUpgrade = 11,
+    LockedByRevokedVasTransaction = 17,
+    LockedByRestriction = 19,
+    LockedForRealmPlaytype = 23,
+}
+
+/// C++ `WorldPackets::Character::CharacterLoginFailed::Write`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CharacterLoginFailed {
+    pub code: LoginFailureReasonLikeCpp,
+}
+
+impl ServerPacket for CharacterLoginFailed {
+    const OPCODE: ServerOpcodes = ServerOpcodes::CharacterLoginFailed;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint8(self.code as u8);
+    }
+}
+
 // ── Client: EnumCharacters (CMSG 0x35e9) ────────────────────────────
 
 /// Client request to list characters.

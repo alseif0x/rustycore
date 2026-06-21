@@ -11,7 +11,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::future::Future;
-use std::net::SocketAddr;
+use std::net::{Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::process::ExitCode;
@@ -27,7 +27,7 @@ use tokio::task::AbortHandle;
 use tracing::{debug, info, warn};
 use wow_config::{DatabaseInfo, LoadReport, WorldConfigSet};
 use wow_core::{
-    IpLocationStore, Ipv4NetworkLikeCpp, ObjectGuid, ObjectGuidGenerator, guid::HighGuid,
+    IpLocationStore, Ipv4NetworkLikeCpp, ObjectGuid, ObjectGuidGenerator, Position, guid::HighGuid,
     scan_local_ipv4_networks_like_cpp,
 };
 use wow_database::{
@@ -1263,10 +1263,20 @@ async fn main() -> Result<ExitCode> {
         "Loaded {} creature display info rows",
         creature_display_info_store.len()
     );
+    let creature_model_data_store = Arc::new(
+        wow_data::CreatureModelDataStore::load_with_hotfixes(&data_dir, &locale, &hotfix_db)
+            .await
+            .context("Failed to load CreatureModelData.db2 / hotfix rows")?,
+    );
+    info!(
+        "Loaded {} creature model data rows",
+        creature_model_data_store.len()
+    );
     let creature_model_info_store = Arc::new(
         wow_data::CreatureModelInfoStoreLikeCpp::load_like_cpp(
             world_db.as_ref(),
             creature_display_info_store.as_ref(),
+            creature_model_data_store.as_ref(),
         )
         .await
         .context("Failed to load creature_model_info rows")?,
@@ -1302,15 +1312,6 @@ async fn main() -> Result<ExitCode> {
     info!(
         "Loaded {} gameobject display info rows",
         gameobject_display_info_store.len()
-    );
-    let creature_model_data_store = Arc::new(
-        wow_data::CreatureModelDataStore::load_with_hotfixes(&data_dir, &locale, &hotfix_db)
-            .await
-            .context("Failed to load CreatureModelData.db2 / hotfix rows")?,
-    );
-    info!(
-        "Loaded {} creature model data rows",
-        creature_model_data_store.len()
     );
     let vehicle_store = Arc::new(
         wow_data::VehicleStore::load_with_hotfixes(&data_dir, &locale, &hotfix_db)
@@ -2430,6 +2431,33 @@ async fn main() -> Result<ExitCode> {
     info!(
         "Loaded {} items with stat modifiers from ItemSparse.db2",
         item_stats_store.len()
+    );
+    let creature_equipment_store = Arc::new(
+        wow_data::CreatureEquipmentStoreLikeCpp::load_like_cpp(
+            world_db.as_ref(),
+            |entry| creature_template_lifecycle_store.get(entry).is_some(),
+            |item_id| {
+                item_stats_store
+                    .sparse_template(item_id)
+                    .map(|template| template.inventory_type as u8)
+            },
+            |item_id, appearance_mod_id| {
+                item_modified_appearance_store
+                    .get_for_item(item_id, appearance_mod_id)
+                    .is_some()
+            },
+            |item_id| {
+                item_modified_appearance_store
+                    .get_default_for_item(item_id)
+                    .and_then(|entry| u16::try_from(entry.item_appearance_modifier_id).ok())
+            },
+        )
+        .await
+        .context("Failed to load C++ creature equipment templates")?,
+    );
+    info!(
+        "Loaded {} C++ creature equipment templates",
+        creature_equipment_store.len()
     );
     let gameobject_quest_item_outcome = wow_data::GameObjectQuestItemStoreLikeCpp::load_like_cpp(
         world_db.as_ref(),
@@ -3669,8 +3697,20 @@ async fn main() -> Result<ExitCode> {
     let win64_auth_seed = load_realm_win64_auth_seed_like_cpp(&login_db, realm_build).await?;
     info!("Realm {realm_id} build {realm_build}, Win64AuthSeed loaded");
 
-    let realm_external_address = parse_ipv4(&active_realm.address).unwrap_or([127, 0, 0, 1]);
-    let realm_local_address = parse_ipv4(&active_realm.local_address).unwrap_or([127, 0, 0, 1]);
+    let realm_external_address = resolve_realm_endpoint_address_like_cpp(
+        "address",
+        &active_realm.address,
+        &active_realm.name,
+        u32::from(realm_id),
+    )
+    .await?;
+    let realm_local_address = resolve_realm_endpoint_address_like_cpp(
+        "localAddress",
+        &active_realm.local_address,
+        &active_realm.name,
+        u32::from(realm_id),
+    )
+    .await?;
     info!(
         "Realm addresses: external={}, local={}",
         format_ipv4(realm_external_address),
@@ -4394,11 +4434,14 @@ async fn main() -> Result<ExitCode> {
         access_requirement_store: Some(Arc::clone(&access_requirement_store)),
         lfg_dungeons_store: Some(Arc::clone(&lfg_dungeons_store)),
         battlemaster_list_store: Some(Arc::clone(&battlemaster_list_typed_store)),
+        creature_template_lifecycle_store: Some(Arc::clone(&creature_template_lifecycle_store)),
         creature_template_mount_store: Some(Arc::clone(&creature_template_mount_store)),
+        creature_equipment_store: Some(Arc::clone(&creature_equipment_store)),
         creature_display_info_store: Some(Arc::clone(&creature_display_info_store)),
         creature_display_info_extra_store: Some(Arc::clone(&creature_display_info_extra_store)),
         gameobject_display_info_store: Some(Arc::clone(&gameobject_display_info_store)),
         creature_model_info_store: Some(Arc::clone(&creature_model_info_store)),
+        creature_addon_store: Some(Arc::clone(&creature_addon_store)),
         creature_difficulty_store: Some(Arc::clone(&creature_difficulty_store)),
         creature_base_stats_store: Some(Arc::clone(&creature_base_stats_store)),
         creature_health_rates,
@@ -4626,6 +4669,7 @@ async fn main() -> Result<ExitCode> {
         let smap = Arc::clone(&shared_map);
         let canonical_map = Arc::clone(&canonical_map_manager);
         let spawn_metadata = Arc::clone(&canonical_spawn_metadata);
+        let loaded_grid_caches = loaded_grid_creature_respawn_caches.clone();
         let accessor = Arc::clone(&object_accessor);
         let active_sessions = Arc::clone(&active_session_registry);
         let port = instance_port;
@@ -4642,6 +4686,7 @@ async fn main() -> Result<ExitCode> {
                     let smap = Arc::clone(&smap);
                     let canonical_map = Arc::clone(&canonical_map);
                     let spawn_metadata = Arc::clone(&spawn_metadata);
+                    let loaded_grid_caches = loaded_grid_caches.clone();
                     let accessor = Arc::clone(&accessor);
                     let active_sessions = Arc::clone(&active_sessions);
                     let mmap_pathfinder = mmap_pathfinder.clone();
@@ -4655,6 +4700,7 @@ async fn main() -> Result<ExitCode> {
                         smap,
                         canonical_map,
                         spawn_metadata,
+                        loaded_grid_caches,
                         accessor,
                         port,
                         max_expansion,
@@ -6760,6 +6806,174 @@ fn mirror_loaded_grid_primary_records_to_legacy_like_cpp(
             )
         })
         .count()
+}
+
+fn ensure_login_player_grid_loaded_like_cpp(
+    canonical_map_manager: &SharedCanonicalMapManager,
+    legacy_manager: &SharedMapManager,
+    canonical_spawn_metadata: &SharedCanonicalSpawnMetadataLikeCpp,
+    loaded_grid_creature_respawn_caches: &LoadedGridCreatureRespawnCachesLikeCpp,
+    map_id: u16,
+    instance_id: u32,
+    position: Position,
+) -> wow_world::session::PlayerGridLoadOutcomeLikeCpp {
+    let mut outcome = wow_world::session::PlayerGridLoadOutcomeLikeCpp::default();
+    let map_id_u32 = u32::from(map_id);
+    let cell = wow_map::cell_from_world(position.x, position.y);
+    let grid = wow_map::GridCoord::new(cell.grid_x(), cell.grid_y());
+
+    let Ok(metadata) = canonical_spawn_metadata.lock() else {
+        warn!(
+            map_id = map_id_u32,
+            instance_id, "C++ login grid load skipped: canonical spawn metadata lock poisoned"
+        );
+        return outcome;
+    };
+    let Ok(mut manager) = canonical_map_manager.lock() else {
+        warn!(
+            map_id = map_id_u32,
+            instance_id, "C++ login grid load skipped: canonical map manager lock poisoned"
+        );
+        return outcome;
+    };
+
+    outcome.map_created = manager.find_map(map_id_u32, instance_id).is_none();
+    let managed_map = manager.create_world_map(map_id_u32, instance_id);
+    let map = managed_map.map_mut();
+
+    // C++ Map::AddPlayerToMap -> EnsureGridLoadedForActiveObject(cell, player)
+    // loads the player's grid before SendInitSelf. Rusty's NoopGridLifecycle does
+    // not own ObjectMgr DB state, so this bridge materializes loaded-grid records
+    // immediately after marking the grid loaded/active.
+    outcome.grid_loaded_now =
+        map.ensure_grid_loaded_for_active_object(&cell, wow_map::ActiveObjectKind::Player);
+
+    let spawn_mode = map.spawn_mode();
+    let mut creature_spawn_ids = BTreeSet::new();
+    let mut gameobject_spawn_ids = BTreeSet::new();
+    if let Some(ngrid) = map.get_ngrid(grid) {
+        ngrid.visit_all_grids(|local_cell| {
+            let Some(cell_guids) = metadata.spawn_store().cell_object_guids(
+                map_id_u32,
+                spawn_mode,
+                local_cell.cell_coord().get_id(),
+            ) else {
+                return;
+            };
+            creature_spawn_ids.extend(cell_guids.creatures.iter().copied());
+            gameobject_spawn_ids.extend(cell_guids.gameobjects.iter().copied());
+        });
+    }
+
+    for (object_type, spawn_id) in creature_spawn_ids
+        .into_iter()
+        .map(|spawn_id| (wow_map::SpawnObjectType::Creature, spawn_id))
+        .chain(
+            gameobject_spawn_ids
+                .into_iter()
+                .map(|spawn_id| (wow_map::SpawnObjectType::GameObject, spawn_id)),
+        )
+    {
+        let already_loaded = match object_type {
+            wow_map::SpawnObjectType::Creature => {
+                map.get_creature_by_spawn_id_like_cpp(spawn_id).is_some()
+            }
+            wow_map::SpawnObjectType::GameObject => {
+                map.get_gameobject_by_spawn_id_like_cpp(spawn_id).is_some()
+            }
+            wow_map::SpawnObjectType::AreaTrigger => false,
+        };
+        if already_loaded {
+            outcome.skipped_already_loaded += 1;
+            continue;
+        }
+
+        let should_spawn = map
+            .spawn_grid_load_state_like_cpp(metadata.spawn_store())
+            .should_be_spawned_on_grid_load(object_type, spawn_id);
+        if !should_spawn {
+            outcome.skipped_should_not_spawn += 1;
+            continue;
+        }
+
+        let Some(spawn_data) = metadata.spawn_store().spawn_data(object_type, spawn_id) else {
+            outcome.stale_index_entries += 1;
+            continue;
+        };
+        if spawn_data.map_id != map_id_u32 {
+            outcome.stale_index_entries += 1;
+            continue;
+        }
+        if !spawn_data.spawn_difficulties.contains(&spawn_mode) {
+            outcome.skipped_difficulty_mismatch += 1;
+            continue;
+        }
+
+        outcome.metadata_entries += 1;
+        let Some(records) = (match object_type {
+            wow_map::SpawnObjectType::Creature => {
+                build_loaded_grid_creature_spawn_group_spawn_record_like_cpp(
+                    map,
+                    object_type,
+                    spawn_id,
+                    &metadata,
+                    loaded_grid_creature_respawn_caches,
+                )
+            }
+            wow_map::SpawnObjectType::GameObject => {
+                build_loaded_grid_gameobject_respawn_record_like_cpp(
+                    map,
+                    object_type,
+                    spawn_id,
+                    &metadata,
+                    loaded_grid_creature_respawn_caches,
+                )
+            }
+            wow_map::SpawnObjectType::AreaTrigger => None,
+        }) else {
+            outcome.load_record_missing += 1;
+            continue;
+        };
+
+        for pre_add_record in records.pre_add_records {
+            if map
+                .add_map_object_record_to_map_like_cpp(pre_add_record)
+                .is_ok()
+            {
+                outcome.pre_add_records_added += 1;
+            } else {
+                outcome.add_to_map_errors += 1;
+            }
+        }
+
+        let primary_record = records.primary_record;
+        let legacy_creature = primary_record.creature().cloned();
+        match map.add_map_object_record_to_map_like_cpp(primary_record) {
+            Ok(_add) => match object_type {
+                wow_map::SpawnObjectType::Creature => {
+                    outcome.creature_records_added += 1;
+                    if let Some(creature) = legacy_creature
+                        && mirror_loaded_grid_creature_to_legacy_like_cpp(
+                            Some(legacy_manager),
+                            metadata.waypoint_paths_like_cpp(),
+                            creature,
+                        )
+                    {
+                        outcome.legacy_creature_mirrors += 1;
+                    }
+                }
+                wow_map::SpawnObjectType::GameObject => {
+                    outcome.gameobject_records_added += 1;
+                }
+                wow_map::SpawnObjectType::AreaTrigger => {}
+            },
+            Err(_error) => {
+                outcome.add_to_map_errors += 1;
+            }
+        }
+    }
+
+    outcome
 }
 
 fn game_event_spawn_object_guid_list_for_event_like_cpp(
@@ -10626,10 +10840,50 @@ async fn load_realm_win64_auth_seed_like_cpp(
     Ok(seed)
 }
 
-/// Parse an IPv4 address string into 4 bytes.
-fn parse_ipv4(s: &str) -> Option<[u8; 4]> {
-    let addr: std::net::Ipv4Addr = s.parse().ok()?;
-    Some(addr.octets())
+/// Resolve a realm endpoint string into the IPv4 address stored by C++ `Realm::Addresses`.
+///
+/// TrinityCore resolves `realmlist.address` / `localAddress` while building the
+/// realm list, then `Realm::GetAddressForClient` selects one of those resolved
+/// addresses for both JoinRealm and `SMSG_CONNECT_TO`. Hostnames must therefore
+/// be resolved here too; falling back to 127.0.0.1 makes remote clients fail the
+/// instance handoff and forces a non-C++ login path.
+async fn resolve_realm_endpoint_address_like_cpp(
+    field_name: &str,
+    hostname: &str,
+    realm_name: &str,
+    realm_id: u32,
+) -> Result<[u8; 4]> {
+    let endpoints = tokio::net::lookup_host((hostname, 0))
+        .await
+        .with_context(|| {
+            format!(
+                "Could not resolve {field_name} {hostname} for realm \"{realm_name}\" id {realm_id}"
+            )
+        })?;
+    let address = first_ipv4_address_like_cpp(endpoints).with_context(|| {
+        format!(
+            "Could not resolve {field_name} {hostname} for realm \"{realm_name}\" id {realm_id} to an IPv4 address"
+        )
+    })?;
+
+    tracing::info!(
+        field_name,
+        hostname,
+        %address,
+        realm_name,
+        realm_id,
+        "Resolved realm endpoint address like C++"
+    );
+    Ok(address.octets())
+}
+
+fn first_ipv4_address_like_cpp(
+    endpoints: impl IntoIterator<Item = SocketAddr>,
+) -> Option<Ipv4Addr> {
+    endpoints.into_iter().find_map(|endpoint| match endpoint {
+        SocketAddr::V4(v4) => Some(*v4.ip()),
+        SocketAddr::V6(_) => None,
+    })
 }
 
 /// Create and run a WorldSession for an authenticated connection.
@@ -10645,6 +10899,7 @@ async fn create_session(
     shared_map: SharedMapManager,
     canonical_map_manager: SharedCanonicalMapManager,
     canonical_spawn_metadata: SharedCanonicalSpawnMetadataLikeCpp,
+    loaded_grid_creature_respawn_caches: LoadedGridCreatureRespawnCachesLikeCpp,
     object_accessor: wow_world::SharedObjectAccessor,
     instance_port: u16,
     max_expansion: u8,
@@ -11018,8 +11273,14 @@ async fn create_session(
     if let Some(ref store) = resources.battlemaster_list_store {
         session.set_battlemaster_list_store(Arc::clone(store));
     }
+    if let Some(ref store) = resources.creature_template_lifecycle_store {
+        session.set_creature_template_lifecycle_store_like_cpp(Arc::clone(store));
+    }
     if let Some(ref store) = resources.creature_template_mount_store {
         session.set_creature_template_mount_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.creature_equipment_store {
+        session.set_creature_equipment_store_like_cpp(Arc::clone(store));
     }
     if let Some(ref store) = resources.creature_display_info_store {
         session.set_creature_display_info_store(Arc::clone(store));
@@ -11032,6 +11293,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.creature_model_info_store {
         session.set_creature_model_info_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.creature_addon_store {
+        session.set_creature_addon_store_like_cpp(Arc::clone(store));
     }
     if let Some(ref store) = resources.creature_difficulty_store {
         session.set_creature_difficulty_store_like_cpp(Arc::clone(store));
@@ -11172,12 +11436,30 @@ async fn create_session(
     if let Some(pathfinder) = mmap_pathfinder {
         session.set_mmap_pathfinder_like_cpp(pathfinder);
     }
+    let waypoint_spawn_metadata = Arc::clone(&canonical_spawn_metadata);
     session.set_waypoint_path_resolver_like_cpp(Arc::new(move |path_id| {
-        canonical_spawn_metadata
+        waypoint_spawn_metadata
             .lock()
             .ok()
             .and_then(|metadata| metadata.waypoint_paths_like_cpp().get(path_id).cloned())
     }));
+    let grid_canonical_map_manager = Arc::clone(&canonical_map_manager);
+    let grid_legacy_manager = Arc::clone(&shared_map);
+    let grid_spawn_metadata = Arc::clone(&canonical_spawn_metadata);
+    let grid_loaded_caches = loaded_grid_creature_respawn_caches.clone();
+    session.set_player_grid_load_resolver_like_cpp(Arc::new(
+        move |map_id, instance_id, position| {
+            ensure_login_player_grid_loaded_like_cpp(
+                &grid_canonical_map_manager,
+                &grid_legacy_manager,
+                &grid_spawn_metadata,
+                &grid_loaded_caches,
+                map_id,
+                instance_id,
+                position,
+            )
+        },
+    ));
     session.set_object_accessor(object_accessor);
     if let (Some(greg), Some(pinv)) = (&resources.group_registry, &resources.pending_invites) {
         session.set_group_registry(Arc::clone(greg), Arc::clone(pinv));
@@ -11201,9 +11483,8 @@ async fn create_session(
         resources.realm_local_address,
     );
 
-    // Configure ConnectTo flow — client needs an instance connection
-    // for movement/interaction packets (UpdateObject, MoveSetActiveMover,
-    // all movement opcodes use ConnectionType.Instance in C#).
+    // Configure C++ `SMSG_CONNECT_TO` flow — real clients enter the world on
+    // the instance socket after `AuthContinuedSession`.
     session.set_session_mgr(session_mgr);
     session.set_instance_endpoint(connect_ip, instance_port);
 

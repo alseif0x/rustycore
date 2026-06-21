@@ -35,6 +35,9 @@ pub enum UpdateType {
 #[derive(Debug, Clone)]
 pub struct MovementBlock {
     pub position: Position,
+    pub movement_flags: u32,
+    pub movement_flags2: u32,
+    pub movement_flags3: u32,
     pub walk_speed: f32,
     pub run_speed: f32,
     pub run_back_speed: f32,
@@ -50,6 +53,9 @@ impl Default for MovementBlock {
     fn default() -> Self {
         Self {
             position: Position::ZERO,
+            movement_flags: 0,
+            movement_flags2: 0,
+            movement_flags3: 0,
             walk_speed: 2.5,
             run_speed: 7.0,
             run_back_speed: 4.5,
@@ -57,7 +63,9 @@ impl Default for MovementBlock {
             swim_back_speed: 2.5,
             fly_speed: 7.0,
             fly_back_speed: 4.5,
-            turn_rate: std::f32::consts::PI,
+            // C++ Unit.cpp `baseMoveSpeed[MOVE_TURN_RATE]` is the literal
+            // 3.141594f, not std::f32::consts::PI.
+            turn_rate: 3.141594,
             // C++ Unit.cpp `playerBaseMoveSpeed[MOVE_PITCH_RATE]`.
             pitch_rate: 3.14,
         }
@@ -1275,6 +1283,10 @@ pub struct ItemCreateData {
     pub random_properties_seed: i32,
     pub random_properties_id: i32,
     pub context: u8,
+    /// Non-zero for `Bag` objects. C++ writes those as TYPEID_CONTAINER
+    /// and appends `ContainerData::WriteCreate` after `ItemData::WriteCreate`.
+    pub container_slots: u32,
+    pub container_item_guids: [ObjectGuid; 36],
 }
 
 // ── PlayerStatChanges ──────────────────────────────────────────────
@@ -1440,7 +1452,7 @@ pub struct PlayerCreateData {
     pub health: i64,
     pub max_health: i64,
     pub faction_template: i32,
-    pub zone_id: u32,
+    pub current_area_id: u32,
     /// Primary stats: [STR, AGI, STA, INT, SPI].
     pub stats: [i32; 5],
     /// Base armor (AGI * 2).
@@ -1547,11 +1559,30 @@ impl PlayerCreateData {
         let flags: u8 = if is_self { 0x03 } else { 0x00 }; // 0x01=Owner 0x02=PartyMember
         buf.write_uint8(flags);
 
+        let object_start = buf.data().len();
         self.write_object_data(&mut buf);
+        let unit_start = buf.data().len();
         self.write_unit_data(&mut buf, flags);
+        let player_start = buf.data().len();
         self.write_player_data(&mut buf, flags);
+        let active_start = buf.data().len();
         if is_self {
             self.write_active_player_data(&mut buf);
+        }
+        let end_pos = buf.data().len();
+
+        if std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some() {
+            eprintln!(
+                "RUST_UPDATEOBJECT player_values guid={:?} self={} flags=0x{:X} totalValues={} object={} unit={} player={} active={}",
+                self.guid,
+                is_self,
+                flags,
+                end_pos,
+                unit_start - object_start,
+                player_start - unit_start,
+                active_start - player_start,
+                end_pos - active_start
+            );
         }
 
         let data = buf.into_data();
@@ -1716,7 +1747,10 @@ impl PlayerCreateData {
         buf.write_int32(0);
         buf.write_int32(0);
 
-        // ModCastingSpeed, ModSpellHaste, ModHaste, ModRangedHaste, ModHasteRegen, ModTimeRate
+        // ModCastingSpeed, ModSpellHaste, ModHaste, ModRangedHaste,
+        // ModHasteRegen, ModTimeRate.
+        // C++ 3.4.3 `UnitData::WriteCreate` writes exactly these six floats
+        // before CreatedBySpell (`UpdateFields.cpp:750-756`).
         buf.write_float(1.0);
         buf.write_float(1.0);
         buf.write_float(1.0);
@@ -1819,7 +1853,7 @@ impl PlayerCreateData {
         // FlightCapabilityID, GlideEventSpeedDivisor, CurrentAreaID
         buf.write_int32(0);
         buf.write_float(0.0);
-        buf.write_uint32(self.zone_id);
+        buf.write_uint32(self.current_area_id);
 
         // ComboTarget (Owner only)
         if is_owner {
@@ -2327,16 +2361,6 @@ fn power_type_for_class(class: u8) -> u8 {
     }
 }
 
-/// Get starting max power for a class at a given level.
-fn max_power_for_class(class: u8, _level: u8) -> i32 {
-    match class {
-        1 => 1000, // Warrior: 1000 rage (stored as 10x)
-        4 => 100,  // Rogue: 100 energy
-        6 => 1000, // DK: 1000 runic power (stored as 10x)
-        _ => 60,   // Casters: base mana
-    }
-}
-
 // ── CreatureCreateData ──────────────────────────────────────────────
 
 /// Data needed to build a creature create packet for the client.
@@ -2362,11 +2386,23 @@ pub struct CreatureCreateData {
     pub scale: f32,
     pub unit_class: u8,
     pub display_power: u8,
+    pub power: [i32; 10],
+    pub max_power: [i32; 10],
     pub base_mana: i32,
     pub virtual_items: [(i32, u16, u16); 3],
     pub base_attack_time: u32,
     pub ranged_attack_time: u32,
-    pub zone_id: u32,
+    pub movement_flags: u32,
+    pub play_hover_anim: bool,
+    pub hover_height: f32,
+    pub mount_display_id: i32,
+    pub stand_state: u8,
+    pub vis_flags: u8,
+    pub anim_tier: u8,
+    pub emote_state: i32,
+    pub sheathe_state: u8,
+    pub pvp_flags: u8,
+    pub current_area_id: u32,
     /// Speed rate from creature_template.speed_walk (1.0 = default).
     pub speed_walk_rate: f32,
     /// Speed rate from creature_template.speed_run (1.14286 = default).
@@ -2449,9 +2485,9 @@ impl CreatureCreateData {
         // NO PowerRegen (Owner-only)
 
         // Power[10], MaxPower[10], ModPowerRegen[10]
-        for _ in 0..10 {
-            buf.write_int32(0); // Power
-            buf.write_int32(0); // MaxPower
+        for index in 0..10 {
+            buf.write_int32(self.power[index]);
+            buf.write_int32(self.max_power[index]);
             buf.write_float(0.0); // ModPowerRegen
         }
 
@@ -2496,15 +2532,15 @@ impl CreatureCreateData {
         // NativeDisplayID, NativeXDisplayScale, MountDisplayID
         buf.write_int32(self.native_display_id as i32);
         buf.write_float(self.native_x_display_scale);
-        buf.write_int32(0);
+        buf.write_int32(self.mount_display_id);
 
         // NO damage floats (Owner|Empath only)
 
         // StandState, PetTalentPoints, VisFlags, AnimTier
+        buf.write_uint8(self.stand_state);
         buf.write_uint8(0);
-        buf.write_uint8(0);
-        buf.write_uint8(0);
-        buf.write_uint8(0);
+        buf.write_uint8(self.vis_flags);
+        buf.write_uint8(self.anim_tier);
 
         // PetNumber, PetNameTimestamp, PetExperience, PetNextLevelExperience
         buf.write_int32(0);
@@ -2512,7 +2548,10 @@ impl CreatureCreateData {
         buf.write_int32(0);
         buf.write_int32(0);
 
-        // ModCastingSpeed, ModSpellHaste, ModHaste, ModRangedHaste, ModHasteRegen, ModTimeRate
+        // ModCastingSpeed, ModSpellHaste, ModHaste, ModRangedHaste,
+        // ModHasteRegen, ModTimeRate.
+        // C++ 3.4.3 `UnitData::WriteCreate` writes exactly these six floats
+        // before CreatedBySpell (`UpdateFields.cpp:750-756`).
         buf.write_float(1.0);
         buf.write_float(1.0);
         buf.write_float(1.0);
@@ -2522,7 +2561,7 @@ impl CreatureCreateData {
 
         // CreatedBySpell, EmoteState
         buf.write_int32(0);
-        buf.write_int32(0);
+        buf.write_int32(self.emote_state);
 
         // TrainingPointsUsed, TrainingPointsTotal
         buf.write_int16(0);
@@ -2544,15 +2583,15 @@ impl CreatureCreateData {
         // NO BaseHealth (Owner-only)
 
         // SheatheState, PvpFlags, PetFlags, ShapeshiftForm
-        buf.write_uint8(0);
-        buf.write_uint8(0);
+        buf.write_uint8(self.sheathe_state);
+        buf.write_uint8(self.pvp_flags);
         buf.write_uint8(0);
         buf.write_uint8(0);
 
         // NO AttackPower block (Owner-only)
 
         // HoverHeight + misc fields
-        buf.write_float(1.0);
+        buf.write_float(self.hover_height);
         buf.write_int32(0); // MinItemLevelCutoff
         buf.write_int32(0); // MinItemLevel
         buf.write_int32(0); // MaxItemLevel
@@ -2576,7 +2615,7 @@ impl CreatureCreateData {
         // FlightCapabilityID, GlideEventSpeedDivisor, CurrentAreaID
         buf.write_int32(0);
         buf.write_float(0.0);
-        buf.write_uint32(self.zone_id);
+        buf.write_uint32(self.current_area_id);
 
         // NO ComboTarget (Owner-only)
     }
@@ -2766,6 +2805,7 @@ pub enum UpdateBlock {
         create_data: CreatureCreateData,
     },
     CreateGameObject {
+        update_type: UpdateType,
         guid: ObjectGuid,
         create_data: GameObjectCreateData,
     },
@@ -2888,7 +2928,246 @@ pub struct UpdateObject {
 }
 
 impl UpdateObject {
-    /// Create a creature spawn block.
+    /// Human-readable block summary for live C++/Rust login comparisons.
+    ///
+    /// This is intentionally metadata-only: it uses the same private block writers
+    /// as the packet serializer to report per-block byte sizes without dumping
+    /// account/player payload bytes into normal logs.
+    pub fn debug_create_summary_like_cpp(&self) -> Vec<String> {
+        let mut lines = Vec::with_capacity(self.blocks.len() + 1);
+        lines.push(format!(
+            "update map={} num_updates={} blocks={} destroy={} out_of_range={} packet_bytes={}",
+            self.map_id,
+            self.num_updates,
+            self.blocks.len(),
+            self.destroy_guids.len(),
+            self.out_of_range_guids.len(),
+            self.to_bytes().len()
+        ));
+
+        for (index, block) in self.blocks.iter().enumerate() {
+            match block {
+                UpdateBlock::CreateObject {
+                    update_type,
+                    guid,
+                    type_id,
+                    movement,
+                    create_data,
+                    is_self,
+                } => {
+                    let mut block_buf = WorldPacket::new_empty();
+                    write_create_block(
+                        &mut block_buf,
+                        *update_type,
+                        guid,
+                        *type_id,
+                        movement.as_ref(),
+                        create_data,
+                        *is_self,
+                    );
+                    let inv_slots = create_data
+                        .inv_slots
+                        .iter()
+                        .filter(|guid| !guid.is_empty())
+                        .count();
+                    let visible_items = create_data
+                        .visible_items
+                        .iter()
+                        .filter(|(item_id, _, _)| *item_id != 0)
+                        .count();
+                    lines.push(format!(
+                        "#{index:03} player guid={guid:?} update_type={} type_id={} self={} bytes={} level={} display={} native_display={} health={}/{} inv_slots={} visible_items={} skills={} quests={} toys={} heirlooms={} coinage={}",
+                        *update_type as u8,
+                        *type_id as u8,
+                        is_self,
+                        block_buf.into_data().len(),
+                        create_data.level,
+                        create_data.display_id,
+                        create_data.native_display_id,
+                        create_data.health,
+                        create_data.max_health,
+                        inv_slots,
+                        visible_items,
+                        create_data.skill_info.len(),
+                        create_data.quest_log.len(),
+                        create_data.toys.len(),
+                        create_data.heirlooms.len(),
+                        create_data.coinage
+                    ));
+                }
+                UpdateBlock::CreateCreature {
+                    guid,
+                    movement,
+                    create_data,
+                } => {
+                    let mut block_buf = WorldPacket::new_empty();
+                    write_creature_create_block(&mut block_buf, guid, movement, create_data);
+                    lines.push(format!(
+                        "#{index:03} creature guid={guid:?} entry={} display={} native_display={} level={} bytes={} pos=({:.3},{:.3},{:.3},{:.3}) hp={}/{} npc_flags=0x{:X} unit_flags=0x{:X}/0x{:X}/0x{:X} move_flags=0x{:X} speeds=({:.5},{:.5}) power0={}/{} virtual_items={:?} hover={} hover_h={:.3} animkits=({},{},{})",
+                        create_data.entry,
+                        create_data.display_id,
+                        create_data.native_display_id,
+                        create_data.level,
+                        block_buf.into_data().len(),
+                        movement.position.x,
+                        movement.position.y,
+                        movement.position.z,
+                        movement.position.orientation,
+                        create_data.health,
+                        create_data.max_health,
+                        create_data.npc_flags,
+                        create_data.unit_flags,
+                        create_data.unit_flags2,
+                        create_data.unit_flags3,
+                        create_data.movement_flags,
+                        movement.walk_speed,
+                        movement.run_speed,
+                        create_data.power[0],
+                        create_data.max_power[0],
+                        create_data.virtual_items,
+                        create_data.play_hover_anim,
+                        create_data.hover_height,
+                        create_data.ai_anim_kit_id,
+                        create_data.movement_anim_kit_id,
+                        create_data.melee_anim_kit_id
+                    ));
+                }
+                UpdateBlock::CreateItem { guid, create_data } => {
+                    let mut block_buf = WorldPacket::new_empty();
+                    write_item_create_block(&mut block_buf, guid, create_data);
+                    let filled_container_slots = create_data
+                        .container_item_guids
+                        .iter()
+                        .filter(|guid| !guid.is_empty())
+                        .count();
+                    lines.push(format!(
+                        "#{index:03} item guid={guid:?} entry={} type_id={} bytes={} stack={} flags=0x{:X} durability={}/{} context={} contained_in={:?} container_slots={} filled_container_slots={} random=({},{})",
+                        create_data.entry_id,
+                        if create_data.container_slots > 0 {
+                            TypeId::Container as u8
+                        } else {
+                            TypeId::Item as u8
+                        },
+                        block_buf.into_data().len(),
+                        create_data.stack_count,
+                        create_data.dynamic_flags,
+                        create_data.durability,
+                        create_data.max_durability,
+                        create_data.context,
+                        create_data.contained_in,
+                        create_data.container_slots,
+                        filled_container_slots,
+                        create_data.random_properties_seed,
+                        create_data.random_properties_id
+                    ));
+                }
+                UpdateBlock::CreateGameObject {
+                    update_type,
+                    guid,
+                    create_data,
+                } => {
+                    let mut block_buf = WorldPacket::new_empty();
+                    write_gameobject_create_block(&mut block_buf, *update_type, guid, create_data);
+                    lines.push(format!(
+                        "#{index:03} gameobject guid={guid:?} update_type={} entry={} display={} type={} bytes={} pos=({:.3},{:.3},{:.3},{:.3})",
+                        *update_type as u8,
+                        create_data.entry,
+                        create_data.display_id,
+                        create_data.go_type,
+                        block_buf.into_data().len(),
+                        create_data.position.x,
+                        create_data.position.y,
+                        create_data.position.z,
+                        create_data.position.orientation
+                    ));
+                }
+                UpdateBlock::CreateDynamicObject { guid, create_data } => {
+                    lines.push(format!(
+                        "#{index:03} dynamic_object guid={guid:?} spell={} visual={} radius={}",
+                        create_data.spell_id, create_data.spell_visual_id, create_data.radius
+                    ));
+                }
+                UpdateBlock::ItemValuesUpdate { guid, stack_count } => {
+                    lines.push(format!(
+                        "#{index:03} item_values guid={guid:?} stack_count={stack_count}"
+                    ));
+                }
+                UpdateBlock::PlayerValuesUpdate {
+                    guid,
+                    inv_slot_changes,
+                    buyback_changes,
+                    visible_item_changes,
+                    virtual_item_changes,
+                    stat_changes,
+                    coinage_change,
+                } => {
+                    lines.push(format!(
+                        "#{index:03} player_values guid={guid:?} inv_changes={} buyback_changes={} visible_changes={} virtual_changes={} stat_changes={} coinage_change={}",
+                        inv_slot_changes.len(),
+                        buyback_changes.len(),
+                        visible_item_changes.len(),
+                        virtual_item_changes.len(),
+                        stat_changes.is_some(),
+                        coinage_change.is_some()
+                    ));
+                }
+                UpdateBlock::CreatureHealthUpdate {
+                    guid,
+                    health,
+                    max_health,
+                } => {
+                    lines.push(format!(
+                        "#{index:03} creature_health guid={guid:?} hp={health}/{max_health}"
+                    ));
+                }
+                UpdateBlock::ObjectValuesUpdate { guid, .. } => {
+                    lines.push(format!("#{index:03} object_values guid={guid:?}"));
+                }
+                UpdateBlock::DynamicObjectValuesUpdate { guid, .. } => {
+                    lines.push(format!("#{index:03} dynamic_object_values guid={guid:?}"));
+                }
+                UpdateBlock::SceneObjectValuesUpdate { guid, .. } => {
+                    lines.push(format!("#{index:03} scene_object_values guid={guid:?}"));
+                }
+                UpdateBlock::ConversationValuesUpdate { guid, .. } => {
+                    lines.push(format!("#{index:03} conversation_values guid={guid:?}"));
+                }
+                UpdateBlock::GameObjectValuesUpdate { guid, .. } => {
+                    lines.push(format!("#{index:03} gameobject_values guid={guid:?}"));
+                }
+                UpdateBlock::CorpseValuesUpdate { guid, .. } => {
+                    lines.push(format!("#{index:03} corpse_values guid={guid:?}"));
+                }
+                UpdateBlock::AreaTriggerValuesUpdate { guid, .. } => {
+                    lines.push(format!("#{index:03} areatrigger_values guid={guid:?}"));
+                }
+                UpdateBlock::FullItemValuesUpdate { guid, .. } => {
+                    lines.push(format!("#{index:03} full_item_values guid={guid:?}"));
+                }
+                UpdateBlock::UnitValuesUpdate { guid, .. } => {
+                    lines.push(format!("#{index:03} unit_values guid={guid:?}"));
+                }
+                UpdateBlock::FullPlayerValuesUpdate { guid, .. } => {
+                    lines.push(format!("#{index:03} full_player_values guid={guid:?}"));
+                }
+                UpdateBlock::FullActivePlayerValuesUpdate { guid, .. } => {
+                    lines.push(format!(
+                        "#{index:03} full_active_player_values guid={guid:?}"
+                    ));
+                }
+                UpdateBlock::ContainerValuesUpdate { guid, .. } => {
+                    lines.push(format!("#{index:03} container_values guid={guid:?}"));
+                }
+                UpdateBlock::DestroyOutOfRange { guid } => {
+                    lines.push(format!("#{index:03} destroy_out_of_range guid={guid:?}"));
+                }
+            }
+        }
+
+        lines
+    }
+
+    /// Create a creature spawn block for an object already present in the map.
     ///
     /// Speed rates from `creature_template` are multiplied by base speeds:
     /// walk = rate × 2.5, run = rate × 7.0.
@@ -2900,6 +3179,7 @@ impl UpdateObject {
         let run_speed = create_data.speed_run_rate * 7.0;
         let movement = MovementBlock {
             position: *position,
+            movement_flags: create_data.movement_flags,
             walk_speed,
             run_speed,
             ..Default::default()
@@ -2911,9 +3191,23 @@ impl UpdateObject {
         }
     }
 
-    /// Create a gameobject spawn block.
+    /// Create a gameobject block for an object already present in the map.
+    ///
+    /// C++ `Object::BuildCreateUpdateBlockForPlayer` writes `CreateObject`
+    /// for normal visibility and only switches to `CreateObject2` while
+    /// `Map::AddToMap` has marked the object as new.
     pub fn create_gameobject_block(create_data: GameObjectCreateData) -> UpdateBlock {
         UpdateBlock::CreateGameObject {
+            update_type: UpdateType::CreateObject,
+            guid: create_data.guid,
+            create_data,
+        }
+    }
+
+    /// Create a gameobject block for the C++ `m_isNewObject` path.
+    pub fn create_new_gameobject_block(create_data: GameObjectCreateData) -> UpdateBlock {
+        UpdateBlock::CreateGameObject {
+            update_type: UpdateType::CreateObject2,
             guid: create_data.guid,
             create_data,
         }
@@ -3021,7 +3315,7 @@ impl UpdateObject {
             health: combat.health,
             max_health: combat.max_health,
             faction_template: faction,
-            zone_id,
+            current_area_id: zone_id,
             stats: combat.stats,
             base_armor: combat.base_armor,
             max_mana: combat.max_mana,
@@ -3479,8 +3773,12 @@ impl ServerPacket for UpdateObject {
                 } => {
                     write_creature_create_block(&mut blocks_buf, guid, movement, create_data);
                 }
-                UpdateBlock::CreateGameObject { guid, create_data } => {
-                    write_gameobject_create_block(&mut blocks_buf, guid, create_data);
+                UpdateBlock::CreateGameObject {
+                    update_type,
+                    guid,
+                    create_data,
+                } => {
+                    write_gameobject_create_block(&mut blocks_buf, *update_type, guid, create_data);
                 }
                 UpdateBlock::CreateDynamicObject { guid, create_data } => {
                     write_dynamic_object_create_block(&mut blocks_buf, guid, create_data);
@@ -3580,22 +3878,7 @@ fn write_create_block(
     create_data: &PlayerCreateData,
     is_self: bool,
 ) {
-    let skip_active_player_movement_block =
-        std::env::var("RUSTYCORE_LOGIN_UPDATEOBJECT_DIAGNOSTIC")
-            .map(|value| {
-                value
-                    .split(',')
-                    .any(|mode| mode.trim() == "no_active_player_movement_block")
-            })
-            .unwrap_or(false);
-    let skip_movement_update = std::env::var("RUSTYCORE_LOGIN_UPDATEOBJECT_DIAGNOSTIC")
-        .map(|value| {
-            value
-                .split(',')
-                .any(|mode| mode.trim() == "no_movement_update")
-        })
-        .unwrap_or(false);
-    let write_active_player_movement = is_self && !skip_active_player_movement_block;
+    let write_active_player_movement = is_self;
 
     // UpdateType byte
     buf.write_uint8(update_type as u8);
@@ -3607,7 +3890,7 @@ fn write_create_block(
     buf.write_uint8(type_id as u8);
 
     // ── 18-bit CreateObjectBits ────────────────────────────────
-    let has_movement = movement.is_some() && !skip_movement_update;
+    let has_movement = movement.is_some();
     buf.write_bit(false); // 0: NoBirthAnim
     buf.write_bit(false); // 1: EnablePortals
     buf.write_bit(false); // 2: PlayHoverAnim
@@ -3661,10 +3944,12 @@ fn write_movement_update(buf: &mut WorldPacket, guid: &ObjectGuid, mv: &Movement
     // MoverGUID
     buf.write_packed_guid(guid);
 
-    // MovementFlags, MovementFlags2, ExtraMovementFlags2
-    buf.write_uint32(0);
-    buf.write_uint32(0);
-    buf.write_uint32(0);
+    // MovementFlags, MovementFlags2, ExtraMovementFlags2.
+    // C++ `Object::BuildMovementUpdate` serializes Unit::m_movementInfo; creature
+    // addons can set MOVEMENTFLAG_HOVER during `Creature::LoadCreaturesAddon`.
+    buf.write_uint32(mv.movement_flags);
+    buf.write_uint32(mv.movement_flags2);
+    buf.write_uint32(mv.movement_flags3);
 
     // MoveTime
     buf.write_uint32(0);
@@ -3776,9 +4061,11 @@ fn write_creature_create_block(
     movement: &MovementBlock,
     create_data: &CreatureCreateData,
 ) {
-    // UpdateType: CreateObject2 — always used when object appears for the first time
-    // to a player (matches C++ Map::AddToMap → SetIsNewObject(true) → CreateObject2).
-    buf.write_uint8(UpdateType::CreateObject2 as u8);
+    // C++ `Object::BuildCreateUpdateBlockForPlayer` uses CreateObject2 only
+    // while `Map::AddToMap` temporarily sets `m_isNewObject=true`
+    // (`Map.cpp:573-575`, `Object.cpp:135`). Login visibility for creatures
+    // already present in the map uses the normal CreateObject update type.
+    buf.write_uint8(UpdateType::CreateObject as u8);
 
     // Object GUID
     buf.write_packed_guid(guid);
@@ -3792,7 +4079,7 @@ fn write_creature_create_block(
         || create_data.melee_anim_kit_id != 0;
     buf.write_bit(false); // 0: NoBirthAnim
     buf.write_bit(false); // 1: EnablePortals
-    buf.write_bit(false); // 2: PlayHoverAnim
+    buf.write_bit(create_data.play_hover_anim); // 2: PlayHoverAnim
     buf.write_bit(true); // 3: MovementUpdate (always true for Unit)
     buf.write_bit(false); // 4: MovementTransport
     buf.write_bit(false); // 5: Stationary
@@ -3834,11 +4121,11 @@ fn write_creature_create_block(
 /// No MovementUpdate block.
 fn write_gameobject_create_block(
     buf: &mut WorldPacket,
+    update_type: UpdateType,
     guid: &ObjectGuid,
     create_data: &GameObjectCreateData,
 ) {
-    // UpdateType: CreateObject2 — first appearance of this object to the client
-    buf.write_uint8(UpdateType::CreateObject2 as u8);
+    buf.write_uint8(update_type as u8);
 
     // Object GUID
     buf.write_packed_guid(guid);
@@ -3948,14 +4235,20 @@ fn write_dynamic_object_create_block(
 /// Items have NO movement block, NO stationary, and all 18 bits are false.
 /// Values = ObjectData + ItemData (with Owner conditional fields).
 fn write_item_create_block(buf: &mut WorldPacket, guid: &ObjectGuid, data: &ItemCreateData) {
+    let is_container = data.container_slots > 0;
+
     // UpdateType: CreateObject2 — first appearance of item to the client
     buf.write_uint8(UpdateType::CreateObject2 as u8);
 
     // Object GUID
     buf.write_packed_guid(guid);
 
-    // TypeId = Item (1)
-    buf.write_uint8(TypeId::Item as u8);
+    // TypeId = Item (1) or Container (2) for bags.
+    buf.write_uint8(if is_container {
+        TypeId::Container as u8
+    } else {
+        TypeId::Item as u8
+    });
 
     // ── 18-bit CreateObjectBits (all false for items) ────
     for _ in 0..18 {
@@ -4036,6 +4329,14 @@ fn write_item_create_block(buf: &mut WorldPacket, guid: &ObjectGuid, data: &Item
     // ItemModList (dynamic) — 6 bits for size = 0, then FlushBits
     val_buf.write_bits(0, 6);
     val_buf.flush_bits();
+
+    if is_container {
+        // C++ `ContainerData::WriteCreate`: Slots[36], then NumSlots.
+        for slot_guid in data.container_item_guids {
+            val_buf.write_packed_guid(&slot_guid);
+        }
+        val_buf.write_uint32(data.container_slots);
+    }
 
     // Write values block with size prefix
     let val_data = val_buf.into_data();
@@ -7710,6 +8011,9 @@ mod tests {
     fn movement_create_block_flushes_cpp_eight_subbits_before_speeds_for_54261() {
         let mv = MovementBlock {
             position: Position::ZERO,
+            movement_flags: 0,
+            movement_flags2: 0,
+            movement_flags3: 0,
             walk_speed: 1.0,
             run_speed: 2.0,
             run_back_speed: 3.0,
@@ -7753,6 +8057,41 @@ mod tests {
             1.0,
             "speed block shifted to the old Rust-only nine-sub-bit boundary"
         );
+    }
+
+    #[test]
+    fn movement_create_block_serializes_creature_hover_flag_like_cpp() {
+        let mv = MovementBlock {
+            position: Position::ZERO,
+            movement_flags: wow_constants::movement::MovementFlag::HOVER.bits(),
+            movement_flags2: 0,
+            movement_flags3: 0,
+            walk_speed: 1.0,
+            run_speed: 2.0,
+            run_back_speed: 3.0,
+            swim_speed: 4.0,
+            swim_back_speed: 5.0,
+            fly_speed: 6.0,
+            fly_back_speed: 7.0,
+            turn_rate: 8.0,
+            pitch_rate: 9.0,
+        };
+
+        let mut buf = WorldPacket::new_empty();
+        write_movement_update(&mut buf, &ObjectGuid::EMPTY, &mv);
+        let bytes = buf.data();
+
+        // EMPTY packed GUID is 2 bytes; C++ then writes MovementFlags,
+        // MovementFlags2 and ExtraMovementFlags2 as three u32 values.
+        assert_eq!(
+            &bytes[2..6],
+            &wow_constants::movement::MovementFlag::HOVER
+                .bits()
+                .to_le_bytes(),
+            "C++ Creature::LoadCreaturesAddon preserves MOVEMENTFLAG_HOVER in BuildMovementUpdate"
+        );
+        assert_eq!(&bytes[6..10], &[0, 0, 0, 0]);
+        assert_eq!(&bytes[10..14], &[0, 0, 0, 0]);
     }
 
     #[test]
@@ -7996,6 +8335,8 @@ mod tests {
                 random_properties_seed: 456,
                 random_properties_id: -77,
                 context: 2,
+                container_slots: 0,
+                container_item_guids: [ObjectGuid::EMPTY; 36],
             }],
             0,
         );
@@ -8019,6 +8360,46 @@ mod tests {
     }
 
     #[test]
+    fn container_create_serializes_cpp_container_data_after_item_data() {
+        let item_guid = ObjectGuid::create_item(1, 900);
+        let owner_guid = ObjectGuid::create_player(1, 42);
+        let contained_item = ObjectGuid::create_item(1, 901);
+        let mut container_item_guids = [ObjectGuid::EMPTY; 36];
+        container_item_guids[3] = contained_item;
+
+        let pkt = UpdateObject::create_items(
+            vec![ItemCreateData {
+                item_guid,
+                entry_id: 700,
+                owner_guid,
+                contained_in: owner_guid,
+                stack_count: 1,
+                dynamic_flags: 0,
+                durability: 0,
+                max_durability: 0,
+                random_properties_seed: 0,
+                random_properties_id: 0,
+                context: 0,
+                container_slots: 16,
+                container_item_guids,
+            }],
+            0,
+        );
+
+        let bytes = pkt.to_bytes();
+        assert!(
+            bytes
+                .windows(1)
+                .any(|window| window == [TypeId::Container as u8]),
+            "C++ Bag CREATE uses TYPEID_CONTAINER"
+        );
+        assert!(
+            bytes.windows(4).any(|window| window == 16u32.to_le_bytes()),
+            "C++ ContainerData::WriteCreate writes NumSlots after 36 slot GUIDs"
+        );
+    }
+
+    #[test]
     fn item_stack_count_update_serializes_item_values_delta() {
         let item_guid = ObjectGuid::create_item(1, 900);
         let pkt = UpdateObject::item_stack_count_update(item_guid, 0, 19);
@@ -8032,9 +8413,15 @@ mod tests {
     #[test]
     fn movement_block_default_speeds() {
         let mv = MovementBlock::default();
-        assert!((mv.walk_speed - 2.5).abs() < 0.01);
-        assert!((mv.run_speed - 7.0).abs() < 0.01);
-        assert!((mv.swim_speed - 4.72222).abs() < 0.01);
+        assert_eq!(mv.walk_speed, 2.5);
+        assert_eq!(mv.run_speed, 7.0);
+        assert_eq!(mv.run_back_speed, 4.5);
+        assert_eq!(mv.swim_speed, 4.72222);
+        assert_eq!(mv.swim_back_speed, 2.5);
+        assert_eq!(mv.fly_speed, 7.0);
+        assert_eq!(mv.fly_back_speed, 4.5);
+        assert_eq!(mv.turn_rate, 3.141594);
+        assert_eq!(mv.pitch_rate, 3.14);
     }
 
     #[test]
@@ -9199,7 +9586,7 @@ mod tests {
             health: 100,
             max_health: 100,
             faction_template: PlayerCreateData::faction_for_race(1),
-            zone_id: 12,
+            current_area_id: 12,
             stats: [0; 5],
             base_armor: 0,
             max_mana: 0,
@@ -9421,11 +9808,23 @@ mod tests {
             scale: 1.0,
             unit_class: 1,
             display_power: 1,
+            power: [0; 10],
+            max_power: [0; 10],
             base_mana: 0,
             virtual_items: [(0, 0, 0); 3],
             base_attack_time: 2000,
             ranged_attack_time: 0,
-            zone_id: 12,
+            movement_flags: 0,
+            play_hover_anim: false,
+            hover_height: 1.0,
+            mount_display_id: 0,
+            stand_state: 0,
+            vis_flags: 0,
+            anim_tier: 0,
+            emote_state: 0,
+            sheathe_state: wow_constants::unit::SheathState::Melee as u8,
+            pvp_flags: 0,
+            current_area_id: 12,
             speed_walk_rate: 1.0,
             speed_run_rate: 1.14286,
             ai_anim_kit_id: 0,
@@ -9481,11 +9880,23 @@ mod tests {
             scale: 1.0,
             unit_class: 1,
             display_power: 1,
+            power: [0; 10],
+            max_power: [0; 10],
             base_mana: 0,
             virtual_items: [(0, 0, 0); 3],
             base_attack_time: 2000,
             ranged_attack_time: 0,
-            zone_id: 12,
+            movement_flags: 0,
+            play_hover_anim: false,
+            hover_height: 1.0,
+            mount_display_id: 0,
+            stand_state: 0,
+            vis_flags: 0,
+            anim_tier: 0,
+            emote_state: 0,
+            sheathe_state: wow_constants::unit::SheathState::Melee as u8,
+            pvp_flags: 0,
+            current_area_id: 12,
             speed_walk_rate: 1.0,
             speed_run_rate: 1.14286,
             ai_anim_kit_id: 11,
@@ -9501,6 +9912,246 @@ mod tests {
                 .windows(6)
                 .any(|window| window == [11, 0, 22, 0, 33, 0]),
             "C++ CreateObjectBits::AnimKit writes AiID, MovementID, MeleeID as u16 payload"
+        );
+    }
+
+    #[test]
+    fn creature_create_serializes_cpp_addon_unit_fields() {
+        let guid = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Creature,
+            0,
+            1,
+            0,
+            1,
+            1234,
+            1,
+        );
+        let pos = Position::new(1.0, 2.0, 3.0, 4.0);
+        let data = CreatureCreateData {
+            guid,
+            entry: 1234,
+            display_id: 856,
+            native_display_id: 856,
+            display_scale: 1.0,
+            native_x_display_scale: 1.0,
+            bounding_radius: 0.389,
+            combat_reach: 1.5,
+            health: 500,
+            max_health: 500,
+            level: 5,
+            faction_template: 14,
+            npc_flags: 0,
+            unit_flags: 0,
+            unit_flags2: 0,
+            unit_flags3: 0,
+            damage_school: wow_constants::spell::SpellSchools::Normal as u8,
+            scale: 1.0,
+            unit_class: 1,
+            display_power: 1,
+            power: [0; 10],
+            max_power: [0; 10],
+            base_mana: 0,
+            virtual_items: [(0, 0, 0); 3],
+            base_attack_time: 2000,
+            ranged_attack_time: 0,
+            movement_flags: 0,
+            play_hover_anim: false,
+            hover_height: 1.25,
+            mount_display_id: 0x0102_0304,
+            stand_state: 2,
+            vis_flags: 0x12,
+            anim_tier: 3,
+            emote_state: 0x1122_3344,
+            sheathe_state: 1,
+            pvp_flags: 5,
+            current_area_id: 12,
+            speed_walk_rate: 1.0,
+            speed_run_rate: 1.14286,
+            ai_anim_kit_id: 0,
+            movement_anim_kit_id: 0,
+            melee_anim_kit_id: 0,
+        };
+        let bytes = UpdateObject::create_creatures(
+            vec![UpdateObject::create_creature_block(data, &pos)],
+            0,
+        )
+        .to_bytes();
+
+        assert!(
+            bytes.windows(4).any(|window| window == [4, 3, 2, 1]),
+            "C++ UnitData::WriteCreate writes MountDisplayID after native display scale"
+        );
+        assert!(
+            bytes.windows(4).any(|window| window == [2, 0, 0x12, 3]),
+            "C++ UnitData::WriteCreate writes StandState/PetTalentPoints/VisFlags/AnimTier"
+        );
+        assert!(
+            bytes
+                .windows(4)
+                .any(|window| window == [0x44, 0x33, 0x22, 0x11]),
+            "C++ UnitData::WriteCreate writes EmoteState"
+        );
+        let mut mod_time_rate_sequence = Vec::new();
+        for _ in 0..6 {
+            mod_time_rate_sequence.extend_from_slice(&1.0f32.to_le_bytes());
+        }
+        mod_time_rate_sequence.extend_from_slice(&0i32.to_le_bytes());
+        mod_time_rate_sequence.extend_from_slice(&0x1122_3344i32.to_le_bytes());
+        assert!(
+            bytes
+                .windows(mod_time_rate_sequence.len())
+                .any(|window| window == mod_time_rate_sequence),
+            "C++ UnitData::WriteCreate writes six speed/haste/time-rate floats before CreatedBySpell and EmoteState"
+        );
+        assert!(
+            bytes.windows(4).any(|window| window == [1, 5, 0, 0]),
+            "C++ UnitData::WriteCreate writes SheatheState/PvpFlags/PetFlags/ShapeshiftForm"
+        );
+        assert!(
+            bytes
+                .windows(4)
+                .any(|window| window == 1.25f32.to_le_bytes()),
+            "C++ UnitData::WriteCreate writes UnitData::HoverHeight from CreatureModelData"
+        );
+    }
+
+    #[test]
+    fn creature_create_serializes_cpp_power_and_max_power_arrays() {
+        let mut power = [0; 10];
+        let mut max_power = [0; 10];
+        power[0] = 77;
+        max_power[0] = 123;
+        let data = CreatureCreateData {
+            guid: ObjectGuid::EMPTY,
+            entry: 1234,
+            display_id: 856,
+            native_display_id: 856,
+            display_scale: 1.0,
+            native_x_display_scale: 1.0,
+            bounding_radius: 0.389,
+            combat_reach: 1.5,
+            health: 500,
+            max_health: 500,
+            level: 5,
+            faction_template: 14,
+            npc_flags: 0,
+            unit_flags: 0,
+            unit_flags2: 0,
+            unit_flags3: 0,
+            damage_school: wow_constants::spell::SpellSchools::Normal as u8,
+            scale: 1.0,
+            unit_class: 1,
+            display_power: 0,
+            power,
+            max_power,
+            base_mana: 123,
+            virtual_items: [(0, 0, 0); 3],
+            base_attack_time: 2000,
+            ranged_attack_time: 0,
+            movement_flags: 0,
+            play_hover_anim: false,
+            hover_height: 1.0,
+            mount_display_id: 0,
+            stand_state: 0,
+            vis_flags: 0,
+            anim_tier: 0,
+            emote_state: 0,
+            sheathe_state: wow_constants::unit::SheathState::Melee as u8,
+            pvp_flags: 0,
+            current_area_id: 0,
+            speed_walk_rate: 1.0,
+            speed_run_rate: 1.14286,
+            ai_anim_kit_id: 0,
+            movement_anim_kit_id: 0,
+            melee_anim_kit_id: 0,
+        };
+        let bytes = UpdateObject::create_creatures(
+            vec![UpdateObject::create_creature_block(data, &Position::ZERO)],
+            0,
+        )
+        .to_bytes();
+        let mut expected = Vec::new();
+        expected.extend_from_slice(&77i32.to_le_bytes());
+        expected.extend_from_slice(&123i32.to_le_bytes());
+        expected.extend_from_slice(&0.0f32.to_le_bytes());
+        assert!(
+            bytes
+                .windows(expected.len())
+                .any(|window| window == expected),
+            "C++ UnitData::WriteCreate writes Power[0], MaxPower[0], ModPowerRegen[0]"
+        );
+    }
+
+    #[test]
+    fn creature_create_serializes_play_hover_anim_bit_like_cpp() {
+        let mut data = CreatureCreateData {
+            guid: ObjectGuid::EMPTY,
+            entry: 1234,
+            display_id: 856,
+            native_display_id: 856,
+            display_scale: 1.0,
+            native_x_display_scale: 1.0,
+            bounding_radius: 0.389,
+            combat_reach: 1.5,
+            health: 500,
+            max_health: 500,
+            level: 5,
+            faction_template: 14,
+            npc_flags: 0,
+            unit_flags: 0,
+            unit_flags2: 0,
+            unit_flags3: 0,
+            damage_school: wow_constants::spell::SpellSchools::Normal as u8,
+            scale: 1.0,
+            unit_class: 1,
+            display_power: 1,
+            power: [0; 10],
+            max_power: [0; 10],
+            base_mana: 0,
+            virtual_items: [(0, 0, 0); 3],
+            base_attack_time: 2000,
+            ranged_attack_time: 0,
+            movement_flags: wow_constants::movement::MovementFlag::HOVER.bits(),
+            play_hover_anim: false,
+            hover_height: 1.25,
+            mount_display_id: 0,
+            stand_state: 0,
+            vis_flags: 0,
+            anim_tier: 0,
+            emote_state: 0,
+            sheathe_state: wow_constants::unit::SheathState::Melee as u8,
+            pvp_flags: 0,
+            current_area_id: 12,
+            speed_walk_rate: 1.0,
+            speed_run_rate: 1.14286,
+            ai_anim_kit_id: 0,
+            movement_anim_kit_id: 0,
+            melee_anim_kit_id: 0,
+        };
+        let movement = MovementBlock {
+            position: Position::ZERO,
+            movement_flags: data.movement_flags,
+            ..Default::default()
+        };
+        let mut without_hover = WorldPacket::new_empty();
+        write_creature_create_block(&mut without_hover, &ObjectGuid::EMPTY, &movement, &data);
+        data.play_hover_anim = true;
+        let mut with_hover = WorldPacket::new_empty();
+        write_creature_create_block(&mut with_hover, &ObjectGuid::EMPTY, &movement, &data);
+
+        let diffs = without_hover
+            .data()
+            .iter()
+            .zip(with_hover.data())
+            .filter_map(|(left, right)| {
+                let diff = left ^ right;
+                (diff != 0).then_some(diff)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            diffs,
+            vec![1 << 5],
+            "the third C++ CreateObjectBits WriteBit toggles PlayHoverAnim"
         );
     }
 
@@ -9551,11 +10202,23 @@ mod tests {
             scale: 1.0,
             unit_class: 1,
             display_power: 1,
+            power: [0; 10],
+            max_power: [0; 10],
             base_mana: 0,
             virtual_items: [(0, 0, 0); 3],
             base_attack_time: 2000,
             ranged_attack_time: 0,
-            zone_id: 12,
+            movement_flags: 0,
+            play_hover_anim: false,
+            hover_height: 1.0,
+            mount_display_id: 0,
+            stand_state: 0,
+            vis_flags: 0,
+            anim_tier: 0,
+            emote_state: 0,
+            sheathe_state: wow_constants::unit::SheathState::Melee as u8,
+            pvp_flags: 0,
+            current_area_id: 12,
             speed_walk_rate: 1.0,
             speed_run_rate: 1.14286,
             ai_anim_kit_id: 0,
@@ -9612,11 +10275,23 @@ mod tests {
                 scale: 1.0,
                 unit_class: 1,
                 display_power: 1,
+                power: [0; 10],
+                max_power: [0; 10],
                 base_mana: 0,
                 virtual_items: [(0, 0, 0); 3],
                 base_attack_time: 2000,
                 ranged_attack_time: 0,
-                zone_id: 12,
+                movement_flags: 0,
+                play_hover_anim: false,
+                hover_height: 1.0,
+                mount_display_id: 0,
+                stand_state: 0,
+                vis_flags: 0,
+                anim_tier: 0,
+                emote_state: 0,
+                sheathe_state: wow_constants::unit::SheathState::Melee as u8,
+                pvp_flags: 0,
+                current_area_id: 12,
                 speed_walk_rate: 1.0,
                 speed_run_rate: 1.14286,
                 ai_anim_kit_id: 0,
@@ -9675,11 +10350,23 @@ mod tests {
             scale: 1.0,
             unit_class: 1,
             display_power: 1,
+            power: [0; 10],
+            max_power: [0; 10],
             base_mana: 0,
             virtual_items: [(0, 0, 0); 3],
             base_attack_time: 2000,
             ranged_attack_time: 0,
-            zone_id: 1637,
+            movement_flags: 0,
+            play_hover_anim: false,
+            hover_height: 1.0,
+            mount_display_id: 0,
+            stand_state: 0,
+            vis_flags: 0,
+            anim_tier: 0,
+            emote_state: 0,
+            sheathe_state: wow_constants::unit::SheathState::Melee as u8,
+            pvp_flags: 0,
+            current_area_id: 1637,
             speed_walk_rate: 1.0,
             speed_run_rate: 1.14286,
             ai_anim_kit_id: 0,

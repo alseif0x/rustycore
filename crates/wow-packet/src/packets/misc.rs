@@ -1667,7 +1667,7 @@ impl ServerPacket for AccountDataTimes {
     const OPCODE: ServerOpcodes = ServerOpcodes::AccountDataTimes;
 
     fn write(&self, pkt: &mut WorldPacket) {
-        pkt.write_packed_guid(&self.player_guid);
+        pkt.write_guid(&self.player_guid);
         pkt.write_int64(self.server_time);
         for t in &self.account_times {
             pkt.write_int64(*t);
@@ -7945,8 +7945,8 @@ mod tests {
     fn account_data_times_global() {
         let pkt = AccountDataTimes::global();
         let bytes = pkt.to_bytes();
-        // opcode(2) + packed_guid(2 for empty) + server_time(8) + 15*i64(120) = 132
-        assert_eq!(bytes.len(), 132);
+        // opcode(2) + ObjectGuid(16) + server_time(8) + 15*i64(120) = 146
+        assert_eq!(bytes.len(), 146);
     }
 
     #[test]
@@ -7954,7 +7954,17 @@ mod tests {
         let guid = ObjectGuid::create_player(1, 42);
         let pkt = AccountDataTimes::for_player(guid);
         let bytes = pkt.to_bytes();
-        assert!(bytes.len() > 76); // Bigger than empty GUID version
+        assert_eq!(bytes.len(), 146);
+
+        let mut body = WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            body.read_uint16().unwrap(),
+            ServerOpcodes::AccountDataTimes as u16
+        );
+        let raw_guid = body.read_bytes(16).unwrap();
+        let mut raw = [0u8; 16];
+        raw.copy_from_slice(&raw_guid);
+        assert_eq!(ObjectGuid::from_raw_bytes(&raw), guid);
     }
 
     #[test]

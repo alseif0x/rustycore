@@ -5,13 +5,14 @@
 
 //! Character handlers: enum, create, delete, and player login.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 
 use rand::Rng;
 use tracing::{debug, info, trace, warn};
+use wow_constants::movement::MovementFlag;
 use wow_constants::unit::{
-    NPCFlags1, UNIT_FLAGS_ALLOWED_LIKE_CPP, UNIT_FLAGS2_ALLOWED_LIKE_CPP,
+    NPCFlags1, SheathState, UNIT_FLAGS_ALLOWED_LIKE_CPP, UNIT_FLAGS2_ALLOWED_LIKE_CPP,
     UNIT_FLAGS3_ALLOWED_LIKE_CPP, UnitFlags,
 };
 use wow_constants::{
@@ -56,10 +57,10 @@ use wow_packet::{ClientPacket, WorldPacket};
 use crate::handlers::quest::RepresentedQuestGiverStatusSourceLikeCpp;
 use crate::reputation::mgr::CharacterReputationRowLikeCpp;
 use crate::session::{
-    CharacterPetAuraEffectRowLikeCpp, CharacterPetAuraRowLikeCpp,
-    CharacterPetDeclinedNamesRowLikeCpp, CharacterPetSpellChargeRowLikeCpp,
-    CharacterPetSpellCooldownRowLikeCpp, CharacterPetSpellRowLikeCpp, CharacterPetStableRowLikeCpp,
-    PER_CHARACTER_CACHE_MASK_LIKE_CPP, RepresentedAlterAppearanceLikeCpp,
+    ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP, CharacterPetAuraEffectRowLikeCpp,
+    CharacterPetAuraRowLikeCpp, CharacterPetDeclinedNamesRowLikeCpp,
+    CharacterPetSpellChargeRowLikeCpp, CharacterPetSpellCooldownRowLikeCpp,
+    CharacterPetSpellRowLikeCpp, CharacterPetStableRowLikeCpp, RepresentedAlterAppearanceLikeCpp,
     RepresentedBankItemMoveLikeCpp, RepresentedConfirmBarbersChoiceLikeCpp,
     RepresentedGameObjectUseState,
 };
@@ -88,6 +89,7 @@ const CREATURE_SPAWN_NPC_FLAGS_OVERRIDE_COLUMN: usize = 45;
 const CREATURE_SPAWN_UNIT_FLAGS_OVERRIDE_COLUMN: usize = 46;
 const CREATURE_SPAWN_UNIT_FLAGS2_OVERRIDE_COLUMN: usize = 47;
 const CREATURE_SPAWN_UNIT_FLAGS3_OVERRIDE_COLUMN: usize = 48;
+const CREATURE_SPAWN_EQUIPMENT_ID_COLUMN: usize = 49;
 const WAYPOINT_MOTION_TYPE_LIKE_CPP: u8 = 2;
 const TACT_KEY_TABLE_HASH_LIKE_CPP: u32 = 0xD3F6_1A9E;
 const QUEST_GIVER_STATUS_TRACKED_QUERY_MAX_GUIDS_LIKE_CPP: u32 = 1000;
@@ -205,55 +207,6 @@ fn is_within_2d_visibility_range_like_cpp(
     let dx = viewer.x - object_x;
     let dy = viewer.y - object_y;
     dx * dx + dy * dy <= range * range
-}
-
-fn creature_visibility_limit_diagnostic_like_cpp() -> Option<usize> {
-    std::env::var("RUSTYCORE_CREATURE_VISIBILITY_LIMIT")
-        .ok()
-        .and_then(|value| value.parse::<usize>().ok())
-}
-
-fn apply_creature_visibility_limit_diagnostic_like_cpp(
-    blocks: &mut Vec<UpdateBlock>,
-    visible_guids: &mut Vec<ObjectGuid>,
-    account_id: u32,
-    map_id: u16,
-) {
-    let Some(limit) = creature_visibility_limit_diagnostic_like_cpp() else {
-        return;
-    };
-    if blocks.len() <= limit {
-        return;
-    }
-    warn!(
-        "Creature visibility diagnostic limit active account={} map={} original={} limit={}",
-        account_id,
-        map_id,
-        blocks.len(),
-        limit
-    );
-    blocks.truncate(limit);
-    visible_guids.truncate(limit);
-}
-
-fn login_update_object_diagnostic_modes_like_cpp() -> (Option<String>, Vec<String>) {
-    let diagnostic = std::env::var("RUSTYCORE_LOGIN_UPDATEOBJECT_DIAGNOSTIC").ok();
-    let modes = diagnostic
-        .as_deref()
-        .map(|value| {
-            value
-                .split(',')
-                .map(str::trim)
-                .filter(|mode| !mode.is_empty())
-                .map(str::to_owned)
-                .collect()
-        })
-        .unwrap_or_default();
-    (diagnostic, modes)
-}
-
-fn diagnostic_mode_enabled_like_cpp(modes: &[String], mode: &str) -> bool {
-    modes.iter().any(|entry| entry == mode)
 }
 
 fn represented_go_state_from_i8_like_cpp(state: i8) -> Option<wow_entities::GoState> {
@@ -902,7 +855,7 @@ inventory::submit! {
 use wow_packet::packets::gossip::*;
 use wow_packet::packets::query::*;
 
-use crate::session::{InventoryItem, PendingCreatureSpawn, WorldSession};
+use crate::session::{InventoryItem, WorldSession};
 
 // ── Hardcoded data ──────────────────────────────────────────────────
 
@@ -1153,6 +1106,31 @@ fn spell_history_entry_from_db_like_cpp(
         mod_rate: 1.0,
         on_hold: false,
     })
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct CreatureAddonCreateFieldsLikeCpp {
+    has_addon: bool,
+    mount_display_id: i32,
+    stand_state: u8,
+    vis_flags: u8,
+    anim_tier: u8,
+    sheathe_state: u8,
+    pvp_flags: u8,
+    emote_state: i32,
+    ai_anim_kit_id: u16,
+    movement_anim_kit_id: u16,
+    melee_anim_kit_id: u16,
+}
+
+fn creature_create_movement_flags_like_cpp(ground_movement_type: u8) -> u32 {
+    if ground_movement_type == wow_constants::CreatureGroundMovementType::Hover as u8 {
+        // C++ Creature::LoadCreaturesAddon calls AddUnitMovementFlag(MOVEMENTFLAG_HOVER)
+        // when CanHover(), and CanHover() is true for ground movement type Hover.
+        MovementFlag::HOVER.bits()
+    } else {
+        0
+    }
 }
 
 fn spell_charge_entry_from_db_like_cpp(
@@ -1759,6 +1737,85 @@ fn is_represented_bag_slot(slot: u8) -> bool {
 }
 
 impl WorldSession {
+    fn creature_addon_create_fields_like_cpp(
+        &self,
+        spawn_guid: u64,
+        entry: u32,
+    ) -> CreatureAddonCreateFieldsLikeCpp {
+        let Some(addon) = self
+            .creature_addon_store_like_cpp()
+            .and_then(|store| store.get_for_creature_like_cpp(spawn_guid, entry))
+        else {
+            // C++ Creature::UpdateEntry calls SetSheath(SHEATH_STATE_MELEE)
+            // when no addon row exists; addon rows then own the exact value.
+            return CreatureAddonCreateFieldsLikeCpp {
+                stand_state: UnitStandStateType::Stand as u8,
+                sheathe_state: SheathState::Melee as u8,
+                ..CreatureAddonCreateFieldsLikeCpp::default()
+            };
+        };
+
+        CreatureAddonCreateFieldsLikeCpp {
+            has_addon: true,
+            mount_display_id: addon.mount_display_id as i32,
+            stand_state: addon.stand_state as u8,
+            vis_flags: addon.vis_flags,
+            anim_tier: addon.anim_tier,
+            sheathe_state: addon.sheath_state as u8,
+            pvp_flags: addon.pvp_flags.bits(),
+            emote_state: addon.emote as i32,
+            ai_anim_kit_id: addon.ai_anim_kit_id,
+            movement_anim_kit_id: addon.movement_anim_kit_id,
+            melee_anim_kit_id: addon.melee_anim_kit_id,
+        }
+    }
+
+    fn creature_virtual_items_from_row_like_cpp(
+        &mut self,
+        entry: u32,
+        row: &SqlResult,
+    ) -> [(i32, u16, u16); 3] {
+        let mut equipment_id = row
+            .try_read::<i8>(CREATURE_SPAWN_EQUIPMENT_ID_COLUMN)
+            .map(i16::from)
+            .or_else(|| row.try_read::<i16>(CREATURE_SPAWN_EQUIPMENT_ID_COLUMN))
+            .unwrap_or(0);
+        if equipment_id == 0 {
+            return [(0, 0, 0); 3];
+        }
+
+        if let Some(store) = self.creature_equipment_store_like_cpp().cloned() {
+            let equipment = if equipment_id == -1 {
+                let count = store.len_for_entry(entry);
+                if count == 0 {
+                    None
+                } else {
+                    let index = self.represented_urand_u32_like_cpp(0, (count - 1) as u32) as usize;
+                    store.nth_for_entry(entry, index).map(|(id, info)| {
+                        equipment_id = i16::from(id);
+                        info
+                    })
+                }
+            } else {
+                u8::try_from(equipment_id)
+                    .ok()
+                    .and_then(|id| store.get(entry, id))
+            };
+
+            if let Some(equipment) = equipment {
+                return equipment.items.map(|item| {
+                    (
+                        i32::try_from(item.item_id).unwrap_or(0),
+                        item.appearance_mod_id,
+                        item.item_visual,
+                    )
+                });
+            }
+        }
+
+        [(0, 0, 0); 3]
+    }
+
     fn vendor_stock_now_secs() -> u64 {
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -3510,10 +3567,15 @@ impl WorldSession {
             self.send_connect_to(next_serial);
         } else {
             warn!(
-                "All ConnectTo retries exhausted for account {}, falling back to direct login",
+                "All ConnectTo retries exhausted for account {}, aborting login like C++",
                 self.account_id
             );
-            self.fallback_direct_login();
+            self.set_player_loading(None);
+            self.set_connect_to_key(None);
+            self.set_connect_to_serial(None);
+            self.send_packet(&CharacterLoginFailed {
+                code: LoginFailureReasonLikeCpp::NoWorld,
+            });
         }
     }
 
@@ -3979,6 +4041,7 @@ impl WorldSession {
         let mut visible_items = [(0i32, 0u16, 0u16); 19];
         let mut inv_slots = [ObjectGuid::EMPTY; 141];
         let mut item_creates: Vec<wow_packet::packets::update::ItemCreateData> = Vec::new();
+        let mut login_bag_create_index_by_slot: HashMap<u8, usize> = HashMap::new();
         let realm_id = self.realm_id();
         self.clear_inventory_items_and_objects_like_cpp();
         self.clear_player_currencies_like_cpp();
@@ -4027,6 +4090,32 @@ impl WorldSession {
                                     | LoadedItemRefundDecision::Valid { .. } => item_flags,
                                 };
                                 inv_slots[slot as usize] = item_guid;
+                                let storage_template = self.item_storage_template(item_entry);
+                                let inventory_type = storage_template
+                                    .as_ref()
+                                    .map(|template| template.inventory_type as u8)
+                                    .filter(|&inventory_type| {
+                                        inventory_type != InventoryType::NonEquip as u8
+                                    })
+                                    .or_else(|| {
+                                        if slot < 19 {
+                                            slot_to_inventory_type(slot)
+                                        } else {
+                                            None
+                                        }
+                                    });
+                                let is_bag_container =
+                                    inventory_type == Some(InventoryType::Bag as u8);
+                                let container_slots = if is_bag_container {
+                                    storage_template
+                                        .as_ref()
+                                        .map(|template| u32::from(template.container_slots))
+                                        .unwrap_or(0)
+                                        .min(36)
+                                } else {
+                                    0
+                                };
+                                let create_index = item_creates.len();
                                 item_creates.push(wow_packet::packets::update::ItemCreateData {
                                     item_guid,
                                     entry_id: item_entry as i32,
@@ -4038,16 +4127,13 @@ impl WorldSession {
                                     max_durability: item_max_durability,
                                     random_properties_seed: 0,
                                     random_properties_id: 0,
-                                    context: 0,
+                                    context: item_context as u8,
+                                    container_slots,
+                                    container_item_guids: [ObjectGuid::EMPTY; 36],
                                 });
-                                let inventory_type =
-                                    self.item_template_inventory_type(item_entry).or_else(|| {
-                                        if slot < 19 {
-                                            slot_to_inventory_type(slot)
-                                        } else {
-                                            None
-                                        }
-                                    });
+                                if container_slots > 0 {
+                                    login_bag_create_index_by_slot.insert(slot, create_index);
+                                }
                                 let inventory_item = InventoryItem {
                                     guid: item_guid,
                                     entry_id: item_entry,
@@ -4142,6 +4228,9 @@ impl WorldSession {
                                     {
                                         let item_guid =
                                             ObjectGuid::create_item(realm_id, item_db_guid as i64);
+                                        let item_max_durability = self
+                                            .item_template_max_durability(item_entry)
+                                            .max(item_durability);
                                         let mut item_object = self.make_inventory_item_object(
                                             item_guid,
                                             item_entry,
@@ -4161,6 +4250,31 @@ impl WorldSession {
                                             &item_object,
                                         );
                                         item_object.set_state(ItemUpdateState::Unchanged);
+                                        if let Some(&create_index) =
+                                            login_bag_create_index_by_slot.get(&bag_slot)
+                                        {
+                                            if (inner_slot as usize) < 36 {
+                                                item_creates[create_index].container_item_guids
+                                                    [inner_slot as usize] = item_guid;
+                                            }
+                                        }
+                                        item_creates.push(
+                                            wow_packet::packets::update::ItemCreateData {
+                                                item_guid,
+                                                entry_id: item_entry as i32,
+                                                owner_guid: guid,
+                                                contained_in: bag_item_guid,
+                                                stack_count: item_count,
+                                                dynamic_flags: item_flags,
+                                                durability: item_durability,
+                                                max_durability: item_max_durability,
+                                                random_properties_seed: 0,
+                                                random_properties_id: 0,
+                                                context: item_context as u8,
+                                                container_slots: 0,
+                                                container_item_guids: [ObjectGuid::EMPTY; 36],
+                                            },
+                                        );
                                         self.insert_inventory_item_object(item_object);
                                     } else {
                                         warn!(
@@ -4912,7 +5026,8 @@ impl WorldSession {
             action_buttons,
             skill_info_tuples,
             self.account_mount_rows_like_cpp(),
-        );
+        )
+        .await;
         self.apply_represented_login_spell_reset_if_needed_like_cpp();
         self.apply_represented_login_talent_reset_if_needed_like_cpp();
         if self.apply_represented_first_login_flag_if_needed_like_cpp() {
@@ -4951,12 +5066,91 @@ impl WorldSession {
         );
     }
 
+    /// C++ `Player::UpdateVisibilityForPlayer` gathers every visible object
+    /// family into one `UpdateData` and sends it once via `VisibleNotifier::SendToSelf`.
+    async fn send_initial_world_objects_like_cpp(
+        &mut self,
+        map_id: u16,
+        position: &Position,
+        zone_id: u32,
+    ) {
+        let mut blocks = Vec::new();
+        let mut visible_guids = Vec::new();
+
+        if self.has_world_map_manager_like_cpp() {
+            for creature in self.visible_world_creatures_from_map_like_cpp(map_id, position) {
+                let mut create_data = creature.create_data.clone();
+                create_data.health = i64::from(creature.current_hp());
+                create_data.max_health = i64::from(creature.max_hp());
+                create_data.level = creature.level();
+                create_data.npc_flags = creature.npc_flags_mask_like_cpp();
+                create_data.npc_flags = self
+                    .represented_viewer_dependent_creature_npc_flags_like_cpp(
+                        creature.guid(),
+                        create_data.npc_flags,
+                    );
+                create_data.current_area_id = 0;
+                blocks.push(UpdateObject::create_creature_block(
+                    create_data,
+                    &creature.position(),
+                ));
+                visible_guids.push(creature.guid());
+            }
+        } else {
+            self.send_nearby_creatures(map_id, position, zone_id).await;
+        }
+
+        if let Some(gameobjects) = self.visible_gameobjects_from_canonical_map_like_cpp(
+            map_id,
+            position,
+            DEFAULT_VISIBILITY_DISTANCE_LIKE_CPP,
+        ) {
+            for gameobject in gameobjects {
+                visible_guids.push(gameobject.guid);
+                blocks.push(UpdateObject::create_gameobject_block(gameobject));
+            }
+        } else {
+            self.send_nearby_gameobjects(map_id, position, zone_id)
+                .await;
+        }
+
+        if blocks.is_empty() {
+            self.last_visibility_pos = Some(*position);
+            return;
+        }
+
+        self.client_visible_guids_like_cpp
+            .extend(visible_guids.iter().copied());
+        self.last_visibility_pos = Some(*position);
+
+        let update = UpdateObject::create_world_objects(blocks, map_id);
+        if std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some() {
+            for line in update.debug_create_summary_like_cpp() {
+                info!("RUST_UPDATEOBJECT initial_visibility {line}");
+            }
+        }
+        self.send_packet(&update);
+
+        let creature_count = visible_guids
+            .iter()
+            .filter(|guid| guid.is_any_type_creature())
+            .count();
+        let gameobject_count = visible_guids
+            .iter()
+            .filter(|guid| guid.is_game_object())
+            .count();
+        debug!(
+            "Sent initial visibility to account {} on map {}: {} creatures / {} gameobjects",
+            self.account_id, map_id, creature_count, gameobject_count
+        );
+    }
+
     /// Send nearby creatures to the client as UpdateObject packets.
     ///
     /// Queries the world database for creatures within visibility range
     /// on the player's map, builds CreatureCreateData for each, and sends
     /// a batched UpdateObject.
-    pub async fn send_nearby_creatures(&mut self, map_id: u16, position: &Position, zone_id: u32) {
+    pub async fn send_nearby_creatures(&mut self, map_id: u16, position: &Position, _zone_id: u32) {
         let map_creatures = self.visible_world_creatures_from_map_like_cpp(map_id, position);
         if self.has_world_map_manager_like_cpp() && !map_creatures.is_empty() {
             let mut blocks = Vec::with_capacity(map_creatures.len());
@@ -4972,7 +5166,7 @@ impl WorldSession {
                         creature.guid(),
                         create_data.npc_flags,
                     );
-                create_data.zone_id = zone_id;
+                create_data.current_area_id = 0;
                 blocks.push(UpdateObject::create_creature_block(
                     create_data,
                     &creature.position(),
@@ -4980,18 +5174,18 @@ impl WorldSession {
                 visible_guids.push(creature.guid());
             }
 
-            apply_creature_visibility_limit_diagnostic_like_cpp(
-                &mut blocks,
-                &mut visible_guids,
-                self.account_id,
-                map_id,
-            );
             self.client_visible_guids_like_cpp
                 .retain(|guid| !guid.is_any_type_creature());
             self.client_visible_guids_like_cpp
                 .extend(visible_guids.iter().copied());
             self.last_visibility_pos = Some(*position);
-            self.send_packet(&UpdateObject::create_creatures(blocks, map_id));
+            let update = UpdateObject::create_creatures(blocks, map_id);
+            if std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some() {
+                for line in update.debug_create_summary_like_cpp() {
+                    info!("RUST_UPDATEOBJECT map_owned_creatures {line}");
+                }
+            }
+            self.send_packet(&update);
             debug!(
                 "Sent {} map-owned creatures to account {} on map {}",
                 visible_guids.len(),
@@ -5235,24 +5429,24 @@ impl WorldSession {
                 })
                 .unwrap_or(0);
 
-            let display_id = if model_id > 0 {
-                model_id
-            } else if template_display_id > 0 {
-                template_display_id
-            } else {
+            let Some(display_selection) = self.choose_creature_display_like_cpp(
+                entry,
+                model_id,
+                flags_extra,
+                template_display_id,
+                template_display_scale,
+            ) else {
                 if !result.next_row() {
                     break;
                 }
                 continue;
             };
-            let display_scale = if model_id > 0 {
-                1.0
-            } else {
-                template_display_scale
-            };
-            let Some(model_scalars) =
-                self.creature_create_model_scalars_like_cpp(display_id, scale, display_scale)
-            else {
+            let display_id = display_selection.display_id;
+            let Some(model_scalars) = self.creature_create_model_scalars_like_cpp(
+                display_id,
+                scale,
+                display_selection.display_scale,
+            ) else {
                 warn!(
                     "Skipping creature entry={} spawn={} display={} because creature_model_info is missing, matching C++ CreateFromProto failure",
                     entry, spawn_guid, display_id
@@ -5285,9 +5479,13 @@ impl WorldSession {
                 regen_health,
                 cur_health,
             );
+            let addon_fields = self.creature_addon_create_fields_like_cpp(spawn_guid, entry);
+            let virtual_items = self.creature_virtual_items_from_row_like_cpp(entry, &result);
 
             let guid = ObjectGuid::create_creature_like_cpp(map_id, entry, spawn_guid as i64);
-
+            let movement_flags = creature_create_movement_flags_like_cpp(ground_movement_type);
+            // C++ LoadFromDB relocates the creature to the DB spawn position.
+            // Hover height is an update field/movement state, not a spawn-Z offset.
             let creature_pos = Position::new(pos_x, pos_y, pos_z, orientation);
             let create_data = CreatureCreateData {
                 guid,
@@ -5310,16 +5508,36 @@ impl WorldSession {
                 scale,
                 unit_class,
                 display_power: self.creature_display_power_for_class_like_cpp(unit_class),
+                power: {
+                    let mut power = [0; 10];
+                    power[0] = creature_stats.base_mana;
+                    power
+                },
+                max_power: {
+                    let mut max_power = [0; 10];
+                    max_power[0] = creature_stats.base_mana;
+                    max_power
+                },
                 base_mana: creature_stats.base_mana,
-                virtual_items: [(0, 0, 0); 3],
+                virtual_items,
                 base_attack_time,
-                ranged_attack_time: base_attack_time,
-                zone_id,
+                ranged_attack_time: result.try_read(22).unwrap_or(base_attack_time),
+                movement_flags,
+                play_hover_anim: false,
+                hover_height: model_scalars.hover_height,
+                mount_display_id: addon_fields.mount_display_id,
+                stand_state: addon_fields.stand_state,
+                vis_flags: addon_fields.vis_flags,
+                anim_tier: addon_fields.anim_tier,
+                emote_state: addon_fields.emote_state,
+                sheathe_state: addon_fields.sheathe_state,
+                pvp_flags: addon_fields.pvp_flags,
+                current_area_id: 0,
                 speed_walk_rate: speed_walk,
                 speed_run_rate: speed_run,
-                ai_anim_kit_id: 0,
-                movement_anim_kit_id: 0,
-                melee_anim_kit_id: 0,
+                ai_anim_kit_id: addon_fields.ai_anim_kit_id,
+                movement_anim_kit_id: addon_fields.movement_anim_kit_id,
+                melee_anim_kit_id: addon_fields.melee_anim_kit_id,
             };
 
             // Register through canonical map state when available; the legacy
@@ -5379,23 +5597,6 @@ impl WorldSession {
             return;
         }
 
-        apply_creature_visibility_limit_diagnostic_like_cpp(
-            &mut blocks,
-            &mut visible_guids,
-            self.account_id,
-            map_id,
-        );
-        if blocks.is_empty() {
-            self.client_visible_guids_like_cpp
-                .retain(|guid| !guid.is_any_type_creature());
-            self.last_visibility_pos = Some(*position);
-            warn!(
-                "Creature visibility diagnostic limit produced zero creature creates account={} map={}",
-                self.account_id, map_id
-            );
-            return;
-        }
-
         let count = blocks.len();
         // Mirror C++ Player::m_clientGUIDs semantics: this is the exact set
         // of creatures sent to this client, not every creature loaded on map.
@@ -5405,6 +5606,11 @@ impl WorldSession {
             .extend(visible_guids.iter().copied());
         self.last_visibility_pos = Some(*position);
         let update = UpdateObject::create_creatures(blocks, map_id);
+        if std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some() {
+            for line in update.debug_create_summary_like_cpp() {
+                info!("RUST_UPDATEOBJECT nearby_creatures {line}");
+            }
+        }
         self.send_packet(&update);
         let mob_count = visible_guids
             .iter()
@@ -5486,18 +5692,6 @@ impl WorldSession {
                     ));
                 }
             }
-
-            let mut new_visible_creature_guids = new_visible_creatures
-                .iter()
-                .copied()
-                .collect::<Vec<ObjectGuid>>();
-            apply_creature_visibility_limit_diagnostic_like_cpp(
-                &mut new_creature_blocks,
-                &mut new_visible_creature_guids,
-                self.account_id,
-                map_id,
-            );
-            new_visible_creatures = new_visible_creature_guids.into_iter().collect();
 
             let removed_creatures: Vec<ObjectGuid> = self
                 .client_visible_guids_like_cpp
@@ -5838,24 +6032,24 @@ impl WorldSession {
                     })
                     .unwrap_or(0);
 
-                let display_id = if model_id > 0 {
-                    model_id
-                } else if template_display_id > 0 {
-                    template_display_id
-                } else {
+                let Some(display_selection) = self.choose_creature_display_like_cpp(
+                    entry,
+                    model_id,
+                    flags_extra,
+                    template_display_id,
+                    template_display_scale,
+                ) else {
                     if !cr.next_row() {
                         break;
                     }
                     continue;
                 };
-                let display_scale = if model_id > 0 {
-                    1.0
-                } else {
-                    template_display_scale
-                };
-                let Some(model_scalars) =
-                    self.creature_create_model_scalars_like_cpp(display_id, scale, display_scale)
-                else {
+                let display_id = display_selection.display_id;
+                let Some(model_scalars) = self.creature_create_model_scalars_like_cpp(
+                    display_id,
+                    scale,
+                    display_selection.display_scale,
+                ) else {
                     warn!(
                         "Skipping creature entry={} spawn={} display={} because creature_model_info is missing, matching C++ CreateFromProto failure",
                         entry, spawn_guid, display_id
@@ -5888,12 +6082,18 @@ impl WorldSession {
                     regen_health,
                     cur_health,
                 );
+                let addon_fields = self.creature_addon_create_fields_like_cpp(spawn_guid, entry);
+                let virtual_items = self.creature_virtual_items_from_row_like_cpp(entry, &cr);
 
                 let guid = ObjectGuid::create_creature_like_cpp(map_id, entry, spawn_guid as i64);
                 new_visible_creatures.insert(guid);
 
                 // Only create a new block if this creature isn't already visible.
                 if !self.client_visible_guids_like_cpp.contains(&guid) {
+                    let movement_flags =
+                        creature_create_movement_flags_like_cpp(ground_movement_type);
+                    // C++ LoadFromDB relocates the creature to the DB spawn position.
+                    // Hover height is an update field/movement state, not a spawn-Z offset.
                     let creature_pos = Position::new(pos_x, pos_y, pos_z, orientation);
                     let create_data = CreatureCreateData {
                         guid,
@@ -5916,16 +6116,36 @@ impl WorldSession {
                         scale,
                         unit_class,
                         display_power: self.creature_display_power_for_class_like_cpp(unit_class),
+                        power: {
+                            let mut power = [0; 10];
+                            power[0] = creature_stats.base_mana;
+                            power
+                        },
+                        max_power: {
+                            let mut max_power = [0; 10];
+                            max_power[0] = creature_stats.base_mana;
+                            max_power
+                        },
                         base_mana: creature_stats.base_mana,
-                        virtual_items: [(0, 0, 0); 3],
+                        virtual_items,
                         base_attack_time,
-                        ranged_attack_time: base_attack_time,
-                        zone_id: 0,
+                        ranged_attack_time: cr.try_read(22).unwrap_or(base_attack_time),
+                        movement_flags,
+                        play_hover_anim: false,
+                        hover_height: model_scalars.hover_height,
+                        mount_display_id: addon_fields.mount_display_id,
+                        stand_state: addon_fields.stand_state,
+                        vis_flags: addon_fields.vis_flags,
+                        anim_tier: addon_fields.anim_tier,
+                        emote_state: addon_fields.emote_state,
+                        sheathe_state: addon_fields.sheathe_state,
+                        pvp_flags: addon_fields.pvp_flags,
+                        current_area_id: 0,
                         speed_walk_rate: speed_walk,
                         speed_run_rate: speed_run,
-                        ai_anim_kit_id: 0,
-                        movement_anim_kit_id: 0,
-                        melee_anim_kit_id: 0,
+                        ai_anim_kit_id: addon_fields.ai_anim_kit_id,
+                        movement_anim_kit_id: addon_fields.movement_anim_kit_id,
+                        melee_anim_kit_id: addon_fields.melee_anim_kit_id,
                     };
 
                     // Register in AI tracker
@@ -5984,18 +6204,6 @@ impl WorldSession {
         }
 
         // Creatures that left range → out-of-range
-        let mut new_visible_creature_guids = new_visible_creatures
-            .iter()
-            .copied()
-            .collect::<Vec<ObjectGuid>>();
-        apply_creature_visibility_limit_diagnostic_like_cpp(
-            &mut new_creature_blocks,
-            &mut new_visible_creature_guids,
-            self.account_id,
-            map_id,
-        );
-        new_visible_creatures = new_visible_creature_guids.into_iter().collect();
-
         let removed_creatures: Vec<ObjectGuid> = self
             .client_visible_guids_like_cpp
             .iter()
@@ -9455,6 +9663,8 @@ impl WorldSession {
                     random_properties_seed: 0,
                     random_properties_id: 0,
                     context: 0,
+                    container_slots: 0,
+                    container_item_guids: [ObjectGuid::EMPTY; 36],
                 })
                 .collect();
             self.send_packet(&UpdateObject::create_items(item_creates, map_id));
@@ -10002,6 +10212,8 @@ impl WorldSession {
                     random_properties_seed: 0,
                     random_properties_id: 0,
                     context: 0,
+                    container_slots: 0,
+                    container_item_guids: [ObjectGuid::EMPTY; 36],
                 }],
                 map_id,
             ));
@@ -10499,6 +10711,8 @@ impl WorldSession {
                     random_properties_seed: 0,
                     random_properties_id: 0,
                     context: 0,
+                    container_slots: 0,
+                    container_item_guids: [ObjectGuid::EMPTY; 36],
                 })
                 .collect();
             self.send_packet(&UpdateObject::create_items(item_creates, map_id));
@@ -12076,14 +12290,14 @@ impl WorldSession {
 
     /// Send the player login packet sequence to the client.
     ///
-    /// Follows the exact C# RustyCore order:
+    /// Follows the C++ login phases:
     /// HandlePlayerLogin → SendInitialPacketsBeforeAddToMap → AddToMap →
     /// SendInitialPacketsAfterAddToMap.
     ///
     /// Note: AuthResponse, SetTimeZone, FeatureSystemStatusGlueScreen,
     /// AccountDataTimes(global), and TutorialFlags are already sent during
     /// session init (see `send_session_init_packets`).
-    fn send_login_sequence(
+    async fn send_login_sequence(
         &mut self,
         guid: ObjectGuid,
         race: u8,
@@ -12106,11 +12320,6 @@ impl WorldSession {
         skill_info: Vec<(u16, u16, u16, u16, u16, i16, u16)>,
         account_mounts: Vec<AccountMount>,
     ) {
-        let (login_update_object_diagnostic, diagnostic_modes) =
-            login_update_object_diagnostic_modes_like_cpp();
-        let skip_account_collection_packets =
-            diagnostic_mode_enabled_like_cpp(&diagnostic_modes, "no_account_collections");
-
         // ── Phase 1: HandlePlayerLogin packets ──
 
         // 1. DungeonDifficultySet — C++ `Player::SendDungeonDifficulty()`
@@ -12124,23 +12333,17 @@ impl WorldSession {
             reason: 0,
         });
 
-        // 3. AccountDataTimes (per-character)
+        // 3. AccountDataTimes — C++ sends ALL_ACCOUNT_DATA_CACHE_MASK
+        // after loading per-character account data.
         self.send_packet(
-            &self.account_data_times_like_cpp(guid, PER_CHARACTER_CACHE_MASK_LIKE_CPP),
+            &self.account_data_times_like_cpp(guid, ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP),
         );
 
         // 4. FeatureSystemStatus (in-game version, different from glue screen)
         self.send_packet(&FeatureSystemStatus::default_wotlk());
 
         // 5. BattlePetJournalLockAcquired (empty packet — journal access granted)
-        if skip_account_collection_packets {
-            warn!(
-                diagnostic = login_update_object_diagnostic.as_deref().unwrap_or(""),
-                "Skipping BattlePetJournalLockAcquired for login diagnostic"
-            );
-        } else {
-            self.send_packet(&BattlePetJournalLockAcquired);
-        }
+        self.send_packet(&BattlePetJournalLockAcquired);
 
         // ── Phase 2: SendInitialPacketsBeforeAddToMap ──
 
@@ -12233,46 +12436,56 @@ impl WorldSession {
         // 23. AccountMountUpdate
         self.send_packet(&AccountMountUpdate::full(account_mounts));
 
-        if skip_account_collection_packets {
-            warn!(
-                diagnostic = login_update_object_diagnostic.as_deref().unwrap_or(""),
-                "Skipping account collection packets for login diagnostic"
-            );
-        } else {
-            // 24. AccountToyUpdate
-            self.send_account_toys_like_cpp();
+        // 24. AccountToyUpdate
+        self.send_account_toys_like_cpp();
 
-            // 25. AccountHeirloomUpdate
-            self.send_account_heirlooms_like_cpp();
+        // 25. AccountHeirloomUpdate
+        self.send_account_heirlooms_like_cpp();
 
-            // 26. AccountTransmogUpdate favorite appearances
-            self.send_favorite_appearances_like_cpp();
-        }
+        // 26. AccountTransmogUpdate favorite appearances
+        self.send_favorite_appearances_like_cpp();
 
         // 27. InitialSetup (expansion level)
         self.send_packet(&InitialSetup::wotlk());
 
-        let skip_active_mover_packet =
-            diagnostic_mode_enabled_like_cpp(&diagnostic_modes, "no_active_mover");
-        let active_mover_after_create =
-            diagnostic_mode_enabled_like_cpp(&diagnostic_modes, "active_mover_after_create");
-
-        // 27b. MoveSetActiveMover diagnostic.
-        //
         // C++ 3.4.3 `Player::SendInitialPacketsBeforeAddToMap` ends with
-        // `SetMovedUnit(this)`, but that is server-side state, not an immediate
-        // `SMSG_MOVE_SET_ACTIVE_MOVER` in this login position. Keep this gated
-        // while we isolate the 54261 client crash around player CREATE.
-        if skip_active_mover_packet || active_mover_after_create {
-            warn!(
-                diagnostic = login_update_object_diagnostic.as_deref().unwrap_or(""),
-                "Skipping pre-UpdateObject MoveSetActiveMover for login diagnostic"
-            );
-        } else {
-            self.send_packet(&MoveSetActiveMover { mover_guid: guid });
-        }
+        // `SetMovedUnit(this)`, which only updates server-side movement state.
+        // It does not send `SMSG_MOVE_SET_ACTIVE_MOVER` during login before the
+        // player create block.
 
         // ── Phase 3: AddToMap → UpdateObject ──
+
+        // C++ Map::AddPlayerToMap loads and activates the player's grid before
+        // SendInitSelf/UpdateObjectVisibility. Without this, the first
+        // visibility pass observes an empty Rust map and the client diverges
+        // from the TrinityCore login stream.
+        if let Some(outcome) = self.ensure_player_grid_loaded_like_cpp(map_id as u16, 0, *position)
+        {
+            info!(
+                map_id,
+                instance_id = 0u32,
+                map_created = outcome.map_created,
+                grid_loaded_now = outcome.grid_loaded_now,
+                metadata_entries = outcome.metadata_entries,
+                skipped_already_loaded = outcome.skipped_already_loaded,
+                skipped_should_not_spawn = outcome.skipped_should_not_spawn,
+                skipped_difficulty_mismatch = outcome.skipped_difficulty_mismatch,
+                stale_index_entries = outcome.stale_index_entries,
+                creature_records_added = outcome.creature_records_added,
+                gameobject_records_added = outcome.gameobject_records_added,
+                pre_add_records_added = outcome.pre_add_records_added,
+                add_to_map_errors = outcome.add_to_map_errors,
+                load_record_missing = outcome.load_record_missing,
+                legacy_creature_mirrors = outcome.legacy_creature_mirrors,
+                "RUST_LOGIN grid_load"
+            );
+        } else {
+            warn!(
+                map_id,
+                instance_id = 0u32,
+                "RUST_LOGIN grid_load skipped: no C++ loaded-grid resolver installed"
+            );
+        }
 
         // 26. UpdateObject — items + player in a SINGLE packet.
         //     C# sends all item CREATE blocks followed by the player CREATE
@@ -12285,42 +12498,14 @@ impl WorldSession {
             // StateFlags: 0=None, 1=Complete (QuestSlotStateMask)
             let quest_log: Vec<(u32, u32, i64, [u16; 24])> =
                 self.quest_log_create_entries_like_cpp();
-            let skip_inventory_create =
-                diagnostic_mode_enabled_like_cpp(&diagnostic_modes, "no_items");
-            let skip_collection_create =
-                diagnostic_mode_enabled_like_cpp(&diagnostic_modes, "no_collections")
-                    || skip_account_collection_packets;
 
-            let mut account_toys = self.account_toy_active_player_rows_like_cpp();
-            let mut account_heirlooms = self.account_heirloom_active_player_rows_like_cpp();
+            let account_toys = self.account_toy_active_player_rows_like_cpp();
+            let account_heirlooms = self.account_heirloom_active_player_rows_like_cpp();
             info!(
                 toys = account_toys.len(),
                 heirlooms = account_heirlooms.len(),
-                diagnostic = login_update_object_diagnostic.as_deref().unwrap_or(""),
                 "Building player CREATE collection dynamic fields"
             );
-            if skip_collection_create {
-                warn!(
-                    toys = account_toys.len(),
-                    heirlooms = account_heirlooms.len(),
-                    "RUSTYCORE_LOGIN_UPDATEOBJECT_DIAGNOSTIC=no_collections: sending player CREATE without account collection dynamic fields"
-                );
-                account_toys.clear();
-                account_heirlooms.clear();
-            }
-            let visible_items_for_create = if skip_inventory_create {
-                warn!(
-                    "RUSTYCORE_LOGIN_UPDATEOBJECT_DIAGNOSTIC=no_items: sending player CREATE without item CREATE blocks or inventory references"
-                );
-                [(0, 0, 0); 19]
-            } else {
-                visible_items
-            };
-            let inv_slots_for_create = if skip_inventory_create {
-                [wow_core::guid::ObjectGuid::EMPTY; 141]
-            } else {
-                inv_slots
-            };
 
             let mut player_pkt = UpdateObject::create_player_with_party_type(
                 guid,
@@ -12333,8 +12518,8 @@ impl WorldSession {
                 map_id as u16,
                 zone_id as u32,
                 true,
-                visible_items_for_create,
-                inv_slots_for_create,
+                visible_items,
+                inv_slots,
                 combat,
                 skill_info,
                 self.player_gold_like_cpp(),
@@ -12344,7 +12529,7 @@ impl WorldSession {
             player_pkt
                 .set_player_collection_dynamic_fields_like_cpp(account_toys, account_heirlooms);
 
-            if !item_creates.is_empty() && !skip_inventory_create {
+            if !item_creates.is_empty() {
                 info!(
                     "Sending {} item CREATE blocks + player in single UpdateObject",
                     item_creates.len()
@@ -12365,23 +12550,28 @@ impl WorldSession {
                 player_pkt.num_updates = player_pkt.blocks.len() as u32;
             }
 
+            if std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some() {
+                for line in player_pkt.debug_create_summary_like_cpp() {
+                    info!("RUST_UPDATEOBJECT login_self {line}");
+                }
+            }
             self.send_packet(&player_pkt);
         }
-        if active_mover_after_create {
-            warn!("Sending MoveSetActiveMover after player CREATE for login diagnostic");
-            self.send_packet(&MoveSetActiveMover { mover_guid: guid });
-        }
-
-        // ── Phase 3b: Send nearby creatures + gameobjects ──
-        // Query world DB for objects near the player and send UpdateObject.
-        // This must be async, so we store the params and do it in the caller.
-        self.pending_creature_spawn = Some(PendingCreatureSpawn {
-            map_id: map_id as u16,
-            position: *position,
-            zone_id: zone_id as u32,
-        });
+        // C++ Map::AddPlayerToMap clears the visible GUID cache immediately
+        // after SendInitSelf and SendInitTransports.
+        self.client_visible_guids_like_cpp.clear();
 
         // ── Phase 4: SendInitialPacketsAfterAddToMap ──
+
+        // C++ Player::SendInitialPacketsAfterAddToMap starts with
+        // UpdateVisibilityForPlayer(), which gathers nearby world objects into
+        // one UpdateData before UpdateZone()/SendInitWorldStates().
+        self.send_initial_world_objects_like_cpp(map_id as u16, position, zone_id as u32)
+            .await;
+
+        // C++ Map::AddPlayerToMap sends the phase shift after
+        // UpdateObjectVisibility(false), before post-add world-state packets.
+        self.send_packet(&PhaseShiftChange::default_for(guid));
 
         // 27. InitWorldStates (zone state variables — empty for now)
         self.send_packet(&InitWorldStates::new(map_id, zone_id));
@@ -12389,13 +12579,8 @@ impl WorldSession {
         // 28. LoadCufProfiles
         self.send_packet(&self.represented_load_cuf_profiles_packet_like_cpp());
 
-        // 29. AuraUpdate (empty — no auras on fresh character)
-        self.send_packet(&AuraUpdate::empty_for(guid));
-
-        // 30. PhaseShiftChange — tells the client which phase the player is in.
-        //     Without this the client ignores all world objects (creatures, GOs).
-        //     C#: PhasingHandler.OnMapChange(this) → SendToPlayer → PhaseShiftChange
-        //     Default player has no special phases: flags = Unphased (0x08).
+        // 30. PhaseShiftChange — C++ PhasingHandler::OnMapChange(this).
+        // Default player has no special phases: flags = Unphased (0x08).
         self.send_packet(&PhaseShiftChange::default_for(guid));
 
         // 30. Set session state to LoggedIn, store player GUID and initial position.
@@ -12420,9 +12605,8 @@ impl WorldSession {
             combat.max_health.max(1).min(u32::MAX as i64) as u32,
         );
         self.login_time = Some(std::time::Instant::now());
-        // Clear per-session loot/visibility state for fresh login. Creatures
-        // remain map-owned, matching C++ Map ownership.
-        self.client_visible_guids_like_cpp.clear();
+        // Clear per-session loot state for fresh login. Visibility was reset
+        // just after self create, matching Map::AddPlayerToMap.
         self.loot_table.clear();
         self.set_active_loot_guid(ObjectGuid::EMPTY);
         self.combat_target = None;

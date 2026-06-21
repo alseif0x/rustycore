@@ -1741,6 +1741,8 @@ impl WorldSession {
                     random_properties_seed: 0,
                     random_properties_id: 0,
                     context: ItemContext::None as u8,
+                    container_slots: 0,
+                    container_item_guids: [ObjectGuid::EMPTY; 36],
                 })
                 .collect();
             self.send_packet(&UpdateObject::create_items(item_creates, map_id));
@@ -2098,6 +2100,8 @@ impl WorldSession {
                     random_properties_seed: 0,
                     random_properties_id: 0,
                     context: ItemContext::QuestReward as u8,
+                    container_slots: 0,
+                    container_item_guids: [ObjectGuid::EMPTY; 36],
                 })
                 .collect();
             self.send_packet(&UpdateObject::create_items(item_creates, map_id));

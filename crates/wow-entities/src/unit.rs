@@ -1534,6 +1534,27 @@ impl Unit {
         }
     }
 
+    pub fn set_display_scales_like_cpp(&mut self, display_scale: f32, native_display_scale: f32) {
+        self.set_f32_field(
+            UNIT_DATA_DISPLAY_SCALE_BIT,
+            display_scale.max(0.0),
+            |data| &mut data.display_scale,
+        );
+        self.set_f32_field(
+            UNIT_DATA_NATIVE_DISPLAY_SCALE_BIT,
+            native_display_scale.max(0.0),
+            |data| &mut data.native_display_scale,
+        );
+    }
+
+    pub fn set_native_display_id_like_cpp(&mut self, native_display_id: u32) {
+        self.set_i32_field(
+            UNIT_DATA_NATIVE_DISPLAY_ID_BIT,
+            native_display_id as i32,
+            |data| &mut data.native_display_id,
+        );
+    }
+
     pub fn set_display_power(&mut self, power: PowerType) {
         self.set_u8_field(UNIT_DATA_DISPLAY_POWER_BIT, power as u8, |data| {
             &mut data.display_power
@@ -1869,6 +1890,31 @@ impl Unit {
         }
         if value < current {
             self.set_power(power, value);
+        }
+    }
+
+    pub fn replace_create_power_arrays_like_cpp(
+        &mut self,
+        power: [i32; MAX_POWERS_PER_CLASS],
+        max_power: [i32; MAX_POWERS_PER_CLASS],
+    ) {
+        for index in 0..MAX_POWERS_PER_CLASS {
+            if self.data.power[index] != power[index] {
+                self.data.power[index] = power[index];
+                self.mark_unit_data_array(
+                    UNIT_DATA_POWER_PARENT_BIT,
+                    UNIT_DATA_POWER_FIRST_BIT,
+                    index,
+                );
+            }
+            if self.data.max_power[index] != max_power[index] {
+                self.data.max_power[index] = max_power[index];
+                self.mark_unit_data_array(
+                    UNIT_DATA_POWER_PARENT_BIT,
+                    UNIT_DATA_MAX_POWER_FIRST_BIT,
+                    index,
+                );
+            }
         }
     }
 

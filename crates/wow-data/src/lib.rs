@@ -16,6 +16,7 @@ pub mod chr_specialization;
 pub mod condition_attachments;
 pub mod conditions;
 pub mod creature_display;
+pub mod creature_equipment;
 pub mod creature_model_info;
 pub mod creature_template;
 pub mod currency;
@@ -143,6 +144,9 @@ pub use conditions::{
 pub use creature_display::{
     CreatureDisplayInfoEntry, CreatureDisplayInfoStore, CreatureModelDataEntry,
     CreatureModelDataStore, DEFAULT_COLLISION_HEIGHT_LIKE_CPP, unit_collision_height_like_cpp,
+};
+pub use creature_equipment::{
+    CreatureEquipmentInfoLikeCpp, CreatureEquipmentItemLikeCpp, CreatureEquipmentStoreLikeCpp,
 };
 pub use creature_model_info::{CreatureModelInfoLikeCpp, CreatureModelInfoStoreLikeCpp};
 pub use creature_template::{

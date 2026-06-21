@@ -46,8 +46,8 @@ use wow_constants::item::{
 use wow_constants::movement::MovementFlag;
 use wow_constants::shared::DifficultyFlags;
 use wow_constants::unit::{
-    Gender, NPCFlags1, PowerType, Team, UnitFlags, UnitFlags2, UnitPvpFlags, UnitStandStateType,
-    WeaponAttackType,
+    Gender, NPCFlags1, PowerType, SheathState, Team, UnitFlags, UnitFlags2, UnitPvpFlags,
+    UnitStandStateType, WeaponAttackType,
 };
 use wow_constants::{
     BagFamilyMask, BuyResult, ClientOpcodes, InventoryResult, InventoryType, ItemBondingType,
@@ -63,9 +63,10 @@ use wow_data::{
     BankBagSlotPricesStore, BattlePetBreedQualityStore, BattlePetBreedStateStore,
     BattlePetSpeciesStateStore, BattlePetSpeciesStore, BattlePetXpGameTableLikeCpp,
     BattlemasterListStore, ChrSpecializationStore, CinematicSequencesStore,
-    ConditionEntriesByTypeStore, CreatureBaseStatsStoreLikeCpp,
+    ConditionEntriesByTypeStore, CreatureAddonStoreLikeCpp, CreatureBaseStatsStoreLikeCpp,
     CreatureClassificationHealthRatesLikeCpp, CreatureDifficultyStoreLikeCpp,
-    CreatureDisplayInfoExtraStore, CreatureDisplayInfoStore, CreatureModelDataStore,
+    CreatureDisplayInfoExtraStore, CreatureDisplayInfoStore, CreatureEquipmentStoreLikeCpp,
+    CreatureModelDataStore, CreatureTemplateLifecycleStoreLikeCpp,
     CreatureTemplateMountStoreLikeCpp, CurrencyTypesEntry, CurrencyTypesStore,
     DISABLE_TYPE_BATTLEGROUND, DISABLE_TYPE_MAP, DifficultyStore, DisableMgrLikeCpp,
     DisableWorldObjectRefLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
@@ -387,6 +388,61 @@ const fn active_state_from_db_like_cpp(value: u8) -> ActiveState {
         0x81 => ActiveState::Disabled,
         0xC1 => ActiveState::Enabled,
         _ => ActiveState::Disabled,
+    }
+}
+
+const fn power_type_from_u8_like_cpp(power: u8) -> PowerType {
+    match power {
+        1 => PowerType::Rage,
+        2 => PowerType::Focus,
+        3 => PowerType::Energy,
+        4 => PowerType::Happiness,
+        5 => PowerType::Runes,
+        6 => PowerType::RunicPower,
+        7 => PowerType::SoulShards,
+        8 => PowerType::LunarPower,
+        9 => PowerType::HolyPower,
+        10 => PowerType::AlternatePower,
+        11 => PowerType::Maelstrom,
+        12 => PowerType::Chi,
+        13 => PowerType::Insanity,
+        14 => PowerType::ComboPoints,
+        15 => PowerType::DemonicFury,
+        16 => PowerType::ArcaneCharges,
+        17 => PowerType::Fury,
+        18 => PowerType::Pain,
+        19 => PowerType::Essence,
+        20 => PowerType::RuneBlood,
+        21 => PowerType::RuneFrost,
+        22 => PowerType::RuneUnholy,
+        23 => PowerType::AlternateQuest,
+        24 => PowerType::AlternateEncounter,
+        25 => PowerType::AlternateMount,
+        _ => PowerType::Mana,
+    }
+}
+
+const fn unit_stand_state_from_u8_like_cpp(value: u8) -> UnitStandStateType {
+    match value {
+        1 => UnitStandStateType::Sit,
+        2 => UnitStandStateType::SitChair,
+        3 => UnitStandStateType::Sleep,
+        4 => UnitStandStateType::SitLowChair,
+        5 => UnitStandStateType::SitMediumChair,
+        6 => UnitStandStateType::SitHighChair,
+        7 => UnitStandStateType::Dead,
+        8 => UnitStandStateType::Kneel,
+        9 => UnitStandStateType::Submerged,
+        10 => UnitStandStateType::Max,
+        _ => UnitStandStateType::Stand,
+    }
+}
+
+const fn sheath_state_from_u8_like_cpp(value: u8) -> SheathState {
+    match value {
+        1 => SheathState::Melee,
+        2 => SheathState::Ranged,
+        _ => SheathState::Unarmed,
     }
 }
 
@@ -975,6 +1031,26 @@ pub struct MMapRuntimeConfigLikeCpp {
 
 pub type WaypointPathResolverLikeCpp =
     Arc<dyn Fn(u32) -> Option<wow_movement::WaypointPath> + Send + Sync>;
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct PlayerGridLoadOutcomeLikeCpp {
+    pub map_created: bool,
+    pub grid_loaded_now: bool,
+    pub metadata_entries: usize,
+    pub skipped_already_loaded: usize,
+    pub skipped_should_not_spawn: usize,
+    pub skipped_difficulty_mismatch: usize,
+    pub stale_index_entries: usize,
+    pub creature_records_added: usize,
+    pub gameobject_records_added: usize,
+    pub pre_add_records_added: usize,
+    pub add_to_map_errors: usize,
+    pub load_record_missing: usize,
+    pub legacy_creature_mirrors: usize,
+}
+
+pub type PlayerGridLoadResolverLikeCpp =
+    Arc<dyn Fn(u16, u32, Position) -> PlayerGridLoadOutcomeLikeCpp + Send + Sync>;
 
 impl Default for MMapRuntimeConfigLikeCpp {
     fn default() -> Self {
@@ -3784,11 +3860,14 @@ pub struct WorldSession {
     creature_onkill_reputation_store: Option<Arc<CreatureOnKillReputationStoreLikeCpp>>,
     reputation_spillover_template_store: Option<Arc<RepSpilloverTemplateStoreLikeCpp>>,
     championing_faction_like_cpp: u32,
+    creature_template_lifecycle_store_like_cpp: Option<Arc<CreatureTemplateLifecycleStoreLikeCpp>>,
     creature_template_mount_store: Option<Arc<CreatureTemplateMountStoreLikeCpp>>,
+    creature_equipment_store_like_cpp: Option<Arc<CreatureEquipmentStoreLikeCpp>>,
     creature_display_info_store: Option<Arc<CreatureDisplayInfoStore>>,
     creature_display_info_extra_store: Option<Arc<CreatureDisplayInfoExtraStore>>,
     gameobject_display_info_store: Option<Arc<GameObjectDisplayInfoStore>>,
     creature_model_info_store: Option<Arc<wow_data::CreatureModelInfoStoreLikeCpp>>,
+    creature_addon_store_like_cpp: Option<Arc<CreatureAddonStoreLikeCpp>>,
     creature_difficulty_store_like_cpp: Option<Arc<CreatureDifficultyStoreLikeCpp>>,
     creature_base_stats_store_like_cpp: Option<Arc<CreatureBaseStatsStoreLikeCpp>>,
     creature_health_rates_like_cpp: CreatureClassificationHealthRatesLikeCpp,
@@ -4652,6 +4731,11 @@ pub struct WorldSession {
     /// C++ `sWaypointMgr->GetPath(pathId)` resolver for session-created legacy `WorldCreature`
     /// compatibility objects. The canonical path store is owned by `world-server`.
     waypoint_path_resolver_like_cpp: Option<WaypointPathResolverLikeCpp>,
+    /// C++ `Map::AddPlayerToMap -> EnsureGridLoadedForActiveObject` bridge.
+    /// The DB-backed loaded-grid builders live in `world-server`, so the session
+    /// asks the server owner to materialize the active player grid before login
+    /// self/visibility packets are produced.
+    player_grid_load_resolver_like_cpp: Option<PlayerGridLoadResolverLikeCpp>,
     /// Session-local representation of `GameObject::m_unique_users` for no-GetLootId chest uses.
     pub(crate) represented_unique_gameobject_uses: std::collections::HashSet<wow_core::ObjectGuid>,
     /// Represented C++ `GameEvents::Trigger` and `TriggeringLinkedGameObject` hook points.
@@ -5391,6 +5475,13 @@ pub(crate) struct CreatureCreateModelScalarsLikeCpp {
     pub native_x_display_scale: f32,
     pub bounding_radius: f32,
     pub combat_reach: f32,
+    pub hover_height: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct CreatureCreateDisplaySelectionLikeCpp {
+    pub display_id: u32,
+    pub display_scale: f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -5594,11 +5685,14 @@ impl WorldSession {
             creature_onkill_reputation_store: None,
             reputation_spillover_template_store: None,
             championing_faction_like_cpp: 0,
+            creature_template_lifecycle_store_like_cpp: None,
             creature_template_mount_store: None,
+            creature_equipment_store_like_cpp: None,
             creature_display_info_store: None,
             creature_display_info_extra_store: None,
             gameobject_display_info_store: None,
             creature_model_info_store: None,
+            creature_addon_store_like_cpp: None,
             creature_difficulty_store_like_cpp: None,
             creature_base_stats_store_like_cpp: None,
             creature_health_rates_like_cpp: CreatureClassificationHealthRatesLikeCpp::default(),
@@ -6067,6 +6161,7 @@ impl WorldSession {
             chat_flood_data_like_cpp: [ChatFloodThrottleDataLikeCpp::default(); 2],
             mmap_runtime_config_like_cpp: MMapRuntimeConfigLikeCpp::default(),
             waypoint_path_resolver_like_cpp: None,
+            player_grid_load_resolver_like_cpp: None,
             represented_unique_gameobject_uses: std::collections::HashSet::new(),
             represented_gameobject_use_effects: Vec::new(),
             represented_gameobject_use_states: std::collections::BTreeMap::new(),
@@ -9793,6 +9888,59 @@ impl WorldSession {
             creature.set_unit_flags2_runtime_like_cpp(unit_flags2);
             creature.set_unit_flags3_runtime_like_cpp(unit_flags3);
             creature.set_melee_damage_school_like_cpp(damage_school);
+            creature
+                .unit_mut()
+                .set_native_display_id_like_cpp(create_data.native_display_id);
+            creature.unit_mut().set_display_scales_like_cpp(
+                create_data.display_scale,
+                create_data.native_x_display_scale,
+            );
+            creature
+                .unit_mut()
+                .set_bounding_radius(create_data.bounding_radius);
+            creature
+                .unit_mut()
+                .set_combat_reach(create_data.combat_reach);
+            creature
+                .unit_mut()
+                .set_display_power(power_type_from_u8_like_cpp(create_data.display_power));
+            creature
+                .unit_mut()
+                .replace_create_power_arrays_like_cpp(create_data.power, create_data.max_power);
+            creature.unit_mut().set_base_attack_time_like_cpp(
+                WeaponAttackType::BaseAttack,
+                create_data.base_attack_time,
+            );
+            creature.unit_mut().set_base_attack_time_like_cpp(
+                WeaponAttackType::OffAttack,
+                create_data.base_attack_time,
+            );
+            creature.unit_mut().set_base_attack_time_like_cpp(
+                WeaponAttackType::RangedAttack,
+                create_data.ranged_attack_time,
+            );
+            creature
+                .unit_mut()
+                .set_mount_display_id(create_data.mount_display_id.max(0) as u32);
+            creature
+                .unit_mut()
+                .set_stand_state_like_cpp(unit_stand_state_from_u8_like_cpp(
+                    create_data.stand_state,
+                ));
+            creature
+                .unit_mut()
+                .replace_all_vis_flags_like_cpp(create_data.vis_flags);
+            creature
+                .unit_mut()
+                .set_anim_tier_like_cpp(create_data.anim_tier);
+            creature
+                .unit_mut()
+                .set_sheath_like_cpp(sheath_state_from_u8_like_cpp(create_data.sheathe_state));
+            creature
+                .unit_mut()
+                .replace_all_pvp_flags_like_cpp(UnitPvpFlags::from_bits_retain(
+                    create_data.pvp_flags,
+                ));
             creature.set_flags_extra_runtime_like_cpp(flags_extra);
             creature.set_ground_movement_type_runtime_like_cpp(ground_movement_type);
             creature.set_swim_allowed_runtime_like_cpp(swim_allowed);
@@ -15997,6 +16145,24 @@ impl WorldSession {
         self.waypoint_path_resolver_like_cpp = Some(resolver);
     }
 
+    pub fn set_player_grid_load_resolver_like_cpp(
+        &mut self,
+        resolver: PlayerGridLoadResolverLikeCpp,
+    ) {
+        self.player_grid_load_resolver_like_cpp = Some(resolver);
+    }
+
+    pub(crate) fn ensure_player_grid_loaded_like_cpp(
+        &self,
+        map_id: u16,
+        instance_id: u32,
+        position: Position,
+    ) -> Option<PlayerGridLoadOutcomeLikeCpp> {
+        self.player_grid_load_resolver_like_cpp
+            .as_ref()
+            .map(|resolver| resolver(map_id, instance_id, position))
+    }
+
     pub(crate) fn enable_ae_loot_like_cpp(&self) -> bool {
         self.enable_ae_loot_like_cpp
     }
@@ -19133,6 +19299,32 @@ impl WorldSession {
         self.creature_template_mount_store = Some(store);
     }
 
+    pub fn set_creature_template_lifecycle_store_like_cpp(
+        &mut self,
+        store: Arc<CreatureTemplateLifecycleStoreLikeCpp>,
+    ) {
+        self.creature_template_lifecycle_store_like_cpp = Some(store);
+    }
+
+    pub(crate) fn creature_template_lifecycle_store_like_cpp(
+        &self,
+    ) -> Option<&Arc<CreatureTemplateLifecycleStoreLikeCpp>> {
+        self.creature_template_lifecycle_store_like_cpp.as_ref()
+    }
+
+    pub fn set_creature_equipment_store_like_cpp(
+        &mut self,
+        store: Arc<CreatureEquipmentStoreLikeCpp>,
+    ) {
+        self.creature_equipment_store_like_cpp = Some(store);
+    }
+
+    pub(crate) fn creature_equipment_store_like_cpp(
+        &self,
+    ) -> Option<&Arc<CreatureEquipmentStoreLikeCpp>> {
+        self.creature_equipment_store_like_cpp.as_ref()
+    }
+
     pub fn set_creature_display_info_store(&mut self, store: Arc<CreatureDisplayInfoStore>) {
         self.creature_display_info_store = Some(store);
     }
@@ -19157,6 +19349,14 @@ impl WorldSession {
         store: Arc<wow_data::CreatureModelInfoStoreLikeCpp>,
     ) {
         self.creature_model_info_store = Some(store);
+    }
+
+    pub fn set_creature_addon_store_like_cpp(&mut self, store: Arc<CreatureAddonStoreLikeCpp>) {
+        self.creature_addon_store_like_cpp = Some(store);
+    }
+
+    pub(crate) fn creature_addon_store_like_cpp(&self) -> Option<&Arc<CreatureAddonStoreLikeCpp>> {
+        self.creature_addon_store_like_cpp.as_ref()
     }
 
     pub fn set_creature_difficulty_store_like_cpp(
@@ -19192,11 +19392,133 @@ impl WorldSession {
         } else {
             display_scale
         };
+        let hover_height = self
+            .creature_display_info_store
+            .as_ref()
+            .and_then(|display_store| display_store.get(display_id))
+            .and_then(|display| {
+                self.creature_model_data_store
+                    .as_ref()
+                    .and_then(|model_store| model_store.get(u32::from(display.model_id)))
+                    .map(|model_data| {
+                        model_data.hover_height
+                            * model_data.model_scale
+                            * display.creature_model_scale
+                            * display_scale
+                    })
+            })
+            .filter(|height| *height > 0.0)
+            .unwrap_or(1.0);
         Some(CreatureCreateModelScalarsLikeCpp {
             display_scale,
             native_x_display_scale: display_scale,
             bounding_radius: model.bounding_radius * object_scale * display_scale,
             combat_reach: model.combat_reach * object_scale * display_scale,
+            hover_height,
+        })
+    }
+
+    pub(crate) fn choose_creature_display_like_cpp(
+        &self,
+        entry: u32,
+        spawn_display_id: u32,
+        template_flags_extra: u32,
+        fallback_template_display_id: u32,
+        fallback_template_display_scale: f32,
+    ) -> Option<CreatureCreateDisplaySelectionLikeCpp> {
+        // C++ `ObjectMgr::LoadCreatures` stores creature.modelid as
+        // CreatureData::display with DEFAULT_PLAYER_DISPLAY_SCALE.
+        if spawn_display_id != 0 {
+            return Some(CreatureCreateDisplaySelectionLikeCpp {
+                display_id: spawn_display_id,
+                display_scale: 1.0,
+            });
+        }
+
+        let template = self
+            .creature_template_lifecycle_store_like_cpp
+            .as_ref()
+            .and_then(|store| store.get(entry));
+        let mut selected = template.and_then(|template| {
+            if template_flags_extra & CreatureFlagsExtra::TRIGGER.bits() != 0 {
+                let model_info_store = self.creature_model_info_store.as_ref()?;
+                template
+                    .models
+                    .iter()
+                    .copied()
+                    .find(|model| {
+                        model_info_store
+                            .get(model.creature_display_id)
+                            .is_some_and(|info| info.is_trigger)
+                    })
+                    .or(Some(wow_data::CreatureTemplateLifecycleModelLikeCpp {
+                        creature_display_id: 11686,
+                        display_scale: 1.0,
+                        probability: 1.0,
+                    }))
+            } else {
+                match template.models.as_slice() {
+                    [] => None,
+                    [model] => Some(*model),
+                    models => {
+                        let total: f32 =
+                            models.iter().map(|model| model.probability.max(0.0)).sum();
+                        if total <= f32::EPSILON {
+                            models.first().copied()
+                        } else {
+                            let mut roll = rand::thread_rng().gen_range(0.0..total);
+                            let mut picked = *models.last()?;
+                            for model in models {
+                                roll -= model.probability.max(0.0);
+                                if roll <= 0.0 {
+                                    picked = *model;
+                                    break;
+                                }
+                            }
+                            Some(picked)
+                        }
+                    }
+                }
+            }
+        });
+
+        if selected.is_none() && fallback_template_display_id != 0 {
+            selected = Some(wow_data::CreatureTemplateLifecycleModelLikeCpp {
+                creature_display_id: fallback_template_display_id,
+                display_scale: if fallback_template_display_scale <= 0.0 {
+                    1.0
+                } else {
+                    fallback_template_display_scale
+                },
+                probability: 1.0,
+            });
+        }
+
+        let mut selected = selected?;
+        if let Some(other_gender) = self
+            .creature_model_info_store
+            .as_ref()
+            .and_then(|store| store.get(selected.creature_display_id))
+            .map(|info| info.display_id_other_gender)
+            .filter(|id| *id != 0)
+        {
+            if rand::thread_rng().gen_range(0..=1) == 0 {
+                selected.creature_display_id = other_gender;
+                if let Some(template_model) = template.and_then(|template| {
+                    template
+                        .models
+                        .iter()
+                        .copied()
+                        .find(|model| model.creature_display_id == other_gender)
+                }) {
+                    selected = template_model;
+                }
+            }
+        }
+
+        Some(CreatureCreateDisplaySelectionLikeCpp {
+            display_id: selected.creature_display_id,
+            display_scale: selected.display_scale,
         })
     }
 
@@ -29070,13 +29392,13 @@ impl WorldSession {
     }
 
     /// Send session initialization packets (first encrypted packets after
-    /// EnterEncryptedModeAck). Matches C# `InitializeSessionCallback`.
+    /// EnterEncryptedModeAck). Matches C++ `WorldSession::InitializeSessionCallback`.
     ///
     /// These packets are sent immediately when the session starts, before any
     /// client packets are processed. They tell the client that auth succeeded
     /// and provide the initial glue screen data (character select).
     ///
-    /// Exact C# order:
+    /// Exact C++ order:
     /// 1. AuthResponse
     /// 2. SetTimeZoneInformation
     /// 3. FeatureSystemStatusGlueScreen (NOT the in-game FeatureSystemStatus!)
@@ -29171,7 +29493,7 @@ impl WorldSession {
         self.send_packet(&self.tutorial_flags_packet_like_cpp());
 
         // 8. ConnectionStatus (State=1, SuppressNotification=true)
-        // C# BattlenetPackets.cs: ConnectionStatus has no ConnectionType override,
+        // This compatibility packet has no ConnectionType override,
         // so it's sent on the realm socket. State uses 2 bits, SuppressNotification
         // defaults to true.
         self.send_packet(&ConnectionStatus {
@@ -65761,14 +66083,18 @@ mod tests {
                 wow_data::CreatureModelDataEntry {
                     id: 100,
                     flags: 0,
+                    file_data_id: 0,
                     collision_height: 2.0,
+                    hover_height: 0.75,
                     model_scale: 1.1,
                     mount_height: 0.0,
                 },
                 wow_data::CreatureModelDataEntry {
                     id: 200,
                     flags: 0,
+                    file_data_id: 0,
                     collision_height: 0.0,
+                    hover_height: 1.25,
                     model_scale: 1.0,
                     mount_height: 4.0,
                 },
@@ -68709,14 +69035,18 @@ mod tests {
                 wow_data::CreatureModelDataEntry {
                     id: 100,
                     flags: 0,
+                    file_data_id: 0,
                     collision_height: 2.0,
+                    hover_height: 0.75,
                     model_scale: 1.1,
                     mount_height: 0.0,
                 },
                 wow_data::CreatureModelDataEntry {
                     id: 200,
                     flags: 0,
+                    file_data_id: 0,
                     collision_height: 0.0,
+                    hover_height: 1.25,
                     model_scale: 1.0,
                     mount_height: 4.0,
                 },
@@ -78309,11 +78639,23 @@ mod tests {
             scale: 1.0,
             unit_class: 1,
             display_power: 1,
+            power: [0; 10],
+            max_power: [0; 10],
             base_mana: 0,
             virtual_items: [(0, 0, 0); 3],
             base_attack_time: 2000,
             ranged_attack_time: 0,
-            zone_id: 0,
+            movement_flags: 0,
+            play_hover_anim: false,
+            hover_height: 1.0,
+            mount_display_id: 0,
+            stand_state: 0,
+            vis_flags: 0,
+            anim_tier: 0,
+            emote_state: 0,
+            sheathe_state: wow_constants::unit::SheathState::Melee as u8,
+            pvp_flags: 0,
+            current_area_id: 0,
             speed_walk_rate: 1.0,
             speed_run_rate: 1.14286,
             ai_anim_kit_id: 0,
@@ -79106,6 +79448,92 @@ mod tests {
             .expect("creature stored as typed Creature entity");
         assert_eq!(typed.unit().world().object().entry(), 9001);
         assert_eq!(typed.current_health(), 25);
+    }
+
+    #[test]
+    fn register_world_creature_preserves_create_state_in_canonical_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        let guid = test_creature_guid(614);
+        let mut create_data = test_creature_create_data(guid, 9001, 25);
+        create_data.display_id = 1234;
+        create_data.native_display_id = 5678;
+        create_data.display_scale = 1.25;
+        create_data.native_x_display_scale = 0.75;
+        create_data.bounding_radius = 0.91;
+        create_data.combat_reach = 2.75;
+        create_data.display_power = wow_constants::unit::PowerType::Energy as u8;
+        create_data.power[3] = 42;
+        create_data.max_power[3] = 100;
+        create_data.base_attack_time = 1_750;
+        create_data.ranged_attack_time = 2_250;
+        create_data.mount_display_id = 321;
+        create_data.stand_state = wow_constants::unit::UnitStandStateType::Kneel as u8;
+        create_data.vis_flags = 0x02;
+        create_data.anim_tier = 3;
+        create_data.sheathe_state = wow_constants::unit::SheathState::Ranged as u8;
+        create_data.pvp_flags = wow_constants::unit::UnitPvpFlags::FFA_PVP.bits();
+
+        canonical.lock().unwrap().create_world_map(571, 0);
+        session.set_map_manager(manager);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.current_map_id = 571;
+        session.register_world_creature(
+            571,
+            Position::new(10.0, 20.0, 30.0, 1.0),
+            create_data.clone(),
+            3,
+            5,
+            20.0,
+            0,
+            0,
+            0,
+            0,
+            None,
+            0,
+            0,
+            0,
+            0,
+            -1,
+        );
+
+        let guard = canonical.lock().unwrap();
+        let creature = guard
+            .find_map(571, 0)
+            .unwrap()
+            .map()
+            .get_typed_creature(guid)
+            .expect("creature inserted into canonical map");
+        let reconstructed =
+            crate::map_manager::WorldCreature::create_data_from_canonical_like_cpp(creature);
+
+        assert_eq!(reconstructed.display_id, create_data.display_id);
+        assert_eq!(
+            reconstructed.native_display_id,
+            create_data.native_display_id
+        );
+        assert_eq!(reconstructed.display_scale, create_data.display_scale);
+        assert_eq!(
+            reconstructed.native_x_display_scale,
+            create_data.native_x_display_scale
+        );
+        assert_eq!(reconstructed.bounding_radius, create_data.bounding_radius);
+        assert_eq!(reconstructed.combat_reach, create_data.combat_reach);
+        assert_eq!(reconstructed.display_power, create_data.display_power);
+        assert_eq!(reconstructed.power[3], create_data.power[3]);
+        assert_eq!(reconstructed.max_power[3], create_data.max_power[3]);
+        assert_eq!(reconstructed.base_attack_time, create_data.base_attack_time);
+        assert_eq!(
+            reconstructed.ranged_attack_time,
+            create_data.ranged_attack_time
+        );
+        assert_eq!(reconstructed.mount_display_id, create_data.mount_display_id);
+        assert_eq!(reconstructed.stand_state, create_data.stand_state);
+        assert_eq!(reconstructed.vis_flags, create_data.vis_flags);
+        assert_eq!(reconstructed.anim_tier, create_data.anim_tier);
+        assert_eq!(reconstructed.sheathe_state, create_data.sheathe_state);
+        assert_eq!(reconstructed.pvp_flags, create_data.pvp_flags);
     }
 
     #[test]

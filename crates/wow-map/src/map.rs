@@ -6756,14 +6756,7 @@ where
     where
         F: FnMut(ObjectGuid, &Creature) -> CreatureRuntimeUpdateContext,
     {
-        let creature_guids = self
-            .map_objects
-            .iter()
-            .filter_map(|(guid, record)| {
-                (record.kind() == AccessorObjectKind::Creature && record.creature().is_some())
-                    .then_some(*guid)
-            })
-            .collect::<Vec<_>>();
+        let creature_guids = self.object_updater_creature_guids_like_cpp();
 
         let mut summary = CreatureUpdateSummaryLikeCpp::default();
         for guid in creature_guids {
@@ -6804,6 +6797,22 @@ where
         }
 
         summary
+    }
+
+    /// C++ `Trinity::ObjectUpdater` visits creature containers reachable from
+    /// the map's loaded grids, not the global object accessor/store. Keeping the
+    /// visitation anchored to cells prevents unloaded-grid records from being
+    /// updated after `Map::UnloadGrid` has removed their NGrid.
+    fn object_updater_creature_guids_like_cpp(&self) -> Vec<ObjectGuid> {
+        let mut creature_guids = Vec::new();
+        for grid in self.grids.iter().filter_map(|grid| grid.as_deref()) {
+            grid.visit_all_grids(|cell| {
+                creature_guids.extend(cell.grid_objects.creatures.iter().copied());
+                creature_guids.extend(cell.world_objects.creatures.iter().copied());
+            });
+        }
+        sort_dedup(&mut creature_guids);
+        creature_guids
     }
 
     /// Map-owned seam for C++ `AreaTrigger::Update` under `ObjectUpdater`.
@@ -27759,10 +27768,14 @@ mod tests {
     fn creature_update_snapshot_ignores_gameobject_areatrigger_dynamicobject_like_cpp() {
         let mut map = test_map();
         let creature_guid = guid(HighGuid::Creature, 4350301);
-        map.insert_map_object_record(
-            MapObjectRecord::new_creature(test_creature_for_spawn(43503, 4350301, true)).unwrap(),
-        )
-        .unwrap();
+        let mut creature = test_creature_for_spawn(43503, 4350301, true);
+        creature
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .remove_from_world();
+        map.add_map_object_record_to_map_like_cpp(MapObjectRecord::new_creature(creature).unwrap())
+            .unwrap();
         map.insert_map_object_record(
             MapObjectRecord::new_game_object(test_gameobject_for_spawn(43504, 4350302)).unwrap(),
         )
@@ -27810,12 +27823,44 @@ mod tests {
     }
 
     #[test]
+    fn creature_update_snapshot_skips_unloaded_grid_records_like_cpp() {
+        let mut map = test_map();
+        let creature_guid = guid(HighGuid::Creature, 4350311);
+        let mut creature = test_creature_for_spawn(43503, 4350311, true);
+        creature
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .remove_from_world();
+        let added = map
+            .add_map_object_record_to_map_like_cpp(MapObjectRecord::new_creature(creature).unwrap())
+            .unwrap();
+
+        assert!(map.unload_grid_at(added.grid, true));
+        assert!(map.get_ngrid(added.grid).is_none());
+        assert!(map.map_object_record(creature_guid).is_some());
+
+        let summary = map.update_creatures_like_cpp(1, 1_000, |_guid, _creature| {
+            CreatureRuntimeUpdateContext::default()
+        });
+
+        assert_eq!(summary.visited, 0);
+        assert_eq!(summary.updated, 0);
+        assert_eq!(summary.actions_recorded, 0);
+    }
+
+    #[test]
     fn creature_update_context_resolver_affects_plan_like_cpp() {
         let mut default_map = test_map();
+        let mut default_creature = test_creature_for_spawn(43504, 4350401, true);
+        default_creature
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .remove_from_world();
         default_map
-            .insert_map_object_record(
-                MapObjectRecord::new_creature(test_creature_for_spawn(43504, 4350401, true))
-                    .unwrap(),
+            .add_map_object_record_to_map_like_cpp(
+                MapObjectRecord::new_creature(default_creature).unwrap(),
             )
             .unwrap();
         let default_summary =
@@ -27824,10 +27869,15 @@ mod tests {
             });
 
         let mut disabled_ai_map = test_map();
+        let mut disabled_ai_creature = test_creature_for_spawn(43504, 4350402, true);
+        disabled_ai_creature
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .remove_from_world();
         disabled_ai_map
-            .insert_map_object_record(
-                MapObjectRecord::new_creature(test_creature_for_spawn(43504, 4350402, true))
-                    .unwrap(),
+            .add_map_object_record_to_map_like_cpp(
+                MapObjectRecord::new_creature(disabled_ai_creature).unwrap(),
             )
             .unwrap();
         let disabled_ai_summary =

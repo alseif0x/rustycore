@@ -27,6 +27,7 @@ pub struct CreatureModelInfoLikeCpp {
     pub bounding_radius: f32,
     pub combat_reach: f32,
     pub display_id_other_gender: u32,
+    pub is_trigger: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -51,6 +52,7 @@ impl CreatureModelInfoStoreLikeCpp {
     pub async fn load_like_cpp(
         db: &WorldDatabase,
         display_store: &CreatureDisplayInfoStore,
+        model_data_store: &crate::CreatureModelDataStore,
     ) -> Result<Self> {
         let mut result = db
             .direct_query(
@@ -80,12 +82,22 @@ impl CreatureModelInfoStoreLikeCpp {
 
             let combat_reach =
                 normalize_combat_reach_like_cpp(result.try_read::<f32>(2).unwrap_or(0.0));
+            let is_trigger = display_store
+                .get(display_id)
+                .and_then(|display| model_data_store.get(u32::from(display.model_id)))
+                .is_some_and(|model_data| {
+                    matches!(
+                        model_data.file_data_id,
+                        124640 | 124641 | 124642 | 343863 | 439302
+                    )
+                });
 
             entries.push(CreatureModelInfoLikeCpp {
                 display_id,
                 bounding_radius: result.try_read::<f32>(1).unwrap_or(0.0),
                 combat_reach,
                 display_id_other_gender,
+                is_trigger,
             });
 
             if !result.next_row() {

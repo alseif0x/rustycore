@@ -668,7 +668,8 @@ impl StatementDef for WorldStatements {
                 "COALESCE(ca.PathId, cta.PathId, 0), ",
                 "COALESCE(ctm.DisplayScale, 1.0), ",
                 "ct.Classification, ct.RegenHealth, ",
-                "c.npcflag, c.unit_flags, c.unit_flags2, c.unit_flags3 ",
+                "c.npcflag, c.unit_flags, c.unit_flags2, c.unit_flags3, ",
+                "c.equipment_id ",
                 "FROM creature c ",
                 "JOIN creature_template ct ON c.id = ct.entry ",
                 "LEFT JOIN creature_template_difficulty ctdiff ON ct.entry = ctdiff.Entry AND ctdiff.DifficultyID = 0 ",
@@ -1295,6 +1296,18 @@ mod tests {
             "C++ ObjectMgr::LoadCreatureAddons downgrades spawn waypoint movement when a spawn addon has PathId=0"
         );
         assert!(sql.contains("COALESCE(ca.PathId, cta.PathId, 0)"));
+        assert!(
+            !sql.contains("COALESCE(ca.mount, cta.mount, 0)"),
+            "addon create fields must come from CreatureAddonStoreLikeCpp, which mirrors ObjectMgr load-time validation"
+        );
+        assert!(
+            sql.contains("c.equipment_id"),
+            "C++ Creature::InitEntry reads CreatureData::equipmentId from creature; VirtualItems are resolved from ObjectMgr::LoadEquipmentTemplates"
+        );
+        assert!(
+            !sql.contains("creature_equip_template cet"),
+            "creature_equip_template is loaded once into CreatureEquipmentStoreLikeCpp, not joined per visibility query"
+        );
         assert_eq!(sql.matches('?').count(), 5);
     }
 

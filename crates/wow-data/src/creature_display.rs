@@ -28,7 +28,9 @@ pub struct CreatureDisplayInfoEntry {
 pub struct CreatureModelDataEntry {
     pub id: u32,
     pub flags: u32,
+    pub file_data_id: u32,
     pub collision_height: f32,
+    pub hover_height: f32,
     pub model_scale: f32,
     pub mount_height: f32,
 }
@@ -45,6 +47,8 @@ pub struct CreatureModelDataStore {
 // GeoBox[6] as one physical DB2Meta field. These indices are the physical
 // CreatureModelDataMeta fields, not the hotfix SELECT column ordinals.
 const CREATURE_MODEL_DATA_COLLISION_HEIGHT_DB2_FIELD: usize = 14;
+const CREATURE_MODEL_DATA_FILE_DATA_ID_DB2_FIELD: usize = 2;
+const CREATURE_MODEL_DATA_HOVER_HEIGHT_DB2_FIELD: usize = 17;
 const CREATURE_MODEL_DATA_MODEL_SCALE_DB2_FIELD: usize = 19;
 const CREATURE_MODEL_DATA_MOUNT_HEIGHT_DB2_FIELD: usize = 23;
 const CREATURE_MODEL_DATA_FLAGS_DB2_FIELD: usize = 1;
@@ -154,8 +158,12 @@ impl CreatureModelDataStore {
             entries.push(CreatureModelDataEntry {
                 id,
                 flags: reader.get_field_u32(idx, CREATURE_MODEL_DATA_FLAGS_DB2_FIELD),
+                file_data_id: reader.get_field_u32(idx, CREATURE_MODEL_DATA_FILE_DATA_ID_DB2_FIELD),
                 collision_height: f32::from_bits(
                     reader.get_field_u32(idx, CREATURE_MODEL_DATA_COLLISION_HEIGHT_DB2_FIELD),
+                ),
+                hover_height: f32::from_bits(
+                    reader.get_field_u32(idx, CREATURE_MODEL_DATA_HOVER_HEIGHT_DB2_FIELD),
                 ),
                 model_scale: f32::from_bits(
                     reader.get_field_u32(idx, CREATURE_MODEL_DATA_MODEL_SCALE_DB2_FIELD),
@@ -200,7 +208,9 @@ impl CreatureModelDataStore {
             let entry = CreatureModelDataEntry {
                 id: result.read(0),
                 flags: result.read(7),
+                file_data_id: result.read(8),
                 collision_height: result.read(20),
+                hover_height: result.read(23),
                 model_scale: result.read(25),
                 mount_height: result.read(29),
             };
@@ -290,14 +300,18 @@ mod tests {
             CreatureModelDataEntry {
                 id: 100,
                 flags: 0,
+                file_data_id: 0,
                 collision_height: 2.0,
+                hover_height: 0.75,
                 model_scale: 1.1,
                 mount_height: 0.0,
             },
             CreatureModelDataEntry {
                 id: 200,
                 flags: 0,
+                file_data_id: 0,
                 collision_height: 3.0,
+                hover_height: 1.25,
                 model_scale: 1.0,
                 mount_height: 4.0,
             },
@@ -319,7 +333,9 @@ mod tests {
         let models = CreatureModelDataStore::from_entries([CreatureModelDataEntry {
             id: 100,
             flags: 0,
+            file_data_id: 0,
             collision_height: 0.0,
+            hover_height: 0.75,
             model_scale: 1.1,
             mount_height: 0.0,
         }]);
