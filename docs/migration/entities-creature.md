@@ -6,6 +6,7 @@
 > **Status:** ⚠️ minimal — `WorldCreature` flat struct exists with HP/aggro/wander; everything template-driven (vendor/trainer/gossip/taxi/summons/static-flags/levelscaling) is absent or stubbed
 > **Audited vs C++:** ⚠️ partial (header-level audit, `Creature.cpp` body sampled)
 > **Last updated:** 2026-05-01
+> **Execution note (2026-06-21):** this status snapshot is stale for current implementation work. Use [`creature-port-no-gaps-plan.md`](creature-port-no-gaps-plan.md) as the active no-gaps Creature completion plan. C++ is the only canonical behavior source for this module.
 
 ---
 
@@ -465,7 +466,7 @@ DBC/DB2 stores read by Creature/Gossip/Trainer code:
 - Static flag 8 (`CreatureStaticFlags8`) didn't exist in 3.3.5 vanilla TC but does in WoLK 3.4 Classic build — confirm against the SQL dump.
 - `RegenerateHealth` in combat is gated by `CREATURE_STATIC_FLAG_5_NO_HEALTH_REGEN` AND `_regenerateHealth` AND `IsRegeneratingHealth`. Three gates — easy to short-circuit incorrectly.
 - C++ "tap list" cap is `CREATURE_TAPPERS_SOFT_CAP = 5` — soft, not hard.
-- Reference C# at `/home/server/woltk-server-core/Source/Game/Entities/Creature/Creature.cs` is canonical when C++ behavior is ambiguous for 3.4 specifically.
+- C# references in Creature paths are migration bugs, not fallback documentation. Re-audit each one against `/home/server/woltk-trinity-legacy`, fix the Rust behavior if it differs, and remove the C# reference.
 
 ---
 
