@@ -6874,10 +6874,14 @@ fn ensure_login_player_grid_loaded_like_cpp(
                 .map(|spawn_id| (wow_map::SpawnObjectType::GameObject, spawn_id)),
         )
     {
-        let already_loaded = match object_type {
+        let already_loaded_creature = match object_type {
             wow_map::SpawnObjectType::Creature => {
-                map.get_creature_by_spawn_id_like_cpp(spawn_id).is_some()
+                map.get_creature_by_spawn_id_like_cpp(spawn_id).cloned()
             }
+            wow_map::SpawnObjectType::GameObject | wow_map::SpawnObjectType::AreaTrigger => None,
+        };
+        let already_loaded = match object_type {
+            wow_map::SpawnObjectType::Creature => already_loaded_creature.is_some(),
             wow_map::SpawnObjectType::GameObject => {
                 map.get_gameobject_by_spawn_id_like_cpp(spawn_id).is_some()
             }
@@ -6885,6 +6889,15 @@ fn ensure_login_player_grid_loaded_like_cpp(
         };
         if already_loaded {
             outcome.skipped_already_loaded += 1;
+            if let Some(creature) = already_loaded_creature
+                && mirror_loaded_grid_creature_to_legacy_like_cpp(
+                    Some(legacy_manager),
+                    metadata.waypoint_paths_like_cpp(),
+                    creature,
+                )
+            {
+                outcome.legacy_creature_mirrors += 1;
+            }
             continue;
         }
 
@@ -12651,7 +12664,7 @@ mod tests {
     use std::env;
     use std::fs;
     use std::path::PathBuf;
-    use std::sync::{Arc, Mutex};
+    use std::sync::{Arc, Mutex, RwLock};
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
     use wow_constants::{ConditionSourceType, ConditionType};
     use wow_core::{ObjectGuid, Position, guid::HighGuid};
@@ -20202,6 +20215,97 @@ mmap.enablePathFinding = 0
         assert_eq!(creature.guid().counter(), 1);
         assert_eq!(creature.ai_max_health(), u64::from(level) * 20);
         assert_eq!(creature.ai_current_health(), creature.ai_max_health());
+    }
+
+    #[test]
+    fn login_grid_load_mirrors_already_loaded_canonical_creature_to_legacy_like_cpp() {
+        let spawn_id = 70_001;
+        let entry = 42;
+        let position = Position::new(1_000.0, 1_000.0, 0.0, 0.0);
+        let guid = ObjectGuid::create_world_object(
+            HighGuid::Creature,
+            0,
+            1,
+            571,
+            0,
+            entry,
+            spawn_id as i64,
+        );
+
+        let canonical: wow_world::SharedCanonicalMapManager =
+            Arc::new(Mutex::new(wow_map::MapManager::default()));
+        {
+            let mut creature = Creature::new(false);
+            creature.unit_mut().world_mut().object_mut().create(guid);
+            creature
+                .unit_mut()
+                .world_mut()
+                .object_mut()
+                .set_entry(entry);
+            creature.unit_mut().world_mut().set_map(571, 0).unwrap();
+            creature.unit_mut().world_mut().relocate(position);
+            creature.unit_mut().world_mut().object_mut().add_to_world();
+            creature.set_spawn_id(spawn_id);
+
+            canonical
+                .lock()
+                .unwrap()
+                .create_world_map(571, 0)
+                .map_mut()
+                .add_map_object_record_to_map_like_cpp(
+                    MapObjectRecord::new_creature(creature).unwrap(),
+                )
+                .expect("test canonical creature add to map");
+        }
+
+        let legacy: wow_world::SharedMapManager =
+            Arc::new(RwLock::new(wow_world::MapManager::new()));
+        let mut store = SpawnStore::new();
+        store.add_object_spawn(
+            &SpawnData {
+                object_type: SpawnObjectType::Creature,
+                spawn_id,
+                map_id: 571,
+                db_data: true,
+                spawn_group: SpawnGroupTemplateData::default_group(),
+                id: entry,
+                spawn_point: SpawnPosition::new(
+                    position.x,
+                    position.y,
+                    position.z,
+                    position.orientation,
+                ),
+                phase_use_flags: 0,
+                phase_id: 0,
+                phase_group: 0,
+                terrain_swap_map: -1,
+                pool_id: 0,
+                spawn_time_secs: 120,
+                spawn_difficulties: vec![0],
+                script_id: 0,
+                string_id: String::new(),
+            },
+            |_| false,
+        );
+        let metadata = Arc::new(Mutex::new(
+            super::spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(store, BTreeMap::new()),
+        ));
+        let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
+
+        let outcome = super::ensure_login_player_grid_loaded_like_cpp(
+            &canonical, &legacy, &metadata, &caches, 571, 0, position,
+        );
+
+        assert_eq!(outcome.skipped_already_loaded, 1);
+        assert_eq!(outcome.creature_records_added, 0);
+        assert_eq!(
+            outcome.legacy_creature_mirrors, 1,
+            "C++ has one Map object store; Rust's temporary canonical/legacy split must mirror already-loaded canonical creatures into the legacy tick world"
+        );
+        assert!(
+            legacy.read().unwrap().find_creature(571, 0, guid).is_some(),
+            "already-loaded canonical creature must be present in legacy MapManager so the creature tick can move it"
+        );
     }
 
     #[test]

@@ -16,8 +16,8 @@ use wow_constants::{
 use wow_core::{ObjectGuid, Position};
 use wow_entities::{
     Creature, CreatureAiState, DistractMovementAction, EVENT_CHARGE_PREPATH, GenericMovementInform,
-    MovementGeneratorKind, MovementSlot, PhaseShift, PointMovementAction, PointMovementInform,
-    RotateMovementUpdate,
+    MovementGeneratorKind, MovementGeneratorType, MovementSlot, PhaseShift, PointMovementAction,
+    PointMovementInform, RotateMovementUpdate,
 };
 use wow_movement::{
     MoveSpline, MoveSplineInit, MoveSplineLaunchInput, MoveSplineStopInput, MoveSplineStopResult,
@@ -3063,6 +3063,8 @@ pub struct PendingRespawn {
     pub chase_movement_type: u8,
     pub random_movement_type: u8,
     pub interaction_pause_timer_ms: u32,
+    pub default_movement_type: MovementGeneratorType,
+    pub waypoint_path_id: u32,
     pub npc_flags: u32,
     pub unit_flags: u32,
     pub map_id: u16,
@@ -3174,6 +3176,8 @@ pub fn pending_respawn_from_world_creature_like_cpp(
         chase_movement_type: creature.creature.chase_movement_type_like_cpp(),
         random_movement_type: creature.creature.random_movement_type_like_cpp(),
         interaction_pause_timer_ms: creature.creature.interaction_pause_timer_ms_like_cpp(),
+        default_movement_type: creature.creature.default_movement_type(),
+        waypoint_path_id: creature.creature.waypoint_path_id_like_cpp(),
         npc_flags: creature.npc_flags(),
         unit_flags: creature.unit_flags(),
         map_id,
@@ -3248,6 +3252,10 @@ pub fn world_creature_from_pending_respawn_like_cpp(
     creature.set_chase_movement_type_runtime_like_cpp(respawn.chase_movement_type);
     creature.set_random_movement_type_runtime_like_cpp(respawn.random_movement_type);
     creature.set_interaction_pause_timer_ms_runtime_like_cpp(respawn.interaction_pause_timer_ms);
+    creature.set_default_movement_type_runtime_like_cpp(respawn.default_movement_type);
+    if respawn.waypoint_path_id != 0 {
+        creature.load_path_like_cpp(respawn.waypoint_path_id);
+    }
     creature.configure_ai_runtime(
         respawn.home_pos,
         respawn.aggro_radius,
@@ -5698,6 +5706,8 @@ mod tests {
             random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
             interaction_pause_timer_ms:
                 wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
+            default_movement_type: MovementGeneratorType::Idle,
+            waypoint_path_id: 0,
             npc_flags: 0,
             unit_flags: 0,
             map_id: 0,
@@ -5756,6 +5766,26 @@ mod tests {
             creature.creature.random_movement_type_like_cpp(),
             wow_constants::CreatureRandomMovementType::AlwaysRun as u8,
             "C++ respawn keeps using Creature::GetMovementTemplate(); Rust respawn must preserve the captured Random movement metadata"
+        );
+    }
+
+    #[test]
+    fn pending_respawn_rebuild_preserves_default_movement_and_path_like_cpp() {
+        let mut pending = make_pending_respawn(Instant::now());
+        pending.default_movement_type = MovementGeneratorType::Waypoint;
+        pending.waypoint_path_id = 9_002;
+
+        let creature = world_creature_from_pending_respawn_like_cpp(&pending, 0);
+
+        assert_eq!(
+            creature.creature.default_movement_type(),
+            MovementGeneratorType::Waypoint,
+            "C++ respawn reload path uses Creature::LoadFromDB/LoadCreaturesAddon and keeps the selected default motion"
+        );
+        assert_eq!(
+            creature.creature.waypoint_path_id_like_cpp(),
+            9_002,
+            "C++ Creature::LoadCreaturesAddon preserves nonzero PathId for waypoint movement after respawn"
         );
     }
 

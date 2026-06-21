@@ -45628,7 +45628,7 @@ impl WorldSession {
             );
 
             // Recreate canonical map state.
-            self.register_world_creature_with_flags_extra_and_movement_like_cpp(
+            self.register_world_creature_with_flags_extra_movement_and_default_motion_like_cpp(
                 r.map_id,
                 r.home_pos,
                 r.create_data.clone(),
@@ -45649,6 +45649,13 @@ impl WorldSession {
                 r.ground_movement_type,
                 r.swim_allowed,
                 r.flight_movement_type,
+                r.rooted,
+                r.chase_movement_type,
+                r.random_movement_type,
+                r.interaction_pause_timer_ms,
+                r.wander_distance,
+                r.default_movement_type,
+                r.waypoint_path_id,
             );
 
             // Send CREATE block to client with C++ viewer-dependent
@@ -122829,6 +122836,8 @@ mod tests {
             random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
             interaction_pause_timer_ms:
                 wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
+            default_movement_type: wow_entities::MovementGeneratorType::Idle,
+            waypoint_path_id: 0,
             npc_flags: 0,
             unit_flags: 0,
             map_id: 0,
