@@ -362,8 +362,12 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
             None
         })
         .flatten();
-    let equipment_id = u8::try_from(runtime_row.equipment_id.max(0)).unwrap_or(0);
-    let original_equipment_id = runtime_row.equipment_id;
+    let equipment_id = u8::try_from(runtime_row.equipment_id).unwrap_or(0);
+    let original_equipment_id = if equipment_id == 0 {
+        0
+    } else {
+        runtime_row.equipment_id
+    };
     let selected_virtual_items = creature_virtual_items_for_selected_equipment_like_cpp(
         template.entry,
         equipment_id,
@@ -1023,7 +1027,7 @@ mod tests {
             wow_constants::CreatureRandomMovementType::AlwaysRun as u8
         );
         assert_eq!(template.equipment_id, 0);
-        assert_eq!(template.original_equipment_id, -7);
+        assert_eq!(template.original_equipment_id, 0);
         assert_eq!(resolved_spawn.spawn_id, 70);
         assert_eq!(resolved_spawn.map_id, 571);
         assert_eq!(resolved_spawn.instance_id, 9);
@@ -1034,7 +1038,7 @@ mod tests {
         assert_eq!(resolved_spawn.spawn_group_id, Some(22));
         assert!(resolved_spawn.respawn_compatibility_mode);
         assert_eq!(resolved_spawn.equipment_id, Some(0));
-        assert_eq!(resolved_spawn.original_equipment_id, Some(-7));
+        assert_eq!(resolved_spawn.original_equipment_id, Some(0));
         assert_eq!(resolved_spawn.wander_distance, 15.0);
         assert_eq!(resolved_spawn.respawn_delay, 300);
         assert_eq!(resolved_spawn.respawn_time, 123);
