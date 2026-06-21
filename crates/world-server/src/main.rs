@@ -1977,6 +1977,62 @@ async fn main() -> Result<ExitCode> {
         "Loaded {} LFG dungeons from LFGDungeons.db2",
         lfg_dungeons_store.len()
     );
+    // Load item appearance/equipment dependencies before canonical SpawnStore metadata.
+    // C++ `ObjectMgr::LoadCreatureData` validates `creature.equipment_id` through
+    // `ObjectMgr::GetEquipmentInfo`, including `-1` random selection, while loading
+    // CreatureData.
+    let item_appearance_store = Arc::new(
+        wow_data::ItemAppearanceStore::load(&data_dir, &locale)
+            .context("Failed to load ItemAppearance.db2 — check DataDir and DBC.Locale config")?,
+    );
+    info!(
+        "Loaded {} item appearances from ItemAppearance.db2",
+        item_appearance_store.len()
+    );
+    let item_modified_appearance_store = Arc::new(
+        wow_data::ItemModifiedAppearanceStore::load(&data_dir, &locale).context(
+            "Failed to load ItemModifiedAppearance.db2 — check DataDir and DBC.Locale config",
+        )?,
+    );
+    info!(
+        "Loaded {} item modified appearances from ItemModifiedAppearance.db2",
+        item_modified_appearance_store.len()
+    );
+    let item_stats_store = Arc::new(
+        wow_data::ItemStatsStore::load(&data_dir, &locale)
+            .context("Failed to load ItemSparse.db2 — check DataDir and DBC.Locale config")?,
+    );
+    info!(
+        "Loaded {} items with stat modifiers from ItemSparse.db2",
+        item_stats_store.len()
+    );
+    let creature_equipment_store = Arc::new(
+        wow_data::CreatureEquipmentStoreLikeCpp::load_like_cpp(
+            world_db.as_ref(),
+            |entry| creature_template_lifecycle_store.get(entry).is_some(),
+            |item_id| {
+                item_stats_store
+                    .sparse_template(item_id)
+                    .map(|template| template.inventory_type as u8)
+            },
+            |item_id, appearance_mod_id| {
+                item_modified_appearance_store
+                    .get_for_item(item_id, appearance_mod_id)
+                    .is_some()
+            },
+            |item_id| {
+                item_modified_appearance_store
+                    .get_default_for_item(item_id)
+                    .and_then(|entry| u16::try_from(entry.item_appearance_modifier_id).ok())
+            },
+        )
+        .await
+        .context("Failed to load C++ creature equipment templates")?,
+    );
+    info!(
+        "Loaded {} C++ creature equipment templates",
+        creature_equipment_store.len()
+    );
 
     let (canonical_spawn_metadata, canonical_spawn_report) =
         spawn_store_loader::load_canonical_spawn_store_like_cpp(
@@ -1985,6 +2041,7 @@ async fn main() -> Result<ExitCode> {
             &map_store,
             &map_difficulty_store,
             &spawn_group_store,
+            creature_equipment_store.as_ref(),
             area_trigger_template_store.as_ref(),
             |spell_id| spell_store.get(spell_id as i32).is_some(),
             |name| script_name_interner.get_script_id_like_cpp(name, true),
@@ -2286,27 +2343,6 @@ async fn main() -> Result<ExitCode> {
         conversation_line_template_store.len()
     );
 
-    // Load ItemAppearance.db2 for item display-info resolution.
-    let item_appearance_store = Arc::new(
-        wow_data::ItemAppearanceStore::load(&data_dir, &locale)
-            .context("Failed to load ItemAppearance.db2 — check DataDir and DBC.Locale config")?,
-    );
-    info!(
-        "Loaded {} item appearances from ItemAppearance.db2",
-        item_appearance_store.len()
-    );
-
-    // Load ItemModifiedAppearance.db2 for transmog/visible-item appearance resolution.
-    let item_modified_appearance_store = Arc::new(
-        wow_data::ItemModifiedAppearanceStore::load(&data_dir, &locale).context(
-            "Failed to load ItemModifiedAppearance.db2 — check DataDir and DBC.Locale config",
-        )?,
-    );
-    info!(
-        "Loaded {} item modified appearances from ItemModifiedAppearance.db2",
-        item_modified_appearance_store.len()
-    );
-
     // Load ItemSearchName.db2 for CollectionMgr::CanAddAppearance item-name existence gate.
     let item_search_name_store = Arc::new(
         wow_data::ItemSearchNameStore::load(&data_dir, &locale)
@@ -2423,42 +2459,6 @@ async fn main() -> Result<ExitCode> {
         "Loaded C++ player create custom spell assignments"
     );
 
-    // Load item stat modifiers from ItemSparse.db2 (gear bonuses: STR, AGI, STA, etc.)
-    let item_stats_store = Arc::new(
-        wow_data::ItemStatsStore::load(&data_dir, &locale)
-            .context("Failed to load ItemSparse.db2 — check DataDir and DBC.Locale config")?,
-    );
-    info!(
-        "Loaded {} items with stat modifiers from ItemSparse.db2",
-        item_stats_store.len()
-    );
-    let creature_equipment_store = Arc::new(
-        wow_data::CreatureEquipmentStoreLikeCpp::load_like_cpp(
-            world_db.as_ref(),
-            |entry| creature_template_lifecycle_store.get(entry).is_some(),
-            |item_id| {
-                item_stats_store
-                    .sparse_template(item_id)
-                    .map(|template| template.inventory_type as u8)
-            },
-            |item_id, appearance_mod_id| {
-                item_modified_appearance_store
-                    .get_for_item(item_id, appearance_mod_id)
-                    .is_some()
-            },
-            |item_id| {
-                item_modified_appearance_store
-                    .get_default_for_item(item_id)
-                    .and_then(|entry| u16::try_from(entry.item_appearance_modifier_id).ok())
-            },
-        )
-        .await
-        .context("Failed to load C++ creature equipment templates")?,
-    );
-    info!(
-        "Loaded {} C++ creature equipment templates",
-        creature_equipment_store.len()
-    );
     let gameobject_quest_item_outcome = wow_data::GameObjectQuestItemStoreLikeCpp::load_like_cpp(
         world_db.as_ref(),
         |entry| gameobject_template_lifecycle_store.get(entry).is_some(),

@@ -141,6 +141,34 @@ impl CreatureEquipmentStoreLikeCpp {
         self.entries.get(&entry)?.get(&id)
     }
 
+    /// Mirrors C++ `ObjectMgr::GetEquipmentInfo(entry, int8& id)`.
+    ///
+    /// `id == -1` selects a random equipment row and mutates `id` to the selected
+    /// one-based equipment template id. Other signed ids are looked up through the
+    /// C++ `uint8` key domain; the caller keeps the original signed id unless the
+    /// lookup fails and its own load path normalizes it.
+    pub fn get_equipment_info_like_cpp(
+        &self,
+        entry: u32,
+        id: &mut i8,
+        mut urand_inclusive: impl FnMut(u32, u32) -> u32,
+    ) -> Option<&CreatureEquipmentInfoLikeCpp> {
+        let equipment = self.entries.get(&entry)?;
+        if equipment.is_empty() {
+            return None;
+        }
+
+        if *id == -1 {
+            let max = u32::try_from(equipment.len().saturating_sub(1)).ok()?;
+            let index = usize::try_from(urand_inclusive(0, max).min(max)).ok()?;
+            let (selected_id, info) = equipment.iter().nth(index)?;
+            *id = i8::try_from(*selected_id).ok()?;
+            return Some(info);
+        }
+
+        equipment.get(&(*id as u8))
+    }
+
     pub fn len_for_entry(&self, entry: u32) -> usize {
         self.entries.get(&entry).map_or(0, BTreeMap::len)
     }
@@ -194,5 +222,66 @@ mod tests {
         assert!(store.get(10, 0).is_none());
         assert_eq!(store.len_for_entry(10), 1);
         assert_eq!(store.nth_for_entry(10, 0).map(|(id, _)| id), Some(2));
+    }
+
+    #[test]
+    fn get_equipment_info_random_mutates_id_like_cpp() {
+        let store = CreatureEquipmentStoreLikeCpp::from_entries([
+            (
+                10,
+                1,
+                CreatureEquipmentInfoLikeCpp {
+                    items: [
+                        CreatureEquipmentItemLikeCpp {
+                            item_id: 100,
+                            appearance_mod_id: 1,
+                            item_visual: 2,
+                        },
+                        CreatureEquipmentItemLikeCpp::default(),
+                        CreatureEquipmentItemLikeCpp::default(),
+                    ],
+                },
+            ),
+            (
+                10,
+                3,
+                CreatureEquipmentInfoLikeCpp {
+                    items: [
+                        CreatureEquipmentItemLikeCpp {
+                            item_id: 300,
+                            appearance_mod_id: 3,
+                            item_visual: 4,
+                        },
+                        CreatureEquipmentItemLikeCpp::default(),
+                        CreatureEquipmentItemLikeCpp::default(),
+                    ],
+                },
+            ),
+        ]);
+        let mut id = -1;
+
+        let info = store
+            .get_equipment_info_like_cpp(10, &mut id, |_min, max| max)
+            .expect("random equipment should select existing row");
+
+        assert_eq!(id, 3);
+        assert_eq!(info.items[0].item_id, 300);
+    }
+
+    #[test]
+    fn get_equipment_info_missing_does_not_mutate_non_random_id_like_cpp() {
+        let store = CreatureEquipmentStoreLikeCpp::from_entries([(
+            10,
+            1,
+            CreatureEquipmentInfoLikeCpp::default(),
+        )]);
+        let mut id = 2;
+
+        assert!(
+            store
+                .get_equipment_info_like_cpp(10, &mut id, |_, _| unreachable!())
+                .is_none()
+        );
+        assert_eq!(id, 2);
     }
 }

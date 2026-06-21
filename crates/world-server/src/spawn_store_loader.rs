@@ -3574,6 +3574,7 @@ pub async fn load_canonical_spawn_store_like_cpp(
     map_store: &wow_data::MapStore,
     map_difficulty_store: &wow_data::MapDifficultyStore,
     spawn_group_store: &wow_data::SpawnGroupTemplateStore,
+    creature_equipment_store: &wow_data::CreatureEquipmentStoreLikeCpp,
     area_trigger_template_store: &wow_data::AreaTriggerTemplateStore,
     mut area_trigger_spell_exists: impl FnMut(u32) -> bool,
     mut script_id_for_name: impl FnMut(&str) -> wow_data::ScriptIdLikeCpp,
@@ -3588,6 +3589,7 @@ pub async fn load_canonical_spawn_store_like_cpp(
         db,
         map_store,
         map_difficulty_store,
+        creature_equipment_store,
         &mut store,
         &mut creature_runtime_rows,
         &mut report,
@@ -5006,6 +5008,7 @@ async fn load_creature_spawns_like_cpp(
     db: &WorldDatabase,
     map_store: &wow_data::MapStore,
     map_difficulty_store: &wow_data::MapDifficultyStore,
+    creature_equipment_store: &wow_data::CreatureEquipmentStoreLikeCpp,
     store: &mut SpawnStore,
     creature_runtime_rows: &mut BTreeMap<SpawnId, CreatureSpawnRuntimeRowLikeCpp>,
     report: &mut CanonicalSpawnStoreLoadReport,
@@ -5017,7 +5020,7 @@ async fn load_creature_spawns_like_cpp(
     }
 
     loop {
-        let row = CreatureSpawnRow {
+        let mut row = CreatureSpawnRow {
             spawn_id: result.read(0),
             entry: result.read(1),
             map_id: result.read(2),
@@ -5059,6 +5062,7 @@ async fn load_creature_spawns_like_cpp(
                 .flatten()
                 .unwrap_or(wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP),
         };
+        normalize_creature_spawn_equipment_id_like_cpp(&mut row, creature_equipment_store);
         let runtime_row = creature_row_to_runtime_row_like_cpp(&row);
         report.creature.rows += 1;
         if let Some(spawn) = creature_row_to_spawn_data_like_cpp(
@@ -5608,6 +5612,28 @@ fn creature_row_to_runtime_row_like_cpp(row: &CreatureSpawnRow) -> CreatureSpawn
         interaction_pause_timer_ms: row.interaction_pause_timer_ms,
         string_id: row.string_id.clone(),
         spawn_time_secs: row.spawn_time_secs,
+    }
+}
+
+fn normalize_creature_spawn_equipment_id_like_cpp(
+    row: &mut CreatureSpawnRow,
+    equipment_store: &wow_data::CreatureEquipmentStoreLikeCpp,
+) {
+    // C++ `ObjectMgr::LoadCreatureData`: `-1` means random equipment, `0` means
+    // no equipment, and any non-zero id missing from `creature_equip_template`
+    // is normalized back to no equipment before `Creature::LoadFromDB`.
+    if row.equipment_id == 0 {
+        return;
+    }
+
+    let mut equipment_id = row.equipment_id;
+    if equipment_store
+        .get_equipment_info_like_cpp(row.entry, &mut equipment_id, wow_core::urand_like_cpp)
+        .is_some()
+    {
+        row.equipment_id = equipment_id;
+    } else {
+        row.equipment_id = 0;
     }
 }
 
@@ -6380,6 +6406,40 @@ mod tests {
             script_name: String::new(),
             string_id: String::new(),
         }
+    }
+
+    #[test]
+    fn creature_spawn_equipment_random_is_normalized_before_runtime_row_like_cpp() {
+        let mut row = creature_row(1, 0, "0");
+        row.entry = 123;
+        row.equipment_id = -1;
+        let equipment_store = wow_data::CreatureEquipmentStoreLikeCpp::from_entries([(
+            123,
+            1,
+            wow_data::CreatureEquipmentInfoLikeCpp::default(),
+        )]);
+
+        normalize_creature_spawn_equipment_id_like_cpp(&mut row, &equipment_store);
+        let runtime = creature_row_to_runtime_row_like_cpp(&row);
+
+        assert_eq!(row.equipment_id, 1);
+        assert_eq!(runtime.equipment_id, 1);
+    }
+
+    #[test]
+    fn creature_spawn_missing_equipment_is_normalized_to_zero_like_cpp() {
+        let mut row = creature_row(1, 0, "0");
+        row.entry = 123;
+        row.equipment_id = 7;
+        let equipment_store = wow_data::CreatureEquipmentStoreLikeCpp::from_entries([(
+            123,
+            1,
+            wow_data::CreatureEquipmentInfoLikeCpp::default(),
+        )]);
+
+        normalize_creature_spawn_equipment_id_like_cpp(&mut row, &equipment_store);
+
+        assert_eq!(row.equipment_id, 0);
     }
 
     fn gameobject_row(
