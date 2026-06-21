@@ -1478,6 +1478,13 @@ impl Unit {
         self.speed_rate
     }
 
+    pub fn set_speed_rate_like_cpp(&mut self, move_type: wow_constants::UnitMoveType, rate: f32) {
+        let slot = move_type as usize;
+        if slot < MAX_MOVE_TYPE {
+            self.speed_rate[slot] = rate.max(0.0);
+        }
+    }
+
     pub fn unit_data_changes_mask(&self) -> &UpdateMask {
         &self.unit_data_changes
     }

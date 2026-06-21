@@ -7,8 +7,8 @@ use wow_constants::{
     CreatureChaseMovementType, CreatureFlagsExtra, CreatureFlightMovementType,
     CreatureGroundMovementType, CreatureRandomMovementType, CreatureStaticFlags, CreatureTypeFlags,
     DeathState, PowerType, ShapeShiftForm, SheathState, TypeId, TypeMask, UnitDynFlags, UnitFlags,
-    UnitFlags2, UnitFlags3, UnitPvpFlags, UnitStandStateType, UnitState, WeaponAttackType,
-    movement::MovementFlag,
+    UnitFlags2, UnitFlags3, UnitMoveType, UnitPvpFlags, UnitStandStateType, UnitState,
+    WeaponAttackType, movement::MovementFlag,
 };
 use wow_core::{ObjectGuid, Position};
 
@@ -1036,6 +1036,15 @@ impl Creature {
                 .selected_model_dimensions
                 .or(template.model_dimensions),
         );
+        // C++ `Creature::InitEntry` sets walk/run from creature_template and
+        // swim/flight to 1.0 immediately after haste/time-rate defaults
+        // (`Creature.cpp:540-550`).
+        self.unit
+            .set_speed_rate_like_cpp(UnitMoveType::Walk, template.speed_walk);
+        self.unit
+            .set_speed_rate_like_cpp(UnitMoveType::Run, template.speed_run);
+        self.unit.set_speed_rate_like_cpp(UnitMoveType::Swim, 1.0);
+        self.unit.set_speed_rate_like_cpp(UnitMoveType::Flight, 1.0);
         self.spells = template.spells;
         self.equipment_id = equipment_id;
         self.original_equipment_id = original_equipment_id;
@@ -4265,8 +4274,8 @@ mod tests {
                 combat_reach: 1.2,
             }),
             scale: 1.5,
-            speed_walk: 1.0,
-            speed_run: 1.14286,
+            speed_walk: 0.8,
+            speed_run: 1.25,
             spells,
             classification: 3,
             damage_school: wow_constants::spell::SpellSchools::Nature as u8,
@@ -4417,6 +4426,11 @@ mod tests {
             creature.unit().data().combat_reach,
             2.0 * 1.5 * crate::DEFAULT_PLAYER_DISPLAY_SCALE
         );
+        let speed_rate = creature.unit().speed_rate();
+        assert_eq!(speed_rate[UnitMoveType::Walk as usize], 0.8);
+        assert_eq!(speed_rate[UnitMoveType::Run as usize], 1.25);
+        assert_eq!(speed_rate[UnitMoveType::Swim as usize], 1.0);
+        assert_eq!(speed_rate[UnitMoveType::Flight as usize], 1.0);
         assert_eq!(creature.spells()[0], 133);
         assert_eq!(creature.spells()[3], 116);
         assert_eq!(
