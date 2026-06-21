@@ -5,10 +5,10 @@ use std::{
 
 use wow_constants::{
     CreatureChaseMovementType, CreatureFlagsExtra, CreatureFlightMovementType,
-    CreatureGroundMovementType, CreatureRandomMovementType, CreatureStaticFlags, CreatureTypeFlags,
-    DeathState, PowerType, ShapeShiftForm, SheathState, TypeId, TypeMask, UnitDynFlags, UnitFlags,
-    UnitFlags2, UnitFlags3, UnitMoveType, UnitPvpFlags, UnitStandStateType, UnitState,
-    WeaponAttackType, movement::MovementFlag,
+    CreatureGroundMovementType, CreatureRandomMovementType, CreatureStaticFlags,
+    CreatureStaticFlags4, CreatureType, CreatureTypeFlags, DeathState, PowerType, ShapeShiftForm,
+    SheathState, TypeId, TypeMask, UnitDynFlags, UnitFlags, UnitFlags2, UnitFlags3, UnitMoveType,
+    UnitPvpFlags, UnitStandStateType, UnitState, WeaponAttackType, movement::MovementFlag,
 };
 use wow_core::{ObjectGuid, Position};
 
@@ -1147,6 +1147,10 @@ impl Creature {
             normalize_creature_ground_movement_type_like_cpp(template.ground_movement_type);
         self.load_creatures_addon_represented_like_cpp(record.addon.as_ref());
 
+        let init_entry_static_flags = self.init_entry_static_flags_like_cpp(template);
+        let init_entry_rooted = CreatureStaticFlags::from_bits_truncate(init_entry_static_flags[0])
+            .contains(CreatureStaticFlags::SESSILE);
+
         self.lifecycle_metadata = CreatureLifecycleMetadata {
             template_entry: template.entry,
             original_entry: template.original_entry,
@@ -1159,7 +1163,7 @@ impl Creature {
             classification: template.classification,
             damage_school: template.damage_school,
             flags_extra: template.flags_extra,
-            static_flags: template.static_flags,
+            static_flags: init_entry_static_flags,
             ground_movement_type: normalize_creature_ground_movement_type_like_cpp(
                 template.ground_movement_type,
             ),
@@ -1167,7 +1171,7 @@ impl Creature {
             flight_movement_type: normalize_creature_flight_movement_type_like_cpp(
                 template.flight_movement_type,
             ),
-            rooted: template.rooted,
+            rooted: init_entry_rooted,
             chase_movement_type: normalize_creature_chase_movement_type_like_cpp(
                 template.chase_movement_type,
             ),
@@ -1218,9 +1222,37 @@ impl Creature {
             addon: record.addon,
         };
 
-        self.set_template_rooted_like_cpp(template.rooted);
+        self.set_template_rooted_like_cpp(init_entry_rooted);
         self.refresh_threat_list_capability_like_cpp();
         self.clear_data_changes();
+    }
+
+    fn init_entry_static_flags_like_cpp(
+        &self,
+        template: &CreatureTemplateLifecycleRecord,
+    ) -> [u32; 8] {
+        let mut static_flags = template.static_flags;
+        let flags_extra = CreatureFlagsExtra::from_bits_truncate(template.flags_extra);
+
+        let mut primary = CreatureStaticFlags::from_bits_truncate(static_flags[0]);
+        primary.set(
+            CreatureStaticFlags::NO_XP,
+            template.creature_type == CreatureType::Critter as u32
+                || self.has_unit_type_mask_like_cpp(UNIT_MASK_PET)
+                || self.has_unit_type_mask_like_cpp(UNIT_MASK_TOTEM)
+                || flags_extra.contains(CreatureFlagsExtra::NO_XP),
+        );
+        static_flags[0] = primary.bits();
+
+        let mut flags4 = CreatureStaticFlags4::from_bits_truncate(static_flags[3]);
+        flags4.set(
+            CreatureStaticFlags4::TREAT_AS_RAID_UNIT_FOR_HELPFUL_SPELLS,
+            CreatureTypeFlags::from_bits_truncate(template.type_flags)
+                .contains(CreatureTypeFlags::TREAT_AS_RAID_UNIT),
+        );
+        static_flags[3] = flags4.bits();
+
+        static_flags
     }
 
     pub fn apply_load_from_db_lifecycle(&mut self, spawn: &CreatureSpawnLifecycleRecord) {
@@ -2041,6 +2073,11 @@ impl Creature {
             CreatureStaticFlags::from_bits_truncate(self.lifecycle_metadata.static_flags[0]);
         flags.set(CreatureStaticFlags::SESSILE, rooted);
         self.lifecycle_metadata.static_flags[0] = flags.bits();
+        if rooted {
+            self.unit.add_unit_state(UnitState::ROOT.bits());
+        } else {
+            self.unit.clear_unit_state(UnitState::ROOT.bits());
+        }
     }
 
     pub fn can_melee_like_cpp(&self) -> bool {
@@ -6039,6 +6076,32 @@ mod tests {
         assert!(!creature.cannot_reach_target());
         assert_eq!(creature.cannot_reach_timer(), 0);
         assert!(!creature.is_evading_attacks_like_cpp());
+    }
+
+    #[test]
+    fn creature_lifecycle_init_entry_derives_static_flags_like_cpp() {
+        let mut record = creature_lifecycle_create_record();
+        record.vehicle_id = None;
+        record.vehicle_kit_create_input = None;
+        record.template.rooted = false;
+        record.template.flags_extra |= CreatureFlagsExtra::NO_XP.bits();
+        record.template.static_flags[0] =
+            CreatureStaticFlags::SESSILE.bits() | CreatureStaticFlags::NO_MELEE_FLEE.bits();
+        record.template.type_flags |= CreatureTypeFlags::TREAT_AS_RAID_UNIT.bits();
+
+        let creature = Creature::create_from_lifecycle(record);
+        let primary =
+            CreatureStaticFlags::from_bits_truncate(creature.lifecycle_metadata().static_flags[0]);
+        let flags4 =
+            CreatureStaticFlags4::from_bits_truncate(creature.lifecycle_metadata().static_flags[3]);
+
+        assert!(primary.contains(CreatureStaticFlags::SESSILE));
+        assert!(primary.contains(CreatureStaticFlags::NO_MELEE_FLEE));
+        assert!(primary.contains(CreatureStaticFlags::NO_XP));
+        assert!(flags4.contains(CreatureStaticFlags4::TREAT_AS_RAID_UNIT_FOR_HELPFUL_SPELLS));
+        assert!(creature.is_template_rooted_like_cpp());
+        assert!(creature.unit().has_unit_state(UnitState::ROOT.bits()));
+        assert!(!creature.can_melee_like_cpp());
     }
 
     #[test]
