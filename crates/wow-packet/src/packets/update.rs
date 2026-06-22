@@ -8157,9 +8157,14 @@ fn write_active_player_data_values_update(
         blocks[0] |= 1 << 0;
         blocks[1] |= (1 << 4) | (1 << 5);
 
-        // Parent 38 section: ALL 31 fields (bits 39-69)
-        // parent=38→b1:6, bits 39-63→b1:7-31, bits 64-69→b2:0-5
-        blocks[1] |= 0xFFFF_FFC0; // bits 6-31
+        // Parent 38 section: 30 fields (bits 39-49, 51-69). Field bit 50
+        // (ShieldBlockCritPercentage) is RESERVED in the 3.4.3.54261 client
+        // grammar: it has no property and is neither masked nor written (oracle
+        // hp_ObjectUpdateBuilder.cs:567,841 skip it). Emitting it shifts every
+        // following ActivePlayerData field by +4 bytes and desyncs the client's
+        // value walk, crashing the client shortly after world entry.
+        // parent=38→b1:6, bits 39-63→b1:7-31 EXCEPT bit 50→b1:18, bits 64-69→b2:0-5
+        blocks[1] |= 0xFFFB_FFC0; // bits 6-31 except bit 18 (field 50, reserved)
         blocks[2] |= 0x3F; // bits 0-5
 
         // Parent 269 section (block 8): SpellCritPercentage[7] + ModDamageDonePos[7]
@@ -8221,7 +8226,9 @@ fn write_active_player_data_values_update(
         buf.write_float(sc.offhand_expertise); // bit 37: OffhandExpertise
     }
 
-    // Parent 38 section: all 31 fields (bits 39-69) in C++ definition order.
+    // Parent 38 section: 30 fields (bits 39-49, 51-69) in C++ definition order.
+    // Field bit 50 (ShieldBlockCritPercentage) is reserved and skipped — see the
+    // mask above and the 54261 grammar oracle (hp_ObjectUpdateBuilder.cs).
     if let Some(sc) = stat_changes {
         buf.write_float(sc.ranged_expertise); // bit 39: RangedExpertise
         buf.write_float(sc.combat_rating_expertise); // bit 40: CombatRatingExpertise
@@ -8234,7 +8241,8 @@ fn write_active_player_data_values_update(
         buf.write_float(sc.ranged_crit_pct); // bit 47: RangedCritPercentage
         buf.write_float(sc.offhand_crit_pct); // bit 48: OffhandCritPercentage
         buf.write_int32(sc.shield_block); // bit 49: ShieldBlock
-        buf.write_float(sc.shield_block_crit_pct); // bit 50: ShieldBlockCritPercentage
+        // bit 50: ShieldBlockCritPercentage — RESERVED in the 54261 client grammar,
+        // no property; never masked (see blocks[1] above) and never written here.
         buf.write_float(0.0); // bit 51: Mastery
         buf.write_float(0.0); // bit 52: Speed
         buf.write_float(0.0); // bit 53: Avoidance
@@ -9660,7 +9668,9 @@ mod tests {
         assert_eq!(&bytes[0..4], &[0x07, 0x01, 0x06, 0x00]); // blocks 0,1,2,8,17,18
         assert_eq!(&bytes[4..6], &[0x00, 0x00]);
         assert_eq!(&bytes[6..10], &[0x00, 0x00, 0x00, 0x01]);
-        assert_eq!(&bytes[10..14], &[0xFF, 0xFF, 0xFF, 0xF0]);
+        // block 1 = 0xFFFBFFF0: bits 4,5 + bits 6..31 EXCEPT bit 18 (field 50,
+        // ShieldBlockCritPercentage, reserved in the 54261 client grammar).
+        assert_eq!(&bytes[10..14], &[0xFF, 0xFB, 0xFF, 0xF0]);
         assert_eq!(&bytes[14..18], &[0x00, 0x00, 0x00, 0x3F]);
         assert_eq!(&bytes[18..22], &[0x0F, 0xFF, 0xE0, 0x00]);
         assert_eq!(&bytes[22..26], &[0xC0, 0x00, 0x00, 0x00]);
@@ -9682,7 +9692,9 @@ mod tests {
             14.0
         );
         offset += 4;
-        offset += 31 * 4;
+        // Parent-38 section is 30 fields (bits 39-49, 51-69); field bit 50 is
+        // reserved and not emitted, so skip 30 floats (not 31) to reach SpellCrit.
+        offset += 30 * 4;
 
         for expected in [6.0f32, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0] {
             assert_eq!(
@@ -9705,6 +9717,83 @@ mod tests {
             i32::from_le_bytes(bytes[bytes.len() - 4..].try_into().unwrap()),
             99
         );
+    }
+
+    /// Regression for the real 3.4.3.54261 client world-entry crash: the
+    /// ActivePlayerData stats VALUES update must NOT mask or write field bit 50
+    /// (ShieldBlockCritPercentage). That field is reserved in the 54261 client
+    /// grammar (oracle `hp_ObjectUpdateBuilder.cs:567,841` skip it); emitting it
+    /// shifted every following field by +4 bytes and desynced the client.
+    #[test]
+    fn active_player_stats_values_update_omits_reserved_bit_50() {
+        let mut stats = zeroed_stat_changes();
+        stats.shield_block = 20; // field bit 49
+        stats.shield_block_crit_pct = 21.0; // field bit 50 (must be dropped)
+
+        let mut values = WorldPacket::new_empty();
+        write_active_player_data_values_update(&mut values, &[], &[], Some(&stats), None);
+        let bytes = values.into_data();
+
+        // block 1 mask is serialized big-endian at bytes[10..14]. Field bit 50 =
+        // block-1 bit 18 MUST be clear, while bit 49 (ShieldBlock) and bit 51
+        // (Mastery) MUST be set — proving only the reserved hole is skipped.
+        let block1 = u32::from_be_bytes(bytes[10..14].try_into().unwrap());
+        assert_eq!((block1 >> 18) & 1, 0, "field bit 50 must NOT be masked");
+        assert_eq!(
+            (block1 >> 17) & 1,
+            1,
+            "field bit 49 (ShieldBlock) must be masked"
+        );
+        assert_eq!(
+            (block1 >> 19) & 1,
+            1,
+            "field bit 51 (Mastery) must be masked"
+        );
+    }
+
+    /// A fully-zeroed `PlayerStatChanges` for focused serialization tests.
+    fn zeroed_stat_changes() -> PlayerStatChanges {
+        PlayerStatChanges {
+            health: 0,
+            max_health: 0,
+            min_damage: 0.0,
+            max_damage: 0.0,
+            base_mana: 0,
+            base_health: 0,
+            attack_power: 0,
+            ranged_attack_power: 0,
+            min_ranged_damage: 0.0,
+            max_ranged_damage: 0.0,
+            power0: 0,
+            max_power0: 0,
+            stats: [0; 5],
+            stat_pos_buff: [0; 5],
+            armor: 0,
+            combat_ratings: [0; 32],
+            spell_power: 0,
+            block_pct: 0.0,
+            dodge_pct: 0.0,
+            parry_pct: 0.0,
+            crit_pct: 0.0,
+            ranged_crit_pct: 0.0,
+            spell_crit_pct: [0.0; 7],
+            mana_regen: 0.0,
+            mana_regen_combat: 0.0,
+            mana_regen_mp5: 0.0,
+            mainhand_expertise: 0.0,
+            offhand_expertise: 0.0,
+            ranged_expertise: 0.0,
+            combat_rating_expertise: 0.0,
+            dodge_from_attr: 0.0,
+            parry_from_attr: 0.0,
+            offhand_crit_pct: 0.0,
+            shield_block: 0,
+            shield_block_crit_pct: 0.0,
+            mod_healing_pct: 0.0,
+            mod_healing_done_pct: 0.0,
+            mod_periodic_healing_pct: 0.0,
+            mod_spell_power_pct: 0.0,
+        }
     }
 
     fn set_active_player_bit(data: &mut ActivePlayerDataValuesUpdate, bit: usize) {
