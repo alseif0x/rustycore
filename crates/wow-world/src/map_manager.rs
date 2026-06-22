@@ -850,7 +850,7 @@ impl WorldCreature {
             ranged_attack_time: attack_speed[WeaponAttackType::RangedAttack as usize],
             movement_flags: creature.movement_flags_like_cpp().bits(),
             play_hover_anim: false,
-            hover_height: 1.0,
+            hover_height: data.hover_height,
             mount_display_id: data.mount_display_id,
             stand_state: data.stand_state,
             vis_flags: data.vis_flags,
@@ -3165,7 +3165,7 @@ pub fn pending_respawn_from_world_creature_like_cpp(
             ranged_attack_time: 0,
             movement_flags: creature.creature.movement_flags_like_cpp().bits(),
             play_hover_anim: false,
-            hover_height: 1.0,
+            hover_height: creature.creature.unit().data().hover_height,
             mount_display_id: creature.creature.unit().data().mount_display_id,
             stand_state: creature.creature.unit().data().stand_state,
             vis_flags: creature.creature.unit().data().vis_flags,
@@ -3282,6 +3282,22 @@ pub fn world_creature_from_pending_respawn_like_cpp(
     creature.set_unit_flags2_runtime_like_cpp(unit_flags2);
     creature.set_unit_flags3_runtime_like_cpp(unit_flags3);
     creature.set_melee_damage_school_like_cpp(damage_school);
+    creature
+        .unit_mut()
+        .set_native_display_id_like_cpp(create_data.native_display_id);
+    creature.unit_mut().set_display_scales_like_cpp(
+        create_data.display_scale,
+        create_data.native_x_display_scale,
+    );
+    creature
+        .unit_mut()
+        .set_bounding_radius(create_data.bounding_radius);
+    creature
+        .unit_mut()
+        .set_combat_reach(create_data.combat_reach);
+    creature
+        .unit_mut()
+        .set_hover_height_like_cpp(create_data.hover_height);
     creature.set_flags_extra_runtime_like_cpp(respawn.flags_extra);
     creature.set_static_flags_runtime_like_cpp(respawn.static_flags);
     creature.set_ai_identity_names_runtime_like_cpp(
@@ -6059,6 +6075,7 @@ mod tests {
             1.5,
             "C++ Creature::Create adds GetHoverOffset() to Z when respawn reloads a hovering creature"
         );
+        assert_eq!(respawned.creature.unit().data().hover_height, 1.5);
         assert_eq!(
             respawned.creature.waypoint_path_id_like_cpp(),
             88_001,
