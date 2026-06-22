@@ -10029,6 +10029,29 @@ mod tests {
     }
 
     #[test]
+    fn player_create_unitdata_owner_layout_matches_cpp_field_count() {
+        let mut create = test_player_create_data_with_farsight(ObjectGuid::EMPTY);
+        create.visible_items[15] = (0x0102_0304, 0x0506, 0x0708);
+
+        let mut packet = WorldPacket::new_empty();
+        create.write_unit_data(&mut packet, 0x01);
+        let bytes = packet.data();
+
+        // C++ `UF::UnitData::WriteCreate` with `UpdateFieldFlag::Owner`
+        // and empty dynamic arrays/packed GUIDs serializes 823 bytes.
+        // This covers the shared player/creature UnitData create layout.
+        const OWNER_UNIT_DATA_LEN: usize = 823;
+        assert_eq!(bytes.len(), OWNER_UNIT_DATA_LEN);
+
+        assert!(
+            bytes
+                .windows(8)
+                .any(|window| window == [0x04, 0x03, 0x02, 0x01, 0x06, 0x05, 0x08, 0x07]),
+            "C++ VisibleItem/VirtualItems order is ItemID(i32), AppearanceMod(u16), ItemVisual(u16)"
+        );
+    }
+
+    #[test]
     fn player_create_writes_customizations_like_cpp() {
         let without_customizations = test_player_create_data_with_farsight(ObjectGuid::EMPTY);
         let mut with_customizations = test_player_create_data_with_farsight(ObjectGuid::EMPTY);
