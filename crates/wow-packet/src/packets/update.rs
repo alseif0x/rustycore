@@ -2393,7 +2393,7 @@ impl PlayerCreateData {
         buf.write_int32(0);
         trace(buf, "research_history");
 
-        // FrozenPerksVendorItem.Write: 7 i32 + 1 i64 + 1 bit
+        // FrozenPerksVendorItem.Write: 8 i32 + 1 i64 + 1 bit
         buf.write_int32(0); // VendorItemID
         buf.write_int32(0); // MountID
         buf.write_int32(0); // BattlePetSpeciesID
@@ -10131,6 +10131,45 @@ mod tests {
             &data[summoned_battle_pet_offset..summoned_battle_pet_offset + 2],
             [0, 0]
         );
+    }
+
+    #[test]
+    fn active_player_create_empty_layout_matches_cpp_trace_offsets() {
+        let create = test_player_create_data_with_farsight(ObjectGuid::EMPTY);
+        let mut packet = WorldPacket::new_empty();
+        create.write_active_player_data(&mut packet);
+        let data = packet.data();
+
+        // These offsets mirror the trace labels in C++
+        // `UF::ActivePlayerData::WriteCreate` for an empty/default player.
+        const INV_SLOTS_END: usize = 141 * 2;
+        const FARSIGHT_BATTLEPET_END: usize = INV_SLOTS_END + 2 + 2;
+        const SKILL_END: usize = FARSIGHT_BATTLEPET_END + 4 + 8 + 4 + 4 + 4 + (256 * 14);
+        const EXPLORED_ZONES_END: usize = 6034;
+        const BUYBACK_END: usize = 6268;
+        const COMBAT_RATINGS_END: usize = 6444;
+        const QUEST_COMPLETED_END: usize = 13561;
+        const DYNAMIC_SIZES_END: usize = 13721;
+        const PVP_INFO_END: usize = 14183;
+        const RESEARCH_HISTORY_END: usize = 14188;
+        const FROZEN_PERKS_END: usize = 14229;
+
+        assert_eq!(data.len(), FROZEN_PERKS_END);
+        assert_eq!(FARSIGHT_BATTLEPET_END, 286);
+        assert_eq!(SKILL_END, 3894);
+        assert_eq!(&data[INV_SLOTS_END..FARSIGHT_BATTLEPET_END], &[0, 0, 0, 0]);
+        assert_eq!(&data[SKILL_END - 14..SKILL_END], &[0; 14]);
+        assert_eq!(&data[EXPLORED_ZONES_END - 8..EXPLORED_ZONES_END], &[0; 8]);
+        assert_eq!(&data[BUYBACK_END - 8..BUYBACK_END], &[0; 8]);
+        assert_eq!(&data[COMBAT_RATINGS_END - 4..COMBAT_RATINGS_END], &[0; 4]);
+        assert_eq!(&data[QUEST_COMPLETED_END - 8..QUEST_COMPLETED_END], &[0; 8]);
+        assert_eq!(&data[DYNAMIC_SIZES_END - 1..DYNAMIC_SIZES_END], &[0]);
+        assert_eq!(&data[PVP_INFO_END - 1..PVP_INFO_END], &[0]);
+        assert_eq!(
+            &data[RESEARCH_HISTORY_END - 4..RESEARCH_HISTORY_END],
+            &[0; 4]
+        );
+        assert_eq!(&data[FROZEN_PERKS_END - 9..FROZEN_PERKS_END], &[0; 9]);
     }
 
     #[test]
