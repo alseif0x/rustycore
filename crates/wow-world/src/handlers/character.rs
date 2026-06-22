@@ -35,12 +35,13 @@ use wow_database::{
     SqlTransaction, StatementDef, WorldDatabase, WorldStatements,
 };
 use wow_entities::{
-    BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_START, GAMEOBJECT_TYPE_FISHING_HOLE,
-    GAMEOBJECT_TYPE_QUESTGIVER, GameObjectTemplateData, INVENTORY_DEFAULT_SIZE,
-    INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
-    INVENTORY_SLOT_ITEM_START, MAX_BAG_SIZE, MAX_GAMEOBJECT_DATA, MovementGeneratorType, NULL_BAG,
-    NULL_SLOT, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, WorldObject, is_equipment_pos,
-    is_inventory_pos, normalize_creature_chase_movement_type_like_cpp,
+    BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_START,
+    CreatureAddonLifecycleRecordLikeCpp, GAMEOBJECT_TYPE_FISHING_HOLE, GAMEOBJECT_TYPE_QUESTGIVER,
+    GameObjectTemplateData, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END,
+    INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, MAX_BAG_SIZE, MAX_GAMEOBJECT_DATA,
+    MovementGeneratorType, NULL_BAG, NULL_SLOT, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START,
+    WorldObject, is_equipment_pos, is_inventory_pos,
+    normalize_creature_chase_movement_type_like_cpp,
     normalize_creature_random_movement_type_like_cpp,
 };
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
@@ -1372,6 +1373,7 @@ struct MaterializedCreatureSpawnLikeCpp {
     original_equipment_id: i8,
     script_name: String,
     string_id: Option<String>,
+    addon: Option<CreatureAddonLifecycleRecordLikeCpp>,
     phase_use_flags: u8,
     phase_id: u16,
     phase_group_id: u32,
@@ -2004,14 +2006,9 @@ fn is_represented_bag_slot(slot: u8) -> bool {
 
 impl WorldSession {
     fn creature_addon_create_fields_like_cpp(
-        &self,
-        spawn_guid: u64,
-        entry: u32,
+        addon: Option<&CreatureAddonLifecycleRecordLikeCpp>,
     ) -> CreatureAddonCreateFieldsLikeCpp {
-        let Some(addon) = self
-            .creature_addon_store_like_cpp()
-            .and_then(|store| store.get_for_creature_like_cpp(spawn_guid, entry))
-        else {
+        let Some(addon) = addon else {
             // C++ Creature::UpdateEntry calls SetSheath(SHEATH_STATE_MELEE)
             // when no addon row exists; addon rows then own the exact value.
             return CreatureAddonCreateFieldsLikeCpp {
@@ -5911,7 +5908,10 @@ impl WorldSession {
             cur_health,
             cur_mana,
         );
-        let addon_fields = self.creature_addon_create_fields_like_cpp(spawn_guid, entry);
+        let addon = self
+            .creature_addon_store_like_cpp()
+            .and_then(|store| store.get_for_creature_like_cpp(spawn_guid, entry));
+        let addon_fields = Self::creature_addon_create_fields_like_cpp(addon.as_ref());
         let equipment_fields = self.creature_virtual_items_from_row_like_cpp(entry, row);
 
         let guid = ObjectGuid::create_creature_like_cpp(map_id, entry, spawn_guid as i64);
@@ -5991,6 +5991,7 @@ impl WorldSession {
             original_equipment_id: equipment_fields.original_equipment_id,
             script_name,
             string_id,
+            addon,
             phase_use_flags,
             phase_id,
             phase_group_id,
@@ -6030,6 +6031,7 @@ impl WorldSession {
             spawn.original_equipment_id,
             spawn.script_name.clone(),
             spawn.string_id.clone(),
+            spawn.addon.clone(),
             None,
             0,
             spawn.phase_use_flags,

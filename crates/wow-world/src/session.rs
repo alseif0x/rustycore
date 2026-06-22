@@ -132,13 +132,13 @@ use wow_entities::{
     ApplyEnchantmentTemplateRef, BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_COUNT,
     BUYBACK_SLOT_END, BUYBACK_SLOT_START, BagTemplateRef, CanEquipItemArgs, CanEquipUniqueItemArgs,
     CanStoreItemArgs, CanUnequipItemArgs, CanUseItemArgs, CanUseItemTemplateArgs,
-    EQUIPMENT_SLOT_BACK, EQUIPMENT_SLOT_BODY, EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_END,
-    EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_FINGER1, EQUIPMENT_SLOT_FINGER2, EQUIPMENT_SLOT_HANDS,
-    EQUIPMENT_SLOT_HEAD, EQUIPMENT_SLOT_LEGS, EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_NECK,
-    EQUIPMENT_SLOT_OFFHAND, EQUIPMENT_SLOT_SHOULDERS, EQUIPMENT_SLOT_TABARD,
-    EQUIPMENT_SLOT_TRINKET1, EQUIPMENT_SLOT_TRINKET2, EQUIPMENT_SLOT_WAIST, EQUIPMENT_SLOT_WRISTS,
-    EquippedGemRef, GAMEOBJECT_TYPE_GUILD_BANK, GameObject, INVENTORY_DEFAULT_SIZE,
-    INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
+    CreatureAddonLifecycleRecordLikeCpp, EQUIPMENT_SLOT_BACK, EQUIPMENT_SLOT_BODY,
+    EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_END, EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_FINGER1,
+    EQUIPMENT_SLOT_FINGER2, EQUIPMENT_SLOT_HANDS, EQUIPMENT_SLOT_HEAD, EQUIPMENT_SLOT_LEGS,
+    EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_NECK, EQUIPMENT_SLOT_OFFHAND, EQUIPMENT_SLOT_SHOULDERS,
+    EQUIPMENT_SLOT_TABARD, EQUIPMENT_SLOT_TRINKET1, EQUIPMENT_SLOT_TRINKET2, EQUIPMENT_SLOT_WAIST,
+    EQUIPMENT_SLOT_WRISTS, EquippedGemRef, GAMEOBJECT_TYPE_GUILD_BANK, GameObject,
+    INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
     INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS, ITEM_DATA_CONTAINED_IN_BIT,
     ITEM_DATA_DURABILITY_BIT, Item, ItemCreateInfo, ItemDataUpdate, ItemLimitCategoryTemplate,
     ItemPosCount, ItemSlotRef, ItemStorageRef, ItemStorageTemplate, ItemValuesUpdate, MAX_BAG_SIZE,
@@ -9761,6 +9761,7 @@ impl WorldSession {
             0,
             String::new(),
             None,
+            None,
             boss_id,
             dungeon_encounter_id,
             phase_use_flags,
@@ -9791,6 +9792,7 @@ impl WorldSession {
         original_equipment_id: i8,
         script_name: String,
         string_id: Option<String>,
+        addon: Option<CreatureAddonLifecycleRecordLikeCpp>,
         boss_id: Option<u32>,
         dungeon_encounter_id: u32,
         phase_use_flags: u8,
@@ -9818,6 +9820,7 @@ impl WorldSession {
             original_equipment_id,
             script_name,
             string_id,
+            addon,
             boss_id,
             dungeon_encounter_id,
             phase_use_flags,
@@ -9855,6 +9858,7 @@ impl WorldSession {
         original_equipment_id: i8,
         script_name: String,
         string_id: Option<String>,
+        addon: Option<CreatureAddonLifecycleRecordLikeCpp>,
         boss_id: Option<u32>,
         dungeon_encounter_id: u32,
         phase_use_flags: u8,
@@ -9987,6 +9991,11 @@ impl WorldSession {
             creature.set_respawn_delay(respawn_delay_secs);
             if waypoint_path_id != 0 {
                 creature.load_path_like_cpp(waypoint_path_id);
+            }
+            creature.apply_creatures_addon_lifecycle_like_cpp(addon.as_ref());
+            let effective_waypoint_path_id = creature.waypoint_path_id_like_cpp();
+            if effective_waypoint_path_id != 0 {
+                creature.load_path_like_cpp(effective_waypoint_path_id);
             }
             creature.configure_ai_runtime(position, aggro_radius, wander_distance.max(0.0), 30);
             creature.ai_ownership_mut().respawn_time_secs = u64::from(respawn_delay_secs);
@@ -45765,6 +45774,7 @@ impl WorldSession {
                 r.original_equipment_id,
                 r.script_name.clone(),
                 r.string_id.clone(),
+                r.addon.clone(),
                 r.boss_id,
                 r.dungeon_encounter_id,
                 r.phase_use_flags,
@@ -79760,6 +79770,7 @@ mod tests {
             "npc_db_waypoint".to_string(),
             Some("spawn-string".to_string()),
             None,
+            None,
             0,
             0,
             0,
@@ -79810,6 +79821,103 @@ mod tests {
         assert!(
             creature.active_waypoint_generator_like_cpp().is_some(),
             "C++ WaypointMovementGenerator::DoInitialize resolves owner GetWaypointPathId for DB-loaded waypoint movement"
+        );
+    }
+
+    #[test]
+    fn register_world_creature_applies_addon_lifecycle_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let manager = shared_map_manager();
+        let guid = test_creature_guid(614);
+        let path = wow_movement::WaypointPath::new(
+            77_002,
+            vec![wow_movement::WaypointNode::new(1, 14.0, 22.0, 31.0)],
+        );
+
+        session.set_map_manager(Arc::clone(&manager));
+        session.set_waypoint_path_resolver_like_cpp(Arc::new(move |path_id| {
+            (path_id == 77_002).then_some(path.clone())
+        }));
+        session.current_map_id = 571;
+        session.register_world_creature_with_flags_extra_movement_and_default_motion_like_cpp(
+            571,
+            Position::new(10.0, 20.0, 30.0, 1.0),
+            test_creature_create_data(guid, 9001, 25),
+            3,
+            5,
+            20.0,
+            0,
+            0,
+            0,
+            0,
+            wow_entities::DEFAULT_RESPAWN_DELAY_SECS,
+            0,
+            0,
+            String::new(),
+            None,
+            Some(CreatureAddonLifecycleRecordLikeCpp {
+                path_id: 77_002,
+                visibility_distance_type: wow_entities::VisibilityDistanceTypeLikeCpp::Large,
+                auras: vec![70_010],
+                ..CreatureAddonLifecycleRecordLikeCpp::default()
+            }),
+            None,
+            0,
+            0,
+            0,
+            0,
+            -1,
+            0,
+            wow_constants::CreatureGroundMovementType::Run as u8,
+            true,
+            0,
+            false,
+            wow_constants::CreatureChaseMovementType::Run as u8,
+            wow_constants::CreatureRandomMovementType::Walk as u8,
+            wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
+            0.0,
+            wow_entities::MovementGeneratorType::Waypoint,
+            0,
+        );
+
+        let guard = manager.read().unwrap();
+        let creature = guard
+            .find_creature(571, 0, guid)
+            .expect("creature inserted into legacy map");
+        assert_eq!(
+            creature.creature.waypoint_path_id_like_cpp(),
+            77_002,
+            "C++ Creature::LoadCreaturesAddon copies addon PathId into _waypointPathId"
+        );
+        assert!(
+            creature.active_waypoint_generator_like_cpp().is_some(),
+            "C++ waypoint movement initializes from the addon-owned PathId"
+        );
+        assert!(
+            creature
+                .creature
+                .unit()
+                .world()
+                .visibility_distance_override_like_cpp()
+                .is_some(),
+            "C++ Creature::LoadCreaturesAddon applies non-normal visibility overrides"
+        );
+        assert!(
+            creature
+                .creature
+                .unit()
+                .unit_flags2_like_cpp()
+                .contains(UnitFlags2::LARGE_AOI),
+            "C++ SetVisibilityDistanceOverride sets the matching AOI flag"
+        );
+        assert!(
+            creature
+                .creature
+                .unit()
+                .subsystems()
+                .auras
+                .has_aura_spell_like_cpp(70_010),
+            "C++ Creature::LoadCreaturesAddon applies addon auras"
         );
     }
 
@@ -123045,6 +123153,7 @@ mod tests {
             ai_name: String::new(),
             script_name: String::new(),
             string_id: None,
+            addon: None,
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,

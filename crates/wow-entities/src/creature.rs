@@ -2320,6 +2320,13 @@ impl Creature {
         self.waypoint_path_id = path_id;
     }
 
+    pub fn apply_creatures_addon_lifecycle_like_cpp(
+        &mut self,
+        addon: Option<&CreatureAddonLifecycleRecordLikeCpp>,
+    ) -> bool {
+        self.load_creatures_addon_represented_like_cpp(addon)
+    }
+
     pub const fn spawn_id(&self) -> u64 {
         self.spawn_id
     }
