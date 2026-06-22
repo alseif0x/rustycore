@@ -1331,6 +1331,13 @@ struct CreatureAddonCreateFieldsLikeCpp {
     melee_anim_kit_id: u16,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct CreatureEquipmentCreateFieldsLikeCpp {
+    selected_equipment_id: u8,
+    original_equipment_id: i8,
+    virtual_items: [(i32, u16, u16); 3],
+}
+
 #[derive(Debug, Clone)]
 struct MaterializedCreatureSpawnLikeCpp {
     guid: ObjectGuid,
@@ -1344,6 +1351,8 @@ struct MaterializedCreatureSpawnLikeCpp {
     gold_min: u32,
     gold_max: u32,
     respawn_delay_secs: u32,
+    selected_equipment_id: u8,
+    original_equipment_id: i8,
     phase_use_flags: u8,
     phase_id: u16,
     phase_group_id: u32,
@@ -2012,14 +2021,19 @@ impl WorldSession {
         &mut self,
         entry: u32,
         row: &SqlResult,
-    ) -> [(i32, u16, u16); 3] {
+    ) -> CreatureEquipmentCreateFieldsLikeCpp {
         let mut equipment_id = row
             .try_read::<i8>(CREATURE_SPAWN_EQUIPMENT_ID_COLUMN)
             .map(i16::from)
             .or_else(|| row.try_read::<i16>(CREATURE_SPAWN_EQUIPMENT_ID_COLUMN))
             .unwrap_or(0);
+        let original_equipment_id = i8::try_from(equipment_id).unwrap_or(0);
         if equipment_id == 0 {
-            return [(0, 0, 0); 3];
+            return CreatureEquipmentCreateFieldsLikeCpp {
+                selected_equipment_id: 0,
+                original_equipment_id: 0,
+                virtual_items: [(0, 0, 0); 3],
+            };
         }
 
         if let Some(store) = self.creature_equipment_store_like_cpp().cloned() {
@@ -2041,17 +2055,26 @@ impl WorldSession {
             };
 
             if let Some(equipment) = equipment {
-                return equipment.items.map(|item| {
-                    (
-                        i32::try_from(item.item_id).unwrap_or(0),
-                        item.appearance_mod_id,
-                        item.item_visual,
-                    )
-                });
+                let selected_equipment_id = u8::try_from(equipment_id).unwrap_or(0);
+                return CreatureEquipmentCreateFieldsLikeCpp {
+                    selected_equipment_id,
+                    original_equipment_id,
+                    virtual_items: equipment.items.map(|item| {
+                        (
+                            i32::try_from(item.item_id).unwrap_or(0),
+                            item.appearance_mod_id,
+                            item.item_visual,
+                        )
+                    }),
+                };
             }
         }
 
-        [(0, 0, 0); 3]
+        CreatureEquipmentCreateFieldsLikeCpp {
+            selected_equipment_id: 0,
+            original_equipment_id: 0,
+            virtual_items: [(0, 0, 0); 3],
+        }
     }
 
     fn vendor_stock_now_secs() -> u64 {
@@ -5847,7 +5870,7 @@ impl WorldSession {
             cur_health,
         );
         let addon_fields = self.creature_addon_create_fields_like_cpp(spawn_guid, entry);
-        let virtual_items = self.creature_virtual_items_from_row_like_cpp(entry, row);
+        let equipment_fields = self.creature_virtual_items_from_row_like_cpp(entry, row);
 
         let guid = ObjectGuid::create_creature_like_cpp(map_id, entry, spawn_guid as i64);
         let movement_flags = creature_create_movement_flags_like_cpp(ground_movement_type);
@@ -5884,7 +5907,7 @@ impl WorldSession {
                 max_power
             },
             base_mana: creature_stats.base_mana,
-            virtual_items,
+            virtual_items: equipment_fields.virtual_items,
             base_attack_time,
             ranged_attack_time: row.try_read(22).unwrap_or(base_attack_time),
             movement_flags,
@@ -5922,6 +5945,8 @@ impl WorldSession {
             gold_min,
             gold_max,
             respawn_delay_secs,
+            selected_equipment_id: equipment_fields.selected_equipment_id,
+            original_equipment_id: equipment_fields.original_equipment_id,
             phase_use_flags,
             phase_id,
             phase_group_id,
@@ -5957,6 +5982,8 @@ impl WorldSession {
             spawn.gold_min,
             spawn.gold_max,
             spawn.respawn_delay_secs,
+            spawn.selected_equipment_id,
+            spawn.original_equipment_id,
             None,
             0,
             spawn.phase_use_flags,
