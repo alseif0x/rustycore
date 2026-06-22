@@ -10403,6 +10403,17 @@ mod tests {
             movement_anim_kit_id: 0,
             melee_anim_kit_id: 0,
         };
+        let mut values = WorldPacket::new_empty();
+        data.write_values_create(&mut values);
+        let values = values.into_data();
+        assert_eq!(
+            values.len(),
+            536,
+            "C++ Unit::BuildValuesCreate writes size prefix plus 532 bytes for base creature ObjectData+UnitData"
+        );
+        assert_eq!(&values[0..4], &532u32.to_le_bytes());
+        assert_eq!(values[4], 0, "creature create uses no owner/party flags");
+
         let block = UpdateObject::create_creature_block(data, &pos);
         let pkt = UpdateObject::create_creatures(vec![block], 0);
         let bytes = pkt.to_bytes();
