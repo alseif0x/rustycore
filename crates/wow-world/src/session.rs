@@ -4554,7 +4554,7 @@ pub struct WorldSession {
     /// Active quests for this player: quest_id → status.
     pub(crate) player_quests: HashMap<u32, crate::handlers::quest::PlayerQuestStatus>,
     /// Quests the player has already been rewarded for (non-repeatable quests cannot be re-taken).
-    /// C# ref: m_RewardedQuests
+    /// C++ `Player::m_RewardedQuests`.
     pub(crate) rewarded_quests: std::collections::HashSet<u32>,
     /// C++ `Player::HasAchieved`, represented per-session until character achievements are fully loaded.
     pub(crate) represented_completed_achievements_like_cpp: HashSet<u32>,
@@ -22699,7 +22699,7 @@ impl WorldSession {
             return false;
         } // max level
 
-        // Send floating XP text — C# LogXPGain
+        // Send floating XP text — C++ `WorldPackets::Character::LogXPGain`.
         self.send_packet(&LogXpGain {
             victim,
             original: xp as i32,
@@ -22710,7 +22710,7 @@ impl WorldSession {
 
         self.set_player_xp_like_cpp(self.player_xp_like_cpp().saturating_add(xp));
 
-        // Level up loop — C# while (newXP >= nextLvlXP && !IsMaxLevel())
+        // C++ `Player::GiveXP`: while (newXP >= nextLvlXP && !IsMaxLevel()).
         while self.player_xp_like_cpp() >= self.player_next_level_xp_like_cpp()
             && self.player_level_like_cpp() < 80
         {
@@ -22740,7 +22740,7 @@ impl WorldSession {
     }
 
     /// Give XP to the player, leveling up if threshold reached.
-    /// C# ref: Player.GiveXP(xp, victim)
+    /// C++ `Player::GiveXP(xp, victim, group_rate)`.
     pub(crate) async fn give_xp(&mut self, xp: u32, victim: wow_core::ObjectGuid, is_kill: bool) {
         let old_level = self.player_level_like_cpp();
         if !self.give_xp_runtime_like_cpp(xp, victim, is_kill) {
@@ -22775,7 +22775,7 @@ impl WorldSession {
     }
 
     /// XP reward for killing a creature.
-    /// C# ref: Formulas.XPGain / Formulas.BaseGain
+    /// C++ `Trinity::XP::Gain` / `Trinity::XP::BaseGain`.
     pub(crate) fn creature_kill_xp(&self, mob_level: u8) -> u32 {
         let pl = self.player_level_like_cpp() as i32;
         let ml = mob_level as i32;
@@ -22835,7 +22835,7 @@ impl WorldSession {
             .insert(player_level, gray_level);
     }
 
-    /// Zero-difference table — C# Formulas.GetZeroDifference
+    /// Zero-difference table — C++ `Trinity::XP::GetZeroDifference`.
     fn zero_difference(&self, pl: u8) -> u8 {
         match pl {
             0..=3 => 5,
@@ -24228,7 +24228,7 @@ impl WorldSession {
     }
 
     /// Calculate XP reward for a quest.
-    /// C# ref: Quest::XPValue(player, questLevel, xpDifficulty, xpMultiplier)
+    /// C++ `Quest::XPValue(player, questLevel, xpDifficulty, xpMultiplier)`.
     pub(crate) fn calculate_quest_xp(&self, difficulty: u32, quest_level: i32) -> u32 {
         if let Some(store) = &self.quest_xp_store {
             store.calculate_xp(quest_level, self.player_level_like_cpp(), difficulty)
@@ -25409,7 +25409,8 @@ impl WorldSession {
         }
 
         // ── Periodic TimeSyncRequest ──────────────────────────────
-        // C# sends first resync 5s after login, then every 10s.
+        // C++ `WorldSession::Update` sends `SendTimeSync` every 10s after the
+        // initial `Player::SendInitialPacketsBeforeAddToMap` sync.
         // The client MUST receive periodic TimeSyncRequests or its
         // internal clock sync state becomes inconsistent → crash.
         if self.state == SessionState::LoggedIn && self.time_sync_timer_ms > 0 {
@@ -28351,7 +28352,8 @@ impl WorldSession {
                 self.handle_query_inspect_achievements(pkt).await;
             }
 
-            // Empty stubs matching C# — these client opcodes are sent during
+            // Empty stubs matching TrinityCore's no-response service-opcode handling;
+            // these client opcodes are sent during
             // character select but require no response (Blizzard services).
             ClientOpcodes::BattlePayGetProductList
             | ClientOpcodes::BattlePayGetPurchaseList
@@ -28383,14 +28385,14 @@ impl WorldSession {
 
     /// Check if the handler's required status matches the current session state.
     ///
-    /// Matches C# WorldSession.Update() switch logic:
+    /// Matches C++ `WorldSession::Update` status gates:
     /// - `Authed` → allowed in ANY state (authenticated, in-world, or transferring)
     /// - `LoggedIn` → only when player is in-world
     /// - `Transfer` → only during map transfers
     /// - `LoggedInOrRecentlyLogout` → in-world or recently disconnected
     fn is_status_allowed(&self, required: SessionStatus) -> bool {
         match required {
-            SessionStatus::Authed => true, // C#: always allowed once authenticated
+            SessionStatus::Authed => true, // C++ STATUS_AUTHED
             SessionStatus::LoggedIn => self.state == SessionState::LoggedIn,
             SessionStatus::Transfer => self.state == SessionState::Transfer,
             SessionStatus::LoggedInOrRecentlyLogout => {
@@ -28468,7 +28470,7 @@ impl WorldSession {
     /// Sends SMSG_TRANSFER_PENDING (0x25cd) to initiate the transfer.
     /// The client will respond with CMSG_WORLD_PORT_ACK when ready.
     ///
-    /// C# ref: Player.TeleportTo → SendTransferPending
+    /// C++ `Player::TeleportTo` → `SendTransferPending`.
     pub async fn teleport_to(&mut self, new_map: u32, new_pos: wow_core::Position) {
         self.teleport_to_with_options(new_map, new_pos, TELE_TO_NONE_LIKE_CPP)
             .await;
@@ -46220,7 +46222,8 @@ impl WorldSession {
     /// who are on the same map, creates an UpdateObject with the new player's CREATE block,
     /// and sends it to each via their send_tx channel.
     ///
-    /// C# ref: `Player::SendInitialPacketsAfterAddToMap` → WorldSession broadcast logic.
+    /// C++ `Player::SendInitialPacketsAfterAddToMap` starts by calling
+    /// `UpdateVisibilityForPlayer`; this represents the cross-session create half.
     pub(crate) fn broadcast_create_player_to_others(&self) {
         use wow_packet::ServerPacket;
         use wow_packet::packets::update::{PlayerCombatStats, UpdateObject};
@@ -46389,7 +46392,8 @@ impl WorldSession {
     /// on the current map (excluding self), builds their CREATE blocks, and sends
     /// them as UpdateObjects to this session.
     ///
-    /// C# ref: `Player::SendInitialPacketsAfterAddToMap` → populate visibility with other players.
+    /// C++ `Player::SendInitialPacketsAfterAddToMap` starts by calling
+    /// `UpdateVisibilityForPlayer`; this represents the receive-existing-players half.
     pub(crate) fn receive_other_players_on_map(&self) {
         use wow_packet::packets::update::{PlayerCombatStats, UpdateObject};
 
@@ -50882,7 +50886,7 @@ fn create_map_decision_key_like_cpp(
 
 /// Available race/class combinations from `class_expansion_requirement` table.
 ///
-/// Data matches exactly what C# ObjectManager loads from the world DB.
+/// Data mirrors C++ `ObjectMgr::LoadClassExpansionRequirements` fallback rows.
 /// ActiveExpansionLevel/AccountExpansionLevel: 0 for all except Death Knight (class 6)
 /// which requires WotLK (active=2). MinActiveExpansionLevel is the minimum active
 /// expansion across all races for that class.
