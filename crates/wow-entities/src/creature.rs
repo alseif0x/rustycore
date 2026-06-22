@@ -2106,6 +2106,13 @@ impl Creature {
         self.lifecycle_metadata.script_name = script_name.into();
     }
 
+    /// Represented seam for TrinityCore `Creature::LoadFromDB`, which stores
+    /// `CreatureData::StringId` in `m_stringIds[1]` after spawn health/default
+    /// movement initialization.
+    pub fn set_spawn_string_id_runtime_like_cpp(&mut self, string_id: Option<String>) {
+        self.lifecycle_metadata.string_id = string_id;
+    }
+
     pub fn ground_movement_type_like_cpp(&self) -> u8 {
         self.lifecycle_metadata.ground_movement_type
     }

@@ -92,6 +92,8 @@ const CREATURE_SPAWN_UNIT_FLAGS2_OVERRIDE_COLUMN: usize = 47;
 const CREATURE_SPAWN_UNIT_FLAGS3_OVERRIDE_COLUMN: usize = 48;
 const CREATURE_SPAWN_EQUIPMENT_ID_COLUMN: usize = 49;
 const CREATURE_SPAWN_RESPAWN_DELAY_SECS_COLUMN: usize = 50;
+const CREATURE_SPAWN_SCRIPT_NAME_COLUMN: usize = 51;
+const CREATURE_SPAWN_STRING_ID_COLUMN: usize = 52;
 const WAYPOINT_MOTION_TYPE_LIKE_CPP: u8 = 2;
 const TACT_KEY_TABLE_HASH_LIKE_CPP: u32 = 0xD3F6_1A9E;
 const QUEST_GIVER_STATUS_TRACKED_QUERY_MAX_GUIDS_LIKE_CPP: u32 = 1000;
@@ -1353,6 +1355,8 @@ struct MaterializedCreatureSpawnLikeCpp {
     respawn_delay_secs: u32,
     selected_equipment_id: u8,
     original_equipment_id: i8,
+    script_name: String,
+    string_id: Option<String>,
     phase_use_flags: u8,
     phase_id: u16,
     phase_group_id: u32,
@@ -5730,7 +5734,17 @@ impl WorldSession {
             .try_read::<Option<u32>>(CREATURE_SPAWN_RESPAWN_DELAY_SECS_COLUMN)
             .flatten()
             .or_else(|| row.try_read::<u32>(CREATURE_SPAWN_RESPAWN_DELAY_SECS_COLUMN))
-            .unwrap_or(30);
+            .unwrap_or(wow_entities::DEFAULT_RESPAWN_DELAY_SECS);
+        let script_name: String = row
+            .try_read::<Option<String>>(CREATURE_SPAWN_SCRIPT_NAME_COLUMN)
+            .flatten()
+            .or_else(|| row.try_read::<String>(CREATURE_SPAWN_SCRIPT_NAME_COLUMN))
+            .unwrap_or_default();
+        let string_id: Option<String> = row
+            .try_read::<Option<String>>(CREATURE_SPAWN_STRING_ID_COLUMN)
+            .flatten()
+            .or_else(|| row.try_read::<String>(CREATURE_SPAWN_STRING_ID_COLUMN))
+            .filter(|value| !value.is_empty());
         let phase_use_flags: u8 = row
             .try_read::<u8>(28)
             .or_else(|| row.try_read::<i16>(28).map(|value| value.max(0) as u8))
@@ -5947,6 +5961,8 @@ impl WorldSession {
             respawn_delay_secs,
             selected_equipment_id: equipment_fields.selected_equipment_id,
             original_equipment_id: equipment_fields.original_equipment_id,
+            script_name,
+            string_id,
             phase_use_flags,
             phase_id,
             phase_group_id,
@@ -5984,6 +6000,8 @@ impl WorldSession {
             spawn.respawn_delay_secs,
             spawn.selected_equipment_id,
             spawn.original_equipment_id,
+            spawn.script_name.clone(),
+            spawn.string_id.clone(),
             None,
             0,
             spawn.phase_use_flags,

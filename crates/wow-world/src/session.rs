@@ -9758,6 +9758,8 @@ impl WorldSession {
             wow_entities::DEFAULT_RESPAWN_DELAY_SECS,
             0,
             0,
+            String::new(),
+            None,
             boss_id,
             dungeon_encounter_id,
             phase_use_flags,
@@ -9786,6 +9788,8 @@ impl WorldSession {
         respawn_delay_secs: u32,
         selected_equipment_id: u8,
         original_equipment_id: i8,
+        script_name: String,
+        string_id: Option<String>,
         boss_id: Option<u32>,
         dungeon_encounter_id: u32,
         phase_use_flags: u8,
@@ -9811,6 +9815,8 @@ impl WorldSession {
             respawn_delay_secs,
             selected_equipment_id,
             original_equipment_id,
+            script_name,
+            string_id,
             boss_id,
             dungeon_encounter_id,
             phase_use_flags,
@@ -9846,6 +9852,8 @@ impl WorldSession {
         respawn_delay_secs: u32,
         selected_equipment_id: u8,
         original_equipment_id: i8,
+        script_name: String,
+        string_id: Option<String>,
         boss_id: Option<u32>,
         dungeon_encounter_id: u32,
         phase_use_flags: u8,
@@ -9973,6 +9981,8 @@ impl WorldSession {
             creature.set_default_movement_type_runtime_like_cpp(default_movement_type);
             creature.set_equipment_id_like_cpp(selected_equipment_id);
             creature.set_original_equipment_id_like_cpp(original_equipment_id);
+            creature.set_ai_identity_names_runtime_like_cpp(String::new(), script_name);
+            creature.set_spawn_string_id_runtime_like_cpp(string_id);
             creature.set_respawn_delay(respawn_delay_secs);
             if waypoint_path_id != 0 {
                 creature.load_path_like_cpp(waypoint_path_id);
@@ -45740,6 +45750,8 @@ impl WorldSession {
                 r.respawn_delay_secs,
                 r.selected_equipment_id,
                 r.original_equipment_id,
+                r.script_name.clone(),
+                r.string_id.clone(),
                 r.boss_id,
                 r.dungeon_encounter_id,
                 r.phase_use_flags,
@@ -79675,6 +79687,8 @@ mod tests {
             wow_entities::DEFAULT_RESPAWN_DELAY_SECS,
             6,
             -1,
+            "npc_db_waypoint".to_string(),
+            Some("spawn-string".to_string()),
             None,
             0,
             0,
@@ -79712,6 +79726,16 @@ mod tests {
             creature.creature.original_equipment_id(),
             -1,
             "C++ Creature::InitEntry preserves DB equipment_id separately from the selected equipment template"
+        );
+        assert_eq!(
+            creature.creature.lifecycle_metadata().script_name,
+            "npc_db_waypoint",
+            "C++ ObjectMgr::LoadCreatures stores creature.ScriptName on CreatureData for AI selection"
+        );
+        assert_eq!(
+            creature.creature.lifecycle_metadata().string_id.as_deref(),
+            Some("spawn-string"),
+            "C++ Creature::LoadFromDB copies CreatureData::StringId into m_stringIds[1]"
         );
         assert!(
             creature.active_waypoint_generator_like_cpp().is_some(),
@@ -122950,6 +122974,7 @@ mod tests {
             static_flags: [0; 8],
             ai_name: String::new(),
             script_name: String::new(),
+            string_id: None,
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
