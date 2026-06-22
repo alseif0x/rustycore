@@ -873,12 +873,16 @@ impl WorldCreature {
     ) -> Self {
         let create_data = Self::create_data_from_canonical_like_cpp(&creature);
         let mut world_creature = Self::from_canonical(creature, create_data);
-        if world_creature.creature.default_movement_type()
-            == wow_entities::MovementGeneratorType::Waypoint
-        {
-            world_creature.initialize_default_waypoint_movement_with_path_resolver_like_cpp(
-                |path_id| waypoint_path_resolver(path_id),
-            );
+        match world_creature.creature.default_movement_type() {
+            wow_entities::MovementGeneratorType::Random => {
+                world_creature.initialize_default_random_movement_like_cpp();
+            }
+            wow_entities::MovementGeneratorType::Waypoint => {
+                world_creature.initialize_default_waypoint_movement_with_path_resolver_like_cpp(
+                    |path_id| waypoint_path_resolver(path_id),
+                );
+            }
+            wow_entities::MovementGeneratorType::Idle => {}
         }
         world_creature
     }
@@ -1375,6 +1379,23 @@ impl WorldCreature {
             .then(|| resolve_path(owner_path_id))
             .flatten();
         self.initialize_default_waypoint_movement_like_cpp(loaded_path)
+    }
+
+    pub fn initialize_default_random_movement_like_cpp(&mut self) -> bool {
+        if self.creature.default_movement_type() != wow_entities::MovementGeneratorType::Random
+            || !self.is_alive()
+            || self.creature.ai_ownership().wander_radius <= 0.0
+        {
+            return false;
+        }
+
+        self.creature
+            .unit_mut()
+            .subsystems_mut()
+            .motion
+            .stop_moving();
+        let dst = self.pick_wander_destination();
+        self.begin_random_move_spline_like_cpp(dst).is_some()
     }
 
     pub fn update_default_waypoint_movement_like_cpp(
@@ -3471,6 +3492,46 @@ mod tests {
         assert!(
             run_spline.duration_ms() < walk_spline.duration_ms(),
             "C++ RandomMovementGenerator SetWalk(false) uses run speed"
+        );
+    }
+
+    #[test]
+    fn world_creature_default_random_initializes_spline_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 70005);
+        let mut creature = test_creature(guid);
+        creature
+            .creature
+            .set_default_movement_type_runtime_like_cpp(
+                wow_entities::MovementGeneratorType::Random,
+            );
+        creature.creature.ai_ownership_mut().wander_radius = 12.0;
+        creature.seed_runtime_rng_like_cpp(0x7005);
+
+        assert!(creature.initialize_default_random_movement_like_cpp());
+
+        let target = creature
+            .move_target()
+            .expect("C++ RandomMovementGenerator selects an initial location on update");
+        assert!(
+            creature.home_position().distance(&target) <= 12.0 + f32::EPSILON,
+            "random destination {target:?} should stay inside wander distance"
+        );
+        assert!(creature.active_move_spline_like_cpp().is_some());
+        assert!(
+            creature
+                .creature
+                .unit()
+                .has_unit_state(UnitState::ROAMING_MOVE.bits())
+        );
+        assert_eq!(
+            creature
+                .creature
+                .unit()
+                .subsystems()
+                .motion
+                .current_movement_generator()
+                .kind,
+            MovementGeneratorKind::Random
         );
     }
 
