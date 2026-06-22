@@ -3109,8 +3109,8 @@ impl ClientPacket for TimeSyncResponse {
     const OPCODE: ClientOpcodes = ClientOpcodes::TimeSyncResponse;
 
     fn read(packet: &mut WorldPacket) -> Result<Self, PacketError> {
-        let client_time = packet.read_uint32()?;
         let sequence_index = packet.read_uint32()?;
+        let client_time = packet.read_uint32()?;
         Ok(Self {
             client_time,
             sequence_index,
@@ -10394,6 +10394,19 @@ mod tests {
         assert_eq!(bytes.len(), 6);
         let opcode = u16::from_le_bytes([bytes[0], bytes[1]]);
         assert_eq!(opcode, 0x2dd2);
+    }
+
+    #[test]
+    fn time_sync_response_reads_cpp_wire_order() {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&7u32.to_le_bytes());
+        bytes.extend_from_slice(&123_456u32.to_le_bytes());
+
+        let mut pkt = WorldPacket::from_bytes(&bytes);
+        let response = TimeSyncResponse::read(&mut pkt).expect("valid TimeSyncResponse");
+
+        assert_eq!(response.sequence_index, 7);
+        assert_eq!(response.client_time, 123_456);
     }
 
     #[test]

@@ -59,6 +59,11 @@ RustyCore es un port Rust de un servidor privado WoW basado en TrinityCore. El C
 
 El objetivo final es port completo. Un slice puede ser `represented-partial`, pero debe dejar claro que sigue faltando para la paridad real.
 
+Regla global de dependencias: si durante una fase aparece una dependencia C++ necesaria
+para que el comportamiento sea correcto, no se deja como TODO, boundary ni gap futuro.
+Se sigue implementando esa dependencia dentro de la misma cadena de trabajo hasta que la
+fase quede cerrada contra C++. No se salta a otro modulo para mantener avance aparente.
+
 ## Regla Anti-Alucinacion
 
 Claude debe tratar todo como no probado hasta verificarlo.
@@ -73,6 +78,8 @@ No hacer:
 - No marcar manual-test-ready si no se ha probado manualmente con cliente/servidor instalado.
 - No cambiar arquitectura runtime con big-bang rewrites.
 - No usar TrinityCore 3.3.5 archived como fuente de codigo; solo puede ayudar con logica si el legacy local esta incompleto, y debe documentarse.
+- No dejar dependencias encontradas como TODO/gap para una fase futura cuando son necesarias para cerrar la fase actual.
+- No mantener referencias a C# como autoridad de orden, layout o logica. Si aparece una referencia C#, contrastar contra C++ y reemplazarla por una referencia C++ o corregir el codigo.
 
 Si hay duda:
 
@@ -128,7 +135,7 @@ rg -n "can_take_quest|satisfy_quest|represented_.*like_cpp|ConditionType" crates
 - Que DB statements emite?
 - Donde retorna false/silencioso?
 - El Rust tiene esas mismas fuentes de datos?
-- Si no existen, hay que crear store/campo/bridge o dejar boundary explicito?
+- Si no existen, hay que crear el store/campo/bridge o portar la dependencia C++ necesaria en esta misma cadena de trabajo. No dejar boundary explicito como sustituto de implementacion cuando la dependencia es necesaria para cerrar la fase.
 
 7. Implementar un slice pequeno y verificable.
 

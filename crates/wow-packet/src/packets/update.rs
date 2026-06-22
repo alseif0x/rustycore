@@ -1442,6 +1442,10 @@ impl Default for PlayerCombatStats {
 /// Data needed to build a full player create packet for the client.
 pub struct PlayerCreateData {
     pub guid: ObjectGuid,
+    /// PlayerData::WowAccount.
+    pub wow_account: ObjectGuid,
+    /// PlayerData::BnetAccount.
+    pub bnet_account: ObjectGuid,
     pub race: u8,
     pub class: u8,
     pub sex: u8,
@@ -1485,6 +1489,8 @@ pub struct PlayerCreateData {
     /// Trinket1(12), Trinket2(13), Cloak(14), MainHand(15), OffHand(16),
     /// Ranged(17), Tabard(18).
     pub visible_items: [(i32, u16, u16); 19],
+    /// PlayerData::Customizations dynamic field.
+    pub customizations: Vec<ChrCustomizationChoiceValuesUpdate>,
     /// Inventory slots (141 entries) for ActivePlayerData.
     /// Slots 0-18 = equipped, 19-22 = bag containers, rest = backpack/bank.
     /// Each entry is an Item ObjectGuid (or EMPTY).
@@ -1510,6 +1516,35 @@ pub struct PlayerCreateData {
     pub heirloom_flags: Vec<u32>,
     /// ActivePlayerData::Toys.
     pub toys: Vec<i32>,
+    /// ActivePlayerData::Transmog dynamic field blocks.
+    ///
+    /// C++ `CollectionMgr::LoadAccountItemAppearances` expands account
+    /// appearance masks into `Player::m_activePlayerData->Transmog` before
+    /// `ActivePlayerData::WriteCreate`.
+    pub transmog: Vec<u32>,
+    /// ActivePlayerData::TraitConfigs.
+    pub trait_configs: Vec<TraitConfigCreateData>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TraitEntryCreateData {
+    pub trait_node_id: i32,
+    pub trait_node_entry_id: i32,
+    pub rank: i32,
+    pub granted_ranks: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TraitConfigCreateData {
+    pub id: i32,
+    pub config_type: i32,
+    pub skill_line_id: i32,
+    pub chr_specialization_id: i32,
+    pub combat_config_flags: i32,
+    pub local_identifier: i32,
+    pub trait_system_id: i32,
+    pub name: String,
+    pub entries: Vec<TraitEntryCreateData>,
 }
 
 impl PlayerCreateData {
@@ -1869,7 +1904,7 @@ impl PlayerCreateData {
 
         // 3 PackedGuids
         write_empty_guid(buf); // DuelArbiter
-        write_empty_guid(buf); // WowAccount
+        buf.write_packed_guid(&self.wow_account); // WowAccount
         write_empty_guid(buf); // LootTargetGUID
 
         // PlayerFlags, PlayerFlagsEx
@@ -1882,7 +1917,7 @@ impl PlayerCreateData {
         buf.write_int32(0);
 
         // Customizations.Size
-        buf.write_int32(0);
+        buf.write_uint32(self.customizations.len() as u32);
 
         // PartyType[2]
         buf.write_uint8(self.party_type[0]);
@@ -1953,7 +1988,7 @@ impl PlayerCreateData {
         buf.write_int32(0);
 
         // BnetAccount
-        write_empty_guid(buf);
+        buf.write_packed_guid(&self.bnet_account);
 
         // VisualItemReplacements.Size
         buf.write_int32(0);
@@ -1963,7 +1998,11 @@ impl PlayerCreateData {
             buf.write_uint32(0);
         }
 
-        // Dynamic arrays (all empty — Customizations, ArenaCooldowns, VisualItemReplacements)
+        for customization in &self.customizations {
+            write_chr_customization_choice_values_update(buf, customization);
+        }
+
+        // Dynamic arrays (empty — ArenaCooldowns, VisualItemReplacements)
 
         // DungeonScoreSummary.Write:
         //   OverallScoreCurrentSeason(f32), LadderScoreCurrentSeason(f32), Runs.Count(i32)
@@ -1975,14 +2014,28 @@ impl PlayerCreateData {
     // ── ActivePlayerData.WriteCreate ────────────────────────────
 
     fn write_active_player_data(&self, buf: &mut WorldPacket) {
+        let trace_sections = std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some();
+        let active_base = buf.data().len();
+        let trace = |buf: &WorldPacket, label: &str| {
+            if trace_sections {
+                eprintln!(
+                    "RUST_UPDATEOBJECT active_section {label} offset={} size={}",
+                    buf.data().len() - active_base,
+                    buf.data().len()
+                );
+            }
+        };
+
         // InvSlots[141]
         for i in 0..141 {
             buf.write_packed_guid(&self.inv_slots[i]);
         }
+        trace(buf, "inv_slots");
 
         // FarsightObject, SummonedBattlePetGUID
         buf.write_packed_guid(&self.farsight_object);
         write_empty_guid(buf);
+        trace(buf, "farsight_battlepet");
 
         // KnownTitles.Size
         buf.write_uint32(0);
@@ -2014,6 +2067,7 @@ impl PlayerCreateData {
                 buf.write_uint16(0);
             }
         }
+        trace(buf, "skill");
 
         // CharacterPoints, MaxTalentTiers
         buf.write_int32(0);
@@ -2072,6 +2126,7 @@ impl PlayerCreateData {
         for _ in 0..240 {
             buf.write_uint64(0);
         }
+        trace(buf, "explored_zones");
 
         // RestInfo[2] (each: i32 Threshold + u8 StateID)
         // StateID: 1=Rested, 2=Normal, 6=RAFLinked — must NOT be 0 (invalid)
@@ -2122,6 +2177,7 @@ impl PlayerCreateData {
             buf.write_uint32(0); // BuybackPrice
             buf.write_int64(0); // BuybackTimestamp
         }
+        trace(buf, "buyback");
 
         // HonorableKills/DishonorableKills (8x u16)
         buf.write_uint16(0); // TodayHonorableKills
@@ -2151,6 +2207,7 @@ impl PlayerCreateData {
         for _ in 0..32 {
             buf.write_int32(0);
         }
+        trace(buf, "combat_ratings");
 
         // MaxLevel, ScalingPlayerLevelDelta, MaxCreatureScalingLevel
         buf.write_int32(80);
@@ -2208,6 +2265,7 @@ impl PlayerCreateData {
         for _ in 0..875 {
             buf.write_uint64(0);
         }
+        trace(buf, "quest_completed");
 
         // Honor, HonorNextLevel, Field_F74, PvpTierMaxFromWins, PvpLastWeeksTierMaxFromWins
         buf.write_int32(0);
@@ -2236,7 +2294,7 @@ impl PlayerCreateData {
         buf.write_int32(self.heirlooms.len() as i32);
         buf.write_int32(self.heirloom_flags.len() as i32);
         buf.write_int32(self.toys.len() as i32);
-        buf.write_int32(0);
+        buf.write_int32(self.transmog.len() as i32);
 
         // ConditionalTransmog.Size, SelfResSpells.Size, CharacterRestrictions.Size
         buf.write_int32(0);
@@ -2252,7 +2310,7 @@ impl PlayerCreateData {
         buf.write_uint32(0);
 
         // TraitConfigs.Size
-        buf.write_int32(0);
+        buf.write_int32(self.trait_configs.len() as i32);
 
         // ActiveCombatTraitConfigID
         buf.write_int32(0);
@@ -2273,6 +2331,7 @@ impl PlayerCreateData {
 
         // NumStableSlots
         buf.write_uint8(0);
+        trace(buf, "dynamic_sizes");
 
         for value in &self.heirlooms {
             buf.write_int32(*value);
@@ -2283,6 +2342,10 @@ impl PlayerCreateData {
         for value in &self.toys {
             buf.write_int32(*value);
         }
+        for value in &self.transmog {
+            buf.write_uint32(*value);
+        }
+        trace(buf, "dynamic_payloads");
 
         // Remaining dynamic arrays are empty (KnownTitles, DailyQuests, etc.).
 
@@ -2308,6 +2371,7 @@ impl PlayerCreateData {
             buf.write_bit(false); // Disqualified
             buf.flush_bits();
         }
+        trace(buf, "pvp_info");
 
         // Trailing bits + FlushBits
         buf.flush_bits();
@@ -2320,6 +2384,7 @@ impl PlayerCreateData {
 
         // ResearchHistory.WriteCreate: CompletedProjects.Size (i32)
         buf.write_int32(0);
+        trace(buf, "research_history");
 
         // FrozenPerksVendorItem.Write: 7 i32 + 1 i64 + 1 bit
         buf.write_int32(0); // VendorItemID
@@ -2333,13 +2398,43 @@ impl PlayerCreateData {
         buf.write_int64(0); // AvailableUntil
         buf.write_bit(false); // Disabled
         buf.flush_bits();
+        trace(buf, "frozen_perks");
 
         // CharacterRestrictions (size 0, no data)
-        // TraitConfigs (size 0, no data)
+        for trait_config in &self.trait_configs {
+            write_trait_config_create_data(buf, trait_config);
+        }
         // PetStable (not present)
 
         buf.flush_bits();
+        trace(buf, "end");
     }
+}
+
+fn write_trait_config_create_data(buf: &mut WorldPacket, data: &TraitConfigCreateData) {
+    buf.write_int32(data.id);
+    buf.write_int32(data.config_type);
+    buf.write_uint32(data.entries.len() as u32);
+    if data.config_type == 2 {
+        buf.write_int32(data.skill_line_id);
+    }
+    if data.config_type == 1 {
+        buf.write_int32(data.chr_specialization_id);
+        buf.write_int32(data.combat_config_flags);
+        buf.write_int32(data.local_identifier);
+    }
+    if data.config_type == 3 {
+        buf.write_int32(data.trait_system_id);
+    }
+    for entry in &data.entries {
+        buf.write_int32(entry.trait_node_id);
+        buf.write_int32(entry.trait_node_entry_id);
+        buf.write_int32(entry.rank);
+        buf.write_int32(entry.granted_ranks);
+    }
+    buf.write_bits(data.name.len() as u32, 9);
+    buf.write_string(&data.name);
+    buf.flush_bits();
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -2656,7 +2751,7 @@ impl GameObjectCreateData {
         buf.write_uint32(self.dynamic_flags); // DynamicFlags
         buf.write_float(self.scale); // Scale
 
-        // GameObjectFieldData.WriteCreate (matches C# GameObjectFieldData.WriteCreate)
+        // C++ `GameObjectData::WriteCreate` (UpdateFields.cpp) order.
         buf.write_int32(self.display_id as i32); // DisplayID
         buf.write_int32(0); // SpellVisualID
         buf.write_int32(0); // StateSpellVisualID
@@ -2668,7 +2763,8 @@ impl GameObjectCreateData {
         write_empty_guid(&mut buf); // GuildGUID
         buf.write_uint32(self.gameobject_flags); // Flags
         // ParentRotation (Quaternion: x, y, z, w)
-        // In C# this comes from gameobject_addon.parent_rotation, NOT from gameobject.rotation0-3.
+        // C++ uses GameObjectData::ParentRotation, not the local rotation
+        // packed separately by Object::BuildMovementUpdate's Rotation flag.
         // For most GameObjects it's the identity quaternion (0, 0, 0, 1).
         // Only some transports have non-standard parent rotation.
         buf.write_float(0.0); // ParentRotation.X
@@ -2807,6 +2903,11 @@ pub enum UpdateBlock {
         update_type: UpdateType,
         guid: ObjectGuid,
         create_data: GameObjectCreateData,
+    },
+    CreateTransport {
+        guid: ObjectGuid,
+        create_data: GameObjectCreateData,
+        server_time_ms: u32,
     },
     CreateDynamicObject {
         guid: ObjectGuid,
@@ -2964,6 +3065,13 @@ impl UpdateObject {
                         create_data,
                         *is_self,
                     );
+                    let block_bytes = block_buf.into_data().len();
+                    let values_bytes =
+                        debug_player_create_values_len_like_cpp(create_data, *is_self);
+                    let movement_bytes = block_bytes.saturating_sub(
+                        debug_create_header_len_like_cpp(*update_type, guid, *type_id)
+                            + values_bytes,
+                    );
                     let inv_slots = create_data
                         .inv_slots
                         .iter()
@@ -2975,11 +3083,13 @@ impl UpdateObject {
                         .filter(|(item_id, _, _)| *item_id != 0)
                         .count();
                     lines.push(format!(
-                        "#{index:03} player guid={guid:?} update_type={} type_id={} self={} bytes={} level={} display={} native_display={} health={}/{} inv_slots={} visible_items={} skills={} quests={} toys={} heirlooms={} coinage={}",
+                        "#{index:03} player guid={guid:?} update_type={} type_id={} self={} bytes={} movementBytes={} valuesBytes={} level={} display={} native_display={} health={}/{} inv_slots={} visible_items={} skills={} quests={} toys={} heirlooms={} coinage={}",
                         *update_type as u8,
                         *type_id as u8,
                         is_self,
-                        block_buf.into_data().len(),
+                        block_bytes,
+                        movement_bytes,
+                        values_bytes,
                         create_data.level,
                         create_data.display_id,
                         create_data.native_display_id,
@@ -3001,13 +3111,24 @@ impl UpdateObject {
                 } => {
                     let mut block_buf = WorldPacket::new_empty();
                     write_creature_create_block(&mut block_buf, guid, movement, create_data);
+                    let block_bytes = block_buf.into_data().len();
+                    let values_bytes = debug_creature_create_values_len_like_cpp(create_data);
+                    let movement_bytes = block_bytes.saturating_sub(
+                        debug_create_header_len_like_cpp(
+                            UpdateType::CreateObject,
+                            guid,
+                            TypeId::Unit,
+                        ) + values_bytes,
+                    );
                     lines.push(format!(
-                        "#{index:03} creature guid={guid:?} entry={} display={} native_display={} level={} bytes={} pos=({:.3},{:.3},{:.3},{:.3}) hp={}/{} npc_flags=0x{:X} unit_flags=0x{:X}/0x{:X}/0x{:X} move_flags=0x{:X} speeds=({:.5},{:.5}) power0={}/{} virtual_items={:?} hover={} hover_h={:.3} animkits=({},{},{})",
+                        "#{index:03} creature guid={guid:?} entry={} display={} native_display={} level={} bytes={} movementBytes={} valuesBytes={} pos=({:.3},{:.3},{:.3},{:.3}) hp={}/{} npc_flags=0x{:X} unit_flags=0x{:X}/0x{:X}/0x{:X} move_flags=0x{:X} speeds=({:.5},{:.5}) power0={}/{} virtual_items={:?} hover={} hover_h={:.3} animkits=({},{},{})",
                         create_data.entry,
                         create_data.display_id,
                         create_data.native_display_id,
                         create_data.level,
-                        block_buf.into_data().len(),
+                        block_bytes,
+                        movement_bytes,
+                        values_bytes,
                         movement.position.x,
                         movement.position.y,
                         movement.position.z,
@@ -3034,20 +3155,35 @@ impl UpdateObject {
                 UpdateBlock::CreateItem { guid, create_data } => {
                     let mut block_buf = WorldPacket::new_empty();
                     write_item_create_block(&mut block_buf, guid, create_data);
+                    let block_bytes = block_buf.into_data().len();
+                    let values_bytes = debug_item_create_values_len_like_cpp(create_data);
+                    let movement_bytes = block_bytes.saturating_sub(
+                        debug_create_header_len_like_cpp(
+                            UpdateType::CreateObject2,
+                            guid,
+                            if create_data.container_slots > 0 {
+                                TypeId::Container
+                            } else {
+                                TypeId::Item
+                            },
+                        ) + values_bytes,
+                    );
                     let filled_container_slots = create_data
                         .container_item_guids
                         .iter()
                         .filter(|guid| !guid.is_empty())
                         .count();
                     lines.push(format!(
-                        "#{index:03} item guid={guid:?} entry={} type_id={} bytes={} stack={} flags=0x{:X} durability={}/{} context={} contained_in={:?} container_slots={} filled_container_slots={} random=({},{})",
+                        "#{index:03} item guid={guid:?} entry={} type_id={} bytes={} movementBytes={} valuesBytes={} stack={} flags=0x{:X} durability={}/{} context={} contained_in={:?} container_slots={} filled_container_slots={} random=({},{})",
                         create_data.entry_id,
                         if create_data.container_slots > 0 {
                             TypeId::Container as u8
                         } else {
                             TypeId::Item as u8
                         },
-                        block_buf.into_data().len(),
+                        block_bytes,
+                        movement_bytes,
+                        values_bytes,
                         create_data.stack_count,
                         create_data.dynamic_flags,
                         create_data.durability,
@@ -3067,17 +3203,57 @@ impl UpdateObject {
                 } => {
                     let mut block_buf = WorldPacket::new_empty();
                     write_gameobject_create_block(&mut block_buf, *update_type, guid, create_data);
+                    let block_bytes = block_buf.into_data().len();
+                    let values_bytes = debug_gameobject_create_values_len_like_cpp(create_data);
+                    let movement_bytes = block_bytes.saturating_sub(
+                        debug_create_header_len_like_cpp(*update_type, guid, TypeId::GameObject)
+                            + values_bytes,
+                    );
                     lines.push(format!(
-                        "#{index:03} gameobject guid={guid:?} update_type={} entry={} display={} type={} bytes={} pos=({:.3},{:.3},{:.3},{:.3})",
+                        "#{index:03} gameobject guid={guid:?} update_type={} entry={} display={} type={} bytes={} movementBytes={} valuesBytes={} pos=({:.3},{:.3},{:.3},{:.3})",
                         *update_type as u8,
                         create_data.entry,
                         create_data.display_id,
                         create_data.go_type,
-                        block_buf.into_data().len(),
+                        block_bytes,
+                        movement_bytes,
+                        values_bytes,
                         create_data.position.x,
                         create_data.position.y,
                         create_data.position.z,
                         create_data.position.orientation
+                    ));
+                }
+                UpdateBlock::CreateTransport {
+                    guid,
+                    create_data,
+                    server_time_ms,
+                } => {
+                    let mut block_buf = WorldPacket::new_empty();
+                    write_transport_create_block(
+                        &mut block_buf,
+                        UpdateType::CreateObject,
+                        guid,
+                        create_data,
+                        *server_time_ms,
+                    );
+                    let block_bytes = block_buf.into_data().len();
+                    let values_bytes = debug_gameobject_create_values_len_like_cpp(create_data);
+                    let movement_bytes = block_bytes.saturating_sub(
+                        debug_create_header_len_like_cpp(
+                            UpdateType::CreateObject,
+                            guid,
+                            TypeId::GameObject,
+                        ) + values_bytes,
+                    );
+                    lines.push(format!(
+                        "#{index:03} transport guid={guid:?} entry={} display={} bytes={} movementBytes={} valuesBytes={} serverTime={}",
+                        create_data.entry,
+                        create_data.display_id,
+                        block_bytes,
+                        movement_bytes,
+                        values_bytes,
+                        server_time_ms
                     ));
                 }
                 UpdateBlock::CreateDynamicObject { guid, create_data } => {
@@ -3212,6 +3388,22 @@ impl UpdateObject {
         }
     }
 
+    /// Create a map transport block for C++ `Map::SendInitTransports`.
+    ///
+    /// `Transport` derives from `GameObject` but sets only ServerTime,
+    /// Stationary and Rotation create flags (`Transport.cpp` constructor).
+    /// It does not set the generic GameObject movement extension flag.
+    pub fn create_transport_block(
+        create_data: GameObjectCreateData,
+        server_time_ms: u32,
+    ) -> UpdateBlock {
+        UpdateBlock::CreateTransport {
+            guid: create_data.guid,
+            create_data,
+            server_time_ms,
+        }
+    }
+
     /// Create a dynamic object spawn block.
     pub fn create_dynamic_object_block(create_data: DynamicObjectCreateData) -> UpdateBlock {
         UpdateBlock::CreateDynamicObject {
@@ -3305,6 +3497,8 @@ impl UpdateObject {
 
         let create_data = PlayerCreateData {
             guid,
+            wow_account: ObjectGuid::EMPTY,
+            bnet_account: ObjectGuid::EMPTY,
             race,
             class,
             sex,
@@ -3330,6 +3524,7 @@ impl UpdateObject {
             ranged_crit_pct: combat.ranged_crit_pct,
             spell_crit_pct: combat.spell_crit_pct,
             visible_items,
+            customizations: Vec::new(),
             inv_slots,
             farsight_object: ObjectGuid::EMPTY,
             skill_info,
@@ -3339,6 +3534,8 @@ impl UpdateObject {
             heirlooms: Vec::new(),
             heirloom_flags: Vec::new(),
             toys: Vec::new(),
+            transmog: Vec::new(),
+            trait_configs: Vec::new(),
             quest_log,
         };
 
@@ -3377,6 +3574,8 @@ impl UpdateObject {
         &mut self,
         toys: Vec<i32>,
         heirlooms: Vec<(i32, u32)>,
+        transmog: Vec<u32>,
+        trait_configs: Vec<TraitConfigCreateData>,
     ) {
         for block in &mut self.blocks {
             if let UpdateBlock::CreateObject {
@@ -3389,6 +3588,54 @@ impl UpdateObject {
                 create_data.heirlooms = heirlooms.iter().map(|(item_id, _)| *item_id).collect();
                 create_data.heirloom_flags =
                     heirlooms.into_iter().map(|(_, flags)| flags).collect();
+                create_data.transmog = transmog;
+                create_data.trait_configs = trait_configs;
+                return;
+            }
+        }
+    }
+
+    /// Populate PlayerData::Customizations on the self CREATE block.
+    ///
+    /// C++ `Player::LoadFromDB` loads `CHAR_SEL_CHARACTER_CUSTOMIZATIONS`,
+    /// calls `SetCustomizations`, then `PlayerData::WriteCreate` writes the
+    /// dynamic field during login.
+    pub fn set_player_customizations_like_cpp(
+        &mut self,
+        customizations: Vec<ChrCustomizationChoiceValuesUpdate>,
+    ) {
+        for block in &mut self.blocks {
+            if let UpdateBlock::CreateObject {
+                create_data,
+                is_self: true,
+                ..
+            } = block
+            {
+                create_data.customizations = customizations;
+                return;
+            }
+        }
+    }
+
+    /// Populate PlayerData::WowAccount and PlayerData::BnetAccount on the
+    /// self CREATE block.
+    ///
+    /// C++ `Player::LoadFromDB` sets these from `WorldSession` before
+    /// `PlayerData::WriteCreate`.
+    pub fn set_player_account_guids_like_cpp(
+        &mut self,
+        wow_account: ObjectGuid,
+        bnet_account: ObjectGuid,
+    ) {
+        for block in &mut self.blocks {
+            if let UpdateBlock::CreateObject {
+                create_data,
+                is_self: true,
+                ..
+            } = block
+            {
+                create_data.wow_account = wow_account;
+                create_data.bnet_account = bnet_account;
                 return;
             }
         }
@@ -3714,6 +3961,49 @@ impl UpdateObject {
     }
 }
 
+fn debug_create_header_len_like_cpp(
+    update_type: UpdateType,
+    guid: &ObjectGuid,
+    type_id: TypeId,
+) -> usize {
+    let mut header = WorldPacket::new_empty();
+    header.write_uint8(update_type as u8);
+    header.write_packed_guid(guid);
+    header.write_uint8(type_id as u8);
+    header.into_data().len()
+}
+
+fn debug_player_create_values_len_like_cpp(data: &PlayerCreateData, is_self: bool) -> usize {
+    let mut values = WorldPacket::new_empty();
+    data.write_values_create(&mut values, is_self);
+    values.into_data().len()
+}
+
+fn debug_creature_create_values_len_like_cpp(data: &CreatureCreateData) -> usize {
+    let mut values = WorldPacket::new_empty();
+    data.write_values_create(&mut values);
+    values.into_data().len()
+}
+
+fn debug_gameobject_create_values_len_like_cpp(data: &GameObjectCreateData) -> usize {
+    let mut values = WorldPacket::new_empty();
+    data.write_values_create(&mut values);
+    values.into_data().len()
+}
+
+fn debug_item_create_values_len_like_cpp(data: &ItemCreateData) -> usize {
+    let mut block = WorldPacket::new_empty();
+    write_item_create_block(&mut block, &data.item_guid, data);
+    let type_id = if data.container_slots > 0 {
+        TypeId::Container
+    } else {
+        TypeId::Item
+    };
+    block.into_data().len().saturating_sub(
+        debug_create_header_len_like_cpp(UpdateType::CreateObject2, &data.item_guid, type_id) + 7, // CreateObjectBits (18 bits flushed to 3 bytes) + PauseTimes count.
+    )
+}
+
 impl ServerPacket for UpdateObject {
     const OPCODE: ServerOpcodes = ServerOpcodes::UpdateObject;
 
@@ -3778,6 +4068,19 @@ impl ServerPacket for UpdateObject {
                     create_data,
                 } => {
                     write_gameobject_create_block(&mut blocks_buf, *update_type, guid, create_data);
+                }
+                UpdateBlock::CreateTransport {
+                    guid,
+                    create_data,
+                    server_time_ms,
+                } => {
+                    write_transport_create_block(
+                        &mut blocks_buf,
+                        UpdateType::CreateObject,
+                        guid,
+                        create_data,
+                        *server_time_ms,
+                    );
                 }
                 UpdateBlock::CreateDynamicObject { guid, create_data } => {
                     write_dynamic_object_create_block(&mut blocks_buf, guid, create_data);
@@ -4173,6 +4476,67 @@ fn write_gameobject_create_block(
     buf.flush_bits();
 
     // ── Values block ─────────────────────────────────────────
+    create_data.write_values_create(buf);
+}
+
+/// Write a single CreateObject block for a map transport.
+///
+/// TrinityCore `Transport` inherits `GameObject`, but its constructor sets
+/// `m_updateFlag.ServerTime`, `Stationary`, and `Rotation` only
+/// (`Transport.cpp`). `Object::BuildMovementUpdate` writes the server time
+/// between the stationary block and rotation.
+fn write_transport_create_block(
+    buf: &mut WorldPacket,
+    update_type: UpdateType,
+    guid: &ObjectGuid,
+    create_data: &GameObjectCreateData,
+    server_time_ms: u32,
+) {
+    buf.write_uint8(update_type as u8);
+
+    // Object GUID
+    buf.write_packed_guid(guid);
+
+    // TypeId = GameObject (8), matching HighGuid::Transport.
+    buf.write_uint8(TypeId::GameObject as u8);
+
+    // ── 18-bit CreateObjectBits ────────────────────────────
+    buf.write_bit(false); // 0: NoBirthAnim
+    buf.write_bit(false); // 1: EnablePortals
+    buf.write_bit(false); // 2: PlayHoverAnim
+    buf.write_bit(false); // 3: MovementUpdate
+    buf.write_bit(false); // 4: MovementTransport
+    buf.write_bit(true); // 5: Stationary
+    buf.write_bit(false); // 6: CombatVictim
+    buf.write_bit(true); // 7: ServerTime
+    buf.write_bit(false); // 8: Vehicle
+    buf.write_bit(false); // 9: AnimKit
+    buf.write_bit(true); // 10: Rotation
+    buf.write_bit(false); // 11: AreaTrigger
+    buf.write_bit(false); // 12: GameObject
+    buf.write_bit(false); // 13: SmoothPhasing
+    buf.write_bit(false); // 14: ThisIsYou
+    buf.write_bit(false); // 15: SceneObject
+    buf.write_bit(false); // 16: ActivePlayer
+    buf.write_bit(false); // 17: Conversation
+    buf.flush_bits();
+
+    // PauseTimes count
+    buf.write_int32(0);
+
+    // Stationary
+    buf.write_float(create_data.position.x);
+    buf.write_float(create_data.position.y);
+    buf.write_float(create_data.position.z);
+    buf.write_float(create_data.position.orientation);
+
+    // ServerTime
+    buf.write_uint32(server_time_ms);
+
+    // Rotation
+    buf.write_int64(create_data.packed_rotation());
+
+    // Values
     create_data.write_values_create(buf);
 }
 
@@ -9578,6 +9942,8 @@ mod tests {
     fn test_player_create_data_with_farsight(farsight_object: ObjectGuid) -> PlayerCreateData {
         PlayerCreateData {
             guid: ObjectGuid::create_player(1, 42),
+            wow_account: ObjectGuid::EMPTY,
+            bnet_account: ObjectGuid::EMPTY,
             race: 1,
             class: 1,
             sex: 0,
@@ -9603,6 +9969,7 @@ mod tests {
             ranged_crit_pct: 5.0,
             spell_crit_pct: 0.0,
             visible_items: [(0, 0, 0); 19],
+            customizations: Vec::new(),
             inv_slots: [ObjectGuid::EMPTY; 141],
             farsight_object,
             skill_info: Vec::new(),
@@ -9613,6 +9980,8 @@ mod tests {
             heirlooms: Vec::new(),
             heirloom_flags: Vec::new(),
             toys: Vec::new(),
+            transmog: Vec::new(),
+            trait_configs: Vec::new(),
         }
     }
 
@@ -9631,6 +10000,63 @@ mod tests {
                 .any(|window| window == [17, 23, 0, create.sex]),
             "PlayerData::PartyType[2] must be serialized before NumBankSlots/NativeSex"
         );
+    }
+
+    #[test]
+    fn player_create_writes_customizations_like_cpp() {
+        let without_customizations = test_player_create_data_with_farsight(ObjectGuid::EMPTY);
+        let mut with_customizations = test_player_create_data_with_farsight(ObjectGuid::EMPTY);
+        with_customizations.customizations = vec![
+            ChrCustomizationChoiceValuesUpdate {
+                option_id: 110,
+                choice_id: 17913,
+            },
+            ChrCustomizationChoiceValuesUpdate {
+                option_id: 111,
+                choice_id: 17929,
+            },
+        ];
+
+        let mut base_packet = WorldPacket::new_empty();
+        without_customizations.write_player_data(&mut base_packet, 0x03);
+        let base_len = base_packet.data().len();
+
+        let mut packet = WorldPacket::new_empty();
+        with_customizations.write_player_data(&mut packet, 0x03);
+        let bytes = packet.data();
+
+        assert_eq!(bytes.len(), base_len + 16);
+        assert!(
+            bytes
+                .windows(8)
+                .any(|window| window == [110, 0, 0, 0, 249, 69, 0, 0]),
+            "PlayerData::Customizations must serialize option/choice uint32 pairs"
+        );
+        assert!(
+            bytes
+                .windows(8)
+                .any(|window| window == [111, 0, 0, 0, 9, 70, 0, 0]),
+            "PlayerData::Customizations must preserve DB order"
+        );
+    }
+
+    #[test]
+    fn player_create_writes_account_guids_like_cpp() {
+        let without_account_guids = test_player_create_data_with_farsight(ObjectGuid::EMPTY);
+        let mut with_account_guids = test_player_create_data_with_farsight(ObjectGuid::EMPTY);
+        with_account_guids.wow_account =
+            ObjectGuid::create_global(wow_core::guid::HighGuid::WowAccount, 0, 1);
+        with_account_guids.bnet_account =
+            ObjectGuid::create_global(wow_core::guid::HighGuid::BNetAccount, 0, 1);
+
+        let mut base_packet = WorldPacket::new_empty();
+        without_account_guids.write_player_data(&mut base_packet, 0x03);
+        let base_len = base_packet.data().len();
+
+        let mut packet = WorldPacket::new_empty();
+        with_account_guids.write_player_data(&mut packet, 0x03);
+
+        assert_eq!(packet.data().len(), base_len + 4);
     }
 
     #[test]
@@ -9664,17 +10090,19 @@ mod tests {
         create.heirlooms = vec![44_000, 44_001];
         create.heirloom_flags = vec![0x03, 0x04];
         create.toys = vec![30_000];
+        create.transmog = vec![0x2000_0000, 0, 0x01];
 
         let mut packet = WorldPacket::new_empty();
         create.write_active_player_data(&mut packet);
         let data = packet.data();
 
-        assert!(data.windows(12).any(|window| {
+        assert!(data.windows(16).any(|window| {
             window
                 == [
                     2, 0, 0, 0, // Heirlooms.Size
                     2, 0, 0, 0, // HeirloomFlags.Size
                     1, 0, 0, 0, // Toys.Size
+                    3, 0, 0, 0, // Transmog.Size
                 ]
         }));
         assert!(
@@ -9685,6 +10113,61 @@ mod tests {
             data.windows(8)
                 .any(|window| window == [4, 0, 0, 0, 48, 117, 0, 0])
         );
+        assert!(
+            data.windows(12)
+                .any(|window| window == [0, 0, 0, 32, 0, 0, 0, 0, 1, 0, 0, 0])
+        );
+    }
+
+    #[test]
+    fn active_player_create_writes_cpp_transmog_and_trait_config_dynamic_payloads() {
+        let mut baseline = test_player_create_data_with_farsight(ObjectGuid::EMPTY);
+        let mut packet = WorldPacket::new_empty();
+        baseline.write_active_player_data(&mut packet);
+        let baseline_len = packet.data().len();
+
+        baseline.transmog = vec![0; 5528];
+        baseline.trait_configs = vec![
+            TraitConfigCreateData {
+                id: 1,
+                config_type: 1,
+                skill_line_id: 0,
+                chr_specialization_id: 256,
+                combat_config_flags: 1,
+                local_identifier: 1,
+                trait_system_id: 0,
+                name: String::new(),
+                entries: Vec::new(),
+            },
+            TraitConfigCreateData {
+                id: 2,
+                config_type: 1,
+                skill_line_id: 0,
+                chr_specialization_id: 257,
+                combat_config_flags: 1,
+                local_identifier: 1,
+                trait_system_id: 0,
+                name: String::new(),
+                entries: Vec::new(),
+            },
+            TraitConfigCreateData {
+                id: 3,
+                config_type: 1,
+                skill_line_id: 0,
+                chr_specialization_id: 258,
+                combat_config_flags: 1,
+                local_identifier: 1,
+                trait_system_id: 0,
+                name: String::new(),
+                entries: Vec::new(),
+            },
+        ];
+
+        let mut packet = WorldPacket::new_empty();
+        baseline.write_active_player_data(&mut packet);
+        let data = packet.data();
+
+        assert_eq!(data.len() - baseline_len, 5528 * 4 + 3 * 26);
     }
 
     #[test]

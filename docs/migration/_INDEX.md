@@ -12,7 +12,7 @@
 
 **Reglas:**
 - No modificar código del módulo X sin leer su `<modulo X>.md` § 13 primero (ADR-007 del ROADMAP).
-- Si encuentras divergencia C++ vs Rust no documentada: añadirla al doc en sección 8 ("Suspicious") + abrir issue/TODO en sección 9.
+- Si encuentras divergencia C++ vs Rust no documentada: contrastarla contra C++, añadir la evidencia al doc en sección 8 ("Suspicious") y continuar implementando la dependencia necesaria dentro de la misma fase/módulo hasta cerrar la cadena. No dejarla como TODO/gap futuro para poder avanzar.
 - La auditoría 2026-05-01 fue un primer barrido hecho por agentes y sirve como triage, no como prueba final. Antes de implementar o cerrar un punto, contrastar de nuevo contra C++.
 
 ---

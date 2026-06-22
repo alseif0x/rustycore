@@ -4582,6 +4582,10 @@ pub struct WorldSession {
     pub(crate) represented_account_toys_like_cpp: BTreeMap<u32, u32>,
     /// C++ `CollectionMgr::_appearances`, represented until account collection persistence is ported.
     pub(crate) represented_item_appearances_like_cpp: HashSet<u32>,
+    /// C++ `CollectionMgr::LoadAccountItemAppearances` block vector used by
+    /// `ActivePlayerData::Transmog`. This preserves sparse `blobIndex` rows
+    /// that cannot be recovered from `_appearances` alone.
+    pub(crate) represented_item_appearance_blocks_like_cpp: Vec<u32>,
     /// C++ `CollectionMgr::_temporaryAppearances`, represented until account collection persistence is ported.
     pub(crate) represented_temporary_item_appearances_like_cpp: HashMap<u32, HashSet<ObjectGuid>>,
     /// C++ `CollectionMgr::_favoriteAppearances`, represented until account collection persistence is ported.
@@ -6076,6 +6080,7 @@ impl WorldSession {
             represented_account_heirlooms_like_cpp: BTreeMap::new(),
             represented_account_toys_like_cpp: BTreeMap::new(),
             represented_item_appearances_like_cpp: HashSet::new(),
+            represented_item_appearance_blocks_like_cpp: Vec::new(),
             represented_temporary_item_appearances_like_cpp: HashMap::new(),
             represented_favorite_item_appearances_like_cpp: HashMap::new(),
             represented_transmog_illusions_like_cpp: HashSet::new(),
@@ -13959,6 +13964,35 @@ impl WorldSession {
             .collect()
     }
 
+    /// C++ `CollectionMgr::LoadAccountItemAppearances` active-player create data order.
+    pub(crate) fn account_transmog_active_player_rows_like_cpp(&self) -> Vec<u32> {
+        if !self.represented_item_appearance_blocks_like_cpp.is_empty() {
+            return self.represented_item_appearance_blocks_like_cpp.clone();
+        }
+
+        if let Some(blocks) = self
+            .canonical_player_snapshot_like_cpp(|player| player.transmog_blocks_like_cpp().to_vec())
+        {
+            return blocks;
+        }
+
+        let Some(highest_appearance) = self.represented_item_appearances_like_cpp.iter().max()
+        else {
+            return Vec::new();
+        };
+
+        let mut blocks = vec![0_u32; (highest_appearance / 32 + 1) as usize];
+        for &item_modified_appearance_id in &self.represented_item_appearances_like_cpp {
+            let block_index = (item_modified_appearance_id / 32) as usize;
+            let bit_index = item_modified_appearance_id % 32;
+            if let Some(flag) = 1_u32.checked_shl(bit_index) {
+                blocks[block_index] |= flag;
+            }
+        }
+
+        blocks
+    }
+
     /// C++ `WorldPackets::Toy::AccountToyUpdate` full login update.
     pub fn send_account_toys_like_cpp(&self) {
         self.send_packet(&AccountToyUpdate::full(
@@ -14199,6 +14233,7 @@ impl WorldSession {
         favorite_appearances: impl IntoIterator<Item = u32>,
     ) {
         self.represented_item_appearances_like_cpp.clear();
+        self.represented_item_appearance_blocks_like_cpp.clear();
         self.represented_favorite_item_appearances_like_cpp.clear();
 
         let mut blocks = BTreeMap::new();
@@ -14218,6 +14253,12 @@ impl WorldSession {
         }
 
         if let Some((&highest_block, _)) = blocks.iter().next_back() {
+            self.represented_item_appearance_blocks_like_cpp = vec![0; highest_block as usize + 1];
+            for (&block_index, &appearance_mask) in &blocks {
+                self.represented_item_appearance_blocks_like_cpp[block_index as usize] =
+                    appearance_mask;
+            }
+
             self.mutate_canonical_player_like_cpp(|player| {
                 while player.transmog_blocks_like_cpp().len() <= highest_block as usize {
                     player.add_transmog_block_like_cpp(0);
@@ -26495,6 +26536,19 @@ impl WorldSession {
         let lag_delay = round_trip_duration / 2;
         let clock_delta =
             i64::from(server_time_at_sent) + i64::from(lag_delay) - i64::from(client_time);
+        if std::env::var_os("RUSTYCORE_LOGIN_TRACE").is_some() {
+            info!(
+                account = self.account_id,
+                sequence_index,
+                client_time,
+                server_time_at_sent,
+                received_time,
+                round_trip_duration,
+                lag_delay,
+                clock_delta,
+                "RUST_LOGIN_TRACE time_sync_response"
+            );
+        }
 
         if self.time_sync_clock_delta_queue.len() == 6 {
             self.time_sync_clock_delta_queue.pop_front();
@@ -26557,6 +26611,9 @@ impl WorldSession {
         let movement_time = i64::from(time) + self.time_sync_clock_delta;
         if self.time_sync_clock_delta == 0 || !(0..=i64::from(u32::MAX)).contains(&movement_time) {
             warn!(
+                account = self.account_id,
+                client_time = time,
+                clock_delta = self.time_sync_clock_delta,
                 "The computed movement time using clockDelta is erroneous. Using fallback instead"
             );
             Self::game_time_ms_like_cpp()
@@ -29126,8 +29183,16 @@ impl WorldSession {
     }
 
     /// Send a server packet back to the client via the instance (default) channel.
-    pub fn send_packet(&self, pkt: &impl wow_packet::ServerPacket) {
+    pub fn send_packet<P: wow_packet::ServerPacket>(&self, pkt: &P) {
         let data = pkt.to_bytes();
+        if std::env::var_os("RUSTYCORE_LOGIN_TRACE").is_some() {
+            info!(
+                account = self.account_id,
+                opcode = ?P::OPCODE,
+                bytes = data.len(),
+                "RUST_LOGIN_TRACE send_packet"
+            );
+        }
         if self.send_tx.send(data).is_err() {
             warn!("Send channel closed for account {}", self.account_id);
         }
@@ -29221,6 +29286,18 @@ impl WorldSession {
     /// Used for packets with dynamic opcodes (e.g. `SetSpellModifier`
     /// which uses the same struct for Flat and Pct variants).
     pub fn send_raw_packet(&self, data: &[u8]) {
+        if std::env::var_os("RUSTYCORE_LOGIN_TRACE").is_some() {
+            let opcode_text = data
+                .get(0..2)
+                .map(|bytes| format!("0x{:04X}", u16::from_le_bytes([bytes[0], bytes[1]])))
+                .unwrap_or_else(|| "<short>".to_string());
+            info!(
+                account = self.account_id,
+                opcode = opcode_text.as_str(),
+                bytes = data.len(),
+                "RUST_LOGIN_TRACE send_raw_packet"
+            );
+        }
         if self.send_tx.send(data.to_vec()).is_err() {
             warn!("Send channel closed for account {}", self.account_id);
         }
@@ -68950,8 +69027,8 @@ mod tests {
 
             let mut bytes = Vec::new();
             bytes.extend_from_slice(&(opcode as u16).to_le_bytes());
-            bytes.extend_from_slice(&sent_time.saturating_sub(1).to_le_bytes());
             bytes.extend_from_slice(&11u32.to_le_bytes());
+            bytes.extend_from_slice(&sent_time.saturating_sub(1).to_le_bytes());
 
             session
                 .dispatch_packet(WorldPacket::from_bytes(&bytes))
@@ -104564,6 +104641,10 @@ mod tests {
         assert_eq!(
             session.represented_item_appearances_like_cpp,
             HashSet::from([1, 31, 64])
+        );
+        assert_eq!(
+            session.account_transmog_active_player_rows_like_cpp(),
+            vec![(1_u32 << 1) | (1_u32 << 31), 0, 1]
         );
         assert_eq!(
             session.represented_favorite_item_appearance_state_like_cpp(65),
