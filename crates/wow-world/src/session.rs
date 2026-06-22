@@ -44308,7 +44308,8 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                 if manager.find_creature(map_id, instance_id, guid).is_some() {
                     continue;
                 }
-                let position = respawn.home_pos;
+                let position =
+                    crate::map_manager::pending_respawn_create_position_like_cpp(&respawn);
                 let world_creature =
                     world_creature_from_pending_respawn_like_cpp(&respawn, instance_id);
                 let canonical_creature = world_creature.creature.clone();
@@ -45756,11 +45757,12 @@ impl WorldSession {
                 entry,
                 r.home_pos
             );
+            let respawn_position = crate::map_manager::pending_respawn_create_position_like_cpp(&r);
 
             // Recreate canonical map state.
             self.register_world_creature_with_flags_extra_movement_and_default_motion_like_cpp(
                 r.map_id,
-                r.home_pos,
+                respawn_position,
                 r.create_data.clone(),
                 r.min_dmg,
                 r.max_dmg,
@@ -45802,7 +45804,7 @@ impl WorldSession {
                     guid,
                     viewer_create_data.npc_flags,
                 );
-            let block = UpdateObject::create_creature_block(viewer_create_data, &r.home_pos);
+            let block = UpdateObject::create_creature_block(viewer_create_data, &respawn_position);
             let pkt = UpdateObject::create_creatures(vec![block], r.map_id);
             output.packets.push(pkt.to_bytes());
             self.client_visible_guids_like_cpp.insert(guid);

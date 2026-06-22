@@ -1401,6 +1401,20 @@ fn creature_create_movement_flags_like_cpp(ground_movement_type: u8) -> u32 {
     }
 }
 
+fn creature_create_position_after_hover_offset_like_cpp(
+    mut position: Position,
+    movement_flags: u32,
+    hover_height: f32,
+) -> Position {
+    // C++ `Creature::Create` calls `LoadCreaturesAddon()` and then
+    // `m_positionZ += GetHoverOffset()`. `GetHoverOffset()` is
+    // MOVEMENTFLAG_HOVER ? UnitData::HoverHeight : 0.
+    if MovementFlag::from_bits_retain(movement_flags).contains(MovementFlag::HOVER) {
+        position.z += hover_height;
+    }
+    position
+}
+
 fn spell_charge_entry_from_db_like_cpp(
     category_id: u32,
     first_recharge_end_unix_secs: i64,
@@ -5916,7 +5930,11 @@ impl WorldSession {
 
         let guid = ObjectGuid::create_creature_like_cpp(map_id, entry, spawn_guid as i64);
         let movement_flags = creature_create_movement_flags_like_cpp(ground_movement_type);
-        let position = Position::new(pos_x, pos_y, pos_z, orientation);
+        let position = creature_create_position_after_hover_offset_like_cpp(
+            Position::new(pos_x, pos_y, pos_z, orientation),
+            movement_flags,
+            model_scalars.hover_height,
+        );
         let create_data = CreatureCreateData {
             guid,
             entry,
@@ -13178,6 +13196,27 @@ mod tests {
             "C++ ObjectMgr::ParseSpawnDifficulties maps invalid tokens to DIFFICULTY_NONE"
         );
         assert!(!spawn_difficulties_contains_spawn_mode_like_cpp("bad", 1));
+    }
+
+    #[test]
+    fn creature_create_hover_offset_matches_cpp_after_addon() {
+        let base = Position::new(1.0, 2.0, 3.0, 4.0);
+        let adjusted = creature_create_position_after_hover_offset_like_cpp(
+            base,
+            MovementFlag::HOVER.bits(),
+            1.25,
+        );
+
+        assert_eq!(
+            adjusted,
+            Position::new(1.0, 2.0, 4.25, 4.0),
+            "C++ Creature::Create calls LoadCreaturesAddon() then adds GetHoverOffset() to m_positionZ"
+        );
+        assert_eq!(
+            creature_create_position_after_hover_offset_like_cpp(base, 0, 1.25),
+            base,
+            "C++ GetHoverOffset() is zero unless MOVEMENTFLAG_HOVER is set"
+        );
     }
 
     #[test]
