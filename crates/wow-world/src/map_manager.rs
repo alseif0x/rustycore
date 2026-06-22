@@ -3225,6 +3225,18 @@ pub fn pending_respawn_from_world_creature_like_cpp(
     }
 }
 
+pub fn pending_respawn_create_position_like_cpp(respawn: &PendingRespawn) -> Position {
+    let mut position = respawn.home_pos;
+    let create_flags =
+        wow_constants::movement::MovementFlag::from_bits_retain(respawn.create_data.movement_flags);
+    let addon_sets_hover = respawn.addon.is_some()
+        && respawn.ground_movement_type == wow_constants::CreatureGroundMovementType::Hover as u8;
+    if create_flags.contains(wow_constants::movement::MovementFlag::HOVER) || addon_sets_hover {
+        position.z += respawn.create_data.hover_height;
+    }
+    position
+}
+
 /// Recreate a represented world creature from a map-owned respawn entry.
 ///
 /// This is the session-free equivalent of `WorldSession::register_world_creature`
@@ -3235,6 +3247,7 @@ pub fn world_creature_from_pending_respawn_like_cpp(
     instance_id: u32,
 ) -> WorldCreature {
     let create_data = &respawn.create_data;
+    let position = pending_respawn_create_position_like_cpp(respawn);
     let guid = create_data.guid;
     let entry = create_data.entry;
     let hp = create_data.health.max(1) as u32;
@@ -3259,7 +3272,7 @@ pub fn world_creature_from_pending_respawn_like_cpp(
         .unit_mut()
         .world_mut()
         .set_map(u32::from(respawn.map_id), instance_id);
-    creature.unit_mut().world_mut().relocate(respawn.home_pos);
+    creature.unit_mut().world_mut().relocate(position);
     *creature.unit_mut().world_mut().phase_shift_mut() = respawn.phase_shift.clone();
     creature.unit_mut().set_level(level);
     creature.unit_mut().set_max_health(u64::from(hp));
@@ -5997,6 +6010,8 @@ mod tests {
 
         let mut pending =
             pending_respawn_from_world_creature_like_cpp(&creature, Instant::now(), 0);
+        pending.create_data.hover_height = 1.5;
+        pending.ground_movement_type = wow_constants::CreatureGroundMovementType::Hover as u8;
         pending.addon = Some(CreatureAddonLifecycleRecordLikeCpp {
             path_id: 88_001,
             visibility_distance_type: wow_entities::VisibilityDistanceTypeLikeCpp::Large,
@@ -6014,7 +6029,7 @@ mod tests {
         assert_eq!(pending.string_id.as_deref(), Some("respawn-string"));
         assert_eq!(
             pending.ground_movement_type,
-            wow_constants::CreatureGroundMovementType::None as u8
+            wow_constants::CreatureGroundMovementType::Hover as u8
         );
         assert!(!pending.swim_allowed);
         assert_eq!(
@@ -6036,9 +6051,14 @@ mod tests {
             respawned.creature.lifecycle_metadata().string_id.as_deref(),
             Some("respawn-string")
         );
-        assert!(!respawned.creature.can_walk_like_cpp());
+        assert!(respawned.creature.can_walk_like_cpp());
         assert!(!respawned.creature.can_enter_water_like_cpp());
         assert!(respawned.creature.can_fly_like_cpp());
+        assert_eq!(
+            respawned.position().z,
+            1.5,
+            "C++ Creature::Create adds GetHoverOffset() to Z when respawn reloads a hovering creature"
+        );
         assert_eq!(
             respawned.creature.waypoint_path_id_like_cpp(),
             88_001,
