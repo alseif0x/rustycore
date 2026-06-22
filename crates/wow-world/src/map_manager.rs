@@ -3289,6 +3289,11 @@ pub fn world_creature_from_pending_respawn_like_cpp(
     if respawn.waypoint_path_id != 0 {
         creature.load_path_like_cpp(respawn.waypoint_path_id);
     }
+    creature.apply_creatures_addon_lifecycle_like_cpp(respawn.addon.as_ref());
+    let effective_waypoint_path_id = creature.waypoint_path_id_like_cpp();
+    if effective_waypoint_path_id != 0 {
+        creature.load_path_like_cpp(effective_waypoint_path_id);
+    }
     creature.configure_ai_runtime(
         respawn.home_pos,
         respawn.aggro_radius,
@@ -5990,7 +5995,14 @@ mod tests {
         );
         creature.creature.set_swim_allowed_runtime_like_cpp(false);
 
-        let pending = pending_respawn_from_world_creature_like_cpp(&creature, Instant::now(), 0);
+        let mut pending =
+            pending_respawn_from_world_creature_like_cpp(&creature, Instant::now(), 0);
+        pending.addon = Some(CreatureAddonLifecycleRecordLikeCpp {
+            path_id: 88_001,
+            visibility_distance_type: wow_entities::VisibilityDistanceTypeLikeCpp::Large,
+            auras: vec![70_020],
+            ..CreatureAddonLifecycleRecordLikeCpp::default()
+        });
         assert_eq!(
             pending.spawn_id, 42,
             "creature respawn must preserve C++ RespawnInfo::spawnId from the map GUID low counter"
@@ -6027,5 +6039,27 @@ mod tests {
         assert!(!respawned.creature.can_walk_like_cpp());
         assert!(!respawned.creature.can_enter_water_like_cpp());
         assert!(respawned.creature.can_fly_like_cpp());
+        assert_eq!(
+            respawned.creature.waypoint_path_id_like_cpp(),
+            88_001,
+            "C++ respawn goes back through Creature::LoadFromDB and reapplies LoadCreaturesAddon PathId"
+        );
+        assert!(
+            respawned
+                .creature
+                .unit()
+                .unit_flags2_like_cpp()
+                .contains(wow_constants::unit::UnitFlags2::LARGE_AOI),
+            "C++ LoadCreaturesAddon reapplies addon visibility/AOI flags on respawn"
+        );
+        assert!(
+            respawned
+                .creature
+                .unit()
+                .subsystems()
+                .auras
+                .has_aura_spell_like_cpp(70_020),
+            "C++ LoadCreaturesAddon reapplies addon auras on respawn"
+        );
     }
 }
