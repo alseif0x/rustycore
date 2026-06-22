@@ -3118,15 +3118,22 @@ impl UpdateObject {
                             TypeId::Unit,
                         ) + values_bytes,
                     );
+                    let has_anim_kit = create_data.ai_anim_kit_id != 0
+                        || create_data.movement_anim_kit_id != 0
+                        || create_data.melee_anim_kit_id != 0;
                     lines.push(format!(
-                        "#{index:03} creature guid={guid:?} entry={} display={} native_display={} level={} bytes={} movementBytes={} valuesBytes={} pos=({:.3},{:.3},{:.3},{:.3}) hp={}/{} npc_flags=0x{:X} unit_flags=0x{:X}/0x{:X}/0x{:X} move_flags=0x{:X} speeds=({:.5},{:.5}) power0={}/{} virtual_items={:?} hover={} hover_h={:.3} animkits=({},{},{})",
+                        "#{index:03} creature guid={guid:?} entry={} updateType={} typeId={} display={} native_display={} level={} bytes={} movementBytes={} valuesBytes={} flags(noBirth=0 portals=0 hover={} move=1 transport=0 stationary=0 combatVictim=0 serverTime=0 vehicle=0 animKit={} rotation=0 areaTrigger=0 gameObject=0 smooth=0 thisIsYou=0 scene=0 activePlayer=0 conversation=0) pos=({:.3},{:.3},{:.3},{:.3}) hp={}/{} npc_flags=0x{:X} unit_flags=0x{:X}/0x{:X}/0x{:X} move_flags=0x{:X}/0x{:X}/0x{:X} speeds=({:.5},{:.5}) power0={}/{} virtual_items={:?} hover={} hover_h={:.3} animkits=({},{},{})",
                         create_data.entry,
+                        UpdateType::CreateObject as u8,
+                        TypeId::Unit as u8,
                         create_data.display_id,
                         create_data.native_display_id,
                         create_data.level,
                         block_bytes,
                         movement_bytes,
                         values_bytes,
+                        create_data.play_hover_anim as u8,
+                        has_anim_kit as u8,
                         movement.position.x,
                         movement.position.y,
                         movement.position.z,
@@ -3138,6 +3145,8 @@ impl UpdateObject {
                         create_data.unit_flags2,
                         create_data.unit_flags3,
                         create_data.movement_flags,
+                        movement.movement_flags2,
+                        movement.movement_flags3,
                         movement.walk_speed,
                         movement.run_speed,
                         create_data.power[0],
