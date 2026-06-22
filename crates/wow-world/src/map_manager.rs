@@ -15,9 +15,9 @@ use wow_constants::{
 };
 use wow_core::{ObjectGuid, Position};
 use wow_entities::{
-    Creature, CreatureAiState, DistractMovementAction, EVENT_CHARGE_PREPATH, GenericMovementInform,
-    MovementGeneratorKind, MovementGeneratorType, MovementSlot, PhaseShift, PointMovementAction,
-    PointMovementInform, RotateMovementUpdate,
+    Creature, CreatureAddonLifecycleRecordLikeCpp, CreatureAiState, DistractMovementAction,
+    EVENT_CHARGE_PREPATH, GenericMovementInform, MovementGeneratorKind, MovementGeneratorType,
+    MovementSlot, PhaseShift, PointMovementAction, PointMovementInform, RotateMovementUpdate,
 };
 use wow_movement::{
     MoveSpline, MoveSplineInit, MoveSplineLaunchInput, MoveSplineStopInput, MoveSplineStopResult,
@@ -3072,6 +3072,7 @@ pub struct PendingRespawn {
     pub ai_name: String,
     pub script_name: String,
     pub string_id: Option<String>,
+    pub addon: Option<CreatureAddonLifecycleRecordLikeCpp>,
     pub ground_movement_type: u8,
     pub swim_allowed: bool,
     pub flight_movement_type: u8,
@@ -3190,6 +3191,7 @@ pub fn pending_respawn_from_world_creature_like_cpp(
         ai_name: creature.creature.lifecycle_metadata().ai_name.clone(),
         script_name: creature.creature.lifecycle_metadata().script_name.clone(),
         string_id: creature.creature.lifecycle_metadata().string_id.clone(),
+        addon: creature.creature.lifecycle_metadata().addon.clone(),
         ground_movement_type: creature.creature.ground_movement_type_like_cpp(),
         swim_allowed: creature.creature.swim_allowed_like_cpp(),
         flight_movement_type: creature.creature.flight_movement_type_like_cpp(),
@@ -5727,6 +5729,7 @@ mod tests {
             ai_name: String::new(),
             script_name: String::new(),
             string_id: None,
+            addon: None,
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
             flight_movement_type: 0,
