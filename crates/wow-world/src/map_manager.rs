@@ -1394,8 +1394,13 @@ impl WorldCreature {
             .subsystems_mut()
             .motion
             .stop_moving();
+        self.initialize_random_wander_steps_like_cpp();
         let dst = self.pick_wander_destination();
-        self.begin_random_move_spline_like_cpp(dst).is_some()
+        if self.begin_random_move_spline_like_cpp(dst).is_some() {
+            self.record_random_movement_launch_like_cpp();
+            return true;
+        }
+        false
     }
 
     pub fn update_default_waypoint_movement_like_cpp(
@@ -2035,6 +2040,37 @@ impl WorldCreature {
         let ai = self.creature.ai_ownership_mut();
         ai.move_start_ms = now_ms;
         ai.wander_delay_ms = wander_delay_ms;
+    }
+
+    pub fn initialize_random_wander_steps_like_cpp(&mut self) {
+        let wander_steps_remaining = self.runtime_rng_like_cpp.gen_range(2..=10);
+        self.creature.ai_ownership_mut().wander_steps_remaining = wander_steps_remaining;
+    }
+
+    pub fn record_random_movement_launch_like_cpp(&mut self) {
+        if self.creature.ai_ownership().wander_steps_remaining == 0 {
+            self.initialize_random_wander_steps_like_cpp();
+        }
+        let ai = self.creature.ai_ownership_mut();
+        ai.wander_steps_remaining = ai.wander_steps_remaining.saturating_sub(1);
+        ai.state = CreatureAiState::WalkingRandom;
+    }
+
+    pub fn schedule_after_random_movement_like_cpp(&mut self) {
+        let now_ms = self.now_ms();
+        if self.creature.ai_ownership().wander_steps_remaining > 0 {
+            let ai = self.creature.ai_ownership_mut();
+            ai.move_start_ms = now_ms;
+            ai.wander_delay_ms = 0;
+            return;
+        }
+
+        let wander_delay_ms = self.runtime_rng_like_cpp.gen_range(4_000..=10_000);
+        let wander_steps_remaining = self.runtime_rng_like_cpp.gen_range(2..=10);
+        let ai = self.creature.ai_ownership_mut();
+        ai.move_start_ms = now_ms;
+        ai.wander_delay_ms = wander_delay_ms;
+        ai.wander_steps_remaining = wander_steps_remaining;
     }
 
     #[cfg(test)]
@@ -3524,6 +3560,14 @@ mod tests {
                 .has_unit_state(UnitState::ROAMING_MOVE.bits())
         );
         assert_eq!(
+            creature.state(),
+            wow_entities::CreatureAiState::WalkingRandom
+        );
+        assert!(
+            (1..=9).contains(&creature.creature.ai_ownership().wander_steps_remaining),
+            "C++ RandomMovementGenerator consumes one of the initial 2..10 wander steps"
+        );
+        assert_eq!(
             creature
                 .creature
                 .unit()
@@ -3532,6 +3576,35 @@ mod tests {
                 .current_movement_generator()
                 .kind,
             MovementGeneratorKind::Random
+        );
+    }
+
+    #[test]
+    fn world_creature_random_wander_steps_pause_only_after_step_batch_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 70006);
+        let mut creature = test_creature(guid);
+        creature
+            .creature
+            .set_default_movement_type_runtime_like_cpp(
+                wow_entities::MovementGeneratorType::Random,
+            );
+        creature.creature.ai_ownership_mut().wander_steps_remaining = 2;
+
+        creature.record_random_movement_launch_like_cpp();
+        assert_eq!(creature.creature.ai_ownership().wander_steps_remaining, 1);
+        creature.schedule_after_random_movement_like_cpp();
+        assert_eq!(creature.creature.ai_ownership().wander_delay_ms, 0);
+
+        creature.record_random_movement_launch_like_cpp();
+        assert_eq!(creature.creature.ai_ownership().wander_steps_remaining, 0);
+        creature.schedule_after_random_movement_like_cpp();
+        assert!(
+            (4_000..=10_000).contains(&creature.creature.ai_ownership().wander_delay_ms),
+            "C++ RandomMovementGenerator pauses 4..10 seconds only after its wander step batch"
+        );
+        assert!(
+            (2..=10).contains(&creature.creature.ai_ownership().wander_steps_remaining),
+            "C++ RandomMovementGenerator reseeds 2..10 wander steps after a pause"
         );
     }
 
