@@ -9933,6 +9933,9 @@ impl WorldSession {
                 .set_combat_reach(create_data.combat_reach);
             creature
                 .unit_mut()
+                .set_hover_height_like_cpp(create_data.hover_height);
+            creature
+                .unit_mut()
                 .set_display_power(power_type_from_u8_like_cpp(create_data.display_power));
             creature
                 .unit_mut()

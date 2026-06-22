@@ -66,6 +66,7 @@ pub const UNIT_DATA_MOD_HASTE_BIT: usize = 67;
 pub const UNIT_DATA_MOD_RANGED_HASTE_BIT: usize = 68;
 pub const UNIT_DATA_MOD_HASTE_REGEN_BIT: usize = 69;
 pub const UNIT_DATA_MOD_TIME_RATE_BIT: usize = 70;
+pub const UNIT_DATA_HOVER_HEIGHT_BIT: usize = 94;
 pub const UNIT_DATA_POWER_PARENT_BIT: usize = 116;
 pub const UNIT_DATA_POWER_FIRST_BIT: usize = 137;
 pub const UNIT_DATA_MAX_POWER_FIRST_BIT: usize = 147;
@@ -111,6 +112,7 @@ pub struct UnitDataValues {
     pub mod_ranged_haste: f32,
     pub mod_haste_regen: f32,
     pub mod_time_rate: f32,
+    pub hover_height: f32,
     pub wild_battle_pet_level: i32,
     pub npc_flags: [u32; 2],
     pub power: [i32; MAX_POWERS_PER_CLASS],
@@ -154,6 +156,7 @@ impl Default for UnitDataValues {
             mod_ranged_haste: 1.0,
             mod_haste_regen: 1.0,
             mod_time_rate: 1.0,
+            hover_height: 1.0,
             wild_battle_pet_level: 0,
             npc_flags: [0; 2],
             power: [0; MAX_POWERS_PER_CLASS],
@@ -1534,6 +1537,12 @@ impl Unit {
     pub fn set_mod_time_rate_like_cpp(&mut self, time_rate: f32) {
         self.set_f32_field(UNIT_DATA_MOD_TIME_RATE_BIT, time_rate, |data| {
             &mut data.mod_time_rate
+        });
+    }
+
+    pub fn set_hover_height_like_cpp(&mut self, hover_height: f32) {
+        self.set_f32_field(UNIT_DATA_HOVER_HEIGHT_BIT, hover_height.max(0.0), |data| {
+            &mut data.hover_height
         });
     }
 
@@ -3763,6 +3772,7 @@ mod tests {
         unit.set_bounding_radius(0.5);
         unit.set_combat_reach(1.5);
         unit.set_display_id(1234, true);
+        unit.set_hover_height_like_cpp(1.25);
 
         assert_eq!(unit.data().level, 70);
         assert_eq!(unit.data().race, 1);
@@ -3777,6 +3787,7 @@ mod tests {
         assert_eq!(unit.data().display_id, 1234);
         assert_eq!(unit.data().display_scale, DEFAULT_PLAYER_DISPLAY_SCALE);
         assert_eq!(unit.data().native_display_id, 1234);
+        assert_eq!(unit.data().hover_height, 1.25);
         assert_eq!(
             unit.data().native_display_scale,
             DEFAULT_PLAYER_DISPLAY_SCALE
@@ -3818,6 +3829,10 @@ mod tests {
         assert!(
             unit.unit_data_changes_mask()
                 .is_set(UNIT_DATA_NATIVE_DISPLAY_SCALE_BIT)
+        );
+        assert!(
+            unit.unit_data_changes_mask()
+                .is_set(UNIT_DATA_HOVER_HEIGHT_BIT)
         );
     }
 
