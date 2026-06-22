@@ -330,6 +330,18 @@ fn creature_movement_generator_type_from_db_like_cpp(
     }
 }
 
+fn normalized_creature_wander_distance_like_cpp(
+    default_movement_type: MovementGeneratorType,
+    wander_distance: f32,
+) -> f32 {
+    let wander_distance = wander_distance.max(0.0);
+    if default_movement_type == MovementGeneratorType::Idle {
+        0.0
+    } else {
+        wander_distance
+    }
+}
+
 fn normalize_creature_template_speed_walk_like_cpp(speed_walk: f32) -> f32 {
     if speed_walk == 0.0 { 1.0 } else { speed_walk }
 }
@@ -5774,6 +5786,8 @@ impl WorldSession {
                 creature_movement_generator_type_from_db_like_cpp(movement_type, wander_distance)
             })
             .unwrap_or(MovementGeneratorType::Idle);
+        let wander_distance =
+            normalized_creature_wander_distance_like_cpp(default_movement_type, wander_distance);
         let waypoint_path_id: u32 = row
             .try_read::<Option<u32>>(CREATURE_SPAWN_WAYPOINT_PATH_ID_COLUMN)
             .flatten()
@@ -13117,6 +13131,16 @@ mod tests {
         assert_eq!(
             creature_movement_generator_type_from_db_like_cpp(WAYPOINT_MOTION_TYPE_LIKE_CPP, 0.0),
             MovementGeneratorType::Waypoint
+        );
+        assert_eq!(
+            normalized_creature_wander_distance_like_cpp(MovementGeneratorType::Idle, 6.0),
+            0.0,
+            "C++ ObjectMgr::LoadCreatures clears wander_distance when MovementType is idle"
+        );
+        assert_eq!(
+            normalized_creature_wander_distance_like_cpp(MovementGeneratorType::Random, 6.0),
+            6.0,
+            "C++ ObjectMgr::LoadCreatures keeps positive wander_distance for random movement"
         );
     }
 
