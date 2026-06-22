@@ -10004,6 +10004,31 @@ mod tests {
     }
 
     #[test]
+    fn player_create_playerdata_self_layout_ends_with_dungeon_score_like_cpp() {
+        let create = test_player_create_data_with_farsight(ObjectGuid::EMPTY);
+
+        let mut packet = WorldPacket::new_empty();
+        create.write_player_data(&mut packet, 0x03);
+        let bytes = packet.data();
+
+        // C++ `UF::PlayerData::WriteCreate` with empty dynamic arrays and
+        // self-view PartyMember fields:
+        // - fixed header/account/flags/customization/party fields: 50 bytes
+        // - QuestLog[25]: 25 * (i64 + i32 + u32 + 24*u16) = 1600 bytes
+        // - VisibleItems[19]: 19 * (i32 + u16 + u16) = 152 bytes
+        // - fixed tail through Field_3120[19]: 147 bytes
+        // - DungeonScoreSummary: f32 + f32 + u32 = 12 bytes
+        const EMPTY_SELF_PLAYER_DATA_LEN: usize = 50 + 1600 + 152 + 147 + 12;
+        assert_eq!(bytes.len(), EMPTY_SELF_PLAYER_DATA_LEN);
+
+        let dungeon_score = &bytes[bytes.len() - 12..];
+        assert_eq!(
+            dungeon_score, &[0; 12],
+            "empty C++ DungeonScoreSummary is two zero f32 values plus zero Runs count"
+        );
+    }
+
+    #[test]
     fn player_create_writes_customizations_like_cpp() {
         let without_customizations = test_player_create_data_with_farsight(ObjectGuid::EMPTY);
         let mut with_customizations = test_player_create_data_with_farsight(ObjectGuid::EMPTY);
