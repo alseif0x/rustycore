@@ -5650,6 +5650,7 @@ impl WorldSession {
                 created_by: ObjectGuid::EMPTY,
                 faction_template: transport.faction_template,
                 gameobject_flags: transport.gameobject_flags,
+                world_effect_id: 0,
                 scale: transport.scale,
             };
             blocks.push(UpdateObject::create_transport_block(create_data, now_ms));
@@ -6700,6 +6701,7 @@ impl WorldSession {
                         created_by: ObjectGuid::EMPTY,
                         faction_template: effective_faction as i32,
                         gameobject_flags: effective_flags,
+                        world_effect_id: 0,
                         scale,
                     };
                     new_go_blocks.push(UpdateObject::create_gameobject_block(create_data));
@@ -7485,6 +7487,7 @@ impl WorldSession {
                 created_by: ObjectGuid::EMPTY,
                 faction_template: effective_faction as i32,
                 gameobject_flags: effective_flags,
+                world_effect_id: 0,
                 scale,
             };
 
