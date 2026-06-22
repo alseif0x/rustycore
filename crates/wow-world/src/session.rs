@@ -45633,7 +45633,7 @@ impl WorldSession {
         let guids = self.world_creature_guids();
 
         // ── Corpse despawn ─────────────────────────────────────────────────
-        // C# ref: `Creature.RemoveCorpse` / `AllLootRemovedFromCorpse`.
+        // C++ refs: `Creature::RemoveCorpse` / `AllLootRemovedFromCorpse`.
         // After `corpse_despawn_at` passes, remove the dead creature from the
         // world and notify the client (destroy block in SMSG_UPDATE_OBJECT).
         let now = std::time::Instant::now();
@@ -45656,7 +45656,8 @@ impl WorldSession {
             for g in &despawn_guids {
                 // Before removing, save data needed for respawn.
                 if let Some(c) = self.remove_world_creature(*g) {
-                    // C# ref: AllLootRemovedFromCorpse → m_respawnTime = corpseRemoveTime + respawnDelay
+                    // C++ `AllLootRemovedFromCorpse` sets
+                    // `m_respawnTime = max(m_corpseRemoveTime + m_respawnDelay, m_respawnTime)`.
                     let respawn_at = now
                         + std::time::Duration::from_secs(
                             c.creature.ai_ownership().respawn_time_secs,
@@ -45682,7 +45683,9 @@ impl WorldSession {
             output.packets.push(pkt.to_bytes());
         }
         // ── Respawn queue ──────────────────────────────────────────────────
-        // C# ref: Creature::Update → RemoveCorpse → respawn via Map::AddToMap.
+        // C++ refs: `Map::ProcessRespawns` drains `Map::_respawnTimes`, then
+        // `Map::DoRespawn(SPAWN_TYPE_CREATURE, spawnId, gridId)` recreates via
+        // `Creature::LoadFromDB`.
         // Lock is acquired inside drain_ready_map_respawns_like_cpp and released
         // before returning; register_world_creature and packet building happen below,
         // outside the lock.
@@ -122898,6 +122901,7 @@ mod tests {
         let create_data = test_creature_create_data(dummy_guid, 9001, 10);
         let pending = crate::map_manager::PendingRespawn {
             respawn_at: past,
+            spawn_id: dummy_guid.low_value() as u64,
             home_pos: Position::new(0.0, 0.0, 0.0, 0.0),
             create_data,
             max_hp: 10,

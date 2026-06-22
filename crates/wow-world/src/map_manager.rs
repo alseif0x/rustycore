@@ -3035,15 +3035,19 @@ pub fn grid_corner(grid_x: i16, grid_y: i16) -> (f32, f32) {
 /// A creature waiting to respawn after its corpse despawned.
 ///
 /// Owned by `MapInstance::respawn_queue`; processed by `tick_creatures_sync`.
-/// C++ refs: `Creature::AllLootRemovedFromCorpse` (`Creature.cpp:2942+`) feeds
-/// creature respawn state owned by `Map` (`Map.cpp:2187+`).
+/// C++ refs: `Creature::RemoveCorpse` / `AllLootRemovedFromCorpse` schedule a
+/// map-owned `RespawnInfo`, and `Map::ProcessRespawns` later calls
+/// `DoRespawn(SPAWN_TYPE_CREATURE, spawnId, gridId)`.
 #[derive(Debug)]
 pub struct PendingRespawn {
     /// When to respawn.
     pub respawn_at: Instant,
+    /// C++ `RespawnInfo::spawnId`, encoded as the low counter of creature map GUIDs.
+    pub spawn_id: u64,
     /// Home position (spawn point).
     pub home_pos: wow_core::Position,
-    /// Full create data — reused verbatim for the respawn CREATE packet.
+    /// Full create data retained until the represented loader converges on
+    /// C++ `Creature::LoadFromDB(spawnId, map, true, true)`.
     pub create_data: CreatureCreateData,
     /// AI fields needed to rebuild the canonical creature runtime.
     pub max_hp: u32,
@@ -3098,6 +3102,7 @@ pub fn pending_respawn_from_world_creature_like_cpp(
 ) -> PendingRespawn {
     PendingRespawn {
         respawn_at,
+        spawn_id: (creature.guid().low_value() as u64) & 0xFF_FFFF_FFFF,
         home_pos: creature.home_position(),
         create_data: CreatureCreateData {
             guid: creature.guid(),
@@ -5628,8 +5633,11 @@ mod tests {
 
     fn make_pending_respawn(respawn_at: Instant) -> PendingRespawn {
         use wow_packet::packets::update::CreatureCreateData;
+        let guid =
+            ObjectGuid::create_world_object(wow_core::guid::HighGuid::Creature, 0, 1, 0, 0, 1, 100);
         PendingRespawn {
             respawn_at,
+            spawn_id: guid.low_value() as u64,
             home_pos: Position {
                 x: 0.0,
                 y: 0.0,
@@ -5637,15 +5645,7 @@ mod tests {
                 orientation: 0.0,
             },
             create_data: CreatureCreateData {
-                guid: ObjectGuid::create_world_object(
-                    wow_core::guid::HighGuid::Creature,
-                    0,
-                    1,
-                    0,
-                    0,
-                    1,
-                    100,
-                ),
+                guid,
                 entry: 1,
                 display_id: 1,
                 native_display_id: 1,
@@ -5887,6 +5887,10 @@ mod tests {
         creature.creature.set_swim_allowed_runtime_like_cpp(false);
 
         let pending = pending_respawn_from_world_creature_like_cpp(&creature, Instant::now(), 0);
+        assert_eq!(
+            pending.spawn_id, 42,
+            "creature respawn must preserve C++ RespawnInfo::spawnId from the map GUID low counter"
+        );
         assert_eq!(pending.flags_extra, CreatureFlagsExtra::CIVILIAN.bits());
         assert_eq!(pending.static_flags[0], static_flags[0]);
         assert_eq!(pending.ai_name, "SmartAI");
