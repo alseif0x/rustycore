@@ -44060,10 +44060,7 @@ pub(crate) fn step_creature_movement_like_cpp(
                         creature.begin_random_move_spline_like_cpp(dst)
                     };
                     if let Some((from, move_spline)) = movement {
-                        creature
-                            .creature
-                            .set_ai_state(wow_entities::CreatureAiState::WalkingRandom);
-                        creature.reset_wander_timer();
+                        creature.record_random_movement_launch_like_cpp();
                         let pkt = MonsterMove {
                             mover_guid: guid,
                             current_pos: from,
@@ -44082,7 +44079,7 @@ pub(crate) fn step_creature_movement_like_cpp(
                 creature
                     .creature
                     .set_ai_state(wow_entities::CreatureAiState::Idle);
-                creature.reset_wander_timer();
+                creature.schedule_after_random_movement_like_cpp();
             }
         }
         wow_entities::CreatureAiState::Returning => {
