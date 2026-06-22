@@ -6,6 +6,7 @@
 //! Character handlers: enum, create, delete, and player login.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::f32::consts::PI;
 use std::sync::Arc;
 
 use rand::Rng;
@@ -26,8 +27,8 @@ use wow_core::{ObjectGuid, Position};
 use wow_crypto::rsa_sign::rsa_sign_connect_to;
 use wow_data::{
     ConditionEntriesByTypeStore, ConditionId, CurrencyTypesStore, HotfixRecordStatus,
-    ItemExtendedCostStore, PlayerConditionContextLikeCpp, PlayerConditionStore, hotfix_locale_mask,
-    is_player_meeting_condition_like_cpp,
+    ItemExtendedCostStore, PlayerConditionContextLikeCpp, PlayerConditionStore, TaxiPathNodeEntry,
+    TaxiPathNodeStore, hotfix_locale_mask, is_player_meeting_condition_like_cpp,
 };
 use wow_database::{
     CharStatements, CharacterDatabase, LoginStatements, PreparedStatement, SqlResult,
@@ -109,12 +110,206 @@ const CHAR_NAME_INVALID_CHARACTER_LIKE_CPP: u8 = 95;
 const AT_LOGIN_RENAME_LIKE_CPP: u16 = 0x001;
 const AT_LOGIN_CUSTOMIZE_LIKE_CPP: u16 = 0x008;
 const DIFFICULTY_10_N_LIKE_CPP: u8 = 3;
+const GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT_LIKE_CPP: u8 = 15;
+const TAXI_PATH_NODE_FLAG_TELEPORT_LIKE_CPP: i32 = 0x1;
+const TAXI_PATH_NODE_FLAG_STOP_LIKE_CPP: i32 = 0x2;
+
+#[derive(Debug, Clone)]
+struct MapTransportCreateLikeCpp {
+    guid_low: u32,
+    entry: u32,
+    display_id: u32,
+    scale: f32,
+    taxi_path_id: u16,
+    move_speed: u32,
+    accel_rate: u32,
+    allow_stopping: bool,
+    phase_use_flags: u8,
+    phase_id: u16,
+    phase_group_id: u32,
+    gameobject_flags: u32,
+    faction_template: i32,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct TransportCreatePositionLikeCpp {
+    map_id: u16,
+    position: Position,
+    timer_ms: u32,
+    total_time_ms: u32,
+}
 
 fn object_guid_from_db_binary_like_cpp(raw: Vec<u8>) -> ObjectGuid {
     let Ok(bytes) = <[u8; 16]>::try_from(raw.as_slice()) else {
         return ObjectGuid::EMPTY;
     };
     ObjectGuid::from_raw_bytes(&bytes)
+}
+
+fn distance_3d_like_cpp(a: &TaxiPathNodeEntry, b: &TaxiPathNodeEntry) -> f32 {
+    let dx = b.loc.x - a.loc.x;
+    let dy = b.loc.y - a.loc.y;
+    let dz = b.loc.z - a.loc.z;
+    (dx * dx + dy * dy + dz * dz).sqrt()
+}
+
+fn movement_time_ms_for_transport_segment_like_cpp(
+    distance: f32,
+    speed: u32,
+    accel_rate: u32,
+    accel_from_pause: bool,
+) -> u32 {
+    if distance <= 0.0 {
+        return 0;
+    }
+
+    let speed = speed.max(1) as f32;
+    let accel = accel_rate.max(1) as f32;
+    if accel_from_pause {
+        let accel_dist = 0.5 * speed * speed / accel;
+        if accel_dist >= distance {
+            ((distance * 2.0 / accel).sqrt() * 1000.0) as u32
+        } else {
+            (((distance - accel_dist) / speed + speed / accel) * 1000.0) as u32
+        }
+    } else {
+        (distance / speed * 1000.0) as u32
+    }
+}
+
+fn transport_position_for_login_like_cpp(
+    nodes: &[TaxiPathNodeEntry],
+    move_speed: u32,
+    accel_rate: u32,
+    now_ms: u32,
+) -> Option<TransportCreatePositionLikeCpp> {
+    let mut sorted_nodes = nodes.to_vec();
+    sorted_nodes.sort_by_key(|node| node.node_index);
+    if sorted_nodes.len() < 2 {
+        return None;
+    }
+
+    let mut legs: Vec<Vec<TaxiPathNodeEntry>> = Vec::new();
+    let mut current_leg: Vec<TaxiPathNodeEntry> = Vec::new();
+    let mut current_map = sorted_nodes[0].continent_id;
+    let mut prev_node_was_teleport = false;
+
+    for node in sorted_nodes {
+        if !current_leg.is_empty() && (node.continent_id != current_map || prev_node_was_teleport) {
+            legs.push(std::mem::take(&mut current_leg));
+            current_map = node.continent_id;
+        }
+        prev_node_was_teleport = (node.flags & TAXI_PATH_NODE_FLAG_TELEPORT_LIKE_CPP) != 0;
+        current_leg.push(node);
+    }
+    if !current_leg.is_empty() {
+        legs.push(current_leg);
+    }
+
+    let mut leg_durations: Vec<u32> = Vec::with_capacity(legs.len());
+    let mut total_time_ms = 0u32;
+    for leg in &legs {
+        let mut duration = 0u32;
+        let mut accel_from_pause = false;
+        for segment in leg.windows(2) {
+            let distance = distance_3d_like_cpp(&segment[0], &segment[1]);
+            duration = duration.saturating_add(movement_time_ms_for_transport_segment_like_cpp(
+                distance,
+                move_speed,
+                accel_rate,
+                accel_from_pause,
+            ));
+            let stop_delay = if (segment[1].flags & TAXI_PATH_NODE_FLAG_STOP_LIKE_CPP) != 0 {
+                segment[1].delay.saturating_mul(1000)
+            } else {
+                0
+            };
+            if stop_delay > 0 {
+                duration = duration.saturating_add(stop_delay);
+                accel_from_pause = true;
+            } else {
+                accel_from_pause = false;
+            }
+        }
+        leg_durations.push(duration);
+        total_time_ms = total_time_ms.saturating_add(duration);
+    }
+
+    if total_time_ms == 0 {
+        return None;
+    }
+
+    let timer_ms = now_ms % total_time_ms;
+    let mut leg_start_ms = 0u32;
+    for (leg, leg_duration) in legs.iter().zip(leg_durations.iter().copied()) {
+        let leg_end_ms = leg_start_ms.saturating_add(leg_duration);
+        if timer_ms >= leg_end_ms {
+            leg_start_ms = leg_end_ms;
+            continue;
+        }
+
+        let mut leg_elapsed_ms = timer_ms.saturating_sub(leg_start_ms);
+        let mut accel_from_pause = false;
+        for segment in leg.windows(2) {
+            let from = &segment[0];
+            let to = &segment[1];
+            let distance = distance_3d_like_cpp(from, to);
+            let move_time = movement_time_ms_for_transport_segment_like_cpp(
+                distance,
+                move_speed,
+                accel_rate,
+                accel_from_pause,
+            )
+            .max(1);
+
+            if leg_elapsed_ms <= move_time {
+                let pct = (leg_elapsed_ms as f32 / move_time as f32).clamp(0.0, 1.0);
+                let x = from.loc.x + (to.loc.x - from.loc.x) * pct;
+                let y = from.loc.y + (to.loc.y - from.loc.y) * pct;
+                let z = from.loc.z + (to.loc.z - from.loc.z) * pct;
+                let orientation = (to.loc.y - from.loc.y).atan2(to.loc.x - from.loc.x) + PI;
+                return Some(TransportCreatePositionLikeCpp {
+                    map_id: from.continent_id,
+                    position: Position::new(x, y, z, orientation),
+                    timer_ms,
+                    total_time_ms,
+                });
+            }
+            leg_elapsed_ms = leg_elapsed_ms.saturating_sub(move_time);
+
+            let stop_delay = if (to.flags & TAXI_PATH_NODE_FLAG_STOP_LIKE_CPP) != 0 {
+                to.delay.saturating_mul(1000)
+            } else {
+                0
+            };
+            if stop_delay > 0 {
+                if leg_elapsed_ms <= stop_delay {
+                    let orientation = (to.loc.y - from.loc.y).atan2(to.loc.x - from.loc.x) + PI;
+                    return Some(TransportCreatePositionLikeCpp {
+                        map_id: to.continent_id,
+                        position: Position::new(to.loc.x, to.loc.y, to.loc.z, orientation),
+                        timer_ms,
+                        total_time_ms,
+                    });
+                }
+                leg_elapsed_ms = leg_elapsed_ms.saturating_sub(stop_delay);
+                accel_from_pause = true;
+            } else {
+                accel_from_pause = false;
+            }
+        }
+
+        if let Some(last) = leg.last() {
+            return Some(TransportCreatePositionLikeCpp {
+                map_id: last.continent_id,
+                position: Position::new(last.loc.x, last.loc.y, last.loc.z, 0.0),
+                timer_ms,
+                total_time_ms,
+            });
+        }
+    }
+
+    None
 }
 
 fn bind_create_character_difficulties_like_cpp(stmt: &mut PreparedStatement) {
@@ -5114,6 +5309,25 @@ impl WorldSession {
                 .await;
         }
 
+        let creature_count = visible_guids
+            .iter()
+            .filter(|guid| guid.is_any_type_creature())
+            .count();
+        let gameobject_count = visible_guids
+            .iter()
+            .filter(|guid| guid.is_game_object())
+            .count();
+        info!(
+            map_id,
+            player_x = position.x,
+            player_y = position.y,
+            player_z = position.z,
+            blocks = blocks.len(),
+            creature_count,
+            gameobject_count,
+            "RUST_UPDATEOBJECT initial_visibility plan"
+        );
+
         if blocks.is_empty() {
             self.last_visibility_pos = Some(*position);
             return;
@@ -5131,18 +5345,241 @@ impl WorldSession {
         }
         self.send_packet(&update);
 
-        let creature_count = visible_guids
-            .iter()
-            .filter(|guid| guid.is_any_type_creature())
-            .count();
-        let gameobject_count = visible_guids
-            .iter()
-            .filter(|guid| guid.is_game_object())
-            .count();
         debug!(
             "Sent initial visibility to account {} on map {}: {} creatures / {} gameobjects",
             self.account_id, map_id, creature_count, gameobject_count
         );
+    }
+
+    /// C++ `Map::SendInitTransports`: after `SendInitSelf`, send map
+    /// transports as GameObject-derived create blocks.
+    async fn send_init_transports_like_cpp(&mut self, map_id: u16) {
+        let Some(world_db) = self.world_db().map(Arc::clone) else {
+            return;
+        };
+
+        let data_dir = self.mmap_runtime_config_like_cpp().data_dir.clone();
+        let locale = self.locale.clone();
+        let taxi_path_nodes = match TaxiPathNodeStore::load(&data_dir, &locale) {
+            Ok(store) => store,
+            Err(error) => {
+                warn!(
+                    map_id,
+                    data_dir,
+                    locale,
+                    %error,
+                    "RUST_LOGIN send_init_transports skipped: TaxiPathNode.db2 load failed"
+                );
+                return;
+            }
+        };
+
+        let mut nodes_by_path: HashMap<u16, Vec<TaxiPathNodeEntry>> = HashMap::new();
+        for node in taxi_path_nodes.entries() {
+            nodes_by_path
+                .entry(node.path_id)
+                .or_default()
+                .push(node.clone());
+        }
+
+        let mut result = match world_db
+            .direct_query(
+                "SELECT t.guid, t.entry, t.phaseUseFlags, t.phaseid, t.phasegroup, \
+                 gt.displayId, gt.size, gt.Data0, gt.Data1, gt.Data2, gt.Data8, \
+                 COALESCE(goo.flags, gta.flags, 0), COALESCE(goo.faction, gta.faction, 0) \
+                 FROM transports t \
+                 JOIN gameobject_template gt ON gt.entry = t.entry \
+                 LEFT JOIN gameobject_template_addon gta ON gta.entry = t.entry \
+                 LEFT JOIN gameobject_overrides goo ON goo.spawnId = t.guid \
+                 WHERE gt.type = 15 \
+                 ORDER BY t.guid",
+            )
+            .await
+        {
+            Ok(result) => result,
+            Err(error) => {
+                warn!(
+                    map_id,
+                    %error,
+                    "RUST_LOGIN send_init_transports skipped: DB query failed"
+                );
+                return;
+            }
+        };
+
+        if result.is_empty() {
+            return;
+        }
+
+        let mut transports = Vec::new();
+        loop {
+            let guid_low = result
+                .try_read::<i64>(0)
+                .map(|value| value.max(0) as u32)
+                .or_else(|| result.try_read::<u32>(0))
+                .unwrap_or(0);
+            let entry = result
+                .try_read::<i32>(1)
+                .map(|value| value.max(0) as u32)
+                .or_else(|| result.try_read::<u32>(1))
+                .unwrap_or(0);
+            let phase_use_flags = result
+                .try_read::<u8>(2)
+                .or_else(|| result.try_read::<i16>(2).map(|value| value.max(0) as u8))
+                .unwrap_or(0);
+            let phase_id = result
+                .try_read::<u16>(3)
+                .or_else(|| result.try_read::<i32>(3).map(|value| value.max(0) as u16))
+                .unwrap_or(0);
+            let phase_group_id = result
+                .try_read::<u32>(4)
+                .or_else(|| result.try_read::<i32>(4).map(|value| value.max(0) as u32))
+                .unwrap_or(0);
+            let display_id = result
+                .try_read::<i32>(5)
+                .map(|value| value.max(0) as u32)
+                .or_else(|| result.try_read::<u32>(5))
+                .unwrap_or(0);
+            let scale = result.try_read::<f32>(6).unwrap_or(1.0);
+            let taxi_path_id = result
+                .try_read::<i32>(7)
+                .map(|value| value.max(0) as u16)
+                .or_else(|| result.try_read::<u16>(7))
+                .unwrap_or(0);
+            let move_speed = result
+                .try_read::<i32>(8)
+                .map(|value| value.max(1) as u32)
+                .or_else(|| result.try_read::<u32>(8))
+                .unwrap_or(1);
+            let accel_rate = result
+                .try_read::<i32>(9)
+                .map(|value| value.max(1) as u32)
+                .or_else(|| result.try_read::<u32>(9))
+                .unwrap_or(1);
+            let allow_stopping = result
+                .try_read::<i32>(10)
+                .map(|value| value != 0)
+                .or_else(|| result.try_read::<u8>(10).map(|value| value != 0))
+                .unwrap_or(false);
+            let gameobject_flags = result
+                .try_read::<i64>(11)
+                .map(|value| value.max(0) as u32)
+                .or_else(|| result.try_read::<u32>(11))
+                .unwrap_or(0);
+            let faction_template = result
+                .try_read::<i64>(12)
+                .map(|value| value as i32)
+                .or_else(|| result.try_read::<i32>(12))
+                .unwrap_or(0);
+
+            transports.push(MapTransportCreateLikeCpp {
+                guid_low,
+                entry,
+                display_id,
+                scale,
+                taxi_path_id,
+                move_speed,
+                accel_rate,
+                allow_stopping,
+                phase_use_flags,
+                phase_id,
+                phase_group_id,
+                gameobject_flags,
+                faction_template,
+            });
+
+            if !result.next_row() {
+                break;
+            }
+        }
+
+        let now_ms = Self::game_time_ms_like_cpp();
+        let mut blocks = Vec::new();
+        let mut considered = 0usize;
+        let mut skipped_other_map = 0usize;
+        let mut skipped_missing_path = 0usize;
+        let mut skipped_phase = 0usize;
+
+        for transport in transports {
+            let Some(nodes) = nodes_by_path.get(&transport.taxi_path_id) else {
+                skipped_missing_path += 1;
+                continue;
+            };
+            let Some(path_position) = transport_position_for_login_like_cpp(
+                nodes,
+                transport.move_speed,
+                transport.accel_rate,
+                now_ms,
+            ) else {
+                skipped_missing_path += 1;
+                continue;
+            };
+
+            if path_position.map_id != map_id {
+                skipped_other_map += 1;
+                continue;
+            }
+
+            let (target_phase_shift, _) = self.db_spawn_phase_shift_like_cpp(
+                map_id,
+                transport.phase_use_flags,
+                transport.phase_id,
+                transport.phase_group_id,
+                -1,
+            );
+            if !self.can_see_phase_shift_like_cpp(&target_phase_shift) {
+                skipped_phase += 1;
+                continue;
+            }
+
+            considered += 1;
+            let path_progress = ((path_position.timer_ms as f32
+                / path_position.total_time_ms as f32)
+                * 65535.0) as u32;
+            let dynamic_flags = path_progress << 16;
+            let create_data = GameObjectCreateData {
+                guid: ObjectGuid::create_transport(HighGuid::Transport, transport.guid_low as i64),
+                entry: transport.entry,
+                dynamic_flags,
+                display_id: transport.display_id,
+                go_type: GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT_LIKE_CPP,
+                position: path_position.position,
+                rotation: [0.0, 0.0, 0.0, 1.0],
+                anim_progress: 255,
+                state: if transport.allow_stopping {
+                    wow_entities::GoState::Active as i8
+                } else {
+                    wow_entities::GoState::Ready as i8
+                },
+                created_by: ObjectGuid::EMPTY,
+                faction_template: transport.faction_template,
+                gameobject_flags: transport.gameobject_flags,
+                scale: transport.scale,
+            };
+            blocks.push(UpdateObject::create_transport_block(create_data, now_ms));
+        }
+
+        info!(
+            map_id,
+            blocks = blocks.len(),
+            considered,
+            skipped_other_map,
+            skipped_missing_path,
+            skipped_phase,
+            "RUST_LOGIN send_init_transports plan"
+        );
+
+        if blocks.is_empty() {
+            return;
+        }
+
+        let update = UpdateObject::create_world_objects(blocks, map_id);
+        if std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some() {
+            for line in update.debug_create_summary_like_cpp() {
+                info!("RUST_UPDATEOBJECT init_transports {line}");
+            }
+        }
+        self.send_packet(&update);
     }
 
     /// Send nearby creatures to the client as UpdateObject packets.
@@ -12197,11 +12634,9 @@ impl WorldSession {
                 let mut blocks = Vec::new();
                 if !result.is_empty() {
                     loop {
-                        let block_index = result.try_read::<i32>(0).unwrap_or(0);
+                        let block_index = result.try_read::<u32>(0).unwrap_or(0);
                         let appearance_mask = result.try_read::<u32>(1).unwrap_or(0);
-                        if let Ok(block_index) = u32::try_from(block_index) {
-                            blocks.push((block_index, appearance_mask));
-                        }
+                        blocks.push((block_index, appearance_mask));
                         if !result.next_row() {
                             break;
                         }
@@ -12227,12 +12662,8 @@ impl WorldSession {
                 let mut favorites = Vec::new();
                 if !result.is_empty() {
                     loop {
-                        let item_modified_appearance_id = result.try_read::<i32>(0).unwrap_or(0);
-                        if let Ok(item_modified_appearance_id) =
-                            u32::try_from(item_modified_appearance_id)
-                        {
-                            favorites.push(item_modified_appearance_id);
-                        }
+                        let item_modified_appearance_id = result.try_read::<u32>(0).unwrap_or(0);
+                        favorites.push(item_modified_appearance_id);
                         if !result.next_row() {
                             break;
                         }
@@ -12270,11 +12701,9 @@ impl WorldSession {
                 let mut blocks = Vec::new();
                 if !result.is_empty() {
                     loop {
-                        let block_index = result.try_read::<i32>(0).unwrap_or(0);
+                        let block_index = result.try_read::<u32>(0).unwrap_or(0);
                         let illusion_mask = result.try_read::<u32>(1).unwrap_or(0);
-                        if let Ok(block_index) = u32::try_from(block_index) {
-                            blocks.push((block_index, illusion_mask));
-                        }
+                        blocks.push((block_index, illusion_mask));
                         if !result.next_row() {
                             break;
                         }
@@ -12293,6 +12722,146 @@ impl WorldSession {
         };
 
         self.load_represented_account_transmog_illusions_like_cpp(illusion_blocks);
+    }
+
+    /// C++ `Player::_LoadTraits`: `CHAR_SEL_CHAR_TRAIT_CONFIGS` +
+    /// `CHAR_SEL_CHAR_TRAIT_ENTRIES`, serialized in ActivePlayerData::TraitConfigs.
+    async fn load_active_player_trait_configs_like_cpp(
+        &self,
+        guid: ObjectGuid,
+    ) -> Vec<TraitConfigCreateData> {
+        let Some(char_db) = self.char_db().map(Arc::clone) else {
+            return Vec::new();
+        };
+
+        let mut entries_stmt = char_db.prepare(CharStatements::SEL_CHAR_TRAIT_ENTRIES);
+        entries_stmt.set_u64(0, guid.counter() as u64);
+        let mut entries_by_config = BTreeMap::<i32, Vec<TraitEntryCreateData>>::new();
+        match char_db.query(&entries_stmt).await {
+            Ok(mut result) => {
+                if !result.is_empty() {
+                    loop {
+                        let trait_config_id = result.try_read::<i32>(0).unwrap_or(0);
+                        entries_by_config.entry(trait_config_id).or_default().push(
+                            TraitEntryCreateData {
+                                trait_node_id: result.try_read::<i32>(1).unwrap_or(0),
+                                trait_node_entry_id: result.try_read::<i32>(2).unwrap_or(0),
+                                rank: result.try_read::<i32>(3).unwrap_or(0),
+                                granted_ranks: result.try_read::<i32>(4).unwrap_or(0),
+                            },
+                        );
+
+                        if !result.next_row() {
+                            break;
+                        }
+                    }
+                }
+            }
+            Err(error) => {
+                warn!(
+                    player_guid = guid.counter(),
+                    "Failed to load character trait entries: {error}"
+                );
+            }
+        }
+
+        let mut configs_stmt = char_db.prepare(CharStatements::SEL_CHAR_TRAIT_CONFIGS);
+        configs_stmt.set_u64(0, guid.counter() as u64);
+        let configs = match char_db.query(&configs_stmt).await {
+            Ok(mut result) => {
+                let mut configs = Vec::new();
+                if !result.is_empty() {
+                    loop {
+                        let id = result.try_read::<i32>(0).unwrap_or(0);
+                        let config_type = result.try_read::<i32>(1).unwrap_or(0);
+                        configs.push(TraitConfigCreateData {
+                            id,
+                            config_type,
+                            chr_specialization_id: result.try_read::<i32>(2).unwrap_or(0),
+                            combat_config_flags: result.try_read::<i32>(3).unwrap_or(0),
+                            local_identifier: result.try_read::<i32>(4).unwrap_or(0),
+                            skill_line_id: result.try_read::<i32>(5).unwrap_or(0),
+                            trait_system_id: result.try_read::<i32>(6).unwrap_or(0),
+                            name: result.try_read::<String>(7).unwrap_or_default(),
+                            entries: entries_by_config.remove(&id).unwrap_or_default(),
+                        });
+
+                        if !result.next_row() {
+                            break;
+                        }
+                    }
+                }
+                configs
+            }
+            Err(error) => {
+                warn!(
+                    player_guid = guid.counter(),
+                    "Failed to load character trait configs: {error}"
+                );
+                Vec::new()
+            }
+        };
+
+        info!(
+            player_guid = guid.counter(),
+            trait_configs = configs.len(),
+            trait_entries = configs
+                .iter()
+                .map(|config| config.entries.len())
+                .sum::<usize>(),
+            "Loaded character trait configs like C++"
+        );
+        configs
+    }
+
+    /// C++ `Player::LoadFromDB`: `CHAR_SEL_CHARACTER_CUSTOMIZATIONS`.
+    ///
+    /// The rows are copied into `PlayerData::Customizations` before
+    /// `PlayerData::WriteCreate`, and each element serializes as
+    /// `(ChrCustomizationOptionID, ChrCustomizationChoiceID)` uint32s.
+    async fn load_player_customizations_like_cpp(
+        &self,
+        guid: ObjectGuid,
+    ) -> Vec<ChrCustomizationChoiceValuesUpdate> {
+        let Some(char_db) = self.char_db().map(Arc::clone) else {
+            return Vec::new();
+        };
+
+        let mut stmt = char_db.prepare(CharStatements::SEL_CHARACTER_CUSTOMIZATIONS);
+        stmt.set_u64(0, guid.counter() as u64);
+
+        let customizations = match char_db.query(&stmt).await {
+            Ok(mut result) => {
+                let mut customizations = Vec::new();
+                if !result.is_empty() {
+                    loop {
+                        customizations.push(ChrCustomizationChoiceValuesUpdate {
+                            option_id: result.try_read::<u32>(0).unwrap_or(0),
+                            choice_id: result.try_read::<u32>(1).unwrap_or(0),
+                        });
+
+                        if !result.next_row() {
+                            break;
+                        }
+                    }
+                }
+                customizations
+            }
+            Err(error) => {
+                warn!(
+                    player_guid = guid.counter(),
+                    "Failed to load character customizations: {error}"
+                );
+                Vec::new()
+            }
+        };
+
+        info!(
+            player_guid = guid.counter(),
+            customizations = customizations.len(),
+            "Loaded character customizations like C++"
+        );
+        customizations
     }
 
     /// Send the player login packet sequence to the client.
@@ -12433,10 +13002,11 @@ impl WorldSession {
         // 22. WorldServerInfo
         self.send_packet(&WorldServerInfo::default_open_world());
 
-        // 22b. SetFlatSpellModifier + SetPctSpellModifier (empty for fresh char)
-        //      C# sends via SendSpellModifiers() at Player.cs line 5584.
-        //      For fresh chars these are empty, but we send them anyway to
-        //      ensure the client's spell modifier arrays are initialized.
+        // 22b. SetFlatSpellModifier + SetPctSpellModifier.
+        //      C++ `Player::SendInitialPacketsBeforeAddToMap` calls
+        //      `Player::SendSpellModifiers()` immediately after
+        //      `WorldServerInfo` (`Player.cpp:23562-23563`). Fresh characters
+        //      have empty modifier maps, but C++ still sends the packets.
         self.send_raw_packet(&SetSpellModifier::flat_empty().to_bytes());
         self.send_raw_packet(&SetSpellModifier::pct_empty().to_bytes());
 
@@ -12462,12 +13032,14 @@ impl WorldSession {
         self.set_player_moved_unit_guid_like_cpp(guid);
         self.send_packet(&MoveSetActiveMover { mover_guid: guid });
 
-        // ── Phase 3: AddToMap → UpdateObject ──
+        // ── C++ Map::AddPlayerToMap ──
 
-        // C++ Map::AddPlayerToMap loads and activates the player's grid before
-        // SendInitSelf/UpdateObjectVisibility. Without this, the first
-        // visibility pass observes an empty Rust map and the client diverges
-        // from the TrinityCore login stream.
+        // C++ `Map::AddPlayerToMap` performs, in this order:
+        // EnsureGridLoadedForActiveObject -> AddToGrid -> SetMap ->
+        // AddToWorld -> SendInitSelf (`Map.cpp:443-470`). Rust must have the
+        // represented/canonical player installed before building the self
+        // create block, otherwise the following packets are emitted from a
+        // world state that C++ would not have.
         if let Some(outcome) = self.ensure_player_grid_loaded_like_cpp(map_id as u16, 0, *position)
         {
             info!(
@@ -12496,23 +13068,67 @@ impl WorldSession {
             );
         }
 
-        // 26. UpdateObject — items + player in a SINGLE packet.
-        //     C# sends all item CREATE blocks followed by the player CREATE
-        //     in one UpdateObject. Items must come first so the client has
-        //     them when it processes InvSlots, but everything must be in
-        //     the same packet for forward-referenced Owner GUIDs to resolve.
+        info!(
+            guid = ?guid,
+            map_id,
+            "RUST_LOGIN map_add before_add_to_world"
+        );
+        let attached_controller = self.ensure_login_player_controller_like_cpp(
+            guid,
+            self.player_name_like_cpp()
+                .map(ToOwned::to_owned)
+                .unwrap_or_else(|| format!("Player{}", guid.counter())),
+            *position,
+            map_id as u16,
+            race,
+            class,
+            level,
+            sex,
+        );
+        if attached_controller {
+            let _ = self.ensure_canonical_world_map_for_current_player_like_cpp();
+        }
+        self.set_player_health_like_cpp(
+            combat.health.max(0).min(u32::MAX as i64) as u32,
+            combat.max_health.max(1).min(u32::MAX as i64) as u32,
+        );
+        self.login_time = Some(std::time::Instant::now());
+        // Clear per-session loot/combat state as part of the Rust AddToWorld
+        // equivalent, before C++ would build `Map::SendInitSelf`.
+        self.loot_table.clear();
+        self.set_active_loot_guid(ObjectGuid::EMPTY);
+        self.combat_target = None;
+        self.in_combat = false;
+        info!(
+            guid = ?guid,
+            map_id,
+            "RUST_LOGIN map_add after_add_to_world"
+        );
+
+        // C++ `Map::SendInitSelf` — items + player in a SINGLE packet.
+        //     C++ Map::SendInitSelf builds the player's self create data in
+        //     one UpdateData. Items must come first so the client has them
+        //     when it processes InvSlots, but everything must be in the same
+        //     packet for forward-referenced Owner GUIDs to resolve.
         {
             // Build quest log for the UpdateObject (25 slots max).
-            // C# ref: QuestLog.WriteCreate — sent with PartyMember flag for self-view.
+            // C++ Player::BuildValuesCreate sends quest log fields in the
+            // self-view player create block.
             // StateFlags: 0=None, 1=Complete (QuestSlotStateMask)
             let quest_log: Vec<(u32, u32, i64, [u16; 24])> =
                 self.quest_log_create_entries_like_cpp();
 
             let account_toys = self.account_toy_active_player_rows_like_cpp();
             let account_heirlooms = self.account_heirloom_active_player_rows_like_cpp();
+            let account_transmog = self.account_transmog_active_player_rows_like_cpp();
+            let trait_configs = self.load_active_player_trait_configs_like_cpp(guid).await;
+            let player_customizations = self.load_player_customizations_like_cpp(guid).await;
             info!(
                 toys = account_toys.len(),
                 heirlooms = account_heirlooms.len(),
+                transmog = account_transmog.len(),
+                trait_configs = trait_configs.len(),
+                customizations = player_customizations.len(),
                 "Building player CREATE collection dynamic fields"
             );
 
@@ -12535,8 +13151,21 @@ impl WorldSession {
                 quest_log,
                 self.party_member_party_type_like_cpp(),
             );
-            player_pkt
-                .set_player_collection_dynamic_fields_like_cpp(account_toys, account_heirlooms);
+            player_pkt.set_player_account_guids_like_cpp(
+                ObjectGuid::create_global(HighGuid::WowAccount, 0, self.account_id as i64),
+                ObjectGuid::create_global(
+                    HighGuid::BNetAccount,
+                    0,
+                    self.battlenet_account_id() as i64,
+                ),
+            );
+            player_pkt.set_player_collection_dynamic_fields_like_cpp(
+                account_toys,
+                account_heirlooms,
+                account_transmog,
+                trait_configs,
+            );
+            player_pkt.set_player_customizations_like_cpp(player_customizations);
 
             if !item_creates.is_empty() {
                 info!(
@@ -12566,21 +13195,37 @@ impl WorldSession {
             }
             self.send_packet(&player_pkt);
         }
+        // C++ Map::AddPlayerToMap sends transports immediately after
+        // SendInitSelf, before clearing the normal visible GUID cache.
+        self.send_init_transports_like_cpp(map_id as u16).await;
+
         // C++ Map::AddPlayerToMap clears the visible GUID cache immediately
         // after SendInitSelf and SendInitTransports.
         self.client_visible_guids_like_cpp.clear();
 
-        // ── Phase 4: SendInitialPacketsAfterAddToMap ──
-
-        // C++ Player::SendInitialPacketsAfterAddToMap starts with
-        // UpdateVisibilityForPlayer(), which gathers nearby world objects into
-        // one UpdateData before UpdateZone()/SendInitWorldStates().
+        // C++ `Map::AddPlayerToMap` clears `m_clientGUIDs`, then calls
+        // `Player::UpdateObjectVisibility(false)`. That marks
+        // `NOTIFY_VISIBILITY_CHANGED`; the subsequent `VisibleNotifier` pass
+        // sends nearby map objects even though the player has not moved yet.
+        // Rust has no notify queue here, so perform the initial visibility
+        // pass explicitly after the self create and before post-add packets.
         self.send_initial_world_objects_like_cpp(map_id as u16, position, zone_id as u32)
             .await;
+
+        // ── Phase 4: SendInitialPacketsAfterAddToMap ──
 
         // C++ Map::AddPlayerToMap sends the phase shift after
         // UpdateObjectVisibility(false), before post-add world-state packets.
         self.send_packet(&PhaseShiftChange::default_for(guid));
+
+        // C++ `HandlePlayerLogin` calls `ObjectAccessor::AddObject` after
+        // `Map::AddPlayerToMap` returns and before
+        // `Player::SendInitialPacketsAfterAddToMap`
+        // (`CharacterHandler.cpp:1241-1262`).
+        self.register_in_player_registry();
+        self.sync_object_accessor_player();
+
+        // ── C++ Player::SendInitialPacketsAfterAddToMap ──
 
         // 27. InitWorldStates (zone state variables — empty for now)
         self.send_packet(&InitWorldStates::new(map_id, zone_id));
@@ -12588,43 +13233,11 @@ impl WorldSession {
         // 28. LoadCufProfiles
         self.send_packet(&self.represented_load_cuf_profiles_packet_like_cpp());
 
-        // 30. PhaseShiftChange — C++ PhasingHandler::OnMapChange(this).
-        // Default player has no special phases: flags = Unphased (0x08).
-        self.send_packet(&PhaseShiftChange::default_for(guid));
-
-        // 30. Set session state to LoggedIn, store player GUID and initial position.
+        // Rust keeps the session status flip after the initial after-add packet
+        // subset so the network loop cannot process normal movement/gameplay
+        // opcodes while the login stream is still being emitted. The represented
+        // player itself was already installed above at the AddToWorld point.
         self.set_state(crate::session::SessionState::LoggedIn);
-        let attached_controller = self.ensure_login_player_controller_like_cpp(
-            guid,
-            self.player_name_like_cpp()
-                .map(ToOwned::to_owned)
-                .unwrap_or_else(|| format!("Player{}", guid.counter())),
-            *position,
-            map_id as u16,
-            race,
-            class,
-            level,
-            sex,
-        );
-        if attached_controller {
-            let _ = self.ensure_canonical_world_map_for_current_player_like_cpp();
-        }
-        self.set_player_health_like_cpp(
-            combat.health.max(0).min(u32::MAX as i64) as u32,
-            combat.max_health.max(1).min(u32::MAX as i64) as u32,
-        );
-        self.login_time = Some(std::time::Instant::now());
-        // Clear per-session loot state for fresh login. Visibility was reset
-        // just after self create, matching Map::AddPlayerToMap.
-        self.loot_table.clear();
-        self.set_active_loot_guid(ObjectGuid::EMPTY);
-        self.combat_target = None;
-        self.in_combat = false;
-
-        // Register in the shared player registry so other sessions can
-        // broadcast chat / emotes / movement packets to us.
-        self.register_in_player_registry();
-        self.sync_object_accessor_player();
 
         // 31. Broadcast this player's CREATE block to all other players on the same map.
         //     Each other player receives an UpdateObject with this player's CREATE block.
@@ -12804,6 +13417,70 @@ mod tests {
         session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
         session.set_player_position_like_cpp(Position::new(10.0, 0.0, 0.0, 0.0));
         (session, send_rx)
+    }
+
+    #[tokio::test]
+    async fn initial_visibility_after_add_to_map_sends_loaded_grid_creatures_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(4);
+        let manager = Arc::new(std::sync::RwLock::new(crate::map_manager::MapManager::new()));
+        let player_position = Position::new(10.0, 10.0, 0.0, 0.0);
+        let creature_position = Position::new(20.0, 20.0, 0.0, 0.0);
+        let creature_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 901, 90_001);
+        let (grid_x, grid_y) =
+            crate::map_manager::world_to_grid_coords(creature_position.x, creature_position.y);
+
+        manager.write().unwrap().add_creature(
+            571,
+            0,
+            grid_x,
+            grid_y,
+            crate::map_manager::WorldCreature::new(
+                creature_guid,
+                901,
+                creature_position,
+                100,
+                80,
+                1,
+                2,
+                0.0,
+                1,
+                35,
+                0,
+                0,
+            ),
+        );
+
+        session.set_map_manager(manager);
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_player_position_like_cpp(player_position);
+
+        // C++ `Map::AddPlayerToMap` clears `m_clientGUIDs`, then schedules
+        // `UpdateObjectVisibility(false)`. The first pass must not wait for a
+        // 50-yard movement delta.
+        session.client_visible_guids_like_cpp.clear();
+        session.last_visibility_pos = None;
+        session
+            .send_initial_world_objects_like_cpp(571, &player_position, 0)
+            .await;
+
+        assert!(
+            session
+                .client_visible_guids_like_cpp
+                .contains(&creature_guid),
+            "initial AddToMap visibility must create already-loaded creatures"
+        );
+        assert_eq!(session.last_visibility_pos, Some(player_position));
+
+        let packet = send_rx
+            .try_recv()
+            .expect("initial visibility UpdateObject packet");
+        let opcode = u16::from_le_bytes([packet[0], packet[1]]);
+        assert_eq!(opcode, ServerOpcodes::UpdateObject as u16);
+        assert!(
+            send_rx.try_recv().is_err(),
+            "single initial visibility packet"
+        );
     }
 
     fn strength_item_stats_store(entry_id: u32, amount: i16) -> ItemStatsStore {

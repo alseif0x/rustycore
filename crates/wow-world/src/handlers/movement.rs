@@ -14,7 +14,7 @@
 //!
 //! Reference: C++ `WorldSession::HandleMovementOpcode`.
 
-use tracing::{trace, warn};
+use tracing::{info, trace, warn};
 
 use wow_constants::ClientOpcodes;
 use wow_constants::movement::MovementFlag;
@@ -114,6 +114,22 @@ impl WorldSession {
             );
             return;
         };
+        if std::env::var_os("RUSTYCORE_LOGIN_TRACE").is_some() {
+            info!(
+                account = self.account_id,
+                ?opcode,
+                mover = ?info.guid,
+                player = ?player_guid,
+                flags = ?info.flags,
+                client_time = info.time,
+                x = info.position.x,
+                y = info.position.y,
+                z = info.position.z,
+                o = info.position.orientation,
+                has_transport = info.transport.is_some(),
+                "RUST_LOGIN_TRACE movement_received"
+            );
+        }
 
         // C++ calls Player::ValidateMovementInfo before rejecting mismatched
         // GUIDs or invalid positions, then broadcasts only the sanitized state.
@@ -283,6 +299,17 @@ impl WorldSession {
                 ));
             }
         }
+        if std::env::var_os("RUSTYCORE_LOGIN_TRACE").is_some() {
+            info!(
+                account = self.account_id,
+                ?opcode,
+                adjusted_time = self.player_movement_time_like_cpp(),
+                x = pos.x,
+                y = pos.y,
+                z = pos.z,
+                "RUST_LOGIN_TRACE movement_applied"
+            );
+        }
     }
 
     fn apply_movement_side_effects_like_cpp(
@@ -341,10 +368,11 @@ impl WorldSession {
     /// The client sends this after login to establish the active mover GUID.
     /// The mover must match C++ `Player::GetUnitBeingMoved()`.
     pub async fn handle_set_active_mover(&mut self, pkt: SetActiveMover) {
-        trace!(
+        info!(
             account = self.account_id,
             mover = ?pkt.active_mover,
-            "SetActiveMover"
+            expected = ?self.player_moved_unit_guid_like_cpp(),
+            "RUST_LOGIN_TRACE SetActiveMover"
         );
 
         let expected_mover = self.player_moved_unit_guid_like_cpp();
@@ -367,10 +395,10 @@ impl WorldSession {
         &mut self,
         pkt: MoveInitActiveMoverComplete,
     ) {
-        trace!(
+        info!(
             account = self.account_id,
             ticks = pkt.ticks,
-            "MoveInitActiveMoverComplete"
+            "RUST_LOGIN_TRACE MoveInitActiveMoverComplete"
         );
         self.apply_move_init_active_mover_complete_like_cpp(pkt.ticks);
         self.update_visibility().await;

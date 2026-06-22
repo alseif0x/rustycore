@@ -4,6 +4,7 @@
 > **Rust target:** `/home/server/rustycore`
 > **Objetivo:** convertir el roadmap actual en una estructura de tareas completa y verificable antes de continuar implementando.
 > **Regla:** ninguna tarea se acepta como cerrada si no cita el C++ contra el que se contrasto.
+> **Regla de dependencias:** si una tarea descubre una dependencia C++ necesaria para cerrar el comportamiento, se sigue implementando esa dependencia dentro de la misma cadena de trabajo. No se deja como TODO/gap futuro y no se salta a otro modulo para mantener avance aparente.
 
 ---
 

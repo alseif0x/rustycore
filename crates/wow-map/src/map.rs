@@ -11352,6 +11352,21 @@ where
             false
         };
 
+        if self.get_ngrid(new_grid).is_none() {
+            return Ok(MapObjectRelocationOutcome {
+                guid,
+                old_cell: old_cell.cell_coord(),
+                new_cell: new_cell.cell_coord(),
+                old_grid,
+                new_grid,
+                moved_between_cells: false,
+                loaded_grid,
+                created_grid: false,
+                relocated: false,
+                blocked_by_unloaded_grid: true,
+            });
+        }
+
         let mut record = self
             .remove_map_object(guid)
             .expect("record was just observed");
@@ -11366,12 +11381,39 @@ where
         );
         let _removed_from_old_cell = removed;
         {
-            let ngrid = self
-                .get_ngrid_mut(new_grid)
-                .expect("relocation target grid must be loaded or created");
-            let local_cell = ngrid
-                .get_grid_type_mut(new_cell.cell_x(), new_cell.cell_y())
-                .expect("cell coordinates must be local to target grid");
+            let Some(ngrid) = self.get_ngrid_mut(new_grid) else {
+                self.insert_map_object_record(record)
+                    .map_err(MapObjectRelocationError::Store)?;
+                return Ok(MapObjectRelocationOutcome {
+                    guid,
+                    old_cell: old_cell.cell_coord(),
+                    new_cell: new_cell.cell_coord(),
+                    old_grid,
+                    new_grid,
+                    moved_between_cells: false,
+                    loaded_grid,
+                    created_grid,
+                    relocated: false,
+                    blocked_by_unloaded_grid: true,
+                });
+            };
+            let Some(local_cell) = ngrid.get_grid_type_mut(new_cell.cell_x(), new_cell.cell_y())
+            else {
+                self.insert_map_object_record(record)
+                    .map_err(MapObjectRelocationError::Store)?;
+                return Ok(MapObjectRelocationOutcome {
+                    guid,
+                    old_cell: old_cell.cell_coord(),
+                    new_cell: new_cell.cell_coord(),
+                    old_grid,
+                    new_grid,
+                    moved_between_cells: false,
+                    loaded_grid,
+                    created_grid,
+                    relocated: false,
+                    blocked_by_unloaded_grid: true,
+                });
+            };
             insert_object_guid_in_cell_like_cpp(local_cell, kind, object_is_world_object, guid);
         }
         record.object_mut().relocate(new_position);
@@ -31042,6 +31084,26 @@ mod tests {
             )
             .unwrap();
         assert!(old_cell.grid_objects.creatures.contains(&guid));
+    }
+
+    #[test]
+    fn relocate_map_object_like_cpp_blocks_missing_target_grid_without_panicking() {
+        let mut map = test_map();
+        let creature = world_object(HighGuid::Creature, 571, 7, false);
+        let guid = creature.guid();
+        map.insert_map_object(AccessorObjectKind::Creature, creature)
+            .unwrap();
+
+        let outcome = map
+            .relocate_map_object_like_cpp(guid, Position::xyz(90.0, 20.0, 5.0))
+            .unwrap();
+
+        assert!(!outcome.relocated);
+        assert!(outcome.blocked_by_unloaded_grid);
+        assert_eq!(
+            map.get_creature(guid).unwrap().position(),
+            Position::xyz(1.0, 2.0, 3.0)
+        );
     }
 
     #[test]

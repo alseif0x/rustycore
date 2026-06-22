@@ -12,6 +12,8 @@
 1. **Antes de implementar** cualquier sistema, leer su contraparte C++ en TrinityCore. Nunca improvisar a oído. Lecciones del bridge MapManager fallido (`_attic/`) costaron 176 errores de compilación.
 2. **Antes de extender** cualquier sistema ya migrado, **auditarlo contra C++**. Lo que está marcado ✅/⚠️ en este documento puede tener bugs, divergencias o piezas que faltan respecto al C++. **Nada se da por bueno hasta auditoría**. Un sistema "implementado" sin auditar es un riesgo, no una ventaja.
 3. Los docs creados por agentes anteriores son útiles como índice, pero no son prueba de corrección. Cada task se valida contra C++ en el momento de ejecutarla.
+4. **No se dejan dependencias como TODO/gap.** Si al portar una fase aparece una dependencia C++ necesaria para que el comportamiento sea correcto, se continúa implementando esa dependencia dentro de la misma cadena de trabajo hasta cerrarla. No se salta a otra fase, no se acepta comportamiento parcial y no se documenta como "future work" para poder avanzar.
+5. Las referencias a C# o a implementaciones no-C++ son sospechosas por defecto. Si un bloque Rust se basa en orden/layout/lógica "C#" debe revalidarse contra C++; si no coincide, se corrige al C++ y se elimina la referencia.
 
 ### Revisión del plan 2026-05-07
 
