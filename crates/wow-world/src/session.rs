@@ -5492,6 +5492,7 @@ pub(crate) struct CreatureCreateDisplaySelectionLikeCpp {
 pub(crate) struct CreatureCreateStatsLikeCpp {
     pub health: i64,
     pub max_health: i64,
+    pub power_mana: i32,
     pub base_mana: i32,
 }
 
@@ -19597,12 +19598,14 @@ impl WorldSession {
         classification: u32,
         regen_health: bool,
         db_cur_health: u32,
+        db_cur_mana: u32,
     ) -> CreatureCreateStatsLikeCpp {
         let Some(difficulty_store) = self.creature_difficulty_store_like_cpp.as_ref() else {
             let health = i64::from(db_cur_health.max(1));
             return CreatureCreateStatsLikeCpp {
                 health,
                 max_health: health,
+                power_mana: i32::try_from(db_cur_mana).unwrap_or(i32::MAX),
                 base_mana: 0,
             };
         };
@@ -19611,6 +19614,7 @@ impl WorldSession {
             return CreatureCreateStatsLikeCpp {
                 health,
                 max_health: health,
+                power_mana: i32::try_from(db_cur_mana).unwrap_or(i32::MAX),
                 base_mana: 0,
             };
         };
@@ -19619,6 +19623,7 @@ impl WorldSession {
             return CreatureCreateStatsLikeCpp {
                 health,
                 max_health: health,
+                power_mana: i32::try_from(db_cur_mana).unwrap_or(i32::MAX),
                 base_mana: 0,
             };
         };
@@ -19638,10 +19643,18 @@ impl WorldSession {
             0
         };
 
+        let base_mana = i32::try_from(base_stats.base_mana).unwrap_or(i32::MAX);
+        let power_mana = if regen_health {
+            base_mana
+        } else {
+            i32::try_from(db_cur_mana).unwrap_or(i32::MAX)
+        };
+
         CreatureCreateStatsLikeCpp {
             health,
             max_health,
-            base_mana: i32::try_from(base_stats.base_mana).unwrap_or(i32::MAX),
+            power_mana,
+            base_mana,
         }
     }
 
@@ -78812,6 +78825,63 @@ mod tests {
             0,
             -1,
         );
+    }
+
+    #[test]
+    fn creature_create_stats_uses_spawn_curmana_when_health_regen_disabled_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_creature_difficulty_store_like_cpp(Arc::new(
+            wow_data::CreatureDifficultyStoreLikeCpp::from_records(
+                [wow_data::CreatureDifficultyRecordLikeCpp {
+                    entry: 90_021,
+                    difficulty_id: 0,
+                    min_level: 5,
+                    max_level: 5,
+                    health_scaling_expansion: 0,
+                    health_modifier: 1.0,
+                    mana_modifier: 1.0,
+                    armor_modifier: 1.0,
+                    damage_modifier: 1.0,
+                    creature_difficulty_id: 0,
+                    type_flags: 0,
+                    type_flags2: 0,
+                    loot_id: 0,
+                    pickpocket_loot_id: 0,
+                    skin_loot_id: 0,
+                    gold_min: 0,
+                    gold_max: 0,
+                    static_flags: [0; 8],
+                }],
+                |_| 1.0,
+            ),
+        ));
+        session.set_creature_base_stats_store_like_cpp(Arc::new(
+            wow_data::CreatureBaseStatsStoreLikeCpp::from_records([(
+                5,
+                2,
+                wow_data::CreatureBaseStatsRecordLikeCpp {
+                    base_health: [100, 100, 100],
+                    base_mana: 600,
+                    base_armor: 0,
+                    attack_power: 0,
+                    ranged_attack_power: 0,
+                    base_damage: [0.0; 3],
+                },
+            )]),
+        ));
+
+        let full = session.creature_create_stats_like_cpp(90_021, 5, 2, 0, true, 42, 77);
+        assert_eq!(
+            full.power_mana, 600,
+            "C++ SetFullPower(POWER_MANA) uses max/base mana when _regenerateHealth is true"
+        );
+
+        let from_spawn = session.creature_create_stats_like_cpp(90_021, 5, 2, 0, false, 42, 77);
+        assert_eq!(
+            from_spawn.power_mana, 77,
+            "C++ SetSpawnHealth copies CreatureData::curmana when _regenerateHealth is false"
+        );
+        assert_eq!(from_spawn.base_mana, 600);
     }
 
     fn creature_template_lifecycle_store_for_test(
