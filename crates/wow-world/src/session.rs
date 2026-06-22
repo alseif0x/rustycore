@@ -23064,7 +23064,7 @@ impl WorldSession {
         false
     }
 
-    fn current_map_difficulty_id_like_cpp(&self) -> u8 {
+    pub(crate) fn current_map_difficulty_id_like_cpp(&self) -> u8 {
         let map_id = u32::from(self.player_map_id_like_cpp());
         self.canonical_map_manager
             .as_ref()

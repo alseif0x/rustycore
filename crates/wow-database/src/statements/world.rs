@@ -669,7 +669,7 @@ impl StatementDef for WorldStatements {
                 "COALESCE(ctm.DisplayScale, 1.0), ",
                 "ct.Classification, ct.RegenHealth, ",
                 "c.npcflag, c.unit_flags, c.unit_flags2, c.unit_flags3, ",
-                "c.equipment_id, c.spawntimesecs, c.ScriptName, c.StringId ",
+                "c.equipment_id, c.spawntimesecs, c.spawnDifficulties, c.ScriptName, c.StringId ",
                 "FROM creature c ",
                 "JOIN creature_template ct ON c.id = ct.entry ",
                 "LEFT JOIN creature_template_difficulty ctdiff ON ct.entry = ctdiff.Entry AND ctdiff.DifficultyID = 0 ",
@@ -1307,6 +1307,10 @@ mod tests {
         assert!(
             sql.contains("c.spawntimesecs"),
             "C++ Creature::LoadFromDB copies CreatureData::spawntimesecs into m_respawnDelay"
+        );
+        assert!(
+            sql.contains("c.spawnDifficulties"),
+            "C++ ObjectMgr::LoadCreatures parses CreatureData::spawnDifficulties and grid load filters by the map spawn mode"
         );
         assert!(
             sql.contains("c.ScriptName"),

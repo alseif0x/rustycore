@@ -92,8 +92,9 @@ const CREATURE_SPAWN_UNIT_FLAGS2_OVERRIDE_COLUMN: usize = 47;
 const CREATURE_SPAWN_UNIT_FLAGS3_OVERRIDE_COLUMN: usize = 48;
 const CREATURE_SPAWN_EQUIPMENT_ID_COLUMN: usize = 49;
 const CREATURE_SPAWN_RESPAWN_DELAY_SECS_COLUMN: usize = 50;
-const CREATURE_SPAWN_SCRIPT_NAME_COLUMN: usize = 51;
-const CREATURE_SPAWN_STRING_ID_COLUMN: usize = 52;
+const CREATURE_SPAWN_DIFFICULTIES_COLUMN: usize = 51;
+const CREATURE_SPAWN_SCRIPT_NAME_COLUMN: usize = 52;
+const CREATURE_SPAWN_STRING_ID_COLUMN: usize = 53;
 const WAYPOINT_MOTION_TYPE_LIKE_CPP: u8 = 2;
 const TACT_KEY_TABLE_HASH_LIKE_CPP: u32 = 0xD3F6_1A9E;
 const QUEST_GIVER_STATUS_TRACKED_QUERY_MAX_GUIDS_LIKE_CPP: u32 = 1000;
@@ -372,6 +373,20 @@ fn optional_u32_column_like_cpp(row: &SqlResult, column: usize) -> Option<u32> {
         })
         .or_else(|| row.try_read::<u32>(column))
         .or_else(|| row.try_read::<i64>(column).map(|value| value.max(0) as u32))
+}
+
+fn spawn_difficulties_contains_spawn_mode_like_cpp(
+    spawn_difficulties: &str,
+    spawn_mode: u8,
+) -> bool {
+    // C++ ObjectMgr::ParseSpawnDifficulties parses comma-separated Difficulty
+    // values and maps invalid tokens to DIFFICULTY_NONE before the map/grid
+    // code filters by Map::GetSpawnMode().
+    spawn_difficulties
+        .split(',')
+        .filter(|token| !token.is_empty())
+        .map(|token| token.parse::<u8>().unwrap_or(0))
+        .any(|difficulty| difficulty == spawn_mode)
 }
 
 fn choose_creature_flags_like_cpp(
@@ -5675,6 +5690,17 @@ impl WorldSession {
         let orientation: f32 = row.try_read(5).unwrap_or(0.0);
         if !is_within_2d_visibility_range_like_cpp(viewer_position, pos_x, pos_y, visibility_range)
         {
+            return None;
+        }
+        let spawn_difficulties: String = row
+            .try_read::<Option<String>>(CREATURE_SPAWN_DIFFICULTIES_COLUMN)
+            .flatten()
+            .or_else(|| row.try_read::<String>(CREATURE_SPAWN_DIFFICULTIES_COLUMN))
+            .unwrap_or_default();
+        if !spawn_difficulties_contains_spawn_mode_like_cpp(
+            &spawn_difficulties,
+            self.current_map_difficulty_id_like_cpp(),
+        ) {
             return None;
         }
 
@@ -13133,6 +13159,23 @@ mod tests {
         assert_eq!(normalize_creature_template_speed_run_like_cpp(0.0), 1.14286);
         assert_eq!(normalize_creature_template_speed_walk_like_cpp(0.75), 0.75);
         assert_eq!(normalize_creature_template_speed_run_like_cpp(2.0), 2.0);
+    }
+
+    #[test]
+    fn creature_spawn_difficulties_filter_matches_spawn_mode_like_cpp() {
+        assert!(spawn_difficulties_contains_spawn_mode_like_cpp("0", 0));
+        assert!(spawn_difficulties_contains_spawn_mode_like_cpp("0,1", 1));
+        assert!(!spawn_difficulties_contains_spawn_mode_like_cpp("1", 0));
+        assert!(!spawn_difficulties_contains_spawn_mode_like_cpp("", 0));
+    }
+
+    #[test]
+    fn creature_spawn_difficulties_invalid_token_maps_to_none_like_cpp() {
+        assert!(
+            spawn_difficulties_contains_spawn_mode_like_cpp("bad", 0),
+            "C++ ObjectMgr::ParseSpawnDifficulties maps invalid tokens to DIFFICULTY_NONE"
+        );
+        assert!(!spawn_difficulties_contains_spawn_mode_like_cpp("bad", 1));
     }
 
     #[test]
