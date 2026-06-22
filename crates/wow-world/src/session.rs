@@ -9755,6 +9755,7 @@ impl WorldSession {
             skin_loot_id,
             gold_min,
             gold_max,
+            wow_entities::DEFAULT_RESPAWN_DELAY_SECS,
             boss_id,
             dungeon_encounter_id,
             phase_use_flags,
@@ -9780,6 +9781,7 @@ impl WorldSession {
         skin_loot_id: u32,
         gold_min: u32,
         gold_max: u32,
+        respawn_delay_secs: u32,
         boss_id: Option<u32>,
         dungeon_encounter_id: u32,
         phase_use_flags: u8,
@@ -9802,6 +9804,7 @@ impl WorldSession {
             skin_loot_id,
             gold_min,
             gold_max,
+            respawn_delay_secs,
             boss_id,
             dungeon_encounter_id,
             phase_use_flags,
@@ -9834,6 +9837,7 @@ impl WorldSession {
         skin_loot_id: u32,
         gold_min: u32,
         gold_max: u32,
+        respawn_delay_secs: u32,
         boss_id: Option<u32>,
         dungeon_encounter_id: u32,
         phase_use_flags: u8,
@@ -9959,10 +9963,12 @@ impl WorldSession {
             // preserve the previous WotLK max-level behavior.
             creature.set_required_expansion_runtime_like_cpp(CURRENT_EXPANSION_LIKE_CPP);
             creature.set_default_movement_type_runtime_like_cpp(default_movement_type);
+            creature.set_respawn_delay(respawn_delay_secs);
             if waypoint_path_id != 0 {
                 creature.load_path_like_cpp(waypoint_path_id);
             }
             creature.configure_ai_runtime(position, aggro_radius, wander_distance.max(0.0), 30);
+            creature.ai_ownership_mut().respawn_time_secs = u64::from(respawn_delay_secs);
             creature.ai_ownership_mut().min_damage = min_dmg;
             creature.ai_ownership_mut().max_damage = max_dmg;
             creature.ai_ownership_mut().loot_id = loot_id;
@@ -45721,6 +45727,7 @@ impl WorldSession {
                 r.skin_loot_id,
                 r.gold_min,
                 r.gold_max,
+                r.respawn_delay_secs,
                 r.boss_id,
                 r.dungeon_encounter_id,
                 r.phase_use_flags,
@@ -79653,6 +79660,7 @@ mod tests {
             0,
             0,
             0,
+            wow_entities::DEFAULT_RESPAWN_DELAY_SECS,
             None,
             0,
             0,
@@ -122935,6 +122943,7 @@ mod tests {
             skin_loot_id: 0,
             gold_min: 0,
             gold_max: 0,
+            respawn_delay_secs: 30,
             boss_id: None,
             dungeon_encounter_id: 0,
             phase_use_flags: 0,

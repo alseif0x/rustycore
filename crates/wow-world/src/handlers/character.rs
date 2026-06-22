@@ -91,6 +91,7 @@ const CREATURE_SPAWN_UNIT_FLAGS_OVERRIDE_COLUMN: usize = 46;
 const CREATURE_SPAWN_UNIT_FLAGS2_OVERRIDE_COLUMN: usize = 47;
 const CREATURE_SPAWN_UNIT_FLAGS3_OVERRIDE_COLUMN: usize = 48;
 const CREATURE_SPAWN_EQUIPMENT_ID_COLUMN: usize = 49;
+const CREATURE_SPAWN_RESPAWN_DELAY_SECS_COLUMN: usize = 50;
 const WAYPOINT_MOTION_TYPE_LIKE_CPP: u8 = 2;
 const TACT_KEY_TABLE_HASH_LIKE_CPP: u32 = 0xD3F6_1A9E;
 const QUEST_GIVER_STATUS_TRACKED_QUERY_MAX_GUIDS_LIKE_CPP: u32 = 1000;
@@ -1342,6 +1343,7 @@ struct MaterializedCreatureSpawnLikeCpp {
     skin_loot_id: u32,
     gold_min: u32,
     gold_max: u32,
+    respawn_delay_secs: u32,
     phase_use_flags: u8,
     phase_id: u16,
     phase_group_id: u32,
@@ -5701,6 +5703,11 @@ impl WorldSession {
         let skin_loot_id: u32 = row.try_read::<Option<u32>>(25).flatten().unwrap_or(0);
         let gold_min: u32 = row.try_read::<Option<u32>>(26).flatten().unwrap_or(0);
         let gold_max: u32 = row.try_read::<Option<u32>>(27).flatten().unwrap_or(0);
+        let respawn_delay_secs: u32 = row
+            .try_read::<Option<u32>>(CREATURE_SPAWN_RESPAWN_DELAY_SECS_COLUMN)
+            .flatten()
+            .or_else(|| row.try_read::<u32>(CREATURE_SPAWN_RESPAWN_DELAY_SECS_COLUMN))
+            .unwrap_or(30);
         let phase_use_flags: u8 = row
             .try_read::<u8>(28)
             .or_else(|| row.try_read::<i16>(28).map(|value| value.max(0) as u8))
@@ -5914,6 +5921,7 @@ impl WorldSession {
             skin_loot_id,
             gold_min,
             gold_max,
+            respawn_delay_secs,
             phase_use_flags,
             phase_id,
             phase_group_id,
@@ -5948,6 +5956,7 @@ impl WorldSession {
             spawn.skin_loot_id,
             spawn.gold_min,
             spawn.gold_max,
+            spawn.respawn_delay_secs,
             None,
             0,
             spawn.phase_use_flags,

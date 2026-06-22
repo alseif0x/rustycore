@@ -3087,6 +3087,7 @@ pub struct PendingRespawn {
     pub skin_loot_id: u32,
     pub gold_min: u32,
     pub gold_max: u32,
+    pub respawn_delay_secs: u32,
     pub boss_id: Option<u32>,
     pub dungeon_encounter_id: u32,
     pub phase_use_flags: u8,
@@ -3201,6 +3202,11 @@ pub fn pending_respawn_from_world_creature_like_cpp(
         skin_loot_id: creature.skin_loot_id(),
         gold_min: creature.gold_min(),
         gold_max: creature.gold_max(),
+        respawn_delay_secs: creature
+            .creature
+            .ai_ownership()
+            .respawn_time_secs
+            .min(u64::from(u32::MAX)) as u32,
         boss_id: creature.boss_id(),
         dungeon_encounter_id: creature.dungeon_encounter_id(),
         phase_use_flags: creature.creature.ai_ownership().phase_use_flags,
@@ -3278,6 +3284,8 @@ pub fn world_creature_from_pending_respawn_like_cpp(
         respawn.wander_distance.max(0.0),
         30,
     );
+    creature.ai_ownership_mut().respawn_time_secs = u64::from(respawn.respawn_delay_secs);
+    creature.set_respawn_delay(respawn.respawn_delay_secs);
     creature.ai_ownership_mut().min_damage = respawn.min_dmg;
     creature.ai_ownership_mut().max_damage = respawn.max_dmg;
     creature.ai_ownership_mut().loot_id = respawn.loot_id;
@@ -5726,6 +5734,7 @@ mod tests {
             skin_loot_id: 0,
             gold_min: 0,
             gold_max: 0,
+            respawn_delay_secs: 30,
             boss_id: None,
             dungeon_encounter_id: 0,
             phase_use_flags: 0,
@@ -5796,7 +5805,8 @@ mod tests {
 
     #[test]
     fn pending_respawn_rebuild_preserves_zero_wander_distance_like_cpp() {
-        let pending = make_pending_respawn(Instant::now());
+        let mut pending = make_pending_respawn(Instant::now());
+        pending.respawn_delay_secs = 45;
 
         let creature = world_creature_from_pending_respawn_like_cpp(&pending, 0);
 
@@ -5804,6 +5814,11 @@ mod tests {
             creature.creature.ai_ownership().wander_radius,
             0.0,
             "C++ respawn uses CreatureData::wander_distance; idle spawns must not regain an invented wander radius"
+        );
+        assert_eq!(
+            creature.creature.ai_ownership().respawn_time_secs,
+            45,
+            "C++ Creature::LoadFromDB copies CreatureData::spawntimesecs into m_respawnDelay"
         );
         assert!(!creature.should_wander());
     }
