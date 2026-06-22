@@ -1502,7 +1502,9 @@ pub struct PlayerCreateData {
     pub skill_info: Vec<(u16, u16, u16, u16, u16, i16, u16)>,
     /// Quest log slots — up to 25 active quests.
     /// (quest_id, state_flags, end_time, objective_progress[24])
-    /// C# ref: QuestLog.WriteCreate — only sent with PartyMember flag (= self-view)
+    /// C++ ref: `UF::PlayerData::WriteCreate` only emits `QuestLog`
+    /// when `UpdateFieldFlag::PartyMember` is present. For self-view,
+    /// `Player::BuildValuesCreate` uses Owner|PartyMember.
     pub quest_log: Vec<(u32, u32, i64, [u16; 24])>,
     /// PlayerData::PartyType[2], indexed by C++ GroupCategory.
     pub party_type: [u8; 2],
@@ -1588,8 +1590,11 @@ impl PlayerCreateData {
         // Build into a temp buffer so we can prefix with size
         let mut buf = WorldPacket::new_empty();
 
-        // UpdateFieldFlag: Owner=0x01 | PartyMember=0x02 for self (IsInSameRaidWith(self)==true)
-        // C# ref: Player.GetUpdateFieldFlagsFor(target) — PartyMember set when in same raid
+        // C++ refs:
+        // - `Player::BuildValuesCreate` writes TypeId sections in Object, Unit,
+        //   Player, ActivePlayer order.
+        // - `WorldObject::GetUpdateFieldFlagsFor` returns Owner|PartyMember
+        //   for the self receiver, which enables self-only PlayerData fields.
         let flags: u8 = if is_self { 0x03 } else { 0x00 }; // 0x01=Owner 0x02=PartyMember
         buf.write_uint8(flags);
 
@@ -1937,8 +1942,10 @@ impl PlayerCreateData {
         buf.write_int32(0);
 
         // QuestLog[25] — written when PartyMember flag is set.
-        // For self-view (is_self=true), C# always includes this (IsInSameRaidWith(self)==true).
-        // C# ref: QuestLog.WriteCreate: int64 EndTime + int32 QuestID + uint32 StateFlags + uint16[24] ObjectiveProgress
+        // For self-view, C++ `WorldObject::GetUpdateFieldFlagsFor` includes
+        // `UpdateFieldFlag::PartyMember`.
+        // C++ `UF::QuestLog::WriteCreate`: int64 EndTime + int32 QuestID
+        // + uint32 StateFlags + uint16[24] ObjectiveProgress.
         if is_party {
             // Fill 25 slots; empty slots get quest_id=0
             let empty_slot: (u32, u32, i64, [u16; 24]) = (0, 0, 0, [0u16; 24]);
@@ -2789,18 +2796,9 @@ impl GameObjectCreateData {
 
     /// Pack the local rotation as a 64-bit integer for the Rotation flag.
     ///
-    /// Matches C# `GameObject.UpdatePackedRotation()` exactly:
-    /// ```csharp
-    /// const int PACK_YZ = 1 << 20;          // 1,048,576
-    /// const int PACK_X  = PACK_YZ << 1;     // 2,097,152
-    /// const int PACK_YZ_MASK = (PACK_YZ << 1) - 1;  // 0x1FFFFF (21 bits)
-    /// const int PACK_X_MASK  = (PACK_X << 1) - 1;   // 0x3FFFFF (22 bits)
-    /// sbyte w_sign = (sbyte)(W >= 0 ? 1 : -1);
-    /// long x = (int)(X * PACK_X)  * w_sign & PACK_X_MASK;
-    /// long y = (int)(Y * PACK_YZ) * w_sign & PACK_YZ_MASK;
-    /// long z = (int)(Z * PACK_YZ) * w_sign & PACK_YZ_MASK;
-    /// result = z | (y << 21) | (x << 42);
-    /// ```
+    /// Matches Trinity C++ packed local rotation used by
+    /// `GameObjectData::WriteCreate` / `WriteUpdate`: Z and Y use 21 bits,
+    /// X uses 22 bits, with the sign of W applied before packing.
     /// Layout: bits[0:20]=Z(21), bits[21:41]=Y(21), bits[42:63]=X(22).
     pub fn packed_rotation(&self) -> i64 {
         const PACK_YZ: i64 = 1 << 20; // 1,048,576
@@ -2808,7 +2806,7 @@ impl GameObjectCreateData {
         const PACK_YZ_MASK: i64 = (PACK_YZ << 1) - 1; // 0x1FFFFF
         const PACK_X_MASK: i64 = (PACK_X << 1) - 1; // 0x3FFFFF
 
-        // Normalize quaternion (C# SetLocalRotation does this before packing)
+        // Normalize quaternion before packing, matching the C++ setter path.
         let (rx, ry, rz, rw) = {
             let dot = self.rotation[0] * self.rotation[0]
                 + self.rotation[1] * self.rotation[1]
@@ -4765,7 +4763,7 @@ fn write_player_values_update_block(
 
     // Build values data into temp buffer for size prefix.
     //
-    // C# Player.BuildValuesUpdate writes:
+    // C++ `Player::BuildValuesUpdate` writes:
     //   [u32] ChangedObjectTypeMask — which TypeId sections have changes
     //   [section data for each changed TypeId]
     //
@@ -4793,7 +4791,8 @@ fn write_player_values_update_block(
 
     val_buf.write_uint32(type_mask);
 
-    // Write only sections that have changes (C# checks HasChanged per TypeId)
+    // Write only sections that have changes; C++ checks `HasChanged`
+    // per TypeId section before writing section payload.
     if has_unit {
         write_unit_data_values_update(&mut val_buf, virtual_item_changes, stat_changes);
     }
@@ -6869,7 +6868,7 @@ fn write_unit_data_values_update(
 
 /// PlayerData VALUES update: VisibleItems[19] (equipment display).
 ///
-/// C# PlayerData.WriteUpdate format:
+/// C++ `UF::PlayerData::WriteUpdate` format:
 ///   WriteBits(blocksMask, 4) — which of 4 blocks have changes
 ///   for each active block: WriteBits(block, 32)
 ///   WriteBit(noQuestLogChangesMask) — ALWAYS present after block masks
@@ -6915,7 +6914,7 @@ fn write_player_data_values_update(
         }
     }
 
-    // C# PlayerData.WriteUpdate ALWAYS writes this bit after block masks:
+    // C++ `UF::PlayerData::WriteUpdate` always writes this bit after block masks:
     // bool noQuestLogChangesMask = data.WriteBit(IsQuestLogChangesMaskSkipped());
     // For us, quest log never changed = true (skip it)
     buf.write_bit(true);
@@ -8166,7 +8165,8 @@ fn write_active_player_data_values_update(
         }
     }
 
-    // C#: WriteUInt32 for group 0 (byte-aligned), WriteBits for group 1 (16 bits)
+    // C++ `UF::ActivePlayerData::WriteUpdate`: WriteUInt32 for group 0
+    // (byte-aligned), then WriteBits for group 1 (16 bits).
     buf.write_uint32(group0);
     buf.write_bits(group1, 16);
 
@@ -8186,10 +8186,10 @@ fn write_active_player_data_values_update(
     // so future ActivePlayerData work does not collapse the C++ phases.
     buf.flush_bits();
 
-    // ── Field values in C# WriteUpdate order ──
+    // Field values in C++ `UF::ActivePlayerData::WriteUpdate` order.
 
     // Block 0: Coinage (bit 28) — written before all other ActivePlayerData fields.
-    // C# ref: ActivePlayerData.Coinage = new(0, 28) → written in block-0 field pass.
+    // C++ `ActivePlayerData::Coinage` is written in the block-0 field pass.
     if let Some(coinage) = coinage_change {
         buf.write_int64(coinage as i64);
     }
@@ -8200,7 +8200,7 @@ fn write_active_player_data_values_update(
         buf.write_float(sc.offhand_expertise); // bit 37: OffhandExpertise
     }
 
-    // Parent 38 section: ALL 31 fields (bits 39-69) in C# definition order
+    // Parent 38 section: all 31 fields (bits 39-69) in C++ definition order.
     if let Some(sc) = stat_changes {
         buf.write_float(sc.ranged_expertise); // bit 39: RangedExpertise
         buf.write_float(sc.combat_rating_expertise); // bit 40: CombatRatingExpertise
@@ -8243,7 +8243,7 @@ fn write_active_player_data_values_update(
     }
 
     // Parent 269 section: SpellCritPercentage[7] + ModDamageDonePos[7]
-    // C# interleaves SpellCritPct/ModDmgDonePos/ModDmgDoneNeg/ModDmgDonePct per school.
+    // C++ interleaves SpellCritPct/ModDmgDonePos/ModDmgDoneNeg/ModDmgDonePct per school.
     // Both SpellCritPct bits (270-276) and ModDmgDonePos bits (277-283) are set.
     if let Some(sc) = stat_changes {
         for i in 0..7 {
@@ -8275,7 +8275,7 @@ fn write_active_player_data_values_update(
 
 /// Write a creature VALUES update block containing only health + max_health.
 ///
-/// C# UnitData field positions:
+/// C++ `UF::UnitData::WriteUpdate` field positions:
 ///   `Health    = new(0, 5)` → block 0, bit 5
 ///   `MaxHealth = new(0, 6)` → block 0, bit 6
 ///   Bit 0 is the parent/dynamic-array indicator bit.
@@ -8356,7 +8356,8 @@ impl UpdateObject {
 
     /// Build an UpdateObject that removes objects from the client's view
     /// because they moved out of range (they still exist in the world).
-    /// C#: WorldObject.BuildOutOfRangeUpdateBlock → UpdateData.AddOutOfRangeGUID
+    /// C++ refs: `Object::BuildOutOfRangeUpdateBlock` →
+    /// `UpdateData::AddOutOfRangeGUID`.
     pub fn out_of_range_objects(guids: Vec<ObjectGuid>, map_id: u16) -> Self {
         Self {
             map_id,
