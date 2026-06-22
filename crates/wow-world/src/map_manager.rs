@@ -2293,6 +2293,17 @@ impl MapInstance {
     /// Enqueue a creature waiting to respawn.
     /// C++ ref: `Map::_respawnTimes` insertion path (Map.cpp:2191).
     pub fn push_respawn(&mut self, respawn: PendingRespawn) {
+        if let Some(existing_index) = self
+            .respawn_queue
+            .iter()
+            .position(|queued| queued.spawn_id == respawn.spawn_id)
+        {
+            if respawn.respawn_at <= self.respawn_queue[existing_index].respawn_at {
+                self.respawn_queue.remove(existing_index);
+            } else {
+                return;
+            }
+        }
         self.respawn_queue.push(respawn);
     }
 
@@ -5739,6 +5750,48 @@ mod tests {
         let now = Instant::now();
         map.push_respawn(make_pending_respawn(now));
         assert_eq!(map.respawn_queue_len(), 1);
+    }
+
+    #[test]
+    fn push_respawn_replaces_later_duplicate_spawn_id_like_cpp() {
+        let mut map = MapInstance::new(0, 0);
+        let now = Instant::now();
+        let later = now + Duration::from_secs(60);
+        let earlier = now + Duration::from_secs(10);
+
+        let mut first = make_pending_respawn(later);
+        first.spawn_id = 42;
+        let mut replacement = make_pending_respawn(earlier);
+        replacement.spawn_id = 42;
+
+        map.push_respawn(first);
+        map.push_respawn(replacement);
+
+        assert_eq!(map.respawn_queue_len(), 1);
+        let ready = map.drain_ready_respawns(now + Duration::from_secs(11));
+        assert_eq!(ready.len(), 1);
+        assert_eq!(ready[0].spawn_id, 42);
+    }
+
+    #[test]
+    fn push_respawn_ignores_later_duplicate_spawn_id_like_cpp() {
+        let mut map = MapInstance::new(0, 0);
+        let now = Instant::now();
+        let earlier = now + Duration::from_secs(10);
+        let later = now + Duration::from_secs(60);
+
+        let mut first = make_pending_respawn(earlier);
+        first.spawn_id = 77;
+        let mut duplicate = make_pending_respawn(later);
+        duplicate.spawn_id = 77;
+
+        map.push_respawn(first);
+        map.push_respawn(duplicate);
+
+        assert_eq!(map.respawn_queue_len(), 1);
+        let ready = map.drain_ready_respawns(now + Duration::from_secs(11));
+        assert_eq!(ready.len(), 1);
+        assert_eq!(ready[0].spawn_id, 77);
     }
 
     #[test]
