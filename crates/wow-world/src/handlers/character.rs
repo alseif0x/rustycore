@@ -5679,6 +5679,7 @@ impl WorldSession {
         }
 
         let cur_health: u32 = row.try_read(6).unwrap_or(100);
+        let cur_mana: u32 = row.try_read(7).unwrap_or(0);
         let model_id: u32 = row.try_read(8).unwrap_or(0);
         let min_level: u8 = row.try_read::<Option<u8>>(9).flatten().unwrap_or(1);
         let faction: i32 = row.try_read::<u16>(11).unwrap_or(35) as i32;
@@ -5882,6 +5883,7 @@ impl WorldSession {
             classification,
             regen_health,
             cur_health,
+            cur_mana,
         );
         let addon_fields = self.creature_addon_create_fields_like_cpp(spawn_guid, entry);
         let equipment_fields = self.creature_virtual_items_from_row_like_cpp(entry, row);
@@ -5912,7 +5914,7 @@ impl WorldSession {
             display_power: self.creature_display_power_for_class_like_cpp(unit_class),
             power: {
                 let mut power = [0; 10];
-                power[0] = creature_stats.base_mana;
+                power[0] = creature_stats.power_mana;
                 power
             },
             max_power: {
