@@ -3088,6 +3088,8 @@ pub struct PendingRespawn {
     pub gold_min: u32,
     pub gold_max: u32,
     pub respawn_delay_secs: u32,
+    pub selected_equipment_id: u8,
+    pub original_equipment_id: i8,
     pub boss_id: Option<u32>,
     pub dungeon_encounter_id: u32,
     pub phase_use_flags: u8,
@@ -3207,6 +3209,8 @@ pub fn pending_respawn_from_world_creature_like_cpp(
             .ai_ownership()
             .respawn_time_secs
             .min(u64::from(u32::MAX)) as u32,
+        selected_equipment_id: creature.creature.equipment_id(),
+        original_equipment_id: creature.creature.original_equipment_id(),
         boss_id: creature.boss_id(),
         dungeon_encounter_id: creature.dungeon_encounter_id(),
         phase_use_flags: creature.creature.ai_ownership().phase_use_flags,
@@ -3275,6 +3279,8 @@ pub fn world_creature_from_pending_respawn_like_cpp(
     creature.set_random_movement_type_runtime_like_cpp(respawn.random_movement_type);
     creature.set_interaction_pause_timer_ms_runtime_like_cpp(respawn.interaction_pause_timer_ms);
     creature.set_default_movement_type_runtime_like_cpp(respawn.default_movement_type);
+    creature.set_equipment_id_like_cpp(respawn.selected_equipment_id);
+    creature.set_original_equipment_id_like_cpp(respawn.original_equipment_id);
     if respawn.waypoint_path_id != 0 {
         creature.load_path_like_cpp(respawn.waypoint_path_id);
     }
@@ -5735,6 +5741,8 @@ mod tests {
             gold_min: 0,
             gold_max: 0,
             respawn_delay_secs: 30,
+            selected_equipment_id: 0,
+            original_equipment_id: 0,
             boss_id: None,
             dungeon_encounter_id: 0,
             phase_use_flags: 0,
@@ -5807,6 +5815,8 @@ mod tests {
     fn pending_respawn_rebuild_preserves_zero_wander_distance_like_cpp() {
         let mut pending = make_pending_respawn(Instant::now());
         pending.respawn_delay_secs = 45;
+        pending.selected_equipment_id = 6;
+        pending.original_equipment_id = -1;
 
         let creature = world_creature_from_pending_respawn_like_cpp(&pending, 0);
 
@@ -5819,6 +5829,16 @@ mod tests {
             creature.creature.ai_ownership().respawn_time_secs,
             45,
             "C++ Creature::LoadFromDB copies CreatureData::spawntimesecs into m_respawnDelay"
+        );
+        assert_eq!(
+            creature.creature.equipment_id(),
+            6,
+            "C++ LoadEquipment mutates m_equipmentId to the selected equipment template"
+        );
+        assert_eq!(
+            creature.creature.original_equipment_id(),
+            -1,
+            "C++ InitEntry keeps CreatureData::equipmentId in m_originalEquipmentId before random equipment selection mutates the selected id"
         );
         assert!(!creature.should_wander());
     }

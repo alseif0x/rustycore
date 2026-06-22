@@ -2340,6 +2340,16 @@ impl Creature {
         self.original_equipment_id
     }
 
+    /// Represented bounded seam for TrinityCore `Creature::InitEntry`.
+    ///
+    /// C++ stores `CreatureData::equipmentId` in `m_originalEquipmentId`
+    /// before `LoadEquipment(id)` mutates the selected equipment id, notably
+    /// when DB value `-1` means "pick a random equipment template".
+    pub fn set_original_equipment_id_like_cpp(&mut self, original_equipment_id: i8) {
+        self.original_equipment_id = original_equipment_id;
+        self.lifecycle_metadata.original_equipment_id = original_equipment_id;
+    }
+
     pub const fn already_call_assistance(&self) -> bool {
         self.already_call_assistance
     }

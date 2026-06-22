@@ -9756,6 +9756,8 @@ impl WorldSession {
             gold_min,
             gold_max,
             wow_entities::DEFAULT_RESPAWN_DELAY_SECS,
+            0,
+            0,
             boss_id,
             dungeon_encounter_id,
             phase_use_flags,
@@ -9782,6 +9784,8 @@ impl WorldSession {
         gold_min: u32,
         gold_max: u32,
         respawn_delay_secs: u32,
+        selected_equipment_id: u8,
+        original_equipment_id: i8,
         boss_id: Option<u32>,
         dungeon_encounter_id: u32,
         phase_use_flags: u8,
@@ -9805,6 +9809,8 @@ impl WorldSession {
             gold_min,
             gold_max,
             respawn_delay_secs,
+            selected_equipment_id,
+            original_equipment_id,
             boss_id,
             dungeon_encounter_id,
             phase_use_flags,
@@ -9838,6 +9844,8 @@ impl WorldSession {
         gold_min: u32,
         gold_max: u32,
         respawn_delay_secs: u32,
+        selected_equipment_id: u8,
+        original_equipment_id: i8,
         boss_id: Option<u32>,
         dungeon_encounter_id: u32,
         phase_use_flags: u8,
@@ -9963,6 +9971,8 @@ impl WorldSession {
             // preserve the previous WotLK max-level behavior.
             creature.set_required_expansion_runtime_like_cpp(CURRENT_EXPANSION_LIKE_CPP);
             creature.set_default_movement_type_runtime_like_cpp(default_movement_type);
+            creature.set_equipment_id_like_cpp(selected_equipment_id);
+            creature.set_original_equipment_id_like_cpp(original_equipment_id);
             creature.set_respawn_delay(respawn_delay_secs);
             if waypoint_path_id != 0 {
                 creature.load_path_like_cpp(waypoint_path_id);
@@ -45728,6 +45738,8 @@ impl WorldSession {
                 r.gold_min,
                 r.gold_max,
                 r.respawn_delay_secs,
+                r.selected_equipment_id,
+                r.original_equipment_id,
                 r.boss_id,
                 r.dungeon_encounter_id,
                 r.phase_use_flags,
@@ -79661,6 +79673,8 @@ mod tests {
             0,
             0,
             wow_entities::DEFAULT_RESPAWN_DELAY_SECS,
+            6,
+            -1,
             None,
             0,
             0,
@@ -79688,6 +79702,16 @@ mod tests {
             creature.creature.waypoint_path_id_like_cpp(),
             77_001,
             "C++ Creature::LoadCreaturesAddon copies nonzero PathId into _waypointPathId"
+        );
+        assert_eq!(
+            creature.creature.equipment_id(),
+            6,
+            "C++ Creature::LoadEquipment stores the selected equipment id on the creature"
+        );
+        assert_eq!(
+            creature.creature.original_equipment_id(),
+            -1,
+            "C++ Creature::InitEntry preserves DB equipment_id separately from the selected equipment template"
         );
         assert!(
             creature.active_waypoint_generator_like_cpp().is_some(),
@@ -122944,6 +122968,8 @@ mod tests {
             gold_min: 0,
             gold_max: 0,
             respawn_delay_secs: 30,
+            selected_equipment_id: 0,
+            original_equipment_id: 0,
             boss_id: None,
             dungeon_encounter_id: 0,
             phase_use_flags: 0,
