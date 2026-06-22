@@ -12106,6 +12106,7 @@ impl WorldSession {
                     created_by: state.owner_guid.unwrap_or(ObjectGuid::EMPTY),
                     faction_template: state.faction_template.unwrap_or(0) as i32,
                     gameobject_flags: state.gameobject_flags,
+                    world_effect_id: 0,
                     scale: state.scale,
                 }
             } else {
@@ -12182,6 +12183,7 @@ impl WorldSession {
             created_by: data.created_by,
             faction_template: data.faction_template,
             gameobject_flags: data.flags,
+            world_effect_id: 0,
             scale: object.object().scale(),
         })
     }

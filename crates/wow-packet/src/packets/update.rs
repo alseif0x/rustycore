@@ -2727,6 +2727,7 @@ impl CreatureCreateData {
 // ── GameObjectCreateData ──────────────────────────────────────────
 
 /// Data needed to build a gameobject create packet for the client.
+#[derive(Debug, Clone)]
 pub struct GameObjectCreateData {
     pub guid: ObjectGuid,
     pub entry: u32,
@@ -2740,6 +2741,7 @@ pub struct GameObjectCreateData {
     pub created_by: ObjectGuid,
     pub faction_template: i32,
     pub gameobject_flags: u32,
+    pub world_effect_id: u32,
     pub scale: f32,
 }
 
@@ -3216,8 +3218,9 @@ impl UpdateObject {
                         debug_create_header_len_like_cpp(*update_type, guid, TypeId::GameObject)
                             + values_bytes,
                     );
+                    let has_gameobject_payload = create_data.world_effect_id != 0;
                     lines.push(format!(
-                        "#{index:03} gameobject guid={guid:?} update_type={} entry={} display={} type={} bytes={} movementBytes={} valuesBytes={} pos=({:.3},{:.3},{:.3},{:.3})",
+                        "#{index:03} gameobject guid={guid:?} update_type={} entry={} display={} type={} bytes={} movementBytes={} valuesBytes={} flags(noBirth=0 portals=0 hover=0 move=0 transport=0 stationary=1 combatVictim=0 serverTime=0 vehicle=0 animKit=0 rotation=1 areaTrigger=0 gameObject={} smooth=0 thisIsYou=0 scene=0 activePlayer=0 conversation=0) worldEffectID={} pos=({:.3},{:.3},{:.3},{:.3})",
                         *update_type as u8,
                         create_data.entry,
                         create_data.display_id,
@@ -3225,6 +3228,8 @@ impl UpdateObject {
                         block_bytes,
                         movement_bytes,
                         values_bytes,
+                        has_gameobject_payload as u8,
+                        create_data.world_effect_id,
                         create_data.position.x,
                         create_data.position.y,
                         create_data.position.z,
@@ -4426,7 +4431,10 @@ fn write_creature_create_block(
 
 /// Write a single CreateObject block for a gameobject (TypeId::GameObject).
 ///
-/// GameObjects use: Stationary (bit 5) + Rotation (bit 10) + GameObject (bit 12) flags.
+/// GameObjects use Stationary (bit 5) + Rotation (bit 10).
+///
+/// C++ only sets `CreateObjectBits::GameObject` when a GO addon/template has
+/// `WorldEffectID`; ordinary GameObjects must not write that extra payload.
 /// No MovementUpdate block.
 fn write_gameobject_create_block(
     buf: &mut WorldPacket,
@@ -4434,6 +4442,8 @@ fn write_gameobject_create_block(
     guid: &ObjectGuid,
     create_data: &GameObjectCreateData,
 ) {
+    let has_gameobject_payload = create_data.world_effect_id != 0;
+
     buf.write_uint8(update_type as u8);
 
     // Object GUID
@@ -4455,7 +4465,7 @@ fn write_gameobject_create_block(
     buf.write_bit(false); // 9: AnimKit
     buf.write_bit(true); // 10: Rotation (true for GOs)
     buf.write_bit(false); // 11: AreaTrigger
-    buf.write_bit(true); // 12: GameObject (true for GOs)
+    buf.write_bit(has_gameobject_payload); // 12: GameObject (WorldEffectID payload)
     buf.write_bit(false); // 13: SmoothPhasing
     buf.write_bit(false); // 14: ThisIsYou
     buf.write_bit(false); // 15: SceneObject
@@ -4478,9 +4488,11 @@ fn write_gameobject_create_block(
     buf.write_int64(create_data.packed_rotation());
 
     // ── GameObject block (bit 12 = true) ─────────────────────
-    buf.write_int32(0); // WorldEffectID
-    buf.write_bit(false); // has extra u32
-    buf.flush_bits();
+    if has_gameobject_payload {
+        buf.write_uint32(create_data.world_effect_id); // WorldEffectID
+        buf.write_bit(false); // has extra u32
+        buf.flush_bits();
+    }
 
     // ── Values block ─────────────────────────────────────────
     create_data.write_values_create(buf);
@@ -8492,6 +8504,7 @@ mod tests {
             created_by: ObjectGuid::EMPTY,
             faction_template: 0,
             gameobject_flags: 0,
+            world_effect_id: 0,
             scale: 1.0,
         };
 
@@ -8530,6 +8543,7 @@ mod tests {
             created_by: ObjectGuid::EMPTY,
             faction_template: 1735,
             gameobject_flags: 0x20,
+            world_effect_id: 0,
             scale: 1.0,
         };
 
@@ -8547,6 +8561,68 @@ mod tests {
         assert!(
             data.windows(4)
                 .any(|window| window == 0x44u32.to_le_bytes())
+        );
+    }
+
+    #[test]
+    fn gameobject_create_omits_gameobject_payload_without_world_effect_like_cpp() {
+        let guid = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::GameObject,
+            0,
+            1,
+            571,
+            0,
+            179976,
+            0x184,
+        );
+        let create = GameObjectCreateData {
+            guid,
+            entry: 179976,
+            dynamic_flags: 0,
+            display_id: 123,
+            go_type: 5,
+            position: Position::ZERO,
+            rotation: [0.0, 0.0, 0.0, 1.0],
+            anim_progress: 255,
+            state: 1,
+            created_by: ObjectGuid::EMPTY,
+            faction_template: 0,
+            gameobject_flags: 0,
+            world_effect_id: 0,
+            scale: 1.0,
+        };
+
+        let mut block = WorldPacket::new_empty();
+        write_gameobject_create_block(&mut block, UpdateType::CreateObject, &guid, &create);
+        let block_bytes = block.data().len();
+        let values_bytes = debug_gameobject_create_values_len_like_cpp(&create);
+        let movement_bytes = block_bytes
+            - debug_create_header_len_like_cpp(UpdateType::CreateObject, &guid, TypeId::GameObject)
+            - values_bytes;
+
+        assert_eq!(
+            movement_bytes, 31,
+            "C++ GameObject constructor only sets Stationary+Rotation by default"
+        );
+
+        let mut with_world_effect = create.clone();
+        with_world_effect.world_effect_id = 77;
+        let mut block = WorldPacket::new_empty();
+        write_gameobject_create_block(
+            &mut block,
+            UpdateType::CreateObject,
+            &guid,
+            &with_world_effect,
+        );
+        let block_bytes = block.data().len();
+        let values_bytes = debug_gameobject_create_values_len_like_cpp(&with_world_effect);
+        let movement_bytes = block_bytes
+            - debug_create_header_len_like_cpp(UpdateType::CreateObject, &guid, TypeId::GameObject)
+            - values_bytes;
+
+        assert_eq!(
+            movement_bytes, 36,
+            "C++ writes WorldEffectID plus one false bit only when CreateObjectBits::GameObject is set"
         );
     }
 
