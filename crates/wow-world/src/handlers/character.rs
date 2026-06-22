@@ -12743,6 +12743,7 @@ impl WorldSession {
         skill_info: Vec<(u16, u16, u16, u16, u16, i16, u16)>,
         account_mounts: Vec<AccountMount>,
     ) {
+        let updateobject_trace_enabled = std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some();
         // ── Phase 1: HandlePlayerLogin packets ──
 
         // 1. DungeonDifficultySet — C++ `Player::SendDungeonDifficulty()`
@@ -12769,6 +12770,9 @@ impl WorldSession {
         self.send_packet(&BattlePetJournalLockAcquired);
 
         // ── Phase 2: SendInitialPacketsBeforeAddToMap ──
+        if updateobject_trace_enabled {
+            info!(guid = ?guid, "RUST_LOGIN before_initial_packets_before_add");
+        }
 
         // 6. TimeSyncRequest (critical — client needs time sync)
         //    Also initializes the periodic timer (5s first, then 10s).
@@ -12878,8 +12882,24 @@ impl WorldSession {
         // the player before the create block.
         self.set_player_moved_unit_guid_like_cpp(guid);
         self.send_packet(&MoveSetActiveMover { mover_guid: guid });
+        if updateobject_trace_enabled {
+            info!(guid = ?guid, "RUST_LOGIN after_initial_packets_before_add");
+        }
 
         // ── C++ Map::AddPlayerToMap ──
+        if updateobject_trace_enabled {
+            info!(
+                guid = ?guid,
+                map_id,
+                instance_id = 0u32,
+                init_player = 1u8,
+                player_x = position.x,
+                player_y = position.y,
+                player_z = position.z,
+                player_o = position.orientation,
+                "RUST_LOGIN map_add start"
+            );
+        }
 
         // C++ `Map::AddPlayerToMap` performs, in this order:
         // EnsureGridLoadedForActiveObject -> AddToGrid -> SetMap ->
@@ -12913,6 +12933,9 @@ impl WorldSession {
                 instance_id = 0u32,
                 "RUST_LOGIN grid_load skipped: no C++ loaded-grid resolver installed"
             );
+        }
+        if updateobject_trace_enabled {
+            info!(guid = ?guid, "RUST_LOGIN map_add after_ensure_grid");
         }
 
         info!(
@@ -13042,13 +13065,33 @@ impl WorldSession {
             }
             self.send_packet(&player_pkt);
         }
+        if updateobject_trace_enabled {
+            info!(guid = ?guid, "RUST_LOGIN map_add after_send_init_self");
+        }
         // C++ Map::AddPlayerToMap sends transports immediately after
         // SendInitSelf, before clearing the normal visible GUID cache.
         self.send_init_transports_like_cpp(map_id as u16).await;
+        if updateobject_trace_enabled {
+            info!(guid = ?guid, "RUST_LOGIN map_add after_send_init_transports");
+        }
 
         // C++ Map::AddPlayerToMap clears the visible GUID cache immediately
         // after SendInitSelf and SendInitTransports.
+        if updateobject_trace_enabled {
+            info!(
+                guid = ?guid,
+                count = self.client_visible_guids_like_cpp.len(),
+                "RUST_LOGIN map_add before_clear_client_guids"
+            );
+        }
         self.client_visible_guids_like_cpp.clear();
+        if updateobject_trace_enabled {
+            info!(
+                guid = ?guid,
+                count = self.client_visible_guids_like_cpp.len(),
+                "RUST_LOGIN map_add after_clear_client_guids"
+            );
+        }
 
         // C++ `Map::AddPlayerToMap` clears `m_clientGUIDs`, then calls
         // `Player::UpdateObjectVisibility(false)`. That marks
@@ -13058,8 +13101,18 @@ impl WorldSession {
         // pass explicitly after the self create and before post-add packets.
         self.send_initial_world_objects_like_cpp(map_id as u16, position, zone_id as u32)
             .await;
+        if updateobject_trace_enabled {
+            info!(
+                guid = ?guid,
+                count = self.client_visible_guids_like_cpp.len(),
+                "RUST_LOGIN map_add after_update_object_visibility"
+            );
+        }
 
         // ── Phase 4: SendInitialPacketsAfterAddToMap ──
+        if updateobject_trace_enabled {
+            info!(guid = ?guid, "RUST_LOGIN before_initial_packets_after_add");
+        }
 
         // C++ Map::AddPlayerToMap sends the phase shift after
         // UpdateObjectVisibility(false), before post-add world-state packets.
@@ -13079,6 +13132,9 @@ impl WorldSession {
 
         // 28. LoadCufProfiles
         self.send_packet(&self.represented_load_cuf_profiles_packet_like_cpp());
+        if updateobject_trace_enabled {
+            info!(guid = ?guid, "RUST_LOGIN after_initial_packets_after_add");
+        }
 
         // Rust keeps the session status flip after the initial after-add packet
         // subset so the network loop cannot process normal movement/gameplay
