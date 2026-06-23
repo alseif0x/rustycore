@@ -836,6 +836,18 @@ impl MoveSpline {
         self.spline.final_destination()
     }
 
+    /// C++ `MoveSpline::getPath()` exposes the raw spline control array used by
+    /// `CommonMovement::WriteCreateObjectSplineDataBlock`.
+    #[must_use]
+    pub fn create_object_path_points_like_cpp(&self) -> &[Position] {
+        &self.spline.points
+    }
+
+    #[must_use]
+    pub const fn spline_is_facing_only_like_cpp(&self) -> bool {
+        self.spline_is_facing_only
+    }
+
     #[must_use]
     pub fn monster_move_path_data(&self) -> MonsterMovePathData {
         let point_count = self.spline.points.len();

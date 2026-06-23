@@ -24,7 +24,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use bytes::BytesMut;
-use num_traits::ToPrimitive;
+use num_traits::{FromPrimitive, ToPrimitive};
 use rand::Rng;
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -997,6 +997,19 @@ impl SocketWriter {
         } else {
             0
         };
+        if std::env::var_os("RUSTYCORE_PACKET_SEQUENCE_TRACE").is_some() {
+            let opcode_name = ServerOpcodes::from_u16(opcode_raw)
+                .map(|opcode| format!("{opcode:?}"))
+                .unwrap_or_else(|| "Unknown".to_string());
+            info!(
+                "RUST_PACKET_OUT addr={} seq={} opcode=0x{:04X} name={} len={}",
+                self.addr,
+                self.crypt.server_counter(),
+                opcode_raw,
+                opcode_name,
+                data.len()
+            );
+        }
         // Log every packet with hex dump for debugging (truncate at 512 bytes).
         {
             let dump_len = data.len().min(512);
@@ -1035,6 +1048,17 @@ impl SocketWriter {
                 data.len(),
                 comp_opcode
             );
+            if std::env::var_os("RUSTYCORE_PACKET_SEQUENCE_TRACE").is_some() {
+                info!(
+                    "RUST_PACKET_OUT_COMPRESSED addr={} seq={} original_opcode=0x{:04X} original_len={} wire_opcode=0x{:04X} wire_len={}",
+                    self.addr,
+                    self.crypt.server_counter(),
+                    opcode_raw,
+                    original_len,
+                    comp_opcode,
+                    data.len()
+                );
+            }
         }
 
         // Encrypt

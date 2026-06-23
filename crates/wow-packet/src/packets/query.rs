@@ -22,6 +22,9 @@ const MAX_CREATURE_KILL_CREDIT: usize = 2;
 /// Trinity `Array<int32, 100>` cap for `CMSG_QUERY_QUEST_COMPLETION_NPCS`.
 pub const MAX_QUERY_QUEST_COMPLETION_NPCS: usize = 100;
 
+/// Trinity `Array<int32, 175>` payload for `CMSG_QUEST_POI_QUERY`.
+pub const QUEST_POI_QUERY_MISSING_QUEST_POIS_LIKE_CPP: usize = 175;
+
 /// Trinity `MAX_DECLINED_NAME_CASES`.
 pub const MAX_DECLINED_NAME_CASES_LIKE_CPP: usize = 5;
 
@@ -1217,6 +1220,118 @@ impl ServerPacket for QuestCompletionNpcResponse {
     }
 }
 
+// ── CMSG_QUEST_POI_QUERY (0x36B2) ──────────────────────────────────
+
+/// Client asks for map POI blobs for missing quest tracker data.
+///
+/// C++ anchors:
+/// - `QuestPOIQuery::Read`, `QueryPackets.cpp:418-423`: one signed count,
+///   then the fixed 175-entry signed quest id array.
+/// - `QuestPOIQuery`, `QueryPackets.h:323-331`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QuestPoiQuery {
+    pub missing_quest_count: i32,
+    pub missing_quest_pois: [i32; QUEST_POI_QUERY_MISSING_QUEST_POIS_LIKE_CPP],
+}
+
+impl ClientPacket for QuestPoiQuery {
+    const OPCODE: ClientOpcodes = ClientOpcodes::QuestPoiQuery;
+
+    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
+        let missing_quest_count = pkt.read_int32()?;
+        let mut missing_quest_pois = [0; QUEST_POI_QUERY_MISSING_QUEST_POIS_LIKE_CPP];
+        for quest_id in &mut missing_quest_pois {
+            *quest_id = pkt.read_int32()?;
+        }
+
+        Ok(Self {
+            missing_quest_count,
+            missing_quest_pois,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QuestPoiBlobPoint {
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QuestPoiBlobData {
+    pub blob_index: i32,
+    pub objective_index: i32,
+    pub quest_objective_id: i32,
+    pub quest_object_id: i32,
+    pub map_id: i32,
+    pub ui_map_id: i32,
+    pub priority: i32,
+    pub flags: i32,
+    pub world_effect_id: i32,
+    pub player_condition_id: i32,
+    pub navigation_player_condition_id: i32,
+    pub spawn_tracking_id: i32,
+    pub points: Vec<QuestPoiBlobPoint>,
+    pub always_allow_merging_blobs: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QuestPoiData {
+    pub quest_id: i32,
+    pub blobs: Vec<QuestPoiBlobData>,
+}
+
+/// Server response for `CMSG_QUEST_POI_QUERY`.
+///
+/// C++ anchors:
+/// - `QuestPOIQueryResponse::Write`, `QueryPackets.cpp:426-441`.
+/// - `operator<<(QuestPOIData const&)`, `QueryPackets.cpp:26-53`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QuestPoiQueryResponse {
+    pub quest_poi_data_stats: Vec<QuestPoiData>,
+}
+
+impl ServerPacket for QuestPoiQueryResponse {
+    const OPCODE: ServerOpcodes = ServerOpcodes::QuestPoiQueryResponse;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        let count = self.quest_poi_data_stats.len() as i32;
+        pkt.write_int32(count);
+        pkt.write_int32(count);
+
+        for quest_poi_data in &self.quest_poi_data_stats {
+            pkt.write_int32(quest_poi_data.quest_id);
+            pkt.write_int32(quest_poi_data.blobs.len() as i32);
+
+            for blob in &quest_poi_data.blobs {
+                pkt.write_int32(blob.blob_index);
+                pkt.write_int32(blob.objective_index);
+                pkt.write_int32(blob.quest_objective_id);
+                pkt.write_int32(blob.quest_object_id);
+                pkt.write_int32(blob.map_id);
+                pkt.write_int32(blob.ui_map_id);
+                pkt.write_int32(blob.priority);
+                pkt.write_int32(blob.flags);
+                pkt.write_int32(blob.world_effect_id);
+                pkt.write_int32(blob.player_condition_id);
+                pkt.write_int32(blob.navigation_player_condition_id);
+                pkt.write_int32(blob.spawn_tracking_id);
+                pkt.write_int32(blob.points.len() as i32);
+
+                for point in &blob.points {
+                    pkt.write_int16(point.x as i16);
+                    pkt.write_int16(point.y as i16);
+                    pkt.write_int16(point.z as i16);
+                }
+
+                pkt.write_bit(blob.always_allow_merging_blobs);
+                pkt.flush_bits();
+            }
+        }
+    }
+}
+
 // ── CMSG_QUERY_REALM_NAME (0x368A) ──────────────────────────────────
 
 /// Client asks for the name of a realm given its VirtualRealmAddress.
@@ -1264,6 +1379,101 @@ impl ServerPacket for RealmQueryResponse {
             pkt.write_string(&self.realm_name_actual);
             pkt.write_string(&self.realm_name_normalized);
         }
+    }
+}
+
+#[cfg(test)]
+mod quest_poi_tests {
+    use super::*;
+    use num_traits::ToPrimitive;
+
+    fn client_payload(bytes: &[u8]) -> WorldPacket {
+        let mut data = Vec::from(ClientOpcodes::QuestPoiQuery.to_u16().unwrap().to_le_bytes());
+        data.extend_from_slice(bytes);
+        let mut pkt = WorldPacket::from_bytes(&data);
+        pkt.skip_opcode();
+        pkt
+    }
+
+    #[test]
+    fn quest_poi_query_reads_fixed_175_array_like_cpp() {
+        let mut payload = Vec::new();
+        payload.extend_from_slice(&2i32.to_le_bytes());
+        for i in 0..QUEST_POI_QUERY_MISSING_QUEST_POIS_LIKE_CPP {
+            payload.extend_from_slice(&(1000 + i as i32).to_le_bytes());
+        }
+
+        let mut pkt = client_payload(&payload);
+        let parsed = QuestPoiQuery::read(&mut pkt).unwrap();
+
+        assert_eq!(parsed.missing_quest_count, 2);
+        assert_eq!(parsed.missing_quest_pois[0], 1000);
+        assert_eq!(parsed.missing_quest_pois[1], 1001);
+        assert_eq!(parsed.missing_quest_pois[174], 1174);
+    }
+
+    #[test]
+    fn quest_poi_query_rejects_short_fixed_array_like_cpp() {
+        let mut payload = Vec::new();
+        payload.extend_from_slice(&1i32.to_le_bytes());
+        payload.extend_from_slice(&123i32.to_le_bytes());
+
+        let mut pkt = client_payload(&payload);
+
+        assert!(matches!(
+            QuestPoiQuery::read(&mut pkt),
+            Err(PacketError::ReadPastEnd { .. })
+        ));
+    }
+
+    #[test]
+    fn quest_poi_query_response_serializes_cpp_shape() {
+        let response = QuestPoiQueryResponse {
+            quest_poi_data_stats: vec![QuestPoiData {
+                quest_id: 77,
+                blobs: vec![QuestPoiBlobData {
+                    blob_index: 1,
+                    objective_index: -1,
+                    quest_objective_id: 2,
+                    quest_object_id: 3,
+                    map_id: 571,
+                    ui_map_id: 486,
+                    priority: 4,
+                    flags: 5,
+                    world_effect_id: 6,
+                    player_condition_id: 7,
+                    navigation_player_condition_id: 8,
+                    spawn_tracking_id: 9,
+                    points: vec![QuestPoiBlobPoint {
+                        x: 10,
+                        y: -11,
+                        z: 12,
+                    }],
+                    always_allow_merging_blobs: true,
+                }],
+            }],
+        };
+
+        let bytes = response.to_bytes();
+        let mut expected = Vec::from(
+            ServerOpcodes::QuestPoiQueryResponse
+                .to_u16()
+                .unwrap()
+                .to_le_bytes(),
+        );
+        expected.extend_from_slice(&1i32.to_le_bytes());
+        expected.extend_from_slice(&1i32.to_le_bytes());
+        expected.extend_from_slice(&77i32.to_le_bytes());
+        expected.extend_from_slice(&1i32.to_le_bytes());
+        for value in [1, -1, 2, 3, 571, 486, 4, 5, 6, 7, 8, 9, 1] {
+            expected.extend_from_slice(&i32::to_le_bytes(value));
+        }
+        expected.extend_from_slice(&10i16.to_le_bytes());
+        expected.extend_from_slice(&(-11i16).to_le_bytes());
+        expected.extend_from_slice(&12i16.to_le_bytes());
+        expected.push(0x80);
+
+        assert_eq!(bytes, expected);
     }
 }
 

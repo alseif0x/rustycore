@@ -3,12 +3,12 @@
 // Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! In-memory cache of raw DB2 record blobs for serving DBReply (SMSG_DB_REPLY).
+//! In-memory cache of DB2 table presence and SQL `hotfix_blob` payloads.
 //!
-//! When the client sends `CMSG_DB_QUERY_BULK` for records it does not have in
-//! its local DB2 cache, the server must respond with the raw binary blob for
-//! each requested record.  This module pre-loads record blobs from `.db2`
-//! files at startup so they can be looked up with O(1) cost at runtime.
+//! C++ `DB2StorageBase::WriteRecord` serializes known DB2 stores into the
+//! client hotfix wire format. Raw WDC4/DB2 record bytes from local `.db2` files
+//! are not that format and must not be sent as `SMSG_DB_REPLY` or
+//! `SMSG_HOTFIX_CONNECT` payloads.
 
 use std::collections::BTreeMap;
 use std::collections::HashMap;
@@ -80,8 +80,12 @@ pub struct HotfixOptionalData {
 pub struct HotfixBlobCache {
     /// Outer key: table_hash (from DB2 header).
     /// Inner key: record_id.
-    /// Value: raw record bytes (inline strings, no copy-table dedup).
+    /// Value: local WDC4/DB2 record bytes. These bytes are useful for detecting
+    /// known DB2 stores/records, but are not the client hotfix wire format.
     blobs: HashMap<u32, HashMap<u32, Vec<u8>>>,
+    /// Raw payloads loaded from SQL `hotfix_blob`. C++ only uses this blob path
+    /// when there is no typed DB2 storage record to serialize.
+    hotfix_blobs: HashMap<u32, HashMap<u32, Vec<u8>>>,
     hotfix_data: BTreeMap<i32, HotfixPush>,
     optional_data: HashMap<String, HashMap<(u32, i32), Vec<HotfixOptionalData>>>,
     max_hotfix_id: i32,
@@ -124,6 +128,24 @@ impl HotfixBlobCache {
             .insert(record_id as u32, bytes);
     }
 
+    /// Insert one SQL `hotfix_blob` payload.
+    pub fn insert_hotfix_blob(&mut self, table_hash: u32, record_id: i32, bytes: Vec<u8>) {
+        self.hotfix_blobs
+            .entry(table_hash)
+            .or_default()
+            .insert(record_id as u32, bytes);
+    }
+
+    /// Insert one C++ `hotfix_data` record into its push group.
+    pub fn insert_hotfix_record_like_cpp(&mut self, record: HotfixRecord) {
+        let push_id = record.id.push_id;
+        let available_locales_mask = record.available_locales_mask;
+        let push = self.hotfix_data.entry(push_id).or_default();
+        push.available_locales_mask |= available_locales_mask;
+        push.records.push(record);
+        self.max_hotfix_id = self.max_hotfix_id.max(push_id);
+    }
+
     /// Load C++ `hotfix_blob` rows from the Hotfix database for one locale.
     pub async fn load_hotfix_blobs_from_db(
         &mut self,
@@ -144,7 +166,7 @@ impl HotfixBlobCache {
             let blob: Vec<u8> = result.try_read(3).unwrap_or_default();
 
             if row_locale == locale {
-                self.insert_blob(table_hash, record_id, blob);
+                self.insert_hotfix_blob(table_hash, record_id, blob);
                 count += 1;
             }
 
@@ -179,7 +201,7 @@ impl HotfixBlobCache {
 
             if status == HotfixRecordStatus::Valid
                 && !self.has_table(table_hash)
-                && self.get(table_hash, record_id).is_none()
+                && self.get_hotfix_blob(table_hash, record_id).is_none()
             {
                 if !result.next_row() {
                     break;
@@ -195,10 +217,7 @@ impl HotfixBlobCache {
                 available_locales_mask: locale_mask,
             };
 
-            let push = self.hotfix_data.entry(push_id).or_default();
-            push.available_locales_mask |= record.available_locales_mask;
-            push.records.push(record);
-            self.max_hotfix_id = self.max_hotfix_id.max(push_id);
+            self.insert_hotfix_record_like_cpp(record);
             count += 1;
 
             if !result.next_row() {
@@ -253,6 +272,12 @@ impl HotfixBlobCache {
         table.get(&(record_id as u32)).map(|v| v.as_slice())
     }
 
+    /// Look up a SQL `hotfix_blob` payload.
+    pub fn get_hotfix_blob(&self, table_hash: u32, record_id: i32) -> Option<&[u8]> {
+        let table = self.hotfix_blobs.get(&table_hash)?;
+        table.get(&(record_id as u32)).map(|v| v.as_slice())
+    }
+
     /// Look up C++ `DB2Manager::HotfixOptionalData` entries for one locale.
     pub fn get_optional_data(
         &self,
@@ -274,6 +299,10 @@ impl HotfixBlobCache {
     /// Total number of blobs cached across all tables.
     pub fn total_blobs(&self) -> usize {
         self.blobs.values().map(|t| t.len()).sum()
+    }
+
+    pub fn total_hotfix_blobs(&self) -> usize {
+        self.hotfix_blobs.values().map(|t| t.len()).sum()
     }
 
     pub fn hotfix_pushes(&self) -> &BTreeMap<i32, HotfixPush> {
@@ -416,8 +445,21 @@ mod tests {
         cache.insert_blob(0x919B_E54E, 58256, vec![1, 2, 3]);
 
         assert_eq!(cache.get(0x919B_E54E, 58256), Some(&[1, 2, 3][..]));
+        assert_eq!(cache.get_hotfix_blob(0x919B_E54E, 58256), None);
         assert!(cache.has_table(0x919B_E54E));
         assert_eq!(cache.total_blobs(), 1);
+    }
+
+    #[test]
+    fn sql_hotfix_blob_is_separate_from_local_db2_record_bytes() {
+        let mut cache = HotfixBlobCache::new();
+        cache.insert_blob(0x919B_E54E, 58256, vec![1, 2, 3]);
+        cache.insert_hotfix_blob(0x919B_E54E, 58256, vec![4, 5]);
+
+        assert_eq!(cache.get(0x919B_E54E, 58256), Some(&[1, 2, 3][..]));
+        assert_eq!(cache.get_hotfix_blob(0x919B_E54E, 58256), Some(&[4, 5][..]));
+        assert_eq!(cache.total_blobs(), 1);
+        assert_eq!(cache.total_hotfix_blobs(), 1);
     }
 
     #[test]

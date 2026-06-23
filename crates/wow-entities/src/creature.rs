@@ -2089,8 +2089,13 @@ impl Creature {
         self.lifecycle_metadata.static_flags[0] = flags.bits();
         if rooted {
             self.unit.add_unit_state(UnitState::ROOT.bits());
+            self.runtime_state
+                .movement_flags
+                .remove(MovementFlag::MASK_MOVING);
+            self.runtime_state.movement_flags.insert(MovementFlag::ROOT);
         } else {
             self.unit.clear_unit_state(UnitState::ROOT.bits());
+            self.runtime_state.movement_flags.remove(MovementFlag::ROOT);
         }
     }
 
@@ -4195,8 +4200,18 @@ mod tests {
         creature.ai_ownership_mut().npc_flags = 0;
         creature.set_template_rooted_like_cpp(true);
         assert!(creature.is_template_rooted_like_cpp());
+        assert!(
+            creature
+                .movement_flags_like_cpp()
+                .contains(MovementFlag::ROOT)
+        );
         assert!(!creature.can_ai_wander());
         creature.set_template_rooted_like_cpp(false);
+        assert!(
+            !creature
+                .movement_flags_like_cpp()
+                .contains(MovementFlag::ROOT)
+        );
         assert!(creature.can_ai_wander());
 
         creature.set_display_id(1234, true, None);
@@ -6156,6 +6171,11 @@ mod tests {
         assert!(flags4.contains(CreatureStaticFlags4::TREAT_AS_RAID_UNIT_FOR_HELPFUL_SPELLS));
         assert!(creature.is_template_rooted_like_cpp());
         assert!(creature.unit().has_unit_state(UnitState::ROOT.bits()));
+        assert!(
+            creature
+                .movement_flags_like_cpp()
+                .contains(MovementFlag::ROOT)
+        );
         assert!(!creature.can_melee_like_cpp());
     }
 

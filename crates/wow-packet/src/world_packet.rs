@@ -667,15 +667,7 @@ mod tests {
     #[test]
     fn packed_guid_creature_roundtrip() {
         let mut pkt = WorldPacket::new_empty();
-        let guid = ObjectGuid::create_world_object(
-            wow_core::guid::HighGuid::Creature,
-            0,
-            1,
-            530,
-            0,
-            1234,
-            5678,
-        );
+        let guid = ObjectGuid::create_creature_like_cpp(530, 1234, 5678);
         pkt.write_packed_guid(&guid);
 
         pkt.reset_read();
@@ -685,6 +677,36 @@ mod tests {
         assert_eq!(read_back.map_id(), 530);
         assert_eq!(read_back.entry(), 1234);
         assert_eq!(read_back.counter(), 5678);
+    }
+
+    #[test]
+    fn packed_guid_world_objects_do_not_encode_realm_or_server_like_cpp() {
+        let cpp_guid = ObjectGuid::create_vehicle_like_cpp(571, 29929, 0x6A);
+        let mut cpp_packet = WorldPacket::new_empty();
+        cpp_packet.write_packed_guid(&cpp_guid);
+
+        let contaminated_guid = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Vehicle,
+            0,
+            1,
+            571,
+            1,
+            29929,
+            0x6A,
+        );
+        let mut contaminated_packet = WorldPacket::new_empty();
+        contaminated_packet.write_packed_guid(&contaminated_guid);
+
+        assert_eq!(cpp_guid.realm_id(), 0);
+        assert_eq!(cpp_guid.server_id(), 0);
+        assert_eq!(
+            contaminated_packet.size(),
+            cpp_packet.size() + 2,
+            "non-zero realm/server fields add packed GUID bytes that C++ WorldObject GUIDs do not have"
+        );
+
+        cpp_packet.reset_read();
+        assert_eq!(cpp_packet.read_packed_guid().unwrap(), cpp_guid);
     }
 
     #[test]

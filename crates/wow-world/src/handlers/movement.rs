@@ -389,8 +389,10 @@ impl WorldSession {
 
     /// Handle CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE — client acknowledges active mover ready.
     ///
-    /// In C# this updates transport timing flags and triggers visibility update.
-    /// For now we just log receipt; transport timing is not yet implemented.
+    /// C++ updates transport timing, then calls `UpdateObjectVisibility(false)`.
+    /// That marks `NOTIFY_VISIBILITY_CHANGED`; the visible object batch is sent
+    /// later by the normal map/object visibility pass, not directly from this
+    /// packet handler.
     pub async fn handle_move_init_active_mover_complete(
         &mut self,
         pkt: MoveInitActiveMoverComplete,
@@ -401,7 +403,6 @@ impl WorldSession {
             "RUST_LOGIN_TRACE MoveInitActiveMoverComplete"
         );
         self.apply_move_init_active_mover_complete_like_cpp(pkt.ticks);
-        self.update_visibility().await;
     }
 
     /// Handle C++ `HandleMovementAckMessage` opcodes.

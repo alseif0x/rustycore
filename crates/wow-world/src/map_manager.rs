@@ -40,6 +40,14 @@ pub const GRID_SIZE: f32 = 64.0;
 /// Visibility radius in yards (how far a player can see).
 pub const VISIBILITY_RADIUS: f32 = 100.0;
 
+const MAX_NUMBER_OF_CELLS_LIKE_CPP: i32 = 8;
+const TOTAL_NUMBER_OF_CELLS_PER_MAP_LIKE_CPP: i32 =
+    MAX_NUMBER_OF_GRIDS_LIKE_CPP * MAX_NUMBER_OF_CELLS_LIKE_CPP;
+const SIZE_OF_GRID_CELL_LIKE_CPP: f32 =
+    SIZE_OF_GRIDS_LIKE_CPP / MAX_NUMBER_OF_CELLS_LIKE_CPP as f32;
+const CENTER_GRID_CELL_ID_LIKE_CPP: i32 = TOTAL_NUMBER_OF_CELLS_PER_MAP_LIKE_CPP / 2;
+const CENTER_GRID_CELL_OFFSET_LIKE_CPP: f32 = SIZE_OF_GRID_CELL_LIKE_CPP / 2.0;
+
 /// Default time before a grid unloads if no players are nearby (5 minutes).
 pub const DEFAULT_GRID_UNLOAD_TIME: Duration = Duration::from_secs(300);
 
@@ -67,6 +75,51 @@ pub fn terrain_grid_coords_for_wow_position_like_cpp(x: f32, y: f32) -> (i32, i3
         (MAX_NUMBER_OF_GRIDS_LIKE_CPP - 1) - grid_x,
         (MAX_NUMBER_OF_GRIDS_LIKE_CPP - 1) - grid_y,
     )
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct CellCoordLikeCpp {
+    x: i32,
+    y: i32,
+}
+
+fn compute_cell_coord_like_cpp(x: f32, y: f32) -> CellCoordLikeCpp {
+    let x_offset = (f64::from(x) - f64::from(CENTER_GRID_CELL_OFFSET_LIKE_CPP))
+        / f64::from(SIZE_OF_GRID_CELL_LIKE_CPP);
+    let y_offset = (f64::from(y) - f64::from(CENTER_GRID_CELL_OFFSET_LIKE_CPP))
+        / f64::from(SIZE_OF_GRID_CELL_LIKE_CPP);
+    let x_coord = (x_offset + f64::from(CENTER_GRID_CELL_ID_LIKE_CPP) + 0.5) as i32;
+    let y_coord = (y_offset + f64::from(CENTER_GRID_CELL_ID_LIKE_CPP) + 0.5) as i32;
+
+    CellCoordLikeCpp {
+        x: x_coord.clamp(0, TOTAL_NUMBER_OF_CELLS_PER_MAP_LIKE_CPP - 1),
+        y: y_coord.clamp(0, TOTAL_NUMBER_OF_CELLS_PER_MAP_LIKE_CPP - 1),
+    }
+}
+
+fn calculate_cell_area_like_cpp(
+    position: Position,
+    radius: f32,
+) -> (CellCoordLikeCpp, CellCoordLikeCpp) {
+    if radius <= 0.0 {
+        let center = compute_cell_coord_like_cpp(position.x, position.y);
+        return (center, center);
+    }
+
+    (
+        compute_cell_coord_like_cpp(position.x - radius, position.y - radius),
+        compute_cell_coord_like_cpp(position.x + radius, position.y + radius),
+    )
+}
+
+fn cell_area_contains_position_like_cpp(
+    low: CellCoordLikeCpp,
+    high: CellCoordLikeCpp,
+    position: Position,
+) -> Option<CellCoordLikeCpp> {
+    let coord = compute_cell_coord_like_cpp(position.x, position.y);
+    (coord.x >= low.x && coord.x <= high.x && coord.y >= low.y && coord.y <= high.y)
+        .then_some(coord)
 }
 
 pub fn terrain_map_id_for_phase_shift_like_cpp(
@@ -700,7 +753,6 @@ impl WorldCreature {
             .world_mut()
             .object_mut()
             .set_entry(entry);
-        let _ = creature.unit_mut().world_mut().set_map(0, 0);
         creature.set_ai_position(pos);
         creature.set_ai_home_position(pos);
         creature.unit_mut().set_level(level);
@@ -756,6 +808,7 @@ impl WorldCreature {
             base_attack_time: 2000,
             ranged_attack_time: 0,
             movement_flags: 0,
+            vehicle_id: 0,
             play_hover_anim: false,
             hover_height: 1.0,
             mount_display_id: 0,
@@ -804,6 +857,13 @@ impl WorldCreature {
         let npc_flags = unit.npc_flags_like_cpp();
         let attack_speed = unit.base_attack_speed();
         let speed_rate = unit.speed_rate();
+        let vehicle_id = unit
+            .subsystems()
+            .vehicle
+            .kit
+            .as_ref()
+            .map(|kit| kit.kit_id())
+            .unwrap_or(0);
 
         CreatureCreateData {
             guid: creature.guid(),
@@ -849,6 +909,7 @@ impl WorldCreature {
             base_attack_time: attack_speed[WeaponAttackType::BaseAttack as usize],
             ranged_attack_time: attack_speed[WeaponAttackType::RangedAttack as usize],
             movement_flags: creature.movement_flags_like_cpp().bits(),
+            vehicle_id,
             play_hover_anim: false,
             hover_height: data.hover_height,
             mount_display_id: data.mount_display_id,
@@ -1163,6 +1224,25 @@ impl WorldCreature {
         self.creature.respawn_ai(self.now_ms());
     }
 
+    fn set_movement_flags_like_cpp(&mut self, movement_flags: MovementFlag) {
+        self.creature
+            .set_movement_flags_runtime_like_cpp(movement_flags);
+        self.create_data.movement_flags = movement_flags.bits();
+    }
+
+    fn apply_launch_movement_flags_like_cpp(&mut self, movement_flags: MovementFlag) {
+        // C++ `MoveSplineInit::Launch` writes Unit::m_movementInfo before
+        // initializing/sending the spline. Keep the create bridge in lockstep.
+        self.set_movement_flags_like_cpp(movement_flags);
+    }
+
+    fn disable_spline_movement_like_cpp(&mut self) {
+        // C++ `Unit::DisableSpline` and `MoveSplineInit::Stop` remove FORWARD.
+        let mut movement_flags = self.creature.movement_flags_like_cpp();
+        movement_flags.remove(MovementFlag::FORWARD);
+        self.set_movement_flags_like_cpp(movement_flags);
+    }
+
     pub fn movement_finished(&self) -> bool {
         if let Some(spline) = &self.active_move_spline {
             return spline.finalized();
@@ -1269,6 +1349,7 @@ impl WorldCreature {
         self.creature
             .unit_mut()
             .add_unit_state(UnitState::ROAMING_MOVE.bits());
+        self.apply_launch_movement_flags_like_cpp(launch.movement_flags);
         self.active_move_spline = Some(spline.clone());
         Some((launch.real_position, spline))
     }
@@ -1394,20 +1475,31 @@ impl WorldCreature {
             .subsystems_mut()
             .motion
             .stop_moving();
+        self.active_move_spline = None;
         self.initialize_random_wander_steps_like_cpp();
-        let dst = self.pick_wander_destination();
-        if self.begin_random_move_spline_like_cpp(dst).is_some() {
-            self.record_random_movement_launch_like_cpp();
-            return true;
-        }
-        false
+        let now_ms = self.now_ms();
+        let ai = self.creature.ai_ownership_mut();
+        ai.move_target = None;
+        ai.move_start_ms = now_ms;
+        ai.move_duration_ms = 0;
+        ai.wander_delay_ms = 0;
+        ai.state = CreatureAiState::Idle;
+        true
     }
 
     pub fn update_default_waypoint_movement_like_cpp(
         &mut self,
         diff_ms: u32,
     ) -> WaypointMovementAction {
-        self.update_default_waypoint_movement_with_wait_roll_like_cpp(diff_ms, None)
+        self.update_default_waypoint_movement_with_launch_like_cpp(diff_ms)
+            .0
+    }
+
+    pub fn update_default_waypoint_movement_with_launch_like_cpp(
+        &mut self,
+        diff_ms: u32,
+    ) -> (WaypointMovementAction, Option<(Position, MoveSpline)>) {
+        self.update_default_waypoint_movement_with_wait_roll_and_launch_like_cpp(diff_ms, None)
     }
 
     pub fn update_default_waypoint_movement_with_wait_roll_like_cpp(
@@ -1415,6 +1507,18 @@ impl WorldCreature {
         diff_ms: u32,
         wait_time_roll_ms: Option<i32>,
     ) -> WaypointMovementAction {
+        self.update_default_waypoint_movement_with_wait_roll_and_launch_like_cpp(
+            diff_ms,
+            wait_time_roll_ms,
+        )
+        .0
+    }
+
+    fn update_default_waypoint_movement_with_wait_roll_and_launch_like_cpp(
+        &mut self,
+        diff_ms: u32,
+        wait_time_roll_ms: Option<i32>,
+    ) -> (WaypointMovementAction, Option<(Position, MoveSpline)>) {
         if let Some(mut random) = self.active_waypoint_random_at_path_end {
             let _ = self.update_move_spline_like_cpp();
             random.duration_ms = random.duration_ms.saturating_sub(diff_ms as i32);
@@ -1423,15 +1527,15 @@ impl WorldCreature {
             } else {
                 self.active_waypoint_random_at_path_end = None;
             }
-            return WaypointMovementAction::Continue;
+            return (WaypointMovementAction::Continue, None);
         }
 
         let snapshot = self.waypoint_unit_snapshot_like_cpp();
         let Some(generator) = self.active_waypoint_generator.as_mut() else {
-            return WaypointMovementAction::Continue;
+            return (WaypointMovementAction::Continue, None);
         };
         let action = generator.update_like_cpp(true, diff_ms, snapshot, wait_time_roll_ms);
-        self.apply_waypoint_movement_action_like_cpp(action);
+        let launch_result = self.apply_waypoint_movement_action_like_cpp(action);
         if matches!(
             action,
             WaypointMovementAction::Arrived(arrived)
@@ -1441,15 +1545,18 @@ impl WorldCreature {
             if let Some(generator) = self.active_waypoint_generator.as_mut() {
                 let chained = generator.update_like_cpp(true, 0, snapshot, None);
                 if chained != WaypointMovementAction::Continue {
-                    self.apply_waypoint_movement_action_like_cpp(chained);
-                    return chained;
+                    let chained_launch = self.apply_waypoint_movement_action_like_cpp(chained);
+                    return (chained, chained_launch);
                 }
             }
         }
-        action
+        (action, launch_result)
     }
 
-    fn apply_waypoint_movement_action_like_cpp(&mut self, action: WaypointMovementAction) {
+    fn apply_waypoint_movement_action_like_cpp(
+        &mut self,
+        action: WaypointMovementAction,
+    ) -> Option<(Position, MoveSpline)> {
         match action {
             WaypointMovementAction::StopMoving => {
                 self.creature
@@ -1457,6 +1564,7 @@ impl WorldCreature {
                     .subsystems_mut()
                     .motion
                     .stop_moving();
+                None
             }
             WaypointMovementAction::Arrived(arrived) => {
                 if arrived.clear_roaming_move {
@@ -1469,8 +1577,11 @@ impl WorldCreature {
                     arrived.inform.node_id,
                 );
                 if let Some(random) = arrived.move_random_at_path_end {
-                    self.begin_waypoint_random_at_path_end_like_cpp(random);
+                    let launch_result = self.begin_waypoint_random_at_path_end_like_cpp(random);
                     self.active_waypoint_random_at_path_end = Some(random);
+                    launch_result
+                } else {
+                    None
                 }
             }
             WaypointMovementAction::PathEnded(ended) => {
@@ -1486,11 +1597,10 @@ impl WorldCreature {
                 self.creature
                     .set_ai_state(wow_entities::CreatureAiState::Idle);
                 let _ = ended;
+                None
             }
-            WaypointMovementAction::Launch(launch) => {
-                self.begin_waypoint_launch_like_cpp(launch);
-            }
-            _ => {}
+            WaypointMovementAction::Launch(launch) => self.begin_waypoint_launch_like_cpp(launch),
+            _ => None,
         }
     }
 
@@ -1597,10 +1707,11 @@ impl WorldCreature {
             detour_path,
             force_destination,
         );
-        if path.path_type().contains(PathType::NOPATH) {
-            return self
-                .begin_random_move_spline_like_cpp(dst)
-                .map(|(from, spline)| (from, spline, Some(path)));
+        if path
+            .path_type()
+            .intersects(PathType::NOPATH | PathType::SHORTCUT)
+        {
+            return None;
         }
 
         let points = path.path_points().to_vec();
@@ -1737,6 +1848,7 @@ impl WorldCreature {
                 false,
                 None,
             );
+        self.apply_launch_movement_flags_like_cpp(launch.movement_flags);
         self.active_move_spline = Some(spline.clone());
         Some((launch.real_position, spline))
     }
@@ -1888,6 +2000,7 @@ impl WorldCreature {
                 .subsystems_mut()
                 .motion
                 .finalize_spline();
+            self.disable_spline_movement_like_cpp();
             self.creature
                 .unit_mut()
                 .clear_unit_state(UnitState::ROAMING_MOVE.bits());
@@ -1934,6 +2047,7 @@ impl WorldCreature {
         let motion = &mut self.creature.unit_mut().subsystems_mut().motion;
         motion.finalize_spline();
         motion.spline.spline_id = stop.spline_id;
+        self.disable_spline_movement_like_cpp();
         self.creature
             .unit_mut()
             .clear_unit_state(UnitState::ROAMING_MOVE.bits());
@@ -1951,6 +2065,7 @@ impl WorldCreature {
             .subsystems_mut()
             .motion
             .finalize_spline();
+        self.disable_spline_movement_like_cpp();
         self.creature
             .unit_mut()
             .clear_unit_state(UnitState::ROAMING_MOVE.bits());
@@ -2685,8 +2800,19 @@ impl MapManager {
         instance_id: u32,
         x: i16,
         y: i16,
-        creature: WorldCreature,
+        mut creature: WorldCreature,
     ) -> bool {
+        let _ = creature
+            .creature
+            .unit_mut()
+            .world_mut()
+            .set_map(u32::from(map_id), instance_id);
+        creature
+            .creature
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .add_to_world();
         self.get_or_create_map(map_id, instance_id)
             .add_creature(x, y, creature)
     }
@@ -2845,6 +2971,40 @@ impl MapManager {
                     .collect()
             })
             .unwrap_or_default()
+    }
+
+    pub fn active_creature_guids_for_player_update_like_cpp(
+        &self,
+        map_id: u16,
+        instance_id: u32,
+        player_position: Position,
+        player_phase_shift: &PhaseShift,
+    ) -> Vec<ObjectGuid> {
+        let Some(map) = self.get_map(map_id, instance_id) else {
+            return Vec::new();
+        };
+        let (low, high) = calculate_cell_area_like_cpp(player_position, VISIBILITY_RADIUS);
+        let mut guids = Vec::new();
+
+        for grid in map.grids.values() {
+            for creature in grid.creatures.values() {
+                if !creature.creature.unit().world().object().is_in_world() {
+                    continue;
+                }
+                if !player_phase_shift.can_see(creature.phase_shift()) {
+                    continue;
+                }
+                let Some(cell) =
+                    cell_area_contains_position_like_cpp(low, high, creature.position())
+                else {
+                    continue;
+                };
+                guids.push((cell, creature.guid()));
+            }
+        }
+
+        guids.sort_by_key(|(cell, guid)| (cell.x, cell.y, guid.high_value(), guid.low_value()));
+        guids.into_iter().map(|(_, guid)| guid).collect()
     }
 
     pub fn remove_creature_any(
@@ -3221,6 +3381,11 @@ pub fn pending_respawn_from_world_creature_like_cpp(
             base_attack_time: 2000,
             ranged_attack_time: 0,
             movement_flags: creature.creature.movement_flags_like_cpp().bits(),
+            vehicle_id: creature
+                .creature
+                .lifecycle_metadata()
+                .vehicle_id
+                .unwrap_or(0),
             play_hover_anim: false,
             hover_height: creature.creature.unit().data().hover_height,
             mount_display_id: creature.creature.unit().data().mount_display_id,
@@ -3532,7 +3697,7 @@ mod tests {
     }
 
     #[test]
-    fn world_creature_default_random_initializes_spline_like_cpp() {
+    fn world_creature_default_random_initializes_generator_without_spline_like_cpp() {
         let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 70005);
         let mut creature = test_creature(guid);
         creature
@@ -3545,27 +3710,23 @@ mod tests {
 
         assert!(creature.initialize_default_random_movement_like_cpp());
 
-        let target = creature
-            .move_target()
-            .expect("C++ RandomMovementGenerator selects an initial location on update");
+        assert_eq!(creature.move_target(), None);
+        assert!(creature.active_move_spline_like_cpp().is_none());
         assert!(
-            creature.home_position().distance(&target) <= 12.0 + f32::EPSILON,
-            "random destination {target:?} should stay inside wander distance"
-        );
-        assert!(creature.active_move_spline_like_cpp().is_some());
-        assert!(
-            creature
+            !creature
                 .creature
                 .unit()
                 .has_unit_state(UnitState::ROAMING_MOVE.bits())
         );
-        assert_eq!(
-            creature.state(),
-            wow_entities::CreatureAiState::WalkingRandom
-        );
+        assert_eq!(creature.state(), wow_entities::CreatureAiState::Idle);
         assert!(
-            (1..=9).contains(&creature.creature.ai_ownership().wander_steps_remaining),
-            "C++ RandomMovementGenerator consumes one of the initial 2..10 wander steps"
+            (2..=10).contains(&creature.creature.ai_ownership().wander_steps_remaining),
+            "C++ RandomMovementGenerator::DoInitialize seeds 2..10 steps but SetRandomLocation consumes the first step later"
+        );
+        assert_eq!(
+            creature.creature.ai_ownership().wander_delay_ms,
+            0,
+            "C++ RandomMovementGenerator::DoInitialize resets its timer to 0 so the next update can choose a path"
         );
         assert_eq!(
             creature
@@ -4225,6 +4386,18 @@ mod tests {
         assert!(
             creature
                 .creature
+                .movement_flags_like_cpp()
+                .contains(MovementFlag::FORWARD),
+            "C++ MoveSplineInit::Launch writes MOVEMENTFLAG_FORWARD to Unit::m_movementInfo"
+        );
+        assert!(
+            MovementFlag::from_bits_retain(creature.create_data.movement_flags)
+                .contains(MovementFlag::FORWARD),
+            "the create bridge must mirror Unit::m_movementInfo after Launch"
+        );
+        assert!(
+            creature
+                .creature
                 .unit()
                 .has_unit_state(UnitState::ROAMING_MOVE.bits())
         );
@@ -4263,6 +4436,18 @@ mod tests {
         assert!(!motion_spline.enabled);
         assert!(motion_spline.finalized);
         assert_eq!(motion_spline.progress_ms, motion_spline.duration_ms);
+        assert!(
+            !creature
+                .creature
+                .movement_flags_like_cpp()
+                .contains(MovementFlag::FORWARD),
+            "C++ Unit::DisableSpline removes MOVEMENTFLAG_FORWARD on arrival"
+        );
+        assert!(
+            !MovementFlag::from_bits_retain(creature.create_data.movement_flags)
+                .contains(MovementFlag::FORWARD),
+            "the create bridge must mirror Unit::m_movementInfo after DisableSpline"
+        );
         assert!(
             !creature
                 .creature
@@ -4919,6 +5104,53 @@ mod tests {
     }
 
     #[test]
+    fn world_creature_random_detour_rejects_nopath_and_shortcut_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54327);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        creature.clock_started_at = Instant::now() - Duration::from_secs(10);
+        let dst = Position::new(20.0, 10.0, 0.0, 0.0);
+
+        for path_type in [DetourPathType::NOPATH, DetourPathType::SHORTCUT] {
+            let detour_path = DetourPolyPath {
+                poly_refs: Vec::new(),
+                point_path: wow_recastdetour::DetourPointPath {
+                    points: vec![[10.0, 10.0, 0.0], [20.0, 10.0, 0.0]],
+                    actual_end: [20.0, 10.0, 0.0],
+                    path_type,
+                },
+                start_far_from_poly: false,
+                end_far_from_poly: false,
+            };
+
+            assert!(
+                creature
+                    .begin_random_move_spline_with_detour_path_like_cpp(
+                        dst,
+                        Some(&detour_path),
+                        false
+                    )
+                    .is_none(),
+                "C++ RandomMovementGenerator retries later instead of launching {:?} paths",
+                path_type
+            );
+            assert!(creature.active_move_spline_like_cpp().is_none());
+        }
+    }
+
+    #[test]
     fn calculate_creature_detour_path_returns_none_until_runtime_mmap_exists_like_cpp() {
         let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54325);
         let creature = WorldCreature::new(
@@ -5407,6 +5639,12 @@ mod tests {
         let (_, spline) = creature
             .begin_move_spline_like_cpp(dst)
             .expect("valid two-point spline");
+        assert!(
+            creature
+                .creature
+                .movement_flags_like_cpp()
+                .contains(MovementFlag::FORWARD)
+        );
         let duration_ms = spline.duration_ms() as u32;
         let now_ms = creature.now_ms();
         creature.creature.ai_ownership_mut().move_start_ms =
@@ -5422,6 +5660,17 @@ mod tests {
         assert_eq!(creature.position(), stop.position);
         assert!(creature.active_move_spline.is_none());
         assert_eq!(creature.move_target(), None);
+        assert!(
+            !creature
+                .creature
+                .movement_flags_like_cpp()
+                .contains(MovementFlag::FORWARD),
+            "C++ MoveSplineInit::Stop removes MOVEMENTFLAG_FORWARD"
+        );
+        assert!(
+            !MovementFlag::from_bits_retain(creature.create_data.movement_flags)
+                .contains(MovementFlag::FORWARD)
+        );
         assert!(
             !creature
                 .creature
@@ -5560,6 +5809,243 @@ mod tests {
         assert_eq!(bridged.npc_flags2(), 0x1);
         assert_eq!(bridged.npc_flags_mask_like_cpp(), 0x1_0000_0040);
         assert_eq!(bridged.create_data.npc_flags, 0x1_0000_0040);
+    }
+
+    #[test]
+    fn loaded_grid_canonical_bridge_preserves_level_and_stats_like_cpp() {
+        let guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 29_715, 97_932);
+        let position = Position::new(5875.25, 609.063, 650.368, 1.676);
+        let template = wow_entities::CreatureTemplateLifecycleRecord {
+            entry: 29_715,
+            original_entry: 29_715,
+            difficulty_id: 0,
+            name: "Quartermaster".to_string(),
+            ai_name: String::new(),
+            script_name: String::new(),
+            required_expansion: 2,
+            unit_class: 1,
+            trainer_class: 0,
+            faction: 35,
+            npc_flags: 0x280,
+            display_id: 26_441,
+            model_dimensions: Some(wow_entities::CreatureModelDimensions {
+                bounding_radius: 0.389,
+                combat_reach: 1.5,
+            }),
+            scale: 1.0,
+            speed_walk: 1.0,
+            speed_run: 1.14286,
+            spells: [0; wow_entities::MAX_CREATURE_SPELLS],
+            classification: 0,
+            damage_school: wow_constants::spell::SpellSchools::Normal as u8,
+            unit_flags: 0,
+            unit_flags2: wow_constants::UnitFlags2::REGENERATE_POWER.bits(),
+            unit_flags3: 0,
+            flags_extra: 0,
+            static_flags: [0; 8],
+            creature_type: 7,
+            type_flags: 0,
+            movement_type: wow_entities::MovementGeneratorType::Idle,
+            ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
+            swim_allowed: true,
+            flight_movement_type: wow_constants::CreatureFlightMovementType::None as u8,
+            rooted: false,
+            chase_movement_type: wow_constants::CreatureChaseMovementType::Run as u8,
+            random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
+            interaction_pause_timer_ms:
+                wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
+            min_level: 75,
+            max_level: 75,
+            equipment_id: 0,
+            original_equipment_id: 0,
+        };
+        let spawn = wow_entities::CreatureSpawnLifecycleRecord {
+            spawn_id: 97_932,
+            map_id: 571,
+            instance_id: 0,
+            position,
+            home_position: position,
+            phase_id: None,
+            phase_group: None,
+            terrain_swap_map: None,
+            spawn_group_id: None,
+            spawn_group_name: None,
+            pool_id: None,
+            equipment_id: Some(0),
+            original_equipment_id: Some(0),
+            wander_distance: 0.0,
+            respawn_delay: 120,
+            respawn_time: 0,
+            movement_type: wow_entities::MovementGeneratorType::Idle,
+            string_id: None,
+            is_active: true,
+            inactive_by_spawn_group: false,
+            duplicate_spawn_found: false,
+            add_to_map: true,
+            respawn_compatibility_mode: false,
+        };
+        let canonical = wow_entities::Creature::load_from_db_lifecycle(
+            wow_entities::CreatureLoadFromDbLifecycleRecord {
+                create: wow_entities::CreatureCreateLifecycleRecord {
+                    guid,
+                    entry: 29_715,
+                    map_id: 571,
+                    instance_id: 0,
+                    position,
+                    dynamic: false,
+                    vehicle_id: None,
+                    vehicle_kit_create_input: None,
+                    add_to_world_vehicle_reset_context: None,
+                    template,
+                    spawn: Some(spawn.clone()),
+                    selected_level: 75,
+                    stats: wow_entities::CreatureLifecycleStats::new(4_652, 4_652, 0, 0),
+                    selected_display_id: 26_441,
+                    selected_model_dimensions: Some(wow_entities::CreatureModelDimensions {
+                        bounding_radius: 0.389,
+                        combat_reach: 1.5,
+                    }),
+                    selected_equipment_id: 0,
+                    selected_original_equipment_id: 0,
+                    selected_virtual_items: [(0, 0, 0); 3],
+                    corpse_delay: 60,
+                    ignore_corpse_decay_ratio: false,
+                    addon: None,
+                },
+                spawn,
+            },
+        );
+
+        let bridged = WorldCreature::from_loaded_grid_canonical_like_cpp(canonical, |_| None);
+
+        assert_eq!(bridged.level(), 75);
+        assert_eq!(bridged.current_hp(), 4_652);
+        assert_eq!(bridged.max_hp(), 4_652);
+        assert_eq!(bridged.create_data.level, 75);
+        assert_eq!(bridged.create_data.health, 4_652);
+        assert_eq!(bridged.create_data.max_health, 4_652);
+        assert_eq!(bridged.create_data.display_id, 26_441);
+        assert_eq!(bridged.create_data.npc_flags, 0x280);
+        assert_eq!(
+            bridged.create_data.unit_flags2,
+            wow_constants::UnitFlags2::REGENERATE_POWER.bits()
+        );
+        assert_eq!(bridged.create_data.speed_walk_rate, 1.0);
+        assert_eq!(bridged.create_data.speed_run_rate, 1.14286);
+    }
+
+    #[test]
+    fn loaded_grid_canonical_bridge_only_sets_vehicle_create_flag_for_real_vehicle_kit_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Vehicle, 0, 1, 571, 0, 29_715, 97_933);
+        let position = Position::new(5875.25, 609.063, 650.368, 1.676);
+        let template = wow_entities::CreatureTemplateLifecycleRecord {
+            entry: 29_715,
+            original_entry: 29_715,
+            difficulty_id: 0,
+            name: "Vehicle-shaped creature".to_string(),
+            ai_name: String::new(),
+            script_name: String::new(),
+            required_expansion: 2,
+            unit_class: 1,
+            trainer_class: 0,
+            faction: 35,
+            npc_flags: 0,
+            display_id: 26_441,
+            model_dimensions: Some(wow_entities::CreatureModelDimensions {
+                bounding_radius: 0.389,
+                combat_reach: 1.5,
+            }),
+            scale: 1.0,
+            speed_walk: 1.0,
+            speed_run: 1.14286,
+            spells: [0; wow_entities::MAX_CREATURE_SPELLS],
+            classification: 0,
+            damage_school: wow_constants::spell::SpellSchools::Normal as u8,
+            unit_flags: 0,
+            unit_flags2: 0,
+            unit_flags3: 0,
+            flags_extra: 0,
+            static_flags: [0; 8],
+            creature_type: 7,
+            type_flags: 0,
+            movement_type: wow_entities::MovementGeneratorType::Idle,
+            ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
+            swim_allowed: true,
+            flight_movement_type: wow_constants::CreatureFlightMovementType::None as u8,
+            rooted: false,
+            chase_movement_type: wow_constants::CreatureChaseMovementType::Run as u8,
+            random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
+            interaction_pause_timer_ms:
+                wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
+            min_level: 75,
+            max_level: 75,
+            equipment_id: 0,
+            original_equipment_id: 0,
+        };
+        let spawn = wow_entities::CreatureSpawnLifecycleRecord {
+            spawn_id: 97_933,
+            map_id: 571,
+            instance_id: 0,
+            position,
+            home_position: position,
+            phase_id: None,
+            phase_group: None,
+            terrain_swap_map: None,
+            spawn_group_id: None,
+            spawn_group_name: None,
+            pool_id: None,
+            equipment_id: Some(0),
+            original_equipment_id: Some(0),
+            wander_distance: 0.0,
+            respawn_delay: 120,
+            respawn_time: 0,
+            movement_type: wow_entities::MovementGeneratorType::Idle,
+            string_id: None,
+            is_active: true,
+            inactive_by_spawn_group: false,
+            duplicate_spawn_found: false,
+            add_to_map: true,
+            respawn_compatibility_mode: false,
+        };
+        let canonical = wow_entities::Creature::load_from_db_lifecycle(
+            wow_entities::CreatureLoadFromDbLifecycleRecord {
+                create: wow_entities::CreatureCreateLifecycleRecord {
+                    guid,
+                    entry: 29_715,
+                    map_id: 571,
+                    instance_id: 0,
+                    position,
+                    dynamic: false,
+                    vehicle_id: Some(909),
+                    vehicle_kit_create_input: None,
+                    add_to_world_vehicle_reset_context: None,
+                    template,
+                    spawn: Some(spawn.clone()),
+                    selected_level: 75,
+                    stats: wow_entities::CreatureLifecycleStats::new(4_652, 4_652, 0, 0),
+                    selected_display_id: 26_441,
+                    selected_model_dimensions: Some(wow_entities::CreatureModelDimensions {
+                        bounding_radius: 0.389,
+                        combat_reach: 1.5,
+                    }),
+                    selected_equipment_id: 0,
+                    selected_original_equipment_id: 0,
+                    selected_virtual_items: [(0, 0, 0); 3],
+                    corpse_delay: 60,
+                    ignore_corpse_decay_ratio: false,
+                    addon: None,
+                },
+                spawn,
+            },
+        );
+
+        assert_eq!(canonical.lifecycle_metadata().vehicle_id, Some(909));
+        assert!(canonical.unit().subsystems().vehicle.kit.is_none());
+
+        let bridged = WorldCreature::from_loaded_grid_canonical_like_cpp(canonical, |_| None);
+
+        assert_eq!(bridged.create_data.vehicle_id, 0);
     }
 
     #[test]
@@ -5870,6 +6356,7 @@ mod tests {
                 base_attack_time: 2000,
                 ranged_attack_time: 0,
                 movement_flags: 0,
+                vehicle_id: 0,
                 play_hover_anim: false,
                 hover_height: 1.0,
                 mount_display_id: 0,

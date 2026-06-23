@@ -621,7 +621,7 @@ mod tests {
             true,
         )
         .unwrap();
-        let guid = ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 1, 9001, 22);
+        let guid = ObjectGuid::create_gameobject_like_cpp(571, 9001, 22);
         let resolved =
             GameObjectLoadedGridLifecycleResolverLikeCpp::new([template], [resolved_spawn])
                 .resolve_loaded_grid_gameobject_like_cpp(88, guid)
@@ -653,10 +653,8 @@ mod tests {
             true,
         )
         .unwrap();
-        let owner_guid =
-            ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 1, 9001, 22);
-        let trap_guid =
-            ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 1, 9002, 23);
+        let owner_guid = ObjectGuid::create_gameobject_like_cpp(571, 9001, 22);
+        let trap_guid = ObjectGuid::create_gameobject_like_cpp(571, 9002, 23);
 
         let resolved = GameObjectLoadedGridLifecycleResolverLikeCpp::new(
             [
@@ -712,10 +710,8 @@ mod tests {
             true,
         )
         .unwrap();
-        let owner_guid =
-            ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 1, 9001, 22);
-        let trap_guid =
-            ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 1, 9002, 23);
+        let owner_guid = ObjectGuid::create_gameobject_like_cpp(571, 9001, 22);
+        let trap_guid = ObjectGuid::create_gameobject_like_cpp(571, 9002, 23);
 
         let resolved =
             GameObjectLoadedGridLifecycleResolverLikeCpp::new([template], [resolved_spawn])
@@ -754,10 +750,8 @@ mod tests {
             true,
         )
         .unwrap();
-        let owner_guid =
-            ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 1, 9001, 22);
-        let mismatched_trap_guid =
-            ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 1, 9002, 23);
+        let owner_guid = ObjectGuid::create_gameobject_like_cpp(571, 9001, 22);
+        let mismatched_trap_guid = ObjectGuid::create_gameobject_like_cpp(571, 9002, 23);
 
         let resolved = GameObjectLoadedGridLifecycleResolverLikeCpp::new(
             [
@@ -831,7 +825,7 @@ mod tests {
             true,
         )
         .unwrap();
-        let guid = ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 1, 9001, 22);
+        let guid = ObjectGuid::create_gameobject_like_cpp(571, 9001, 22);
         let resolved =
             GameObjectLoadedGridLifecycleResolverLikeCpp::new([template], [resolved_spawn])
                 .resolve_loaded_grid_gameobject_like_cpp(88, guid)

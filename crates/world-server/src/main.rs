@@ -4098,6 +4098,7 @@ async fn main() -> Result<ExitCode> {
         health_rates: creature_health_rates,
         display_store: Arc::clone(&creature_display_info_store),
         model_store: Arc::clone(&creature_model_data_store),
+        model_info_store: Arc::clone(&creature_model_info_store),
         creature_equipment_store: Arc::clone(&creature_equipment_store),
         creature_addon_store: Arc::clone(&creature_addon_store),
         vehicle_store: Arc::clone(&vehicle_store),
@@ -6775,12 +6776,39 @@ fn mirror_loaded_grid_creature_to_legacy_like_cpp(
     };
     let instance_id = creature.unit().world().instance_id();
     let guid = creature.guid();
+    let entry = creature.entry();
+    let canonical_level = creature.level();
+    let canonical_health = creature.current_health();
+    let canonical_max_health = creature.max_health();
+    let metadata = creature.lifecycle_metadata();
+    let spawn_id = metadata.spawn_id;
+    let selected_level = metadata.selected_level;
+    let selected_display_id = metadata.selected_display_id;
     let position = creature.position();
     let (grid_x, grid_y) = wow_world::map_manager::world_to_grid_coords(position.x, position.y);
     let world_creature = wow_world::map_manager::WorldCreature::from_loaded_grid_canonical_like_cpp(
         creature,
         |path_id| waypoint_paths.get(path_id).cloned(),
     );
+    if std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some() {
+        info!(
+            ?guid,
+            entry,
+            spawn_id,
+            selected_level,
+            selected_display_id,
+            canonical_level,
+            canonical_health,
+            canonical_max_health,
+            legacy_level = world_creature.level(),
+            legacy_health = world_creature.current_hp(),
+            legacy_max_health = world_creature.max_hp(),
+            create_level = world_creature.create_data.level,
+            create_health = world_creature.create_data.health,
+            create_max_health = world_creature.create_data.max_health,
+            "RUST_CREATURE_MIRROR loaded_grid_canonical_to_legacy"
+        );
+    }
 
     let mut guard = legacy_manager
         .write()
@@ -9410,6 +9438,7 @@ struct LoadedGridCreatureRespawnCachesLikeCpp {
     health_rates: wow_data::CreatureClassificationHealthRatesLikeCpp,
     display_store: Arc<wow_data::CreatureDisplayInfoStore>,
     model_store: Arc<wow_data::CreatureModelDataStore>,
+    model_info_store: Arc<wow_data::CreatureModelInfoStoreLikeCpp>,
     creature_equipment_store: Arc<wow_data::CreatureEquipmentStoreLikeCpp>,
     creature_addon_store: Arc<wow_data::CreatureAddonStoreLikeCpp>,
     vehicle_store: Arc<wow_data::VehicleStore>,
@@ -9417,6 +9446,41 @@ struct LoadedGridCreatureRespawnCachesLikeCpp {
     vehicle_accessory_store: Arc<wow_data::VehicleAccessoryStoreLikeCpp>,
     gameobject_template_store: Arc<wow_data::GameObjectTemplateLifecycleStoreLikeCpp>,
     gameobject_override_store: Arc<wow_data::GameObjectOverrideLifecycleStoreLikeCpp>,
+}
+
+struct MapCreatureModelSelectionRandomLikeCpp<'a, Terrain, Lifecycle>
+where
+    Terrain: wow_map::TerrainGridLoader,
+    Lifecycle: wow_map::GridLifecycle,
+{
+    map: &'a mut wow_map::Map<Terrain, Lifecycle>,
+}
+
+impl<Terrain, Lifecycle> wow_data::CreatureModelSelectionRandomLikeCpp
+    for MapCreatureModelSelectionRandomLikeCpp<'_, Terrain, Lifecycle>
+where
+    Terrain: wow_map::TerrainGridLoader,
+    Lifecycle: wow_map::GridLifecycle,
+{
+    fn weighted_model_roll_like_cpp(&mut self, total_weight: f32) -> f32 {
+        self.map.frand_exclusive_like_cpp(0.0, total_weight)
+    }
+
+    fn other_gender_roll_zero_like_cpp(&mut self) -> bool {
+        self.map.urand_inclusive_like_cpp(0, 1) == 0
+    }
+}
+
+impl<Terrain, Lifecycle> creature_loaded_grid::LoadedGridCreatureRandomSourceLikeCpp
+    for MapCreatureModelSelectionRandomLikeCpp<'_, Terrain, Lifecycle>
+where
+    Terrain: wow_map::TerrainGridLoader,
+    Lifecycle: wow_map::GridLifecycle,
+{
+    fn select_creature_level_like_cpp(&mut self, min_level: u8, max_level: u8) -> u8 {
+        self.map
+            .select_creature_level_like_cpp(min_level, max_level)
+    }
 }
 
 #[derive(Debug, Default, Clone)]
@@ -9574,6 +9638,11 @@ fn build_loaded_grid_creature_record_with_respawn_time_like_cpp(
         );
         return None;
     }
+    let instance_id = map.instance_id();
+    let formation_info = canonical_spawn_metadata
+        .creature_formation_info_like_cpp(spawn_id)
+        .copied();
+    let mut random = MapCreatureModelSelectionRandomLikeCpp { map };
     let inputs = creature_loaded_grid::build_loaded_grid_creature_inputs_from_db_like_cpp(
         spawn,
         runtime_row,
@@ -9583,16 +9652,15 @@ fn build_loaded_grid_creature_record_with_respawn_time_like_cpp(
         &caches.health_rates,
         caches.display_store.as_ref(),
         caches.model_store.as_ref(),
+        caches.model_info_store.as_ref(),
         Some(caches.creature_equipment_store.as_ref()),
         caches.creature_addon_store.as_ref(),
         difficulty_id,
-        map.instance_id(),
+        instance_id,
         respawn_time,
         true,
-        canonical_spawn_metadata
-            .creature_formation_info_like_cpp(spawn_id)
-            .copied(),
-        |min_level, max_level| map.select_creature_level_like_cpp(min_level, max_level),
+        formation_info,
+        &mut random,
     );
     let (template, resolved_spawn, runtime_selection) = match inputs {
         Ok(inputs) => inputs,
@@ -9661,8 +9729,11 @@ fn build_loaded_grid_creature_record_with_respawn_time_like_cpp(
     } else {
         HighGuid::Creature
     };
-    let map_object_guid =
-        ObjectGuid::create_world_object(map_object_high, 0, 1, map_id, 1, template.entry, low);
+    let map_object_guid = match map_object_high {
+        HighGuid::Vehicle => ObjectGuid::create_vehicle_like_cpp(map_id, template.entry, low),
+        HighGuid::Creature => ObjectGuid::create_creature_like_cpp(map_id, template.entry, low),
+        _ => unreachable!("loaded-grid creature records only create Creature or Vehicle GUIDs"),
+    };
     let resolver = creature_loaded_grid::CreatureLoadedGridLifecycleResolverLikeCpp::new(
         [template],
         [resolved_spawn],
@@ -9777,7 +9848,7 @@ fn build_loaded_grid_gameobject_respawn_record_like_cpp(
                 return None;
             }
         };
-        ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, map_id, 1, template.entry, low)
+        ObjectGuid::create_gameobject_like_cpp(map_id, template.entry, low)
     };
     let mut linked_trap_guid = None;
     let mut resolver_templates = vec![template.clone()];
@@ -9864,12 +9935,8 @@ fn build_loaded_grid_gameobject_respawn_record_like_cpp(
                     }
                 };
                 if let Some(trap_low) = trap_low {
-                    linked_trap_guid = Some(ObjectGuid::create_world_object(
-                        HighGuid::GameObject,
-                        0,
-                        1,
+                    linked_trap_guid = Some(ObjectGuid::create_gameobject_like_cpp(
                         map_id,
-                        1,
                         linked_entry,
                         trap_low,
                     ));
@@ -13376,6 +13443,7 @@ mod tests {
             health_rates: wow_data::CreatureClassificationHealthRatesLikeCpp::default(),
             display_store: Arc::new(wow_data::CreatureDisplayInfoStore::from_entries([])),
             model_store: Arc::new(wow_data::CreatureModelDataStore::from_entries([])),
+            model_info_store: Arc::new(wow_data::CreatureModelInfoStoreLikeCpp::from_entries([])),
             creature_equipment_store: Arc::new(wow_data::CreatureEquipmentStoreLikeCpp::default()),
             creature_addon_store: Arc::new(wow_data::CreatureAddonStoreLikeCpp::default()),
             vehicle_store: Arc::new(wow_data::VehicleStore::from_entries([])),
@@ -13675,7 +13743,13 @@ mod tests {
     }
 
     fn test_guid_like_cpp(high: HighGuid, counter: i64, entry: u32) -> ObjectGuid {
-        ObjectGuid::create_world_object(high, 0, 1, 1, 1, entry, counter)
+        match high {
+            HighGuid::Creature => ObjectGuid::create_creature_like_cpp(1, entry, counter),
+            HighGuid::Vehicle => ObjectGuid::create_vehicle_like_cpp(1, entry, counter),
+            HighGuid::GameObject => ObjectGuid::create_gameobject_like_cpp(1, entry, counter),
+            HighGuid::AreaTrigger => ObjectGuid::create_area_trigger_like_cpp(1, entry, counter),
+            _ => ObjectGuid::create_world_object(high, 0, 0, 1, 0, entry, counter),
+        }
     }
 
     fn insert_live_creature_for_spawn_like_cpp(
@@ -20817,6 +20891,15 @@ mmap.enablePathFinding = 0
             health_rates: wow_data::CreatureClassificationHealthRatesLikeCpp::default(),
             display_store: Arc::new(wow_data::CreatureDisplayInfoStore::from_entries([])),
             model_store: Arc::new(wow_data::CreatureModelDataStore::from_entries([])),
+            model_info_store: Arc::new(wow_data::CreatureModelInfoStoreLikeCpp::from_entries([
+                wow_data::CreatureModelInfoLikeCpp {
+                    display_id: 111,
+                    bounding_radius: 0.0,
+                    combat_reach: 1.5,
+                    display_id_other_gender: 0,
+                    is_trigger: false,
+                },
+            ])),
             creature_equipment_store: Arc::new(wow_data::CreatureEquipmentStoreLikeCpp::default()),
             creature_addon_store: Arc::new(wow_data::CreatureAddonStoreLikeCpp::default()),
             vehicle_store: Arc::new(vehicle_store_for_loaded_grid_test(vehicle_id)),
