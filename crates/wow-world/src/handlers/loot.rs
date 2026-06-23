@@ -8780,6 +8780,7 @@ mod tests {
             base_attack_time: 2000,
             ranged_attack_time: 0,
             movement_flags: 0,
+            vehicle_id: 0,
             play_hover_anim: false,
             hover_height: 1.0,
             mount_display_id: 0,

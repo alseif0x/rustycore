@@ -287,12 +287,8 @@ pub fn build_loaded_grid_area_trigger_record_like_cpp(
                 error: format!("{error:?}"),
             },
         )?;
-    let map_object_guid = ObjectGuid::create_world_object(
-        HighGuid::AreaTrigger,
-        0,
-        1,
+    let map_object_guid = ObjectGuid::create_area_trigger_like_cpp(
         map_id,
-        1,
         create_properties.guid_entry_like_cpp(),
         low,
     );
@@ -557,7 +553,7 @@ mod tests {
     }
 
     fn area_trigger_guid(entry: u32) -> ObjectGuid {
-        ObjectGuid::create_world_object(HighGuid::AreaTrigger, 0, 1, 571, 1, entry, 99)
+        ObjectGuid::create_area_trigger_like_cpp(571, entry, 99)
     }
 
     fn data_area_trigger_id(id: u32) -> AreaTriggerIdLikeCpp {

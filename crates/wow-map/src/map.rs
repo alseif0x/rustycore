@@ -2108,10 +2108,9 @@ pub struct Map<Terrain = NoopTerrainGridLoader, Lifecycle = NoopGridLifecycle> {
     /// synchronization is intentionally out of scope for this seam, so all
     /// supported HighGuid generators start lazily at 1 unless explicitly set.
     guid_generators: HashMap<HighGuid, MapGuidSequenceGeneratorLikeCpp>,
-    /// Map-owned seam for C++ `urand` consumers that are owned by `Map` runtime
-    /// state. This slice wires Creature::SelectLevel only; DB/cache callers may
-    /// request random level selection through `&mut Map` but must not own or
-    /// replay this RNG themselves.
+    /// Map-owned seam for C++ random consumers that are owned by `Map` runtime
+    /// state. DB/cache callers may request creature level/model selection through
+    /// `&mut Map` but must not own or replay this RNG themselves.
     creature_level_rng_like_cpp: StdRng,
 }
 
@@ -2219,6 +2218,14 @@ where
     pub fn urand_inclusive_like_cpp(&mut self, min: u32, max: u32) -> u32 {
         assert!(max >= min, "C++ urand requires max >= min");
         self.creature_level_rng_like_cpp.gen_range(min..=max)
+    }
+
+    /// Mirrors the floating-point random draw used by C++ weighted model selection.
+    /// The caller owns the exact semantic range; this helper only keeps RNG ownership
+    /// on the map, matching the loaded-grid runtime path.
+    pub fn frand_exclusive_like_cpp(&mut self, min: f32, max: f32) -> f32 {
+        assert!(max > min, "C++ frand-like draw requires max > min");
+        self.creature_level_rng_like_cpp.gen_range(min..max)
     }
 
     /// Mirrors `Creature::SelectLevel` for DB/template min/max rows: fixed rows

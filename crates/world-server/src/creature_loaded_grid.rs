@@ -29,12 +29,13 @@ use std::collections::BTreeMap;
 
 use crate::spawn_store_loader::CreatureSpawnRuntimeRowLikeCpp;
 use anyhow::Result;
-use wow_core::{ObjectGuid, Position, guid::HighGuid};
+use wow_core::{guid::HighGuid, ObjectGuid, Position};
 use wow_data::{
     CreatureAddonStoreLikeCpp, CreatureBaseStatsStoreLikeCpp,
     CreatureClassificationHealthRatesLikeCpp, CreatureDifficultyStoreLikeCpp,
     CreatureDisplayInfoStore, CreatureEquipmentStoreLikeCpp, CreatureModelDataStore,
-    CreatureTemplateLifecycleStoreLikeCpp,
+    CreatureModelInfoStoreLikeCpp, CreatureModelSelectionRandomLikeCpp,
+    CreatureTemplateLifecycleModelLikeCpp, CreatureTemplateLifecycleStoreLikeCpp,
 };
 use wow_entities::{
     Creature, CreatureAddToWorldVehicleResetContextLikeCpp, CreatureAddonLifecycleRecordLikeCpp,
@@ -141,6 +142,10 @@ pub struct CreatureLoadedGridResolvedLikeCpp {
     pub creature: Creature,
     pub map_object_record: Option<MapObjectRecord>,
     pub map_insertion_requested: bool,
+}
+
+pub trait LoadedGridCreatureRandomSourceLikeCpp: CreatureModelSelectionRandomLikeCpp {
+    fn select_creature_level_like_cpp(&mut self, min_level: u8, max_level: u8) -> u8;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -276,8 +281,9 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
     difficulty_store: &CreatureDifficultyStoreLikeCpp,
     base_stats_store: &CreatureBaseStatsStoreLikeCpp,
     health_rates: &CreatureClassificationHealthRatesLikeCpp,
-    display_store: &CreatureDisplayInfoStore,
-    model_store: &CreatureModelDataStore,
+    _display_store: &CreatureDisplayInfoStore,
+    _model_store: &CreatureModelDataStore,
+    model_info_store: &CreatureModelInfoStoreLikeCpp,
     equipment_store: Option<&CreatureEquipmentStoreLikeCpp>,
     addon_store: &CreatureAddonStoreLikeCpp,
     difficulty_id: u8,
@@ -285,7 +291,7 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
     respawn_time: i64,
     add_to_map: bool,
     formation_info: Option<CreatureFormationInfoLikeCpp>,
-    mut select_level: impl FnMut(u8, u8) -> u8,
+    random: &mut impl LoadedGridCreatureRandomSourceLikeCpp,
 ) -> Result<
     (
         ResolvedCreatureTemplateLikeCpp,
@@ -306,7 +312,8 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
     let selected_level = if difficulty.min_level == difficulty.max_level {
         difficulty.min_level
     } else {
-        select_level(difficulty.min_level, difficulty.max_level)
+        random
+            .select_creature_level_like_cpp(difficulty.min_level, difficulty.max_level)
             .clamp(difficulty.min_level, difficulty.max_level)
     };
     let base_stats = base_stats_store.get_like_cpp(selected_level, template.unit_class);
@@ -342,26 +349,25 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
     };
     let min_damage =
         base_stats.generate_base_damage_like_cpp(difficulty) * difficulty.damage_modifier;
-    let selected_display_id = if runtime_row.model_id != 0 {
-        runtime_row.model_id
-    } else {
-        template
-            .first_model_like_cpp()
-            .map(|model| model.creature_display_id)
-            .ok_or(CreatureLoadedGridResolveErrorLikeCpp::MissingModel {
-                entry: template.entry,
-            })?
-    };
-    let selected_model_dimensions = display_store
-        .get(selected_display_id)
-        .and_then(|display| model_store.get(u32::from(display.model_id)))
-        .map(|_model| {
-            // Existing Rust DB2 store does not expose C++ bounding radius/combat reach fields yet.
-            // Keep dimensions absent rather than inventing a dummy; future DB2 field expansion can
-            // replace this represented `None` seam.
-            None
-        })
-        .flatten();
+    let spawn_model =
+        (runtime_row.model_id != 0).then_some(CreatureTemplateLifecycleModelLikeCpp {
+            creature_display_id: runtime_row.model_id,
+            display_scale: 1.0,
+            probability: 1.0,
+        });
+    let selected_model = template
+        .choose_display_model_like_cpp(model_info_store, spawn_model, random)
+        .ok_or(CreatureLoadedGridResolveErrorLikeCpp::MissingModel {
+            entry: template.entry,
+        })?;
+    let selected_display_id = selected_model.creature_display_id;
+    let selected_model_dimensions =
+        model_info_store
+            .get(selected_display_id)
+            .map(|model_info| CreatureModelDimensions {
+                bounding_radius: model_info.bounding_radius,
+                combat_reach: model_info.combat_reach,
+            });
     let equipment_id = u8::try_from(runtime_row.equipment_id).unwrap_or(0);
     let original_equipment_id = if equipment_id == 0 {
         0
@@ -723,7 +729,7 @@ mod tests {
     }
 
     fn map_vehicle_guid(entry: u32, map_id: u16, counter: i64) -> ObjectGuid {
-        ObjectGuid::create_world_object(HighGuid::Vehicle, 0, 1, map_id, 1, entry, counter)
+        ObjectGuid::create_vehicle_like_cpp(map_id, entry, counter)
     }
 
     #[test]
@@ -941,6 +947,58 @@ mod tests {
         )
     }
 
+    fn loaded_grid_model_info_store_like_cpp() -> CreatureModelInfoStoreLikeCpp {
+        CreatureModelInfoStoreLikeCpp::from_entries([999, 111, 222, 11_686].map(|display_id| {
+            let (bounding_radius, combat_reach) = match display_id {
+                999 => (0.45, 1.75),
+                111 => (0.70, 1.50),
+                222 => (0.90, 2.25),
+                11_686 => (0.0, 1.5),
+                _ => unreachable!("fixture only builds known display ids"),
+            };
+            wow_data::CreatureModelInfoLikeCpp {
+                display_id,
+                bounding_radius,
+                combat_reach,
+                display_id_other_gender: 0,
+                is_trigger: display_id == 11_686,
+            }
+        }))
+    }
+
+    struct TestLoadedGridCreatureRandomLikeCpp {
+        selected_level: u8,
+        weighted_model_roll: f32,
+        other_gender_roll_zero: bool,
+    }
+
+    impl Default for TestLoadedGridCreatureRandomLikeCpp {
+        fn default() -> Self {
+            Self {
+                selected_level: 19,
+                weighted_model_roll: 0.0,
+                other_gender_roll_zero: false,
+            }
+        }
+    }
+
+    impl CreatureModelSelectionRandomLikeCpp for TestLoadedGridCreatureRandomLikeCpp {
+        fn weighted_model_roll_like_cpp(&mut self, _total_weight: f32) -> f32 {
+            self.weighted_model_roll
+        }
+
+        fn other_gender_roll_zero_like_cpp(&mut self) -> bool {
+            self.other_gender_roll_zero
+        }
+    }
+
+    impl LoadedGridCreatureRandomSourceLikeCpp for TestLoadedGridCreatureRandomLikeCpp {
+        fn select_creature_level_like_cpp(&mut self, min_level: u8, max_level: u8) -> u8 {
+            assert_eq!((min_level, max_level), (18, 20));
+            self.selected_level
+        }
+    }
+
     #[test]
     fn loaded_grid_db_backed_builder_maps_spawn_template_runtime_like_cpp() {
         let entry = 12_400;
@@ -969,6 +1027,8 @@ mod tests {
             spawn_time_secs: 300,
         };
         let (display_store, model_store) = empty_display_stores();
+        let model_info_store = loaded_grid_model_info_store_like_cpp();
+        let mut random = TestLoadedGridCreatureRandomLikeCpp::default();
         let mut static_flags = [0; 8];
         static_flags[0] = wow_constants::creature::CreatureStaticFlags::NO_MELEE_FLEE.bits();
 
@@ -982,6 +1042,7 @@ mod tests {
                 &CreatureClassificationHealthRatesLikeCpp::default(),
                 &display_store,
                 &model_store,
+                &model_info_store,
                 None,
                 &CreatureAddonStoreLikeCpp::default(),
                 2,
@@ -989,10 +1050,7 @@ mod tests {
                 123,
                 true,
                 None,
-                |min, max| {
-                    assert_eq!((min, max), (18, 20));
-                    19
-                },
+                &mut random,
             )
             .expect("DB-backed builder should compose resolver inputs");
 
@@ -1046,6 +1104,13 @@ mod tests {
         assert!(resolved_spawn.add_to_map);
         assert_eq!(runtime.selected_level, 19);
         assert_eq!(runtime.selected_display_id, 999);
+        assert_eq!(
+            runtime.selected_model_dimensions,
+            Some(CreatureModelDimensions {
+                bounding_radius: 0.45,
+                combat_reach: 1.75,
+            })
+        );
         assert_eq!(runtime.stats.max_health, 200);
         assert_eq!(runtime.stats.health, 200);
         assert_eq!(runtime.stats.max_mana, 150);
@@ -1101,6 +1166,8 @@ mod tests {
             },
         )]);
         let (display_store, model_store) = empty_display_stores();
+        let model_info_store = loaded_grid_model_info_store_like_cpp();
+        let mut random = TestLoadedGridCreatureRandomLikeCpp::default();
 
         let (template, resolved_spawn, runtime) =
             build_loaded_grid_creature_inputs_from_db_like_cpp(
@@ -1112,6 +1179,7 @@ mod tests {
                 &CreatureClassificationHealthRatesLikeCpp::default(),
                 &display_store,
                 &model_store,
+                &model_info_store,
                 Some(&equipment_store),
                 &CreatureAddonStoreLikeCpp::default(),
                 2,
@@ -1119,7 +1187,7 @@ mod tests {
                 123,
                 true,
                 None,
-                |_, _| 19,
+                &mut random,
             )
             .expect("DB-backed equipment should resolve");
 
@@ -1216,6 +1284,8 @@ mod tests {
             |_| 0,
         );
         let (display_store, model_store) = empty_display_stores();
+        let model_info_store = loaded_grid_model_info_store_like_cpp();
+        let mut random = TestLoadedGridCreatureRandomLikeCpp::default();
 
         let (template, _, _) = build_loaded_grid_creature_inputs_from_db_like_cpp(
             &spawn,
@@ -1226,6 +1296,7 @@ mod tests {
             &CreatureClassificationHealthRatesLikeCpp::default(),
             &display_store,
             &model_store,
+            &model_info_store,
             None,
             &addon_store,
             2,
@@ -1233,7 +1304,7 @@ mod tests {
             0,
             false,
             None,
-            |_, _| 19,
+            &mut random,
         )
         .expect("DB-backed builder should resolve addon fallback");
 
@@ -1290,6 +1361,8 @@ mod tests {
             ..CreatureClassificationHealthRatesLikeCpp::default()
         };
         let (display_store, model_store) = empty_display_stores();
+        let model_info_store = loaded_grid_model_info_store_like_cpp();
+        let mut random = TestLoadedGridCreatureRandomLikeCpp::default();
 
         let (_, _, runtime) = build_loaded_grid_creature_inputs_from_db_like_cpp(
             &spawn,
@@ -1300,6 +1373,7 @@ mod tests {
             &health_rates,
             &display_store,
             &model_store,
+            &model_info_store,
             None,
             &CreatureAddonStoreLikeCpp::default(),
             2,
@@ -1307,7 +1381,7 @@ mod tests {
             0,
             false,
             None,
-            |_, _| 19,
+            &mut random,
         )
         .expect("regen=true should use health-rate-scaled max health");
 
@@ -1351,6 +1425,8 @@ mod tests {
         let mut static_flags = [0; 8];
         static_flags[4] = wow_constants::creature::CreatureStaticFlags5::NO_HEALTH_REGEN.bits();
         let (display_store, model_store) = empty_display_stores();
+        let model_info_store = loaded_grid_model_info_store_like_cpp();
+        let mut random = TestLoadedGridCreatureRandomLikeCpp::default();
 
         let (_, _, runtime) = build_loaded_grid_creature_inputs_from_db_like_cpp(
             &spawn,
@@ -1361,6 +1437,7 @@ mod tests {
             &health_rates,
             &display_store,
             &model_store,
+            &model_info_store,
             None,
             &CreatureAddonStoreLikeCpp::default(),
             2,
@@ -1368,7 +1445,7 @@ mod tests {
             0,
             false,
             None,
-            |_, _| 19,
+            &mut random,
         )
         .expect("flags5 NO_HEALTH_REGEN should preserve initial spawned stats");
 
@@ -1411,6 +1488,8 @@ mod tests {
             spawn_time_secs: 10,
         };
         let (display_store, model_store) = empty_display_stores();
+        let model_info_store = loaded_grid_model_info_store_like_cpp();
+        let mut random = TestLoadedGridCreatureRandomLikeCpp::default();
 
         assert_eq!(
             build_loaded_grid_creature_inputs_from_db_like_cpp(
@@ -1422,6 +1501,7 @@ mod tests {
                 &CreatureClassificationHealthRatesLikeCpp::default(),
                 &display_store,
                 &model_store,
+                &model_info_store,
                 None,
                 &CreatureAddonStoreLikeCpp::default(),
                 2,
@@ -1429,10 +1509,11 @@ mod tests {
                 0,
                 false,
                 None,
-                |_, _| 19,
+                &mut random,
             ),
             Err(CreatureLoadedGridResolveErrorLikeCpp::MissingTemplate { entry })
         );
+        let mut random = TestLoadedGridCreatureRandomLikeCpp::default();
         assert_eq!(
             build_loaded_grid_creature_inputs_from_db_like_cpp(
                 &spawn,
@@ -1443,6 +1524,7 @@ mod tests {
                 &CreatureClassificationHealthRatesLikeCpp::default(),
                 &display_store,
                 &model_store,
+                &model_info_store,
                 None,
                 &CreatureAddonStoreLikeCpp::default(),
                 2,
@@ -1450,7 +1532,7 @@ mod tests {
                 0,
                 false,
                 None,
-                |_, _| 19,
+                &mut random,
             ),
             Err(CreatureLoadedGridResolveErrorLikeCpp::MissingDifficulty {
                 entry,
@@ -1460,7 +1542,7 @@ mod tests {
     }
 
     #[test]
-    fn loaded_grid_db_backed_builder_uses_first_template_model_and_full_health_fallback_like_cpp() {
+    fn loaded_grid_db_backed_builder_uses_cpp_display_model_and_full_health_fallback_like_cpp() {
         let entry = 12_402;
         let spawn = db_backed_spawn(entry);
         let runtime_row = CreatureSpawnRuntimeRowLikeCpp {
@@ -1487,6 +1569,8 @@ mod tests {
             spawn_time_secs: 20,
         };
         let (display_store, model_store) = empty_display_stores();
+        let model_info_store = loaded_grid_model_info_store_like_cpp();
+        let mut random = TestLoadedGridCreatureRandomLikeCpp::default();
         let (_, resolved_spawn, runtime) = build_loaded_grid_creature_inputs_from_db_like_cpp(
             &spawn,
             &runtime_row,
@@ -1506,6 +1590,7 @@ mod tests {
             &CreatureClassificationHealthRatesLikeCpp::default(),
             &display_store,
             &model_store,
+            &model_info_store,
             None,
             &CreatureAddonStoreLikeCpp::default(),
             2,
@@ -1513,15 +1598,97 @@ mod tests {
             0,
             false,
             None,
-            |_, _| panic!("equal-level path must not call selector"),
+            &mut random,
         )
         .expect("first template model/full health fallback should resolve");
 
         assert_eq!(runtime.selected_display_id, 111);
+        assert_eq!(
+            runtime.selected_model_dimensions,
+            Some(CreatureModelDimensions {
+                bounding_radius: 0.70,
+                combat_reach: 1.50,
+            })
+        );
         assert_eq!(runtime.stats.health, runtime.stats.max_health);
         assert_eq!(runtime.stats.mana, runtime.stats.max_mana);
         assert_eq!(resolved_spawn.string_id.as_deref(), Some("spawn-string"));
         assert!(!resolved_spawn.add_to_map);
+    }
+
+    #[test]
+    fn loaded_grid_db_backed_builder_uses_weighted_cpp_display_model_like_cpp() {
+        let entry = 12_407;
+        let spawn = db_backed_spawn(entry);
+        let runtime_row = CreatureSpawnRuntimeRowLikeCpp {
+            spawn_id: spawn.spawn_id,
+            model_id: 0,
+            equipment_id: 0,
+            wander_distance: 0.0,
+            curhealth: 0,
+            curmana: 0,
+            movement_type: 0,
+            npc_flags: None,
+            unit_flags: None,
+            unit_flags2: None,
+            unit_flags3: None,
+            ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
+            swim_allowed: true,
+            flight_movement_type: 0,
+            rooted: false,
+            chase_movement_type: wow_constants::CreatureChaseMovementType::Run as u8,
+            random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
+            interaction_pause_timer_ms:
+                wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
+            string_id: String::new(),
+            spawn_time_secs: 20,
+        };
+        let (display_store, model_store) = empty_display_stores();
+        let model_info_store = loaded_grid_model_info_store_like_cpp();
+        let mut random = TestLoadedGridCreatureRandomLikeCpp {
+            weighted_model_roll: 50.01,
+            ..TestLoadedGridCreatureRandomLikeCpp::default()
+        };
+
+        let (_, _, runtime) = build_loaded_grid_creature_inputs_from_db_like_cpp(
+            &spawn,
+            &runtime_row,
+            &db_backed_template_store(entry),
+            &CreatureDifficultyStoreLikeCpp::from_records(
+                [wow_data::CreatureDifficultyRecordLikeCpp {
+                    min_level: 19,
+                    max_level: 19,
+                    ..db_backed_difficulty_store(entry)
+                        .get_like_cpp(entry, 2)
+                        .unwrap()
+                        .clone()
+                }],
+                |_| 1.0,
+            ),
+            &db_backed_base_stats_store(),
+            &CreatureClassificationHealthRatesLikeCpp::default(),
+            &display_store,
+            &model_store,
+            &model_info_store,
+            None,
+            &CreatureAddonStoreLikeCpp::default(),
+            2,
+            0,
+            0,
+            false,
+            None,
+            &mut random,
+        )
+        .expect("weighted C++ display model should resolve");
+
+        assert_eq!(runtime.selected_display_id, 222);
+        assert_eq!(
+            runtime.selected_model_dimensions,
+            Some(CreatureModelDimensions {
+                bounding_radius: 0.90,
+                combat_reach: 2.25,
+            })
+        );
     }
 
     #[test]
@@ -1556,6 +1723,8 @@ mod tests {
             elite: 2.0,
             ..CreatureClassificationHealthRatesLikeCpp::default()
         };
+        let model_info_store = loaded_grid_model_info_store_like_cpp();
+        let mut random = TestLoadedGridCreatureRandomLikeCpp::default();
 
         let (_, _, runtime) = build_loaded_grid_creature_inputs_from_db_like_cpp(
             &spawn,
@@ -1566,6 +1735,7 @@ mod tests {
             &health_rates,
             &display_store,
             &model_store,
+            &model_info_store,
             None,
             &CreatureAddonStoreLikeCpp::default(),
             2,
@@ -1573,7 +1743,7 @@ mod tests {
             0,
             false,
             None,
-            |_, _| 19,
+            &mut random,
         )
         .expect("regen=false zero current health should preserve dead DB health");
 
@@ -1588,6 +1758,8 @@ mod tests {
         let entry = 12_404;
         let spawn = db_backed_spawn(entry);
         let (display_store, model_store) = empty_display_stores();
+        let model_info_store = loaded_grid_model_info_store_like_cpp();
+        let mut random = TestLoadedGridCreatureRandomLikeCpp::default();
         let health_rates = CreatureClassificationHealthRatesLikeCpp {
             elite: 0.25,
             ..CreatureClassificationHealthRatesLikeCpp::default()
@@ -1625,6 +1797,7 @@ mod tests {
             &health_rates,
             &display_store,
             &model_store,
+            &model_info_store,
             None,
             &CreatureAddonStoreLikeCpp::default(),
             2,
@@ -1632,7 +1805,7 @@ mod tests {
             0,
             false,
             None,
-            |_, _| 19,
+            &mut random,
         )
         .expect("regen=false non-zero current health should min-clamp after scaling");
         assert_eq!(low_health_runtime.stats.max_health, 50);
@@ -1644,6 +1817,7 @@ mod tests {
             curmana: 55,
             ..low_health_row
         };
+        let mut random = TestLoadedGridCreatureRandomLikeCpp::default();
         let (_, _, scaled_health_runtime) = build_loaded_grid_creature_inputs_from_db_like_cpp(
             &spawn,
             &scaled_health_row,
@@ -1653,6 +1827,7 @@ mod tests {
             &health_rates,
             &display_store,
             &model_store,
+            &model_info_store,
             None,
             &CreatureAddonStoreLikeCpp::default(),
             2,
@@ -1660,7 +1835,7 @@ mod tests {
             0,
             false,
             None,
-            |_, _| 19,
+            &mut random,
         )
         .expect("regen=false current health should scale by classification health rate");
         assert_eq!(scaled_health_runtime.stats.max_health, 50);
@@ -1696,6 +1871,8 @@ mod tests {
             spawn_time_secs: 20,
         };
         let (display_store, model_store) = empty_display_stores();
+        let model_info_store = loaded_grid_model_info_store_like_cpp();
+        let mut random = TestLoadedGridCreatureRandomLikeCpp::default();
 
         let (template, _, _) = build_loaded_grid_creature_inputs_from_db_like_cpp(
             &spawn,
@@ -1706,6 +1883,7 @@ mod tests {
             &CreatureClassificationHealthRatesLikeCpp::default(),
             &display_store,
             &model_store,
+            &model_info_store,
             None,
             &CreatureAddonStoreLikeCpp::default(),
             2,
@@ -1713,7 +1891,7 @@ mod tests {
             0,
             false,
             None,
-            |_, _| 19,
+            &mut random,
         )
         .expect("DB-backed vehicle template should compose resolver inputs");
 
@@ -1834,13 +2012,11 @@ mod tests {
         );
         assert!(resolved.map_insertion_requested);
         assert!(resolved.map_object_record.is_some());
-        assert!(
-            resolved
-                .map_object_record
-                .as_ref()
-                .and_then(MapObjectRecord::creature)
-                .is_some()
-        );
+        assert!(resolved
+            .map_object_record
+            .as_ref()
+            .and_then(MapObjectRecord::creature)
+            .is_some());
     }
 
     #[test]
@@ -2039,14 +2215,12 @@ mod tests {
             .expect("absence of formation metadata is the previous behavior");
 
         assert!(resolved.creature.formation_info_like_cpp().is_none());
-        assert!(
-            resolved
-                .map_object_record
-                .as_ref()
-                .and_then(MapObjectRecord::creature)
-                .and_then(Creature::formation_info_like_cpp)
-                .is_none()
-        );
+        assert!(resolved
+            .map_object_record
+            .as_ref()
+            .and_then(MapObjectRecord::creature)
+            .and_then(Creature::formation_info_like_cpp)
+            .is_none());
     }
 
     #[test]
@@ -2130,8 +2304,7 @@ mod tests {
             )
         );
 
-        let wrong_high_guid =
-            ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 1, entry, 99_005);
+        let wrong_high_guid = ObjectGuid::create_gameobject_like_cpp(571, entry, 99_005);
         assert_eq!(
             resolver.resolve_loaded_grid_creature_like_cpp(62, wrong_high_guid),
             Err(

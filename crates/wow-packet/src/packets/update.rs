@@ -15,6 +15,7 @@ use std::collections::BTreeSet;
 use wow_constants::ServerOpcodes;
 use wow_core::guid::TypeId;
 use wow_core::{ObjectGuid, Position};
+use wow_movement::{MonsterMoveType, MoveSpline, MoveSplineFlag};
 
 use crate::{ServerPacket, WorldPacket};
 
@@ -37,6 +38,7 @@ pub struct MovementBlock {
     pub movement_flags: u32,
     pub movement_flags2: u32,
     pub movement_flags3: u32,
+    pub create_object_spline: Option<MoveSpline>,
     pub walk_speed: f32,
     pub run_speed: f32,
     pub run_back_speed: f32,
@@ -55,6 +57,7 @@ impl Default for MovementBlock {
             movement_flags: 0,
             movement_flags2: 0,
             movement_flags3: 0,
+            create_object_spline: None,
             walk_speed: 2.5,
             run_speed: 7.0,
             run_back_speed: 4.5,
@@ -2494,6 +2497,7 @@ pub struct CreatureCreateData {
     pub base_attack_time: u32,
     pub ranged_attack_time: u32,
     pub movement_flags: u32,
+    pub vehicle_id: u32,
     pub play_hover_anim: bool,
     pub hover_height: f32,
     pub mount_display_id: i32,
@@ -2914,6 +2918,7 @@ pub enum UpdateBlock {
         create_data: DynamicObjectCreateData,
     },
     CreateItem {
+        update_type: UpdateType,
         guid: ObjectGuid,
         create_data: ItemCreateData,
     },
@@ -3123,8 +3128,15 @@ impl UpdateObject {
                     let has_anim_kit = create_data.ai_anim_kit_id != 0
                         || create_data.movement_anim_kit_id != 0
                         || create_data.melee_anim_kit_id != 0;
+                    let active_spline = movement
+                        .create_object_spline
+                        .as_ref()
+                        .filter(|spline| create_object_spline_enabled_like_cpp(spline));
+                    let spline_points = active_spline
+                        .map(|spline| spline.create_object_path_points_like_cpp().len())
+                        .unwrap_or(0);
                     lines.push(format!(
-                        "#{index:03} creature guid={guid:?} entry={} updateType={} typeId={} display={} native_display={} level={} bytes={} movementBytes={} valuesBytes={} flags(noBirth=0 portals=0 hover={} move=1 transport=0 stationary=0 combatVictim=0 serverTime=0 vehicle=0 animKit={} rotation=0 areaTrigger=0 gameObject=0 smooth=0 thisIsYou=0 scene=0 activePlayer=0 conversation=0) pos=({:.3},{:.3},{:.3},{:.3}) hp={}/{} npc_flags=0x{:X} unit_flags=0x{:X}/0x{:X}/0x{:X} move_flags=0x{:X}/0x{:X}/0x{:X} speeds=({:.5},{:.5}) power0={}/{} virtual_items={:?} hover={} hover_h={:.3} animkits=({},{},{})",
+                        "#{index:03} creature guid={guid:?} entry={} updateType={} typeId={} display={} native_display={} level={} bytes={} movementBytes={} valuesBytes={} flags(noBirth=0 portals=0 hover={} move=1 transport=0 stationary=0 combatVictim=0 serverTime=0 vehicle={} animKit={} rotation=0 areaTrigger=0 gameObject=0 smooth=0 thisIsYou=0 scene=0 activePlayer=0 conversation=0) hasSpline={} splinePoints={} pos=({:.3},{:.3},{:.3},{:.3}) hp={}/{} npc_flags=0x{:X} unit_flags=0x{:X}/0x{:X}/0x{:X} move_flags=0x{:X}/0x{:X}/0x{:X} speeds=({:.5},{:.5}) power0={}/{} vehicle_id={} virtual_items={:?} hover={} hover_h={:.3} animkits=({},{},{})",
                         create_data.entry,
                         UpdateType::CreateObject as u8,
                         TypeId::Unit as u8,
@@ -3135,7 +3147,10 @@ impl UpdateObject {
                         movement_bytes,
                         values_bytes,
                         create_data.play_hover_anim as u8,
+                        (create_data.vehicle_id != 0) as u8,
                         has_anim_kit as u8,
+                        active_spline.is_some() as u8,
+                        spline_points,
                         movement.position.x,
                         movement.position.y,
                         movement.position.z,
@@ -3153,6 +3168,7 @@ impl UpdateObject {
                         movement.run_speed,
                         create_data.power[0],
                         create_data.max_power[0],
+                        create_data.vehicle_id,
                         create_data.virtual_items,
                         create_data.play_hover_anim,
                         create_data.hover_height,
@@ -3161,14 +3177,18 @@ impl UpdateObject {
                         create_data.melee_anim_kit_id
                     ));
                 }
-                UpdateBlock::CreateItem { guid, create_data } => {
+                UpdateBlock::CreateItem {
+                    update_type,
+                    guid,
+                    create_data,
+                } => {
                     let mut block_buf = WorldPacket::new_empty();
-                    write_item_create_block(&mut block_buf, guid, create_data);
+                    write_item_create_block(&mut block_buf, *update_type, guid, create_data);
                     let block_bytes = block_buf.into_data().len();
                     let values_bytes = debug_item_create_values_len_like_cpp(create_data);
                     let movement_bytes = block_bytes.saturating_sub(
                         debug_create_header_len_like_cpp(
-                            UpdateType::CreateObject2,
+                            *update_type,
                             guid,
                             if create_data.container_slots > 0 {
                                 TypeId::Container
@@ -3183,8 +3203,9 @@ impl UpdateObject {
                         .filter(|guid| !guid.is_empty())
                         .count();
                     lines.push(format!(
-                        "#{index:03} item guid={guid:?} entry={} type_id={} bytes={} movementBytes={} valuesBytes={} stack={} flags=0x{:X} durability={}/{} context={} contained_in={:?} container_slots={} filled_container_slots={} random=({},{})",
+                        "#{index:03} item guid={guid:?} entry={} updateType={} type_id={} bytes={} movementBytes={} valuesBytes={} stack={} flags=0x{:X} durability={}/{} context={} contained_in={:?} container_slots={} filled_container_slots={} random=({},{})",
                         create_data.entry_id,
+                        *update_type as u8,
                         if create_data.container_slots > 0 {
                             TypeId::Container as u8
                         } else {
@@ -3362,11 +3383,22 @@ impl UpdateObject {
         create_data: CreatureCreateData,
         position: &Position,
     ) -> UpdateBlock {
+        Self::create_creature_block_with_spline(create_data, position, None)
+    }
+
+    /// Create a creature spawn block, preserving an active C++ `Unit::movespline`
+    /// when the creature is already moving as it enters the viewer's client set.
+    pub fn create_creature_block_with_spline(
+        create_data: CreatureCreateData,
+        position: &Position,
+        active_spline: Option<MoveSpline>,
+    ) -> UpdateBlock {
         let walk_speed = create_data.speed_walk_rate * 2.5;
         let run_speed = create_data.speed_run_rate * 7.0;
         let movement = MovementBlock {
             position: *position,
             movement_flags: create_data.movement_flags,
+            create_object_spline: active_spline,
             walk_speed,
             run_speed,
             ..Default::default()
@@ -3568,7 +3600,7 @@ impl UpdateObject {
             destroy_guids: Vec::new(),
             out_of_range_guids: Vec::new(),
             blocks: vec![UpdateBlock::CreateObject {
-                update_type: UpdateType::CreateObject2,
+                update_type: UpdateType::CreateObject,
                 guid,
                 type_id,
                 movement: Some(movement),
@@ -3946,6 +3978,7 @@ impl UpdateObject {
             .map(|data| {
                 let guid = data.item_guid;
                 UpdateBlock::CreateItem {
+                    update_type: UpdateType::CreateObject2,
                     guid,
                     create_data: data,
                 }
@@ -4005,14 +4038,14 @@ fn debug_gameobject_create_values_len_like_cpp(data: &GameObjectCreateData) -> u
 
 fn debug_item_create_values_len_like_cpp(data: &ItemCreateData) -> usize {
     let mut block = WorldPacket::new_empty();
-    write_item_create_block(&mut block, &data.item_guid, data);
+    write_item_create_block(&mut block, UpdateType::CreateObject, &data.item_guid, data);
     let type_id = if data.container_slots > 0 {
         TypeId::Container
     } else {
         TypeId::Item
     };
     block.into_data().len().saturating_sub(
-        debug_create_header_len_like_cpp(UpdateType::CreateObject2, &data.item_guid, type_id) + 7, // CreateObjectBits (18 bits flushed to 3 bytes) + PauseTimes count.
+        debug_create_header_len_like_cpp(UpdateType::CreateObject, &data.item_guid, type_id) + 7, // CreateObjectBits (18 bits flushed to 3 bytes) + PauseTimes count.
     )
 }
 
@@ -4097,8 +4130,12 @@ impl ServerPacket for UpdateObject {
                 UpdateBlock::CreateDynamicObject { guid, create_data } => {
                     write_dynamic_object_create_block(&mut blocks_buf, guid, create_data);
                 }
-                UpdateBlock::CreateItem { guid, create_data } => {
-                    write_item_create_block(&mut blocks_buf, guid, create_data);
+                UpdateBlock::CreateItem {
+                    update_type,
+                    guid,
+                    create_data,
+                } => {
+                    write_item_create_block(&mut blocks_buf, *update_type, guid, create_data);
                 }
                 UpdateBlock::ItemValuesUpdate { guid, stack_count } => {
                     write_item_values_update_block(&mut blocks_buf, guid, *stack_count);
@@ -4255,6 +4292,11 @@ fn write_create_block(
 
 /// Write the movement update block (when bit 3 = true).
 fn write_movement_update(buf: &mut WorldPacket, guid: &ObjectGuid, mv: &MovementBlock) {
+    let active_create_spline = mv
+        .create_object_spline
+        .as_ref()
+        .filter(|spline| create_object_spline_enabled_like_cpp(spline));
+
     // MoverGUID
     buf.write_packed_guid(guid);
 
@@ -4292,7 +4334,7 @@ fn write_movement_update(buf: &mut WorldPacket, guid: &ObjectGuid, mv: &Movement
     buf.write_bit(false); // HasStandingOnGameObjectGUID
     buf.write_bit(false); // HasTransport
     buf.write_bit(false); // HasFall
-    buf.write_bit(false); // HasSpline
+    buf.write_bit(active_create_spline.is_some()); // HasSpline
     buf.write_bit(false); // HeightChangeFailed
     buf.write_bit(false); // RemoteTimeValid
     buf.write_bit(false); // HasInertia
@@ -4336,10 +4378,106 @@ fn write_movement_update(buf: &mut WorldPacket, guid: &ObjectGuid, mv: &Movement
     buf.write_float(0.4); // launchSpeedCoefficient
 
     // HasSplineData bit
-    buf.write_bit(false);
+    buf.write_bit(active_create_spline.is_some());
     buf.flush_bits();
 
-    // No movement forces, no spline data
+    // No movement forces.
+    if let Some(spline) = active_create_spline {
+        write_create_object_spline_data_block_like_cpp(buf, spline);
+    }
+}
+
+fn create_object_spline_enabled_like_cpp(spline: &MoveSpline) -> bool {
+    spline.initialized() && !spline.finalized()
+}
+
+fn write_position_xyz_like_cpp(buf: &mut WorldPacket, position: Position) {
+    buf.write_float(position.x);
+    buf.write_float(position.y);
+    buf.write_float(position.z);
+}
+
+fn write_create_object_spline_data_block_like_cpp(buf: &mut WorldPacket, spline: &MoveSpline) {
+    buf.write_uint32(spline.id());
+
+    let destination = if !spline.is_cyclic() {
+        spline.final_destination().unwrap_or(Position::ZERO)
+    } else {
+        Position::ZERO
+    };
+    write_position_xyz_like_cpp(buf, destination);
+
+    let has_spline_move = !spline.finalized() && !spline.spline_is_facing_only_like_cpp();
+    buf.write_bit(has_spline_move);
+    buf.flush_bits();
+
+    if !has_spline_move {
+        return;
+    }
+
+    let flags = spline.flags();
+    let flags_bits = flags.bits();
+    let effect_start_time = spline.effect_start_time_ms().max(0) as u32;
+    let duration = spline.duration_ms().max(0) as u32;
+    let has_fade_object_time =
+        flags.contains(MoveSplineFlag::FADE_OBJECT) && effect_start_time < duration;
+    let has_spell_effect_extra = spline.spell_effect_extra().is_some();
+    let has_jump_extra = flags.contains(MoveSplineFlag::PARABOLIC)
+        && (spline.spell_effect_extra().is_none() || effect_start_time != 0);
+    let has_anim_tier_transition = spline.anim_tier().is_some();
+    let path_points = spline.create_object_path_points_like_cpp();
+    let facing = spline.facing();
+
+    buf.write_uint32(flags_bits);
+    buf.write_int32(spline.time_passed_ms());
+    buf.write_uint32(duration);
+    buf.write_float(1.0);
+    buf.write_float(1.0);
+    buf.write_bits(u32::from(facing.kind as u8), 2);
+    buf.write_bit(has_fade_object_time);
+    buf.write_bits(path_points.len() as u32, 16);
+    buf.write_bit(false); // HasSplineFilter
+    buf.write_bit(has_spell_effect_extra);
+    buf.write_bit(has_jump_extra);
+    buf.write_bit(has_anim_tier_transition);
+    buf.write_bit(false); // HasUnknown901
+    buf.flush_bits();
+
+    match facing.kind {
+        MonsterMoveType::FacingSpot => write_position_xyz_like_cpp(buf, facing.spot),
+        MonsterMoveType::FacingTarget => buf.write_packed_guid(&facing.target),
+        MonsterMoveType::FacingAngle => buf.write_float(facing.angle),
+        MonsterMoveType::Normal => {}
+    }
+
+    if has_fade_object_time {
+        buf.write_uint32(effect_start_time);
+    }
+
+    for point in path_points {
+        write_position_xyz_like_cpp(buf, *point);
+    }
+
+    if let Some(extra) = spline.spell_effect_extra() {
+        buf.write_packed_guid(&extra.target);
+        buf.write_uint32(extra.spell_visual_id);
+        buf.write_uint32(extra.progress_curve_id);
+        buf.write_uint32(extra.parabolic_curve_id);
+        buf.write_float(spline.vertical_acceleration());
+    }
+
+    if has_jump_extra {
+        buf.write_float(spline.vertical_acceleration());
+        buf.write_uint32(effect_start_time);
+        buf.write_uint32(0);
+    }
+
+    if let Some(anim_tier) = spline.anim_tier() {
+        buf.write_int32(anim_tier.tier_transition_id as i32);
+        buf.write_uint32(effect_start_time);
+        buf.write_uint32(0);
+        buf.write_uint8(anim_tier.anim_tier);
+    }
 }
 
 /// The ActivePlayer block in C++ `Object::BuildMovementUpdate`.
@@ -4391,6 +4529,7 @@ fn write_creature_create_block(
     let has_anim_kit = create_data.ai_anim_kit_id != 0
         || create_data.movement_anim_kit_id != 0
         || create_data.melee_anim_kit_id != 0;
+    let has_vehicle = create_data.vehicle_id != 0;
     buf.write_bit(false); // 0: NoBirthAnim
     buf.write_bit(false); // 1: EnablePortals
     buf.write_bit(create_data.play_hover_anim); // 2: PlayHoverAnim
@@ -4399,7 +4538,7 @@ fn write_creature_create_block(
     buf.write_bit(false); // 5: Stationary
     buf.write_bit(false); // 6: CombatVictim
     buf.write_bit(false); // 7: ServerTime
-    buf.write_bit(false); // 8: Vehicle
+    buf.write_bit(has_vehicle); // 8: Vehicle
     buf.write_bit(has_anim_kit); // 9: AnimKit
     buf.write_bit(false); // 10: Rotation
     buf.write_bit(false); // 11: AreaTrigger
@@ -4416,6 +4555,11 @@ fn write_creature_create_block(
 
     // PauseTimes count
     buf.write_int32(0);
+
+    if has_vehicle {
+        buf.write_uint32(create_data.vehicle_id);
+        buf.write_float(movement.position.orientation);
+    }
 
     if has_anim_kit {
         buf.write_uint16(create_data.ai_anim_kit_id);
@@ -4616,11 +4760,18 @@ fn write_dynamic_object_create_block(
 ///
 /// Items have NO movement block, NO stationary, and all 18 bits are false.
 /// Values = ObjectData + ItemData (with Owner conditional fields).
-fn write_item_create_block(buf: &mut WorldPacket, guid: &ObjectGuid, data: &ItemCreateData) {
+fn write_item_create_block(
+    buf: &mut WorldPacket,
+    update_type: UpdateType,
+    guid: &ObjectGuid,
+    data: &ItemCreateData,
+) {
     let is_container = data.container_slots > 0;
 
-    // UpdateType: CreateObject2 — first appearance of item to the client
-    buf.write_uint8(UpdateType::CreateObject2 as u8);
+    // C++ `Object::BuildCreateUpdateBlockForPlayer` uses CreateObject for
+    // existing login/inventory objects and CreateObject2 only while
+    // `m_isNewObject` is set.
+    buf.write_uint8(update_type as u8);
 
     // Object GUID
     buf.write_packed_guid(guid);
@@ -8401,6 +8552,7 @@ mod tests {
             movement_flags: 0,
             movement_flags2: 0,
             movement_flags3: 0,
+            create_object_spline: None,
             walk_speed: 1.0,
             run_speed: 2.0,
             run_back_speed: 3.0,
@@ -8453,6 +8605,7 @@ mod tests {
             movement_flags: wow_constants::movement::MovementFlag::HOVER.bits(),
             movement_flags2: 0,
             movement_flags3: 0,
+            create_object_spline: None,
             walk_speed: 1.0,
             run_speed: 2.0,
             run_back_speed: 3.0,
@@ -8751,6 +8904,14 @@ mod tests {
             "Packet too small: {} bytes",
             bytes.len()
         );
+        let UpdateBlock::CreateObject { update_type, .. } = pkt.blocks[0] else {
+            panic!("player login self must be a create block");
+        };
+        assert_eq!(
+            update_type,
+            UpdateType::CreateObject,
+            "C++ SendInitSelf writes UPDATETYPE_CREATE_OBJECT for the existing player object"
+        );
     }
 
     #[test]
@@ -8793,6 +8954,14 @@ mod tests {
         );
 
         let bytes = pkt.to_bytes();
+        let UpdateBlock::CreateItem { update_type, .. } = pkt.blocks[0] else {
+            panic!("item packet must contain an item create block");
+        };
+        assert_eq!(
+            update_type,
+            UpdateType::CreateObject2,
+            "newly created item objects keep C++ m_isNewObject/CreateObject2 semantics"
+        );
 
         assert!(bytes.windows(4).any(|window| window == 7i32.to_le_bytes()));
         assert!(bytes.windows(4).any(|window| window == 12i32.to_le_bytes()));
@@ -10472,6 +10641,7 @@ mod tests {
             base_attack_time: 2000,
             ranged_attack_time: 0,
             movement_flags: 0,
+            vehicle_id: 0,
             play_hover_anim: false,
             hover_height: 1.0,
             mount_display_id: 0,
@@ -10499,7 +10669,7 @@ mod tests {
         assert_eq!(&values[0..4], &532u32.to_le_bytes());
         assert_eq!(values[4], 0, "creature create uses no owner/party flags");
 
-        let block = UpdateObject::create_creature_block(data, &pos);
+        let block = UpdateObject::create_creature_block(data.clone(), &pos);
         let pkt = UpdateObject::create_creatures(vec![block], 0);
         let bytes = pkt.to_bytes();
         // Creature packet should be much smaller than player (no PlayerData/ActivePlayerData)
@@ -10512,6 +10682,27 @@ mod tests {
             bytes.len() < 2000,
             "Creature packet too large: {} bytes",
             bytes.len()
+        );
+
+        let mut vehicle_data = data.clone();
+        vehicle_data.vehicle_id = 686;
+        let normal_block = UpdateObject::create_creature_block(data, &pos);
+        let vehicle_block = UpdateObject::create_creature_block(vehicle_data, &pos);
+        let normal = UpdateObject::create_creatures(vec![normal_block], 0).to_bytes();
+        let vehicle = UpdateObject::create_creatures(vec![vehicle_block], 0).to_bytes();
+        let mut expected_vehicle_payload = Vec::new();
+        expected_vehicle_payload.extend_from_slice(&686u32.to_le_bytes());
+        expected_vehicle_payload.extend_from_slice(&pos.orientation.to_le_bytes());
+        assert_eq!(
+            vehicle.len(),
+            normal.len() + 8,
+            "C++ CreateObjectBits::Vehicle writes VehicleRecID plus InitialRawFacing"
+        );
+        assert!(
+            vehicle
+                .windows(expected_vehicle_payload.len())
+                .any(|window| window == expected_vehicle_payload),
+            "vehicle create block must include the C++ VehicleRecID/orientation payload"
         );
     }
 
@@ -10555,6 +10746,7 @@ mod tests {
             base_attack_time: 2000,
             ranged_attack_time: 0,
             movement_flags: 0,
+            vehicle_id: 0,
             play_hover_anim: false,
             hover_height: 1.0,
             mount_display_id: 0,
@@ -10623,6 +10815,7 @@ mod tests {
             base_attack_time: 2000,
             ranged_attack_time: 0,
             movement_flags: 0,
+            vehicle_id: 0,
             play_hover_anim: false,
             hover_height: 1.25,
             mount_display_id: 0x0102_0304,
@@ -10717,6 +10910,7 @@ mod tests {
             base_attack_time: 2000,
             ranged_attack_time: 0,
             movement_flags: 0,
+            vehicle_id: 0,
             play_hover_anim: false,
             hover_height: 1.0,
             mount_display_id: 0,
@@ -10780,6 +10974,7 @@ mod tests {
             base_attack_time: 2000,
             ranged_attack_time: 0,
             movement_flags: wow_constants::movement::MovementFlag::HOVER.bits(),
+            vehicle_id: 0,
             play_hover_anim: false,
             hover_height: 1.25,
             mount_display_id: 0,
@@ -10877,6 +11072,7 @@ mod tests {
             base_attack_time: 2000,
             ranged_attack_time: 0,
             movement_flags: 0,
+            vehicle_id: 0,
             play_hover_anim: false,
             hover_height: 1.0,
             mount_display_id: 0,
@@ -10950,6 +11146,7 @@ mod tests {
                 base_attack_time: 2000,
                 ranged_attack_time: 0,
                 movement_flags: 0,
+                vehicle_id: 0,
                 play_hover_anim: false,
                 hover_height: 1.0,
                 mount_display_id: 0,
@@ -11025,6 +11222,7 @@ mod tests {
             base_attack_time: 2000,
             ranged_attack_time: 0,
             movement_flags: 0,
+            vehicle_id: 0,
             play_hover_anim: false,
             hover_height: 1.0,
             mount_display_id: 0,

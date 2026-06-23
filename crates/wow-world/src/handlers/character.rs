@@ -96,8 +96,9 @@ const CREATURE_SPAWN_RESPAWN_DELAY_SECS_COLUMN: usize = 50;
 const CREATURE_SPAWN_DIFFICULTIES_COLUMN: usize = 51;
 const CREATURE_SPAWN_SCRIPT_NAME_COLUMN: usize = 52;
 const CREATURE_SPAWN_STRING_ID_COLUMN: usize = 53;
+const CREATURE_SPAWN_VEHICLE_ID_COLUMN: usize = 54;
 const WAYPOINT_MOTION_TYPE_LIKE_CPP: u8 = 2;
-const TACT_KEY_TABLE_HASH_LIKE_CPP: u32 = 0xD3F6_1A9E;
+const TACT_KEY_TABLE_HASH_LIKE_CPP: u32 = 0xDF2F_53CF;
 const QUEST_GIVER_STATUS_TRACKED_QUERY_MAX_GUIDS_LIKE_CPP: u32 = 1000;
 const MAX_AREA_SPIRIT_HEALER_RANGE_LIKE_CPP: f32 = 20.0;
 // C++ ObjectDefines.h: DEFAULT_VISIBILITY_DISTANCE = VISIBILITY_DISTANCE_NORMAL = 100 yards.
@@ -1391,14 +1392,20 @@ struct MaterializedCreatureSpawnLikeCpp {
     waypoint_path_id: u32,
 }
 
-fn creature_create_movement_flags_like_cpp(ground_movement_type: u8) -> u32 {
+fn creature_create_movement_flags_like_cpp(ground_movement_type: u8, rooted: bool) -> u32 {
+    let mut flags = MovementFlag::empty();
     if ground_movement_type == wow_constants::CreatureGroundMovementType::Hover as u8 {
         // C++ Creature::LoadCreaturesAddon calls AddUnitMovementFlag(MOVEMENTFLAG_HOVER)
         // when CanHover(), and CanHover() is true for ground movement type Hover.
-        MovementFlag::HOVER.bits()
-    } else {
-        0
+        flags.insert(MovementFlag::HOVER);
     }
+    if rooted {
+        // C++ Creature::LoadTemplateRoot -> SetTemplateRooted -> SetControlled(... ROOT)
+        // ends in Unit::SetRooted, removing moving flags before adding MOVEMENTFLAG_ROOT.
+        flags.remove(MovementFlag::MASK_MOVING);
+        flags.insert(MovementFlag::ROOT);
+    }
+    flags.bits()
 }
 
 fn creature_create_position_after_hover_offset_like_cpp(
@@ -3299,8 +3306,13 @@ impl WorldSession {
 
     /// Handle CMSG_DB_QUERY_BULK — client requests DB2 records.
     ///
-    /// DB2 records are served from the startup hotfix blob cache, which is
-    /// populated from local DB2 files plus the C++ `hotfixes.hotfix_blob` table.
+    /// TrinityCore only sends a Valid `DBReply` when `sDB2Manager.GetStorage`
+    /// returns typed storage and that storage can serialize the record through
+    /// `DB2StorageBase::WriteRecord`. Rust's startup `HotfixBlobCache` stores
+    /// raw WDC4/DB2 record bytes, which are not the same wire format. Sending
+    /// those raw blobs as Valid corrupts the client's DB2 parser, so until Rust
+    /// has the typed storage serializer this handler must take the C++ Invalid
+    /// branch and let the client use its local DB2 cache.
     pub async fn handle_db_query_bulk(&mut self, query: wow_packet::packets::misc::DbQueryBulk) {
         info!(
             "DbQueryBulk: table=0x{:08X}, {} records {:?} for account {}",
@@ -3309,32 +3321,11 @@ impl WorldSession {
             query.queries,
             self.account_id
         );
-        // Status 1 = Valid (send blob), Status 3 = Invalid (client uses its own DB2 cache).
-        let cache = self.hotfix_blob_cache().map(Arc::clone);
+        // Status 3 = Invalid: same C++ fallback when DB2 typed storage is missing.
+        // Do not use `hotfix_blob_cache()` here; it stores raw DB2 blobs, not the
+        // typed `WriteRecord` payload that C++ writes into SMSG_DB_REPLY.
         for record_id in &query.queries {
-            if let Some(ref c) = cache {
-                if let Some(blob) = c.get(query.table_hash, *record_id) {
-                    let mut data = blob.to_vec();
-                    if let Some(optional_entries) =
-                        c.get_optional_data(query.table_hash, *record_id, &self.locale)
-                    {
-                        for optional_data in optional_entries {
-                            data.extend_from_slice(&optional_data.key.to_le_bytes());
-                            data.extend_from_slice(&optional_data.data);
-                        }
-                    }
-                    info!(
-                        "DbQueryBulk: FOUND blob table=0x{:08X} record={} ({} bytes)",
-                        query.table_hash,
-                        record_id,
-                        data.len()
-                    );
-                    self.send_packet(&DBReply::found(query.table_hash, *record_id, data));
-                    continue;
-                }
-            }
-
-            // Not found anywhere → send Invalid(3) so the client uses its local DB2 copy.
+            // Missing typed storage → send Invalid(3) so the client uses its local DB2 copy.
             // RecordRemoved(2) would tell the client to DELETE the record from its cache,
             // which is wrong for items that exist in the client's DB2 but not on the server.
             if query.table_hash == TACT_KEY_TABLE_HASH_LIKE_CPP {
@@ -3344,7 +3335,7 @@ impl WorldSession {
                 );
             } else {
                 info!(
-                    "DbQueryBulk: NOT_FOUND table=0x{:08X} record={} → Invalid(3)",
+                    "DbQueryBulk: table=0x{:08X} record={} → Invalid(3), no typed DB2 storage serializer",
                     query.table_hash, record_id
                 );
             }
@@ -3383,7 +3374,7 @@ impl WorldSession {
                 let mut size = 0u32;
 
                 if record.status == HotfixRecordStatus::Valid {
-                    if let Some(blob) = cache.get(record.table_hash, record.record_id) {
+                    if let Some(blob) = cache.get_hotfix_blob(record.table_hash, record.record_id) {
                         let start = response.content.len();
                         response.content.extend_from_slice(blob);
                         if let Some(optional_entries) = cache.get_optional_data(
@@ -3400,11 +3391,10 @@ impl WorldSession {
                         }
                         size = (response.content.len() - start) as u32;
                     } else {
-                        status = if cache.has_table(record.table_hash) {
-                            HotfixRecordStatus::RecordRemoved as u8
-                        } else {
-                            HotfixRecordStatus::Invalid as u8
-                        };
+                        // C++ known-store hotfixes use DB2StorageBase::WriteRecord, not raw WDC4
+                        // bytes. Until Rust has that typed serializer, fail closed so the client
+                        // keeps its local DB2 cache instead of parsing a malformed Valid payload.
+                        status = HotfixRecordStatus::Invalid as u8;
                     }
                 }
 
@@ -5357,96 +5347,6 @@ impl WorldSession {
         );
     }
 
-    /// C++ `Player::UpdateVisibilityForPlayer` gathers every visible object
-    /// family into one `UpdateData` and sends it once via `VisibleNotifier::SendToSelf`.
-    async fn send_initial_world_objects_like_cpp(
-        &mut self,
-        map_id: u16,
-        position: &Position,
-        zone_id: u32,
-    ) {
-        let mut blocks = Vec::new();
-        let mut visible_guids = Vec::new();
-
-        if self.has_world_map_manager_like_cpp() {
-            for creature in self.visible_world_creatures_from_map_like_cpp(map_id, position) {
-                let mut create_data = creature.create_data.clone();
-                create_data.health = i64::from(creature.current_hp());
-                create_data.max_health = i64::from(creature.max_hp());
-                create_data.level = creature.level();
-                create_data.npc_flags = creature.npc_flags_mask_like_cpp();
-                create_data.npc_flags = self
-                    .represented_viewer_dependent_creature_npc_flags_like_cpp(
-                        creature.guid(),
-                        create_data.npc_flags,
-                    );
-                create_data.current_area_id = 0;
-                blocks.push(UpdateObject::create_creature_block(
-                    create_data,
-                    &creature.position(),
-                ));
-                visible_guids.push(creature.guid());
-            }
-        } else {
-            self.send_nearby_creatures(map_id, position, zone_id).await;
-        }
-
-        if let Some(gameobjects) = self.visible_gameobjects_from_canonical_map_like_cpp(
-            map_id,
-            position,
-            DEFAULT_VISIBILITY_DISTANCE_LIKE_CPP,
-        ) {
-            for gameobject in gameobjects {
-                visible_guids.push(gameobject.guid);
-                blocks.push(UpdateObject::create_gameobject_block(gameobject));
-            }
-        } else {
-            self.send_nearby_gameobjects(map_id, position, zone_id)
-                .await;
-        }
-
-        let creature_count = visible_guids
-            .iter()
-            .filter(|guid| guid.is_any_type_creature())
-            .count();
-        let gameobject_count = visible_guids
-            .iter()
-            .filter(|guid| guid.is_game_object())
-            .count();
-        info!(
-            map_id,
-            player_x = position.x,
-            player_y = position.y,
-            player_z = position.z,
-            blocks = blocks.len(),
-            creature_count,
-            gameobject_count,
-            "RUST_UPDATEOBJECT initial_visibility plan"
-        );
-
-        if blocks.is_empty() {
-            self.last_visibility_pos = Some(*position);
-            return;
-        }
-
-        self.client_visible_guids_like_cpp
-            .extend(visible_guids.iter().copied());
-        self.last_visibility_pos = Some(*position);
-
-        let update = UpdateObject::create_world_objects(blocks, map_id);
-        if std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some() {
-            for line in update.debug_create_summary_like_cpp() {
-                info!("RUST_UPDATEOBJECT initial_visibility {line}");
-            }
-        }
-        self.send_packet(&update);
-
-        debug!(
-            "Sent initial visibility to account {} on map {}: {} creatures / {} gameobjects",
-            self.account_id, map_id, creature_count, gameobject_count
-        );
-    }
-
     /// C++ `Map::SendInitTransports`: after `SendInitSelf`, send map
     /// transports as GameObject-derived create blocks.
     async fn send_init_transports_like_cpp(&mut self, map_id: u16) {
@@ -5784,6 +5684,11 @@ impl WorldSession {
             .flatten()
             .or_else(|| row.try_read::<String>(CREATURE_SPAWN_STRING_ID_COLUMN))
             .filter(|value| !value.is_empty());
+        let vehicle_id: u32 = row
+            .try_read::<Option<u32>>(CREATURE_SPAWN_VEHICLE_ID_COLUMN)
+            .flatten()
+            .or_else(|| row.try_read::<u32>(CREATURE_SPAWN_VEHICLE_ID_COLUMN))
+            .unwrap_or(0);
         let phase_use_flags: u8 = row
             .try_read::<u8>(28)
             .or_else(|| row.try_read::<i16>(28).map(|value| value.max(0) as u8))
@@ -5929,8 +5834,20 @@ impl WorldSession {
         let addon_fields = Self::creature_addon_create_fields_like_cpp(addon.as_ref());
         let equipment_fields = self.creature_virtual_items_from_row_like_cpp(entry, row);
 
-        let guid = ObjectGuid::create_creature_like_cpp(map_id, entry, spawn_guid as i64);
-        let movement_flags = creature_create_movement_flags_like_cpp(ground_movement_type);
+        let guid = if vehicle_id != 0 {
+            ObjectGuid::create_world_object(
+                HighGuid::Vehicle,
+                0,
+                0,
+                map_id,
+                0,
+                entry,
+                spawn_guid as i64,
+            )
+        } else {
+            ObjectGuid::create_creature_like_cpp(map_id, entry, spawn_guid as i64)
+        };
+        let movement_flags = creature_create_movement_flags_like_cpp(ground_movement_type, rooted);
         let position = creature_create_position_after_hover_offset_like_cpp(
             Position::new(pos_x, pos_y, pos_z, orientation),
             movement_flags,
@@ -5972,6 +5889,7 @@ impl WorldSession {
             base_attack_time,
             ranged_attack_time: row.try_read(22).unwrap_or(base_attack_time),
             movement_flags,
+            vehicle_id,
             play_hover_anim: false,
             hover_height: model_scalars.hover_height,
             mount_display_id: addon_fields.mount_display_id,
@@ -6091,7 +6009,7 @@ impl WorldSession {
     /// a batched UpdateObject.
     pub async fn send_nearby_creatures(&mut self, map_id: u16, position: &Position, _zone_id: u32) {
         let map_creatures = self.visible_world_creatures_from_map_like_cpp(map_id, position);
-        if self.has_world_map_manager_like_cpp() && !map_creatures.is_empty() {
+        if self.has_world_map_manager_like_cpp() {
             let mut blocks = Vec::with_capacity(map_creatures.len());
             let mut visible_guids = Vec::with_capacity(map_creatures.len());
             for creature in &map_creatures {
@@ -6106,25 +6024,28 @@ impl WorldSession {
                         create_data.npc_flags,
                     );
                 create_data.current_area_id = 0;
-                blocks.push(UpdateObject::create_creature_block(
+                blocks.push(UpdateObject::create_creature_block_with_spline(
                     create_data,
                     &creature.position(),
+                    creature.active_move_spline_like_cpp().cloned(),
                 ));
                 visible_guids.push(creature.guid());
             }
 
+            if !blocks.is_empty() {
+                let update = UpdateObject::create_creatures(blocks, map_id);
+                if std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some() {
+                    for line in update.debug_create_summary_like_cpp() {
+                        info!("RUST_UPDATEOBJECT map_owned_creatures {line}");
+                    }
+                }
+                self.send_packet(&update);
+            }
             self.client_visible_guids_like_cpp
                 .retain(|guid| !guid.is_any_type_creature());
             self.client_visible_guids_like_cpp
                 .extend(visible_guids.iter().copied());
             self.last_visibility_pos = Some(*position);
-            let update = UpdateObject::create_creatures(blocks, map_id);
-            if std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some() {
-                for line in update.debug_create_summary_like_cpp() {
-                    info!("RUST_UPDATEOBJECT map_owned_creatures {line}");
-                }
-            }
-            self.send_packet(&update);
             debug!(
                 "Sent {} map-owned creatures to account {} on map {}",
                 visible_guids.len(),
@@ -6210,13 +6131,6 @@ impl WorldSession {
         }
 
         let count = blocks.len();
-        // Mirror C++ Player::m_clientGUIDs semantics: this is the exact set
-        // of creatures sent to this client, not every creature loaded on map.
-        self.client_visible_guids_like_cpp
-            .retain(|guid| !guid.is_any_type_creature());
-        self.client_visible_guids_like_cpp
-            .extend(visible_guids.iter().copied());
-        self.last_visibility_pos = Some(*position);
         let update = UpdateObject::create_creatures(blocks, map_id);
         if std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some() {
             for line in update.debug_create_summary_like_cpp() {
@@ -6224,6 +6138,13 @@ impl WorldSession {
             }
         }
         self.send_packet(&update);
+        // Mirror C++ Player::m_clientGUIDs semantics: this is the exact set
+        // of creatures sent to this client, not every creature loaded on map.
+        self.client_visible_guids_like_cpp
+            .retain(|guid| !guid.is_any_type_creature());
+        self.client_visible_guids_like_cpp
+            .extend(visible_guids.iter().copied());
+        self.last_visibility_pos = Some(*position);
         let mob_count = visible_guids
             .iter()
             .filter(|g| {
@@ -6256,7 +6177,9 @@ impl WorldSession {
             Some(p) => p,
             None => return,
         };
-        if let Some(last) = self.last_visibility_pos {
+        let forced_refresh = self.consume_movement_visibility_refresh_request_like_cpp();
+
+        if !forced_refresh && let Some(last) = self.last_visibility_pos {
             let dx = pos.x - last.x;
             let dy = pos.y - last.y;
             if dx * dx + dy * dy < 50.0 * 50.0 {
@@ -6278,12 +6201,15 @@ impl WorldSession {
             self.visible_gameobjects_from_canonical_map_like_cpp(map_id, &pos, RANGE);
         let canonical_dynamic_objects =
             self.visible_dynamic_objects_from_canonical_map_like_cpp(map_id, &pos, RANGE);
-        let has_map_visibility_source =
-            self.has_world_map_manager_like_cpp() && !map_creatures.is_empty();
-
-        if has_map_visibility_source {
+        if self.has_world_map_manager_like_cpp() {
             let mut new_visible_creatures: HashSet<ObjectGuid> = HashSet::new();
-            let mut new_creature_blocks: Vec<UpdateBlock> = Vec::new();
+            let mut new_visible_gos: HashSet<ObjectGuid> = HashSet::new();
+            let mut new_visible_dynamic_objects: HashSet<ObjectGuid> = HashSet::new();
+            let mut update_blocks: Vec<UpdateBlock> = Vec::new();
+            let mut out_of_range_guids: Vec<ObjectGuid> = Vec::new();
+            let mut created_creatures = 0usize;
+            let mut created_gameobjects = 0usize;
+            let mut created_dynamic_objects = 0usize;
             for creature in &map_creatures {
                 let guid = creature.guid();
                 new_visible_creatures.insert(guid);
@@ -6298,10 +6224,12 @@ impl WorldSession {
                             guid,
                             create_data.npc_flags,
                         );
-                    new_creature_blocks.push(UpdateObject::create_creature_block(
+                    update_blocks.push(UpdateObject::create_creature_block_with_spline(
                         create_data,
                         &creature.position(),
+                        creature.active_move_spline_like_cpp().cloned(),
                     ));
+                    created_creatures += 1;
                 }
             }
 
@@ -6311,36 +6239,25 @@ impl WorldSession {
                 .filter(|g| g.is_any_type_creature() && !new_visible_creatures.contains(g))
                 .copied()
                 .collect();
-
-            if !new_creature_blocks.is_empty() {
-                debug!(
-                    "Visibility update: {} map-owned creatures",
-                    new_creature_blocks.len()
-                );
-                self.send_packet(&UpdateObject::create_creatures(new_creature_blocks, map_id));
-            }
             if !removed_creatures.is_empty() {
                 debug!(
                     "Visibility update: {} map-owned creatures out of range",
                     removed_creatures.len()
                 );
-                self.send_packet(&UpdateObject::out_of_range_objects(
-                    removed_creatures,
-                    map_id,
-                ));
+                out_of_range_guids.extend(removed_creatures);
             }
-            self.client_visible_guids_like_cpp
-                .retain(|guid| !guid.is_any_type_creature());
-            self.client_visible_guids_like_cpp
-                .extend(new_visible_creatures.iter().copied());
 
             if let Some(gameobjects) = canonical_gameobjects {
-                let new_visible_gos: HashSet<_> = gameobjects.iter().map(|go| go.guid).collect();
-                let new_go_blocks = gameobjects
-                    .into_iter()
-                    .filter(|go| !self.client_visible_guids_like_cpp.contains(&go.guid))
-                    .map(UpdateObject::create_gameobject_block)
-                    .collect::<Vec<_>>();
+                new_visible_gos = gameobjects.iter().map(|go| go.guid).collect();
+                for gameobject in gameobjects {
+                    if !self
+                        .client_visible_guids_like_cpp
+                        .contains(&gameobject.guid)
+                    {
+                        update_blocks.push(UpdateObject::create_gameobject_block(gameobject));
+                        created_gameobjects += 1;
+                    }
+                }
                 let removed_gos: Vec<ObjectGuid> = self
                     .client_visible_guids_like_cpp
                     .iter()
@@ -6351,44 +6268,30 @@ impl WorldSession {
                     self.represented_gameobject_phase_shifts.remove(guid);
                 }
 
-                if !new_go_blocks.is_empty() {
-                    debug!(
-                        "Visibility update: {} canonical game objects",
-                        new_go_blocks.len()
-                    );
-                    self.send_packet(&UpdateObject::create_world_objects(new_go_blocks, map_id));
-                }
                 if !removed_gos.is_empty() {
                     debug!(
                         "Visibility update: {} canonical game objects out of range",
                         removed_gos.len()
                     );
-                    self.send_packet(&UpdateObject::out_of_range_objects(
-                        removed_gos.clone(),
-                        map_id,
-                    ));
+                    out_of_range_guids.extend(removed_gos);
                 }
-                for guid in &removed_gos {
-                    self.client_visible_guids_like_cpp.remove(guid);
-                }
-                self.client_visible_guids_like_cpp
-                    .extend(new_visible_gos.iter().copied());
             }
 
             if let Some(dynamic_objects) = canonical_dynamic_objects {
-                let new_visible_dynamic_objects: HashSet<_> = dynamic_objects
+                new_visible_dynamic_objects = dynamic_objects
                     .iter()
                     .map(|dynamic_object| dynamic_object.guid)
                     .collect();
-                let new_dynamic_object_blocks = dynamic_objects
-                    .into_iter()
-                    .filter(|dynamic_object| {
-                        !self
-                            .client_visible_guids_like_cpp
-                            .contains(&dynamic_object.guid)
-                    })
-                    .map(UpdateObject::create_dynamic_object_block)
-                    .collect::<Vec<_>>();
+                for dynamic_object in dynamic_objects {
+                    if !self
+                        .client_visible_guids_like_cpp
+                        .contains(&dynamic_object.guid)
+                    {
+                        update_blocks
+                            .push(UpdateObject::create_dynamic_object_block(dynamic_object));
+                        created_dynamic_objects += 1;
+                    }
+                }
                 let removed_dynamic_objects: Vec<ObjectGuid> = self
                     .client_visible_guids_like_cpp
                     .iter()
@@ -6396,33 +6299,47 @@ impl WorldSession {
                     .copied()
                     .collect();
 
-                if !new_dynamic_object_blocks.is_empty() {
-                    debug!(
-                        "Visibility update: {} canonical dynamic objects",
-                        new_dynamic_object_blocks.len()
-                    );
-                    self.send_packet(&UpdateObject::create_world_objects(
-                        new_dynamic_object_blocks,
-                        map_id,
-                    ));
-                }
                 if !removed_dynamic_objects.is_empty() {
                     debug!(
                         "Visibility update: {} canonical dynamic objects out of range",
                         removed_dynamic_objects.len()
                     );
-                    self.send_packet(&UpdateObject::out_of_range_objects(
-                        removed_dynamic_objects.clone(),
-                        map_id,
-                    ));
+                    out_of_range_guids.extend(removed_dynamic_objects);
                 }
-                for guid in &removed_dynamic_objects {
-                    self.client_visible_guids_like_cpp.remove(guid);
-                }
-                self.client_visible_guids_like_cpp
-                    .extend(new_visible_dynamic_objects.iter().copied());
             }
 
+            if !update_blocks.is_empty() || !out_of_range_guids.is_empty() {
+                let update = UpdateObject {
+                    map_id,
+                    num_updates: update_blocks.len() as u32,
+                    destroy_guids: Vec::new(),
+                    out_of_range_guids,
+                    blocks: update_blocks,
+                };
+                if std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some() {
+                    info!(
+                        map_id,
+                        created_creatures,
+                        created_gameobjects,
+                        created_dynamic_objects,
+                        "RUST_UPDATEOBJECT visibility_update plan"
+                    );
+                    for line in update.debug_create_summary_like_cpp() {
+                        info!("RUST_UPDATEOBJECT visibility_update {line}");
+                    }
+                }
+                self.send_packet(&update);
+            }
+
+            self.client_visible_guids_like_cpp.retain(|guid| {
+                !guid.is_any_type_creature() && !guid.is_game_object() && !guid.is_dynamic_object()
+            });
+            self.client_visible_guids_like_cpp
+                .extend(new_visible_creatures.iter().copied());
+            self.client_visible_guids_like_cpp
+                .extend(new_visible_gos.iter().copied());
+            self.client_visible_guids_like_cpp
+                .extend(new_visible_dynamic_objects.iter().copied());
             self.last_visibility_pos = Some(pos);
             debug!(
                 "Visibility updated at ({:.1}, {:.1}): {} creatures / {} GOs in range",
@@ -6461,7 +6378,10 @@ impl WorldSession {
             };
 
         let mut new_visible_creatures: HashSet<ObjectGuid> = HashSet::new();
-        let mut new_creature_blocks: Vec<UpdateBlock> = Vec::new();
+        let mut update_blocks: Vec<UpdateBlock> = Vec::new();
+        let mut out_of_range_guids: Vec<ObjectGuid> = Vec::new();
+        let mut created_creatures = 0usize;
+        let mut created_gameobjects = 0usize;
 
         if !cr.is_empty() {
             let mut cr = cr;
@@ -6479,7 +6399,8 @@ impl WorldSession {
 
                 if !self.client_visible_guids_like_cpp.contains(&spawn.guid) {
                     self.register_materialized_creature_spawn_like_cpp(map_id, &spawn);
-                    new_creature_blocks.push(self.viewer_creature_create_block_like_cpp(&spawn));
+                    update_blocks.push(self.viewer_creature_create_block_like_cpp(&spawn));
+                    created_creatures += 1;
                 }
 
                 if !cr.next_row() {
@@ -6496,27 +6417,13 @@ impl WorldSession {
             .cloned()
             .collect();
 
-        if !new_creature_blocks.is_empty() {
-            debug!(
-                "Visibility update: {} new creatures",
-                new_creature_blocks.len()
-            );
-            self.send_packet(&UpdateObject::create_creatures(new_creature_blocks, map_id));
-        }
         if !removed_creatures.is_empty() {
             debug!(
                 "Visibility update: {} creatures out of range",
                 removed_creatures.len()
             );
-            self.send_packet(&UpdateObject::out_of_range_objects(
-                removed_creatures,
-                map_id,
-            ));
+            out_of_range_guids.extend(removed_creatures);
         }
-        self.client_visible_guids_like_cpp
-            .retain(|guid| !guid.is_any_type_creature());
-        self.client_visible_guids_like_cpp
-            .extend(new_visible_creatures.iter().copied());
 
         // ── GAME OBJECTS ────────────────────────────────────────────────
         let mut go_stmt = world_db.prepare(WorldStatements::SEL_GAMEOBJECTS_IN_RANGE);
@@ -6538,7 +6445,6 @@ impl WorldSession {
             };
 
         let mut new_visible_gos: HashSet<ObjectGuid> = HashSet::new();
-        let mut new_go_blocks: Vec<UpdateBlock> = Vec::new();
 
         if !go_result.is_empty() {
             let mut go_result = go_result;
@@ -6704,7 +6610,8 @@ impl WorldSession {
                         world_effect_id: 0,
                         scale,
                     };
-                    new_go_blocks.push(UpdateObject::create_gameobject_block(create_data));
+                    update_blocks.push(UpdateObject::create_gameobject_block(create_data));
+                    created_gameobjects += 1;
                     self.record_represented_gameobject_runtime_state_like_cpp(
                         map_id, guid, entry, go_pos, go_type,
                     );
@@ -6764,26 +6671,40 @@ impl WorldSession {
             self.represented_gameobject_phase_shifts.remove(guid);
         }
 
-        if !new_go_blocks.is_empty() {
-            debug!(
-                "Visibility update: {} new game objects",
-                new_go_blocks.len()
-            );
-            self.send_packet(&UpdateObject::create_world_objects(new_go_blocks, map_id));
-        }
         if !removed_gos.is_empty() {
             debug!(
                 "Visibility update: {} game objects out of range",
                 removed_gos.len()
             );
-            self.send_packet(&UpdateObject::out_of_range_objects(
-                removed_gos.clone(),
+            out_of_range_guids.extend(removed_gos);
+        }
+
+        if !update_blocks.is_empty() || !out_of_range_guids.is_empty() {
+            let update = UpdateObject {
                 map_id,
-            ));
+                num_updates: update_blocks.len() as u32,
+                destroy_guids: Vec::new(),
+                out_of_range_guids,
+                blocks: update_blocks,
+            };
+            if std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some() {
+                info!(
+                    map_id,
+                    created_creatures,
+                    created_gameobjects,
+                    "RUST_UPDATEOBJECT visibility_update_db plan"
+                );
+                for line in update.debug_create_summary_like_cpp() {
+                    info!("RUST_UPDATEOBJECT visibility_update_db {line}");
+                }
+            }
+            self.send_packet(&update);
         }
-        for guid in &removed_gos {
-            self.client_visible_guids_like_cpp.remove(guid);
-        }
+
+        self.client_visible_guids_like_cpp
+            .retain(|guid| !guid.is_any_type_creature() && !guid.is_game_object());
+        self.client_visible_guids_like_cpp
+            .extend(new_visible_creatures.iter().copied());
         self.client_visible_guids_like_cpp
             .extend(new_visible_gos.iter().copied());
 
@@ -13051,6 +12972,7 @@ impl WorldSession {
                     .map(|data| {
                         let g = data.item_guid;
                         UpdateBlock::CreateItem {
+                            update_type: UpdateType::CreateObject,
                             guid: g,
                             create_data: data,
                         }
@@ -13097,13 +13019,9 @@ impl WorldSession {
         }
 
         // C++ `Map::AddPlayerToMap` clears `m_clientGUIDs`, then calls
-        // `Player::UpdateObjectVisibility(false)`. That marks
-        // `NOTIFY_VISIBILITY_CHANGED`; the subsequent `VisibleNotifier` pass
-        // sends nearby map objects even though the player has not moved yet.
-        // Rust has no notify queue here, so perform the initial visibility
-        // pass explicitly after the self create and before post-add packets.
-        self.send_initial_world_objects_like_cpp(map_id as u16, position, zone_id as u32)
-            .await;
+        // `Player::UpdateObjectVisibility(false)`. In the traced 3.4.3 login
+        // this only schedules `NOTIFY_VISIBILITY_CHANGED`; it does not emit
+        // the nearby object create batch in this map-add phase.
         if updateobject_trace_enabled {
             info!(
                 guid = ?guid,
@@ -13128,7 +13046,19 @@ impl WorldSession {
         self.register_in_player_registry();
         self.sync_object_accessor_player();
 
-        // ── C++ Player::SendInitialPacketsAfterAddToMap ──
+        // C++ `HandlePlayerLogin` calls `ObjectAccessor::AddObject`, then
+        // `Player::SendInitialPacketsAfterAddToMap`; that method starts with
+        // `UpdateVisibilityForPlayer()`, which sends CREATE blocks for nearby
+        // objects and updates `m_clientGUIDs` before normal map updates can
+        // deliver movement/combat packets for those objects.
+        self.force_update_visibility_like_cpp().await;
+        if updateobject_trace_enabled {
+            info!(
+                guid = ?guid,
+                count = self.client_visible_guids_like_cpp.len(),
+                "RUST_LOGIN after_initial_update_visibility_for_player"
+            );
+        }
 
         // 27. InitWorldStates (zone state variables — empty for now)
         self.send_packet(&InitWorldStates::new(map_id, zone_id));
@@ -13279,6 +13209,27 @@ mod tests {
     }
 
     #[test]
+    fn creature_create_rooted_movement_flag_matches_cpp_template_root() {
+        let flags =
+            MovementFlag::from_bits_retain(creature_create_movement_flags_like_cpp(0, true));
+        assert!(
+            flags.contains(MovementFlag::ROOT),
+            "C++ Creature::LoadTemplateRoot -> Unit::SetRooted adds MOVEMENTFLAG_ROOT"
+        );
+        assert!(
+            !flags.intersects(MovementFlag::MASK_MOVING),
+            "C++ Unit::SetRooted removes MOVEMENTFLAG_MASK_MOVING before adding ROOT"
+        );
+
+        let hover_root = MovementFlag::from_bits_retain(creature_create_movement_flags_like_cpp(
+            wow_constants::CreatureGroundMovementType::Hover as u8,
+            true,
+        ));
+        assert!(hover_root.contains(MovementFlag::HOVER));
+        assert!(hover_root.contains(MovementFlag::ROOT));
+    }
+
+    #[test]
     fn creature_flags_choose_spawn_override_and_sanitize_like_cpp() {
         let (npc_flags, unit_flags, unit_flags2, unit_flags3) = choose_creature_flags_like_cpp(
             0x10,
@@ -13371,70 +13322,6 @@ mod tests {
         session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
         session.set_player_position_like_cpp(Position::new(10.0, 0.0, 0.0, 0.0));
         (session, send_rx)
-    }
-
-    #[tokio::test]
-    async fn initial_visibility_after_add_to_map_sends_loaded_grid_creatures_like_cpp() {
-        let (mut session, send_rx) = make_session_with_send_capacity(4);
-        let manager = Arc::new(std::sync::RwLock::new(crate::map_manager::MapManager::new()));
-        let player_position = Position::new(10.0, 10.0, 0.0, 0.0);
-        let creature_position = Position::new(20.0, 20.0, 0.0, 0.0);
-        let creature_guid =
-            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 901, 90_001);
-        let (grid_x, grid_y) =
-            crate::map_manager::world_to_grid_coords(creature_position.x, creature_position.y);
-
-        manager.write().unwrap().add_creature(
-            571,
-            0,
-            grid_x,
-            grid_y,
-            crate::map_manager::WorldCreature::new(
-                creature_guid,
-                901,
-                creature_position,
-                100,
-                80,
-                1,
-                2,
-                0.0,
-                1,
-                35,
-                0,
-                0,
-            ),
-        );
-
-        session.set_map_manager(manager);
-        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
-        session.set_player_position_like_cpp(player_position);
-
-        // C++ `Map::AddPlayerToMap` clears `m_clientGUIDs`, then schedules
-        // `UpdateObjectVisibility(false)`. The first pass must not wait for a
-        // 50-yard movement delta.
-        session.client_visible_guids_like_cpp.clear();
-        session.last_visibility_pos = None;
-        session
-            .send_initial_world_objects_like_cpp(571, &player_position, 0)
-            .await;
-
-        assert!(
-            session
-                .client_visible_guids_like_cpp
-                .contains(&creature_guid),
-            "initial AddToMap visibility must create already-loaded creatures"
-        );
-        assert_eq!(session.last_visibility_pos, Some(player_position));
-
-        let packet = send_rx
-            .try_recv()
-            .expect("initial visibility UpdateObject packet");
-        let opcode = u16::from_le_bytes([packet[0], packet[1]]);
-        assert_eq!(opcode, ServerOpcodes::UpdateObject as u16);
-        assert!(
-            send_rx.try_recv().is_err(),
-            "single initial visibility packet"
-        );
     }
 
     fn strength_item_stats_store(entry_id: u32, amount: i16) -> ItemStatsStore {
@@ -15813,6 +15700,119 @@ mod tests {
         let _timestamp = pkt.read_int32().unwrap();
         assert_eq!(pkt.read_bits(3).unwrap(), 3);
         assert_eq!(pkt.read_uint32().unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn db_query_bulk_raw_blob_cache_is_not_sent_as_typed_cpp_storage() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        let mut cache = wow_data::HotfixBlobCache::new();
+        cache.insert_blob(0x919B_E54E, 198647, vec![0xAA; 408]);
+        session.set_hotfix_blob_cache(Arc::new(cache));
+
+        session
+            .handle_db_query_bulk(wow_packet::packets::misc::DbQueryBulk {
+                table_hash: 0x919B_E54E,
+                queries: vec![198647],
+            })
+            .await;
+
+        let bytes = send_rx.try_recv().expect("db reply");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            wow_constants::ServerOpcodes::DbReply as u16
+        );
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_uint32().unwrap(), 0x919B_E54E);
+        assert_eq!(pkt.read_int32().unwrap(), 198647);
+        let _timestamp = pkt.read_int32().unwrap();
+        assert_eq!(pkt.read_bits(3).unwrap(), 3);
+        assert_eq!(pkt.read_uint32().unwrap(), 0);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn hotfix_request_local_db2_blob_is_not_sent_as_typed_cpp_storage() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        let mut cache = wow_data::HotfixBlobCache::new();
+        cache.insert_blob(0x919B_E54E, 198647, vec![0xAA; 408]);
+        cache.insert_hotfix_record_like_cpp(wow_data::HotfixRecord {
+            table_hash: 0x919B_E54E,
+            record_id: 198647,
+            id: wow_data::HotfixId {
+                push_id: 77,
+                unique_id: 88,
+            },
+            status: wow_data::HotfixRecordStatus::Valid,
+            available_locales_mask: wow_data::hotfix_locale_mask("esES"),
+        });
+        session.set_hotfix_blob_cache(Arc::new(cache));
+
+        session
+            .handle_hotfix_request(wow_packet::packets::misc::HotfixRequest {
+                client_build: 54261,
+                data_build: 54261,
+                hotfixes: vec![77],
+            })
+            .await;
+
+        let bytes = send_rx.try_recv().expect("hotfix connect");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            wow_constants::ServerOpcodes::HotfixConnect as u16
+        );
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_uint32().unwrap(), 1);
+        assert_eq!(pkt.read_int32().unwrap(), 77);
+        assert_eq!(pkt.read_uint32().unwrap(), 88);
+        assert_eq!(pkt.read_uint32().unwrap(), 0x919B_E54E);
+        assert_eq!(pkt.read_int32().unwrap(), 198647);
+        assert_eq!(pkt.read_uint32().unwrap(), 0);
+        assert_eq!(pkt.read_bits(3).unwrap(), 3);
+        assert_eq!(pkt.read_uint32().unwrap(), 0);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn hotfix_request_sql_hotfix_blob_keeps_valid_cpp_blob_path() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        let mut cache = wow_data::HotfixBlobCache::new();
+        cache.insert_hotfix_blob(0xAABB_CCDD, 123, vec![1, 2, 3, 4]);
+        cache.insert_hotfix_record_like_cpp(wow_data::HotfixRecord {
+            table_hash: 0xAABB_CCDD,
+            record_id: 123,
+            id: wow_data::HotfixId {
+                push_id: 78,
+                unique_id: 89,
+            },
+            status: wow_data::HotfixRecordStatus::Valid,
+            available_locales_mask: wow_data::hotfix_locale_mask("esES"),
+        });
+        session.set_hotfix_blob_cache(Arc::new(cache));
+
+        session
+            .handle_hotfix_request(wow_packet::packets::misc::HotfixRequest {
+                client_build: 54261,
+                data_build: 54261,
+                hotfixes: vec![78],
+            })
+            .await;
+
+        let bytes = send_rx.try_recv().expect("hotfix connect");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            wow_constants::ServerOpcodes::HotfixConnect as u16
+        );
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_uint32().unwrap(), 1);
+        assert_eq!(pkt.read_int32().unwrap(), 78);
+        assert_eq!(pkt.read_uint32().unwrap(), 89);
+        assert_eq!(pkt.read_uint32().unwrap(), 0xAABB_CCDD);
+        assert_eq!(pkt.read_int32().unwrap(), 123);
+        assert_eq!(pkt.read_uint32().unwrap(), 4);
+        assert_eq!(pkt.read_bits(3).unwrap(), 1);
+        assert_eq!(pkt.read_uint32().unwrap(), 4);
+        assert_eq!(pkt.read_bytes(4).unwrap(), vec![1, 2, 3, 4]);
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[tokio::test]

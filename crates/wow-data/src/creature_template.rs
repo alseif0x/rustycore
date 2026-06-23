@@ -3,12 +3,14 @@ use std::collections::HashMap;
 use anyhow::Result;
 use rand::Rng;
 use wow_constants::{
-    CreatureChaseMovementType, CreatureFlightMovementType, CreatureGroundMovementType,
-    CreatureRandomMovementType, SheathState, UnitPvpFlags, UnitStandStateType,
+    CreatureChaseMovementType, CreatureFlagsExtra, CreatureFlightMovementType,
+    CreatureGroundMovementType, CreatureRandomMovementType, SheathState, UnitPvpFlags,
+    UnitStandStateType,
 };
-use wow_database::WorldDatabase;
+use wow_database::{SqlResult, WorldDatabase};
 use wow_entities::{CreatureAddonLifecycleRecordLikeCpp, VisibilityDistanceTypeLikeCpp};
 
+use crate::creature_model_info::CreatureModelInfoStoreLikeCpp;
 use crate::{
     AnimKitStore, CreatureDisplayInfoStore, EmotesStore, SpellDurationStore, SpellMiscStore,
     SpellStore, spell::aura_types, spell_duration_ms_like_cpp,
@@ -21,11 +23,52 @@ const CREATURE_FLIGHT_MOVEMENT_TYPE_MAX_LIKE_CPP: u8 = 3;
 const CREATURE_CHASE_MOVEMENT_TYPE_MAX_LIKE_CPP: u8 = 3;
 const CREATURE_RANDOM_MOVEMENT_TYPE_MAX_LIKE_CPP: u8 = 3;
 pub const DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP: u32 = 180_000;
+pub const DEFAULT_INVISIBLE_CREATURE_DISPLAY_ID_LIKE_CPP: u32 = 11_686;
 const IDLE_MOTION_TYPE_LIKE_CPP: u8 = 0;
 const WAYPOINT_MOTION_TYPE_LIKE_CPP: u8 = 2;
 const MAX_ANIM_TIER_LIKE_CPP: u8 = 5;
 const MAX_SHEATH_STATE_LIKE_CPP: u8 = 3;
 const MAX_EXPANSIONS_LIKE_CPP: u8 = 10;
+
+fn db_u8_from_signed_or_unsigned_like_cpp(result: &SqlResult, column: usize) -> u8 {
+    db_u8_from_candidates_like_cpp(
+        result.try_read::<u8>(column),
+        result.try_read::<i8>(column),
+        result.try_read::<u16>(column),
+        result.try_read::<i16>(column),
+        result.try_read::<u32>(column),
+        result.try_read::<i32>(column),
+    )
+}
+
+fn db_u8_from_candidates_like_cpp(
+    u8_value: Option<u8>,
+    i8_value: Option<i8>,
+    u16_value: Option<u16>,
+    i16_value: Option<i16>,
+    u32_value: Option<u32>,
+    i32_value: Option<i32>,
+) -> u8 {
+    if let Some(value) = u8_value {
+        return value;
+    }
+    if let Some(value) = i8_value.and_then(|value| u8::try_from(value).ok()) {
+        return value;
+    }
+    if let Some(value) = u16_value.and_then(|value| u8::try_from(value).ok()) {
+        return value;
+    }
+    if let Some(value) = i16_value.and_then(|value| u8::try_from(value).ok()) {
+        return value;
+    }
+    if let Some(value) = u32_value.and_then(|value| u8::try_from(value).ok()) {
+        return value;
+    }
+    if let Some(value) = i32_value.and_then(|value| u8::try_from(value).ok()) {
+        return value;
+    }
+    0
+}
 
 fn normalize_creature_ground_movement_type_like_cpp(ground_movement_type: u8) -> u8 {
     if ground_movement_type < CREATURE_GROUND_MOVEMENT_TYPE_MAX_LIKE_CPP {
@@ -156,6 +199,21 @@ pub struct CreatureTemplateLifecycleModelLikeCpp {
     pub creature_display_id: u32,
     pub display_scale: f32,
     pub probability: f32,
+}
+
+pub trait CreatureModelSelectionRandomLikeCpp {
+    fn weighted_model_roll_like_cpp(&mut self, total_weight: f32) -> f32;
+    fn other_gender_roll_zero_like_cpp(&mut self) -> bool;
+}
+
+impl<R: Rng + ?Sized> CreatureModelSelectionRandomLikeCpp for R {
+    fn weighted_model_roll_like_cpp(&mut self, total_weight: f32) -> f32 {
+        self.gen_range(0.0..total_weight)
+    }
+
+    fn other_gender_roll_zero_like_cpp(&mut self) -> bool {
+        self.gen_range(0..=1) == 0
+    }
 }
 
 impl CreatureTemplateLifecycleModelLikeCpp {
@@ -818,6 +876,118 @@ impl CreatureTemplateLifecycleRecordLikeCpp {
         self.models.first().copied()
     }
 
+    /// Mirrors C++ `CreatureTemplate::GetFirstValidModel`.
+    ///
+    /// C++ anchor: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Creature/Creature.cpp:130-136`.
+    pub fn first_valid_model_like_cpp(&self) -> Option<CreatureTemplateLifecycleModelLikeCpp> {
+        self.models
+            .iter()
+            .copied()
+            .find(|model| model.creature_display_id != 0)
+    }
+
+    /// Mirrors C++ `CreatureTemplate::GetRandomValidModel`.
+    ///
+    /// C++ anchor: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Creature/Creature.cpp:113-128`.
+    pub fn random_valid_model_like_cpp(
+        &self,
+        random: &mut impl CreatureModelSelectionRandomLikeCpp,
+    ) -> Option<CreatureTemplateLifecycleModelLikeCpp> {
+        match self.models.as_slice() {
+            [] => None,
+            [model] => Some(*model),
+            models => {
+                let total: f32 = models.iter().map(|model| model.probability.max(0.0)).sum();
+                if total <= f32::EPSILON {
+                    return models.first().copied();
+                }
+
+                let mut roll = random.weighted_model_roll_like_cpp(total).clamp(0.0, total);
+                for model in models {
+                    roll -= model.probability.max(0.0);
+                    if roll <= 0.0 {
+                        return Some(*model);
+                    }
+                }
+
+                models.last().copied()
+            }
+        }
+    }
+
+    /// Mirrors C++ `CreatureTemplate::GetModelWithDisplayId`.
+    ///
+    /// C++ anchor: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Creature/Creature.cpp:139-146`.
+    pub fn model_with_display_id_like_cpp(
+        &self,
+        display_id: u32,
+    ) -> Option<CreatureTemplateLifecycleModelLikeCpp> {
+        self.models
+            .iter()
+            .copied()
+            .find(|model| model.creature_display_id == display_id)
+    }
+
+    /// Mirrors C++ `CreatureTemplate::GetFirstInvisibleModel`.
+    ///
+    /// C++ anchor: `/home/server/woltk-trinity-legacy/src/server/game/Entities/Creature/Creature.cpp:148-156`.
+    pub fn first_invisible_model_like_cpp(
+        &self,
+        model_info_store: &CreatureModelInfoStoreLikeCpp,
+    ) -> CreatureTemplateLifecycleModelLikeCpp {
+        self.models
+            .iter()
+            .copied()
+            .find(|model| {
+                model_info_store
+                    .get(model.creature_display_id)
+                    .is_some_and(|model_info| model_info.is_trigger)
+            })
+            .unwrap_or(CreatureTemplateLifecycleModelLikeCpp {
+                creature_display_id: DEFAULT_INVISIBLE_CREATURE_DISPLAY_ID_LIKE_CPP,
+                display_scale: 1.0,
+                probability: 1.0,
+            })
+    }
+
+    /// Mirrors C++ `ObjectMgr::ChooseDisplayId` plus `ObjectMgr::GetCreatureModelRandomGender`.
+    ///
+    /// C++ anchors:
+    /// - `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:1669-1680`
+    /// - `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:1702-1728`
+    pub fn choose_display_model_like_cpp(
+        &self,
+        model_info_store: &CreatureModelInfoStoreLikeCpp,
+        spawn_model: Option<CreatureTemplateLifecycleModelLikeCpp>,
+        random: &mut impl CreatureModelSelectionRandomLikeCpp,
+    ) -> Option<CreatureTemplateLifecycleModelLikeCpp> {
+        self.first_valid_model_like_cpp()?;
+
+        let flags_extra = CreatureFlagsExtra::from_bits_truncate(self.flags_extra);
+        let mut model = if let Some(model) = spawn_model {
+            model
+        } else if !flags_extra.contains(CreatureFlagsExtra::TRIGGER) {
+            self.random_valid_model_like_cpp(random)?
+        } else {
+            self.first_invisible_model_like_cpp(model_info_store)
+        };
+
+        let model_info = model_info_store.get(model.creature_display_id)?;
+        if model_info.display_id_other_gender != 0 && random.other_gender_roll_zero_like_cpp() {
+            let other_gender_display_id = model_info.display_id_other_gender;
+            if model_info_store.get(other_gender_display_id).is_some() {
+                model.creature_display_id = other_gender_display_id;
+                if let Some(template_model) =
+                    self.model_with_display_id_like_cpp(other_gender_display_id)
+                {
+                    model = template_model;
+                }
+            }
+        }
+
+        Some(model)
+    }
+
     pub fn apply_spell_row_like_cpp(&mut self, index: usize, spell: u32) {
         if index < MAX_CREATURE_SPELLS_LIKE_CPP {
             self.spells[index] = spell;
@@ -1295,9 +1465,12 @@ impl CreatureDifficultyStoreLikeCpp {
         loop {
             records.push(CreatureDifficultyRecordLikeCpp {
                 entry: result.try_read::<u32>(0).unwrap_or(0),
-                difficulty_id: result.try_read::<u8>(1).unwrap_or(0),
-                min_level: result.try_read::<u8>(2).unwrap_or(0),
-                max_level: result.try_read::<u8>(3).unwrap_or(0),
+                // C++ `ObjectMgr::LoadCreatureTemplateDifficulty` reads these
+                // with `Field::GetUInt8()` even when MariaDB reports signed
+                // `tinyint(4)` for MinLevel/MaxLevel.
+                difficulty_id: db_u8_from_signed_or_unsigned_like_cpp(&result, 1),
+                min_level: db_u8_from_signed_or_unsigned_like_cpp(&result, 2),
+                max_level: db_u8_from_signed_or_unsigned_like_cpp(&result, 3),
                 health_scaling_expansion: result.try_read::<i32>(4).unwrap_or(0),
                 health_modifier: result.try_read::<f32>(5).unwrap_or(0.0),
                 mana_modifier: result.try_read::<f32>(6).unwrap_or(0.0),
@@ -1355,7 +1528,44 @@ impl CreatureDifficultyStoreLikeCpp {
 mod tests {
     use rand::{SeedableRng, rngs::StdRng};
 
+    use crate::CreatureModelInfoLikeCpp;
+
     use super::*;
+
+    struct FixedCreatureModelRandomLikeCpp {
+        weighted_roll: f32,
+        other_gender_zero: bool,
+    }
+
+    impl CreatureModelSelectionRandomLikeCpp for FixedCreatureModelRandomLikeCpp {
+        fn weighted_model_roll_like_cpp(&mut self, _total_weight: f32) -> f32 {
+            self.weighted_roll
+        }
+
+        fn other_gender_roll_zero_like_cpp(&mut self) -> bool {
+            self.other_gender_zero
+        }
+    }
+
+    fn model_info_store_for_display_selection_tests_like_cpp(
+        entries: impl IntoIterator<Item = CreatureModelInfoLikeCpp>,
+    ) -> CreatureModelInfoStoreLikeCpp {
+        CreatureModelInfoStoreLikeCpp::from_entries(entries)
+    }
+
+    fn model_info_like_cpp(
+        display_id: u32,
+        other_gender_display_id: u32,
+        is_trigger: bool,
+    ) -> CreatureModelInfoLikeCpp {
+        CreatureModelInfoLikeCpp {
+            display_id,
+            bounding_radius: 0.0,
+            combat_reach: 1.5,
+            display_id_other_gender: other_gender_display_id,
+            is_trigger,
+        }
+    }
 
     fn creature_template_lifecycle_record_for_test(
         entry: u32,
@@ -1751,6 +1961,98 @@ mod tests {
     }
 
     #[test]
+    fn creature_template_choose_display_model_uses_weighted_model_like_cpp() {
+        let mut template = creature_template_lifecycle_record_for_test(80);
+        template.push_model_like_cpp(CreatureTemplateLifecycleModelLikeCpp {
+            creature_display_id: 111,
+            display_scale: 1.0,
+            probability: 25.0,
+        });
+        template.push_model_like_cpp(CreatureTemplateLifecycleModelLikeCpp {
+            creature_display_id: 222,
+            display_scale: 2.0,
+            probability: 75.0,
+        });
+        let model_info_store = model_info_store_for_display_selection_tests_like_cpp([
+            model_info_like_cpp(111, 0, false),
+            model_info_like_cpp(222, 0, false),
+        ]);
+        let mut random = FixedCreatureModelRandomLikeCpp {
+            weighted_roll: 25.01,
+            other_gender_zero: false,
+        };
+
+        let model = template
+            .choose_display_model_like_cpp(&model_info_store, None, &mut random)
+            .expect("weighted C++ model should resolve");
+
+        assert_eq!(model.creature_display_id, 222);
+        assert_eq!(model.display_scale, 2.0);
+    }
+
+    #[test]
+    fn creature_template_choose_display_model_uses_invisible_trigger_fallback_like_cpp() {
+        let mut template = creature_template_lifecycle_record_for_test(81);
+        template.flags_extra = CreatureFlagsExtra::TRIGGER.bits();
+        template.push_model_like_cpp(CreatureTemplateLifecycleModelLikeCpp {
+            creature_display_id: 21_955,
+            display_scale: 1.0,
+            probability: 100.0,
+        });
+        let model_info_store = model_info_store_for_display_selection_tests_like_cpp([
+            model_info_like_cpp(21_955, 0, false),
+            model_info_like_cpp(DEFAULT_INVISIBLE_CREATURE_DISPLAY_ID_LIKE_CPP, 0, true),
+        ]);
+        let mut random = FixedCreatureModelRandomLikeCpp {
+            weighted_roll: 0.0,
+            other_gender_zero: false,
+        };
+
+        let model = template
+            .choose_display_model_like_cpp(&model_info_store, None, &mut random)
+            .expect("trigger template should resolve the C++ invisible fallback");
+
+        assert_eq!(
+            model.creature_display_id,
+            DEFAULT_INVISIBLE_CREATURE_DISPLAY_ID_LIKE_CPP
+        );
+        assert_eq!(model.display_scale, 1.0);
+    }
+
+    #[test]
+    fn creature_template_choose_display_model_applies_other_gender_like_cpp() {
+        let mut template = creature_template_lifecycle_record_for_test(82);
+        template.push_model_like_cpp(CreatureTemplateLifecycleModelLikeCpp {
+            creature_display_id: 111,
+            display_scale: 1.0,
+            probability: 100.0,
+        });
+        template.push_model_like_cpp(CreatureTemplateLifecycleModelLikeCpp {
+            creature_display_id: 222,
+            display_scale: 2.0,
+            probability: 100.0,
+        });
+        let model_info_store = model_info_store_for_display_selection_tests_like_cpp([
+            model_info_like_cpp(111, 222, false),
+            model_info_like_cpp(222, 0, false),
+        ]);
+        let mut random = FixedCreatureModelRandomLikeCpp {
+            weighted_roll: 0.0,
+            other_gender_zero: true,
+        };
+
+        let model = template
+            .choose_display_model_like_cpp(&model_info_store, None, &mut random)
+            .expect("other-gender model should resolve");
+
+        assert_eq!(model.creature_display_id, 222);
+        assert_eq!(
+            model.display_scale, 2.0,
+            "C++ replaces the full CreatureModel when the other-gender display exists in the template"
+        );
+    }
+
+    #[test]
     fn creature_template_lifecycle_models_normalize_non_positive_display_scale_like_cpp() {
         let mut template = CreatureTemplateLifecycleRecordLikeCpp {
             entry: 9,
@@ -1967,6 +2269,26 @@ mod tests {
         .normalize_like_cpp(1.0);
         assert_eq!(inverted.min_level, 55);
         assert_eq!(inverted.max_level, 55);
+    }
+
+    #[test]
+    fn creature_difficulty_signed_tinyint_levels_decode_like_cpp_get_uint8() {
+        assert_eq!(
+            db_u8_from_candidates_like_cpp(None, Some(75), None, None, None, None),
+            75
+        );
+        assert_eq!(
+            db_u8_from_candidates_like_cpp(None, Some(-1), None, None, None, None),
+            0
+        );
+        assert_eq!(
+            db_u8_from_candidates_like_cpp(None, None, Some(75), None, None, None),
+            75
+        );
+        assert_eq!(
+            db_u8_from_candidates_like_cpp(None, None, Some(300), None, None, None),
+            0
+        );
     }
 
     #[test]

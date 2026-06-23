@@ -1135,6 +1135,37 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn test_tact_key_db2_uses_table_hash_not_layout_hash_like_cpp() {
+        let path = std::path::Path::new("/home/server/woltk-server-core/Data/dbc/esES/TactKey.db2");
+        if !path.exists() {
+            eprintln!("Skipping test: TactKey.db2 not found");
+            return;
+        }
+
+        let reader = Wdc4Reader::open(path).expect("failed to parse TactKey.db2");
+        assert_eq!(
+            reader.table_hash(),
+            0xDF2F_53CF,
+            "C++ DBQueryBulk uses DB2Header::TableHash, not LayoutHash"
+        );
+        assert_eq!(
+            reader.header._layout_hash, 0xD3F6_1A9E,
+            "layout hash must not be used as the DBQueryBulk table hash"
+        );
+
+        let mut ids = reader.iter_records().map(|(id, _)| id).collect::<Vec<_>>();
+        ids.sort_unstable();
+        eprintln!("TactKey ids: {ids:?}");
+        assert_eq!(
+            ids,
+            vec![
+                15, 52, 55, 56, 57, 81, 92, 93, 94, 97, 98, 99, 100, 101, 103, 105
+            ],
+            "this fixture has no copy-table records; C++ will also answer Invalid for other TactKey IDs"
+        );
+    }
 }
 
 #[test]

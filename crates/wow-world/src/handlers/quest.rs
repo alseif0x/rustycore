@@ -13,9 +13,10 @@
 //!   CMSG_QUEST_LOG_REMOVE_QUEST    → remove from DB
 //!   CMSG_QUERY_QUEST_INFO          → SMSG_QUERY_QUEST_INFO_RESPONSE
 //!
-//! C# ref: Game/Handlers/QuestHandler.cs
+//! Legacy non-canonical note: Game/Handlers/QuestHandler.cs
 
-use std::sync::Arc;
+use sqlx::Row;
+use std::{collections::HashMap, sync::Arc};
 use tracing::{debug, info, warn};
 use wow_constants::item::ItemFlags3;
 use wow_constants::unit::NPCFlags1;
@@ -32,7 +33,9 @@ use wow_data::{
     quest::QuestStore,
     reputation::reputation_rank_from_standing_like_cpp as reputation_rank_from_standing_data_like_cpp,
 };
-use wow_database::{CharStatements, PreparedStatement, SqlTransaction, WorldStatements};
+use wow_database::{
+    CharStatements, PreparedStatement, SqlTransaction, WorldDatabase, WorldStatements,
+};
 use wow_entities::{
     ItemPosCount, SendNewItemDelivery, SendNewItemDisplayText, SendNewItemInstancePlan,
     SendNewItemModifier, SendNewItemPlan, is_bag_pos,
@@ -44,7 +47,8 @@ use wow_network::player_registry::{
 };
 use wow_packet::packets::misc::SetCurrency;
 use wow_packet::packets::query::{
-    QueryQuestCompletionNpcs, QuestCompletionNpc, QuestCompletionNpcResponse,
+    QueryQuestCompletionNpcs, QuestCompletionNpc, QuestCompletionNpcResponse, QuestPoiBlobData,
+    QuestPoiBlobPoint, QuestPoiData, QuestPoiQuery, QuestPoiQueryResponse,
 };
 use wow_packet::packets::quest::{
     AdventureMapStartQuest, PushQuestToParty, QueryQuestInfoResponse, QuestConfirmAccept,
@@ -336,6 +340,81 @@ fn represented_quest_completion_npc_response_like_cpp(
         .collect()
 }
 
+async fn load_quest_poi_store_like_cpp(
+    world_db: &WorldDatabase,
+) -> Result<HashMap<i32, QuestPoiData>, sqlx::Error> {
+    let point_rows = sqlx::query(
+        "SELECT QuestID, Idx1, X, Y, Z \
+         FROM quest_poi_points \
+         ORDER BY QuestID DESC, Idx1, Idx2",
+    )
+    .fetch_all(world_db.pool())
+    .await?;
+
+    let mut all_points: HashMap<(i32, i32), Vec<QuestPoiBlobPoint>> = HashMap::new();
+    for row in point_rows {
+        let quest_id: i32 = row.try_get(0)?;
+        let idx1: i32 = row.try_get(1)?;
+        let x: i32 = row.try_get(2)?;
+        let y: i32 = row.try_get(3)?;
+        let z: i32 = row.try_get(4)?;
+        all_points
+            .entry((quest_id, idx1))
+            .or_default()
+            .push(QuestPoiBlobPoint { x, y, z });
+    }
+
+    let poi_rows = sqlx::query(
+        "SELECT QuestID, BlobIndex, Idx1, ObjectiveIndex, QuestObjectiveID, QuestObjectID, \
+             MapID, UiMapID, Priority, Flags, WorldEffectID, PlayerConditionID, \
+             NavigationPlayerConditionID, SpawnTrackingID, AlwaysAllowMergingBlobs \
+         FROM quest_poi \
+         ORDER BY QuestID, Idx1",
+    )
+    .fetch_all(world_db.pool())
+    .await?;
+
+    let mut store: HashMap<i32, QuestPoiData> = HashMap::new();
+    for row in poi_rows {
+        let quest_id: i32 = row.try_get(0)?;
+        let blob_index: i32 = row.try_get(1)?;
+        let idx1: i32 = row.try_get(2)?;
+        let Some(points) = all_points.get(&(quest_id, idx1)).cloned() else {
+            debug!(
+                quest_id,
+                blob_index, "quest_poi references unknown quest points like C++; skipping blob"
+            );
+            continue;
+        };
+
+        store
+            .entry(quest_id)
+            .or_insert_with(|| QuestPoiData {
+                quest_id,
+                blobs: Vec::new(),
+            })
+            .blobs
+            .push(QuestPoiBlobData {
+                blob_index,
+                objective_index: row.try_get(3)?,
+                quest_objective_id: row.try_get(4)?,
+                quest_object_id: row.try_get(5)?,
+                map_id: row.try_get(6)?,
+                ui_map_id: row.try_get(7)?,
+                priority: row.try_get(8)?,
+                flags: row.try_get(9)?,
+                world_effect_id: row.try_get(10)?,
+                player_condition_id: row.try_get(11)?,
+                navigation_player_condition_id: row.try_get(12)?,
+                spawn_tracking_id: row.try_get(13)?,
+                points,
+                always_allow_merging_blobs: row.try_get::<u8, _>(14)? != 0,
+            });
+    }
+
+    Ok(store)
+}
+
 // ── Handler registrations ────────────────────────────────────────────────────
 
 inventory::submit! {
@@ -407,6 +486,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
         handler_name: "handle_query_quest_completion_npcs",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::QuestPoiQuery,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_quest_poi_query",
     }
 }
 
@@ -488,6 +576,30 @@ inventory::submit! {
 pub(crate) const MAX_QUEST_LOG_SIZE_LIKE_CPP: u8 = 25;
 
 impl WorldSession {
+    async fn quest_poi_store_like_cpp(&mut self) -> Arc<HashMap<i32, QuestPoiData>> {
+        if let Some(store) = &self.quest_poi_store_like_cpp {
+            return Arc::clone(store);
+        }
+
+        let Some(world_db) = self.world_db().map(Arc::clone) else {
+            warn!("QuestPOIQuery: world DB unavailable; sending empty C++ response");
+            let store = Arc::new(HashMap::new());
+            self.quest_poi_store_like_cpp = Some(Arc::clone(&store));
+            return store;
+        };
+
+        let store = match load_quest_poi_store_like_cpp(world_db.as_ref()).await {
+            Ok(store) => Arc::new(store),
+            Err(err) => {
+                warn!("QuestPOIQuery: failed to load quest POI store like C++: {err}");
+                Arc::new(HashMap::new())
+            }
+        };
+
+        self.quest_poi_store_like_cpp = Some(Arc::clone(&store));
+        store
+    }
+
     fn bind_player_quest_status_load_guid_like_cpp(
         stmt: &mut PreparedStatement,
         player_guid: ObjectGuid,
@@ -1154,7 +1266,7 @@ impl WorldSession {
     }
 
     /// CMSG_QUEST_GIVER_STATUS_QUERY — returns the quest status icon for an NPC.
-    /// C# ref: QuestHandler.HandleQuestGiverStatusQuery
+    /// Legacy non-canonical note: QuestHandler.HandleQuestGiverStatusQuery
     pub async fn handle_quest_giver_status_query(&mut self, mut pkt: wow_packet::WorldPacket) {
         let guid = match pkt.read_packed_guid() {
             Ok(g) => g,
@@ -1226,7 +1338,7 @@ impl WorldSession {
 
     /// CMSG_QUEST_GIVER_QUERY_QUEST — player clicks a quest name in the list.
     /// Shows full quest details (objectives, rewards) before accepting.
-    /// C# ref: QuestHandler.HandleQuestGiverQueryQuest
+    /// Legacy non-canonical note: QuestHandler.HandleQuestGiverQueryQuest
     pub async fn handle_quest_giver_query_quest(&mut self, mut pkt: wow_packet::WorldPacket) {
         let guid = match pkt.read_packed_guid() {
             Ok(g) => g,
@@ -1243,7 +1355,7 @@ impl WorldSession {
 
     /// CMSG_QUEST_GIVER_ACCEPT_QUEST — player clicks "Accept" in the quest details dialog.
     /// Saves quest to characters DB and confirms to the client.
-    /// C# ref: QuestHandler.HandleQuestGiverAcceptQuest
+    /// Legacy non-canonical note: QuestHandler.HandleQuestGiverAcceptQuest
     pub async fn handle_quest_giver_accept_quest(&mut self, mut pkt: wow_packet::WorldPacket) {
         let guid = match pkt.read_packed_guid() {
             Ok(g) => g,
@@ -1284,7 +1396,7 @@ impl WorldSession {
         };
 
         // Full eligibility check: SatisfyQuestStatus + PrevQuestId + race/class/level
-        // C# ref: Player.CanTakeQuest(quest, true)
+        // Legacy non-canonical note: Player.CanTakeQuest(quest, true)
         if !self.can_take_quest(quest) {
             warn!(
                 account = self.account_id,
@@ -4639,7 +4751,7 @@ impl WorldSession {
 
     /// CMSG_QUERY_QUEST_INFO — client asks for full quest template data by ID.
     /// Used to populate the quest log and tooltip.
-    /// C# ref: QuestHandler.HandleQueryQuestInfo
+    /// Legacy non-canonical note: QuestHandler.HandleQueryQuestInfo
     pub async fn handle_query_quest_info(&mut self, mut pkt: wow_packet::WorldPacket) {
         let quest_id: u32 = pkt.read_uint32().unwrap_or(0);
         let _guid = pkt.read_packed_guid(); // requester GUID (usually player)
@@ -4732,8 +4844,48 @@ impl WorldSession {
         self.send_packet(&QuestCompletionNpcResponse { quests });
     }
 
+    /// CMSG_QUEST_POI_QUERY — client asks for tracker POI blobs.
+    ///
+    /// C++ refs:
+    /// - `QuestPOIQuery::Read`, QueryPackets.cpp:418-423.
+    /// - `WorldSession::HandleQuestPOIQuery`, QueryHandler.cpp:280-298.
+    /// - `ObjectMgr::LoadQuestPOI`, ObjectMgr.cpp:8337-8415.
+    pub async fn handle_quest_poi_query(&mut self, query: QuestPoiQuery) {
+        if query.missing_quest_count > i32::from(MAX_QUEST_LOG_SIZE_LIKE_CPP) {
+            return;
+        }
+
+        let requested_count = query.missing_quest_count.max(0) as usize;
+        let requested_count = requested_count.min(query.missing_quest_pois.len());
+        let mut quest_ids = std::collections::HashSet::new();
+        for quest_id in query.missing_quest_pois.iter().take(requested_count) {
+            quest_ids.insert(*quest_id);
+        }
+
+        let poi_store = self.quest_poi_store_like_cpp().await;
+        let mut quest_poi_data_stats = Vec::new();
+        for quest_id in quest_ids {
+            if quest_id <= 0 {
+                continue;
+            }
+
+            let quest_id_u32 = quest_id as u32;
+            if self.find_quest_slot_like_cpp(quest_id_u32).is_none() {
+                continue;
+            }
+
+            if let Some(poi_data) = poi_store.get(&quest_id) {
+                quest_poi_data_stats.push(poi_data.clone());
+            }
+        }
+
+        self.send_packet(&QuestPoiQueryResponse {
+            quest_poi_data_stats,
+        });
+    }
+
     /// CMSG_QUEST_GIVER_REQUEST_REWARD — player talks to NPC to turn in a completed quest.
-    /// C# ref: QuestHandler.HandleQuestgiverRequestReward
+    /// Legacy non-canonical note: QuestHandler.HandleQuestgiverRequestReward
     /// Sent when player right-clicks a quest-ender NPC and has the quest in Complete status.
     /// Server responds with SMSG_QUEST_GIVER_OFFER_REWARD_MESSAGE (reward selection dialog).
     pub async fn handle_quest_giver_request_reward(&mut self, mut pkt: wow_packet::WorldPacket) {
@@ -4854,7 +5006,7 @@ impl WorldSession {
 
     /// CMSG_QUEST_GIVER_COMPLETE_QUEST — player talks to quest-ender NPC.
     /// If objectives are done: show reward dialog. Else: show "still need X" dialog.
-    /// C# ref: QuestHandler.HandleQuestGiverCompleteQuest
+    /// Legacy non-canonical note: QuestHandler.HandleQuestGiverCompleteQuest
     pub async fn handle_quest_giver_complete_quest(&mut self, mut pkt: wow_packet::WorldPacket) {
         let guid = match pkt.read_packed_guid() {
             Ok(g) => g,
@@ -4946,7 +5098,7 @@ impl WorldSession {
 
         if !is_complete {
             // Not all objectives done — send "you still need X" dialog
-            // C# ref: SendQuestGiverRequestItems(quest, guid, canComplete=false, false)
+            // Legacy non-canonical note: SendQuestGiverRequestItems(quest, guid, canComplete=false, false)
             self.send_packet(&QuestGiverRequestItems {
                 giver_guid: guid,
                 giver_creature_id: i32::try_from(guid.entry()).unwrap_or(0),
@@ -5413,7 +5565,7 @@ impl WorldSession {
 
     /// CMSG_QUEST_GIVER_CHOOSE_REWARD — player clicks "Complete Quest" in reward dialog.
     /// Gives XP, gold, items. Removes quest from active log.
-    /// C# ref: QuestHandler.HandleQuestGiverChooseReward
+    /// Legacy non-canonical note: QuestHandler.HandleQuestGiverChooseReward
     pub async fn handle_quest_giver_choose_reward(&mut self, mut pkt: wow_packet::WorldPacket) {
         let guid = match pkt.read_packed_guid() {
             Ok(g) => g,
@@ -7283,6 +7435,71 @@ mod tests {
         assert_eq!(response.len(), 1);
         assert_eq!(response[0].quest_id, 5);
         assert_eq!(response[0].npcs, vec![-1]);
+    }
+
+    #[tokio::test]
+    async fn quest_poi_query_filters_to_active_quest_slots_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        add_active_quest(&mut session, 77);
+        session.quest_poi_store_like_cpp = Some(Arc::new(HashMap::from([
+            (
+                77,
+                wow_packet::packets::query::QuestPoiData {
+                    quest_id: 77,
+                    blobs: vec![wow_packet::packets::query::QuestPoiBlobData {
+                        blob_index: 1,
+                        objective_index: -1,
+                        quest_objective_id: 2,
+                        quest_object_id: 3,
+                        map_id: 571,
+                        ui_map_id: 486,
+                        priority: 4,
+                        flags: 5,
+                        world_effect_id: 6,
+                        player_condition_id: 7,
+                        navigation_player_condition_id: 8,
+                        spawn_tracking_id: 9,
+                        points: vec![wow_packet::packets::query::QuestPoiBlobPoint {
+                            x: 10,
+                            y: 11,
+                            z: 12,
+                        }],
+                        always_allow_merging_blobs: false,
+                    }],
+                },
+            ),
+            (
+                88,
+                wow_packet::packets::query::QuestPoiData {
+                    quest_id: 88,
+                    blobs: Vec::new(),
+                },
+            ),
+        ])));
+
+        let mut missing_quest_pois =
+            [0; wow_packet::packets::query::QUEST_POI_QUERY_MISSING_QUEST_POIS_LIKE_CPP];
+        missing_quest_pois[0] = 77;
+        missing_quest_pois[1] = 88;
+        missing_quest_pois[2] = 77;
+
+        session
+            .handle_quest_poi_query(wow_packet::packets::query::QuestPoiQuery {
+                missing_quest_count: 3,
+                missing_quest_pois,
+            })
+            .await;
+
+        let bytes = send_rx.try_recv().expect("quest POI response");
+        let mut packet = WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            packet.read_uint16().unwrap(),
+            wow_constants::ServerOpcodes::QuestPoiQueryResponse as u16
+        );
+        assert_eq!(packet.read_int32().unwrap(), 1);
+        assert_eq!(packet.read_int32().unwrap(), 1);
+        assert_eq!(packet.read_int32().unwrap(), 77);
+        assert_eq!(packet.read_int32().unwrap(), 1);
     }
 
     fn creature_guid(entry: u32, counter: i64) -> ObjectGuid {

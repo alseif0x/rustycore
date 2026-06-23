@@ -669,7 +669,7 @@ impl StatementDef for WorldStatements {
                 "COALESCE(ctm.DisplayScale, 1.0), ",
                 "ct.Classification, ct.RegenHealth, ",
                 "c.npcflag, c.unit_flags, c.unit_flags2, c.unit_flags3, ",
-                "c.equipment_id, c.spawntimesecs, c.spawnDifficulties, c.ScriptName, c.StringId ",
+                "c.equipment_id, c.spawntimesecs, c.spawnDifficulties, c.ScriptName, c.StringId, ct.VehicleId ",
                 "FROM creature c ",
                 "JOIN creature_template ct ON c.id = ct.entry ",
                 "LEFT JOIN creature_template_difficulty ctdiff ON ct.entry = ctdiff.Entry AND ctdiff.DifficultyID = 0 ",
@@ -1319,6 +1319,10 @@ mod tests {
         assert!(
             sql.contains("c.StringId"),
             "C++ Creature::LoadFromDB copies CreatureData::StringId into m_stringIds[1]"
+        );
+        assert!(
+            sql.contains("ct.VehicleId"),
+            "C++ Creature::CreateFromProto chooses HighGuid::Vehicle and writes CreateObjectBits::Vehicle from creature_template.VehicleId"
         );
         assert!(
             !sql.contains("creature_equip_template cet"),

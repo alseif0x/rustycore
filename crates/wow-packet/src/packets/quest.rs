@@ -5,8 +5,8 @@
 
 //! Quest system packets.
 //!
-//! C# ref: Game/Networking/Packets/QuestPackets.cs
-//! C# ref: Game/Networking/Packets/NPCPackets.cs (ClientGossipText)
+//! Legacy non-canonical note: Game/Networking/Packets/QuestPackets.cs
+//! Legacy non-canonical note: Game/Networking/Packets/NPCPackets.cs (ClientGossipText)
 
 use crate::{ClientPacket, PacketError, ServerPacket, WorldPacket};
 use wow_constants::{ClientOpcodes, ServerOpcodes};
@@ -141,7 +141,7 @@ impl ClientPacket for PushQuestToParty {
 // ── SMSG_QUEST_GIVER_STATUS (0x...) ──────────────────────────────────────────
 
 /// Quest giver status for a single NPC — controls the ! ? exclamation icons.
-/// C# ref: QuestGiverStatusPkt
+/// Legacy non-canonical note: QuestGiverStatusPkt
 pub struct QuestGiverStatus {
     pub guid: ObjectGuid,
     /// C++ `QuestGiverStatus` bitmask from `QuestDef.h`.
@@ -259,7 +259,7 @@ pub mod quest_giver_status {
 // ── SMSG_QUEST_GIVER_QUEST_LIST_MESSAGE ──────────────────────────────────────
 
 /// One quest entry in the NPC quest list.
-/// C# ref: ClientGossipText (used in QuestGiverQuestListMessage)
+/// Legacy non-canonical note: ClientGossipText (used in QuestGiverQuestListMessage)
 pub struct QuestListEntry {
     pub quest_id: u32,
     pub quest_type: u8,
@@ -272,7 +272,7 @@ pub struct QuestListEntry {
 }
 
 /// List of quests offered by an NPC.
-/// C# ref: QuestGiverQuestListMessage
+/// Legacy non-canonical note: QuestGiverQuestListMessage
 pub struct QuestGiverQuestList {
     pub guid: ObjectGuid,
     pub greeting: String,
@@ -313,7 +313,7 @@ impl ServerPacket for QuestGiverQuestList {
 // ── SMSG_QUEST_GIVER_QUEST_DETAILS ───────────────────────────────────────────
 
 /// One objective shown in the QuestDetails dialog.
-/// C# ref: QuestObjectiveSimple
+/// Legacy non-canonical note: QuestObjectiveSimple
 pub struct QuestObjectiveSimple {
     pub id: u32,
     pub object_id: i32,
@@ -322,7 +322,7 @@ pub struct QuestObjectiveSimple {
 }
 
 /// Full reward block for a quest details / offer reward packet.
-/// C# ref: QuestRewards
+/// Legacy non-canonical note: QuestRewards
 pub struct QuestRewardsBlock {
     pub items: [(u32, u32); QUEST_REWARD_ITEM_COUNT], // (item_id, qty) — fixed rewards
     pub choice_items: [(u32, u32); QUEST_REWARD_CHOICES_COUNT], // (item_id, qty) — player picks one
@@ -386,7 +386,7 @@ impl QuestRewardsBlock {
         pkt.write_int32(0); // NumSkillUps
         pkt.write_int32(0); // TreasurePickerID
         // ChoiceItems (6 entries, each: ItemID, Quantity, Context+Bonuses, DisplayID, Unused)
-        // C# ref: QuestChoiceItem.Write / ItemInstance.Write
+        // Legacy non-canonical note: QuestChoiceItem.Write / ItemInstance.Write
         for (item_id, qty) in &self.choice_items {
             pkt.write_int32(*item_id as i32); // Item.ItemID
             pkt.write_int32(*qty as i32); // Item.Quantity
@@ -401,7 +401,7 @@ impl QuestRewardsBlock {
 }
 
 /// Full quest details packet shown when clicking a quest name in the list.
-/// C# ref: QuestGiverQuestDetails
+/// Legacy non-canonical note: QuestGiverQuestDetails
 pub struct QuestGiverQuestDetails {
     pub giver_guid: ObjectGuid,
     pub quest_id: u32,
@@ -474,7 +474,7 @@ impl ServerPacket for QuestGiverQuestDetails {
 // ── SMSG_QUEST_GIVER_QUEST_COMPLETE ──────────────────────────────────────────
 
 /// Shown after accepting a quest — "Quest Accepted" popup.
-/// C# ref: QuestGiverQuestComplete
+/// Legacy non-canonical note: QuestGiverQuestComplete
 pub struct QuestGiverQuestComplete {
     pub quest_id: u32,
     pub xp: u32,
@@ -536,7 +536,7 @@ pub struct QuestObjectiveInfo {
 }
 
 /// Response to CMSG_QUERY_QUEST_INFO — full quest data.
-/// C# ref: QueryQuestInfoResponse
+/// Legacy non-canonical note: QueryQuestInfoResponse
 #[derive(Default)]
 pub struct QueryQuestInfoResponse {
     pub quest_id: u32,
@@ -705,7 +705,7 @@ impl ServerPacket for QueryQuestInfoResponse {
 // ── SMSG_QUEST_GIVER_OFFER_REWARD_MESSAGE ────────────────────────────────────
 
 /// "Quest Complete" dialog — shows rewards and a "Complete Quest" button.
-/// C# ref: QuestGiverOfferRewardMessage / QuestGiverOfferReward
+/// Legacy non-canonical note: QuestGiverOfferRewardMessage / QuestGiverOfferReward
 pub struct QuestGiverOfferReward {
     pub giver_guid: ObjectGuid,
     pub quest_id: u32,
@@ -861,7 +861,7 @@ impl ServerPacket for QuestUpdateComplete {
 
 /// Sent when a quest objective gets progress (kill, item loot, etc.).
 /// Updates the count shown in the quest tracker.
-/// C# ref: QuestUpdateAddCredit
+/// Legacy non-canonical note: QuestUpdateAddCredit
 pub struct QuestUpdateAddCredit {
     pub victim_guid: ObjectGuid,
     pub quest_id: u32,
