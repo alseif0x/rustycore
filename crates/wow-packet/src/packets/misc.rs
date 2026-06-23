@@ -4517,8 +4517,8 @@ impl DBReply {
         }
     }
 
-    /// Reply with Status::RecordRemoved (2) — record is not on the server;
-    /// client should use its local DB2 copy and NOT retry.
+    /// Reply with Status::RecordRemoved (2) — record was explicitly removed by
+    /// the server hotfix stream. The client must not use its local DB2 copy.
     pub fn record_removed(table_hash: u32, record_id: i32) -> Self {
         Self {
             table_hash,

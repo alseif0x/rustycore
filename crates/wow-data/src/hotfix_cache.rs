@@ -199,8 +199,10 @@ impl HotfixBlobCache {
             let record_id: i32 = result.read(3);
             let status = HotfixRecordStatus::from(result.read::<u8>(4));
 
+            // Rust only has SQL `hotfix_blob` wire payloads here. Raw local DB2
+            // rows prove table presence, but they are not C++ `WriteRecord`
+            // payloads and must not be advertised as serveable hotfix data.
             if status == HotfixRecordStatus::Valid
-                && !self.has_table(table_hash)
                 && self.get_hotfix_blob(table_hash, record_id).is_none()
             {
                 if !result.next_row() {
@@ -318,6 +320,15 @@ impl HotfixBlobCache {
         self.hotfix_data
             .values()
             .filter(|push| push.available_locales_mask & locale_mask != 0)
+            .filter(|push| {
+                push.records.iter().any(|record| {
+                    record.available_locales_mask & locale_mask != 0
+                        && (record.status != HotfixRecordStatus::Valid
+                            || self
+                                .get_hotfix_blob(record.table_hash, record.record_id)
+                                .is_some())
+                })
+            })
             .filter_map(|push| push.records.first().map(|record| record.id))
             .collect()
     }
@@ -483,5 +494,47 @@ mod tests {
         assert_eq!(entries[0].key, 0x1234_5678);
         assert_eq!(entries[0].data, [9, 8, 7]);
         assert!(cache.get_optional_data(0xDF2F_53CF, 67, "esES").is_none());
+    }
+
+    #[test]
+    fn available_hotfix_ids_do_not_advertise_valid_records_without_served_blob() {
+        let mut cache = HotfixBlobCache::new();
+        cache.insert_blob(0x919B_E54E, 198647, vec![0xAA; 408]);
+        cache.insert_hotfix_record_like_cpp(HotfixRecord {
+            table_hash: 0x919B_E54E,
+            record_id: 198647,
+            id: HotfixId {
+                push_id: 77,
+                unique_id: 88,
+            },
+            status: HotfixRecordStatus::Valid,
+            available_locales_mask: hotfix_locale_mask("esES"),
+        });
+
+        assert!(cache.available_hotfix_ids("esES").is_empty());
+    }
+
+    #[test]
+    fn available_hotfix_ids_advertise_sql_hotfix_blob_records() {
+        let mut cache = HotfixBlobCache::new();
+        cache.insert_hotfix_blob(0xAABB_CCDD, 123, vec![1, 2, 3, 4]);
+        cache.insert_hotfix_record_like_cpp(HotfixRecord {
+            table_hash: 0xAABB_CCDD,
+            record_id: 123,
+            id: HotfixId {
+                push_id: 78,
+                unique_id: 89,
+            },
+            status: HotfixRecordStatus::Valid,
+            available_locales_mask: hotfix_locale_mask("esES"),
+        });
+
+        assert_eq!(
+            cache.available_hotfix_ids("esES"),
+            vec![HotfixId {
+                push_id: 78,
+                unique_id: 89
+            }]
+        );
     }
 }
