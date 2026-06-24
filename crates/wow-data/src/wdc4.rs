@@ -586,8 +586,30 @@ impl Wdc4Reader {
         } else {
             record_idx * self.header.record_size as usize
         };
-        let bit_offset = info.field_offset_bits as usize + array_index * element_bits;
-        read_bits(&self.record_data, record_start, bit_offset, element_bits)
+
+        match info.compression {
+            CompressionType::None
+            | CompressionType::Bitpacked
+            | CompressionType::BitpackedSigned => {
+                let bit_offset = info.field_offset_bits as usize + array_index * element_bits;
+                read_bits(&self.record_data, record_start, bit_offset, element_bits)
+            }
+            CompressionType::PalletArray => {
+                let index = read_bits(
+                    &self.record_data,
+                    record_start,
+                    info.field_offset_bits as usize,
+                    info.field_size_bits as usize,
+                ) as usize;
+                let cardinality = info.val3.max(1) as usize;
+                self.pallet_data
+                    .get(field)
+                    .and_then(|p| p.get(index * cardinality + array_index))
+                    .copied()
+                    .unwrap_or(0)
+            }
+            CompressionType::Pallet | CompressionType::Common => self.read_field(record_idx, field),
+        }
     }
 
     /// Read an array element as i16 (for short[] arrays like StatModifierBonusAmount).

@@ -283,6 +283,16 @@ impl ItemEffectStore {
         self.values()
             .find(|entry| entry.parent_item_id == item_id && entry.spell_id == spell_id)
     }
+
+    /// C++ `DB2Manager::GetItemEffectsForItemId`.
+    pub fn item_effects_for_item_id_like_cpp(&self, item_id: u32) -> Vec<&ItemEffectEntry> {
+        let mut effects: Vec<_> = self
+            .values()
+            .filter(|entry| entry.parent_item_id == item_id)
+            .collect();
+        effects.sort_by_key(|entry| entry.legacy_slot_index);
+        effects
+    }
 }
 
 fn load_store<T, S>(

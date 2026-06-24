@@ -501,6 +501,8 @@ pub const TOTAL_SPELL_TARGETS_LIKE_CPP: i32 = 153;
 pub mod attributes {
     /// C++ `SPELL_ATTR0_PASSIVE` (`SharedDefines.h`).
     pub const SPELL_ATTR0_PASSIVE: u32 = 0x0000_0040;
+    /// C++ `SPELL_ATTR0_DO_NOT_DISPLAY_SPELLBOOK_AURA_ICON_COMBAT_LOG` (`SharedDefines.h`).
+    pub const SPELL_ATTR0_DO_NOT_DISPLAY_SPELLBOOK_AURA_ICON_COMBAT_LOG: u32 = 0x0000_0080;
     /// C++ `SPELL_ATTR0_NOT_SHAPESHIFTED` (`SharedDefines.h`).
     pub const SPELL_ATTR0_NOT_SHAPESHIFTED: u32 = 0x0001_0000;
     /// C++ `SPELL_ATTR0_ONLY_INDOORS` (`SharedDefines.h`).
@@ -519,6 +521,8 @@ pub mod attributes {
     pub const SPELL_ATTR1_IS_SELF_CHANNELLED: u32 = 0x0000_0040;
     /// C++ `SPELL_ATTR1_NO_AUTOCAST_AI` (`SharedDefines.h`).
     pub const SPELL_ATTR1_NO_AUTOCAST_AI: u32 = 0x0002_0000;
+    /// C++ `SPELL_ATTR1_NO_AURA_ICON` (`SharedDefines.h`).
+    pub const SPELL_ATTR1_NO_AURA_ICON: u32 = 0x1000_0000;
     /// C++ `SPELL_ATTR2_ALLOW_WHILE_NOT_SHAPESHIFTED_CASTER_FORM` (`SharedDefines.h`).
     pub const SPELL_ATTR2_ALLOW_WHILE_NOT_SHAPESHIFTED_CASTER_FORM: u32 = 0x0008_0000;
     /// C++ `SPELL_ATTR3_CAN_PROC_FROM_PROCS` (`SharedDefines.h`).
@@ -5570,6 +5574,28 @@ ORDER BY sm.ID, se.EffectIndex
         self.spell_misc_attributes
             .get(&spell_id)
             .is_some_and(|attributes| attributes[1] & attribute != 0)
+    }
+
+    /// C++ `SpellInfo::HasAttribute(SpellAttr2)` for attributes hydrated from `SpellMisc.db2`.
+    pub fn has_attribute2_like_cpp(&self, spell_id: i32, attribute: u32) -> bool {
+        self.spell_misc_attributes
+            .get(&spell_id)
+            .is_some_and(|attributes| attributes[2] & attribute != 0)
+    }
+
+    /// C++ `SpellInfo::HasAttribute(SpellAttr8)` for attributes hydrated from `SpellMisc.db2`.
+    pub fn has_attribute8_like_cpp(&self, spell_id: i32, attribute: u32) -> bool {
+        self.spell_misc_attributes
+            .get(&spell_id)
+            .is_some_and(|attributes| attributes[8] & attribute != 0)
+    }
+
+    /// C++ `SpellInfo::Stances` / `StancesNot` for login passive-cast gates.
+    pub fn shapeshift_masks_like_cpp(&self, spell_id: i32) -> (u64, u64) {
+        self.spell_shapeshift_masks
+            .get(&spell_id)
+            .copied()
+            .unwrap_or((0, 0))
     }
 
     /// C++ `SpellInfo::IsPassive`, for the represented paths that currently

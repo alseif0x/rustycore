@@ -913,7 +913,7 @@ mod tests {
             session.active_player_transport_server_time_like_cpp()
                 >= before.saturating_sub(25) as i32
         );
-        assert_eq!(session.movement_visibility_refresh_requests_like_cpp(), 1);
+        assert_eq!(session.movement_visibility_refresh_requests_like_cpp(), 0);
     }
 
     #[test]

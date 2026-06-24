@@ -8,7 +8,10 @@ use wow_constants::{
     UnitStandStateType,
 };
 use wow_database::{SqlResult, WorldDatabase};
-use wow_entities::{CreatureAddonLifecycleRecordLikeCpp, VisibilityDistanceTypeLikeCpp};
+use wow_entities::{
+    CreatureAddonAuraApplicationLikeCpp, CreatureAddonLifecycleRecordLikeCpp,
+    VisibilityDistanceTypeLikeCpp,
+};
 
 use crate::creature_model_info::CreatureModelInfoStoreLikeCpp;
 use crate::{
@@ -26,6 +29,10 @@ pub const DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP: u32 = 180_000;
 pub const DEFAULT_INVISIBLE_CREATURE_DISPLAY_ID_LIKE_CPP: u32 = 11_686;
 const IDLE_MOTION_TYPE_LIKE_CPP: u8 = 0;
 const WAYPOINT_MOTION_TYPE_LIKE_CPP: u8 = 2;
+const AFLAG_NOCASTER_LIKE_CPP: u32 = 0x0001;
+const AFLAG_CANCELABLE_LIKE_CPP: u32 = 0x0002;
+const AFLAG_POSITIVE_LIKE_CPP: u32 = 0x0100;
+const AFLAG_PASSIVE_LIKE_CPP: u32 = 0x0200;
 const MAX_ANIM_TIER_LIKE_CPP: u8 = 5;
 const MAX_SHEATH_STATE_LIKE_CPP: u8 = 3;
 const MAX_EXPANSIONS_LIKE_CPP: u8 = 10;
@@ -307,6 +314,8 @@ impl CreatureAddonStoreLikeCpp {
         spell_exists: impl Fn(u32) -> bool,
         spell_has_control_vehicle_aura: impl Fn(u32) -> bool,
         spell_duration_ms: impl Fn(u32) -> i32,
+        spell_unit_owned_aura_effect_mask: impl Fn(u32) -> u32,
+        spell_addon_aura_flags: impl Fn(u32) -> u32,
     ) -> Self {
         let spawn_addons = spawn_rows
             .into_iter()
@@ -322,6 +331,8 @@ impl CreatureAddonStoreLikeCpp {
                         &spell_exists,
                         &spell_has_control_vehicle_aura,
                         &spell_duration_ms,
+                        &spell_unit_owned_aura_effect_mask,
+                        &spell_addon_aura_flags,
                     ),
                 )
             })
@@ -340,6 +351,8 @@ impl CreatureAddonStoreLikeCpp {
                         &spell_exists,
                         &spell_has_control_vehicle_aura,
                         &spell_duration_ms,
+                        &spell_unit_owned_aura_effect_mask,
+                        &spell_addon_aura_flags,
                     ),
                 )
             })
@@ -413,6 +426,8 @@ impl CreatureAddonStoreLikeCpp {
                     .unwrap_or(0);
                 spell_duration_ms_like_cpp(duration_index, Some(spell_duration_store))
             },
+            |spell_id| creature_addon_aura_effect_mask_like_cpp(spell_store, spell_id),
+            |spell_id| creature_addon_aura_flags_like_cpp(spell_store, spell_id),
         ))
     }
 
@@ -504,6 +519,8 @@ fn addon_record_from_row_like_cpp(
     spell_exists: &impl Fn(u32) -> bool,
     spell_has_control_vehicle_aura: &impl Fn(u32) -> bool,
     spell_duration_ms: &impl Fn(u32) -> i32,
+    spell_unit_owned_aura_effect_mask: &impl Fn(u32) -> u32,
+    spell_addon_aura_flags: &impl Fn(u32) -> u32,
 ) -> CreatureAddonLifecycleRecordLikeCpp {
     let mount_display_id = if row.mount != 0 && !mount_display_exists(row.mount) {
         0
@@ -529,6 +546,18 @@ fn addon_record_from_row_like_cpp(
         spell_has_control_vehicle_aura,
         spell_duration_ms,
     );
+    let aura_applications = auras
+        .iter()
+        .copied()
+        .filter_map(|spell_id| {
+            let effect_mask = spell_unit_owned_aura_effect_mask(spell_id);
+            (effect_mask != 0).then(|| CreatureAddonAuraApplicationLikeCpp {
+                spell_id,
+                effect_mask,
+                flags: spell_addon_aura_flags(spell_id),
+            })
+        })
+        .collect();
 
     CreatureAddonLifecycleRecordLikeCpp {
         path_id: row.path_id,
@@ -544,6 +573,7 @@ fn addon_record_from_row_like_cpp(
         melee_anim_kit_id,
         visibility_distance_type,
         auras,
+        aura_applications,
     }
 }
 
@@ -571,6 +601,65 @@ fn normalize_creature_addon_auras_like_cpp(
         normalized.push(spell_id);
     }
     normalized
+}
+
+fn creature_addon_aura_effect_mask_like_cpp(spell_store: &SpellStore, spell_id: u32) -> u32 {
+    use crate::spell::spell_effect_types::{
+        SPELL_EFFECT_APPLY_AREA_AURA_ENEMY, SPELL_EFFECT_APPLY_AREA_AURA_FRIEND,
+        SPELL_EFFECT_APPLY_AREA_AURA_OWNER, SPELL_EFFECT_APPLY_AREA_AURA_PARTY,
+        SPELL_EFFECT_APPLY_AREA_AURA_PET, SPELL_EFFECT_APPLY_AREA_AURA_RAID,
+        SPELL_EFFECT_APPLY_AURA, SPELL_EFFECT_APPLY_AURA_ON_PET,
+    };
+
+    const SPELL_EFFECT_APPLY_AREA_AURA_SUMMONS: u32 = 202;
+    const SPELL_EFFECT_APPLY_AREA_AURA_PARTY_NONRANDOM: u32 = 271;
+
+    let Some(spell) = i32::try_from(spell_id)
+        .ok()
+        .and_then(|spell_id| spell_store.get(spell_id))
+    else {
+        return 0;
+    };
+
+    spell.effects().iter().fold(0, |mask, effect| {
+        let unit_owned = matches!(
+            effect.effect,
+            SPELL_EFFECT_APPLY_AURA
+                | SPELL_EFFECT_APPLY_AURA_ON_PET
+                | SPELL_EFFECT_APPLY_AREA_AURA_PARTY
+                | SPELL_EFFECT_APPLY_AREA_AURA_RAID
+                | SPELL_EFFECT_APPLY_AREA_AURA_FRIEND
+                | SPELL_EFFECT_APPLY_AREA_AURA_ENEMY
+                | SPELL_EFFECT_APPLY_AREA_AURA_PET
+                | SPELL_EFFECT_APPLY_AREA_AURA_OWNER
+                | SPELL_EFFECT_APPLY_AREA_AURA_SUMMONS
+                | SPELL_EFFECT_APPLY_AREA_AURA_PARTY_NONRANDOM
+        );
+        if unit_owned && effect.effect_index < u32::BITS {
+            mask | (1u32 << effect.effect_index)
+        } else {
+            mask
+        }
+    })
+}
+
+fn creature_addon_aura_flags_like_cpp(spell_store: &SpellStore, spell_id: u32) -> u32 {
+    let Ok(spell_id_i32) = i32::try_from(spell_id) else {
+        return AFLAG_NOCASTER_LIKE_CPP | AFLAG_POSITIVE_LIKE_CPP;
+    };
+    let passive = spell_store.is_passive_like_cpp(spell_id_i32);
+    let no_aura_icon = spell_store.has_attribute1_like_cpp(
+        spell_id_i32,
+        crate::spell::attributes::SPELL_ATTR1_NO_AURA_ICON,
+    );
+    let mut flags = AFLAG_NOCASTER_LIKE_CPP | AFLAG_POSITIVE_LIKE_CPP;
+    if !passive && !no_aura_icon {
+        flags |= AFLAG_CANCELABLE_LIKE_CPP;
+    }
+    if passive {
+        flags |= AFLAG_PASSIVE_LIKE_CPP;
+    }
+    flags
 }
 
 fn normalize_anim_kit_like_cpp(anim_kit_id: u16, exists: &impl Fn(u32) -> bool) -> u16 {
@@ -2466,6 +2555,8 @@ mod tests {
             |_| false,
             |_| false,
             |_| 0,
+            |_| 0,
+            |_| 0,
         );
 
         assert_eq!(
@@ -2484,6 +2575,7 @@ mod tests {
                 melee_anim_kit_id: 33,
                 visibility_distance_type: VisibilityDistanceTypeLikeCpp::Normal,
                 auras: Vec::new(),
+                aura_applications: Vec::new(),
             }),
             "C++ Creature::GetCreatureAddon checks spawn id before template entry"
         );
@@ -2503,6 +2595,7 @@ mod tests {
                 melee_anim_kit_id: 66,
                 visibility_distance_type: VisibilityDistanceTypeLikeCpp::Normal,
                 auras: Vec::new(),
+                aura_applications: Vec::new(),
             })
         );
     }
@@ -2535,6 +2628,8 @@ mod tests {
             |_| false,
             |_| false,
             |_| 0,
+            |_| 0,
+            |_| 0,
         );
 
         assert_eq!(
@@ -2553,6 +2648,7 @@ mod tests {
                 melee_anim_kit_id: 0,
                 visibility_distance_type: VisibilityDistanceTypeLikeCpp::Normal,
                 auras: Vec::new(),
+                aura_applications: Vec::new(),
             }),
             "C++ invalid mount/emote/stand/anim/sheath/anim-kit/visibility rows are truncated; VisFlags/PvPFlags cover the full byte"
         );
@@ -2576,6 +2672,14 @@ mod tests {
             |spell_id| matches!(spell_id, 100 | 200 | 300 | 400),
             |spell_id| spell_id == 400,
             |spell_id| if spell_id == 300 { 5_000 } else { 0 },
+            |spell_id| {
+                if matches!(spell_id, 100 | 200 | 400) {
+                    1
+                } else {
+                    0
+                }
+            },
+            |_| AFLAG_NOCASTER_LIKE_CPP | AFLAG_POSITIVE_LIKE_CPP | AFLAG_CANCELABLE_LIKE_CPP,
         );
 
         assert_eq!(
@@ -2612,6 +2716,8 @@ mod tests {
             |_| true,
             |_| false,
             |_| false,
+            |_| 0,
+            |_| 0,
             |_| 0,
         );
 

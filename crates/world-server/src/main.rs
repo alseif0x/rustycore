@@ -870,7 +870,7 @@ async fn main() -> Result<ExitCode> {
 
     // Load Item.db2 for inventory_type lookups (replaces item_type_cache table)
     let data_dir = wow_config::get_string_default("DataDir", "./Data");
-    let locale_raw = wow_config::get_string_default("DBC.Locale", "esES");
+    let locale_raw = wow_config::get_string_default("DBC.Locale", "0");
     let locale = locale_id_to_name(&locale_raw);
     let currency_types_store = Arc::new(
         wow_data::CurrencyTypesStore::load(&data_dir, &locale)
@@ -1556,6 +1556,14 @@ async fn main() -> Result<ExitCode> {
         "Loaded {} spell aura options rows",
         spell_aura_options_store.len()
     );
+    let spell_aura_restrictions_store = Arc::new(
+        wow_data::SpellAuraRestrictionsStore::load(&data_dir, &locale)
+            .context("Failed to load SpellAuraRestrictions.db2")?,
+    );
+    info!(
+        "Loaded {} spell aura restriction rows",
+        spell_aura_restrictions_store.len()
+    );
     let spell_class_options_store = Arc::new(
         wow_data::SpellClassOptionsStore::load(&data_dir, &locale)
             .context("Failed to load SpellClassOptions.db2")?,
@@ -1563,6 +1571,14 @@ async fn main() -> Result<ExitCode> {
     info!(
         "Loaded {} spell class options rows",
         spell_class_options_store.len()
+    );
+    let spell_equipped_items_store = Arc::new(
+        wow_data::SpellEquippedItemsStore::load(&data_dir, &locale)
+            .context("Failed to load SpellEquippedItems.db2")?,
+    );
+    info!(
+        "Loaded {} spell equipped items rows",
+        spell_equipped_items_store.len()
     );
     let spell_misc_store = Arc::new(
         wow_data::SpellMiscStore::load(&data_dir, &locale)
@@ -1970,11 +1986,14 @@ async fn main() -> Result<ExitCode> {
         map_difficulty_x_condition_store.len()
     );
     let lfg_dungeons_store = Arc::new(
-        wow_data::LfgDungeonsStore::load(&data_dir, &locale)
-            .context("Failed to load LFGDungeons.db2 — check DataDir and DBC.Locale config")?,
+        wow_data::LfgDungeonsStore::load_with_hotfixes(&data_dir, &locale, &hotfix_db)
+            .await
+            .context(
+                "Failed to load LFGDungeons.db2 / hotfix rows — check DataDir and DBC.Locale config",
+            )?,
     );
     info!(
-        "Loaded {} LFG dungeons from LFGDungeons.db2",
+        "Loaded {} LFG dungeons from LFGDungeons.db2 / hotfix rows",
         lfg_dungeons_store.len()
     );
     // Load item appearance/equipment dependencies before canonical SpawnStore metadata.
@@ -2751,6 +2770,53 @@ async fn main() -> Result<ExitCode> {
             .await
             .context("Failed to load quest store")?,
     );
+    let lfg_load_outcome = wow_data::LfgDungeonStoreLikeCpp::load_like_cpp(
+        world_db.as_ref(),
+        lfg_dungeons_store.as_ref(),
+        map_difficulty_store.as_ref(),
+        quest_store.as_ref(),
+    )
+    .await
+    .context("Failed to load C++ LFG dungeon store")?;
+    let lfg_dungeon_store_like_cpp = Arc::new(lfg_load_outcome.store);
+    info!(
+        "Loaded {} C++ LFG dungeon rows ({} templates, {} rewards; {} skipped db2 type, {} skipped map difficulty)",
+        lfg_dungeon_store_like_cpp.len(),
+        lfg_load_outcome.report.loaded_templates,
+        lfg_load_outcome.report.loaded_rewards,
+        lfg_load_outcome.report.skipped_type.len(),
+        lfg_load_outcome.report.skipped_missing_map_difficulty.len(),
+    );
+    if std::env::var_os("RUSTYCORE_LFG_TRACE").is_some() {
+        for id in [
+            205_u32, 210, 211, 212, 213, 215, 217, 219, 221, 226, 241, 242, 245, 249, 252, 253,
+            254, 255, 256, 259, 260, 2447, 2452, 2471,
+        ] {
+            match lfg_dungeon_store_like_cpp.get(id) {
+                Some(dungeon) => info!(
+                    id,
+                    entry = dungeon.entry_like_cpp(),
+                    type_id = dungeon.type_id,
+                    map = dungeon.map,
+                    difficulty = dungeon.difficulty,
+                    expansion = dungeon.expansion,
+                    group = dungeon.group,
+                    min_level = dungeon.min_level,
+                    max_level = dungeon.max_level,
+                    required_item_level = dungeon.required_item_level,
+                    seasonal = dungeon.seasonal,
+                    "RUST_LFG_TRACE dungeon"
+                ),
+                None => info!(id, "RUST_LFG_TRACE dungeon missing"),
+            }
+        }
+        let random_ids = lfg_dungeon_store_like_cpp
+            .random_and_active_seasonal_dungeon_entries_like_cpp(80, 2, |_| false);
+        info!(
+            ?random_ids,
+            "RUST_LFG_TRACE random entries level80 expansion2"
+        );
+    }
     let spell_area_outcome = wow_data::SpellAreaStoreLikeCpp::load_like_cpp(
         world_db.as_ref(),
         |spell_id| spell_store.get(spell_id as i32).is_some(),
@@ -3088,6 +3154,10 @@ async fn main() -> Result<ExitCode> {
             tracing::warn!("QuestXP.db2 not loaded ({e}), using fallback XP table");
             wow_data::quest_xp::QuestXpStore::default()
         }),
+    );
+    let quest_money_reward_store = Arc::new(
+        wow_data::progression_rewards::QuestMoneyRewardStore::load(&data_dir, &locale)
+            .context("Failed to load QuestMoneyReward.db2 — check DataDir and DBC.Locale config")?,
     );
     let quest_v2_store = Arc::new(
         wow_data::progression_rewards::QuestV2Store::load(&data_dir, &locale)
@@ -4396,10 +4466,13 @@ async fn main() -> Result<ExitCode> {
         chr_races_store: Some(Arc::clone(&chr_races_store)),
         spell_chain_store: Some(Arc::clone(&spell_chain_store)),
         spell_store: Some(Arc::clone(&spell_store)),
+        spell_levels_store: Some(Arc::clone(&spell_levels_store)),
         spell_category_store: Some(Arc::clone(&spell_category_store)),
         npc_spell_click_store: Some(Arc::clone(&npc_spell_click_store)),
         spell_aura_options_store: Some(Arc::clone(&spell_aura_options_store)),
         spell_class_options_store: Some(Arc::clone(&spell_class_options_store)),
+        spell_aura_restrictions_store: Some(Arc::clone(&spell_aura_restrictions_store)),
+        spell_equipped_items_store: Some(Arc::clone(&spell_equipped_items_store)),
         spell_misc_store: Some(Arc::clone(&spell_misc_store)),
         spell_group_store: Some(Arc::clone(&spell_group_store)),
         spell_group_stack_rule_store: Some(Arc::clone(&spell_group_stack_rule_store)),
@@ -4435,6 +4508,7 @@ async fn main() -> Result<ExitCode> {
         map_difficulty_x_condition_store: Some(Arc::clone(&map_difficulty_x_condition_store)),
         access_requirement_store: Some(Arc::clone(&access_requirement_store)),
         lfg_dungeons_store: Some(Arc::clone(&lfg_dungeons_store)),
+        lfg_dungeon_store_like_cpp: Some(Arc::clone(&lfg_dungeon_store_like_cpp)),
         battlemaster_list_store: Some(Arc::clone(&battlemaster_list_typed_store)),
         creature_template_lifecycle_store: Some(Arc::clone(&creature_template_lifecycle_store)),
         creature_template_mount_store: Some(Arc::clone(&creature_template_mount_store)),
@@ -4463,6 +4537,7 @@ async fn main() -> Result<ExitCode> {
         phase_group_store: Some(Arc::clone(&phase_group_store)),
         quest_store: Some(Arc::clone(&quest_store)),
         quest_xp_store: Some(Arc::clone(&quest_xp_store)),
+        quest_money_reward_store: Some(Arc::clone(&quest_money_reward_store)),
         quest_v2_store: Some(Arc::clone(&quest_v2_store)),
         quest_info_store: Some(Arc::clone(&quest_info_store)),
         quest_package_item_store: Some(Arc::clone(&quest_package_item_store)),
@@ -11239,6 +11314,9 @@ async fn create_session(
     if let Some(ref store) = resources.spell_store {
         session.set_spell_store(Arc::clone(store));
     }
+    if let Some(ref store) = resources.spell_levels_store {
+        session.set_spell_levels_store(Arc::clone(store));
+    }
     if let Some(ref store) = resources.spell_chain_store {
         session.set_spell_chain_store(Arc::clone(store));
     }
@@ -11250,6 +11328,12 @@ async fn create_session(
     }
     if let Some(ref store) = resources.spell_aura_options_store {
         session.set_spell_aura_options_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.spell_aura_restrictions_store {
+        session.set_spell_aura_restrictions_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.spell_equipped_items_store {
+        session.set_spell_equipped_items_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.spell_misc_store {
         session.set_spell_misc_store(Arc::clone(store));
@@ -11353,6 +11437,9 @@ async fn create_session(
     if let Some(ref store) = resources.lfg_dungeons_store {
         session.set_lfg_dungeons_store(Arc::clone(store));
     }
+    if let Some(ref store) = resources.lfg_dungeon_store_like_cpp {
+        session.set_lfg_dungeon_store_like_cpp(Arc::clone(store));
+    }
     if let Some(ref store) = resources.battlemaster_list_store {
         session.set_battlemaster_list_store(Arc::clone(store));
     }
@@ -11434,6 +11521,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.quest_xp_store {
         session.set_quest_xp_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.quest_money_reward_store {
+        session.set_quest_money_reward_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.quest_v2_store {
         session.set_quest_v2_store(Arc::clone(store));
@@ -12635,12 +12725,22 @@ fn spawn_legacy_creature_runtime_update_loop_like_cpp(
                 + outcome.aggro.aggro_starts
                 + outcome.melee.canonical_hits;
             if touched_creatures > 0 {
-                debug!(
+                info!(
                     lifecycle_corpses_despawned = outcome.lifecycle.corpses_despawned,
                     lifecycle_respawns_processed = outcome.lifecycle.respawns_processed,
                     lifecycle_refresh_commands = outcome.lifecycle_delivery.candidates_queued,
                     movement_packets = outcome.movement.movement_packets,
                     movement_commands = outcome.movement_delivery.candidates_queued,
+                    movement_seen = outcome.movement_delivery.candidates_seen,
+                    movement_skipped_not_in_world =
+                        outcome.movement_delivery.candidates_skipped_not_in_world,
+                    movement_skipped_wrong_map =
+                        outcome.movement_delivery.candidates_skipped_wrong_map,
+                    movement_skipped_wrong_instance =
+                        outcome.movement_delivery.candidates_skipped_wrong_instance,
+                    movement_skipped_distance =
+                        outcome.movement_delivery.candidates_skipped_distance,
+                    movement_send_failed = outcome.movement_delivery.send_failed,
                     aggro_starts = outcome.aggro.aggro_starts,
                     aggro_commands = outcome.aggro_delivery.candidates_queued,
                     aggro_alerts = outcome.aggro.alert_triggers,

@@ -11,7 +11,7 @@
 use anyhow::Result;
 use std::collections::{HashMap, HashSet};
 use tracing::{info, warn};
-use wow_database::{WorldDatabase, WorldStatements};
+use wow_database::{SqlResult, WorldDatabase, WorldStatements};
 
 // ── Constants (matching C# SharedConst) ──────────────────────────────────────
 pub const QUEST_REWARD_ITEM_COUNT: usize = 4;
@@ -844,7 +844,7 @@ pub async fn load_quests(db: &WorldDatabase) -> Result<QuestStore> {
             let id: u32 = result.read(0);
             let (flags, special_flags) = normalize_quest_flags_like_cpp(
                 result.try_read::<u32>(20).unwrap_or(0),
-                result.try_read::<u32>(67).unwrap_or(0),
+                read_quest_u32_like_cpp(&result, 67).unwrap_or(0),
             );
             let quest = QuestTemplate {
                 id,
@@ -1015,6 +1015,33 @@ pub async fn load_quests(db: &WorldDatabase) -> Result<QuestStore> {
     store.normalize_dependent_quest_metadata_like_cpp();
     info!("Loaded {} quest templates", store.quests.len());
 
+    let special_flags_result = db
+        .direct_query("SELECT ID, SpecialFlags FROM quest_template_addon")
+        .await?;
+    if !special_flags_result.is_empty() {
+        let mut special_flags_result = special_flags_result;
+        let mut count = 0u32;
+        loop {
+            let id: u32 = special_flags_result.try_read::<u32>(0).unwrap_or(0);
+            let special_flags = read_quest_u32_like_cpp(&special_flags_result, 1).unwrap_or(0);
+            if let Some(quest) = store.quests.get_mut(&id) {
+                let (flags, special_flags) =
+                    normalize_quest_flags_like_cpp(quest.flags, special_flags);
+                quest.flags = flags;
+                quest.special_flags = special_flags;
+                count += 1;
+            }
+
+            if !special_flags_result.next_row() {
+                break;
+            }
+        }
+        info!(
+            "Applied {} quest_template_addon SpecialFlags rows like C++",
+            count
+        );
+    }
+
     // ── Load game_event seasonal quest relations ──────────────────────────
     let stmt = db.prepare(WorldStatements::SEL_GAME_EVENT_SEASONAL_QUEST_RELATIONS);
     let result = db.query(&stmt).await?;
@@ -1160,6 +1187,33 @@ pub async fn load_quests(db: &WorldDatabase) -> Result<QuestStore> {
     );
 
     Ok(store)
+}
+
+fn read_quest_u32_like_cpp(result: &SqlResult, column: usize) -> Option<u32> {
+    if let Some(value) = result.try_read::<u32>(column) {
+        return Some(value);
+    }
+    if let Some(value) = result.try_read::<u64>(column) {
+        return u32::try_from(value).ok();
+    }
+    if let Some(value) = result.try_read::<u16>(column) {
+        return Some(u32::from(value));
+    }
+    if let Some(value) = result.try_read::<u8>(column) {
+        return Some(u32::from(value));
+    }
+    if let Some(value) = result.try_read::<i32>(column) {
+        return u32::try_from(value).ok();
+    }
+    if let Some(value) = result.try_read::<i64>(column) {
+        return u32::try_from(value).ok();
+    }
+    if let Some(value) = result.try_read::<i16>(column) {
+        return u32::try_from(value).ok();
+    }
+    result
+        .try_read::<i8>(column)
+        .and_then(|value| u32::try_from(value).ok())
 }
 
 #[cfg(test)]

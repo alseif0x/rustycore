@@ -143,6 +143,109 @@ impl WorldSession {
             .unwrap_or(FRIEND_STATUS_OFFLINE_LIKE_CPP)
     }
 
+    pub(crate) async fn send_contact_list_like_cpp(&mut self, flags: u32) {
+        let my_guid = match self.player_guid() {
+            Some(g) => g,
+            None => return,
+        };
+
+        let char_db = match self.char_db() {
+            Some(db) => Arc::clone(db),
+            None => return,
+        };
+
+        // C++ `PlayerSocial::SendSocialList` iterates the loaded social map and
+        // writes only entries matching the requested `SocialFlag` bitmask.
+        let rows = sqlx::query(
+            "SELECT CAST(cs.friend AS SIGNED), cs.flags, cs.note, c.race, c.class, c.level, c.zone, c.name, c.gender \
+             FROM character_social cs \
+             JOIN characters c ON c.guid = cs.friend \
+             WHERE cs.guid = ? AND (cs.flags & ?) <> 0",
+        )
+        .bind(my_guid.counter())
+        .bind(flags)
+        .fetch_all(char_db.pool())
+        .await
+        .unwrap_or_default();
+
+        let vra = self.virtual_realm_address();
+
+        struct ContactNameData {
+            guid: ObjectGuid,
+            name: String,
+            race: u8,
+            sex: u8,
+            class: u8,
+            level: u8,
+        }
+
+        let mut contacts: Vec<ContactInfo> = Vec::new();
+        let mut name_data: Vec<ContactNameData> = Vec::new();
+
+        for row in rows {
+            use sqlx::Row;
+            let friend_raw: i64 = row.try_get(0).unwrap_or(0);
+            let type_flags: u32 = row.try_get::<u8, _>(1).unwrap_or(0) as u32;
+            let note: String = row.try_get(2).unwrap_or_default();
+            let race: u8 = row.try_get::<u8, _>(3).unwrap_or(0);
+            let class_id: u32 = row.try_get::<u8, _>(4).unwrap_or(0) as u32;
+            let level: u32 = row.try_get::<u8, _>(5).unwrap_or(0) as u32;
+            let zone: u32 = row.try_get::<i32, _>(6).unwrap_or(0) as u32;
+            let name: String = row.try_get(7).unwrap_or_default();
+            let gender: u8 = row.try_get::<u8, _>(8).unwrap_or(0);
+
+            let friend_guid = ObjectGuid::create_player(0, friend_raw);
+            let friend_status = self.friend_status_for_guid_like_cpp(friend_guid);
+
+            name_data.push(ContactNameData {
+                guid: friend_guid,
+                name,
+                race,
+                sex: gender,
+                class: class_id as u8,
+                level: level as u8,
+            });
+
+            contacts.push(ContactInfo {
+                guid: friend_guid,
+                wow_account_guid: ObjectGuid::EMPTY,
+                virtual_realm_address: vra,
+                native_realm_address: vra,
+                type_flags,
+                note,
+                status: friend_status,
+                area_id: zone,
+                level,
+                class_id,
+                is_mobile: false,
+            });
+        }
+
+        self.send_packet(&ContactListPkt { flags, contacts });
+
+        if !name_data.is_empty() {
+            let players: Vec<NameCacheLookupResult> = name_data
+                .into_iter()
+                .map(|nd| NameCacheLookupResult {
+                    player: nd.guid,
+                    result: 0,
+                    data: Some(PlayerGuidLookupData {
+                        guid_actual: nd.guid,
+                        name: nd.name,
+                        race: nd.race,
+                        sex: nd.sex,
+                        class: nd.class,
+                        level: nd.level,
+                        virtual_realm_address: vra,
+                        ..Default::default()
+                    }),
+                })
+                .collect();
+
+            self.send_packet_realm(&QueryPlayerNamesResponse { players });
+        }
+    }
+
     /// CMSG_ADD_FRIEND (0x36d8)
     ///
     /// Parse: bits(9)=name_len, bits(9)=notes_len, string(name), string(notes)
@@ -643,107 +746,7 @@ impl WorldSession {
             }
         };
 
-        let my_guid = match self.player_guid() {
-            Some(g) => g,
-            None => return,
-        };
-
-        let char_db = match self.char_db() {
-            Some(db) => Arc::clone(db),
-            None => return,
-        };
-
-        // Load all social entries for this character (also fetch name/gender for name cache)
-        // CAST ... AS SIGNED: sqlx cannot decode BIGINT UNSIGNED as i64 without explicit cast
-        let rows = sqlx::query(
-            "SELECT CAST(cs.friend AS SIGNED), cs.flags, cs.note, c.race, c.class, c.level, c.zone, c.name, c.gender \
-             FROM character_social cs \
-             JOIN characters c ON c.guid = cs.friend \
-             WHERE cs.guid = ?",
-        )
-        .bind(my_guid.counter())
-        .fetch_all(char_db.pool())
-        .await
-        .unwrap_or_default();
-
-        let vra = self.virtual_realm_address();
-
-        struct ContactNameData {
-            guid: ObjectGuid,
-            name: String,
-            race: u8,
-            sex: u8,
-            class: u8,
-            level: u8,
-        }
-
-        let mut contacts: Vec<ContactInfo> = Vec::new();
-        let mut name_data: Vec<ContactNameData> = Vec::new();
-
-        for row in rows {
-            use sqlx::Row;
-            let friend_raw: i64 = row.try_get(0).unwrap_or(0);
-            let type_flags: u32 = row.try_get::<u8, _>(1).unwrap_or(0) as u32;
-            let note: String = row.try_get(2).unwrap_or_default();
-            let race: u8 = row.try_get::<u8, _>(3).unwrap_or(0);
-            let class_id: u32 = row.try_get::<u8, _>(4).unwrap_or(0) as u32;
-            let level: u32 = row.try_get::<u8, _>(5).unwrap_or(0) as u32;
-            let zone: u32 = row.try_get::<i32, _>(6).unwrap_or(0) as u32;
-            let name: String = row.try_get(7).unwrap_or_default();
-            let gender: u8 = row.try_get::<u8, _>(8).unwrap_or(0);
-
-            let friend_guid = ObjectGuid::create_player(0, friend_raw);
-            let friend_status = self.friend_status_for_guid_like_cpp(friend_guid);
-
-            name_data.push(ContactNameData {
-                guid: friend_guid,
-                name,
-                race,
-                sex: gender,
-                class: class_id as u8,
-                level: level as u8,
-            });
-
-            contacts.push(ContactInfo {
-                guid: friend_guid,
-                wow_account_guid: ObjectGuid::EMPTY,
-                virtual_realm_address: vra,
-                native_realm_address: vra,
-                type_flags,
-                note,
-                status: friend_status,
-                area_id: zone,
-                level,
-                class_id,
-                is_mobile: false,
-            });
-        }
-
-        let p = ContactListPkt { flags, contacts };
-        self.send_packet(&p);
-
-        // Send player name cache entries so the client can display contact names
-        if !name_data.is_empty() {
-            let players: Vec<NameCacheLookupResult> = name_data
-                .into_iter()
-                .map(|nd| NameCacheLookupResult {
-                    player: nd.guid,
-                    result: 0,
-                    data: Some(PlayerGuidLookupData {
-                        guid_actual: nd.guid,
-                        name: nd.name,
-                        race: nd.race,
-                        sex: nd.sex,
-                        class: nd.class,
-                        level: nd.level,
-                        virtual_realm_address: vra,
-                        ..Default::default()
-                    }),
-                })
-                .collect();
-
-            self.send_packet_realm(&QueryPlayerNamesResponse { players });
-        }
+        self.send_contact_list_like_cpp(flags).await;
     }
 }
 

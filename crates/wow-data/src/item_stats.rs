@@ -583,7 +583,7 @@ impl ItemStatsStore {
                 if fi == 41 {
                     item_delay_offset = pos;
                 }
-                if fi == 43 {
+                if fi == 45 {
                     item_level_offset = pos;
                 }
                 if fi == 49 {
@@ -1098,6 +1098,39 @@ mod tests {
         assert!(
             store.get(6948).is_none(),
             "Hearthstone should have no stats"
+        );
+    }
+}
+
+#[test]
+fn item_sparse_item_level_uses_cpp_field_45_like_cpp() {
+    let data_dir = "/home/server/woltk-server-core/Data";
+    let locale = "enUS";
+    let path = std::path::Path::new(data_dir)
+        .join("dbc")
+        .join(locale)
+        .join("ItemSparse.db2");
+    if !path.exists() {
+        eprintln!("Skipping test: ItemSparse.db2 not found");
+        return;
+    }
+
+    let store = ItemStatsStore::load(data_dir, locale).expect("failed to load ItemStatsStore");
+
+    for (item_id, expected_min_level) in [
+        (47692, 200),
+        (40681, 200),
+        (40450, 200),
+        (34528, 150),
+        (41928, 150),
+    ] {
+        let template = store
+            .random_property_template(item_id)
+            .unwrap_or_else(|| panic!("missing ItemSparse random-property template {item_id}"));
+        assert!(
+            template.item_level >= expected_min_level,
+            "item {item_id} should read C++ ItemSparse field 45 as item level, got {}",
+            template.item_level
         );
     }
 }

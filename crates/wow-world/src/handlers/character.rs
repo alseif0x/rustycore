@@ -49,6 +49,7 @@ use wow_packet::packets::auth::{
     ConnectTo, ConnectToAddress, ConnectToFailed, ConnectToKey, ConnectToSerial, ResumeComms,
 };
 use wow_packet::packets::character::*;
+use wow_packet::packets::chat::ChatServerMessage;
 use wow_packet::packets::item::*;
 use wow_packet::packets::loot::LootReleaseAll;
 use wow_packet::packets::misc::*;
@@ -3345,12 +3346,14 @@ impl WorldSession {
 
     /// Handle CMSG_HOTFIX_REQUEST — client requests hotfix data.
     pub async fn handle_hotfix_request(&mut self, req: wow_packet::packets::misc::HotfixRequest) {
-        debug!(
-            "HotfixRequest: client_build={}, data_build={}, {} hotfixes for account {}",
+        info!(
+            "HotfixRequest: client_build={}, data_build={}, {} hotfixes for account {}, first={:?}, last={:?}",
             req.client_build,
             req.data_build,
             req.hotfixes.len(),
-            self.account_id
+            self.account_id,
+            req.hotfixes.first(),
+            req.hotfixes.last()
         );
 
         let Some(cache) = self.hotfix_blob_cache().map(Arc::clone) else {
@@ -4845,8 +4848,8 @@ impl WorldSession {
 
         // ── Load character skill IDs from character_skills table ──
         // These are used to filter DBC auto-learned spells (weapons, languages,
-        // racials, worn armor type). This matches C# behavior where
-        // LearnSkillRewardedSpells() only runs for skills the character actually has.
+        // racials, worn armor type). This mirrors TrinityCore C++ where
+        // LearnSkillRewardedSpells() runs from SetSkill for skills the character has.
         let mut known_skill_ids = std::collections::HashSet::<u16>::new();
         let mut skill_records =
             std::collections::HashMap::<u16, crate::session::RepresentedPlayerSkillLikeCpp>::new();
@@ -4891,24 +4894,66 @@ impl WorldSession {
                 }
             }
         }
-        if loaded_skill_records_like_cpp {
-            self.set_player_skill_records_like_cpp(skill_records);
-        }
-
         // ── Merge DBC auto-learned spells + build SkillInfo ──
-        // Only supplement from DBC if character has NO spells in DB (new character).
-        // Existing characters should rely entirely on their character_spell table.
+        // Existing characters mirror C++ `UpdateSkillsForLevel()`: for each
+        // persisted `character_skills` row, `SetSkill` calls
+        // `LearnSkillRewardedSpells(skill, value, race)`. This is narrower than
+        // adding every starting SkillLineAbility and keeps profession/weapon proc
+        // auras out unless the character actually has that skill.
         let db_count = known_spells.len();
         let mut skill_info_tuples: Vec<(u16, u16, u16, u16, u16, i16, u16)> = Vec::new();
         if let Some(skill_store) = self.skill_store() {
-            // Always supplement with DBC auto-learned spells (acquire_method 1 & 2 only).
-            // This covers racial abilities, languages, and weapon passives that are
-            // auto-granted from skills the character has in character_skills.
-            // Class trainer spells (acquire_method 0) come from character_spell DB.
-            let dbc_spells =
-                skill_store.starting_spells(race, class, level, Some(&known_skill_ids));
-            let racial = skill_store.racial_spells(race);
-            for spell_id in dbc_spells.into_iter().chain(racial.into_iter()) {
+            let mut dbc_spells = if db_count == 0 {
+                skill_store.starting_spells(race, class, level, Some(&known_skill_ids))
+            } else {
+                Vec::new()
+            };
+            if db_count > 0 {
+                let spell_levels_store = self.spell_levels_store().cloned();
+                let spell_store = self.spell_store().cloned();
+                for skill_record in skill_records.values() {
+                    if skill_store
+                        .skill_race_class_info_like_cpp(skill_record.skill_id, race, class)
+                        .is_none()
+                    {
+                        continue;
+                    }
+                    let skill_spells = skill_store.skill_rewarded_spells_like_cpp(
+                        skill_record.skill_id,
+                        skill_record.value,
+                        race,
+                        class,
+                        level,
+                        |spell_id| {
+                            let spell_id = u32::try_from(spell_id).ok()?;
+                            let spell_id_i32 = spell_id as i32;
+                            let spell_store = spell_store.as_ref()?;
+                            spell_store.get(spell_id_i32)?;
+
+                            if let Some(spell) = spell_levels_store.as_ref().and_then(|store| {
+                                store.entry_for_spell_difficulty_like_cpp(spell_id, 0)
+                            }) {
+                                return Some((
+                                    u32::try_from(spell.base_level).unwrap_or(0),
+                                    u32::try_from(spell.spell_level).unwrap_or(0),
+                                ));
+                            }
+
+                            if spell_store.has_attribute0_like_cpp(
+                                spell_id_i32,
+                                wow_data::spell::attributes::SPELL_ATTR0_DO_NOT_DISPLAY_SPELLBOOK_AURA_ICON_COMBAT_LOG,
+                            ) {
+                                return None;
+                            }
+
+                            Some((0, 0))
+                        },
+                        |_| false,
+                    );
+                    dbc_spells.extend(skill_spells);
+                }
+            }
+            for spell_id in dbc_spells {
                 if !known_spells.contains(&spell_id) {
                     known_spells.push(spell_id);
                 }
@@ -4922,7 +4967,7 @@ impl WorldSession {
             );
 
             // Build SkillInfo entries for the UpdateObject SkillInfo array.
-            // C#: LearnDefaultSkills → SetSkill writes skill slots.
+            // TrinityCore C++ LearnDefaultSkills -> SetSkill writes skill slots.
             let skill_entries = skill_store.starting_skill_info(race, class, level);
             for entry in &skill_entries {
                 skill_info_tuples.push((
@@ -4937,32 +4982,15 @@ impl WorldSession {
             }
             info!("Loaded {} skill slots for {:?}", skill_entries.len(), guid);
         }
-        let custom_spell_count =
-            self.apply_represented_start_all_spells_like_cpp(&mut known_spells);
-        if custom_spell_count > 0 {
-            info!(
-                player_guid = guid.counter(),
-                custom_spell_count,
-                "Applied represented C++ Player::LearnCustomSpells / CONFIG_START_ALL_SPELLS"
-            );
-        }
-
-        // Store final known_spells in session for later use (ShowTradeSkill, etc.)
-        self.set_known_spells_like_cpp(known_spells.clone());
-        self.set_represented_favorite_known_spells_like_cpp(favorite_spell_rows.clone());
-        let promoted_character_mounts =
-            self.promote_loaded_character_mount_spells_like_cpp(&known_spells);
-        if promoted_character_mounts > 0 {
-            info!(
-                player_guid = guid.counter(),
-                promoted_character_mounts,
-                "Promoted loaded character mount spells into the represented account mount collection like C++ Player::_LoadSpells -> AddMount"
-            );
+        if loaded_skill_records_like_cpp {
+            self.set_player_skill_records_like_cpp(skill_records);
         }
 
         // ── Load talents from character_talent ──
-        // C++ `Player::_LoadTalents`: skip talent rows whose Talent.db2 entry
-        // cannot be resolved; AddTalent also rejects invalid rank/spell rows.
+        // C++ `Player::LoadFromDB` calls `_LoadTalents` before `_LoadSpells`;
+        // `_LoadTalents -> AddTalent` learns the active talent group's spell
+        // immediately, so passive talent auras must be present before the
+        // login AuraUpdate is built.
         self.reset_represented_talents_like_cpp();
         {
             let mut talent_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_TALENTS);
@@ -4976,10 +5004,11 @@ impl WorldSession {
                             let talent_id: u32 = talent_result.try_read(0).unwrap_or(0);
                             let rank: u8 = talent_result.try_read(1).unwrap_or(0);
                             let talent_group: u8 = talent_result.try_read(2).unwrap_or(0);
-                            if self.load_represented_talent_row_like_cpp(
+                            if self.load_represented_talent_row_with_spell_side_effects_like_cpp(
                                 talent_id,
                                 rank,
                                 talent_group,
+                                &mut known_spells,
                             ) {
                                 loaded += 1;
                             } else {
@@ -5002,6 +5031,64 @@ impl WorldSession {
                     warn!("Failed to load character talents for {:?}: {}", guid, e);
                 }
             }
+        }
+
+        let custom_spell_count =
+            self.apply_represented_start_all_spells_like_cpp(&mut known_spells);
+        if custom_spell_count > 0 {
+            info!(
+                player_guid = guid.counter(),
+                custom_spell_count,
+                "Applied represented C++ Player::LearnCustomSpells / CONFIG_START_ALL_SPELLS"
+            );
+        }
+        let dependent_spell_count =
+            self.apply_loaded_known_spell_dependencies_like_cpp(&mut known_spells);
+        if dependent_spell_count > 0 {
+            info!(
+                player_guid = guid.counter(),
+                dependent_spell_count,
+                "Applied represented C++ Player::_LoadSpells/AddSpell spell_learn_spell dependencies"
+            );
+        }
+        let inactive_lower_rank_count =
+            self.deactivate_lower_rank_known_spells_for_send_like_cpp(&mut known_spells);
+        if inactive_lower_rank_count > 0 {
+            info!(
+                player_guid = guid.counter(),
+                inactive_lower_rank_count,
+                "Deactivated represented lower-rank known spells like C++ Player::AddSpell"
+            );
+        }
+
+        // Store final known_spells in session for later use (ShowTradeSkill, etc.)
+        self.set_known_spells_like_cpp(known_spells.clone());
+        self.set_represented_favorite_known_spells_like_cpp(favorite_spell_rows.clone());
+        let login_passive_auras = self.apply_login_passive_known_spell_auras_like_cpp();
+        if login_passive_auras > 0 {
+            info!(
+                player_guid = guid.counter(),
+                login_passive_auras,
+                "Applied represented login passive spell auras like C++ Player::_LoadSpells/AddSpell"
+            );
+        }
+        let prev_rank_passive_auras =
+            self.apply_loaded_known_spell_previous_rank_passive_auras_like_cpp(&known_spells);
+        if prev_rank_passive_auras > 0 {
+            info!(
+                player_guid = guid.counter(),
+                prev_rank_passive_auras,
+                "Applied represented C++ Player::_LoadSpells/AddSpell previous-rank passive auras"
+            );
+        }
+        let promoted_character_mounts =
+            self.promote_loaded_character_mount_spells_like_cpp(&known_spells);
+        if promoted_character_mounts > 0 {
+            info!(
+                player_guid = guid.counter(),
+                promoted_character_mounts,
+                "Promoted loaded character mount spells into the represented account mount collection like C++ Player::_LoadSpells -> AddMount"
+            );
         }
 
         // ── Load glyphs from character_glyphs ──
@@ -5279,6 +5366,90 @@ impl WorldSession {
         self.load_completed_achievements_like_cpp().await;
         self.load_instance_time_restrictions_like_cpp().await;
         self.load_player_account_data_like_cpp(guid).await;
+        {
+            let mut aura_rows = Vec::new();
+            let mut aura_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_AURAS);
+            aura_stmt.set_u64(0, guid.counter() as u64);
+            match char_db.query(&aura_stmt).await {
+                Ok(mut aura_result) => {
+                    if !aura_result.is_empty() {
+                        loop {
+                            aura_rows.push(crate::session::CharacterAuraRowLikeCpp {
+                                caster_guid: object_guid_from_db_binary_like_cpp(
+                                    aura_result.try_read::<Vec<u8>>(0).unwrap_or_default(),
+                                ),
+                                spell_id: aura_result.try_read(2).unwrap_or(0),
+                                effect_mask: aura_result.try_read(3).unwrap_or(0),
+                                recalculate_mask: aura_result.try_read(4).unwrap_or(0),
+                                difficulty: aura_result.try_read(5).unwrap_or(0),
+                                stack_count: aura_result.try_read(6).unwrap_or(1),
+                                max_duration_ms: aura_result.try_read(7).unwrap_or(0),
+                                remain_time_ms: aura_result.try_read(8).unwrap_or(0),
+                                remain_charges: aura_result.try_read(9).unwrap_or(0),
+                            });
+                            if !aura_result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                }
+                Err(e) => warn!("Failed to load character auras for {:?}: {}", guid, e),
+            }
+
+            let mut aura_effect_rows = Vec::new();
+            let mut aura_effect_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_AURA_EFFECTS);
+            aura_effect_stmt.set_u64(0, guid.counter() as u64);
+            match char_db.query(&aura_effect_stmt).await {
+                Ok(mut aura_effect_result) => {
+                    if !aura_effect_result.is_empty() {
+                        loop {
+                            aura_effect_rows.push(crate::session::CharacterAuraEffectRowLikeCpp {
+                                caster_guid: object_guid_from_db_binary_like_cpp(
+                                    aura_effect_result
+                                        .try_read::<Vec<u8>>(0)
+                                        .unwrap_or_default(),
+                                ),
+                                spell_id: aura_effect_result.try_read(2).unwrap_or(0),
+                                effect_mask: aura_effect_result.try_read(3).unwrap_or(0),
+                                effect_index: aura_effect_result.try_read(4).unwrap_or(0),
+                                amount: aura_effect_result.try_read(5).unwrap_or(0),
+                                base_amount: aura_effect_result.try_read(6).unwrap_or(0),
+                            });
+                            if !aura_effect_result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                }
+                Err(e) => warn!(
+                    "Failed to load character aura effects for {:?}: {}",
+                    guid, e
+                ),
+            }
+            let loaded_character_auras =
+                self.load_represented_character_auras_like_cpp(aura_rows, aura_effect_rows, 0);
+            info!(
+                loaded_character_auras,
+                player_guid = guid.counter(),
+                "Loaded represented character auras like C++ Player::_LoadAuras"
+            );
+        }
+        let initial_item_equip_auras = self.apply_initial_equipped_item_equip_auras_like_cpp();
+        if initial_item_equip_auras > 0 {
+            info!(
+                player_guid = guid.counter(),
+                initial_item_equip_auras,
+                "Applied represented initial item equip auras like C++ Player::_ApplyAllItemMods"
+            );
+        }
+        let initial_item_set_auras = self.apply_initial_equipped_item_set_auras_like_cpp();
+        if initial_item_set_auras > 0 {
+            info!(
+                player_guid = guid.counter(),
+                initial_item_set_auras,
+                "Applied represented initial item-set auras like C++ Player::_ApplyAllItemMods"
+            );
+        }
         let login_known_spells = self.login_known_spells_after_account_collections_like_cpp();
         let login_favorite_spells =
             favorite_known_spells_for_send_like_cpp(&login_known_spells, &favorite_spell_rows);
@@ -6190,17 +6361,17 @@ impl WorldSession {
         let map_id = self.player_map_id_like_cpp();
         let realm_id = self.realm_id();
 
-        const RANGE: f32 = DEFAULT_VISIBILITY_DISTANCE_LIKE_CPP;
-        let x_min = pos.x - RANGE;
-        let x_max = pos.x + RANGE;
-        let y_min = pos.y - RANGE;
-        let y_max = pos.y + RANGE;
+        let range = self.player_map_visibility_range_like_cpp(map_id);
+        let x_min = pos.x - range;
+        let x_max = pos.x + range;
+        let y_min = pos.y - range;
+        let y_max = pos.y + range;
 
         let map_creatures = self.visible_world_creatures_from_map_like_cpp(map_id, &pos);
         let canonical_gameobjects =
-            self.visible_gameobjects_from_canonical_map_like_cpp(map_id, &pos, RANGE);
+            self.visible_gameobjects_from_canonical_map_like_cpp(map_id, &pos, range);
         let canonical_dynamic_objects =
-            self.visible_dynamic_objects_from_canonical_map_like_cpp(map_id, &pos, RANGE);
+            self.visible_dynamic_objects_from_canonical_map_like_cpp(map_id, &pos, range);
         if self.has_world_map_manager_like_cpp() {
             let mut new_visible_creatures: HashSet<ObjectGuid> = HashSet::new();
             let mut new_visible_gos: HashSet<ObjectGuid> = HashSet::new();
@@ -6210,6 +6381,7 @@ impl WorldSession {
             let mut created_creatures = 0usize;
             let mut created_gameobjects = 0usize;
             let mut created_dynamic_objects = 0usize;
+            let mut initial_visible_creatures_like_cpp = Vec::new();
             for creature in &map_creatures {
                 let guid = creature.guid();
                 new_visible_creatures.insert(guid);
@@ -6229,6 +6401,7 @@ impl WorldSession {
                         &creature.position(),
                         creature.active_move_spline_like_cpp().cloned(),
                     ));
+                    initial_visible_creatures_like_cpp.push(creature.clone());
                     created_creatures += 1;
                 }
             }
@@ -6329,6 +6502,9 @@ impl WorldSession {
                     }
                 }
                 self.send_packet(&update);
+                for creature in &initial_visible_creatures_like_cpp {
+                    self.send_initial_visible_packets_for_creature_like_cpp(creature);
+                }
             }
 
             self.client_visible_guids_like_cpp.retain(|guid| {
@@ -6387,7 +6563,7 @@ impl WorldSession {
             let mut cr = cr;
             loop {
                 let Some(spawn) =
-                    self.materialize_creature_spawn_row_like_cpp(map_id, &cr, &pos, RANGE)
+                    self.materialize_creature_spawn_row_like_cpp(map_id, &cr, &pos, range)
                 else {
                     if !cr.next_row() {
                         break;
@@ -6459,7 +6635,7 @@ impl WorldSession {
                 let pos_y: f32 = go_result.try_read(3).unwrap_or(0.0);
                 let pos_z: f32 = go_result.try_read(4).unwrap_or(0.0);
                 let orientation: f32 = go_result.try_read(5).unwrap_or(0.0);
-                if !is_within_2d_visibility_range_like_cpp(&pos, pos_x, pos_y, RANGE) {
+                if !is_within_2d_visibility_range_like_cpp(&pos, pos_x, pos_y, range) {
                     if !go_result.next_row() {
                         break;
                     }
@@ -12690,8 +12866,14 @@ impl WorldSession {
         // 4. FeatureSystemStatus (in-game version, different from glue screen)
         self.send_packet(&FeatureSystemStatus::default_wotlk());
 
-        // 5. BattlePetJournalLockAcquired (empty packet — journal access granted)
-        self.send_packet(&BattlePetJournalLockAcquired);
+        // 5. MOTD — C++ `World::SendServerMessage(SERVER_MSG_STRING, motdLine)`.
+        self.send_packet(&ChatServerMessage {
+            message_id: 3,
+            string_param: "Welcome to a Trinity Core server.".to_string(),
+        });
+
+        // 6. SetTimeZoneInformation — C++ sends it again during player login.
+        self.send_packet(&SetTimeZoneInformation::utc());
 
         // ── Phase 2: SendInitialPacketsBeforeAddToMap ──
         if updateobject_trace_enabled {
@@ -12703,8 +12885,8 @@ impl WorldSession {
         self.reset_time_sync_like_cpp();
         self.send_time_sync();
 
-        // 7. ContactList (social/friends — empty)
-        self.send_packet(&ContactList::all());
+        // 7. ContactList — C++ `GetSocial()->SendSocialList(this, SOCIAL_FLAG_ALL)`.
+        self.send_contact_list_like_cpp(7).await;
 
         // 8. BindPointUpdate (hearthstone location = start position)
         self.send_packet(&BindPointUpdate {
@@ -12714,11 +12896,6 @@ impl WorldSession {
             map_id,
             area_id: zone_id,
         });
-
-        // 8b. SetProficiency — weapon and armor proficiency masks
-        //     Sent during LoadFromDB when proficiency spells are applied.
-        self.send_packet(&SetProficiency::default_weapons(class));
-        self.send_packet(&SetProficiency::default_armor(class));
 
         // 9. UpdateTalentData — C++ `Player::SendTalentsInfoData`.
         self.send_packet(&self.represented_update_talent_data_packet_like_cpp());
@@ -12765,19 +12942,19 @@ impl WorldSession {
         // 18. LoadEquipmentSet
         self.send_packet(&self.represented_load_equipment_set_packet_like_cpp());
 
-        // 19. AllAccountCriteria (empty)
-        self.send_packet(&AllAccountCriteria);
-
-        // 20. AllAchievementData (empty)
+        // 19. AllAchievementData — C++ `AchievementMgr::SendAllData`.
+        // `QuestObjectiveCriteriaMgr::SendAllData` does not emit
+        // `AllAccountCriteria` in the traced 3.4.3 login when there is no
+        // progress; do not synthesize an empty packet here.
         self.send_packet(&AllAchievementData);
 
-        // 21. LoginSetTimeSpeed
+        // 20. LoginSetTimeSpeed
         self.send_packet(&LoginSetTimeSpeed::now());
 
-        // 22. WorldServerInfo
+        // 21. WorldServerInfo
         self.send_packet(&WorldServerInfo::default_open_world());
 
-        // 22b. SetFlatSpellModifier + SetPctSpellModifier.
+        // 22. SetFlatSpellModifier + SetPctSpellModifier.
         //      C++ `Player::SendInitialPacketsBeforeAddToMap` calls
         //      `Player::SendSpellModifiers()` immediately after
         //      `WorldServerInfo` (`Player.cpp:23562-23563`). Fresh characters
@@ -13048,9 +13225,10 @@ impl WorldSession {
 
         // C++ `HandlePlayerLogin` calls `ObjectAccessor::AddObject`, then
         // `Player::SendInitialPacketsAfterAddToMap`; that method starts with
-        // `UpdateVisibilityForPlayer()`, which sends CREATE blocks for nearby
-        // objects and updates `m_clientGUIDs` before normal map updates can
-        // deliver movement/combat packets for those objects.
+        // `UpdateVisibilityForPlayer()`, which repopulates `m_clientGUIDs`
+        // after `Map::AddPlayerToMap` cleared it. Keep this before world-state
+        // packets so later `SendMessageToSet` movement uses the same visibility
+        // gate as C++ `Player::HaveAtClient`.
         self.force_update_visibility_like_cpp().await;
         if updateobject_trace_enabled {
             info!(
@@ -13065,6 +13243,9 @@ impl WorldSession {
 
         // 28. LoadCufProfiles
         self.send_packet(&self.represented_load_cuf_profiles_packet_like_cpp());
+        // C++ `Player::SendInitialPacketsAfterAddToMap` calls
+        // `SendAurasForTarget(this)` after movement aura state setup.
+        self.send_initial_player_auras_like_cpp();
         if updateobject_trace_enabled {
             info!(guid = ?guid, "RUST_LOGIN after_initial_packets_after_add");
         }

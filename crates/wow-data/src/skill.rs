@@ -6,7 +6,8 @@
 //! SkillLineAbility.db2 + SkillRaceClassInfo.db2 reader.
 //!
 //! Determines which spells each race/class/level should auto-learn,
-//! replicating C#'s `LearnDefaultSkills()` → `LearnSkillRewardedSpells()`.
+//! replicating TrinityCore C++ `LearnDefaultSkills()` → `SetSkill()` →
+//! `LearnSkillRewardedSpells()`.
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
@@ -41,8 +42,13 @@ pub struct SkillLineAbilityRecord {
 
 /// C++ `SKILL_LINE_ABILITY_REWARDED_FROM_QUEST`.
 pub const SKILL_LINE_ABILITY_REWARDED_FROM_QUEST_LIKE_CPP: i8 = 4;
+pub const SKILL_LINE_ABILITY_LEARNED_ON_SKILL_VALUE_LIKE_CPP: i8 = 1;
+pub const SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP: i8 = 2;
+/// C++ `SkillLineAbilityFlags::CanFallbackToLearnedOnSkillLearn`.
+pub const SKILL_LINE_ABILITY_CAN_FALLBACK_TO_LEARNED_ON_SKILL_LEARN_LIKE_CPP: i8 = 0x80u8 as i8;
 pub const SKILL_FLAG_ALWAYS_MAX_VALUE_LIKE_CPP: u16 = 0x10;
 pub const SKILL_RUNEFORGING_LIKE_CPP: u16 = 960;
+pub const SKILL_RIDING_LIKE_CPP: u16 = 762;
 pub const SKILL_CATEGORY_ARMOR_LIKE_CPP: i8 = 8;
 pub const SKILL_CATEGORY_LANGUAGES_LIKE_CPP: i8 = 10;
 
@@ -866,8 +872,9 @@ impl SkillStore {
     /// `known_skill_ids` is the set of skill IDs from the character's `character_skills`
     /// table. When provided, only skills that are either class-specific (exactly one class
     /// bit in the SkillRaceClassInfo class_mask matching this class) or present in the
-    /// character's known skills will be processed. This matches C# behavior where
-    /// `LearnSkillRewardedSpells()` is only called for skills the character actually has.
+    /// character's known skills will be processed. This mirrors TrinityCore C++: default
+    /// skills call `SetSkill`, and `SetSkill` calls `LearnSkillRewardedSpells()` for the
+    /// skills the character actually has.
     ///
     /// Pass `None` to disable filtering (useful for tests / backward compat).
     ///
@@ -906,7 +913,7 @@ impl SkillStore {
             // 2. Are in the character's actual known skills (from character_skills table).
             //    This covers weapons, languages, racials, worn armor type, etc.
             //
-            // This matches C# behavior: LearnSkillRewardedSpells() only runs for skills the
+            // This matches C++ behavior: LearnSkillRewardedSpells() only runs for skills the
             // character HAS. Professions (class_mask=0, available to all) are excluded unless
             // the character has actually learned them.
             let is_this_class_skill = skill_info.class_mask != 0
@@ -928,14 +935,11 @@ impl SkillStore {
             };
 
             for ability in abilities {
-                // For class-exclusive skills (Priest, Holy, Shadow, etc.): grant all ranks
-                // including trainer-learned (acquire_method=0). A level 80 character should
-                // have all ranks of their class spells.
-                // For non-class skills (racials, languages, etc.): only auto-learned (1 or 2).
-                if !is_this_class_skill
-                    && ability.acquire_method != 1
-                    && ability.acquire_method != 2
-                {
+                // TrinityCore C++ Player::LearnSkillRewardedSpells only auto-learns
+                // SkillLineAbility entries learned on skill value / skill learn here.
+                // Trainer-learned class spells (AcquireMethod=0) must come from
+                // character_spell via Player::_LoadSpells/AddSpell, not from DBC.
+                if ability.acquire_method != 1 && ability.acquire_method != 2 {
                     continue;
                 }
 
@@ -1079,6 +1083,80 @@ impl SkillStore {
         self.abilities_by_skill.get(&skill_id).map(Vec::as_slice)
     }
 
+    /// Represented C++ `Player::LearnSkillRewardedSpells`.
+    pub fn skill_rewarded_spells_like_cpp<SpellLevels, QuestFallback>(
+        &self,
+        skill_id: u16,
+        skill_value: u16,
+        race: u8,
+        class: u8,
+        level: u8,
+        mut spell_levels: SpellLevels,
+        mut quest_fallback_allowed: QuestFallback,
+    ) -> Vec<i32>
+    where
+        SpellLevels: FnMut(i32) -> Option<(u32, u32)>,
+        QuestFallback: FnMut(i32) -> bool,
+    {
+        let Some(abilities) = self.skill_line_abilities_by_skill_like_cpp(skill_id) else {
+            return Vec::new();
+        };
+
+        let class_mask = 1i32 << (class as i32 - 1);
+        let mut spells = Vec::new();
+        for ability in abilities {
+            let Some((base_level, spell_level)) = spell_levels(ability.spell) else {
+                continue;
+            };
+
+            match ability.acquire_method {
+                SKILL_LINE_ABILITY_LEARNED_ON_SKILL_VALUE_LIKE_CPP
+                | SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP => {}
+                SKILL_LINE_ABILITY_REWARDED_FROM_QUEST_LIKE_CPP => {
+                    if (ability.flags
+                        & SKILL_LINE_ABILITY_CAN_FALLBACK_TO_LEARNED_ON_SKILL_LEARN_LIKE_CPP)
+                        == 0
+                        || !quest_fallback_allowed(ability.spell)
+                    {
+                        continue;
+                    }
+                }
+                _ => continue,
+            }
+
+            if skill_id == SKILL_RIDING_LIKE_CPP
+                && (ability.acquire_method != SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP
+                    || ability.num_skill_ups != 1)
+            {
+                continue;
+            }
+
+            if !matches_race(ability.race_mask, race) {
+                continue;
+            }
+            if ability.class_mask != 0 && (ability.class_mask & class_mask) == 0 {
+                continue;
+            }
+
+            let required_level = base_level.max(spell_level);
+            if required_level > u32::from(level) {
+                continue;
+            }
+
+            if i32::from(skill_value) < i32::from(ability.min_skill_line_rank)
+                && ability.acquire_method == SKILL_LINE_ABILITY_LEARNED_ON_SKILL_VALUE_LIKE_CPP
+            {
+                continue;
+            }
+
+            if ability.spell > 0 {
+                spells.push(ability.spell);
+            }
+        }
+
+        spells
+    }
+
     /// C++ `sSkillLineAbilityStore` full row iteration.
     pub fn skill_line_abilities_like_cpp(&self) -> &[SkillLineAbilityRecord] {
         &self.abilities_like_cpp
@@ -1099,8 +1177,6 @@ fn matches_race(mask: i64, race: u8) -> bool {
 fn matches_class(mask: i32, class: u8) -> bool {
     mask == 0 || (mask & (1i32 << (class as i32 - 1))) != 0
 }
-
-const SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP: i8 = 2;
 
 // ── Tests ────────────────────────────────────────────────────────────
 
@@ -1170,6 +1246,87 @@ mod tests {
 
     fn skill_tier_row(id: u32, value: [u32; MAX_SKILL_STEP_LIKE_CPP]) -> SkillTiersRowLikeCpp {
         SkillTiersRowLikeCpp { id, value }
+    }
+
+    #[test]
+    fn skill_rewarded_spells_match_cpp_filters() {
+        let store = SkillStore::from_skill_line_abilities_like_cpp([
+            SkillLineAbilityRecord {
+                acquire_method: SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP,
+                ..ability(1, 756, 822)
+            },
+            SkillLineAbilityRecord {
+                acquire_method: SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP,
+                ..ability(2, 756, 28877)
+            },
+            SkillLineAbilityRecord {
+                acquire_method: SKILL_LINE_ABILITY_LEARNED_ON_SKILL_VALUE_LIKE_CPP,
+                min_skill_line_rank: 450,
+                ..ability(3, 756, 999)
+            },
+            SkillLineAbilityRecord {
+                acquire_method: SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP,
+                race_mask: 1,
+                ..ability(4, 756, 1000)
+            },
+            SkillLineAbilityRecord {
+                acquire_method: SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP,
+                class_mask: 1,
+                ..ability(5, 756, 1001)
+            },
+            SkillLineAbilityRecord {
+                acquire_method: SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP,
+                ..ability(6, 756, 1002)
+            },
+        ]);
+
+        let spells = store.skill_rewarded_spells_like_cpp(
+            756,
+            400,
+            10,
+            5,
+            80,
+            |spell_id| match spell_id {
+                1002 => Some((81, 81)),
+                _ => Some((0, 0)),
+            },
+            |_| false,
+        );
+
+        assert_eq!(spells, vec![822, 28877]);
+    }
+
+    #[test]
+    fn skill_rewarded_spells_applies_cpp_riding_exception() {
+        let store = SkillStore::from_skill_line_abilities_like_cpp([
+            SkillLineAbilityRecord {
+                acquire_method: SKILL_LINE_ABILITY_LEARNED_ON_SKILL_VALUE_LIKE_CPP,
+                num_skill_ups: 1,
+                ..ability(1, SKILL_RIDING_LIKE_CPP, 333)
+            },
+            SkillLineAbilityRecord {
+                acquire_method: SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP,
+                num_skill_ups: 0,
+                ..ability(2, SKILL_RIDING_LIKE_CPP, 444)
+            },
+            SkillLineAbilityRecord {
+                acquire_method: SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP,
+                num_skill_ups: 1,
+                ..ability(3, SKILL_RIDING_LIKE_CPP, 555)
+            },
+        ]);
+
+        let spells = store.skill_rewarded_spells_like_cpp(
+            SKILL_RIDING_LIKE_CPP,
+            1,
+            1,
+            1,
+            80,
+            |_| Some((0, 0)),
+            |_| false,
+        );
+
+        assert_eq!(spells, vec![555]);
     }
 
     fn pet_default_template(

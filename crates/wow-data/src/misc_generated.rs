@@ -731,6 +731,10 @@ macro_rules! db2_store {
                 self.entries.get(&id)
             }
 
+            pub fn entries(&self) -> impl Iterator<Item = &$entry> {
+                self.entries.values()
+            }
+
             pub fn len(&self) -> usize {
                 self.entries.len()
             }

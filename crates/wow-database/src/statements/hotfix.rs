@@ -54,6 +54,8 @@ pub enum HotfixStatements {
     SEL_PHASE_X_PHASE_GROUP,
     /// C++ `HOTFIX_SEL_UI_MAP_X_MAP_ART`.
     SEL_UI_MAP_X_MAP_ART,
+    /// C++ `HOTFIX_SEL_LFG_DUNGEONS`.
+    SEL_LFG_DUNGEONS,
     /// Generated C++ base hotfix statement.
     GENERATED_BASE {
         /// Exact SQL from C++ `PrepareStatement(HOTFIX_SEL_..., ...)`.
@@ -98,6 +100,7 @@ impl HotfixStatements {
                 | Self::SEL_PHASE
                 | Self::SEL_PHASE_X_PHASE_GROUP
                 | Self::SEL_UI_MAP_X_MAP_ART
+                | Self::SEL_LFG_DUNGEONS
         )
     }
 
@@ -202,6 +205,12 @@ impl StatementDef for HotfixStatements {
             Self::SEL_UI_MAP_X_MAP_ART => {
                 "SELECT ID, PhaseID, UiMapArtID, UiMapID FROM ui_map_x_map_art WHERE VerifiedBuild > 0"
             }
+            Self::SEL_LFG_DUNGEONS => concat!(
+                "SELECT ID, Name, Description, MinLevel, MaxLevel, TypeID, Subtype, Faction, IconTextureFileID, ",
+                "RewardsBgTextureFileID, PopupBgTextureFileID, ExpansionLevel, MapID, DifficultyID, MinGear, GroupID, OrderIndex, RequiredPlayerConditionId, ",
+                "TargetLevel, TargetLevelMin, TargetLevelMax, RandomID, ScenarioID, FinalEncounterID, CountTank, CountHealer, CountDamage, MinCountTank, ",
+                "MinCountHealer, MinCountDamage, BonusReputationAmount, MentorItemLevel, MentorCharLevel, Flags1, Flags2 FROM lfg_dungeons WHERE VerifiedBuild > 0"
+            ),
             Self::GENERATED_BASE { sql } => sql,
             Self::GENERATED_MAX_ID { table } => {
                 Box::leak(format!("SELECT MAX(ID) + 1 FROM {table}").into_boxed_str())
