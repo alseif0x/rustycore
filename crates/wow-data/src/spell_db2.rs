@@ -608,6 +608,15 @@ impl SpellAuraRestrictionsStore {
             },
         )
     }
+
+    pub fn entries_for_spell_id_like_cpp(
+        &self,
+        spell_id: u32,
+    ) -> impl Iterator<Item = &SpellAuraRestrictionsEntry> {
+        self.entries
+            .values()
+            .filter(move |entry| entry.spell_id == spell_id)
+    }
 }
 
 impl SpellCastTimesStore {
@@ -939,6 +948,12 @@ impl SpellEquippedItemsStore {
                 equipped_item_subclass: r.get_field_i32(idx, 3),
             }
         })
+    }
+
+    pub fn entry_for_spell_id_like_cpp(&self, spell_id: i32) -> Option<&SpellEquippedItemsEntry> {
+        self.entries
+            .values()
+            .find(|entry| entry.spell_id == spell_id)
     }
 }
 

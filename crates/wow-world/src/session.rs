@@ -78,8 +78,8 @@ use wow_data::{
     ItemLimitCategoryStore, ItemModifiedAppearanceStore, ItemPriceBaseStore,
     ItemRandomEnchantmentTemplateStore, ItemRandomPropertiesStore, ItemRandomPropertyTemplateEntry,
     ItemRandomSuffixStore, ItemSearchNameStore, ItemSetSpellStore, ItemSetStore,
-    ItemSpecOverrideStore, ItemStatsStore, ItemStore, LfgDungeonsStore, LockStore,
-    MapDifficultyStore, MapDifficultyXConditionStore, MapStore, MountCapabilityStore,
+    ItemSpecOverrideStore, ItemStatsStore, ItemStore, LfgDungeonStoreLikeCpp, LfgDungeonsStore,
+    LockStore, MapDifficultyStore, MapDifficultyXConditionStore, MapStore, MountCapabilityStore,
     MountDefinitionStoreLikeCpp, MountStore, MountTypeXCapabilityStore, MountXDisplayStore,
     MovieStore, NpcSpellClickStoreLikeCpp, PetDefaultSpellStoreLikeCpp,
     PetDefaultSpellsEntryLikeCpp, PetFamilySpellStoreLikeCpp, PetLevelupSpellSetLikeCpp,
@@ -91,14 +91,15 @@ use wow_data::{
     ScriptIdLikeCpp, ScriptNameInternerLikeCpp, ServersideSpellInfoLikeCpp,
     ServersideSpellStoreLikeCpp, ShieldBlockRegularGameTableLikeCpp, SkillLineStore,
     SkillRangeTypeLikeCpp, SkillStore, SkillTiersStoreLikeCpp, SpellAreaLikeCpp,
-    SpellAreaStoreLikeCpp, SpellAuraOptionsStore, SpellCategoryStore, SpellChainStoreLikeCpp,
-    SpellCustomAttributeStoreLikeCpp, SpellDurationStore, SpellEnchantProcEntryLikeCpp,
-    SpellEnchantProcStoreLikeCpp, SpellGroupStackRuleLikeCpp, SpellGroupStackRuleStoreLikeCpp,
+    SpellAreaStoreLikeCpp, SpellAuraOptionsStore, SpellAuraRestrictionsStore, SpellCategoryStore,
+    SpellChainStoreLikeCpp, SpellCustomAttributeStoreLikeCpp, SpellDurationStore,
+    SpellEnchantProcEntryLikeCpp, SpellEnchantProcStoreLikeCpp, SpellEquippedItemsEntry,
+    SpellEquippedItemsStore, SpellGroupStackRuleLikeCpp, SpellGroupStackRuleStoreLikeCpp,
     SpellGroupStoreLikeCpp, SpellItemEnchantmentStore, SpellLearnSkillNodeLikeCpp,
     SpellLearnSkillStoreLikeCpp, SpellLearnSpellNodeLikeCpp, SpellLearnSpellStoreLikeCpp,
-    SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp, SpellMiscStore, SpellPetAuraStoreLikeCpp,
-    SpellProcEntryLikeCpp, SpellProcStoreLikeCpp, SpellRadiusStore, SpellRangeStore,
-    SpellRequiredStoreLikeCpp, SpellShapeshiftFormStore, SpellStore,
+    SpellLevelsStore, SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp, SpellMiscStore,
+    SpellPetAuraStoreLikeCpp, SpellProcEntryLikeCpp, SpellProcStoreLikeCpp, SpellRadiusStore,
+    SpellRangeStore, SpellRequiredStoreLikeCpp, SpellShapeshiftFormStore, SpellStore,
     SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp,
     SpellTotemModelStoreLikeCpp, SummonPropertiesEntry, TalentStore, TalentTabStore, ToyStore,
     TransmogSetEntry, TransmogSetItemStore, TrinityStringStoreLikeCpp,
@@ -108,9 +109,9 @@ use wow_data::{
     progression_rewards::{
         ContentTuningStore, CurvePointStore, CurveStore, FactionEntry, FactionStore,
         FactionTemplateStore, FriendshipRepReactionStore, NumTalentsAtLevelStore,
-        ParagonReputationStore, QuestFactionRewardStore, QuestInfoStore, QuestPackageItemStore,
-        QuestV2Store, ScalingStatDistributionEntry, ScalingStatDistributionStore,
-        ScalingStatValuesStore,
+        ParagonReputationStore, QuestFactionRewardStore, QuestInfoStore, QuestMoneyRewardStore,
+        QuestPackageItemStore, QuestV2Store, ScalingStatDistributionEntry,
+        ScalingStatDistributionStore, ScalingStatValuesStore,
     },
     reputation::{
         CreatureOnKillReputationStoreLikeCpp, RepSpilloverTemplateStoreLikeCpp,
@@ -135,17 +136,18 @@ use wow_entities::{
     CreatureAddonLifecycleRecordLikeCpp, EQUIPMENT_SLOT_BACK, EQUIPMENT_SLOT_BODY,
     EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_END, EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_FINGER1,
     EQUIPMENT_SLOT_FINGER2, EQUIPMENT_SLOT_HANDS, EQUIPMENT_SLOT_HEAD, EQUIPMENT_SLOT_LEGS,
-    EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_NECK, EQUIPMENT_SLOT_OFFHAND, EQUIPMENT_SLOT_SHOULDERS,
-    EQUIPMENT_SLOT_TABARD, EQUIPMENT_SLOT_TRINKET1, EQUIPMENT_SLOT_TRINKET2, EQUIPMENT_SLOT_WAIST,
-    EQUIPMENT_SLOT_WRISTS, EquippedGemRef, GAMEOBJECT_TYPE_GUILD_BANK, GameObject,
-    INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
-    INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS, ITEM_DATA_CONTAINED_IN_BIT,
-    ITEM_DATA_DURABILITY_BIT, Item, ItemCreateInfo, ItemDataUpdate, ItemLimitCategoryTemplate,
-    ItemPosCount, ItemSlotRef, ItemStorageRef, ItemStorageTemplate, ItemValuesUpdate, MAX_BAG_SIZE,
-    MAX_ITEM_SPELLS, MAX_MONEY_AMOUNT, MAX_POWERS, MovementGeneratorKind, MovementSlot, NULL_BAG,
-    NULL_SLOT, ObjectAccessor, PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP, PLAYER_SLOT_END, Pet,
-    PetAuraLikeCpp, PetDeclinedNamesLikeCpp, PetSaveMode, PetSpellState, PetSpellType, PetStable,
-    PetStableInfo, PetType, PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerInventoryStorage,
+    EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_NECK, EQUIPMENT_SLOT_OFFHAND, EQUIPMENT_SLOT_RANGED,
+    EQUIPMENT_SLOT_SHOULDERS, EQUIPMENT_SLOT_TABARD, EQUIPMENT_SLOT_TRINKET1,
+    EQUIPMENT_SLOT_TRINKET2, EQUIPMENT_SLOT_WAIST, EQUIPMENT_SLOT_WRISTS, EquippedGemRef,
+    GAMEOBJECT_TYPE_GUILD_BANK, GameObject, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0,
+    INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS,
+    ITEM_DATA_CONTAINED_IN_BIT, ITEM_DATA_DURABILITY_BIT, Item, ItemCreateInfo, ItemDataUpdate,
+    ItemLimitCategoryTemplate, ItemPosCount, ItemSlotRef, ItemStorageRef, ItemStorageTemplate,
+    ItemValuesUpdate, MAX_BAG_SIZE, MAX_ITEM_SPELLS, MAX_MONEY_AMOUNT, MAX_POWERS,
+    MovementGeneratorKind, MovementSlot, NULL_BAG, NULL_SLOT, ObjectAccessor,
+    PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP, PLAYER_SLOT_END, Pet, PetAuraLikeCpp,
+    PetDeclinedNamesLikeCpp, PetSaveMode, PetSpellState, PetSpellType, PetStable, PetStableInfo,
+    PetType, PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerInventoryStorage,
     PlayerItemTimeUpdate, QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE,
     REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, ReactState, SendNewItemDelivery,
     SendNewItemDisplayText, SendNewItemPlan, SocketedGemUniqueRef, TYPEID_CONTAINER, TYPEID_ITEM,
@@ -510,6 +512,29 @@ pub(crate) struct CharacterPetAuraRowLikeCpp {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct CharacterPetAuraEffectRowLikeCpp {
+    pub caster_guid: ObjectGuid,
+    pub spell_id: u32,
+    pub effect_mask: u32,
+    pub effect_index: u8,
+    pub amount: i32,
+    pub base_amount: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct CharacterAuraRowLikeCpp {
+    pub caster_guid: ObjectGuid,
+    pub spell_id: u32,
+    pub effect_mask: u32,
+    pub recalculate_mask: u32,
+    pub difficulty: u8,
+    pub stack_count: u8,
+    pub max_duration_ms: i32,
+    pub remain_time_ms: i32,
+    pub remain_charges: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct CharacterAuraEffectRowLikeCpp {
     pub caster_guid: ObjectGuid,
     pub spell_id: u32,
     pub effect_mask: u32,
@@ -3847,6 +3872,7 @@ pub struct WorldSession {
     map_difficulty_x_condition_store: Option<Arc<MapDifficultyXConditionStore>>,
     access_requirement_store: Option<Arc<AccessRequirementStoreLikeCpp>>,
     lfg_dungeons_store: Option<Arc<LfgDungeonsStore>>,
+    lfg_dungeon_store_like_cpp: Option<Arc<LfgDungeonStoreLikeCpp>>,
     battlemaster_list_store: Option<Arc<BattlemasterListStore>>,
     represented_dungeon_difficulty_id_like_cpp: u32,
     represented_raid_difficulty_id_like_cpp: u32,
@@ -4465,6 +4491,7 @@ pub struct WorldSession {
     // ── Spell casting ──────────────────────────────────────────────
     /// Spell store (metadata for all known spells: cast time, cooldown, effects, etc.)
     pub spell_store: Option<Arc<SpellStore>>,
+    spell_levels_store: Option<Arc<SpellLevelsStore>>,
     talent_store: Option<Arc<TalentStore>>,
     talent_tab_store: Option<Arc<TalentTabStore>>,
     num_talents_at_level_store: Option<Arc<NumTalentsAtLevelStore>>,
@@ -4473,6 +4500,8 @@ pub struct WorldSession {
     spell_category_store: Option<Arc<SpellCategoryStore>>,
     npc_spell_click_store: Option<Arc<NpcSpellClickStoreLikeCpp>>,
     spell_aura_options_store: Option<Arc<SpellAuraOptionsStore>>,
+    spell_aura_restrictions_store: Option<Arc<SpellAuraRestrictionsStore>>,
+    spell_equipped_items_store: Option<Arc<SpellEquippedItemsStore>>,
     spell_misc_store: Option<Arc<SpellMiscStore>>,
     spell_group_store: Option<Arc<SpellGroupStoreLikeCpp>>,
     spell_group_stack_rule_store: Option<Arc<SpellGroupStackRuleStoreLikeCpp>>,
@@ -4546,6 +4575,7 @@ pub struct WorldSession {
     /// Read-only represented QuestPoolMgr active snapshot for C++ `IsQuestActive`.
     pub(crate) quest_pool_store: Option<Arc<wow_data::quest::QuestPoolStoreLikeCpp>>,
     pub(crate) quest_xp_store: Option<Arc<wow_data::quest_xp::QuestXpStore>>,
+    pub(crate) quest_money_reward_store: Option<Arc<QuestMoneyRewardStore>>,
     pub(crate) quest_v2_store: Option<Arc<QuestV2Store>>,
     pub(crate) quest_info_store: Option<Arc<QuestInfoStore>>,
     pub(crate) quest_package_item_store: Option<Arc<QuestPackageItemStore>>,
@@ -5261,6 +5291,40 @@ fn represented_aura_effect_amounts_like_cpp(
     }]
 }
 
+fn unit_owned_apply_aura_effect_mask_like_cpp(spell: &wow_data::SpellInfo) -> u32 {
+    use wow_data::spell::spell_effect_types::{
+        SPELL_EFFECT_APPLY_AREA_AURA_ENEMY, SPELL_EFFECT_APPLY_AREA_AURA_FRIEND,
+        SPELL_EFFECT_APPLY_AREA_AURA_OWNER, SPELL_EFFECT_APPLY_AREA_AURA_PARTY,
+        SPELL_EFFECT_APPLY_AREA_AURA_PET, SPELL_EFFECT_APPLY_AREA_AURA_RAID,
+        SPELL_EFFECT_APPLY_AURA, SPELL_EFFECT_APPLY_AURA_ON_PET,
+    };
+
+    const SPELL_EFFECT_APPLY_AREA_AURA_SUMMONS: u32 = 202;
+    const SPELL_EFFECT_APPLY_AREA_AURA_PARTY_NONRANDOM: u32 = 271;
+
+    spell.effects().iter().fold(0, |mask, effect| {
+        let unit_owned = matches!(
+            effect.effect,
+            SPELL_EFFECT_APPLY_AURA
+                | SPELL_EFFECT_APPLY_AURA_ON_PET
+                | SPELL_EFFECT_APPLY_AREA_AURA_PARTY
+                | SPELL_EFFECT_APPLY_AREA_AURA_RAID
+                | SPELL_EFFECT_APPLY_AREA_AURA_FRIEND
+                | SPELL_EFFECT_APPLY_AREA_AURA_ENEMY
+                | SPELL_EFFECT_APPLY_AREA_AURA_PET
+                | SPELL_EFFECT_APPLY_AREA_AURA_OWNER
+                | SPELL_EFFECT_APPLY_AREA_AURA_SUMMONS
+                | SPELL_EFFECT_APPLY_AREA_AURA_PARTY_NONRANDOM
+        );
+        if unit_owned && effect.effect_index < u32::BITS {
+            mask | (1u32 << effect.effect_index)
+        } else {
+            mask
+        }
+    })
+}
+
+const AFLAG_NOCASTER_LIKE_CPP: u32 = 0x0000_0001;
 const AFLAG_SCALABLE_LIKE_CPP: u32 = 0x0000_0008;
 
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG_LOOTING_LIKE_CPP: u32 = 0x0000_0800;
@@ -5680,6 +5744,7 @@ impl WorldSession {
             map_difficulty_x_condition_store: None,
             access_requirement_store: None,
             lfg_dungeons_store: None,
+            lfg_dungeon_store_like_cpp: None,
             battlemaster_list_store: None,
             represented_dungeon_difficulty_id_like_cpp: DIFFICULTY_NORMAL_LIKE_CPP,
             represented_raid_difficulty_id_like_cpp: DIFFICULTY_NORMAL_RAID_LIKE_CPP,
@@ -6015,6 +6080,7 @@ impl WorldSession {
             movement_speed_ack_events_like_cpp: Vec::new(),
             visible_auras: HashMap::new(),
             spell_store: None,
+            spell_levels_store: None,
             talent_store: None,
             talent_tab_store: None,
             num_talents_at_level_store: None,
@@ -6023,6 +6089,8 @@ impl WorldSession {
             spell_category_store: None,
             npc_spell_click_store: None,
             spell_aura_options_store: None,
+            spell_aura_restrictions_store: None,
+            spell_equipped_items_store: None,
             spell_misc_store: None,
             spell_group_store: None,
             spell_group_stack_rule_store: None,
@@ -6065,6 +6133,7 @@ impl WorldSession {
             quest_poi_store_like_cpp: None,
             quest_pool_store: None,
             quest_xp_store: None,
+            quest_money_reward_store: None,
             quest_v2_store: None,
             quest_info_store: None,
             quest_package_item_store: None,
@@ -9349,7 +9418,10 @@ impl WorldSession {
         None
     }
 
-    fn access_requirement_leader_has_achievement_like_cpp(&self, achievement_id: u32) -> bool {
+    pub(crate) fn access_requirement_leader_has_achievement_like_cpp(
+        &self,
+        achievement_id: u32,
+    ) -> bool {
         if achievement_id == 0 {
             return true;
         }
@@ -9602,6 +9674,28 @@ impl WorldSession {
             map_id,
             difficulty_id,
         )
+    }
+
+    pub(crate) fn lfg_has_active_instance_lock_like_cpp(
+        &self,
+        map_id: u32,
+        difficulty_id: wow_map::Difficulty,
+    ) -> bool {
+        let Some(player_guid) = self.player_guid else {
+            return false;
+        };
+        let Some(entries) = self.create_map_db2_entries_like_cpp(map_id, difficulty_id) else {
+            return false;
+        };
+        let Some(mgr) = self.instance_lock_mgr.as_ref() else {
+            return false;
+        };
+        let Ok(mgr) = mgr.read() else {
+            return false;
+        };
+        let now = u64::try_from(unix_now()).unwrap_or(0);
+        mgr.find_active_instance_lock_at(player_guid, &entries, now)
+            .is_some()
     }
 
     fn create_map_instance_owner_guid_like_cpp(&self, map_id: u32) -> Option<ObjectGuid> {
@@ -12035,9 +12129,16 @@ impl WorldSession {
         map_id: u16,
         position: &wow_core::Position,
     ) -> Vec<crate::map_manager::WorldCreature> {
+        if let Some(creatures) =
+            self.visible_creatures_from_canonical_map_like_cpp(map_id, position)
+        {
+            return creatures;
+        }
+
         let Some(manager) = &self.map_manager else {
             return Vec::new();
         };
+        let visibility_range = self.player_map_visibility_range_like_cpp(map_id);
         manager
             .read()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -12047,11 +12148,224 @@ impl WorldSession {
                 position.x,
                 position.y,
                 position.z,
+                visibility_range,
                 Some(&self.represented_player_phase_shift),
             )
             .into_iter()
             .filter(|creature| self.represented_can_see_or_detect_world_creature_like_cpp(creature))
             .collect()
+    }
+
+    pub(crate) fn visible_creatures_from_canonical_map_like_cpp(
+        &self,
+        map_id: u16,
+        position: &wow_core::Position,
+    ) -> Option<Vec<crate::map_manager::WorldCreature>> {
+        let requested_map_id = u32::from(map_id);
+        let player_map_key = self.current_canonical_player_map_key_like_cpp();
+        let manager = self.canonical_map_manager.as_ref()?;
+        let Ok(manager) = manager.lock() else {
+            return None;
+        };
+        let map = match player_map_key {
+            Some(key) if key.map_id == requested_map_id => {
+                manager.find_map(key.map_id, key.instance_id)?
+            }
+            Some(_) => return Some(Vec::new()),
+            None => manager.find_map(requested_map_id, 0)?,
+        };
+        let visibility_range = self.player_map_visibility_range_like_cpp(map_id);
+        let nearby = map
+            .map()
+            .nearby_cell_guids_like_cpp(position.x, position.y, visibility_range);
+        let Some(player) = self.canonical_player_entity_snapshot_for_map_like_cpp(
+            wow_map::MapKey::new(map.map_id(), map.instance_id()),
+        ) else {
+            return Some(Vec::new());
+        };
+
+        let mut creatures = Vec::new();
+        for guid in nearby
+            .world
+            .creatures
+            .into_iter()
+            .chain(nearby.grid.creatures)
+        {
+            let Some(creature) = map.map().get_typed_creature(guid) else {
+                continue;
+            };
+            let world = creature.unit().world();
+            if world.map_id() != requested_map_id
+                || !world.position().is_within_dist(position, visibility_range)
+                || !self
+                    .represented_player_phase_shift
+                    .can_see(world.phase_shift())
+                || !player.unit().can_see_or_detect_unit_like_cpp(
+                    creature.unit(),
+                    false,
+                    true,
+                    false,
+                )
+            {
+                continue;
+            }
+
+            let create_data =
+                crate::map_manager::WorldCreature::create_data_from_canonical_like_cpp(creature);
+            creatures.push(crate::map_manager::WorldCreature::from_canonical(
+                creature.clone(),
+                create_data,
+            ));
+        }
+
+        Some(creatures)
+    }
+
+    pub(crate) fn send_initial_visible_packets_for_creature_like_cpp(
+        &self,
+        creature: &crate::map_manager::WorldCreature,
+    ) {
+        let aura_subsystem = &creature.creature.unit().subsystems().auras;
+        if aura_subsystem.visible_auras.is_empty() {
+            return;
+        }
+
+        let mut visible: Vec<_> = aura_subsystem.visible_auras.iter().collect();
+        visible.sort_by_key(|(slot, _)| **slot);
+        let auras = visible
+            .into_iter()
+            .map(|(slot, aura_ref)| {
+                let active_flags = aura_subsystem
+                    .applied_auras
+                    .iter()
+                    .filter(|applied| applied.aura_ref() == *aura_ref)
+                    .fold(0u32, |mask, applied| mask | applied.effect_mask);
+                let application = aura_subsystem.visible_aura_applications_like_cpp.get(slot);
+                let flags = application.map_or(active_flags, |application| application.flags);
+                let points = if flags & AFLAG_SCALABLE_LIKE_CPP != 0 {
+                    application
+                        .map(|application| {
+                            application
+                                .effect_amounts
+                                .iter()
+                                .filter(|effect| {
+                                    effect.effect_index < u32::BITS as u8
+                                        && active_flags & (1u32 << effect.effect_index) != 0
+                                })
+                                .map(|effect| effect.amount as f32)
+                                .collect()
+                        })
+                        .unwrap_or_default()
+                } else {
+                    Vec::new()
+                };
+
+                wow_packet::packets::misc::AuraInfoLikeCpp {
+                    slot: *slot,
+                    aura_data: Some(wow_packet::packets::misc::AuraDataInfoLikeCpp {
+                        cast_id: ObjectGuid::create_world_object(
+                            HighGuid::Cast,
+                            3,
+                            1,
+                            self.player_map_id_like_cpp(),
+                            0,
+                            aura_ref.spell_id,
+                            i64::from(*slot) + 1,
+                        ),
+                        spell_id: i32::try_from(aura_ref.spell_id).unwrap_or(i32::MAX),
+                        flags: flags.min(u32::from(u16::MAX)) as u16,
+                        active_flags,
+                        caster_guid: aura_ref.caster_guid,
+                        cast_level: creature.level().into(),
+                        applications: 0,
+                        duration_ms: None,
+                        remaining_ms: None,
+                        points,
+                    }),
+                }
+            })
+            .collect();
+
+        self.send_packet(&wow_packet::packets::misc::AuraUpdate::full_for(
+            creature.guid(),
+            auras,
+        ));
+    }
+
+    pub(crate) fn send_initial_player_auras_like_cpp(&self) {
+        if self.visible_auras.is_empty() {
+            return;
+        }
+        let Some(player_guid) = self.player_guid() else {
+            return;
+        };
+
+        let mut visible: Vec<_> = self.visible_auras.values().collect();
+        visible.sort_by_key(|aura| aura.slot);
+        let auras = visible
+            .into_iter()
+            .map(|aura| {
+                Self::player_aura_info_like_cpp(
+                    aura,
+                    self.player_level_like_cpp(),
+                    self.player_map_id_like_cpp(),
+                )
+            })
+            .collect();
+        self.send_packet(&wow_packet::packets::misc::AuraUpdate::full_for(
+            player_guid,
+            auras,
+        ));
+    }
+
+    fn player_aura_info_like_cpp(
+        aura: &AuraApplication,
+        player_level: u8,
+        map_id: u16,
+    ) -> wow_packet::packets::misc::AuraInfoLikeCpp {
+        let duration_ms = (aura.duration_total > 0).then_some(aura.duration_total);
+        let remaining_ms = (aura.duration_remaining > 0).then_some(aura.duration_remaining);
+        let points = if aura.aura_flags & AFLAG_SCALABLE_LIKE_CPP != 0 {
+            aura.represented_effect_amounts
+                .iter()
+                .filter(|effect| {
+                    effect.effect_index < u32::BITS as u8
+                        && aura.effect_mask & (1u32 << effect.effect_index) != 0
+                })
+                .map(|effect| effect.amount as f32)
+                .collect()
+        } else {
+            Vec::new()
+        };
+
+        wow_packet::packets::misc::AuraInfoLikeCpp {
+            slot: aura.slot,
+            aura_data: Some(wow_packet::packets::misc::AuraDataInfoLikeCpp {
+                cast_id: ObjectGuid::create_world_object(
+                    HighGuid::Cast,
+                    3,
+                    aura.caster_guid.realm_id().max(1),
+                    map_id,
+                    0,
+                    u32::try_from(aura.spell_id).unwrap_or(0),
+                    i64::from(aura.slot) + 1,
+                ),
+                spell_id: aura.spell_id,
+                flags: aura.aura_flags.min(u32::from(u16::MAX)) as u16,
+                active_flags: aura.effect_mask,
+                caster_guid: aura.caster_guid,
+                cast_level: player_level.into(),
+                applications: aura.stack_count.saturating_sub(1),
+                duration_ms,
+                remaining_ms,
+                points,
+            }),
+        }
+    }
+
+    pub(crate) fn player_map_visibility_range_like_cpp(&self, map_id: u16) -> f32 {
+        self.legacy_creature_aggro_config_like_cpp
+            .map_visibility_range_like_cpp(map_id)
     }
 
     fn represented_can_see_or_detect_world_creature_like_cpp(
@@ -15486,6 +15800,138 @@ impl WorldSession {
         self.represented_item_set_aura_refresh_events_like_cpp.len() - before_events
     }
 
+    pub(crate) fn apply_initial_equipped_item_equip_auras_like_cpp(&mut self) -> usize {
+        let Some(_player_guid) = self.player_guid() else {
+            return 0;
+        };
+        let Some(item_effect_store) = self.item_effect_store.as_ref().cloned() else {
+            return 0;
+        };
+
+        let mut equipped: Vec<_> = self
+            .inventory_item_objects_like_cpp()
+            .values()
+            .filter(|item| item.container_guid().is_empty() && item.slot() < INVENTORY_SLOT_BAG_END)
+            .map(|item| (item.slot(), item.object().guid(), item.object().entry()))
+            .collect();
+        equipped.sort_by_key(|(slot, guid, _entry)| (*slot, guid.counter()));
+
+        let primary_spec = self.represented_primary_specialization_id_like_cpp();
+        let mut applied = 0usize;
+        for (_slot, item_guid, item_entry) in equipped {
+            if self
+                .item_stats_store
+                .as_ref()
+                .and_then(|store| store.sparse_template(item_entry))
+                .is_some_and(|template| template.item_flags().contains(ItemFlags::LEGACY))
+            {
+                continue;
+            }
+
+            let effects: Vec<_> = item_effect_store
+                .item_effects_for_item_id_like_cpp(item_entry)
+                .into_iter()
+                .cloned()
+                .collect();
+            for effect in effects {
+                if effect.trigger_type != 1 {
+                    continue;
+                }
+                if effect.spell_id <= 0 {
+                    continue;
+                }
+                if effect.chr_specialization_id != 0
+                    && u32::from(effect.chr_specialization_id) != primary_spec
+                {
+                    continue;
+                }
+                if !self.represented_equip_spell_fits_shapeshift_like_cpp(effect.spell_id as u32) {
+                    continue;
+                }
+
+                let Some(spell_info) = self
+                    .spell_store()
+                    .and_then(|store| store.get(effect.spell_id))
+                    .cloned()
+                else {
+                    continue;
+                };
+                let effect_mask = unit_owned_apply_aura_effect_mask_like_cpp(&spell_info);
+                if effect_mask == 0 {
+                    continue;
+                }
+                if self
+                    .apply_aura_with_effect_mask_like_cpp(
+                        effect.spell_id,
+                        item_guid,
+                        0,
+                        AFLAG_NOCASTER_LIKE_CPP | 0x0000_0100 | 0x0000_0200,
+                        effect_mask,
+                    )
+                    .is_ok()
+                {
+                    applied += 1;
+                }
+            }
+        }
+
+        applied
+    }
+
+    pub(crate) fn apply_initial_equipped_item_set_auras_like_cpp(&mut self) -> usize {
+        let Some(player_guid) = self.player_guid() else {
+            return 0;
+        };
+        let event_start = self.represented_item_set_spell_events_like_cpp.len();
+        let mut equipped: Vec<_> = self
+            .inventory_item_objects_like_cpp()
+            .values()
+            .filter(|item| item.container_guid().is_empty() && item.slot() < INVENTORY_SLOT_BAG_END)
+            .map(|item| item.object().guid())
+            .collect();
+        equipped.sort_by_key(ObjectGuid::counter);
+        for item_guid in equipped {
+            let _ = self.record_represented_items_set_item_like_cpp(item_guid, true);
+        }
+
+        let events = self.represented_item_set_spell_events_like_cpp[event_start..].to_vec();
+        let mut applied = 0usize;
+        for event in events {
+            if !event.apply {
+                continue;
+            }
+            let Ok(spell_id) = i32::try_from(event.spell_id) else {
+                continue;
+            };
+            if self
+                .visible_auras
+                .values()
+                .any(|aura| aura.spell_id == spell_id)
+            {
+                continue;
+            }
+            let effect_mask = self
+                .spell_store()
+                .and_then(|store| store.get(spell_id))
+                .map(unit_owned_apply_aura_effect_mask_like_cpp)
+                .unwrap_or(0x0000_0001)
+                .max(0x0000_0001);
+            if self
+                .apply_aura_with_effect_mask_like_cpp(
+                    spell_id,
+                    player_guid,
+                    0,
+                    AFLAG_NOCASTER_LIKE_CPP | 0x0000_0100 | 0x0000_0200,
+                    effect_mask,
+                )
+                .is_ok()
+            {
+                applied += 1;
+            }
+        }
+        applied
+    }
+
     pub(crate) fn apply_represented_item_set_aura_refresh_events_like_cpp(
         &mut self,
         form_change: bool,
@@ -15510,12 +15956,18 @@ impl WorldSession {
                 {
                     continue;
                 }
+                let effect_mask = self
+                    .spell_store()
+                    .and_then(|store| store.get(spell_id))
+                    .map(unit_owned_apply_aura_effect_mask_like_cpp)
+                    .unwrap_or(0x0000_0001)
+                    .max(0x0000_0001);
                 let _ = self.apply_aura_with_effect_mask_like_cpp(
                     spell_id,
                     player_guid,
                     0,
-                    0x0000_0001,
-                    0x0000_0001,
+                    AFLAG_NOCASTER_LIKE_CPP | 0x0000_0100 | 0x0000_0200,
+                    effect_mask,
                 );
             } else {
                 let _ = self.remove_represented_auras_due_to_spell_like_cpp(spell_id);
@@ -17577,6 +18029,18 @@ impl WorldSession {
             })
     }
 
+    pub(crate) fn represented_has_item_count_like_cpp(&self, item_entry: u32, count: u32) -> bool {
+        if count == 0 {
+            return true;
+        }
+
+        self.represented_inventory_item_counts_like_cpp()
+            .get(&item_entry)
+            .copied()
+            .unwrap_or(0)
+            >= count
+    }
+
     fn canonical_player_snapshot_like_cpp<R>(&self, f: impl FnOnce(&Player) -> R) -> Option<R> {
         let Some(guid) = self.player_guid() else {
             return None;
@@ -19384,8 +19848,24 @@ impl WorldSession {
         self.access_requirement_store = Some(store);
     }
 
+    pub(crate) fn access_requirement_store(&self) -> Option<&Arc<AccessRequirementStoreLikeCpp>> {
+        self.access_requirement_store.as_ref()
+    }
+
     pub fn set_lfg_dungeons_store(&mut self, store: Arc<LfgDungeonsStore>) {
         self.lfg_dungeons_store = Some(store);
+    }
+
+    pub(crate) fn lfg_dungeons_store(&self) -> Option<&Arc<LfgDungeonsStore>> {
+        self.lfg_dungeons_store.as_ref()
+    }
+
+    pub fn set_lfg_dungeon_store_like_cpp(&mut self, store: Arc<LfgDungeonStoreLikeCpp>) {
+        self.lfg_dungeon_store_like_cpp = Some(store);
+    }
+
+    pub(crate) fn lfg_dungeon_store_like_cpp(&self) -> Option<&Arc<LfgDungeonStoreLikeCpp>> {
+        self.lfg_dungeon_store_like_cpp.as_ref()
     }
 
     pub fn set_battlemaster_list_store(&mut self, store: Arc<BattlemasterListStore>) {
@@ -20003,6 +20483,14 @@ impl WorldSession {
         self.spell_store.as_ref()
     }
 
+    pub fn set_spell_levels_store(&mut self, store: Arc<SpellLevelsStore>) {
+        self.spell_levels_store = Some(store);
+    }
+
+    pub(crate) fn spell_levels_store(&self) -> Option<&Arc<SpellLevelsStore>> {
+        self.spell_levels_store.as_ref()
+    }
+
     pub fn set_talent_store(&mut self, store: Arc<TalentStore>) {
         self.talent_store = Some(store);
     }
@@ -20084,6 +20572,14 @@ impl WorldSession {
 
     pub fn set_spell_aura_options_store(&mut self, store: Arc<SpellAuraOptionsStore>) {
         self.spell_aura_options_store = Some(store);
+    }
+
+    pub fn set_spell_aura_restrictions_store(&mut self, store: Arc<SpellAuraRestrictionsStore>) {
+        self.spell_aura_restrictions_store = Some(store);
+    }
+
+    pub fn set_spell_equipped_items_store(&mut self, store: Arc<SpellEquippedItemsStore>) {
+        self.spell_equipped_items_store = Some(store);
     }
 
     pub fn set_spell_misc_store(&mut self, store: Arc<SpellMiscStore>) {
@@ -21765,6 +22261,59 @@ impl WorldSession {
         }
 
         self.represented_talents_like_cpp[talent_group_index].insert(talent_id, rank);
+        true
+    }
+
+    pub(crate) fn load_represented_talent_row_with_spell_side_effects_like_cpp(
+        &mut self,
+        talent_id: u32,
+        rank: u8,
+        talent_group: u8,
+        known_spells: &mut Vec<i32>,
+    ) -> bool {
+        let previous_rank = self
+            .represented_talents_like_cpp
+            .get(usize::from(talent_group))
+            .and_then(|talents| talents.get(&talent_id).copied());
+
+        if !self.load_represented_talent_row_like_cpp(talent_id, rank, talent_group) {
+            return false;
+        }
+
+        if self.represented_active_talent_group_like_cpp != talent_group {
+            return true;
+        }
+
+        if let Some(previous_rank) = previous_rank {
+            if let Some(previous_spell_id) =
+                self.represented_talent_spell_id_like_cpp(talent_id, previous_rank)
+            {
+                known_spells.retain(|known_spell| *known_spell != previous_spell_id);
+                for trigger_spell in
+                    self.represented_direct_learn_spell_triggers_like_cpp(previous_spell_id)
+                {
+                    known_spells.retain(|known_spell| *known_spell != trigger_spell);
+                }
+            }
+        }
+
+        if let Some(spell_id) = self.represented_talent_spell_id_like_cpp(talent_id, rank) {
+            if !known_spells.contains(&spell_id) {
+                known_spells.push(spell_id);
+            }
+            for trigger_spell in self.represented_direct_learn_spell_triggers_like_cpp(spell_id) {
+                if !known_spells.contains(&trigger_spell) {
+                    known_spells.push(trigger_spell);
+                }
+            }
+        }
+
+        if let Some((overriden_spell_id, new_spell_id)) =
+            self.represented_talent_override_spell_pair_like_cpp(talent_id)
+        {
+            self.add_represented_override_spell_like_cpp(overriden_spell_id, new_spell_id);
+        }
+
         true
     }
 
@@ -24311,6 +24860,11 @@ impl WorldSession {
         self.quest_xp_store = Some(store);
     }
 
+    /// Set the QuestMoneyReward store (loaded from QuestMoneyReward.db2).
+    pub fn set_quest_money_reward_store(&mut self, store: Arc<QuestMoneyRewardStore>) {
+        self.quest_money_reward_store = Some(store);
+    }
+
     fn set_loaded_quest_completed_bit_like_cpp(&mut self, quest_bit: u32) -> bool {
         if quest_bit == 0 {
             return false;
@@ -24382,16 +24936,70 @@ impl WorldSession {
         }
     }
 
+    /// C++ `Player::GetQuestLevel`.
+    pub(crate) fn player_quest_level_like_cpp(
+        &self,
+        quest: &wow_data::quest::QuestTemplate,
+    ) -> i32 {
+        if quest.quest_level > 0 {
+            quest.quest_level
+        } else {
+            i32::from(self.player_level_like_cpp()).min(quest.quest_max_scaling_level)
+        }
+    }
+
     /// Calculate XP reward for a quest.
     /// C++ `Quest::XPValue(player, questLevel, xpDifficulty, xpMultiplier)`.
-    pub(crate) fn calculate_quest_xp(&self, difficulty: u32, quest_level: i32) -> u32 {
+    pub(crate) fn calculate_quest_xp(
+        &self,
+        difficulty: u32,
+        quest_level: i32,
+        xp_multiplier: f32,
+    ) -> u32 {
         if let Some(store) = &self.quest_xp_store {
-            store.calculate_xp(quest_level, self.player_level_like_cpp(), difficulty)
+            store.calculate_xp(
+                quest_level,
+                self.player_level_like_cpp(),
+                difficulty,
+                xp_multiplier,
+            )
         } else {
             // Fallback if DB2 not loaded
             const XP_TABLE: [u32; 10] = [0, 50, 100, 200, 400, 650, 1000, 1500, 2500, 4000];
             XP_TABLE[difficulty.min(9) as usize]
         }
+    }
+
+    /// C++ `Player::GetQuestXPReward`.
+    pub(crate) fn quest_xp_reward_like_cpp(&self, quest: &wow_data::quest::QuestTemplate) -> u32 {
+        if self.rewarded_quests.contains(&quest.id) && !quest.is_df_quest_like_cpp() {
+            return 0;
+        }
+
+        self.calculate_quest_xp(
+            quest.reward_xp_difficulty,
+            self.player_quest_level_like_cpp(quest),
+            quest.reward_xp_multiplier,
+        )
+    }
+
+    /// C++ `Player::GetQuestMoneyReward` -> `Quest::MoneyValue`.
+    pub(crate) fn quest_money_reward_like_cpp(
+        &self,
+        quest: &wow_data::quest::QuestTemplate,
+    ) -> u32 {
+        let Some(store) = &self.quest_money_reward_store else {
+            return 0;
+        };
+        let quest_level = self.player_quest_level_like_cpp(quest).max(0) as u32;
+        let Some(row) = store.get(quest_level) else {
+            return 0;
+        };
+        let difficulty = quest.reward_money_difficulty as usize;
+        let Some(base) = row.difficulty.get(difficulty).copied() else {
+            return 0;
+        };
+        ((base as f32) * quest.reward_money_multiplier).round() as u32
     }
 
     /// Check if a spell is on cooldown (global or per-spell).
@@ -25647,12 +26255,361 @@ impl WorldSession {
         self.visible_auras.insert(slot, aura);
 
         // Send SMSG_AURA_UPDATE
-        self.send_aura_update_applied(spell_id, slot, caster_guid, duration_ms, aura_flags);
+        self.send_aura_update_applied(
+            spell_id,
+            slot,
+            caster_guid,
+            duration_ms,
+            aura_flags,
+            effect_mask,
+        );
         if spell_id == SPELL_PVP_RULES_ENABLED_LIKE_CPP {
             let _ = self.update_represented_item_level_area_based_scaling_like_cpp();
         }
 
         Ok(())
+    }
+
+    pub(crate) fn apply_loaded_known_spell_dependencies_like_cpp(
+        &mut self,
+        known_spells: &mut Vec<i32>,
+    ) -> usize {
+        let mut added = 0usize;
+        let mut index = 0usize;
+        while index < known_spells.len() {
+            let spell_id = known_spells[index];
+            index += 1;
+
+            let Ok(spell_id_u32) = u32::try_from(spell_id) else {
+                continue;
+            };
+            let learned_spells = self
+                .spell_learn_spell_map_bounds_like_cpp(spell_id_u32)
+                .to_vec();
+            for learned_spell in learned_spells {
+                if learned_spell.auto_learned || !learned_spell.active {
+                    continue;
+                }
+                let Ok(learned_spell_id) = i32::try_from(learned_spell.spell) else {
+                    continue;
+                };
+                if known_spells.contains(&learned_spell_id) {
+                    continue;
+                }
+                known_spells.push(learned_spell_id);
+                self.represented_dependent_known_spells_like_cpp
+                    .insert(learned_spell_id);
+                self.represented_favorite_known_spells_like_cpp
+                    .remove(&learned_spell_id);
+                added += 1;
+
+                if learned_spell.overrides_spell != 0 {
+                    if let Ok(overrides_spell_id) = i32::try_from(learned_spell.overrides_spell) {
+                        self.add_represented_override_spell_like_cpp(
+                            overrides_spell_id,
+                            learned_spell_id,
+                        );
+                    }
+                }
+            }
+        }
+
+        added
+    }
+
+    pub(crate) fn deactivate_lower_rank_known_spells_for_send_like_cpp(
+        &self,
+        known_spells: &mut Vec<i32>,
+    ) -> usize {
+        let Some(spell_chains) = self.spell_chain_store() else {
+            return 0;
+        };
+
+        let known_set: HashSet<i32> = known_spells.iter().copied().collect();
+        let before = known_spells.len();
+        known_spells.retain(|spell_id| {
+            let Ok(mut next_spell_id) = u32::try_from(*spell_id) else {
+                return true;
+            };
+
+            loop {
+                next_spell_id = spell_chains.next_spell_in_chain_like_cpp(next_spell_id);
+                if next_spell_id == 0 {
+                    return true;
+                }
+
+                if let Ok(next_spell_i32) = i32::try_from(next_spell_id)
+                    && known_set.contains(&next_spell_i32)
+                {
+                    return false;
+                }
+            }
+        });
+
+        before - known_spells.len()
+    }
+
+    pub(crate) fn apply_login_passive_known_spell_auras_like_cpp(&mut self) -> usize {
+        let Some(player_guid) = self.player_guid() else {
+            return 0;
+        };
+        let Some(spell_store) = self.spell_store().cloned() else {
+            return 0;
+        };
+
+        let mut applied = 0usize;
+        for spell_id in self.known_spells_like_cpp().to_vec() {
+            if spell_id <= 0
+                || !spell_store.is_passive_like_cpp(spell_id)
+                || self
+                    .visible_auras
+                    .values()
+                    .any(|aura| aura.spell_id == spell_id)
+            {
+                continue;
+            }
+
+            let Some(spell_info) = spell_store.get(spell_id).cloned() else {
+                continue;
+            };
+            let effect_mask = unit_owned_apply_aura_effect_mask_like_cpp(&spell_info);
+            if effect_mask == 0 {
+                continue;
+            }
+
+            if let Some(equipped) = self
+                .spell_equipped_items_store
+                .as_ref()
+                .and_then(|store| store.entry_for_spell_id_like_cpp(spell_id))
+                .filter(|entry| entry.equipped_item_class >= 0)
+                .cloned()
+            {
+                if !self.represented_has_item_fit_to_spell_requirements_like_cpp(&equipped) {
+                    continue;
+                }
+            } else if !self.represented_login_passive_spell_cast_gate_like_cpp(spell_id) {
+                continue;
+            }
+
+            if self
+                .apply_aura_with_effect_mask_like_cpp(
+                    spell_id,
+                    player_guid,
+                    0,
+                    AFLAG_NOCASTER_LIKE_CPP | 0x0000_0100 | 0x0000_0200,
+                    effect_mask,
+                )
+                .is_ok()
+            {
+                applied += 1;
+            }
+        }
+
+        applied
+    }
+
+    pub(crate) fn apply_loaded_known_spell_previous_rank_passive_auras_like_cpp(
+        &mut self,
+        known_spells: &[i32],
+    ) -> usize {
+        let Some(player_guid) = self.player_guid() else {
+            return 0;
+        };
+        let Some(spell_store) = self.spell_store().cloned() else {
+            return 0;
+        };
+
+        let mut applied = 0usize;
+        for &spell_id in known_spells {
+            let Ok(mut previous_spell_id) =
+                u32::try_from(spell_id).map(|spell_id| self.prev_spell_in_chain_like_cpp(spell_id))
+            else {
+                continue;
+            };
+
+            while previous_spell_id != 0 {
+                let Ok(previous_spell_i32) = i32::try_from(previous_spell_id) else {
+                    break;
+                };
+                if spell_store.is_passive_like_cpp(previous_spell_i32)
+                    && !self
+                        .visible_auras
+                        .values()
+                        .any(|aura| aura.spell_id == previous_spell_i32)
+                    && self.represented_login_passive_spell_cast_gate_like_cpp(previous_spell_i32)
+                    && let Some(spell_info) = spell_store.get(previous_spell_i32).cloned()
+                {
+                    let effect_mask = unit_owned_apply_aura_effect_mask_like_cpp(&spell_info);
+                    if effect_mask != 0
+                        && self
+                            .apply_aura_with_effect_mask_like_cpp(
+                                previous_spell_i32,
+                                player_guid,
+                                0,
+                                AFLAG_NOCASTER_LIKE_CPP | 0x0000_0100 | 0x0000_0200,
+                                effect_mask,
+                            )
+                            .is_ok()
+                    {
+                        applied += 1;
+                    }
+                }
+
+                previous_spell_id = self.prev_spell_in_chain_like_cpp(previous_spell_id);
+            }
+        }
+
+        applied
+    }
+
+    fn represented_login_passive_spell_cast_gate_like_cpp(&self, spell_id: i32) -> bool {
+        let Some(spell_store) = self.spell_store.as_ref() else {
+            return false;
+        };
+        let (stances, _) = spell_store.shapeshift_masks_like_cpp(spell_id);
+        let form = self.represented_shapeshift_form_like_cpp();
+        let stance_mask = form
+            .checked_sub(1)
+            .and_then(|shift| 1u64.checked_shl(shift))
+            .unwrap_or(0);
+        let need_cast = stances == 0
+            || (form != 0 && (stances & stance_mask) != 0)
+            || (form == 0
+                && spell_store.has_attribute2_like_cpp(
+                    spell_id,
+                    wow_data::spell::attributes::SPELL_ATTR2_ALLOW_WHILE_NOT_SHAPESHIFTED_CASTER_FORM,
+                ));
+
+        if !need_cast {
+            return false;
+        }
+
+        let Ok(spell_id_u32) = u32::try_from(spell_id) else {
+            return false;
+        };
+        let caster_aura_state = self
+            .spell_aura_restrictions_store
+            .as_ref()
+            .and_then(|store| {
+                store
+                    .entries_for_spell_id_like_cpp(spell_id_u32)
+                    .find(|entry| entry.difficulty_id == 0 || entry.difficulty_id == u8::MAX)
+                    .or_else(|| store.entries_for_spell_id_like_cpp(spell_id_u32).next())
+            })
+            .map(|entry| entry.caster_aura_state)
+            .unwrap_or(0);
+
+        caster_aura_state == 0
+            || self.represented_has_aura_state_like_cpp(u32::from(caster_aura_state))
+    }
+
+    fn represented_has_aura_state_like_cpp(&self, _aura_state: u32) -> bool {
+        false
+    }
+
+    fn represented_has_item_fit_to_spell_requirements_like_cpp(
+        &self,
+        equipped: &SpellEquippedItemsEntry,
+    ) -> bool {
+        const SPELL_ATTR8_REQUIRES_EQUIPPED_INV_TYPES_LIKE_CPP: u32 = 0x0010_0000;
+
+        if equipped.equipped_item_class < 0 {
+            return true;
+        }
+
+        match equipped.equipped_item_class {
+            class if class == ItemClass::Weapon as i8 => {
+                self.represented_equipped_item_in_slot_fits_spell_requirements_like_cpp(
+                    EQUIPMENT_SLOT_MAINHAND,
+                    equipped,
+                ) || self.represented_equipped_item_in_slot_fits_spell_requirements_like_cpp(
+                    EQUIPMENT_SLOT_OFFHAND,
+                    equipped,
+                )
+            }
+            class if class == ItemClass::Armor as i8 => {
+                if self.spell_store.as_ref().is_some_and(|store| {
+                    store.has_attribute8_like_cpp(
+                        equipped.spell_id,
+                        SPELL_ATTR8_REQUIRES_EQUIPPED_INV_TYPES_LIKE_CPP,
+                    )
+                }) {
+                    [
+                        EQUIPMENT_SLOT_HEAD,
+                        EQUIPMENT_SLOT_SHOULDERS,
+                        EQUIPMENT_SLOT_CHEST,
+                        EQUIPMENT_SLOT_WAIST,
+                        EQUIPMENT_SLOT_LEGS,
+                        EQUIPMENT_SLOT_FEET,
+                        EQUIPMENT_SLOT_WRISTS,
+                        EQUIPMENT_SLOT_HANDS,
+                    ]
+                    .into_iter()
+                    .all(|slot| {
+                        self.represented_equipped_item_in_slot_fits_spell_requirements_like_cpp(
+                            slot, equipped,
+                        )
+                    })
+                } else {
+                    self.represented_equipped_item_in_slot_fits_spell_requirements_like_cpp(
+                        EQUIPMENT_SLOT_OFFHAND,
+                        equipped,
+                    ) || (EQUIPMENT_SLOT_HEAD..EQUIPMENT_SLOT_MAINHAND).any(|slot| {
+                        self.represented_equipped_item_in_slot_fits_spell_requirements_like_cpp(
+                            slot, equipped,
+                        )
+                    })
+                }
+            }
+            _ => false,
+        }
+    }
+
+    fn represented_equipped_item_in_slot_fits_spell_requirements_like_cpp(
+        &self,
+        slot: u8,
+        equipped: &SpellEquippedItemsEntry,
+    ) -> bool {
+        self.inventory_item_objects_like_cpp()
+            .values()
+            .find(|item| item.container_guid().is_empty() && item.slot() == slot)
+            .is_some_and(|item| {
+                self.represented_item_fits_spell_requirements_like_cpp(
+                    item.object().entry(),
+                    equipped,
+                )
+            })
+    }
+
+    fn represented_item_fits_spell_requirements_like_cpp(
+        &self,
+        item_id: u32,
+        equipped: &SpellEquippedItemsEntry,
+    ) -> bool {
+        let Some(item) = self
+            .item_store
+            .as_ref()
+            .and_then(|store| store.get(item_id))
+        else {
+            return false;
+        };
+
+        if equipped.equipped_item_class >= 0 {
+            if equipped.equipped_item_class != item.class_id as i8 {
+                return false;
+            }
+
+            if equipped.equipped_item_subclass != 0 {
+                let subclass = u32::from(item.subclass_id);
+                if subclass >= i32::BITS
+                    || (equipped.equipped_item_subclass & (1_i32 << subclass)) == 0
+                {
+                    return false;
+                }
+            }
+        }
+
+        true
     }
 
     fn apply_represented_mounted_aura_like_cpp(
@@ -25736,7 +26693,14 @@ impl WorldSession {
         );
         self.apply_represented_mount_capability_speed_aura_like_cpp(mounted_amount, caster_guid);
 
-        self.send_aura_update_applied(spell_id, slot, caster_guid, 0, 0x0000_0001);
+        self.send_aura_update_applied(
+            spell_id,
+            slot,
+            caster_guid,
+            0,
+            0x0000_0001,
+            1u32 << effect.effect_index,
+        );
         self.send_represented_mount_unit_update_like_cpp(display_id);
 
         Ok(())
@@ -25912,7 +26876,7 @@ impl WorldSession {
         };
 
         self.visible_auras.insert(slot, aura);
-        self.send_aura_update_applied(spell_id, slot, caster_guid, 30_000, 0x0000_0001);
+        self.send_aura_update_applied(spell_id, slot, caster_guid, 30_000, 0x0000_0001, 0x1);
 
         Ok(())
     }
@@ -25953,7 +26917,7 @@ impl WorldSession {
         };
 
         self.visible_auras.insert(slot, aura);
-        self.send_aura_update_applied(spell_id, slot, caster_guid, 30_000, 0x0000_0001);
+        self.send_aura_update_applied(spell_id, slot, caster_guid, 30_000, 0x0000_0001, 0x1);
 
         Ok(())
     }
@@ -25995,7 +26959,14 @@ impl WorldSession {
         };
 
         self.visible_auras.insert(slot, aura);
-        self.send_aura_update_applied(spell_id, slot, caster_guid, duration_ms, 0x0000_0001);
+        self.send_aura_update_applied(
+            spell_id,
+            slot,
+            caster_guid,
+            duration_ms,
+            0x0000_0001,
+            1u32 << effect.effect_index,
+        );
 
         Ok(())
     }
@@ -26614,35 +27585,52 @@ impl WorldSession {
         caster: ObjectGuid,
         duration: u32,
         flags: u32,
+        effect_mask: u32,
     ) {
-        use wow_packet::packets::aura::{AuraData, AuraUpdate};
-
-        let update = AuraUpdate {
-            target_guid: self.player_guid().unwrap_or(ObjectGuid::EMPTY),
-            updated_auras: vec![AuraData {
-                slot,
-                spell_id,
-                aura_flags: flags,
-                duration_total: duration,
-                duration_remaining: duration,
-                stack_count: 1,
-                caster_guid: caster,
-                effect_data: None,
-            }],
-            removed_aura_slots: vec![],
+        let Some(target_guid) = self.player_guid() else {
+            return;
         };
-        self.send_packet(&update);
+        let aura = AuraApplication {
+            spell_id,
+            caster_guid: caster,
+            slot,
+            duration_total: duration,
+            duration_remaining: duration,
+            stack_count: 1,
+            aura_flags: flags,
+            effect_mask,
+            aura_interrupt_flags: 0,
+            aura_interrupt_flags2: 0,
+            represented_effect: None,
+            represented_amount: 0,
+            represented_effect_amounts: Vec::new(),
+            represented_misc_value: None,
+            represented_multiplier: 1.0,
+            applied_at: Instant::now(),
+        };
+        self.send_packet(&wow_packet::packets::misc::AuraUpdate {
+            unit_guid: target_guid,
+            update_all: false,
+            auras: vec![Self::player_aura_info_like_cpp(
+                &aura,
+                self.player_level_like_cpp(),
+                self.player_map_id_like_cpp(),
+            )],
+        });
     }
 
     fn send_aura_update_removed(&self, slot: u8) {
-        use wow_packet::packets::aura::AuraUpdate;
-
-        let update = AuraUpdate {
-            target_guid: self.player_guid().unwrap_or(ObjectGuid::EMPTY),
-            updated_auras: vec![],
-            removed_aura_slots: vec![slot],
+        let Some(target_guid) = self.player_guid() else {
+            return;
         };
-        self.send_packet(&update);
+        self.send_packet(&wow_packet::packets::misc::AuraUpdate {
+            unit_guid: target_guid,
+            update_all: false,
+            auras: vec![wow_packet::packets::misc::AuraInfoLikeCpp {
+                slot,
+                aura_data: None,
+            }],
+        });
     }
 
     /// Send a TimeSyncRequest and schedule the next one.
@@ -29314,7 +30302,11 @@ impl WorldSession {
         None
     }
 
-    fn is_map_disabled_for_player_like_cpp(&self, map_id: u32) -> bool {
+    pub(crate) fn is_disabled_map_type_for_player_like_cpp(
+        &self,
+        disable_type: u32,
+        map_id: u32,
+    ) -> bool {
         let Some(disable_mgr) = self.disable_mgr() else {
             return false;
         };
@@ -29329,7 +30321,7 @@ impl WorldSession {
             .map(|entry| entry.instance_type);
 
         disable_mgr.is_disabled_for_like_cpp(
-            DISABLE_TYPE_MAP,
+            disable_type,
             map_id,
             Some(DisableWorldObjectRefLikeCpp {
                 type_id: TypeId::Player,
@@ -29343,6 +30335,10 @@ impl WorldSession {
             0,
             Some(map_store.as_ref()),
         )
+    }
+
+    fn is_map_disabled_for_player_like_cpp(&self, map_id: u32) -> bool {
+        self.is_disabled_map_type_for_player_like_cpp(DISABLE_TYPE_MAP, map_id)
     }
 
     /// Send a server packet back to the client via the instance (default) channel.
@@ -31094,6 +32090,140 @@ impl WorldSession {
         loaded
     }
 
+    pub(crate) fn load_represented_character_auras_like_cpp(
+        &mut self,
+        aura_rows: impl IntoIterator<Item = CharacterAuraRowLikeCpp>,
+        effect_rows: impl IntoIterator<Item = CharacterAuraEffectRowLikeCpp>,
+        timediff_secs: u32,
+    ) -> usize {
+        let Some(player_guid) = self.player_guid() else {
+            return 0;
+        };
+        let spell_store = self.spell_store().cloned();
+        let difficulty_store = self.difficulty_store().cloned();
+        let aura_options_store = self.spell_aura_options_store.clone();
+        let spell_misc_store = self.spell_misc_store().cloned();
+
+        let effects: Vec<_> = effect_rows
+            .into_iter()
+            .filter(|row| {
+                row.spell_id != 0
+                    && u32::from(row.effect_index)
+                        < wow_data::conditions::MAX_SPELL_EFFECTS_LIKE_CPP
+            })
+            .collect();
+
+        let mut loaded = 0usize;
+        for mut row in aura_rows {
+            if row.spell_id == 0
+                || spell_store
+                    .as_ref()
+                    .is_some_and(|store| store.get(row.spell_id as i32).is_none())
+                || (row.difficulty != 0
+                    && difficulty_store
+                        .as_ref()
+                        .is_some_and(|store| !store.contains(u32::from(row.difficulty))))
+            {
+                continue;
+            }
+
+            let aura_expires_offline = spell_misc_store
+                .as_ref()
+                .and_then(|store| store.get_by_spell_id(row.spell_id))
+                .is_some_and(|misc| {
+                    (misc.attributes[4] as u32
+                        & wow_data::spell::attributes::SPELL_ATTR4_AURA_EXPIRES_OFFLINE)
+                        != 0
+                });
+            let Some(remain_time_ms) = adjusted_represented_pet_aura_remain_time_like_cpp(
+                row.remain_time_ms,
+                timediff_secs,
+                true,
+                aura_expires_offline,
+            ) else {
+                continue;
+            };
+            row.remain_time_ms = remain_time_ms;
+
+            if let Some(store) = aura_options_store.as_ref() {
+                let proc_charges = store.proc_charges_like_cpp(row.spell_id, row.difficulty);
+                row.remain_charges = if proc_charges == 0 {
+                    0
+                } else if row.remain_charges == 0 {
+                    proc_charges
+                } else {
+                    row.remain_charges
+                };
+            }
+
+            let mut slot = 0u8;
+            while self.visible_auras.contains_key(&slot) && slot < u8::MAX {
+                slot = slot.saturating_add(1);
+            }
+            if slot == u8::MAX {
+                break;
+            }
+
+            let caster_guid = if row.caster_guid.is_empty() {
+                player_guid
+            } else {
+                row.caster_guid
+            };
+            let represented_effect_amounts: Vec<_> = effects
+                .iter()
+                .filter(|effect| {
+                    let effect_caster_guid = if effect.caster_guid.is_empty() {
+                        player_guid
+                    } else {
+                        effect.caster_guid
+                    };
+                    effect_caster_guid == caster_guid
+                        && effect.spell_id == row.spell_id
+                        && effect.effect_mask == row.effect_mask
+                })
+                .map(|effect| RepresentedAuraEffectAmountLikeCpp {
+                    effect_index: effect.effect_index,
+                    amount: effect.amount,
+                })
+                .collect();
+            let duration_total = u32::try_from(row.max_duration_ms).unwrap_or(0);
+            let duration_remaining = u32::try_from(row.remain_time_ms).unwrap_or(0);
+            let spell_id = i32::try_from(row.spell_id).unwrap_or(i32::MAX);
+            let aura_flags = AFLAG_NOCASTER_LIKE_CPP | 0x0000_0100;
+            self.visible_auras.insert(
+                slot,
+                AuraApplication {
+                    spell_id,
+                    caster_guid,
+                    slot,
+                    duration_total,
+                    duration_remaining,
+                    stack_count: row.stack_count.max(1),
+                    aura_flags,
+                    effect_mask: row.effect_mask,
+                    aura_interrupt_flags: 0,
+                    aura_interrupt_flags2: 0,
+                    represented_effect: None,
+                    represented_amount: 0,
+                    represented_effect_amounts,
+                    represented_misc_value: None,
+                    represented_multiplier: 1.0,
+                    applied_at: Instant::now(),
+                },
+            );
+            self.send_aura_update_applied(
+                spell_id,
+                slot,
+                caster_guid,
+                duration_total,
+                aura_flags,
+                row.effect_mask,
+            );
+            loaded += 1;
+        }
+        loaded
+    }
+
     pub(crate) fn load_represented_pet_declined_names_like_cpp(
         &mut self,
         pet_number: u32,
@@ -32450,6 +33580,39 @@ impl WorldSession {
         sum as f32 / 16.0
     }
 
+    /// C++ `Player::GetAverageItemLevel`.
+    pub(crate) fn represented_average_item_level_like_cpp(&self) -> f32 {
+        let item_objects = self.inventory_item_objects_like_cpp();
+        let inventory_items = self.inventory_items_like_cpp();
+        let mut sum = 0.0f32;
+        let mut count = 0u32;
+
+        for slot in 0..EQUIPMENT_SLOT_END {
+            if matches!(
+                slot,
+                EQUIPMENT_SLOT_TABARD
+                    | EQUIPMENT_SLOT_RANGED
+                    | EQUIPMENT_SLOT_OFFHAND
+                    | EQUIPMENT_SLOT_BODY
+            ) {
+                continue;
+            }
+
+            if let Some(inventory_item) = inventory_items.get(&slot) {
+                let runtime_item = item_objects.get(&inventory_item.guid);
+                if let Some(item_level) =
+                    self.represented_item_level_like_cpp(inventory_item.entry_id, runtime_item)
+                {
+                    sum += item_level as f32;
+                }
+            }
+
+            count += 1;
+        }
+
+        if count == 0 { 0.0 } else { sum / count as f32 }
+    }
+
     fn represented_avg_total_item_level_consume_candidate_like_cpp(
         &self,
         best_item_levels: &mut [(InventoryType, u32, ObjectGuid)],
@@ -33013,7 +34176,7 @@ impl WorldSession {
         }
     }
 
-    fn represented_avg_equipped_item_level_like_cpp(&self) -> f32 {
+    pub(crate) fn represented_avg_equipped_item_level_like_cpp(&self) -> f32 {
         let can_titan_grip = self
             .canonical_player_snapshot_like_cpp(Player::can_titan_grip)
             .unwrap_or(false);
@@ -36026,9 +37189,15 @@ impl WorldSession {
         self.active_player_transport_server_time_like_cpp =
             Self::game_time_ms_like_cpp().saturating_sub(ticks) as i32;
         self.sync_current_player_session_visibility_detection_like_cpp();
-        self.movement_visibility_refresh_requests_like_cpp = self
-            .movement_visibility_refresh_requests_like_cpp
-            .saturating_add(1);
+        // C++ `HandleMoveInitActiveMoverComplete` calls
+        // `Player::UpdateObjectVisibility(false)`, which only queues
+        // `NOTIFY_VISIBILITY_CHANGED`. The represented Rust visibility scanner
+        // is broader than C++ `VisibleNotifier` today; materializing it here
+        // creates creatures/gameobjects that the captured C++ login stream does
+        // not send and corrupts the client during world load. Keep the packet
+        // side effect below, but do not turn the deferred notify into an
+        // immediate object-create batch until the map-owned notify pass is
+        // ported method-for-method.
         self.send_active_player_transport_server_time_update_like_cpp();
     }
 
@@ -44127,89 +45296,66 @@ pub(crate) fn step_creature_movement_like_cpp(
     }
 
     match creature.state() {
-        wow_entities::CreatureAiState::Idle => {
-            if creature.movement_finished() {
-                if creature.move_target().is_some() {
-                    creature.finish_move();
-                }
-                if creature.should_wander() {
-                    let dst = creature.pick_wander_destination();
-                    let owner_ignores_pathfinding = creature
-                        .creature
-                        .unit()
-                        .has_unit_state(UnitState::IGNORE_PATHFINDING.bits());
-                    let source_map_id = creature.map_id();
-                    let source_instance_id = creature.instance_id();
-                    let movement = if mmap_config
-                        .should_try_pathfinding_like_cpp(source_map_id, owner_ignores_pathfinding)
-                    {
-                        let detour_path = mmap_pathfinder.and_then(|worker| {
-                            match worker.calculate_path_like_cpp(
-                                crate::map_manager::WorldMMapPathRequestLikeCpp {
-                                    start: creature.position(),
-                                    destination: dst,
-                                    mesh_map_id: source_map_id,
-                                    instance_map_id: source_map_id,
-                                    instance_id: source_instance_id,
-                                    filter_context: PathQueryFilterContext::creature(
-                                        true, false, false, false,
-                                    ),
-                                    force_destination: false,
-                                    phase_shift: creature.phase_shift().clone(),
-                                },
-                            ) {
-                                Ok(path) => path,
-                                Err(error) => {
-                                    tracing::warn!(
-                                        "mmap pathfinding failed for creature {:?}: {:?}",
-                                        guid,
-                                        error
-                                    );
-                                    None
-                                }
+        wow_entities::CreatureAiState::Idle | wow_entities::CreatureAiState::WalkingRandom => {
+            let owner_ignores_pathfinding = creature
+                .creature
+                .unit()
+                .has_unit_state(UnitState::IGNORE_PATHFINDING.bits());
+            let source_map_id = creature.map_id();
+            let source_instance_id = creature.instance_id();
+            let phase_shift = creature.phase_shift().clone();
+            let should_try_pathfinding = mmap_config
+                .should_try_pathfinding_like_cpp(source_map_id, owner_ignores_pathfinding);
+            let movement = creature.update_default_random_movement_with_path_resolver_like_cpp(
+                diff_ms,
+                should_try_pathfinding,
+                |start, destination, point_path_limit| {
+                    mmap_pathfinder.and_then(|worker| {
+                        match worker.calculate_path_like_cpp(
+                            crate::map_manager::WorldMMapPathRequestLikeCpp {
+                                start,
+                                destination,
+                                mesh_map_id: source_map_id,
+                                instance_map_id: source_map_id,
+                                instance_id: source_instance_id,
+                                filter_context: PathQueryFilterContext::creature(
+                                    true, false, false, false,
+                                ),
+                                force_destination: false,
+                                point_path_limit,
+                                phase_shift: phase_shift.clone(),
+                            },
+                        ) {
+                            Ok(path) => path,
+                            Err(error) => {
+                                tracing::warn!(
+                                    "mmap pathfinding failed for creature {:?}: {:?}",
+                                    guid,
+                                    error
+                                );
+                                None
                             }
-                        });
-                        creature
-                            .begin_random_move_spline_with_detour_path_like_cpp(
-                                dst,
-                                detour_path.as_ref(),
-                                false,
-                            )
-                            .map(|(from, spline, _path)| (from, spline))
-                    } else {
-                        creature.begin_random_move_spline_like_cpp(dst)
-                    };
-                    if let Some((from, move_spline)) = movement {
-                        creature.record_random_movement_launch_like_cpp();
-                        let packet_spline = MovementMonsterSpline::from_move_spline(&move_spline);
-                        let pkt = MonsterMove {
-                            mover_guid: guid,
-                            current_pos: from,
-                            spline: packet_spline.clone(),
-                        };
-                        let bytes = pkt.to_bytes();
-                        trace_monster_move_packet_like_cpp(
-                            "random",
-                            guid,
-                            creature,
-                            &move_spline,
-                            &packet_spline,
-                            &bytes,
-                        );
-                        return Some(bytes);
-                    } else {
-                        creature.reset_wander_timer();
-                    }
-                }
-            }
-        }
-        wow_entities::CreatureAiState::WalkingRandom => {
-            if creature.update_move_spline_like_cpp() || creature.movement_finished() {
-                creature.finish_move();
-                creature
-                    .creature
-                    .set_ai_state(wow_entities::CreatureAiState::Idle);
-                creature.schedule_after_random_movement_like_cpp();
+                        }
+                    })
+                },
+            );
+            if let Some((from, move_spline)) = movement {
+                let packet_spline = MovementMonsterSpline::from_move_spline(&move_spline);
+                let pkt = MonsterMove {
+                    mover_guid: guid,
+                    current_pos: from,
+                    spline: packet_spline.clone(),
+                };
+                let bytes = pkt.to_bytes();
+                trace_monster_move_packet_like_cpp(
+                    "random",
+                    guid,
+                    creature,
+                    &move_spline,
+                    &packet_spline,
+                    &bytes,
+                );
+                return Some(bytes);
             }
         }
         wow_entities::CreatureAiState::Returning => {
@@ -46005,6 +47151,7 @@ impl WorldSession {
             .map(|key| key.instance_id)
             .unwrap_or(0);
         let player_phase_shift = self.represented_player_phase_shift_like_cpp().clone();
+        let monster_move_trace = std::env::var_os("RUSTYCORE_MONSTER_MOVE_TRACE").is_some();
         for guid in guids {
             let _ = self.mutate_world_creature(guid, |creature| {
                 if let Some(pkt) = step_creature_movement_like_cpp(
@@ -46014,8 +47161,18 @@ impl WorldSession {
                     mmap_pathfinder.as_deref(),
                     200,
                 ) {
-                    if let Some(player_position) = player_position
-                        && Self::creature_message_to_set_target_allows_like_cpp(
+                    if let Some(player_position) = player_position {
+                        let is_visible = visible_guids.contains(&guid);
+                        let same_map = creature.map_id() == player_map_id;
+                        let same_instance = creature.instance_id() == player_instance_id;
+                        let same_phase = player_phase_shift.can_see(creature.phase_shift());
+                        let range = creature.visibility_range_like_cpp();
+                        let in_range = position_is_in_dist_strict_2d_like_cpp(
+                            &creature.position(),
+                            &player_position,
+                            range,
+                        );
+                        if Self::creature_message_to_set_target_allows_like_cpp(
                             guid,
                             creature,
                             &visible_guids,
@@ -46024,15 +47181,55 @@ impl WorldSession {
                             &player_position,
                             &player_phase_shift,
                             false,
-                        )
-                    {
-                        to_send.push(pkt);
+                        ) {
+                            if monster_move_trace {
+                                tracing::info!(
+                                    ?guid,
+                                    player_map_id,
+                                    player_instance_id,
+                                    creature_map = creature.map_id(),
+                                    creature_instance = creature.instance_id(),
+                                    visible_count = visible_guids.len(),
+                                    packet_len = pkt.len(),
+                                    "RUST_MONSTER_MOVE_DELIVERY session sent"
+                                );
+                            }
+                            to_send.push(pkt);
+                        } else if monster_move_trace {
+                            tracing::info!(
+                                ?guid,
+                                is_visible,
+                                same_map,
+                                same_instance,
+                                same_phase,
+                                in_range,
+                                range,
+                                player_map_id,
+                                player_instance_id,
+                                creature_map = creature.map_id(),
+                                creature_instance = creature.instance_id(),
+                                visible_count = visible_guids.len(),
+                                "RUST_MONSTER_MOVE_DELIVERY session rejected"
+                            );
+                        }
+                    } else if monster_move_trace {
+                        tracing::info!(
+                            ?guid,
+                            visible_count = visible_guids.len(),
+                            "RUST_MONSTER_MOVE_DELIVERY session rejected: missing player position"
+                        );
                     }
                 }
             });
         }
 
         // Collect movement packets into output in the same order they were built.
+        if monster_move_trace && !to_send.is_empty() {
+            tracing::info!(
+                packet_count = to_send.len(),
+                "RUST_MONSTER_MOVE_DELIVERY session output"
+            );
+        }
         output.packets.extend(to_send);
         output
     }
@@ -52270,6 +53467,41 @@ mod tests {
             .collect();
 
         assert_eq!(deleted_spells, BTreeSet::from([10, 20, 30]));
+    }
+
+    #[test]
+    fn login_known_spells_deactivate_lower_ranks_like_cpp_addspell() {
+        let (mut session, _, _) = make_session();
+        session.set_spell_chain_store(Arc::new(
+            wow_data::SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(
+                [
+                    wow_data::SpellRankEdgeLikeCpp {
+                        spell_id: 20,
+                        supercedes_spell_id: 10,
+                    },
+                    wow_data::SpellRankEdgeLikeCpp {
+                        spell_id: 30,
+                        supercedes_spell_id: 20,
+                    },
+                    wow_data::SpellRankEdgeLikeCpp {
+                        spell_id: 200,
+                        supercedes_spell_id: 100,
+                    },
+                ],
+                |_| true,
+            ),
+        ));
+        let mut known_spells = vec![10, 40, 20, 100, 30];
+
+        assert_eq!(
+            session.deactivate_lower_rank_known_spells_for_send_like_cpp(&mut known_spells),
+            2
+        );
+        assert_eq!(
+            known_spells,
+            vec![40, 100, 30],
+            "C++ Player::AddSpell keeps lower ranks in PlayerSpellMap but marks them inactive when a higher known rank supersedes them, so SendKnownSpells skips them"
+        );
     }
 
     #[test]
@@ -74457,6 +75689,77 @@ mod tests {
         assert!(
             send_rx.try_recv().is_err(),
             "C++ VisibleNotifier::SendToSelf builds one UpdateData packet for mixed visibility"
+        );
+    }
+
+    #[tokio::test]
+    async fn force_update_visibility_repopulates_client_guids_after_login_clear_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 74_330);
+        let player_position = Position::new(10.0, 10.0, 0.0, 0.0);
+        let creature_guid = test_creature_guid(74_331);
+
+        session.set_map_manager(Arc::clone(&manager));
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "LoginVisibility".to_string(),
+            player_position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.apply_move_init_active_mover_complete_like_cpp(0);
+        let _ = drain_server_packet_bytes(&send_rx);
+
+        let creature_position = Position::new(20.0, 20.0, 0.0, 0.0);
+        let (grid_x, grid_y) =
+            crate::map_manager::world_to_grid_coords(creature_position.x, creature_position.y);
+        manager.write().unwrap().add_creature(
+            571,
+            0,
+            grid_x,
+            grid_y,
+            crate::map_manager::WorldCreature::new(
+                creature_guid,
+                901,
+                creature_position,
+                100,
+                80,
+                1,
+                2,
+                0.0,
+                1,
+                35,
+                0,
+                0,
+            ),
+        );
+
+        session.last_visibility_pos = Some(player_position);
+        session.client_visible_guids_like_cpp.clear();
+
+        session.force_update_visibility_like_cpp().await;
+
+        assert!(
+            session
+                .client_visible_guids_like_cpp
+                .contains(&creature_guid),
+            "C++ SendInitialPacketsAfterAddToMap::UpdateVisibilityForPlayer repopulates m_clientGUIDs after Map::AddPlayerToMap cleared it"
+        );
+        assert_eq!(session.last_visibility_pos, Some(player_position));
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert!(
+            packets.iter().any(|packet| {
+                packet.len() >= 2
+                    && u16::from_le_bytes([packet[0], packet[1]])
+                        == ServerOpcodes::UpdateObject as u16
+            }),
+            "initial forced visibility should send CREATE update data for newly visible objects"
         );
     }
 
@@ -97041,6 +98344,50 @@ mod tests {
     }
 
     #[test]
+    fn character_talent_load_applies_active_spell_side_effects_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let mut talent = test_talent_entry_like_cpp(406, 0, 14_908);
+        talent.spell_id = 14_908;
+        talent.overrides_spell_id = 50_000;
+        session.set_talent_store(Arc::new(wow_data::TalentStore::from_entries([talent])));
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            14_908,
+            wow_data::SpellInfo {
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_SPELL,
+                    effect_trigger_spell: 60_100,
+                    ..Default::default()
+                }],
+                ..test_spell_info_like_cpp(14_908)
+            },
+        );
+        spell_store.insert(60_100, test_spell_info_like_cpp(60_100));
+        session.set_spell_store(Arc::new(spell_store));
+        install_test_talent_tab_store_like_cpp(&mut session);
+
+        let mut known_spells = vec![14_914];
+        assert!(
+            session.load_represented_talent_row_with_spell_side_effects_like_cpp(
+                406,
+                0,
+                0,
+                &mut known_spells,
+            ),
+            "C++ _LoadTalents calls AddTalent before _LoadSpells"
+        );
+        assert!(known_spells.contains(&14_908));
+        assert!(known_spells.contains(&60_100));
+        assert!(
+            session
+                .represented_override_spells_like_cpp()
+                .get(&50_000)
+                .is_some_and(|spells| spells.contains(&14_908))
+        );
+    }
+
+    #[test]
     fn update_talent_data_includes_loaded_talents_and_glyphs_like_cpp() {
         let (mut session, _, _) = make_session();
         session.set_talent_store(Arc::new(wow_data::TalentStore::from_entries([
@@ -107033,6 +108380,298 @@ mod tests {
                 threshold: 2,
                 apply: false,
             }
+        );
+    }
+
+    #[test]
+    fn initial_equipped_item_equip_auras_apply_on_equip_effects_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 420);
+        let chest_guid = ObjectGuid::create_item(1, 920);
+        let hands_guid = ObjectGuid::create_item(1, 921);
+        let legacy_guid = ObjectGuid::create_item(1, 922);
+        session.set_player_guid(Some(player_guid));
+        session.set_represented_primary_specialization_id_like_cpp(66);
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            chest_guid,
+            20_100,
+            InventoryType::Chest,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_HANDS,
+            hands_guid,
+            20_101,
+            InventoryType::Hands,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_HEAD,
+            legacy_guid,
+            20_102,
+            InventoryType::Head,
+        );
+
+        let sparse = |inventory_type: InventoryType| ItemSparseTemplateEntry {
+            flags: [0; 4],
+            bag_family: 0,
+            start_quest_id: 0,
+            stackable: 1,
+            max_count: 0,
+            lock_id: 0,
+            required_reputation_rank: 0,
+            sell_price: 0,
+            buy_price: 0,
+            vendor_stack_count: 1,
+            price_variance: 0.0,
+            price_random_value: 0.0,
+            max_durability: 0,
+            other_faction_item_id: 0,
+            content_tuning_id: 0,
+            player_level_to_item_level_curve_id: 0,
+            limit_category: 0,
+            instance_bound: 0,
+            zone_bound: [0, 0],
+            required_reputation_faction: 0,
+            allowable_class: -1,
+            required_expansion: 0,
+            bonding: ItemBondingType::None as u8,
+            container_slots: 0,
+            inventory_type: inventory_type as i8,
+        };
+        let mut legacy_sparse = sparse(InventoryType::Head);
+        legacy_sparse.flags = [ItemFlags::LEGACY.bits() as u32, 0, 0, 0];
+        session.set_item_stats_store(Arc::new(ItemStatsStore::from_sparse_templates([
+            (20_100, sparse(InventoryType::Chest)),
+            (20_101, sparse(InventoryType::Hands)),
+            (20_102, legacy_sparse),
+        ])));
+        session.set_item_effect_store(Arc::new(ItemEffectStore::from_entries([
+            ItemEffectEntry {
+                id: 1,
+                legacy_slot_index: 0,
+                trigger_type: 1,
+                charges: 0,
+                cooldown_msec: -1,
+                category_cooldown_msec: -1,
+                spell_category_id: 0,
+                spell_id: 30_100,
+                chr_specialization_id: 0,
+                parent_item_id: 20_100,
+            },
+            ItemEffectEntry {
+                id: 2,
+                legacy_slot_index: 1,
+                trigger_type: 0,
+                charges: 0,
+                cooldown_msec: -1,
+                category_cooldown_msec: -1,
+                spell_category_id: 0,
+                spell_id: 30_101,
+                chr_specialization_id: 0,
+                parent_item_id: 20_100,
+            },
+            ItemEffectEntry {
+                id: 3,
+                legacy_slot_index: 0,
+                trigger_type: 1,
+                charges: 0,
+                cooldown_msec: -1,
+                category_cooldown_msec: -1,
+                spell_category_id: 0,
+                spell_id: 30_102,
+                chr_specialization_id: 66,
+                parent_item_id: 20_101,
+            },
+            ItemEffectEntry {
+                id: 4,
+                legacy_slot_index: 0,
+                trigger_type: 1,
+                charges: 0,
+                cooldown_msec: -1,
+                category_cooldown_msec: -1,
+                spell_category_id: 0,
+                spell_id: 30_103,
+                chr_specialization_id: 0,
+                parent_item_id: 20_102,
+            },
+        ])));
+        let mut spell_store = SpellStore::new();
+        for spell_id in [30_100, 30_101, 30_102, 30_103] {
+            spell_store.insert(
+                spell_id,
+                SpellInfo {
+                    spell_id,
+                    cast_time_ms: 0,
+                    cooldown_ms: 0,
+                    recovery_time_ms: 0,
+                    effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_base_points: 0,
+                    effect_bonus_coefficient: 0.0,
+                    aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE),
+                    display_flags: 0,
+                    requires_spell_focus: 0,
+                    effects: vec![wow_data::SpellEffectInfo {
+                        effect_index: 0,
+                        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                        effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE,
+                        ..Default::default()
+                    }],
+                },
+            );
+        }
+        session.set_spell_store(Arc::new(spell_store));
+
+        assert_eq!(
+            session.apply_initial_equipped_item_equip_auras_like_cpp(),
+            2
+        );
+        assert!(session.visible_auras.values().any(|aura| {
+            aura.spell_id == 30_100
+                && aura.caster_guid == chest_guid
+                && aura.aura_flags == AFLAG_NOCASTER_LIKE_CPP | 0x0000_0100 | 0x0000_0200
+                && aura.effect_mask == 1
+        }));
+        assert!(session.visible_auras.values().any(|aura| {
+            aura.spell_id == 30_102 && aura.caster_guid == hands_guid && aura.effect_mask == 1
+        }));
+        assert!(
+            !session
+                .visible_auras
+                .values()
+                .any(|aura| aura.spell_id == 30_101 || aura.spell_id == 30_103)
+        );
+    }
+
+    #[test]
+    fn login_passive_known_spell_auras_apply_like_cpp_addspell() {
+        let (mut session, _, _send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 421);
+        session.set_player_guid(Some(player_guid));
+        let mut known_spells = vec![822, 28877, 14_914, 60_000, 60_001, 60_002, 60_003];
+
+        let mut spell_store = SpellStore::new();
+        for spell_id in [822, 28877, 14_914, 14_908, 60_000, 60_001, 60_002, 60_003] {
+            let has_aura = spell_id != 60_001;
+            spell_store.insert(
+                spell_id,
+                SpellInfo {
+                    spell_id,
+                    cast_time_ms: 0,
+                    cooldown_ms: 0,
+                    recovery_time_ms: 0,
+                    effect_type: if has_aura {
+                        wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA
+                    } else {
+                        0
+                    },
+                    effect_base_points: 0,
+                    effect_bonus_coefficient: 0.0,
+                    aura_type: has_aura
+                        .then_some(wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE),
+                    display_flags: 0,
+                    requires_spell_focus: 0,
+                    effects: has_aura
+                        .then(|| {
+                            vec![wow_data::SpellEffectInfo {
+                                effect_index: 0,
+                                effect:
+                                    wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                                effect_aura:
+                                    wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE,
+                                ..Default::default()
+                            }]
+                        })
+                        .unwrap_or_default(),
+                },
+            );
+        }
+        for spell_id in [822, 28877, 14_908, 60_000, 60_001, 60_002, 60_003] {
+            let mut attributes = [0u32; 15];
+            attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_PASSIVE;
+            spell_store.insert_spell_misc_attributes_like_cpp(spell_id, attributes);
+        }
+        spell_store.insert_spell_shapeshift_masks_like_cpp(60_000, 1 << 4, 0);
+        session.set_spell_store(Arc::new(spell_store));
+        session.set_spell_chain_store(Arc::new(
+            wow_data::SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(
+                [wow_data::SpellRankEdgeLikeCpp {
+                    spell_id: 14_914,
+                    supercedes_spell_id: 14_908,
+                }],
+                |spell_id| matches!(spell_id, 14_908 | 14_914),
+            ),
+        ));
+        session.set_spell_aura_restrictions_store(Arc::new(
+            SpellAuraRestrictionsStore::from_entries([wow_data::SpellAuraRestrictionsEntry {
+                id: 1,
+                difficulty_id: 0,
+                caster_aura_state: 7,
+                target_aura_state: 0,
+                exclude_caster_aura_state: 0,
+                exclude_target_aura_state: 0,
+                caster_aura_spell: 0,
+                target_aura_spell: 0,
+                exclude_caster_aura_spell: 0,
+                exclude_target_aura_spell: 0,
+                spell_id: 60_002,
+            }]),
+        ));
+        session.set_spell_equipped_items_store(Arc::new(SpellEquippedItemsStore::from_entries([
+            SpellEquippedItemsEntry {
+                id: 1,
+                spell_id: 60_003,
+                equipped_item_class: ItemClass::Weapon as i8,
+                equipped_item_inv_types: 0,
+                equipped_item_subclass: 1_i32 << (ItemSubClassWeapon::Axe as u32),
+            },
+        ])));
+
+        assert_eq!(
+            session.apply_loaded_known_spell_dependencies_like_cpp(&mut known_spells),
+            0
+        );
+        assert!(
+            !known_spells.contains(&14_908),
+            "C++ keeps the previous rank inactive when a higher known rank supersedes it"
+        );
+        session.set_known_spells_like_cpp(known_spells.clone());
+        assert_eq!(session.apply_login_passive_known_spell_auras_like_cpp(), 2);
+        assert_eq!(
+            session.apply_loaded_known_spell_previous_rank_passive_auras_like_cpp(&known_spells),
+            1,
+            "C++ AddSpell recursively adds/casts previous passive ranks during load"
+        );
+        let visible: Vec<_> = session
+            .visible_auras
+            .values()
+            .map(|aura| (aura.slot, aura.spell_id, aura.caster_guid, aura.aura_flags))
+            .collect();
+        assert!(visible.contains(&(
+            0,
+            822,
+            player_guid,
+            AFLAG_NOCASTER_LIKE_CPP | 0x0000_0100 | 0x0000_0200
+        )));
+        assert!(visible.contains(&(
+            1,
+            28877,
+            player_guid,
+            AFLAG_NOCASTER_LIKE_CPP | 0x0000_0100 | 0x0000_0200
+        )));
+        assert!(visible.contains(&(
+            2,
+            14908,
+            player_guid,
+            AFLAG_NOCASTER_LIKE_CPP | 0x0000_0100 | 0x0000_0200
+        )));
+        assert!(
+            !session
+                .visible_auras
+                .values()
+                .any(|aura| matches!(aura.spell_id, 60_000 | 60_001 | 60_002 | 60_003))
         );
     }
 

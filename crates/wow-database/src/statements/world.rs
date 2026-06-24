@@ -1,6 +1,6 @@
 //! World database prepared statement definitions.
 //!
-//! These correspond to the `world` database and the C# `WorldStatements` enum.
+//! These correspond to TrinityCore's `world` database prepared statements.
 
 use super::StatementDef;
 
@@ -165,6 +165,10 @@ pub enum WorldStatements {
     SEL_GAME_EVENT_NPC_VENDOR,
     /// C++ ObjectMgr::LoadNPCSpellClickSpells startup query.
     SEL_NPC_SPELLCLICK_SPELLS,
+    /// C++ `LFGMgr::LoadLFGDungeons` template overlay query.
+    SEL_LFG_DUNGEON_TEMPLATES,
+    /// C++ `LFGMgr::LoadRewards` startup query.
+    SEL_LFG_DUNGEON_REWARDS,
     /// Load C++ instance spawn groups.
     SEL_INSTANCE_SPAWN_GROUPS,
     /// Load gameobject template for query response.
@@ -805,6 +809,12 @@ impl StatementDef for WorldStatements {
             ),
             Self::SEL_NPC_SPELLCLICK_SPELLS => {
                 "SELECT npc_entry, spell_id, cast_flags, user_type FROM npc_spellclick_spells"
+            }
+            Self::SEL_LFG_DUNGEON_TEMPLATES => {
+                "SELECT dungeonId, position_x, position_y, position_z, orientation, requiredItemLevel FROM lfg_dungeon_template"
+            }
+            Self::SEL_LFG_DUNGEON_REWARDS => {
+                "SELECT dungeonId, maxLevel, firstQuestId, otherQuestId FROM lfg_dungeon_rewards ORDER BY dungeonId, maxLevel ASC"
             }
             Self::SEL_INSTANCE_SPAWN_GROUPS => {
                 "SELECT instanceMapId, bossStateId, bossStates, spawnGroupId, flags FROM instance_spawn_groups"

@@ -29,7 +29,7 @@ use std::collections::BTreeMap;
 
 use crate::spawn_store_loader::CreatureSpawnRuntimeRowLikeCpp;
 use anyhow::Result;
-use wow_core::{guid::HighGuid, ObjectGuid, Position};
+use wow_core::{ObjectGuid, Position, guid::HighGuid};
 use wow_data::{
     CreatureAddonStoreLikeCpp, CreatureBaseStatsStoreLikeCpp,
     CreatureClassificationHealthRatesLikeCpp, CreatureDifficultyStoreLikeCpp,
@@ -1282,6 +1282,8 @@ mod tests {
             |_| false,
             |_| false,
             |_| 0,
+            |_| 0,
+            |_| 0,
         );
         let (display_store, model_store) = empty_display_stores();
         let model_info_store = loaded_grid_model_info_store_like_cpp();
@@ -1324,6 +1326,7 @@ mod tests {
                 melee_anim_kit_id: 0,
                 visibility_distance_type: wow_entities::VisibilityDistanceTypeLikeCpp::Normal,
                 auras: Vec::new(),
+                aura_applications: Vec::new(),
             }),
             "C++ Creature::GetCreatureAddon prefers creature_addon by spawn id over template addon"
         );
@@ -2012,11 +2015,13 @@ mod tests {
         );
         assert!(resolved.map_insertion_requested);
         assert!(resolved.map_object_record.is_some());
-        assert!(resolved
-            .map_object_record
-            .as_ref()
-            .and_then(MapObjectRecord::creature)
-            .is_some());
+        assert!(
+            resolved
+                .map_object_record
+                .as_ref()
+                .and_then(MapObjectRecord::creature)
+                .is_some()
+        );
     }
 
     #[test]
@@ -2056,6 +2061,18 @@ mod tests {
             melee_anim_kit_id: 33,
             visibility_distance_type: wow_entities::VisibilityDistanceTypeLikeCpp::Large,
             auras: vec![70_043, 70_044],
+            aura_applications: vec![
+                wow_entities::CreatureAddonAuraApplicationLikeCpp {
+                    spell_id: 70_043,
+                    effect_mask: 0x1,
+                    flags: 0x0103,
+                },
+                wow_entities::CreatureAddonAuraApplicationLikeCpp {
+                    spell_id: 70_044,
+                    effect_mask: 0x1,
+                    flags: 0x0103,
+                },
+            ],
         });
         let resolver = CreatureLoadedGridLifecycleResolverLikeCpp::new(
             [template],
@@ -2083,6 +2100,18 @@ mod tests {
                 melee_anim_kit_id: 33,
                 visibility_distance_type: wow_entities::VisibilityDistanceTypeLikeCpp::Large,
                 auras: vec![70_043, 70_044],
+                aura_applications: vec![
+                    wow_entities::CreatureAddonAuraApplicationLikeCpp {
+                        spell_id: 70_043,
+                        effect_mask: 0x1,
+                        flags: 0x0103,
+                    },
+                    wow_entities::CreatureAddonAuraApplicationLikeCpp {
+                        spell_id: 70_044,
+                        effect_mask: 0x1,
+                        flags: 0x0103,
+                    },
+                ],
             }),
             "C++ Creature::LoadFromDB/Create carries the addon selected by Creature::GetCreatureAddon"
         );
@@ -2135,6 +2164,30 @@ mod tests {
                 .auras
                 .has_aura_spell_like_cpp(70_043),
             "C++ Map::AddToMap stores the already-created creature after LoadCreaturesAddon has applied addon auras"
+        );
+        let aura_subsystem = &map_record_creature.unit().subsystems().auras;
+        assert_eq!(
+            aura_subsystem
+                .visible_auras
+                .get(&0)
+                .map(|aura| aura.spell_id),
+            Some(70_043),
+            "C++ AuraApplication constructor registers addon aura in visible slot 0"
+        );
+        assert_eq!(
+            aura_subsystem
+                .visible_aura_applications_like_cpp
+                .get(&0)
+                .map(|application| application.flags),
+            Some(0x0103),
+            "C++ addon AuraApplication flags are preserved for SMSG_AURA_UPDATE"
+        );
+        assert!(
+            aura_subsystem
+                .applied_auras
+                .iter()
+                .any(|aura| aura.spell_id == 70_043 && aura.effect_mask == 0x1),
+            "C++ addon aura active effect mask is carried into AuraDataInfo::ActiveFlags"
         );
     }
 
@@ -2215,12 +2268,14 @@ mod tests {
             .expect("absence of formation metadata is the previous behavior");
 
         assert!(resolved.creature.formation_info_like_cpp().is_none());
-        assert!(resolved
-            .map_object_record
-            .as_ref()
-            .and_then(MapObjectRecord::creature)
-            .and_then(Creature::formation_info_like_cpp)
-            .is_none());
+        assert!(
+            resolved
+                .map_object_record
+                .as_ref()
+                .and_then(MapObjectRecord::creature)
+                .and_then(Creature::formation_info_like_cpp)
+                .is_none()
+        );
     }
 
     #[test]

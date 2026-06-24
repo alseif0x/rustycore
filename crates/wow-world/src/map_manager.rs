@@ -10,8 +10,8 @@ use rand::{Rng, SeedableRng, rngs::StdRng};
 use tracing::{debug, info, warn};
 use wow_constants::movement::MovementFlag;
 use wow_constants::{
-    CreatureRandomMovementType, UnitDynFlags, UnitMoveType, UnitStandStateType, UnitState,
-    WeaponAttackType,
+    CreatureRandomMovementType as ConstantsCreatureRandomMovementType, UnitDynFlags, UnitMoveType,
+    UnitStandStateType, UnitState, WeaponAttackType,
 };
 use wow_core::{ObjectGuid, Position};
 use wow_entities::{
@@ -19,17 +19,21 @@ use wow_entities::{
     EVENT_CHARGE_PREPATH, GenericMovementInform, MovementGeneratorKind, MovementGeneratorType,
     MovementSlot, PhaseShift, PointMovementAction, PointMovementInform, RotateMovementUpdate,
 };
+use wow_movement::generators::CreatureRandomMovementType as MovementCreatureRandomMovementType;
 use wow_movement::{
     MoveSpline, MoveSplineInit, MoveSplineLaunchInput, MoveSplineStopInput, MoveSplineStopResult,
-    PathGenerator, PathType, WaypointAnimation, WaypointLaunchPlan, WaypointMovementAction,
-    WaypointMovementGenerator, WaypointPath, WaypointRandomAtPathEnd, WaypointUnitSnapshot,
+    PathGenerator, PathType, RANDOM_PATH_LENGTH_LIMIT_LIKE_CPP, RandomMovementAction,
+    RandomMovementGenerator, RandomPathResult, RandomUnitSnapshot, WaypointAnimation,
+    WaypointLaunchPlan, WaypointMovementAction, WaypointMovementGenerator, WaypointPath,
+    WaypointRandomAtPathEnd, WaypointUnitSnapshot, compute_random_destination_like_cpp,
 };
 use wow_packet::packets::update::CreatureCreateData;
 use wow_recastdetour::{
     CENTER_GRID_ID_LIKE_CPP, DetourNavMeshQueryError, DetourPathOptions, DetourPathType,
-    DetourPolyPath, DetourQueryFilterError, MAX_NUMBER_OF_GRIDS_LIKE_CPP, MMapData,
-    MMapManager as DetourMMapManager, MMapManagerError, PathQueryFilterContext,
-    SIZE_OF_GRIDS_LIKE_CPP, ThreadUnsafeMapData, create_path_query_filter_like_cpp,
+    DetourPolyPath, DetourQueryFilterError, MAX_NUMBER_OF_GRIDS_LIKE_CPP,
+    MAX_POINT_PATH_LENGTH_LIKE_CPP, MMapData, MMapManager as DetourMMapManager, MMapManagerError,
+    PathQueryFilterContext, SIZE_OF_GRIDS_LIKE_CPP, ThreadUnsafeMapData,
+    create_path_query_filter_like_cpp,
 };
 
 use crate::phasing::personal::MultiPersonalPhaseTracker;
@@ -63,6 +67,16 @@ const MAP_VERSION_MAGIC_LIKE_CPP: u32 = 10;
 const MAP_FILE_HEADER_SIZE_LIKE_CPP: usize = 44;
 const TERRAIN_GRID_COUNT_LIKE_CPP: usize =
     MAX_NUMBER_OF_GRIDS_LIKE_CPP as usize * MAX_NUMBER_OF_GRIDS_LIKE_CPP as usize;
+const SMOOTH_PATH_STEP_SIZE_LIKE_CPP: f32 = 4.0;
+
+fn point_path_limit_for_distance_like_cpp(distance: f32) -> usize {
+    let point_limit = if distance.is_sign_negative() {
+        0
+    } else {
+        (distance / SMOOTH_PATH_STEP_SIZE_LIKE_CPP) as usize
+    };
+    point_limit.min(MAX_POINT_PATH_LENGTH_LIKE_CPP)
+}
 
 pub fn terrain_grid_coords_for_wow_position_like_cpp(x: f32, y: f32) -> (i32, i32) {
     let center_grid_offset = SIZE_OF_GRIDS_LIKE_CPP / 2.0;
@@ -458,6 +472,7 @@ impl WorldMMapPathfinderLikeCpp {
             instance_id,
             filter_context,
             force_destination,
+            MAX_POINT_PATH_LENGTH_LIKE_CPP,
         )
     }
 
@@ -470,6 +485,7 @@ impl WorldMMapPathfinderLikeCpp {
         instance_id: u32,
         filter_context: PathQueryFilterContext,
         force_destination: bool,
+        point_path_limit: usize,
     ) -> Result<Option<DetourPolyPath>, WorldDetourPathError> {
         let context = self
             .mmap_manager
@@ -501,6 +517,7 @@ impl WorldMMapPathfinderLikeCpp {
                 position_to_wow_point_like_cpp(start),
                 position_to_wow_point_like_cpp(destination),
                 DetourPathOptions {
+                    point_path_limit,
                     force_destination,
                     ..DetourPathOptions::default()
                 },
@@ -535,6 +552,7 @@ pub struct WorldMMapPathRequestLikeCpp {
     pub instance_id: u32,
     pub filter_context: PathQueryFilterContext,
     pub force_destination: bool,
+    pub point_path_limit: usize,
     pub phase_shift: PhaseShift,
 }
 
@@ -588,6 +606,7 @@ impl WorldMMapPathfinderWorkerLikeCpp {
                         request.instance_id,
                         request.filter_context,
                         request.force_destination,
+                        request.point_path_limit,
                     );
                     let _ = message.response_tx.send(result);
                 }
@@ -616,6 +635,18 @@ impl WorldMMapPathfinderWorkerLikeCpp {
 
 pub fn path_type_from_detour_like_cpp(path_type: DetourPathType) -> PathType {
     PathType::from_bits_retain(path_type.bits())
+}
+
+fn random_path_result_from_path_type_like_cpp(path_type: PathType) -> RandomPathResult {
+    if path_type.contains(PathType::NOPATH) {
+        RandomPathResult::NoPath
+    } else if path_type.contains(PathType::SHORTCUT) {
+        RandomPathResult::Shortcut
+    } else if path_type.intersects(PathType::FARFROMPOLY) {
+        RandomPathResult::FarFromPoly
+    } else {
+        RandomPathResult::Success
+    }
 }
 
 pub fn path_generator_from_detour_like_cpp(
@@ -664,6 +695,7 @@ pub fn calculate_creature_detour_path_like_cpp(
             position_to_wow_point_like_cpp(creature.position()),
             position_to_wow_point_like_cpp(destination),
             DetourPathOptions {
+                point_path_limit: MAX_POINT_PATH_LENGTH_LIKE_CPP,
                 force_destination,
                 ..DetourPathOptions::default()
             },
@@ -718,6 +750,7 @@ pub struct WorldCreature {
     /// This is the first runtime bridge toward C++ `Unit::movespline`; the full
     /// `MoveSplineInit`/`MotionMaster` port still owns generalized launch/stop.
     active_move_spline: Option<MoveSpline>,
+    active_random_generator: Option<RandomMovementGenerator>,
     active_waypoint_generator: Option<WaypointMovementGenerator>,
     active_waypoint_random_at_path_end: Option<WaypointRandomAtPathEnd>,
     runtime_rng_like_cpp: StdRng,
@@ -843,6 +876,7 @@ impl WorldCreature {
             creature,
             create_data,
             active_move_spline: None,
+            active_random_generator: None,
             active_waypoint_generator: None,
             active_waypoint_random_at_path_end: None,
             runtime_rng_like_cpp: StdRng::from_entropy(),
@@ -1402,11 +1436,11 @@ impl WorldCreature {
 
     pub fn random_movement_walk_like_cpp(&self) -> bool {
         match self.creature.random_movement_type_like_cpp() {
-            value if value == CreatureRandomMovementType::CanRun as u8 => self
+            value if value == ConstantsCreatureRandomMovementType::CanRun as u8 => self
                 .creature
                 .movement_flags_like_cpp()
                 .contains(MovementFlag::WALKING),
-            value if value == CreatureRandomMovementType::AlwaysRun as u8 => false,
+            value if value == ConstantsCreatureRandomMovementType::AlwaysRun as u8 => false,
             _ => true,
         }
     }
@@ -1476,15 +1510,106 @@ impl WorldCreature {
             .motion
             .stop_moving();
         self.active_move_spline = None;
-        self.initialize_random_wander_steps_like_cpp();
+        let next_wander_steps_roll = self.runtime_rng_like_cpp.gen_range(2..=10);
+        let snapshot = self.random_unit_snapshot_like_cpp(
+            true,
+            RandomPathResult::Success,
+            0.0,
+            0.0,
+            next_wander_steps_roll,
+            4,
+            0,
+        );
+        let mut generator = RandomMovementGenerator::new(0.0, None);
+        let _ = generator.initialize_like_cpp(true, snapshot);
+        self.active_random_generator = Some(generator);
         let now_ms = self.now_ms();
         let ai = self.creature.ai_ownership_mut();
         ai.move_target = None;
         ai.move_start_ms = now_ms;
         ai.move_duration_ms = 0;
         ai.wander_delay_ms = 0;
+        ai.wander_steps_remaining = next_wander_steps_roll;
         ai.state = CreatureAiState::Idle;
         true
+    }
+
+    pub fn update_default_random_movement_with_path_resolver_like_cpp(
+        &mut self,
+        diff_ms: u32,
+        should_try_pathfinding: bool,
+        mut resolve_path: impl FnMut(Position, Position, usize) -> Option<DetourPolyPath>,
+    ) -> Option<(Position, MoveSpline)> {
+        if self.active_random_generator.is_none() {
+            if !self.initialize_default_random_movement_like_cpp() {
+                if self.state() == CreatureAiState::WalkingRandom && self.movement_finished() {
+                    self.finish_move();
+                    self.creature.set_ai_state(CreatureAiState::Idle);
+                }
+                return None;
+            }
+        }
+        self.update_move_spline_like_cpp();
+
+        let move_spline_finalized = self
+            .active_move_spline
+            .as_ref()
+            .is_none_or(MoveSpline::finalized);
+        let should_set_location = self
+            .active_random_generator
+            .as_ref()
+            .is_some_and(|generator| generator.timer_ms().saturating_sub(diff_ms as i32) <= 0)
+            && move_spline_finalized;
+
+        let point_path_limit =
+            point_path_limit_for_distance_like_cpp(RANDOM_PATH_LENGTH_LIMIT_LIKE_CPP);
+        let mut detour_path = None;
+        let mut path_result = RandomPathResult::Success;
+        let mut distance_roll = 0.0;
+        let mut angle_roll = 0.0;
+        let mut next_wander_steps_roll = 2;
+        let mut pause_seconds_roll = 4;
+
+        if should_set_location {
+            distance_roll = self.runtime_rng_like_cpp.gen_range(0.0..=1.0);
+            angle_roll = self.runtime_rng_like_cpp.gen_range(0.0..=1.0);
+            next_wander_steps_roll = self.runtime_rng_like_cpp.gen_range(2..=10);
+            pause_seconds_roll = self.runtime_rng_like_cpp.gen_range(4..=10);
+            let reference = self
+                .active_random_generator
+                .as_ref()
+                .map(RandomMovementGenerator::reference)
+                .unwrap_or_else(|| self.position());
+            let destination = compute_random_destination_like_cpp(
+                reference,
+                self.creature.ai_ownership().wander_radius,
+                distance_roll,
+                angle_roll,
+            )
+            .destination;
+            if should_try_pathfinding {
+                detour_path = resolve_path(self.position(), destination, point_path_limit);
+                if let Some(path) = detour_path.as_ref() {
+                    let path_type = path_type_from_detour_like_cpp(path.point_path.path_type);
+                    path_result = random_path_result_from_path_type_like_cpp(path_type);
+                }
+            }
+        }
+
+        let snapshot = self.random_unit_snapshot_like_cpp(
+            true,
+            path_result,
+            distance_roll,
+            angle_roll,
+            next_wander_steps_roll,
+            pause_seconds_roll,
+            0,
+        );
+        let action = match self.active_random_generator.as_mut() {
+            Some(generator) => generator.update_like_cpp(true, diff_ms, snapshot),
+            None => return None,
+        };
+        self.apply_random_movement_action_like_cpp(action, detour_path.as_ref(), 0)
     }
 
     pub fn update_default_waypoint_movement_like_cpp(
@@ -1493,6 +1618,104 @@ impl WorldCreature {
     ) -> WaypointMovementAction {
         self.update_default_waypoint_movement_with_launch_like_cpp(diff_ms)
             .0
+    }
+
+    fn random_unit_snapshot_like_cpp(
+        &self,
+        has_los_to_destination: bool,
+        path_result: RandomPathResult,
+        distance_roll: f32,
+        angle_roll: f32,
+        next_wander_steps_roll: u8,
+        pause_seconds_roll: i32,
+        travel_time_ms: i32,
+    ) -> RandomUnitSnapshot {
+        let random_type = match self.creature.random_movement_type_like_cpp() {
+            value if value == ConstantsCreatureRandomMovementType::CanRun as u8 => {
+                MovementCreatureRandomMovementType::CanRun
+            }
+            value if value == ConstantsCreatureRandomMovementType::AlwaysRun as u8 => {
+                MovementCreatureRandomMovementType::AlwaysRun
+            }
+            _ => MovementCreatureRandomMovementType::AlwaysWalk,
+        };
+        RandomUnitSnapshot {
+            owner_position: self.position(),
+            owner_alive: self.is_alive(),
+            owner_unit_state: self.creature.unit().unit_state(),
+            movement_prevented_by_casting: self
+                .creature
+                .unit()
+                .has_unit_state(UnitState::CASTING.bits()),
+            move_spline_finalized: self
+                .active_move_spline
+                .as_ref()
+                .is_none_or(MoveSpline::finalized),
+            owner_wander_distance: self.creature.ai_ownership().wander_radius,
+            has_los_to_destination,
+            path_result,
+            movement_template: random_type,
+            owner_is_walking: self
+                .creature
+                .movement_flags_like_cpp()
+                .contains(MovementFlag::WALKING),
+            travel_time_ms,
+            distance_roll,
+            angle_roll,
+            next_wander_steps_roll,
+            pause_seconds_roll,
+            ai_enabled: true,
+        }
+    }
+
+    fn apply_random_movement_action_like_cpp(
+        &mut self,
+        action: RandomMovementAction,
+        detour_path: Option<&DetourPolyPath>,
+        planned_travel_time_ms: i32,
+    ) -> Option<(Position, MoveSpline)> {
+        match action {
+            RandomMovementAction::StopMoving => {
+                self.creature
+                    .unit_mut()
+                    .subsystems_mut()
+                    .motion
+                    .stop_moving();
+                self.active_move_spline = None;
+                None
+            }
+            RandomMovementAction::Launch(launch) => {
+                self.creature
+                    .unit_mut()
+                    .add_unit_state(UnitState::ROAMING_MOVE.bits());
+                let movement = self
+                    .begin_random_move_spline_with_detour_path_like_cpp(
+                        launch.destination,
+                        detour_path,
+                        false,
+                    )
+                    .map(|(from, spline, _path)| (from, spline))?;
+                self.creature
+                    .set_ai_state(wow_entities::CreatureAiState::WalkingRandom);
+                self.creature.ai_ownership_mut().wander_steps_remaining = self
+                    .active_random_generator
+                    .as_ref()
+                    .map(RandomMovementGenerator::wander_steps)
+                    .unwrap_or_default();
+                if let Some(generator) = self.active_random_generator.as_mut() {
+                    generator.adjust_launch_timer_for_actual_travel_time_like_cpp(
+                        planned_travel_time_ms,
+                        movement.1.duration_ms(),
+                    );
+                }
+                Some(movement)
+            }
+            RandomMovementAction::RetryAfterLosFailure { .. }
+            | RandomMovementAction::RetryAfterPathFailure { .. }
+            | RandomMovementAction::Continue
+            | RandomMovementAction::Finished
+            | RandomMovementAction::DurationFinished => None,
+        }
     }
 
     pub fn update_default_waypoint_movement_with_launch_like_cpp(
@@ -3130,7 +3353,7 @@ impl MapManager {
         y: f32,
         _z: f32,
     ) -> Vec<WorldCreature> {
-        self.get_visible_creatures_in_phase(map_id, instance_id, x, y, _z, None)
+        self.get_visible_creatures_in_phase(map_id, instance_id, x, y, _z, VISIBILITY_RADIUS, None)
     }
 
     pub fn get_visible_creatures_in_phase(
@@ -3140,6 +3363,7 @@ impl MapManager {
         x: f32,
         y: f32,
         z: f32,
+        visibility_range: f32,
         seer_phase_shift: Option<&PhaseShift>,
     ) -> Vec<WorldCreature> {
         let center_x = world_to_grid_x(x);
@@ -3164,7 +3388,7 @@ impl MapManager {
                         // Optional: Check actual distance for precise visibility
                         let dist =
                             Position::distance(&Position::new(x, y, z, 0.0), &creature.position());
-                        if dist <= VISIBILITY_RADIUS {
+                        if dist <= visibility_range {
                             creatures.push(creature.clone());
                         }
                     }
@@ -3642,19 +3866,19 @@ mod tests {
         let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 70003);
         let mut creature = test_creature(guid);
 
-        creature
-            .creature
-            .set_random_movement_type_runtime_like_cpp(CreatureRandomMovementType::Walk as u8);
+        creature.creature.set_random_movement_type_runtime_like_cpp(
+            wow_constants::CreatureRandomMovementType::Walk as u8,
+        );
         assert!(creature.random_movement_walk_like_cpp());
 
-        creature
-            .creature
-            .set_random_movement_type_runtime_like_cpp(CreatureRandomMovementType::AlwaysRun as u8);
+        creature.creature.set_random_movement_type_runtime_like_cpp(
+            wow_constants::CreatureRandomMovementType::AlwaysRun as u8,
+        );
         assert!(!creature.random_movement_walk_like_cpp());
 
-        creature
-            .creature
-            .set_random_movement_type_runtime_like_cpp(CreatureRandomMovementType::CanRun as u8);
+        creature.creature.set_random_movement_type_runtime_like_cpp(
+            wow_constants::CreatureRandomMovementType::CanRun as u8,
+        );
         creature
             .creature
             .set_movement_flags_runtime_like_cpp(MovementFlag::NONE);
@@ -3671,9 +3895,9 @@ mod tests {
         let mut walker = test_creature(guid);
         walker.create_data.speed_walk_rate = 1.0;
         walker.create_data.speed_run_rate = 1.0;
-        walker
-            .creature
-            .set_random_movement_type_runtime_like_cpp(CreatureRandomMovementType::Walk as u8);
+        walker.creature.set_random_movement_type_runtime_like_cpp(
+            wow_constants::CreatureRandomMovementType::Walk as u8,
+        );
         let (_, walk_spline) = walker
             .begin_random_move_spline_like_cpp(Position::new(20.0, 10.0, 0.0, 0.0))
             .expect("walk random spline");
@@ -3681,9 +3905,9 @@ mod tests {
         let mut runner = test_creature(guid);
         runner.create_data.speed_walk_rate = 1.0;
         runner.create_data.speed_run_rate = 1.0;
-        runner
-            .creature
-            .set_random_movement_type_runtime_like_cpp(CreatureRandomMovementType::AlwaysRun as u8);
+        runner.creature.set_random_movement_type_runtime_like_cpp(
+            wow_constants::CreatureRandomMovementType::AlwaysRun as u8,
+        );
         let (_, run_spline) = runner
             .begin_random_move_spline_like_cpp(Position::new(20.0, 10.0, 0.0, 0.0))
             .expect("run random spline");
@@ -4066,6 +4290,7 @@ mod tests {
             instance_id: 42,
             filter_context: PathQueryFilterContext::creature(true, false, false, false),
             force_destination: false,
+            point_path_limit: MAX_POINT_PATH_LENGTH_LIKE_CPP,
             phase_shift,
         };
 
@@ -5281,6 +5506,7 @@ mod tests {
             instance_id: 42,
             filter_context: PathQueryFilterContext::creature(true, false, false, false),
             force_destination: false,
+            point_path_limit: MAX_POINT_PATH_LENGTH_LIKE_CPP,
             phase_shift: PhaseShift::default(),
         });
 
@@ -5769,8 +5995,15 @@ mod tests {
         manager.add_creature(0, 0, 0, 0, visible_creature);
         manager.add_creature(0, 0, 0, 0, hidden_creature);
 
-        let visible =
-            manager.get_visible_creatures_in_phase(0, 0, 10.0, 10.0, 0.0, Some(&seer_phase));
+        let visible = manager.get_visible_creatures_in_phase(
+            0,
+            0,
+            10.0,
+            10.0,
+            0.0,
+            VISIBILITY_RADIUS,
+            Some(&seer_phase),
+        );
         let visible_guids: HashSet<ObjectGuid> = visible.iter().map(WorldCreature::guid).collect();
         assert!(visible_guids.contains(&visible_guid));
         assert!(!visible_guids.contains(&hidden_guid));

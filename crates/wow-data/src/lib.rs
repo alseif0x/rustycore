@@ -49,6 +49,7 @@ pub mod item_random_properties;
 pub mod item_random_suffix;
 pub mod item_stats;
 pub mod jump_charge;
+pub mod lfg;
 pub mod lock;
 pub mod mail;
 pub mod map;
@@ -274,6 +275,13 @@ pub use jump_charge::{
     JumpChargeParamsLoadOutcomeLikeCpp, JumpChargeParamsLoadReportLikeCpp,
     JumpChargeParamsRowLikeCpp, JumpChargeParamsStoreLikeCpp, MOVEMENT_GRAVITY_LIKE_CPP,
     SPEED_CHARGE_LIKE_CPP,
+};
+pub use lfg::{
+    LFG_FLAG_SEASONAL_LIKE_CPP, LFG_TYPE_DUNGEON_LIKE_CPP, LFG_TYPE_HEROIC_LIKE_CPP,
+    LFG_TYPE_RAID_LIKE_CPP, LFG_TYPE_RANDOM_LIKE_CPP, LfgDungeonDataLikeCpp,
+    LfgDungeonRewardLikeCpp, LfgDungeonRewardRowLikeCpp, LfgDungeonStoreLikeCpp,
+    LfgDungeonTemplateRowLikeCpp, LfgLoadOutcomeLikeCpp, LfgLoadReportLikeCpp,
+    lfg_dungeon_is_known_map_like_cpp,
 };
 pub use lock::{LockEntry, LockStore};
 pub use mail::{

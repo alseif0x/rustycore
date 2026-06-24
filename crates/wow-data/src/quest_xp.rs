@@ -62,13 +62,19 @@ impl QuestXpStore {
 
     /// Calculate XP reward for a quest.
     ///
-    /// Formula (C# ref: Quest::XPValue):
+    /// Formula (C++ `Quest::XPValue`):
     ///   quest_level = quest.QuestLevel (or player.level if -1)
     ///   diffFactor  = clamp(2*(questLevel - playerLevel) + 20, 1, 10)
     ///   xp          = round(diffFactor * difficulty[xpDifficulty] / 10)
     ///
     /// `xp_difficulty` is `QuestTemplate.reward_xp_difficulty` (0–9).
-    pub fn calculate_xp(&self, quest_level: i32, player_level: u8, xp_difficulty: u32) -> u32 {
+    pub fn calculate_xp(
+        &self,
+        quest_level: i32,
+        player_level: u8,
+        xp_difficulty: u32,
+        xp_multiplier: f32,
+    ) -> u32 {
         if xp_difficulty >= 10 {
             return 0;
         }
@@ -101,8 +107,13 @@ impl QuestXpStore {
         let diff_factor = (2 * (ql - player_level as i32) + 20).clamp(1, 10) as u32;
 
         // RoundXPValue: round to nearest 5 (WotLK uses /5 rounding)
-        let xp = diff_factor * base_xp / 10;
-        round_xp(xp)
+        let xp = round_xp(diff_factor * base_xp / 10);
+        let min_scaled_xp = 0;
+        if min_scaled_xp != 0 {
+            xp.max(round_xp((base_xp as f32 * xp_multiplier) as u32) * min_scaled_xp / 100)
+        } else {
+            xp
+        }
     }
 
     /// C++ `QuestXPEntry const* questXp = sQuestXPStore.LookupEntry(player->GetLevel())`
@@ -125,7 +136,7 @@ impl QuestXpStore {
     }
 }
 
-/// C# ref: Quest::RoundXPValue — rounds to nearest 5.
+/// C++ `Quest::RoundXPValue`.
 fn round_xp(xp: u32) -> u32 {
     if xp <= 100 {
         5 * ((xp + 2) / 5)
@@ -181,5 +192,20 @@ mod tests {
         assert_eq!(store.player_level_difficulty_xp_like_cpp(42, 5), 1050);
         assert_eq!(store.player_level_difficulty_xp_like_cpp(41, 5), 0);
         assert_eq!(store.player_level_difficulty_xp_like_cpp(42, 10), 0);
+    }
+
+    #[test]
+    fn load_real_quest_xp_level_80_pallet_array_like_cpp() {
+        let dbc_dir = "/home/server/woltk-server-core/Data/dbc/esES";
+        if !Path::new(dbc_dir).join("QuestXP.db2").exists() {
+            return;
+        }
+
+        let store = QuestXpStore::load(dbc_dir).expect("load QuestXP.db2");
+        let row = store.rows.get(&80).expect("level 80 QuestXP row");
+        assert_eq!(
+            row.difficulty,
+            [0, 2200, 5500, 11050, 16550, 22050, 27550, 33100, 44100, 0]
+        );
     }
 }

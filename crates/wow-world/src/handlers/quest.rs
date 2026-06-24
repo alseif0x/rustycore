@@ -5506,7 +5506,7 @@ impl WorldSession {
         self.record_represented_quest_reward_mail_like_cpp(quest, quest_giver_guid);
         self.apply_quest_reward_lockout_status_like_cpp(quest).await;
 
-        let xp = self.calculate_quest_xp(quest.reward_xp_difficulty, quest.quest_level);
+        let xp = self.quest_xp_reward_like_cpp(quest);
 
         self.player_quests.remove(&quest_id);
         if !quest.is_repeatable() {
@@ -6767,6 +6767,136 @@ impl WorldSession {
             }
         }
 
+        let mut rewarded_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_QUESTSTATUSREW);
+        Self::bind_player_quest_status_load_guid_like_cpp(&mut rewarded_stmt, player_guid);
+        match char_db.query(&rewarded_stmt).await {
+            Ok(rewarded_rows) if !rewarded_rows.is_empty() => {
+                let mut rewarded_rows = rewarded_rows;
+                loop {
+                    let quest_id = rewarded_rows.try_read::<u32>(0).unwrap_or(0);
+                    if self
+                        .quest_store
+                        .as_ref()
+                        .and_then(|store| store.get(quest_id))
+                        .is_some()
+                    {
+                        self.rewarded_quests.insert(quest_id);
+                    }
+
+                    if !rewarded_rows.next_row() {
+                        break;
+                    }
+                }
+            }
+            Ok(_) => {}
+            Err(e) => {
+                warn!(
+                    account = self.account_id,
+                    "Failed to load rewarded quest status: {e}"
+                );
+            }
+        }
+
+        self.df_quests_like_cpp.clear();
+        self.daily_quests_completed_like_cpp.clear();
+        self.last_daily_quest_time_like_cpp = 0;
+        let mut daily_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_QUESTSTATUS_DAILY);
+        Self::bind_player_quest_status_load_guid_like_cpp(&mut daily_stmt, player_guid);
+        match char_db.query(&daily_stmt).await {
+            Ok(daily_rows) if !daily_rows.is_empty() => {
+                let mut daily_rows = daily_rows;
+                loop {
+                    let quest_id = daily_rows.try_read::<u32>(0).unwrap_or(0);
+                    let completed_time = daily_rows.try_read::<i64>(1).unwrap_or(0);
+                    if let Some(quest) = self
+                        .quest_store
+                        .as_ref()
+                        .and_then(|store| store.get(quest_id))
+                    {
+                        self.last_daily_quest_time_like_cpp = completed_time;
+                        if quest.is_df_quest_like_cpp() {
+                            self.df_quests_like_cpp.insert(quest_id);
+                        } else {
+                            self.daily_quests_completed_like_cpp.insert(quest_id);
+                        }
+                    }
+
+                    if !daily_rows.next_row() {
+                        break;
+                    }
+                }
+            }
+            Ok(_) => {}
+            Err(e) => {
+                warn!(
+                    account = self.account_id,
+                    "Failed to load daily quest status: {e}"
+                );
+            }
+        }
+
+        self.weekly_quests_completed_like_cpp.clear();
+        let mut weekly_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_QUESTSTATUS_WEEKLY);
+        Self::bind_player_quest_status_load_guid_like_cpp(&mut weekly_stmt, player_guid);
+        match char_db.query(&weekly_stmt).await {
+            Ok(weekly_rows) if !weekly_rows.is_empty() => {
+                let mut weekly_rows = weekly_rows;
+                loop {
+                    let quest_id = weekly_rows.try_read::<u32>(0).unwrap_or(0);
+                    if self
+                        .quest_store
+                        .as_ref()
+                        .and_then(|store| store.get(quest_id))
+                        .is_some()
+                    {
+                        self.weekly_quests_completed_like_cpp.insert(quest_id);
+                    }
+
+                    if !weekly_rows.next_row() {
+                        break;
+                    }
+                }
+            }
+            Ok(_) => {}
+            Err(e) => {
+                warn!(
+                    account = self.account_id,
+                    "Failed to load weekly quest status: {e}"
+                );
+            }
+        }
+
+        self.monthly_quests_completed_like_cpp.clear();
+        let mut monthly_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_QUESTSTATUS_MONTHLY);
+        Self::bind_player_quest_status_load_guid_like_cpp(&mut monthly_stmt, player_guid);
+        match char_db.query(&monthly_stmt).await {
+            Ok(monthly_rows) if !monthly_rows.is_empty() => {
+                let mut monthly_rows = monthly_rows;
+                loop {
+                    let quest_id = monthly_rows.try_read::<u32>(0).unwrap_or(0);
+                    if self
+                        .quest_store
+                        .as_ref()
+                        .and_then(|store| store.get(quest_id))
+                        .is_some()
+                    {
+                        self.monthly_quests_completed_like_cpp.insert(quest_id);
+                    }
+
+                    if !monthly_rows.next_row() {
+                        break;
+                    }
+                }
+            }
+            Ok(_) => {}
+            Err(e) => {
+                warn!(
+                    account = self.account_id,
+                    "Failed to load monthly quest status: {e}"
+                );
+            }
+        }
+
         let mut seasonal_stmt = char_db.prepare(CharStatements::SEL_CHAR_QUEST_STATUS_SEASONAL);
         Self::bind_player_quest_status_load_guid_like_cpp(&mut seasonal_stmt, player_guid);
 
@@ -6855,6 +6985,10 @@ impl WorldSession {
             account = self.account_id,
             active = self.player_quests.len(),
             rewarded = self.rewarded_quests.len(),
+            df = self.df_quests_like_cpp.len(),
+            daily = self.daily_quests_completed_like_cpp.len(),
+            weekly = self.weekly_quests_completed_like_cpp.len(),
+            monthly = self.monthly_quests_completed_like_cpp.len(),
             seasonal_inserted = seasonal_outcome.inserted,
             seasonal_replaced = seasonal_outcome.replaced,
             seasonal_completed_bit_set = seasonal_outcome.completed_bit_set,
@@ -6954,6 +7088,10 @@ mod tests {
         for statement in [
             CharStatements::SEL_CHAR_QUEST_STATUS,
             CharStatements::SEL_CHAR_QUEST_STATUS_OBJECTIVES,
+            CharStatements::SEL_CHARACTER_QUESTSTATUSREW,
+            CharStatements::SEL_CHARACTER_QUESTSTATUS_DAILY,
+            CharStatements::SEL_CHARACTER_QUESTSTATUS_WEEKLY,
+            CharStatements::SEL_CHARACTER_QUESTSTATUS_MONTHLY,
             CharStatements::SEL_CHAR_QUEST_STATUS_SEASONAL,
         ] {
             let mut stmt = PreparedStatement::new(statement.sql());

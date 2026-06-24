@@ -8308,12 +8308,14 @@ fn write_active_player_data_values_update(
         blocks[0] |= 1 << 0;
         blocks[1] |= (1 << 4) | (1 << 5);
 
-        // Parent 38 section: 30 fields (bits 39-49, 51-69). Field bit 50
-        // (ShieldBlockCritPercentage) is RESERVED in the 3.4.3.54261 client
-        // grammar: it has no property and is neither masked nor written (oracle
-        // hp_ObjectUpdateBuilder.cs:567,841 skip it). Emitting it shifts every
-        // following ActivePlayerData field by +4 bytes and desyncs the client's
-        // value walk, crashing the client shortly after world entry.
+        // Parent 38 section: 30 fields (bits 39-49, 51-69). This represented
+        // stats VALUES writer is a narrow runtime path, not the final generic
+        // C++ update-field writer. The 3.4.3.54261 client rejects bit 50 in
+        // this packet shape; emitting it shifts every following ActivePlayerData
+        // field by +4 bytes and desyncs the client's value walk. C++ still
+        // defines ShieldBlockCritPercentage, so this is not a schema deletion:
+        // the final generic writer must emit exactly the C++ change mask for
+        // the object state being updated.
         // parent=38→b1:6, bits 39-63→b1:7-31 EXCEPT bit 50→b1:18, bits 64-69→b2:0-5
         blocks[1] |= 0xFFFB_FFC0; // bits 6-31 except bit 18 (field 50, reserved)
         blocks[2] |= 0x3F; // bits 0-5
@@ -8378,8 +8380,8 @@ fn write_active_player_data_values_update(
     }
 
     // Parent 38 section: 30 fields (bits 39-49, 51-69) in C++ definition order.
-    // Field bit 50 (ShieldBlockCritPercentage) is reserved and skipped — see the
-    // mask above and the 54261 grammar oracle (hp_ObjectUpdateBuilder.cs).
+    // Field bit 50 (ShieldBlockCritPercentage) is skipped in this represented
+    // stats packet shape; see the mask above.
     if let Some(sc) = stat_changes {
         buf.write_float(sc.ranged_expertise); // bit 39: RangedExpertise
         buf.write_float(sc.combat_rating_expertise); // bit 40: CombatRatingExpertise

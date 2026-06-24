@@ -8,7 +8,7 @@
 //! TaxiNodeStatusQuery, ChatJoinChannel.
 
 use tracing::{debug, info, warn};
-use wow_constants::unit::NPCFlags1;
+use wow_constants::unit::{NPCFlags1, Team};
 use wow_constants::{
     ClientOpcodes, InventoryResult, ItemExtendedCostFlags, SpellCastResult, UnitStandStateType,
 };
@@ -67,8 +67,10 @@ use wow_packet::packets::misc::{
     GmTicketSystemStatus, GuildBankActivate, GuildBankBuyTab, GuildBankDepositMoney,
     GuildBankLogQuery, GuildBankQueryTab, GuildBankSetTabText, GuildBankTextQuery,
     GuildBankUpdateTab, GuildBankWithdrawMoney, GuildCommandResult, GuildSetAchievementTracking,
-    IgnoreTrade, LfgListBlacklist, LfgPlayerInfo, LfgUpdateStatus, LoadingScreenNotify,
-    MAX_ACCOUNT_DATA_SIZE_LIKE_CPP, MountSetFavorite, MountSpecial, NUM_ACCOUNT_DATA_TYPES,
+    IgnoreTrade, LfgBlackList, LfgListBlacklist, LfgListBlacklistEntry, LfgPlayerDungeonInfo,
+    LfgPlayerInfo, LfgPlayerQuestRewardCurrency, LfgPlayerQuestRewardItem, LfgUpdateStatus,
+    LoadingScreenNotify, MAX_ACCOUNT_DATA_SIZE_LIKE_CPP, MailNextTimeEntry,
+    MailQueryNextTimeResult, MountSetFavorite, MountSpecial, NUM_ACCOUNT_DATA_TYPES,
     ObjectUpdateFailed, ObjectUpdateRescued, PortGraveyard, QueryArenaTeam, QueryBattlePetName,
     QueryBattlePetNameResponse, QueryPetition, QueryPetitionResponse, RatedPvpInfo, ReclaimCorpse,
     RepopRequest, RequestAccountData, RequestBattlefieldStatus, RequestCemeteryListResponse,
@@ -2023,6 +2025,15 @@ const MIN_AUCTION_TIME_MINUTES_LIKE_CPP: u32 = 12 * 60;
 const SHORT_AUCTION_TIME_MINUTES_LIKE_CPP: u32 = MIN_AUCTION_TIME_MINUTES_LIKE_CPP;
 const MEDIUM_AUCTION_TIME_MINUTES_LIKE_CPP: u32 = 2 * MIN_AUCTION_TIME_MINUTES_LIKE_CPP;
 const LONG_AUCTION_TIME_MINUTES_LIKE_CPP: u32 = 4 * MIN_AUCTION_TIME_MINUTES_LIKE_CPP;
+const LFG_LOCKSTATUS_INSUFFICIENT_EXPANSION_LIKE_CPP: u32 = 1;
+const LFG_LOCKSTATUS_TOO_LOW_LEVEL_LIKE_CPP: u32 = 2;
+const LFG_LOCKSTATUS_TOO_HIGH_LEVEL_LIKE_CPP: u32 = 3;
+const LFG_LOCKSTATUS_TOO_LOW_GEAR_SCORE_LIKE_CPP: u32 = 4;
+const LFG_LOCKSTATUS_RAID_LOCKED_LIKE_CPP: u32 = 6;
+const LFG_LOCKSTATUS_QUEST_NOT_COMPLETED_LIKE_CPP: u32 = 1022;
+const LFG_LOCKSTATUS_MISSING_ITEM_LIKE_CPP: u32 = 1025;
+const LFG_LOCKSTATUS_NOT_IN_SEASON_LIKE_CPP: u32 = 1031;
+const LFG_LOCKSTATUS_MISSING_ACHIEVEMENT_LIKE_CPP: u32 = 1034;
 
 impl crate::session::WorldSession {
     /// C++ `WorldSession::HandleFarSightOpcode`: does not create/remove the
@@ -2937,12 +2948,83 @@ impl crate::session::WorldSession {
 
     // ── QueryNextMailTime ──────────────────────────────────────────────────────
 
-    /// CMSG_QUERY_NEXT_MAIL_TIME — client asks when next mail arrives.
-    /// C# ref: MailHandler.HandleQueryNextMailTime
-    /// Returns "no mail" (-1.0) until mail system is implemented.
     pub async fn handle_query_next_mail_time(&mut self) {
-        use wow_packet::packets::misc::MailQueryNextTimeResult;
-        self.send_packet(&MailQueryNextTimeResult::no_mail());
+        const MAIL_CHECK_MASK_READ_LIKE_CPP: u8 = 0x01;
+        const MAIL_NORMAL_LIKE_CPP: u8 = 0;
+
+        let Some(char_db) = self.char_db().cloned() else {
+            self.send_packet(&MailQueryNextTimeResult::no_mail());
+            return;
+        };
+
+        let Some(player_object_guid) = self.player_guid() else {
+            self.send_packet(&MailQueryNextTimeResult::no_mail());
+            return;
+        };
+
+        let player_guid = player_object_guid.counter() as u64;
+        let now = GameTime::now().as_secs() as i64;
+        let mut stmt = char_db.prepare(CharStatements::SEL_MAIL);
+        stmt.set_u64(0, player_guid);
+
+        let mut result = match char_db.query(&stmt).await {
+            Ok(result) => result,
+            Err(error) => {
+                warn!(
+                    ?error,
+                    player_guid, "Failed to query mail for CMSG_QUERY_NEXT_MAIL_TIME"
+                );
+                self.send_packet(&MailQueryNextTimeResult::no_mail());
+                return;
+            }
+        };
+
+        let mut packet = MailQueryNextTimeResult::no_mail();
+        let mut sent_senders = std::collections::BTreeSet::new();
+
+        if !result.is_empty() {
+            loop {
+                let checked = result.try_read::<u8>(10).unwrap_or(0);
+                let deliver_time = result.try_read::<i64>(7).unwrap_or(0);
+                let sender = result.try_read::<u64>(2).unwrap_or(0);
+
+                if (checked & MAIL_CHECK_MASK_READ_LIKE_CPP) == 0
+                    && now >= deliver_time
+                    && sent_senders.insert(sender)
+                {
+                    let message_type = result.try_read::<u8>(1).unwrap_or(0);
+                    let stationery = result.try_read::<i32>(11).unwrap_or(0);
+                    let sender_guid = if message_type == MAIL_NORMAL_LIKE_CPP {
+                        ObjectGuid::create_player(self.realm_id(), sender as i64)
+                    } else {
+                        ObjectGuid::EMPTY
+                    };
+
+                    packet.next_mail_time = 0.0;
+                    packet.next.push(MailNextTimeEntry {
+                        sender_guid,
+                        time_left: (deliver_time - now) as f32,
+                        alt_sender_id: if message_type == MAIL_NORMAL_LIKE_CPP {
+                            0
+                        } else {
+                            sender as i32
+                        },
+                        alt_sender_type: message_type as i8,
+                        stationery_id: stationery,
+                    });
+
+                    if sent_senders.len() > 2 {
+                        break;
+                    }
+                }
+
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        self.send_packet(&packet);
     }
 
     // ── Silent-ignore stubs ────────────────────────────────────────────────────
@@ -3797,16 +3879,295 @@ impl crate::session::WorldSession {
         };
 
         if request.player {
-            // C++ `SendLfgPlayerLockInfo`: blacklist + random/seasonal dungeon
-            // rows from `sLFGMgr`. Until that manager is ported, represent the
-            // empty lock/dungeon response.
-            self.send_packet(&LfgPlayerInfo::empty());
+            self.send_packet(&self.lfg_player_lock_info_like_cpp());
         } else {
             // C++ `SendLfgPartyLockInfo` returns before sending when the player
             // is not in a group. Rust does not expose a live LFG group manager
             // here yet, so the no-group branch remains silent.
         }
     }
+
+    fn lfg_player_lock_info_like_cpp(&self) -> LfgPlayerInfo {
+        let Some(store) = self.lfg_dungeon_store_like_cpp() else {
+            return LfgPlayerInfo::empty();
+        };
+
+        let level = self.player_level_like_cpp();
+        let expansion = self.expansion;
+        let current_item_level = self.represented_average_item_level_like_cpp().max(0.0) as i32;
+
+        let mut info = LfgPlayerInfo {
+            blacklist: LfgBlackList::default(),
+            dungeons: Vec::new(),
+        };
+
+        for dungeon_id in store.locked_dungeon_ids_like_cpp() {
+            let Some(dungeon) = store.get(dungeon_id) else {
+                continue;
+            };
+            if self.map_store().is_some_and(|map_store| {
+                !wow_data::lfg_dungeon_is_known_map_like_cpp(dungeon, map_store)
+            }) {
+                continue;
+            }
+            if dungeon.type_id == wow_data::LFG_TYPE_RANDOM_LIKE_CPP
+                && (dungeon.min_level > level || dungeon.max_level < level)
+            {
+                continue;
+            }
+            if let Some(reason) = self.lfg_lock_status_like_cpp(dungeon, level, expansion) {
+                info.blacklist.slots.push(LfgListBlacklistEntry {
+                    slot: dungeon.entry_like_cpp(),
+                    reason,
+                    sub_reason1: i32::from(dungeon.required_item_level),
+                    sub_reason2: current_item_level,
+                    soft_lock: 0,
+                });
+            }
+        }
+        info.blacklist.slots.sort_unstable_by_key(|lock| lock.slot);
+
+        for slot in store.random_and_active_seasonal_dungeon_entries_like_cpp(
+            level,
+            expansion,
+            |dungeon_id| self.lfg_season_is_active_like_cpp(dungeon_id),
+        ) {
+            let mut dungeon_info = LfgPlayerDungeonInfo::random_dungeon_like_cpp(slot);
+            if let Some(reward) = store.random_dungeon_reward_like_cpp(slot, level) {
+                self.populate_lfg_player_dungeon_reward_like_cpp(&mut dungeon_info, reward);
+            }
+            info.dungeons.push(dungeon_info);
+        }
+
+        info
+    }
+
+    fn lfg_season_is_active_like_cpp(&self, _dungeon_id: u32) -> bool {
+        // C++ delegates this to `LFGMgr::IsSeasonActive`, backed by holiday
+        // state. The current Rust runtime has no live holiday manager wired
+        // into LFG yet; inactive is the C++-safe default for seasonal rows.
+        false
+    }
+
+    fn lfg_lock_status_like_cpp(
+        &self,
+        dungeon: &wow_data::LfgDungeonDataLikeCpp,
+        level: u8,
+        expansion: u8,
+    ) -> Option<u32> {
+        if dungeon.expansion > expansion {
+            return Some(LFG_LOCKSTATUS_INSUFFICIENT_EXPANSION_LIKE_CPP);
+        }
+        if self.lfg_is_disabled_map_type_for_player_like_cpp(
+            wow_data::DISABLE_TYPE_MAP,
+            dungeon.map,
+            dungeon.difficulty,
+        ) {
+            return Some(LFG_LOCKSTATUS_NOT_IN_SEASON_LIKE_CPP);
+        }
+        if self.lfg_is_disabled_map_type_for_player_like_cpp(
+            wow_data::DISABLE_TYPE_LFG_MAP,
+            dungeon.map,
+            dungeon.difficulty,
+        ) {
+            return Some(LFG_LOCKSTATUS_RAID_LOCKED_LIKE_CPP);
+        }
+        if self.lfg_has_active_instance_lock_like_cpp(dungeon.map, dungeon.difficulty) {
+            return Some(LFG_LOCKSTATUS_RAID_LOCKED_LIKE_CPP);
+        }
+        if dungeon.min_level > level {
+            return Some(LFG_LOCKSTATUS_TOO_LOW_LEVEL_LIKE_CPP);
+        }
+        if dungeon.max_level < level {
+            return Some(LFG_LOCKSTATUS_TOO_HIGH_LEVEL_LIKE_CPP);
+        }
+        if dungeon.seasonal && !self.lfg_season_is_active_like_cpp(dungeon.id) {
+            return Some(LFG_LOCKSTATUS_NOT_IN_SEASON_LIKE_CPP);
+        }
+        if f32::from(dungeon.required_item_level) > self.represented_average_item_level_like_cpp() {
+            return Some(LFG_LOCKSTATUS_TOO_LOW_GEAR_SCORE_LIKE_CPP);
+        }
+        if let Some(requirement) = self
+            .access_requirement_store()
+            .and_then(|store| store.get(dungeon.map, dungeon.difficulty))
+        {
+            if requirement.completed_achievement != 0
+                && !self.access_requirement_leader_has_achievement_like_cpp(
+                    requirement.completed_achievement,
+                )
+            {
+                return Some(LFG_LOCKSTATUS_MISSING_ACHIEVEMENT_LIKE_CPP);
+            }
+
+            match crate::session::player_team_for_race_cpp(self.player_race_like_cpp()) {
+                Team::Alliance
+                    if requirement.quest_done_a != 0
+                        && !self.rewarded_quests.contains(&requirement.quest_done_a) =>
+                {
+                    return Some(LFG_LOCKSTATUS_QUEST_NOT_COMPLETED_LIKE_CPP);
+                }
+                Team::Horde
+                    if requirement.quest_done_h != 0
+                        && !self.rewarded_quests.contains(&requirement.quest_done_h) =>
+                {
+                    return Some(LFG_LOCKSTATUS_QUEST_NOT_COMPLETED_LIKE_CPP);
+                }
+                _ => {}
+            }
+
+            if requirement.item != 0 {
+                if !self.represented_has_item_count_like_cpp(requirement.item, 1)
+                    && (requirement.item2 == 0
+                        || !self.represented_has_item_count_like_cpp(requirement.item2, 1))
+                {
+                    return Some(LFG_LOCKSTATUS_MISSING_ITEM_LIKE_CPP);
+                }
+            } else if requirement.item2 != 0
+                && !self.represented_has_item_count_like_cpp(requirement.item2, 1)
+            {
+                return Some(LFG_LOCKSTATUS_MISSING_ITEM_LIKE_CPP);
+            }
+        }
+        None
+    }
+
+    fn lfg_is_disabled_map_type_for_player_like_cpp(
+        &self,
+        disable_type: u32,
+        map_id: u32,
+        dungeon_difficulty: u8,
+    ) -> bool {
+        let Some(disable_mgr) = self.disable_mgr() else {
+            return false;
+        };
+        let Some(map_store) = self.map_store() else {
+            return false;
+        };
+
+        let current_map_id = u32::from(self.player_map_id_like_cpp());
+        let (_, area_id) = self.player_zone_area_like_cpp();
+        let current_map_instance_type = map_store
+            .get(current_map_id)
+            .map(|entry| entry.instance_type);
+
+        disable_mgr.is_disabled_for_like_cpp(
+            disable_type,
+            map_id,
+            Some(wow_data::DisableWorldObjectRefLikeCpp {
+                type_id: wow_constants::TypeId::Player,
+                map_id: current_map_id,
+                area_id,
+                is_pet: false,
+                is_battle_arena: current_map_instance_type == Some(wow_data::MAP_ARENA_LIKE_CPP),
+                is_battleground: current_map_instance_type
+                    == Some(wow_data::MAP_BATTLEGROUND_LIKE_CPP),
+                player_map_difficulty: Some(dungeon_difficulty),
+            }),
+            0,
+            Some(map_store.as_ref()),
+        )
+    }
+
+    fn populate_lfg_player_dungeon_reward_like_cpp(
+        &self,
+        dungeon_info: &mut LfgPlayerDungeonInfo,
+        reward: &wow_data::LfgDungeonRewardLikeCpp,
+    ) {
+        let Some(quest_store) = self.quest_store.as_ref() else {
+            return;
+        };
+        let Some(mut quest) = quest_store.get(reward.first_quest_id) else {
+            return;
+        };
+
+        dungeon_info.first_reward = self.can_reward_lfg_quest_like_cpp(quest, false);
+        if std::env::var_os("RUSTYCORE_LFG_TRACE").is_some() {
+            info!(
+                slot = dungeon_info.slot,
+                first_quest_id = reward.first_quest_id,
+                other_quest_id = reward.other_quest_id,
+                special_flags = quest.special_flags,
+                is_df = quest.is_df_quest_like_cpp(),
+                df_done = self.df_quests_like_cpp.contains(&quest.id),
+                first_reward = dungeon_info.first_reward,
+                "RUST_LFG_TRACE reward decision"
+            );
+        }
+        if !dungeon_info.first_reward {
+            if reward.other_quest_id == 0 {
+                return;
+            }
+            let Some(other_quest) = quest_store.get(reward.other_quest_id) else {
+                return;
+            };
+            quest = other_quest;
+        }
+
+        dungeon_info.rewards.reward_money = self.quest_money_reward_like_cpp(quest) as i32;
+        dungeon_info.rewards.reward_xp = self.quest_xp_reward_like_cpp(quest) as i32;
+
+        for (idx, &item_id) in quest.reward_items.iter().enumerate() {
+            if item_id == 0 {
+                continue;
+            }
+            dungeon_info.rewards.items.push(LfgPlayerQuestRewardItem {
+                item_id: item_id as i32,
+                quantity: quest.reward_amounts.get(idx).copied().unwrap_or(0) as i32,
+            });
+        }
+
+        for (idx, &currency_id) in quest.reward_currencies.iter().enumerate() {
+            if currency_id == 0 {
+                continue;
+            }
+            dungeon_info
+                .rewards
+                .currency
+                .push(LfgPlayerQuestRewardCurrency {
+                    currency_id: currency_id as i32,
+                    quantity: quest.reward_currency_amounts.get(idx).copied().unwrap_or(0) as i32,
+                });
+        }
+    }
+
+    fn can_reward_lfg_quest_like_cpp(
+        &self,
+        quest: &wow_data::quest::QuestTemplate,
+        _msg: bool,
+    ) -> bool {
+        if !quest.is_df_quest_like_cpp()
+            && !quest.is_turn_in_like_cpp()
+            && self.player_quests.get(&quest.id).is_none_or(|status| {
+                status.status != crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP
+            })
+        {
+            return false;
+        }
+        if quest.is_df_quest_like_cpp() {
+            return !self.df_quests_like_cpp.contains(&quest.id);
+        }
+        if quest.is_daily_like_cpp() && self.daily_quests_completed_like_cpp.contains(&quest.id) {
+            return false;
+        }
+        if quest.is_weekly_like_cpp() && self.weekly_quests_completed_like_cpp.contains(&quest.id) {
+            return false;
+        }
+        if quest.is_monthly_like_cpp() && self.monthly_quests_completed_like_cpp.contains(&quest.id)
+        {
+            return false;
+        }
+        if quest.is_seasonal_like_cpp()
+            && self
+                .seasonal_quests_like_cpp
+                .get(&quest.event_id_for_quest_like_cpp())
+                .is_some_and(|quests| quests.contains_key(&quest.id))
+        {
+            return false;
+        }
+
+        !self.rewarded_quests.contains(&quest.id)
+    }
+
     pub async fn handle_df_get_join_status(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = DfGetJoinStatus::read(&mut pkt) {
             warn!(
@@ -6332,6 +6693,11 @@ mod tests {
     use wow_constants::{ClientOpcodes, ItemContext, ServerOpcodes, shared::DifficultyFlags};
     use wow_core::{ObjectGuid, Position, guid::HighGuid};
     use wow_data::progression_rewards::{FactionEntry, FactionStore};
+    use wow_data::quest::{
+        QUEST_ITEM_DROP_COUNT, QUEST_REWARD_CHOICES_COUNT, QUEST_REWARD_CURRENCY_COUNT,
+        QUEST_REWARD_DISPLAY_SPELL_COUNT, QUEST_REWARD_ITEM_COUNT, QUEST_REWARD_REPUTATIONS_COUNT,
+        QUEST_SPECIAL_FLAGS_DF_QUEST_LIKE_CPP, QuestStore, QuestTemplate,
+    };
     use wow_data::reputation::{ReputationFlagsLikeCpp, ReputationRankLikeCpp};
     use wow_data::{
         DifficultyEntry, DifficultyStore, ItemRecord, ItemSearchNameEntry, ItemSearchNameStore,
@@ -6472,6 +6838,79 @@ mod tests {
             ),
             send_rx,
         )
+    }
+
+    fn quest_template(id: u32) -> QuestTemplate {
+        QuestTemplate {
+            id,
+            quest_type: 2,
+            quest_level: 1,
+            quest_max_scaling_level: 0,
+            quest_package_id: 0,
+            min_level: 1,
+            quest_sort_id: 0,
+            quest_info_id: 0,
+            suggested_group_num: 0,
+            reward_next_quest: 0,
+            reward_xp_difficulty: 0,
+            reward_xp_multiplier: 1.0,
+            reward_money_difficulty: 0,
+            reward_money_multiplier: 1.0,
+            reward_bonus_money: 0,
+            reward_display_spell: [0; QUEST_REWARD_DISPLAY_SPELL_COUNT],
+            reward_spell: 0,
+            reward_honor: 0,
+            reward_title_id: 0,
+            reward_skill_line_id: 0,
+            reward_skill_points: 0,
+            reward_mail_template_id: 0,
+            reward_mail_delay_secs: 0,
+            reward_mail_sender_entry: 0,
+            reward_faction_ids: [0; QUEST_REWARD_REPUTATIONS_COUNT],
+            reward_faction_values: [0; QUEST_REWARD_REPUTATIONS_COUNT],
+            reward_faction_overrides: [0; QUEST_REWARD_REPUTATIONS_COUNT],
+            reward_faction_cap_in: [0; QUEST_REWARD_REPUTATIONS_COUNT],
+            reward_faction_flags: 0,
+            source_item_id: 0,
+            source_item_count: 0,
+            source_spell_id: 0,
+            limit_time_secs: 0,
+            expansion: 0,
+            flags: 0,
+            flags_ex: 0,
+            flags_ex2: 0,
+            special_flags: 0,
+            event_id_for_quest: 0,
+            reward_items: [0; QUEST_REWARD_ITEM_COUNT],
+            reward_amounts: [0; QUEST_REWARD_ITEM_COUNT],
+            reward_currencies: [0; QUEST_REWARD_CURRENCY_COUNT],
+            reward_currency_amounts: [0; QUEST_REWARD_CURRENCY_COUNT],
+            item_drop: [0; QUEST_ITEM_DROP_COUNT],
+            item_drop_quantity: [0; QUEST_ITEM_DROP_COUNT],
+            log_title: format!("Quest {id}"),
+            log_description: String::new(),
+            quest_description: String::new(),
+            area_description: String::new(),
+            quest_completion_log: String::new(),
+            objectives: Vec::new(),
+            allowable_races: 0,
+            allowable_classes: 0,
+            max_level: 0,
+            prev_quest_id: 0,
+            next_quest_id: 0,
+            exclusive_group: 0,
+            breadcrumb_for_quest_id: 0,
+            dependent_previous_quests: Vec::new(),
+            dependent_breadcrumb_quests: Vec::new(),
+            required_min_rep_faction: 0,
+            required_min_rep_value: 0,
+            required_max_rep_faction: 0,
+            required_max_rep_value: 0,
+            required_skill_id: 0,
+            required_skill_points: 0,
+            reward_choice_items: [(0, 0); QUEST_REWARD_CHOICES_COUNT],
+            reward_choice_item_types: [0; QUEST_REWARD_CHOICES_COUNT],
+        }
     }
 
     #[tokio::test]
@@ -13126,6 +13565,168 @@ mod tests {
         assert_eq!(pkt.read_uint32().unwrap(), 0); // Dungeon.Count
         assert!(!pkt.has_bit().unwrap()); // BlackList.PlayerGuid.HasValue
         assert_eq!(pkt.read_uint32().unwrap(), 0); // BlackList.Slot.Count
+    }
+
+    #[test]
+    fn lfg_lock_status_applies_access_requirement_order_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        let dungeon = wow_data::LfgDungeonDataLikeCpp {
+            id: 205,
+            name: "Utgarde Pinnacle".to_string(),
+            map: 575,
+            type_id: wow_data::LFG_TYPE_DUNGEON_LIKE_CPP,
+            expansion: 2,
+            group: 5,
+            min_level: 80,
+            max_level: 83,
+            difficulty: 2,
+            seasonal: false,
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+            o: 0.0,
+            required_item_level: 0,
+            final_dungeon_encounter_id: 0,
+        };
+
+        let install_requirement =
+            |session: &mut crate::session::WorldSession,
+             requirement: wow_data::AccessRequirementLikeCpp| {
+                session.set_access_requirement_store(Arc::new(
+                    wow_data::AccessRequirementStoreLikeCpp::from_entries_like_cpp([requirement]),
+                ));
+            };
+
+        install_requirement(
+            &mut session,
+            wow_data::AccessRequirementLikeCpp {
+                map_id: dungeon.map,
+                difficulty: dungeon.difficulty,
+                level_min: 0,
+                level_max: 0,
+                item: 0,
+                item2: 0,
+                quest_done_a: 0,
+                quest_done_h: 0,
+                completed_achievement: 9001,
+                quest_failed_text: String::new(),
+            },
+        );
+        assert_eq!(
+            session.lfg_lock_status_like_cpp(&dungeon, 80, 2),
+            Some(LFG_LOCKSTATUS_MISSING_ACHIEVEMENT_LIKE_CPP)
+        );
+
+        session
+            .represented_completed_achievements_like_cpp
+            .insert(9001);
+        install_requirement(
+            &mut session,
+            wow_data::AccessRequirementLikeCpp {
+                map_id: dungeon.map,
+                difficulty: dungeon.difficulty,
+                level_min: 0,
+                level_max: 0,
+                item: 0,
+                item2: 0,
+                quest_done_a: 42,
+                quest_done_h: 0,
+                completed_achievement: 0,
+                quest_failed_text: String::new(),
+            },
+        );
+        assert_eq!(
+            session.lfg_lock_status_like_cpp(&dungeon, 80, 2),
+            Some(LFG_LOCKSTATUS_QUEST_NOT_COMPLETED_LIKE_CPP)
+        );
+
+        session.rewarded_quests.insert(42);
+        install_requirement(
+            &mut session,
+            wow_data::AccessRequirementLikeCpp {
+                map_id: dungeon.map,
+                difficulty: dungeon.difficulty,
+                level_min: 0,
+                level_max: 0,
+                item: 6948,
+                item2: 0,
+                quest_done_a: 0,
+                quest_done_h: 0,
+                completed_achievement: 0,
+                quest_failed_text: String::new(),
+            },
+        );
+        assert_eq!(
+            session.lfg_lock_status_like_cpp(&dungeon, 80, 2),
+            Some(LFG_LOCKSTATUS_MISSING_ITEM_LIKE_CPP)
+        );
+    }
+
+    #[test]
+    fn lfg_reward_uses_other_quest_when_df_first_quest_on_cooldown_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        let mut first = quest_template(24_710);
+        first.special_flags = QUEST_SPECIAL_FLAGS_DF_QUEST_LIKE_CPP;
+        first.reward_currencies[0] = 341;
+        first.reward_currency_amounts[0] = 2;
+        let mut other = quest_template(24_711);
+        other.reward_currencies[0] = 301;
+        other.reward_currency_amounts[0] = 5;
+        session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([
+            first.clone(),
+            other.clone(),
+        ])));
+        session.df_quests_like_cpp.insert(first.id);
+
+        let mut info =
+            wow_packet::packets::misc::LfgPlayerDungeonInfo::random_dungeon_like_cpp(100_663_552);
+        session.populate_lfg_player_dungeon_reward_like_cpp(
+            &mut info,
+            &wow_data::LfgDungeonRewardLikeCpp {
+                max_level: 80,
+                first_quest_id: first.id,
+                other_quest_id: other.id,
+            },
+        );
+
+        assert!(!info.first_reward);
+        assert_eq!(info.rewards.currency.len(), 1);
+        assert_eq!(info.rewards.currency[0].currency_id, 301);
+        assert_eq!(info.rewards.currency[0].quantity, 5);
+    }
+
+    #[test]
+    fn lfg_reward_uses_first_df_quest_when_not_on_cooldown_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        let mut first = quest_template(24_788);
+        first.special_flags = QUEST_SPECIAL_FLAGS_DF_QUEST_LIKE_CPP | 0x1;
+        first.reward_currencies[0] = 341;
+        first.reward_currency_amounts[0] = 2;
+        let mut other = quest_template(24_789);
+        other.special_flags = 0x1;
+        other.reward_currencies[0] = 301;
+        other.reward_currency_amounts[0] = 2;
+        session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([
+            first.clone(),
+            other,
+        ])));
+
+        let mut info =
+            wow_packet::packets::misc::LfgPlayerDungeonInfo::random_dungeon_like_cpp(100_663_558);
+        session.populate_lfg_player_dungeon_reward_like_cpp(
+            &mut info,
+            &wow_data::LfgDungeonRewardLikeCpp {
+                max_level: 80,
+                first_quest_id: first.id,
+                other_quest_id: 24_789,
+            },
+        );
+
+        assert!(info.first_reward);
+        assert_eq!(info.rewards.currency.len(), 1);
+        assert_eq!(info.rewards.currency[0].currency_id, 341);
+        assert_eq!(info.rewards.currency[0].quantity, 2);
     }
 
     #[tokio::test]

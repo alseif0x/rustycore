@@ -3343,12 +3343,34 @@ impl WorldSession {
         &mut self,
         command: SendIfVisibleLikeCppCommand,
     ) {
+        let is_monster_move = command
+            .packet_bytes
+            .get(0..2)
+            .and_then(|bytes| bytes.try_into().ok())
+            .map(u16::from_le_bytes)
+            == Some(wow_constants::ServerOpcodes::OnMonsterMove as u16);
         // Gate 1: session must be fully logged in (player object loaded).
         if self.state() != crate::session::SessionState::LoggedIn {
+            if is_monster_move {
+                tracing::info!(
+                    account = self.account_id,
+                    source_guid = ?command.source_guid,
+                    "RUST_MONSTER_MOVE_DELIVERY rejected: session not logged in"
+                );
+            }
             return;
         }
         // Gate 2: map must match.
         if self.player_map_id_like_cpp() != command.map_id {
+            if is_monster_move {
+                tracing::info!(
+                    account = self.account_id,
+                    source_guid = ?command.source_guid,
+                    player_map = self.player_map_id_like_cpp(),
+                    command_map = command.map_id,
+                    "RUST_MONSTER_MOVE_DELIVERY rejected: wrong map"
+                );
+            }
             return;
         }
         // Gate 3: instance must match.
@@ -3357,6 +3379,15 @@ impl WorldSession {
             .map(|k| k.instance_id)
             .unwrap_or(0);
         if session_instance_id != command.instance_id {
+            if is_monster_move {
+                tracing::info!(
+                    account = self.account_id,
+                    source_guid = ?command.source_guid,
+                    session_instance_id,
+                    command_instance_id = command.instance_id,
+                    "RUST_MONSTER_MOVE_DELIVERY rejected: wrong instance"
+                );
+            }
             return;
         }
         // Gate 4: source GUID must be in client's visible set (HaveAtClient).
@@ -3364,9 +3395,24 @@ impl WorldSession {
             .client_visible_guids_like_cpp
             .contains(&command.source_guid)
         {
+            if is_monster_move {
+                tracing::info!(
+                    account = self.account_id,
+                    source_guid = ?command.source_guid,
+                    visible_count = self.client_visible_guids_like_cpp.len(),
+                    "RUST_MONSTER_MOVE_DELIVERY rejected: source not visible"
+                );
+            }
             return;
         }
         // All gates passed — deliver the already-serialised packet as-is.
+        if is_monster_move {
+            tracing::info!(
+                account = self.account_id,
+                source_guid = ?command.source_guid,
+                "RUST_MONSTER_MOVE_DELIVERY sent"
+            );
+        }
         self.send_raw_packet(&command.packet_bytes);
     }
 

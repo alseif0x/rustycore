@@ -341,6 +341,15 @@ impl RandomMovementGenerator {
         })
     }
 
+    pub fn adjust_launch_timer_for_actual_travel_time_like_cpp(
+        &mut self,
+        planned_travel_time_ms: i32,
+        actual_travel_time_ms: i32,
+    ) {
+        let pause_ms = self.timer_ms.saturating_sub(planned_travel_time_ms);
+        self.timer_ms = actual_travel_time_ms.saturating_add(pause_ms);
+    }
+
     pub fn deactivate_like_cpp(&mut self) -> RandomFinalizeAction {
         self.add_flag(MovementGeneratorFlags::DEACTIVATED);
         RandomFinalizeAction {

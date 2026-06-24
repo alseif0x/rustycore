@@ -392,6 +392,7 @@ pub struct CreatureAddonLifecycleRecordLikeCpp {
     pub melee_anim_kit_id: u16,
     pub visibility_distance_type: VisibilityDistanceTypeLikeCpp,
     pub auras: Vec<u32>,
+    pub aura_applications: Vec<CreatureAddonAuraApplicationLikeCpp>,
 }
 
 impl Default for CreatureAddonLifecycleRecordLikeCpp {
@@ -410,8 +411,16 @@ impl Default for CreatureAddonLifecycleRecordLikeCpp {
             melee_anim_kit_id: 0,
             visibility_distance_type: VisibilityDistanceTypeLikeCpp::Normal,
             auras: Vec::new(),
+            aura_applications: Vec::new(),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CreatureAddonAuraApplicationLikeCpp {
+    pub spell_id: u32,
+    pub effect_mask: u32,
+    pub flags: u32,
 }
 
 /// Resolved, testable input for TrinityCore `Creature::Create`.
@@ -3124,11 +3133,25 @@ impl Creature {
             self.unit.set_unit_flags2_like_cpp(flags2);
         }
         let self_guid = self.unit.world().object().guid();
-        for spell_id in &addon.auras {
-            self.unit
-                .subsystems_mut()
-                .auras
-                .add_self_cast_addon_aura_like_cpp(*spell_id, self_guid);
+        if addon.aura_applications.is_empty() {
+            for spell_id in &addon.auras {
+                self.unit
+                    .subsystems_mut()
+                    .auras
+                    .add_self_cast_addon_aura_like_cpp(*spell_id, self_guid);
+            }
+        } else {
+            for aura in &addon.aura_applications {
+                self.unit
+                    .subsystems_mut()
+                    .auras
+                    .add_self_cast_addon_aura_application_like_cpp(
+                        aura.spell_id,
+                        self_guid,
+                        aura.effect_mask,
+                        aura.flags,
+                    );
+            }
         }
         true
     }
@@ -5101,6 +5124,7 @@ mod tests {
             melee_anim_kit_id: 33,
             visibility_distance_type: VisibilityDistanceTypeLikeCpp::Gigantic,
             auras: vec![70_001, 70_002],
+            aura_applications: Vec::new(),
         });
 
         let creature = Creature::create_from_lifecycle(record);
@@ -5250,6 +5274,7 @@ mod tests {
             melee_anim_kit_id: 66,
             visibility_distance_type: VisibilityDistanceTypeLikeCpp::Large,
             auras: vec![70_003],
+            aura_applications: Vec::new(),
         });
         let mut creature = Creature::create_from_lifecycle(record);
         creature.unit_mut().set_mount_display_id(1);

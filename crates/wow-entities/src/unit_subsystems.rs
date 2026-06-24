@@ -293,22 +293,33 @@ impl AuraSubsystem {
         spell_id: u32,
         caster_guid: ObjectGuid,
     ) -> bool {
+        self.add_self_cast_addon_aura_application_like_cpp(spell_id, caster_guid, 0, 0)
+    }
+
+    pub fn add_self_cast_addon_aura_application_like_cpp(
+        &mut self,
+        spell_id: u32,
+        caster_guid: ObjectGuid,
+        effect_mask: u32,
+        flags: u32,
+    ) -> bool {
         if self.has_aura_spell_like_cpp(spell_id) {
             return false;
         }
 
-        let slot = self
-            .applied_auras
-            .iter()
-            .filter(|aura| aura.caster_guid == caster_guid)
-            .map(|aura| aura.slot)
-            .max()
-            .and_then(|slot| slot.checked_add(1))
-            .unwrap_or(0);
+        let Some(slot) = (0..u8::MAX).find(|slot| !self.visible_auras.contains_key(slot)) else {
+            return false;
+        };
         let owned = OwnedAuraRef::new(spell_id, caster_guid, None);
-        let applied = AppliedAuraRef::new(spell_id, caster_guid, slot, 0);
+        let applied = AppliedAuraRef::new(spell_id, caster_guid, slot, effect_mask);
+        let aura_ref = applied.aura_ref();
         self.add_owned(owned);
         self.add_applied(applied);
+        self.set_visible_with_application_like_cpp(
+            slot,
+            aura_ref,
+            VisibleAuraApplicationLikeCpp::new(flags, Vec::new()),
+        );
         true
     }
 

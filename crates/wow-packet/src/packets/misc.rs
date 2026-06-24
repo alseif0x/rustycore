@@ -1507,7 +1507,7 @@ impl ClientPacket for CloseInteraction {
 
 // ── AccountDataTimes (SMSG 0x270a) ──────────────────────────────────
 
-/// Number of AccountDataTypes (from C# AccountDataTypes.Max = 15).
+/// Number of `AccountDataType` values in TrinityCore (`NUM_ACCOUNT_DATA_TYPES`).
 pub const NUM_ACCOUNT_DATA_TYPES: usize = 15;
 pub const MAX_ACCOUNT_DATA_SIZE_LIKE_CPP: u32 = 0xFFFF;
 pub const EMPTY_ACCOUNT_DATA_COMPRESS_BOUND_LIKE_CPP: usize = 13;
@@ -1667,7 +1667,7 @@ impl ServerPacket for AccountDataTimes {
     const OPCODE: ServerOpcodes = ServerOpcodes::AccountDataTimes;
 
     fn write(&self, pkt: &mut WorldPacket) {
-        pkt.write_guid(&self.player_guid);
+        pkt.write_packed_guid(&self.player_guid);
         pkt.write_int64(self.server_time);
         for t in &self.account_times {
             pkt.write_int64(*t);
@@ -2044,7 +2044,7 @@ pub struct FeatureSystemStatus {
 impl FeatureSystemStatus {
     pub fn default_wotlk() -> Self {
         Self {
-            cfg_realm_id: 1,
+            cfg_realm_id: 2,
             cfg_realm_rec_id: 0,
         }
     }
@@ -2054,7 +2054,7 @@ impl ServerPacket for FeatureSystemStatus {
     const OPCODE: ServerOpcodes = ServerOpcodes::FeatureSystemStatus;
 
     fn write(&self, pkt: &mut WorldPacket) {
-        // ── Fixed-size fields (exact C# order) ──
+        // C++ `WorldSession::SendFeatureSystemStatus` dummy/config defaults.
         pkt.write_uint8(2); // ComplaintStatus
         pkt.write_uint32(self.cfg_realm_id); // CfgRealmID
         pkt.write_int32(self.cfg_realm_rec_id); // CfgRealmRecID
@@ -2067,7 +2067,7 @@ impl ServerPacket for FeatureSystemStatus {
         pkt.write_uint32(0); // RAFSystem.Unknown1007
 
         // Token/Kiosk/Store
-        pkt.write_uint32(0); // TokenPollTimeSeconds
+        pkt.write_uint32(300); // TokenPollTimeSeconds
         pkt.write_uint32(0); // KioskSessionMinutes
         pkt.write_int64(0); // TokenBalanceAmount
         pkt.write_uint32(0); // BpayStoreProductDeliveryDelay
@@ -2078,14 +2078,14 @@ impl ServerPacket for FeatureSystemStatus {
         pkt.write_int32(0); // ActiveSeason
         pkt.write_int32(0); // GameRuleValues.Count
         pkt.write_int16(50); // MaxPlayerNameQueriesPerPacket
-        pkt.write_int16(0); // PlayerNameQueryTelemetryInterval
-        pkt.write_uint32(60); // PlayerNameQueryInterval (seconds)
+        pkt.write_int16(600); // PlayerNameQueryTelemetryInterval
+        pkt.write_uint32(10); // PlayerNameQueryInterval (seconds)
 
         // GameRuleValues (empty, count=0)
 
-        // ── Bit flags (42 boolean fields — exact C# order) ──
+        // Bit flags in C++ `FeatureSystemStatus::Write` order.
         pkt.write_bit(false); // VoiceEnabled
-        pkt.write_bit(false); // EuropaTicketSystemStatus.HasValue
+        pkt.write_bit(true); // EuropaTicketSystemStatus.HasValue
         pkt.write_bit(false); // BpayStoreEnabled
         pkt.write_bit(false); // BpayStoreAvailable
         pkt.write_bit(false); // BpayStoreDisabledByParentalControls
@@ -2103,7 +2103,7 @@ impl ServerPacket for FeatureSystemStatus {
         pkt.write_bit(false); // KioskModeEnabled
         pkt.write_bit(false); // CompetitiveModeEnabled
         pkt.write_bit(false); // TokenBalanceEnabled
-        pkt.write_bit(false); // WarModeFeatureEnabled
+        pkt.write_bit(true); // WarModeFeatureEnabled
         pkt.write_bit(false); // ClubsEnabled
         pkt.write_bit(false); // ClubsBattleNetClubTypeAllowed
         pkt.write_bit(false); // ClubsCharacterClubTypeAllowed
@@ -2122,10 +2122,10 @@ impl ServerPacket for FeatureSystemStatus {
         pkt.write_bit(false); // WarGamesEnabled
         pkt.write_bit(false); // ContentTrackingEnabled
         pkt.write_bit(false); // IsSellAllJunkEnabled
-        pkt.write_bit(false); // IsGroupFinderEnabled
-        pkt.write_bit(false); // IsLFDEnabled
-        pkt.write_bit(false); // IsLFREnabled
-        pkt.write_bit(false); // IsPremadeGroupEnabled
+        pkt.write_bit(true); // IsGroupFinderEnabled
+        pkt.write_bit(true); // IsLFDEnabled
+        pkt.write_bit(true); // IsLFREnabled
+        pkt.write_bit(true); // IsPremadeGroupEnabled
         pkt.flush_bits();
 
         // ── QuickJoinConfig ──
@@ -2160,7 +2160,15 @@ impl ServerPacket for FeatureSystemStatus {
         pkt.write_packed_guid(&ObjectGuid::EMPTY); // Squelch.BnetAccountGuid
         pkt.write_packed_guid(&ObjectGuid::EMPTY); // Squelch.GuildGuid
 
-        // EuropaTicketSystemStatus (optional — not present, bit was false)
+        // EuropaTicketSystemStatus (present in C++ login defaults).
+        pkt.write_bit(false); // TicketsEnabled
+        pkt.write_bit(false); // BugsEnabled
+        pkt.write_bit(false); // ComplaintsEnabled
+        pkt.write_bit(false); // SuggestionsEnabled
+        pkt.write_uint32(10); // ThrottleState.MaxTries
+        pkt.write_uint32(60000); // ThrottleState.PerMilliseconds
+        pkt.write_uint32(1); // ThrottleState.TryCount
+        pkt.write_uint32(111111); // ThrottleState.LastResetTimeBeforeNow
     }
 }
 
@@ -2785,7 +2793,6 @@ impl ServerPacket for UpdateTalentData {
         }
 
         pkt.write_bit(self.is_pet_talents);
-        pkt.flush_bits();
     }
 }
 
@@ -2793,7 +2800,7 @@ impl ServerPacket for UpdateTalentData {
 
 /// Known spells list sent during login.
 ///
-/// C# format:
+/// TrinityCore C++ `WorldPackets::Spells::SendKnownSpells::Write` format:
 /// ```text
 /// [bit]  InitialLogin
 /// [i32]  KnownSpells.Count
@@ -3843,18 +3850,94 @@ impl ServerPacket for LoadCufProfiles {
 
 // ── AuraUpdate (SMSG 0x2c1f) ─────────────────────────────────────────
 
-/// Aura update for a unit. On login, sent with UpdateAll=true and no auras.
+/// C++ `WorldPackets::Spells::AuraDataInfo`.
+#[derive(Debug, Clone)]
+pub struct AuraDataInfoLikeCpp {
+    pub cast_id: ObjectGuid,
+    pub spell_id: i32,
+    pub flags: u16,
+    pub active_flags: u32,
+    pub caster_guid: ObjectGuid,
+    pub cast_level: u16,
+    pub applications: u8,
+    pub duration_ms: Option<u32>,
+    pub remaining_ms: Option<u32>,
+    pub points: Vec<f32>,
+}
+
+impl AuraDataInfoLikeCpp {
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_packed_guid(&self.cast_id);
+        pkt.write_int32(self.spell_id);
+        pkt.write_int32(0); // SpellCastVisual::SpellXSpellVisualID
+        pkt.write_uint16(self.flags);
+        pkt.write_uint32(self.active_flags);
+        pkt.write_uint16(self.cast_level);
+        pkt.write_uint8(self.applications);
+        pkt.write_int32(0); // ContentTuningID
+        let has_cast_unit = self.flags & 0x0001 == 0;
+        pkt.write_bit(has_cast_unit); // CastUnit
+        pkt.write_bit(self.duration_ms.is_some()); // Duration
+        pkt.write_bit(self.remaining_ms.is_some()); // Remaining
+        pkt.write_bit(false); // TimeMod
+        pkt.write_bits(self.points.len().min(usize::from(u8::MAX)) as u32, 6);
+        pkt.write_bits(0, 6); // EstimatedPoints
+        pkt.write_bit(false); // ContentTuning
+        if has_cast_unit {
+            pkt.write_packed_guid(&self.caster_guid);
+        }
+        if let Some(duration_ms) = self.duration_ms {
+            pkt.write_uint32(duration_ms);
+        }
+        if let Some(remaining_ms) = self.remaining_ms {
+            pkt.write_uint32(remaining_ms);
+        }
+        for point in &self.points {
+            pkt.write_float(*point);
+        }
+    }
+}
+
+/// C++ `WorldPackets::Spells::AuraInfo`.
+#[derive(Debug, Clone)]
+pub struct AuraInfoLikeCpp {
+    pub slot: u8,
+    pub aura_data: Option<AuraDataInfoLikeCpp>,
+}
+
+impl AuraInfoLikeCpp {
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint8(self.slot);
+        pkt.write_bit(self.aura_data.is_some());
+        pkt.flush_bits();
+        if let Some(aura_data) = &self.aura_data {
+            aura_data.write(pkt);
+        }
+    }
+}
+
+/// C++ `WorldPackets::Spells::AuraUpdate`.
 pub struct AuraUpdate {
     pub unit_guid: ObjectGuid,
     pub update_all: bool,
+    pub auras: Vec<AuraInfoLikeCpp>,
 }
 
 impl AuraUpdate {
-    /// Full aura update with no auras (fresh login).
+    /// Full aura update with no auras.
     pub fn empty_for(guid: ObjectGuid) -> Self {
         Self {
             unit_guid: guid,
             update_all: true,
+            auras: Vec::new(),
+        }
+    }
+
+    pub fn full_for(guid: ObjectGuid, auras: Vec<AuraInfoLikeCpp>) -> Self {
+        Self {
+            unit_guid: guid,
+            update_all: true,
+            auras,
         }
     }
 }
@@ -3864,9 +3947,10 @@ impl ServerPacket for AuraUpdate {
 
     fn write(&self, pkt: &mut WorldPacket) {
         pkt.write_bit(self.update_all);
-        pkt.write_bits(0u32, 9); // Auras.Count
-        // No aura entries
-        // write_packed_guid auto-flushes the 10 pending bits
+        pkt.write_bits(self.auras.len().min(0x1FF) as u32, 9);
+        for aura in &self.auras {
+            aura.write(pkt);
+        }
         pkt.write_packed_guid(&self.unit_guid);
     }
 }
@@ -6199,19 +6283,37 @@ impl ServerPacket for QueryTimeResponse {
 
 // ── MailQueryNextTimeResult ──────────────────────────────────────────────────
 
-/// SMSG_MAIL_QUERY_NEXT_TIME_RESULT — tells client when next mail arrives.
-/// C# ref: MailPackets.MailQueryNextTimeResult
-/// next_mail_time = -1.0 means "no mail pending".
+/// C++ `WorldPackets::Mail::MailQueryNextTimeResult::MailNextTimeEntry`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MailNextTimeEntry {
+    pub sender_guid: ObjectGuid,
+    pub time_left: f32,
+    pub alt_sender_id: i32,
+    pub alt_sender_type: i8,
+    pub stationery_id: i32,
+}
+
+impl MailNextTimeEntry {
+    fn write_like_cpp(&self, pkt: &mut WorldPacket) {
+        pkt.write_packed_guid(&self.sender_guid);
+        pkt.write_float(self.time_left);
+        pkt.write_int32(self.alt_sender_id);
+        pkt.write_int8(self.alt_sender_type);
+        pkt.write_int32(self.stationery_id);
+    }
+}
+
+/// C++ `WorldPackets::Mail::MailQueryNextTimeResult`.
 pub struct MailQueryNextTimeResult {
-    /// -1.0 = no mail, 0.0 = mail now, >0 = seconds until delivery.
     pub next_mail_time: f32,
+    pub next: Vec<MailNextTimeEntry>,
 }
 
 impl MailQueryNextTimeResult {
-    /// Convenience: "no mail pending" response.
     pub fn no_mail() -> Self {
         Self {
-            next_mail_time: -1.0,
+            next_mail_time: -86_400.0,
+            next: Vec::new(),
         }
     }
 }
@@ -6221,7 +6323,10 @@ impl ServerPacket for MailQueryNextTimeResult {
 
     fn write(&self, pkt: &mut WorldPacket) {
         pkt.write_float(self.next_mail_time);
-        pkt.write_int32(0); // Next.Count = 0
+        pkt.write_int32(self.next.len() as i32);
+        for entry in &self.next {
+            entry.write_like_cpp(pkt);
+        }
     }
 }
 
@@ -6480,9 +6585,7 @@ impl LfgBlackList {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct LfgPlayerInfo {
     pub blacklist: LfgBlackList,
-    /// Full dungeon/reward rows depend on `sLFGMgr`; empty is the well-defined
-    /// response when no random/seasonal dungeon data is represented.
-    pub dungeon_count: u32,
+    pub dungeons: Vec<LfgPlayerDungeonInfo>,
 }
 
 impl LfgPlayerInfo {
@@ -6495,8 +6598,173 @@ impl ServerPacket for LfgPlayerInfo {
     const OPCODE: ServerOpcodes = ServerOpcodes::LfgPlayerInfo;
 
     fn write(&self, pkt: &mut WorldPacket) {
-        pkt.write_uint32(self.dungeon_count);
+        pkt.write_uint32(self.dungeons.len() as u32);
         self.blacklist.write_like_cpp(pkt);
+        for dungeon in &self.dungeons {
+            dungeon.write_like_cpp(pkt);
+        }
+    }
+}
+
+/// C++ `WorldPackets::LFG::LfgPlayerQuestRewardItem`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct LfgPlayerQuestRewardItem {
+    pub item_id: i32,
+    pub quantity: i32,
+}
+
+impl LfgPlayerQuestRewardItem {
+    fn write_like_cpp(&self, pkt: &mut WorldPacket) {
+        pkt.write_int32(self.item_id);
+        pkt.write_int32(self.quantity);
+    }
+}
+
+/// C++ `WorldPackets::LFG::LfgPlayerQuestRewardCurrency`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct LfgPlayerQuestRewardCurrency {
+    pub currency_id: i32,
+    pub quantity: i32,
+}
+
+impl LfgPlayerQuestRewardCurrency {
+    fn write_like_cpp(&self, pkt: &mut WorldPacket) {
+        pkt.write_int32(self.currency_id);
+        pkt.write_int32(self.quantity);
+    }
+}
+
+/// C++ `WorldPackets::LFG::LfgPlayerQuestReward`.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct LfgPlayerQuestReward {
+    pub mask: u8,
+    pub reward_money: i32,
+    pub reward_xp: i32,
+    pub items: Vec<LfgPlayerQuestRewardItem>,
+    pub currency: Vec<LfgPlayerQuestRewardCurrency>,
+    pub bonus_currency: Vec<LfgPlayerQuestRewardCurrency>,
+    pub reward_spell_id: Option<i32>,
+    pub unused1: Option<i32>,
+    pub unused2: Option<u64>,
+    pub honor: Option<i32>,
+}
+
+impl LfgPlayerQuestReward {
+    fn write_like_cpp(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint8(self.mask);
+        pkt.write_int32(self.reward_money);
+        pkt.write_int32(self.reward_xp);
+        pkt.write_uint32(self.items.len() as u32);
+        pkt.write_uint32(self.currency.len() as u32);
+        pkt.write_uint32(self.bonus_currency.len() as u32);
+
+        for item in &self.items {
+            item.write_like_cpp(pkt);
+        }
+
+        for currency in &self.currency {
+            currency.write_like_cpp(pkt);
+        }
+
+        for bonus_currency in &self.bonus_currency {
+            bonus_currency.write_like_cpp(pkt);
+        }
+
+        pkt.write_bit(self.reward_spell_id.is_some());
+        pkt.write_bit(self.unused1.is_some());
+        pkt.write_bit(self.unused2.is_some());
+        pkt.write_bit(self.honor.is_some());
+        pkt.flush_bits();
+
+        if let Some(reward_spell_id) = self.reward_spell_id {
+            pkt.write_int32(reward_spell_id);
+        }
+        if let Some(unused1) = self.unused1 {
+            pkt.write_int32(unused1);
+        }
+        if let Some(unused2) = self.unused2 {
+            pkt.write_uint64(unused2);
+        }
+        if let Some(honor) = self.honor {
+            pkt.write_int32(honor);
+        }
+    }
+}
+
+/// C++ `WorldPackets::LFG::LfgPlayerDungeonInfo`.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct LfgPlayerDungeonInfo {
+    pub slot: u32,
+    pub completion_quantity: i32,
+    pub completion_limit: i32,
+    pub completion_currency_id: i32,
+    pub specific_quantity: i32,
+    pub specific_limit: i32,
+    pub overall_quantity: i32,
+    pub overall_limit: i32,
+    pub purse_weekly_quantity: i32,
+    pub purse_weekly_limit: i32,
+    pub purse_quantity: i32,
+    pub purse_limit: i32,
+    pub quantity: i32,
+    pub completed_mask: u32,
+    pub encounter_mask: u32,
+    pub first_reward: bool,
+    pub shortage_eligible: bool,
+    pub rewards: LfgPlayerQuestReward,
+    pub shortage_reward: Vec<LfgPlayerQuestReward>,
+}
+
+impl LfgPlayerDungeonInfo {
+    pub fn random_dungeon_like_cpp(slot: u32) -> Self {
+        Self {
+            slot,
+            completion_quantity: 1,
+            completion_limit: 1,
+            completion_currency_id: 0,
+            specific_quantity: 0,
+            specific_limit: 1,
+            overall_quantity: 0,
+            overall_limit: 1,
+            purse_weekly_quantity: 0,
+            purse_weekly_limit: 0,
+            purse_quantity: 0,
+            purse_limit: 0,
+            quantity: 1,
+            completed_mask: 0,
+            encounter_mask: 0,
+            first_reward: false,
+            shortage_eligible: false,
+            rewards: LfgPlayerQuestReward::default(),
+            shortage_reward: Vec::new(),
+        }
+    }
+
+    fn write_like_cpp(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint32(self.slot);
+        pkt.write_int32(self.completion_quantity);
+        pkt.write_int32(self.completion_limit);
+        pkt.write_int32(self.completion_currency_id);
+        pkt.write_int32(self.specific_quantity);
+        pkt.write_int32(self.specific_limit);
+        pkt.write_int32(self.overall_quantity);
+        pkt.write_int32(self.overall_limit);
+        pkt.write_int32(self.purse_weekly_quantity);
+        pkt.write_int32(self.purse_weekly_limit);
+        pkt.write_int32(self.purse_quantity);
+        pkt.write_int32(self.purse_limit);
+        pkt.write_int32(self.quantity);
+        pkt.write_uint32(self.completed_mask);
+        pkt.write_uint32(self.encounter_mask);
+        pkt.write_uint32(self.shortage_reward.len() as u32);
+        pkt.write_bit(self.first_reward);
+        pkt.write_bit(self.shortage_eligible);
+        pkt.flush_bits();
+
+        self.rewards.write_like_cpp(pkt);
+        for reward in &self.shortage_reward {
+            reward.write_like_cpp(pkt);
+        }
     }
 }
 
@@ -7949,8 +8217,20 @@ mod tests {
     fn account_data_times_global() {
         let pkt = AccountDataTimes::global();
         let bytes = pkt.to_bytes();
-        // opcode(2) + ObjectGuid(16) + server_time(8) + 15*i64(120) = 146
-        assert_eq!(bytes.len(), 146);
+        // opcode(2) + packed empty ObjectGuid(2) + server_time(8) + 15*i64(120) = 132
+        assert_eq!(bytes.len(), 132);
+
+        let mut body = WorldPacket::from_bytes(&bytes);
+        assert_eq!(
+            body.read_uint16().unwrap(),
+            ServerOpcodes::AccountDataTimes as u16
+        );
+        assert_eq!(body.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
+        let _server_time = body.read_int64().unwrap();
+        for _ in 0..NUM_ACCOUNT_DATA_TYPES {
+            assert_eq!(body.read_int64().unwrap(), 0);
+        }
+        assert_eq!(body.remaining(), 0);
     }
 
     #[test]
@@ -7958,17 +8238,18 @@ mod tests {
         let guid = ObjectGuid::create_player(1, 42);
         let pkt = AccountDataTimes::for_player(guid);
         let bytes = pkt.to_bytes();
-        assert_eq!(bytes.len(), 146);
 
         let mut body = WorldPacket::from_bytes(&bytes);
         assert_eq!(
             body.read_uint16().unwrap(),
             ServerOpcodes::AccountDataTimes as u16
         );
-        let raw_guid = body.read_bytes(16).unwrap();
-        let mut raw = [0u8; 16];
-        raw.copy_from_slice(&raw_guid);
-        assert_eq!(ObjectGuid::from_raw_bytes(&raw), guid);
+        assert_eq!(body.read_packed_guid().unwrap(), guid);
+        let _server_time = body.read_int64().unwrap();
+        for _ in 0..NUM_ACCOUNT_DATA_TYPES {
+            assert_eq!(body.read_int64().unwrap(), 0);
+        }
+        assert_eq!(body.remaining(), 0);
     }
 
     #[test]
@@ -9942,7 +10223,7 @@ mod tests {
     fn feature_system_status_serializes() {
         let pkt = FeatureSystemStatus::default_wotlk();
         let bytes = pkt.to_bytes();
-        assert!(bytes.len() > 20);
+        assert_eq!(bytes.len(), 192);
         // Verify opcode is FeatureSystemStatus (0x25bf)
         let opcode = u16::from_le_bytes([bytes[0], bytes[1]]);
         assert_eq!(opcode, 0x25bf);
@@ -10194,8 +10475,8 @@ mod tests {
         let bytes = pkt.to_bytes();
         // opcode(2) + int32(4) + uint8(1) + int32(4) +
         // TalentGroupInfo: uint8(1)+uint32(4)+uint8(1)+uint32(4)+uint8(1)+6*uint16(12) +
-        // bit(IsPetTalents) flushed to 1 byte = 2+4+1+4+1+4+1+4+1+12+1 = 35
-        assert_eq!(bytes.len(), 35);
+        // trailing bit(IsPetTalents) is not flushed by C++ `UpdateTalentData::Write`.
+        assert_eq!(bytes.len(), 34);
         let opcode = u16::from_le_bytes([bytes[0], bytes[1]]);
         assert_eq!(opcode, 0x25d7);
     }
@@ -10901,6 +11182,40 @@ mod tests {
         assert_eq!(opcode, 0x2c1f);
         // Byte 2: UpdateAll=1(MSB) + first 7 bits of count(0) = 0x80
         assert_eq!(bytes[2], 0x80);
+    }
+
+    #[test]
+    fn aura_update_single_passive_matches_cpp_shape() {
+        let unit_guid = ObjectGuid::create_player(1, 2);
+        let cast_id =
+            ObjectGuid::create_world_object(wow_core::guid::HighGuid::Cast, 3, 1, 571, 0, 822, 1);
+        let pkt = AuraUpdate {
+            unit_guid,
+            update_all: false,
+            auras: vec![AuraInfoLikeCpp {
+                slot: 0,
+                aura_data: Some(AuraDataInfoLikeCpp {
+                    cast_id,
+                    spell_id: 822,
+                    flags: 0x0301,
+                    active_flags: 0x1,
+                    caster_guid: unit_guid,
+                    cast_level: 80,
+                    applications: 0,
+                    duration_ms: None,
+                    remaining_ms: None,
+                    points: Vec::new(),
+                }),
+            }],
+        };
+        let bytes = pkt.to_bytes();
+        let expected = [
+            0x1f, 0x2c, 0x00, 0x40, 0x00, 0x80, 0x01, 0xbb, 0x01, 0x83, 0xcd, 0x60, 0x47, 0x04,
+            0xbc, 0x36, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x03, 0x01, 0x00, 0x00,
+            0x00, 0x50, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xa0, 0x02,
+            0x04, 0x08,
+        ];
+        assert_eq!(bytes, expected);
     }
 
     #[test]

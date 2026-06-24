@@ -1800,4 +1800,22 @@ mod tests {
         load_if_exists!("ScalingStatDistribution.db2", ScalingStatDistributionStore);
         load_if_exists!("ScalingStatValues.db2", ScalingStatValuesStore);
     }
+
+    #[test]
+    fn quest_money_reward_level_80_pallet_array_matches_cpp_fixture() {
+        let data_dir = "/home/server/woltk-server-core/Data";
+        let locale = "esES";
+        let dbc_dir = Path::new(data_dir).join("dbc").join(locale);
+        if !dbc_dir.join("QuestMoneyReward.db2").exists() {
+            return;
+        }
+
+        let store =
+            QuestMoneyRewardStore::load(data_dir, locale).expect("load QuestMoneyReward.db2");
+        let row = store.get(80).expect("level 80 QuestMoneyReward row");
+        assert_eq!(row.difficulty[2], 19_000);
+        assert_eq!(row.difficulty[5], 74_000);
+        assert_eq!(row.difficulty[7], 222_000);
+        assert_eq!(row.difficulty[8], 296_000);
+    }
 }

@@ -17,10 +17,13 @@
 //! 7. Client sends `EnterEncryptedModeAck`
 //! 8. All subsequent packets are AES-128-GCM encrypted
 
+use std::fs;
 use std::future::Future;
 use std::net::SocketAddr;
+use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use bytes::BytesMut;
@@ -71,6 +74,8 @@ const ENABLE_ENCRYPTION_CONTEXT: [u8; 16] = [
 const DEFAULT_MAX_OVERSPEED_PINGS_LIKE_CPP: u32 = 2;
 const OVERSPEED_PING_WINDOW_LIKE_CPP: Duration = Duration::from_secs(27);
 
+static PACKET_DUMP_SEQUENCE: AtomicU64 = AtomicU64::new(1);
+
 // Build-specific auth seeds are loaded from the `build_info` DB table at startup
 // and stored in SessionResources. They are passed to AccountInfo during lookup.
 
@@ -79,6 +84,65 @@ const ENTER_ENCRYPTED_MODE_PRIVATE_KEY: [u8; 32] = [
     0x08, 0xBD, 0xC7, 0xA3, 0xCC, 0xC3, 0x4F, 0x3F, 0x6A, 0x0B, 0xFF, 0xCF, 0x31, 0xC1, 0xB6, 0x97,
     0x69, 0x1E, 0x72, 0x9A, 0x0A, 0xAB, 0x2C, 0x77, 0xC3, 0x6F, 0x8A, 0xE7, 0x5A, 0x9A, 0xA7, 0xC9,
 ];
+
+fn sanitize_packet_dump_name(name: &str) -> String {
+    name.chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || ch == '_' || ch == '-' {
+                ch
+            } else {
+                '_'
+            }
+        })
+        .collect()
+}
+
+fn dump_world_packet_like_cpp(
+    direction: &str,
+    addr: SocketAddr,
+    counter: u64,
+    opcode_raw: u16,
+    opcode_name: &str,
+    data: &[u8],
+) {
+    let Some(root) = std::env::var_os("RUSTYCORE_PACKET_DUMP_DIR") else {
+        return;
+    };
+
+    let root = Path::new(&root);
+    if let Err(err) = fs::create_dir_all(root) {
+        warn!(
+            "packet dump disabled: could not create {}: {err}",
+            root.display()
+        );
+        return;
+    }
+
+    let seq = PACKET_DUMP_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    let safe_name = sanitize_packet_dump_name(opcode_name);
+    let stem = format!(
+        "rust-{direction}-{seq:08}-counter{counter}-0x{opcode_raw:04X}-{safe_name}-len{}",
+        data.len()
+    );
+    let bin_path = root.join(format!("{stem}.bin"));
+    let meta_path = root.join(format!("{stem}.meta"));
+
+    if let Err(err) = fs::write(&bin_path, data) {
+        warn!("packet dump write failed for {}: {err}", bin_path.display());
+        return;
+    }
+
+    let meta = format!(
+        "direction={direction}\naddr={addr}\nseq={seq}\ncounter={counter}\nopcode=0x{opcode_raw:04X}\nname={opcode_name}\nlen={}\n",
+        data.len()
+    );
+    if let Err(err) = fs::write(&meta_path, meta) {
+        warn!(
+            "packet dump metadata write failed for {}: {err}",
+            meta_path.display()
+        );
+    }
+}
 
 // ── Error type ────────────────────────────────────────────────────
 
@@ -908,6 +972,27 @@ impl SocketReader {
             let pkt = WorldPacket::new_client(BytesMut::from(data.as_slice()));
 
             let opcode = pkt.opcode_raw();
+            let opcode_name = ClientOpcodes::from_u16(opcode)
+                .map(|opcode| format!("{opcode:?}"))
+                .unwrap_or_else(|| "Unknown".to_string());
+            dump_world_packet_like_cpp(
+                "c2s",
+                self.addr,
+                self.crypt.client_counter(),
+                opcode,
+                &opcode_name,
+                &data,
+            );
+            if std::env::var_os("RUSTYCORE_PACKET_SEQUENCE_TRACE").is_some() {
+                info!(
+                    "RUST_PACKET_IN addr={} seq={} opcode=0x{:04X} name={} len={}",
+                    self.addr,
+                    self.crypt.client_counter(),
+                    opcode,
+                    opcode_name,
+                    data.len()
+                );
+            }
             {
                 let dump_len = data.len().min(256);
                 let hex: String = data[..dump_len]
@@ -997,10 +1082,18 @@ impl SocketWriter {
         } else {
             0
         };
+        let opcode_name = ServerOpcodes::from_u16(opcode_raw)
+            .map(|opcode| format!("{opcode:?}"))
+            .unwrap_or_else(|| "Unknown".to_string());
+        dump_world_packet_like_cpp(
+            "s2c",
+            self.addr,
+            self.crypt.server_counter(),
+            opcode_raw,
+            &opcode_name,
+            &data,
+        );
         if std::env::var_os("RUSTYCORE_PACKET_SEQUENCE_TRACE").is_some() {
-            let opcode_name = ServerOpcodes::from_u16(opcode_raw)
-                .map(|opcode| format!("{opcode:?}"))
-                .unwrap_or_else(|| "Unknown".to_string());
             info!(
                 "RUST_PACKET_OUT addr={} seq={} opcode=0x{:04X} name={} len={}",
                 self.addr,

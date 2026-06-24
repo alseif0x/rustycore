@@ -23,7 +23,7 @@ const MAX_CREATURE_KILL_CREDIT: usize = 2;
 pub const MAX_QUERY_QUEST_COMPLETION_NPCS: usize = 100;
 
 /// Trinity `Array<int32, 175>` payload for `CMSG_QUEST_POI_QUERY`.
-pub const QUEST_POI_QUERY_MISSING_QUEST_POIS_LIKE_CPP: usize = 175;
+pub const QUEST_POI_QUERY_MISSING_QUEST_POIS_LIKE_CPP: usize = 25;
 
 /// Trinity `MAX_DECLINED_NAME_CASES`.
 pub const MAX_DECLINED_NAME_CASES_LIKE_CPP: usize = 5;
@@ -1226,7 +1226,7 @@ impl ServerPacket for QuestCompletionNpcResponse {
 ///
 /// C++ anchors:
 /// - `QuestPOIQuery::Read`, `QueryPackets.cpp:418-423`: one signed count,
-///   then the fixed 175-entry signed quest id array.
+///   then the fixed quest-log-sized signed quest id array.
 /// - `QuestPOIQuery`, `QueryPackets.h:323-331`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QuestPoiQuery {
@@ -1396,7 +1396,7 @@ mod quest_poi_tests {
     }
 
     #[test]
-    fn quest_poi_query_reads_fixed_175_array_like_cpp() {
+    fn quest_poi_query_reads_fixed_quest_log_array_like_cpp() {
         let mut payload = Vec::new();
         payload.extend_from_slice(&2i32.to_le_bytes());
         for i in 0..QUEST_POI_QUERY_MISSING_QUEST_POIS_LIKE_CPP {
@@ -1409,11 +1409,27 @@ mod quest_poi_tests {
         assert_eq!(parsed.missing_quest_count, 2);
         assert_eq!(parsed.missing_quest_pois[0], 1000);
         assert_eq!(parsed.missing_quest_pois[1], 1001);
-        assert_eq!(parsed.missing_quest_pois[174], 1174);
+        assert_eq!(parsed.missing_quest_pois[24], 1024);
     }
 
     #[test]
-    fn quest_poi_query_rejects_short_fixed_array_like_cpp() {
+    fn quest_poi_query_reads_real_client_len_106_shape_like_cpp() {
+        let mut payload = Vec::new();
+        payload.extend_from_slice(&25i32.to_le_bytes());
+        for i in 0..25 {
+            payload.extend_from_slice(&(2000i32 + i).to_le_bytes());
+        }
+
+        let mut pkt = client_payload(&payload);
+        let parsed = QuestPoiQuery::read(&mut pkt).unwrap();
+
+        assert_eq!(parsed.missing_quest_count, 25);
+        assert_eq!(parsed.missing_quest_pois[0], 2000);
+        assert_eq!(parsed.missing_quest_pois[24], 2024);
+    }
+
+    #[test]
+    fn quest_poi_query_rejects_short_fixed_quest_log_array_like_cpp() {
         let mut payload = Vec::new();
         payload.extend_from_slice(&1i32.to_le_bytes());
         payload.extend_from_slice(&123i32.to_le_bytes());
