@@ -5783,10 +5783,10 @@ fn area_trigger_row_to_spawn_data_like_cpp(
         ));
         return None;
     }
-    if create_properties.move_curve_id != 0
-        || create_properties.scale_curve_id != 0
+    if create_properties.scale_curve_id != 0
         || create_properties.morph_curve_id != 0
         || create_properties.facing_curve_id != 0
+        || create_properties.move_curve_id != 0
     {
         report.skipped_create_properties_curves.push((
             row.spawn_id,
@@ -10976,25 +10976,29 @@ mod tests {
     fn area_trigger_spawn_skips_non_static_create_properties_like_cpp() {
         let maps = map_store(&[1]);
         let difficulties = map_difficulty_store(&[(1, 0)]);
-
-        let mut flags_row = area_trigger_create_properties_row(789);
-        flags_row.flags =
-            wow_data::area_trigger_template::AREATRIGGER_CREATE_PROPERTIES_FLAG_HAS_ATTACHED_LIKE_CPP;
-        let mut report = SpawnKindLoadReport::default();
-        let mut runtime_rows = BTreeMap::new();
-        assert!(
-            area_trigger_row_to_spawn_data_like_cpp(
-                &area_trigger_row(302, "0"),
+        let load = |spawn_id, store: wow_data::AreaTriggerTemplateStore| {
+            let mut report = SpawnKindLoadReport::default();
+            let mut runtime_rows = BTreeMap::new();
+            let spawn = area_trigger_row_to_spawn_data_like_cpp(
+                &area_trigger_row(spawn_id, "0"),
                 &maps,
                 &difficulties,
-                &area_trigger_template_store_with(flags_row, [], []),
+                &store,
                 &mut |_| true,
                 &mut |_| wow_data::ScriptIdLikeCpp(0),
                 &mut runtime_rows,
                 &mut report,
-            )
-            .is_none()
-        );
+            );
+            (spawn, runtime_rows, report)
+        };
+
+        let mut flags_row = area_trigger_create_properties_row(789);
+        flags_row.flags =
+            wow_data::area_trigger_template::AREATRIGGER_CREATE_PROPERTIES_FLAG_HAS_ATTACHED_LIKE_CPP;
+        let (spawn, runtime_rows, report) =
+            load(302, area_trigger_template_store_with(flags_row, [], []));
+        assert!(spawn.is_none());
+        assert!(runtime_rows.is_empty());
         assert_eq!(
             report.skipped_nonzero_create_properties_flags,
             [(302, 789, false)]
@@ -11002,88 +11006,48 @@ mod tests {
 
         let mut curve_row = area_trigger_create_properties_row(789);
         curve_row.move_curve_id = 44;
-        report = SpawnKindLoadReport::default();
-        runtime_rows.clear();
-        assert!(
-            area_trigger_row_to_spawn_data_like_cpp(
-                &area_trigger_row(303, "0"),
-                &maps,
-                &difficulties,
-                &area_trigger_template_store_with(curve_row, [], []),
-                &mut |_| true,
-                &mut |_| wow_data::ScriptIdLikeCpp(0),
-                &mut runtime_rows,
-                &mut report,
-            )
-            .is_none()
-        );
+        let (spawn, runtime_rows, report) =
+            load(303, area_trigger_template_store_with(curve_row, [], []));
+        assert!(spawn.is_none());
+        assert!(runtime_rows.is_empty());
         assert_eq!(report.skipped_create_properties_curves, [(303, 789, false)]);
 
         let mut time_row = area_trigger_create_properties_row(789);
         time_row.time_to_target = 1;
-        report = SpawnKindLoadReport::default();
-        runtime_rows.clear();
-        assert!(
-            area_trigger_row_to_spawn_data_like_cpp(
-                &area_trigger_row(304, "0"),
-                &maps,
-                &difficulties,
-                &area_trigger_template_store_with(time_row, [], []),
-                &mut |_| true,
-                &mut |_| wow_data::ScriptIdLikeCpp(0),
-                &mut runtime_rows,
-                &mut report,
-            )
-            .is_none()
-        );
+        let (spawn, runtime_rows, report) =
+            load(304, area_trigger_template_store_with(time_row, [], []));
+        assert!(spawn.is_none());
+        assert!(runtime_rows.is_empty());
         assert_eq!(
             report.skipped_create_properties_time_to_target,
             [(304, 789, false)]
         );
 
-        report = SpawnKindLoadReport::default();
-        runtime_rows.clear();
-        assert!(
-            area_trigger_row_to_spawn_data_like_cpp(
-                &area_trigger_row(305, "0"),
-                &maps,
-                &difficulties,
-                &area_trigger_template_store_with(
-                    area_trigger_create_properties_row(789),
-                    [],
-                    [area_trigger_orbit(789)]
-                ),
-                &mut |_| true,
-                &mut |_| wow_data::ScriptIdLikeCpp(0),
-                &mut runtime_rows,
-                &mut report,
-            )
-            .is_none()
+        let (spawn, runtime_rows, report) = load(
+            305,
+            area_trigger_template_store_with(
+                area_trigger_create_properties_row(789),
+                [],
+                [area_trigger_orbit(789)],
+            ),
         );
+        assert!(spawn.is_none());
+        assert!(runtime_rows.is_empty());
         assert_eq!(report.skipped_create_properties_orbit, [(305, 789, false)]);
 
-        report = SpawnKindLoadReport::default();
-        runtime_rows.clear();
-        assert!(
-            area_trigger_row_to_spawn_data_like_cpp(
-                &area_trigger_row(306, "0"),
-                &maps,
-                &difficulties,
-                &area_trigger_template_store_with(
-                    area_trigger_create_properties_row(789),
-                    [
-                        area_trigger_spline_point(789, 1.0),
-                        area_trigger_spline_point(789, 2.0)
-                    ],
-                    []
-                ),
-                &mut |_| true,
-                &mut |_| wow_data::ScriptIdLikeCpp(0),
-                &mut runtime_rows,
-                &mut report,
-            )
-            .is_none()
+        let (spawn, runtime_rows, report) = load(
+            306,
+            area_trigger_template_store_with(
+                area_trigger_create_properties_row(789),
+                [
+                    area_trigger_spline_point(789, 1.0),
+                    area_trigger_spline_point(789, 2.0),
+                ],
+                [],
+            ),
         );
+        assert!(spawn.is_none());
+        assert!(runtime_rows.is_empty());
         assert_eq!(
             report.skipped_create_properties_splines,
             [(306, 789, false)]

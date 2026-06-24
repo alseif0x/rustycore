@@ -95,6 +95,11 @@ impl DifficultyStore {
         self.entries.get(&id)
     }
 
+    pub fn fallback_difficulty_id_like_cpp(&self, id: u8) -> Option<u8> {
+        self.get(u32::from(id))
+            .map(|entry| entry.fallback_difficulty_id)
+    }
+
     pub fn contains(&self, id: u32) -> bool {
         self.entries.contains_key(&id)
     }

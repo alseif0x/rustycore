@@ -185,7 +185,7 @@ impl Default for MoveSplineInitArgs {
         Self {
             path: Vec::with_capacity(16),
             facing: FacingInfo::default(),
-            flags: MoveSplineFlag::empty(),
+            flags: MoveSplineFlag::SMOOTH_GROUND_PATH,
             path_idx_offset: 0,
             velocity: 0.0,
             parabolic_amplitude: 0.0,

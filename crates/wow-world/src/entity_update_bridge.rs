@@ -9,14 +9,16 @@ use wow_entities::{
     TYPEID_SCENE_OBJECT, TYPEID_UNIT, UnitDataUpdate, UnitValuesUpdate,
 };
 use wow_packet::packets::update::{
-    ActivePlayerDataValuesUpdate as PacketActivePlayerDataValuesUpdate,
-    AreaTriggerDataValuesUpdate, ContainerDataValuesUpdate, ConversationActorValuesUpdate,
-    ConversationDataValuesUpdate, ConversationLineValuesUpdate, CorpseDataValuesUpdate,
-    DynamicObjectDataValuesUpdate, GameObjectDataValuesUpdate, ItemBonusKeyValuesUpdate,
-    ItemDataValuesDeltaUpdate, ItemEnchantmentValuesUpdate, ItemModListValuesUpdate,
-    ItemModValuesUpdate, ObjectDataValuesUpdate, PlayerDataValuesDeltaUpdate,
-    ScaleCurveValuesUpdate, SceneObjectDataValuesUpdate, SocketedGemValuesUpdate,
-    UnitDataValuesDeltaUpdate, UpdateObject, VisibleItemValuesUpdate, VisualAnimValuesUpdate,
+    ActivePlayerDataValuesUpdate as PacketActivePlayerDataValuesUpdate, AreaTriggerCreateData,
+    AreaTriggerDataValuesUpdate, AreaTriggerOrbitCreateData, AreaTriggerPosition2CreateData,
+    AreaTriggerPosition3CreateData, AreaTriggerShapeCreateData, ContainerDataValuesUpdate,
+    ConversationActorValuesUpdate, ConversationDataValuesUpdate, ConversationLineValuesUpdate,
+    CorpseDataValuesUpdate, DynamicObjectDataValuesUpdate, GameObjectDataValuesUpdate,
+    ItemBonusKeyValuesUpdate, ItemDataValuesDeltaUpdate, ItemEnchantmentValuesUpdate,
+    ItemModListValuesUpdate, ItemModValuesUpdate, ObjectDataValuesUpdate,
+    PlayerDataValuesDeltaUpdate, ScaleCurveValuesUpdate, SceneObjectDataValuesUpdate,
+    SocketedGemValuesUpdate, UnitDataValuesDeltaUpdate, UpdateObject, VisibleItemValuesUpdate,
+    VisualAnimValuesUpdate,
 };
 
 const VISIBLE_ITEM_FULL_UPDATE_MASK: u32 = 0x0F;
@@ -257,6 +259,104 @@ pub fn area_trigger_values_update_to_update_object(
 ) -> Option<UpdateObject> {
     area_trigger_values_update_to_packet(update)
         .map(|packet_update| UpdateObject::area_trigger_values_update(guid, map_id, packet_update))
+}
+
+pub fn area_trigger_create_data_from_entity_like_cpp(
+    area_trigger: &wow_entities::AreaTrigger,
+) -> AreaTriggerCreateData {
+    let object = area_trigger.world().object();
+    let object_data = object.object_data_values();
+    let data = area_trigger.data();
+    let create_properties_flags = area_trigger.create_properties_flags();
+    let shape = area_trigger.shape();
+
+    AreaTriggerCreateData {
+        guid: object.guid(),
+        entry_id: u32::try_from(object_data.entry_id).unwrap_or(0),
+        dynamic_flags: object_data.dynamic_flags,
+        scale: object_data.scale,
+        position: area_trigger.stationary_position(),
+        time_since_created_ms: area_trigger.time_since_created_ms(),
+        roll_pitch_yaw: area_trigger.roll_pitch_yaw(),
+        target_roll_pitch_yaw: area_trigger.target_roll_pitch_yaw(),
+        create_properties_flags: create_properties_flags.flags,
+        scale_curve_id: create_properties_flags.scale_curve_id,
+        morph_curve_id: create_properties_flags.morph_curve_id,
+        facing_curve_id: create_properties_flags.facing_curve_id,
+        move_curve_id: create_properties_flags.move_curve_id,
+        shape: AreaTriggerShapeCreateData {
+            shape_type: area_trigger.shape_type() as u8,
+            data: shape.data,
+            polygon_vertices: shape
+                .polygon_vertices
+                .iter()
+                .map(|position| AreaTriggerPosition2CreateData {
+                    x: position.x,
+                    y: position.y,
+                })
+                .collect(),
+            polygon_vertices_target: shape
+                .polygon_vertices_target
+                .iter()
+                .map(|position| AreaTriggerPosition2CreateData {
+                    x: position.x,
+                    y: position.y,
+                })
+                .collect(),
+        },
+        spline_points: area_trigger
+            .spline_points()
+            .iter()
+            .map(|position| AreaTriggerPosition3CreateData {
+                x: position.x,
+                y: position.y,
+                z: position.z,
+            })
+            .collect(),
+        orbit: area_trigger
+            .orbit_info()
+            .map(|orbit| AreaTriggerOrbitCreateData {
+                counter_clockwise: orbit.counter_clockwise,
+                can_loop: orbit.can_loop,
+                time_to_target: orbit.time_to_target,
+                elapsed_time_for_movement: orbit.elapsed_time_for_movement,
+                start_delay: orbit.start_delay,
+                radius: orbit.radius,
+                blend_from_radius: orbit.blend_from_radius,
+                initial_angle: orbit.initial_angle,
+                z_offset: orbit.z_offset,
+                center: AreaTriggerPosition3CreateData {
+                    x: area_trigger.stationary_position().x,
+                    y: area_trigger.stationary_position().y,
+                    z: area_trigger.stationary_position().z,
+                },
+            }),
+        override_scale_curve: scale_curve_values_update(data.override_scale_curve),
+        extra_scale_curve: scale_curve_values_update(data.extra_scale_curve),
+        override_move_curve_x: scale_curve_values_update(data.override_move_curve_x),
+        override_move_curve_y: scale_curve_values_update(data.override_move_curve_y),
+        override_move_curve_z: scale_curve_values_update(data.override_move_curve_z),
+        caster: data.caster,
+        duration: data.duration,
+        time_to_target: data.time_to_target,
+        time_to_target_scale: data.time_to_target_scale,
+        time_to_target_extra_scale: data.time_to_target_extra_scale,
+        time_to_target_pos: data.time_to_target_pos,
+        spell_id: data.spell_id,
+        spell_for_visuals: data.spell_for_visuals,
+        spell_visual_id: data.spell_visual_id,
+        bounds_radius_2d: data.bounds_radius_2d,
+        decal_properties_id: data.decal_properties_id,
+        creating_effect_guid: data.creating_effect_guid,
+        orbit_path_target: data.orbit_path_target,
+        visual_anim: VisualAnimValuesUpdate {
+            visual_anim_mask: 0x1F,
+            field_c: data.visual_anim.field_c,
+            animation_data_id: data.visual_anim.animation_data_id,
+            anim_kit_id: data.visual_anim.anim_kit_id,
+            anim_progress: data.visual_anim.anim_progress,
+        },
+    }
 }
 
 pub fn scene_object_values_update_to_packet(

@@ -303,12 +303,7 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
     let template = template_store
         .get(spawn.id)
         .ok_or(CreatureLoadedGridResolveErrorLikeCpp::MissingTemplate { entry: spawn.id })?;
-    let difficulty = difficulty_store
-        .get_like_cpp(template.entry, difficulty_id)
-        .ok_or(CreatureLoadedGridResolveErrorLikeCpp::MissingDifficulty {
-            entry: template.entry,
-            difficulty_id,
-        })?;
+    let difficulty = difficulty_store.get_like_cpp(template.entry, difficulty_id);
     let selected_level = if difficulty.min_level == difficulty.max_level {
         difficulty.min_level
     } else {
@@ -1584,7 +1579,6 @@ mod tests {
                     max_level: 19,
                     ..db_backed_difficulty_store(entry)
                         .get_like_cpp(entry, 2)
-                        .unwrap()
                         .clone()
                 }],
                 |_| 1.0,
@@ -1663,7 +1657,6 @@ mod tests {
                     max_level: 19,
                     ..db_backed_difficulty_store(entry)
                         .get_like_cpp(entry, 2)
-                        .unwrap()
                         .clone()
                 }],
                 |_| 1.0,

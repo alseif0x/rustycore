@@ -291,8 +291,20 @@ impl WorldPacket {
         self.data.put_u8(v);
     }
 
+    /// Write a byte without flushing pending bit-packed fields.
+    ///
+    /// TrinityCore's `ByteBuffer::append` does not flush `_curbitval`; a few
+    /// packet layouts intentionally write primitive fields between bit groups.
+    pub fn write_uint8_unflushed(&mut self, v: u8) {
+        self.data.put_u8(v);
+    }
+
     pub fn write_int8(&mut self, v: i8) {
         self.write_uint8(v as u8);
+    }
+
+    pub fn write_int8_unflushed(&mut self, v: i8) {
+        self.write_uint8_unflushed(v as u8);
     }
 
     pub fn write_uint16(&mut self, v: u16) {
@@ -309,8 +321,16 @@ impl WorldPacket {
         self.data.put_u32_le(v);
     }
 
+    pub fn write_uint32_unflushed(&mut self, v: u32) {
+        self.data.put_u32_le(v);
+    }
+
     pub fn write_int32(&mut self, v: i32) {
         self.write_uint32(v as u32);
+    }
+
+    pub fn write_int32_unflushed(&mut self, v: i32) {
+        self.write_uint32_unflushed(v as u32);
     }
 
     pub fn write_uint64(&mut self, v: u64) {
@@ -330,6 +350,10 @@ impl WorldPacket {
 
     pub fn write_float(&mut self, v: f32) {
         self.write_uint32(v.to_bits());
+    }
+
+    pub fn write_float_unflushed(&mut self, v: f32) {
+        self.write_uint32_unflushed(v.to_bits());
     }
 
     /// Write TrinityCore's packed XYZ format used by `SMSG_ON_MONSTER_MOVE`.
@@ -438,7 +462,10 @@ impl WorldPacket {
     /// Only the non-zero bytes are written, in little-endian byte order.
     pub fn write_packed_guid(&mut self, guid: &ObjectGuid) {
         self.flush_bits();
+        self.write_packed_guid_unflushed(guid);
+    }
 
+    pub fn write_packed_guid_unflushed(&mut self, guid: &ObjectGuid) {
         let low = guid.low_value() as u64;
         let high = guid.high_value() as u64;
 

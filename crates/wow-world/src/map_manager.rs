@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
-use std::io::{self, Read};
+use std::io::{self, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock, mpsc};
 use std::thread;
@@ -63,8 +63,12 @@ pub const DEFAULT_GRID_UNLOAD_TIME: Duration = Duration::from_secs(300);
 pub const DEFAULT_MIN_HEIGHT_LIKE_CPP: f32 = -500.0;
 
 const MAP_MAGIC_LIKE_CPP: &[u8; 4] = b"MAPS";
+const MAP_AREA_MAGIC_LIKE_CPP: &[u8; 4] = b"AREA";
 const MAP_VERSION_MAGIC_LIKE_CPP: u32 = 10;
 const MAP_FILE_HEADER_SIZE_LIKE_CPP: usize = 44;
+const MAP_AREA_HEADER_SIZE_LIKE_CPP: usize = 8;
+const MAP_AREA_HEADER_FLAG_NO_AREA_LIKE_CPP: u16 = 0x0001;
+const MAP_AREA_CELLS_PER_GRID_LIKE_CPP: usize = 16;
 const TERRAIN_GRID_COUNT_LIKE_CPP: usize =
     MAX_NUMBER_OF_GRIDS_LIKE_CPP as usize * MAX_NUMBER_OF_GRIDS_LIKE_CPP as usize;
 const SMOOTH_PATH_STEP_SIZE_LIKE_CPP: f32 = 4.0;
@@ -373,6 +377,98 @@ fn exist_map_like_cpp(data_dir: &Path, map_id: u32, gx: i32, gy: i32) -> bool {
     header[..4] == MAP_MAGIC_LIKE_CPP[..]
         && u32::from_le_bytes([header[4], header[5], header[6], header[7]])
             == MAP_VERSION_MAGIC_LIKE_CPP
+}
+
+pub fn terrain_grid_area_id_for_position_like_cpp(
+    data_dir: impl AsRef<Path>,
+    map_id: u32,
+    x: f32,
+    y: f32,
+) -> io::Result<Option<u32>> {
+    let (gx, gy) = terrain_grid_coords_for_wow_position_like_cpp(x, y);
+    let file_name = data_dir
+        .as_ref()
+        .join("maps")
+        .join(format!("{map_id:04}_{gx:02}_{gy:02}.map"));
+    let mut file = match File::open(&file_name) {
+        Ok(file) => file,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error),
+    };
+
+    let mut header = [0_u8; MAP_FILE_HEADER_SIZE_LIKE_CPP];
+    file.read_exact(&mut header)?;
+    if header[..4] != MAP_MAGIC_LIKE_CPP[..]
+        || u32::from_le_bytes([header[4], header[5], header[6], header[7]])
+            != MAP_VERSION_MAGIC_LIKE_CPP
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("invalid C++ terrain map header in {}", file_name.display()),
+        ));
+    }
+
+    let area_map_offset = u32::from_le_bytes([header[12], header[13], header[14], header[15]]);
+    if area_map_offset == 0 {
+        return Ok(None);
+    }
+
+    file.seek(SeekFrom::Start(u64::from(area_map_offset)))?;
+    let mut area_header = [0_u8; MAP_AREA_HEADER_SIZE_LIKE_CPP];
+    file.read_exact(&mut area_header)?;
+    if area_header[..4] != MAP_AREA_MAGIC_LIKE_CPP[..] {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("invalid C++ terrain area header in {}", file_name.display()),
+        ));
+    }
+
+    let flags = u16::from_le_bytes([area_header[4], area_header[5]]);
+    let grid_area = u16::from_le_bytes([area_header[6], area_header[7]]);
+    if flags & MAP_AREA_HEADER_FLAG_NO_AREA_LIKE_CPP != 0 {
+        return Ok(Some(u32::from(grid_area)));
+    }
+
+    let mut area_map = [0_u16; MAP_AREA_CELLS_PER_GRID_LIKE_CPP * MAP_AREA_CELLS_PER_GRID_LIKE_CPP];
+    let mut area_map_bytes = [0_u8;
+        MAP_AREA_CELLS_PER_GRID_LIKE_CPP
+            * MAP_AREA_CELLS_PER_GRID_LIKE_CPP
+            * std::mem::size_of::<u16>()];
+    file.read_exact(&mut area_map_bytes)?;
+    for (idx, chunk) in area_map_bytes.chunks_exact(2).enumerate() {
+        area_map[idx] = u16::from_le_bytes([chunk[0], chunk[1]]);
+    }
+
+    let x = MAP_AREA_CELLS_PER_GRID_LIKE_CPP as f32
+        * (CENTER_GRID_ID_LIKE_CPP as f32 - x / SIZE_OF_GRIDS_LIKE_CPP);
+    let y = MAP_AREA_CELLS_PER_GRID_LIKE_CPP as f32
+        * (CENTER_GRID_ID_LIKE_CPP as f32 - y / SIZE_OF_GRIDS_LIKE_CPP);
+    let lx = (x as i32 & 15) as usize;
+    let ly = (y as i32 & 15) as usize;
+    Ok(Some(u32::from(
+        area_map[lx * MAP_AREA_CELLS_PER_GRID_LIKE_CPP + ly],
+    )))
+}
+
+pub fn zone_and_area_for_position_like_cpp(
+    data_dir: impl AsRef<Path>,
+    map_id: u32,
+    x: f32,
+    y: f32,
+    area_store: Option<&wow_data::AreaTableStore>,
+    map_area_id_fallback: impl FnOnce(u32) -> u32,
+) -> io::Result<(u32, u32)> {
+    let area_id = terrain_grid_area_id_for_position_like_cpp(data_dir, map_id, x, y)?
+        .filter(|area_id| *area_id != 0)
+        .unwrap_or_else(|| map_area_id_fallback(map_id));
+
+    let zone_id = area_store
+        .and_then(|store| store.get(area_id))
+        .filter(|area| area.parent_area_id != 0 && area.is_subzone_like_cpp())
+        .map(|area| u32::from(area.parent_area_id))
+        .unwrap_or(area_id);
+
+    Ok((zone_id, area_id))
 }
 
 fn position_to_i32_tuple(position: Position) -> (i32, i32, i32) {
@@ -2728,19 +2824,19 @@ impl MapInstance {
 
 /// Who owns the creature/combat tick for a given map at runtime.
 ///
-/// Default is `Session`: each logged-in session drives its own creature and
-/// combat ticks — this is the legacy behaviour and the safe starting point.
-/// `GlobalLegacy` signals that a global clock will drive the ticks instead,
-/// so session-level tick calls must be skipped to avoid double resolution.
+/// Test/local default is `Session`: each logged-in session drives its own
+/// creature and combat ticks. Production startup flips this to `GlobalLegacy`
+/// by default so a global map clock drives creature runtime like C++ and
+/// session-level creature ticks are skipped to avoid double resolution.
 ///
 /// The owner lives on the shared [`MapManager`] so all sessions on the same
 /// map read the same value.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum RuntimeTickOwner {
-    /// Per-session tick (legacy behaviour, current default).
+    /// Per-session tick for isolated tests and explicit local diagnostics.
     #[default]
     Session,
-    /// Global legacy-manager tick (activated in Slice 4+).
+    /// Global legacy-manager tick used by production startup by default.
     GlobalLegacy,
 }
 
@@ -2890,7 +2986,7 @@ impl MapManager {
         self.tick_owner
     }
 
-    /// Sets the tick owner. Not called in Slice 3 — default remains `Session`.
+    /// Sets the tick owner.
     pub fn set_tick_owner(&mut self, owner: RuntimeTickOwner) {
         self.tick_owner = owner;
     }
@@ -3829,6 +3925,25 @@ mod tests {
         header
     }
 
+    fn map_file_header_with_area_like_cpp(area_offset: u32, area_size: u32) -> Vec<u8> {
+        let mut header = map_file_header_like_cpp();
+        header[12..16].copy_from_slice(&area_offset.to_le_bytes());
+        header[16..20].copy_from_slice(&area_size.to_le_bytes());
+        header
+    }
+
+    fn test_area_entry(id: u32, parent_area_id: u16, flags: u32) -> wow_data::AreaTableEntry {
+        wow_data::AreaTableEntry {
+            id,
+            continent_id: 571,
+            parent_area_id,
+            area_bit: -1,
+            exploration_level: 0,
+            mount_flags: 0,
+            flags,
+        }
+    }
+
     fn test_creature(guid: ObjectGuid) -> WorldCreature {
         WorldCreature::new(
             guid,
@@ -3844,6 +3959,61 @@ mod tests {
             0,
             0,
         )
+    }
+
+    #[test]
+    fn terrain_grid_area_map_decodes_cpp_area_cell_and_zone_parent() {
+        let data_dir = unique_temp_data_dir("terrain-area-map");
+        let map_id = 571;
+        let x = 0.0;
+        let y = 0.0;
+        let (gx, gy) = terrain_grid_coords_for_wow_position_like_cpp(x, y);
+        let area_offset = MAP_FILE_HEADER_SIZE_LIKE_CPP as u32;
+        let area_size = (MAP_AREA_HEADER_SIZE_LIKE_CPP
+            + MAP_AREA_CELLS_PER_GRID_LIKE_CPP
+                * MAP_AREA_CELLS_PER_GRID_LIKE_CPP
+                * std::mem::size_of::<u16>()) as u32;
+
+        let mut bytes = map_file_header_with_area_like_cpp(area_offset, area_size);
+        bytes.extend_from_slice(MAP_AREA_MAGIC_LIKE_CPP);
+        bytes.extend_from_slice(&0_u16.to_le_bytes());
+        bytes.extend_from_slice(&4395_u16.to_le_bytes());
+        let mut cells =
+            [0_u16; MAP_AREA_CELLS_PER_GRID_LIKE_CPP * MAP_AREA_CELLS_PER_GRID_LIKE_CPP];
+        cells[0] = 4613;
+        for cell in cells {
+            bytes.extend_from_slice(&cell.to_le_bytes());
+        }
+        fs::write(
+            data_dir
+                .join("maps")
+                .join(format!("{map_id:04}_{gx:02}_{gy:02}.map")),
+            bytes,
+        )
+        .expect("write test map");
+
+        let area_store = wow_data::AreaTableStore::from_entries([
+            test_area_entry(4395, 0, 0),
+            test_area_entry(4613, 4395, 0x4000_0000),
+        ]);
+
+        assert_eq!(
+            zone_and_area_for_position_like_cpp(&data_dir, map_id, x, y, Some(&area_store), |_| {
+                9999
+            },)
+            .expect("resolve terrain zone area"),
+            (4395, 4613)
+        );
+    }
+
+    #[test]
+    fn terrain_zone_area_falls_back_to_map_area_when_grid_missing_like_cpp() {
+        let data_dir = unique_temp_data_dir("terrain-area-fallback");
+        assert_eq!(
+            zone_and_area_for_position_like_cpp(&data_dir, 571, 0.0, 0.0, None, |_| 4395)
+                .expect("resolve fallback terrain zone area"),
+            (4395, 4395)
+        );
     }
 
     #[test]

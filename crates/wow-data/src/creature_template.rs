@@ -1512,15 +1512,39 @@ impl CreatureBaseStatsStoreLikeCpp {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct CreatureDifficultyStoreLikeCpp {
     records: HashMap<(u32, u8), CreatureDifficultyRecordLikeCpp>,
+    difficulty_fallbacks: HashMap<u8, u8>,
+    default_record: CreatureDifficultyRecordLikeCpp,
+}
+
+impl Default for CreatureDifficultyStoreLikeCpp {
+    fn default() -> Self {
+        Self {
+            records: HashMap::new(),
+            difficulty_fallbacks: HashMap::new(),
+            default_record: CreatureDifficultyRecordLikeCpp::default_fallback_like_cpp(),
+        }
+    }
 }
 
 impl CreatureDifficultyStoreLikeCpp {
     pub fn from_records(
         records: impl IntoIterator<Item = CreatureDifficultyRecordLikeCpp>,
         classification_damage_modifier_for_entry: impl Fn(u32) -> f32,
+    ) -> Self {
+        Self::from_records_with_difficulty_fallbacks(
+            records,
+            classification_damage_modifier_for_entry,
+            std::iter::empty(),
+        )
+    }
+
+    pub fn from_records_with_difficulty_fallbacks(
+        records: impl IntoIterator<Item = CreatureDifficultyRecordLikeCpp>,
+        classification_damage_modifier_for_entry: impl Fn(u32) -> f32,
+        difficulty_fallbacks: impl IntoIterator<Item = (u8, u8)>,
     ) -> Self {
         Self {
             records: records
@@ -1533,11 +1557,14 @@ impl CreatureDifficultyStoreLikeCpp {
                     (key, normalized)
                 })
                 .collect(),
+            difficulty_fallbacks: difficulty_fallbacks.into_iter().collect(),
+            default_record: CreatureDifficultyRecordLikeCpp::default_fallback_like_cpp(),
         }
     }
 
     pub async fn load_like_cpp(
         db: &WorldDatabase,
+        difficulty_store: &crate::DifficultyStore,
         classification_damage_modifier_for_entry: impl Fn(u32) -> f32,
     ) -> Result<Self> {
         let mut result = db
@@ -1547,7 +1574,11 @@ impl CreatureDifficultyStoreLikeCpp {
             .await?;
 
         if result.is_empty() {
-            return Ok(Self::default());
+            return Ok(Self::from_records_with_difficulty_fallbacks(
+                std::iter::empty(),
+                classification_damage_modifier_for_entry,
+                difficulty_fallback_pairs_like_cpp(difficulty_store),
+            ));
         }
 
         let mut records = Vec::new();
@@ -1590,18 +1621,31 @@ impl CreatureDifficultyStoreLikeCpp {
             }
         }
 
-        Ok(Self::from_records(
+        Ok(Self::from_records_with_difficulty_fallbacks(
             records,
             classification_damage_modifier_for_entry,
+            difficulty_fallback_pairs_like_cpp(difficulty_store),
         ))
     }
 
-    pub fn get_like_cpp(
-        &self,
-        entry: u32,
-        difficulty_id: u8,
-    ) -> Option<&CreatureDifficultyRecordLikeCpp> {
-        self.records.get(&(entry, difficulty_id))
+    pub fn get_like_cpp(&self, entry: u32, difficulty_id: u8) -> &CreatureDifficultyRecordLikeCpp {
+        let mut current = difficulty_id;
+        let mut seen = [false; 256];
+        loop {
+            if let Some(record) = self.records.get(&(entry, current)) {
+                return record;
+            }
+
+            if seen[current as usize] {
+                return &self.default_record;
+            }
+            seen[current as usize] = true;
+
+            let Some(fallback) = self.difficulty_fallbacks.get(&current).copied() else {
+                return &self.default_record;
+            };
+            current = fallback;
+        }
     }
 
     pub fn len(&self) -> usize {
@@ -1611,6 +1655,41 @@ impl CreatureDifficultyStoreLikeCpp {
     pub fn is_empty(&self) -> bool {
         self.records.is_empty()
     }
+}
+
+impl CreatureDifficultyRecordLikeCpp {
+    pub fn default_fallback_like_cpp() -> Self {
+        Self {
+            entry: 0,
+            difficulty_id: 0,
+            min_level: 1,
+            max_level: 1,
+            health_scaling_expansion: 0,
+            health_modifier: 1.0,
+            mana_modifier: 1.0,
+            armor_modifier: 1.0,
+            damage_modifier: 1.0,
+            creature_difficulty_id: 0,
+            type_flags: 0,
+            type_flags2: 0,
+            loot_id: 0,
+            pickpocket_loot_id: 0,
+            skin_loot_id: 0,
+            gold_min: 0,
+            gold_max: 0,
+            static_flags: [0; 8],
+        }
+    }
+}
+
+fn difficulty_fallback_pairs_like_cpp(
+    difficulty_store: &crate::DifficultyStore,
+) -> impl Iterator<Item = (u8, u8)> + '_ {
+    (0u8..=u8::MAX).filter_map(|difficulty_id| {
+        difficulty_store
+            .fallback_difficulty_id_like_cpp(difficulty_id)
+            .map(|fallback| (difficulty_id, fallback))
+    })
 }
 
 #[cfg(test)]
@@ -2455,11 +2534,29 @@ mod tests {
             |entry| if entry == 7 { 1.5 } else { 1.0 },
         );
 
-        let record = store.get_like_cpp(7, 3).expect("difficulty row exists");
+        let record = store.get_like_cpp(7, 3);
         assert_eq!(record.min_level, 4);
         assert_eq!(record.max_level, 5);
         assert_eq!(record.damage_modifier, 3.0);
-        assert!(store.get_like_cpp(7, 0).is_none());
+        assert_eq!(store.get_like_cpp(7, 0).min_level, 1);
+    }
+
+    #[test]
+    fn creature_difficulty_store_follows_difficulty_fallbacks_then_default_like_cpp() {
+        let store = CreatureDifficultyStoreLikeCpp::from_records_with_difficulty_fallbacks(
+            [CreatureDifficultyRecordLikeCpp {
+                entry: 7,
+                difficulty_id: 0,
+                min_level: 12,
+                max_level: 12,
+                ..base_difficulty_record()
+            }],
+            |_| 1.0,
+            [(2, 1), (1, 0)],
+        );
+
+        assert_eq!(store.get_like_cpp(7, 2).min_level, 12);
+        assert_eq!(store.get_like_cpp(8, 2).min_level, 1);
     }
 
     #[test]

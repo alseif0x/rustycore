@@ -36,8 +36,8 @@ honest percentages instead of one.
 1. **`98.15%` measures "represented game logic addressed", not "gap-free server."**
    The macro-gap — split-engine live runtime — is now partially bridged but not fully
    closed. Since the original #764 finding, the legacy `wow_world::MapManager` gained an
-   experimental global creature runtime (`RustyCore.LegacyCreatureGlobalRuntime`, default
-   off) for lifecycle, movement, aggro, and melee, while the canonical `wow_map::MapManager`
+   global creature runtime (`RustyCore.LegacyCreatureGlobalRuntime`, default
+   enabled) for lifecycle, movement, aggro, and melee, while the canonical `wow_map::MapManager`
    still remains the structural destination. This is real progress, but it is not globally
    manual-test-ready and does not by itself prove full runtime parity.
 
@@ -56,7 +56,7 @@ the 70-98% metrics but does not by itself prove complete runtime parity.
 ## Live-runtime roadmap (from #764 analysis)
 
 1. ✅ Characterize the engine split (regression anchor, test-only) — done (#764).
-2. ✅ Give the legacy map its own experimental clock — default off, gated by config.
+2. ✅ Give the legacy map its own clock — default enabled, with config override for diagnostics.
 3. ✅ Creature lifecycle/movement fanout from the global tick exists behind that gate.
 4. ✅ Creature aggro/melee resolution is represented in the global legacy runtime; player auto-attack remains session-owned like C++ `Player::Update`.
 5. 🔧 Respawn ownership has moved from per-session to map-owned legacy state, but canonical single-source convergence is still incomplete.

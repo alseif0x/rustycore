@@ -2690,11 +2690,12 @@ impl ServerPacket for ServerTimeOffset {
 // ── InitWorldStates (SMSG 0x2746) ─────────────────────────────────
 
 /// World state variables for the current zone. Sent after UpdateObject.
-/// For a minimal login, we send an empty list.
+/// C++ `WorldPackets::WorldState::InitWorldStates`.
 pub struct InitWorldStates {
     pub map_id: i32,
     pub area_id: i32,
     pub subarea_id: i32,
+    pub world_states: Vec<(i32, i32)>,
 }
 
 impl InitWorldStates {
@@ -2703,6 +2704,21 @@ impl InitWorldStates {
             map_id,
             area_id: zone_id,
             subarea_id: 0,
+            world_states: Vec::new(),
+        }
+    }
+
+    pub fn with_world_states(
+        map_id: i32,
+        zone_id: i32,
+        area_id: i32,
+        world_states: Vec<(i32, i32)>,
+    ) -> Self {
+        Self {
+            map_id,
+            area_id: zone_id,
+            subarea_id: area_id,
+            world_states,
         }
     }
 }
@@ -2714,7 +2730,11 @@ impl ServerPacket for InitWorldStates {
         pkt.write_int32(self.map_id);
         pkt.write_int32(self.area_id);
         pkt.write_int32(self.subarea_id);
-        pkt.write_int32(0); // Worldstates.Count = 0
+        pkt.write_uint32(self.world_states.len() as u32);
+        for (variable_id, value) in &self.world_states {
+            pkt.write_int32(*variable_id);
+            pkt.write_int32(*value);
+        }
     }
 }
 
@@ -10467,6 +10487,22 @@ mod tests {
         assert_eq!(bytes.len(), 18);
         let opcode = u16::from_le_bytes([bytes[0], bytes[1]]);
         assert_eq!(opcode, 0x2746);
+    }
+
+    #[test]
+    fn init_world_states_serializes_cpp_worldstate_pairs() {
+        let pkt = InitWorldStates::with_world_states(571, 4395, 4613, vec![(46, 1), (24098, 0)]);
+        let bytes = pkt.to_bytes();
+        assert_eq!(bytes.len(), 34);
+        assert_eq!(u16::from_le_bytes(bytes[0..2].try_into().unwrap()), 0x2746);
+        assert_eq!(i32::from_le_bytes(bytes[2..6].try_into().unwrap()), 571);
+        assert_eq!(i32::from_le_bytes(bytes[6..10].try_into().unwrap()), 4395);
+        assert_eq!(i32::from_le_bytes(bytes[10..14].try_into().unwrap()), 4613);
+        assert_eq!(u32::from_le_bytes(bytes[14..18].try_into().unwrap()), 2);
+        assert_eq!(i32::from_le_bytes(bytes[18..22].try_into().unwrap()), 46);
+        assert_eq!(i32::from_le_bytes(bytes[22..26].try_into().unwrap()), 1);
+        assert_eq!(i32::from_le_bytes(bytes[26..30].try_into().unwrap()), 24098);
+        assert_eq!(i32::from_le_bytes(bytes[30..34].try_into().unwrap()), 0);
     }
 
     #[test]

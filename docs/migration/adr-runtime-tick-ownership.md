@@ -191,12 +191,12 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   only. One tokio test flips `GlobalLegacy`, runs the single-shot movement bridge from a spawned task
   via `spawn_blocking`, and proves fanout/canonical-sync through the task boundary. A second combined
   bridge runs lifecycle refresh first, then movement delivery from the same task boundary, proving the
-  dormant-by-default global creature runtime can process corpse removal visibility refresh and
-  MonsterMove fanout together. Production now has a caller only through the 4B.1 experimental flag and
-  still defaults to `Session`.
-- **4B.1 — DONE (`#NEXT.RUNTIME.L3.013`):** production wiring exists behind an experimental config
-  flag, default off. `RustyCore.LegacyCreatureGlobalRuntime = 0` keeps production behavior unchanged.
-  When explicitly enabled, startup flips the legacy map owner to `GlobalLegacy` and spawns the global
+  global creature runtime can process corpse removal visibility refresh and MonsterMove fanout
+  together. Production now uses that caller by default, while tests/local diagnostics can still force
+  `Session`.
+- **4B.1 — DONE (`#NEXT.RUNTIME.L3.013`):** production wiring exists behind a runtime config flag,
+  default on. `RustyCore.LegacyCreatureGlobalRuntime = 0` explicitly restores the old diagnostic
+  session-owned path. When enabled, startup flips the legacy map owner to `GlobalLegacy` and spawns the global
   creature runtime loop at the C++ `MapUpdateInterval` cadence. The loop uses `spawn_blocking` and the
   same combined lifecycle+movement bridge proven by tests.
 - **4B.2:** manual client/server verification with the experimental flag enabled. Not marked
@@ -288,9 +288,9 @@ Sub-slices (each compiles, suite green, no production behavior change until the 
   canonical movement state synced. 4B.1 later reuses this bridge behind an experimental flag.
 - 2026-05-30 — Slice 4B.1 wiring `#NEXT.RUNTIME.L3.013`: added
   `spawn_legacy_creature_runtime_update_loop_like_cpp`, wired from `main` behind
-  `RustyCore.LegacyCreatureGlobalRuntime` (default `0`). If enabled, startup sets
-  `RuntimeTickOwner::GlobalLegacy`; otherwise the server still defaults to session-owned creature
-  ticks. The loop uses the same C++ `CONFIG_INTERVAL_MAPUPDATE` cadence and runs the combined
+  `RustyCore.LegacyCreatureGlobalRuntime` (default enabled when absent). If enabled, startup sets
+  `RuntimeTickOwner::GlobalLegacy`; setting the key to `0` restores the session-owned diagnostic
+  path. The loop uses the same C++ `CONFIG_INTERVAL_MAPUPDATE` cadence and runs the combined
   lifecycle+movement bridge in `spawn_blocking`. Verification: `cargo check -p world-server`.
 - 2026-05-30 — Runtime creature-combat rail `#NEXT.RUNTIME.L3.014`: added dormant
   `ApplyCreatureMeleeDamageLikeCpp` session command for map-owned creature melee results. Verification:

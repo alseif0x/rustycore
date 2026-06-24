@@ -260,7 +260,7 @@ DBUpdater (auto-applies pending `.sql` files) is invoked by `DatabaseLoader::Loa
 
 **Suspicious / likely divergent (hipótesis pre-auditoría):**
 - The 50 ms session sleep is still **independent across sessions** for session-owned work. Runtime slices have moved creature lifecycle/movement/aggro/melee toward a map-owned bridge, but the whole server is not yet under one `World::Update` owner.
-- With `RustyCore.LegacyCreatureGlobalRuntime=0` (default), legacy creature behavior still follows the conservative session-owned path. With it enabled, the bridge runs globally, but it remains experimental and needs live client/server validation before being called manual-test-ready.
+- With `RustyCore.LegacyCreatureGlobalRuntime` absent or non-zero, legacy creature behavior is map-owned through the global runtime bridge, matching C++ `MapManager::Update` ownership. `RustyCore.LegacyCreatureGlobalRuntime=0` is now only a local diagnostic override that restores the old session-owned path.
 - `tokio::time::sleep(Duration::from_millis(50))` is the *floor* for session loops, not the top-level C++ world-loop period. TC's `MinWorldUpdateTime` floor and freeze warning semantics remain open.
 - Without `sRealmList`, the BNet realm-list response is built from a stale snapshot loaded once at boot; adding a realm row to MySQL won't be picked up.
 - Database connection pool sizing: TC opens async/sync connection sets per database via `<DB>Database.WorkerThreads` and `<DB>Database.SynchThreads`. Rust `world-server` opens one `sqlx::Pool<MySql>` per logical DB sized to that configured sum, so sub-pool separation still differs but the connection budget is no longer hardcoded.

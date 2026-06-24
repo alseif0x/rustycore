@@ -241,6 +241,91 @@ pub struct AreaTriggerDataValuesUpdate {
     pub visual_anim: VisualAnimValuesUpdate,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct AreaTriggerPosition2CreateData {
+    pub x: f32,
+    pub y: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct AreaTriggerPosition3CreateData {
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct AreaTriggerShapeCreateData {
+    pub shape_type: u8,
+    pub data: [f32; 8],
+    pub polygon_vertices: Vec<AreaTriggerPosition2CreateData>,
+    pub polygon_vertices_target: Vec<AreaTriggerPosition2CreateData>,
+}
+
+impl Default for AreaTriggerShapeCreateData {
+    fn default() -> Self {
+        Self {
+            shape_type: 0,
+            data: [0.0; 8],
+            polygon_vertices: Vec::new(),
+            polygon_vertices_target: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct AreaTriggerOrbitCreateData {
+    pub counter_clockwise: bool,
+    pub can_loop: bool,
+    pub time_to_target: u32,
+    pub elapsed_time_for_movement: i32,
+    pub start_delay: u32,
+    pub radius: f32,
+    pub blend_from_radius: f32,
+    pub initial_angle: f32,
+    pub z_offset: f32,
+    pub center: AreaTriggerPosition3CreateData,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct AreaTriggerCreateData {
+    pub guid: ObjectGuid,
+    pub entry_id: u32,
+    pub dynamic_flags: u32,
+    pub scale: f32,
+    pub position: Position,
+    pub time_since_created_ms: u32,
+    pub roll_pitch_yaw: Position,
+    pub target_roll_pitch_yaw: Position,
+    pub create_properties_flags: u32,
+    pub scale_curve_id: u32,
+    pub morph_curve_id: u32,
+    pub facing_curve_id: u32,
+    pub move_curve_id: u32,
+    pub shape: AreaTriggerShapeCreateData,
+    pub spline_points: Vec<AreaTriggerPosition3CreateData>,
+    pub orbit: Option<AreaTriggerOrbitCreateData>,
+    pub override_scale_curve: ScaleCurveValuesUpdate,
+    pub extra_scale_curve: ScaleCurveValuesUpdate,
+    pub override_move_curve_x: ScaleCurveValuesUpdate,
+    pub override_move_curve_y: ScaleCurveValuesUpdate,
+    pub override_move_curve_z: ScaleCurveValuesUpdate,
+    pub caster: ObjectGuid,
+    pub duration: u32,
+    pub time_to_target: u32,
+    pub time_to_target_scale: u32,
+    pub time_to_target_extra_scale: u32,
+    pub time_to_target_pos: u32,
+    pub spell_id: i32,
+    pub spell_for_visuals: i32,
+    pub spell_visual_id: i32,
+    pub bounds_radius_2d: f32,
+    pub decal_properties_id: u32,
+    pub creating_effect_guid: ObjectGuid,
+    pub orbit_path_target: ObjectGuid,
+    pub visual_anim: VisualAnimValuesUpdate,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct ItemEnchantmentValuesUpdate {
     pub item_enchantment_mask: u32,
@@ -1500,6 +1585,9 @@ pub struct PlayerCreateData {
     pub inv_slots: [ObjectGuid; 141],
     /// ActivePlayerData::FarsightObject written after InvSlots in WriteCreate.
     pub farsight_object: ObjectGuid,
+    /// C++ `Player::m_actionButtons` written by `Object::BuildMovementUpdate`
+    /// when `CreateObjectBits::ActivePlayer` is set for the self create block.
+    pub action_buttons: [u32; MAX_ACTION_BUTTONS],
     /// Character's learned skills for the SkillInfo array (up to 256).
     /// Each entry: (skill_id, step, rank, starting_rank, max_rank, temp_bonus, perm_bonus).
     pub skill_info: Vec<(u16, u16, u16, u16, u16, i16, u16)>,
@@ -2917,6 +3005,10 @@ pub enum UpdateBlock {
         guid: ObjectGuid,
         create_data: DynamicObjectCreateData,
     },
+    CreateAreaTrigger {
+        guid: ObjectGuid,
+        create_data: AreaTriggerCreateData,
+    },
     CreateItem {
         update_type: UpdateType,
         guid: ObjectGuid,
@@ -3295,6 +3387,22 @@ impl UpdateObject {
                         create_data.spell_id, create_data.spell_visual_id, create_data.radius
                     ));
                 }
+                UpdateBlock::CreateAreaTrigger { guid, create_data } => {
+                    lines.push(format!(
+                        "#{index:03} area_trigger guid={guid:?} entry={} shape={} flags=0x{:X} bytes={} pos=({:.3},{:.3},{:.3},{:.3}) spell={} visual={} radius={:.3}",
+                        create_data.entry_id,
+                        create_data.shape.shape_type,
+                        create_data.create_properties_flags,
+                        debug_area_trigger_create_block_len_like_cpp(guid, create_data),
+                        create_data.position.x,
+                        create_data.position.y,
+                        create_data.position.z,
+                        create_data.position.orientation,
+                        create_data.spell_id,
+                        create_data.spell_visual_id,
+                        create_data.bounds_radius_2d
+                    ));
+                }
                 UpdateBlock::ItemValuesUpdate { guid, stack_count } => {
                     lines.push(format!(
                         "#{index:03} item_values guid={guid:?} stack_count={stack_count}"
@@ -3456,6 +3564,13 @@ impl UpdateObject {
         }
     }
 
+    pub fn create_area_trigger_block(create_data: AreaTriggerCreateData) -> UpdateBlock {
+        UpdateBlock::CreateAreaTrigger {
+            guid: create_data.guid,
+            create_data,
+        }
+    }
+
     /// Create a batched UpdateObject with mixed world-object create blocks.
     pub fn create_world_objects(blocks: Vec<UpdateBlock>, map_id: u16) -> Self {
         Self {
@@ -3571,6 +3686,7 @@ impl UpdateObject {
             customizations: Vec::new(),
             inv_slots,
             farsight_object: ObjectGuid::EMPTY,
+            action_buttons: [0; MAX_ACTION_BUTTONS],
             skill_info,
             coinage,
             watched_faction_index: -1,
@@ -3635,6 +3751,23 @@ impl UpdateObject {
                 create_data.transmog = transmog;
                 create_data.trait_configs = trait_configs;
                 return;
+            }
+        }
+    }
+
+    /// Populate C++ `Player::m_actionButtons` for the self create block.
+    pub fn set_player_action_buttons_like_cpp(
+        &mut self,
+        action_buttons: [u32; MAX_ACTION_BUTTONS],
+    ) {
+        for block in &mut self.blocks {
+            if let UpdateBlock::CreateObject {
+                create_data,
+                is_self: true,
+                ..
+            } = block
+            {
+                create_data.action_buttons = action_buttons;
             }
         }
     }
@@ -4049,6 +4182,15 @@ fn debug_item_create_values_len_like_cpp(data: &ItemCreateData) -> usize {
     )
 }
 
+fn debug_area_trigger_create_block_len_like_cpp(
+    guid: &ObjectGuid,
+    data: &AreaTriggerCreateData,
+) -> usize {
+    let mut block = WorldPacket::new_empty();
+    write_area_trigger_create_block(&mut block, guid, data);
+    block.into_data().len()
+}
+
 impl ServerPacket for UpdateObject {
     const OPCODE: ServerOpcodes = ServerOpcodes::UpdateObject;
 
@@ -4129,6 +4271,9 @@ impl ServerPacket for UpdateObject {
                 }
                 UpdateBlock::CreateDynamicObject { guid, create_data } => {
                     write_dynamic_object_create_block(&mut blocks_buf, guid, create_data);
+                }
+                UpdateBlock::CreateAreaTrigger { guid, create_data } => {
+                    write_area_trigger_create_block(&mut blocks_buf, guid, create_data);
                 }
                 UpdateBlock::CreateItem {
                     update_type,
@@ -4281,7 +4426,7 @@ fn write_create_block(
     // Contains: 3 bits (HasSceneInstanceIDs, HasRuneState, HasActionButtons)
     //           + optional scene IDs, rune data, and 180 action buttons.
     if write_active_player_movement {
-        write_active_player_movement_block(buf);
+        write_active_player_movement_block(buf, &create_data.action_buttons);
     }
 
     // No Conversation block (bit 17 = false)
@@ -4490,7 +4635,10 @@ fn write_create_object_spline_data_block_like_cpp(buf: &mut WorldPacket, spline:
 /// HasActionButtons=true, all 180 action ids = 0.
 const MAX_ACTION_BUTTONS: usize = 180;
 
-fn write_active_player_movement_block(buf: &mut WorldPacket) {
+fn write_active_player_movement_block(
+    buf: &mut WorldPacket,
+    action_buttons: &[u32; MAX_ACTION_BUTTONS],
+) {
     // 3 bits: HasSceneInstanceIDs, HasRuneState, HasActionButtons
     buf.write_bit(false); // HasSceneInstanceIDs
     buf.write_bit(false); // HasRuneState
@@ -4501,8 +4649,8 @@ fn write_active_player_movement_block(buf: &mut WorldPacket) {
     // HasRuneState: if true, would write rune data (skipped)
 
     // HasActionButtons: 180 action buttons, each i32 (4 bytes)
-    for _ in 0..MAX_ACTION_BUTTONS {
-        buf.write_uint32(0); // No action buttons configured
+    for action_button in action_buttons {
+        buf.write_uint32(*action_button);
     }
 }
 
@@ -4754,6 +4902,242 @@ fn write_dynamic_object_create_block(
 
     // ── Values block ─────────────────────────────────────────
     create_data.write_values_create(buf);
+}
+
+const AREATRIGGER_CREATE_PROPERTIES_FLAG_HAS_ABSOLUTE_ORIENTATION_LIKE_CPP: u32 = 0x00001;
+const AREATRIGGER_CREATE_PROPERTIES_FLAG_HAS_DYNAMIC_SHAPE_LIKE_CPP: u32 = 0x00002;
+const AREATRIGGER_CREATE_PROPERTIES_FLAG_HAS_ATTACHED_LIKE_CPP: u32 = 0x00004;
+const AREATRIGGER_CREATE_PROPERTIES_FLAG_HAS_FACE_MOVEMENT_DIR_LIKE_CPP: u32 = 0x00008;
+const AREATRIGGER_CREATE_PROPERTIES_FLAG_HAS_FOLLOWS_TERRAIN_LIKE_CPP: u32 = 0x00010;
+const AREATRIGGER_CREATE_PROPERTIES_FLAG_UNK1_LIKE_CPP: u32 = 0x00020;
+const AREATRIGGER_CREATE_PROPERTIES_FLAG_HAS_TARGET_ROLL_PITCH_YAW_LIKE_CPP: u32 = 0x00040;
+
+fn write_area_trigger_create_block(
+    buf: &mut WorldPacket,
+    guid: &ObjectGuid,
+    create_data: &AreaTriggerCreateData,
+) {
+    buf.write_uint8(UpdateType::CreateObject as u8);
+    buf.write_packed_guid(guid);
+    buf.write_uint8(TypeId::AreaTrigger as u8);
+
+    buf.write_bit(false); // NoBirthAnim
+    buf.write_bit(false); // EnablePortals
+    buf.write_bit(false); // PlayHoverAnim
+    buf.write_bit(false); // MovementUpdate
+    buf.write_bit(false); // MovementTransport
+    buf.write_bit(true); // Stationary
+    buf.write_bit(false); // CombatVictim
+    buf.write_bit(false); // ServerTime
+    buf.write_bit(false); // Vehicle
+    buf.write_bit(false); // AnimKit
+    buf.write_bit(false); // Rotation
+    buf.write_bit(true); // AreaTrigger
+    buf.write_bit(false); // GameObject
+    buf.write_bit(false); // SmoothPhasing
+    buf.write_bit(false); // ThisIsYou
+    buf.write_bit(false); // SceneObject
+    buf.write_bit(false); // ActivePlayer
+    buf.write_bit(false); // Conversation
+    buf.flush_bits();
+
+    buf.write_int32(0); // PauseTimes count
+
+    buf.write_float(create_data.position.x);
+    buf.write_float(create_data.position.y);
+    buf.write_float(create_data.position.z);
+    buf.write_float(create_data.position.orientation);
+
+    buf.write_uint32(create_data.time_since_created_ms);
+    write_position_xyz_like_cpp(buf, create_data.roll_pitch_yaw);
+
+    let flags = create_data.create_properties_flags;
+    let has_absolute_orientation =
+        flags & AREATRIGGER_CREATE_PROPERTIES_FLAG_HAS_ABSOLUTE_ORIENTATION_LIKE_CPP != 0;
+    let has_dynamic_shape =
+        flags & AREATRIGGER_CREATE_PROPERTIES_FLAG_HAS_DYNAMIC_SHAPE_LIKE_CPP != 0;
+    let has_attached = flags & AREATRIGGER_CREATE_PROPERTIES_FLAG_HAS_ATTACHED_LIKE_CPP != 0;
+    let has_face_movement_dir =
+        flags & AREATRIGGER_CREATE_PROPERTIES_FLAG_HAS_FACE_MOVEMENT_DIR_LIKE_CPP != 0;
+    let has_follows_terrain =
+        flags & AREATRIGGER_CREATE_PROPERTIES_FLAG_HAS_FOLLOWS_TERRAIN_LIKE_CPP != 0;
+    let has_unk1 = flags & AREATRIGGER_CREATE_PROPERTIES_FLAG_UNK1_LIKE_CPP != 0;
+    let has_target_roll_pitch_yaw =
+        flags & AREATRIGGER_CREATE_PROPERTIES_FLAG_HAS_TARGET_ROLL_PITCH_YAW_LIKE_CPP != 0;
+    let has_scale_curve_id = create_data.scale_curve_id != 0;
+    let has_morph_curve_id = create_data.morph_curve_id != 0;
+    let has_facing_curve_id = create_data.facing_curve_id != 0;
+    let has_move_curve_id = create_data.move_curve_id != 0;
+    let has_area_trigger_sphere = create_data.shape.shape_type == 0;
+    let has_area_trigger_box = create_data.shape.shape_type == 1;
+    let has_area_trigger_polygon = create_data.shape.shape_type == 3;
+    let has_area_trigger_cylinder = create_data.shape.shape_type == 4;
+    let has_disk = create_data.shape.shape_type == 5;
+    let has_bounded_plane = create_data.shape.shape_type == 6;
+    let has_area_trigger_spline = !create_data.spline_points.is_empty();
+    let has_orbit = create_data.orbit.is_some();
+    let has_movement_script = false;
+
+    buf.write_bit(has_absolute_orientation);
+    buf.write_bit(has_dynamic_shape);
+    buf.write_bit(has_attached);
+    buf.write_bit(has_face_movement_dir);
+    buf.write_bit(has_follows_terrain);
+    buf.write_bit(has_unk1);
+    buf.write_bit(has_target_roll_pitch_yaw);
+    buf.write_bit(has_scale_curve_id);
+    buf.write_bit(has_morph_curve_id);
+    buf.write_bit(has_facing_curve_id);
+    buf.write_bit(has_move_curve_id);
+    buf.write_bit(has_area_trigger_sphere);
+    buf.write_bit(has_area_trigger_box);
+    buf.write_bit(has_area_trigger_polygon);
+    buf.write_bit(has_area_trigger_cylinder);
+    buf.write_bit(has_disk);
+    buf.write_bit(has_bounded_plane);
+    buf.write_bit(has_area_trigger_spline);
+    buf.write_bit(has_orbit);
+    buf.write_bit(has_movement_script);
+    buf.flush_bits();
+
+    if has_area_trigger_spline {
+        buf.write_uint32(create_data.time_to_target);
+        buf.write_int32(0); // elapsed time for movement
+        buf.write_bits(create_data.spline_points.len() as u32, 16);
+        for point in &create_data.spline_points {
+            buf.write_float(point.x);
+            buf.write_float(point.y);
+            buf.write_float(point.z);
+        }
+    }
+
+    if has_target_roll_pitch_yaw {
+        write_position_xyz_like_cpp(buf, create_data.target_roll_pitch_yaw);
+    }
+    if has_scale_curve_id {
+        buf.write_uint32(create_data.scale_curve_id);
+    }
+    if has_morph_curve_id {
+        buf.write_uint32(create_data.morph_curve_id);
+    }
+    if has_facing_curve_id {
+        buf.write_uint32(create_data.facing_curve_id);
+    }
+    if has_move_curve_id {
+        buf.write_uint32(create_data.move_curve_id);
+    }
+
+    let shape = &create_data.shape;
+    if has_area_trigger_sphere {
+        buf.write_float(shape.data[0]);
+        buf.write_float(shape.data[1]);
+    }
+    if has_area_trigger_box {
+        for index in 0..6 {
+            buf.write_float(shape.data[index]);
+        }
+    }
+    if has_area_trigger_polygon {
+        buf.write_int32(shape.polygon_vertices.len() as i32);
+        buf.write_int32(shape.polygon_vertices_target.len() as i32);
+        buf.write_float(shape.data[0]);
+        buf.write_float(shape.data[1]);
+        for vertex in &shape.polygon_vertices {
+            buf.write_float(vertex.x);
+            buf.write_float(vertex.y);
+        }
+        for vertex in &shape.polygon_vertices_target {
+            buf.write_float(vertex.x);
+            buf.write_float(vertex.y);
+        }
+    }
+    if has_area_trigger_cylinder {
+        for index in 0..6 {
+            buf.write_float(shape.data[index]);
+        }
+    }
+    if has_disk {
+        for index in 0..8 {
+            buf.write_float(shape.data[index]);
+        }
+    }
+    if has_bounded_plane {
+        buf.write_float(shape.data[0]);
+        buf.write_float(shape.data[1]);
+        buf.write_float(shape.data[3]);
+        buf.write_float(shape.data[4]);
+    }
+
+    if let Some(orbit) = create_data.orbit {
+        buf.write_bit(false); // PathTarget
+        buf.write_bit(true); // Center
+        buf.write_bit(orbit.counter_clockwise);
+        buf.write_bit(orbit.can_loop);
+        buf.write_uint32(orbit.time_to_target);
+        buf.write_int32(orbit.elapsed_time_for_movement);
+        buf.write_uint32(orbit.start_delay);
+        buf.write_float(orbit.radius);
+        buf.write_float(orbit.blend_from_radius);
+        buf.write_float(orbit.initial_angle);
+        buf.write_float(orbit.z_offset);
+        buf.write_float(orbit.center.x);
+        buf.write_float(orbit.center.y);
+        buf.write_float(orbit.center.z);
+    }
+
+    write_area_trigger_values_create(buf, create_data);
+}
+
+fn write_area_trigger_values_create(buf: &mut WorldPacket, data: &AreaTriggerCreateData) {
+    let mut values = WorldPacket::new_empty();
+    values.write_uint8(0x00); // UpdateFieldFlag
+
+    values.write_int32(data.entry_id as i32);
+    values.write_uint32(data.dynamic_flags);
+    values.write_float(data.scale);
+
+    write_scale_curve_values_create(&mut values, &data.override_scale_curve);
+    values.write_packed_guid(&data.caster);
+    values.write_uint32(data.duration);
+    values.write_uint32(data.time_to_target);
+    values.write_uint32(data.time_to_target_scale);
+    values.write_uint32(data.time_to_target_extra_scale);
+    values.write_uint32(data.time_to_target_pos);
+    values.write_int32(data.spell_id);
+    values.write_int32(data.spell_for_visuals);
+    values.write_int32(data.spell_visual_id);
+    values.write_float(data.bounds_radius_2d);
+    values.write_uint32(data.decal_properties_id);
+    values.write_packed_guid(&data.creating_effect_guid);
+    values.write_packed_guid(&data.orbit_path_target);
+    write_scale_curve_values_create(&mut values, &data.extra_scale_curve);
+    write_scale_curve_values_create(&mut values, &data.override_move_curve_x);
+    write_scale_curve_values_create(&mut values, &data.override_move_curve_y);
+    write_scale_curve_values_create(&mut values, &data.override_move_curve_z);
+    write_visual_anim_values_create(&mut values, &data.visual_anim);
+
+    let data = values.into_data();
+    buf.write_uint32(data.len() as u32);
+    buf.write_bytes(&data);
+}
+
+fn write_scale_curve_values_create(buf: &mut WorldPacket, data: &ScaleCurveValuesUpdate) {
+    buf.write_uint32(data.start_time_offset);
+    for point in data.points {
+        buf.write_float(point.0);
+        buf.write_float(point.1);
+    }
+    buf.write_uint32(data.parameter_curve);
+    buf.write_bit(data.override_active);
+    buf.flush_bits();
+}
+
+fn write_visual_anim_values_create(buf: &mut WorldPacket, data: &VisualAnimValuesUpdate) {
+    buf.write_uint32(data.animation_data_id);
+    buf.write_uint32(data.anim_kit_id);
+    buf.write_uint32(data.anim_progress);
+    buf.write_bit(data.field_c);
+    buf.flush_bits();
 }
 
 /// Write a single CreateObject block for an Item (TypeId::Item).
@@ -9202,6 +9586,89 @@ mod tests {
     }
 
     #[test]
+    fn area_trigger_create_block_writes_cpp_shape_and_create_values() {
+        fn scale_curve(override_active: bool) -> ScaleCurveValuesUpdate {
+            ScaleCurveValuesUpdate {
+                scale_curve_mask: 0,
+                override_active,
+                start_time_offset: 7,
+                parameter_curve: 1.0f32.to_bits() | 1,
+                points: [(1.0, 2.0), (3.0, 4.0)],
+            }
+        }
+
+        let create_data = AreaTriggerCreateData {
+            guid: ObjectGuid::EMPTY,
+            entry_id: 9003,
+            dynamic_flags: 0x80,
+            scale: 1.0,
+            position: Position::new(1.0, 2.0, 3.0, 0.5),
+            time_since_created_ms: 123,
+            roll_pitch_yaw: Position::new(0.1, 0.2, 0.3, 0.0),
+            target_roll_pitch_yaw: Position::ZERO,
+            create_properties_flags: 0,
+            scale_curve_id: 0,
+            morph_curve_id: 0,
+            facing_curve_id: 0,
+            move_curve_id: 0,
+            shape: AreaTriggerShapeCreateData {
+                shape_type: 0,
+                data: [4.0, 7.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                polygon_vertices: Vec::new(),
+                polygon_vertices_target: Vec::new(),
+            },
+            spline_points: Vec::new(),
+            orbit: None,
+            override_scale_curve: scale_curve(true),
+            extra_scale_curve: scale_curve(false),
+            override_move_curve_x: scale_curve(false),
+            override_move_curve_y: scale_curve(false),
+            override_move_curve_z: scale_curve(false),
+            caster: ObjectGuid::EMPTY,
+            duration: 0,
+            time_to_target: 0,
+            time_to_target_scale: 0,
+            time_to_target_extra_scale: 0,
+            time_to_target_pos: 0,
+            spell_id: 0,
+            spell_for_visuals: 0,
+            spell_visual_id: 4321,
+            bounds_radius_2d: 7.0,
+            decal_properties_id: 24,
+            creating_effect_guid: ObjectGuid::EMPTY,
+            orbit_path_target: ObjectGuid::EMPTY,
+            visual_anim: VisualAnimValuesUpdate {
+                visual_anim_mask: 0,
+                field_c: true,
+                animation_data_id: 11,
+                anim_kit_id: 22,
+                anim_progress: 0,
+            },
+        };
+
+        let mut block = WorldPacket::new_empty();
+        write_area_trigger_create_block(&mut block, &ObjectGuid::EMPTY, &create_data);
+        let bytes = block.into_data();
+
+        assert_eq!(bytes[0], UpdateType::CreateObject as u8);
+        assert_eq!(&bytes[1..3], &[0, 0]);
+        assert_eq!(bytes[3], TypeId::AreaTrigger as u8);
+        assert!(bytes.len() > 120);
+        assert!(
+            bytes
+                .windows(4)
+                .any(|window| window == 4.0f32.to_le_bytes()),
+            "sphere radius must be written in the AreaTrigger movement payload"
+        );
+        assert!(
+            bytes
+                .windows(4)
+                .any(|window| window == 4321i32.to_le_bytes()),
+            "SpellXSpellVisualID must be written in AreaTriggerData::WriteCreate order"
+        );
+    }
+
+    #[test]
     fn scene_object_values_update_block_matches_cpp_sceneobjectdata_delta_shape() {
         let mut block = WorldPacket::new_empty();
         write_scene_object_values_update_block(
@@ -10318,6 +10785,7 @@ mod tests {
             customizations: Vec::new(),
             inv_slots: [ObjectGuid::EMPTY; 141],
             farsight_object,
+            action_buttons: [0; MAX_ACTION_BUTTONS],
             skill_info: Vec::new(),
             quest_log: Vec::new(),
             party_type: [0; 2],
@@ -11419,6 +11887,41 @@ mod tests {
             diff > 721,
             "Self/non-self difference ({}) should be > 721 (ActivePlayer block)",
             diff
+        );
+    }
+
+    #[test]
+    fn active_player_movement_block_writes_loaded_action_buttons_like_cpp() {
+        let guid = ObjectGuid::create_player(1, 42);
+        let pos = Position::new(0.0, 0.0, 0.0, 0.0);
+        let mut pkt = UpdateObject::create_player(
+            guid,
+            1,
+            1,
+            0,
+            1,
+            49,
+            &pos,
+            0,
+            12,
+            true,
+            [(0, 0, 0); 19],
+            [ObjectGuid::EMPTY; 141],
+            PlayerCombatStats::default(),
+            Vec::new(),
+            0,
+            Vec::new(),
+        );
+        let sentinel = 0xA1B2_C3D4u32;
+        let mut action_buttons = [0; MAX_ACTION_BUTTONS];
+        action_buttons[17] = sentinel;
+        pkt.set_player_action_buttons_like_cpp(action_buttons);
+
+        let bytes = pkt.to_bytes();
+        let sentinel_bytes = sentinel.to_le_bytes();
+        assert!(
+            bytes.windows(4).any(|window| window == sentinel_bytes),
+            "C++ ActivePlayer movement block writes Player::m_actionButtons into self CREATE"
         );
     }
 }
