@@ -3337,8 +3337,8 @@ impl WorldSession {
     ///
     /// Mirrors C++ `GridNotifiers.h : MessageDistDeliverer::SendPacket` and
     /// `GridNotifiersImpl.h : MessageDistDeliverer::Visit(PlayerMapType&)`:
-    /// HaveAtClient (`client_visible_guids_like_cpp`) is the final gate after
-    /// map/instance filtering.  No visibility or phase logic is duplicated here.
+    /// `MessageDistDeliverer::Visit` rechecks phase/distance against the
+    /// current source object, then `SendPacket` applies HaveAtClient.
     fn handle_send_if_visible_like_cpp_command_like_cpp(
         &mut self,
         command: SendIfVisibleLikeCppCommand,
@@ -3359,6 +3359,25 @@ impl WorldSession {
                 );
             }
             return;
+        }
+        // Gate 1b: C++ does not deliver SMSG_ON_MONSTER_MOVE during the
+        // initial enter-world packet burst. Rust can repopulate HaveAtClient
+        // before that burst is complete, so keep this movement-only guard
+        // separate from the generic visibility gate below.
+        if is_monster_move {
+            if let Some(until) = self.suppress_creature_movement_until_like_cpp {
+                let now = Instant::now();
+                if now < until {
+                    tracing::info!(
+                        account = self.account_id,
+                        source_guid = ?command.source_guid,
+                        remaining_ms = until.saturating_duration_since(now).as_millis(),
+                        "RUST_MONSTER_MOVE_DELIVERY rejected: initial enter-world movement gate"
+                    );
+                    return;
+                }
+                self.suppress_creature_movement_until_like_cpp = None;
+            }
         }
         // Gate 2: map must match.
         if self.player_map_id_like_cpp() != command.map_id {
@@ -3404,6 +3423,41 @@ impl WorldSession {
                 );
             }
             return;
+        }
+        // Gate 5: for creature-backed MessageDistDeliverer packets, re-read
+        // the current source object and apply C++ Visit(PlayerMapType&): same
+        // phase and exact 2D visibility range before SendPacket.
+        if command.source_guid.is_creature() {
+            match self.represented_can_receive_creature_message_to_set_by_guid_like_cpp(
+                command.source_guid,
+                command.map_id,
+                command.instance_id,
+                false,
+            ) {
+                Some(true) => {}
+                Some(false) => {
+                    if is_monster_move {
+                        tracing::info!(
+                            account = self.account_id,
+                            source_guid = ?command.source_guid,
+                            visible_count = self.client_visible_guids_like_cpp.len(),
+                            "RUST_MONSTER_MOVE_DELIVERY rejected: source failed current creature phase/range gate"
+                        );
+                    }
+                    return;
+                }
+                None => {
+                    if is_monster_move {
+                        tracing::info!(
+                            account = self.account_id,
+                            source_guid = ?command.source_guid,
+                            visible_count = self.client_visible_guids_like_cpp.len(),
+                            "RUST_MONSTER_MOVE_DELIVERY rejected: source creature missing"
+                        );
+                    }
+                    return;
+                }
+            }
         }
         // All gates passed — deliver the already-serialised packet as-is.
         if is_monster_move {

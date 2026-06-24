@@ -1218,17 +1218,29 @@ async fn main() -> Result<ExitCode> {
         trivial: world_config_f32(&world_configs, "Rate.Creature.Health.Trivial", 1.0),
         minus_mob: world_config_f32(&world_configs, "Rate.Creature.Health.MinusMob", 1.0),
     };
+    let difficulty_store = Arc::new(
+        wow_data::DifficultyStore::load(&data_dir, &locale)
+            .context("Failed to load Difficulty.db2 — check DataDir and DBC.Locale config")?,
+    );
+    info!(
+        "Loaded {} difficulties from Difficulty.db2",
+        difficulty_store.len()
+    );
     let creature_difficulty_store = Arc::new(
-        wow_data::CreatureDifficultyStoreLikeCpp::load_like_cpp(world_db.as_ref(), |entry| {
-            // C++ missing-template rows are skipped before insertion. This data-wiring
-            // slice does not invent full templates; if the minimal classification row is
-            // absent, fall back to classification 1 (elite), matching
-            // Creature::GetDamageMod's default switch rate.
-            let classification = creature_template_classification_store
-                .classification_for_entry(entry)
-                .unwrap_or(1);
-            creature_damage_rates.modifier_for_classification_like_cpp(classification)
-        })
+        wow_data::CreatureDifficultyStoreLikeCpp::load_like_cpp(
+            world_db.as_ref(),
+            &difficulty_store,
+            |entry| {
+                // C++ missing-template rows are skipped before insertion. This data-wiring
+                // slice does not invent full templates; if the minimal classification row is
+                // absent, fall back to classification 1 (elite), matching
+                // Creature::GetDamageMod's default switch rate.
+                let classification = creature_template_classification_store
+                    .classification_for_entry(entry)
+                    .unwrap_or(1);
+                creature_damage_rates.modifier_for_classification_like_cpp(classification)
+            },
+        )
         .await
         .context(
             "Failed to load creature_template_difficulty rows with C++ classification damage rates",
@@ -2258,14 +2270,6 @@ async fn main() -> Result<ExitCode> {
             .context("Failed to load Toy.db2 — check DataDir and DBC.Locale config")?,
     );
     info!("Loaded {} toys from Toy.db2", toy_store.len());
-    let difficulty_store = Arc::new(
-        wow_data::DifficultyStore::load(&data_dir, &locale)
-            .context("Failed to load Difficulty.db2 — check DataDir and DBC.Locale config")?,
-    );
-    info!(
-        "Loaded {} difficulties from Difficulty.db2",
-        difficulty_store.len()
-    );
     let faction_store = Arc::new(
         wow_data::Db2IdStore::load(&data_dir, &locale, "Faction.db2")
             .context("Failed to load Faction.db2 — check DataDir and DBC.Locale config")?,
@@ -2707,6 +2711,13 @@ async fn main() -> Result<ExitCode> {
         Err(e) => tracing::warn!("HotfixBlobCache: failed to load hotfix_optional_data rows: {e}"),
     }
     let hotfix_blob_cache = Arc::new(hotfix_blob_cache);
+    let tact_key_store = Arc::new(
+        wow_data::TactKeyStore::load(&data_dir, &locale).context("Failed to load TactKey.db2")?,
+    );
+    info!(
+        "Loaded {} TactKey rows from TactKey.db2",
+        tact_key_store.len()
+    );
 
     // Load spell metadata (cast time, cooldown, effects, etc.) — Phase 2
     let spell_radius_store = Arc::new(
@@ -4455,6 +4466,7 @@ async fn main() -> Result<ExitCode> {
         spell_item_enchantment_store: Some(Arc::clone(&spell_item_enchantment_store)),
         spell_enchant_proc_store: Some(Arc::clone(&spell_enchant_proc_store)),
         hotfix_blob_cache: Some(Arc::clone(&hotfix_blob_cache)),
+        tact_key_store: Some(Arc::clone(&tact_key_store)),
         skill_store: Some(Arc::clone(&skill_store)),
         trait_definition_store: Some(Arc::clone(&trait_definition_store)),
         skill_line_store: Some(Arc::clone(&skill_line_store)),
@@ -4501,6 +4513,7 @@ async fn main() -> Result<ExitCode> {
         area_table_store: Some(Arc::clone(&area_table_store)),
         fishing_base_skill_store: Some(Arc::clone(&fishing_base_skill_store)),
         area_trigger_store: Some(Arc::clone(&area_trigger_store)),
+        area_trigger_template_store: Some(Arc::clone(&area_trigger_template_store)),
         chr_specialization_store: Some(Arc::clone(&chr_specialization_store)),
         dungeon_encounter_store: Some(Arc::clone(&dungeon_encounter_store)),
         map_store: Some(Arc::clone(&map_store)),
@@ -4810,9 +4823,9 @@ async fn main() -> Result<ExitCode> {
     let legacy_creature_global_runtime_enabled =
         legacy_creature_global_runtime_enabled_from_config_like_cpp();
     if legacy_creature_global_runtime_enabled {
-        warn!(
+        info!(
             map_update_interval_ms,
-            "EXPERIMENTAL: RustyCore.LegacyCreatureGlobalRuntime enabled; legacy creature tick owner set to GlobalLegacy"
+            "RustyCore.LegacyCreatureGlobalRuntime enabled; legacy creature tick owner set to GlobalLegacy"
         );
         match shared_map.write() {
             Ok(mut manager) => {
@@ -5765,7 +5778,9 @@ fn database_thread_count_like_cpp(key: &str, default: u32) -> u32 {
 }
 
 fn legacy_creature_global_runtime_enabled_from_config_like_cpp() -> bool {
-    wow_config::get_value_default::<u8>(RUSTYCORE_LEGACY_CREATURE_GLOBAL_RUNTIME_CONFIG, 0) != 0
+    wow_config::get_value::<u8>(RUSTYCORE_LEGACY_CREATURE_GLOBAL_RUNTIME_CONFIG)
+        .map(|value| value != 0)
+        .unwrap_or(true)
 }
 
 fn realm_id_like_cpp() -> Result<u16> {
@@ -6917,6 +6932,7 @@ fn ensure_login_player_grid_loaded_like_cpp(
     legacy_manager: &SharedMapManager,
     canonical_spawn_metadata: &SharedCanonicalSpawnMetadataLikeCpp,
     loaded_grid_creature_respawn_caches: &LoadedGridCreatureRespawnCachesLikeCpp,
+    area_trigger_template_store: &wow_data::AreaTriggerTemplateStore,
     map_id: u16,
     instance_id: u32,
     position: Position,
@@ -6955,6 +6971,7 @@ fn ensure_login_player_grid_loaded_like_cpp(
     let spawn_mode = map.spawn_mode();
     let mut creature_spawn_ids = BTreeSet::new();
     let mut gameobject_spawn_ids = BTreeSet::new();
+    let mut area_trigger_spawn_ids = BTreeSet::new();
     if let Some(ngrid) = map.get_ngrid(grid) {
         ngrid.visit_all_grids(|local_cell| {
             let Some(cell_guids) = metadata.spawn_store().cell_object_guids(
@@ -6966,6 +6983,7 @@ fn ensure_login_player_grid_loaded_like_cpp(
             };
             creature_spawn_ids.extend(cell_guids.creatures.iter().copied());
             gameobject_spawn_ids.extend(cell_guids.gameobjects.iter().copied());
+            area_trigger_spawn_ids.extend(cell_guids.area_triggers.iter().copied());
         });
     }
 
@@ -6976,6 +6994,11 @@ fn ensure_login_player_grid_loaded_like_cpp(
             gameobject_spawn_ids
                 .into_iter()
                 .map(|spawn_id| (wow_map::SpawnObjectType::GameObject, spawn_id)),
+        )
+        .chain(
+            area_trigger_spawn_ids
+                .into_iter()
+                .map(|spawn_id| (wow_map::SpawnObjectType::AreaTrigger, spawn_id)),
         )
     {
         let already_loaded_creature = match object_type {
@@ -6989,7 +7012,9 @@ fn ensure_login_player_grid_loaded_like_cpp(
             wow_map::SpawnObjectType::GameObject => {
                 map.get_gameobject_by_spawn_id_like_cpp(spawn_id).is_some()
             }
-            wow_map::SpawnObjectType::AreaTrigger => false,
+            wow_map::SpawnObjectType::AreaTrigger => map
+                .get_area_trigger_by_spawn_id_like_cpp(spawn_id)
+                .is_some(),
         };
         if already_loaded {
             outcome.skipped_already_loaded += 1;
@@ -7046,9 +7071,28 @@ fn ensure_login_player_grid_loaded_like_cpp(
                     loaded_grid_creature_respawn_caches,
                 )
             }
-            wow_map::SpawnObjectType::AreaTrigger => None,
+            wow_map::SpawnObjectType::AreaTrigger => {
+                build_loaded_grid_area_trigger_record_like_cpp(
+                    map,
+                    object_type,
+                    spawn_id,
+                    &metadata,
+                    area_trigger_template_store,
+                )
+            }
         }) else {
             outcome.load_record_missing += 1;
+            match object_type {
+                wow_map::SpawnObjectType::Creature => {
+                    outcome.creature_load_record_missing += 1;
+                }
+                wow_map::SpawnObjectType::GameObject => {
+                    outcome.gameobject_load_record_missing += 1;
+                }
+                wow_map::SpawnObjectType::AreaTrigger => {
+                    outcome.area_trigger_load_record_missing += 1;
+                }
+            }
             continue;
         };
 
@@ -7082,7 +7126,9 @@ fn ensure_login_player_grid_loaded_like_cpp(
                 wow_map::SpawnObjectType::GameObject => {
                     outcome.gameobject_records_added += 1;
                 }
-                wow_map::SpawnObjectType::AreaTrigger => {}
+                wow_map::SpawnObjectType::AreaTrigger => {
+                    outcome.area_trigger_records_added += 1;
+                }
             },
             Err(_error) => {
                 outcome.add_to_map_errors += 1;
@@ -9700,19 +9746,6 @@ fn build_loaded_grid_creature_record_with_respawn_time_like_cpp(
         return None;
     };
     let difficulty_id = map.spawn_mode();
-    if caches
-        .difficulty_store
-        .get_like_cpp(spawn.id, difficulty_id)
-        .is_none()
-    {
-        debug!(
-            spawn_id,
-            entry = spawn.id,
-            difficulty_id,
-            "C++ loaded-grid Creature DoRespawn blocked: missing real creature_template_difficulty row"
-        );
-        return None;
-    }
     let instance_id = map.instance_id();
     let formation_info = canonical_spawn_metadata
         .creature_formation_info_like_cpp(spawn_id)
@@ -11284,6 +11317,9 @@ async fn create_session(
     if let Some(ref cache) = resources.hotfix_blob_cache {
         session.set_hotfix_blob_cache(Arc::clone(cache));
     }
+    if let Some(ref store) = resources.tact_key_store {
+        session.set_tact_key_store(Arc::clone(store));
+    }
     if let Some(ref store) = resources.skill_store {
         session.set_skill_store(Arc::clone(store));
     }
@@ -11620,6 +11656,11 @@ async fn create_session(
     let grid_legacy_manager = Arc::clone(&shared_map);
     let grid_spawn_metadata = Arc::clone(&canonical_spawn_metadata);
     let grid_loaded_caches = loaded_grid_creature_respawn_caches.clone();
+    let grid_area_trigger_template_store = resources
+        .area_trigger_template_store
+        .as_ref()
+        .map(Arc::clone)
+        .expect("world-server SessionResources must provide AreaTriggerTemplateStore");
     session.set_player_grid_load_resolver_like_cpp(Arc::new(
         move |map_id, instance_id, position| {
             ensure_login_player_grid_loaded_like_cpp(
@@ -11627,6 +11668,7 @@ async fn create_session(
                 &grid_legacy_manager,
                 &grid_spawn_metadata,
                 &grid_loaded_caches,
+                grid_area_trigger_template_store.as_ref(),
                 map_id,
                 instance_id,
                 position,
@@ -11783,8 +11825,8 @@ fn locale_id_to_name(raw: &str) -> String {
 // ── Runtime candidate routing + delivery ────────────────────────────────────
 //
 // These functions started as dormant Slice 4A.1b infrastructure and are now
-// reached only through the experimental `RustyCore.LegacyCreatureGlobalRuntime`
-// loop, which is disabled by default.
+// reached through the map-owned `RustyCore.LegacyCreatureGlobalRuntime` loop,
+// which is enabled by default to match C++ `MapManager::Update`.
 // C++ anchors: `Object.cpp : WorldObject::SendMessageToSet` (~1746-1764),
 // `GridNotifiersImpl.h : MessageDistDeliverer::Visit(PlayerMapType&)` (~43-46),
 // `GridNotifiers.h : MessageDistDeliverer::SendPacket`.
@@ -12473,8 +12515,8 @@ fn deliver_creature_melee_damage_commands_like_cpp(
 
 /// Run one legacy global creature-movement tick and deliver its runtime plan.
 ///
-/// Production reaches this only through the experimental
-/// `RustyCore.LegacyCreatureGlobalRuntime` loop, disabled by default. The tick
+/// Production reaches this through the map-owned
+/// `RustyCore.LegacyCreatureGlobalRuntime` loop. The tick
 /// body itself owns all map-lock ordering; delivery happens afterwards through
 /// the already-tested `SendIfVisibleLikeCpp` rail.
 fn run_legacy_creature_movement_tick_and_deliver_once_like_cpp(
@@ -12501,8 +12543,8 @@ fn run_legacy_creature_movement_tick_and_deliver_once_like_cpp(
 
 /// Run one legacy global creature lifecycle tick and wake affected sessions.
 ///
-/// Production reaches this only through the experimental
-/// `RustyCore.LegacyCreatureGlobalRuntime` loop, disabled by default. The
+/// Production reaches this through the map-owned
+/// `RustyCore.LegacyCreatureGlobalRuntime` loop. The
 /// lifecycle body mutates legacy/canonical map state and returns map keys whose
 /// sessions need to recompute creature visibility; delivery is map-scoped
 /// refresh commands via `try_send`.
@@ -12533,8 +12575,8 @@ fn run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp(
 
 /// Run one legacy global creature aggro scan and deliver attack-start commands.
 ///
-/// Production reaches this only through the experimental
-/// `RustyCore.LegacyCreatureGlobalRuntime` loop, disabled by default. Candidate
+/// Production reaches this through the map-owned
+/// `RustyCore.LegacyCreatureGlobalRuntime` loop. Candidate
 /// player snapshots are collected before taking the legacy map lock; delivery
 /// happens after the map-owned aggro result is computed.
 fn run_legacy_creature_aggro_tick_and_deliver_once_like_cpp(
@@ -12563,8 +12605,8 @@ fn run_legacy_creature_aggro_tick_and_deliver_once_like_cpp(
 
 /// Run one legacy global creature melee tick and deliver victim commands.
 ///
-/// Production reaches this only through the experimental
-/// `RustyCore.LegacyCreatureGlobalRuntime` loop, disabled by default. The tick
+/// Production reaches this through the map-owned
+/// `RustyCore.LegacyCreatureGlobalRuntime` loop. The tick
 /// body mutates canonical victim health and returns final-health commands; this
 /// bridge delivers them outside all map locks.
 fn run_legacy_creature_melee_tick_and_deliver_once_like_cpp(
@@ -12587,7 +12629,7 @@ fn run_legacy_creature_melee_tick_and_deliver_once_like_cpp(
 
 /// Combined single-shot legacy creature runtime bridge.
 ///
-/// This is the production loop body behind the experimental
+/// This is the production loop body behind the
 /// `RustyCore.LegacyCreatureGlobalRuntime` flag and the same body used by the
 /// task-boundary tests. It mirrors the current legacy creature tick split while
 /// proving that lifecycle refresh and movement fanout can run without holding
@@ -12659,12 +12701,13 @@ fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
     }
 }
 
-/// Spawn the experimental legacy global creature runtime loop.
+/// Spawn the legacy global creature runtime loop.
 ///
 /// C++ contrast: `World::Update` calls `sMapMgr->Update(diff)` and
 /// `MapManager::Update` uses `CONFIG_INTERVAL_MAPUPDATE` / `MapUpdateInterval`.
-/// This Rust bridge uses the same configured interval, but remains disabled by
-/// default and only runs when `RustyCore.LegacyCreatureGlobalRuntime != 0`.
+/// This Rust bridge uses the same configured interval and is enabled by default
+/// so creature AI is map-owned like C++. Set
+/// `RustyCore.LegacyCreatureGlobalRuntime = 0` only for local diagnostics.
 ///
 /// The actual tick is executed via `spawn_blocking` because the legacy manager
 /// uses `std::sync::RwLock` and movement may touch synchronous mmap/pathfinding
@@ -16070,11 +16113,11 @@ WorldDatabase.SynchThreads = 33
     }
 
     #[test]
-    fn legacy_creature_global_runtime_config_is_numeric_opt_in_like_cpp() {
+    fn legacy_creature_global_runtime_config_defaults_to_cpp_map_owned_runtime() {
         let _guard = TEST_LOCK.lock().expect("test lock poisoned");
 
         wow_config::load_config_from_str("").expect("config should load");
-        assert!(!legacy_creature_global_runtime_enabled_from_config_like_cpp());
+        assert!(legacy_creature_global_runtime_enabled_from_config_like_cpp());
 
         wow_config::load_config_from_str("RustyCore.LegacyCreatureGlobalRuntime = 0\n")
             .expect("config should load");
@@ -20470,8 +20513,17 @@ mmap.enablePathFinding = 0
         ));
         let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
 
+        let area_trigger_templates = area_trigger_template_store_for_loaded_grid_like_cpp(1, 1);
+
         let outcome = super::ensure_login_player_grid_loaded_like_cpp(
-            &canonical, &legacy, &metadata, &caches, 571, 0, position,
+            &canonical,
+            &legacy,
+            &metadata,
+            &caches,
+            &area_trigger_templates,
+            571,
+            0,
+            position,
         );
 
         assert_eq!(outcome.skipped_already_loaded, 1);
@@ -20483,6 +20535,88 @@ mmap.enablePathFinding = 0
         assert!(
             legacy.read().unwrap().find_creature(571, 0, guid).is_some(),
             "already-loaded canonical creature must be present in legacy MapManager so the creature tick can move it"
+        );
+    }
+
+    #[test]
+    fn login_grid_load_materializes_area_triggers_like_cpp() {
+        let spawn_id = 70_101;
+        let create_properties_id = 2003;
+        let template_id = 9003;
+        let position = Position::new(1.0, 2.0, 3.0, 0.5);
+
+        let canonical: wow_world::SharedCanonicalMapManager =
+            Arc::new(Mutex::new(wow_map::MapManager::default()));
+        let legacy: wow_world::SharedMapManager =
+            Arc::new(RwLock::new(wow_world::MapManager::new()));
+        let mut store = SpawnStore::new();
+        store.add_area_trigger_spawn(&SpawnData {
+            object_type: SpawnObjectType::AreaTrigger,
+            spawn_id,
+            map_id: 571,
+            db_data: true,
+            spawn_group: SpawnGroupTemplateData::default_group(),
+            id: create_properties_id,
+            spawn_point: SpawnPosition::new(
+                position.x,
+                position.y,
+                position.z,
+                position.orientation,
+            ),
+            phase_use_flags: 0,
+            phase_id: 0,
+            phase_group: 0,
+            terrain_swap_map: -1,
+            pool_id: 0,
+            spawn_time_secs: 0,
+            spawn_difficulties: vec![0],
+            script_id: 0,
+            string_id: String::new(),
+        });
+        let metadata = Arc::new(Mutex::new(
+            super::spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(store, BTreeMap::new())
+                .with_area_trigger_runtime_rows_like_cpp(BTreeMap::from([(
+                    spawn_id,
+                    super::spawn_store_loader::AreaTriggerSpawnRuntimeRowLikeCpp {
+                        spawn_id,
+                        create_properties_id: wow_data::AreaTriggerIdLikeCpp {
+                            id: create_properties_id,
+                            is_custom: false,
+                        },
+                        spell_for_visuals: None,
+                    },
+                )])),
+        ));
+        let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
+        let area_trigger_templates =
+            area_trigger_template_store_for_loaded_grid_like_cpp(create_properties_id, template_id);
+
+        let outcome = super::ensure_login_player_grid_loaded_like_cpp(
+            &canonical,
+            &legacy,
+            &metadata,
+            &caches,
+            &area_trigger_templates,
+            571,
+            0,
+            position,
+        );
+
+        assert_eq!(outcome.area_trigger_records_added, 1);
+        assert_eq!(outcome.load_record_missing, 0);
+        assert_eq!(outcome.add_to_map_errors, 0);
+        let guard = canonical.lock().unwrap();
+        let area_trigger = guard
+            .find_map(571, 0)
+            .expect("login grid load should create the map")
+            .map()
+            .get_area_trigger_by_spawn_id_like_cpp(spawn_id)
+            .expect("login grid load should materialize DB-backed AreaTrigger");
+        assert_eq!(area_trigger.spawn_id(), spawn_id);
+        assert_eq!(area_trigger.template_id().unwrap().id, template_id);
+        assert_eq!(
+            area_trigger.world().guid().high_type(),
+            wow_core::guid::HighGuid::AreaTrigger
         );
     }
 

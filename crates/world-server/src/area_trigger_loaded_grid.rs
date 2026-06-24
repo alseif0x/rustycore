@@ -22,12 +22,13 @@ use crate::spawn_store_loader::AreaTriggerSpawnRuntimeRowLikeCpp;
 use wow_core::{ObjectGuid, Position, guid::HighGuid};
 use wow_data::area_trigger_template::AREATRIGGER_CREATE_PROPERTIES_FLAG_UNK3_LIKE_CPP;
 use wow_data::{
-    AreaTriggerCreatePropertiesLikeCpp, AreaTriggerIdLikeCpp, AreaTriggerShapeInfoLikeCpp,
-    AreaTriggerTemplateLikeCpp,
+    AreaTriggerCreatePropertiesLikeCpp, AreaTriggerIdLikeCpp, AreaTriggerOrbitInfoLikeCpp,
+    AreaTriggerPosition3LikeCpp, AreaTriggerShapeInfoLikeCpp, AreaTriggerTemplateLikeCpp,
 };
 use wow_entities::{
-    AREA_TRIGGER_FLAG_IS_SERVER_SIDE, AreaTrigger, AreaTriggerId, AreaTriggerShapeType,
-    MapObjectRecord, VisualAnimValues,
+    AREA_TRIGGER_FLAG_IS_SERVER_SIDE, AreaTrigger, AreaTriggerCreatePropertiesFlags, AreaTriggerId,
+    AreaTriggerOrbitInfo, AreaTriggerPosition2, AreaTriggerPosition3, AreaTriggerShapeInfo,
+    AreaTriggerShapeType, MapObjectRecord, VisualAnimValues,
 };
 use wow_map::{Map, SpawnData, SpawnObjectType, map::LoadedGridRespawnRecordsLikeCpp};
 
@@ -37,10 +38,17 @@ pub struct ResolvedAreaTriggerCreatePropertiesLikeCpp {
     pub template_id: Option<AreaTriggerId>,
     pub template_flags: u32,
     pub flags: u32,
+    pub move_curve_id: u32,
+    pub scale_curve_id: u32,
+    pub morph_curve_id: u32,
+    pub facing_curve_id: u32,
     pub anim_id: i32,
     pub anim_kit_id: i32,
     pub decal_properties_id: u32,
+    pub time_to_target: u32,
     pub shape: AreaTriggerShapeInfoLikeCpp,
+    pub spline_points: Vec<AreaTriggerPosition3LikeCpp>,
+    pub orbit_info: Option<AreaTriggerOrbitInfoLikeCpp>,
 }
 
 impl ResolvedAreaTriggerCreatePropertiesLikeCpp {
@@ -66,6 +74,10 @@ impl ResolvedAreaTriggerCreatePropertiesLikeCpp {
 
     pub fn guid_entry_like_cpp(&self) -> u32 {
         self.template_id.map(|id| id.id).unwrap_or(0)
+    }
+
+    pub fn time_to_target_like_cpp(&self) -> u32 {
+        self.time_to_target
     }
 }
 
@@ -210,10 +222,17 @@ pub fn resolve_area_trigger_loaded_grid_inputs_from_spawn_data_like_cpp(
                 .map(area_trigger_id_from_data_like_cpp),
             template_flags: template.map(|template| template.flags).unwrap_or(0),
             flags: create_properties.flags,
+            move_curve_id: create_properties.move_curve_id,
+            scale_curve_id: create_properties.scale_curve_id,
+            morph_curve_id: create_properties.morph_curve_id,
+            facing_curve_id: create_properties.facing_curve_id,
             anim_id: create_properties.anim_id,
             anim_kit_id: create_properties.anim_kit_id,
             decal_properties_id: create_properties.decal_properties_id,
+            time_to_target: create_properties.time_to_target,
             shape: create_properties.shape.clone(),
+            spline_points: create_properties.spline_points.clone(),
+            orbit_info: create_properties.orbit_info,
         },
         ResolvedAreaTriggerSpawnLikeCpp {
             spawn_id: spawn.spawn_id,
@@ -377,7 +396,36 @@ impl AreaTriggerLoadedGridLifecycleResolverLikeCpp {
         area_trigger.set_spawn_id(spawn.spawn_id);
         area_trigger.set_create_properties_id(create_properties.id);
         area_trigger.set_duration(-1);
-        area_trigger.set_shape_type(create_properties.shape_type_like_cpp());
+        area_trigger.set_shape_info(area_trigger_shape_info_from_data_like_cpp(
+            &create_properties.shape,
+        ));
+        area_trigger.set_create_properties_flags(AreaTriggerCreatePropertiesFlags {
+            flags: create_properties.flags,
+            scale_curve_id: create_properties.scale_curve_id,
+            morph_curve_id: create_properties.morph_curve_id,
+            facing_curve_id: create_properties.facing_curve_id,
+            move_curve_id: create_properties.move_curve_id,
+        });
+        if create_properties.spline_points.len() >= 2 || create_properties.orbit_info.is_some() {
+            area_trigger.set_time_to_target(create_properties.time_to_target_like_cpp());
+        }
+        area_trigger.set_spline_points(area_trigger_spline_points_from_offsets_like_cpp(
+            spawn.position,
+            &create_properties.spline_points,
+        ));
+        area_trigger.set_orbit_info(create_properties.orbit_info.map(|orbit| {
+            AreaTriggerOrbitInfo {
+                counter_clockwise: orbit.counter_clockwise,
+                can_loop: orbit.can_loop,
+                time_to_target: create_properties.time_to_target_like_cpp(),
+                elapsed_time_for_movement: orbit.elapsed_time_for_movement,
+                start_delay: orbit.start_delay,
+                radius: orbit.radius,
+                blend_from_radius: orbit.blend_from_radius,
+                initial_angle: orbit.initial_angle,
+                z_offset: orbit.z_offset,
+            }
+        }));
         if let Some(spell_for_visuals) = spawn.spell_for_visuals {
             area_trigger.set_spell_for_visuals(spell_for_visuals);
         }
@@ -412,6 +460,22 @@ impl AreaTriggerLoadedGridLifecycleResolverLikeCpp {
                 || spawn.phase_group != 0,
         })
     }
+}
+
+fn area_trigger_spline_points_from_offsets_like_cpp(
+    position: Position,
+    offsets: &[AreaTriggerPosition3LikeCpp],
+) -> Vec<AreaTriggerPosition3> {
+    let angle_sin = position.orientation.sin();
+    let angle_cos = position.orientation.cos();
+    offsets
+        .iter()
+        .map(|offset| AreaTriggerPosition3 {
+            x: position.x + (offset.x * angle_cos - offset.y * angle_sin),
+            y: position.y + (offset.y * angle_cos + offset.x * angle_sin),
+            z: position.z + offset.z,
+        })
+        .collect()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -473,6 +537,31 @@ fn area_trigger_shape_type_like_cpp(shape_type: u8) -> AreaTriggerShapeType {
     }
 }
 
+fn area_trigger_shape_info_from_data_like_cpp(
+    shape: &AreaTriggerShapeInfoLikeCpp,
+) -> AreaTriggerShapeInfo {
+    AreaTriggerShapeInfo {
+        shape_type: area_trigger_shape_type_like_cpp(shape.shape_type),
+        data: shape.data,
+        polygon_vertices: shape
+            .polygon_vertices
+            .iter()
+            .map(|position| AreaTriggerPosition2 {
+                x: position.x,
+                y: position.y,
+            })
+            .collect(),
+        polygon_vertices_target: shape
+            .polygon_vertices_target
+            .iter()
+            .map(|position| AreaTriggerPosition2 {
+                x: position.x,
+                y: position.y,
+            })
+            .collect(),
+    }
+}
+
 fn validate_map_object_guid_like_cpp(
     spawn: &ResolvedAreaTriggerSpawnLikeCpp,
     create_properties: &ResolvedAreaTriggerCreatePropertiesLikeCpp,
@@ -500,7 +589,8 @@ mod tests {
     use super::*;
     use wow_data::{
         AreaTriggerCreatePropertiesLikeCpp, AreaTriggerIdLikeCpp, AreaTriggerPosition2LikeCpp,
-        AreaTriggerShapeInfoLikeCpp, AreaTriggerTemplateLikeCpp, ScriptIdLikeCpp,
+        AreaTriggerPosition3LikeCpp, AreaTriggerShapeInfoLikeCpp, AreaTriggerTemplateLikeCpp,
+        ScriptIdLikeCpp,
     };
     use wow_map::{SpawnGroupTemplateData, SpawnPosition};
 
@@ -529,10 +619,17 @@ mod tests {
             template_id: Some(area_trigger_id(9001)),
             template_flags: AREA_TRIGGER_FLAG_IS_SERVER_SIDE,
             flags: AREATRIGGER_CREATE_PROPERTIES_FLAG_UNK3_LIKE_CPP,
+            move_curve_id: 0,
+            scale_curve_id: 0,
+            morph_curve_id: 0,
+            facing_curve_id: 0,
             anim_id: 11,
             anim_kit_id: 22,
             decal_properties_id: 77,
+            time_to_target: 0,
             shape: sphere_shape(6.0, 9.0),
+            spline_points: Vec::new(),
+            orbit_info: None,
         }
     }
 
@@ -679,6 +776,43 @@ mod tests {
             }
         );
         assert!(area_trigger.is_ai_initialized());
+    }
+
+    #[test]
+    fn loaded_grid_area_trigger_spline_offsets_are_rotated_and_time_to_target_set_like_cpp() {
+        let mut create_properties = create_properties();
+        create_properties.time_to_target = 931;
+        create_properties.spline_points = vec![
+            AreaTriggerPosition3LikeCpp {
+                x: 1.0,
+                y: 0.0,
+                z: 0.5,
+            },
+            AreaTriggerPosition3LikeCpp {
+                x: 0.0,
+                y: 1.0,
+                z: 1.5,
+            },
+        ];
+        let mut spawn = spawn(true);
+        spawn.position = Position::new(10.0, 20.0, 30.0, std::f32::consts::FRAC_PI_2);
+
+        let resolver =
+            AreaTriggerLoadedGridLifecycleResolverLikeCpp::new([create_properties], [spawn]);
+        let resolved = resolver
+            .resolve_loaded_grid_area_trigger_like_cpp(12345, area_trigger_guid(9001))
+            .unwrap();
+        let area_trigger = resolved.area_trigger;
+        let spline_points = area_trigger.spline_points();
+
+        assert_eq!(area_trigger.data().time_to_target, 931);
+        assert_eq!(spline_points.len(), 2);
+        assert!((spline_points[0].x - 10.0).abs() < 0.0001);
+        assert!((spline_points[0].y - 21.0).abs() < 0.0001);
+        assert!((spline_points[0].z - 30.5).abs() < 0.0001);
+        assert!((spline_points[1].x - 9.0).abs() < 0.0001);
+        assert!((spline_points[1].y - 20.0).abs() < 0.0001);
+        assert!((spline_points[1].z - 31.5).abs() < 0.0001);
     }
 
     #[test]

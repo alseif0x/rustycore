@@ -4185,7 +4185,7 @@ impl crate::session::WorldSession {
         // C++ reads `sCalendarMgr->GetPlayerNumPending(playerGuid)` and sends
         // CalendarSendNumPending. Calendar manager state is not ported yet, so
         // represent the empty pending-invite count.
-        self.send_packet(&CalendarSendNumPending { num_pending: 0 });
+        self.send_packet_realm(&CalendarSendNumPending { num_pending: 0 });
     }
     pub async fn handle_calendar_complain(&mut self, _complain: CalendarComplain) {
         // C++ only parses/logs this packet and has no gameplay side effect.
@@ -4193,7 +4193,7 @@ impl crate::session::WorldSession {
     pub async fn handle_gm_ticket_get_case_status(&mut self, _pkt: wow_packet::WorldPacket) {
         // C++ `HandleGMTicketGetCaseStatusOpcode` is still a TODO and sends a
         // default `GMTicketCaseStatus`, i.e. an empty case list.
-        self.send_packet(&GmTicketCaseStatus::empty());
+        self.send_packet_realm(&GmTicketCaseStatus::empty());
     }
     pub async fn handle_gm_ticket_get_system_status(&mut self, _pkt: wow_packet::WorldPacket) {
         // C++ uses `sSupportMgr->GetSupportSystemStatus()` here, not
@@ -4659,7 +4659,7 @@ impl crate::session::WorldSession {
             self.send_battle_pet_journal_lock_status_like_cpp();
         }
 
-        self.send_packet(&self.represented_battle_pet_journal_like_cpp());
+        self.send_packet_realm(&self.represented_battle_pet_journal_like_cpp());
     }
 
     /// CMSG_BATTLE_PET_REQUEST_JOURNAL_LOCK — acquire represented journal lock.
@@ -4669,7 +4669,7 @@ impl crate::session::WorldSession {
     pub async fn handle_battle_pet_request_journal_lock(&mut self, _pkt: wow_packet::WorldPacket) {
         self.send_battle_pet_journal_lock_status_like_cpp();
         if self.has_represented_battle_pet_journal_lock_like_cpp() {
-            self.send_packet(&self.represented_battle_pet_journal_like_cpp());
+            self.send_packet_realm(&self.represented_battle_pet_journal_like_cpp());
         }
     }
 
@@ -5133,7 +5133,7 @@ impl crate::session::WorldSession {
             _ => Vec::new(),
         };
 
-        self.send_packet(&InstanceInfo {
+        self.send_packet_realm(&InstanceInfo {
             locks: locks
                 .into_iter()
                 .map(|lock| InstanceLockInfo {
@@ -5457,13 +5457,13 @@ impl crate::session::WorldSession {
         // C++ builds this from `sLFGMgr->GetLockedDungeons(playerGuid)`.
         // Rust does not have that manager state yet, so represent the
         // well-defined no-locks response instead of leaving the client waiting.
-        self.send_packet(&LfgListBlacklist::empty());
+        self.send_packet_realm(&LfgListBlacklist::empty());
     }
     pub async fn handle_lfg_list_get_status(&mut self, _pkt: wow_packet::WorldPacket) {
         // C++ `HandleLfgListGetStatus` always sends LFGUpdateStatus for a live
         // player. Until `sLFGMgr` state is ported, Rust represents the
         // well-defined no-ticket/no-queue branch.
-        self.send_packet(&LfgUpdateStatus::removed_from_queue());
+        self.send_packet_realm(&LfgUpdateStatus::removed_from_queue());
     }
     pub async fn handle_get_account_character_list(&mut self, _pkt: wow_packet::WorldPacket) {
         // C++ registers CMSG_GET_ACCOUNT_CHARACTER_LIST as
@@ -6838,6 +6838,18 @@ mod tests {
             ),
             send_rx,
         )
+    }
+
+    fn make_session_with_realm_send(
+    ) -> (
+        crate::session::WorldSession,
+        flume::Receiver<Vec<u8>>,
+        flume::Receiver<Vec<u8>>,
+    ) {
+        let (mut session, instance_rx) = make_session();
+        let (realm_tx, realm_rx) = flume::bounded(8);
+        session.install_realm_send_channel_for_test(realm_tx);
+        (session, instance_rx, realm_rx)
     }
 
     fn quest_template(id: u32) -> QuestTemplate {
@@ -14179,6 +14191,45 @@ mod tests {
             UnitStandStateType::Kneel
         );
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn realm_connection_responses_route_to_realm_channel_like_cpp_after_connect_to() {
+        let (mut session, instance_rx, realm_rx) = make_session_with_realm_send();
+
+        session
+            .handle_request_lfg_list_blacklist(WorldPacket::new_empty())
+            .await;
+        session
+            .handle_lfg_list_get_status(WorldPacket::new_empty())
+            .await;
+        session
+            .handle_calendar_get_num_pending(WorldPacket::new_empty())
+            .await;
+        session
+            .handle_gm_ticket_get_case_status(WorldPacket::new_empty())
+            .await;
+        session.handle_request_raid_info(WorldPacket::new_empty()).await;
+        session
+            .handle_battle_pet_request_journal_lock(battle_pet_request_journal_lock_packet())
+            .await;
+
+        let expected = [
+            ServerOpcodes::LfgListUpdateBlacklist,
+            ServerOpcodes::LfgUpdateStatus,
+            ServerOpcodes::CalendarSendNumPending,
+            ServerOpcodes::GmTicketCaseStatus,
+            ServerOpcodes::InstanceInfo,
+            ServerOpcodes::BattlePetJournalLockAcquired,
+            ServerOpcodes::BattlePetJournal,
+        ];
+
+        for opcode in expected {
+            let bytes = realm_rx.try_recv().expect("realm-routed packet");
+            assert_eq!(u16::from_le_bytes([bytes[0], bytes[1]]), opcode as u16);
+        }
+        assert!(realm_rx.try_recv().is_err());
+        assert!(instance_rx.try_recv().is_err());
     }
 
     #[test]

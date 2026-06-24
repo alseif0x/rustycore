@@ -4879,7 +4879,7 @@ impl WorldSession {
             }
         }
 
-        self.send_packet(&QuestPoiQueryResponse {
+        self.send_packet_realm(&QuestPoiQueryResponse {
             quest_poi_data_stats,
         });
     }
@@ -7578,6 +7578,8 @@ mod tests {
     #[tokio::test]
     async fn quest_poi_query_filters_to_active_quest_slots_like_cpp() {
         let (mut session, send_rx) = make_session();
+        let (realm_tx, realm_rx) = flume::bounded(8);
+        session.install_realm_send_channel_for_test(realm_tx);
         add_active_quest(&mut session, 77);
         session.quest_poi_store_like_cpp = Some(Arc::new(HashMap::from([
             (
@@ -7628,7 +7630,8 @@ mod tests {
             })
             .await;
 
-        let bytes = send_rx.try_recv().expect("quest POI response");
+        let bytes = realm_rx.try_recv().expect("quest POI response");
+        assert!(send_rx.try_recv().is_err());
         let mut packet = WorldPacket::from_bytes(&bytes);
         assert_eq!(
             packet.read_uint16().unwrap(),

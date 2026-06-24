@@ -101,8 +101,8 @@ use wow_data::{
     SpellPetAuraStoreLikeCpp, SpellProcEntryLikeCpp, SpellProcStoreLikeCpp, SpellRadiusStore,
     SpellRangeStore, SpellRequiredStoreLikeCpp, SpellShapeshiftFormStore, SpellStore,
     SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp,
-    SpellTotemModelStoreLikeCpp, SummonPropertiesEntry, TalentStore, TalentTabStore, ToyStore,
-    TransmogSetEntry, TransmogSetItemStore, TrinityStringStoreLikeCpp,
+    SpellTotemModelStoreLikeCpp, SummonPropertiesEntry, TactKeyStore, TalentStore, TalentTabStore,
+    ToyStore, TransmogSetEntry, TransmogSetItemStore, TrinityStringStoreLikeCpp,
     VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore,
     VehicleTemplateStoreLikeCpp, calculate_battle_pet_stats_like_cpp,
     is_player_meeting_condition_like_cpp,
@@ -1068,9 +1068,13 @@ pub struct PlayerGridLoadOutcomeLikeCpp {
     pub stale_index_entries: usize,
     pub creature_records_added: usize,
     pub gameobject_records_added: usize,
+    pub area_trigger_records_added: usize,
     pub pre_add_records_added: usize,
     pub add_to_map_errors: usize,
     pub load_record_missing: usize,
+    pub creature_load_record_missing: usize,
+    pub gameobject_load_record_missing: usize,
+    pub area_trigger_load_record_missing: usize,
     pub legacy_creature_mirrors: usize,
 }
 
@@ -3838,6 +3842,7 @@ pub struct WorldSession {
 
     // Hotfix blob cache: raw DB2 record bytes for DBReply responses
     hotfix_blob_cache: Option<Arc<HotfixBlobCache>>,
+    tact_key_store: Option<Arc<TactKeyStore>>,
 
     // Skill store (auto-learned spells from SkillLineAbility.db2 + SkillRaceClassInfo.db2)
     skill_store: Option<Arc<SkillStore>>,
@@ -4803,6 +4808,12 @@ pub struct WorldSession {
     /// C++ `Player::m_clientGUIDs`: exact objects currently known by this client.
     /// Updated on login and each visibility refresh (player movement).
     pub(crate) client_visible_guids_like_cpp: std::collections::HashSet<wow_core::ObjectGuid>,
+    /// Login-start delivery guard for creature movement packets.
+    ///
+    /// The C++ 3.4.3 login baseline does not deliver `SMSG_ON_MONSTER_MOVE`
+    /// during the initial enter-world packet burst, even after
+    /// `UpdateVisibilityForPlayer()` has repopulated `m_clientGUIDs`.
+    pub(crate) suppress_creature_movement_until_like_cpp: Option<Instant>,
     /// Represented C++ `Player::m_seer`. This slice keeps only the GUID seam:
     /// self/player GUID by default, current viewpoint GUID after valid FAR_SIGHT enable.
     pub(crate) represented_seer_guid_like_cpp: Option<wow_core::ObjectGuid>,
@@ -5730,6 +5741,7 @@ impl WorldSession {
             spell_item_enchantment_store: None,
             spell_enchant_proc_store: None,
             hotfix_blob_cache: None,
+            tact_key_store: None,
             skill_store: None,
             trait_definition_store: None,
             skill_line_store: None,
@@ -6252,6 +6264,7 @@ impl WorldSession {
             represented_personal_loot_money: std::collections::HashMap::new(),
             represented_personal_loot_owners: std::collections::HashSet::new(),
             client_visible_guids_like_cpp: std::collections::HashSet::new(),
+            suppress_creature_movement_until_like_cpp: None,
             represented_seer_guid_like_cpp: None,
             represented_dynamic_object_values_updates_delivered_like_cpp:
                 std::collections::HashSet::new(),
@@ -12445,6 +12458,54 @@ impl WorldSession {
         }
     }
 
+    pub(crate) fn represented_can_receive_creature_message_to_set_by_guid_like_cpp(
+        &self,
+        guid: ObjectGuid,
+        map_id: u16,
+        instance_id: u32,
+        required_3d: bool,
+    ) -> Option<bool> {
+        if let Some(manager) = &self.canonical_map_manager {
+            let creature = {
+                let manager = manager.lock().ok()?;
+                let map = manager.find_map(u32::from(map_id), instance_id)?;
+                let creature = map.map().get_typed_creature(guid)?;
+                let world = creature.unit().world();
+                if world.map_id() != u32::from(map_id) || world.instance_id() != instance_id {
+                    return Some(false);
+                }
+                let create_data =
+                    crate::map_manager::WorldCreature::create_data_from_canonical_like_cpp(
+                        creature,
+                    );
+                crate::map_manager::WorldCreature::from_canonical(creature.clone(), create_data)
+            };
+            return Some(
+                self.represented_can_receive_creature_message_to_set_like_cpp(
+                    guid,
+                    &creature,
+                    required_3d,
+                ),
+            );
+        }
+
+        let creature = {
+            let manager = self.map_manager.as_ref()?;
+            manager
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .find_creature(map_id, instance_id, guid)
+                .cloned()
+        }?;
+        Some(
+            self.represented_can_receive_creature_message_to_set_like_cpp(
+                guid,
+                &creature,
+                required_3d,
+            ),
+        )
+    }
+
     pub(crate) fn visible_gameobjects_from_canonical_map_like_cpp(
         &self,
         map_id: u16,
@@ -12674,6 +12735,60 @@ impl WorldSession {
         }
 
         Some(dynamic_objects)
+    }
+
+    pub(crate) fn visible_area_triggers_from_canonical_map_like_cpp(
+        &self,
+        map_id: u16,
+        position: &wow_core::Position,
+        visibility_radius: f32,
+    ) -> Option<Vec<wow_packet::packets::update::AreaTriggerCreateData>> {
+        let requested_map_id = u32::from(map_id);
+        let player_map_key = self.current_canonical_player_map_key_like_cpp();
+        let manager = self.canonical_map_manager.as_ref()?;
+        let Ok(manager) = manager.lock() else {
+            return None;
+        };
+        let map = match player_map_key {
+            Some(key) if key.map_id == requested_map_id => {
+                manager.find_map(key.map_id, key.instance_id)?
+            }
+            Some(_) => return None,
+            None => manager.find_map(requested_map_id, 0)?,
+        };
+        let nearby =
+            map.map()
+                .nearby_cell_guids_like_cpp(position.x, position.y, visibility_radius);
+        let mut area_triggers = Vec::new();
+
+        for guid in nearby.grid.area_triggers {
+            let Some(area_trigger) = map
+                .map()
+                .map_object_record(guid)
+                .and_then(wow_entities::MapObjectRecord::area_trigger)
+            else {
+                continue;
+            };
+            let object = area_trigger.world();
+            if object.map_id() != u32::from(map_id)
+                || !object
+                    .position()
+                    .is_within_dist(position, visibility_radius)
+                || !self.can_see_phase_shift_like_cpp(object.phase_shift())
+            {
+                continue;
+            }
+            if area_trigger.is_server_side() || area_trigger.is_removed() {
+                continue;
+            }
+            area_triggers.push(
+                crate::entity_update_bridge::area_trigger_create_data_from_entity_like_cpp(
+                    area_trigger,
+                ),
+            );
+        }
+
+        Some(area_triggers)
     }
 
     pub fn set_realm_id(&mut self, realm_id: u16) {
@@ -19795,6 +19910,15 @@ impl WorldSession {
         self.hotfix_blob_cache.as_ref()
     }
 
+    /// Set the TactKey.db2 store for typed SMSG_DB_REPLY serialization.
+    pub fn set_tact_key_store(&mut self, store: Arc<TactKeyStore>) {
+        self.tact_key_store = Some(store);
+    }
+
+    pub fn tact_key_store(&self) -> Option<&Arc<TactKeyStore>> {
+        self.tact_key_store.as_ref()
+    }
+
     /// Set the area trigger store for this session.
     pub fn set_area_trigger_store(&mut self, store: Arc<AreaTriggerStore>) {
         self.area_trigger_store = Some(store);
@@ -20214,15 +20338,7 @@ impl WorldSession {
                 base_mana: 0,
             };
         };
-        let Some(difficulty) = difficulty_store.get_like_cpp(entry, 0) else {
-            let health = i64::from(db_cur_health.max(1));
-            return CreatureCreateStatsLikeCpp {
-                health,
-                max_health: health,
-                power_mana: i32::try_from(db_cur_mana).unwrap_or(i32::MAX),
-                base_mana: 0,
-            };
-        };
+        let difficulty = difficulty_store.get_like_cpp(entry, 0);
 
         let base_stats = base_stats_store.get_like_cpp(level, unit_class);
         let health_rate = self
@@ -30440,6 +30556,11 @@ impl WorldSession {
         }
     }
 
+    #[cfg(test)]
+    pub(crate) fn install_realm_send_channel_for_test(&mut self, tx: flume::Sender<Vec<u8>>) {
+        self.realm_send_tx = Some(tx);
+    }
+
     /// Send pre-serialized packet bytes to the client.
     ///
     /// Used for packets with dynamic opcodes (e.g. `SetSpellModifier`
@@ -37636,7 +37757,7 @@ impl WorldSession {
     /// local acquisition path until the global world journal-lock owner exists.
     pub(crate) fn send_battle_pet_journal_lock_status_like_cpp(&mut self) {
         self.represented_battle_pet_journal_lock_like_cpp = true;
-        self.send_packet(&wow_packet::packets::misc::BattlePetJournalLockAcquired);
+        self.send_packet_realm(&wow_packet::packets::misc::BattlePetJournalLockAcquired);
     }
 
     /// C++ `BattlePetMgr::ClearFanfare`.
@@ -41952,6 +42073,12 @@ impl WorldSession {
 
     pub(crate) fn mark_represented_action_buttons_loaded_like_cpp(&mut self) {
         self.represented_action_buttons_loaded_like_cpp = true;
+    }
+
+    pub(crate) fn represented_action_buttons_snapshot_like_cpp(
+        &self,
+    ) -> [u32; wow_packet::packets::misc::MAX_ACTION_BUTTONS] {
+        self.represented_action_buttons_like_cpp
     }
 
     pub(crate) fn record_loaded_action_button_like_cpp(
@@ -47154,6 +47281,57 @@ impl WorldSession {
         let monster_move_trace = std::env::var_os("RUSTYCORE_MONSTER_MOVE_TRACE").is_some();
         for guid in guids {
             let _ = self.mutate_world_creature(guid, |creature| {
+                let Some(player_position) = player_position else {
+                    if monster_move_trace {
+                        tracing::info!(
+                            ?guid,
+                            visible_count = visible_guids.len(),
+                            "RUST_MONSTER_MOVE_DELIVERY session rejected before movement: missing player position"
+                        );
+                    }
+                    return;
+                };
+
+                let is_visible = visible_guids.contains(&guid);
+                let same_map = creature.map_id() == player_map_id;
+                let same_instance = creature.instance_id() == player_instance_id;
+                let same_phase = player_phase_shift.can_see(creature.phase_shift());
+                let range = creature.visibility_range_like_cpp();
+                let in_range = position_is_in_dist_strict_2d_like_cpp(
+                    &creature.position(),
+                    &player_position,
+                    range,
+                );
+                if !Self::creature_message_to_set_target_allows_like_cpp(
+                    guid,
+                    creature,
+                    &visible_guids,
+                    player_map_id,
+                    player_instance_id,
+                    &player_position,
+                    &player_phase_shift,
+                    false,
+                ) {
+                    if monster_move_trace {
+                        tracing::info!(
+                            ?guid,
+                            is_visible,
+                            same_map,
+                            same_instance,
+                            same_phase,
+                            in_range,
+                            range,
+                            player_map_id,
+                            player_instance_id,
+                            creature_map = creature.map_id(),
+                            creature_instance = creature.instance_id(),
+                            visible_count = visible_guids.len(),
+                            "RUST_MONSTER_MOVE_DELIVERY session rejected before movement"
+                        );
+                    }
+                    return;
+                }
+
                 if let Some(pkt) = step_creature_movement_like_cpp(
                     creature,
                     guid,
@@ -47161,64 +47339,19 @@ impl WorldSession {
                     mmap_pathfinder.as_deref(),
                     200,
                 ) {
-                    if let Some(player_position) = player_position {
-                        let is_visible = visible_guids.contains(&guid);
-                        let same_map = creature.map_id() == player_map_id;
-                        let same_instance = creature.instance_id() == player_instance_id;
-                        let same_phase = player_phase_shift.can_see(creature.phase_shift());
-                        let range = creature.visibility_range_like_cpp();
-                        let in_range = position_is_in_dist_strict_2d_like_cpp(
-                            &creature.position(),
-                            &player_position,
-                            range,
-                        );
-                        if Self::creature_message_to_set_target_allows_like_cpp(
-                            guid,
-                            creature,
-                            &visible_guids,
-                            player_map_id,
-                            player_instance_id,
-                            &player_position,
-                            &player_phase_shift,
-                            false,
-                        ) {
-                            if monster_move_trace {
-                                tracing::info!(
-                                    ?guid,
-                                    player_map_id,
-                                    player_instance_id,
-                                    creature_map = creature.map_id(),
-                                    creature_instance = creature.instance_id(),
-                                    visible_count = visible_guids.len(),
-                                    packet_len = pkt.len(),
-                                    "RUST_MONSTER_MOVE_DELIVERY session sent"
-                                );
-                            }
-                            to_send.push(pkt);
-                        } else if monster_move_trace {
-                            tracing::info!(
-                                ?guid,
-                                is_visible,
-                                same_map,
-                                same_instance,
-                                same_phase,
-                                in_range,
-                                range,
-                                player_map_id,
-                                player_instance_id,
-                                creature_map = creature.map_id(),
-                                creature_instance = creature.instance_id(),
-                                visible_count = visible_guids.len(),
-                                "RUST_MONSTER_MOVE_DELIVERY session rejected"
-                            );
-                        }
-                    } else if monster_move_trace {
+                    if monster_move_trace {
                         tracing::info!(
                             ?guid,
+                            player_map_id,
+                            player_instance_id,
+                            creature_map = creature.map_id(),
+                            creature_instance = creature.instance_id(),
                             visible_count = visible_guids.len(),
-                            "RUST_MONSTER_MOVE_DELIVERY session rejected: missing player position"
+                            packet_len = pkt.len(),
+                            "RUST_MONSTER_MOVE_DELIVERY session sent"
                         );
                     }
+                    to_send.push(pkt);
                 }
             });
         }
@@ -60474,7 +60607,29 @@ mod tests {
         let source_guid =
             ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1002);
         let packet_bytes = vec![0x44, 0x55, 0x66];
+        let manager = shared_map_manager();
+        manager.write().unwrap().add_creature(
+            571,
+            0,
+            0,
+            0,
+            crate::map_manager::WorldCreature::new(
+                source_guid,
+                777,
+                Position::ZERO,
+                100,
+                80,
+                1,
+                2,
+                0.0,
+                1,
+                35,
+                0,
+                0,
+            ),
+        );
         session.state = SessionState::LoggedIn;
+        session.set_map_manager(manager);
         session.set_player_map_position_like_cpp(571, Position::ZERO);
         session.client_visible_guids_like_cpp.insert(source_guid);
 
@@ -60497,6 +60652,85 @@ mod tests {
             packet_bytes
         );
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn send_if_visible_monster_move_rejected_during_initial_enter_world_gate_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let source_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1012);
+        let packet_bytes = vec![0xD4, 0x2D, 0xAA];
+        let manager = shared_map_manager();
+        manager.write().unwrap().add_creature(
+            571,
+            0,
+            0,
+            0,
+            crate::map_manager::WorldCreature::new(
+                source_guid,
+                777,
+                Position::ZERO,
+                100,
+                80,
+                1,
+                2,
+                0.0,
+                1,
+                35,
+                0,
+                0,
+            ),
+        );
+        session.state = SessionState::LoggedIn;
+        session.set_map_manager(Arc::clone(&manager));
+        session.set_player_map_position_like_cpp(571, Position::ZERO);
+        session.client_visible_guids_like_cpp.insert(source_guid);
+        session.suppress_creature_movement_until_like_cpp =
+            Some(Instant::now() + Duration::from_secs(60));
+
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::SendIfVisibleLikeCpp(
+                SendIfVisibleLikeCppCommand {
+                    source_guid,
+                    map_id: 571,
+                    instance_id: 0,
+                    packet_bytes: packet_bytes.clone(),
+                },
+            ))
+            .expect("command queued");
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+        assert!(
+            send_rx.try_recv().is_err(),
+            "C++ baseline has no SMSG_ON_MONSTER_MOVE in the initial enter-world packet burst"
+        );
+
+        session.suppress_creature_movement_until_like_cpp =
+            Some(Instant::now() - Duration::from_millis(1));
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::SendIfVisibleLikeCpp(
+                SendIfVisibleLikeCppCommand {
+                    source_guid,
+                    map_id: 571,
+                    instance_id: 0,
+                    packet_bytes: packet_bytes.clone(),
+                },
+            ))
+            .expect("command queued");
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+        assert_eq!(
+            send_rx
+                .try_recv()
+                .expect("movement delivers after initial gate expires"),
+            packet_bytes
+        );
+        assert!(session.suppress_creature_movement_until_like_cpp.is_none());
+        assert!(send_rx.try_recv().is_err(), "no extra packets");
     }
 
     /// (3) Packet is NOT sent when `map_id` in command does not match session map.
@@ -60609,9 +60843,31 @@ mod tests {
         let source_guid =
             ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1006);
         let packet_bytes = vec![0xAA, 0xBB, 0xCC];
+        let manager = shared_map_manager();
+        manager.write().unwrap().add_creature(
+            571,
+            0,
+            0,
+            0,
+            crate::map_manager::WorldCreature::new(
+                source_guid,
+                777,
+                Position::ZERO,
+                100,
+                80,
+                1,
+                2,
+                0.0,
+                1,
+                35,
+                0,
+                0,
+            ),
+        );
         // Session is on map 571 (non-zero) — the same map ExplicitPlayer routing now
         // reads from the registry entry and places in the command.
         session.state = SessionState::LoggedIn;
+        session.set_map_manager(manager);
         session.set_player_map_position_like_cpp(571, Position::ZERO);
         session.client_visible_guids_like_cpp.insert(source_guid);
 
@@ -60635,6 +60891,109 @@ mod tests {
                 .expect("must deliver to session on map 571"),
             packet_bytes,
             "ExplicitPlayer with correct map_id must reach the session"
+        );
+        assert!(send_rx.try_recv().is_err(), "no extra packets");
+    }
+
+    #[tokio::test]
+    async fn send_if_visible_creature_command_rechecks_current_phase_and_range_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let source_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1011);
+        let packet_bytes = vec![0xD4, 0x2D, 0xAA];
+        let manager = shared_map_manager();
+        manager.write().unwrap().add_creature(
+            571,
+            0,
+            0,
+            0,
+            crate::map_manager::WorldCreature::new(
+                source_guid,
+                777,
+                Position::new(5000.0, 5000.0, 0.0, 0.0),
+                100,
+                80,
+                1,
+                2,
+                0.0,
+                1,
+                35,
+                0,
+                0,
+            ),
+        );
+        session.state = SessionState::LoggedIn;
+        session.set_map_manager(Arc::clone(&manager));
+        session.set_player_map_position_like_cpp(571, Position::ZERO);
+        session.client_visible_guids_like_cpp.insert(source_guid);
+
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::SendIfVisibleLikeCpp(
+                SendIfVisibleLikeCppCommand {
+                    source_guid,
+                    map_id: 571,
+                    instance_id: 0,
+                    packet_bytes: packet_bytes.clone(),
+                },
+            ))
+            .expect("command queued");
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+        assert!(
+            send_rx.try_recv().is_err(),
+            "C++ MessageDistDeliverer rejects stale HaveAtClient entries outside source range"
+        );
+
+        session.mutate_world_creature(source_guid, |creature| {
+            creature
+                .creature
+                .set_ai_position(Position::new(10.0, 0.0, 0.0, 0.0));
+            *creature.creature.unit_mut().world_mut().phase_shift_mut() =
+                PhaseShift::from_phases([20]);
+        });
+        session.set_represented_player_phase_shift_like_cpp(PhaseShift::from_phases([10]));
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::SendIfVisibleLikeCpp(
+                SendIfVisibleLikeCppCommand {
+                    source_guid,
+                    map_id: 571,
+                    instance_id: 0,
+                    packet_bytes: packet_bytes.clone(),
+                },
+            ))
+            .expect("command queued");
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+        assert!(
+            send_rx.try_recv().is_err(),
+            "C++ MessageDistDeliverer rejects stale HaveAtClient entries outside source phase"
+        );
+
+        session.mutate_world_creature(source_guid, |creature| {
+            *creature.creature.unit_mut().world_mut().phase_shift_mut() =
+                PhaseShift::from_phases([10]);
+        });
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::SendIfVisibleLikeCpp(
+                SendIfVisibleLikeCppCommand {
+                    source_guid,
+                    map_id: 571,
+                    instance_id: 0,
+                    packet_bytes: packet_bytes.clone(),
+                },
+            ))
+            .expect("command queued");
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+        assert_eq!(
+            send_rx.try_recv().expect("same phase and range delivers"),
+            packet_bytes
         );
         assert!(send_rx.try_recv().is_err(), "no extra packets");
     }

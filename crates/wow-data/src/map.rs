@@ -82,12 +82,14 @@ impl MapEntry {
 
 pub struct MapStore {
     entries: HashMap<u32, MapEntry>,
+    area_table_ids_like_cpp: HashMap<u32, u16>,
 }
 
 impl MapStore {
     pub fn from_entries(entries: impl IntoIterator<Item = MapEntry>) -> Self {
         Self {
             entries: entries.into_iter().map(|entry| (entry.id, entry)).collect(),
+            area_table_ids_like_cpp: HashMap::new(),
         }
     }
 
@@ -103,12 +105,14 @@ impl MapStore {
             .with_context(|| format!("failed to open {}", path.display()))?;
 
         let mut entries = HashMap::with_capacity(reader.total_count());
+        let mut area_table_ids_like_cpp = HashMap::with_capacity(reader.total_count());
         for (id, idx) in reader.iter_records() {
             let entry = MapEntry {
                 id,
                 // WDC4 record ids supply C++ field 0 (`ID`) and this reader
                 // exposes `Flags[3]` as one array field, so C++ field 8 -> 7,
-                // C++ field 9 -> 8, C++ fields 13..14 -> fields 12..13,
+                // C++ field 9 -> 8, C++ field 10 -> 9,
+                // C++ fields 13..14 -> fields 12..13,
                 // and C++ fields 22..24 -> field 21 with array elements 0..2.
                 instance_type: reader.get_field_i8(idx, 7),
                 expansion_id: reader.get_field_u8(idx, 8),
@@ -117,15 +121,23 @@ impl MapStore {
                 flags1: reader.get_field_u32(idx, 21),
                 flags2: reader.get_array_element(idx, 21, 1, 32),
             };
+            area_table_ids_like_cpp.insert(id, reader.get_field_u16(idx, 9));
             entries.insert(id, entry);
         }
 
         info!("Loaded {} maps from {}", entries.len(), path.display());
-        Ok(Self { entries })
+        Ok(Self {
+            entries,
+            area_table_ids_like_cpp,
+        })
     }
 
     pub fn get(&self, id: u32) -> Option<&MapEntry> {
         self.entries.get(&id)
+    }
+
+    pub fn area_table_id_like_cpp(&self, id: u32) -> u16 {
+        self.area_table_ids_like_cpp.get(&id).copied().unwrap_or(0)
     }
 
     pub fn entries(&self) -> impl Iterator<Item = &MapEntry> {

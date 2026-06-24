@@ -97,6 +97,60 @@ pub struct AreaTriggerDataValues {
     pub visual_anim: VisualAnimValues,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct AreaTriggerPosition2 {
+    pub x: f32,
+    pub y: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct AreaTriggerPosition3 {
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct AreaTriggerShapeInfo {
+    pub shape_type: AreaTriggerShapeType,
+    pub data: [f32; 8],
+    pub polygon_vertices: Vec<AreaTriggerPosition2>,
+    pub polygon_vertices_target: Vec<AreaTriggerPosition2>,
+}
+
+impl Default for AreaTriggerShapeInfo {
+    fn default() -> Self {
+        Self {
+            shape_type: AreaTriggerShapeType::Sphere,
+            data: [0.0; 8],
+            polygon_vertices: Vec::new(),
+            polygon_vertices_target: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct AreaTriggerCreatePropertiesFlags {
+    pub flags: u32,
+    pub scale_curve_id: u32,
+    pub morph_curve_id: u32,
+    pub facing_curve_id: u32,
+    pub move_curve_id: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct AreaTriggerOrbitInfo {
+    pub counter_clockwise: bool,
+    pub can_loop: bool,
+    pub time_to_target: u32,
+    pub elapsed_time_for_movement: i32,
+    pub start_delay: u32,
+    pub radius: f32,
+    pub blend_from_radius: f32,
+    pub initial_angle: f32,
+    pub z_offset: f32,
+}
+
 impl Default for AreaTriggerDataValues {
     fn default() -> Self {
         Self {
@@ -152,6 +206,10 @@ pub struct AreaTrigger {
     aura_effect_bound: bool,
     stationary_position: Position,
     shape_type: AreaTriggerShapeType,
+    shape: AreaTriggerShapeInfo,
+    create_properties_flags: AreaTriggerCreatePropertiesFlags,
+    spline_points: Vec<AreaTriggerPosition3>,
+    orbit_info: Option<AreaTriggerOrbitInfo>,
     duration_ms: i32,
     total_duration_ms: i32,
     time_since_created_ms: u32,
@@ -192,6 +250,10 @@ impl AreaTrigger {
             aura_effect_bound: false,
             stationary_position: Position::new(0.0, 0.0, 0.0, 0.0),
             shape_type: AreaTriggerShapeType::Sphere,
+            shape: AreaTriggerShapeInfo::default(),
+            create_properties_flags: AreaTriggerCreatePropertiesFlags::default(),
+            spline_points: Vec::new(),
+            orbit_info: None,
             duration_ms: 0,
             total_duration_ms: 0,
             time_since_created_ms: 0,
@@ -307,6 +369,22 @@ impl AreaTrigger {
         self.shape_type
     }
 
+    pub const fn shape(&self) -> &AreaTriggerShapeInfo {
+        &self.shape
+    }
+
+    pub const fn create_properties_flags(&self) -> AreaTriggerCreatePropertiesFlags {
+        self.create_properties_flags
+    }
+
+    pub fn spline_points(&self) -> &[AreaTriggerPosition3] {
+        &self.spline_points
+    }
+
+    pub const fn orbit_info(&self) -> Option<AreaTriggerOrbitInfo> {
+        self.orbit_info
+    }
+
     pub const fn vertices_update_previous_orientation(&self) -> f32 {
         self.vertices_update_previous_orientation
     }
@@ -384,6 +462,24 @@ impl AreaTrigger {
 
     pub fn set_shape_type(&mut self, shape_type: AreaTriggerShapeType) {
         self.shape_type = shape_type;
+        self.shape.shape_type = shape_type;
+    }
+
+    pub fn set_shape_info(&mut self, shape: AreaTriggerShapeInfo) {
+        self.shape_type = shape.shape_type;
+        self.shape = shape;
+    }
+
+    pub fn set_create_properties_flags(&mut self, flags: AreaTriggerCreatePropertiesFlags) {
+        self.create_properties_flags = flags;
+    }
+
+    pub fn set_spline_points(&mut self, spline_points: Vec<AreaTriggerPosition3>) {
+        self.spline_points = spline_points;
+    }
+
+    pub fn set_orbit_info(&mut self, orbit_info: Option<AreaTriggerOrbitInfo>) {
+        self.orbit_info = orbit_info;
     }
 
     pub fn set_create_properties_id(&mut self, id: AreaTriggerId) {

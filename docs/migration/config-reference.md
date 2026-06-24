@@ -69,7 +69,7 @@ All paths relative to `/home/server/woltk-trinity-legacy/`.
 | PACKET SPOOF PROTECTION SETTINGS | 4303-4336 | `PacketSpoof.Policy=1` (0 log / 1 log+kick / 2 log+kick+ban), `PacketSpoof.BanMode=0` (0 account / 2 IP), `PacketSpoof.BanDuration=86400` |
 | METRIC SETTINGS | 4338-4389 | `Metric.Enable`, `Metric.Interval=1`, `Metric.ConnectionInfo="127.0.0.1;8086;worldserver"`, `Metric.OverallStatusInterval=1`, `Metric.Threshold.<name>` |
 | PVP SETTINGS | 4391-4426 | `Pvp.FactionBalance.LevelCheckDiff`, `Pvp.FactionBalance.{Pct5=0.6,Pct10=0.7,Pct20=0.8}` |
-| RUSTYCORE TEST / EXPERIMENTAL FLAGS | 4428-4444 | `Bot.AccountPrefix` (RustyCore-only addition; gates the synchronous-login path used by headless test bots), `RustyCore.LegacyCreatureGlobalRuntime` (RustyCore-only experimental runtime owner flag; default `0`) |
+| RUSTYCORE TEST / RUNTIME FLAGS | 4428-4444 | `Bot.AccountPrefix` (RustyCore-only addition; gates the synchronous-login path used by headless test bots), `RustyCore.LegacyCreatureGlobalRuntime` (RustyCore-only runtime owner flag; default enabled / absent means map-owned) |
 
 ### `bnetserver.conf.dist` section index
 
@@ -187,7 +187,7 @@ The config layer is process-internal — it does not originate packets. It does,
 - ✅ Single section headers (`[worldserver]` / `[bnetserver]`) are accepted and flattened, matching C++ `fullTree.begin()->second`.
 - ✅ Canonical TC semicolon DB strings (`LoginDatabaseInfo = "host;port;user;pass;db[;ssl]"`) are parsed by `get_database_info_default`.
 - ✅ BNet TLS uses configured `CertificatesFile` and `PrivateKeyFile` paths with C++ defaults.
-- ✅ RustyCore-only experimental flags can be read ad hoc. `RustyCore.LegacyCreatureGlobalRuntime` is numeric `0`/`1`, defaults to `0`, and is intentionally not part of TrinityCore config parity.
+- ✅ RustyCore-only runtime flags can be read ad hoc. `RustyCore.LegacyCreatureGlobalRuntime` is numeric `0`/`1`, defaults to enabled when absent, and is intentionally not part of TrinityCore config parity.
 
 **What's missing vs C++:**
 
@@ -279,7 +279,7 @@ The config layer is process-internal — it does not originate packets. It does,
 
 10. **`Bot.AccountPrefix`** is a RustyCore-specific addition (not in TC). It is documented in `worldserver.conf.dist` lines 4428-4444 and gates the synchronous-login path used by the LFG headless test bot. Production realms must leave it `""` — see CLAUDE.md.
 
-11. **`RustyCore.LegacyCreatureGlobalRuntime`** is a RustyCore-specific experimental migration flag (not in TC). It is read as numeric `0`/`1`; absent and `0` keep the legacy session-owned creature tick, while non-zero flips the shared legacy map owner to `GlobalLegacy` and starts the global creature runtime loop at `MapUpdateInterval`. Do not enable it on a production realm until Slice 4B manual client/server validation is complete.
+11. **`RustyCore.LegacyCreatureGlobalRuntime`** is a RustyCore-specific runtime flag (not in TC). It is read as numeric `0`/`1`; absent and non-zero flip the shared legacy map owner to `GlobalLegacy` and start the global creature runtime loop at `MapUpdateInterval`, matching C++ map-owned creature updates. `0` is a diagnostic override for the old session-owned path.
 
 12. **`TOTPMasterSecret` is a hex string**, not a base64 string. TC uses raw 16-byte AES-128-CBC keys formatted as 32 hex chars (`000102…0F`).
 
@@ -313,7 +313,7 @@ The config layer is process-internal — it does not originate packets. It does,
 | `LoginDatabaseInfo = "host;port;user;pass;db;ssl"` | `wow_config::get_database_info_default("Login", ...)` | TC semicolon schema represented; #CONFIG.3 |
 | `CertificatesFile` / `PrivateKeyFile` | `bnet-server::load_tls_acceptors(cert, key)` | PEM chain + private key, matching current C++ `SslContext.cpp` |
 | `Bot.AccountPrefix` | `wow_config::get_string_default("Bot.AccountPrefix", "")` | RustyCore-specific key (not in TC) |
-| `RustyCore.LegacyCreatureGlobalRuntime` | `wow_config::get_value_default::<u8>("RustyCore.LegacyCreatureGlobalRuntime", 0) != 0` | RustyCore-specific experimental key (not in TC); default off |
+| `RustyCore.LegacyCreatureGlobalRuntime` | `wow_config::get_value::<u8>("RustyCore.LegacyCreatureGlobalRuntime").map(|value| value != 0).unwrap_or(true)` | RustyCore-specific runtime key (not in TC); absent/default enabled |
 | `[worldserver]` / `[bnetserver]` section header | flattened by parser | #CONFIG.1 represented |
 | `0`/`1` boolean values | `get_value::<bool>` / `WorldConfigSet` bool parser | #CONFIG.2 represented |
 | `.reload config` GM command | (no equivalent) | #CONFIG.5 |

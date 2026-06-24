@@ -37,9 +37,10 @@ pub use area_trigger::{
     AREA_TRIGGER_DATA_SPELL_VISUAL_ID_BIT, AREA_TRIGGER_DATA_TIME_TO_TARGET_BIT,
     AREA_TRIGGER_DATA_TIME_TO_TARGET_EXTRA_SCALE_BIT, AREA_TRIGGER_DATA_TIME_TO_TARGET_POS_BIT,
     AREA_TRIGGER_DATA_TIME_TO_TARGET_SCALE_BIT, AREA_TRIGGER_DATA_VISUAL_ANIM_BIT,
-    AREA_TRIGGER_FLAG_IS_SERVER_SIDE, AreaTrigger, AreaTriggerDataUpdate, AreaTriggerDataValues,
-    AreaTriggerId, AreaTriggerShapeType, AreaTriggerValuesUpdate, ScaleCurveValues,
-    VisualAnimValues,
+    AREA_TRIGGER_FLAG_IS_SERVER_SIDE, AreaTrigger, AreaTriggerCreatePropertiesFlags,
+    AreaTriggerDataUpdate, AreaTriggerDataValues, AreaTriggerId, AreaTriggerOrbitInfo,
+    AreaTriggerPosition2, AreaTriggerPosition3, AreaTriggerShapeInfo, AreaTriggerShapeType,
+    AreaTriggerValuesUpdate, ScaleCurveValues, VisualAnimValues,
 };
 pub use bag::{
     Bag, BagCreateError, BagCreateInfo, BagValuesUpdate, CONTAINER_DATA_NUM_SLOTS_BIT,

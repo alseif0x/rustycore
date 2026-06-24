@@ -5,7 +5,7 @@
 
 //! Character handlers: enum, create, delete, and player login.
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::f32::consts::PI;
 use std::sync::Arc;
 
@@ -58,6 +58,7 @@ use wow_packet::packets::update::*;
 use wow_packet::{ClientPacket, WorldPacket};
 
 use crate::handlers::quest::RepresentedQuestGiverStatusSourceLikeCpp;
+use crate::map_manager::zone_and_area_for_position_like_cpp;
 use crate::reputation::mgr::CharacterReputationRowLikeCpp;
 use crate::session::{
     ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP, CharacterPetAuraEffectRowLikeCpp,
@@ -78,6 +79,120 @@ const GO_SPAWN_TERRAIN_SWAP_MAP_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN 
 const GO_SPAWN_EFFECTIVE_FLAGS_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 4;
 const GO_SPAWN_EFFECTIVE_FACTION_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 5;
 const GO_SPAWN_OVERRIDE_SOURCE_KNOWN_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 6;
+const WORLDSTATE_ANY_MAP_LIKE_CPP: i32 = -1;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LoginWorldStateTemplateLikeCpp {
+    id: i32,
+    default_value: i32,
+    map_ids: BTreeSet<i32>,
+    area_ids: BTreeSet<u32>,
+}
+
+fn parse_login_world_state_map_ids_like_cpp(
+    map_ids_csv: &str,
+    map_exists: impl Fn(i32) -> bool,
+) -> BTreeSet<i32> {
+    let mut map_ids = BTreeSet::new();
+    for token in map_ids_csv.split(',').filter(|token| !token.is_empty()) {
+        let Ok(map_id) = token.trim().parse::<i32>() else {
+            continue;
+        };
+        if map_id != WORLDSTATE_ANY_MAP_LIKE_CPP && !map_exists(map_id) {
+            continue;
+        }
+        map_ids.insert(map_id);
+    }
+    map_ids
+}
+
+fn parse_login_world_state_area_ids_like_cpp(
+    area_ids_csv: &str,
+    map_ids: &BTreeSet<i32>,
+    area_store: Option<&wow_data::AreaTableStore>,
+) -> BTreeSet<u32> {
+    let mut area_ids = BTreeSet::new();
+    for token in area_ids_csv.split(',').filter(|token| !token.is_empty()) {
+        let Ok(area_id) = token.trim().parse::<u32>() else {
+            continue;
+        };
+        let Some(area) = area_store.and_then(|store| store.get(area_id)) else {
+            continue;
+        };
+        if !map_ids.contains(&i32::from(area.continent_id)) {
+            continue;
+        }
+        area_ids.insert(area_id);
+    }
+    area_ids
+}
+
+fn build_initial_world_states_like_cpp(
+    templates: impl IntoIterator<Item = LoginWorldStateTemplateLikeCpp>,
+    saved_values: impl IntoIterator<Item = (i32, i32)>,
+    map_id: i32,
+    player_area_id: u32,
+    area_store: Option<&wow_data::AreaTableStore>,
+) -> Vec<(i32, i32)> {
+    let mut template_by_id = BTreeMap::new();
+    let mut realm_values = BTreeMap::new();
+    let mut map_values_by_map: BTreeMap<i32, BTreeMap<i32, i32>> = BTreeMap::new();
+
+    for template in templates {
+        if template.map_ids.is_empty() {
+            realm_values.insert(template.id, template.default_value);
+        } else {
+            for &template_map_id in &template.map_ids {
+                map_values_by_map
+                    .entry(template_map_id)
+                    .or_default()
+                    .insert(template.id, template.default_value);
+            }
+        }
+        template_by_id.insert(template.id, template);
+    }
+
+    for (world_state_id, value) in saved_values {
+        let Some(template) = template_by_id.get(&world_state_id) else {
+            continue;
+        };
+        if template.map_ids.is_empty() {
+            realm_values.insert(world_state_id, value);
+        } else {
+            for &template_map_id in &template.map_ids {
+                map_values_by_map
+                    .entry(template_map_id)
+                    .or_default()
+                    .insert(world_state_id, value);
+            }
+        }
+    }
+
+    let mut out = Vec::new();
+    out.extend(realm_values);
+
+    for lookup_map_id in [WORLDSTATE_ANY_MAP_LIKE_CPP, map_id] {
+        let Some(values) = map_values_by_map.get(&lookup_map_id) else {
+            continue;
+        };
+        for (&world_state_id, &value) in values {
+            if let Some(template) = template_by_id.get(&world_state_id) {
+                if !template.area_ids.is_empty()
+                    && !template.area_ids.iter().any(|required_area_id| {
+                        area_store.is_some_and(|store| {
+                            store.is_in_area_like_cpp(player_area_id, *required_area_id)
+                        })
+                    })
+                {
+                    continue;
+                }
+            }
+            out.push((world_state_id, value));
+        }
+    }
+
+    out
+}
 const CREATURE_SPAWN_ROOTED_COLUMN: usize = 35;
 const CREATURE_SPAWN_CHASE_MOVEMENT_TYPE_COLUMN: usize = 36;
 const CREATURE_SPAWN_RANDOM_MOVEMENT_TYPE_COLUMN: usize = 37;
@@ -3309,11 +3424,10 @@ impl WorldSession {
     ///
     /// TrinityCore only sends a Valid `DBReply` when `sDB2Manager.GetStorage`
     /// returns typed storage and that storage can serialize the record through
-    /// `DB2StorageBase::WriteRecord`. Rust's startup `HotfixBlobCache` stores
-    /// raw WDC4/DB2 record bytes, which are not the same wire format. Sending
-    /// those raw blobs as Valid corrupts the client's DB2 parser, so until Rust
-    /// has the typed storage serializer this handler must take the C++ Invalid
-    /// branch and let the client use its local DB2 cache.
+    /// `DB2StorageBase::WriteRecord`. Rust's `HotfixBlobCache` stores raw
+    /// WDC4/DB2 record bytes, which are not the same wire format. Only typed
+    /// stores implemented here may answer Valid; missing typed storage follows
+    /// the C++ Invalid branch and lets the client use its local DB2 cache.
     pub async fn handle_db_query_bulk(&mut self, query: wow_packet::packets::misc::DbQueryBulk) {
         info!(
             "DbQueryBulk: table=0x{:08X}, {} records {:?} for account {}",
@@ -3322,24 +3436,36 @@ impl WorldSession {
             query.queries,
             self.account_id
         );
-        // Status 3 = Invalid: same C++ fallback when DB2 typed storage is missing.
-        // Do not use `hotfix_blob_cache()` here; it stores raw DB2 blobs, not the
-        // typed `WriteRecord` payload that C++ writes into SMSG_DB_REPLY.
         for record_id in &query.queries {
-            // Missing typed storage → send Invalid(3) so the client uses its local DB2 copy.
-            // RecordRemoved(2) would tell the client to DELETE the record from its cache,
-            // which is wrong for items that exist in the client's DB2 but not on the server.
             if query.table_hash == TACT_KEY_TABLE_HASH_LIKE_CPP {
+                let tact_key = (*record_id)
+                    .try_into()
+                    .ok()
+                    .and_then(|id| self.tact_key_store().and_then(|store| store.get(id)));
+                if let Some(entry) = tact_key {
+                    debug!(
+                        "DbQueryBulk: TactKey.db2 record={} -> Valid(1), 16-byte typed WriteRecord payload",
+                        record_id
+                    );
+                    self.send_packet(&DBReply::found(
+                        query.table_hash,
+                        *record_id,
+                        entry.key.to_vec(),
+                    ));
+                    continue;
+                }
                 debug!(
-                    "DbQueryBulk: NOT_FOUND TactKey.db2 record={} → Invalid(3), client may use local DB2 cache",
+                    "DbQueryBulk: NOT_FOUND TactKey.db2 record={} -> Invalid(3), client may use local DB2 cache",
                     record_id
                 );
             } else {
                 info!(
-                    "DbQueryBulk: table=0x{:08X} record={} → Invalid(3), no typed DB2 storage serializer",
+                    "DbQueryBulk: table=0x{:08X} record={} -> Invalid(3), no typed DB2 storage serializer",
                     query.table_hash, record_id
                 );
             }
+            // RecordRemoved(2) would tell the client to delete the record from its cache,
+            // which is wrong for client-local DB2 rows missing from server typed storage.
             self.send_packet(&DBReply::not_found(query.table_hash, *record_id));
         }
     }
@@ -3949,10 +4075,8 @@ impl WorldSession {
         self.set_player_guid(Some(guid));
         self.set_loaded_player_identity_like_cpp(map_id as u16, race, class, level, gender);
         // C++ recalculates zone/area from terrain after AddToMap
-        // (`Player::SendInitialPacketsAfterAddToMap`). Until the Rust terrain
-        // runtime can resolve subzones, seed both from the DB zone so
-        // area-dependent checks (notably mount capability flags) do not run
-        // against the zero/default area.
+        // (`Player::SendInitialPacketsAfterAddToMap`). Seed from DB until
+        // that post-add terrain pass runs.
         self.set_player_zone_area_like_cpp(zone as u32, zone as u32);
         self.set_represented_guild_id_like_cpp(result.try_read::<u64>(11).unwrap_or(0));
         self.load_represented_player_difficulties_like_cpp(
@@ -6372,15 +6496,19 @@ impl WorldSession {
             self.visible_gameobjects_from_canonical_map_like_cpp(map_id, &pos, range);
         let canonical_dynamic_objects =
             self.visible_dynamic_objects_from_canonical_map_like_cpp(map_id, &pos, range);
+        let canonical_area_triggers =
+            self.visible_area_triggers_from_canonical_map_like_cpp(map_id, &pos, range);
         if self.has_world_map_manager_like_cpp() {
             let mut new_visible_creatures: HashSet<ObjectGuid> = HashSet::new();
             let mut new_visible_gos: HashSet<ObjectGuid> = HashSet::new();
             let mut new_visible_dynamic_objects: HashSet<ObjectGuid> = HashSet::new();
+            let mut new_visible_area_triggers: HashSet<ObjectGuid> = HashSet::new();
             let mut update_blocks: Vec<UpdateBlock> = Vec::new();
             let mut out_of_range_guids: Vec<ObjectGuid> = Vec::new();
             let mut created_creatures = 0usize;
             let mut created_gameobjects = 0usize;
             let mut created_dynamic_objects = 0usize;
+            let mut created_area_triggers = 0usize;
             let mut initial_visible_creatures_like_cpp = Vec::new();
             for creature in &map_creatures {
                 let guid = creature.guid();
@@ -6481,6 +6609,36 @@ impl WorldSession {
                 }
             }
 
+            if let Some(area_triggers) = canonical_area_triggers {
+                new_visible_area_triggers = area_triggers
+                    .iter()
+                    .map(|area_trigger| area_trigger.guid)
+                    .collect();
+                for area_trigger in area_triggers {
+                    if !self
+                        .client_visible_guids_like_cpp
+                        .contains(&area_trigger.guid)
+                    {
+                        update_blocks.push(UpdateObject::create_area_trigger_block(area_trigger));
+                        created_area_triggers += 1;
+                    }
+                }
+                let removed_area_triggers: Vec<ObjectGuid> = self
+                    .client_visible_guids_like_cpp
+                    .iter()
+                    .filter(|g| g.is_area_trigger() && !new_visible_area_triggers.contains(g))
+                    .copied()
+                    .collect();
+
+                if !removed_area_triggers.is_empty() {
+                    debug!(
+                        "Visibility update: {} canonical area triggers out of range",
+                        removed_area_triggers.len()
+                    );
+                    out_of_range_guids.extend(removed_area_triggers);
+                }
+            }
+
             if !update_blocks.is_empty() || !out_of_range_guids.is_empty() {
                 let update = UpdateObject {
                     map_id,
@@ -6495,6 +6653,7 @@ impl WorldSession {
                         created_creatures,
                         created_gameobjects,
                         created_dynamic_objects,
+                        created_area_triggers,
                         "RUST_UPDATEOBJECT visibility_update plan"
                     );
                     for line in update.debug_create_summary_like_cpp() {
@@ -6508,7 +6667,10 @@ impl WorldSession {
             }
 
             self.client_visible_guids_like_cpp.retain(|guid| {
-                !guid.is_any_type_creature() && !guid.is_game_object() && !guid.is_dynamic_object()
+                !guid.is_any_type_creature()
+                    && !guid.is_game_object()
+                    && !guid.is_dynamic_object()
+                    && !guid.is_area_trigger()
             });
             self.client_visible_guids_like_cpp
                 .extend(new_visible_creatures.iter().copied());
@@ -6516,6 +6678,8 @@ impl WorldSession {
                 .extend(new_visible_gos.iter().copied());
             self.client_visible_guids_like_cpp
                 .extend(new_visible_dynamic_objects.iter().copied());
+            self.client_visible_guids_like_cpp
+                .extend(new_visible_area_triggers.iter().copied());
             self.last_visibility_pos = Some(pos);
             debug!(
                 "Visibility updated at ({:.1}, {:.1}): {} creatures / {} GOs in range",
@@ -13022,9 +13186,13 @@ impl WorldSession {
                 stale_index_entries = outcome.stale_index_entries,
                 creature_records_added = outcome.creature_records_added,
                 gameobject_records_added = outcome.gameobject_records_added,
+                area_trigger_records_added = outcome.area_trigger_records_added,
                 pre_add_records_added = outcome.pre_add_records_added,
                 add_to_map_errors = outcome.add_to_map_errors,
                 load_record_missing = outcome.load_record_missing,
+                creature_load_record_missing = outcome.creature_load_record_missing,
+                gameobject_load_record_missing = outcome.gameobject_load_record_missing,
+                area_trigger_load_record_missing = outcome.area_trigger_load_record_missing,
                 legacy_creature_mirrors = outcome.legacy_creature_mirrors,
                 "RUST_LOGIN grid_load"
             );
@@ -13064,6 +13232,8 @@ impl WorldSession {
             combat.max_health.max(1).min(u32::MAX as i64) as u32,
         );
         self.login_time = Some(std::time::Instant::now());
+        self.suppress_creature_movement_until_like_cpp =
+            Some(std::time::Instant::now() + std::time::Duration::from_secs(10));
         // Clear per-session loot/combat state as part of the Rust AddToWorld
         // equivalent, before C++ would build `Map::SendInitSelf`.
         self.loot_table.clear();
@@ -13135,6 +13305,9 @@ impl WorldSession {
                 account_heirlooms,
                 account_transmog,
                 trait_configs,
+            );
+            player_pkt.set_player_action_buttons_like_cpp(
+                self.represented_action_buttons_snapshot_like_cpp(),
             );
             player_pkt.set_player_customizations_like_cpp(player_customizations);
 
@@ -13238,8 +13411,54 @@ impl WorldSession {
             );
         }
 
-        // 27. InitWorldStates (zone state variables — empty for now)
-        self.send_packet(&InitWorldStates::new(map_id, zone_id));
+        match zone_and_area_for_position_like_cpp(
+            &self.mmap_runtime_config_like_cpp().data_dir,
+            map_id as u32,
+            position.x,
+            position.y,
+            self.area_table_store().map(|store| store.as_ref()),
+            |map_id| {
+                self.map_store()
+                    .as_deref()
+                    .map(|store| u32::from(store.area_table_id_like_cpp(map_id)))
+                    .unwrap_or(0)
+            },
+        ) {
+            Ok((resolved_zone_id, resolved_area_id)) => {
+                self.set_player_zone_area_like_cpp(resolved_zone_id, resolved_area_id);
+                info!(
+                    map_id,
+                    x = position.x,
+                    y = position.y,
+                    zone_id = resolved_zone_id,
+                    area_id = resolved_area_id,
+                    "Resolved player zone/area like C++ terrain before InitWorldStates"
+                );
+            }
+            Err(error) => {
+                warn!(
+                    map_id,
+                    x = position.x,
+                    y = position.y,
+                    %error,
+                    "failed to resolve C++ terrain zone/area before InitWorldStates; using DB-seeded zone/area"
+                );
+            }
+        }
+
+        // 27. InitWorldStates — C++ `Player::SendInitWorldStates` delegates to
+        // `WorldStateMgr::FillInitialWorldStates`: realm values first, then map
+        // values filtered by AreaIDs.
+        let (represented_zone_id, represented_area_id) = self.player_zone_area_like_cpp();
+        let world_states = self
+            .load_initial_world_states_for_login_like_cpp(map_id, represented_area_id)
+            .await;
+        self.send_packet(&InitWorldStates::with_world_states(
+            map_id,
+            represented_zone_id as i32,
+            represented_area_id as i32,
+            world_states,
+        ));
 
         // 28. LoadCufProfiles
         self.send_packet(&self.represented_load_cuf_profiles_packet_like_cpp());
@@ -13274,6 +13493,107 @@ impl WorldSession {
             "Login sequence complete for {:?} (38 packets including broadcasts)",
             guid
         );
+    }
+
+    async fn load_initial_world_states_for_login_like_cpp(
+        &self,
+        map_id: i32,
+        player_area_id: u32,
+    ) -> Vec<(i32, i32)> {
+        let Some(world_db) = self.world_db() else {
+            warn!("InitWorldStates: missing world DB, cannot load C++ world_state templates");
+            return Vec::new();
+        };
+        let Some(char_db) = self.char_db() else {
+            warn!(
+                "InitWorldStates: missing character DB, cannot load C++ world_state_value overlay"
+            );
+            return Vec::new();
+        };
+
+        let area_store = self.area_table_store().map(Arc::as_ref);
+        let map_store = self.map_store().map(Arc::as_ref);
+
+        let mut templates = Vec::new();
+        let stmt = world_db.prepare(WorldStatements::SEL_WORLD_STATES);
+        match world_db.query(&stmt).await {
+            Ok(mut result) if !result.is_empty() => loop {
+                let id: i32 = result.read(0);
+                let default_value: i32 = result.read(1);
+                let map_ids_csv: String = result.try_read(2).unwrap_or_default();
+                let area_ids_csv: String = result.try_read(3).unwrap_or_default();
+                let map_ids = parse_login_world_state_map_ids_like_cpp(&map_ids_csv, |map_id| {
+                    u32::try_from(map_id).ok().is_some_and(|map_id| {
+                        map_store.is_some_and(|store| store.get(map_id).is_some())
+                    })
+                });
+                if !map_ids_csv.is_empty() && map_ids.is_empty() {
+                    if !result.next_row() {
+                        break;
+                    }
+                    continue;
+                }
+
+                let area_ids =
+                    parse_login_world_state_area_ids_like_cpp(&area_ids_csv, &map_ids, area_store);
+                if !area_ids_csv.is_empty() && !map_ids.is_empty() && area_ids.is_empty() {
+                    if !result.next_row() {
+                        break;
+                    }
+                    continue;
+                }
+
+                templates.push(LoginWorldStateTemplateLikeCpp {
+                    id,
+                    default_value,
+                    map_ids,
+                    area_ids,
+                });
+                if !result.next_row() {
+                    break;
+                }
+            },
+            Ok(_) => {}
+            Err(error) => {
+                warn!(
+                    ?error,
+                    "InitWorldStates: failed to load C++ world_state templates"
+                );
+            }
+        }
+
+        let mut saved_values = Vec::new();
+        let stmt = char_db.prepare(CharStatements::SEL_WORLD_STATE_VALUES);
+        match char_db.query(&stmt).await {
+            Ok(mut result) if !result.is_empty() => loop {
+                saved_values.push((result.read(0), result.read(1)));
+                if !result.next_row() {
+                    break;
+                }
+            },
+            Ok(_) => {}
+            Err(error) => {
+                warn!(
+                    ?error,
+                    "InitWorldStates: failed to load C++ world_state_value overlay"
+                );
+            }
+        }
+
+        let states = build_initial_world_states_like_cpp(
+            templates,
+            saved_values,
+            map_id,
+            player_area_id,
+            area_store,
+        );
+        info!(
+            map_id,
+            player_area_id,
+            count = states.len(),
+            "InitWorldStates loaded like C++"
+        );
+        states
     }
 
     // ── ShowTradeSkill ───────────────────────────────────────────────────────
@@ -13349,6 +13669,73 @@ mod tests {
         assert_eq!(normalize_creature_template_speed_run_like_cpp(0.0), 1.14286);
         assert_eq!(normalize_creature_template_speed_walk_like_cpp(0.75), 0.75);
         assert_eq!(normalize_creature_template_speed_run_like_cpp(2.0), 2.0);
+    }
+
+    #[test]
+    fn init_world_states_builder_orders_realm_then_map_and_filters_area_like_cpp() {
+        let area_store = wow_data::AreaTableStore::from_entries([
+            wow_data::AreaTableEntry {
+                id: 4395,
+                continent_id: 571,
+                parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: 0,
+            },
+            wow_data::AreaTableEntry {
+                id: 4613,
+                continent_id: 571,
+                parent_area_id: 4395,
+                area_bit: -1,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: 0,
+            },
+        ]);
+        let templates = [
+            LoginWorldStateTemplateLikeCpp {
+                id: 10,
+                default_value: 1,
+                map_ids: BTreeSet::new(),
+                area_ids: BTreeSet::new(),
+            },
+            LoginWorldStateTemplateLikeCpp {
+                id: 20,
+                default_value: 2,
+                map_ids: BTreeSet::from([571]),
+                area_ids: BTreeSet::new(),
+            },
+            LoginWorldStateTemplateLikeCpp {
+                id: 30,
+                default_value: 3,
+                map_ids: BTreeSet::from([571]),
+                area_ids: BTreeSet::from([4395]),
+            },
+            LoginWorldStateTemplateLikeCpp {
+                id: 40,
+                default_value: 4,
+                map_ids: BTreeSet::from([571]),
+                area_ids: BTreeSet::from([9999]),
+            },
+            LoginWorldStateTemplateLikeCpp {
+                id: 50,
+                default_value: 5,
+                map_ids: BTreeSet::from([WORLDSTATE_ANY_MAP_LIKE_CPP]),
+                area_ids: BTreeSet::new(),
+            },
+        ];
+
+        assert_eq!(
+            build_initial_world_states_like_cpp(
+                templates,
+                [(20, 22), (999, 999)],
+                571,
+                4613,
+                Some(&area_store),
+            ),
+            vec![(10, 1), (50, 5), (20, 22), (30, 3)]
+        );
     }
 
     #[test]
@@ -15881,6 +16268,36 @@ mod tests {
         let _timestamp = pkt.read_int32().unwrap();
         assert_eq!(pkt.read_bits(3).unwrap(), 3);
         assert_eq!(pkt.read_uint32().unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn tact_key_db_query_bulk_hit_returns_typed_valid_write_record_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        let key = [0xA5; wow_data::TACTKEY_SIZE];
+        session.set_tact_key_store(Arc::new(wow_data::TactKeyStore::from_entries([
+            wow_data::TactKeyEntry { id: 3909, key },
+        ])));
+
+        session
+            .handle_db_query_bulk(wow_packet::packets::misc::DbQueryBulk {
+                table_hash: TACT_KEY_TABLE_HASH_LIKE_CPP,
+                queries: vec![3909],
+            })
+            .await;
+
+        let bytes = send_rx.try_recv().expect("db reply");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            wow_constants::ServerOpcodes::DbReply as u16
+        );
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_uint32().unwrap(), TACT_KEY_TABLE_HASH_LIKE_CPP);
+        assert_eq!(pkt.read_int32().unwrap(), 3909);
+        let _timestamp = pkt.read_int32().unwrap();
+        assert_eq!(pkt.read_bits(3).unwrap(), 1);
+        assert_eq!(pkt.read_uint32().unwrap(), wow_data::TACTKEY_SIZE as u32);
+        let data = pkt.read_bytes(wow_data::TACTKEY_SIZE).unwrap();
+        assert_eq!(data, key);
     }
 
     #[tokio::test]

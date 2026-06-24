@@ -1016,7 +1016,6 @@ impl MovementMonsterSpline {
 
     pub fn write(&self, pkt: &mut WorldPacket) {
         pkt.write_uint32(self.id);
-        write_xyz(pkt, self.destination);
         pkt.write_bit(self.crz_teleport);
         pkt.write_bits(u32::from(self.stop_distance_tolerance & 0x07), 3);
         self.movement.write(pkt);
@@ -1068,13 +1067,13 @@ impl Default for MovementSpline {
 
 impl MovementSpline {
     pub fn write(&self, pkt: &mut WorldPacket) {
-        pkt.write_uint32(self.flags);
-        pkt.write_int32(self.elapsed);
-        pkt.write_uint32(self.move_time);
-        pkt.write_uint32(self.fade_object_time);
-        pkt.write_uint8(self.mode);
-        pkt.write_packed_guid(&self.transport_guid);
-        pkt.write_int8(self.vehicle_seat);
+        pkt.write_uint32_unflushed(self.flags);
+        pkt.write_int32_unflushed(self.elapsed);
+        pkt.write_uint32_unflushed(self.move_time);
+        pkt.write_uint32_unflushed(self.fade_object_time);
+        pkt.write_uint8_unflushed(self.mode);
+        pkt.write_packed_guid_unflushed(&self.transport_guid);
+        pkt.write_int8_unflushed(self.vehicle_seat);
         pkt.write_bits(u32::from(self.face.kind()), 2);
         pkt.write_bits(self.points.len() as u32, 16);
         pkt.write_bit(self.vehicle_exit_voluntary);
@@ -1734,11 +1733,6 @@ mod tests {
         assert_eq!(pkt.read_float().unwrap(), 2.0);
         assert_eq!(pkt.read_float().unwrap(), 3.0);
         assert_eq!(pkt.read_uint32().unwrap(), 77);
-        assert_eq!(pkt.read_float().unwrap(), 10.0);
-        assert_eq!(pkt.read_float().unwrap(), 20.0);
-        assert_eq!(pkt.read_float().unwrap(), 30.0);
-        assert!(!pkt.has_bit().unwrap());
-        assert_eq!(pkt.read_bits(3).unwrap(), 0);
         assert_eq!(pkt.read_uint32().unwrap(), 0x0040_0000);
         assert_eq!(pkt.read_int32().unwrap(), 0);
         assert_eq!(pkt.read_uint32().unwrap(), 1_500);
@@ -1746,6 +1740,8 @@ mod tests {
         assert_eq!(pkt.read_uint8().unwrap(), 0);
         assert_eq!(pkt.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
         assert_eq!(pkt.read_int8().unwrap(), -1);
+        assert!(!pkt.has_bit().unwrap());
+        assert_eq!(pkt.read_bits(3).unwrap(), 0);
         assert_eq!(pkt.read_bits(2).unwrap(), 0);
         assert_eq!(pkt.read_bits(16).unwrap(), 1);
         assert!(!pkt.has_bit().unwrap());
@@ -1777,11 +1773,6 @@ mod tests {
         assert_eq!(pkt.read_float().unwrap(), 2.0);
         assert_eq!(pkt.read_float().unwrap(), 3.0);
         assert_eq!(pkt.read_uint32().unwrap(), 78);
-        assert_eq!(pkt.read_float().unwrap(), 0.0);
-        assert_eq!(pkt.read_float().unwrap(), 0.0);
-        assert_eq!(pkt.read_float().unwrap(), 0.0);
-        assert!(!pkt.has_bit().unwrap());
-        assert_eq!(pkt.read_bits(3).unwrap(), 2);
         assert_eq!(pkt.read_uint32().unwrap(), 0);
         assert_eq!(pkt.read_int32().unwrap(), 0);
         assert_eq!(pkt.read_uint32().unwrap(), 0);
@@ -1789,6 +1780,8 @@ mod tests {
         assert_eq!(pkt.read_uint8().unwrap(), 0);
         assert_eq!(pkt.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
         assert_eq!(pkt.read_int8().unwrap(), -1);
+        assert!(!pkt.has_bit().unwrap());
+        assert_eq!(pkt.read_bits(3).unwrap(), 2);
         assert_eq!(pkt.read_bits(2).unwrap(), 0);
         assert_eq!(pkt.read_bits(16).unwrap(), 0);
         assert!(!pkt.has_bit().unwrap());
@@ -1827,11 +1820,6 @@ mod tests {
             pkt.read_float().unwrap();
         }
         assert_eq!(pkt.read_uint32().unwrap(), 79);
-        for _ in 0..3 {
-            pkt.read_float().unwrap();
-        }
-        assert!(!pkt.has_bit().unwrap());
-        assert_eq!(pkt.read_bits(3).unwrap(), 0);
         assert_eq!(pkt.read_uint32().unwrap(), 0);
         assert_eq!(pkt.read_int32().unwrap(), 0);
         assert_eq!(pkt.read_uint32().unwrap(), 0);
@@ -1839,6 +1827,8 @@ mod tests {
         assert_eq!(pkt.read_uint8().unwrap(), 0);
         assert_eq!(pkt.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
         assert_eq!(pkt.read_int8().unwrap(), -1);
+        assert!(!pkt.has_bit().unwrap());
+        assert_eq!(pkt.read_bits(3).unwrap(), 0);
         assert_eq!(pkt.read_bits(2).unwrap(), 3);
         assert_eq!(pkt.read_bits(16).unwrap(), 1);
         assert!(!pkt.has_bit().unwrap());
