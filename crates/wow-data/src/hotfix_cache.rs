@@ -12,6 +12,7 @@
 
 use std::collections::BTreeMap;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 
@@ -82,6 +83,12 @@ pub struct HotfixBlobCache {
     /// Inner key: record_id.
     /// Value: raw record bytes (inline strings, no copy-table dedup).
     blobs: HashMap<u32, HashMap<u32, Vec<u8>>>,
+    /// `(table_hash, record_id)` pairs whose blob came from the `hotfix_blob`
+    /// DB table (TC-population pre-decoded wire bytes) rather than a raw `.db2`
+    /// file (WDC4 bitpacked). Only these are safe to serve in
+    /// SMSG_HOTFIX_CONNECT — raw `.db2` bytes have the wrong size/shape and
+    /// desync the client's content cursor (ERROR#132).
+    hotfix_blob_keys: HashSet<(u32, i32)>,
     hotfix_data: BTreeMap<i32, HotfixPush>,
     optional_data: HashMap<String, HashMap<(u32, i32), Vec<HotfixOptionalData>>>,
     max_hotfix_id: i32,
@@ -122,6 +129,10 @@ impl HotfixBlobCache {
             .entry(table_hash)
             .or_default()
             .insert(record_id as u32, bytes);
+        // Mark this record as `hotfix_blob`-sourced (pre-decoded). `.db2` files
+        // are loaded via `load_db2` which inserts directly into `blobs` and
+        // bypasses this method, so they are NOT marked servable.
+        self.hotfix_blob_keys.insert((table_hash, record_id));
     }
 
     /// Load C++ `hotfix_blob` rows from the Hotfix database for one locale.
@@ -177,10 +188,15 @@ impl HotfixBlobCache {
             let record_id: i32 = result.read(3);
             let status = HotfixRecordStatus::from(result.read::<u8>(4));
 
-            if status == HotfixRecordStatus::Valid
-                && !self.has_table(table_hash)
-                && self.get(table_hash, record_id).is_none()
-            {
+            // rustycore can only serialize PRE-DECODED `hotfix_blob` records for
+            // SMSG_HOTFIX_CONNECT. Raw `.db2` (WDC4 bitpacked) bytes have the
+            // wrong size/shape and desync the client's content cursor →
+            // WowDB2Lookup negative-count crash (ERROR#132). Keep a record only
+            // when it is Valid AND backed by a `hotfix_blob` row; drop the rest
+            // (raw `.db2`-only Valid, RecordRemoved, Invalid, NotPublic) so the
+            // client uses its own correct local DB2 copy — matching the real
+            // 54261 server, which serves only Valid records it can fully encode.
+            if !self.is_servable_hotfix_record(status, table_hash, record_id) {
                 if !result.next_row() {
                     break;
                 }
@@ -269,6 +285,27 @@ impl HotfixBlobCache {
     /// Whether the cache has any data for a given table hash.
     pub fn has_table(&self, table_hash: u32) -> bool {
         self.blobs.contains_key(&table_hash)
+    }
+
+    /// Whether `(table_hash, record_id)` is backed by a `hotfix_blob` row
+    /// (pre-decoded wire bytes), as opposed to a raw `.db2` record. Only these
+    /// can be served correctly in SMSG_HOTFIX_CONNECT.
+    pub fn has_hotfix_blob(&self, table_hash: u32, record_id: i32) -> bool {
+        self.hotfix_blob_keys.contains(&(table_hash, record_id))
+    }
+
+    /// Whether a `hotfix_data` record may be advertised/served in
+    /// SMSG_HOTFIX_CONNECT: only `Valid` records backed by a pre-decoded
+    /// `hotfix_blob` row. Raw `.db2` (WDC4 bitpacked) records, `RecordRemoved`,
+    /// `Invalid`, and `NotPublic` are all dropped so the client falls back to
+    /// its own correct local DB2 copy and never desyncs (ERROR#132).
+    pub fn is_servable_hotfix_record(
+        &self,
+        status: HotfixRecordStatus,
+        table_hash: u32,
+        record_id: i32,
+    ) -> bool {
+        status == HotfixRecordStatus::Valid && self.has_hotfix_blob(table_hash, record_id)
     }
 
     /// Total number of blobs cached across all tables.
@@ -418,6 +455,43 @@ mod tests {
         assert_eq!(cache.get(0x919B_E54E, 58256), Some(&[1, 2, 3][..]));
         assert!(cache.has_table(0x919B_E54E));
         assert_eq!(cache.total_blobs(), 1);
+    }
+
+    #[test]
+    fn insert_blob_marks_record_as_hotfix_blob_sourced() {
+        let mut cache = HotfixBlobCache::new();
+        cache.insert_blob(0x919B_E54E, 58256, vec![1, 2, 3]);
+
+        // A record inserted via insert_blob (the hotfix_blob path) is marked.
+        assert!(cache.has_hotfix_blob(0x919B_E54E, 58256));
+        // A record never inserted via insert_blob (e.g. a raw `.db2` record
+        // loaded by load_db2, which inserts directly into `blobs`) is NOT
+        // marked — even in the same, already-present table.
+        assert!(cache.has_table(0x919B_E54E));
+        assert!(!cache.has_hotfix_blob(0x919B_E54E, 99999));
+        assert!(!cache.has_hotfix_blob(0x1234_5678, 58256));
+    }
+
+    #[test]
+    fn only_valid_hotfix_blob_records_are_servable() {
+        let mut cache = HotfixBlobCache::new();
+        cache.insert_blob(0x919B_E54E, 58256, vec![1, 2, 3]);
+
+        // Positive: Valid + backed by a hotfix_blob row → servable (kept).
+        assert!(cache.is_servable_hotfix_record(HotfixRecordStatus::Valid, 0x919B_E54E, 58256));
+        // Negative: Valid but no hotfix_blob (raw `.db2`-only) → dropped; raw
+        // WDC4 bitpacked bytes would desync the client's content cursor
+        // (ERROR#132).
+        assert!(!cache.is_servable_hotfix_record(HotfixRecordStatus::Valid, 0x919B_E54E, 99999));
+        // Negative: RecordRemoved is never served (it would tell the client to
+        // delete a DB2 record it needs), even when a blob is present.
+        assert!(!cache.is_servable_hotfix_record(
+            HotfixRecordStatus::RecordRemoved,
+            0x919B_E54E,
+            58256
+        ));
+        // Negative: Invalid is dropped too — declare == serve.
+        assert!(!cache.is_servable_hotfix_record(HotfixRecordStatus::Invalid, 0x919B_E54E, 58256));
     }
 
     #[test]
