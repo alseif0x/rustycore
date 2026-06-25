@@ -144,6 +144,29 @@ fn dump_world_packet_like_cpp(
     }
 }
 
+fn trace_unencrypted_packet(
+    direction: &str,
+    addr: SocketAddr,
+    counter: u64,
+    opcode_raw: u16,
+    opcode_name: &str,
+    header: &[u8],
+    data: &[u8],
+) {
+    if std::env::var_os("RUSTYCORE_PACKET_DUMP_DIR").is_some() {
+        dump_world_packet_like_cpp(direction, addr, counter, opcode_raw, opcode_name, data);
+    }
+
+    if std::env::var_os("RUSTYCORE_HANDSHAKE_TRACE").is_some() {
+        tracing::error!(
+            "RUST_HANDSHAKE {direction} addr={addr} counter={counter} opcode=0x{opcode_raw:04X} name={opcode_name} header={:02X?} len={} payload={:02X?}",
+            header,
+            data.len(),
+            data
+        );
+    }
+}
+
 // ── Error type ────────────────────────────────────────────────────
 
 #[derive(Debug, thiserror::Error)]
@@ -592,6 +615,14 @@ impl WorldSocket {
     ) -> Result<(), WorldSocketError> {
         let data = pkt.to_bytes();
         let size = data.len() as i32;
+        let opcode_raw = if data.len() >= 2 {
+            u16::from_le_bytes([data[0], data[1]])
+        } else {
+            0
+        };
+        let opcode_name = ServerOpcodes::from_u16(opcode_raw)
+            .map(|opcode| format!("{opcode:?}"))
+            .unwrap_or_else(|| "UNKNOWN_SERVER_OPCODE".to_string());
 
         let header = PacketHeader::new(size, [0u8; TAG_SIZE]);
         let header_bytes = header.to_bytes();
@@ -601,6 +632,15 @@ impl WorldSocket {
         self.stream.flush().await?;
 
         self.unencrypted_packets_sent += 1;
+        trace_unencrypted_packet(
+            "s2c-unencrypted",
+            self.addr,
+            self.unencrypted_packets_sent,
+            opcode_raw,
+            &opcode_name,
+            &header_bytes,
+            &data,
+        );
         Ok(())
     }
 
@@ -660,6 +700,23 @@ impl WorldSocket {
         self.stream.read_exact(&mut data).await?;
 
         self.unencrypted_packets_received += 1;
+        let opcode_raw = if data.len() >= 2 {
+            u16::from_le_bytes([data[0], data[1]])
+        } else {
+            0
+        };
+        let opcode_name = ClientOpcodes::from_u16(opcode_raw)
+            .map(|opcode| format!("{opcode:?}"))
+            .unwrap_or_else(|| "UNKNOWN_CLIENT_OPCODE".to_string());
+        trace_unencrypted_packet(
+            "c2s-unencrypted",
+            self.addr,
+            self.unencrypted_packets_received,
+            opcode_raw,
+            &opcode_name,
+            &header_buf,
+            &data,
+        );
 
         Ok(WorldPacket::new_client(BytesMut::from(data.as_slice())))
     }
@@ -738,6 +795,23 @@ impl WorldSocket {
         let opcode = pkt.opcode_raw();
 
         if opcode != ClientOpcodes::EnterEncryptedModeAck as u16 {
+            if opcode == ClientOpcodes::LogDisconnect as u16 {
+                let reason = if pkt.data().len() >= 6 {
+                    u32::from_le_bytes([
+                        pkt.data()[2],
+                        pkt.data()[3],
+                        pkt.data()[4],
+                        pkt.data()[5],
+                    ])
+                } else {
+                    0
+                };
+                warn!(
+                    "Client {} sent CMSG_LOG_DISCONNECT while waiting for EnterEncryptedModeAck: reason={reason} len={}",
+                    self.addr,
+                    pkt.data().len()
+                );
+            }
             return Err(WorldSocketError::AuthFailed(format!(
                 "expected EnterEncryptedModeAck (0x{:04X}), got 0x{opcode:04X}",
                 ClientOpcodes::EnterEncryptedModeAck as u16
