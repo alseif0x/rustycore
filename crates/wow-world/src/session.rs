@@ -12214,7 +12214,8 @@ impl WorldSession {
                 continue;
             };
             let world = creature.unit().world();
-            if world.map_id() != requested_map_id
+            if !world.object().is_in_world()
+                || world.map_id() != requested_map_id
                 || !world.position().is_within_dist(position, visibility_range)
                 || !self
                     .represented_player_phase_shift
@@ -12542,7 +12543,8 @@ impl WorldSession {
                 continue;
             };
             let object = gameobject.world();
-            if object.map_id() != u32::from(map_id)
+            if !object.object().is_in_world()
+                || object.map_id() != u32::from(map_id)
                 || !object
                     .position()
                     .is_within_dist(position, visibility_radius)
@@ -12727,7 +12729,8 @@ impl WorldSession {
                 continue;
             };
             let object = dynamic_object.world();
-            if object.map_id() != u32::from(map_id)
+            if !object.object().is_in_world()
+                || object.map_id() != u32::from(map_id)
                 || !object
                     .position()
                     .is_within_dist(position, visibility_radius)
@@ -12776,7 +12779,8 @@ impl WorldSession {
                 continue;
             };
             let object = area_trigger.world();
-            if object.map_id() != u32::from(map_id)
+            if !object.object().is_in_world()
+                || object.map_id() != u32::from(map_id)
                 || !object
                     .position()
                     .is_within_dist(position, visibility_radius)
@@ -72113,6 +72117,54 @@ mod tests {
     }
 
     #[test]
+    fn visible_dynamic_objects_skip_not_in_world_canonical_objects_like_cpp() {
+        let (mut session, _pkt_tx, _send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 49_612);
+        let position = Position::new(100.0, 200.0, 30.0, 0.0);
+        let in_world_guid = test_dynamic_object_guid(49_612, 49_612);
+        let removed_guid = test_dynamic_object_guid(49_613, 49_613);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_dynamic_object_on_map(
+            &canonical,
+            in_world_guid,
+            player_guid,
+            49_612,
+            position,
+            571,
+            0,
+        );
+        add_canonical_test_dynamic_object_on_map(
+            &canonical,
+            removed_guid,
+            player_guid,
+            49_613,
+            Position::new(101.0, 201.0, 30.0, 0.0),
+            571,
+            0,
+        );
+        canonical
+            .lock()
+            .unwrap()
+            .find_map_mut(571, 0)
+            .unwrap()
+            .map_mut()
+            .get_typed_dynamic_object_mut(removed_guid)
+            .unwrap()
+            .world_mut()
+            .object_mut()
+            .remove_from_world();
+
+        let visible = session
+            .visible_dynamic_objects_from_canonical_map_like_cpp(571, &position, 100.0)
+            .expect("canonical map");
+
+        assert_eq!(visible.len(), 1);
+        assert_eq!(visible[0].guid, in_world_guid);
+    }
+
+    #[test]
     fn add_farsight_session_caller_preserves_destination_radius_duration_like_cpp() {
         let (mut session, _pkt_tx, _send_rx) = make_session();
         let canonical = shared_canonical_map_manager();
@@ -75840,6 +75892,86 @@ mod tests {
     }
 
     #[test]
+    fn visible_creatures_skip_not_in_world_canonical_objects_like_cpp() {
+        let (mut session, _pkt_tx, _send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 9303);
+        let in_world_guid = test_creature_guid(9304);
+        let removed_guid = test_creature_guid(9305);
+        let player_position = Position::new(10.0, 10.0, 0.0, 0.0);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "VisibleCreatureViewer".to_string(),
+            player_position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_represented_player_phase_shift_like_cpp(PhaseShift::from_phases([10]));
+        add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+        add_canonical_test_creature_indexed_on_map_with_level(
+            &canonical,
+            in_world_guid,
+            9304,
+            Position::new(20.0, 20.0, 0.0, 0.0),
+            571,
+            0,
+            80,
+        );
+        add_canonical_test_creature_indexed_on_map_with_level(
+            &canonical,
+            removed_guid,
+            9305,
+            Position::new(21.0, 21.0, 0.0, 0.0),
+            571,
+            0,
+            80,
+        );
+        {
+            let mut guard = canonical.lock().unwrap();
+            let map = guard.find_map_mut(571, 0).unwrap().map_mut();
+            *map.get_typed_player_mut(player_guid)
+                .unwrap()
+                .unit_mut()
+                .world_mut()
+                .phase_shift_mut() = PhaseShift::from_phases([10]);
+            *map.get_typed_creature_mut(in_world_guid)
+                .unwrap()
+                .unit_mut()
+                .world_mut()
+                .phase_shift_mut() = PhaseShift::from_phases([10]);
+            map.get_typed_creature_mut(in_world_guid)
+                .unwrap()
+                .unit_mut()
+                .world_mut()
+                .object_mut()
+                .add_to_world();
+            *map.get_typed_creature_mut(removed_guid)
+                .unwrap()
+                .unit_mut()
+                .world_mut()
+                .phase_shift_mut() = PhaseShift::from_phases([10]);
+            map.get_typed_creature_mut(removed_guid)
+                .unwrap()
+                .unit_mut()
+                .world_mut()
+                .object_mut()
+                .remove_from_world();
+        }
+
+        let visible = session
+            .visible_creatures_from_canonical_map_like_cpp(571, &player_position)
+            .expect("canonical map");
+
+        assert_eq!(visible.len(), 1);
+        assert_eq!(visible[0].guid(), in_world_guid);
+    }
+
+    #[test]
     fn visible_gameobjects_use_canonical_map_cells_like_cpp() {
         let (mut session, _pkt_tx, _send_rx) = make_session();
         let canonical = shared_canonical_map_manager();
@@ -76016,6 +76148,64 @@ mod tests {
                 .contains_key(&gameobject_guid),
             "C++ AddToMap-visible GameObjects are real map objects; visibility must not require session-local represented state"
         );
+    }
+
+    #[test]
+    fn visible_gameobjects_skip_not_in_world_canonical_objects_like_cpp() {
+        let (mut session, _pkt_tx, _send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_position = Position::new(10.0, 10.0, 0.0, 0.0);
+        let in_world_guid = test_gameobject_guid(49_632, 49_632);
+        let removed_guid = test_gameobject_guid(49_633, 49_633);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_lifecycle_gameobject_on_map(
+            &canonical,
+            in_world_guid,
+            49_632,
+            Position::new(20.0, 20.0, 0.0, 0.0),
+            [0.0, 0.0, 0.0, 1.0],
+            571,
+            0,
+        );
+        add_canonical_lifecycle_gameobject_on_map(
+            &canonical,
+            removed_guid,
+            49_633,
+            Position::new(21.0, 21.0, 0.0, 0.0),
+            [0.0, 0.0, 0.0, 1.0],
+            571,
+            0,
+        );
+        canonical
+            .lock()
+            .unwrap()
+            .find_map_mut(571, 0)
+            .unwrap()
+            .map_mut()
+            .get_typed_game_object_mut(in_world_guid)
+            .unwrap()
+            .world_mut()
+            .object_mut()
+            .add_to_world();
+        canonical
+            .lock()
+            .unwrap()
+            .find_map_mut(571, 0)
+            .unwrap()
+            .map_mut()
+            .get_typed_game_object_mut(removed_guid)
+            .unwrap()
+            .world_mut()
+            .object_mut()
+            .remove_from_world();
+
+        let visible = session
+            .visible_gameobjects_from_canonical_map_like_cpp(571, &player_position, 800.0)
+            .expect("canonical map");
+
+        assert_eq!(visible.len(), 1);
+        assert_eq!(visible[0].guid, in_world_guid);
     }
 
     #[test]
