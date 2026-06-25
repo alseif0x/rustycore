@@ -398,6 +398,7 @@ mod tests {
             trivial_rank_low: 0,
             flags: 0,
             num_skill_ups: 0,
+            skillup_skill_line_id: 0,
         }
     }
 

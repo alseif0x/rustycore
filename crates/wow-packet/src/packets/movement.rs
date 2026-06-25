@@ -973,7 +973,11 @@ impl MovementMonsterSpline {
         let path_data = move_spline.monster_move_path_data();
         Self {
             id: move_spline.id(),
-            destination: move_spline.final_destination().unwrap_or(Position::ZERO),
+            // C++ `MonsterMove::InitializeSplineData` leaves
+            // `MovementMonsterSpline::Destination` at its default value for
+            // SMSG_ON_MONSTER_MOVE; only the nested MovementSpline path carries
+            // the destination.
+            destination: Position::ZERO,
             movement: MovementSpline {
                 flags: flags.bits(),
                 face: MonsterMoveFace::from_move_spline(move_spline),
@@ -1016,6 +1020,7 @@ impl MovementMonsterSpline {
 
     pub fn write(&self, pkt: &mut WorldPacket) {
         pkt.write_uint32(self.id);
+        write_xyz(pkt, self.destination);
         pkt.write_bit(self.crz_teleport);
         pkt.write_bits(u32::from(self.stop_distance_tolerance & 0x07), 3);
         self.movement.write(pkt);
@@ -1733,6 +1738,9 @@ mod tests {
         assert_eq!(pkt.read_float().unwrap(), 2.0);
         assert_eq!(pkt.read_float().unwrap(), 3.0);
         assert_eq!(pkt.read_uint32().unwrap(), 77);
+        assert_eq!(pkt.read_float().unwrap(), 10.0);
+        assert_eq!(pkt.read_float().unwrap(), 20.0);
+        assert_eq!(pkt.read_float().unwrap(), 30.0);
         assert_eq!(pkt.read_uint32().unwrap(), 0x0040_0000);
         assert_eq!(pkt.read_int32().unwrap(), 0);
         assert_eq!(pkt.read_uint32().unwrap(), 1_500);
@@ -1773,6 +1781,9 @@ mod tests {
         assert_eq!(pkt.read_float().unwrap(), 2.0);
         assert_eq!(pkt.read_float().unwrap(), 3.0);
         assert_eq!(pkt.read_uint32().unwrap(), 78);
+        assert_eq!(pkt.read_float().unwrap(), 0.0);
+        assert_eq!(pkt.read_float().unwrap(), 0.0);
+        assert_eq!(pkt.read_float().unwrap(), 0.0);
         assert_eq!(pkt.read_uint32().unwrap(), 0);
         assert_eq!(pkt.read_int32().unwrap(), 0);
         assert_eq!(pkt.read_uint32().unwrap(), 0);
@@ -1820,6 +1831,9 @@ mod tests {
             pkt.read_float().unwrap();
         }
         assert_eq!(pkt.read_uint32().unwrap(), 79);
+        assert_eq!(pkt.read_float().unwrap(), 12.0);
+        assert_eq!(pkt.read_float().unwrap(), 0.0);
+        assert_eq!(pkt.read_float().unwrap(), 0.0);
         assert_eq!(pkt.read_uint32().unwrap(), 0);
         assert_eq!(pkt.read_int32().unwrap(), 0);
         assert_eq!(pkt.read_uint32().unwrap(), 0);
@@ -1969,7 +1983,7 @@ mod tests {
         let packet_spline = MovementMonsterSpline::from_move_spline(&move_spline);
 
         assert_eq!(packet_spline.id, 123);
-        assert_eq!(packet_spline.destination, Position::xyz(20.0, 0.0, 0.0));
+        assert_eq!(packet_spline.destination, Position::ZERO);
         assert_eq!(
             packet_spline.movement.flags,
             (MoveSplineFlag::UNCOMPRESSED_PATH | MoveSplineFlag::PARABOLIC).bits()

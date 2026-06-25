@@ -221,7 +221,7 @@ impl WorldSession {
             });
         }
 
-        self.send_packet(&ContactListPkt { flags, contacts });
+        self.send_packet_realm(&ContactListPkt { flags, contacts });
 
         if !name_data.is_empty() {
             let players: Vec<NameCacheLookupResult> = name_data

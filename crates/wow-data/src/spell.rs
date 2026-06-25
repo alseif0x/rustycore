@@ -67,6 +67,7 @@ pub mod spell_effect_types {
     pub const SPELL_EFFECT_DETECT: u32 = 49;
     pub const SPELL_EFFECT_FORCE_CRITICAL_HIT: u32 = 51;
     pub const SPELL_EFFECT_GUARANTEE_HIT: u32 = 52;
+    pub const SPELL_EFFECT_PROFICIENCY: u32 = 60;
     pub const SPELL_EFFECT_POWER_BURN: u32 = 62;
     pub const SPELL_EFFECT_THREAT: u32 = 63;
     pub const SPELL_EFFECT_APPLY_AREA_AURA_RAID: u32 = 65;

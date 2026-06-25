@@ -2953,12 +2953,12 @@ impl crate::session::WorldSession {
         const MAIL_NORMAL_LIKE_CPP: u8 = 0;
 
         let Some(char_db) = self.char_db().cloned() else {
-            self.send_packet(&MailQueryNextTimeResult::no_mail());
+            self.send_packet_realm(&MailQueryNextTimeResult::no_mail());
             return;
         };
 
         let Some(player_object_guid) = self.player_guid() else {
-            self.send_packet(&MailQueryNextTimeResult::no_mail());
+            self.send_packet_realm(&MailQueryNextTimeResult::no_mail());
             return;
         };
 
@@ -2974,7 +2974,7 @@ impl crate::session::WorldSession {
                     ?error,
                     player_guid, "Failed to query mail for CMSG_QUERY_NEXT_MAIL_TIME"
                 );
-                self.send_packet(&MailQueryNextTimeResult::no_mail());
+                self.send_packet_realm(&MailQueryNextTimeResult::no_mail());
                 return;
             }
         };
@@ -3024,7 +3024,7 @@ impl crate::session::WorldSession {
             }
         }
 
-        self.send_packet(&packet);
+        self.send_packet_realm(&packet);
     }
 
     // ── Silent-ignore stubs ────────────────────────────────────────────────────
@@ -3279,7 +3279,7 @@ impl crate::session::WorldSession {
             }
         };
 
-        self.send_packet(&UpdateAccountData {
+        self.send_packet_realm(&UpdateAccountData {
             player_guid: self.player_guid().unwrap_or(ObjectGuid::EMPTY),
             time,
             size: data.len() as u32,
@@ -3838,7 +3838,7 @@ impl crate::session::WorldSession {
     }
 
     pub async fn handle_request_rated_pvp_info(&mut self, _pkt: wow_packet::WorldPacket) {
-        self.send_packet(&RatedPvpInfo::default());
+        self.send_packet_realm(&RatedPvpInfo::default());
     }
     pub async fn handle_request_pvp_rewards(&mut self, _pkt: wow_packet::WorldPacket) {
         // C++ dispatches to Player::SendPvpRewards(), but that method's
@@ -6840,8 +6840,7 @@ mod tests {
         )
     }
 
-    fn make_session_with_realm_send(
-    ) -> (
+    fn make_session_with_realm_send() -> (
         crate::session::WorldSession,
         flume::Receiver<Vec<u8>>,
         flume::Receiver<Vec<u8>>,
@@ -7786,7 +7785,7 @@ mod tests {
 
     #[tokio::test]
     async fn request_account_data_sends_update_account_data_like_cpp() {
-        let (mut session, send_rx) = make_session();
+        let (mut session, instance_rx, realm_rx) = make_session_with_realm_send();
         let player_guid = ObjectGuid::create_player(1, 42);
         session.set_player_guid(Some(player_guid));
         assert!(session.set_account_data_like_cpp(4, 5678, "macro-cache".to_string()));
@@ -7795,7 +7794,8 @@ mod tests {
             .handle_request_account_data(request_account_data_packet(player_guid, 4))
             .await;
 
-        let encoded = send_rx.try_recv().unwrap();
+        assert!(instance_rx.try_recv().is_err());
+        let encoded = realm_rx.try_recv().unwrap();
         let mut packet = WorldPacket::new_client(encoded.as_slice().into());
         assert_eq!(
             packet.server_opcode(),
@@ -13481,14 +13481,29 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn request_rated_pvp_info_sends_empty_cpp_default_packet() {
-        let (mut session, send_rx) = make_session();
+    async fn query_next_mail_time_routes_result_to_realm_like_cpp() {
+        let (mut session, instance_rx, realm_rx) = make_session_with_realm_send();
+
+        session.handle_query_next_mail_time().await;
+
+        assert!(instance_rx.try_recv().is_err());
+        let bytes = realm_rx.try_recv().expect("mail query next time result");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::MailQueryNextTimeResult as u16
+        );
+    }
+
+    #[tokio::test]
+    async fn request_rated_pvp_info_sends_empty_cpp_default_packet_to_realm() {
+        let (mut session, instance_rx, realm_rx) = make_session_with_realm_send();
 
         session
             .handle_request_rated_pvp_info(WorldPacket::new_empty())
             .await;
 
-        let bytes = send_rx.try_recv().expect("rated pvp info packet");
+        assert!(instance_rx.try_recv().is_err());
+        let bytes = realm_rx.try_recv().expect("rated pvp info packet");
         assert_eq!(
             u16::from_le_bytes([bytes[0], bytes[1]]),
             ServerOpcodes::RatedPvpInfo as u16
@@ -14209,7 +14224,9 @@ mod tests {
         session
             .handle_gm_ticket_get_case_status(WorldPacket::new_empty())
             .await;
-        session.handle_request_raid_info(WorldPacket::new_empty()).await;
+        session
+            .handle_request_raid_info(WorldPacket::new_empty())
+            .await;
         session
             .handle_battle_pet_request_journal_lock(battle_pet_request_journal_lock_packet())
             .await;

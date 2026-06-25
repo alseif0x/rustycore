@@ -38,6 +38,7 @@ pub struct SkillLineAbilityRecord {
     pub trivial_rank_low: i16,
     pub flags: i8,
     pub num_skill_ups: i8,
+    pub skillup_skill_line_id: i16,
 }
 
 /// C++ `SKILL_LINE_ABILITY_REWARDED_FROM_QUEST`.
@@ -582,8 +583,12 @@ impl SkillStore {
 
         for ability in abilities {
             abilities_like_cpp.push(ability.clone());
+            let skillup_skill_line = u16::try_from(ability.skillup_skill_line_id)
+                .ok()
+                .filter(|skill| *skill != 0)
+                .unwrap_or(ability.skill_line);
             abilities_by_skill
-                .entry(ability.skill_line)
+                .entry(skillup_skill_line)
                 .or_default()
                 .push(ability.clone());
             abilities_by_spell_like_cpp
@@ -686,10 +691,15 @@ impl SkillStore {
                 trivial_rank_low: sla_reader.get_field_i16(idx, 9),
                 flags: sla_reader.get_field_i8(idx, 10),
                 num_skill_ups: sla_reader.get_field_i8(idx, 11),
+                skillup_skill_line_id: sla_reader.get_field_i16(idx, 14),
             };
             abilities_like_cpp.push(record.clone());
+            let skillup_skill_line = u16::try_from(record.skillup_skill_line_id)
+                .ok()
+                .filter(|skill| *skill != 0)
+                .unwrap_or(skill_line);
             abilities_by_skill
-                .entry(skill_line)
+                .entry(skillup_skill_line)
                 .or_default()
                 .push(record.clone());
             abilities_by_spell_like_cpp
@@ -1213,6 +1223,7 @@ mod tests {
             trivial_rank_low: 0,
             flags: 0,
             num_skill_ups: 0,
+            skillup_skill_line_id: 0,
         }
     }
 

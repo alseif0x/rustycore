@@ -1397,6 +1397,54 @@ fn active_known_spell_for_send_like_cpp(spell_id: u32, active: u8, disabled: u8)
     }
 }
 
+fn loaded_spell_for_add_spell_side_effects_like_cpp(spell_id: u32, disabled: u8) -> Option<i32> {
+    if spell_id > 0 && disabled == 0 {
+        i32::try_from(spell_id).ok()
+    } else {
+        None
+    }
+}
+
+fn skill_rewarded_spell_valid_for_player_like_cpp(
+    spell_info: &wow_data::spell::SpellInfo,
+    spell_store: &wow_data::SpellStore,
+    class: u8,
+) -> bool {
+    for effect in spell_info.effects() {
+        if effect.effect_trigger_spell > 0 && spell_store.get(effect.effect_trigger_spell).is_none()
+        {
+            return false;
+        }
+
+        match effect.effect {
+            wow_data::spell::spell_effect_types::SPELL_EFFECT_PARRY => {
+                if !matches!(class, 1 | 2 | 3 | 4 | 6) {
+                    return false;
+                }
+            }
+            wow_data::spell::spell_effect_types::SPELL_EFFECT_BLOCK => {
+                if !matches!(class, 1 | 2 | 7) {
+                    return false;
+                }
+            }
+            wow_data::spell::spell_effect_types::SPELL_EFFECT_ENERGIZE => {
+                let player_power = match class {
+                    1 => 1,
+                    4 => 3,
+                    6 => 6,
+                    _ => 0,
+                };
+                if effect.effect_misc_value_1 != player_power {
+                    return false;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    true
+}
+
 fn favorite_known_spells_for_send_like_cpp(
     known_spells: &[i32],
     favorite_spells: &HashSet<i32>,
@@ -3447,7 +3495,7 @@ impl WorldSession {
                         "DbQueryBulk: TactKey.db2 record={} -> Valid(1), 16-byte typed WriteRecord payload",
                         record_id
                     );
-                    self.send_packet(&DBReply::found(
+                    self.send_packet_realm(&DBReply::found(
                         query.table_hash,
                         *record_id,
                         entry.key.to_vec(),
@@ -3466,7 +3514,7 @@ impl WorldSession {
             }
             // RecordRemoved(2) would tell the client to delete the record from its cache,
             // which is wrong for client-local DB2 rows missing from server typed storage.
-            self.send_packet(&DBReply::not_found(query.table_hash, *record_id));
+            self.send_packet_realm(&DBReply::not_found(query.table_hash, *record_id));
         }
     }
 
@@ -3992,7 +4040,7 @@ impl WorldSession {
     /// Continue the player login after the instance socket is connected.
     ///
     /// Called when the `instance_link_rx` oneshot delivers the new channels.
-    /// Sends ResumeComms and the full login sequence on the instance socket.
+    /// Sends ResumeComms and the full login sequence after the instance socket is connected.
     pub async fn handle_continue_player_login(&mut self) {
         let guid: ObjectGuid = match self.player_loading() {
             Some(g) => g,
@@ -4005,7 +4053,7 @@ impl WorldSession {
         self.set_connect_to_key(None);
         self.set_connect_to_serial(None);
 
-        // Send ResumeComms only when using ConnectTo flow (instance socket).
+        // Send ResumeComms only when using ConnectTo flow.
         // In direct login (no session_mgr), the client didn't go through ConnectTo
         // and doesn't expect ResumeComms — sending it causes a disconnect.
         if self.session_mgr().is_some() {
@@ -4915,6 +4963,7 @@ impl WorldSession {
         // ── Load known spells from character_spell ──
         // Column types: spell=int unsigned, active=tinyint unsigned, disabled=tinyint unsigned
         let mut known_spells: Vec<i32> = Vec::new();
+        let mut loaded_spell_side_effect_spells: Vec<i32> = Vec::new();
         let mut favorite_spell_rows: HashSet<i32> = HashSet::new();
         {
             let mut spell_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_SPELL);
@@ -4926,6 +4975,11 @@ impl WorldSession {
                             let spell_id: u32 = spell_result.try_read(0).unwrap_or(0);
                             let active: u8 = spell_result.try_read(1).unwrap_or(1);
                             let disabled: u8 = spell_result.try_read(2).unwrap_or(0);
+                            if let Some(spell_id_i32) =
+                                loaded_spell_for_add_spell_side_effects_like_cpp(spell_id, disabled)
+                            {
+                                loaded_spell_side_effect_spells.push(spell_id_i32);
+                            }
                             if let Some(spell_id) =
                                 active_known_spell_for_send_like_cpp(spell_id, active, disabled)
                             {
@@ -5036,12 +5090,13 @@ impl WorldSession {
                 let spell_levels_store = self.spell_levels_store().cloned();
                 let spell_store = self.spell_store().cloned();
                 for skill_record in skill_records.values() {
-                    if skill_store
-                        .skill_race_class_info_like_cpp(skill_record.skill_id, race, class)
-                        .is_none()
-                    {
+                    let Some(_rc_info) = skill_store.skill_race_class_info_like_cpp(
+                        skill_record.skill_id,
+                        race,
+                        class,
+                    ) else {
                         continue;
-                    }
+                    };
                     let skill_spells = skill_store.skill_rewarded_spells_like_cpp(
                         skill_record.skill_id,
                         skill_record.value,
@@ -5052,7 +5107,14 @@ impl WorldSession {
                             let spell_id = u32::try_from(spell_id).ok()?;
                             let spell_id_i32 = spell_id as i32;
                             let spell_store = spell_store.as_ref()?;
-                            spell_store.get(spell_id_i32)?;
+                            let spell_info = spell_store.get(spell_id_i32)?;
+                            if !skill_rewarded_spell_valid_for_player_like_cpp(
+                                spell_info,
+                                spell_store,
+                                class,
+                            ) {
+                                return None;
+                            }
 
                             if let Some(spell) = spell_levels_store.as_ref().and_then(|store| {
                                 store.entry_for_spell_difficulty_like_cpp(spell_id, 0)
@@ -5063,13 +5125,9 @@ impl WorldSession {
                                 ));
                             }
 
-                            if spell_store.has_attribute0_like_cpp(
-                                spell_id_i32,
-                                wow_data::spell::attributes::SPELL_ATTR0_DO_NOT_DISPLAY_SPELLBOOK_AURA_ICON_COMBAT_LOG,
-                            ) {
-                                return None;
-                            }
-
+                            // C++ LearnSkillRewardedSpells only requires SpellInfo and then
+                            // compares SpellLevel/BaseLevel. Hidden passive skill spells still
+                            // run AddSpell side effects such as SPELL_EFFECT_PROFICIENCY.
                             Some((0, 0))
                         },
                         |_| false,
@@ -5080,6 +5138,9 @@ impl WorldSession {
             for spell_id in dbc_spells {
                 if !known_spells.contains(&spell_id) {
                     known_spells.push(spell_id);
+                }
+                if !loaded_spell_side_effect_spells.contains(&spell_id) {
+                    loaded_spell_side_effect_spells.push(spell_id);
                 }
             }
             info!(
@@ -5173,6 +5234,20 @@ impl WorldSession {
                 player_guid = guid.counter(),
                 dependent_spell_count,
                 "Applied represented C++ Player::_LoadSpells/AddSpell spell_learn_spell dependencies"
+            );
+        }
+        for &spell_id in &known_spells {
+            if !loaded_spell_side_effect_spells.contains(&spell_id) {
+                loaded_spell_side_effect_spells.push(spell_id);
+            }
+        }
+        let login_proficiencies =
+            self.apply_login_known_spell_proficiencies_like_cpp(&loaded_spell_side_effect_spells);
+        if login_proficiencies > 0 {
+            info!(
+                player_guid = guid.counter(),
+                login_proficiencies,
+                "Applied represented login spell proficiencies like C++ Player::_LoadSpells/AddSpell"
             );
         }
         let inactive_lower_rank_count =
@@ -5620,7 +5695,13 @@ impl WorldSession {
     }
 
     fn login_known_spells_after_account_collections_like_cpp(&self) -> Vec<i32> {
-        self.known_spells_like_cpp().to_vec()
+        let mut spells = self.known_spells_like_cpp().to_vec();
+        for mount in self.account_mount_rows_like_cpp() {
+            if !spells.contains(&mount.spell_id) {
+                spells.push(mount.spell_id);
+            }
+        }
+        spells
     }
 
     /// Fallback: skip ConnectTo and trigger direct login on the realm socket.
@@ -13012,7 +13093,7 @@ impl WorldSession {
 
         // 1. DungeonDifficultySet — C++ `Player::SendDungeonDifficulty()`
         // sends the loaded `GetDungeonDifficultyID()` before LoginVerifyWorld.
-        self.send_packet(&self.represented_dungeon_difficulty_packet_like_cpp());
+        self.send_packet_realm(&self.represented_dungeon_difficulty_packet_like_cpp());
 
         // 2. LoginVerifyWorld — confirms map + position
         self.send_packet(&LoginVerifyWorld {
@@ -13023,21 +13104,21 @@ impl WorldSession {
 
         // 3. AccountDataTimes — C++ sends ALL_ACCOUNT_DATA_CACHE_MASK
         // after loading per-character account data.
-        self.send_packet(
+        self.send_packet_realm(
             &self.account_data_times_like_cpp(guid, ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP),
         );
 
         // 4. FeatureSystemStatus (in-game version, different from glue screen)
-        self.send_packet(&FeatureSystemStatus::default_wotlk());
+        self.send_packet_realm(&FeatureSystemStatus::default_wotlk());
 
         // 5. MOTD — C++ `World::SendServerMessage(SERVER_MSG_STRING, motdLine)`.
-        self.send_packet(&ChatServerMessage {
+        self.send_packet_realm(&ChatServerMessage {
             message_id: 3,
             string_param: "Welcome to a Trinity Core server.".to_string(),
         });
 
         // 6. SetTimeZoneInformation — C++ sends it again during player login.
-        self.send_packet(&SetTimeZoneInformation::utc());
+        self.send_packet_realm(&SetTimeZoneInformation::utc());
 
         // ── Phase 2: SendInitialPacketsBeforeAddToMap ──
         if updateobject_trace_enabled {
@@ -13086,7 +13167,7 @@ impl WorldSession {
         });
 
         // 14. ActiveGlyphs — full update; bindable spell mapping is still pending.
-        self.send_packet(&self.represented_active_glyphs_packet_like_cpp());
+        self.send_packet_realm(&self.represented_active_glyphs_packet_like_cpp());
 
         // 15. UpdateActionButtons — populated from character_action table
         self.send_packet(&UpdateActionButtons {
@@ -13398,11 +13479,12 @@ impl WorldSession {
 
         // C++ `HandlePlayerLogin` calls `ObjectAccessor::AddObject`, then
         // `Player::SendInitialPacketsAfterAddToMap`; that method starts with
-        // `UpdateVisibilityForPlayer()`, which repopulates `m_clientGUIDs`
-        // after `Map::AddPlayerToMap` cleared it. Keep this before world-state
-        // packets so later `SendMessageToSet` movement uses the same visibility
-        // gate as C++ `Player::HaveAtClient`.
-        self.force_update_visibility_like_cpp().await;
+        // `UpdateVisibilityForPlayer()`. In the captured C++ 3.4.3 login stream
+        // this point does not emit a nearby creature/gameobject CREATE batch.
+        // Rust's broad scanner does, so only mirror the player/seer visibility
+        // flags here and let normal movement/map visibility deliver object
+        // creates from the same later phase as C++.
+        self.sync_current_player_session_visibility_detection_like_cpp();
         if updateobject_trace_enabled {
             info!(
                 guid = ?guid,
@@ -13884,6 +13966,19 @@ mod tests {
         )
     }
 
+    fn make_session_with_realm_send_capacity(
+        capacity: usize,
+    ) -> (
+        WorldSession,
+        flume::Receiver<Vec<u8>>,
+        flume::Receiver<Vec<u8>>,
+    ) {
+        let (mut session, instance_rx) = make_session_with_send_capacity(capacity);
+        let (realm_tx, realm_rx) = flume::bounded::<Vec<u8>>(capacity);
+        session.install_realm_send_channel_for_test(realm_tx);
+        (session, instance_rx, realm_rx)
+    }
+
     fn make_quest_status_session() -> (WorldSession, flume::Receiver<Vec<u8>>) {
         let (mut session, send_rx) = make_session_with_send_capacity(8);
         session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
@@ -13999,6 +14094,21 @@ mod tests {
             "C++ Player::SendKnownSpells skips disabled spells"
         );
         assert_eq!(active_known_spell_for_send_like_cpp(0, 1, 0), None);
+    }
+
+    #[test]
+    fn load_spells_keeps_inactive_non_disabled_spells_for_add_spell_side_effects_like_cpp() {
+        assert_eq!(
+            loaded_spell_for_add_spell_side_effects_like_cpp(118, 0),
+            Some(118),
+            "C++ Player::_LoadSpells still calls AddSpell for inactive rows; SendKnownSpells filters them later"
+        );
+        assert_eq!(
+            loaded_spell_for_add_spell_side_effects_like_cpp(118, 1),
+            None,
+            "C++ AddSpell returns before cast side effects for disabled spell rows"
+        );
+        assert_eq!(loaded_spell_for_add_spell_side_effects_like_cpp(0, 0), None);
     }
 
     #[test]
@@ -16248,7 +16358,7 @@ mod tests {
 
     #[tokio::test]
     async fn tact_key_db_query_bulk_miss_returns_invalid_like_cpp_client_cache_fallback() {
-        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        let (mut session, instance_rx, realm_rx) = make_session_with_realm_send_capacity(1);
 
         session
             .handle_db_query_bulk(wow_packet::packets::misc::DbQueryBulk {
@@ -16257,7 +16367,8 @@ mod tests {
             })
             .await;
 
-        let bytes = send_rx.try_recv().expect("db reply");
+        let bytes = realm_rx.try_recv().expect("db reply");
+        assert!(instance_rx.try_recv().is_err());
         assert_eq!(
             u16::from_le_bytes([bytes[0], bytes[1]]),
             wow_constants::ServerOpcodes::DbReply as u16
@@ -16272,7 +16383,7 @@ mod tests {
 
     #[tokio::test]
     async fn tact_key_db_query_bulk_hit_returns_typed_valid_write_record_like_cpp() {
-        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        let (mut session, instance_rx, realm_rx) = make_session_with_realm_send_capacity(1);
         let key = [0xA5; wow_data::TACTKEY_SIZE];
         session.set_tact_key_store(Arc::new(wow_data::TactKeyStore::from_entries([
             wow_data::TactKeyEntry { id: 3909, key },
@@ -16285,7 +16396,8 @@ mod tests {
             })
             .await;
 
-        let bytes = send_rx.try_recv().expect("db reply");
+        let bytes = realm_rx.try_recv().expect("db reply");
+        assert!(instance_rx.try_recv().is_err());
         assert_eq!(
             u16::from_le_bytes([bytes[0], bytes[1]]),
             wow_constants::ServerOpcodes::DbReply as u16
@@ -16302,7 +16414,7 @@ mod tests {
 
     #[tokio::test]
     async fn db_query_bulk_raw_blob_cache_is_not_sent_as_typed_cpp_storage() {
-        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        let (mut session, instance_rx, realm_rx) = make_session_with_realm_send_capacity(1);
         let mut cache = wow_data::HotfixBlobCache::new();
         cache.insert_blob(0x919B_E54E, 198647, vec![0xAA; 408]);
         session.set_hotfix_blob_cache(Arc::new(cache));
@@ -16314,7 +16426,8 @@ mod tests {
             })
             .await;
 
-        let bytes = send_rx.try_recv().expect("db reply");
+        let bytes = realm_rx.try_recv().expect("db reply");
+        assert!(instance_rx.try_recv().is_err());
         assert_eq!(
             u16::from_le_bytes([bytes[0], bytes[1]]),
             wow_constants::ServerOpcodes::DbReply as u16
@@ -16325,7 +16438,7 @@ mod tests {
         let _timestamp = pkt.read_int32().unwrap();
         assert_eq!(pkt.read_bits(3).unwrap(), 3);
         assert_eq!(pkt.read_uint32().unwrap(), 0);
-        assert!(send_rx.try_recv().is_err());
+        assert!(realm_rx.try_recv().is_err());
     }
 
     #[tokio::test]
