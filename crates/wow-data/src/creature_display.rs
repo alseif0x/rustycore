@@ -69,9 +69,11 @@ impl CreatureDisplayInfoStore {
             .with_context(|| format!("failed to open {}", path.display()))?;
 
         let mut entries = Vec::with_capacity(reader.total_count());
-        for (id, idx) in reader.iter_records() {
+        for (_, idx) in reader.iter_records() {
             entries.push(CreatureDisplayInfoEntry {
-                id,
+                // C++ `CreatureDisplayInfoLoadInfo` stores `ID` as logical field 0.
+                // The WDC4 record id is not the lookup key for this table in 3.4.3 data.
+                id: reader.get_field_u32(idx, 0),
                 model_id: reader.get_field_u16(idx, 1),
                 extended_display_info_id: reader.get_field_i32(idx, 7),
                 creature_model_scale: f32::from_bits(reader.get_field_u32(idx, 4)),
@@ -368,5 +370,35 @@ mod tests {
         assert!(store.entries.values().any(|entry| {
             entry.collision_height > 0.0 || entry.model_scale > 0.0 || entry.mount_height > 0.0
         }));
+    }
+
+    #[test]
+    fn load_creature_display_info_contains_loaded_grid_creature_models_like_cpp() {
+        let data_dir = "/home/server/woltk-server-core/Data";
+        let locale = "enUS";
+        let path = std::path::Path::new(data_dir)
+            .join("dbc")
+            .join(locale)
+            .join("CreatureDisplayInfo.db2");
+        if !path.exists() {
+            eprintln!(
+                "Skipping test: CreatureDisplayInfo.db2 not found at {}",
+                path.display()
+            );
+            return;
+        }
+
+        let store = CreatureDisplayInfoStore::load(data_dir, locale)
+            .expect("CreatureDisplayInfo.db2 should load with C++ DB2 ids");
+
+        for display_id in [
+            25_596, 25_597, 25_598, 25_611, 25_612, 25_613, 25_614, 25_615, 25_616, 26_075,
+            25_619, 27_915, 26_441, 28_000, 28_006, 28_196, 29_145, 29_744, 29_820, 29_833,
+        ] {
+            assert!(
+                store.get(display_id).is_some(),
+                "CreatureDisplayInfo.db2 missing display id {display_id} used by C++ creature_template_model"
+            );
+        }
     }
 }

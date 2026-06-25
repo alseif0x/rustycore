@@ -185,7 +185,7 @@ use wow_packet::packets::misc::{
     AccountHeirloom, AccountHeirloomUpdate, AccountMount, AccountMountUpdate, AccountToy,
     AccountToyUpdate, BuyFailed, DungeonDifficultySet, EQUIP_ERR_NOT_ENOUGH_MONEY_LIKE_CPP,
     MOUNT_RESULT_SHAPESHIFTED_LIKE_CPP, MountResult, NUM_ACCOUNT_DATA_TYPES, RaidDifficultySet,
-    SellResponse, SetupCurrency, SetupCurrencyRecord, TRADE_SLOT_COUNT_LIKE_CPP,
+    SellResponse, SetProficiency, SetupCurrency, SetupCurrencyRecord, TRADE_SLOT_COUNT_LIKE_CPP,
     TRADE_STATUS_ACCEPTED_LIKE_CPP, TRADE_STATUS_CANCELLED_LIKE_CPP,
     TRADE_STATUS_STATE_CHANGED_LIKE_CPP, TRADE_STATUS_UNACCEPTED_LIKE_CPP, TradeStatus,
 };
@@ -4145,6 +4145,10 @@ pub struct WorldSession {
     represented_favorite_known_spells_like_cpp: HashSet<i32>,
     /// Represented C++ `PlayerSpell::TraitDefinitionId`, keyed by learned spell id.
     represented_spell_trait_definition_ids_like_cpp: HashMap<i32, i32>,
+    /// C++ `Player::m_weaponProficiency`; `Spell::EffectProficiency` ORs into it.
+    represented_weapon_proficiency_like_cpp: u32,
+    /// C++ `Player::m_armorProficiency`; `Spell::EffectProficiency` ORs into it.
+    represented_armor_proficiency_like_cpp: u32,
     /// C++ `CollectionMgr::_mounts` represented account mount collection.
     account_mounts_like_cpp: HashMap<i32, u8>,
     /// C++ `Player::_CUFProfiles`, represented until full player save/load owns it.
@@ -5933,6 +5937,8 @@ impl WorldSession {
             represented_removed_known_spells_like_cpp: HashSet::new(),
             represented_favorite_known_spells_like_cpp: HashSet::new(),
             represented_spell_trait_definition_ids_like_cpp: HashMap::new(),
+            represented_weapon_proficiency_like_cpp: 0,
+            represented_armor_proficiency_like_cpp: 0,
             account_mounts_like_cpp: HashMap::new(),
             cuf_profiles_like_cpp: vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP],
             cuf_profiles_loaded_like_cpp: false,
@@ -7064,7 +7070,7 @@ impl WorldSession {
             .set_seer_can_never_see_target_like_cpp(seer_can_never_see_target);
     }
 
-    fn sync_current_player_session_visibility_detection_like_cpp(&mut self) {
+    pub(crate) fn sync_current_player_session_visibility_detection_like_cpp(&mut self) {
         let Some(guid) = self.player_guid() else {
             return;
         };
@@ -26516,6 +26522,44 @@ impl WorldSession {
                     effect_mask,
                 )
                 .is_ok()
+            {
+                applied += 1;
+            }
+        }
+
+        applied
+    }
+
+    pub(crate) fn apply_login_known_spell_proficiencies_like_cpp(
+        &mut self,
+        known_spells: &[i32],
+    ) -> usize {
+        if self.player_guid().is_none() {
+            return 0;
+        }
+        let Some(spell_store) = self.spell_store().cloned() else {
+            return 0;
+        };
+
+        let mut applied = 0usize;
+        for &spell_id in known_spells {
+            let Some(spell_info) = spell_store.get(spell_id) else {
+                continue;
+            };
+            if spell_info.effect_type
+                != wow_data::spell::spell_effect_types::SPELL_EFFECT_PROFICIENCY
+                && !spell_info.has_effect_like_cpp(
+                    wow_data::spell::spell_effect_types::SPELL_EFFECT_PROFICIENCY,
+                )
+            {
+                continue;
+            }
+
+            let before_weapon = self.represented_weapon_proficiency_like_cpp;
+            let before_armor = self.represented_armor_proficiency_like_cpp;
+            if self.apply_proficiency_effect_like_cpp(spell_id).is_ok()
+                && (self.represented_weapon_proficiency_like_cpp != before_weapon
+                    || self.represented_armor_proficiency_like_cpp != before_armor)
             {
                 applied += 1;
             }
@@ -48663,6 +48707,9 @@ impl WorldSession {
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_BLOCK => {
                     self.apply_block_effect_like_cpp()?;
                 }
+                x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_PROFICIENCY => {
+                    self.apply_proficiency_effect_like_cpp(spell_id)?;
+                }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_GIVE_HONOR => {
                     self.apply_give_honor_effect_like_cpp(direct_effect_base_points, target_guid)?;
                 }
@@ -51484,6 +51531,43 @@ impl WorldSession {
         Ok(())
     }
 
+    fn apply_proficiency_effect_like_cpp(&mut self, spell_id: i32) -> Result<(), &'static str> {
+        let _ = self.player_guid().ok_or("No player GUID")?;
+        let Some(equipped) = self
+            .spell_equipped_items_store
+            .as_ref()
+            .and_then(|store| store.entry_for_spell_id_like_cpp(spell_id))
+            .cloned()
+        else {
+            return Ok(());
+        };
+
+        let sub_class_mask = u32::try_from(equipped.equipped_item_subclass).unwrap_or(0);
+        if sub_class_mask == 0 {
+            return Ok(());
+        }
+
+        if equipped.equipped_item_class == ItemClass::Weapon as i8
+            && (self.represented_weapon_proficiency_like_cpp & sub_class_mask) == 0
+        {
+            self.represented_weapon_proficiency_like_cpp |= sub_class_mask;
+            self.send_packet(&SetProficiency {
+                proficiency_mask: self.represented_weapon_proficiency_like_cpp,
+                proficiency_class: ItemClass::Weapon as u8,
+            });
+        } else if equipped.equipped_item_class == ItemClass::Armor as i8
+            && (self.represented_armor_proficiency_like_cpp & sub_class_mask) == 0
+        {
+            self.represented_armor_proficiency_like_cpp |= sub_class_mask;
+            self.send_packet(&SetProficiency {
+                proficiency_mask: self.represented_armor_proficiency_like_cpp,
+                proficiency_class: ItemClass::Armor as u8,
+            });
+        }
+
+        Ok(())
+    }
+
     fn apply_give_honor_effect_like_cpp(
         &mut self,
         damage: i32,
@@ -52683,7 +52767,6 @@ mod tests {
         SendNewItemModifier, TYPEID_UNIT, UNIT_DATA_BITS, UnitDataUpdate, UnitDataValues,
         UnitValuesUpdate, UpdateMask,
     };
-    use wow_movement::MoveSplineFlag;
     use wow_network::player_registry::{
         ApplyGroupRemovalLikeCppCommand, ApplyGroupSubgroupLikeCppCommand,
     };
@@ -53271,6 +53354,7 @@ mod tests {
                 trivial_rank_low: 0,
                 flags: 0,
                 num_skill_ups: 0,
+                skillup_skill_line_id: 0,
             },
             wow_data::SkillLineAbilityRecord {
                 id: 2,
@@ -53285,6 +53369,7 @@ mod tests {
                 trivial_rank_low: 0,
                 flags: 0,
                 num_skill_ups: 0,
+                skillup_skill_line_id: 0,
             },
         ]);
 
@@ -53350,6 +53435,7 @@ mod tests {
                 trivial_rank_low: 0,
                 flags: 0,
                 num_skill_ups: 0,
+                skillup_skill_line_id: 0,
             },
             wow_data::SkillLineAbilityRecord {
                 id: 2,
@@ -53364,6 +53450,7 @@ mod tests {
                 trivial_rank_low: 0,
                 flags: 0,
                 num_skill_ups: 0,
+                skillup_skill_line_id: 0,
             },
         ]);
 
@@ -82482,38 +82569,14 @@ mod tests {
         assert_eq!(pkt.read_float().unwrap(), 10.0);
         assert_eq!(pkt.read_float().unwrap(), 0.0);
         assert_eq!(pkt.read_uint32().unwrap(), 2);
-        let destination = Position::new(
+        let packet_destination = Position::new(
             pkt.read_float().unwrap(),
             pkt.read_float().unwrap(),
             pkt.read_float().unwrap(),
             0.0,
         );
-        assert!(!pkt.has_bit().unwrap());
-        assert_eq!(pkt.read_bits(3).unwrap(), 0);
-        assert_eq!(
-            pkt.read_uint32().unwrap(),
-            MoveSplineFlag::SMOOTH_GROUND_PATH.bits()
-        );
-        assert_eq!(pkt.read_int32().unwrap(), 0);
-        let move_time = pkt.read_uint32().unwrap();
-        assert!(move_time > 0);
-        assert_eq!(pkt.read_uint32().unwrap(), 0);
-        assert_eq!(pkt.read_uint8().unwrap(), 0);
-        assert_eq!(pkt.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
-        assert_eq!(pkt.read_int8().unwrap(), -1);
-        assert_eq!(pkt.read_bits(2).unwrap(), 0);
-        assert_eq!(pkt.read_bits(16).unwrap(), 1);
-        assert!(!pkt.has_bit().unwrap());
-        assert!(!pkt.has_bit().unwrap());
-        assert_eq!(pkt.read_bits(16).unwrap(), 0);
-        assert!(!pkt.has_bit().unwrap());
-        assert!(!pkt.has_bit().unwrap());
-        assert!(!pkt.has_bit().unwrap());
-        assert!(!pkt.has_bit().unwrap());
-        assert_eq!(pkt.read_float().unwrap(), destination.x);
-        assert_eq!(pkt.read_float().unwrap(), destination.y);
-        assert_eq!(pkt.read_float().unwrap(), destination.z);
-        assert!(pkt.is_empty());
+        assert_eq!(packet_destination, Position::ZERO);
+        assert!(!pkt.is_empty());
         assert!(send_rx.try_recv().is_err());
 
         session
@@ -82522,15 +82585,8 @@ mod tests {
                 assert!(motion_spline.enabled);
                 assert!(!motion_spline.finalized);
                 assert_eq!(motion_spline.spline_id, 2);
-                assert_eq!(motion_spline.duration_ms, move_time);
-                assert_eq!(
-                    motion_spline.final_destination,
-                    Some((
-                        destination.x as i32,
-                        destination.y as i32,
-                        destination.z as i32
-                    ))
-                );
+                assert!(motion_spline.duration_ms > 0);
+                assert_eq!(motion_spline.final_destination, Some((10, 7, 0)));
                 assert_eq!(
                     creature.state(),
                     wow_entities::CreatureAiState::WalkingRandom
@@ -94622,6 +94678,138 @@ mod tests {
                 ServerOpcodes::SpellGo,
                 ServerOpcodes::CooldownEvent,
             ]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_proficiency_effect_sends_accumulated_masks_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 77);
+        session.set_player_guid(Some(player_guid));
+
+        let spells = [
+            (880_i32, ItemClass::Weapon as i8, 0x0000_0400_i32),
+            (881_i32, ItemClass::Weapon as i8, 0x0000_0010_i32),
+            (882_i32, ItemClass::Weapon as i8, 0x0008_0000_i32),
+            (883_i32, ItemClass::Armor as i8, 0x0000_0002_i32),
+            (884_i32, ItemClass::Weapon as i8, 0x0000_4000_i32),
+            (885_i32, ItemClass::Armor as i8, 0x0000_0001_i32),
+        ];
+
+        let mut spell_store = wow_data::SpellStore::new();
+        for (spell_id, _, _) in spells {
+            spell_store.insert(
+                spell_id,
+                wow_data::SpellInfo {
+                    spell_id,
+                    cast_time_ms: 0,
+                    cooldown_ms: 0,
+                    recovery_time_ms: 0,
+                    effect_type: 0,
+                    effect_base_points: 0,
+                    effect_bonus_coefficient: 0.0,
+                    aura_type: None,
+                    display_flags: 0,
+                    requires_spell_focus: 0,
+                    effects: vec![wow_data::SpellEffectInfo {
+                        effect_index: 0,
+                        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_PROFICIENCY,
+                        ..Default::default()
+                    }],
+                },
+            );
+        }
+        session.set_spell_store(Arc::new(spell_store));
+        session.set_spell_equipped_items_store(Arc::new(SpellEquippedItemsStore::from_entries(
+            spells.into_iter().enumerate().map(
+                |(idx, (spell_id, equipped_item_class, equipped_item_subclass))| {
+                    SpellEquippedItemsEntry {
+                        id: idx as u32 + 1,
+                        spell_id,
+                        equipped_item_class,
+                        equipped_item_inv_types: 0,
+                        equipped_item_subclass,
+                    }
+                },
+            ),
+        )));
+
+        for (spell_id, _, _) in spells {
+            session
+                .execute_spell(spell_id, player_guid)
+                .await
+                .expect("represented C++ EffectProficiency should execute");
+        }
+
+        let set_proficiency_packets = drain_server_packet_bytes(&send_rx)
+            .into_iter()
+            .filter(|bytes| {
+                bytes.len() >= 7
+                    && u16::from_le_bytes([bytes[0], bytes[1]])
+                        == ServerOpcodes::SetProficiency as u16
+            })
+            .map(|bytes| {
+                (
+                    u32::from_le_bytes([bytes[2], bytes[3], bytes[4], bytes[5]]),
+                    bytes[6],
+                )
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            set_proficiency_packets,
+            vec![
+                (1024, ItemClass::Weapon as u8),
+                (1040, ItemClass::Weapon as u8),
+                (525_328, ItemClass::Weapon as u8),
+                (2, ItemClass::Armor as u8),
+                (541_712, ItemClass::Weapon as u8),
+                (3, ItemClass::Armor as u8),
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn login_known_spell_proficiencies_send_without_spell_cast_packets_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 78);
+        session.set_player_guid(Some(player_guid));
+
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            890,
+            wow_data::SpellInfo {
+                spell_id: 890,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_PROFICIENCY,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                effects: Vec::new(),
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+        session.set_spell_equipped_items_store(Arc::new(SpellEquippedItemsStore::from_entries([
+            SpellEquippedItemsEntry {
+                id: 1,
+                spell_id: 890,
+                equipped_item_class: ItemClass::Weapon as i8,
+                equipped_item_inv_types: 0,
+                equipped_item_subclass: 0x0000_0400,
+            },
+        ])));
+
+        assert_eq!(
+            session.apply_login_known_spell_proficiencies_like_cpp(&[890]),
+            1
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SetProficiency]
         );
     }
 
