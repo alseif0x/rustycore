@@ -8869,6 +8869,11 @@ mod tests {
             unit_flags: creature.unit_flags,
             unit_flags2: 0,
             unit_flags3: 0,
+            aura_state: crate::map_manager::WorldCreature::health_aura_state_like_cpp(
+                u64::from(creature.hp.max(1)),
+                u64::from(creature.max_hp.max(1)),
+                true,
+            ),
             damage_school: wow_constants::spell::SpellSchools::Normal as u8,
             scale: 1.0,
             unit_class: 1,

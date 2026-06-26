@@ -592,6 +592,7 @@ mod tests {
             unit_flags: 0,
             unit_flags2: 0,
             unit_flags3: 0,
+            aura_state: 0x00D0_0000, // full-HP creature, mirrors C++ ModifyAuraState
             damage_school: wow_constants::spell::SpellSchools::Normal as u8,
             scale: 1.0,
             unit_class: 1,
