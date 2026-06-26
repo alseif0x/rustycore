@@ -917,8 +917,18 @@ impl SkillStore {
                 .map(|ids| ids.contains(&skill_id))
                 .unwrap_or(true); // If no filter provided, allow all (backward compat)
 
-            if !is_this_class_skill && !character_has_skill {
-                continue; // Skip: profession/other-class skill the character doesn't have
+            // Only grant rewarded spells for skills the character actually has.
+            // The previous `!is_this_class_skill && !character_has_skill` gate let
+            // class-exclusive skills bypass `character_has_skill`, so a character
+            // with a populated `character_skills` set still received every trainer
+            // rank of every single-class ability — e.g. a fresh level-1 character
+            // was granted ~352 spells vs the ~52 a real 54261 server sends. This
+            // matches C++ `Player::LearnSkillRewardedSpells`, which only runs for
+            // skills the character holds (added via `LearnDefaultSkills`). The
+            // `None` (no filter) path is unchanged — `character_has_skill` is then
+            // `true`, preserving existing behavior/tests.
+            if !character_has_skill {
+                continue; // Skip: skill the character has not acquired
             }
 
             // Get all abilities for this skill
@@ -1779,6 +1789,54 @@ mod tests {
         assert_ne!(
             priest_spells, warrior_spells,
             "Priest and Warrior should have different spell lists"
+        );
+    }
+
+    #[test]
+    fn starting_spells_only_grants_class_skills_the_character_has() {
+        // Class-exclusive skill 700 for class 5 (single class bit) with one
+        // trainer-learned ability (acquire_method 0) -> spell 1000. The ability's
+        // own race/class masks are 0 (= all), so only the gate under test decides
+        // whether the spell is granted.
+        let class: u8 = 5;
+        let skill_id: u16 = 700;
+        let store = SkillStore::from_skill_line_abilities_and_race_class_like_cpp(
+            [ability(1, skill_id, 1000)],
+            [SkillRaceClassInfoRecord {
+                id: 1,
+                race_mask: 0, // all races
+                skill_id,
+                class_mask: 1i32 << (class as i32 - 1), // single class bit => class-exclusive
+                flags: 0,
+                availability: 1,
+                min_level: 0,
+                skill_tier_id: 0,
+            }],
+        );
+
+        // Negative: a character that has NOT acquired skill 700 must not receive
+        // its trainer spell, even though it is class-exclusive (the over-grant fix).
+        let none_known: std::collections::HashSet<u16> = std::collections::HashSet::new();
+        assert!(
+            !store
+                .starting_spells(1, class, 80, Some(&none_known))
+                .contains(&1000),
+            "a class-exclusive skill the character lacks must not be granted"
+        );
+
+        // Positive: a character that HAS skill 700 receives its spell.
+        let has_skill: std::collections::HashSet<u16> = [skill_id].into_iter().collect();
+        assert!(
+            store
+                .starting_spells(1, class, 80, Some(&has_skill))
+                .contains(&1000),
+            "a class skill the character has must be granted"
+        );
+
+        // Backward compat: None disables filtering, so the spell is still granted.
+        assert!(
+            store.starting_spells(1, class, 80, None).contains(&1000),
+            "None filter must preserve prior behavior"
         );
     }
 }
