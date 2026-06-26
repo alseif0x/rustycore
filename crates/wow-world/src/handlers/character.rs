@@ -6389,6 +6389,16 @@ impl WorldSession {
             let mut blocks = Vec::with_capacity(map_creatures.len());
             let mut visible_guids = Vec::with_capacity(map_creatures.len());
             for creature in &map_creatures {
+                let guid = creature.guid();
+                // C++ `Player::UpdateVisibilityOf` (Player.cpp) only builds a CREATE block
+                // when the object is NOT already in `m_clientGUIDs` (`!HaveAtClient`).
+                // Re-creating an object the client already knows sends a duplicate CREATE,
+                // which the Wrath client rejects by resetting the connection. This function
+                // runs on world-port/spawn and must not re-create already-known creatures.
+                visible_guids.push(guid);
+                if self.client_visible_guids_like_cpp.contains(&guid) {
+                    continue;
+                }
                 let mut create_data = creature.create_data.clone();
                 create_data.health = i64::from(creature.current_hp());
                 create_data.max_health = i64::from(creature.max_hp());
@@ -6396,7 +6406,7 @@ impl WorldSession {
                 create_data.npc_flags = creature.npc_flags_mask_like_cpp();
                 create_data.npc_flags = self
                     .represented_viewer_dependent_creature_npc_flags_like_cpp(
-                        creature.guid(),
+                        guid,
                         create_data.npc_flags,
                     );
                 create_data.current_area_id = 0;
@@ -6405,7 +6415,6 @@ impl WorldSession {
                     &creature.position(),
                     creature.active_move_spline_like_cpp().cloned(),
                 ));
-                visible_guids.push(creature.guid());
             }
 
             if !blocks.is_empty() {
@@ -7622,8 +7631,14 @@ impl WorldSession {
             }
 
             let go_guids: HashSet<_> = gameobjects.iter().map(|go| go.guid).collect();
+            // C++ `Player::UpdateVisibilityOf` (Player.cpp) only CREATES gameobjects NOT
+            // already in `m_clientGUIDs` (`!HaveAtClient`). Re-creating a known gameobject
+            // sends a duplicate CREATE, which the Wrath client rejects by resetting the
+            // connection. This function runs on world-port/spawn and must skip known GOs.
+            let known_guids = &self.client_visible_guids_like_cpp;
             let blocks = gameobjects
                 .into_iter()
+                .filter(|go| !known_guids.contains(&go.guid))
                 .map(UpdateObject::create_gameobject_block)
                 .collect::<Vec<_>>();
             let count = blocks.len();
@@ -7631,9 +7646,11 @@ impl WorldSession {
                 .retain(|guid| !guid.is_game_object());
             self.client_visible_guids_like_cpp
                 .extend(go_guids.iter().copied());
-            self.send_packet(&UpdateObject::create_world_objects(blocks, map_id));
+            if !blocks.is_empty() {
+                self.send_packet(&UpdateObject::create_world_objects(blocks, map_id));
+            }
             debug!(
-                "Sent {} canonical gameobjects to account {} on map {}",
+                "Sent {} new canonical gameobjects to account {} on map {}",
                 count, self.account_id, map_id
             );
             return;

@@ -76932,6 +76932,64 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn send_nearby_gameobjects_does_not_recreate_known_gameobjects_like_cpp() {
+        // Regression for the world-entry client crash: send_nearby_gameobjects must NOT
+        // re-CREATE gameobjects the client already knows. C++ `Player::UpdateVisibilityOf`
+        // (Player.cpp) only builds a CREATE when `!HaveAtClient` (guid not in
+        // `m_clientGUIDs`). A duplicate CREATE for a known GUID is invalid and makes the
+        // Wrath client reset the connection. Calling this twice for the same visible set
+        // must create exactly once.
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_position = Position::new(10.0, 10.0, 0.0, 0.0);
+        let gameobject_guid = test_gameobject_guid(910, 30);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        canonical.lock().unwrap().create_world_map(571, 0);
+        session.record_represented_gameobject_runtime_state_like_cpp(
+            571,
+            gameobject_guid,
+            910,
+            Position::new(20.0, 20.0, 0.0, 0.0),
+            3,
+        );
+        session.record_represented_gameobject_display_model_like_cpp(
+            gameobject_guid,
+            7000,
+            1.5,
+            [0.0, 0.0, 0.0, 1.0],
+        );
+
+        // First call: gameobject unknown to the client -> exactly one CREATE is sent.
+        session
+            .send_nearby_gameobjects(571, &player_position, 0)
+            .await;
+        assert!(
+            send_rx.try_recv().is_ok(),
+            "first call should send a CREATE for the new gameobject"
+        );
+        assert!(
+            send_rx.try_recv().is_err(),
+            "first call should send exactly one packet"
+        );
+        assert!(
+            session
+                .client_visible_guids_like_cpp
+                .contains(&gameobject_guid),
+            "gameobject should be tracked as known after the first create"
+        );
+
+        // Second call: gameobject already known -> NO duplicate CREATE (the bug).
+        session
+            .send_nearby_gameobjects(571, &player_position, 0)
+            .await;
+        assert!(
+            send_rx.try_recv().is_err(),
+            "second call must not re-create an already-known gameobject (duplicate CREATE crashes the client)"
+        );
+    }
+
     #[test]
     fn represented_can_see_spellclick_any_uses_canonical_creature_like_cpp() {
         let (mut session, _pkt_tx, _send_rx) = make_session();

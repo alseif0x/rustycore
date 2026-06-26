@@ -1,3 +1,46 @@
+- `#NEXT.R8.ENTITIES.1199` — `send_nearby_creatures` and
+  `send_nearby_gameobjects` no longer re-CREATE world objects the client
+  already knows, fixing the Wrath client "connection reset by peer" crash
+  that occurred a few seconds after entering the world. Source of truth:
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:23211-23249`
+  (`Player::UpdateVisibilityOf`: a CREATE/`SendUpdateToPlayer` is built only
+  when `!HaveAtClient(target)`, i.e. the guid is not already in
+  `m_clientGUIDs`, then `m_clientGUIDs.insert`) and
+  `/home/server/woltk-trinity-legacy/src/server/game/Grids/Notifiers/GridNotifiers.cpp:29-89`
+  plus `GridNotifiersImpl.h` (`VisibleNotifier::Visit` erases each seen guid
+  from the copy of `m_clientGUIDs`; `SendToSelf` destroys whatever remains
+  out of range). C++ never builds a CREATE block for an object already known
+  to the client; a duplicate CREATE is invalid and the Wrath client rejects
+  it by resetting the connection. Rust targets
+  `crates/wow-world/src/handlers/character.rs::send_nearby_creatures` and
+  `::send_nearby_gameobjects`, which previously rebuilt CREATE blocks for
+  ALL visible creatures/gameobjects on every invocation (world-port/spawn)
+  and only resynced `client_visible_guids_like_cpp` after sending. They now
+  gate each CREATE on `!client_visible_guids_like_cpp.contains(&guid)`
+  (matching `!HaveAtClient`) and skip the empty send like C++
+  `if (!i_data.HasData()) return;`. Evidence: dump
+  `target/packet-dumps/20260625-handshake-trace` showed two
+  structurally-identical 64660-byte `UpdateObject` packets (75 creatures +
+  77 gameobjects each) at seq 202 and 205 and zero `QueryCreatureResponse`
+  (C++ sends 68), i.e. the client died at the duplicate-CREATE visibility
+  burst before querying creature templates. Compression (`0x3052` Adler32
+  envelope) and the base `UpdateObject` serialization were verified
+  byte-exact against C++ and are NOT the cause. Coverage: new test
+  `send_nearby_gameobjects_does_not_recreate_known_gameobjects_like_cpp`
+  proves the first call sends one CREATE + tracks the guid and the second
+  call sends none; the creature gate is identical (a creature E2E test is
+  blocked by a pre-existing canonical-creature-visibility test-infra gap —
+  GOs populate the cell grid via `record_represented_gameobject_*`, creatures
+  have no equivalent). Checks: `cargo fmt -p wow-world -- --check`,
+  `PROTOC=... cargo test -p wow-world --lib send_nearby`,
+  `PROTOC=... cargo check -p world-server`; full `wow-world --lib` suite
+  2504 passed / 38 pre-existing failures (unchanged vs stashed baseline).
+  Boundary remains partial: this only stops duplicate CREATES on the
+  world-port/spawn path; it does not add C++-style DESTROY for objects that
+  leave range on that path (the known set is resynced silently), does not
+  unify the two parallel visibility paths (Path A movement-driven vs Path B
+  `send_nearby_*`), and is NOT yet manually verified against the client.
+
 - `#NEXT.R8.ENTITIES.1198` — represented item-set aura refresh events can now
   materialize the C++ item-set `ApplyEquipSpell` remove/apply effects into the
   session aura state. Source of truth:
