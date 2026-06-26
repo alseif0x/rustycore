@@ -12593,6 +12593,7 @@ impl WorldSession {
                     gameobject_flags: state.gameobject_flags,
                     world_effect_id: 0,
                     scale: state.scale,
+                    level: 0, // non-transport GameObject: Level unused (period via AnimationData)
                 }
             } else {
                 let Some(create_data) =
@@ -12670,6 +12671,7 @@ impl WorldSession {
             gameobject_flags: data.flags,
             world_effect_id: 0,
             scale: object.object().scale(),
+            level: 0, // non-transport GameObject: Level unused (period via AnimationData)
         })
     }
 
@@ -81144,6 +81146,7 @@ mod tests {
             unit_flags: 0,
             unit_flags2: 0,
             unit_flags3: 0,
+            aura_state: 0x00D0_0000,
             damage_school: wow_constants::spell::SpellSchools::Normal as u8,
             scale: 1.0,
             unit_class: 1,

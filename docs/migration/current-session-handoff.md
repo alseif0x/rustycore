@@ -1,3 +1,53 @@
+- `#NEXT.R8.ENTITIES.1200` — MO_TRANSPORT GameObject create blocks now carry
+  the two `GameObjectData` fields the Wrath/Cata-classic client requires,
+  fixing the client `ERROR #132` ACCESS_VIOLATION that crashed the player
+  ~4-5s after entering Northrend (map 571). Root cause was found by
+  byte-diffing the C++ transport `SMSG_UPDATE_OBJECT` (which the 3.4.3.54261
+  client accepts) against the Rust one: of the 8 Northrend MO_TRANSPORTs
+  (zeppelins/gunships/ferries) only two `GameObjectData` fields differed and
+  both were degenerate in Rust. (1) `SpawnTrackingStateAnimID` was `0`; C++
+  `GameObject::Create`
+  (`/home/server/woltk-trinity-legacy/src/server/game/Entities/GameObject/GameObject.cpp:1055`)
+  seeds it with `sDB2Manager.GetEmptyAnimStateID()` = `1772`
+  (`/home/server/woltk-trinity-legacy/src/server/game/DataStores/DB2Stores.cpp:1762-1766`,
+  hardcoded because the Classic client expects the retail AnimationData
+  storage size) for EVERY GameObject; `0` makes the client resolve a null
+  anim-state record and deref it (`test dword ptr [rax+0x10], 0x100000`,
+  rax=0) on the render/anim worker ~5s in. (2) `Flags` was `0`; C++
+  MO_TRANSPORTs carry `GO_FLAG_TRANSPORT|GO_FLAG_NODESPAWN|GO_FLAG_MAP_OBJECT`
+  = `0x00100028`
+  (`/home/server/woltk-trinity-legacy/src/server/game/Miscellaneous/SharedDefines.h:2900,2902,2914`;
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Transport/Transport.cpp:139`),
+  where `GO_FLAG_MAP_OBJECT (0x00100000)` tells the client to load the model
+  as a WMO. Rust targets: `crates/wow-packet/src/packets/update.rs`
+  (`GameObjectCreateData::write_values_create` writes
+  `SpawnTrackingStateAnimID = 1772` for all GameObjects) and
+  `crates/wow-world/src/handlers/character.rs::send_init_transports_like_cpp`
+  (transport `gameobject_flags |= 0x00100028`). Bundled in the same commit are
+  five other UnitData/GameObjectData parity gaps found while bisecting the
+  crash (each a real C++ divergence, none was the crash alone, all kept):
+  creature `AttackRoundBaseTime` `0`→`2000` (`ObjectMgr.cpp:1100`,
+  `Creature.cpp:617`); creature `UNIT_FIELD_AURASTATE` `0`→health-derived
+  `0x00D00000` (`Unit.cpp:469-476` `ModifyAuraState`); creature and player
+  `UnitData::StateAnimID` `0`→`1772` (`Creature.cpp:613`,
+  `Player.cpp:22134`); MO_TRANSPORT `GameObjectData::Level` `0`→`TotalPathTime`
+  (`Transport.cpp:145`, `Transport.h:89`). Acceptance (manually validated
+  against the live 3.4.3.54261 client): login to map 571 stays connected past
+  ~5s with full creatures+gameobjects+transports visible; wire re-dump shows
+  all 8 transports with `SpawnTrackingStateAnimID=1772` and `Flags=0x00100028`.
+  Checks: `cargo fmt --all -- --check` clean for changed files;
+  `PROTOC=… cargo test -p wow-packet --lib` 679 pass (incl.
+  `gameobject_create_values_serializes_level_period_for_transport_like_cpp`,
+  `health_aura_state_like_cpp_matches_cpp_modify_aura_state`);
+  `PROTOC=… cargo test -p wow-world --lib` 2507 pass / 38 pre-existing
+  failures unchanged; `PROTOC=… cargo check -p world-server` clean;
+  `git diff --check` clean. Boundaries: only the transport CREATE-block fields
+  and the listed UnitData fields are addressed; transport movement/animation
+  updates, stop-frame arrays, and broader GameObjectData parity remain
+  represented-partial; the `gameobject_template_addon`/`gameobject_overrides`
+  flag read path still COALESCEs to 0 (the fix ORs the MO_TRANSPORT flags in
+  directly rather than fixing the column read).
+
 - `#NEXT.R8.ENTITIES.1199` — `send_nearby_creatures` and
   `send_nearby_gameobjects` no longer re-CREATE world objects the client
   already knows, fixing the Wrath client "connection reset by peer" crash

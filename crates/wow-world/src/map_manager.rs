@@ -44,6 +44,11 @@ pub const GRID_SIZE: f32 = 64.0;
 /// Visibility radius in yards (how far a player can see).
 pub const VISIBILITY_RADIUS: f32 = 100.0;
 
+/// C++ `BASE_ATTACK_TIME` (`UnitDefines.h:30`). Creature base/ranged attack time
+/// is clamped to this when the template value is 0 (`ObjectMgr.cpp:1100-1104`); a
+/// 0 attack time crashes the 3.4.3 client's swing-timer math on the first tick.
+const BASE_ATTACK_TIME_LIKE_CPP: u32 = 2_000;
+
 const MAX_NUMBER_OF_CELLS_LIKE_CPP: i32 = 8;
 const TOTAL_NUMBER_OF_CELLS_PER_MAP_LIKE_CPP: i32 =
     MAX_NUMBER_OF_GRIDS_LIKE_CPP * MAX_NUMBER_OF_CELLS_LIKE_CPP;
@@ -926,6 +931,7 @@ impl WorldCreature {
             unit_flags,
             unit_flags2: 0,
             unit_flags3: 0,
+            aura_state: Self::health_aura_state_like_cpp(hp as u64, hp as u64, hp > 0),
             damage_school: wow_constants::spell::SpellSchools::Normal as u8,
             scale: 1.0,
             unit_class: 1,
@@ -980,6 +986,36 @@ impl WorldCreature {
         }
     }
 
+    /// C++ `Unit::Update` health-derived `UNIT_FIELD_AURASTATE` bits.
+    ///
+    /// Mirrors `Unit.cpp:469-476` `ModifyAuraState` calls for an alive unit:
+    /// the WOUNDED_* and WOUND_HEALTH_* / HEALTHY_75 states are pure functions
+    /// of the health percentage. AURA_STATE values are 1-based flag indices, so
+    /// the wire bit is `1 << (state - 1)`. A full-HP creature yields `0x00D00000`.
+    /// Shipping 0 here (the bit 0x100000 = AURA_STATE_WOUND_HEALTH_20_80 in
+    /// particular) crashes the 3.4.3 client on a per-frame unit tick.
+    pub fn health_aura_state_like_cpp(current_health: u64, max_health: u64, alive: bool) -> u32 {
+        if !alive || max_health == 0 {
+            return 0;
+        }
+        // C++ HealthBelowPct(p): health < max * p / 100; HealthAbovePct(p): health > max * p / 100.
+        let below = |p: u64| current_health.saturating_mul(100) < max_health.saturating_mul(p);
+        let above = |p: u64| current_health.saturating_mul(100) > max_health.saturating_mul(p);
+        let mut state: u32 = 0;
+        let mut set = |flag_index: u32, apply: bool| {
+            if apply {
+                state |= 1 << (flag_index - 1);
+            }
+        };
+        set(2, below(20)); // AURA_STATE_WOUNDED_20_PERCENT
+        set(6, below(25)); // AURA_STATE_WOUNDED_25_PERCENT
+        set(13, below(35)); // AURA_STATE_WOUNDED_35_PERCENT
+        set(21, below(20) || above(80)); // AURA_STATE_WOUND_HEALTH_20_80
+        set(23, above(75)); // AURA_STATE_HEALTHY_75_PERCENT
+        set(24, below(35) || above(80)); // AURA_STATE_WOUND_HEALTH_35_80
+        state
+    }
+
     pub fn create_data_from_canonical_like_cpp(creature: &Creature) -> CreatureCreateData {
         let unit = creature.unit();
         let data = unit.data();
@@ -1012,6 +1048,11 @@ impl WorldCreature {
             unit_flags: data.flags,
             unit_flags2: data.flags2,
             unit_flags3: data.flags3,
+            aura_state: Self::health_aura_state_like_cpp(
+                creature.current_health(),
+                creature.max_health(),
+                creature.current_health() > 0,
+            ),
             damage_school: creature.melee_damage_school_like_cpp(),
             scale: object.scale(),
             unit_class: data.class_id,
@@ -1036,8 +1077,19 @@ impl WorldCreature {
                     data.virtual_items[2].item_visual,
                 ),
             ],
-            base_attack_time: attack_speed[WeaponAttackType::BaseAttack as usize],
-            ranged_attack_time: attack_speed[WeaponAttackType::RangedAttack as usize],
+            // C++ guarantees UNIT_FIELD_BASEATTACKTIME is never 0: ObjectMgr.cpp:1100-1104
+            // clamps creature_template BaseAttackTime/RangeAttackTime 0 -> BASE_ATTACK_TIME
+            // (2000) at load. The 3.4.3 client divides by this on the first post-spawn unit
+            // tick (swing-timer/attack-rate math), so a 0 here crashes the client a few
+            // seconds after the create burst. Defense-in-depth clamp mirroring C++.
+            base_attack_time: match attack_speed[WeaponAttackType::BaseAttack as usize] {
+                0 => BASE_ATTACK_TIME_LIKE_CPP,
+                t => t,
+            },
+            ranged_attack_time: match attack_speed[WeaponAttackType::RangedAttack as usize] {
+                0 => BASE_ATTACK_TIME_LIKE_CPP,
+                t => t,
+            },
             movement_flags: creature.movement_flags_like_cpp().bits(),
             vehicle_id,
             play_hover_anim: false,
@@ -3674,6 +3726,11 @@ pub fn pending_respawn_from_world_creature_like_cpp(
             unit_flags: creature.unit_flags(),
             unit_flags2: 0,
             unit_flags3: 0,
+            aura_state: WorldCreature::health_aura_state_like_cpp(
+                creature.max_hp() as u64,
+                creature.max_hp() as u64,
+                creature.max_hp() > 0,
+            ),
             damage_school: creature.creature.melee_damage_school_like_cpp(),
             scale: 1.0,
             unit_class: 1,
@@ -3959,6 +4016,82 @@ mod tests {
             0,
             0,
         )
+    }
+
+    #[test]
+    fn health_aura_state_like_cpp_matches_cpp_modify_aura_state() {
+        // Regression for the world-entry ERROR #132 client crash: every creature
+        // CREATE block must carry UNIT_FIELD_AURASTATE matching C++ Unit::Update ->
+        // ModifyAuraState (Unit.cpp:469-476). A full-HP alive creature yields
+        // 0x00D00000 (bits 20|22|23 = WOUND_HEALTH_20_80 | HEALTHY_75 | WOUND_HEALTH_35_80).
+        // The client tests bit 0x100000 of this field on a per-frame tick; 0 crashed it.
+        assert_eq!(
+            WorldCreature::health_aura_state_like_cpp(100, 100, true),
+            0x00D0_0000,
+            "full-HP alive creature must match C++ 0x00D00000"
+        );
+        // Dead unit / zero max: no aura state (C++ only runs ModifyAuraState if IsAlive).
+        assert_eq!(WorldCreature::health_aura_state_like_cpp(0, 100, false), 0);
+        assert_eq!(WorldCreature::health_aura_state_like_cpp(50, 0, true), 0);
+        // Low health (<=20%): WOUNDED_20/25/35 + WOUND_HEALTH_20_80 + WOUND_HEALTH_35_80
+        // bits set, HEALTHY_75 clear. Must include the crash bit 0x100000.
+        let low = WorldCreature::health_aura_state_like_cpp(10, 100, true);
+        assert_ne!(low & 0x0010_0000, 0, "WOUND_HEALTH_20_80 (0x100000) set at low HP");
+        assert_eq!(low & 0x0040_0000, 0, "HEALTHY_75 clear at low HP");
+        // Mid health (50%): none of the threshold states (not <35, not >75, not <20/>80).
+        assert_eq!(WorldCreature::health_aura_state_like_cpp(50, 100, true), 0);
+    }
+
+    #[test]
+    fn create_data_from_canonical_clamps_zero_base_attack_time_like_cpp() {
+        // Regression for the world-entry client crash: a creature CREATE block with
+        // UnitData.AttackRoundBaseTime == 0 makes the 3.4.3 client divide-by-zero in its
+        // swing-timer math on the first post-spawn tick (crash ~5s after the visibility
+        // burst). C++ guarantees this is never 0 (ObjectMgr.cpp:1100-1104 clamps
+        // creature_template BaseAttackTime/RangeAttackTime 0 -> BASE_ATTACK_TIME=2000).
+        // A bare canonical Creature leaves Unit::base_attack_speed at its [0; MAX_ATTACK]
+        // default, reproducing the bug; create_data_from_canonical_like_cpp must clamp it.
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 1, 9001);
+        let mut creature = Creature::new(false);
+        creature.unit_mut().world_mut().object_mut().create(guid);
+        creature.unit_mut().world_mut().object_mut().set_entry(9001);
+        // Sanity: the underlying base attack speed really is the uninitialized 0 here.
+        assert_eq!(
+            creature.unit().base_attack_speed()[WeaponAttackType::BaseAttack as usize],
+            0,
+            "precondition: bare canonical creature has 0 base attack speed"
+        );
+
+        let create_data = WorldCreature::create_data_from_canonical_like_cpp(&creature);
+
+        assert_eq!(
+            create_data.base_attack_time, BASE_ATTACK_TIME_LIKE_CPP,
+            "0 base attack time must be clamped to BASE_ATTACK_TIME (2000), never shipped as 0"
+        );
+        assert_eq!(
+            create_data.ranged_attack_time, BASE_ATTACK_TIME_LIKE_CPP,
+            "0 ranged attack time must be clamped to BASE_ATTACK_TIME (2000), never shipped as 0"
+        );
+    }
+
+    #[test]
+    fn create_data_from_canonical_preserves_nonzero_base_attack_time_like_cpp() {
+        // The clamp must only replace 0; a real attack time must pass through unchanged.
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 1, 9002);
+        let mut creature = Creature::new(false);
+        creature.unit_mut().world_mut().object_mut().create(guid);
+        creature.unit_mut().world_mut().object_mut().set_entry(9002);
+        creature
+            .unit_mut()
+            .set_base_attack_time_like_cpp(WeaponAttackType::BaseAttack, 1500);
+        creature
+            .unit_mut()
+            .set_base_attack_time_like_cpp(WeaponAttackType::RangedAttack, 1800);
+
+        let create_data = WorldCreature::create_data_from_canonical_like_cpp(&creature);
+
+        assert_eq!(create_data.base_attack_time, 1500);
+        assert_eq!(create_data.ranged_attack_time, 1800);
     }
 
     #[test]
@@ -6748,6 +6881,7 @@ mod tests {
                 unit_flags: 0,
                 unit_flags2: 0,
                 unit_flags3: 0,
+                aura_state: WorldCreature::health_aura_state_like_cpp(100, 100, true),
                 damage_school: wow_constants::spell::SpellSchools::Normal as u8,
                 scale: 1.0,
                 unit_class: 1,

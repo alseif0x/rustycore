@@ -1744,9 +1744,16 @@ impl PlayerCreateData {
         buf.write_uint32(0);
         buf.write_uint32(0);
 
-        // StateSpellVisualID, StateAnimID, StateAnimKitID
+        // StateSpellVisualID, StateAnimID, StateAnimKitID.
+        // C++ Player::Player (Player.cpp:22134) ALSO seeds StateAnimID with
+        // DB2Manager::GetEmptyAnimStateID() = 1772 (DB2Stores.cpp:1765) — the Classic
+        // client expects the retail AnimationData storage size for EVERY unit, including
+        // the player itself. Shipping 0 makes the client index its AnimationData storage
+        // out of range -> NULL deref in the render/anim worker (~4-5s in-world, ERROR #132)
+        // when the player's own model animates. This is independent of nearby creatures.
+        const EMPTY_ANIM_STATE_ID_LIKE_CPP: i32 = 1772;
         buf.write_int32(0);
-        buf.write_int32(0);
+        buf.write_int32(EMPTY_ANIM_STATE_ID_LIKE_CPP);
         buf.write_int32(0);
 
         // StateWorldEffectIDs.Count (dynamic array size = 0)
@@ -2574,6 +2581,12 @@ pub struct CreatureCreateData {
     pub unit_flags: u32,
     pub unit_flags2: u32,
     pub unit_flags3: u32,
+    /// C++ `UNIT_FIELD_AURASTATE`. Derived from health in `Unit::Update` ->
+    /// `ModifyAuraState` (Unit.cpp:469-476). A full-HP alive creature carries
+    /// `0x00D00000` (WOUND_HEALTH_20_80 | HEALTHY_75_PERCENT | WOUND_HEALTH_35_80).
+    /// The 3.4.3 client tests bit 0x100000 of this field on a per-frame unit tick;
+    /// shipping 0 where the bit should be set crashes the client (ERROR #132).
+    pub aura_state: u32,
     pub damage_school: u8,
     pub scale: f32,
     pub unit_class: u8,
@@ -2642,9 +2655,16 @@ impl CreatureCreateData {
         buf.write_uint32(self.npc_flags as u32);
         buf.write_uint32((self.npc_flags >> 32) as u32);
 
-        // StateSpellVisualID, StateAnimID, StateAnimKitID
+        // StateSpellVisualID, StateAnimID, StateAnimKitID.
+        // C++ Creature::UpdateEntry (Creature.cpp:613) seeds StateAnimID with
+        // DB2Manager::GetEmptyAnimStateID() = 1772 (DB2Stores.cpp:1765): "the Classic
+        // client expects the retail storage size so we have to hardcode the value".
+        // Shipping 0 makes the 3.4.3 client index its AnimationData storage out of range
+        // -> NULL deref in the render/anim worker (~4s in-world, ERROR #132). Players are
+        // NOT seeded by C++ (only Creature::UpdateEntry), so PlayerCreateData stays 0.
+        const EMPTY_ANIM_STATE_ID_LIKE_CPP: i32 = 1772;
         buf.write_int32(0);
-        buf.write_int32(0);
+        buf.write_int32(EMPTY_ANIM_STATE_ID_LIKE_CPP);
         buf.write_int32(0);
 
         // StateWorldEffectIDs.Count
@@ -2709,7 +2729,7 @@ impl CreatureCreateData {
         buf.write_uint32(self.unit_flags);
         buf.write_uint32(self.unit_flags2);
         buf.write_uint32(self.unit_flags3);
-        buf.write_uint32(0); // AuraState
+        buf.write_uint32(self.aura_state); // AuraState (C++ UNIT_FIELD_AURASTATE)
 
         // AttackRoundBaseTime[2]
         buf.write_uint32(self.base_attack_time);
@@ -2835,6 +2855,14 @@ pub struct GameObjectCreateData {
     pub gameobject_flags: u32,
     pub world_effect_id: u32,
     pub scale: f32,
+    /// C++ `GameObjectData::Level`. For a MO_TRANSPORT (go_type 15) this is the
+    /// transport's full path period = `TransportTemplate::TotalPathTime` (ms), set by
+    /// `Transport::Create` -> `SetPeriod` (Transport.cpp:145; Transport.h:89
+    /// `GetTransportPeriod() { return Level; }`). The 3.4.3 client divides PathProgress by
+    /// this period to interpolate the transport along its path; Level=0 -> divide-by-zero ->
+    /// invalid path-node index (0xFFFF) -> NULL deref in the render/anim worker (ERROR #132).
+    /// For all other GameObjects this is 0 (they derive any period from AnimationData, not Level).
+    pub level: u32,
 }
 
 impl GameObjectCreateData {
@@ -2856,7 +2884,13 @@ impl GameObjectCreateData {
         buf.write_int32(self.display_id as i32); // DisplayID
         buf.write_int32(0); // SpellVisualID
         buf.write_int32(0); // StateSpellVisualID
-        buf.write_int32(0); // SpawnTrackingStateAnimID
+        // C++ GameObject::Create (GameObject.cpp:1055) seeds SpawnTrackingStateAnimID with
+        // DB2Manager::GetEmptyAnimStateID() = 1772 for EVERY GameObject (the Classic client
+        // expects the retail AnimationData storage size; DB2Stores.cpp:1765). Shipping 0 makes
+        // the client resolve a NULL anim-state record and deref it (test [NULL+0x10],0x100000)
+        // in the render/anim worker (~4-5s in-world, ERROR #132) — confirmed via C++/Rust wire
+        // diff on MO_TRANSPORT blocks (C++=1772, Rust was 0).
+        buf.write_int32(1772); // SpawnTrackingStateAnimID = GetEmptyAnimStateID
         buf.write_int32(0); // SpawnTrackingStateAnimKitID
         buf.write_int32(0); // StateWorldEffectIDs.Count
         // No StateWorldEffectIDs entries (count=0)
@@ -2873,7 +2907,7 @@ impl GameObjectCreateData {
         buf.write_float(0.0); // ParentRotation.Z
         buf.write_float(1.0); // ParentRotation.W
         buf.write_int32(self.faction_template); // FactionTemplate
-        buf.write_uint32(0); // Level
+        buf.write_uint32(self.level); // Level (MO_TRANSPORT period = TotalPathTime; else 0)
         buf.write_int8(self.state); // State
         buf.write_int8(self.go_type as i8); // TypeID (gameobject type)
         buf.write_uint8(self.anim_progress); // PercentHealth (anim progress)
@@ -9053,6 +9087,7 @@ mod tests {
             gameobject_flags: 0,
             world_effect_id: 0,
             scale: 1.0,
+            level: 0,
         };
 
         let mut empty_owner_packet = WorldPacket::new_empty();
@@ -9065,6 +9100,45 @@ mod tests {
 
         assert!(owned_packet.data().len() > empty_owner_packet.data().len());
         assert_ne!(owned_packet.data(), empty_owner_packet.data());
+    }
+
+    #[test]
+    fn gameobject_create_values_serializes_level_period_for_transport_like_cpp() {
+        // Regression for the world-entry ERROR #132 client crash: a MO_TRANSPORT must carry
+        // its path period in GameObjectData::Level (C++ Transport::Create -> SetPeriod ->
+        // GameObjectData::Level; Transport.h:89). Level=0 made the 3.4.3 client divide
+        // PathProgress by a zero period -> 0xFFFF path-node index -> render-worker NULL deref.
+        let mut data = GameObjectCreateData {
+            guid: ObjectGuid::create_transport(wow_core::guid::HighGuid::Transport, 7),
+            entry: 181688,
+            dynamic_flags: 0,
+            display_id: 3015,
+            go_type: 15, // MO_TRANSPORT
+            position: Position::ZERO,
+            rotation: [0.0, 0.0, 0.0, 1.0],
+            anim_progress: 255,
+            state: 1,
+            created_by: ObjectGuid::EMPTY,
+            faction_template: 0,
+            gameobject_flags: 0,
+            world_effect_id: 0,
+            scale: 1.0,
+            level: 0x0011_2233, // distinctive period
+        };
+        let mut pkt = WorldPacket::new_empty();
+        data.write_values_create(&mut pkt);
+        let bytes = pkt.into_data();
+        assert!(
+            bytes
+                .windows(4)
+                .any(|w| w == 0x0011_2233u32.to_le_bytes()),
+            "MO_TRANSPORT Level (path period) must be serialized in GameObjectData"
+        );
+        // A zero period must NOT silently survive: changing level changes the wire.
+        data.level = 0;
+        let mut pkt0 = WorldPacket::new_empty();
+        data.write_values_create(&mut pkt0);
+        assert_ne!(bytes, pkt0.into_data());
     }
 
     #[test]
@@ -9092,6 +9166,7 @@ mod tests {
             gameobject_flags: 0x20,
             world_effect_id: 0,
             scale: 1.0,
+            level: 0,
         };
 
         let mut packet = WorldPacket::new_empty();
@@ -9137,6 +9212,7 @@ mod tests {
             gameobject_flags: 0,
             world_effect_id: 0,
             scale: 1.0,
+            level: 0,
         };
 
         let mut block = WorldPacket::new_empty();
@@ -11189,6 +11265,7 @@ mod tests {
             unit_flags: 0,
             unit_flags2: 0,
             unit_flags3: 0,
+            aura_state: 0x00D0_0000,
             damage_school: wow_constants::spell::SpellSchools::Normal as u8,
             scale: 1.0,
             unit_class: 1,
@@ -11224,6 +11301,17 @@ mod tests {
             values.len(),
             536,
             "C++ Unit::BuildValuesCreate writes size prefix plus 532 bytes for base creature ObjectData+UnitData"
+        );
+        // Regression for the world-entry ERROR #132 render-worker NULL deref: every creature
+        // CREATE must carry StateAnimID = 1772 (C++ Creature::UpdateEntry seeds
+        // DB2Manager::GetEmptyAnimStateID(); DB2Stores.cpp:1765 hardcodes 1772 because the
+        // Classic client expects the retail AnimationData storage size). StateSpellVisualID
+        // and StateAnimKitID stay 0. Shipping StateAnimID=0 crashed the 3.4.3 client ~4s in-world.
+        assert!(
+            values
+                .windows(12)
+                .any(|w| w == [0, 0, 0, 0, 0xEC, 0x06, 0, 0, 0, 0, 0, 0]),
+            "creature CREATE must serialize StateSpellVisualID=0, StateAnimID=1772, StateAnimKitID=0"
         );
         assert_eq!(&values[0..4], &532u32.to_le_bytes());
         assert_eq!(values[4], 0, "creature create uses no owner/party flags");
@@ -11294,6 +11382,7 @@ mod tests {
             unit_flags: 0,
             unit_flags2: 0,
             unit_flags3: 0,
+            aura_state: 0x00D0_0000,
             damage_school: wow_constants::spell::SpellSchools::Normal as u8,
             scale: 1.0,
             unit_class: 1,
@@ -11363,6 +11452,7 @@ mod tests {
             unit_flags: 0,
             unit_flags2: 0,
             unit_flags3: 0,
+            aura_state: 0x00D0_0000,
             damage_school: wow_constants::spell::SpellSchools::Normal as u8,
             scale: 1.0,
             unit_class: 1,
@@ -11458,6 +11548,7 @@ mod tests {
             unit_flags: 0,
             unit_flags2: 0,
             unit_flags3: 0,
+            aura_state: 0x00D0_0000,
             damage_school: wow_constants::spell::SpellSchools::Normal as u8,
             scale: 1.0,
             unit_class: 1,
@@ -11522,6 +11613,7 @@ mod tests {
             unit_flags: 0,
             unit_flags2: 0,
             unit_flags3: 0,
+            aura_state: 0x00D0_0000,
             damage_school: wow_constants::spell::SpellSchools::Normal as u8,
             scale: 1.0,
             unit_class: 1,
@@ -11620,6 +11712,7 @@ mod tests {
             unit_flags: 0,
             unit_flags2: 0,
             unit_flags3: 0,
+            aura_state: 0x00D0_0000,
             damage_school: wow_constants::spell::SpellSchools::Normal as u8,
             scale: 1.0,
             unit_class: 1,
@@ -11694,6 +11787,7 @@ mod tests {
                 unit_flags: 0,
                 unit_flags2: 0,
                 unit_flags3: 0,
+                aura_state: 0x00D0_0000,
                 damage_school: wow_constants::spell::SpellSchools::Normal as u8,
                 scale: 1.0,
                 unit_class: 1,
@@ -11770,6 +11864,7 @@ mod tests {
             unit_flags: 32768,
             unit_flags2: 2048,
             unit_flags3: 0,
+            aura_state: 0x00D0_0000,
             damage_school: wow_constants::spell::SpellSchools::Normal as u8,
             scale: 1.0,
             unit_class: 1,

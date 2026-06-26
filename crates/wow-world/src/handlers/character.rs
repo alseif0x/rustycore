@@ -5925,9 +5925,18 @@ impl WorldSession {
                 },
                 created_by: ObjectGuid::EMPTY,
                 faction_template: transport.faction_template,
-                gameobject_flags: transport.gameobject_flags,
+                // C++ MO_TRANSPORTs carry GO_FLAG_TRANSPORT(0x8) | GO_FLAG_NODESPAWN(0x20) |
+                // GO_FLAG_MAP_OBJECT(0x100000) = 0x100028 (Transport.cpp:139 + GameObject flags).
+                // GO_FLAG_MAP_OBJECT tells the 3.4.3 client to load the model as a WMO; without
+                // it the client mis-loads the transport model and crashes. Confirmed via C++/Rust
+                // wire diff (C++=0x100028, Rust was 0). OR it in so DB-sourced flags are preserved.
+                gameobject_flags: transport.gameobject_flags | 0x0010_0028,
                 world_effect_id: 0,
                 scale: transport.scale,
+                // C++ Transport::Create -> SetPeriod(TotalPathTime): the MO_TRANSPORT period
+                // goes in GameObjectData::Level. The client divides PathProgress by it to
+                // interpolate; 0 -> divide-by-zero -> 0xFFFF node index -> client ERROR #132.
+                level: path_position.total_time_ms,
             };
             blocks.push(UpdateObject::create_transport_block(create_data, now_ms));
         }
@@ -6246,6 +6255,11 @@ impl WorldSession {
             unit_flags,
             unit_flags2,
             unit_flags3,
+            aura_state: crate::map_manager::WorldCreature::health_aura_state_like_cpp(
+                creature_stats.health.max(0) as u64,
+                creature_stats.max_health.max(0) as u64,
+                creature_stats.health > 0,
+            ),
             damage_school: wow_constants::spell::SpellSchools::Normal as u8,
             scale,
             unit_class,
@@ -7039,6 +7053,7 @@ impl WorldSession {
                         gameobject_flags: effective_flags,
                         world_effect_id: 0,
                         scale,
+                        level: 0, // non-transport GameObject: Level unused (period via AnimationData)
                     };
                     update_blocks.push(UpdateObject::create_gameobject_block(create_data));
                     created_gameobjects += 1;
@@ -7848,6 +7863,7 @@ impl WorldSession {
                 gameobject_flags: effective_flags,
                 world_effect_id: 0,
                 scale,
+                level: 0, // non-transport GameObject: Level unused (period via AnimationData)
             };
 
             blocks.push(UpdateObject::create_gameobject_block(create_data));
