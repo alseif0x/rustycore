@@ -3948,6 +3948,7 @@ async fn main() -> Result<ExitCode> {
             .attached_condition_count
     );
     wow_world::conditions::set_condition_mgr_store_like_cpp(Arc::clone(&condition_store));
+    let graveyard_store = Arc::new(graveyard_store);
     let npc_spell_click_store = Arc::new(
         wow_data::NpcSpellClickStoreLikeCpp::load_like_cpp(
             world_db.as_ref(),
@@ -4521,6 +4522,7 @@ async fn main() -> Result<ExitCode> {
         area_table_store: Some(Arc::clone(&area_table_store)),
         fishing_base_skill_store: Some(Arc::clone(&fishing_base_skill_store)),
         area_trigger_store: Some(Arc::clone(&area_trigger_store)),
+        graveyard_store: Some(Arc::clone(&graveyard_store)),
         area_trigger_template_store: Some(Arc::clone(&area_trigger_template_store)),
         chr_specialization_store: Some(Arc::clone(&chr_specialization_store)),
         dungeon_encounter_store: Some(Arc::clone(&dungeon_encounter_store)),
@@ -11491,6 +11493,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.area_trigger_store {
         session.set_area_trigger_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.graveyard_store {
+        session.set_graveyard_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.chr_specialization_store {
         session.set_chr_specialization_store(Arc::clone(store));

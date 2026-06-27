@@ -2393,11 +2393,103 @@ impl crate::session::WorldSession {
     }
 
     /// CMSG_REQUEST_CEMETERY_LIST — client asks for graveyards in zone.
-    /// C# ref: CharacterHandler.HandleRequestCemeteryList
-    /// Returns empty list until graveyard data is implemented.
-    pub async fn handle_request_cemetery_list(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let is_gossip: bool = pkt.read_uint8().unwrap_or(0) != 0;
-        self.send_packet(&RequestCemeteryListResponse::empty(is_gossip));
+    /// C++ ref: `WorldSession::HandleRequestCemeteryList`.
+    pub async fn handle_request_cemetery_list(&mut self, _pkt: wow_packet::WorldPacket) {
+        let (zone_id, _) = self.player_zone_area_like_cpp();
+        let Some(graveyard_store) = self.graveyard_store().cloned() else {
+            debug!(
+                zone = zone_id,
+                "No graveyard store available for CMSG_REQUEST_CEMETERY_LIST"
+            );
+            return;
+        };
+        let Some(graveyards) = graveyard_store.graveyards_for_zone(zone_id) else {
+            debug!(
+                zone = zone_id,
+                player = ?self.player_guid(),
+                "No graveyards found in CMSG_REQUEST_CEMETERY_LIST"
+            );
+            return;
+        };
+
+        let mut cemetery_ids = Vec::new();
+        for graveyard in graveyards {
+            if cemetery_ids.len() >= 16 {
+                break;
+            }
+            if self.graveyard_conditions_meet_like_cpp(&graveyard.conditions) {
+                cemetery_ids.push(graveyard.safe_loc_id);
+            }
+        }
+
+        if cemetery_ids.is_empty() {
+            debug!(
+                zone = zone_id,
+                player = ?self.player_guid(),
+                "No graveyards passed conditions in CMSG_REQUEST_CEMETERY_LIST"
+            );
+            return;
+        }
+
+        self.send_packet(&RequestCemeteryListResponse {
+            is_gossip_triggered: false,
+            cemetery_ids,
+        });
+    }
+
+    fn graveyard_conditions_meet_like_cpp(
+        &mut self,
+        conditions_ref: &wow_data::ConditionsReference,
+    ) -> bool {
+        let Some(conditions) = conditions_ref.upgrade() else {
+            return true;
+        };
+        if conditions.is_empty() {
+            return true;
+        }
+
+        let Some(condition_store) = self.condition_store().cloned() else {
+            warn!("Cemetery condition check failed closed: missing condition store");
+            return false;
+        };
+        let Some(player_object) = self.build_condition_player_object_like_cpp() else {
+            warn!("Cemetery condition check failed closed: missing player object");
+            return false;
+        };
+
+        let player_unit_snapshot = self.condition_player_unit_snapshot_like_cpp();
+        let player_snapshot = self.condition_player_snapshot_like_cpp();
+        let player_condition_store = self.player_condition_store().cloned();
+        let player_condition_context = self.represented_player_condition_context_like_cpp();
+
+        let mut source_info =
+            crate::conditions::ConditionSourceInfo::from_targets(Some(&player_object), None, None);
+        source_info.set_unit_target_snapshot(0, player_unit_snapshot);
+        source_info.set_player_target_snapshot(0, player_snapshot);
+        if let Some(store) = player_condition_store.as_ref() {
+            source_info.set_player_condition_store(store.as_ref());
+            source_info.set_player_condition_context(0, player_condition_context.as_context(self));
+        }
+
+        crate::conditions::is_object_meet_to_conditions_like_cpp(
+            &mut source_info,
+            conditions.as_slice(),
+            condition_store.as_ref(),
+            |condition, source_info| match crate::conditions::condition_meets_basic_like_cpp(
+                condition,
+                source_info,
+                |current_area, required_area| current_area == required_area,
+            ) {
+                crate::conditions::ConditionMeetResult::Evaluated(value) => value,
+                crate::conditions::ConditionMeetResult::Unsupported => {
+                    warn!(
+                        "Cemetery condition check failed closed: unsupported {:?}",
+                        condition.condition_type
+                    );
+                    false
+                }
+            },
+        )
     }
 
     /// CMSG_RESURRECT_RESPONSE — answer to a pending resurrection request.
@@ -6896,7 +6988,10 @@ mod tests {
     use super::*;
     use std::collections::{HashMap, HashSet};
     use std::sync::{Arc, Mutex, RwLock};
-    use wow_constants::{ClientOpcodes, ItemContext, ServerOpcodes, shared::DifficultyFlags};
+    use wow_constants::{
+        ClientOpcodes, ConditionSourceType, ConditionType, ItemContext, ServerOpcodes,
+        shared::DifficultyFlags,
+    };
     use wow_core::{ObjectGuid, Position, guid::HighGuid};
     use wow_data::progression_rewards::{FactionEntry, FactionStore};
     use wow_data::quest::{
@@ -6906,9 +7001,10 @@ mod tests {
     };
     use wow_data::reputation::{ReputationFlagsLikeCpp, ReputationRankLikeCpp};
     use wow_data::{
-        DifficultyEntry, DifficultyStore, ItemRecord, ItemSearchNameEntry, ItemSearchNameStore,
-        ItemSparseTemplateEntry, ItemStatsStore, ItemStore, MapDifficultyEntry, MapDifficultyStore,
-        MapEntry, MapStore, SpellInfo, SpellStore,
+        Condition, ConditionEntriesByTypeStore, DifficultyEntry, DifficultyStore, GraveyardStore,
+        ItemRecord, ItemSearchNameEntry, ItemSearchNameStore, ItemSparseTemplateEntry,
+        ItemStatsStore, ItemStore, MapDifficultyEntry, MapDifficultyStore, MapEntry, MapStore,
+        SpellInfo, SpellStore,
     };
     use wow_database::SqlParam;
     use wow_network::{
@@ -7055,6 +7151,61 @@ mod tests {
         let (realm_tx, realm_rx) = flume::bounded(8);
         session.install_realm_send_channel_for_test(realm_tx);
         (session, instance_rx, realm_rx)
+    }
+
+    fn request_cemetery_list_packet(extra_payload: Option<u8>) -> WorldPacket {
+        let mut packet = WorldPacket::new_empty();
+        if let Some(byte) = extra_payload {
+            packet.write_uint8(byte);
+        }
+        packet.reset_read();
+        packet
+    }
+
+    fn read_cemetery_list_response(bytes: &[u8]) -> (bool, Vec<u32>) {
+        let mut packet = WorldPacket::from_bytes(bytes);
+        assert_eq!(
+            packet.server_opcode(),
+            Some(ServerOpcodes::RequestCemeteryListResponse)
+        );
+        assert_eq!(
+            packet.read_uint16().unwrap(),
+            ServerOpcodes::RequestCemeteryListResponse as u16
+        );
+        let is_gossip_triggered = packet.read_bit().unwrap();
+        let count = packet.read_uint32().unwrap();
+        let cemetery_ids = (0..count)
+            .map(|_| packet.read_uint32().unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(packet.remaining(), 0);
+        (is_gossip_triggered, cemetery_ids)
+    }
+
+    fn graveyard_store_with_links(
+        zone_id: u32,
+        safe_loc_ids: impl IntoIterator<Item = u32>,
+        conditions: impl IntoIterator<Item = Condition>,
+    ) -> (Arc<GraveyardStore>, Arc<ConditionEntriesByTypeStore>) {
+        let mut graveyard_store = GraveyardStore::default();
+        for safe_loc_id in safe_loc_ids {
+            graveyard_store.add_graveyard_link_like_cpp(safe_loc_id, zone_id);
+        }
+        let condition_store = Arc::new(ConditionEntriesByTypeStore::from_conditions_like_cpp(
+            conditions,
+        ));
+        graveyard_store.attach_graveyard_conditions_like_cpp(condition_store.as_ref());
+        (Arc::new(graveyard_store), condition_store)
+    }
+
+    fn graveyard_team_condition(zone_id: u32, safe_loc_id: u32, team: u32) -> Condition {
+        Condition {
+            source_type: ConditionSourceType::Graveyard,
+            source_group: zone_id,
+            source_entry: safe_loc_id as i32,
+            condition_type: ConditionType::Team,
+            condition_value1: team,
+            ..Condition::default()
+        }
     }
 
     fn quest_template(id: u32) -> QuestTemplate {
@@ -8154,6 +8305,73 @@ mod tests {
                 preferred_mount_display: 0,
             }]
         );
+    }
+
+    #[tokio::test]
+    async fn request_cemetery_list_without_links_sends_no_response_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        session.set_player_zone_area_like_cpp(1234, 5678);
+        session.set_graveyard_store(Arc::new(GraveyardStore::default()));
+
+        session
+            .handle_request_cemetery_list(request_cemetery_list_packet(None))
+            .await;
+
+        assert!(
+            send_rx.try_recv().is_err(),
+            "C++ returns without SMSG_REQUEST_CEMETERY_LIST_RESPONSE when no graveyards match"
+        );
+    }
+
+    #[tokio::test]
+    async fn request_cemetery_list_ignores_payload_and_sends_zone_ids_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        session.set_player_zone_area_like_cpp(4321, 8765);
+        let (graveyards, condition_store) = graveyard_store_with_links(4321, [11, 12], []);
+        session.set_graveyard_store(graveyards);
+        session.set_condition_store(condition_store);
+
+        session
+            .handle_request_cemetery_list(request_cemetery_list_packet(Some(1)))
+            .await;
+
+        let (is_gossip_triggered, cemetery_ids) =
+            read_cemetery_list_response(&send_rx.try_recv().unwrap());
+        assert!(
+            !is_gossip_triggered,
+            "C++ request has no gossip bool payload; response always sets false here"
+        );
+        assert_eq!(cemetery_ids, vec![11, 12]);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn request_cemetery_list_filters_conditions_and_caps_at_sixteen_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_player_zone_area_like_cpp(2222, 3333);
+        let conditions = [
+            graveyard_team_condition(2222, 100, wow_data::TEAM_HORDE_LIKE_CPP),
+            graveyard_team_condition(2222, 101, wow_data::TEAM_ALLIANCE_LIKE_CPP),
+        ];
+        let (graveyards, condition_store) = graveyard_store_with_links(2222, 100..120, conditions);
+        session.set_graveyard_store(graveyards);
+        session.set_condition_store(condition_store);
+
+        session
+            .handle_request_cemetery_list(request_cemetery_list_packet(None))
+            .await;
+
+        let (_, cemetery_ids) = read_cemetery_list_response(&send_rx.try_recv().unwrap());
+        assert_eq!(
+            cemetery_ids,
+            (101..117).collect::<Vec<_>>(),
+            "C++ skips failed condition rows and continues until 16 accepted IDs"
+        );
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[tokio::test]
