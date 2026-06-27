@@ -13,7 +13,7 @@
 //! - `k = H(N || pad || g)` instead of fixed 3
 //! - `g = 2` instead of 7
 //! - Evidence: `M1 = H(A || B || S)` with "broken padding"
-//! - Username is `hex(SHA256(email.to_uppercase()))`
+//! - Username is `hex(SHA256(Utf8ToUpperOnlyLatin(email)))`
 
 use digest::Digest;
 use num_bigint::BigUint;
@@ -77,7 +77,7 @@ pub struct BnetSrpChallenge {
     pub generator: Vec<u8>,
     /// Hash function name ("SHA-256" or "SHA-512").
     pub hash_function: &'static str,
-    /// Username = hex(SHA-256(email.to_uppercase())).
+    /// Username = hex(SHA-256(Utf8ToUpperOnlyLatin(email))).
     pub username: String,
     /// Salt from the database.
     pub salt: Vec<u8>,
@@ -110,7 +110,7 @@ pub struct BnetSrp6 {
 impl BnetSrp6 {
     /// Create a new BNet SRP6 instance from stored account data.
     ///
-    /// - `username`: The SRP username = `hex(SHA256(email.to_uppercase()))`
+    /// - `username`: The SRP username = `hex(SHA256(Utf8ToUpperOnlyLatin(email)))`
     /// - `salt`: Salt from the database
     /// - `verifier`: Password verifier from the database (little-endian bytes,
     ///   matching C# `BigInteger.ToByteArray()` which defaults to LE)
@@ -213,7 +213,7 @@ impl BnetSrp6 {
 
     /// Check credentials directly (without SRP challenge-response).
     ///
-    /// - `username`: SRP username = `hex(SHA256(email.to_uppercase()))`
+    /// - `username`: SRP username = `hex(SHA256(Utf8ToUpperOnlyLatin(email)))`
     /// - `password`: Password (uppercased for v1, case-sensitive for v2)
     pub fn check_credentials(&self, username: &str, password: &str) -> bool {
         let x = compute_x(self.version, username, password, &self.salt);
@@ -266,10 +266,22 @@ impl BnetSrp6 {
 
 /// Compute the SRP username from an email address.
 ///
-/// Returns `hex(SHA256(email.to_uppercase()))` (lowercase hex).
+/// C++ `Utf8ToUpperOnlyLatin`: uppercase only ASCII `a..z`, leave all other
+/// Unicode scalar values unchanged.
+pub fn utf8_to_upper_only_latin_like_cpp(input: &str) -> String {
+    input
+        .chars()
+        .map(|ch| match ch {
+            'a'..='z' => ((ch as u8) - b'a' + b'A') as char,
+            _ => ch,
+        })
+        .collect()
+}
+
+/// Returns `hex(SHA256(Utf8ToUpperOnlyLatin(email)))`.
 pub fn srp_username(email: &str) -> String {
-    let hash = Sha256::digest(email.to_uppercase().as_bytes());
-    // C# uses b.ToString("X2") → UPPERCASE hex
+    let normalized = utf8_to_upper_only_latin_like_cpp(email);
+    let hash = Sha256::digest(normalized.as_bytes());
     hex::encode_upper(hash)
 }
 
@@ -283,7 +295,7 @@ pub fn generate_bnet_salt() -> [u8; 32] {
 /// Compute a password verifier for registration.
 ///
 /// - `version`: SRP version
-/// - `username`: SRP username = `hex(SHA256(email.to_uppercase()))`
+/// - `username`: SRP username = `hex(SHA256(Utf8ToUpperOnlyLatin(email)))`
 /// - `password`: Password (uppercased for v1, case-sensitive for v2)
 /// - `salt`: Random salt
 pub fn compute_bnet_verifier(
@@ -466,14 +478,32 @@ mod tests {
     use super::*;
 
     #[test]
-    fn srp_username_is_sha256_of_uppercased_email() {
+    fn utf8_to_upper_only_latin_matches_cpp_basic_latin_only() {
+        assert_eq!(
+            utf8_to_upper_only_latin_like_cpp("testéß@example.com"),
+            "TESTéß@EXAMPLE.COM"
+        );
+    }
+
+    #[test]
+    fn srp_username_is_sha256_of_cpp_latin_upper_email() {
         let email = "test@example.com";
         let username = srp_username(email);
-        // SHA256("TEST@EXAMPLE.COM") — C# uses UPPERCASE hex
         let expected = Sha256::digest(b"TEST@EXAMPLE.COM");
         assert_eq!(username, hex::encode_upper(expected));
         // Verify it's uppercase
         assert_eq!(username, username.to_uppercase());
+    }
+
+    #[test]
+    fn srp_username_does_not_apply_unicode_uppercase_like_cpp() {
+        let email = "testéß@example.com";
+        let username = srp_username(email);
+        let expected = Sha256::digest("TESTéß@EXAMPLE.COM".as_bytes());
+        let unicode_upper = Sha256::digest(email.to_uppercase().as_bytes());
+
+        assert_eq!(username, hex::encode_upper(expected));
+        assert_ne!(username, hex::encode_upper(unicode_upper));
     }
 
     #[test]

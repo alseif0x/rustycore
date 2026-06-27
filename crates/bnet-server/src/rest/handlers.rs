@@ -5,7 +5,9 @@ use num_traits::Zero;
 use rand::Rng;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
-use wow_crypto::{BnetSrp6, SrpHashFunction, SrpVersion, srp_username};
+use wow_crypto::{
+    BnetSrp6, SrpHashFunction, SrpVersion, srp_username, utf8_to_upper_only_latin_like_cpp,
+};
 use wow_database::LoginStatements;
 
 use super::HttpResponse;
@@ -354,14 +356,14 @@ async fn post_login(
         return json_response(error_result("Missing password"));
     };
 
-    let email_upper = email.to_uppercase();
-    let username = srp_username(&email_upper);
+    let email_normalized = utf8_to_upper_only_latin_like_cpp(&email);
+    let username = srp_username(&email_normalized);
 
     // Query account
     let mut stmt = state
         .login_db
         .prepare(LoginStatements::SEL_BNET_AUTHENTICATION);
-    stmt.set_string(0, &email_upper);
+    stmt.set_string(0, &email_normalized);
     let result = match state.login_db.query(&stmt).await {
         Ok(r) => r,
         Err(e) => {
@@ -390,7 +392,7 @@ async fn post_login(
         SrpVersion::V1
     };
     let password_for_srp = if version == SrpVersion::V1 {
-        password.to_uppercase()
+        utf8_to_upper_only_latin_like_cpp(&password)
     } else {
         password
     };
@@ -431,7 +433,7 @@ async fn post_login(
         apply_wrong_password_policy_like_cpp(
             state,
             account_id,
-            &email_upper,
+            &email_normalized,
             failed_logins,
             is_banned,
             headers,
@@ -464,13 +466,13 @@ async fn post_login_srp_challenge(
         return json_error_response(400, "Bad Request", "Missing account_name");
     };
 
-    let email_upper = email.to_uppercase();
-    let username = srp_username(&email_upper);
+    let email_normalized = utf8_to_upper_only_latin_like_cpp(&email);
+    let username = srp_username(&email_normalized);
 
     let mut stmt = state
         .login_db
         .prepare(LoginStatements::SEL_BNET_CHECK_PASSWORD_BY_EMAIL);
-    stmt.set_string(0, &email_upper);
+    stmt.set_string(0, &email_normalized);
     let result = match state.login_db.query(&stmt).await {
         Ok(r) => r,
         Err(e) => {
@@ -502,7 +504,7 @@ async fn post_login_srp_challenge(
         &salt,
         &verifier,
     );
-    let challenge = srp.challenge(&email_upper);
+    let challenge = srp.challenge(&email_normalized);
 
     let response = SrpLoginChallenge {
         version: challenge.version,
