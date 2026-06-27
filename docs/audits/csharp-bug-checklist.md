@@ -25,9 +25,9 @@ Estados:
 ## Resumen
 
 - Bugs confirmados contra C++: 51.
-- Bugs corregidos: 16 (`#CSharpAudit.COMPRESS.1`, `#CSharpAudit.BNETREST.1`, `#CSharpAudit.BNETREST.2`, `#CSharpAudit.BNETREST.3`, `#CSharpAudit.BNETREST.4`, `#CSharpAudit.FEATURE.1`, `#CSharpAudit.BNETSRP.1`, `#CSharpAudit.BNETSRP.2`, `#CSharpAudit.BNETSRP.3`, `#CSharpAudit.BNETSRP.4`, `#CSharpAudit.MOVEMENT.1`, `#CSharpAudit.SPELL.1`, `#CSharpAudit.COMBAT.1`, `#CSharpAudit.CHAT.1`, `#CSharpAudit.ITEM.1`, `#CSharpAudit.PARTY.3`).
+- Bugs corregidos: 17 (`#CSharpAudit.COMPRESS.1`, `#CSharpAudit.BNETREST.1`, `#CSharpAudit.BNETREST.2`, `#CSharpAudit.BNETREST.3`, `#CSharpAudit.BNETREST.4`, `#CSharpAudit.FEATURE.1`, `#CSharpAudit.BNETSRP.1`, `#CSharpAudit.BNETSRP.2`, `#CSharpAudit.BNETSRP.3`, `#CSharpAudit.BNETSRP.4`, `#CSharpAudit.MOVEMENT.1`, `#CSharpAudit.SPELL.1`, `#CSharpAudit.COMBAT.1`, `#CSharpAudit.CHAT.1`, `#CSharpAudit.ITEM.1`, `#CSharpAudit.PARTY.3`, `#CSharpAudit.PARTY.1`).
 - Commit historico registrado: `#CSharpAudit.MOVEMENT.1` -> `98ceec4d`.
-- Bugs pendientes de fix: 35.
+- Bugs pendientes de fix: 34.
 - Referencias C# productivas localizadas hoy: 52 archivos bajo `crates/**`.
 - Referencias C# documentales no-audit localizadas hoy: 39 archivos bajo `docs/**`.
 
@@ -76,7 +76,7 @@ indica donde se controla cada referencia.
 - [x] `#CSharpAudit.COMBAT.1` - Corregido; `SMSG_ATTACKER_STATE_UPDATE` escribe `WriteLogDataBit(false)`/`FlushBits()` en el paquete exterior antes de `attackRoundInfo.size()`, no dentro del sub-buffer. Test: `attacker_state_update_writes_custom_hit_info_like_cpp`.
 - [x] `#CSharpAudit.CHAT.1` - Corregido; rangos say/text-emote/yell salen de `ListenRange.*` (`CONFIG_LISTEN_RANGE_*`) como C++ `World.cpp`, con fallback de codigo 25/25/300 y propagacion a `WorldSession`. Tests: `chat_listen_ranges_use_cpp_world_config_keys`, `say_uses_cpp_configured_listen_range_like_cpp`, `chat_emote_uses_cpp_configured_text_emote_range_like_cpp`, `send_text_emote_uses_cpp_configured_text_emote_range_like_cpp`, `yell_uses_cpp_configured_listen_range_like_cpp`.
 - [ ] `#CSharpAudit.CHAT.2` - `CMSG_EMOTE`/`CMSG_SEND_TEXT_EMOTE` runtime simplificado frente a C++.
-- [ ] `#CSharpAudit.PARTY.1` - `SMSG_PARTY_INVITE` serializa campos vacios/default no C++.
+- [x] `#CSharpAudit.PARTY.1` - Corregido; `SMSG_PARTY_INVITE` usa `ProposedRoles`, account GUID, realm actual/normalizado y `AllowMultipleRoles=false` como C++ `PartyInvite::Initialize`. Test: `party_invite_server_uses_cpp_inviter_values_like_cpp`.
 - [ ] `#CSharpAudit.PARTY.2` - `HandlePartyInviteOpcode` omite validaciones C++.
 - [x] `#CSharpAudit.PARTY.3` - Corregido; invite/accept/leave conservan `PartyIndex` y no resuelven/fallan sobre HOME cuando C++ `Player::GetGroup(packet.PartyIndex)` pide otra categoria. Tests: `party_invite_party_index_instance_does_not_use_full_home_group_like_cpp`, `party_invite_response_party_index_mismatch_keeps_invite_pending_like_cpp`, `leave_group_party_index_instance_does_not_leave_home_group_like_cpp`.
 - [ ] `#CSharpAudit.PARTY.4` - Invite response/leave group modelan lifecycle distinto al C++.

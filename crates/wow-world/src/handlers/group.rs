@@ -837,7 +837,7 @@ impl WorldSession {
             }
         };
 
-        let _proposed_roles = pkt.read_uint32().unwrap_or(0);
+        let proposed_roles = pkt.read_uint32().unwrap_or(0);
 
         let _target_guid = match pkt.read_packed_guid() {
             Ok(g) => g,
@@ -942,16 +942,25 @@ impl WorldSession {
         // 6. Send invite dialog to the target.
         let inviter_name = self.player_name_like_cpp().unwrap_or_default().to_string();
         let vra = self.virtual_realm_address();
+        let (realm_name, realm_name_normalized) = self
+            .realm_names_for_address_like_cpp(vra)
+            .map(|(actual, normalized)| (actual.to_string(), normalized.to_string()))
+            .unwrap_or_default();
 
         if let Some(target_entry) = registry.get(&real_target_guid) {
             let invite = PartyInviteServer {
                 can_accept: true,
+                proposed_roles: proposed_roles as u8,
                 inviter_name: inviter_name.clone(),
                 inviter_guid: my_guid,
-                inviter_bnet_account_guid: ObjectGuid::EMPTY,
+                inviter_bnet_account_guid: ObjectGuid::create_global(
+                    HighGuid::WowAccount,
+                    0,
+                    self.account_id as i64,
+                ),
                 virtual_realm_address: vra,
-                realm_name: String::new(),
-                realm_name_normalized: String::new(),
+                realm_name,
+                realm_name_normalized,
             };
             let _ = target_entry.send_tx.send(invite.to_bytes());
         }
@@ -3508,6 +3517,80 @@ mod tests {
             u16::from_le_bytes([invite[0], invite[1]]),
             ServerOpcodes::PartyInvite as u16
         );
+    }
+
+    #[tokio::test]
+    async fn party_invite_server_uses_cpp_inviter_values_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send();
+        let inviter = ObjectGuid::create_player(1, 42);
+        let target = ObjectGuid::create_player(1, 77);
+        let target_name = format!("Player{}", target.low_value());
+        let inviter_name = "Leader";
+
+        session.set_player_guid(Some(inviter));
+        session.set_loaded_player_name_like_cpp(inviter_name.to_string());
+        session.set_realm_handle_like_cpp(5, 6, 9);
+        session.set_realm_names_like_cpp([(
+            0x0506_0009,
+            "Ice Crown".to_string(),
+            "IceCrown".to_string(),
+        )]);
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (target_tx, target_rx) = bounded(8);
+        player_registry.insert(target, broadcast_info(target, target_tx));
+        session.set_player_registry(player_registry);
+        session.set_group_registry(
+            Arc::new(GroupRegistry::default()),
+            Arc::new(PendingInvites::default()),
+        );
+
+        session
+            .handle_party_invite(party_invite_packet(target, &target_name, None, 0x12))
+            .await;
+
+        let invite = target_rx.try_recv().expect("target invite packet");
+        let mut packet = WorldPacket::from_bytes(&invite);
+        assert_eq!(
+            packet.read_uint16().expect("opcode"),
+            ServerOpcodes::PartyInvite as u16
+        );
+        assert!(packet.read_bit().expect("can accept"));
+        assert!(!packet.read_bit().expect("might CRZ"));
+        assert!(!packet.read_bit().expect("is xrealm"));
+        assert!(!packet.read_bit().expect("must be bnet friend"));
+        assert!(!packet.read_bit().expect("allow multiple roles"));
+        assert!(!packet.read_bit().expect("quest session active"));
+        let name_len = packet.read_bits(6).expect("inviter name len") as usize;
+        assert_eq!(packet.read_uint32().expect("realm address"), 0x0506_0009);
+        assert!(packet.read_bit().expect("is local realm"));
+        assert!(!packet.read_bit().expect("is internal realm"));
+        let realm_len = packet.read_bits(8).expect("realm len") as usize;
+        let realm_normalized_len = packet.read_bits(8).expect("realm normalized len") as usize;
+        assert_eq!(
+            packet.read_string(realm_len).expect("realm name"),
+            "Ice Crown"
+        );
+        assert_eq!(
+            packet
+                .read_string(realm_normalized_len)
+                .expect("normalized realm name"),
+            "IceCrown"
+        );
+        assert_eq!(packet.read_packed_guid().expect("inviter guid"), inviter);
+        assert_eq!(
+            packet.read_packed_guid().expect("account guid"),
+            ObjectGuid::create_global(HighGuid::WowAccount, 0, 1)
+        );
+        assert_eq!(packet.read_uint16().expect("unk1"), 0);
+        assert_eq!(packet.read_uint8().expect("proposed roles"), 0x12);
+        assert_eq!(packet.read_int32().expect("lfg slot count"), 0);
+        assert_eq!(packet.read_int32().expect("lfg completed mask"), 0);
+        assert_eq!(
+            packet.read_string(name_len).expect("inviter name"),
+            inviter_name
+        );
+        assert!(packet.is_empty());
     }
 
     #[tokio::test]
