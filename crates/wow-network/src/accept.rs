@@ -375,6 +375,8 @@ pub struct SessionResources {
     pub start_all_spells: bool,
     /// C++ `CONFIG_SUPPORT_ENABLED` / `Support.Enabled`.
     pub support_enabled: bool,
+    /// C++ `CONFIG_SUPPORT_TICKETS_ENABLED` / `Support.TicketsEnabled`.
+    pub support_tickets_enabled: bool,
     /// C++ `CONFIG_SUPPORT_BUGS_ENABLED` / `Support.BugsEnabled`.
     pub support_bugs_enabled: bool,
     /// C++ `CONFIG_SUPPORT_COMPLAINTS_ENABLED` / `Support.ComplaintsEnabled`.
@@ -387,6 +389,12 @@ pub struct SessionResources {
     pub addon_channel: bool,
     /// C++ `CONFIG_EXPANSION`; used by map-entry expansion gates.
     pub server_expansion: u8,
+    /// C++ `CONFIG_CHARACTERS_PER_REALM` / `CharactersPerRealm`.
+    pub characters_per_realm: u32,
+    /// C++ `CONFIG_FEATURE_SYSTEM_BPAY_STORE_ENABLED`.
+    pub feature_system_bpay_store_enabled: bool,
+    /// C++ `CONFIG_FEATURE_SYSTEM_CHARACTER_UNDELETE_ENABLED`.
+    pub feature_system_character_undelete_enabled: bool,
     /// C++ `CONFIG_INSTANCE_IGNORE_RAID` / `Instance.IgnoreRaid`.
     pub instance_ignore_raid: bool,
     /// C++ `CONFIG_INSTANCE_IGNORE_LEVEL` / `Instance.IgnoreLevel`.

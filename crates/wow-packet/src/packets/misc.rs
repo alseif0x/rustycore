@@ -2036,16 +2036,48 @@ impl ServerPacket for TriggerMovie {
 /// Feature system status sent AFTER entering the world.
 /// This is the in-game variant; for the character select screen use
 /// [`FeatureSystemStatusGlueScreen`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FeatureSystemConfigLikeCpp {
+    pub support_tickets_enabled: bool,
+    pub support_bugs_enabled: bool,
+    pub support_complaints_enabled: bool,
+    pub support_suggestions_enabled: bool,
+    pub char_undelete_enabled: bool,
+    pub bpay_store_enabled: bool,
+}
+
+impl Default for FeatureSystemConfigLikeCpp {
+    fn default() -> Self {
+        Self {
+            support_tickets_enabled: false,
+            support_bugs_enabled: false,
+            support_complaints_enabled: false,
+            support_suggestions_enabled: false,
+            char_undelete_enabled: false,
+            bpay_store_enabled: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FeatureSystemStatus {
     pub cfg_realm_id: u32,
     pub cfg_realm_rec_id: i32,
+    pub config: FeatureSystemConfigLikeCpp,
+    pub is_muted: bool,
 }
 
 impl FeatureSystemStatus {
     pub fn default_wotlk() -> Self {
+        Self::from_config_like_cpp(FeatureSystemConfigLikeCpp::default(), false)
+    }
+
+    pub fn from_config_like_cpp(config: FeatureSystemConfigLikeCpp, is_muted: bool) -> Self {
         Self {
             cfg_realm_id: 2,
             cfg_realm_rec_id: 0,
+            config,
+            is_muted,
         }
     }
 }
@@ -2086,7 +2118,7 @@ impl ServerPacket for FeatureSystemStatus {
         // Bit flags in C++ `FeatureSystemStatus::Write` order.
         pkt.write_bit(false); // VoiceEnabled
         pkt.write_bit(true); // EuropaTicketSystemStatus.HasValue
-        pkt.write_bit(false); // BpayStoreEnabled
+        pkt.write_bit(self.config.bpay_store_enabled); // BpayStoreEnabled
         pkt.write_bit(false); // BpayStoreAvailable
         pkt.write_bit(false); // BpayStoreDisabledByParentalControls
         pkt.write_bit(false); // ItemRestorationButtonEnabled
@@ -2094,7 +2126,7 @@ impl ServerPacket for FeatureSystemStatus {
         pkt.write_bit(false); // SessionAlert.HasValue
         pkt.write_bit(false); // RAFSystem.Enabled
         pkt.write_bit(false); // RAFSystem.RecruitingEnabled
-        pkt.write_bit(false); // CharUndeleteEnabled
+        pkt.write_bit(self.config.char_undelete_enabled); // CharUndeleteEnabled
         pkt.write_bit(false); // RestrictedAccount
         pkt.write_bit(false); // CommerceSystemEnabled
         pkt.write_bit(true); // TutorialsEnabled
@@ -2111,7 +2143,7 @@ impl ServerPacket for FeatureSystemStatus {
         pkt.write_bit(false); // VoiceChatDisabledByParentalControl
         pkt.write_bit(false); // VoiceChatMutedByParentalControl
         pkt.write_bit(false); // QuestSessionEnabled
-        pkt.write_bit(false); // IsMuted
+        pkt.write_bit(self.is_muted); // IsMuted
         pkt.write_bit(false); // ClubFinderEnabled
         pkt.write_bit(false); // Unknown901CheckoutRelated
         pkt.write_bit(false); // TextToSpeechFeatureEnabled
@@ -2161,10 +2193,10 @@ impl ServerPacket for FeatureSystemStatus {
         pkt.write_packed_guid(&ObjectGuid::EMPTY); // Squelch.GuildGuid
 
         // EuropaTicketSystemStatus (present in C++ login defaults).
-        pkt.write_bit(false); // TicketsEnabled
-        pkt.write_bit(false); // BugsEnabled
-        pkt.write_bit(false); // ComplaintsEnabled
-        pkt.write_bit(false); // SuggestionsEnabled
+        pkt.write_bit(self.config.support_tickets_enabled); // TicketsEnabled
+        pkt.write_bit(self.config.support_bugs_enabled); // BugsEnabled
+        pkt.write_bit(self.config.support_complaints_enabled); // ComplaintsEnabled
+        pkt.write_bit(self.config.support_suggestions_enabled); // SuggestionsEnabled
         pkt.write_uint32(10); // ThrottleState.MaxTries
         pkt.write_uint32(60000); // ThrottleState.PerMilliseconds
         pkt.write_uint32(1); // ThrottleState.TryCount
@@ -2177,15 +2209,28 @@ impl ServerPacket for FeatureSystemStatus {
 /// Feature system status for the glue screen (character select).
 /// This is the version sent during session init, BEFORE entering the world.
 /// Different opcode and format from [`FeatureSystemStatus`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FeatureSystemStatusGlueScreen {
     pub max_characters_per_realm: i32,
+    pub maximum_expansion_level: i32,
+    pub config: FeatureSystemConfigLikeCpp,
 }
 
 impl FeatureSystemStatusGlueScreen {
-    /// Default values matching C# SendFeatureSystemStatusGlueScreen.
+    /// Default values matching C++ SendFeatureSystemStatusGlueScreen defaults.
     pub fn default_wotlk() -> Self {
+        Self::from_config_like_cpp(FeatureSystemConfigLikeCpp::default(), 60, 2)
+    }
+
+    pub fn from_config_like_cpp(
+        config: FeatureSystemConfigLikeCpp,
+        max_characters_per_realm: i32,
+        maximum_expansion_level: i32,
+    ) -> Self {
         Self {
-            max_characters_per_realm: 60,
+            max_characters_per_realm,
+            maximum_expansion_level,
+            config,
         }
     }
 }
@@ -2194,11 +2239,11 @@ impl ServerPacket for FeatureSystemStatusGlueScreen {
     const OPCODE: ServerOpcodes = ServerOpcodes::FeatureSystemStatusGlueScreen;
 
     fn write(&self, pkt: &mut WorldPacket) {
-        // ── 27 bit flags (exact C# order) ──
-        pkt.write_bit(false); // BpayStoreEnabled
+        // ── 27 bit flags (exact C++ order) ──
+        pkt.write_bit(self.config.bpay_store_enabled); // BpayStoreEnabled
         pkt.write_bit(false); // BpayStoreAvailable
         pkt.write_bit(false); // BpayStoreDisabledByParentalControls
-        pkt.write_bit(false); // CharUndeleteEnabled
+        pkt.write_bit(self.config.char_undelete_enabled); // CharUndeleteEnabled
         pkt.write_bit(false); // CommerceSystemEnabled
         pkt.write_bit(false); // Unk14
         pkt.write_bit(false); // WillKickFromWorld
@@ -2233,11 +2278,11 @@ impl ServerPacket for FeatureSystemStatusGlueScreen {
         // EuropaTicketConfig.Write():
         //   4 bits (TicketsEnabled, BugsEnabled, ComplaintsEnabled, SuggestionsEnabled)
         //   then SavedThrottleObjectState (4 × u32)
-        pkt.write_bit(false); // TicketsEnabled (SupportTicketsEnabled config, default false)
-        pkt.write_bit(false); // BugsEnabled (SupportBugsEnabled config, default false)
-        pkt.write_bit(false); // ComplaintsEnabled (SupportComplaintsEnabled config, default false)
-        pkt.write_bit(false); // SuggestionsEnabled (SupportSuggestionsEnabled config, default false)
-        // SavedThrottleObjectState — C# hardcodes these in SendFeatureSystemStatusGlueScreen:
+        pkt.write_bit(self.config.support_tickets_enabled); // TicketsEnabled
+        pkt.write_bit(self.config.support_bugs_enabled); // BugsEnabled
+        pkt.write_bit(self.config.support_complaints_enabled); // ComplaintsEnabled
+        pkt.write_bit(self.config.support_suggestions_enabled); // SuggestionsEnabled
+        // SavedThrottleObjectState — C++ sets these dummy values:
         pkt.write_uint32(10); // MaxTries
         pkt.write_uint32(60000); // PerMilliseconds
         pkt.write_uint32(1); // TryCount
@@ -2253,7 +2298,7 @@ impl ServerPacket for FeatureSystemStatusGlueScreen {
         pkt.write_int32(0); // ActiveCharacterUpgradeBoostType
         pkt.write_int32(0); // ActiveClassTrialBoostType
         pkt.write_int32(0); // MinimumExpansionLevel (Classic=0)
-        pkt.write_int32(2); // MaximumExpansionLevel (WotLK=2)
+        pkt.write_int32(self.maximum_expansion_level); // MaximumExpansionLevel
         pkt.write_int32(0); // ActiveSeason
         pkt.write_int32(0); // GameRuleValues.Count
         pkt.write_int16(50); // MaxPlayerNameQueriesPerPacket
@@ -10250,6 +10295,40 @@ mod tests {
     }
 
     #[test]
+    fn feature_system_status_uses_cpp_config_flags() {
+        let config = FeatureSystemConfigLikeCpp {
+            support_tickets_enabled: true,
+            support_bugs_enabled: false,
+            support_complaints_enabled: true,
+            support_suggestions_enabled: false,
+            char_undelete_enabled: true,
+            bpay_store_enabled: true,
+        };
+        let pkt = FeatureSystemStatus::from_config_like_cpp(config, true);
+        let bytes = pkt.to_bytes();
+        let mut payload = WorldPacket::from_bytes(&bytes[2..]);
+
+        payload.skip(73).unwrap();
+        let flags: Vec<bool> = (0..42).map(|_| payload.read_bit().unwrap()).collect();
+        assert!(!flags[0]); // VoiceEnabled
+        assert!(flags[1]); // EuropaTicketSystemStatus.HasValue
+        assert!(flags[2]); // BpayStoreEnabled
+        assert!(flags[10]); // CharUndeleteEnabled
+        assert!(flags[27]); // IsMuted = !CanSpeak()
+
+        payload.reset_bits();
+        assert!(!payload.read_bit().unwrap()); // QuickJoinConfig.ToastsDisabled
+        payload.skip(22 * 4).unwrap();
+        assert!(!payload.read_bit().unwrap()); // Squelch.IsSquelched
+        payload.skip(4).unwrap(); // two empty packed GUIDs
+
+        assert!(payload.read_bit().unwrap()); // TicketsEnabled
+        assert!(!payload.read_bit().unwrap()); // BugsEnabled
+        assert!(payload.read_bit().unwrap()); // ComplaintsEnabled
+        assert!(!payload.read_bit().unwrap()); // SuggestionsEnabled
+    }
+
+    #[test]
     fn feature_system_status_glue_screen_serializes() {
         let pkt = FeatureSystemStatusGlueScreen::default_wotlk();
         let bytes = pkt.to_bytes();
@@ -10257,6 +10336,44 @@ mod tests {
         // Verify opcode is FeatureSystemStatusGlueScreen (0x25c0)
         let opcode = u16::from_le_bytes([bytes[0], bytes[1]]);
         assert_eq!(opcode, 0x25c0);
+    }
+
+    #[test]
+    fn feature_system_status_glue_screen_uses_cpp_config_fields() {
+        let config = FeatureSystemConfigLikeCpp {
+            support_tickets_enabled: true,
+            support_bugs_enabled: true,
+            support_complaints_enabled: false,
+            support_suggestions_enabled: true,
+            char_undelete_enabled: true,
+            bpay_store_enabled: true,
+        };
+        let pkt = FeatureSystemStatusGlueScreen::from_config_like_cpp(config, 123, 9);
+        let bytes = pkt.to_bytes();
+        let mut payload = WorldPacket::from_bytes(&bytes[2..]);
+
+        let flags: Vec<bool> = (0..27).map(|_| payload.read_bit().unwrap()).collect();
+        assert!(flags[0]); // BpayStoreEnabled
+        assert!(flags[3]); // CharUndeleteEnabled
+        assert!(flags[19]); // EuropaTicketSystemStatus.HasValue
+
+        payload.reset_bits();
+        assert!(payload.read_bit().unwrap()); // TicketsEnabled
+        assert!(payload.read_bit().unwrap()); // BugsEnabled
+        assert!(!payload.read_bit().unwrap()); // ComplaintsEnabled
+        assert!(payload.read_bit().unwrap()); // SuggestionsEnabled
+
+        payload.skip(16).unwrap(); // SavedThrottleObjectState
+        assert_eq!(payload.read_uint32().unwrap(), 0); // TokenPollTimeSeconds
+        assert_eq!(payload.read_uint32().unwrap(), 0); // KioskSessionMinutes
+        assert_eq!(payload.read_uint64().unwrap(), 0); // TokenBalanceAmount
+        assert_eq!(payload.read_int32().unwrap(), 123); // MaxCharactersPerRealm
+        assert_eq!(payload.read_uint32().unwrap(), 0); // LiveRegionCharacterCopySourceRegions
+        assert_eq!(payload.read_uint32().unwrap(), 0); // BpayStoreProductDeliveryDelay
+        assert_eq!(payload.read_int32().unwrap(), 0); // ActiveCharacterUpgradeBoostType
+        assert_eq!(payload.read_int32().unwrap(), 0); // ActiveClassTrialBoostType
+        assert_eq!(payload.read_int32().unwrap(), 0); // MinimumExpansionLevel
+        assert_eq!(payload.read_int32().unwrap(), 9); // MaximumExpansionLevel
     }
 
     #[test]

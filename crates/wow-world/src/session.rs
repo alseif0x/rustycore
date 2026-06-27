@@ -184,6 +184,7 @@ use wow_packet::packets::item::{
 use wow_packet::packets::misc::{
     AccountHeirloom, AccountHeirloomUpdate, AccountMount, AccountMountUpdate, AccountToy,
     AccountToyUpdate, BuyFailed, DungeonDifficultySet, EQUIP_ERR_NOT_ENOUGH_MONEY_LIKE_CPP,
+    FeatureSystemConfigLikeCpp, FeatureSystemStatus, FeatureSystemStatusGlueScreen,
     MOUNT_RESULT_SHAPESHIFTED_LIKE_CPP, MountResult, NUM_ACCOUNT_DATA_TYPES, RaidDifficultySet,
     SellResponse, SetProficiency, SetupCurrency, SetupCurrencyRecord, SpellChargeEntry,
     SpellHistoryEntry, TRADE_SLOT_COUNT_LIKE_CPP, TRADE_STATUS_ACCEPTED_LIKE_CPP,
@@ -3664,6 +3665,9 @@ pub struct WorldSession {
     pub expansion: u8,
     pub account_expansion: u8,
     server_expansion_like_cpp: u8,
+    characters_per_realm_like_cpp: u32,
+    feature_system_bpay_store_enabled_like_cpp: bool,
+    feature_system_character_undelete_enabled_like_cpp: bool,
     instance_ignore_raid_like_cpp: bool,
     instance_ignore_level_like_cpp: bool,
     max_instances_per_hour_like_cpp: u32,
@@ -4551,6 +4555,7 @@ pub struct WorldSession {
     represented_movie_like_cpp: Option<u32>,
     represented_movie_complete_events_like_cpp: Vec<u32>,
     represented_support_enabled_like_cpp: bool,
+    represented_support_tickets_enabled_like_cpp: bool,
     represented_support_bugs_enabled_like_cpp: bool,
     represented_support_complaints_enabled_like_cpp: bool,
     represented_support_suggestions_enabled_like_cpp: bool,
@@ -5665,6 +5670,9 @@ impl WorldSession {
             expansion,
             account_expansion,
             server_expansion_like_cpp: 2,
+            characters_per_realm_like_cpp: 60,
+            feature_system_bpay_store_enabled_like_cpp: false,
+            feature_system_character_undelete_enabled_like_cpp: false,
             instance_ignore_raid_like_cpp: false,
             instance_ignore_level_like_cpp: false,
             max_instances_per_hour_like_cpp: 5,
@@ -6149,6 +6157,7 @@ impl WorldSession {
             represented_movie_like_cpp: None,
             represented_movie_complete_events_like_cpp: Vec::new(),
             represented_support_enabled_like_cpp: true,
+            represented_support_tickets_enabled_like_cpp: false,
             represented_support_bugs_enabled_like_cpp: false,
             represented_support_complaints_enabled_like_cpp: false,
             represented_support_suggestions_enabled_like_cpp: false,
@@ -16911,6 +16920,18 @@ impl WorldSession {
         self.server_expansion_like_cpp = expansion;
     }
 
+    pub fn set_characters_per_realm_like_cpp(&mut self, characters_per_realm: u32) {
+        self.characters_per_realm_like_cpp = characters_per_realm;
+    }
+
+    pub fn set_feature_system_bpay_store_enabled_like_cpp(&mut self, enabled: bool) {
+        self.feature_system_bpay_store_enabled_like_cpp = enabled;
+    }
+
+    pub fn set_feature_system_character_undelete_enabled_like_cpp(&mut self, enabled: bool) {
+        self.feature_system_character_undelete_enabled_like_cpp = enabled;
+    }
+
     pub fn set_instance_ignore_raid_like_cpp(&mut self, ignore: bool) {
         self.instance_ignore_raid_like_cpp = ignore;
     }
@@ -21295,6 +21316,14 @@ impl WorldSession {
         self.represented_support_enabled_like_cpp = enabled;
     }
 
+    pub(crate) fn represented_support_tickets_enabled_like_cpp(&self) -> bool {
+        self.represented_support_tickets_enabled_like_cpp
+    }
+
+    pub fn set_represented_support_tickets_enabled_like_cpp(&mut self, enabled: bool) {
+        self.represented_support_tickets_enabled_like_cpp = enabled;
+    }
+
     pub(crate) fn represented_support_bugs_enabled_like_cpp(&self) -> bool {
         self.represented_support_bugs_enabled_like_cpp
     }
@@ -21331,6 +21360,34 @@ impl WorldSession {
     pub(crate) fn represented_suggestion_system_status_like_cpp(&self) -> bool {
         self.represented_support_enabled_like_cpp
             && self.represented_support_suggestions_enabled_like_cpp
+    }
+
+    fn feature_system_config_like_cpp(&self) -> FeatureSystemConfigLikeCpp {
+        FeatureSystemConfigLikeCpp {
+            support_tickets_enabled: self.represented_support_tickets_enabled_like_cpp(),
+            support_bugs_enabled: self.represented_support_bugs_enabled_like_cpp(),
+            support_complaints_enabled: self.represented_support_complaints_enabled_like_cpp(),
+            support_suggestions_enabled: self.represented_support_suggestions_enabled_like_cpp(),
+            char_undelete_enabled: self.feature_system_character_undelete_enabled_like_cpp,
+            bpay_store_enabled: self.feature_system_bpay_store_enabled_like_cpp,
+        }
+    }
+
+    pub(crate) fn feature_system_status_like_cpp(&self) -> FeatureSystemStatus {
+        FeatureSystemStatus::from_config_like_cpp(
+            self.feature_system_config_like_cpp(),
+            !self.can_speak_like_cpp(),
+        )
+    }
+
+    pub(crate) fn feature_system_status_glue_screen_like_cpp(
+        &self,
+    ) -> FeatureSystemStatusGlueScreen {
+        FeatureSystemStatusGlueScreen::from_config_like_cpp(
+            self.feature_system_config_like_cpp(),
+            self.characters_per_realm_like_cpp as i32,
+            i32::from(self.server_expansion_like_cpp),
+        )
     }
 
     pub(crate) fn spell_range_store(&self) -> Option<&Arc<SpellRangeStore>> {
@@ -30909,7 +30966,7 @@ impl WorldSession {
         self.send_packet(&SetTimeZoneInformation::utc());
 
         // 3. FeatureSystemStatusGlueScreen (character select version, NOT in-game)
-        self.send_packet(&FeatureSystemStatusGlueScreen::default_wotlk());
+        self.send_packet(&self.feature_system_status_glue_screen_like_cpp());
 
         // 4. ClientCacheVersion (from world DB version.cache_id = 24081)
         self.send_packet(&ClientCacheVersion {

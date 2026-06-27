@@ -4593,6 +4593,11 @@ async fn main() -> Result<ExitCode> {
         start_all_reputation: world_config_bool(&world_configs, "CONFIG_START_ALL_REP", false),
         start_all_spells: world_config_bool(&world_configs, "CONFIG_START_ALL_SPELLS", false),
         support_enabled: world_config_bool(&world_configs, "CONFIG_SUPPORT_ENABLED", true),
+        support_tickets_enabled: world_config_bool(
+            &world_configs,
+            "CONFIG_SUPPORT_TICKETS_ENABLED",
+            false,
+        ),
         support_bugs_enabled: world_config_bool(
             &world_configs,
             "CONFIG_SUPPORT_BUGS_ENABLED",
@@ -4621,6 +4626,17 @@ async fn main() -> Result<ExitCode> {
         enable_ae_loot: world_config_bool(&world_configs, "CONFIG_ENABLE_AE_LOOT", false),
         addon_channel: world_config_bool(&world_configs, "CONFIG_ADDON_CHANNEL", true),
         server_expansion: world_config_u8(&world_configs, "CONFIG_EXPANSION", 2),
+        characters_per_realm: world_config_u32(&world_configs, "CONFIG_CHARACTERS_PER_REALM", 60),
+        feature_system_bpay_store_enabled: world_config_bool(
+            &world_configs,
+            "CONFIG_FEATURE_SYSTEM_BPAY_STORE_ENABLED",
+            false,
+        ),
+        feature_system_character_undelete_enabled: world_config_bool(
+            &world_configs,
+            "CONFIG_FEATURE_SYSTEM_CHARACTER_UNDELETE_ENABLED",
+            false,
+        ),
         instance_ignore_raid: world_config_bool(
             &world_configs,
             "CONFIG_INSTANCE_IGNORE_RAID",
@@ -11621,6 +11637,7 @@ async fn create_session(
     session.set_start_all_reputation_like_cpp(resources.start_all_reputation);
     session.set_start_all_spells_like_cpp(resources.start_all_spells);
     session.set_represented_support_enabled_like_cpp(resources.support_enabled);
+    session.set_represented_support_tickets_enabled_like_cpp(resources.support_tickets_enabled);
     session.set_represented_support_bugs_enabled_like_cpp(resources.support_bugs_enabled);
     session
         .set_represented_support_complaints_enabled_like_cpp(resources.support_complaints_enabled);
@@ -11630,6 +11647,13 @@ async fn create_session(
     session.set_enable_ae_loot_like_cpp(resources.enable_ae_loot);
     session.set_addon_channel_like_cpp(resources.addon_channel);
     session.set_server_expansion_like_cpp(resources.server_expansion);
+    session.set_characters_per_realm_like_cpp(resources.characters_per_realm);
+    session.set_feature_system_bpay_store_enabled_like_cpp(
+        resources.feature_system_bpay_store_enabled,
+    );
+    session.set_feature_system_character_undelete_enabled_like_cpp(
+        resources.feature_system_character_undelete_enabled,
+    );
     session.set_instance_ignore_raid_like_cpp(resources.instance_ignore_raid);
     session.set_instance_ignore_level_like_cpp(resources.instance_ignore_level);
     session.set_max_instances_per_hour_like_cpp(resources.max_instances_per_hour);
