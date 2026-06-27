@@ -13013,7 +13013,7 @@ impl WorldSession {
 
     /// C++ `Player::_LoadTraits`: `CHAR_SEL_CHAR_TRAIT_CONFIGS` +
     /// `CHAR_SEL_CHAR_TRAIT_ENTRIES`, serialized in ActivePlayerData::TraitConfigs.
-    async fn load_active_player_trait_configs_like_cpp(
+    pub(crate) async fn load_active_player_trait_configs_like_cpp(
         &self,
         guid: ObjectGuid,
     ) -> Vec<TraitConfigCreateData> {
@@ -13106,7 +13106,7 @@ impl WorldSession {
     /// The rows are copied into `PlayerData::Customizations` before
     /// `PlayerData::WriteCreate`, and each element serializes as
     /// `(ChrCustomizationOptionID, ChrCustomizationChoiceID)` uint32s.
-    async fn load_player_customizations_like_cpp(
+    pub(crate) async fn load_player_customizations_like_cpp(
         &self,
         guid: ObjectGuid,
     ) -> Vec<ChrCustomizationChoiceValuesUpdate> {
