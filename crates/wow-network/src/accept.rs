@@ -101,6 +101,24 @@ impl Default for ChatLevelRequirementsLikeCpp {
     }
 }
 
+/// C++ `ListenRange.*` represented session snapshot.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ChatListenRangesLikeCpp {
+    pub say: f32,
+    pub text_emote: f32,
+    pub yell: f32,
+}
+
+impl Default for ChatListenRangesLikeCpp {
+    fn default() -> Self {
+        Self {
+            say: 25.0,
+            text_emote: 25.0,
+            yell: 300.0,
+        }
+    }
+}
+
 /// C++ `ChatFlood.*` represented session snapshot.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ChatFloodConfigLikeCpp {
@@ -405,6 +423,7 @@ pub struct SessionResources {
     pub party_raid_warnings: bool,
     pub chat_strict_link_checking_kick: bool,
     pub chat_level_requirements: ChatLevelRequirementsLikeCpp,
+    pub chat_listen_ranges: ChatListenRangesLikeCpp,
     pub chat_flood_config: ChatFloodConfigLikeCpp,
     pub max_overspeed_pings: u32,
     pub socket_timeouts: SocketTimeoutsLikeCpp,

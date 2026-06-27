@@ -9,10 +9,8 @@
 //! via the shared PlayerRegistry. Whispers are forwarded to the named target if
 //! they are online; otherwise echoed back as a "not found" message.
 //!
-//! Broadcast ranges (matching C# WorldConfig defaults):
-//!   Say         25 yards
-//!   Yell       300 yards
-//!   Text emote  25 yards
+//! Broadcast ranges use C++ `ListenRange.Say`, `ListenRange.TextEmote`, and
+//! `ListenRange.Yell` from `World.cpp`.
 //!
 //! Reference: C# Game/Handlers/ChatHandler.cs, Game/Entities/Player/Player.cs
 
@@ -38,10 +36,6 @@ use crate::session::{
     ChatFloodThrottleIndexLikeCpp, PlayerAwayModeLikeCpp, WorldSession, player_team_for_race_cpp,
 };
 
-// ── Broadcast range constants (C# WorldCfg defaults) ─────────────
-const RANGE_SAY: f32 = 25.0;
-const RANGE_YELL: f32 = 300.0;
-const RANGE_EMOTE: f32 = 25.0;
 const LANG_UNIVERSAL_LIKE_CPP: i32 = 0;
 const LANG_ADDON_LIKE_CPP: u32 = 183;
 const LANG_ADDON_LOGGED_LIKE_CPP: u32 = 184;
@@ -389,10 +383,11 @@ impl WorldSession {
         self.send_packet(&chat);
 
         // Broadcast to nearby players on the same map.
+        let listen_ranges = self.chat_listen_ranges_like_cpp();
         let range = if msg_type == ChatMsg::Yell {
-            RANGE_YELL
+            listen_ranges.yell
         } else {
-            RANGE_SAY
+            listen_ranges.say
         };
         self.broadcast_chat_packet(&chat, range);
     }
@@ -813,7 +808,7 @@ impl WorldSession {
             virtual_realm,
         };
         self.send_packet(&chat);
-        self.broadcast_chat_packet(&chat, RANGE_EMOTE);
+        self.broadcast_chat_packet(&chat, self.chat_listen_ranges_like_cpp().text_emote);
     }
 
     /// Handle CMSG_EMOTE — client notifies us it cleared its emote state.
@@ -883,8 +878,9 @@ impl WorldSession {
         self.send_packet(&anim_emote);
 
         // Broadcast both packets to nearby players.
-        self.broadcast_raw_packet(text_emote.to_bytes(), RANGE_EMOTE);
-        self.broadcast_raw_packet(anim_emote.to_bytes(), RANGE_EMOTE);
+        let text_emote_range = self.chat_listen_ranges_like_cpp().text_emote;
+        self.broadcast_raw_packet(text_emote.to_bytes(), text_emote_range);
+        self.broadcast_raw_packet(anim_emote.to_bytes(), text_emote_range);
     }
 
     /// CMSG_CHAT_REGISTER_ADDON_PREFIXES.
@@ -1495,8 +1491,8 @@ mod tests {
     use std::collections::{HashMap, HashSet};
     use std::sync::Arc;
     use wow_network::{
-        ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, PendingInvites, PlayerBroadcastInfo,
-        PlayerRegistry,
+        ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp,
+        PendingInvites, PlayerBroadcastInfo, PlayerRegistry,
     };
 
     const LANG_COMMON_LIKE_CPP: i32 = 7;
@@ -1613,6 +1609,16 @@ mod tests {
         wow_packet::WorldPacket::from_bytes(writer.data())
     }
 
+    fn text_emote_packet(emote_id: i32, sound_index: i32) -> wow_packet::WorldPacket {
+        let mut writer = wow_packet::WorldPacket::new_empty();
+        writer.write_packed_guid(&ObjectGuid::EMPTY);
+        writer.write_int32(emote_id);
+        writer.write_int32(sound_index);
+        writer.write_int32(0);
+        writer.write_int32(0);
+        wow_packet::WorldPacket::from_bytes(writer.data())
+    }
+
     fn chat_register_addon_prefixes_packet(prefixes: &[&str]) -> wow_packet::WorldPacket {
         let mut writer = wow_packet::WorldPacket::new_empty();
         writer.write_uint32(prefixes.len() as u32);
@@ -1688,6 +1694,16 @@ mod tests {
     fn broadcast_info(guid: ObjectGuid, send_tx: flume::Sender<Vec<u8>>) -> PlayerBroadcastInfo {
         let (command_tx, _command_rx) = flume::bounded(8);
         broadcast_info_with_command_tx(guid, send_tx, command_tx)
+    }
+
+    fn broadcast_info_at(
+        guid: ObjectGuid,
+        send_tx: flume::Sender<Vec<u8>>,
+        position: wow_core::Position,
+    ) -> PlayerBroadcastInfo {
+        let mut info = broadcast_info(guid, send_tx);
+        info.position = position;
+        info
     }
 
     fn broadcast_info_with_command_tx(
@@ -2079,6 +2095,168 @@ mod tests {
         assert!(response.read_bit().expect("success"));
         assert!(!response.read_bit().expect("chat disabled"));
         assert!(response.is_empty());
+    }
+
+    #[tokio::test]
+    async fn say_uses_cpp_configured_listen_range_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 335);
+        let nearby = ObjectGuid::create_player(1, 336);
+        let far = ObjectGuid::create_player(1, 337);
+        let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        let (nearby_tx, nearby_rx) = flume::bounded(8);
+        let (far_tx, far_rx) = flume::bounded(8);
+        session.set_chat_listen_ranges_like_cpp(ChatListenRangesLikeCpp {
+            say: 40.0,
+            text_emote: 25.0,
+            yell: 300.0,
+        });
+        player_registry.insert(
+            nearby,
+            broadcast_info_at(
+                nearby,
+                nearby_tx,
+                wow_core::Position::new(30.0, 0.0, 0.0, 0.0),
+            ),
+        );
+        player_registry.insert(
+            far,
+            broadcast_info_at(far, far_tx, wow_core::Position::new(41.0, 0.0, 0.0, 0.0)),
+        );
+
+        session
+            .handle_chat_message(
+                chat_message_packet(ClientOpcodes::ChatMessageSay, "configured say"),
+                ChatMsg::Say,
+            )
+            .await;
+
+        assert_eq!(
+            chat_text(&sender_rx.try_recv().expect("sender say echo")),
+            "configured say"
+        );
+        assert_eq!(
+            chat_text(&nearby_rx.try_recv().expect("nearby say")),
+            "configured say"
+        );
+        assert!(far_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn yell_uses_cpp_configured_listen_range_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 338);
+        let nearby = ObjectGuid::create_player(1, 339);
+        let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        let (nearby_tx, nearby_rx) = flume::bounded(8);
+        session.set_chat_listen_ranges_like_cpp(ChatListenRangesLikeCpp {
+            say: 25.0,
+            text_emote: 25.0,
+            yell: 20.0,
+        });
+        player_registry.insert(
+            nearby,
+            broadcast_info_at(
+                nearby,
+                nearby_tx,
+                wow_core::Position::new(30.0, 0.0, 0.0, 0.0),
+            ),
+        );
+
+        session
+            .handle_chat_message(
+                chat_message_packet(ClientOpcodes::ChatMessageYell, "configured yell"),
+                ChatMsg::Yell,
+            )
+            .await;
+
+        assert_eq!(
+            chat_text(&sender_rx.try_recv().expect("sender yell echo")),
+            "configured yell"
+        );
+        assert!(nearby_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn chat_emote_uses_cpp_configured_text_emote_range_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 340);
+        let nearby = ObjectGuid::create_player(1, 341);
+        let far = ObjectGuid::create_player(1, 342);
+        let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        let (nearby_tx, nearby_rx) = flume::bounded(8);
+        let (far_tx, far_rx) = flume::bounded(8);
+        session.set_chat_listen_ranges_like_cpp(ChatListenRangesLikeCpp {
+            say: 25.0,
+            text_emote: 40.0,
+            yell: 300.0,
+        });
+        player_registry.insert(
+            nearby,
+            broadcast_info_at(
+                nearby,
+                nearby_tx,
+                wow_core::Position::new(30.0, 0.0, 0.0, 0.0),
+            ),
+        );
+        player_registry.insert(
+            far,
+            broadcast_info_at(far, far_tx, wow_core::Position::new(41.0, 0.0, 0.0, 0.0)),
+        );
+
+        session
+            .handle_chat_emote(chat_emote_packet("configured emote"))
+            .await;
+
+        assert_eq!(
+            chat_text(&sender_rx.try_recv().expect("sender emote echo")),
+            "configured emote"
+        );
+        assert_eq!(
+            chat_text(&nearby_rx.try_recv().expect("nearby emote")),
+            "configured emote"
+        );
+        assert!(far_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn send_text_emote_uses_cpp_configured_text_emote_range_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 343);
+        let nearby = ObjectGuid::create_player(1, 344);
+        let far = ObjectGuid::create_player(1, 345);
+        let (mut session, player_registry, _sender_rx) = session_for_chat_routing_like_cpp(sender);
+        let (nearby_tx, nearby_rx) = flume::bounded(8);
+        let (far_tx, far_rx) = flume::bounded(8);
+        session.set_chat_listen_ranges_like_cpp(ChatListenRangesLikeCpp {
+            say: 25.0,
+            text_emote: 40.0,
+            yell: 300.0,
+        });
+        player_registry.insert(
+            nearby,
+            broadcast_info_at(
+                nearby,
+                nearby_tx,
+                wow_core::Position::new(30.0, 0.0, 0.0, 0.0),
+            ),
+        );
+        player_registry.insert(
+            far,
+            broadcast_info_at(far, far_tx, wow_core::Position::new(41.0, 0.0, 0.0, 0.0)),
+        );
+
+        session.handle_text_emote(text_emote_packet(66, 7)).await;
+
+        let mut text_emote =
+            wow_packet::WorldPacket::from_bytes(&nearby_rx.try_recv().expect("nearby text emote"));
+        assert_eq!(
+            text_emote.read_uint16().expect("text emote opcode"),
+            wow_constants::ServerOpcodes::TextEmote as u16
+        );
+        let mut anim_emote =
+            wow_packet::WorldPacket::from_bytes(&nearby_rx.try_recv().expect("nearby anim emote"));
+        assert_eq!(
+            anim_emote.read_uint16().expect("anim emote opcode"),
+            wow_constants::ServerOpcodes::Emote as u16
+        );
+        assert!(far_rx.try_recv().is_err());
     }
 
     #[tokio::test]

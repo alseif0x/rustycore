@@ -169,7 +169,7 @@ use wow_map::coords::SIZE_OF_GRID_CELL;
 use wow_network::player_registry::SendIfVisibleLikeCppCommand;
 use wow_network::session_mgr::{InstanceLink, SessionManager};
 use wow_network::{
-    ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp,
+    ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp,
     GameEventQuestCompleteClientOutcomeLikeCpp, GameEventQuestCompleteCommandLikeCpp, GroupInfo,
     GroupInstanceResetMethodLikeCpp, GroupInstanceResetResultLikeCpp, GroupRegistry,
     KickLikeCppCommand, LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp, PendingInvites,
@@ -4781,6 +4781,8 @@ pub struct WorldSession {
     chat_strict_link_checking_kick_like_cpp: bool,
     /// C++ `CONFIG_CHAT_*_LEVEL_REQ` represented chat level gates.
     chat_level_requirements_like_cpp: ChatLevelRequirementsLikeCpp,
+    /// C++ `CONFIG_LISTEN_RANGE_*` represented nearby-chat ranges.
+    chat_listen_ranges_like_cpp: ChatListenRangesLikeCpp,
     /// C++ `CONFIG_CHATFLOOD_*` represented chat spam protection.
     chat_flood_config_like_cpp: ChatFloodConfigLikeCpp,
     chat_flood_data_like_cpp: [ChatFloodThrottleDataLikeCpp; 2],
@@ -6270,6 +6272,7 @@ impl WorldSession {
             party_raid_warnings_like_cpp: false,
             chat_strict_link_checking_kick_like_cpp: false,
             chat_level_requirements_like_cpp: ChatLevelRequirementsLikeCpp::default(),
+            chat_listen_ranges_like_cpp: ChatListenRangesLikeCpp::default(),
             chat_flood_config_like_cpp: ChatFloodConfigLikeCpp::default(),
             chat_flood_data_like_cpp: [ChatFloodThrottleDataLikeCpp::default(); 2],
             mmap_runtime_config_like_cpp: MMapRuntimeConfigLikeCpp::default(),
@@ -16903,6 +16906,10 @@ impl WorldSession {
         self.chat_level_requirements_like_cpp = requirements;
     }
 
+    pub fn set_chat_listen_ranges_like_cpp(&mut self, ranges: ChatListenRangesLikeCpp) {
+        self.chat_listen_ranges_like_cpp = ranges;
+    }
+
     pub fn set_chat_flood_config_like_cpp(&mut self, config: ChatFloodConfigLikeCpp) {
         self.chat_flood_config_like_cpp = config;
     }
@@ -17003,6 +17010,10 @@ impl WorldSession {
 
     pub(crate) fn chat_level_requirements_like_cpp(&self) -> ChatLevelRequirementsLikeCpp {
         self.chat_level_requirements_like_cpp
+    }
+
+    pub(crate) fn chat_listen_ranges_like_cpp(&self) -> ChatListenRangesLikeCpp {
+        self.chat_listen_ranges_like_cpp
     }
 
     pub(crate) fn chat_flood_config_like_cpp(&self) -> ChatFloodConfigLikeCpp {
