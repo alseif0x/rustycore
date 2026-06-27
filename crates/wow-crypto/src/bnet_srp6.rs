@@ -69,7 +69,7 @@ pub enum SrpHashFunction {
 pub struct BnetSrpChallenge {
     /// SRP version (1 or 2).
     pub version: u32,
-    /// Number of PBKDF2 iterations (0 for v1).
+    /// C++ `GetXIterations()` value: 1 for v1, 15000 for v2.
     pub iterations: u32,
     /// Modulus N in big-endian bytes.
     pub modulus: Vec<u8>,
@@ -152,7 +152,7 @@ impl BnetSrp6 {
             SrpHashFunction::Sha512 => "SHA-512",
         };
         let iterations = match self.version {
-            SrpVersion::V1 => 0,
+            SrpVersion::V1 => 1,
             SrpVersion::V2 => PBKDF2_ITERATIONS,
         };
 
@@ -586,7 +586,7 @@ mod tests {
     }
 
     #[test]
-    fn challenge_returns_valid_data() {
+    fn challenge_v1_iterations_match_cpp() {
         let email = "player@example.com";
         let username = srp_username(email);
         let salt = generate_bnet_salt();
@@ -602,7 +602,7 @@ mod tests {
         let challenge = srp.challenge(email);
 
         assert_eq!(challenge.version, 1);
-        assert_eq!(challenge.iterations, 0);
+        assert_eq!(challenge.iterations, 1);
         assert_eq!(challenge.hash_function, "SHA-256");
         assert_eq!(challenge.modulus.len(), 128);
         assert!(!challenge.public_b.is_empty());
