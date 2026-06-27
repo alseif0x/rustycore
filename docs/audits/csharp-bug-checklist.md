@@ -25,9 +25,9 @@ Estados:
 ## Resumen
 
 - Bugs confirmados contra C++: 51.
-- Bugs corregidos: 14 (`#CSharpAudit.COMPRESS.1`, `#CSharpAudit.BNETREST.1`, `#CSharpAudit.BNETREST.2`, `#CSharpAudit.BNETREST.3`, `#CSharpAudit.BNETREST.4`, `#CSharpAudit.FEATURE.1`, `#CSharpAudit.BNETSRP.1`, `#CSharpAudit.BNETSRP.2`, `#CSharpAudit.BNETSRP.3`, `#CSharpAudit.BNETSRP.4`, `#CSharpAudit.MOVEMENT.1`, `#CSharpAudit.SPELL.1`, `#CSharpAudit.COMBAT.1`, `#CSharpAudit.CHAT.1`).
+- Bugs corregidos: 15 (`#CSharpAudit.COMPRESS.1`, `#CSharpAudit.BNETREST.1`, `#CSharpAudit.BNETREST.2`, `#CSharpAudit.BNETREST.3`, `#CSharpAudit.BNETREST.4`, `#CSharpAudit.FEATURE.1`, `#CSharpAudit.BNETSRP.1`, `#CSharpAudit.BNETSRP.2`, `#CSharpAudit.BNETSRP.3`, `#CSharpAudit.BNETSRP.4`, `#CSharpAudit.MOVEMENT.1`, `#CSharpAudit.SPELL.1`, `#CSharpAudit.COMBAT.1`, `#CSharpAudit.CHAT.1`, `#CSharpAudit.ITEM.1`).
 - Commit historico registrado: `#CSharpAudit.MOVEMENT.1` -> `98ceec4d`.
-- Bugs pendientes de fix: 37.
+- Bugs pendientes de fix: 36.
 - Referencias C# productivas localizadas hoy: 52 archivos bajo `crates/**`.
 - Referencias C# documentales no-audit localizadas hoy: 39 archivos bajo `docs/**`.
 
@@ -80,7 +80,7 @@ indica donde se controla cada referencia.
 - [ ] `#CSharpAudit.PARTY.2` - `HandlePartyInviteOpcode` omite validaciones C++.
 - [ ] `#CSharpAudit.PARTY.3` - `PartyIndex` se lee pero se descarta.
 - [ ] `#CSharpAudit.PARTY.4` - Invite response/leave group modelan lifecycle distinto al C++.
-- [ ] `#CSharpAudit.ITEM.1` - `AutoStoreBagItem` lee `ContainerSlotA/B` invertidos.
+- [x] `#CSharpAudit.ITEM.1` - Corregido; `AutoStoreBagItem` lee `Inv`, `ContainerSlotB`, `ContainerSlotA`, `SlotA` como C++ `ItemPackets.cpp`, preservando `ContainerSlotA` como origen y `ContainerSlotB` como destino. Test: `auto_store_bag_item_parses`.
 - [ ] `#CSharpAudit.ITEM.2` - Inventory move/equip/store/destroy simplificados frente a C++.
 - [ ] `#CSharpAudit.MISC.1` - `ShowTradeSkill` parsea payload y envia SMSG; C++ CMSG es `Null`.
 - [ ] `#CSharpAudit.MISC.2` - `AuctionHelloResponse` serializa auction house id y delays no C++.
