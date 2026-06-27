@@ -485,7 +485,7 @@ impl ClientPacket for SwapItem {
 
 /// CMSG_AUTO_STORE_BAG_ITEM: Right-click to store item in bag (unequip).
 ///
-/// Wire format: InvUpdate + ContainerSlotA(u8) + ContainerSlotB(u8) + SlotA(u8).
+/// Wire format: InvUpdate + ContainerSlotB(u8) + ContainerSlotA(u8) + SlotA(u8).
 /// ContainerSlotA = source container (255 for player inventory).
 /// ContainerSlotB = destination container (255 for backpack).
 /// SlotA = source slot within the container.
@@ -501,8 +501,8 @@ impl ClientPacket for AutoStoreBagItem {
 
     fn read(packet: &mut WorldPacket) -> Result<Self, PacketError> {
         let inv_update = InvUpdate::read(packet)?;
-        let container_slot_a = packet.read_uint8()?;
         let container_slot_b = packet.read_uint8()?;
+        let container_slot_a = packet.read_uint8()?;
         let slot_a = packet.read_uint8()?;
         Ok(Self {
             inv_update,
@@ -828,20 +828,20 @@ mod tests {
 
     #[test]
     fn auto_store_bag_item_parses() {
-        // InvUpdate with 0 items, then containerA=255 containerB=255 slotA=5
+        // InvUpdate with 0 items, then C++ order: containerB, containerA, slotA.
         let mut pkt = WorldPacket::from_bytes(&[
             AutoStoreBagItem::OPCODE as u8,
             (AutoStoreBagItem::OPCODE as u16 >> 8) as u8,
             0x00, // 2 bits: count=0
-            255,  // containerSlotA
-            255,  // containerSlotB
+            11,   // containerSlotB
+            22,   // containerSlotA
             5,    // slotA
         ]);
         pkt.skip_opcode();
         let store = AutoStoreBagItem::read(&mut pkt).unwrap();
         assert_eq!(store.inv_update.items.len(), 0);
-        assert_eq!(store.container_slot_a, 255);
-        assert_eq!(store.container_slot_b, 255);
+        assert_eq!(store.container_slot_a, 22);
+        assert_eq!(store.container_slot_b, 11);
         assert_eq!(store.slot_a, 5);
     }
 
