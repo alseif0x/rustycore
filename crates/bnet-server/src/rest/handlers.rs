@@ -251,27 +251,16 @@ fn get_form(state: &AppState) -> HttpResponse {
     let json = serde_json::to_string(&form).unwrap_or_default();
     tracing::debug!("REST: form response = {json}");
 
-    // Generate JSESSIONID cookie matching C# exactly
-    let session_id = generate_session_id();
-    let domain = state
-        .external_address
-        .split('.')
-        .take(2)
-        .collect::<Vec<_>>()
-        .join(".");
-    let cookie = format!(
-        "JSESSIONID={session_id}; Path=/bnetserver; Domain={domain}; Secure; HttpOnly; SameSite=None"
-    );
-
     HttpResponse {
         status_code: 200,
         status_text: "OK",
-        headers: vec![
-            ("Set-Cookie", cookie),
-            ("Content-Type", "application/json;charset=utf-8".to_string()),
-        ],
+        headers: login_form_headers_like_cpp(),
         body: json,
     }
+}
+
+fn login_form_headers_like_cpp() -> Vec<(&'static str, String)> {
+    vec![("Content-Type", "application/json;charset=utf-8".to_string())]
 }
 
 /// POST /bnetserver/login/ — Authenticate with credentials (direct or SRP M1).
@@ -1094,6 +1083,21 @@ mod tests {
         assert_eq!(
             wrong_password_remote_ip_from_headers_like_cpp(&headers, "203.0.113.10"),
             "203.0.113.10"
+        );
+    }
+
+    #[test]
+    fn login_form_headers_do_not_set_cookie_like_cpp() {
+        let headers = login_form_headers_like_cpp();
+
+        assert_eq!(
+            headers,
+            vec![("Content-Type", "application/json;charset=utf-8".to_string())]
+        );
+        assert!(
+            !headers
+                .iter()
+                .any(|(name, _)| name.eq_ignore_ascii_case("Set-Cookie"))
         );
     }
 
