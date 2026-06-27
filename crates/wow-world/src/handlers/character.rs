@@ -7742,7 +7742,9 @@ impl WorldSession {
             let rot1: f32 = result.try_read(7).unwrap_or(0.0);
             let rot2: f32 = result.try_read(8).unwrap_or(0.0);
             let rot3: f32 = result.try_read(9).unwrap_or(0.0);
-            let anim_progress: u8 = result.try_read(10).unwrap_or(0);
+            // C++ GameObject::Create defaults animProgress to 255 (GameObject.cpp:1068,1089);
+            // match the other GO paths (canonical ~6920) instead of 0. #NEXT.R8.ENTITIES.1218.
+            let anim_progress: u8 = result.try_read(10).unwrap_or(255);
             let state: i8 = result.try_read::<u8>(11).unwrap_or(1) as i8;
             let go_type: u8 = result.try_read::<u8>(12).unwrap_or(0);
             let display_id: u32 = result.try_read(13).unwrap_or(0);

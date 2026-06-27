@@ -1843,7 +1843,13 @@ impl PlayerCreateData {
         buf.write_uint32(0x0000_0008); // UnitFlags: UNIT_FLAG_PLAYER_CONTROLLED
         buf.write_uint32(0); // Flags2
         buf.write_uint32(0); // Flags3
-        buf.write_uint32(0); // AuraState
+        // AuraState — C++ Unit::Update/ModifyAuraState applies health-based aura states to
+        // EVERY alive unit incl. the player (Unit.cpp:469-476); full HP => 0x00D00000.
+        buf.write_uint32(health_aura_state_like_cpp(
+            self.health,
+            self.max_health,
+            self.health > 0,
+        )); // AuraState
 
         // AttackRoundBaseTime[2]
         buf.write_uint32(2000); // MainHand
@@ -1855,7 +1861,9 @@ impl PlayerCreateData {
         }
 
         // BoundingRadius, CombatReach, DisplayScale
-        buf.write_float(0.306); // BoundingRadius (human default)
+        // C++ DEFAULT_PLAYER_BOUNDING_RADIUS = 0.388999998569489 (ObjectDefines.h:39),
+        // set via Player::SetObjectScale -> SetBoundingRadius(scale * DEFAULT) (scale=1.0 here).
+        buf.write_float(0.388_999_998_569_489); // BoundingRadius
         buf.write_float(1.5); // CombatReach
         buf.write_float(1.0); // DisplayScale
 
@@ -2549,13 +2557,38 @@ fn write_empty_guid(buf: &mut WorldPacket) {
     buf.write_packed_guid(&ObjectGuid::EMPTY);
 }
 
+/// C++ `Unit::Update` → `ModifyAuraState` health-derived `UNIT_FIELD_AURASTATE` bits
+/// (Unit.cpp:469-476), applied to EVERY alive unit including the player. A full-HP unit
+/// yields 0x00D00000. Mirrors `WorldCreature::health_aura_state_like_cpp` in wow-world
+/// (both implement the same AURA_STATE 1-based-index bit math; kept in sync).
+fn health_aura_state_like_cpp(health: i64, max_health: i64, alive: bool) -> u32 {
+    if !alive || max_health <= 0 {
+        return 0;
+    }
+    let below = |p: i64| health.saturating_mul(100) < max_health.saturating_mul(p);
+    let above = |p: i64| health.saturating_mul(100) > max_health.saturating_mul(p);
+    let mut state = 0u32;
+    let mut set = |idx: u32, on: bool| {
+        if on {
+            state |= 1 << (idx - 1);
+        }
+    };
+    set(2, below(20)); // AURA_STATE_WOUNDED_20_PERCENT
+    set(6, below(25)); // AURA_STATE_WOUNDED_25_PERCENT
+    set(13, below(35)); // AURA_STATE_WOUNDED_35_PERCENT
+    set(21, below(20) || above(80)); // AURA_STATE_WOUND_HEALTH_20_80
+    set(23, above(75)); // AURA_STATE_HEALTHY_75_PERCENT
+    set(24, below(35) || above(80)); // AURA_STATE_WOUND_HEALTH_35_80
+    state
+}
+
 /// Get power type for a class (0=mana, 1=rage, 3=energy).
 fn power_type_for_class(class: u8) -> u8 {
     match class {
         1 => 1,  // Warrior → Rage
         4 => 3,  // Rogue → Energy
         11 => 0, // Druid → Mana
-        6 => 5,  // DeathKnight → Runic Power
+        6 => 6,  // DeathKnight → Runic Power (POWER_RUNIC_POWER, C++ SharedDefines.h:287)
         _ => 0,  // Default → Mana
     }
 }
@@ -11231,7 +11264,22 @@ mod tests {
         assert_eq!(power_type_for_class(1), 1); // Warrior → Rage
         assert_eq!(power_type_for_class(2), 0); // Paladin → Mana
         assert_eq!(power_type_for_class(4), 3); // Rogue → Energy
-        assert_eq!(power_type_for_class(6), 5); // DK → Runic Power
+        // DeathKnight DisplayPower = POWER_RUNIC_POWER (6), NOT POWER_RUNES (5) — C++
+        // CalculateDisplayPowerType / ChrClasses (SharedDefines.h:287). #NEXT.R8.ENTITIES.1213.
+        assert_eq!(power_type_for_class(6), 6); // DK → Runic Power
+    }
+
+    #[test]
+    fn player_unit_data_health_aura_state_matches_cpp_modify_aura_state() {
+        // #NEXT.R8.ENTITIES.1212 — C++ Unit::Update/ModifyAuraState seeds health-based aura
+        // states on EVERY alive unit incl. the player (Unit.cpp:469-476). Full HP => 0x00D00000.
+        assert_eq!(health_aura_state_like_cpp(100, 100, true), 0x00D0_0000);
+        assert_eq!(health_aura_state_like_cpp(0, 100, false), 0); // dead
+        assert_eq!(health_aura_state_like_cpp(50, 0, true), 0); // no max
+        // Low HP (<=20%): WOUND_HEALTH_20_80 (0x100000) set, HEALTHY_75 clear.
+        let low = health_aura_state_like_cpp(10, 100, true);
+        assert_ne!(low & 0x0010_0000, 0);
+        assert_eq!(low & 0x0040_0000, 0);
     }
 
     #[test]
