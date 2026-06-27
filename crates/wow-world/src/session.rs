@@ -4786,6 +4786,12 @@ pub struct WorldSession {
     chat_fake_message_preventing_like_cpp: bool,
     /// C++ `CONFIG_CHAT_PARTY_RAID_WARNINGS` represented switch.
     party_raid_warnings_like_cpp: bool,
+    /// C++ `CONFIG_ALLOW_GM_GROUP` represented switch.
+    allow_gm_group_like_cpp: bool,
+    /// C++ `CONFIG_ALLOW_TWO_SIDE_INTERACTION_GROUP` represented switch.
+    allow_two_side_interaction_group_like_cpp: bool,
+    /// C++ `CONFIG_PARTY_LEVEL_REQ` represented gate.
+    party_level_req_like_cpp: u32,
     /// C++ `CONFIG_CHAT_STRICT_LINK_CHECKING_KICK` represented switch.
     chat_strict_link_checking_kick_like_cpp: bool,
     /// C++ `CONFIG_CHAT_*_LEVEL_REQ` represented chat level gates.
@@ -6284,6 +6290,9 @@ impl WorldSession {
             addon_channel_like_cpp: true,
             chat_fake_message_preventing_like_cpp: false,
             party_raid_warnings_like_cpp: false,
+            allow_gm_group_like_cpp: false,
+            allow_two_side_interaction_group_like_cpp: false,
+            party_level_req_like_cpp: 1,
             chat_strict_link_checking_kick_like_cpp: false,
             chat_level_requirements_like_cpp: ChatLevelRequirementsLikeCpp::default(),
             chat_listen_ranges_like_cpp: ChatListenRangesLikeCpp::default(),
@@ -16927,6 +16936,18 @@ impl WorldSession {
         self.party_raid_warnings_like_cpp = enabled;
     }
 
+    pub fn set_allow_gm_group_like_cpp(&mut self, enabled: bool) {
+        self.allow_gm_group_like_cpp = enabled;
+    }
+
+    pub fn set_allow_two_side_interaction_group_like_cpp(&mut self, enabled: bool) {
+        self.allow_two_side_interaction_group_like_cpp = enabled;
+    }
+
+    pub fn set_party_level_req_like_cpp(&mut self, level: u32) {
+        self.party_level_req_like_cpp = level;
+    }
+
     pub fn set_chat_strict_link_checking_kick_like_cpp(&mut self, enabled: bool) {
         self.chat_strict_link_checking_kick_like_cpp = enabled;
     }
@@ -17034,6 +17055,18 @@ impl WorldSession {
 
     pub(crate) fn party_raid_warnings_like_cpp(&self) -> bool {
         self.party_raid_warnings_like_cpp
+    }
+
+    pub(crate) fn allow_gm_group_like_cpp(&self) -> bool {
+        self.allow_gm_group_like_cpp
+    }
+
+    pub(crate) fn allow_two_side_interaction_group_like_cpp(&self) -> bool {
+        self.allow_two_side_interaction_group_like_cpp
+    }
+
+    pub(crate) fn party_level_req_like_cpp(&self) -> u32 {
+        self.party_level_req_like_cpp
     }
 
     pub(crate) fn chat_strict_link_checking_kick_like_cpp(&self) -> bool {

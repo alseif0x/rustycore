@@ -426,6 +426,12 @@ pub struct SessionResources {
     pub max_instances_per_hour: u32,
     pub chat_fake_message_preventing: bool,
     pub party_raid_warnings: bool,
+    /// C++ `CONFIG_ALLOW_GM_GROUP` / `GM.AllowInvite`.
+    pub allow_gm_group: bool,
+    /// C++ `CONFIG_ALLOW_TWO_SIDE_INTERACTION_GROUP` / `AllowTwoSide.Interaction.Group`.
+    pub allow_two_side_interaction_group: bool,
+    /// C++ `CONFIG_PARTY_LEVEL_REQ` / `PartyLevelReq`.
+    pub party_level_req: u32,
     pub chat_strict_link_checking_kick: bool,
     pub chat_level_requirements: ChatLevelRequirementsLikeCpp,
     pub chat_listen_ranges: ChatListenRangesLikeCpp,

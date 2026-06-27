@@ -4677,6 +4677,13 @@ async fn main() -> Result<ExitCode> {
             "CONFIG_CHAT_PARTY_RAID_WARNINGS",
             false,
         ),
+        allow_gm_group: world_config_bool(&world_configs, "CONFIG_ALLOW_GM_GROUP", false),
+        allow_two_side_interaction_group: world_config_bool(
+            &world_configs,
+            "CONFIG_ALLOW_TWO_SIDE_INTERACTION_GROUP",
+            false,
+        ),
+        party_level_req: world_config_u32(&world_configs, "CONFIG_PARTY_LEVEL_REQ", 1),
         chat_strict_link_checking_kick: world_config_u8(
             &world_configs,
             "CONFIG_CHAT_STRICT_LINK_CHECKING_KICK",
@@ -11689,6 +11696,10 @@ async fn create_session(
     session.set_max_instances_per_hour_like_cpp(resources.max_instances_per_hour);
     session.set_chat_fake_message_preventing_like_cpp(resources.chat_fake_message_preventing);
     session.set_party_raid_warnings_like_cpp(resources.party_raid_warnings);
+    session.set_allow_gm_group_like_cpp(resources.allow_gm_group);
+    session
+        .set_allow_two_side_interaction_group_like_cpp(resources.allow_two_side_interaction_group);
+    session.set_party_level_req_like_cpp(resources.party_level_req);
     session.set_chat_strict_link_checking_kick_like_cpp(resources.chat_strict_link_checking_kick);
     session.set_chat_level_requirements_like_cpp(resources.chat_level_requirements);
     session.set_chat_listen_ranges_like_cpp(resources.chat_listen_ranges);
@@ -16453,6 +16464,26 @@ ResetSchedule.WeekDay = 5
             "CONFIG_CHAT_PARTY_RAID_WARNINGS",
             false
         ));
+    }
+
+    #[test]
+    fn party_invite_configs_use_cpp_world_config_keys() {
+        let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+        wow_config::load_config_from_str(
+            "GM.AllowInvite = 1\n\
+             AllowTwoSide.Interaction.Group = 1\n\
+             PartyLevelReq = 12\n",
+        )
+        .expect("config should load");
+
+        let configs = wow_config::load_world_config_values();
+        assert!(world_config_bool(&configs, "CONFIG_ALLOW_GM_GROUP", false));
+        assert!(world_config_bool(
+            &configs,
+            "CONFIG_ALLOW_TWO_SIDE_INTERACTION_GROUP",
+            false
+        ));
+        assert_eq!(world_config_u32(&configs, "CONFIG_PARTY_LEVEL_REQ", 1), 12);
     }
 
     #[test]

@@ -35,6 +35,9 @@ use wow_packet::{ClientPacket, ServerPacket};
 
 use crate::session::{WorldSession, player_team_for_race_cpp};
 
+const SOCIAL_FLAG_FRIEND_LIKE_CPP: u32 = 0x01;
+const SOCIAL_FLAG_IGNORED_LIKE_CPP: u32 = 0x02;
+
 // ── canonical group lookup ────────────────────────────────────────────────────
 
 /// Canonical represented group lookup matching C++ `Player::GetGroup` semantics.
@@ -546,6 +549,112 @@ fn current_player_party_invite_map_instance_like_cpp(
         .unwrap_or_else(|| (session.player_map_id_like_cpp(), 0))
 }
 
+#[cfg(test)]
+fn party_invite_social_ignore_match_like_cpp(
+    social_friend_counter: i64,
+    social_friend_account_id: u32,
+    social_flags: u32,
+    inviter_guid: ObjectGuid,
+    inviter_account_id: u32,
+) -> bool {
+    (social_flags & SOCIAL_FLAG_IGNORED_LIKE_CPP) != 0
+        && (social_friend_counter == inviter_guid.counter()
+            || social_friend_account_id == inviter_account_id)
+}
+
+#[cfg(test)]
+fn party_invite_social_friend_match_like_cpp(
+    social_friend_counter: i64,
+    social_flags: u32,
+    inviter_guid: ObjectGuid,
+) -> bool {
+    (social_flags & SOCIAL_FLAG_FRIEND_LIKE_CPP) != 0
+        && social_friend_counter == inviter_guid.counter()
+}
+
+async fn target_social_ignores_inviter_like_cpp(
+    char_db: Option<std::sync::Arc<wow_database::CharacterDatabase>>,
+    target_guid: ObjectGuid,
+    inviter_guid: ObjectGuid,
+    inviter_account_id: u32,
+) -> bool {
+    let Some(char_db) = char_db else {
+        return false;
+    };
+
+    // C++ `PlayerSocial::HasIgnore` checks both the invited character's
+    // ignored GUIDs and the ignored account set. Rust does not yet persist
+    // `accountGuid`, so the account branch is represented through the ignored
+    // character's `characters.account`.
+    let row = sqlx::query(
+        "SELECT COUNT(*) \
+         FROM character_social cs \
+         LEFT JOIN characters c ON c.guid = cs.friend \
+         WHERE cs.guid = ? \
+           AND (cs.flags & ?) <> 0 \
+           AND (cs.friend = ? OR c.account = ?)",
+    )
+    .bind(target_guid.counter())
+    .bind(SOCIAL_FLAG_IGNORED_LIKE_CPP)
+    .bind(inviter_guid.counter())
+    .bind(inviter_account_id)
+    .fetch_one(char_db.pool())
+    .await;
+
+    match row {
+        Ok(row) => {
+            use sqlx::Row;
+            row.try_get::<i64, _>(0).unwrap_or(0) > 0
+        }
+        Err(e) => {
+            warn!(
+                error = %e,
+                target = ?target_guid,
+                inviter = ?inviter_guid,
+                "PartyInvite social ignore lookup failed"
+            );
+            false
+        }
+    }
+}
+
+async fn target_social_has_inviter_friend_like_cpp(
+    char_db: Option<std::sync::Arc<wow_database::CharacterDatabase>>,
+    target_guid: ObjectGuid,
+    inviter_guid: ObjectGuid,
+) -> bool {
+    let Some(char_db) = char_db else {
+        return false;
+    };
+
+    let row = sqlx::query(
+        "SELECT COUNT(*) \
+         FROM character_social \
+         WHERE guid = ? AND friend = ? AND (flags & ?) <> 0",
+    )
+    .bind(target_guid.counter())
+    .bind(inviter_guid.counter())
+    .bind(SOCIAL_FLAG_FRIEND_LIKE_CPP)
+    .fetch_one(char_db.pool())
+    .await;
+
+    match row {
+        Ok(row) => {
+            use sqlx::Row;
+            row.try_get::<i64, _>(0).unwrap_or(0) > 0
+        }
+        Err(e) => {
+            warn!(
+                error = %e,
+                target = ?target_guid,
+                inviter = ?inviter_guid,
+                "PartyInvite social friend lookup failed"
+            );
+            false
+        }
+    }
+}
+
 fn connected_group_members_like_cpp(
     group: &GroupInfo,
     registry: &PlayerRegistry,
@@ -925,16 +1034,17 @@ impl WorldSession {
         }
 
         // C++ `HandlePartyInviteOpcode` rejects inviting GM targets unless
-        // `GM.AllowInvite` is enabled. Rust has no config key yet, so it uses
-        // Trinity's default `false` policy.
-        if !self.player_is_game_master_like_cpp() && target_snapshot.is_game_master {
+        // `GM.AllowInvite` / `CONFIG_ALLOW_GM_GROUP` is enabled.
+        if !self.allow_gm_group_like_cpp()
+            && !self.player_is_game_master_like_cpp()
+            && target_snapshot.is_game_master
+        {
             send_result!(party_result::BAD_PLAYER_NAME);
             return;
         }
 
-        // C++ `CONFIG_ALLOW_TWO_SIDE_INTERACTION_GROUP` defaults to false;
-        // without a Rust config knob, preserve that default for party invites.
-        if !self.player_is_game_master_like_cpp()
+        if !self.allow_two_side_interaction_group_like_cpp()
+            && !self.player_is_game_master_like_cpp()
             && player_team_for_race_cpp(self.player_race_like_cpp())
                 != player_team_for_race_cpp(target_snapshot.race)
         {
@@ -958,6 +1068,26 @@ impl WorldSession {
                 != self.represented_dungeon_difficulty_id_like_cpp()
         {
             send_result!(party_result::IGNORING_YOU);
+            return;
+        }
+
+        let char_db = self.char_db().map(std::sync::Arc::clone);
+        if target_social_ignores_inviter_like_cpp(
+            char_db.clone(),
+            real_target_guid,
+            my_guid,
+            self.account_id,
+        )
+        .await
+        {
+            send_result!(party_result::IGNORING_YOU);
+            return;
+        }
+
+        if u32::from(self.player_level_like_cpp()) < self.party_level_req_like_cpp()
+            && !target_social_has_inviter_friend_like_cpp(char_db, real_target_guid, my_guid).await
+        {
+            send_result!(party_result::INVITE_RESTRICTED);
             return;
         }
 
@@ -2847,14 +2977,15 @@ impl WorldSession {
 #[cfg(test)]
 mod tests {
     use super::{
-        current_group_guid_like_cpp, first_connected_group_member_like_cpp,
-        group_delete_statement_like_cpp, group_insert_statement_like_cpp,
-        group_leader_update_statement_like_cpp, group_lfg_data_delete_statement_like_cpp,
-        group_member_delete_all_statement_like_cpp, group_member_delete_statement_like_cpp,
-        group_member_flag_update_statement_like_cpp, group_member_insert_statement_like_cpp,
-        group_member_subgroup_update_statement_like_cpp, group_type_update_statement_like_cpp,
-        party_player_info_like_cpp, send_party_update, send_ready_check_events_like_cpp,
-        sender_can_start_ready_check_like_cpp,
+        SOCIAL_FLAG_FRIEND_LIKE_CPP, SOCIAL_FLAG_IGNORED_LIKE_CPP, current_group_guid_like_cpp,
+        first_connected_group_member_like_cpp, group_delete_statement_like_cpp,
+        group_insert_statement_like_cpp, group_leader_update_statement_like_cpp,
+        group_lfg_data_delete_statement_like_cpp, group_member_delete_all_statement_like_cpp,
+        group_member_delete_statement_like_cpp, group_member_flag_update_statement_like_cpp,
+        group_member_insert_statement_like_cpp, group_member_subgroup_update_statement_like_cpp,
+        group_type_update_statement_like_cpp, party_invite_social_friend_match_like_cpp,
+        party_invite_social_ignore_match_like_cpp, party_player_info_like_cpp, send_party_update,
+        send_ready_check_events_like_cpp, sender_can_start_ready_check_like_cpp,
     };
     use flume::bounded;
     use std::sync::Arc;
@@ -3317,21 +3448,20 @@ mod tests {
     fn make_session_with_send() -> (WorldSession, flume::Receiver<Vec<u8>>) {
         let (_pkt_tx, pkt_rx) = bounded::<WorldPacket>(1);
         let (send_tx, send_rx) = bounded::<Vec<u8>>(4);
-        (
-            WorldSession::new(
-                1,
-                "TestAccount".into(),
-                0,
-                2,
-                9,
-                54261,
-                vec![0u8; 40],
-                "esES".into(),
-                pkt_rx,
-                send_tx,
-            ),
-            send_rx,
-        )
+        let mut session = WorldSession::new(
+            1,
+            "TestAccount".into(),
+            0,
+            2,
+            9,
+            54261,
+            vec![0u8; 40],
+            "esES".into(),
+            pkt_rx,
+            send_tx,
+        );
+        session.set_loaded_player_identity_like_cpp(0, 1, 1, 80, 0);
+        (session, send_rx)
     }
 
     #[test]
@@ -3869,6 +3999,149 @@ mod tests {
         );
         assert!(target_rx.try_recv().is_err());
         assert!(pending_invites.get(&target).is_none());
+    }
+
+    #[tokio::test]
+    async fn party_invite_allows_gm_target_when_cpp_config_enabled() {
+        let (mut session, _send_rx) = make_session_with_send();
+        let inviter = ObjectGuid::create_player(1, 42);
+        let target = ObjectGuid::create_player(1, 77);
+        let target_name = format!("Player{}", target.low_value());
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (target_tx, target_rx) = bounded(8);
+        let mut target_info = broadcast_info(target, target_tx);
+        target_info.is_game_master = true;
+        player_registry.insert(target, target_info);
+        let pending_invites = Arc::new(PendingInvites::default());
+
+        session.set_player_guid(Some(inviter));
+        session.set_loaded_player_identity_like_cpp(0, 1, 1, 80, 0);
+        session.set_allow_gm_group_like_cpp(true);
+        session.set_player_registry(player_registry);
+        session.set_group_registry(
+            Arc::new(GroupRegistry::default()),
+            Arc::clone(&pending_invites),
+        );
+
+        session
+            .handle_party_invite(party_invite_packet(target, &target_name, None, 0))
+            .await;
+
+        assert!(pending_invites.get(&target).is_some());
+        assert!(party_invite_can_accept(
+            &target_rx.try_recv().expect("target invite packet")
+        ));
+    }
+
+    #[tokio::test]
+    async fn party_invite_allows_cross_faction_when_cpp_config_enabled() {
+        let (mut session, _send_rx) = make_session_with_send();
+        let inviter = ObjectGuid::create_player(1, 42);
+        let target = ObjectGuid::create_player(1, 77);
+        let target_name = format!("Player{}", target.low_value());
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (target_tx, target_rx) = bounded(8);
+        let mut target_info = broadcast_info(target, target_tx);
+        target_info.race = 2;
+        player_registry.insert(target, target_info);
+        let pending_invites = Arc::new(PendingInvites::default());
+
+        session.set_player_guid(Some(inviter));
+        session.set_loaded_player_identity_like_cpp(0, 1, 1, 80, 0);
+        session.set_allow_two_side_interaction_group_like_cpp(true);
+        session.set_player_registry(player_registry);
+        session.set_group_registry(
+            Arc::new(GroupRegistry::default()),
+            Arc::clone(&pending_invites),
+        );
+
+        session
+            .handle_party_invite(party_invite_packet(target, &target_name, None, 0))
+            .await;
+
+        assert!(pending_invites.get(&target).is_some());
+        assert!(party_invite_can_accept(
+            &target_rx.try_recv().expect("target invite packet")
+        ));
+    }
+
+    #[tokio::test]
+    async fn party_invite_rejects_low_level_non_friend_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+        let inviter = ObjectGuid::create_player(1, 42);
+        let target = ObjectGuid::create_player(1, 77);
+        let target_name = format!("Player{}", target.low_value());
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (target_tx, target_rx) = bounded(8);
+        player_registry.insert(target, broadcast_info(target, target_tx));
+        let pending_invites = Arc::new(PendingInvites::default());
+
+        session.set_player_guid(Some(inviter));
+        session.set_loaded_player_identity_like_cpp(0, 1, 1, 1, 0);
+        session.set_party_level_req_like_cpp(2);
+        session.set_player_registry(player_registry);
+        session.set_group_registry(
+            Arc::new(GroupRegistry::default()),
+            Arc::clone(&pending_invites),
+        );
+
+        session
+            .handle_party_invite(party_invite_packet(target, &target_name, None, 0))
+            .await;
+
+        assert_eq!(
+            party_command_result_code(&send_rx.try_recv().expect("party command result")),
+            party_result::INVITE_RESTRICTED
+        );
+        assert!(target_rx.try_recv().is_err());
+        assert!(pending_invites.get(&target).is_none());
+    }
+
+    #[test]
+    fn party_invite_social_matching_covers_guid_account_and_friend_like_cpp() {
+        let inviter = ObjectGuid::create_player(1, 42);
+
+        assert!(party_invite_social_ignore_match_like_cpp(
+            inviter.counter(),
+            7,
+            SOCIAL_FLAG_IGNORED_LIKE_CPP,
+            inviter,
+            1
+        ));
+        assert!(party_invite_social_ignore_match_like_cpp(
+            77,
+            1,
+            SOCIAL_FLAG_IGNORED_LIKE_CPP,
+            inviter,
+            1
+        ));
+        assert!(!party_invite_social_ignore_match_like_cpp(
+            77,
+            7,
+            SOCIAL_FLAG_IGNORED_LIKE_CPP,
+            inviter,
+            1
+        ));
+        assert!(!party_invite_social_ignore_match_like_cpp(
+            inviter.counter(),
+            1,
+            SOCIAL_FLAG_FRIEND_LIKE_CPP,
+            inviter,
+            1
+        ));
+        assert!(party_invite_social_friend_match_like_cpp(
+            inviter.counter(),
+            SOCIAL_FLAG_FRIEND_LIKE_CPP,
+            inviter
+        ));
+        assert!(!party_invite_social_friend_match_like_cpp(
+            77,
+            SOCIAL_FLAG_FRIEND_LIKE_CPP,
+            inviter
+        ));
     }
 
     #[tokio::test]
