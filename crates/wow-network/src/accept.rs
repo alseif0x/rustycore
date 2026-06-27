@@ -366,6 +366,8 @@ pub struct SessionResources {
     pub exploration_base_xp_store: Option<Arc<wow_data::ExplorationBaseXpStoreLikeCpp>>,
     /// C++ `sWorld->getRate(RATE_XP_EXPLORE)`.
     pub exploration_xp_rate: f32,
+    /// C++ `CONFIG_MIN_QUEST_SCALED_XP_RATIO`.
+    pub min_quest_scaled_xp_ratio: u32,
     /// C++ `CONFIG_MIN_DISCOVERED_SCALED_XP_RATIO`.
     pub min_discovered_scaled_xp_ratio: u32,
     /// Shared registry of all active player sessions (for broadcast).

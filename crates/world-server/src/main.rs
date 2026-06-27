@@ -4573,6 +4573,11 @@ async fn main() -> Result<ExitCode> {
         player_xp_table: Some(Arc::clone(&player_xp_table)),
         exploration_base_xp_store: Some(Arc::clone(&exploration_base_xp_store)),
         exploration_xp_rate: world_config_f32(&world_configs, "RATE_XP_EXPLORE", 1.0),
+        min_quest_scaled_xp_ratio: world_config_u32(
+            &world_configs,
+            "CONFIG_MIN_QUEST_SCALED_XP_RATIO",
+            0,
+        ),
         min_discovered_scaled_xp_ratio: world_config_u32(
             &world_configs,
             "CONFIG_MIN_DISCOVERED_SCALED_XP_RATIO",
@@ -11638,6 +11643,7 @@ async fn create_session(
         session.set_exploration_base_xp_store_like_cpp(Arc::clone(store));
     }
     session.set_exploration_xp_rate_like_cpp(resources.exploration_xp_rate);
+    session.set_min_quest_scaled_xp_ratio_like_cpp(resources.min_quest_scaled_xp_ratio);
     session.set_min_discovered_scaled_xp_ratio_like_cpp(resources.min_discovered_scaled_xp_ratio);
     if let Some(ref registry) = resources.player_registry {
         session.set_player_registry(Arc::clone(registry));

@@ -4608,6 +4608,7 @@ pub struct WorldSession {
     pub(crate) player_xp_table: Option<Arc<Vec<u32>>>,
     pub(crate) exploration_base_xp_store: Option<Arc<ExplorationBaseXpStoreLikeCpp>>,
     pub(crate) exploration_xp_rate_like_cpp: f32,
+    pub(crate) min_quest_scaled_xp_ratio_like_cpp: u32,
     pub(crate) min_discovered_scaled_xp_ratio_like_cpp: u32,
     /// Active quests for this player: quest_id → status.
     pub(crate) player_quests: HashMap<u32, crate::handlers::quest::PlayerQuestStatus>,
@@ -5886,6 +5887,7 @@ impl WorldSession {
             player_xp_table: None,
             exploration_base_xp_store: None,
             exploration_xp_rate_like_cpp: 1.0,
+            min_quest_scaled_xp_ratio_like_cpp: 0,
             min_discovered_scaled_xp_ratio_like_cpp: 0,
             selection_guid: None,
             player_guid: None,
@@ -25186,6 +25188,10 @@ impl WorldSession {
         self.exploration_xp_rate_like_cpp = rate.max(0.0);
     }
 
+    pub fn set_min_quest_scaled_xp_ratio_like_cpp(&mut self, ratio: u32) {
+        self.min_quest_scaled_xp_ratio_like_cpp = if ratio > 100 { 0 } else { ratio };
+    }
+
     pub fn set_min_discovered_scaled_xp_ratio_like_cpp(&mut self, ratio: u32) {
         self.min_discovered_scaled_xp_ratio_like_cpp = ratio.min(100);
     }
@@ -25224,6 +25230,7 @@ impl WorldSession {
                 self.player_level_like_cpp(),
                 difficulty,
                 xp_multiplier,
+                self.min_quest_scaled_xp_ratio_like_cpp,
             )
         } else {
             // Fallback if DB2 not loaded
