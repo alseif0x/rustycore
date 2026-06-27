@@ -5253,78 +5253,20 @@ fn civil_from_days(days_since_unix_epoch: i64) -> (i32, u32, u32) {
 }
 
 // ── ShowTradeSkill (client → server) ────────────────────────────────────────
-// Sent when the player opens their own profession window from the spellbook,
-// or when clicking a trade skill link to view another player's profession.
 
-/// Parsed `CMSG_SHOW_TRADE_SKILL` (0x36CA).
-#[derive(Debug, Clone)]
-pub struct ShowTradeSkill {
-    pub caster_guid: wow_core::ObjectGuid,
-    pub spell_id: i32,
-    pub skill_id: u16,
-}
+/// C++ `CMSG_SHOW_TRADE_SKILL` is handled as `WorldPackets::Null`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ShowTradeSkill;
 
 impl crate::ClientPacket for ShowTradeSkill {
     const OPCODE: wow_constants::ClientOpcodes = wow_constants::ClientOpcodes::ShowTradeSkill;
 
     fn read(packet: &mut crate::WorldPacket) -> Result<Self, crate::world_packet::PacketError> {
-        let caster_guid = packet.read_packed_guid()?;
-        let spell_id = packet.read_int32()?;
-        let skill_id = packet.read_int32()? as u16;
-        Ok(Self {
-            caster_guid,
-            spell_id,
-            skill_id,
-        })
-    }
-}
-
-// ── ShowTradeSkillResponse (server → client) ─────────────────────────────────
-// Response to ShowTradeSkill — tells the client which recipes the player knows.
-
-/// `SMSG_SHOW_TRADE_SKILL_RESPONSE` (0x2774).
-///
-/// C# struct: CasterGUID, SpellId, SkillLineId, SkillRank, SkillMaxRank,
-///            SkillLineIDs[], SkillRanks[], SkillMaxRanks[], KnownAbilitySpellIDs[]
-pub struct ShowTradeSkillResponse {
-    pub caster_guid: wow_core::ObjectGuid,
-    pub spell_id: i32,
-    pub skill_line_id: u16,
-    pub skill_rank: i32,
-    pub skill_max_rank: i32,
-    /// Known recipe/ability spell IDs for this profession.
-    pub known_ability_spell_ids: Vec<i32>,
-}
-
-impl ShowTradeSkillResponse {
-    pub fn to_bytes(&self) -> Vec<u8> {
-        let mut buf = crate::WorldPacket::new_server(ServerOpcodes::ShowTradeSkillResponse);
-        buf.write_packed_guid(&self.caster_guid);
-        buf.write_int32(self.spell_id);
-
-        // SkillLineIDs[] — secondary lines (default [0])
-        buf.write_int32(1);
-        // SkillRanks[] — secondary ranks (default [0])
-        buf.write_int32(1);
-        // SkillMaxRanks[] — secondary max ranks (default [0])
-        buf.write_int32(1);
-        // KnownAbilitySpellIDs count
-        buf.write_int32(self.known_ability_spell_ids.len() as i32);
-
-        // secondary lists (each 1 entry = 0)
-        buf.write_int32(0); // SkillLineIDs[0]
-        buf.write_int32(0); // SkillRanks[0]
-        buf.write_int32(0); // SkillMaxRanks[0]
-
-        buf.write_int32(self.skill_line_id as i32); // SkillLineId
-        buf.write_int32(self.skill_rank); // SkillRank
-        buf.write_int32(self.skill_max_rank); // SkillMaxRank
-
-        for spell_id in &self.known_ability_spell_ids {
-            buf.write_int32(*spell_id);
+        let remaining = packet.remaining();
+        if remaining > 0 {
+            let _ = packet.read_bytes(remaining)?;
         }
-
-        buf.into_data()
+        Ok(Self)
     }
 }
 
@@ -8190,6 +8132,15 @@ mod tests {
             packet.is_empty(),
             "C++ AuctionHelloResponse does not serialize AuctionHouseID"
         );
+    }
+
+    #[test]
+    fn show_trade_skill_reads_null_like_cpp() {
+        let mut pkt = WorldPacket::from_bytes(&[0x01, 0x02, 0x03, 0x04]);
+
+        ShowTradeSkill::read(&mut pkt).expect("ShowTradeSkill null packet");
+
+        assert!(pkt.is_empty());
     }
 
     #[test]

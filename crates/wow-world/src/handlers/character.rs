@@ -13852,45 +13852,13 @@ impl WorldSession {
 
     // ── ShowTradeSkill ───────────────────────────────────────────────────────
 
-    /// Handle `CMSG_SHOW_TRADE_SKILL` (0x36CA) — player opens a profession window.
-    ///
-    /// Responds with `SMSG_SHOW_TRADE_SKILL_RESPONSE` (0x2774) containing the
-    /// known recipe spell IDs for the requested skill.
-    pub async fn handle_show_trade_skill(
-        &mut self,
-        show: wow_packet::packets::misc::ShowTradeSkill,
-    ) {
-        use wow_packet::packets::misc::ShowTradeSkillResponse;
-
-        let skill_id = show.skill_id;
-        let level = self.player_level_like_cpp();
-
-        let skill_rank = (level as i32) * 5;
-        let skill_max_rank = skill_rank;
-
-        let known = if let Some(store) = self.skill_store() {
-            store.trade_skill_spells(skill_id, &self.known_spells_like_cpp())
+    /// C++ `HandleShowTradeSkill(WorldPackets::Null&)` only logs the request.
+    pub async fn handle_show_trade_skill(&mut self) {
+        if let Some(player_guid) = self.player_guid() {
+            debug!("ShowTradeSkill from {:?}", player_guid);
         } else {
-            Vec::new()
-        };
-
-        info!(
-            "ShowTradeSkill skill_id={} spell_id={} caster={:?} — {} known recipes",
-            skill_id,
-            show.spell_id,
-            show.caster_guid,
-            known.len()
-        );
-
-        let response = ShowTradeSkillResponse {
-            caster_guid: show.caster_guid,
-            spell_id: show.spell_id,
-            skill_line_id: skill_id,
-            skill_rank,
-            skill_max_rank,
-            known_ability_spell_ids: known,
-        };
-        self.send_raw_packet(&response.to_bytes());
+            debug!("ShowTradeSkill from account {}", self.account_id);
+        }
     }
 }
 
@@ -14208,6 +14176,16 @@ mod tests {
             }
         }
         opcodes
+    }
+
+    #[tokio::test]
+    async fn show_trade_skill_is_noop_null_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+
+        session.handle_show_trade_skill().await;
+
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[test]

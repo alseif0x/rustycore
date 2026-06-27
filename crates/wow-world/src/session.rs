@@ -28696,7 +28696,7 @@ impl WorldSession {
             }
             ClientOpcodes::ShowTradeSkill => {
                 match wow_packet::packets::misc::ShowTradeSkill::read(&mut pkt) {
-                    Ok(show) => self.handle_show_trade_skill(show).await,
+                    Ok(_) => self.handle_show_trade_skill().await,
                     Err(e) => warn!("Failed to read ShowTradeSkill: {e}"),
                 }
             }
