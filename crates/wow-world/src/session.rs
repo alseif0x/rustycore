@@ -185,9 +185,10 @@ use wow_packet::packets::misc::{
     AccountHeirloom, AccountHeirloomUpdate, AccountMount, AccountMountUpdate, AccountToy,
     AccountToyUpdate, BuyFailed, DungeonDifficultySet, EQUIP_ERR_NOT_ENOUGH_MONEY_LIKE_CPP,
     MOUNT_RESULT_SHAPESHIFTED_LIKE_CPP, MountResult, NUM_ACCOUNT_DATA_TYPES, RaidDifficultySet,
-    SellResponse, SetProficiency, SetupCurrency, SetupCurrencyRecord, TRADE_SLOT_COUNT_LIKE_CPP,
-    TRADE_STATUS_ACCEPTED_LIKE_CPP, TRADE_STATUS_CANCELLED_LIKE_CPP,
-    TRADE_STATUS_STATE_CHANGED_LIKE_CPP, TRADE_STATUS_UNACCEPTED_LIKE_CPP, TradeStatus,
+    SellResponse, SetProficiency, SetupCurrency, SetupCurrencyRecord, SpellChargeEntry,
+    SpellHistoryEntry, TRADE_SLOT_COUNT_LIKE_CPP, TRADE_STATUS_ACCEPTED_LIKE_CPP,
+    TRADE_STATUS_CANCELLED_LIKE_CPP, TRADE_STATUS_STATE_CHANGED_LIKE_CPP,
+    TRADE_STATUS_UNACCEPTED_LIKE_CPP, TradeStatus,
 };
 use wow_packet::packets::quest::{
     QuestGiverOfferReward, QuestGiverQuestDetails, QuestGiverQuestList, QuestGiverRequestItems,
@@ -4151,6 +4152,11 @@ pub struct WorldSession {
     represented_armor_proficiency_like_cpp: u32,
     /// C++ `CollectionMgr::_mounts` represented account mount collection.
     account_mounts_like_cpp: HashMap<i32, u8>,
+    /// Login snapshot of the player's spell history + charge packets. C++ reads these
+    /// live from `Player::GetSpellHistory()` in `SendInitialPacketsBeforeAddToMap`; Rust
+    /// persists the login snapshot so the before-add helper can re-send it on far teleport
+    /// without a DB round trip. #NEXT.R8.ENTITIES.1229.
+    represented_spell_history_packets_like_cpp: (Vec<SpellHistoryEntry>, Vec<SpellChargeEntry>),
     /// C++ `Player::_CUFProfiles`, represented until full player save/load owns it.
     cuf_profiles_like_cpp: Vec<Option<wow_packet::packets::misc::CufProfile>>,
     cuf_profiles_loaded_like_cpp: bool,
@@ -5940,6 +5946,7 @@ impl WorldSession {
             represented_weapon_proficiency_like_cpp: 0,
             represented_armor_proficiency_like_cpp: 0,
             account_mounts_like_cpp: HashMap::new(),
+            represented_spell_history_packets_like_cpp: (Vec::new(), Vec::new()),
             cuf_profiles_like_cpp: vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP],
             cuf_profiles_loaded_like_cpp: false,
             realm_packet_rx: None,
@@ -32461,6 +32468,25 @@ impl WorldSession {
             .collect::<Vec<_>>();
         mounts.sort_by_key(|mount| mount.spell_id);
         mounts
+    }
+
+    /// Persist the login snapshot of the player's spell history + charge packets so the
+    /// before-add init helper can re-send them (e.g. on far teleport). Mirrors C++
+    /// `Player::SendInitialPacketsBeforeAddToMap` reading `GetSpellHistory()`.
+    pub(crate) fn record_login_spell_history_packets_like_cpp(
+        &mut self,
+        history: Vec<SpellHistoryEntry>,
+        charges: Vec<SpellChargeEntry>,
+    ) {
+        self.represented_spell_history_packets_like_cpp = (history, charges);
+    }
+
+    /// Login snapshot of spell-history + charge packet entries
+    /// (see `record_login_spell_history_packets_like_cpp`).
+    pub(crate) fn spell_history_packets_like_cpp(
+        &self,
+    ) -> (Vec<SpellHistoryEntry>, Vec<SpellChargeEntry>) {
+        self.represented_spell_history_packets_like_cpp.clone()
     }
 
     /// C++ `CollectionMgr::SaveAccountMounts`.

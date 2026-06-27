@@ -5688,6 +5688,12 @@ impl WorldSession {
         let (spell_history_entries, spell_charge_entries) = self
             .load_character_spell_history_packets_like_cpp(&char_db, guid)
             .await;
+        // Persist the login snapshot so the before-add init helper can re-send spell
+        // history/charges on far teleport without a DB round trip. #NEXT.R8.ENTITIES.1229.
+        self.record_login_spell_history_packets_like_cpp(
+            spell_history_entries.clone(),
+            spell_charge_entries.clone(),
+        );
 
         self.send_login_sequence(
             guid,
