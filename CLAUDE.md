@@ -40,6 +40,13 @@ When touching code that still cites C#:
 - `docs/migration/EXISTING-CODE-DEFECTS.md` — bugs found in already-shipped code.
 - `docs/migration/adr-runtime-tick-ownership.md` — runtime architecture decision.
 
+**Plan execution:** work the GitHub issues in the order of the pinned index issue (port-plan
+tracking). Part 1 = playable end-to-end (milestones M0–M6, issues #7–#47 + the C#-audit issues
+#50–#66); validate every PR with the capture-diff harness (#66). **When Part 1 is done
+("playable end-to-end" at M6.2 / #47), run a fresh planning pass before Part 2**: re-audit HEAD,
+then break the Part-2 epic (#48, ledgers L1–L25) into PR-sized child issues at that point — see
+the "Part 2 transition gate" in `PORT_PLAN.md`. Do not pre-granulate Part 2 now.
+
 The old `1af9223` "last audited base" is **~1400 commits stale** — do not treat it as the
 reliable base, and do not cite the `96.97%` / `98.15%` headline (it measured "represented",
 not a working server; see STATE.md §0/§1). The 1.8 MB `current-session-handoff.md` is **frozen**
