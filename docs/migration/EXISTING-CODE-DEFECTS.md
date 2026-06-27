@@ -1,0 +1,109 @@
+# RustyCore — Defects in EXISTING (already-developed) code
+
+**Date:** 2026-06-27 · **Base:** `develop` @ `d171117c`.
+
+This is the adversarial audit the user asked for: **not what's missing, but what's wrong
+in what already exists.** An 8-agent parallel pass tried to *break* the capabilities STATE.md
+labels WORKS, contrasting each against C++ (`/home/server/woltk-trinity-legacy`).
+
+**Reliability note:** these are agent findings; each carries `file:line` + a C++ ref, but
+they are **leads to verify, not proven verdicts**. Two are explicitly contested between
+agents (marked ⚠VERIFY). Signedness divergences (i32 vs u32) are rated **LOW** because they
+only differ for values >2³¹ that never occur in normal play (stack counts, durability) —
+identical bytes otherwise. Severity reflects my judgment after that filter.
+
+Headline: **even the live core loop has correctness/integrity bugs.** "Sends the packet and
+mutates DB" ≠ "computes the right result / can't lose or dupe data."
+
+---
+
+## CRIT — data loss / duplication / corruption (fix before trusting the server with real chars)
+
+- [ ] **D-C1 Item enchantments not loaded on relog.** `SEL_CHAR_EQUIPMENT`/`SEL_CHAR_BAG_CONTENTS`
+  select enchantment cols but the load hardcodes 0 → equipped/bagged enchants vanish on
+  logout. `handlers/character.rs:4617-4618,4760-4761`. C++ `Player::_LoadInventory`.
+- [ ] **D-C2 Item random properties not loaded on relog.** Same query gap → magical items
+  become non-magical. `handlers/character.rs:4617`.
+- [ ] **D-C3 Bank contents never persisted.** Bank moves recorded in-memory only
+  (`represented_bank_item_moves`), no DB write → 100% bank loss on logout. `session.rs:31575`.
+- [ ] **D-C4 Inventory swap not transactional.** Two separate `execute()` calls; mid-fail
+  orphans/dupes items. `handlers/character.rs:11668-11681`. C++ wraps slot mutations in a txn.
+- [ ] **D-C5 Loot item TOCTOU → duplication.** Slot marked looted *after* the async inventory
+  store; two concurrent looters both store it. `handlers/loot.rs:1143-1219`. C++ blocks the
+  slot *before* store.
+- [ ] **D-C6 Loot money TOCTOU → duplication.** `loot.coins` zeroed *after* distribute; two
+  concurrent `handle_loot_money` both pay out. `handlers/loot.rs:1293-1356`.
+- [ ] **D-C7 Player save has no transaction.** Serial awaits; crash mid-save leaves DB
+  inconsistent (gold debited, item not added; level saved, position reverted). `session.rs:21667`.
+- [ ] **D-C8 Vendor buy not atomic.** Gold/currency applied to runtime before item DB commit;
+  commit fail = paid, no item. `handlers/character.rs:10177-10292`.
+- [ ] **D-C9 Group full-check race.** Size checked then join without re-check → 6+ member
+  groups under concurrent accepts. `handlers/group.rs:928-1044`.
+
+## HIGH — broken mechanics / silent failure / exploit
+
+- [ ] **D-H1 Melee damage has no formula.** Uses raw weapon-damage range as final damage; **no
+  armor mitigation, no AP scaling, no level reduction.** `session.rs:7913-7942`. C++
+  `Unit::CalcArmorReducedDamage` / AP→damage.
+- [ ] **D-H2 Melee hit table absent.** miss/dodge/parry/block/glancing/crit all bypassed;
+  hardcoded `HIT_INFO_NORMAL_SWING|VICTIM_STATE_HIT`. `session.rs:47813-47823`. C++
+  `Unit::MeleeSpellHitResult`.
+- [ ] **D-H3 Spell damage/heal uses raw base points.** No coefficient, crit, or resist.
+  `session.rs:49014-49026`.
+- [ ] **D-H4 ⚠VERIFY Quest kill-credit (MONSTER objective) not wired.** No
+  `KilledMonster`→objective path found; "kill X" may be uncompletable. **Contested:** a
+  separate pass said monster/GO kills advance. Must verify on a live kill. `handlers/quest.rs`.
+- [ ] **D-H5 Quest area-trigger (explore) objectives not wired.** Type 10 falls to `_=>false`;
+  "explore Y" uncompletable. `handlers/quest.rs:653`.
+- [ ] **D-H6 Quest item-loot objectives not credited.** Loot path doesn't advance "collect X"
+  objectives. `handlers/loot.rs:6786`.
+- [ ] **D-H7 Auras not saved at logout.** All buffs/debuffs reset on relog. `session.rs:21656`.
+  C++ `Player::_SaveAuras`.
+- [ ] **D-H8 No periodic save + incomplete logout save.** Full inventory / mid-quest progress /
+  newly-learned spells may not persist; crash loses them. (Pairs with M0.4.)
+- [ ] **D-H9 Trainer skips req-skill-rank + prerequisite-spell checks.** Loaded but ignored →
+  learn spells you shouldn't. `handlers/trainer.rs:405-463`. C++ `Trainer.cpp:195-200`.
+- [ ] **D-H10 Movement trusts client position.** Only NaN/map-bounds checks; no speed/teleport
+  validation → speed/teleport hacking. `handlers/movement.rs:310-356`.
+- [ ] **D-H11 Vendor stock-limit TOCTOU → oversell.** Count read then commit without re-check.
+  `handlers/character.rs:10056-10070`.
+- [ ] **D-H12 Buyback slot TOCTOU + overwrite without cleanup → item loss.** `character.rs:10781-10882`.
+- [ ] **D-H13 Group created without leader in member list** on a creation-fail path → runtime/DB
+  mismatch. `handlers/group.rs:1050-1074`.
+- [ ] **D-H14 Duplicate-CREATE crash: async race window.** Fix relies on `client_visible_guids`
+  diff, but the set is mutated *after* send; async concurrency can resend CREATE (client
+  crash). `handlers/character.rs:6485-6488,7713-7716`.
+- [ ] **D-H15 Creature DESTROY_OBJECT deferred to player movement.** Creature that walks away
+  stays a phantom (targetable, not rendered) until the player moves. `handlers/movement.rs:274`.
+
+## MED — wrong values / loose checks / minor loss
+
+- [ ] **D-M1 Silent gold-save error.** `let _ = char_db.execute(stmt).await` swallows failures. `session.rs:21495`.
+- [ ] **D-M2 Money split rounding loss.** Integer division discards remainder copper (C++ gives it to first recipient). `handlers/loot.rs:1323`.
+- [ ] **D-M3 Off-hand dual-wield damage has no penalty** (~25% too high). `session.rs:7923`.
+- [ ] **D-M4 Haste has no attack-speed cap** → scales unbounded. `session.rs:1358`.
+- [ ] **D-M5 Threat = raw damage**, no ability/role threat modifiers. `session.rs:47875`.
+- [ ] **D-M6 Equipment sets in-memory only** (no DB) → lost on logout. `handlers/character.rs:4798`.
+- [ ] **D-M7 Void storage not saved.** `session.rs:21656`.
+- [ ] **D-M8 Group member DB insert fail logged-only**, runtime kept → reload drops member. `handlers/group.rs:1090`.
+- [ ] **D-M9 Phase not re-checked on movement** → out-of-phase objects linger. `handlers/movement.rs:274`.
+- [ ] **D-M10 Position save binds extra `instance_id`** vs C++ 7-field SavePosition (verify SQL param alignment). `session.rs:21578`.
+
+## LOW — non-issues in practice / cosmetic (recorded for completeness)
+
+- [ ] **D-L1 Item StackCount/Durability written `i32`** vs C++ `uint32` — identical bytes for
+  realistic values; only wraps >2³¹. `update.rs:5271,5294`. Tidy, not urgent.
+- [ ] **D-L2 Item Expiration/Artifact size fields** type/empty-array cosmetics. `update.rs:5272,5307`.
+- [ ] **D-L3 DK DisplayPower=5 (Runes) vs 6 (RunicPower)** — also tracked as #1213/M1.4. `update.rs:1793`.
+
+---
+
+## How this feeds the plan
+
+These are **bugs in shipped code**, distinct from missing features. In `PORT_PLAN.md` they are
+the **D-track** (existing-code hardening), checkbox-tracked here. Priority placement:
+- **CRIT data-loss/dupe (D-C1..C9)** → pulled into **M0/M1** (we can't validate gameplay on a
+  server that loses enchants, wipes banks, or dupes loot).
+- **Combat correctness (D-H1..H3)** → folded into **M3** (real combat) — they're why M3 exists.
+- **Quest crediting (D-H4..H6)** → **M4.7**.
+- The rest → addressed in their owning milestone, verified by capture/round-trip test.

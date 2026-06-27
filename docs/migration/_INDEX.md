@@ -1,5 +1,9 @@
 # Migration Index — TrinityCore wotlk_classic → RustyCore
 
+> ⚠️ **HISTORICAL (2026-05-01 snapshot).** Status/Audit columns below are stale. The
+> authoritative current state is [STATE.md](STATE.md); the plan is [PORT_PLAN.md](PORT_PLAN.md).
+> This index is kept only as a module map.
+
 > Índice maestro de los docs de migración por módulo. Cada doc sigue `_TEMPLATE.md`.
 > Si un módulo no aparece aquí o no tiene su `.md`, **es bug del índice** — añadirlo.
 

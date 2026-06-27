@@ -32,13 +32,18 @@ When touching code that still cites C#:
 
 ## Current Checkpoint
 
-As of the last audited port state before this documentation refresh:
+**Status source of truth (2026-06-27 refresh):** the per-module status snapshots below and in
+`_INDEX.md` / `MIGRATION_ROADMAP.md` §3 are **stale and not authoritative**. Use these instead:
 
-- Last audited port base: `1af9223 Add honest progress audit (R8-entities)`
-- At that base, `develop`, `origin/develop`, `main`, and `origin/main` all pointed at `1af9223`.
-- Tree expected clean on `develop`.
-- Latest documented coverage count: `736/759 = 96.97%`.
-- Latest handoff item: `TEST-DEBT / #NEXT.R8.ENTITIES.765`.
+- `docs/migration/STATE.md` — honest current state (audited HEAD, subsystem-level).
+- `docs/migration/PORT_PLAN.md` — the two-part plan (Part 1 playable M0–M6, Part 2 full-1:1 ledgers) + D-track.
+- `docs/migration/EXISTING-CODE-DEFECTS.md` — bugs found in already-shipped code.
+- `docs/migration/adr-runtime-tick-ownership.md` — runtime architecture decision.
+
+The old `1af9223` "last audited base" is **~1400 commits stale** — do not treat it as the
+reliable base, and do not cite the `96.97%` / `98.15%` headline (it measured "represented",
+not a working server; see STATE.md §0/§1). The 1.8 MB `current-session-handoff.md` is **frozen**
+(append-log; read STATE.md instead).
 
 Start every session with:
 
@@ -46,18 +51,12 @@ Start every session with:
 cd /home/server/rustycore
 git status --short --branch
 git log --oneline --decorate -8
-head -n 20 docs/migration/current-session-handoff.md
+sed -n '1,80p' docs/migration/STATE.md
 ```
 
-If HEAD has moved beyond `1af9223`, audit the commits instead of trusting their messages. A documentation-only commit that updates this file is not a new port base; code-bearing commits must still be reviewed against C++:
-
-```bash
-git log --oneline 1af9223..HEAD
-git diff --stat 1af9223..HEAD
-git diff 1af9223..HEAD
-```
-
-Only promote a newer commit to the reliable base after reviewing it against C++ and validating tests/docs.
+If HEAD has moved, audit the commits against C++ instead of trusting their messages. A
+documentation-only commit is not a new port base; code-bearing commits must still be reviewed
+against C++ before being relied upon.
 
 ## Mandatory Porting Method
 
