@@ -44707,12 +44707,15 @@ impl WorldSession {
                     if !updated.world().object().is_in_world() {
                         return false;
                     }
+                    // C++ visibility distance is 2D (CanSeeOrDetect -> GetSightRange ->
+                    // IsWithinDist(obj, range, is3D=false); Object.cpp:1587-1609). Mirror the
+                    // already-2D entry filters and the creature/GameObject values fanout.
                     let updated_world = updated.world();
                     let direct_player_allows = player_phase_shift
                         .can_see(updated_world.phase_shift())
                         && updated_world
                             .position()
-                            .is_within_dist(&player_position, visibility_range);
+                            .is_within_dist_2d(&player_position, visibility_range);
                     if direct_player_allows {
                         return true;
                     }
@@ -44724,7 +44727,7 @@ impl WorldSession {
                                 .can_see(updated_world.phase_shift())
                                 && updated_world
                                     .position()
-                                    .is_within_dist(&source_world.position(), visibility_range)
+                                    .is_within_dist_2d(&source_world.position(), visibility_range)
                         } else if let Some(source) = map.get_typed_creature(*source_guid) {
                             let source_world = source.unit().world();
                             source_world
@@ -44732,7 +44735,7 @@ impl WorldSession {
                                 .can_see(updated_world.phase_shift())
                                 && updated_world
                                     .position()
-                                    .is_within_dist(&source_world.position(), visibility_range)
+                                    .is_within_dist_2d(&source_world.position(), visibility_range)
                         } else {
                             false
                         }
@@ -44747,7 +44750,7 @@ impl WorldSession {
                                 .can_see(updated_world.phase_shift())
                                 && updated_world
                                     .position()
-                                    .is_within_dist(&seer_world.position(), visibility_range)
+                                    .is_within_dist_2d(&seer_world.position(), visibility_range)
                         })
                     })
                 })
@@ -44861,7 +44864,9 @@ impl WorldSession {
                                 && gameobject.world().is_within_dist(
                                     &player_world,
                                     visibility_range,
-                                    true,
+                                    // is3D=false: C++ visibility distance is 2D
+                                    // (CanSeeOrDetect -> IsWithinDist is3D=false; Object.cpp:1587-1609).
+                                    false,
                                     true,
                                     true,
                                 )
@@ -72449,6 +72454,57 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn dynamic_object_values_snapshot_direct_player_vertical_only_separation_sends_like_cpp()
+    {
+        // C++ visibility distance is 2D (CanSeeOrDetect -> GetSightRange ->
+        // IsWithinDist(obj, range, is3D=false); Object.cpp:1587-1609). A dynamic object at
+        // the player's exact X/Y but a large Z offset is within the 2D sight range even
+        // though its 3D distance exceeds it. A 3D check would wrongly drop it (the bug this
+        // fixes); the 2D check sends the values update like C++.
+        let (mut session, _, send_rx) = make_session();
+        let canonical = Arc::new(std::sync::Mutex::new(wow_map::MapManager::new(60_000, 1)));
+        let player_guid = ObjectGuid::create_player(1, 50_530);
+        let dynamic_guid = test_dynamic_object_guid(601_530, 50_531);
+
+        configure_dynamic_object_values_snapshot_session_like_cpp(
+            &mut session,
+            &canonical,
+            player_guid,
+            571,
+            7,
+        );
+        let visibility_range = canonical
+            .lock()
+            .unwrap()
+            .find_map(571, 7)
+            .unwrap()
+            .map()
+            .visibility_range();
+        // Same X/Y as the player (10, 20); Z far enough above that the 3D distance exceeds
+        // the sight range while the 2D distance stays 0.
+        add_canonical_test_dynamic_object_on_map(
+            &canonical,
+            dynamic_guid,
+            player_guid,
+            601_530,
+            Position::new(10.0, 20.0, 30.0 + visibility_range + 25.0, 0.0),
+            571,
+            7,
+        );
+        prepare_dynamic_object_values_snapshot_like_cpp(&canonical, 571, 7, dynamic_guid, 38.5);
+        session.client_visible_guids_like_cpp.insert(dynamic_guid);
+
+        assert_eq!(
+            session.send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp(),
+            1
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::UpdateObject]
+        );
+    }
+
+    #[tokio::test]
     async fn dynamic_object_values_snapshot_dynamic_object_seer_near_same_phase_sends_like_cpp() {
         let (mut session, _, send_rx) = make_session();
         let canonical = Arc::new(std::sync::Mutex::new(wow_map::MapManager::new(60_000, 1)));
@@ -75110,6 +75166,72 @@ mod tests {
         assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
         assert!(
             session
+                .client_visible_guids_like_cpp
+                .contains(&gameobject_guid)
+        );
+    }
+
+    #[tokio::test]
+    async fn gameobject_visibility_on_destroy_vertical_only_separation_sends_destroy_like_cpp() {
+        // C++ visibility distance is 2D (CanSeeOrDetect -> IsWithinDist is3D=false;
+        // Object.cpp:1587-1609). A GameObject at the player's exact X/Y but a large Z offset
+        // is within the 2D sight range even though its 3D distance exceeds it. The is3D=false
+        // flag on the destroy-fanout distance check sends the destroy like C++; a 3D check
+        // would wrongly keep it client-visible.
+        let (mut session, _, send_rx) = make_session();
+        let canonical = Arc::new(std::sync::Mutex::new(wow_map::MapManager::new(60_000, 1)));
+        let player_guid = ObjectGuid::create_player(1, 50_540);
+        let gameobject_guid = test_gameobject_guid(605_090, 50_541);
+
+        configure_dynamic_object_values_snapshot_session_like_cpp(
+            &mut session,
+            &canonical,
+            player_guid,
+            571,
+            7,
+        );
+        let visibility_range = canonical
+            .lock()
+            .unwrap()
+            .find_map(571, 7)
+            .unwrap()
+            .map()
+            .visibility_range();
+        // Same X/Y as the player (10, 20); Z far enough above that the 3D distance exceeds
+        // the sight range (plus combat reach) while the 2D distance stays 0.
+        add_canonical_visibility_on_destroy_gameobject_like_cpp(
+            &canonical,
+            gameobject_guid,
+            605_090,
+            5_050_541,
+            Position::new(10.0, 20.0, 30.0 + visibility_range + 100.0, 0.0),
+            571,
+            7,
+        );
+        assert_eq!(canonical.lock().unwrap().update(60_000), Some(60_000));
+        assert_eq!(
+            canonical
+                .lock()
+                .unwrap()
+                .find_map(571, 7)
+                .unwrap()
+                .last_game_objects_update_summary()
+                .generic_visibility_on_destroy_guids
+                .as_slice(),
+            &[gameobject_guid]
+        );
+        session
+            .client_visible_guids_like_cpp
+            .insert(gameobject_guid);
+
+        session.process_pending().await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::UpdateObject]
+        );
+        assert!(
+            !session
                 .client_visible_guids_like_cpp
                 .contains(&gameobject_guid)
         );
