@@ -46,14 +46,15 @@ use wow_loot::{
 use wow_network::session_mgr::SessionManager;
 use wow_network::world_socket::{AccountInfo, AccountLookup};
 use wow_network::{
-    ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, GameEventQuestCompleteCommandLikeCpp,
-    GameEventQuestCompleteResponseLikeCpp, GroupDbRowLikeCpp, GroupLoadSummaryLikeCpp,
-    GroupMemberCharacterLikeCpp, GroupMemberDbRowLikeCpp, GroupRegistry, KickLikeCppCommand,
-    LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp, PendingInvites, PlayerRegistry,
-    ReadyCheckEventLikeCpp, ReputationRatesLikeCpp, ResetSeasonalQuestStatusCommand,
-    SendVisibleObjectValuesUpdateCommand, SessionCommand, SessionResources, SocketTimeoutsLikeCpp,
-    WorldSessionShutdownFlushLikeCppCommand, WorldSessionShutdownFlushResultLikeCpp,
-    load_groups_from_db_rows_like_cpp, tick_all_group_ready_checks_like_cpp,
+    ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp,
+    GameEventQuestCompleteCommandLikeCpp, GameEventQuestCompleteResponseLikeCpp, GroupDbRowLikeCpp,
+    GroupLoadSummaryLikeCpp, GroupMemberCharacterLikeCpp, GroupMemberDbRowLikeCpp, GroupRegistry,
+    KickLikeCppCommand, LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp, PendingInvites,
+    PlayerRegistry, ReadyCheckEventLikeCpp, ReputationRatesLikeCpp,
+    ResetSeasonalQuestStatusCommand, SendVisibleObjectValuesUpdateCommand, SessionCommand,
+    SessionResources, SocketTimeoutsLikeCpp, WorldSessionShutdownFlushLikeCppCommand,
+    WorldSessionShutdownFlushResultLikeCpp, load_groups_from_db_rows_like_cpp,
+    tick_all_group_ready_checks_like_cpp,
 };
 use wow_packet::{
     ServerPacket,
@@ -4673,6 +4674,11 @@ async fn main() -> Result<ExitCode> {
             emote: world_config_u8(&world_configs, "CONFIG_CHAT_EMOTE_LEVEL_REQ", 1),
             say: world_config_u8(&world_configs, "CONFIG_CHAT_SAY_LEVEL_REQ", 1),
             yell: world_config_u8(&world_configs, "CONFIG_CHAT_YELL_LEVEL_REQ", 1),
+        },
+        chat_listen_ranges: ChatListenRangesLikeCpp {
+            say: world_config_f32(&world_configs, "CONFIG_LISTEN_RANGE_SAY", 25.0),
+            text_emote: world_config_f32(&world_configs, "CONFIG_LISTEN_RANGE_TEXTEMOTE", 25.0),
+            yell: world_config_f32(&world_configs, "CONFIG_LISTEN_RANGE_YELL", 300.0),
         },
         chat_flood_config: ChatFloodConfigLikeCpp {
             message_count: world_config_u32(&world_configs, "CONFIG_CHATFLOOD_MESSAGE_COUNT", 10),
@@ -11661,6 +11667,7 @@ async fn create_session(
     session.set_party_raid_warnings_like_cpp(resources.party_raid_warnings);
     session.set_chat_strict_link_checking_kick_like_cpp(resources.chat_strict_link_checking_kick);
     session.set_chat_level_requirements_like_cpp(resources.chat_level_requirements);
+    session.set_chat_listen_ranges_like_cpp(resources.chat_listen_ranges);
     session.set_chat_flood_config_like_cpp(resources.chat_flood_config);
     session.set_socket_timeouts_like_cpp(resources.socket_timeouts);
     session.set_packet_spoof_config_like_cpp(resources.packet_spoof_config);
@@ -12891,7 +12898,7 @@ mod tests {
         spawn_store_loader, stop_world_network_like_cpp, target_icon_raw_from_db_bytes_like_cpp,
         update_sessions_shutdown_flush_once_like_cpp, updates_auto_setup_enabled_like_cpp,
         updates_database_mask_like_cpp, updates_enabled_for_database_like_cpp, world_config_bool,
-        world_config_u8, world_config_u16, world_config_u32,
+        world_config_f32, world_config_u8, world_config_u16, world_config_u32,
         world_db_core_version_update_sql_like_cpp, world_db_version_matches_required_like_cpp,
         world_db_version_mismatch_message_like_cpp, world_update_loop_step_like_cpp,
         worldserver_cli_help_like_cpp, worldserver_full_version_like_cpp,
@@ -16465,6 +16472,31 @@ ResetSchedule.WeekDay = 5
         assert_eq!(
             world_config_u8(&configs, "CONFIG_CHAT_YELL_LEVEL_REQ", 1),
             6
+        );
+    }
+
+    #[test]
+    fn chat_listen_ranges_use_cpp_world_config_keys() {
+        let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+        wow_config::load_config_from_str(
+            "ListenRange.Say = 40\n\
+             ListenRange.TextEmote = 41\n\
+             ListenRange.Yell = 301\n",
+        )
+        .expect("config should load");
+
+        let configs = wow_config::load_world_config_values();
+        assert_eq!(
+            world_config_f32(&configs, "CONFIG_LISTEN_RANGE_SAY", 25.0),
+            40.0
+        );
+        assert_eq!(
+            world_config_f32(&configs, "CONFIG_LISTEN_RANGE_TEXTEMOTE", 25.0),
+            41.0
+        );
+        assert_eq!(
+            world_config_f32(&configs, "CONFIG_LISTEN_RANGE_YELL", 300.0),
+            301.0
         );
     }
 
