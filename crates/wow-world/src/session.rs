@@ -72,19 +72,20 @@ use wow_data::{
     DisableWorldObjectRefLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
     DurabilityQualityStore, EmotesStore, EmotesTextStore, ExplorationBaseXpStoreLikeCpp,
     FishingBaseSkillStoreLikeCpp, GameObjectDisplayInfoStore,
-    GameObjectTemplateLifecycleStoreLikeCpp, GlyphPropertiesStore, HeirloomEntry, HeirloomStore,
-    HotfixBlobCache, ImportPriceStores, ItemAppearanceStore, ItemBonusDb2Store, ItemClassStore,
-    ItemCurrencyCostStore, ItemDisenchantLootStore, ItemEffectStore, ItemExtendedCostStore,
-    ItemLimitCategoryConditionStore, ItemLimitCategoryStore, ItemModifiedAppearanceStore,
-    ItemPriceBaseStore, ItemRandomEnchantmentTemplateStore, ItemRandomPropertiesStore,
-    ItemRandomPropertyTemplateEntry, ItemRandomSuffixStore, ItemSearchNameStore, ItemSetSpellStore,
-    ItemSetStore, ItemSpecOverrideStore, ItemStatsStore, ItemStore, LfgDungeonStoreLikeCpp,
-    LfgDungeonsStore, LockStore, MapDifficultyStore, MapDifficultyXConditionStore, MapStore,
-    MountCapabilityStore, MountDefinitionStoreLikeCpp, MountStore, MountTypeXCapabilityStore,
-    MountXDisplayStore, MovieStore, NpcSpellClickStoreLikeCpp, PetDefaultSpellStoreLikeCpp,
-    PetDefaultSpellsEntryLikeCpp, PetFamilySpellStoreLikeCpp, PetLevelupSpellSetLikeCpp,
-    PetLevelupSpellStoreLikeCpp, PhaseGroupStore, PhaseStore, PlayerConditionAuraLikeCpp,
-    PlayerConditionContextLikeCpp, PlayerConditionCountLikeCpp, PlayerConditionPartyStatusLikeCpp,
+    GameObjectTemplateLifecycleStoreLikeCpp, GlyphPropertiesStore, GraveyardStore, HeirloomEntry,
+    HeirloomStore, HotfixBlobCache, ImportPriceStores, ItemAppearanceStore, ItemBonusDb2Store,
+    ItemClassStore, ItemCurrencyCostStore, ItemDisenchantLootStore, ItemEffectStore,
+    ItemExtendedCostStore, ItemLimitCategoryConditionStore, ItemLimitCategoryStore,
+    ItemModifiedAppearanceStore, ItemPriceBaseStore, ItemRandomEnchantmentTemplateStore,
+    ItemRandomPropertiesStore, ItemRandomPropertyTemplateEntry, ItemRandomSuffixStore,
+    ItemSearchNameStore, ItemSetSpellStore, ItemSetStore, ItemSpecOverrideStore, ItemStatsStore,
+    ItemStore, LfgDungeonStoreLikeCpp, LfgDungeonsStore, LockStore, MapDifficultyStore,
+    MapDifficultyXConditionStore, MapStore, MountCapabilityStore, MountDefinitionStoreLikeCpp,
+    MountStore, MountTypeXCapabilityStore, MountXDisplayStore, MovieStore,
+    NpcSpellClickStoreLikeCpp, PetDefaultSpellStoreLikeCpp, PetDefaultSpellsEntryLikeCpp,
+    PetFamilySpellStoreLikeCpp, PetLevelupSpellSetLikeCpp, PetLevelupSpellStoreLikeCpp,
+    PhaseGroupStore, PhaseStore, PlayerConditionAuraLikeCpp, PlayerConditionContextLikeCpp,
+    PlayerConditionCountLikeCpp, PlayerConditionPartyStatusLikeCpp,
     PlayerConditionQuestKillLikeCpp, PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp,
     PlayerConditionStore, PlayerCreateInfoCastSpellStoreLikeCpp,
     PlayerCreateInfoCustomSpellStoreLikeCpp, PlayerStatsStore, PvpItemStore, RandPropPointsStore,
@@ -3874,6 +3875,9 @@ pub struct WorldSession {
     // Area trigger store (collision detection + teleportation)
     area_trigger_store: Option<Arc<AreaTriggerStore>>,
 
+    // C++ ObjectMgr::GraveyardStore loaded from graveyard_zone plus attached conditions.
+    graveyard_store: Option<Arc<GraveyardStore>>,
+
     // ChrSpecialization store (loot specialization validation)
     chr_specialization_store: Option<Arc<ChrSpecializationStore>>,
 
@@ -5778,6 +5782,7 @@ impl WorldSession {
             area_table_store: None,
             fishing_base_skill_store: None,
             area_trigger_store: None,
+            graveyard_store: None,
             chr_specialization_store: None,
             dungeon_encounter_store: None,
             map_store: None,
@@ -20039,6 +20044,14 @@ impl WorldSession {
     /// Get the area trigger store reference.
     pub fn area_trigger_store(&self) -> Option<&Arc<AreaTriggerStore>> {
         self.area_trigger_store.as_ref()
+    }
+
+    pub fn set_graveyard_store(&mut self, store: Arc<GraveyardStore>) {
+        self.graveyard_store = Some(store);
+    }
+
+    pub(crate) fn graveyard_store(&self) -> Option<&Arc<GraveyardStore>> {
+        self.graveyard_store.as_ref()
     }
 
     /// Set the ChrSpecialization store for this session.

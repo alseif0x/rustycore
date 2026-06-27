@@ -5923,16 +5923,6 @@ pub struct RequestCemeteryListResponse {
     pub cemetery_ids: Vec<u32>,
 }
 
-impl RequestCemeteryListResponse {
-    /// Empty response — no graveyards in this zone.
-    pub fn empty(is_gossip_triggered: bool) -> Self {
-        Self {
-            is_gossip_triggered,
-            cemetery_ids: vec![],
-        }
-    }
-}
-
 impl ServerPacket for RequestCemeteryListResponse {
     const OPCODE: ServerOpcodes = ServerOpcodes::RequestCemeteryListResponse;
 

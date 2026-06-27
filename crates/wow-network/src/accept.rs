@@ -310,6 +310,7 @@ pub struct SessionResources {
     pub area_table_store: Option<Arc<wow_data::AreaTableStore>>,
     pub fishing_base_skill_store: Option<Arc<wow_data::FishingBaseSkillStoreLikeCpp>>,
     pub area_trigger_store: Option<Arc<wow_data::AreaTriggerStore>>,
+    pub graveyard_store: Option<Arc<wow_data::GraveyardStore>>,
     pub area_trigger_template_store: Option<Arc<wow_data::AreaTriggerTemplateStore>>,
     pub chr_specialization_store: Option<Arc<wow_data::ChrSpecializationStore>>,
     pub dungeon_encounter_store: Option<Arc<wow_data::DungeonEncounterStore>>,

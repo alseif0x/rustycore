@@ -25,9 +25,9 @@ Estados:
 ## Resumen
 
 - Bugs confirmados contra C++: 51.
-- Bugs corregidos: 23 (`#CSharpAudit.COMPRESS.1`, `#CSharpAudit.BNETREST.1`, `#CSharpAudit.BNETREST.2`, `#CSharpAudit.BNETREST.3`, `#CSharpAudit.BNETREST.4`, `#CSharpAudit.FEATURE.1`, `#CSharpAudit.BNETSRP.1`, `#CSharpAudit.BNETSRP.2`, `#CSharpAudit.BNETSRP.3`, `#CSharpAudit.BNETSRP.4`, `#CSharpAudit.MOVEMENT.1`, `#CSharpAudit.SPELL.1`, `#CSharpAudit.COMBAT.1`, `#CSharpAudit.CHAT.1`, `#CSharpAudit.CHAT.2`, `#CSharpAudit.ITEM.1`, `#CSharpAudit.PARTY.3`, `#CSharpAudit.PARTY.1`, `#CSharpAudit.MISC.1`, `#CSharpAudit.MISC.2`, `#CSharpAudit.LOOT.1`, `#CSharpAudit.QUESTXP.1`, `#CSharpAudit.QUESTXP.2`).
+- Bugs corregidos: 24 (`#CSharpAudit.COMPRESS.1`, `#CSharpAudit.BNETREST.1`, `#CSharpAudit.BNETREST.2`, `#CSharpAudit.BNETREST.3`, `#CSharpAudit.BNETREST.4`, `#CSharpAudit.FEATURE.1`, `#CSharpAudit.BNETSRP.1`, `#CSharpAudit.BNETSRP.2`, `#CSharpAudit.BNETSRP.3`, `#CSharpAudit.BNETSRP.4`, `#CSharpAudit.MOVEMENT.1`, `#CSharpAudit.SPELL.1`, `#CSharpAudit.COMBAT.1`, `#CSharpAudit.CHAT.1`, `#CSharpAudit.CHAT.2`, `#CSharpAudit.ITEM.1`, `#CSharpAudit.PARTY.3`, `#CSharpAudit.PARTY.1`, `#CSharpAudit.MISC.1`, `#CSharpAudit.MISC.2`, `#CSharpAudit.LOOT.1`, `#CSharpAudit.QUESTXP.1`, `#CSharpAudit.QUESTXP.2`, `#CSharpAudit.CEMETERY.1`).
 - Commit historico registrado: `#CSharpAudit.MOVEMENT.1` -> `98ceec4d`.
-- Bugs pendientes de fix: 28.
+- Bugs pendientes de fix: 27.
 - Referencias C# productivas localizadas hoy: 52 archivos bajo `crates/**`.
 - Referencias C# documentales no-audit localizadas hoy: 39 archivos bajo `docs/**`.
 
@@ -93,7 +93,7 @@ indica donde se controla cada referencia.
 - [ ] `#CSharpAudit.PROFICIENCY.1` - `SetProficiency::default_*` son tablas C# no canonicas.
 - [ ] `#CSharpAudit.MISCWORLD.1` - Far teleport/worldport ack no replica secuencia C++ completa.
 - [ ] `#CSharpAudit.AREATRIGGER.1` - `CMSG_AREA_TRIGGER` parser/handler incompleto frente a C++.
-- [ ] `#CSharpAudit.CEMETERY.1` - Cemetery list lee byte no C++ y responde lista vacia.
+- [x] `#CSharpAudit.CEMETERY.1` - Corregido; `CMSG_REQUEST_CEMETERY_LIST` ya no consume byte C#, usa `GraveyardStore` por zona, filtra condiciones C++ y no responde cuando no hay IDs. Tests: `request_cemetery_list_without_links_sends_no_response_like_cpp`, `request_cemetery_list_ignores_payload_and_sends_zone_ids_like_cpp`, `request_cemetery_list_filters_conditions_and_caps_at_sixteen_like_cpp`.
 - [ ] `#CSharpAudit.TAXI.1` - Taxi node status solo usa NPC flag; C++ valida muchas gates.
 - [x] `#CSharpAudit.QUESTXP.1` - Corregido; `QuestXP::calculate_xp` devuelve `0` si falta la fila exacta de `QuestXP` para el nivel, igual que C++ `sQuestXPStore.LookupEntry(quest_level)`. Test: `calculate_xp_missing_quest_level_returns_zero_like_cpp`.
 - [x] `#CSharpAudit.QUESTXP.2` - Corregido; `QuestXP::calculate_xp` aplica `CONFIG_MIN_QUEST_SCALED_XP_RATIO` como C++ y `WorldSession` recibe la config desde `SessionResources`. Test: `calculate_xp_min_scaled_ratio_raises_grey_quest_like_cpp`.
