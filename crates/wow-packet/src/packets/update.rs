@@ -2896,6 +2896,12 @@ pub struct GameObjectCreateData {
     /// invalid path-node index (0xFFFF) -> NULL deref in the render/anim worker (ERROR #132).
     /// For all other GameObjects this is 0 (they derive any period from AnimationData, not Level).
     pub level: u32,
+    /// C++ `GameObjectData::ParentRotation` (UpdateFields). Identity quaternion
+    /// `(0, 0, 0, 1)` for most GameObjects; sourced from per-spawn
+    /// `gameobject_addon.parent_rotation0..3` when present (GameObject::Create,
+    /// GameObject.cpp:1003-1008). Distinct from the local `rotation` packed by the
+    /// movement-update Rotation flag.
+    pub parent_rotation: [f32; 4],
 }
 
 impl GameObjectCreateData {
@@ -2933,12 +2939,13 @@ impl GameObjectCreateData {
         // ParentRotation (Quaternion: x, y, z, w)
         // C++ uses GameObjectData::ParentRotation, not the local rotation
         // packed separately by Object::BuildMovementUpdate's Rotation flag.
-        // For most GameObjects it's the identity quaternion (0, 0, 0, 1).
-        // Only some transports have non-standard parent rotation.
-        buf.write_float(0.0); // ParentRotation.X
-        buf.write_float(0.0); // ParentRotation.Y
-        buf.write_float(0.0); // ParentRotation.Z
-        buf.write_float(1.0); // ParentRotation.W
+        // For most GameObjects it's the identity quaternion (0, 0, 0, 1); some
+        // (transports, a few addon GameObjects) carry a non-standard parent
+        // rotation from gameobject_addon (GameObject::Create, GameObject.cpp:1003-1008).
+        buf.write_float(self.parent_rotation[0]); // ParentRotation.X
+        buf.write_float(self.parent_rotation[1]); // ParentRotation.Y
+        buf.write_float(self.parent_rotation[2]); // ParentRotation.Z
+        buf.write_float(self.parent_rotation[3]); // ParentRotation.W
         buf.write_int32(self.faction_template); // FactionTemplate
         buf.write_uint32(self.level); // Level (MO_TRANSPORT period = TotalPathTime; else 0)
         buf.write_int8(self.state); // State
@@ -9121,6 +9128,7 @@ mod tests {
             world_effect_id: 0,
             scale: 1.0,
             level: 0,
+            parent_rotation: [0.0, 0.0, 0.0, 1.0],
         };
 
         let mut empty_owner_packet = WorldPacket::new_empty();
@@ -9157,6 +9165,7 @@ mod tests {
             world_effect_id: 0,
             scale: 1.0,
             level: 0x0011_2233, // distinctive period
+            parent_rotation: [0.0, 0.0, 0.0, 1.0],
         };
         let mut pkt = WorldPacket::new_empty();
         data.write_values_create(&mut pkt);
@@ -9170,6 +9179,54 @@ mod tests {
         let mut pkt0 = WorldPacket::new_empty();
         data.write_values_create(&mut pkt0);
         assert_ne!(bytes, pkt0.into_data());
+    }
+
+    #[test]
+    fn gameobject_create_values_serializes_parent_rotation_like_cpp() {
+        // C++ GameObjectData::ParentRotation is sourced from per-spawn gameobject_addon
+        // (GameObject::Create, GameObject.cpp:1003-1008) — distinct from the local rotation.
+        // #NEXT.R8.ENTITIES.1216: a non-identity parent rotation must reach the wire instead
+        // of being hardcoded to identity.
+        let mut data = GameObjectCreateData {
+            guid: ObjectGuid::create_world_object(
+                wow_core::guid::HighGuid::GameObject,
+                0,
+                1,
+                571,
+                1,
+                195821,
+                42,
+            ),
+            entry: 195821,
+            dynamic_flags: 0,
+            display_id: 8112,
+            go_type: 10, // GENERIC (uses write_values_create, not the transport block)
+            position: Position::ZERO,
+            rotation: [0.0, 0.0, 0.0, 1.0],
+            anim_progress: 255,
+            state: 1,
+            created_by: ObjectGuid::EMPTY,
+            faction_template: 0,
+            gameobject_flags: 0,
+            world_effect_id: 0,
+            scale: 1.0,
+            level: 0,
+            parent_rotation: [0.25, 0.5, 0.75, 0.125],
+        };
+        let mut pkt = WorldPacket::new_empty();
+        data.write_values_create(&mut pkt);
+        let bytes = pkt.into_data();
+        for component in data.parent_rotation {
+            assert!(
+                bytes.windows(4).any(|w| w == component.to_le_bytes()),
+                "GameObjectData::ParentRotation component {component} must be serialized"
+            );
+        }
+        // Identity must produce a different wire — the field is not a no-op.
+        data.parent_rotation = [0.0, 0.0, 0.0, 1.0];
+        let mut identity_pkt = WorldPacket::new_empty();
+        data.write_values_create(&mut identity_pkt);
+        assert_ne!(bytes, identity_pkt.into_data());
     }
 
     #[test]
@@ -9198,6 +9255,7 @@ mod tests {
             world_effect_id: 0,
             scale: 1.0,
             level: 0,
+            parent_rotation: [0.0, 0.0, 0.0, 1.0],
         };
 
         let mut packet = WorldPacket::new_empty();
@@ -9244,6 +9302,7 @@ mod tests {
             world_effect_id: 0,
             scale: 1.0,
             level: 0,
+            parent_rotation: [0.0, 0.0, 0.0, 1.0],
         };
 
         let mut block = WorldPacket::new_empty();

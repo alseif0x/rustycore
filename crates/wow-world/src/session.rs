@@ -12615,6 +12615,9 @@ impl WorldSession {
                     world_effect_id: 0,
                     scale: state.scale,
                     level: 0, // non-transport GameObject: Level unused (period via AnimationData)
+                    // Canonical state path does not yet record per-spawn ParentRotation;
+                    // identity until state population is added (#NEXT.R8.ENTITIES.1216 follow-up).
+                    parent_rotation: [0.0, 0.0, 0.0, 1.0],
                 }
             } else {
                 let Some(create_data) =
@@ -12693,6 +12696,9 @@ impl WorldSession {
             world_effect_id: 0,
             scale: object.object().scale(),
             level: 0, // non-transport GameObject: Level unused (period via AnimationData)
+            // Canonical GameObject entity does not yet carry per-spawn ParentRotation;
+            // identity until the entity stores it (#NEXT.R8.ENTITIES.1216 follow-up).
+            parent_rotation: [0.0, 0.0, 0.0, 1.0],
         })
     }
 

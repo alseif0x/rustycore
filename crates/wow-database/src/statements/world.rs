@@ -727,11 +727,16 @@ impl StatementDef for WorldStatements {
                 "gt.Data32, gt.Data33, gt.Data34, ",
                 "g.phaseUseFlags, g.phaseid, g.phasegroup, g.terrainSwapMap, ",
                 "COALESCE(goo.flags, gta.flags, 0), COALESCE(goo.faction, gta.faction, 0), ",
-                "CASE WHEN goo.spawnId IS NOT NULL OR gta.entry IS NOT NULL THEN 1 ELSE 0 END ",
+                "CASE WHEN goo.spawnId IS NOT NULL OR gta.entry IS NOT NULL THEN 1 ELSE 0 END, ",
+                // #NEXT.R8.ENTITIES.1216: GameObjectData.ParentRotation from per-spawn
+                // gameobject_addon (GameObject::Create, GameObject.cpp:1003-1008). NULL (no
+                // addon row) -> identity quaternion in the reader.
+                "ga.parent_rotation0, ga.parent_rotation1, ga.parent_rotation2, ga.parent_rotation3 ",
                 "FROM gameobject g ",
                 "JOIN gameobject_template gt ON g.id = gt.entry ",
                 "LEFT JOIN gameobject_template_addon gta ON gta.entry = g.id ",
                 "LEFT JOIN gameobject_overrides goo ON goo.spawnId = g.guid ",
+                "LEFT JOIN gameobject_addon ga ON ga.guid = g.guid ",
                 "WHERE g.map = ? AND g.position_x BETWEEN ? AND ? AND g.position_y BETWEEN ? AND ?",
             ),
             Self::SEL_GAMEOBJECT_SPAWNS => concat!(

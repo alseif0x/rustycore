@@ -5937,6 +5937,9 @@ impl WorldSession {
                 // goes in GameObjectData::Level. The client divides PathProgress by it to
                 // interpolate; 0 -> divide-by-zero -> 0xFFFF node index -> client ERROR #132.
                 level: path_position.total_time_ms,
+                // MO_TRANSPORTs serialize via create_transport_block (own writer); identity
+                // here. Transport-specific parent rotation is a #NEXT.R8.ENTITIES.1216 follow-up.
+                parent_rotation: [0.0, 0.0, 0.0, 1.0],
             };
             blocks.push(UpdateObject::create_transport_block(create_data, now_ms));
         }
@@ -6917,6 +6920,12 @@ impl WorldSession {
                 let rot1: f32 = go_result.try_read(7).unwrap_or(0.0);
                 let rot2: f32 = go_result.try_read(8).unwrap_or(0.0);
                 let rot3: f32 = go_result.try_read(9).unwrap_or(0.0);
+                // #NEXT.R8.ENTITIES.1216: GameObjectData.ParentRotation from per-spawn
+                // gameobject_addon (cols 58-61); NULL (no addon) -> identity (0,0,0,1).
+                let parent_rot0: f32 = go_result.try_read(58).unwrap_or(0.0);
+                let parent_rot1: f32 = go_result.try_read(59).unwrap_or(0.0);
+                let parent_rot2: f32 = go_result.try_read(60).unwrap_or(0.0);
+                let parent_rot3: f32 = go_result.try_read(61).unwrap_or(1.0);
                 let anim_progress: u8 = go_result.try_read(10).unwrap_or(255);
                 let state: i8 = go_result.try_read::<u8>(11).unwrap_or(1) as i8;
                 let go_type: u8 = go_result.try_read(12).unwrap_or(0);
@@ -7058,6 +7067,7 @@ impl WorldSession {
                         world_effect_id: 0,
                         scale,
                         level: 0, // non-transport GameObject: Level unused (period via AnimationData)
+                        parent_rotation: [parent_rot0, parent_rot1, parent_rot2, parent_rot3],
                     };
                     update_blocks.push(UpdateObject::create_gameobject_block(create_data));
                     created_gameobjects += 1;
@@ -7742,6 +7752,12 @@ impl WorldSession {
             let rot1: f32 = result.try_read(7).unwrap_or(0.0);
             let rot2: f32 = result.try_read(8).unwrap_or(0.0);
             let rot3: f32 = result.try_read(9).unwrap_or(0.0);
+            // #NEXT.R8.ENTITIES.1216: GameObjectData.ParentRotation from per-spawn
+            // gameobject_addon (cols 58-61); NULL (no addon) -> identity (0,0,0,1).
+            let parent_rot0: f32 = result.try_read(58).unwrap_or(0.0);
+            let parent_rot1: f32 = result.try_read(59).unwrap_or(0.0);
+            let parent_rot2: f32 = result.try_read(60).unwrap_or(0.0);
+            let parent_rot3: f32 = result.try_read(61).unwrap_or(1.0);
             // C++ GameObject::Create defaults animProgress to 255 (GameObject.cpp:1068,1089);
             // match the other GO paths (canonical ~6920) instead of 0. #NEXT.R8.ENTITIES.1218.
             let anim_progress: u8 = result.try_read(10).unwrap_or(255);
@@ -7870,6 +7886,7 @@ impl WorldSession {
                 world_effect_id: 0,
                 scale,
                 level: 0, // non-transport GameObject: Level unused (period via AnimationData)
+                parent_rotation: [parent_rot0, parent_rot1, parent_rot2, parent_rot3],
             };
 
             blocks.push(UpdateObject::create_gameobject_block(create_data));
