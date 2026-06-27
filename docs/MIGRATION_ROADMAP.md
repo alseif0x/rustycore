@@ -1,5 +1,10 @@
 # Migration Roadmap — TrinityCore (wotlk_classic) → RustyCore (Rust)
 
+> ⚠️ **Ordering/status here is superseded (2026-06-27).** The active plan is
+> [migration/PORT_PLAN.md](migration/PORT_PLAN.md) and the honest state is
+> [migration/STATE.md](migration/STATE.md). Use this file only for the layer/dependency
+> background; its §3 status table is historical.
+
 > Plan operativo para migrar **todo** TrinityCore C++ a Rust. Este documento es la fuente de verdad para prioridad, orden y TODO list. El inventario de estado por módulo vive en `docs/migration/_INDEX.md`. Se actualiza al cierre de cada fase.
 
 **Repos de referencia:**
