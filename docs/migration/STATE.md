@@ -8,7 +8,10 @@ the `MIGRATION_ROADMAP.md` §3 inherited table (which tells you not to trust it)
 audit of HEAD down to subsystem/subdependency level**, not in what prior docs or the
 inventory TSV claim. Architecture decisions: [adr-runtime-tick-ownership.md](adr-runtime-tick-ownership.md).
 Forward plan: [PORT_PLAN.md](PORT_PLAN.md). Bugs found in already-shipped code:
-[EXISTING-CODE-DEFECTS.md](EXISTING-CODE-DEFECTS.md).
+[EXISTING-CODE-DEFECTS.md](EXISTING-CODE-DEFECTS.md). C#-reference contrast vs C++ (51
+findings, 25 open → tracked as GitHub issues #50–#64, index #65; feeds plan ledger L26).
+Audit docs kept local/uncommitted: `../audits/csharp-reference-audit.md` +
+`../audits/csharp-reference-contrast.md`.
 
 ---
 
