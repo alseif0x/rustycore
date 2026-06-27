@@ -70,18 +70,18 @@ use wow_data::{
     CreatureTemplateMountStoreLikeCpp, CurrencyTypesEntry, CurrencyTypesStore,
     DISABLE_TYPE_BATTLEGROUND, DISABLE_TYPE_MAP, DifficultyStore, DisableMgrLikeCpp,
     DisableWorldObjectRefLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
-    DurabilityQualityStore, ExplorationBaseXpStoreLikeCpp, FishingBaseSkillStoreLikeCpp,
-    GameObjectDisplayInfoStore, GameObjectTemplateLifecycleStoreLikeCpp, GlyphPropertiesStore,
-    HeirloomEntry, HeirloomStore, HotfixBlobCache, ImportPriceStores, ItemAppearanceStore,
-    ItemBonusDb2Store, ItemClassStore, ItemCurrencyCostStore, ItemDisenchantLootStore,
-    ItemEffectStore, ItemExtendedCostStore, ItemLimitCategoryConditionStore,
-    ItemLimitCategoryStore, ItemModifiedAppearanceStore, ItemPriceBaseStore,
-    ItemRandomEnchantmentTemplateStore, ItemRandomPropertiesStore, ItemRandomPropertyTemplateEntry,
-    ItemRandomSuffixStore, ItemSearchNameStore, ItemSetSpellStore, ItemSetStore,
-    ItemSpecOverrideStore, ItemStatsStore, ItemStore, LfgDungeonStoreLikeCpp, LfgDungeonsStore,
-    LockStore, MapDifficultyStore, MapDifficultyXConditionStore, MapStore, MountCapabilityStore,
-    MountDefinitionStoreLikeCpp, MountStore, MountTypeXCapabilityStore, MountXDisplayStore,
-    MovieStore, NpcSpellClickStoreLikeCpp, PetDefaultSpellStoreLikeCpp,
+    DurabilityQualityStore, EmotesStore, EmotesTextStore, ExplorationBaseXpStoreLikeCpp,
+    FishingBaseSkillStoreLikeCpp, GameObjectDisplayInfoStore,
+    GameObjectTemplateLifecycleStoreLikeCpp, GlyphPropertiesStore, HeirloomEntry, HeirloomStore,
+    HotfixBlobCache, ImportPriceStores, ItemAppearanceStore, ItemBonusDb2Store, ItemClassStore,
+    ItemCurrencyCostStore, ItemDisenchantLootStore, ItemEffectStore, ItemExtendedCostStore,
+    ItemLimitCategoryConditionStore, ItemLimitCategoryStore, ItemModifiedAppearanceStore,
+    ItemPriceBaseStore, ItemRandomEnchantmentTemplateStore, ItemRandomPropertiesStore,
+    ItemRandomPropertyTemplateEntry, ItemRandomSuffixStore, ItemSearchNameStore, ItemSetSpellStore,
+    ItemSetStore, ItemSpecOverrideStore, ItemStatsStore, ItemStore, LfgDungeonStoreLikeCpp,
+    LfgDungeonsStore, LockStore, MapDifficultyStore, MapDifficultyXConditionStore, MapStore,
+    MountCapabilityStore, MountDefinitionStoreLikeCpp, MountStore, MountTypeXCapabilityStore,
+    MountXDisplayStore, MovieStore, NpcSpellClickStoreLikeCpp, PetDefaultSpellStoreLikeCpp,
     PetDefaultSpellsEntryLikeCpp, PetFamilySpellStoreLikeCpp, PetLevelupSpellSetLikeCpp,
     PetLevelupSpellStoreLikeCpp, PhaseGroupStore, PhaseStore, PlayerConditionAuraLikeCpp,
     PlayerConditionContextLikeCpp, PlayerConditionCountLikeCpp, PlayerConditionPartyStatusLikeCpp,
@@ -3727,6 +3727,10 @@ pub struct WorldSession {
     // Import price stores (ImportPrice*.db2 data)
     import_price_stores: Option<Arc<ImportPriceStores>>,
 
+    // Emotes.db2 / EmotesText.db2 stores used by C++ chat text-emote handling.
+    emotes_store: Option<Arc<EmotesStore>>,
+    emotes_text_store: Option<Arc<EmotesTextStore>>,
+
     // Item class store (ItemClass.db2 data)
     item_class_store: Option<Arc<ItemClassStore>>,
 
@@ -5357,6 +5361,7 @@ const AFLAG_NOCASTER_LIKE_CPP: u32 = 0x0000_0001;
 const AFLAG_SCALABLE_LIKE_CPP: u32 = 0x0000_0008;
 
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG_LOOTING_LIKE_CPP: u32 = 0x0000_0800;
+pub(crate) const SPELL_AURA_INTERRUPT_FLAG_ANIM_LIKE_CPP: u32 = 0x0000_0020;
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG_MOVING_LIKE_CPP: u32 = 0x0000_0008;
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG_TURNING_LIKE_CPP: u32 = 0x0000_0010;
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG_MOVING_OR_TURNING_LIKE_CPP: u32 =
@@ -5709,6 +5714,8 @@ impl WorldSession {
             bank_bag_slot_prices_store: None,
             currency_types_store: None,
             import_price_stores: None,
+            emotes_store: None,
+            emotes_text_store: None,
             item_class_store: None,
             item_currency_cost_store: None,
             item_extended_cost_store: None,
@@ -12981,6 +12988,24 @@ impl WorldSession {
     /// Set the C++ ImportPrice*.db2 stores for this session.
     pub fn set_import_price_stores(&mut self, stores: Arc<ImportPriceStores>) {
         self.import_price_stores = Some(stores);
+    }
+
+    /// Set the C++ Emotes.db2 store for `Unit::HandleEmoteCommand`.
+    pub fn set_emotes_store_like_cpp(&mut self, store: Arc<EmotesStore>) {
+        self.emotes_store = Some(store);
+    }
+
+    pub(crate) fn emotes_store_like_cpp(&self) -> Option<&Arc<EmotesStore>> {
+        self.emotes_store.as_ref()
+    }
+
+    /// Set the C++ EmotesText.db2 store for `HandleTextEmoteOpcode`.
+    pub fn set_emotes_text_store_like_cpp(&mut self, store: Arc<EmotesTextStore>) {
+        self.emotes_text_store = Some(store);
+    }
+
+    pub(crate) fn emotes_text_store_like_cpp(&self) -> Option<&Arc<EmotesTextStore>> {
+        self.emotes_text_store.as_ref()
     }
 
     /// C++ `sImportPriceQualityStore.LookupEntry(quality + 1)`.
@@ -25373,7 +25398,7 @@ impl WorldSession {
         true
     }
 
-    fn player_unit_state_for_registry_like_cpp(&self) -> u32 {
+    pub(crate) fn player_unit_state_for_registry_like_cpp(&self) -> u32 {
         let Some(guid) = self.player_guid() else {
             return 0;
         };
@@ -25394,7 +25419,23 @@ impl WorldSession {
             }
         }
 
+        if let Some(registry) = self.player_registry()
+            && let Some(info) = registry.get(&guid)
+        {
+            return info.unit_state;
+        }
+
         0
+    }
+
+    pub(crate) fn player_has_unit_state_like_cpp(&self, state: UnitState) -> bool {
+        self.player_unit_state_for_registry_like_cpp() & state.bits() != 0
+    }
+
+    pub(crate) fn set_player_emote_state_like_cpp(&mut self, emote_state: u32) {
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_emote_state_like_cpp(emote_state);
+        });
     }
 
     fn party_member_visible_auras_like_cpp(

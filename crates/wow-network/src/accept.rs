@@ -195,6 +195,8 @@ pub struct SessionResources {
     pub bank_bag_slot_prices_store: Option<Arc<wow_data::BankBagSlotPricesStore>>,
     pub currency_types_store: Option<Arc<wow_data::CurrencyTypesStore>>,
     pub import_price_stores: Option<Arc<wow_data::ImportPriceStores>>,
+    pub emotes_store: Option<Arc<wow_data::EmotesStore>>,
+    pub emotes_text_store: Option<Arc<wow_data::EmotesTextStore>>,
     pub ip_location_store: Option<Arc<wow_core::IpLocationStore>>,
     pub item_class_store: Option<Arc<wow_data::ItemClassStore>>,
     pub item_currency_cost_store: Option<Arc<wow_data::ItemCurrencyCostStore>>,
