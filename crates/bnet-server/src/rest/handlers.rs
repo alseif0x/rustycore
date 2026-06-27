@@ -480,7 +480,7 @@ async fn post_login_srp_challenge(
     };
 
     if result.is_empty() {
-        return json_error_response(400, "Bad Request", "Account not found");
+        return srp_challenge_missing_account_response_like_cpp();
     }
 
     // Columns: id(0), srp_version(1), salt(2), verifier(3)
@@ -529,6 +529,10 @@ async fn post_login_srp_challenge(
 
 fn srp_challenge_headers_like_cpp() -> Vec<(&'static str, String)> {
     vec![("Content-Type", "application/json;charset=utf-8".to_string())]
+}
+
+fn srp_challenge_missing_account_response_like_cpp() -> HttpResponse {
+    json_response(error_result("Account not found"))
 }
 
 /// GET /bnetserver/gameAccounts/
@@ -845,7 +849,7 @@ fn wrong_password_remote_ip_from_headers_like_cpp(
         .to_string()
 }
 
-/// C# returns "DONE" with no other fields for wrong password / account not found
+/// C++ returns "DONE" with no other fields for wrong password / account not found
 /// to prevent account enumeration.
 fn error_result(_msg: &str) -> AuthResult {
     AuthResult {
@@ -1091,6 +1095,24 @@ mod tests {
                 .iter()
                 .any(|(name, _)| name.eq_ignore_ascii_case("Set-Cookie"))
         );
+    }
+
+    #[test]
+    fn srp_challenge_missing_account_returns_done_like_cpp() {
+        let response = srp_challenge_missing_account_response_like_cpp();
+
+        assert_eq!(response.status_code, 200);
+        assert_eq!(
+            response.headers,
+            vec![("Content-Type", "application/json;charset=utf-8".to_string())]
+        );
+
+        let body: serde_json::Value = serde_json::from_str(&response.body).unwrap();
+        assert_eq!(body["authentication_state"], "DONE");
+        assert!(body["error_code"].is_null());
+        assert!(body["error_message"].is_null());
+        assert!(body["login_ticket"].is_null());
+        assert!(body["server_evidence_M2"].is_null());
     }
 
     #[test]
