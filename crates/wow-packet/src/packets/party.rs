@@ -631,6 +631,7 @@ impl ServerPacket for PartyCommandResult {
 /// Sent to the INVITED player so they see the invite dialog.
 pub struct PartyInviteServer {
     pub can_accept: bool,
+    pub proposed_roles: u8,
     pub inviter_name: String,
     pub inviter_guid: ObjectGuid,
     pub inviter_bnet_account_guid: ObjectGuid,
@@ -647,7 +648,7 @@ impl ServerPacket for PartyInviteServer {
         w.write_bit(false); // MightCRZYou
         w.write_bit(false); // IsXRealm
         w.write_bit(false); // MustBeBNetFriend
-        w.write_bit(true); // AllowMultipleRoles
+        w.write_bit(false); // AllowMultipleRoles
         w.write_bit(false); // QuestSessionActive
         w.write_bits(name_bytes.len() as u32, 6);
         // VirtualRealmInfo.Write():
@@ -666,7 +667,7 @@ impl ServerPacket for PartyInviteServer {
         w.write_packed_guid(&self.inviter_guid);
         w.write_packed_guid(&self.inviter_bnet_account_guid);
         w.write_uint16(0); // Unk1
-        w.write_uint8(0); // ProposedRoles
+        w.write_uint8(self.proposed_roles);
         w.write_int32(0); // LfgSlots.Count
         w.write_int32(0); // LfgCompletedMask
         w.write_bytes(name_bytes);
