@@ -10,13 +10,19 @@ use wow_database::LoginStatements;
 
 use super::HttpResponse;
 use super::types::*;
-use crate::state::{AppState, RestSessionState};
+use crate::state::AppState;
 
 const BOT_SRP_N_HEX: &str = "894B645E89E1535BBDAD5B8B290650530801B18EBFBF5E8FAB3C82872A3E9BB7";
 
 #[derive(Default)]
 pub struct RestConnectionState {
     bot_srp: Option<BotSrpState>,
+    bnet_srp: Option<BnetRestSrpState>,
+}
+
+struct BnetRestSrpState {
+    srp: BnetSrp6,
+    account_id: u32,
 }
 
 struct BotSrpState {
@@ -72,8 +78,10 @@ pub async fn route(
 ) -> HttpResponse {
     match (method, path) {
         ("GET", "/bnetserver/login/") => get_form(state),
-        ("POST", "/bnetserver/login/") => post_login(state, headers, body).await,
-        ("POST", "/bnetserver/login/srp/") => post_login_srp_challenge(state, headers, body).await,
+        ("POST", "/bnetserver/login/") => post_login(state, headers, body, connection_state).await,
+        ("POST", "/bnetserver/login/srp/") => {
+            post_login_srp_challenge(state, body, connection_state).await
+        }
         ("POST", "/login/srp/") => post_bot_srp_challenge(connection_state, body),
         ("POST", "/login/") => post_bot_login(state, connection_state, body).await,
         ("GET", "/bnetserver/gameAccounts/") => get_game_accounts(state, headers).await,
@@ -268,6 +276,7 @@ async fn post_login(
     state: &AppState,
     headers: &HashMap<String, String>,
     body: Option<&[u8]>,
+    connection_state: &mut RestConnectionState,
 ) -> HttpResponse {
     let Some(body_bytes) = body else {
         return json_response(error_result("Missing body"));
@@ -300,38 +309,31 @@ async fn post_login(
     let client_a = find_input(&form, "public_A");
     let client_m1 = find_input(&form, "client_evidence_M1");
 
-    let session_id = extract_session_id(headers);
-
     // SRP challenge-response flow (client sends A and M1)
     if let (Some(a_hex), Some(m1_hex)) = (client_a, client_m1) {
-        if let Some(sid) = &session_id {
-            if let Some(mut session) = state.rest_sessions.get_mut(sid) {
-                if let Some(srp) = session.srp.take() {
-                    let a_bytes = hex_decode(&a_hex);
-                    let m1_bytes = hex_decode(&m1_hex);
-                    let srp_account_id = session.account_id;
-                    if let Some(proof) = srp.verify_client_evidence(&a_bytes, &m1_bytes) {
-                        let m2_hex = hex_encode(&proof.server_evidence.to_bytes_be());
-                        return match create_login_ticket(state, srp_account_id).await {
-                            Ok(ticket) => json_response(AuthResult {
-                                authentication_state: "DONE",
-                                error_code: None,
-                                error_message: None,
-                                url: None,
-                                login_ticket: Some(ticket),
-                                server_evidence_m2: Some(m2_hex),
-                            }),
-                            Err(e) => json_response(AuthResult {
-                                authentication_state: "LOGIN",
-                                error_code: Some("UNABLE_TO_DECODE".to_string()),
-                                error_message: Some(e.to_string()),
-                                url: None,
-                                login_ticket: None,
-                                server_evidence_m2: None,
-                            }),
-                        };
-                    }
-                }
+        if let Some(session) = connection_state.bnet_srp.take() {
+            let a_bytes = hex_decode(&a_hex);
+            let m1_bytes = hex_decode(&m1_hex);
+            if let Some(proof) = session.srp.verify_client_evidence(&a_bytes, &m1_bytes) {
+                let m2_hex = hex_encode(&proof.server_evidence.to_bytes_be());
+                return match create_login_ticket(state, session.account_id).await {
+                    Ok(ticket) => json_response(AuthResult {
+                        authentication_state: "DONE",
+                        error_code: None,
+                        error_message: None,
+                        url: None,
+                        login_ticket: Some(ticket),
+                        server_evidence_m2: Some(m2_hex),
+                    }),
+                    Err(e) => json_response(AuthResult {
+                        authentication_state: "LOGIN",
+                        error_code: Some("UNABLE_TO_DECODE".to_string()),
+                        error_message: Some(e.to_string()),
+                        url: None,
+                        login_ticket: None,
+                        server_evidence_m2: None,
+                    }),
+                };
             }
         }
         return json_response(AuthResult {
@@ -442,8 +444,8 @@ async fn post_login(
 /// POST /bnetserver/login/srp/ — SRP challenge request.
 async fn post_login_srp_challenge(
     state: &AppState,
-    headers: &HashMap<String, String>,
     body: Option<&[u8]>,
+    connection_state: &mut RestConnectionState,
 ) -> HttpResponse {
     tracing::debug!("REST: POST /bnetserver/login/srp/ — SRP challenge request");
 
@@ -502,15 +504,6 @@ async fn post_login_srp_challenge(
     );
     let challenge = srp.challenge(&email_upper);
 
-    let session_id = extract_session_id(headers).unwrap_or_else(generate_session_id);
-    state.rest_sessions.insert(
-        session_id.clone(),
-        RestSessionState {
-            srp: Some(srp),
-            account_id,
-        },
-    );
-
     let response = SrpLoginChallenge {
         version: challenge.version,
         iterations: challenge.iterations,
@@ -522,19 +515,20 @@ async fn post_login_srp_challenge(
         public_b: hex_encode(&challenge.public_b),
     };
 
+    connection_state.bnet_srp = Some(BnetRestSrpState { srp, account_id });
+
     let body = serde_json::to_string(&response).unwrap_or_default();
-    let cookie =
-        format!("JSESSIONID={session_id}; Path=/bnetserver; Secure; HttpOnly; SameSite=None");
 
     HttpResponse {
         status_code: 200,
         status_text: "OK",
-        headers: vec![
-            ("Set-Cookie", cookie),
-            ("Content-Type", "application/json;charset=utf-8".to_string()),
-        ],
+        headers: srp_challenge_headers_like_cpp(),
         body,
     }
+}
+
+fn srp_challenge_headers_like_cpp() -> Vec<(&'static str, String)> {
+    vec![("Content-Type", "application/json;charset=utf-8".to_string())]
 }
 
 /// GET /bnetserver/gameAccounts/
@@ -714,16 +708,6 @@ fn find_input(form: &LoginForm, id: &str) -> Option<String> {
         .map(|i| i.value.clone())
 }
 
-fn extract_session_id(headers: &HashMap<String, String>) -> Option<String> {
-    headers.get("cookie").and_then(|cookies| {
-        cookies
-            .split(';')
-            .map(str::trim)
-            .find(|c| c.starts_with("JSESSIONID="))
-            .map(|c| c["JSESSIONID=".len()..].to_string())
-    })
-}
-
 fn extract_auth_ticket(headers: &HashMap<String, String>) -> Option<String> {
     let mut authorization = headers.get("authorization")?.as_str();
     if let Some(rest) = authorization.strip_prefix("Basic ") {
@@ -742,13 +726,6 @@ fn extract_auth_ticket(headers: &HashMap<String, String>) -> Option<String> {
     } else {
         Some(ticket.to_string())
     }
-}
-
-fn generate_session_id() -> String {
-    use rand::Rng;
-    let mut bytes = [0u8; 16];
-    rand::thread_rng().fill(&mut bytes);
-    hex_encode(&bytes)
 }
 
 fn make_login_ticket() -> String {
@@ -1089,6 +1066,21 @@ mod tests {
     #[test]
     fn login_form_headers_do_not_set_cookie_like_cpp() {
         let headers = login_form_headers_like_cpp();
+
+        assert_eq!(
+            headers,
+            vec![("Content-Type", "application/json;charset=utf-8".to_string())]
+        );
+        assert!(
+            !headers
+                .iter()
+                .any(|(name, _)| name.eq_ignore_ascii_case("Set-Cookie"))
+        );
+    }
+
+    #[test]
+    fn srp_challenge_headers_do_not_set_cookie_like_cpp() {
+        let headers = srp_challenge_headers_like_cpp();
 
         assert_eq!(
             headers,

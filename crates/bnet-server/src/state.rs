@@ -1,6 +1,5 @@
 //! Shared application state.
 
-use dashmap::DashMap;
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use wow_core::IpLocationStore;
@@ -34,9 +33,6 @@ pub struct AppState {
     /// Log wrong-password attempts.
     pub wrong_pass_logging: bool,
 
-    /// REST login sessions (JSESSIONID → session state).
-    pub rest_sessions: DashMap<String, RestSessionState>,
-
     /// Realm manager (initialized after construction).
     pub realm_mgr: RwLock<RealmManager>,
 }
@@ -67,7 +63,6 @@ impl AppState {
             wrong_pass_ban_time,
             wrong_pass_ban_type,
             wrong_pass_logging,
-            rest_sessions: DashMap::new(),
             realm_mgr: RwLock::new(RealmManager::new()),
         }
     }
@@ -121,14 +116,6 @@ mod tests {
         assert!(ip_ban_row_is_active_like_cpp(1));
         assert!(ip_ban_row_is_active_like_cpp(u64::MAX));
     }
-}
-
-/// REST session state (per login session, tracked by cookie).
-pub struct RestSessionState {
-    /// BNet SRP6 state, if an SRP challenge is in progress.
-    pub srp: Option<wow_crypto::BnetSrp6>,
-    /// Account ID for ticket creation after SRP proof.
-    pub account_id: u32,
 }
 
 /// BNet account info loaded from the database.

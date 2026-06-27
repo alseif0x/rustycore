@@ -25,9 +25,9 @@ Estados:
 ## Resumen
 
 - Bugs confirmados contra C++: 51.
-- Bugs corregidos: 3 (`#CSharpAudit.COMPRESS.1`, `#CSharpAudit.BNETREST.1`, `#CSharpAudit.MOVEMENT.1`).
+- Bugs corregidos: 4 (`#CSharpAudit.COMPRESS.1`, `#CSharpAudit.BNETREST.1`, `#CSharpAudit.BNETREST.2`, `#CSharpAudit.MOVEMENT.1`).
 - Commit historico registrado: `#CSharpAudit.MOVEMENT.1` -> `98ceec4d`.
-- Bugs pendientes de fix: 48.
+- Bugs pendientes de fix: 47.
 - Referencias C# productivas localizadas hoy: 52 archivos bajo `crates/**`.
 - Referencias C# documentales no-audit localizadas hoy: 39 archivos bajo `docs/**`.
 
@@ -50,7 +50,7 @@ indica donde se controla cada referencia.
 
 | Grupo | Archivos | Control actual |
 | --- | --- | --- |
-| BNet REST/SRP/RPC/realm | `crates/bnet-server/src/main.rs`, `realm/mod.rs`, `rest/{handlers.rs,mod.rs,types.rs}`, `rpc/{session.rs,services/game_utilities.rs}` | `BNETREST.1` corregido; bugs `BNETREST.2-4`, `BNETSRP.*` y RPC/realm/TLS quedan pendientes. |
+| BNet REST/SRP/RPC/realm | `crates/bnet-server/src/main.rs`, `realm/mod.rs`, `rest/{handlers.rs,mod.rs,types.rs}`, `rpc/{session.rs,services/game_utilities.rs}` | `BNETREST.1-2` corregidos; bugs `BNETREST.3-4`, `BNETSRP.*` y RPC/realm/TLS quedan pendientes. |
 | World login/session | `crates/world-server/src/main.rs` | Parcial en auth/account expansion/locale; pendiente reauditar todo el flujo world-login contra `WorldSocket.cpp`/`WorldSession.cpp`. |
 | Network/crypto/auth | `crates/wow-network/src/{accept.rs,world_socket.rs}`, `crates/wow-crypto/src/{bnet_srp6.rs,ed25519ctx.rs,rsa_sign.rs,world_crypt.rs}` | Bugs BNet SRP; no-bug/comment en RSA/Ed25519/world crypt slices; `accept.rs` HMAC/seeds queda pendiente. |
 | Packet core/compression | `crates/wow-packet/src/{world_packet.rs,compression.rs}` | `COMPRESS.1` corregido; bit APIs son no-bug/comment. |
@@ -64,7 +64,7 @@ indica donde se controla cada referencia.
 
 - [x] `#CSharpAudit.COMPRESS.1` - Corregido; threshold de compresion usa payload sin opcode como C++ (`packet.size() > 0x400`). Test: `compression_threshold_uses_payload_len_like_cpp`.
 - [x] `#CSharpAudit.BNETREST.1` - Corregido; `GET /bnetserver/login/` ya no emite `JSESSIONID`, igual que C++ `HandleGetForm`. Test: `login_form_headers_do_not_set_cookie_like_cpp`.
-- [ ] `#CSharpAudit.BNETREST.2` - `POST /bnetserver/login/srp/` emite y depende de `JSESSIONID`; C++ usa session state HTTP.
+- [x] `#CSharpAudit.BNETREST.2` - Corregido; `POST /bnetserver/login/srp/` ya no emite ni depende de `JSESSIONID`; usa estado por conexion como C++ `LoginHttpSession`. Tests: `headers_do_not_set_cookie_like_cpp`.
 - [ ] `#CSharpAudit.FEATURE.1` - `FeatureSystemStatus` y glue screen estan hardcoded a defaults y no reflejan config C++.
 - [ ] `#CSharpAudit.BNETSRP.1` - Challenge v1 envia `iterations=0`; C++ envia `1`.
 - [ ] `#CSharpAudit.BNETSRP.2` - Calculo SRP `u` omite padding fijo 128/256 de C++.
