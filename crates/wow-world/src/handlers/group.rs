@@ -919,27 +919,6 @@ impl WorldSession {
             return;
         }
 
-        // 4. Self must not already lead a full group (5 members).
-        let group_reg = match self.group_registry() {
-            Some(r) => r,
-            None => return,
-        };
-
-        if let Some(gid) =
-            current_group_guid_like_cpp(group_reg, self.group_guid, my_guid, party_index)
-        {
-            if let Some(g) = group_reg.get(&gid) {
-                if g.members.len() >= 5 {
-                    send_result!(party_result::GROUP_FULL);
-                    return;
-                }
-            }
-        }
-
-        // 5. Record pending invite: target → inviter.
-        pending.insert(real_target_guid, my_guid);
-
-        // 6. Send invite dialog to the target.
         let inviter_name = self.player_name_like_cpp().unwrap_or_default().to_string();
         let vra = self.virtual_realm_address();
         let (realm_name, realm_name_normalized) = self
@@ -947,6 +926,54 @@ impl WorldSession {
             .map(|(actual, normalized)| (actual.to_string(), normalized.to_string()))
             .unwrap_or_default();
 
+        // 4. Target must not already be grouped in the requested category.
+        let group_reg = match self.group_registry() {
+            Some(r) => r,
+            None => return,
+        };
+
+        if current_group_guid_like_cpp(group_reg, None, real_target_guid, party_index).is_some() {
+            send_result!(party_result::ALREADY_IN_GROUP);
+            if let Some(target_entry) = registry.get(&real_target_guid) {
+                let invite = PartyInviteServer {
+                    can_accept: false,
+                    proposed_roles: proposed_roles as u8,
+                    inviter_name: inviter_name.clone(),
+                    inviter_guid: my_guid,
+                    inviter_bnet_account_guid: ObjectGuid::create_global(
+                        HighGuid::WowAccount,
+                        0,
+                        self.account_id as i64,
+                    ),
+                    virtual_realm_address: vra,
+                    realm_name: realm_name.clone(),
+                    realm_name_normalized: realm_name_normalized.clone(),
+                };
+                let _ = target_entry.send_tx.send(invite.to_bytes());
+            }
+            return;
+        }
+
+        // 5. Existing groups require leader/assistant permission and C++ capacity.
+        if let Some(gid) =
+            current_group_guid_like_cpp(group_reg, self.group_guid, my_guid, party_index)
+        {
+            if let Some(g) = group_reg.get(&gid) {
+                if !g.is_leader_like_cpp(my_guid) && !g.is_assistant_like_cpp(my_guid) {
+                    send_result!(party_result::NOT_LEADER);
+                    return;
+                }
+                if g.is_full_like_cpp() {
+                    send_result!(party_result::GROUP_FULL);
+                    return;
+                }
+            }
+        }
+
+        // 6. Record pending invite: target → inviter.
+        pending.insert(real_target_guid, my_guid);
+
+        // 7. Send invite dialog to the target.
         if let Some(target_entry) = registry.get(&real_target_guid) {
             let invite = PartyInviteServer {
                 can_accept: true,
@@ -1203,7 +1230,7 @@ impl WorldSession {
             if group.leader_guid != sender_guid && !sender_is_assistant {
                 send_party_uninvite_result_like_cpp(
                     self,
-                    party_result::NOT_LEADER_LIKE_CPP,
+                    party_result::NOT_LEADER,
                     uninvite.target_guid,
                 );
                 return;
@@ -1211,7 +1238,7 @@ impl WorldSession {
             if group.leader_guid == uninvite.target_guid {
                 send_party_uninvite_result_like_cpp(
                     self,
-                    party_result::NOT_LEADER_LIKE_CPP,
+                    party_result::NOT_LEADER,
                     uninvite.target_guid,
                 );
                 return;
@@ -3038,6 +3065,26 @@ mod tests {
         pkt
     }
 
+    fn party_command_result_code(bytes: &[u8]) -> u8 {
+        let mut packet = WorldPacket::from_bytes(bytes);
+        assert_eq!(
+            packet.read_uint16().expect("opcode"),
+            ServerOpcodes::PartyCommandResult as u16
+        );
+        let _ = packet.read_bits(9).expect("name len");
+        let _ = packet.read_bits(4).expect("party operation");
+        packet.read_bits(6).expect("party result") as u8
+    }
+
+    fn party_invite_can_accept(bytes: &[u8]) -> bool {
+        let mut packet = WorldPacket::from_bytes(bytes);
+        assert_eq!(
+            packet.read_uint16().expect("opcode"),
+            ServerOpcodes::PartyInvite as u16
+        );
+        packet.read_bit().expect("can accept")
+    }
+
     fn leave_group_packet(party_index: Option<u8>) -> WorldPacket {
         let mut pkt = WorldPacket::new_empty();
         pkt.write_bit(party_index.is_some());
@@ -3594,6 +3641,115 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn party_invite_non_leader_rejects_not_leader_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+        let leader = ObjectGuid::create_player(1, 42);
+        let inviter = ObjectGuid::create_player(1, 43);
+        let target = ObjectGuid::create_player(1, 77);
+        let target_name = format!("Player{}", target.low_value());
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (target_tx, target_rx) = bounded(8);
+        player_registry.insert(target, broadcast_info(target, target_tx));
+
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.add_member(inviter);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        session.set_player_guid(Some(inviter));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(player_registry);
+        session.set_group_registry(
+            Arc::clone(&group_registry),
+            Arc::new(PendingInvites::default()),
+        );
+
+        session
+            .handle_party_invite(party_invite_packet(target, &target_name, None, 0))
+            .await;
+
+        assert_eq!(
+            party_command_result_code(&send_rx.try_recv().expect("party command result")),
+            party_result::NOT_LEADER
+        );
+        assert!(target_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn party_invite_target_already_grouped_sends_already_and_cannot_accept_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+        let inviter = ObjectGuid::create_player(1, 42);
+        let target = ObjectGuid::create_player(1, 77);
+        let target_name = format!("Player{}", target.low_value());
+        let target_leader = ObjectGuid::create_player(1, 88);
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (target_tx, target_rx) = bounded(8);
+        player_registry.insert(target, broadcast_info(target, target_tx));
+
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut target_group = GroupInfo::new(target_leader);
+        target_group.add_member(target);
+        group_registry.insert(target_group.group_guid, target_group);
+        let pending_invites = Arc::new(PendingInvites::default());
+
+        session.set_player_guid(Some(inviter));
+        session.set_player_registry(player_registry);
+        session.set_group_registry(Arc::clone(&group_registry), Arc::clone(&pending_invites));
+
+        session
+            .handle_party_invite(party_invite_packet(target, &target_name, None, 0))
+            .await;
+
+        assert_eq!(
+            party_command_result_code(&send_rx.try_recv().expect("party command result")),
+            party_result::ALREADY_IN_GROUP
+        );
+        assert!(!party_invite_can_accept(
+            &target_rx.try_recv().expect("target failed invite packet")
+        ));
+        assert!(pending_invites.get(&target).is_none());
+    }
+
+    #[tokio::test]
+    async fn party_invite_raid_with_five_members_is_not_full_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send();
+        let inviter = ObjectGuid::create_player(1, 42);
+        let target = ObjectGuid::create_player(1, 77);
+        let target_name = format!("Player{}", target.low_value());
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (target_tx, target_rx) = bounded(8);
+        player_registry.insert(target, broadcast_info(target, target_tx));
+
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(inviter);
+        for counter in 43..47 {
+            group.add_member(ObjectGuid::create_player(1, counter));
+        }
+        group.convert_to_raid_like_cpp();
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+        let pending_invites = Arc::new(PendingInvites::default());
+
+        session.set_player_guid(Some(inviter));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(player_registry);
+        session.set_group_registry(Arc::clone(&group_registry), Arc::clone(&pending_invites));
+
+        session
+            .handle_party_invite(party_invite_packet(target, &target_name, None, 0))
+            .await;
+
+        assert!(pending_invites.get(&target).is_some());
+        assert!(party_invite_can_accept(
+            &target_rx.try_recv().expect("target invite packet")
+        ));
+    }
+
+    #[tokio::test]
     async fn party_invite_response_party_index_mismatch_keeps_invite_pending_like_cpp() {
         let (mut session, send_rx) = make_session_with_send();
         let inviter = ObjectGuid::create_player(1, 42);
@@ -3775,7 +3931,7 @@ mod tests {
 
         assert_eq!(name_len, 0);
         assert_eq!(command, 1); // C++ PARTY_OP_UNINVITE
-        assert_eq!(result_code as u8, party_result::NOT_LEADER_LIKE_CPP);
+        assert_eq!(result_code as u8, party_result::NOT_LEADER);
         assert!(send_rx.try_recv().is_err());
     }
 

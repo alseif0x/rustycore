@@ -23,12 +23,15 @@ pub mod party_result {
     pub const OK: u8 = 0;
     pub const BAD_PLAYER_NAME: u8 = 1;
     pub const TARGET_NOT_IN_GROUP: u8 = 2;
-    pub const WRONG_FACTION: u8 = 7;
-    pub const ALREADY_IN_GROUP: u8 = 8;
+    pub const TARGET_NOT_IN_INSTANCE: u8 = 3;
+    pub const GROUP_FULL: u8 = 4;
+    pub const ALREADY_IN_GROUP: u8 = 5;
     pub const NOT_IN_GROUP: u8 = 6;
-    pub const NOT_LEADER_LIKE_CPP: u8 = 7;
-    pub const NOT_LEADER: u8 = 14;
-    pub const GROUP_FULL: u8 = 3;
+    pub const NOT_LEADER: u8 = 7;
+    pub const WRONG_FACTION: u8 = 8;
+    pub const IGNORING_YOU: u8 = 9;
+    pub const INVITE_RESTRICTED: u8 = 13;
+    pub const GROUP_SWAP_FAILED: u8 = 14;
 }
 
 // ── ConvertRaid (CMSG_CONVERT_RAID) ─────────────────────────
@@ -1204,7 +1207,7 @@ mod tests {
         RequestPartyMemberStats, RoleChangedInform, RolePollInform, SendRaidTargetUpdateAll,
         SendRaidTargetUpdateSingle, SetAssistantLeader, SetEveryoneIsAssistant, SetLootMethod,
         SetPartyAssignment, SetPartyLeader, SetRole, SilencePartyTalker, SwapSubGroups,
-        UpdateRaidTarget,
+        UpdateRaidTarget, party_result,
     };
     use crate::{ClientPacket, ServerPacket, WorldPacket};
     use wow_constants::ServerOpcodes;
@@ -1214,6 +1217,22 @@ mod tests {
         let mut pkt = WorldPacket::new_empty();
         pkt.write_packed_guid(&guid);
         pkt.into_data()
+    }
+
+    #[test]
+    fn party_result_constants_match_cpp_shared_defines() {
+        assert_eq!(party_result::OK, 0);
+        assert_eq!(party_result::BAD_PLAYER_NAME, 1);
+        assert_eq!(party_result::TARGET_NOT_IN_GROUP, 2);
+        assert_eq!(party_result::TARGET_NOT_IN_INSTANCE, 3);
+        assert_eq!(party_result::GROUP_FULL, 4);
+        assert_eq!(party_result::ALREADY_IN_GROUP, 5);
+        assert_eq!(party_result::NOT_IN_GROUP, 6);
+        assert_eq!(party_result::NOT_LEADER, 7);
+        assert_eq!(party_result::WRONG_FACTION, 8);
+        assert_eq!(party_result::IGNORING_YOU, 9);
+        assert_eq!(party_result::INVITE_RESTRICTED, 13);
+        assert_eq!(party_result::GROUP_SWAP_FAILED, 14);
     }
 
     #[test]
