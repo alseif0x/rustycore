@@ -111,7 +111,7 @@ Important documentation:
 ```text
 docs/migration/      Port notes, inventories, audits, roadmap
 docs/operations/     Runtime and DB operation notes
-CLAUDE.md            Agent/developer operating guide for this repo
+AGENTS.md            Agent/developer operating guide for this repo
 MIGRATION_STATUS.md  Older high-level migration status
 ```
 

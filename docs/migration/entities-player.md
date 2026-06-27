@@ -493,7 +493,7 @@ Categorised; only headline opcodes listed.
 - `player_level: u8` matches C++ `uint8` but does not enforce `max_player_level` from world config.
 
 **Tests existing:**
-- `cargo test -p wow-world` reports 395 workspace passes (CLAUDE.md). None are end-to-end "load player → tick `Update` → save player" — that pipeline has no aggregator to test.
+- `cargo test -p wow-world` reports 395 workspace passes (AGENTS.md). None are end-to-end "load player → tick `Update` → save player" — that pipeline has no aggregator to test.
 - `crates/wow-world/src/map_manager.rs` carries 12 tests for the new entity-shared map but these test creatures, not Player.
 
 ---

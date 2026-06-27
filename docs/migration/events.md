@@ -112,7 +112,7 @@ Out-of-tree consumers:
 ## 5. Module dependencies
 
 **Depends on:**
-- `Map` / `MapManager` — every spawn/despawn ends in `Map::AddToMap` / `Map::RemoveFromMap`. Currently the new `MapManager` in `wow-world` (see `CLAUDE.md`) is the migration target for this side.
+- `Map` / `MapManager` — every spawn/despawn ends in `Map::AddToMap` / `Map::RemoveFromMap`. Currently the new `MapManager` in `wow-world` (see `AGENTS.md`) is the migration target for this side.
 - `ObjectMgr` — for creature/gameobject template lookup, vendor item registration, and quest relation tables.
 - `PoolMgr` — events activate pools by id (`mGameEventPoolIds`).
 - `WorldStateMgr` — events drive worldstate updates for client-visible progress bars.

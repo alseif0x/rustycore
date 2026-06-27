@@ -870,7 +870,7 @@ Una fase se considera cerrada cuando:
 2. **`cargo check --workspace` 0 errores**, sin warnings nuevos.
 3. **`cargo test --workspace` todos los tests verdes**, incluyendo nuevos tests de la fase.
 4. **Tests de regresión runtime**: el server arranca, login OK, un personaje entra al mundo y puede moverse + combatir + alguna mecánica de la fase recién implementada.
-5. **Documentación actualizada**: este `MIGRATION_ROADMAP.md` con la sección 3 (matriz) actualizada al nuevo % migrado, y `CLAUDE.md` con cualquier nueva convención.
+5. **Documentación actualizada**: este `MIGRATION_ROADMAP.md` con la sección 3 (matriz) actualizada al nuevo % migrado, y `AGENTS.md` con cualquier nueva convención.
 6. **Sin `// TODO` ni `unimplemented!()` ni `todo!()` en el código de la fase** (excepto claramente marcados como pendientes de la siguiente fase).
 7. **Commit limpio en `main`** (no en rama feature, dado que trabajamos en solitario — ver ADR sobre solo-developer workflow).
 

@@ -518,7 +518,7 @@ Every test below must be added to `crates/wow-collision/tests/` once the crate e
 | `VMAP_INVALID_HEIGHT_VALUE = -200000.0f` | `pub const VMAP_INVALID_HEIGHT_VALUE: f32 = -200_000.0;` | Match exact value. |
 | `MMAP_MAGIC = 0x4d4d4150 / MMAP_VERSION = 15` | `pub const MMAP_MAGIC: u32 = 0x4d4d_4150; pub const MMAP_VERSION: u32 = 15;` | — |
 | `class TimeTracker` | `std::time::Instant` + duration arithmetic | TC's `TimeTracker` is just a "millis remaining" countdown; trivial to replace. |
-| `std::mutex / std::unordered_map` | `parking_lot::Mutex / dashmap::DashMap` | Per `CLAUDE.md` workspace convention. |
+| `std::mutex / std::unordered_map` | `parking_lot::Mutex / dashmap::DashMap` | Per `AGENTS.md` workspace convention. |
 | `dtNavMesh / dtNavMeshQuery / dtTileRef` (Detour) | FFI via `bindgen`; `unsafe` newtype wrappers; `Send` impl gated on Detour's actual thread-safety contract (mesh = Sync, query = !Sync) | Per-`(mapId, instanceId)` query is NOT Send across threads. Enforce in the type system. |
 
 ---

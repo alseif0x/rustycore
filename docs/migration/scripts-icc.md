@@ -487,7 +487,7 @@ Tests demonstrating Rust = C++ for invariants the encounters rely on.
 
 <!-- REFINE.023:END known-divergences -->
 
-- **Two-step dispatch (CLAUDE.md)**: every `boss_*AI` and `npc_*AI` must both have a registered `BossAI` factory **and** a `PacketHandlerEntry`-equivalent inventory submission, or it silently dies. The script registry needs the same discipline as the packet dispatcher.
+- **Two-step dispatch (AGENTS.md)**: every `boss_*AI` and `npc_*AI` must both have a registered `BossAI` factory **and** a `PacketHandlerEntry`-equivalent inventory submission, or it silently dies. The script registry needs the same discipline as the packet dispatcher.
 - **`Talk()` lookups** read from `creature_text`. Missing rows → silent no-op, encounter is technically beatable but loses RP/timing cues. Build a lint that scans the SAY_/EMOTE_/WHISPER_ enums against the DB on startup in dev mode.
 - **`IsHeroic()` and `Is25ManRaid()`** are read 100s of times per encounter. Cache the difficulty per session, do not re-read `Map::GetDifficulty()` on every event tick.
 - **Defile (LK)** has historically been a balance-bug magnet across cores; the canonical TC code in `boss_the_lich_king.cpp:~1900` is correct for 3.4.3. Do not "simplify" the growth math.

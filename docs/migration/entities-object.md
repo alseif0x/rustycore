@@ -290,7 +290,7 @@ The wire format is essentially: per-object `(updateType: u8, packed_guid, mask_b
 
 **Suspicious / likely divergent (hipótesis pre-auditoría):**
 - `wow_core::ObjectGuid` exposes realm/server/map/entry sub-fields for every variant, but the C++ layout uses different fields per HighGuid (e.g. `Transport` carries map+counter, `GameObject` carries map+entry+counter, `Item` carries realm+counter). Round-trip parity for non-Player/Creature variants is unverified.
-- `wow_core::Position` exposes `.x .y .z .orientation` (project convention per `CLAUDE.md`); C++ uses `.GetPositionX/Y/Z/O()` accessors that resolve to the same fields, but any `point_at_distance` math should be byte-compared against C++ output before trusting.
+- `wow_core::Position` exposes `.x .y .z .orientation` (project convention per `AGENTS.md`); C++ uses `.GetPositionX/Y/Z/O()` accessors that resolve to the same fields, but any `point_at_distance` math should be byte-compared against C++ output before trusting.
 - `wow-packet::update::UpdateObject` likely diverges from `SMSG_UPDATE_OBJECT` wire format in 3.4.3 because the field index/offset layout is generated from `UpdateFields.cpp` descriptor tables that we have not ported.
 - The `WorldCreature::take_damage(u32) -> bool` method (`map_manager.rs:176`) silently writes `current_hp` without flipping any dirty bit; clients can only learn about HP changes if some unrelated handler explicitly emits a packet — there is no automatic replication trigger.
 

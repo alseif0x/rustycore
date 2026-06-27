@@ -829,7 +829,7 @@ The `QueryCallback`-chain pattern is **acceptably absent** because Rust's `async
 
 **Registry pattern**: TC binds `enum Statements : uint32` → SQL string in `<Db>DatabaseConnection::DoPrepareStatements()` via `PrepareStatement(idx, sql, flags)` calls (`LoginDatabase.cpp:26` onward). Rust binds via the `StatementDef` trait `fn sql(self) -> &'static str` per enum, with the SQL inline in a `match` arm (`statements/login.rs::sql_for`). Both are static, both are compile-time. **Functional parity for the patterns that are ported.** The mechanism is different but the constraint (one enum value → one SQL string per DB, type-checked) holds.
 
-CLAUDE.md mentions a "prepared statement registry" as completed. Audit confirms: the **infrastructure** is complete; the **statement set** is complete for login + world, partial for character, and intentionally hybrid for hotfixes. Do not count every C++ hotfix overlay as WotLK runtime-complete until a typed Rust DB2 store consumes it.
+AGENTS.md mentions a "prepared statement registry" as completed. Audit confirms: the **infrastructure** is complete; the **statement set** is complete for login + world, partial for character, and intentionally hybrid for hotfixes. Do not count every C++ hotfix overlay as WotLK runtime-complete until a typed Rust DB2 store consumes it.
 
 ### 13.4 Transactions
 

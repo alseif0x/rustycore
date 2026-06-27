@@ -3,7 +3,7 @@
 > **C++ canonical path:** N/A — this is a meta-doc consolidating test approaches across all per-module audits in `/home/server/rustycore/docs/migration/`.
 > **Rust target crate(s):** workspace-wide (`crates/*` plus root `tests/` if introduced)
 > **Layer:** L0–L8 (cross-cutting)
-> **Status:** ⚠️ partial — `cargo test --workspace` passes 395 cases per CLAUDE.md but ~zero are golden-vector cross-impl tests; coverage gap is the dominant residual risk per per-module §13 audits.
+> **Status:** ⚠️ partial — `cargo test --workspace` passes 395 cases per AGENTS.md but ~zero are golden-vector cross-impl tests; coverage gap is the dominant residual risk per per-module §13 audits.
 > **Audited vs C++:** N/A (meta-doc)
 > **Last updated:** 2026-05-01
 
@@ -17,7 +17,7 @@ Consolidate the `[ ] Test:` items and audit-flagged "no golden vectors" findings
 
 ## 2. Current state (consolidated from §11/§13 of every per-module doc)
 
-- **Baseline.** `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test --workspace` → **395 passed** (CLAUDE.md, "Build / test"). Per-crate: `wow-crypto` 46, `wow-world` ~120 (incl. 12 `MapManager`), `wow-packet` ~50, `wow-database` ~30, rest distributed.
+- **Baseline.** `PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test --workspace` → **395 passed** (AGENTS.md, "Build / test"). Per-crate: `wow-crypto` 46, `wow-world` ~120 (incl. 12 `MapManager`), `wow-packet` ~50, `wow-database` ~30, rest distributed.
 - **Test categories present.**
   - Round-trip serialization tests (most `wow-packet` modules).
   - Internal consistency tests (`wow-crypto`: encrypt-then-decrypt matches plaintext, but with no C++ reference output).
@@ -143,7 +143,7 @@ N/A — this doc does not own packets. It references the **catalogue of packets 
 - Per-crate `tests/` folders: present in `wow-database/tests/` (DB-shape integration), `wow-data/tests/` (DBC parsing). Most other crates keep tests inside `src/**/#[cfg(test)] mod tests` only.
 - Workspace-root `tests/` directory: **does not exist.** No L3/L4 home today.
 - Workspace-root `benches/` directory: **does not exist.** Per `migration-perf-strategy.md`, criterion benches live per-crate when added.
-- CI: **no `.github/workflows/`** in the public repo (per `CLAUDE.md`, the `.claude/` and `.github/` flavours are gitignored locally). `cargo test --workspace` is the only gate.
+- CI: **no `.github/workflows/`** in the public repo (per `AGENTS.md`, the `.claude/` and `.github/` flavours are gitignored locally). `cargo test --workspace` is the only gate.
 
 **What's implemented:**
 
@@ -165,11 +165,11 @@ N/A — this doc does not own packets. It references the **catalogue of packets 
 
 - The 395-test baseline may shrink if `wow-database` integration tests start failing once schema drifts; a few are likely already "ignored" silently because they require a DB.
 - Several crates' `mod tests` are testing _Rust serde derives or trait impls_, not protocol behaviour. Counting passes is misleading without a coverage breakdown.
-- `wow-recastdetour` is FFI scaffolded (per CLAUDE.md) — almost certainly has no real tests, only build-shape checks.
+- `wow-recastdetour` is FFI scaffolded (per AGENTS.md) — almost certainly has no real tests, only build-shape checks.
 
 **Tests existing:**
 
-- 395 across the workspace (CLAUDE.md).
+- 395 across the workspace (AGENTS.md).
 - Distribution by crate is not currently summarised anywhere. **#TEST.1** below is "produce that summary."
 
 ---
@@ -219,10 +219,10 @@ These are the **invariants** the test suite must protect; per-module audits list
 
 1. **The 395-test number is not a quality metric.** It's mostly L0 unit. The audits' "no golden vectors" flag means the wire-correctness gate is currently visual: someone has to log in with a real client and confirm. That is not sustainable. `#TEST.3`–`#TEST.7` are the priority chain that fixes this.
 2. **Capture once, treat as immutable input.** It is tempting, when a test fails after a refactor, to re-capture and re-bake the golden. **Don't.** A failing golden test is the signal that the refactor broke the wire format. If the format genuinely changed (rare), update with a `BREAKING:` commit and a new dated `.meta` file.
-3. **MariaDB-only is a hard constraint.** Per CLAUDE.md, `wow-database` targets MariaDB 10.6+. SQLite-based L3 tests are tempting but risk drift from real prepared-statement semantics. Prefer a tempdir MariaDB (or `testcontainers`) over SQLite. If SQLite is used as a fast smoke layer, keep one MariaDB-backed integration test as truth.
-4. **The C++ legacy at `/home/server/woltk-trinity-legacy/` is the canonical reference per CLAUDE.md.** Treat it as the test-oracle. Any time a test asks "what should this byte be?", the answer comes from running the corresponding C++ function, not from inspection of the Rust output.
-5. **`_attic/` content is not a vector source.** Per CLAUDE.md, `_attic/` is failed integration scaffolding. Do not bake `_attic/` outputs into golden tests; capture from C++ or the running official client only.
-6. **Tests that allocate a `MapManager` need it `Arc<RwLock<…>>` shaped per CLAUDE.md** "WorldSession and creature storage" section. The legacy `WorldSession.creatures` field is `#[deprecated]`. New tests should use `MapManager` directly to avoid being rewritten when the migration finishes.
+3. **MariaDB-only is a hard constraint.** Per AGENTS.md, `wow-database` targets MariaDB 10.6+. SQLite-based L3 tests are tempting but risk drift from real prepared-statement semantics. Prefer a tempdir MariaDB (or `testcontainers`) over SQLite. If SQLite is used as a fast smoke layer, keep one MariaDB-backed integration test as truth.
+4. **The C++ legacy at `/home/server/woltk-trinity-legacy/` is the canonical reference per AGENTS.md.** Treat it as the test-oracle. Any time a test asks "what should this byte be?", the answer comes from running the corresponding C++ function, not from inspection of the Rust output.
+5. **`_attic/` content is not a vector source.** Per AGENTS.md, `_attic/` is failed integration scaffolding. Do not bake `_attic/` outputs into golden tests; capture from C++ or the running official client only.
+6. **Tests that allocate a `MapManager` need it `Arc<RwLock<…>>` shaped per AGENTS.md** "WorldSession and creature storage" section. The legacy `WorldSession.creatures` field is `#[deprecated]`. New tests should use `MapManager` directly to avoid being rewritten when the migration finishes.
 7. **`PROTOC=/home/cdmonio/.local/protoc/bin/protoc` must be set even for `cargo test`** because `wow-proto` invokes `prost-build` in `build.rs`. CI configs that forget this fail at compile, not at test.
 8. **Per-crate testing is fast** — use `cargo test -p <crate> --lib` for tight loops; `--workspace` is for green-bar verification only.
 
@@ -245,20 +245,20 @@ These are the **invariants** the test suite must protect; per-module audits list
 
 ## 13. Audit (2026-05-01)
 
-> Audited 2026-05-01. Scope: this strategy doc itself, against the test claims in (a) `CLAUDE.md`, (b) the per-module audits at `/home/server/rustycore/docs/migration/*.md` §13 sections, and (c) the actual repo at `/home/server/archived/rustycore_ARCHIVED_20260312/`. Not audited against C++ — this is a meta-doc.
+> Audited 2026-05-01. Scope: this strategy doc itself, against the test claims in (a) `AGENTS.md`, (b) the per-module audits at `/home/server/rustycore/docs/migration/*.md` §13 sections, and (c) the actual repo at `/home/server/archived/rustycore_ARCHIVED_20260312/`. Not audited against C++ — this is a meta-doc.
 
 ### 13.1 Claim verification
 
 | Claim in this doc | Source / verified against | Status |
 |---|---|---|
-| `cargo test --workspace` → 395 pass | `CLAUDE.md` "Build / test" line `cargo test --workspace 395 passed` | ✅ asserted, not independently re-run as part of this audit |
+| `cargo test --workspace` → 395 pass | `AGENTS.md` "Build / test" line `cargo test --workspace 395 passed` | ✅ asserted, not independently re-run as part of this audit |
 | Per-module audits flag "no golden vectors" | `crypto.md` §13.2 #3, §13.3 #2 explicitly | ✅ confirmed for `crypto.md`; assumed for the other ~50 audits not re-read here |
 | No `tests/` workspace root | `ls /home/server/archived/rustycore_ARCHIVED_20260312/` shows only crate-scoped tests | ✅ confirmed |
 | No `benches/` workspace root | Same | ✅ confirmed |
 | No `criterion`, `proptest`, `insta`, `cargo-fuzz` in deps | `grep criterion crates/*/Cargo.toml` returned 0 matches | ✅ confirmed |
 | `wow-logging` is the only logging crate | `find crates -name "wow-logging" → 1 match` | ✅ confirmed |
-| `_attic/` exists with renamed `.rs.txt` files | `CLAUDE.md` "_attic" section + `find crates/wow-world/_attic` | ✅ confirmed by reference |
-| MariaDB 10.6 is the runtime DB | `CLAUDE.md` "Runtime" | ✅ confirmed |
+| `_attic/` exists with renamed `.rs.txt` files | `AGENTS.md` "_attic" section + `find crates/wow-world/_attic` | ✅ confirmed by reference |
+| MariaDB 10.6 is the runtime DB | `AGENTS.md` "Runtime" | ✅ confirmed |
 
 ### 13.2 Critical findings
 
@@ -266,7 +266,7 @@ These are the **invariants** the test suite must protect; per-module audits list
 2. **Vector source is fragile.** The C++ commit pinned in `crypto.md` §13 is `5100ce3d8fc6`. If that tree changes, captured vectors drift. Recommendation: tag the commit (`git tag -a vectors-2026-05-01 5100ce3d8fc6`) and reference the tag in every `.meta` file.
 3. **Coverage baseline is unmeasured.** §8 says 395 pass, but no breakdown by crate or by line-coverage exists. `#TEST.1` is the prerequisite for any "we are X% there" claim; without it, every other "test progress" number is anecdotal.
 4. **Slow-test gating is unspecified.** Without `#TEST.2`, the moment integration tests land they will balloon `cargo test` from <30s to minutes, training developers to skip the gate. Add the feature flag **before** landing the first slow test.
-5. **No CI today.** Per CLAUDE.md, `.github/` is gitignored locally. Whatever this strategy proposes must live somewhere CI can find. `#TEST.15` is the missing piece; until it lands, `cargo test --workspace` is enforced only by developer discipline.
+5. **No CI today.** Per AGENTS.md, `.github/` is gitignored locally. Whatever this strategy proposes must live somewhere CI can find. `#TEST.15` is the missing piece; until it lands, `cargo test --workspace` is enforced only by developer discipline.
 
 ### 13.3 Recommended action — priority queue
 

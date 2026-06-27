@@ -17,7 +17,7 @@ Rutas obligatorias:
 - Plan por fases (orden de ejecucion): /home/server/rustycore/docs/MIGRATION_ROADMAP.md
 - Indice de modulos + estado/auditoria: /home/server/rustycore/docs/migration/_INDEX.md
 - Auditoria honesta de progreso: /home/server/rustycore/docs/migration/honest-progress-audit.md
-- Guia local de agente: /home/server/rustycore/CLAUDE.md
+- Guia local de agente: /home/server/rustycore/AGENTS.md
 
 Estado actual conocido (puede haber avanzado; corre `git log` para confirmar HEAD real):
 - HEAD reciente: af9ffe0 Align can_take_quest gate order to C++
@@ -34,7 +34,7 @@ cd /home/server/rustycore
 git status --short --branch
 git log --oneline --decorate -8
 head -n 20 docs/migration/current-session-handoff.md
-sed -n '1,220p' CLAUDE.md
+sed -n '1,220p' AGENTS.md
 
 Si hay commits nuevos despues de la base que conoces:
 git log --oneline 1af9223..HEAD

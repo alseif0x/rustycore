@@ -388,7 +388,7 @@ DBC/DB2 stores read by Creature/Gossip/Trainer code:
 - [ ] **#CRE.24** Implement `CreatureLocale` for non-enUS clients (L)
 - [ ] **#CRE.25** Implement `CreatureTextRepeatGroup` (random non-repeating yells) (L)
 - [ ] **#CRE.26** Wire `BroadcastText` table + `SMSG_NPC_TEXT_UPDATE` (M)
-- [ ] **#CRE.27** Migrate all session methods off the legacy `WorldSession.creatures` HashMap to `MapManager` (M) — already partially done per CLAUDE.md
+- [ ] **#CRE.27** Migrate all session methods off the legacy `WorldSession.creatures` HashMap to `MapManager` (M) — already partially done per AGENTS.md
 - [ ] **#CRE.28** Retire `_attic/creature_integration.rs.txt` content once #CRE.9 is in (no-op, just delete) (L)
 
 ---
@@ -454,7 +454,7 @@ DBC/DB2 stores read by Creature/Gossip/Trainer code:
 
 <!-- REFINE.023:END known-divergences -->
 
-- The legacy storage `WorldSession::creatures: HashMap<ObjectGuid, CreatureAI>` plus `WorldSession::visible_creatures` is `#[deprecated]` per CLAUDE.md; `MapManager::WorldCreature` is the destination. Bridge wrappers in `map_helpers.rs` (`get_creature`, `with_creature_mut`, `spawn_creature_global`, `get_visible_creatures`) are the only path that should be added to going forward.
+- The legacy storage `WorldSession::creatures: HashMap<ObjectGuid, CreatureAI>` plus `WorldSession::visible_creatures` is `#[deprecated]` per AGENTS.md; `MapManager::WorldCreature` is the destination. Bridge wrappers in `map_helpers.rs` (`get_creature`, `with_creature_mut`, `spawn_creature_global`, `get_visible_creatures`) are the only path that should be added to going forward.
 - `_attic/creature_integration.rs.txt` was written against `CreatureCreateData` fields that **never existed** (`entry_id`, `position`, `current_hp`, `max_hp`). Real names are `entry`, `health`, `max_health`, with position passed separately. Don't re-introduce attic content mechanically — read `_attic/README.md` first.
 - `CreatureClassifications` matters for damage/HP modifiers and is stored on the **template**, not the spawn. Don't put it on `WorldCreature`.
 - `m_corpseData` and `m_creatureData->mapId != GetMapId()` is how transports detect creatures spawned on them — easy to get wrong when MapManager learns about transports.
