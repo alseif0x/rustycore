@@ -25,9 +25,9 @@ Estados:
 ## Resumen
 
 - Bugs confirmados contra C++: 51.
-- Bugs corregidos: 20 (`#CSharpAudit.COMPRESS.1`, `#CSharpAudit.BNETREST.1`, `#CSharpAudit.BNETREST.2`, `#CSharpAudit.BNETREST.3`, `#CSharpAudit.BNETREST.4`, `#CSharpAudit.FEATURE.1`, `#CSharpAudit.BNETSRP.1`, `#CSharpAudit.BNETSRP.2`, `#CSharpAudit.BNETSRP.3`, `#CSharpAudit.BNETSRP.4`, `#CSharpAudit.MOVEMENT.1`, `#CSharpAudit.SPELL.1`, `#CSharpAudit.COMBAT.1`, `#CSharpAudit.CHAT.1`, `#CSharpAudit.CHAT.2`, `#CSharpAudit.ITEM.1`, `#CSharpAudit.PARTY.3`, `#CSharpAudit.PARTY.1`, `#CSharpAudit.MISC.2`, `#CSharpAudit.MISC.1`).
+- Bugs corregidos: 21 (`#CSharpAudit.COMPRESS.1`, `#CSharpAudit.BNETREST.1`, `#CSharpAudit.BNETREST.2`, `#CSharpAudit.BNETREST.3`, `#CSharpAudit.BNETREST.4`, `#CSharpAudit.FEATURE.1`, `#CSharpAudit.BNETSRP.1`, `#CSharpAudit.BNETSRP.2`, `#CSharpAudit.BNETSRP.3`, `#CSharpAudit.BNETSRP.4`, `#CSharpAudit.MOVEMENT.1`, `#CSharpAudit.SPELL.1`, `#CSharpAudit.COMBAT.1`, `#CSharpAudit.CHAT.1`, `#CSharpAudit.CHAT.2`, `#CSharpAudit.ITEM.1`, `#CSharpAudit.PARTY.3`, `#CSharpAudit.PARTY.1`, `#CSharpAudit.MISC.1`, `#CSharpAudit.MISC.2`, `#CSharpAudit.LOOT.1`).
 - Commit historico registrado: `#CSharpAudit.MOVEMENT.1` -> `98ceec4d`.
-- Bugs pendientes de fix: 31.
+- Bugs pendientes de fix: 30.
 - Referencias C# productivas localizadas hoy: 52 archivos bajo `crates/**`.
 - Referencias C# documentales no-audit localizadas hoy: 39 archivos bajo `docs/**`.
 
@@ -86,7 +86,7 @@ indica donde se controla cada referencia.
 - [x] `#CSharpAudit.MISC.2` - Corregido; `AuctionHelloResponse` escribe `Guid`, delays `uint32` en cero y bit `OpenForBusiness`, sin `AuctionHouseID`, como C++ `AuctionHousePackets.cpp`. Test: `auction_hello_response_writes_cpp_layout_without_auction_house_id`.
 - [ ] `#CSharpAudit.CHARACTER.1` - Enum character flags/data mapping diverge.
 - [ ] `#CSharpAudit.CHARACTER.2` - Logout request completa instantaneo siempre; C++ puede delayed/denegar/countdown.
-- [ ] `#CSharpAudit.LOOT.1` - `LootResponse` success/error usa valores no C++.
+- [x] `#CSharpAudit.LOOT.1` - Corregido; `LootResponse` success conserva `FailureReason=17` y `Threshold=2` como defaults C++, y error conserva `Threshold=2` mientras setea el `FailureReason` especifico. Anclas C++: `LootPackets.h:67-72`, `LootPackets.cpp:38-45`, `Player.cpp:8758-8765`, `Player.cpp:8778-8783`, `Loot.h:136-151`. Tests: `loot_response_success_defaults_write_cpp_failure_reason_and_threshold`, `loot_response_success_keeps_cpp_failure_and_threshold_defaults`, `loot_error_response_keeps_cpp_threshold_default_like_cpp`.
 - [ ] `#CSharpAudit.LOOT.2` - Apertura de loot no replica `Player::isAllowedToLoot`.
 - [ ] `#CSharpAudit.LOOT.3` - `HandleLootMoneyOpcode` no aplica money aura ni criteria.
 - [ ] `#CSharpAudit.LOOT.4` - `Player::StoreLootItem` no replica cascada C++ completa.

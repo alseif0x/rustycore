@@ -70,14 +70,15 @@ use wow_packet::packets::loot::{
     AELootTargets, AELootTargetsAck, CoinRemoved, CreatureLoot, LOOT_ERROR_DIDNT_KILL_LIKE_CPP,
     LOOT_ERROR_MASTER_INV_FULL_LIKE_CPP, LOOT_ERROR_MASTER_OTHER_LIKE_CPP,
     LOOT_ERROR_MASTER_UNIQUE_ITEM_LIKE_CPP, LOOT_ERROR_NO_LOOT_LIKE_CPP,
-    LOOT_ERROR_PLAYER_NOT_FOUND_LIKE_CPP, LOOT_ERROR_TOO_FAR_LIKE_CPP, LOOT_TYPE_CHEST_LIKE_CPP,
-    LOOT_TYPE_CORPSE_LIKE_CPP, LOOT_TYPE_DISENCHANTING_LIKE_CPP, LOOT_TYPE_FISHING_JUNK_LIKE_CPP,
-    LOOT_TYPE_FISHING_LIKE_CPP, LOOT_TYPE_FISHINGHOLE_LIKE_CPP, LOOT_TYPE_INSIGNIA_LIKE_CPP,
-    LOOT_TYPE_MILLING_LIKE_CPP, LOOT_TYPE_PROSPECTING_LIKE_CPP, LOOT_TYPE_SKINNING_LIKE_CPP,
-    LootAllPassed, LootEntry, LootEntryFlags, LootItemData, LootItemPkt, LootList, LootMoney,
-    LootMoneyNotify, LootRelease, LootReleaseAll, LootRemoved, LootResponse, LootRoll,
-    LootRollBroadcast, LootRollWon, LootUnit, MasterLootCandidateList, MasterLootItem,
-    NotNormalLootItem, SLootRelease, SetLootSpecialization, StartLootRoll,
+    LOOT_ERROR_PLAYER_NOT_FOUND_LIKE_CPP, LOOT_ERROR_TOO_FAR_LIKE_CPP,
+    LOOT_RESPONSE_DEFAULT_FAILURE_REASON_LIKE_CPP, LOOT_RESPONSE_DEFAULT_THRESHOLD_LIKE_CPP,
+    LOOT_TYPE_CHEST_LIKE_CPP, LOOT_TYPE_CORPSE_LIKE_CPP, LOOT_TYPE_DISENCHANTING_LIKE_CPP,
+    LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHING_LIKE_CPP, LOOT_TYPE_FISHINGHOLE_LIKE_CPP,
+    LOOT_TYPE_INSIGNIA_LIKE_CPP, LOOT_TYPE_MILLING_LIKE_CPP, LOOT_TYPE_PROSPECTING_LIKE_CPP,
+    LOOT_TYPE_SKINNING_LIKE_CPP, LootAllPassed, LootEntry, LootEntryFlags, LootItemData,
+    LootItemPkt, LootList, LootMoney, LootMoneyNotify, LootRelease, LootReleaseAll, LootRemoved,
+    LootResponse, LootRoll, LootRollBroadcast, LootRollWon, LootUnit, MasterLootCandidateList,
+    MasterLootItem, NotNormalLootItem, SLootRelease, SetLootSpecialization, StartLootRoll,
 };
 use wow_packet::packets::update::{ItemCreateData, UpdateObject};
 use wow_packet::{ClientPacket, ServerPacket};
@@ -369,10 +370,10 @@ impl WorldSession {
         let response = LootResponse {
             owner: gameobject_guid,
             loot_obj: loot.loot_guid,
-            failure_reason: 0,
+            failure_reason: LOOT_RESPONSE_DEFAULT_FAILURE_REASON_LIKE_CPP,
             acquire_reason: loot_type_for_client_like_cpp(loot.loot_type),
             loot_method: loot.loot_method,
-            threshold: 2,
+            threshold: LOOT_RESPONSE_DEFAULT_THRESHOLD_LIKE_CPP,
             coins: self.represented_loot_money_for_player_like_cpp(
                 gameobject_guid,
                 loot,
@@ -499,10 +500,10 @@ impl WorldSession {
         let response = LootResponse {
             owner: gameobject_guid,
             loot_obj: loot.loot_guid,
-            failure_reason: 0,
+            failure_reason: LOOT_RESPONSE_DEFAULT_FAILURE_REASON_LIKE_CPP,
             acquire_reason: loot_type_for_client_like_cpp(loot.loot_type),
             loot_method: loot.loot_method,
-            threshold: 2,
+            threshold: LOOT_RESPONSE_DEFAULT_THRESHOLD_LIKE_CPP,
             coins: loot.coins,
             items: represented_loot_response_items_like_cpp(loot, player_guid),
             currencies: vec![],
@@ -1051,10 +1052,10 @@ impl WorldSession {
         let response = LootResponse {
             owner: gameobject_guid,
             loot_obj: loot.loot_guid,
-            failure_reason: 0,
+            failure_reason: LOOT_RESPONSE_DEFAULT_FAILURE_REASON_LIKE_CPP,
             acquire_reason: loot_type_for_client_like_cpp(loot.loot_type),
             loot_method: loot.loot_method,
-            threshold: 2,
+            threshold: LOOT_RESPONSE_DEFAULT_THRESHOLD_LIKE_CPP,
             coins: loot.coins,
             items: represented_loot_response_items_like_cpp(loot, player_guid),
             currencies: vec![],
@@ -3925,10 +3926,10 @@ impl WorldSession {
         Some(LootResponse {
             owner: owner_guid,
             loot_obj: loot.loot_guid,
-            failure_reason: 0,
+            failure_reason: LOOT_RESPONSE_DEFAULT_FAILURE_REASON_LIKE_CPP,
             acquire_reason: loot_type_for_client_like_cpp(loot.loot_type),
             loot_method: loot.loot_method,
-            threshold: 2,
+            threshold: LOOT_RESPONSE_DEFAULT_THRESHOLD_LIKE_CPP,
             coins: self.represented_loot_money_for_player_like_cpp(owner_guid, loot, player_guid),
             items: represented_loot_response_items_like_cpp(loot, player_guid),
             currencies: vec![],
@@ -6323,7 +6324,7 @@ impl WorldSession {
             failure_reason: error,
             acquire_reason: 0,
             loot_method: 0,
-            threshold: 0,
+            threshold: LOOT_RESPONSE_DEFAULT_THRESHOLD_LIKE_CPP,
             coins: 0,
             items: vec![],
             currencies: vec![],
@@ -8094,13 +8095,15 @@ mod tests {
     use wow_packet::packets::loot::{
         CreatureLoot, LOOT_ERROR_MASTER_OTHER_LIKE_CPP, LOOT_ERROR_MASTER_UNIQUE_ITEM_LIKE_CPP,
         LOOT_ERROR_NO_LOOT_LIKE_CPP, LOOT_ERROR_PLAYER_NOT_FOUND_LIKE_CPP,
-        LOOT_ERROR_TOO_FAR_LIKE_CPP, LOOT_TYPE_CHEST_LIKE_CPP, LOOT_TYPE_CORPSE_LIKE_CPP,
-        LOOT_TYPE_CORPSE_PERSONAL_LIKE_CPP, LOOT_TYPE_DISENCHANTING_LIKE_CPP,
-        LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHING_LIKE_CPP,
-        LOOT_TYPE_FISHINGHOLE_LIKE_CPP, LOOT_TYPE_GATHERING_NODE_LIKE_CPP,
-        LOOT_TYPE_INSIGNIA_LIKE_CPP, LOOT_TYPE_ITEM_LIKE_CPP, LOOT_TYPE_MILLING_LIKE_CPP,
-        LOOT_TYPE_NONE_LIKE_CPP, LOOT_TYPE_PROSPECTING_LIKE_CPP, LOOT_TYPE_SKINNING_LIKE_CPP,
-        LootEntry, LootEntryFlags, LootRoll, MasterLootItem, SetLootSpecialization,
+        LOOT_ERROR_TOO_FAR_LIKE_CPP, LOOT_RESPONSE_DEFAULT_FAILURE_REASON_LIKE_CPP,
+        LOOT_RESPONSE_DEFAULT_THRESHOLD_LIKE_CPP, LOOT_TYPE_CHEST_LIKE_CPP,
+        LOOT_TYPE_CORPSE_LIKE_CPP, LOOT_TYPE_CORPSE_PERSONAL_LIKE_CPP,
+        LOOT_TYPE_DISENCHANTING_LIKE_CPP, LOOT_TYPE_FISHING_JUNK_LIKE_CPP,
+        LOOT_TYPE_FISHING_LIKE_CPP, LOOT_TYPE_FISHINGHOLE_LIKE_CPP,
+        LOOT_TYPE_GATHERING_NODE_LIKE_CPP, LOOT_TYPE_INSIGNIA_LIKE_CPP, LOOT_TYPE_ITEM_LIKE_CPP,
+        LOOT_TYPE_MILLING_LIKE_CPP, LOOT_TYPE_NONE_LIKE_CPP, LOOT_TYPE_PROSPECTING_LIKE_CPP,
+        LOOT_TYPE_SKINNING_LIKE_CPP, LootEntry, LootEntryFlags, LootRoll, MasterLootItem,
+        SetLootSpecialization,
     };
     use wow_packet::packets::update::CreatureCreateData;
     use wow_packet::{ServerPacket, WorldPacket};
@@ -8968,10 +8971,22 @@ mod tests {
     }
 
     fn loot_response_failure_reason(sent: &[u8]) -> u8 {
+        loot_response_failure_reason_and_threshold(sent).0
+    }
+
+    fn loot_response_threshold(sent: &[u8]) -> u8 {
+        loot_response_failure_reason_and_threshold(sent).1
+    }
+
+    fn loot_response_failure_reason_and_threshold(sent: &[u8]) -> (u8, u8) {
         let mut pkt = WorldPacket::from_bytes(&sent[2..]);
         let _owner = pkt.read_packed_guid().unwrap();
         let _loot_obj = pkt.read_packed_guid().unwrap();
-        pkt.read_uint8().unwrap()
+        let failure_reason = pkt.read_uint8().unwrap();
+        let _acquire_reason = pkt.read_uint8().unwrap();
+        let _loot_method = pkt.read_uint8().unwrap();
+        let threshold = pkt.read_uint8().unwrap();
+        (failure_reason, threshold)
     }
 
     fn test_creature_guid(counter: i64) -> ObjectGuid {
@@ -9696,7 +9711,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn loot_response_threshold_keeps_packet_default_like_cpp() {
+    async fn loot_response_success_keeps_cpp_failure_and_threshold_defaults() {
         let mut session = make_session();
         let player_guid = ObjectGuid::create_player(1, 42);
         let creature_guid = test_creature_guid(19_118);
@@ -9737,7 +9752,30 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.loot_method, LOOT_METHOD_GROUP_LIKE_CPP);
-        assert_eq!(response.threshold, 2);
+        assert_eq!(
+            response.failure_reason,
+            LOOT_RESPONSE_DEFAULT_FAILURE_REASON_LIKE_CPP
+        );
+        assert_eq!(response.threshold, LOOT_RESPONSE_DEFAULT_THRESHOLD_LIKE_CPP);
+    }
+
+    #[tokio::test]
+    async fn loot_error_response_keeps_cpp_threshold_default_like_cpp() {
+        let (session, send_rx) = make_session_with_send();
+        let owner = test_creature_guid(19_119);
+        let loot_obj = represented_loot_object_guid_like_cpp(owner);
+
+        session.send_loot_error_like_cpp(loot_obj, owner, LOOT_ERROR_TOO_FAR_LIKE_CPP);
+
+        let sent = send_rx.try_recv().unwrap();
+        assert_eq!(
+            loot_response_failure_reason(&sent),
+            LOOT_ERROR_TOO_FAR_LIKE_CPP
+        );
+        assert_eq!(
+            loot_response_threshold(&sent),
+            LOOT_RESPONSE_DEFAULT_THRESHOLD_LIKE_CPP
+        );
     }
 
     #[tokio::test]

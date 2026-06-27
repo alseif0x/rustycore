@@ -20,6 +20,9 @@ pub const LOOT_ERROR_MASTER_UNIQUE_ITEM_LIKE_CPP: u8 = 13;
 pub const LOOT_ERROR_MASTER_OTHER_LIKE_CPP: u8 = 14;
 pub const LOOT_ERROR_NO_LOOT_LIKE_CPP: u8 = 17;
 
+pub const LOOT_RESPONSE_DEFAULT_THRESHOLD_LIKE_CPP: u8 = 2;
+pub const LOOT_RESPONSE_DEFAULT_FAILURE_REASON_LIKE_CPP: u8 = LOOT_ERROR_NO_LOOT_LIKE_CPP;
+
 pub const LOOT_TYPE_NONE_LIKE_CPP: u8 = 0;
 pub const LOOT_TYPE_CORPSE_LIKE_CPP: u8 = 1;
 pub const LOOT_TYPE_FISHING_LIKE_CPP: u8 = 3;
@@ -693,11 +696,12 @@ mod tests {
     use crate::{ClientPacket, ServerPacket};
 
     use super::{
-        AELootTargets, AELootTargetsAck, CoinRemoved, LootAllPassed, LootCurrencyData,
-        LootItemData, LootList, LootMoney, LootMoneyNotify, LootReleaseAll, LootRemoved,
-        LootResponse, LootRoll, LootRollBroadcast, LootRollWon, LootRollsComplete,
-        MasterLootCandidateList, MasterLootItem, SLootRelease, SetLootSpecialization,
-        StartLootRoll,
+        AELootTargets, AELootTargetsAck, CoinRemoved,
+        LOOT_RESPONSE_DEFAULT_FAILURE_REASON_LIKE_CPP, LOOT_RESPONSE_DEFAULT_THRESHOLD_LIKE_CPP,
+        LootAllPassed, LootCurrencyData, LootItemData, LootList, LootMoney, LootMoneyNotify,
+        LootReleaseAll, LootRemoved, LootResponse, LootRoll, LootRollBroadcast, LootRollWon,
+        LootRollsComplete, MasterLootCandidateList, MasterLootItem, SLootRelease,
+        SetLootSpecialization, StartLootRoll,
     };
     use crate::packets::item::ItemInstance;
     use crate::world_packet::WorldPacket;
@@ -785,10 +789,10 @@ mod tests {
         let response = LootResponse {
             owner,
             loot_obj,
-            failure_reason: 0,
+            failure_reason: LOOT_RESPONSE_DEFAULT_FAILURE_REASON_LIKE_CPP,
             acquire_reason: 0,
             loot_method: 0,
-            threshold: 2,
+            threshold: LOOT_RESPONSE_DEFAULT_THRESHOLD_LIKE_CPP,
             coins: 0,
             items: Vec::new(),
             currencies: Vec::new(),
@@ -801,6 +805,41 @@ mod tests {
 
         assert_eq!(pkt.read_packed_guid().unwrap(), owner);
         assert_eq!(pkt.read_packed_guid().unwrap(), loot_obj);
+    }
+
+    #[test]
+    fn loot_response_success_defaults_write_cpp_failure_reason_and_threshold() {
+        let owner = wow_core::ObjectGuid::create_player(1, 7);
+        let loot_obj = wow_core::ObjectGuid::create_item(1, 42);
+        let response = LootResponse {
+            owner,
+            loot_obj,
+            failure_reason: LOOT_RESPONSE_DEFAULT_FAILURE_REASON_LIKE_CPP,
+            acquire_reason: 0,
+            loot_method: 0,
+            threshold: LOOT_RESPONSE_DEFAULT_THRESHOLD_LIKE_CPP,
+            coins: 0,
+            items: Vec::new(),
+            currencies: Vec::new(),
+            acquired: true,
+            ae_looting: false,
+        };
+        let mut pkt = WorldPacket::new_empty();
+        response.write(&mut pkt);
+        pkt.reset_read();
+
+        assert_eq!(pkt.read_packed_guid().unwrap(), owner);
+        assert_eq!(pkt.read_packed_guid().unwrap(), loot_obj);
+        assert_eq!(
+            pkt.read_uint8().unwrap(),
+            LOOT_RESPONSE_DEFAULT_FAILURE_REASON_LIKE_CPP
+        );
+        assert_eq!(pkt.read_uint8().unwrap(), 0);
+        assert_eq!(pkt.read_uint8().unwrap(), 0);
+        assert_eq!(
+            pkt.read_uint8().unwrap(),
+            LOOT_RESPONSE_DEFAULT_THRESHOLD_LIKE_CPP
+        );
     }
 
     #[test]
@@ -828,10 +867,10 @@ mod tests {
         let response = LootResponse {
             owner,
             loot_obj,
-            failure_reason: 0,
+            failure_reason: LOOT_RESPONSE_DEFAULT_FAILURE_REASON_LIKE_CPP,
             acquire_reason: 0,
             loot_method: 0,
-            threshold: 2,
+            threshold: LOOT_RESPONSE_DEFAULT_THRESHOLD_LIKE_CPP,
             coins: 11,
             items: Vec::new(),
             currencies: vec![LootCurrencyData {
@@ -849,10 +888,16 @@ mod tests {
 
         assert_eq!(pkt.read_packed_guid().unwrap(), owner);
         assert_eq!(pkt.read_packed_guid().unwrap(), loot_obj);
+        assert_eq!(
+            pkt.read_uint8().unwrap(),
+            LOOT_RESPONSE_DEFAULT_FAILURE_REASON_LIKE_CPP
+        );
         assert_eq!(pkt.read_uint8().unwrap(), 0);
         assert_eq!(pkt.read_uint8().unwrap(), 0);
-        assert_eq!(pkt.read_uint8().unwrap(), 0);
-        assert_eq!(pkt.read_uint8().unwrap(), 2);
+        assert_eq!(
+            pkt.read_uint8().unwrap(),
+            LOOT_RESPONSE_DEFAULT_THRESHOLD_LIKE_CPP
+        );
         assert_eq!(pkt.read_uint32().unwrap(), 11);
         assert_eq!(pkt.read_uint32().unwrap(), 0);
         assert_eq!(pkt.read_uint32().unwrap(), 1);
