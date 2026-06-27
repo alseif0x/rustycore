@@ -25,8 +25,8 @@ Estados:
 ## Resumen
 
 - Bugs confirmados contra C++: 51.
-- Bugs corregidos: 1 (`#CSharpAudit.MOVEMENT.1`, commit `98ceec4d`).
-- Bugs pendientes de fix: 50.
+- Bugs corregidos: 2 (`#CSharpAudit.COMPRESS.1`, `#CSharpAudit.MOVEMENT.1`, commit `98ceec4d`).
+- Bugs pendientes de fix: 49.
 - Referencias C# productivas localizadas hoy: 52 archivos bajo `crates/**`.
 - Referencias C# documentales no-audit localizadas hoy: 39 archivos bajo `docs/**`.
 
@@ -52,7 +52,7 @@ indica donde se controla cada referencia.
 | BNet REST/SRP/RPC/realm | `crates/bnet-server/src/main.rs`, `realm/mod.rs`, `rest/{handlers.rs,mod.rs,types.rs}`, `rpc/{session.rs,services/game_utilities.rs}` | Bugs `BNETREST.*`, `BNETSRP.*`; RPC/realm/TLS quedan en `Pendientes De Auditoria`. |
 | World login/session | `crates/world-server/src/main.rs` | Parcial en auth/account expansion/locale; pendiente reauditar todo el flujo world-login contra `WorldSocket.cpp`/`WorldSession.cpp`. |
 | Network/crypto/auth | `crates/wow-network/src/{accept.rs,world_socket.rs}`, `crates/wow-crypto/src/{bnet_srp6.rs,ed25519ctx.rs,rsa_sign.rs,world_crypt.rs}` | Bugs BNet SRP; no-bug/comment en RSA/Ed25519/world crypt slices; `accept.rs` HMAC/seeds queda pendiente. |
-| Packet core/compression | `crates/wow-packet/src/{world_packet.rs,compression.rs}` | `COMPRESS.1` confirmado; bit APIs son no-bug/comment. |
+| Packet core/compression | `crates/wow-packet/src/{world_packet.rs,compression.rs}` | `COMPRESS.1` corregido; bit APIs son no-bug/comment. |
 | Packet serializers | `crates/wow-packet/src/packets/{auth.rs,character.rs,chat.rs,combat.rs,item.rs,misc.rs,movement.rs,party.rs,quest.rs,spell.rs}` | Bugs `FEATURE`, `SPELL`, `COMBAT`, `CHAT`, `PARTY`, `ITEM`, `MISC`, `QUEST`, `MOVEMENT`; slices no-bug/comment listados abajo. |
 | World handlers | `crates/wow-world/src/handlers/{battlenet.rs,character.rs,chat.rs,combat.rs,group.rs,loot.rs,misc.rs,movement.rs,quest.rs,spell.rs}` | Bugs confirmados por dominio; `battlenet.rs`, spell runtime y restos de handlers quedan en `Pendientes De Auditoria`. |
 | Data/model helpers | `crates/wow-data/src/{item_stats.rs,player_stats.rs,quest.rs,quest_xp.rs,skill.rs}` | Bugs `DATASTATS`, `ITEMSTATS`, `QUESTXP`, `SKILL`; slices DB2/helpers no-bug/comment abajo. |
@@ -61,7 +61,7 @@ indica donde se controla cada referencia.
 
 ## Bugs Confirmados
 
-- [ ] `#CSharpAudit.COMPRESS.1` - Threshold de compresion usa longitud con opcode en Rust; C++ usa payload sin opcode.
+- [x] `#CSharpAudit.COMPRESS.1` - Corregido; threshold de compresion usa payload sin opcode como C++ (`packet.size() > 0x400`). Test: `compression_threshold_uses_payload_len_like_cpp`.
 - [ ] `#CSharpAudit.BNETREST.1` - `GET /bnetserver/login/` emite `JSESSIONID` en Rust; C++ no.
 - [ ] `#CSharpAudit.BNETREST.2` - `POST /bnetserver/login/srp/` emite y depende de `JSESSIONID`; C++ usa session state HTTP.
 - [ ] `#CSharpAudit.FEATURE.1` - `FeatureSystemStatus` y glue screen estan hardcoded a defaults y no reflejan config C++.

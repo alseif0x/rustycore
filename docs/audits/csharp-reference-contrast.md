@@ -3,7 +3,8 @@
 Fecha: 2026-06-27
 
 Scope: contraste inicial de los focos de mayor riesgo del inventario
-`docs/audits/csharp-reference-audit.md`. No se ha cambiado codigo runtime.
+`docs/audits/csharp-reference-audit.md` y registro incremental de fixes
+cerrados contra C++.
 
 Regla usada:
 
@@ -19,8 +20,8 @@ Regla usada:
 | Area | Rust ref | C++ ref | Veredicto | Evidencia |
 | --- | --- | --- | --- | --- |
 | ByteBuffer bits | `crates/wow-packet/src/world_packet.rs:391,410,419` | `src/server/shared/Packets/ByteBuffer.h:155-217`; `ByteBuffer.cpp:78-91` | No bug de comportamiento | `ResetBitPos`, `ReadBit`, `ReadBits`, `WriteBit` y `WriteBits` tienen equivalente C++. El problema es solo que los comentarios dicen C#. |
-| Packet compression threshold | `crates/wow-network/src/world_socket.rs:662`; `crates/wow-network/src/world_socket.rs:1195`; `crates/wow-packet/src/compression.rs:21-24` | `src/server/game/Server/WorldSocket.cpp:541-550`; `WorldSocket.cpp:582-609` | Bug confirmado | C++ comprime si `packet.size() > 0x400`, donde `packet.size()` es payload sin opcode. Rust decide con `data.len() > 0x400`, donde `data` incluye opcode. Payloads de 1023 o 1024 bytes cambian de decision. |
-| Packet compression format | `crates/wow-packet/src/compression.rs:53-176` | `WorldSocket.cpp:549-609`; `WorldSocket.cpp:42-53` | No bug de formato en el slice revisado | El wrapper `[UncompressedSize, UncompressedAdler, CompressedAdler]`, opcode+payload como input, `Z_SYNC_FLUSH`, adler seed `0x9827D8F1` y stream persistente coinciden. Solo queda el bug del threshold. |
+| Packet compression threshold | `crates/wow-packet/src/compression.rs:20-30`; `crates/wow-network/src/world_socket.rs:661-664,1194-1198,1333-1336`; test `compression_threshold_uses_payload_len_like_cpp` | `src/server/game/Server/WorldSocket.cpp:541-550`; `WorldSocket.cpp:582-609` | Bug corregido `#CSharpAudit.COMPRESS.1` | C++ comprime si `packet.size() > 0x400`, donde `packet.size()` es payload sin opcode. Rust ya resta el opcode antes de decidir, usa `COMPRESSION_THRESHOLD = 0x400` y el test cubre payload `0x3FF`, `0x400` y `0x401`. |
+| Packet compression format | `crates/wow-packet/src/compression.rs:53-176` | `WorldSocket.cpp:549-609`; `WorldSocket.cpp:42-53` | No bug de formato en el slice revisado | El wrapper `[UncompressedSize, UncompressedAdler, CompressedAdler]`, opcode+payload como input, `Z_SYNC_FLUSH`, adler seed `0x9827D8F1` y stream persistente coinciden. |
 | World crypto AES-GCM | `crates/wow-crypto/src/world_crypt.rs:14,33,69,100-170`; `crates/wow-network/src/world_socket.rs:937,955` | `src/common/Cryptography/Authentication/WorldPacketCrypt.cpp:33-83`; `AES.h:30-38` | No bug de comportamiento | C++ usa tag de 12 bytes, IV `[u64 counter][u32 magic]`, magic `0x544E4C43` para client recv y `0x52565253` para server send, y counters incrementados tambien pre-init. Rust replica esto; los comentarios C# son misatribucion. |
 | FeatureSystemStatus in-game layout | `crates/wow-packet/src/packets/misc.rs:2034-2174` | `Server/Packets/SystemPackets.cpp:61-186`; `Handlers/CharacterHandler.cpp:1457-1485` | No bug de layout en defaults | El orden de campos, flags, QuickJoin, Squelch y EuropaTicket coincide con C++ para los valores dummy/default. |
 | FeatureSystemStatus config | `crates/wow-packet/src/packets/misc.rs:2045-2050`; `crates/wow-world/src/handlers/character.rs:13165` | `Handlers/CharacterHandler.cpp:1457-1485`; `World.cpp:584-588`; `World.cpp:1597-1599` | Bug de paridad configurable | C++ rellena support tickets/bugs/complaints/suggestions, `CharUndelete`, `BpayStore` e `IsMuted` desde config/sesion. Rust usa `default_wotlk()` fijo. Coincide con defaults, pero no con configuracion no-default. |
@@ -321,9 +322,9 @@ map-owned de visibilidad/transport end-to-end.
 | Handler generico omite ramas C++ de teleport/spline/transport/vehicle | `handlers/movement.rs:105-364` | `MovementHandler.cpp:324-430`; `MovementHandler.cpp:432-455` | Bug runtime / incompleto | C++ ignora movimiento mientras el player esta siendo teletransportado, requiere `mover->movespline->Finalized()`, anade/cambia/remueve transport passengers, resetea transport si no hay transport/vehicle, aplica vehicle seat turning con retorno temprano, y hace under-map/battleground/death flow. Rust cubre solo parte: sanitize, GUID/coords, offset transport basico, fall/auras/sit/jump, posicion, visibilidad y broadcast. |
 | `MoveInitActiveMoverComplete` side effects | `handlers/movement.rs:390-406`; `session.rs:37416-37432`; `session.rs:42052-42070` | `MovementHandler.cpp:810-815`; `Player.h:487,2775,2787` | Bug/representacion parcial | C++ setea local flag `OVERRIDE_TRANSPORT_SERVER_TIME`, transport server time y llama `UpdateObjectVisibility(false)`. Rust setea campos representados, no ejecuta el notify de visibilidad C++ y envia inmediatamente un `UpdateObject` parcial de ActivePlayerData. Eso puede ser una adaptacion temporal, pero no es 1:1 C++. |
 
-## Bugs confirmados para abrir como bugs
+## Bugs Confirmados Y Estado
 
-1. `#CSharpAudit.COMPRESS.1`: threshold de compresion usa longitud con opcode en Rust; C++ usa payload sin opcode.
+1. `#CSharpAudit.COMPRESS.1`: corregido. El threshold de compresion usa payload sin opcode como C++ (`packet.size() > 0x400`); test: `compression_threshold_uses_payload_len_like_cpp`.
 2. `#CSharpAudit.BNETREST.1`: `GET /bnetserver/login/` emite `JSESSIONID` en Rust; C++ no.
 3. `#CSharpAudit.BNETREST.2`: `POST /bnetserver/login/srp/` emite y depende de `JSESSIONID`; C++ usa session state de la conexion HTTP.
 4. `#CSharpAudit.FEATURE.1`: `FeatureSystemStatus` y `FeatureSystemStatusGlueScreen` estan hardcoded a defaults y no reflejan config C++ para support/BPay/undelete/max chars/expansion.
