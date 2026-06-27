@@ -856,7 +856,7 @@ through a function pointer.
 Rust uses `inventory::submit!` to push `PacketHandlerEntry { opcode, status,
 processing, handler_name }` into a static collection assembled at startup.
 **Two-step dispatch (match arm + submit) means forgetting `submit!` silently
-drops the handler** — covered in CLAUDE.md.
+drops the handler** — covered in AGENTS.md.
 
 **SessionStatus parity:** ✅ Rust models all 4 C++ values
 (`STATUS_AUTHED`, `STATUS_LOGGEDIN`, `STATUS_TRANSFER`,

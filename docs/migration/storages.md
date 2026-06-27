@@ -127,7 +127,7 @@ The module itself does not emit/receive packets; its consumer does:
 
 **Files in `/home/server/rustycore`:**
 - None. Searches for `WhoList`, `WhoListStorage`, `who_list` across `crates/` return zero hits.
-- `PlayerRegistry` (in `wow-network`, ~referenced from `CLAUDE.md`) is a related primitive — it tracks online sessions — but it is not the same shape. The who-list cache is a denormalized read-only snapshot containing fields (level, class, zone, guild name, lowercase wide name) that aren't necessarily on the registry entry. Even if they were, hitting the live registry per `/who` query under any contention would lock-bottleneck — the explicit snapshot pattern exists exactly to avoid that.
+- `PlayerRegistry` (in `wow-network`, ~referenced from `AGENTS.md`) is a related primitive — it tracks online sessions — but it is not the same shape. The who-list cache is a denormalized read-only snapshot containing fields (level, class, zone, guild name, lowercase wide name) that aren't necessarily on the registry entry. Even if they were, hitting the live registry per `/who` query under any contention would lock-bottleneck — the explicit snapshot pattern exists exactly to avoid that.
 
 **What's implemented:** nothing.
 
@@ -265,7 +265,7 @@ Complejidad: **L** (low, <1h), **M** (med, 1-4h), **H** (high, 4-12h), **XL** (>
 **Findings:**
 
 - **Zero matches** for `WhoList` / `who_list` / `wholist` anywhere under `crates/`. The module is genuinely entirely absent — confirms §8.
-- `PlayerRegistry` in `wow-network` (workspace-wide registry of online sessions, mentioned in `CLAUDE.md`) is the closest existing primitive but is fundamentally a different shape: it tracks live session state, not the denormalized `WhoListPlayerInfo` snapshot (level/class/zone/guild-name/lower-cased wide-name) that `/who` needs. There is no `ArcSwap`-style snapshot wrapper either.
+- `PlayerRegistry` in `wow-network` (workspace-wide registry of online sessions, mentioned in `AGENTS.md`) is the closest existing primitive but is fundamentally a different shape: it tracks live session state, not the denormalized `WhoListPlayerInfo` snapshot (level/class/zone/guild-name/lower-cased wide-name) that `/who` needs. There is no `ArcSwap`-style snapshot wrapper either.
 - The `CMSG_WHO` / `SMSG_WHO` opcodes have no handler registered in `wow-world/src/handlers/` — confirmed by absence of any `WhoOpcode` / `who_opcode` / `handle_who` symbols. This means the gap is currently invisible to clients (the `/who` UI shows an empty list rather than wrong data), exactly as §8 predicted.
 - `wow-social` has a `social.rs` module but it deals with friend/ignore lists, not the live-player snapshot.
 

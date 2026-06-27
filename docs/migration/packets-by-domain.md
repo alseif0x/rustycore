@@ -346,11 +346,11 @@ For every domain pair where a Rust struct exists, validate byte-for-byte parity 
 
 ## 11. Notes / gotchas
 
-- **Two-step dispatch (CLAUDE.md):** adding a packet struct alone is not enough — the opcode must also have a `match` arm AND `inventory::submit!` registration in the dispatcher. Forgetting the `submit!` silently drops the opcode. Document this in each new packet module's doc-comment.
+- **Two-step dispatch (AGENTS.md):** adding a packet struct alone is not enough — the opcode must also have a `match` arm AND `inventory::submit!` registration in the dispatcher. Forgetting the `submit!` silently drops the opcode. Document this in each new packet module's doc-comment.
 - **`use wow_packet::ClientPacket;`** must be imported explicitly in each handler module decoding a packet. The trait does not auto-import. (Handlers, not packet modules, but the pattern arises whenever a new `ClientPacket` impl is added here.)
 - **`Position` fields are `.x .y .z .orientation`** — never `.o`. Recurring mistake when writing position into a packet.
 - **3.4.3.54261 is a backport client.** Many opcodes look like Cata/MoP IDs but with WotLK semantics. When in doubt cross-check against `/home/server/woltk-server-core/Source/` (C# canonical for this exact build).
-- **`*_stubs.rs` from CLAUDE.md** does NOT live under `crates/wow-packet/src/packets/`. It lives in `crates/wow-world/_attic/stubs.rs.txt` (a `.txt` rename so cargo skips it) and only stubs handlers — NOT packet structs. The packet crate has zero stub files of its own; partial coverage shows up as missing-file rather than as `*_stubs.rs`.
+- **`*_stubs.rs` from AGENTS.md** does NOT live under `crates/wow-packet/src/packets/`. It lives in `crates/wow-world/_attic/stubs.rs.txt` (a `.txt` rename so cargo skips it) and only stubs handlers — NOT packet structs. The packet crate has zero stub files of its own; partial coverage shows up as missing-file rather than as `*_stubs.rs`.
 - **`character_packets.rs` (10 LOC) is the only smell** of stub-ness inside `wow-packet`. Treat it as #PKD.24.
 - **Bit-packing convention:** TC writes bit fields LSB-first within a byte then flushes; the Rust impl in `world_packet.rs` mirrors that. Any new packet body using bits must call `flush_bits()` before any byte-aligned write that follows, or the buffer will desync.
 - **Update.rs is special.** Don't be fooled by the 3072 LOC — it is one packet (`SMSG_UPDATE_OBJECT`) with a giant field-mask encoder. New domains should NOT live inside it.
@@ -382,7 +382,7 @@ For every domain pair where a Rust struct exists, validate byte-for-byte parity 
 3. `ls /home/server/rustycore/crates/wow-packet/src/packets/` → 20 `*.rs` files + `mod.rs`.
 4. `wc -l` on all Rust `*.rs` → total **11 794 LOC**, of which `update.rs` alone is 3 072 LOC and `misc.rs` is 2 613 LOC.
 5. `grep -c "^pub struct\|^impl ServerPacket\|^impl ClientPacket"` per Rust file → **392 struct declarations** total across the 20 modules.
-6. `find crates -name "*stubs*"` → only `crates/wow-world/_attic/stubs.rs.txt`. **No stub files in `wow-packet`.** The CLAUDE.md mention of `*_stubs.rs` refers to the world crate, not the packet crate.
+6. `find crates -name "*stubs*"` → only `crates/wow-world/_attic/stubs.rs.txt`. **No stub files in `wow-packet`.** The AGENTS.md mention of `*_stubs.rs` refers to the world crate, not the packet crate.
 7. Mapped each TC file to (a) its 3.4.3 applicability, (b) the Rust file containing equivalent content (or `none`), (c) coverage tier.
 
 **Top-line findings:**

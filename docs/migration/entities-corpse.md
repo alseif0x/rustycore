@@ -215,7 +215,7 @@ DBC/DB2 stores read by Corpse:
 - `crates/wow-constants/src/object.rs:136-140` — `SummonType::TimedOrCorpseDespawn = 2`, `CorpseDespawn = 5`, `CorpseTimedDespawn = 6` (for TempSummon)
 - `crates/wow-constants/src/shared.rs:426` — `Mechanic::Corpse = 1` (also a mechanic constant)
 - `crates/wow-constants/src/item.rs:355` — `SkillType::CorpseRecovery = 80` (legacy skill enum)
-- `crates/wow-packet/src/packets/update_stubs.rs` — likely contains a `CorpseData` stub (per the CLAUDE.md "stubs.rs.txt" catalogue note)
+- `crates/wow-packet/src/packets/update_stubs.rs` — likely contains a `CorpseData` stub (per the AGENTS.md "stubs.rs.txt" catalogue note)
 - `crates/wow-world/src/handlers/loot.rs:172,199-218` — uses the term "corpse" in **creature** corpse decay comments; `corpse_despawn_at` is a `WorldCreature` field, not a `Corpse` entity
 - `crates/wow-world/src/session.rs:1985-2065` — `corpse_despawn_at` driven creature-corpse-decay loop (also unrelated to player Corpse)
 

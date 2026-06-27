@@ -193,7 +193,7 @@ The config layer is process-internal — it does not originate packets. It does,
 
 - ❌ **The `m_int_configs` / `m_bool_configs` / `m_float_configs` arrays do not exist.** RustyCore reads keys ad-hoc at the call site instead of caching them in indexed arrays. This means every `getIntConfig` equivalent is a `HashMap` lookup instead of an `O(1)` array index — fine functionally for represented keys, but still a parity/perf gap versus TC's cached config arrays.
 - ❌ **No `World::LoadConfigSettings()` equivalent.** Subsystems that need values fetch them lazily; there is no startup pass that validates every expected key is present and warns on missing/malformed entries. Silent fall-through to hardcoded Rust defaults.
-- ❌ **No `.reload config` command.** `wow_config::load_config` *can* be called again to replace values, but no GM command, no signal handler, and no `OnConfigReload` hook fires in subsystems. CLAUDE.md acknowledges this.
+- ❌ **No `.reload config` command.** `wow_config::load_config` *can* be called again to replace values, but no GM command, no signal handler, and no `OnConfigReload` hook fires in subsystems. AGENTS.md acknowledges this.
 - ❌ ~588 of ~612 `worldserver.conf` keys are unread. Examples grouped by criticality:
   - **Security-critical (silently default to Rust hardcoded values)**: `Warden.*`. `PacketSpoof.{Policy,BanMode,BanDuration}` is now read by `world-server` and enforced in `WorldSession::update` for AntiDOS log/kick decisions; `Policy=2` persists account/IP ban rows using the auth DB statements mirrored from `World::BanAccount` and queues C++-style kicks for online sessions whose account/IP is affected by the ban. Exhaustive per-opcode table parity remains pending. `SessionAddDelay` is loaded by C++ but has no consumer in this legacy tree (`rg CONFIG_SESSION_ADD_DELAY`). `MaxOverspeedPings` is now read by `world-server` and enforced in `wow-network::WorldSocket` for normal sockets; `SocketTimeOutTime{,Active}` is now read by `world-server` and enforced in `WorldSession::update` using wow-config's C++-like ms-to-seconds conversion plus `CMSG_KEEP_ALIVE` active-only reset; exact RBAC permission exemptions remain pending with the RBAC port. `WrongPass.*` is now read and enforced in bnet REST login. `ChatFlood.*` is now read/enforced for represented chat, with RBAC-exact exemption and DB persistence still pending.
   - **Economy / progression**: every `Rate.XP.*`, `Rate.Drop.*`, `Rate.Creature.*`, `Rate.Quest.Money.*`, `Rate.Health`, `Rate.Mana`, `StartPlayerLevel`, `StartPlayerMoney`.
@@ -237,7 +237,7 @@ The config layer is process-internal — it does not originate packets. It does,
 - [ ] **#CONFIG.10** Port the schedule keys: `ResetSchedule.{WeekDay,Hour}`, `Quests.{DailyResetTime,WeeklyResetWDay}`, `Guild.ResetHour`, `Battleground.Random.ResetHour`, `Currency.{ResetHour,ResetDay,ResetInterval}`. Without these, daily/weekly resets either don't fire or fire at the wrong wall-clock time. (complejidad: M)
   - [x] `ResetSchedule.{WeekDay,Hour}` is wired into represented `InstanceLockMgr` temporary-lock expiry for the live-session dungeon `CreateMap` path (`#NEXT.RUNTIME.L3.031j68`).
 - [ ] **#CONFIG.11** Add a repo-local round-trip that loads representative `worldserver.conf.dist` and `bnetserver.conf.dist` fixtures and asserts no `ParseError`. Add a sister test that warns on every key present in the file but never read by any RustyCore subsystem (catalogue of unimplemented features, refreshed on every CI run). (complejidad: M)
-- [ ] **#CONFIG.12** Document the divergence in `BNetServer.conf` / `WorldServer.conf` example files at the repo root: list the keys RustyCore *actually* reads, with their current defaults, and a note that copying a stock TC config produces incorrect behaviour. Update CLAUDE.md to reference this migration doc. (complejidad: L)
+- [ ] **#CONFIG.12** Document the divergence in `BNetServer.conf` / `WorldServer.conf` example files at the repo root: list the keys RustyCore *actually* reads, with their current defaults, and a note that copying a stock TC config produces incorrect behaviour. Update AGENTS.md to reference this migration doc. (complejidad: L)
 
 ---
 
@@ -277,7 +277,7 @@ The config layer is process-internal — it does not originate packets. It does,
 
 9. **`Logger.root=5`** in TC defaults to ERROR-level only. RustyCore's `tracing` subscriber defaults from `RUST_LOG=info` (or whatever env var is set), which is significantly louder. Operators get more log noise than TC.
 
-10. **`Bot.AccountPrefix`** is a RustyCore-specific addition (not in TC). It is documented in `worldserver.conf.dist` lines 4428-4444 and gates the synchronous-login path used by the LFG headless test bot. Production realms must leave it `""` — see CLAUDE.md.
+10. **`Bot.AccountPrefix`** is a RustyCore-specific addition (not in TC). It is documented in `worldserver.conf.dist` lines 4428-4444 and gates the synchronous-login path used by the LFG headless test bot. Production realms must leave it `""` — see AGENTS.md.
 
 11. **`RustyCore.LegacyCreatureGlobalRuntime`** is a RustyCore-specific runtime flag (not in TC). It is read as numeric `0`/`1`; absent and non-zero flip the shared legacy map owner to `GlobalLegacy` and start the global creature runtime loop at `MapUpdateInterval`, matching C++ map-owned creature updates. `0` is a diagnostic override for the old session-owned path.
 
@@ -353,7 +353,7 @@ Cross-checked the canonical `.conf.dist` files line-by-line against the Rust loa
 
 3. **`0`/`1` bool parsing** (`#CONFIG.2`): represented for the config API and `WorldConfigSet`. Remaining boolean risk is now semantic coverage: many keys are still unread or not wired to their owning subsystem.
 
-4. **No reload mechanism** (`#CONFIG.5`): operators cannot apply a config change without restarting both daemons. CLAUDE.md acknowledges this. Severity: **medium** for ops, **low** for correctness.
+4. **No reload mechanism** (`#CONFIG.5`): operators cannot apply a config change without restarting both daemons. AGENTS.md acknowledges this. Severity: **medium** for ops, **low** for correctness.
 
 5. **No `m_*_configs` arrays** (`#CONFIG.4`): every config read is a `HashMap<String, String>` lookup + parse. Functionally equivalent today; performance penalty if hot-path handlers start reading rates per-tick. Severity: **low** today, **medium** as more handlers land.
 

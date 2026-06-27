@@ -239,7 +239,7 @@ The script framework is fundamentally a server-side dispatcher; protocol effects
 **Suspicious / likely divergent (hypothesis pre-audit):**
 - The eventual Rust shape will likely be a `ScriptRegistry` per hook trait built on `inventory::submit!` (compile-time registration) plus a runtime side-table for the name→script-id binding from DB. Hot-reload is unlikely to be supported in the first cut — consider it explicit non-goal.
 - `PlayerScript::OnChat` has 5 overloads in C++ (no receiver / Player / Group / Guild / Channel). In Rust this will probably collapse into one method taking an `enum ChatTarget { None, Player(...), Group(...), Guild(...), Channel(...) }`.
-- C++ scripts get raw `Player*`/`Creature*` pointers; the hot path is overlap with `WorldSession`/`MapManager` borrow rules. The Rust trait shapes need to match the project's actor-style "send via channel" pattern (`send_tx`) used inside tick methods, otherwise every script will hit the borrow-checker dragon described in `CLAUDE.md`.
+- C++ scripts get raw `Player*`/`Creature*` pointers; the hot path is overlap with `WorldSession`/`MapManager` borrow rules. The Rust trait shapes need to match the project's actor-style "send via channel" pattern (`send_tx`) used inside tick methods, otherwise every script will hit the borrow-checker dragon described in `AGENTS.md`.
 - The `ScriptReloadMgr` hot-reload mechanism is heavy on `boost::process` and platform-specific dlopen quirks. Skipping it entirely is the sane move; ship as static linking + restart-to-reload.
 
 **Tests existing:** **None** in `crates/wow-script/`. (`cargo test -p wow-script` runs zero tests.)
@@ -416,7 +416,7 @@ Each line below is one trait. Bodies will fill in as game-side hookpoints land.
 
 <!-- REFINE.023:END known-divergences -->
 
-- **Two-step dispatch is mandatory** in this codebase. Even after a hook trait exists, every callsite in the rest of the workspace needs a literal `script_mgr.on_x(...)` line — the same trap as the packet handlers' `match arm + inventory::submit!` rule (see `CLAUDE.md`). Forgetting either silently does nothing.
+- **Two-step dispatch is mandatory** in this codebase. Even after a hook trait exists, every callsite in the rest of the workspace needs a literal `script_mgr.on_x(...)` line — the same trap as the packet handlers' `match arm + inventory::submit!` rule (see `AGENTS.md`). Forgetting either silently does nothing.
 - The C++ pattern of `new boss_lord_marrowgar()` inside `AddSC_boss_lord_marrowgar()` performs the registration as a side effect of object construction. The Rust analog is `inventory::submit! { MyAi { } as &dyn CreatureScript }` at module scope; both are *fully static* and run once.
 - C++ `ScriptObject` ctor takes `char const*` and stores `std::string` — names are interned per script. Rust will use `&'static str`; do **not** allow runtime-generated names.
 - C++ `FOREACH_SCRIPT(T)` holds a `LockModuleReferenceLock` to keep modules pinned during dispatch. If hot-reload is dropped (recommended), the lock is unnecessary.
@@ -465,7 +465,7 @@ $ wc -l crates/wow-script/src/lib.rs
 
 Cross-cutting confirmation: zero callsites of any `sScriptMgr->OnX`-equivalent across `crates/`. Every game-side hookpoint listed in §9 Phase C is also absent — `WorldSession::login_handler`, `MapManager::create_map`, world tick loop, `world_socket` packet observer, `wow-conditions` evaluator. The framework gap is mirrored by an equally-wide game-side gap.
 
-**No silent-default bug per se** — the absence is total, so there's no half-wired hook firing the wrong default. Risk is "feature class entirely missing," not "feature incorrectly true." Adding the framework will require also adding ~40 `script_mgr.on_x(...)` callsites across the workspace (the two-step dispatch trap from `CLAUDE.md`).
+**No silent-default bug per se** — the absence is total, so there's no half-wired hook firing the wrong default. Risk is "feature class entirely missing," not "feature incorrectly true." Adding the framework will require also adding ~40 `script_mgr.on_x(...)` callsites across the workspace (the two-step dispatch trap from `AGENTS.md`).
 
 **Recommendation:** Tackle in the order from §9 — Phase A (#SCRIPTING.1–4) → minimal hook subset (Phase B for `WorldScript`, `PlayerScript`, `CreatureScript`, `CommandScript` first) → Phase C wiring. Drop `ScriptReloadMgr` (#SCRIPTING.44) as explicit non-goal. `SpellScript`/`AuraScript` (#SCRIPTING.36) are correctly flagged XL — they need their own migration doc and should not be attempted in the first pass.
 

@@ -197,7 +197,7 @@ This module does not directly handle opcodes, but its `WriteRecord` is the body-
 - The hand-rolled field index constants in each per-table reader will silently break the next time the WoW client patches that DB2 — there's no `LayoutHash` check at the `Wdc4Reader` level (it's exposed via `table_hash()` but no consumer asserts it).
 - `Wdc4Reader::record_bytes` returns the raw file bytes including offset-map padding for variable-length records. For `SMSG_DB_REPLY` the client expects the *decoded* record format, not the bitpacked one — this currently happens to work for `Item.db2` (which is fixed-size, no compression) but will produce wrong wire output for any bitpacked DB2.
 
-**Tests existing:** none of the modules in `wow-data` have unit tests at the `Wdc4Reader` level for compression-type round-trips. The 12 tests cited for `MapManager` (in CLAUDE.md) are unrelated. Per-table modules likely have a couple of integration tests but nothing systematic.
+**Tests existing:** none of the modules in `wow-data` have unit tests at the `Wdc4Reader` level for compression-type round-trips. The 12 tests cited for `MapManager` (in AGENTS.md) are unrelated. Per-table modules likely have a couple of integration tests but nothing systematic.
 
 ---
 

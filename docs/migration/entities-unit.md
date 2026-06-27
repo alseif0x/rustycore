@@ -482,12 +482,12 @@ Note: Unit-replicated state changes (HP, mana, level, flags, auras, faction, emo
 **Suspicious / likely divergent (hipótesis pre-auditoría):**
 - `WorldCreature::take_damage(u32) -> bool` at `crates/wow-world/src/map_manager.rs:176` is a saturating subtract — the C++ `DealDamage` returns the amount dealt (may be < `damage` after absorb/resist) and triggers a long chain of side effects: `DealDamageMods`, on-damage auras, threat update, breakable-CC removal, durability loss, kill credit. None of those happen.
 - Damage is `u32` in Rust, `uint64` in 3.4.3 C++ (HP is a 64-bit field on `UnitData`). Boss HP > 4 billion will wrap silently.
-- `CreatureAI` (`crates/wow-ai/src/lib.rs`) holds its own copy of HP/state alongside `WorldCreature`'s copy — two sources of truth. The migration to MapManager (per `CLAUDE.md`) eliminated the per-session creature copy, but the AI/body conflation is still there.
+- `CreatureAI` (`crates/wow-ai/src/lib.rs`) holds its own copy of HP/state alongside `WorldCreature`'s copy — two sources of truth. The migration to MapManager (per `AGENTS.md`) eliminated the per-session creature copy, but the AI/body conflation is still there.
 - Faction is stored as `u32` on `WorldCreature` but `IsHostileTo` is not implemented anywhere — combat targeting in handlers likely treats every creature as hostile to every player.
 - `swing_timer_ms` is fixed per-creature; C++ uses `m_baseAttackTime[MAX_ATTACK=3]` per-attack-type with haste modifiers, dual-wield offhand penalty, etc.
 
 **Tests existing:**
-- A handful of `WorldCreature` tests in `crates/wow-world/src/map_manager.rs` (~12 tests per `CLAUDE.md`).
+- A handful of `WorldCreature` tests in `crates/wow-world/src/map_manager.rs` (~12 tests per `AGENTS.md`).
 - `CreatureAI` state-transition tests in `crates/wow-ai/src/lib.rs`.
 - **Zero tests** for: power resources, stats, resistances, auras, threat, combat manager, immunity, charm, vehicle, mount, spell casting on Unit, melee outcome rolls, spell hit/crit, modifiers, `UpdateAllStats`, kill rewards, heal — because none of those exist.
 

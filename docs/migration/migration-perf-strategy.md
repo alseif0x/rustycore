@@ -17,11 +17,11 @@ The Rust port's headline value-prop over the C# original (and over C++ TC) is th
 
 ---
 
-## 2. Current state (consolidated from §11 of every per-module doc + CLAUDE.md)
+## 2. Current state (consolidated from §11 of every per-module doc + AGENTS.md)
 
 - **No criterion benches exist.** `grep criterion crates/*/Cargo.toml` returns zero hits. No `benches/` directory at workspace root or in any crate.
 - **No live-fire load test.** No equivalent of `playerbots` driving the Rust server has been run.
-- **Release profile is tuned for binary size + perf**: `lto = "thin"`, `codegen-units = 1`, `strip = "symbols"` (CLAUDE.md "Build / test"). Release binaries ≈ 10 MB.
+- **Release profile is tuned for binary size + perf**: `lto = "thin"`, `codegen-units = 1`, `strip = "symbols"` (AGENTS.md "Build / test"). Release binaries ≈ 10 MB.
 - **Per-module benchmark goals already named:**
   - `#PACKETS.6` — serialization Rust vs C++ on a typical 512-byte packet.
   - `#CRYPTO.12` — SRP6 verify vs C++.
@@ -31,7 +31,7 @@ The Rust port's headline value-prop over the C# original (and over C++ TC) is th
   - `#DB.*` — prepared-statement latency; connection-pool saturation.
   - `#HANDLERS.*` — dispatch-table lookup cost vs C++ switch.
 - **Profiling tooling: not installed in repo.** No `flamegraph` config, no `tokio-console` integration in `wow-logging`, no `perf` runbook.
-- **Realistic load profile not defined.** Production target ("wowchad.work.gd", per CLAUDE.md "Runtime") sets no published concurrency/tps targets.
+- **Realistic load profile not defined.** Production target ("wowchad.work.gd", per AGENTS.md "Runtime") sets no published concurrency/tps targets.
 
 ---
 
@@ -105,7 +105,7 @@ The four layers serve different questions:
 - `heaptrack` (Linux) — allocation tracking; useful one-shot diagnostic.
 - `bytehound` (alt) — same.
 - `prometheus = "0.13"` + `metrics = "0.23"` + `metrics-exporter-prometheus = "0.15"` — runtime metrics.
-- `axum-prometheus` (opt) — auto-instruments the existing Axum REST surface (`bnet-server` :8081 per CLAUDE.md).
+- `axum-prometheus` (opt) — auto-instruments the existing Axum REST surface (`bnet-server` :8081 per AGENTS.md).
 - `criterion-cycles-per-byte` (opt) — RDTSC-based fine-grained measurement.
 
 **Load-test tooling:**
@@ -115,7 +115,7 @@ The four layers serve different questions:
 
 **External required:**
 
-- A reference C++ TC build at `/home/server/woltk-trinity-legacy/` (already cloned per CLAUDE.md) compiled in `Release` to produce comparison numbers.
+- A reference C++ TC build at `/home/server/woltk-trinity-legacy/` (already cloned per AGENTS.md) compiled in `Release` to produce comparison numbers.
 - Same MariaDB instance for both Rust and C++ comparison runs.
 - A reproducible bench host: pinned CPU governor (`cpupower frequency-set -g performance`), turbo-boost off for variance reduction, isolated cores (`isolcpus`) optional for reproducibility.
 
@@ -152,14 +152,14 @@ N/A as producer. Per-opcode perf budgets:
 - `crates/*/Cargo.toml`: zero bench targets, zero criterion deps.
 - `crates/*/benches/`: directory does not exist anywhere.
 - `crates/wow-logging/src/lib.rs`: `init_logging` does **not** install `console-subscriber`, so `tokio-console` cannot attach today.
-- `bnet-server` exposes Axum on :8081 (REST + auth) per CLAUDE.md but does **not** expose `/metrics`.
+- `bnet-server` exposes Axum on :8081 (REST + auth) per AGENTS.md but does **not** expose `/metrics`.
 - `world-server` has no metrics endpoint.
 
 **What's implemented:**
 
 - Tuned release profile (the foundation).
-- The hot data structures recommended by CLAUDE.md (`parking_lot`, `dashmap` over std). These are perf prerequisites; the structures alone don't prove the perf number.
-- `MapManager` is in-tree (12 tests, ~890 lines per CLAUDE.md), `parking_lot::RwLock` shaped, but its grid-update cost is unmeasured.
+- The hot data structures recommended by AGENTS.md (`parking_lot`, `dashmap` over std). These are perf prerequisites; the structures alone don't prove the perf number.
+- `MapManager` is in-tree (12 tests, ~890 lines per AGENTS.md), `parking_lot::RwLock` shaped, but its grid-update cost is unmeasured.
 - `tokio` runtime with `rt-multi-thread`. Single global runtime, no per-tenant runtime. Number of worker threads not tuned per workload.
 
 **What's missing vs C++ / vs target:**
@@ -174,15 +174,15 @@ N/A as producer. Per-opcode perf budgets:
 
 **Suspicious / likely divergent (hypotheses pre-measurement):**
 
-- **Per-session memory** is likely well above the 2 MB target today because `WorldSession` still carries the deprecated `creatures: HashMap<ObjectGuid, CreatureAI>` per CLAUDE.md "Creature storage" section — every session holds a copy of every visible creature. The MapManager migration directly addresses this.
-- **`send_packet`** (tick-time) currently double-borrows `&mut self` in some paths per CLAUDE.md "Patterns to follow" — the workaround is `send_tx`. Suggests the hot path has avoidable lock churn that profiling will expose.
+- **Per-session memory** is likely well above the 2 MB target today because `WorldSession` still carries the deprecated `creatures: HashMap<ObjectGuid, CreatureAI>` per AGENTS.md "Creature storage" section — every session holds a copy of every visible creature. The MapManager migration directly addresses this.
+- **`send_packet`** (tick-time) currently double-borrows `&mut self` in some paths per AGENTS.md "Patterns to follow" — the workaround is `send_tx`. Suggests the hot path has avoidable lock churn that profiling will expose.
 - **DB latency at the moment** is likely fine (sqlx + MariaDB on localhost is fast) but **prepared-statement compile time** at startup might dominate cold-start; measure.
 - **AES-GCM throughput** with the `aes-gcm` crate (not OpenSSL) on a non-AES-NI host can be 5-10× slower than C++ OpenSSL. On AES-NI it's competitive. Measurement first.
 - **Tracing overhead** in hot paths: the structured `log_filter` field per log call (per `wow-logging/src/lib.rs:194-213`) allocates if formatting kicks in. Profile.
 
 **Tests existing:**
 
-- 395 unit tests but 0 benchmarks (CLAUDE.md "Build / test").
+- 395 unit tests but 0 benchmarks (AGENTS.md "Build / test").
 
 ---
 
@@ -240,7 +240,7 @@ Each regression "test" is enforced by `#PERF.15` (CI perf-regression job).
 4. **`tokio-console` is not free.** It adds a per-task overhead and is gated behind a feature flag for that reason. Never ship a release build with it enabled.
 5. **`tracing` overhead is non-zero even when filtered out.** A `log_network!(trace, ...)` macro call still constructs the format args. For sub-µs hot paths, gate trace-level calls with `if tracing::enabled!(Level::TRACE)`.
 6. **Compare against C++ on the same host with the same libc, same kernel, same MariaDB build.** A C++ build with `-O3 -flto` against a Rust `Release` build with `lto = "thin"` is fair. A C++ build with `-O0` is not, and a Rust `dev` build is not.
-7. **`MapManager` is not yet wired into the live tick path** (CLAUDE.md "Creature storage" section). Bench numbers for it today reflect the standalone module, not the in-flight game state. Re-bench after the migration is complete.
+7. **`MapManager` is not yet wired into the live tick path** (AGENTS.md "Creature storage" section). Bench numbers for it today reflect the standalone module, not the in-flight game state. Re-bench after the migration is complete.
 8. **`PROTOC=/home/cdmonio/.local/protoc/bin/protoc`** is required to build the workspace, hence required to run benches. CI configs for perf must set it.
 9. **Prefer `samply` over `perf` on hosts where `perf_event_paranoid > 1`** and you can't change it. Same flamegraph output, different permissions model.
 10. **The C# legacy at `/home/server/woltk-server-core/Source/`** (the original C# port that this Rust project replaces) is **not** the comparison baseline. The C++ TC at `/home/server/woltk-trinity-legacy/` is. The C# numbers are uninteresting except as a "must-beat-this" floor.
@@ -252,11 +252,11 @@ Each regression "test" is enforced by `#PERF.15` (CI perf-regression job).
 | C++ TC perf machinery | Rust equivalent | Notes |
 |---|---|---|
 | TC `WorldSession::Update` cost | `WorldSession::tick_*` (in `wow-world`) | Compare via `#PERF.6` + integrated tick bench. |
-| TC `MapManager::Update` (per map per tick) | `MapManager::tick` (in-tree, per CLAUDE.md) | `#PERF.6`. |
+| TC `MapManager::Update` (per map per tick) | `MapManager::tick` (in-tree, per AGENTS.md) | `#PERF.6`. |
 | TC OpenSSL EVP_Cipher AES-GCM | Rust `aes-gcm` crate (RustCrypto) | AES-NI parity expected; software-fallback gap is real. `#PERF.4`. |
 | TC `BigNumber` (BN_mod_exp) | Rust `num_bigint::BigUint` | `num_bigint` is generally 1.5-3× slower than OpenSSL BN. SRP6 verify is one-time-per-login so unlikely to dominate; bench to confirm. `#PERF.3`. |
 | TC SQL prepared statements (mysql C client) | Rust `sqlx::Pool<MySql>` | Compare round-trip latency. `#PERF.8`. |
-| TC packet serialization (manual `ByteBuffer`) | Rust `wow-packet::WorldPacket` (per CLAUDE.md) | `#PERF.5`. |
+| TC packet serialization (manual `ByteBuffer`) | Rust `wow-packet::WorldPacket` (per AGENTS.md) | `#PERF.5`. |
 | TC `Trinity::Asio` strands | Rust `tokio` tasks + per-session `mpsc` | Different scheduler model; tail latency comparison matters more than throughput. |
 | TC `playerbots` load harness | Rust scripted client at `tests/load/` (`#PERF.13`) | Or point existing `playerbots` at Rust server (same wire protocol). |
 | TC `gprof` / `valgrind --callgrind` | `cargo flamegraph`, `samply`, `perf record` | Native equivalents. `#PERF.12`. |
@@ -267,27 +267,27 @@ Each regression "test" is enforced by `#PERF.15` (CI perf-regression job).
 
 ## 13. Audit (2026-05-01)
 
-> Audited 2026-05-01. Scope: this strategy doc itself, against the perf claims in (a) `CLAUDE.md`, (b) per-module §11/§13 sections, and (c) the actual repo at `/home/server/archived/rustycore_ARCHIVED_20260312/`. Not audited against C++ — measurement is the explicit gap this doc creates work to close.
+> Audited 2026-05-01. Scope: this strategy doc itself, against the perf claims in (a) `AGENTS.md`, (b) per-module §11/§13 sections, and (c) the actual repo at `/home/server/archived/rustycore_ARCHIVED_20260312/`. Not audited against C++ — measurement is the explicit gap this doc creates work to close.
 
 ### 13.1 Claim verification
 
 | Claim in this doc | Source / verified against | Status |
 |---|---|---|
 | Zero criterion benches in repo | `grep criterion crates/*/Cargo.toml` returned 0 hits | ✅ confirmed |
-| Release profile uses `lto = "thin"`, `codegen-units = 1`, `strip = "symbols"` | `CLAUDE.md` "Build / test" | ✅ confirmed |
-| Release binaries ~10 MB | `CLAUDE.md` "~10 MB binaries" | ✅ confirmed (claim, not re-built here) |
-| `bnet-server` exposes Axum REST on :8081 | `CLAUDE.md` "Runtime" | ✅ confirmed |
-| `world-server` has no admin/metrics port today | Inferred from `CLAUDE.md` (only :8085 / :8086 listed) | ✅ confirmed by absence |
+| Release profile uses `lto = "thin"`, `codegen-units = 1`, `strip = "symbols"` | `AGENTS.md` "Build / test" | ✅ confirmed |
+| Release binaries ~10 MB | `AGENTS.md` "~10 MB binaries" | ✅ confirmed (claim, not re-built here) |
+| `bnet-server` exposes Axum REST on :8081 | `AGENTS.md` "Runtime" | ✅ confirmed |
+| `world-server` has no admin/metrics port today | Inferred from `AGENTS.md` (only :8085 / :8086 listed) | ✅ confirmed by absence |
 | `wow-logging` does not install `console-subscriber` | `crates/wow-logging/src/lib.rs` `init_logging` body | ✅ confirmed |
-| `MapManager` not wired into live tick path | `CLAUDE.md` "Creature storage" — explicit "not yet wired" | ✅ confirmed |
-| `parking_lot` / `dashmap` are workspace deps | `CLAUDE.md` "Patterns to follow" | ✅ confirmed (claim) |
+| `MapManager` not wired into live tick path | `AGENTS.md` "Creature storage" — explicit "not yet wired" | ✅ confirmed |
+| `parking_lot` / `dashmap` are workspace deps | `AGENTS.md` "Patterns to follow" | ✅ confirmed (claim) |
 
 ### 13.2 Critical findings
 
 1. **The targets in §4 are unmeasured.** Every number ("1000 sessions", "p99 ≤ 25 ms tick", "≥ 50 k packets/s") is the author's reasonable guess derived from C++ TC heuristics and standard async-Rust capabilities. **None has been verified on this codebase.** Until `#PERF.14` runs, treat them as design constraints, not promises.
 2. **No comparison plumbing today.** The doc proposes "Rust vs C++ on the same host" but neither side has bench infrastructure pointed at the other. C++ TC has unit benches but does not run them as a load harness. Rust has neither. `#PERF.13` + `#PERF.14` together close this; expect ~1-2 weeks of work to get both running on a pinned host.
 3. **Flag: `tracing` overhead is unaudited.** The `wow-logging` macros (`log_network!` etc.) build a structured field on every call. In a 50 k packets/s hot loop that is non-trivial. `#PERF.18` is the audit; the fix may be a compile-time `release-max-level-info` filter on `tracing` (well-supported via `tracing/release_max_level_*` features).
-4. **Flag: per-session memory is likely above target.** §8 hypothesises this based on the deprecated `WorldSession.creatures` field. Until MapManager migration completes (CLAUDE.md "Creature storage"), the 2 MB/session target is unreachable. Order of operations: complete migration → measure → tune.
+4. **Flag: per-session memory is likely above target.** §8 hypothesises this based on the deprecated `WorldSession.creatures` field. Until MapManager migration completes (AGENTS.md "Creature storage"), the 2 MB/session target is unreachable. Order of operations: complete migration → measure → tune.
 5. **Flag: `aes-gcm` (RustCrypto) vs OpenSSL EVP performance.** On AES-NI hosts, RustCrypto's `aes-gcm` is competitive; off AES-NI it's measurably slower. Production hosts should be assumed AES-NI-capable (any x86-64 from the last decade), but the bench (`#PERF.4`) needs to confirm.
 6. **`#PERF.15` (CI perf-regression job) requires a stable bench host.** Cloud CI runners (GitHub Actions hosted runners) have ±30 % variance. Either provision a self-hosted runner pinned to a known machine, or relax the regression threshold to 20 %+ (which makes the gate near-useless). Self-hosted runner is the recommended path; `#PERF.2` documents the host.
 
@@ -297,7 +297,7 @@ Each regression "test" is enforced by `#PERF.15` (CI perf-regression job).
 2. **`#PERF.3` + `#PERF.4` + `#PERF.5` (cryptographic + packet primitives)** — these are the most-cited per-module bench items and the easiest to land. Three small bench files; ~1 day's work.
 3. **`#PERF.10` + `#PERF.11` (runtime metrics)** — exposes a `/metrics` endpoint so any production deployment is observable. Independently valuable from microbenches; lands earlier in priority.
 4. **`#PERF.13` + `#PERF.14` (load harness + first measurement)** — produces the first row of real numbers in §4. Replaces the targets with measurements.
-5. **`#PERF.6` (MapManager bench)** — gated by the MapManager migration completing per CLAUDE.md "Creature storage". Defer until that migration is wired in; otherwise the bench measures a dead path.
+5. **`#PERF.6` (MapManager bench)** — gated by the MapManager migration completing per AGENTS.md "Creature storage". Defer until that migration is wired in; otherwise the bench measures a dead path.
 6. **`#PERF.15` (CI gate)** — requires `#PERF.1`–`#PERF.5` and the self-hosted runner. Land last.
 7. **`#PERF.9` (`tokio-console`) + `#PERF.12` (flamegraph runbook)** — engineer-tooling, anytime.
 8. **`#PERF.17` (runtime split)** — only worth investigating if `#PERF.14` shows tail-latency issues attributable to scheduler contention. Otherwise YAGNI.

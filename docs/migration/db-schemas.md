@@ -218,7 +218,7 @@ Schemas don't carry opcodes directly, but two packet families are bound to the s
 - `crates/wow-database/src/statements/world.rs` — broader loader/runtime statement subset; not every world/content statement is proven through full clean-install CI.
 - `crates/wow-database/src/statements/hotfix.rs` — formal hybrid strategy: 3 control-table statements, selected typed DB2 overlay statements, and generated C++ hotfix SQL helpers.
 - `crates/wow-data/src/hotfix_cache.rs` — `HotfixBlobCache` plus `hotfix_data` / `hotfix_blob` / `hotfix_optional_data` DB loaders.
-- `crates/wow-database/src/world_ext/` — additional helpers for spawn loading (referenced in CLAUDE.md).
+- `crates/wow-database/src/world_ext/` — additional helpers for spawn loading (referenced in AGENTS.md).
 
 **What's implemented:**
 
@@ -284,7 +284,7 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md`. Complexity: **L** (<1h
 - **`account.session_key_auth` is `binary(40)`**, not `binary(20)`. The 40-byte K is the SRP6 session key (not a SHA1 hash) — earlier docs/agents have confused this. SHA1 is 20 bytes; SRP6 K via `SHA1(A | B)`-derived interleave is 40.
 - **`account.salt` and `account.verifier` are `binary(32)`** — not the AC/MaNGOS legacy `varchar(64)` of hex digits. Always handle as raw bytes; DBeaver displays them as hex but they are not.
 - **`characters.name` collation is `utf8mb4_bin`** while every other text column is `utf8mb4_unicode_ci`. `idx_name` is therefore case-sensitive — `Foo` and `foo` are distinct names. Do not lowercase in WHERE clauses.
-- **`creature_template.entry` is the world-DB primary key**, but at runtime the spawn rows in `creature` use a **separate** `guid` PK. The C# `CreatureCreateData` field name `entry` (used by the `MapManager` migration discussed in `CLAUDE.md`) refers to the **template** entry, not the spawn `guid` — losing this distinction was one of the failures in `_attic/`.
+- **`creature_template.entry` is the world-DB primary key**, but at runtime the spawn rows in `creature` use a **separate** `guid` PK. The C# `CreatureCreateData` field name `entry` (used by the `MapManager` migration discussed in `AGENTS.md`) refers to the **template** entry, not the spawn `guid` — losing this distinction was one of the failures in `_attic/`.
 - **`smart_scripts.entryorguid` polarity**: positive value ⇒ `creature_template.entry`; negative value ⇒ `-creature.guid` (per-spawn override). Both are valid; loaders must handle both signs.
 - **Charset configuration**: `create_mysql.sql` declares `utf8mb4 / utf8mb4_unicode_ci` at DB level; the per-table dumps then *redeclare* the same. A pool that connects without `charset=utf8mb4` may silently negotiate `utf8mb3` or `latin1` and corrupt non-ASCII text. The user-spec hypothesis "TC uses `utf8mb4_general_ci`" is **incorrect for this branch** — verified `_unicode_ci` in `sql/create/create_mysql.sql` and in every `CREATE TABLE` line in the four base dumps.
 - **No `FOREIGN KEY` in `characters` schema** (verified: zero matches for `FOREIGN KEY` in `characters_database.sql`). All cross-table cleanup is application-side. `auth` does have FKs (`account.battlenet_account → battlenet_accounts.id`, all 4 `rbac_account_permissions` FKs with `ON DELETE CASCADE`).
