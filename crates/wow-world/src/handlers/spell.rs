@@ -244,6 +244,7 @@ impl WorldSession {
                     self.send_packet(&CastFailed {
                         cast_id,
                         spell_id: original_spell_id,
+                        visual: req.visual.clone(),
                         reason: 2,
                         fail_arg1: 0,
                         fail_arg2: 0,
@@ -256,6 +257,7 @@ impl WorldSession {
                 self.send_packet(&CastFailed {
                     cast_id,
                     spell_id: original_spell_id,
+                    visual: req.visual.clone(),
                     reason: 2,
                     fail_arg1: 0,
                     fail_arg2: 0,
@@ -291,6 +293,7 @@ impl WorldSession {
             self.send_packet(&CastFailed {
                 cast_id,
                 spell_id: original_spell_id,
+                visual: req.visual.clone(),
                 reason: 2, // SpellCastResult::NotKnown
                 fail_arg1: 0,
                 fail_arg2: 0,
@@ -315,6 +318,7 @@ impl WorldSession {
             self.send_packet(&CastFailed {
                 cast_id,
                 spell_id,
+                visual: req.visual.clone(),
                 reason: SPELL_FAILED_SPELL_UNAVAILABLE_LIKE_CPP,
                 fail_arg1: 0,
                 fail_arg2: 0,
@@ -348,6 +352,7 @@ impl WorldSession {
                 self.send_packet(&CastFailed {
                     cast_id,
                     spell_id,
+                    visual: req.visual.clone(),
                     reason: SpellCastResult::SpellInProgress as i32,
                     fail_arg1: 0,
                     fail_arg2: 0,
@@ -395,6 +400,7 @@ impl WorldSession {
                     self.send_packet(&CastFailed {
                         cast_id,
                         spell_id,
+                        visual: req.visual.clone(),
                         reason: SpellCastResult::NotReady as i32,
                         fail_arg1: 0,
                         fail_arg2: 0,
@@ -3462,6 +3468,7 @@ mod tests {
         let _ = packet.read_uint16().expect("opcode");
         let _ = packet.read_packed_guid().expect("cast id");
         let _ = packet.read_int32().expect("spell id");
+        let _ = SpellCastVisual::read(&mut packet).expect("visual");
         packet.read_int32().expect("reason")
     }
 
@@ -3475,6 +3482,7 @@ mod tests {
         let _ = packet.read_uint16().expect("opcode");
         let cast_id = packet.read_packed_guid().expect("cast id");
         let spell_id = packet.read_int32().expect("spell id");
+        let _ = SpellCastVisual::read(&mut packet).expect("visual");
         let reason = packet.read_int32().expect("reason");
         (cast_id, spell_id, reason)
     }
