@@ -2092,7 +2092,9 @@ impl crate::session::WorldSession {
     /// Sent after SMSG_TRANSFER_PENDING + SMSG_SUSPEND_TOKEN.
     /// We respond with SMSG_NEW_WORLD + SMSG_RESUME_TOKEN and resend world objects.
     pub async fn handle_world_port_response(&mut self, _pkt: wow_packet::WorldPacket) {
-        use wow_packet::packets::misc::{NewWorld, ResumeToken};
+        use wow_packet::packets::misc::{
+            MoveSetActiveMover, NewWorld, PhaseShiftChange, ResumeToken,
+        };
 
         if !self.represented_far_teleport_pending_like_cpp() {
             warn!(
@@ -2136,20 +2138,41 @@ impl crate::session::WorldSession {
             reason: 0,
         });
 
-        // SMSG_RESUME_TOKEN — resume movement processing
+        // SMSG_RESUME_TOKEN — resume movement processing. C++ HandleMoveWorldportAck sets
+        // SequenceIndex = player->m_movementCounter and Reason = 1 (normal) / 2 (seamless);
+        // Rust has no general movement counter yet, so SequenceIndex stays 1 and Reason 1
+        // (non-seamless far teleport). #NEXT.R8.ENTITIES.1229 follow-up.
         self.send_packet(&ResumeToken {
             sequence_index: 1,
             reason: 1,
         });
 
+        // #NEXT.R8.ENTITIES.1229 (partial): C++ HandleMoveWorldportAck replays
+        // SendInitialPacketsBeforeAddToMap then SendInitialPacketsAfterAddToMap on a
+        // non-seamless far teleport (MovementHandler.cpp:113-156). Full parity
+        // (spells/factions resend, InitWorldStates for the new map, canonical visibility
+        // rebuild via the login path, destination-transport re-seat, ResumeToken movement
+        // counter) is a follow-up; here we replay the per-map client-reinit packets that are
+        // additive and safe: before-add SetMovedUnit (SMSG_MOVE_SET_ACTIVE_MOVER) + a fresh
+        // time sync, then the after-add PhasingHandler::OnMapChange (SMSG_PHASE_SHIFT_CHANGE).
+        if let Some(guid) = self.player_guid() {
+            self.send_packet(&MoveSetActiveMover { mover_guid: guid });
+        }
+        self.send_time_sync();
+
         // Back to LoggedIn — handler dispatch resumes
         self.set_state(crate::session::SessionState::LoggedIn);
 
-        // Resend nearby world objects at new position
+        // AddToMap-equivalent: resend nearby world objects at the new position.
         self.send_nearby_creatures(new_map as u16, &new_pos, 0)
             .await;
         self.send_nearby_gameobjects(new_map as u16, &new_pos, 0)
             .await;
+
+        // After-add: re-send the phase shift for the new map (PhasingHandler::OnMapChange).
+        if let Some(guid) = self.player_guid() {
+            self.send_packet(&PhaseShiftChange::default_for(guid));
+        }
     }
 
     /// CMSG_AREA_TRIGGER — player entered an area trigger.
@@ -7017,6 +7040,11 @@ mod tests {
             assert_eq!(player.unit().world().map_id(), 0);
             assert_eq!(player.unit().world().position(), destination);
         }
+        // C++ HandleMoveWorldportAck replays the per-map client-reinit packets after the
+        // NewWorld/ResumeToken pair (#NEXT.R8.ENTITIES.1229 partial): before-add SetMovedUnit
+        // (MoveSetActiveMover) + a fresh TimeSyncRequest, then after-add PhasingHandler::
+        // OnMapChange (PhaseShiftChange). No nearby objects on the destination test map, so
+        // the AddToMap visibility refresh emits nothing in between.
         assert_eq!(
             std::iter::from_fn(|| send_rx.try_recv().ok())
                 .map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
@@ -7024,6 +7052,9 @@ mod tests {
             vec![
                 ServerOpcodes::NewWorld as u16,
                 ServerOpcodes::ResumeToken as u16,
+                ServerOpcodes::MoveSetActiveMover as u16,
+                ServerOpcodes::TimeSyncRequest as u16,
+                ServerOpcodes::PhaseShiftChange as u16,
             ]
         );
     }
