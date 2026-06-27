@@ -2092,9 +2092,7 @@ impl crate::session::WorldSession {
     /// Sent after SMSG_TRANSFER_PENDING + SMSG_SUSPEND_TOKEN.
     /// We respond with SMSG_NEW_WORLD + SMSG_RESUME_TOKEN and resend world objects.
     pub async fn handle_world_port_response(&mut self, _pkt: wow_packet::WorldPacket) {
-        use wow_packet::packets::misc::{
-            MoveSetActiveMover, NewWorld, PhaseShiftChange, ResumeToken,
-        };
+        use wow_packet::packets::misc::{NewWorld, ResumeToken};
 
         if !self.represented_far_teleport_pending_like_cpp() {
             warn!(
@@ -2138,41 +2136,48 @@ impl crate::session::WorldSession {
             reason: 0,
         });
 
-        // SMSG_RESUME_TOKEN — resume movement processing. C++ HandleMoveWorldportAck sets
-        // SequenceIndex = player->m_movementCounter and Reason = 1 (normal) / 2 (seamless);
-        // Rust has no general movement counter yet, so SequenceIndex stays 1 and Reason 1
-        // (non-seamless far teleport). #NEXT.R8.ENTITIES.1229 follow-up.
+        // SMSG_RESUME_TOKEN — C++ HandleMoveWorldportAck sets SequenceIndex =
+        // player->m_movementCounter (read here, before SendInitialPacketsBeforeAddToMap resets
+        // it) and Reason = 1 for a non-seamless far teleport (MovementHandler.cpp:108-111).
         self.send_packet(&ResumeToken {
-            sequence_index: 1,
+            sequence_index: self.movement_counter_like_cpp(),
             reason: 1,
         });
 
-        // #NEXT.R8.ENTITIES.1229 (partial): C++ HandleMoveWorldportAck replays
-        // SendInitialPacketsBeforeAddToMap then SendInitialPacketsAfterAddToMap on a
-        // non-seamless far teleport (MovementHandler.cpp:113-156). Full parity
-        // (spells/factions resend, InitWorldStates for the new map, canonical visibility
-        // rebuild via the login path, destination-transport re-seat, ResumeToken movement
-        // counter) is a follow-up; here we replay the per-map client-reinit packets that are
-        // additive and safe: before-add SetMovedUnit (SMSG_MOVE_SET_ACTIVE_MOVER) + a fresh
-        // time sync, then the after-add PhasingHandler::OnMapChange (SMSG_PHASE_SHIFT_CHANGE).
-        if let Some(guid) = self.player_guid() {
-            self.send_packet(&MoveSetActiveMover { mover_guid: guid });
-        }
+        let Some(guid) = self.player_guid() else {
+            self.set_state(crate::session::SessionState::LoggedIn);
+            return;
+        };
+        let updateobject_trace_enabled = std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some();
+
+        // Before-add control packets the client needs for the new map: C++
+        // SendInitialPacketsBeforeAddToMap resets m_movementCounter (Player.cpp:23483) and
+        // ends with SetMovedUnit -> SMSG_MOVE_SET_ACTIVE_MOVER, plus a fresh time sync. The
+        // full before-add packet SET (spells/factions/action bars/etc.) is NOT re-sent on
+        // teleport: the client retains it from login and it is unchanged, and re-running the
+        // DB-backed before-add helper here is a documented #NEXT.R8.ENTITIES.1229 follow-up.
+        self.reset_movement_counter_like_cpp();
+        self.send_packet(&wow_packet::packets::misc::MoveSetActiveMover { mover_guid: guid });
         self.send_time_sync();
 
-        // Back to LoggedIn — handler dispatch resumes
-        self.set_state(crate::session::SessionState::LoggedIn);
-
-        // AddToMap-equivalent: resend nearby world objects at the new position.
+        // AddPlayerToMap-equivalent: refresh nearby world objects at the new position.
         self.send_nearby_creatures(new_map as u16, &new_pos, 0)
             .await;
         self.send_nearby_gameobjects(new_map as u16, &new_pos, 0)
             .await;
 
-        // After-add: re-send the phase shift for the new map (PhasingHandler::OnMapChange).
-        if let Some(guid) = self.player_guid() {
-            self.send_packet(&PhaseShiftChange::default_for(guid));
-        }
+        // SendInitialPacketsAfterAddToMap: post-add phase shift, InitWorldStates resolved for
+        // the destination map, the PhasingHandler::OnMapChange phase shift, CUF profiles, auras.
+        self.send_initial_packets_after_add_to_map(
+            guid,
+            &new_pos,
+            new_map as i32,
+            updateobject_trace_enabled,
+        )
+        .await;
+
+        // Back to LoggedIn — handler dispatch resumes.
+        self.set_state(crate::session::SessionState::LoggedIn);
     }
 
     /// CMSG_AREA_TRIGGER — player entered an area trigger.
@@ -7040,11 +7045,13 @@ mod tests {
             assert_eq!(player.unit().world().map_id(), 0);
             assert_eq!(player.unit().world().position(), destination);
         }
-        // C++ HandleMoveWorldportAck replays the per-map client-reinit packets after the
-        // NewWorld/ResumeToken pair (#NEXT.R8.ENTITIES.1229 partial): before-add SetMovedUnit
-        // (MoveSetActiveMover) + a fresh TimeSyncRequest, then after-add PhasingHandler::
-        // OnMapChange (PhaseShiftChange). No nearby objects on the destination test map, so
-        // the AddToMap visibility refresh emits nothing in between.
+        // C++ HandleMoveWorldportAck (non-seamless) replays the init sequence after the
+        // NewWorld/ResumeToken pair (#NEXT.R8.ENTITIES.1229): the before-add control packets
+        // SetMovedUnit (MoveSetActiveMover) + a fresh TimeSyncRequest, then (no nearby objects
+        // on the destination test map, so the AddToMap refresh emits nothing) the full
+        // SendInitialPacketsAfterAddToMap helper — post-add PhaseShiftChange, InitWorldStates
+        // resolved for the destination map, the PhasingHandler::OnMapChange PhaseShiftChange,
+        // and LoadCufProfiles (no auras on the test player).
         assert_eq!(
             std::iter::from_fn(|| send_rx.try_recv().ok())
                 .map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
@@ -7055,6 +7062,9 @@ mod tests {
                 ServerOpcodes::MoveSetActiveMover as u16,
                 ServerOpcodes::TimeSyncRequest as u16,
                 ServerOpcodes::PhaseShiftChange as u16,
+                ServerOpcodes::InitWorldStates as u16,
+                ServerOpcodes::PhaseShiftChange as u16,
+                ServerOpcodes::LoadCufProfiles as u16,
             ]
         );
     }

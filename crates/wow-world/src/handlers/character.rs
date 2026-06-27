@@ -1478,7 +1478,7 @@ fn skill_rewarded_spell_valid_for_player_like_cpp(
     true
 }
 
-fn favorite_known_spells_for_send_like_cpp(
+pub(crate) fn favorite_known_spells_for_send_like_cpp(
     known_spells: &[i32],
     favorite_spells: &HashSet<i32>,
 ) -> Vec<i32> {
@@ -13158,7 +13158,7 @@ impl WorldSession {
     /// the caller already has on hand (known/favorite spells, spell history/charges, action
     /// buttons, account mounts) plus the destination guid/position/map/zone are passed in.
     #[allow(clippy::too_many_arguments)]
-    async fn send_initial_packets_before_add_to_map(
+    pub(crate) async fn send_initial_packets_before_add_to_map(
         &mut self,
         guid: ObjectGuid,
         position: &Position,
@@ -13294,7 +13294,7 @@ impl WorldSession {
     /// the PhasingHandler::OnMapChange phase shift, CUF profiles and auras. Shared by login
     /// and far teleport (#NEXT.R8.ENTITIES.1229). Reads all data from self; the destination
     /// guid/position/map are passed in.
-    async fn send_initial_packets_after_add_to_map(
+    pub(crate) async fn send_initial_packets_after_add_to_map(
         &mut self,
         guid: ObjectGuid,
         position: &Position,
