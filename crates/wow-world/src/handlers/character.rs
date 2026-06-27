@@ -13151,71 +13151,27 @@ impl WorldSession {
         customizations
     }
 
-    /// Send the player login packet sequence to the client.
-    ///
-    /// Follows the C++ login phases:
-    /// HandlePlayerLogin → SendInitialPacketsBeforeAddToMap → AddToMap →
-    /// SendInitialPacketsAfterAddToMap.
-    ///
-    /// Note: AuthResponse, SetTimeZone, FeatureSystemStatusGlueScreen,
-    /// AccountDataTimes(global), and TutorialFlags are already sent during
-    /// session init (see `send_session_init_packets`).
-    async fn send_login_sequence(
+    /// C++ `Player::SendInitialPacketsBeforeAddToMap` (Player.cpp:23479-23590): the init
+    /// packets sent before the player is added to the map, ending with `SetMovedUnit`
+    /// (SMSG_MOVE_SET_ACTIVE_MOVER). Shared by login and far teleport
+    /// (#NEXT.R8.ENTITIES.1229). Most data is read from self; the per-character items that
+    /// the caller already has on hand (known/favorite spells, spell history/charges, action
+    /// buttons, account mounts) plus the destination guid/position/map/zone are passed in.
+    #[allow(clippy::too_many_arguments)]
+    async fn send_initial_packets_before_add_to_map(
         &mut self,
         guid: ObjectGuid,
-        race: u8,
-        class: u8,
-        sex: u8,
-        level: u8,
-        display_id: u32,
         position: &Position,
         map_id: i32,
         zone_id: i32,
-        visible_items: [(i32, u16, u16); 19],
-        inv_slots: [ObjectGuid; 141],
-        item_creates: Vec<wow_packet::packets::update::ItemCreateData>,
-        combat: PlayerCombatStats,
         known_spells: Vec<i32>,
         favorite_spells: Vec<i32>,
         spell_history_entries: Vec<SpellHistoryEntry>,
         spell_charge_entries: Vec<SpellChargeEntry>,
         action_buttons: [i64; 180],
-        skill_info: Vec<(u16, u16, u16, u16, u16, i16, u16)>,
         account_mounts: Vec<AccountMount>,
+        updateobject_trace_enabled: bool,
     ) {
-        let updateobject_trace_enabled = std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some();
-        // ── Phase 1: HandlePlayerLogin packets ──
-
-        // 1. DungeonDifficultySet — C++ `Player::SendDungeonDifficulty()`
-        // sends the loaded `GetDungeonDifficultyID()` before LoginVerifyWorld.
-        self.send_packet_realm(&self.represented_dungeon_difficulty_packet_like_cpp());
-
-        // 2. LoginVerifyWorld — confirms map + position
-        self.send_packet(&LoginVerifyWorld {
-            map_id,
-            position: *position,
-            reason: 0,
-        });
-
-        // 3. AccountDataTimes — C++ sends ALL_ACCOUNT_DATA_CACHE_MASK
-        // after loading per-character account data.
-        self.send_packet_realm(
-            &self.account_data_times_like_cpp(guid, ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP),
-        );
-
-        // 4. FeatureSystemStatus (in-game version, different from glue screen)
-        self.send_packet_realm(&FeatureSystemStatus::default_wotlk());
-
-        // 5. MOTD — C++ `World::SendServerMessage(SERVER_MSG_STRING, motdLine)`.
-        self.send_packet_realm(&ChatServerMessage {
-            message_id: 3,
-            string_param: "Welcome to a Trinity Core server.".to_string(),
-        });
-
-        // 6. SetTimeZoneInformation — C++ sends it again during player login.
-        self.send_packet_realm(&SetTimeZoneInformation::utc());
-
-        // ── Phase 2: SendInitialPacketsBeforeAddToMap ──
         if updateobject_trace_enabled {
             info!(guid = ?guid, "RUST_LOGIN before_initial_packets_before_add");
         }
@@ -13326,6 +13282,87 @@ impl WorldSession {
         if updateobject_trace_enabled {
             info!(guid = ?guid, "RUST_LOGIN after_initial_packets_before_add");
         }
+    }
+
+    /// Send the player login packet sequence to the client.
+    ///
+    /// Follows the C++ login phases:
+    /// HandlePlayerLogin → SendInitialPacketsBeforeAddToMap → AddToMap →
+    /// SendInitialPacketsAfterAddToMap.
+    ///
+    /// Note: AuthResponse, SetTimeZone, FeatureSystemStatusGlueScreen,
+    /// AccountDataTimes(global), and TutorialFlags are already sent during
+    /// session init (see `send_session_init_packets`).
+    async fn send_login_sequence(
+        &mut self,
+        guid: ObjectGuid,
+        race: u8,
+        class: u8,
+        sex: u8,
+        level: u8,
+        display_id: u32,
+        position: &Position,
+        map_id: i32,
+        zone_id: i32,
+        visible_items: [(i32, u16, u16); 19],
+        inv_slots: [ObjectGuid; 141],
+        item_creates: Vec<wow_packet::packets::update::ItemCreateData>,
+        combat: PlayerCombatStats,
+        known_spells: Vec<i32>,
+        favorite_spells: Vec<i32>,
+        spell_history_entries: Vec<SpellHistoryEntry>,
+        spell_charge_entries: Vec<SpellChargeEntry>,
+        action_buttons: [i64; 180],
+        skill_info: Vec<(u16, u16, u16, u16, u16, i16, u16)>,
+        account_mounts: Vec<AccountMount>,
+    ) {
+        let updateobject_trace_enabled = std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some();
+        // ── Phase 1: HandlePlayerLogin packets ──
+
+        // 1. DungeonDifficultySet — C++ `Player::SendDungeonDifficulty()`
+        // sends the loaded `GetDungeonDifficultyID()` before LoginVerifyWorld.
+        self.send_packet_realm(&self.represented_dungeon_difficulty_packet_like_cpp());
+
+        // 2. LoginVerifyWorld — confirms map + position
+        self.send_packet(&LoginVerifyWorld {
+            map_id,
+            position: *position,
+            reason: 0,
+        });
+
+        // 3. AccountDataTimes — C++ sends ALL_ACCOUNT_DATA_CACHE_MASK
+        // after loading per-character account data.
+        self.send_packet_realm(
+            &self.account_data_times_like_cpp(guid, ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP),
+        );
+
+        // 4. FeatureSystemStatus (in-game version, different from glue screen)
+        self.send_packet_realm(&FeatureSystemStatus::default_wotlk());
+
+        // 5. MOTD — C++ `World::SendServerMessage(SERVER_MSG_STRING, motdLine)`.
+        self.send_packet_realm(&ChatServerMessage {
+            message_id: 3,
+            string_param: "Welcome to a Trinity Core server.".to_string(),
+        });
+
+        // 6. SetTimeZoneInformation — C++ sends it again during player login.
+        self.send_packet_realm(&SetTimeZoneInformation::utc());
+
+        // ── Phase 2: SendInitialPacketsBeforeAddToMap ──
+        self.send_initial_packets_before_add_to_map(
+            guid,
+            position,
+            map_id,
+            zone_id,
+            known_spells,
+            favorite_spells,
+            spell_history_entries,
+            spell_charge_entries,
+            action_buttons,
+            account_mounts,
+            updateobject_trace_enabled,
+        )
+        .await;
 
         // ── C++ Map::AddPlayerToMap ──
         if updateobject_trace_enabled {
