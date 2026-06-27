@@ -25,9 +25,9 @@ Estados:
 ## Resumen
 
 - Bugs confirmados contra C++: 51.
-- Bugs corregidos: 11 (`#CSharpAudit.COMPRESS.1`, `#CSharpAudit.BNETREST.1`, `#CSharpAudit.BNETREST.2`, `#CSharpAudit.BNETREST.3`, `#CSharpAudit.BNETREST.4`, `#CSharpAudit.FEATURE.1`, `#CSharpAudit.BNETSRP.1`, `#CSharpAudit.BNETSRP.2`, `#CSharpAudit.BNETSRP.3`, `#CSharpAudit.BNETSRP.4`, `#CSharpAudit.MOVEMENT.1`).
+- Bugs corregidos: 12 (`#CSharpAudit.COMPRESS.1`, `#CSharpAudit.BNETREST.1`, `#CSharpAudit.BNETREST.2`, `#CSharpAudit.BNETREST.3`, `#CSharpAudit.BNETREST.4`, `#CSharpAudit.FEATURE.1`, `#CSharpAudit.BNETSRP.1`, `#CSharpAudit.BNETSRP.2`, `#CSharpAudit.BNETSRP.3`, `#CSharpAudit.BNETSRP.4`, `#CSharpAudit.MOVEMENT.1`, `#CSharpAudit.SPELL.1`).
 - Commit historico registrado: `#CSharpAudit.MOVEMENT.1` -> `98ceec4d`.
-- Bugs pendientes de fix: 40.
+- Bugs pendientes de fix: 39.
 - Referencias C# productivas localizadas hoy: 52 archivos bajo `crates/**`.
 - Referencias C# documentales no-audit localizadas hoy: 39 archivos bajo `docs/**`.
 
@@ -72,7 +72,7 @@ indica donde se controla cada referencia.
 - [x] `#CSharpAudit.BNETSRP.4` - Corregido; login/SRP username y password v1 usan `Utf8ToUpperOnlyLatin` como C++, sin uppercase Unicode completo. Tests: `utf8_to_upper_only_latin_matches_cpp_basic_latin_only`, `srp_username_does_not_apply_unicode_uppercase_like_cpp`.
 - [x] `#CSharpAudit.BNETREST.3` - Corregido; SRP challenge de cuenta inexistente devuelve JSON `authentication_state=DONE` como C++, sin HTTP 400. Test: `srp_challenge_missing_account_returns_done_like_cpp`.
 - [x] `#CSharpAudit.BNETREST.4` - Corregido; challenge REST, `server_evidence_m2` y login ticket usan hex uppercase como C++ `AsHexStr()`/`ByteArrayToHexStr()`. Tests: `hex_encode_uses_cpp_uppercase`, `make_login_ticket_uses_cpp_uppercase_hex`.
-- [ ] `#CSharpAudit.SPELL.1` - `SMSG_CAST_FAILED` omite `SpellCastVisual`.
+- [x] `#CSharpAudit.SPELL.1` - Corregido; `SMSG_CAST_FAILED` escribe `SpellCastVisual` entre `SpellID` y `Reason`, y `SpellCastVisual` ocupa un solo `int32` como C++ (`ScriptVisualID` esta comentado). Tests: `spell_cast_visual_serializes_one_int32_like_cpp`, `cast_failed_writes_visual_between_spell_and_reason_like_cpp`.
 - [ ] `#CSharpAudit.COMBAT.1` - `SMSG_ATTACKER_STATE_UPDATE` coloca bit combat-log dentro de `attackRoundInfo`; C++ lo escribe fuera antes del size.
 - [ ] `#CSharpAudit.CHAT.1` - Rangos chat/emote/yell hardcodeados desde C#; C++ usa config `ListenRange.*`.
 - [ ] `#CSharpAudit.CHAT.2` - `CMSG_EMOTE`/`CMSG_SEND_TEXT_EMOTE` runtime simplificado frente a C++.

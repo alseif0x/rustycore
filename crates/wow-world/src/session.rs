@@ -44171,6 +44171,7 @@ impl WorldSession {
         self.send_packet(&wow_packet::packets::spell::CastFailed {
             cast_id: request.cast_id,
             spell_id: request.spell_id,
+            visual: request.spell_visual,
             reason: SPELL_FAILED_DONT_REPORT_LIKE_CPP,
             fail_arg1: 0,
             fail_arg2: 0,
@@ -44250,7 +44251,7 @@ impl WorldSession {
                 request.spell_id,
                 request.target_guid,
                 request.cast_id,
-                request.spell_visual,
+                request.spell_visual.clone(),
                 request.target_data,
                 request.metadata,
             )
@@ -44264,6 +44265,7 @@ impl WorldSession {
             self.send_packet(&wow_packet::packets::spell::CastFailed {
                 cast_id: request.cast_id,
                 spell_id: request.spell_id,
+                visual: request.spell_visual,
                 reason: SpellCastResult::NotKnown as i32,
                 fail_arg1: 0,
                 fail_arg2: 0,
@@ -47592,7 +47594,7 @@ impl WorldSession {
                     spell_id,
                     target,
                     cast_id,
-                    spell_visual,
+                    spell_visual.clone(),
                     target_data,
                     metadata,
                 )
@@ -47604,6 +47606,7 @@ impl WorldSession {
                 self.send_packet(&CastFailed {
                     cast_id,
                     spell_id,
+                    visual: spell_visual,
                     reason: 2, // SpellCastResult::NotKnown
                     fail_arg1: 0,
                     fail_arg2: 0,
@@ -48507,6 +48510,7 @@ impl WorldSession {
             self.send_packet(&wow_packet::packets::spell::CastFailed {
                 cast_id,
                 spell_id,
+                visual: spell_visual.clone(),
                 reason: SpellCastResult::RequiresSpellFocus as i32,
                 fail_arg1: i32::try_from(spell_info.requires_spell_focus).unwrap_or(i32::MAX),
                 fail_arg2: 0,
@@ -48526,6 +48530,7 @@ impl WorldSession {
             self.send_packet(&wow_packet::packets::spell::CastFailed {
                 cast_id,
                 spell_id,
+                visual: spell_visual.clone(),
                 reason: reason as i32,
                 fail_arg1: 0,
                 fail_arg2: 0,
@@ -48545,6 +48550,7 @@ impl WorldSession {
                     self.send_packet(&wow_packet::packets::spell::CastFailed {
                         cast_id,
                         spell_id,
+                        visual: spell_visual.clone(),
                         reason: reason as i32,
                         fail_arg1: 0,
                         fail_arg2: 0,
@@ -48580,6 +48586,7 @@ impl WorldSession {
             self.send_packet(&wow_packet::packets::spell::CastFailed {
                 cast_id,
                 spell_id,
+                visual: spell_visual.clone(),
                 reason: SpellCastResult::BadImplicitTargets as i32,
                 fail_arg1: 0,
                 fail_arg2: 0,
@@ -49494,6 +49501,7 @@ impl WorldSession {
             self.send_packet(&wow_packet::packets::spell::CastFailed {
                 cast_id,
                 spell_id,
+                visual: wow_packet::packets::spell::SpellCastVisual::default(),
                 reason: SpellCastResult::CantAddBattlePet as i32,
                 fail_arg1: 0,
                 fail_arg2: 0,
@@ -49509,6 +49517,7 @@ impl WorldSession {
             self.send_packet(&wow_packet::packets::spell::CastFailed {
                 cast_id,
                 spell_id,
+                visual: wow_packet::packets::spell::SpellCastVisual::default(),
                 reason: SpellCastResult::CantAddBattlePet as i32,
                 fail_arg1: 0,
                 fail_arg2: 0,
@@ -66667,6 +66676,7 @@ mod tests {
         let expected_cast_failed = wow_packet::packets::spell::CastFailed {
             cast_id: ObjectGuid::EMPTY,
             spell_id,
+            visual: wow_packet::packets::spell::SpellCastVisual::default(),
             reason: SpellCastResult::BadImplicitTargets as i32,
             fail_arg1: 0,
             fail_arg2: 0,
@@ -67607,6 +67617,7 @@ mod tests {
         let expected_cast_failed = wow_packet::packets::spell::CastFailed {
             cast_id: ObjectGuid::EMPTY,
             spell_id,
+            visual: wow_packet::packets::spell::SpellCastVisual::default(),
             reason: SpellCastResult::RequiresSpellFocus as i32,
             fail_arg1: 181,
             fail_arg2: 0,
@@ -106104,6 +106115,7 @@ mod tests {
         let _ = failed.read_uint16().expect("opcode");
         let _ = failed.read_packed_guid().expect("cast id");
         assert_eq!(failed.read_int32().expect("spell id"), spell_id);
+        let _ = wow_packet::packets::spell::SpellCastVisual::read(&mut failed).expect("visual");
         assert_eq!(
             failed.read_int32().expect("reason"),
             SpellCastResult::CantAddBattlePet as i32
@@ -106194,6 +106206,7 @@ mod tests {
         let _ = failed.read_uint16().expect("opcode");
         let _ = failed.read_packed_guid().expect("cast id");
         assert_eq!(failed.read_int32().expect("spell id"), spell_id);
+        let _ = wow_packet::packets::spell::SpellCastVisual::read(&mut failed).expect("visual");
         assert_eq!(
             failed.read_int32().expect("reason"),
             SpellCastResult::CantAddBattlePet as i32
@@ -106442,6 +106455,7 @@ mod tests {
         );
         let _cast_id = packet.read_packed_guid().expect("cast id");
         assert_eq!(packet.read_int32().expect("spell id"), spell_id);
+        let _ = wow_packet::packets::spell::SpellCastVisual::read(&mut packet).expect("visual");
         assert_eq!(
             packet.read_int32().expect("reason"),
             SpellCastResult::CantDoThatRightNow as i32
@@ -106477,6 +106491,7 @@ mod tests {
         );
         let _cast_id = packet.read_packed_guid().expect("cast id");
         assert_eq!(packet.read_int32().expect("spell id"), spell_id);
+        let _ = wow_packet::packets::spell::SpellCastVisual::read(&mut packet).expect("visual");
         assert_eq!(
             packet.read_int32().expect("reason"),
             SpellCastResult::BadTargets as i32
@@ -106575,6 +106590,7 @@ mod tests {
         );
         let _cast_id = packet.read_packed_guid().expect("cast id");
         assert_eq!(packet.read_int32().expect("spell id"), spell_id);
+        let _ = wow_packet::packets::spell::SpellCastVisual::read(&mut packet).expect("visual");
         assert_eq!(
             packet.read_int32().expect("reason"),
             SpellCastResult::WrongBattlePetType as i32
@@ -106633,6 +106649,7 @@ mod tests {
         );
         let _cast_id = packet.read_packed_guid().expect("cast id");
         assert_eq!(packet.read_int32().expect("spell id"), spell_id);
+        let _ = wow_packet::packets::spell::SpellCastVisual::read(&mut packet).expect("visual");
         assert_eq!(
             packet.read_int32().expect("reason"),
             SpellCastResult::GrantPetLevelFail as i32
@@ -107500,6 +107517,8 @@ mod tests {
                     second_client_cast_id
                 );
                 assert_eq!(failed_body.read_int32().unwrap(), spell_id);
+                let _ = wow_packet::packets::spell::SpellCastVisual::read(&mut failed_body)
+                    .expect("visual");
                 assert_eq!(
                     failed_body.read_int32().unwrap(),
                     SpellCastResult::NotReady as i32

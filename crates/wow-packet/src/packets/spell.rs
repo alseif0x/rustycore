@@ -193,10 +193,12 @@ impl ClientPacket for SelfRes {
 
 // ── Sub-structures ────────────────────────────────────────────────
 
-/// SpellCastVisual — two visual IDs packed inline.
+/// SpellCastVisual as serialized by TrinityCore: one signed visual ID.
 #[derive(Debug, Clone, Default)]
 pub struct SpellCastVisual {
     pub spell_visual_id: u32,
+    /// Kept for callers that still carry this value, but not serialized by the
+    /// local C++ branch (`ScriptVisualID` is commented out there).
     pub script_visual_id: u32,
 }
 
@@ -204,13 +206,12 @@ impl SpellCastVisual {
     pub fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
         Ok(Self {
             spell_visual_id: pkt.read_uint32()?,
-            script_visual_id: pkt.read_uint32()?,
+            script_visual_id: 0,
         })
     }
 
     pub fn write(&self, pkt: &mut WorldPacket) {
         pkt.write_uint32(self.spell_visual_id);
-        pkt.write_uint32(self.script_visual_id);
     }
 }
 
@@ -758,6 +759,7 @@ impl ServerPacket for SpellGoPkt {
 pub struct CastFailed {
     pub cast_id: ObjectGuid,
     pub spell_id: i32,
+    pub visual: SpellCastVisual,
     /// SpellCastResult failure reason (0 = SpellCastResult::Ok, but we use non-zero).
     /// Common: 2 = NotKnown, 70 = NotReady, 5 = BadTargets
     pub reason: i32,
@@ -766,12 +768,13 @@ pub struct CastFailed {
 }
 
 impl ServerPacket for CastFailed {
-    // C#: ServerOpcodes.CastFailed (0x2c35 in WotLK Classic)
+    // C++: SpellPackets.h CastFailed / SMSG_CAST_FAILED.
     const OPCODE: ServerOpcodes = ServerOpcodes::CastFailed;
 
     fn write(&self, pkt: &mut WorldPacket) {
         pkt.write_packed_guid(&self.cast_id);
         pkt.write_int32(self.spell_id);
+        self.visual.write(pkt);
         pkt.write_int32(self.reason);
         pkt.write_int32(self.fail_arg1);
         pkt.write_int32(self.fail_arg2);
@@ -1023,6 +1026,51 @@ mod tests {
         assert_eq!(parsed.orientation, None);
         assert_eq!(parsed.map_id, None);
         assert!(parsed.name.is_empty());
+        assert!(pkt.is_empty());
+    }
+
+    #[test]
+    fn spell_cast_visual_serializes_one_int32_like_cpp() {
+        let visual = SpellCastVisual {
+            spell_visual_id: 0x1122_3344,
+            script_visual_id: 0x5566_7788,
+        };
+        let mut pkt = WorldPacket::new_empty();
+
+        visual.write(&mut pkt);
+
+        assert_eq!(pkt.data(), &0x1122_3344u32.to_le_bytes());
+        pkt.reset_read();
+        let parsed = SpellCastVisual::read(&mut pkt).unwrap();
+        assert_eq!(parsed.spell_visual_id, 0x1122_3344);
+        assert_eq!(parsed.script_visual_id, 0);
+        assert!(pkt.is_empty());
+    }
+
+    #[test]
+    fn cast_failed_writes_visual_between_spell_and_reason_like_cpp() {
+        let cast_id = ObjectGuid::create_player(1, 99);
+        let bytes = CastFailed {
+            cast_id,
+            spell_id: 12_345,
+            visual: SpellCastVisual {
+                spell_visual_id: 678,
+                script_visual_id: 999,
+            },
+            reason: 2,
+            fail_arg1: -1,
+            fail_arg2: 7,
+        }
+        .to_bytes();
+
+        assert_eq!(&bytes[0..2], &(ServerOpcodes::CastFailed as u16).to_le_bytes());
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_packed_guid().unwrap(), cast_id);
+        assert_eq!(pkt.read_int32().unwrap(), 12_345);
+        assert_eq!(SpellCastVisual::read(&mut pkt).unwrap().spell_visual_id, 678);
+        assert_eq!(pkt.read_int32().unwrap(), 2);
+        assert_eq!(pkt.read_int32().unwrap(), -1);
+        assert_eq!(pkt.read_int32().unwrap(), 7);
         assert!(pkt.is_empty());
     }
 

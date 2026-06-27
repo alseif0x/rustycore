@@ -2971,6 +2971,7 @@ impl crate::session::WorldSession {
             self.send_packet(&CastFailed {
                 cast_id: request.cast.cast_id,
                 spell_id: request.cast.spell_id,
+                visual: request.cast.visual.clone(),
                 reason: SpellCastResult::NotReady as i32,
                 fail_arg1: 0,
                 fail_arg2: 0,
