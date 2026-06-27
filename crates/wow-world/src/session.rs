@@ -12233,7 +12233,11 @@ impl WorldSession {
             let world = creature.unit().world();
             if !world.object().is_in_world()
                 || world.map_id() != requested_map_id
-                || !world.position().is_within_dist(position, visibility_range)
+                // C++ visibility is a horizontal (XY) range test: CanSeeOrDetect ->
+                // IsWithinDist(obj, GetSightRange, is3D=false) (Object.cpp:1587-1609).
+                // #NEXT.R8.ENTITIES.1223 — use 2D so vertically-separated objects (e.g. ICC
+                // layered floors) within horizontal range are not dropped.
+                || !world.position().is_within_dist_2d(position, visibility_range)
                 || !self
                     .represented_player_phase_shift
                     .can_see(world.phase_shift())
@@ -12564,7 +12568,7 @@ impl WorldSession {
                 || object.map_id() != u32::from(map_id)
                 || !object
                     .position()
-                    .is_within_dist(position, visibility_radius)
+                    .is_within_dist_2d(position, visibility_radius)
             {
                 continue;
             }
@@ -12752,7 +12756,7 @@ impl WorldSession {
                 || object.map_id() != u32::from(map_id)
                 || !object
                     .position()
-                    .is_within_dist(position, visibility_radius)
+                    .is_within_dist_2d(position, visibility_radius)
             {
                 continue;
             }
@@ -12802,7 +12806,7 @@ impl WorldSession {
                 || object.map_id() != u32::from(map_id)
                 || !object
                     .position()
-                    .is_within_dist(position, visibility_radius)
+                    .is_within_dist_2d(position, visibility_radius)
                 || !self.can_see_phase_shift_like_cpp(object.phase_shift())
             {
                 continue;
