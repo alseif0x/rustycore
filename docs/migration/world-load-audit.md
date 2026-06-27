@@ -1,0 +1,232 @@
+# World-load (login → enter world) C++/Rust parity audit
+
+> Status: **candidate gaps to attack later — NOT yet implemented.** Generated 2026-06-26 by a multi-agent audit of the world-entry flow against the C++ source of truth (`/home/server/woltk-trinity-legacy`) and a byte-level diff of full C++ vs Rust login packet captures. Each item cites the C++ ref and the Rust target; `#NEXT.R8.ENTITIES.12xx` ids are placeholders for when the item is picked up. Verify every claim against current C++/worktree before implementing — some may already be partially handled.
+
+Context: prompted after fixing the world-entry client crash (`#NEXT.R8.ENTITIES.1200`, MO_TRANSPORT `SpawnTrackingStateAnimID`/`Flags`). While bisecting that crash we saw a recurring pattern — packets omitted and UpdateFields shipped as `0` where C++ computes a value — so this catalogues the rest of the world-load flow. No new crash-risk items were found here; the cluster is functional/ordering parity work.
+
+
+## Phase A — Before AddToMap (HandlePlayerLogin + SendInitialPacketsBeforeAddToMap)
+
+_Audited the BeforeAddToMap + HandlePlayerLogin packet burst (C++ Player::SendInitialPacketsBeforeAddToMap @ Player.cpp:23479 and WorldSession::HandlePlayerLogin @ CharacterHandler.cpp:1076) against the Rust send_login_sequence (character.rs:13101-13266), diffing the empirical opcode sequences (cpp counters 60-100 vs rust counters/seq 84-134+). The before-add core opcode set largely matches in both, but I found concrete divergences. Functional gaps: (1) SET_PROFICIENCY count/content mismatch — C++ sends 6 with specific accumulated masks, Rust sends 8 with different masks (session.rs:51540), indicating a different proficiency-spell/subclass-mask set; (2) Rust OMITS the global-cache-mask AccountDataTimes that C++ resends at the top of HandlePlayerLogin (CharacterHandler.cpp:1107); (3) Rust OMITS the TutorialFlags resend in the login burst (CharacterHandler.cpp:1108); (4) BattlePetJournalLockAcquired is sent post-add-to-map in Rust instead of pre-burst (CharacterHandler.cpp:1180). Cosmetic/ordering: MOTD is a single hardcoded line vs C++ 4 configured lines; ActiveGlyphs is emitted before SendKnownSpells on the wire (inverted); an extra QueryPlayerNamesResponse is injected mid-burst by the contact-list send; and an extra LfgListUpdateBlacklist is sent that C++ does not. Unknown/needs-verify: 3 early CollectionMgr AccountMountUpdate packets present in C++ but not Rust; AccountHeirloomUpdate empty-case parity; and FeatureSystemStatus uses a static default_wotlk() rather than C++'s config/EuropaTicket-populated struct (byte-compare cpp-s2c-00000075). No crash-risk gaps were identified in this dimension; the cluster is functional/ordering parity work._
+
+### #NEXT.R8.ENTITIES.1201 — SET_PROFICIENCY count + mask content  ·  🟠 functional
+- **Gap:** Rust sends 2 EXTRA proficiency packets and the accumulated weapon/armor subclass masks and emission order differ from C++. The set of proficiency-granting spells applied (or the equipped-item subclass mask table feeding represented_weapon/armor_proficiency_like_cpp) does not match C++, so the client receives a different final proficiency mask.
+- **C++:** C++ Player::addSpell -> SendProficiency emits exactly 6 SMSG_SET_PROFICIENCY (0x2735) packets during login with class bytes [02,10,10,02(?),10,03] and incrementally-accumulated masks: dump cpp-s2c-00000061..66 (payloads 35270004000002 / 35271004000002 / 35271004080002 / 35270200000004 / 35271044080002 / 35270300000004). Weapon=class index, Armor=class index per ItemClass.
+- **Rust:** Rust apply_proficiency_effect_like_cpp at crates/wow-world/src/session.rs:51540-51575 emits 8 SetProficiency packets (rust counter3..10) with different masks/order: 35271000000002 / 35270200000004 / 35271000080002 / 35271004080002 / 35271044080002 / 35270300000004 / 35270302000004 / 35270306000004.
+- **Suggested fix:** Align the proficiency-granting spell set and ItemClass/subclass mask mapping in apply_proficiency_effect_like_cpp with C++ SpellInfo proficiency effects so the 6-packet sequence and final masks match.
+
+### #NEXT.R8.ENTITIES.1202 — AccountDataTimes global-mask resend in HandlePlayerLogin  ·  🟠 functional
+- **Gap:** Rust omits the global-mask SMSG_ACCOUNT_DATA_TIMES that C++ resends at the top of HandlePlayerLogin before LoginVerifyWorld.
+- **C++:** HandlePlayerLogin sends SendAccountDataTimes(ObjectGuid::Empty, GLOBAL_CACHE_MASK) (CharacterHandler.cpp:1107) producing a GLOBAL-mask AccountDataTimes (dump cpp-s2c-00000070, GUID empty, mask 0000) AND later the per-char ALL_ACCOUNT_DATA_CACHE_MASK one (cpp-s2c-00000074, GUID set, mask a0020408).
+- **Rust:** crates/wow-world/src/handlers/character.rs:13138-13142 sends only the per-character ALL_ACCOUNT_DATA_CACHE_MASK AccountDataTimes (rust counter62). The early global-mask resend at start of HandlePlayerLogin is MISSING (the only global one is the glue-screen counter7 from session init).
+- **Suggested fix:** Add a global-cache-mask AccountDataTimes send (ObjectGuid::Empty) at the start of the login sequence, before LoginVerifyWorld, mirroring CharacterHandler.cpp:1107.
+
+### #NEXT.R8.ENTITIES.1203 — TutorialFlags resend in HandlePlayerLogin  ·  🟠 functional
+- **Gap:** (see C++/Rust rows)
+- **C++:** HandlePlayerLogin calls SendTutorialsData() (CharacterHandler.cpp:1108) resending SMSG_TUTORIAL_FLAGS during login (dump cpp-s2c-00000071), in addition to the glue-screen one.
+- **Rust:** Rust send_login_sequence (character.rs ~13125+) does NOT resend TutorialFlags; only the glue/session-init TutorialFlags (rust counter11) is present. MISSING in login burst.
+- **Suggested fix:** Send SMSG_TUTORIAL_FLAGS (SendTutorialsData) inside the login burst right after the global AccountDataTimes, mirroring CharacterHandler.cpp:1108.
+
+### #NEXT.R8.ENTITIES.1204 — BattlePetJournalLockAcquired ordering  ·  🟠 functional
+- **Gap:** Rust sends BATTLE_PET_JOURNAL_LOCK_ACQUIRED far too late (post-add-to-map) instead of in the HandlePlayerLogin pre-burst.
+- **C++:** HandlePlayerLogin calls GetBattlePetMgr()->SendJournalLockStatus() BEFORE SendInitialPacketsBeforeAddToMap (CharacterHandler.cpp:1180), so SMSG_BATTLE_PET_JOURNAL_LOCK_ACQUIRED appears at dump counter 78 (before BindPointUpdate/spells, before AddToMap).
+- **Rust:** Rust emits BattlePetJournalLockAcquired at rust counter73 -> wire seq191, which is AFTER AddToMap and after the create/UpdateObject burst.
+- **Suggested fix:** Move the battle-pet journal lock send to the HandlePlayerLogin pre-burst, before SendInitialPacketsBeforeAddToMap, mirroring CharacterHandler.cpp:1180.
+
+### #NEXT.R8.ENTITIES.1205 — MOTD multi-line (CHAT_SERVER_MESSAGE)  ·  🟡 cosmetic
+- **Gap:** Rust sends one hardcoded MOTD line instead of iterating the configured MOTD lines (C++ sent 4). Both line count and content are stubbed.
+- **C++:** HandlePlayerLogin iterates sWorld->GetMotd() and calls SendServerMessage(SERVER_MSG_STRING, motdLine) per line (CharacterHandler.cpp:1141-1142); the capture shows 4 SMSG_CHAT_SERVER_MESSAGE packets (cpp-s2c counters incl. 76).
+- **Rust:** character.rs:13148-13151 sends a single hardcoded ChatServerMessage { message_id: 3, string_param: "Welcome to a Trinity Core server." }. Only 1 ChatServerMessage emitted (rust counter ~).
+- **Suggested fix:** Iterate the configured MOTD (newline-split WorldServer MOTD) and emit one ChatServerMessage(SERVER_MSG_STRING) per line like CharacterHandler.cpp:1141-1142.
+
+### #NEXT.R8.ENTITIES.1206 — ActiveGlyphs ordering relative to spell packets  ·  🟡 cosmetic
+- **Gap:** On the wire Rust emits ActiveGlyphs before SendKnownSpells (and injects a QueryPlayerNamesResponse mid-burst), inverting the C++ KnownSpells->...->ActiveGlyphs order.
+- **C++:** SendInitialPacketsBeforeAddToMap sends ActiveGlyphs AFTER SendKnownSpells/UnlearnSpells/SpellHistory/SpellCharges (Player.cpp:23502-23526): dump order 83 KnownSpells, 84 UnlearnSpells, 85 SpellHistory, 86 SpellCharges, 87 ActiveGlyphs.
+- **Rust:** character.rs sends ActiveGlyphs (step 14, line 13202-13203) AFTER spells too in source — BUT capture shows rust ActiveGlyphs at seq117 BEFORE SendKnownSpells at seq118. Reordered in the actual wire sequence (115 UpdateTalentData, 116 QueryPlayerNamesResponse, 117 ActiveGlyphs, 118 SendKnownSpells).
+- **Suggested fix:** Ensure ActiveGlyphs is flushed after SpellCharges and that the ContactList-triggered QueryPlayerNamesResponse is not interleaved before the spell packets; match Player.cpp:23502-23526 ordering.
+
+### #NEXT.R8.ENTITIES.1207 — QueryPlayerNamesResponse injected mid-burst  ·  🟡 cosmetic
+- **Gap:** Rust emits an extra/early SMSG_QUERY_PLAYER_NAMES_RESPONSE in the middle of the before-add burst that C++ does not emit at that position.
+- **C++:** During SendInitialPacketsBeforeAddToMap C++ does not emit SMSG_QUERY_PLAYER_NAMES_RESPONSE between BindPointUpdate and the spell packets; the social list (CONTACT_LIST, cpp-s2c-00000080) is sent without an inline name-query response in that window.
+- **Rust:** Rust send_contact_list_like_cpp (character.rs:13167) results in a QueryPlayerNamesResponse emitted at seq116, sandwiched between UpdateTalentData (115) and ActiveGlyphs (117).
+- **Suggested fix:** Defer/cache name resolution for the contact list so it does not synchronously emit a QueryPlayerNamesResponse inside the before-add packet burst.
+
+### #NEXT.R8.ENTITIES.1208 — LfgListUpdateBlacklist extra packet  ·  🟡 cosmetic
+- **Gap:** Rust sends an extra SMSG_LFG_LIST_UPDATE_BLACKLIST that C++ does not send during login.
+- **C++:** No SMSG_LFG_LIST_UPDATE_BLACKLIST (0x2A2A) appears in the C++ login capture.
+- **Rust:** Rust emits LfgListUpdateBlacklist at rust counter70 -> wire seq178 during the login response burst (after add-to-map).
+- **Suggested fix:** Suppress the LfgListUpdateBlacklist auto-response during login unless the client requested it / unless C++ sends it in the equivalent flow.
+
+### #NEXT.R8.ENTITIES.1209 — Early CollectionMgr AccountMountUpdate x3 (session/world login collection data)  ·  ⚪ unknown
+- **Gap:** Rust does not reproduce the 3 early CollectionMgr SMSG_ACCOUNT_MOUNT_UPDATE packets that C++ sends during login.
+- **C++:** C++ emits 3 SMSG_ACCOUNT_MOUNT_UPDATE during the HandlePlayerLogin window (dump cpp-s2c-00000067..69) from CollectionMgr account-collection sends, in addition to the single per-Player AccountMountUpdate from SendInitialPacketsBeforeAddToMap (Player.cpp:23566, dump counter 97).
+- **Rust:** Rust emits only 1 AccountMountUpdate (rust counter42 -> seq131), the one matching Player.cpp:23566. The 3 earlier CollectionMgr-driven mount updates are MISSING.
+- **Suggested fix:** Audit CollectionMgr login data (SendCollectionData/account mounts) to determine whether the 3 early mount updates are required by the client; replicate if so.
+
+### #NEXT.R8.ENTITIES.1210 — AccountHeirloomUpdate  ·  ⚪ unknown
+- **Gap:** Cannot confirm from capture whether Rust's AccountHeirloomUpdate matches C++ when non-empty; both absent here. Possible empty-list omission divergence.
+- **C++:** SendInitialPacketsBeforeAddToMap sends SMSG_ACCOUNT_HEIRLOOM_UPDATE (Player.cpp:23577-23581). Note: it does NOT appear in this particular capture (no heirlooms), so may be omitted when empty.
+- **Rust:** character.rs:13249-13250 calls self.send_account_heirlooms_like_cpp(); not observed in dump (consistent with empty). Verify it actually serializes a packet when heirlooms exist.
+- **Suggested fix:** Confirm send_account_heirlooms_like_cpp emits SMSG_ACCOUNT_HEIRLOOM_UPDATE with IsFullUpdate=true matching Player.cpp:23577-23581 (including the empty case).
+
+### #NEXT.R8.ENTITIES.1211 — FeatureSystemStatus payload fidelity  ·  ⚪ unknown
+- **Gap:** Rust uses a static default_wotlk() rather than computing the EuropaTicketSystemStatus/throttle/config-derived fields C++ populates; field values likely diverge from the C++ in-game FeatureSystemStatus.
+- **C++:** WorldSession::SendFeatureSystemStatus (CharacterHandler.cpp:1457-1490) sets ComplaintStatus, CfgRealmID=2, TokenPollTimeSeconds=300, VoiceEnabled=false, BrowserEnabled=false, EuropaTicketSystemStatus (ThrottleState MaxTries=10/PerMs=60000/TryCount=1/LastReset=111111, Tickets/Bugs/Complaints/Suggestions from config), CharUndeleteEnabled, BpayStoreEnabled, IsMuted, TutorialsEnabled=true, NPETutorialsEnabled=true. dump cpp-s2c-00000075 len matches populated struct.
+- **Rust:** character.rs:13145 sends FeatureSystemStatus::default_wotlk() (a constant default).
+- **Suggested fix:** Byte-compare cpp-s2c-00000075 against Rust FeatureSystemStatus output and populate EuropaTicketSystemStatus throttle + config-driven booleans to match SendFeatureSystemStatus.
+
+
+## Cross-cutting — UpdateFields VALUE completeness (CREATE-block fields stubbed to 0/default)
+
+_Audited UpdateFields VALUE completeness in CREATE-block serializers (crates/wow-packet/src/packets/update.rs) against the C++ WriteCreate layouts (UpdateFields.cpp) and seeders (Creature::SelectLevel, Player::SetObjectScale, GameObject::Create, Unit::SetHealth/CalculateDisplayPowerType). The Rust field ORDER matches C++ well; the gaps are stubbed/wrong VALUES, the same pattern as the known AURASTATE/StateAnimID fixes. Highest-value findings: (1) PLAYER UnitData.AuraState is hardcoded 0 while C++ computes 0x00D00000 for a full-health player via the same logic already used for creatures — the creature fix was never applied to the player self-block; (2) DeathKnight player DisplayPower is written as 5 (Runes) instead of 6 (RunicPower) in power_type_for_class (update.rs:2553) while the creature path is correct; (3) player BoundingRadius is hardcoded 0.306 vs C++ DEFAULT_PLAYER_BOUNDING_RADIUS=0.389; (4) non-mana creatures (Focus/Energy) ship Power[0]=MaxPower[0]=0 because the seeder only uses base_mana, while C++ SetFullPower/SetPower seeds the display-power slot. GameObject gaps: ParentRotation hardcoded to identity (ignores gameobject_addon ParentRotation, esp. transports), ArtKit hardcoded 0, and one nearby-GO path defaults anim_progress to 0 instead of 255. One cosmetic player StatPosBuff=0 tooltip-breakdown gap. AttackRoundBaseTime, StateAnimID (player+creature), GO SpawnTrackingStateAnimID, MO_TRANSPORT Level/Flags, ModCastingSpeed/haste floats, VirtualItems, FactionTemplate, CurrentAreaID were checked and are correctly computed (not new gaps)._
+
+### #NEXT.R8.ENTITIES.1212 — PlayerCreateData UnitData.AuraState (player self + other players)  ·  🟠 functional
+- **Gap:** Player create block ships AuraState=0 while C++ ships 0x00D00000 for a full-health player. Identical class of bug to the already-fixed creature AURASTATE, but never applied to the player self-block or other-player blocks.
+- **C++:** Unit::SetHealth -> ModifyAuraState sets health-based aura states for EVERY unit incl. players (Unit.cpp:471-476): full-health unit gets AURA_STATE_WOUND_HEALTH_20_80(21) | AURA_STATE_HEALTHY_75_PERCENT(23) | AURA_STATE_WOUND_HEALTH_35_80(24) = bits 20,22,23 = 0x00D00000. Same value the creature path already computes via health_aura_state_like_cpp (map_manager.rs:997).
+- **Rust:** crates/wow-packet/src/packets/update.rs:1846 writes AuraState = literal 0 for the player UnitData block; PlayerCreateData has no aura_state field.
+- **Suggested fix:** Add aura_state to PlayerCreateData seeded via WorldCreature::health_aura_state_like_cpp(health,max_health,alive) and write it at update.rs:1846 instead of 0.
+
+### #NEXT.R8.ENTITIES.1213 — PlayerCreateData UnitData.DisplayPower for DeathKnight  ·  🟠 functional
+- **Gap:** DK players are sent DisplayPower=5 (Runes) instead of 6 (Runic Power); client shows/uses the wrong power bar. power_for_slot0 still uses 1000 for the slot but the type byte is wrong.
+- **C++:** Unit::CalculateDisplayPowerType uses ChrClassesEntry->DisplayPower; DK DisplayPower = POWER_RUNIC_POWER = 6 (SharedDefines.h:287). The creature path correctly returns PowerType::RunicPower=6 (session.rs:20393).
+- **Rust:** crates/wow-packet/src/packets/update.rs:2553 power_type_for_class returns 5 for class 6 (DeathKnight). 5 is POWER_RUNES, not POWER_RUNIC_POWER(6) (wow-constants/src/unit.rs:22-23).
+- **Suggested fix:** Change power_type_for_class class 6 arm from 5 to 6 (RunicPower); ideally derive from chr_classes_store like the creature path.
+
+### #NEXT.R8.ENTITIES.1214 — PlayerCreateData UnitData.BoundingRadius  ·  🟠 functional
+- **Gap:** Player BoundingRadius shipped as 0.306 vs C++ 0.389. Affects melee reach / GetClosePoint / spell targeting geometry around the player.
+- **C++:** Player::SetObjectScale -> SetBoundingRadius(scale * DEFAULT_PLAYER_BOUNDING_RADIUS) where DEFAULT_PLAYER_BOUNDING_RADIUS = 0.388999998569489 (ObjectDefines.h:39; Player.cpp:1591).
+- **Rust:** crates/wow-packet/src/packets/update.rs:1858 hardcodes BoundingRadius = 0.306.
+- **Suggested fix:** Write 0.388999998569489 (scaled by object scale) instead of 0.306 at update.rs:1858.
+
+### #NEXT.R8.ENTITIES.1215 — CreatureCreateData UnitData.Power[0]/MaxPower[0] for non-mana power types (Focus/Energy/Rage/RunicPower)  ·  🟠 functional
+- **Gap:** Hunter/rogue-type creatures with Focus/Energy display power get Power[0]=MaxPower[0]=0 instead of the C++ create power value (e.g. Focus full = ~100). Power bar reads empty/zero for those creatures.
+- **C++:** Creature::SelectLevel (Creature.cpp:1597-1608): powerType=CalculateDisplayPowerType(); if PowerTypeFlags::UnitsUseDefaultPowerOnInit -> SetPower(type, DefaultPower) else SetFullPower(type). Focus -> full (~100), Energy -> default (~100), Rage -> 0, RunicPower -> 0. The single visible power slot (index 0 = display power) carries that value.
+- **Rust:** crates/wow-world/src/handlers/character.rs:6267-6276 only sets power[0]=creature_stats.power_mana and max_power[0]=creature_stats.base_mana; for a non-mana creature (e.g. unit_class 3 Hunter -> Focus) base_mana/power_mana are 0, so both ship as 0.
+- **Suggested fix:** In the creature seeder, when display_power != Mana set power[0]/max_power[0] to the C++ create power value (Focus/Energy full default, Rage/RunicPower 0) instead of base_mana.
+
+### #NEXT.R8.ENTITIES.1216 — GameObjectCreateData GameObjectData.ParentRotation  ·  🟠 functional
+- **Gap:** GameObjects that have a gameobject_addon ParentRotation (e.g. transports, some doors/animated GOs) ship identity ParentRotation, mis-orienting the model and the path-rotation matrix the client builds (GameObject.cpp:301).
+- **C++:** GameObject::Create sets ParentRotation from gameObjectAddon->ParentRotation (GameObject.cpp:1011-1019) and overrides it for transports (line 1072). Serialized at UpdateFields.cpp:4312-4315.
+- **Rust:** crates/wow-packet/src/packets/update.rs:2905-2908 hardcodes ParentRotation = identity (0,0,0,1) for every GameObject; GameObjectCreateData carries no parent_rotation field (its rotation field is only used for the packed local Rotation flag).
+- **Suggested fix:** Add parent_rotation:[f32;4] to GameObjectCreateData sourced from gameobject_addon (default identity) and write it at update.rs:2905-2908.
+
+### #NEXT.R8.ENTITIES.1217 — GameObjectCreateData GameObjectData.ArtKit  ·  🟠 functional
+- **Gap:** GameObjects whose template/spawn set a non-zero ArtKit (capture points, some buildings/banners) ship ArtKit=0, showing the wrong art variant/faction skin.
+- **C++:** GameObject::Create -> SetGoArtKit(artKit) (GameObject.cpp:1053), artKit from spawn/template; serialized at UpdateFields.cpp:4321.
+- **Rust:** crates/wow-packet/src/packets/update.rs:2914 writes ArtKit = literal 0 for all GameObjects; no art_kit field on GameObjectCreateData.
+- **Suggested fix:** Add art_kit to GameObjectCreateData sourced from gameobject spawn/template and write it at update.rs:2914 instead of 0.
+
+### #NEXT.R8.ENTITIES.1218 — GameObject PercentHealth (anim_progress) default in DB-spawn path  ·  🟡 cosmetic
+- **Gap:** In one nearby-GO path a missing anim_progress column defaults to 0 instead of 255, so destructible/transport-type GOs may render at 0% health/progress (empty bar) inconsistently with the other paths and C++.
+- **C++:** GameObject::Create defaults animProgress to 255 for most GO types (GameObject.cpp:1068,1089) and 100 for doors; serialized as PercentHealth (UpdateFields.cpp:4320).
+- **Rust:** crates/wow-world/src/handlers/character.rs:7741 reads anim_progress with .unwrap_or(0) when the DB column is absent, while the canonical path (5920) and another path (6916) correctly default to 255.
+- **Suggested fix:** Change the .unwrap_or(0) at character.rs:7741 to .unwrap_or(255) to match the other GO paths and C++ defaults.
+
+### #NEXT.R8.ENTITIES.1219 — PlayerCreateData UnitData.MaxPower for non-mana caster vs class power  ·  🟡 cosmetic
+- **Gap:** No functional gap for the displayed slot, but Power[1..9]/MaxPower[1..9] are all 0 (matches C++ for non-applicable powers). Flagged only to confirm it was checked; the value-completeness concern here is the DK type byte (separate gap) and non-mana creatures (separate gap), not the player slot values.
+- **C++:** For players the display-power slot (index 0) carries the class power max (Warrior rage 1000, Rogue energy 100, DK runic 1000, casters mana). C++ derives from class power tables.
+- **Rust:** crates/wow-packet/src/packets/update.rs:1806-1817 + power_for_slot0 (1668) only populate slot 0 and zero slots 1-9; max_power0 mirrors power0. This part is correct for the single display slot.
+- **Suggested fix:** No change needed for player power slots; verify class power constants stay in sync with ChrClasses.
+
+### #NEXT.R8.ENTITIES.1220 — PlayerCreateData UnitData.StatPosBuff/StatNegBuff (Owner block)  ·  🟡 cosmetic
+- **Gap:** Character sheet shows total stats correctly but the green '+N from items' breakdown is 0 because StatPosBuff is always 0; purely a tooltip/UI breakdown divergence.
+- **C++:** UnitData::WriteCreate writes Stats[5], StatPosBuff[5], StatNegBuff[5] for Owner (UpdateFields.cpp:761-768). C++ folds item/aura stat bonuses into the pos/neg buff arrays separately from base Stats.
+- **Rust:** crates/wow-packet/src/packets/update.rs:1909-1911 writes Stats[i]=self.stats[i] but StatPosBuff=StatNegBuff=0; the gear stat bonus (gear_stats / stat_pos_buff computed at character.rs:12477) is folded into total stats and into the field but the pos-buff array is dropped.
+- **Suggested fix:** Pass the computed stat_pos_buff array into PlayerCreateData and write it into StatPosBuff[5] at update.rs:1910 instead of 0.
+
+
+## Phase C — World-object visibility (object classes + visibility rules)
+
+_Audited the world-object visibility dimension of world-entry by contrasting C++ (Map::AddPlayerToMap -> UpdateObjectVisibility -> VisibleNotifier visiting all 8 grid classes) against the Rust visibility build (crates/wow-world/src/handlers/character.rs ~6591-6770 plus the separate other-players registry path) and by decoding both packet captures.\n\nEmpirical ground truth from the C++ trace (target/packet-dumps/20260623-203301/cpp/cpp-world-entry.log, solo login in Icecrown Citadel / map 571): C++ sends 484 CREATE blocks total = 219 creatures (typeId 5), 234 gameobjects (typeId 8), 30 inventory items (typeId 1), 1 ActivePlayer (typeId 7); bulk visibility packet #185 alone is 393 blocks / 169741 bytes. Rust (target/packet-dumps/20260626-gofix) sends only 189 CREATE blocks total across 6 UpdateObject packets, with the bulk send (#202) at just 147 blocks / 62222 bytes. The self+inventory create (packets 101/141, 49227 bytes) is byte-for-byte length-identical, so the deficit is entirely in nearby-world-object visibility.\n\nFindings, highest-impact first: (1) the Rust visibility distance filter uses 3D distance (wow-core/src/position.rs:83 is_within_dist via distance_sq incl. z) while C++ uses 2D (Object.cpp:1116-1119, is3D=false) — a real bug that drops vertically-separated objects in layered maps like ICC and directly explains much of the 219->147 / 234->147 undercount; (2) canonical map grid cells around the player are under-populated at login so nearby_cell_guids_like_cpp returns far fewer spawns than C++ grid load; (3) C++ threshold also adds combat-reach (sizefactor) which Rust omits; (4) Corpse/SceneObject/Conversation CREATE blocks are never built (latent — none present in this capture), and other-players use a divergent out-of-band path not unified with client_visible_guids_like_cpp; (5) C++ fanout is deferred via NOTIFY_VISIBILITY_CHANGED on the map tick (after_update_visibility logged visibleGuids=0; the 393-block send arrives later as packet #185 and is spread across ~21 packets) whereas Rust builds it synchronously inline once. Visibility range (100yd continent default) and the MO-transport path are structurally correct/matching, the latter unverified for lack of transports in the capture._
+
+### #NEXT.R8.ENTITIES.1221 — World-object visibility: object-class coverage (missing classes in visibility build)  ·  🟠 functional
+- **Gap:** Corpses, SceneObjects, and Conversations are never sent as CREATE blocks on world-entry; other-players use a divergent out-of-band code path that does not unify with client_visible_guids_like_cpp diffing or symmetric add/remove. In the audited solo ICC capture none of these classes were present (C++ sent only Unit/GameObject/Item/ActivePlayer), so this is latent, not the cause of the current undercount.
+- **C++:** Map::AddPlayerToMap -> player->UpdateObjectVisibility -> Player::UpdateVisibilityForPlayer builds a single VisibleNotifier (GridNotifiers.h:48-57) and Cell::VisitAllObjects walks ALL grid containers, with Player::UpdateVisibilityOf template-instantiated for Player, Creature, Corpse, GameObject, DynamicObject, AreaTrigger, SceneObject, Conversation (Player.cpp:23337-23344). Every nearby object of these 8 classes gets a CREATE block in one UpdateData.
+- **Rust:** crates/wow-world/src/handlers/character.rs ~6598-6744: the unified visibility build only emits CREATE blocks for creatures (Unit), gameobjects, dynamic objects, and area triggers. No build path for Corpse, SceneObject, or Conversation create-blocks (canonical map DOES store them: crates/wow-map/src/grid_unload.rs:468-471). Other players are sent via a SEPARATE registry path (crates/wow-world/src/session.rs:48038 receive_other_players_on_map), not integrated into client_visible_guids_like_cpp or the same UpdateObject.
+- **Suggested fix:** Extend the visibility build at character.rs ~6598 to also gather/emit Corpse, SceneObject, Conversation create-blocks from the canonical map and fold other-players into the same client_visible_guids_like_cpp diff.
+
+### #NEXT.R8.ENTITIES.1222 — World-object visibility: creature undercount on entry (volume)  ·  🟠 functional
+- **Gap:** Rust sends roughly 147 world objects where C++ sends 393 at the equivalent fanout. Root cause is the canonical map grid around the player not being fully populated with spawns at login time (canonical creature runtime is incomplete per CLAUDE.md three-world-model note), so nearby_cell_guids_like_cpp returns far fewer creatures/GOs than C++ grid load yields.
+- **C++:** C++ world-entry trace (target/packet-dumps/20260623-203301/cpp/cpp-world-entry.log) tallies 219 creature (typeId=5) CREATE blocks for this login; bulk visibility packet #185 (SMSG_UPDATE_OBJECT) carries 393 blocks / 169741 bytes.
+- **Rust:** Rust dump target/packet-dumps/20260626-gofix: bulk visibility packet #202 carries only 147 blocks / 62222 bytes; total CREATE blocks across all 6 login UpdateObject packets is 189 vs C++ 484. Creature gather is crates/wow-world/src/session.rs:12146 visible_world_creatures_from_map_like_cpp -> visible_creatures_from_canonical_map_like_cpp (12178) reading map.nearby_cell_guids_like_cpp.
+- **Suggested fix:** Ensure object-grid loading (crates/wow-map/src/object_grid_loader.rs) eagerly loads all spawn cells within visibility range before the entry visibility build runs, matching EnsureGridLoadedForActiveObject.
+
+### #NEXT.R8.ENTITIES.1223 — World-object visibility: distance check is 3D instead of C++ 2D  ·  🟠 functional
+- **Gap:** Rust excludes objects within 100yd horizontally but with large Z separation; in vertically-layered maps like Icecrown Citadel (map 571, the audited capture) this drops many valid objects, contributing directly to the 219->147 undercount.
+- **C++:** WorldObject::_IsWithinDist (Object.cpp:1100-1120) for visibility uses is3D=false (IsInDist2d) because CanSeeOrDetect / GetSightRange call IsWithinDist(obj, range, false) (Object.cpp:1587-1609). Visibility is a horizontal (XY) range test.
+- **Rust:** Visibility filters call Position::is_within_dist (crates/wow-core/src/position.rs:83-85) which uses distance_sq INCLUDING z (3D). Used for creatures (crates/wow-world/src/session.rs:12219) and gameobjects (12550).
+- **Suggested fix:** Switch the visibility distance filters in session.rs (creature ~12219, gameobject ~12550, dynobj/areatrigger paths) to Position::is_within_dist_2d.
+
+### #NEXT.R8.ENTITIES.1224 — World-object visibility: synchronous inline build vs C++ deferred NOTIFY_VISIBILITY_CHANGED  ·  🟠 functional
+- **Gap:** Rust does the visibility fanout eagerly/once at login rather than via a deferred, tick-driven NOTIFY_VISIBILITY_CHANGED notifier. Functionally both deliver creates, but the eager one-shot model misses objects whose grids load slightly later and produces a single packet vs C++'s incremental stream; it also won't pick up objects that become visible between login phases.
+- **C++:** AddPlayerToMap calls player->UpdateObjectVisibility(false) (Map.cpp:494) which for the non-forced path only AddToNotify(NOTIFY_VISIBILITY_CHANGED) (Player.cpp:23352-23354); trace shows after_update_visibility visibleGuids=0 at AddToMap time. The 393-block fanout (#185) is emitted later by Map::Update's notifier pass (VisibleNotifier::SendToSelf), spread across many UpdateObject packets (21 over the session) as cells load and the notify period fires.
+- **Rust:** Rust builds and sends the full visibility UpdateObject synchronously inline during login orchestration (crates/wow-world/src/handlers/character.rs ~6746-6767, send_packet immediately) in a single bulk packet (#202), with no deferred per-tick notifier.
+- **Suggested fix:** Move entry visibility to a deferred per-map notify queue processed by the canonical map tick (NOTIFY_VISIBILITY_CHANGED equivalent) instead of one synchronous inline build.
+
+### #NEXT.R8.ENTITIES.1225 — World-object visibility: gameobject undercount / GO grid source  ·  🟠 functional
+- **Gap:** Combined with the 3D-distance and grid-population gaps above, Rust delivers far fewer than 234 GOs. The GO gather itself looks structurally correct (grid container, phase + use-state filtering) so the deficit is driven by canonical grid population and the 3D range test, not by a missing GO path.
+- **C++:** C++ trace tallies 234 GameObject (typeId=8) CREATE blocks on this login; GOs are visited by the same VisibleNotifier over the GameObject grid container at GetVisibilityRange()=100 (continent default, World.cpp:1393, ObjectDefines.h:35).
+- **Rust:** crates/wow-world/src/session.rs:12516 visible_gameobjects_from_canonical_map_like_cpp reads only nearby.grid.gameobjects from nearby_cell_guids_like_cpp; emitted at character.rs ~6655-6665.
+- **Suggested fix:** Fix canonical GO grid loading + 2D distance (shared with creature fix); then re-capture and compare GO CREATE count to the C++ 234 baseline.
+
+### #NEXT.R8.ENTITIES.1226 — World-object visibility: visibility threshold omits combat-reach size factor  ·  🟡 cosmetic
+- **Gap:** Rust uses a strictly smaller visibility threshold than C++ (missing the additive combat-reach term), causing borderline objects to be dropped.
+- **C++:** _IsWithinDist (Object.cpp:1100-1105) adds sizefactor = GetCombatReach(self) + GetCombatReach(target) to the compare distance (incOwnRadius/incTargetRadius default true), so effective visible distance is 100 + ownReach + targetReach yards.
+- **Rust:** Rust visibility filters compare against the raw visibility_range (100.0) with no combat-reach addition (crates/wow-world/src/session.rs:12219, 12550).
+- **Suggested fix:** Add own+target combat reach to the comparison distance in the visibility filters to mirror _IsWithinDist incOwnRadius/incTargetRadius=true.
+
+### #NEXT.R8.ENTITIES.1227 — World-object visibility: transports (SendInitTransports) parity  ·  ⚪ unknown
+- **Gap:** Transport path exists; not verified against this capture (no MO transports on ICC map 571 in the dump). Phase/own-transport exclusion and m_visibleTransports tracking equivalence not confirmed.
+- **C++:** Map::SendInitTransports (Map.cpp:1927-1957) iterates Map::_transports (MO transports), sends BuildCreateUpdateBlockForPlayer for each in-world transport not the player's own and in same phase, and records player->m_visibleTransports.
+- **Rust:** crates/wow-world/src/handlers/character.rs:5728 send_init_transports_like_cpp queries the transports table (gameobject_template type=15) and builds transport create blocks. Present and structurally analogous.
+- **Suggested fix:** Capture on a map with active MO transports (e.g. Orgrimmar/Undercity zeppelins) and diff transport CREATE blocks against C++ SendInitTransports.
+
+
+## Phase D — Movement / active-mover / time-sync / world-state / weather init
+
+_Audited the movement/active-mover/time-sync/world-state init handshake dimension of the C++ vs Rust world-entry flow. The core handshake is largely faithful: SMSG_TIME_SYNC_REQUEST cadence (immediate, +5s, then 10s), the time-sync clock-delta median/stddev filtering (ComputeNewClockDelta), AdjustClientMovementTime, SMSG_MOVE_SET_ACTIVE_MOVER, CMSG_SET_ACTIVE_MOVER (log-only mismatch), CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE (sets transport server time + visibility), CMSG_TIME_SYNC_RESPONSE handling, and CMSG_MOVE_TIME_SKIPPED are all ported and the s2c opcode ordering around login matches the dumps. SMSG_INIT_WORLD_STATES carries the same 46 world states in the same order. Six gaps found: (1) Rust sends SMSG_PHASE_SHIFT_CHANGE only once during login — it omits the second send that C++ emits from PhasingHandler::OnMapChange after INIT_WORLD_STATES (C++ counters 103 and 107, Rust only 143). (2) Far-teleport (HandleMoveWorldportAck) in Rust does NOT replay SendInitialPacketsBefore/AfterAddToMap and uses a hardcoded ResumeToken SequenceIndex/Reason instead of m_movementCounter/seamless. (3) Login-on-transport is unhandled: Rust never reads transguid/trans_x..o nor re-seats the player as a transport passenger, so a player who logged out on a moving transport spawns at wrong coords. (4) SMSG_WEATHER / SendZoneDynamicInfo is entirely unimplemented (not a current login crash since the C++ capture had weather disabled, but a parity gap when enabled). (5) World-state values 3191 and 3901 are sent as 0 instead of 32/31 (cosmetic, same stub-to-0 pattern as the UnitData fields). (6) The INIT_WORLD_STATES header zone/area differs between the two captures (4395/4613 vs 2492/4553) — likely different login positions across the two dump dates, flagged unknown pending a same-position re-capture._
+
+### #NEXT.R8.ENTITIES.1228 — PhasingHandler::OnMapChange — second SMSG_PHASE_SHIFT_CHANGE on login  ·  🟠 functional
+- **Gap:** Rust omits the second (post-INIT_WORLD_STATES) PhaseShiftChange that C++ emits from OnMapChange after AddToMap. Client receives 1 instead of 2 phase-shift packets during login.
+- **C++:** C++ sends SMSG_PHASE_SHIFT_CHANGE twice during login: once from Map::AddPlayerToMap -> PhasingHandler::SendToPlayer (dump cpp-s2c counter 103, Map.cpp:501) and again from Player::SendInitialPacketsAfterAddToMap -> PhasingHandler::OnMapChange(this) -> SendToPlayer (dump counter 107, Player.cpp:23672). Both packets are byte-identical (29 bytes, unphased flags 0x08).
+- **Rust:** Rust sends SMSG_PHASE_SHIFT_CHANGE only ONCE (dump rust-s2c counter 143), from the Map::AddPlayerToMap-equivalent send at crates/wow-world/src/handlers/character.rs:13504. The after-add phase (character.rs:13578-13605) has no second PhaseShiftChange; PhasingHandler::OnMapChange is not mirrored.
+- **Suggested fix:** After InitWorldStates in the after-add phase (character.rs ~13576), re-send self.send_packet(&PhaseShiftChange::default_for(guid)) to mirror PhasingHandler::OnMapChange.
+
+### #NEXT.R8.ENTITIES.1229 — HandleMoveWorldportAck — far-teleport does not replay SendInitialPacketsBefore/AfterAddToMap  ·  🟠 functional
+- **Gap:** On far teleport Rust skips the entire init-packet replay (no fresh TimeSync, ActiveMover, phase shift, InitWorldStates, visibility refresh) and uses a fixed ResumeToken SequenceIndex/Reason instead of m_movementCounter/seamless flag. Client state after teleport will be incompletely initialized vs C++.
+- **C++:** C++ WorldSession::HandleMoveWorldportAck (MovementHandler.cpp:49-178) on a non-seamless far teleport: validates IsBeingTeleportedFar, builds/finds the new Map, sends SMSG_RESUME_TOKEN with SequenceIndex=player->m_movementCounter and Reason (1 normal / 2 seamless), then calls SendInitialPacketsBeforeAddToMap() (re-sends TimeSync, SetMovedUnit/MOVE_SET_ACTIVE_MOVER, etc.), AddPlayerToMap, then SendInitialPacketsAfterAddToMap() (UpdateVisibility, phase shift, InitWorldStates). It also re-seats the player on the destination transport copy if any.
+- **Rust:** crates/wow-world/src/handlers/misc.rs:2094 handle_world_port_response only: clears the far-teleport semaphore, updates position, sends SMSG_NEW_WORLD and SMSG_RESUME_TOKEN (sequence_index hardcoded to 1, reason hardcoded to 1), flips to LoggedIn, then re-scans send_nearby_creatures/gameobjects. It never calls the SendInitialPacketsBefore/AfterAddToMap sequence and never re-seats the player onto a destination transport.
+- **Suggested fix:** In handle_world_port_response, after NewWorld send the ResumeToken with the real movement counter, then replay send_initial_packets_before_add_to_map + AddToMap + send_initial_packets_after_add_to_map like the login path.
+
+### #NEXT.R8.ENTITIES.1230 — Login-on-transport: transguid/trans_x..o not loaded, player not re-seated as passenger  ·  🟠 functional
+- **Gap:** A player who logged out on a moving transport (boat/zeppelin/elevator) is not re-seated. Rust treats the stored transport-relative coords as world coords, so the player spawns at wrong/garbage coordinates with no MovementFlag_OnTransport and no transport GUID, diverging from C++ which re-attaches the passenger.
+- **C++:** C++ Player::LoadFromDB (Player.cpp:17490-17524) reads transguid + trans_x/y/z/o, sets m_movementInfo.transport.pos, finds the Transport on the map, validates coords (<250 each axis), Relocate()s the player to world coords, sets mapId = transport->GetMapId(), and calls transport->AddPassenger(this). On invalid coords it Resets transport info and RelocateToHomebind().
+- **Rust:** crates/wow-world/src/handlers/character.rs:4095-4128 reads only position/map/zone columns at login; it never reads transguid/trans_x.. (those columns are only written as 0 at create, character.rs:2731-2735). It never calls set_player_on_transport_like_cpp(true) or adds the player as a transport passenger. transport_position_for_login_like_cpp (character.rs:302) is for MO_TRANSPORT path timing, not for seating the player.
+- **Suggested fix:** In handle_player_login load transguid/trans_x..o, and if non-zero find the transport, validate (<250), AddPassenger + set_player_on_transport_like_cpp(true) + set transport-relative MovementInfo, else fall back to homebind.
+
+### #NEXT.R8.ENTITIES.1231 — SMSG_WEATHER not implemented (zone-entry weather)  ·  🟠 functional
+- **Gap:** Rust never sends SMSG_WEATHER on zone entry. In the captured login no weather appears (consistent with CONFIG_WEATHER disabled on the C++ run, since Map::SendWeather early-returns when the zone has no _zoneDynamicInfo entry), so this is not a current login crash; but with weather enabled C++ emits SMSG_WEATHER and Rust would not.
+- **C++:** C++ Player::UpdateZone (Player.cpp:7413-7416) calls GetMap()->GetOrGenerateZoneDefaultWeather(newZone) (when CONFIG_WEATHER on) then SendZoneDynamicInfo -> Map::SendZoneWeather (Map.cpp:3951) which sends SMSG_WEATHER (Weather::SendWeatherUpdateToPlayer / SendFineWeatherUpdateToPlayer) for the entered zone.
+- **Rust:** No SMSG_WEATHER / SendZoneDynamicInfo / weather support exists anywhere in crates/wow-world or crates/wow-packet (grep for Weather/zone_dynamic returns nothing). MISSING.
+- **Suggested fix:** Implement SendZoneDynamicInfo on zone change emitting SMSG_WEATHER (at minimum WEATHER_STATE_FINE) like Map::SendZoneWeather; gate on a weather config flag.
+
+### #NEXT.R8.ENTITIES.1232 — InitWorldStates world-state values 3191/3901 sent as 0  ·  🟡 cosmetic
+- **Gap:** Two world-state values (3191->32, 3901->31; arena-season / Wintergrasp-type constants) are emitted as 0 by Rust. Cosmetic/UI-level; same pattern as the UnitData stubbed-to-0 fields noted in context.
+- **C++:** C++ FillInitialWorldStates includes WorldState 3191=32 and 3901=31 in the SMSG_INIT_WORLD_STATES payload (dump cpp INIT_WORLD_STATES, both present with those values; same 46-state set).
+- **Rust:** crates/wow-world/src/handlers/character.rs:13571 InitWorldStates sends the same 46 world-state IDs but values for ID 3191 and 3901 are 0 instead of 32/31 (verified by diffing the two INIT_WORLD_STATES dumps: identical key set, only 3191 and 3901 differ).
+- **Suggested fix:** Source the correct default values for world states 3191 (=32) and 3901 (=31) in the InitWorldStates realm/map fill rather than defaulting to 0.
+
+### #NEXT.R8.ENTITIES.1233 — INIT_WORLD_STATES header AreaID/SubareaID differs between captures  ·  ⚪ unknown
+- **Gap:** MapID matches but resolved zone (4395 vs 2492) and area (4613 vs 4553) differ. This is likely because the C++ (20260623) and Rust (20260626) captures were taken at different login positions rather than a resolution bug, but if both captures used the same character/position it would indicate a zone/area resolution divergence feeding both InitWorldStates and the world-state filtering.
+- **C++:** C++ SMSG_INIT_WORLD_STATES header (Player.cpp:8819-8822): MapID=571, AreaID(zoneId)=4395, SubareaID(areaId)=4613.
+- **Rust:** Rust SMSG_INIT_WORLD_STATES header (character.rs:13571, computed from zone_and_area_for_position_like_cpp): MapID=571, AreaID=2492, SubareaID=4553.
+- **Suggested fix:** Re-capture both servers from the identical login position; if the zone/area still differ, audit zone_and_area_for_position_like_cpp terrain resolution against C++ TerrainMgr::GetZoneId/GetAreaId.
+
+
+## Phase B — AddToMap → SendInitSelf → SendInitialPacketsAfterAddToMap (AUDIT INCOMPLETE)
+
+This dimension — the player's own `ActivePlayer` self create-object and the post-AddToMap burst (MOTD/guild MOTD, instance/raid info, self aura updates, cooldowns, bind/zone) — was **not completed**: the audit agent hit the session token limit before producing findings. **Re-run this slice** (C++ `Player::SendInitSelf` / `Map::SendInitSelf` + `Player::SendInitialPacketsAfterAddToMap` vs Rust `character.rs` Phase 3/4 ~13285-13709) to finish the catalogue.
+
+
+---
+**33 candidate gaps** across 4 of 5 dimensions — 🔴 0 crash-risk · 🟠 19 functional · 🟡 9 cosmetic · ⚪ 5 unknown. Ids `#NEXT.R8.ENTITIES.1201`–`1233` are placeholders. Re-audit Phase B to complete.
