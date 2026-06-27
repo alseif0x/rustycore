@@ -4411,8 +4411,11 @@ pub struct WorldSession {
     mount_pet_resummon_requests_like_cpp: u32,
     /// Count of C++ mount collision-height updates represented until movement packets are canonical.
     mount_collision_height_update_requests_like_cpp: u32,
-    /// C++ `Unit::m_movementCounter` equivalent for vehicle-rec movement control packets.
-    mount_vehicle_movement_sequence_like_cpp: u32,
+    /// C++ `Unit::m_movementCounter`: one per-player counter shared by ALL movement-control
+    /// packets (vehicle-rec, collision height, near-teleport, speed/flag changes) and read
+    /// for `SMSG_RESUME_TOKEN` SequenceIndex on far teleport. Reset to 0 in
+    /// `send_initial_packets_before_add_to_map` (non-seamless). #NEXT.R8.ENTITIES.1229.
+    movement_counter_like_cpp: u32,
     /// Represented `Unit::GetCollisionHeight()` until model-display collision data owns it.
     player_collision_height_like_cpp: f32,
     /// Represented `Object::GetObjectScale()` for movement collision-height packets.
@@ -4439,8 +4442,6 @@ pub struct WorldSession {
     player_area_id_like_cpp: u32,
     /// `MoveSplineDone` taxi decisions recorded until full Taxi/MotionMaster runtime exists.
     move_spline_done_taxi_events_like_cpp: Vec<MoveSplineDoneTaxiEventLikeCpp>,
-    /// C++ `Unit::m_movementCounter` equivalent for same-map `SMSG_MOVE_TELEPORT`.
-    near_teleport_movement_sequence_like_cpp: u32,
     /// C++ `Player::m_bCanDelayTeleport`, represented around update-owned work.
     represented_can_delay_teleport_like_cpp: bool,
     /// C++ `Player::m_bHasDelayedTeleport`, represented for same-map near teleports.
@@ -6062,7 +6063,7 @@ impl WorldSession {
             mount_pet_control_enable_requests_like_cpp: 0,
             mount_pet_resummon_requests_like_cpp: 0,
             mount_collision_height_update_requests_like_cpp: 0,
-            mount_vehicle_movement_sequence_like_cpp: 0,
+            movement_counter_like_cpp: 0,
             player_collision_height_like_cpp: 1.0,
             player_object_scale_like_cpp: 1.0,
             player_scale_duration_like_cpp: 0,
@@ -6077,7 +6078,6 @@ impl WorldSession {
             player_zone_id_like_cpp: 0,
             player_area_id_like_cpp: 0,
             move_spline_done_taxi_events_like_cpp: Vec::new(),
-            near_teleport_movement_sequence_like_cpp: 0,
             represented_can_delay_teleport_like_cpp: false,
             represented_has_delayed_teleport_like_cpp: false,
             near_teleport_pending_like_cpp: false,
@@ -27253,10 +27253,7 @@ impl WorldSession {
             return;
         };
         let vehicle_rec_id = i32::try_from(vehicle_id).unwrap_or(i32::MAX);
-        let sequence_index = self.mount_vehicle_movement_sequence_like_cpp;
-        self.mount_vehicle_movement_sequence_like_cpp = self
-            .mount_vehicle_movement_sequence_like_cpp
-            .wrapping_add(1);
+        let sequence_index = self.next_movement_counter_like_cpp();
 
         self.send_packet(&wow_packet::packets::vehicle::MoveSetVehicleRecId {
             mover_guid: player_guid,
@@ -27345,10 +27342,7 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
-        let sequence_index = self.mount_vehicle_movement_sequence_like_cpp;
-        self.mount_vehicle_movement_sequence_like_cpp = self
-            .mount_vehicle_movement_sequence_like_cpp
-            .wrapping_add(1);
+        let sequence_index = self.next_movement_counter_like_cpp();
 
         self.send_packet(&wow_packet::packets::movement::MoveSetCollisionHeight {
             mover_guid: player_guid,
@@ -30122,10 +30116,7 @@ impl WorldSession {
         }
 
         if !self.player_logout_like_cpp {
-            let sequence_index = self.near_teleport_movement_sequence_like_cpp;
-            self.near_teleport_movement_sequence_like_cpp = self
-                .near_teleport_movement_sequence_like_cpp
-                .wrapping_add(1);
+            let sequence_index = self.next_movement_counter_like_cpp();
             if let Some(mover_guid) = self.player_guid() {
                 self.send_same_map_move_update_teleport_to_visible_set_like_cpp(mover_guid);
                 self.send_packet(&wow_packet::packets::movement::MoveTeleport {
@@ -32487,6 +32478,21 @@ impl WorldSession {
         &self,
     ) -> (Vec<SpellHistoryEntry>, Vec<SpellChargeEntry>) {
         self.represented_spell_history_packets_like_cpp.clone()
+    }
+
+    /// C++ `Unit::m_movementCounter` post-increment: returns the current value and advances
+    /// it. Used as the SequenceIndex of movement-control packets (vehicle-rec, collision,
+    /// near-teleport, speed/flag) and read for `SMSG_RESUME_TOKEN` on far teleport.
+    pub(crate) fn next_movement_counter_like_cpp(&mut self) -> u32 {
+        let sequence_index = self.movement_counter_like_cpp;
+        self.movement_counter_like_cpp = self.movement_counter_like_cpp.wrapping_add(1);
+        sequence_index
+    }
+
+    /// C++ `Player::SendInitialPacketsBeforeAddToMap` resets `m_movementCounter` to 0 for a
+    /// non-seamless add (login / far teleport). Player.cpp:23483.
+    pub(crate) fn reset_movement_counter_like_cpp(&mut self) {
+        self.movement_counter_like_cpp = 0;
     }
 
     /// C++ `CollectionMgr::SaveAccountMounts`.
@@ -43675,10 +43681,7 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
-        let sequence_index = self.mount_vehicle_movement_sequence_like_cpp;
-        self.mount_vehicle_movement_sequence_like_cpp = self
-            .mount_vehicle_movement_sequence_like_cpp
-            .wrapping_add(1);
+        let sequence_index = self.next_movement_counter_like_cpp();
 
         let self_packet = wow_packet::packets::movement::MoveSetFlag {
             opcode,
@@ -43822,10 +43825,7 @@ impl WorldSession {
             self.forced_speed_changes_like_cpp[index].saturating_add(1);
 
         let speed = self.player_movement_speed_like_cpp(move_type);
-        let sequence_index = self.mount_vehicle_movement_sequence_like_cpp;
-        self.mount_vehicle_movement_sequence_like_cpp = self
-            .mount_vehicle_movement_sequence_like_cpp
-            .wrapping_add(1);
+        let sequence_index = self.next_movement_counter_like_cpp();
 
         let self_packet = wow_packet::packets::movement::MoveSetSpeed {
             opcode: set_opcode,
@@ -53546,6 +53546,19 @@ mod tests {
                 _ => None,
             },
         )
+    }
+
+    #[test]
+    fn movement_counter_post_increments_and_resets_like_cpp() {
+        // C++ Unit::m_movementCounter: post-increment per movement-control packet, reset to
+        // 0 in SendInitialPacketsBeforeAddToMap on a non-seamless add. #NEXT.R8.ENTITIES.1229.
+        let (mut session, _, _) = make_session();
+        assert_eq!(session.next_movement_counter_like_cpp(), 0);
+        assert_eq!(session.next_movement_counter_like_cpp(), 1);
+        assert_eq!(session.next_movement_counter_like_cpp(), 2);
+        session.reset_movement_counter_like_cpp();
+        assert_eq!(session.next_movement_counter_like_cpp(), 0);
+        assert_eq!(session.next_movement_counter_like_cpp(), 1);
     }
 
     #[test]
