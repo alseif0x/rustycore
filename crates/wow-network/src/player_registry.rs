@@ -503,6 +503,8 @@ pub struct PlayerBroadcastInfo {
     pub unit_state: u32,
     /// Represented `Player::IsGameMaster()` snapshot; C++ rejects GM players as attack targets.
     pub is_game_master: bool,
+    /// Represented `Player::GetDungeonDifficultyID()` snapshot for cross-session party invite gates.
+    pub dungeon_difficulty_id: u32,
     /// Represented `PLAYER_FLAGS_CONTESTED_PVP` snapshot for contested-guard attackability.
     pub is_contested_pvp: bool,
     /// Active expansion derived from canonical `WorldSession::expansion` for receiver-only quest gates.
@@ -636,6 +638,7 @@ mod tests {
             unit_flags2: 0,
             unit_state: 0,
             is_game_master: false,
+            dungeon_difficulty_id: 1,
             is_contested_pvp: false,
             active_expansion: 2,
             pending_quest_sharing: None,

@@ -19313,9 +19313,16 @@ impl WorldSession {
         self.difficulty_store.as_ref()
     }
 
-    #[cfg(test)]
     pub(crate) fn represented_dungeon_difficulty_id_like_cpp(&self) -> u32 {
         self.represented_dungeon_difficulty_id_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_represented_dungeon_difficulty_id_for_test_like_cpp(
+        &mut self,
+        difficulty_id: u32,
+    ) {
+        self.represented_dungeon_difficulty_id_like_cpp = difficulty_id;
     }
 
     #[cfg(test)]
@@ -25672,6 +25679,7 @@ impl WorldSession {
                 unit_flags2,
                 unit_state: self.player_unit_state_for_registry_like_cpp(),
                 is_game_master: self.player_game_master_like_cpp,
+                dungeon_difficulty_id: self.represented_dungeon_difficulty_id_like_cpp,
                 is_contested_pvp,
                 active_expansion: self.expansion,
                 pending_quest_sharing: self
@@ -25789,6 +25797,7 @@ impl WorldSession {
             info.unit_flags2 = self.canonical_player_unit_flags2_snapshot_like_cpp();
             info.unit_state = self.player_unit_state_for_registry_like_cpp();
             info.is_game_master = self.player_game_master_like_cpp;
+            info.dungeon_difficulty_id = self.represented_dungeon_difficulty_id_like_cpp;
             info.is_contested_pvp = self.canonical_player_contested_pvp_flag_like_cpp();
             info.active_expansion = self.expansion;
             info.level = self.player_level_like_cpp();
@@ -83310,6 +83319,7 @@ mod tests {
             unit_flags2: 0,
             unit_state: 0,
             is_game_master: false,
+            dungeon_difficulty_id: 1,
             is_contested_pvp: false,
             active_expansion: 2,
             pending_quest_sharing: None,
