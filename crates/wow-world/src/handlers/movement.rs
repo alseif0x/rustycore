@@ -2186,6 +2186,7 @@ mod tests {
             unit_flags2: 0,
             unit_state: 0,
             is_game_master: false,
+            dungeon_difficulty_id: 1,
             is_contested_pvp: false,
             active_expansion: 2,
             pending_quest_sharing: None,

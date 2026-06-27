@@ -33,7 +33,7 @@ use wow_packet::packets::party::{
 };
 use wow_packet::{ClientPacket, ServerPacket};
 
-use crate::session::WorldSession;
+use crate::session::{WorldSession, player_team_for_race_cpp};
 
 // ── canonical group lookup ────────────────────────────────────────────────────
 
@@ -531,6 +531,21 @@ fn sender_can_start_ready_check_like_cpp(group: &GroupInfo, sender_guid: ObjectG
             .is_some_and(|slot| (slot.flags & MEMBER_FLAG_ASSISTANT_LIKE_CPP) != 0)
 }
 
+fn current_player_party_invite_map_instance_like_cpp(
+    session: &WorldSession,
+    registry: &PlayerRegistry,
+    player_guid: ObjectGuid,
+) -> (u16, u32) {
+    if let Some(key) = session.current_canonical_player_map_key_like_cpp() {
+        return (key.map_id.min(u32::from(u16::MAX)) as u16, key.instance_id);
+    }
+
+    registry
+        .get(&player_guid)
+        .map(|entry| (entry.map_id, entry.instance_id))
+        .unwrap_or_else(|| (session.player_map_id_like_cpp(), 0))
+}
+
 fn connected_group_members_like_cpp(
     group: &GroupInfo,
     registry: &PlayerRegistry,
@@ -886,12 +901,13 @@ impl WorldSession {
         };
 
         // Find target by name (case-insensitive), same pattern as whisper handler.
-        let target_entry_opt = registry
+        let target_lookup = registry
             .iter()
-            .find(|e| e.value().player_name.eq_ignore_ascii_case(&target_name));
+            .find(|e| e.value().player_name.eq_ignore_ascii_case(&target_name))
+            .map(|e| (*e.key(), e.value().clone()));
 
-        let real_target_guid = match target_entry_opt {
-            Some(ref e) => *e.key(),
+        let (real_target_guid, target_snapshot) = match target_lookup {
+            Some(target) => target,
             None => {
                 warn!(
                     "PartyInvite: target '{}' not found in registry",
@@ -905,6 +921,43 @@ impl WorldSession {
         // Don't invite yourself (compare by real GUID from registry).
         if real_target_guid == my_guid {
             send_result!(party_result::BAD_PLAYER_NAME);
+            return;
+        }
+
+        // C++ `HandlePartyInviteOpcode` rejects inviting GM targets unless
+        // `GM.AllowInvite` is enabled. Rust has no config key yet, so it uses
+        // Trinity's default `false` policy.
+        if !self.player_is_game_master_like_cpp() && target_snapshot.is_game_master {
+            send_result!(party_result::BAD_PLAYER_NAME);
+            return;
+        }
+
+        // C++ `CONFIG_ALLOW_TWO_SIDE_INTERACTION_GROUP` defaults to false;
+        // without a Rust config knob, preserve that default for party invites.
+        if !self.player_is_game_master_like_cpp()
+            && player_team_for_race_cpp(self.player_race_like_cpp())
+                != player_team_for_race_cpp(target_snapshot.race)
+        {
+            send_result!(party_result::WRONG_FACTION);
+            return;
+        }
+
+        let (inviter_map_id, inviter_instance_id) =
+            current_player_party_invite_map_instance_like_cpp(self, registry, my_guid);
+        if inviter_instance_id != 0
+            && target_snapshot.instance_id != 0
+            && inviter_instance_id != target_snapshot.instance_id
+            && inviter_map_id == target_snapshot.map_id
+        {
+            send_result!(party_result::TARGET_NOT_IN_INSTANCE);
+            return;
+        }
+
+        if target_snapshot.instance_id != 0
+            && target_snapshot.dungeon_difficulty_id
+                != self.represented_dungeon_difficulty_id_like_cpp()
+        {
+            send_result!(party_result::IGNORING_YOU);
             return;
         }
 
@@ -2861,6 +2914,7 @@ mod tests {
             unit_flags2: 0,
             unit_state: 0,
             is_game_master: false,
+            dungeon_difficulty_id: 1,
             is_contested_pvp: false,
             active_expansion: 2,
             pending_quest_sharing: None,
@@ -3747,6 +3801,151 @@ mod tests {
         assert!(party_invite_can_accept(
             &target_rx.try_recv().expect("target invite packet")
         ));
+    }
+
+    #[tokio::test]
+    async fn party_invite_rejects_gm_target_like_cpp_default_config() {
+        let (mut session, send_rx) = make_session_with_send();
+        let inviter = ObjectGuid::create_player(1, 42);
+        let target = ObjectGuid::create_player(1, 77);
+        let target_name = format!("Player{}", target.low_value());
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (target_tx, target_rx) = bounded(8);
+        let mut target_info = broadcast_info(target, target_tx);
+        target_info.is_game_master = true;
+        player_registry.insert(target, target_info);
+        let pending_invites = Arc::new(PendingInvites::default());
+
+        session.set_player_guid(Some(inviter));
+        session.set_loaded_player_identity_like_cpp(0, 1, 1, 80, 0);
+        session.set_player_registry(player_registry);
+        session.set_group_registry(
+            Arc::new(GroupRegistry::default()),
+            Arc::clone(&pending_invites),
+        );
+
+        session
+            .handle_party_invite(party_invite_packet(target, &target_name, None, 0))
+            .await;
+
+        assert_eq!(
+            party_command_result_code(&send_rx.try_recv().expect("party command result")),
+            party_result::BAD_PLAYER_NAME
+        );
+        assert!(target_rx.try_recv().is_err());
+        assert!(pending_invites.get(&target).is_none());
+    }
+
+    #[tokio::test]
+    async fn party_invite_rejects_cross_faction_like_cpp_default_config() {
+        let (mut session, send_rx) = make_session_with_send();
+        let inviter = ObjectGuid::create_player(1, 42);
+        let target = ObjectGuid::create_player(1, 77);
+        let target_name = format!("Player{}", target.low_value());
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (target_tx, target_rx) = bounded(8);
+        let mut target_info = broadcast_info(target, target_tx);
+        target_info.race = 2; // Orc/Horde, while inviter identity below is Human/Alliance.
+        player_registry.insert(target, target_info);
+        let pending_invites = Arc::new(PendingInvites::default());
+
+        session.set_player_guid(Some(inviter));
+        session.set_loaded_player_identity_like_cpp(0, 1, 1, 80, 0);
+        session.set_player_registry(player_registry);
+        session.set_group_registry(
+            Arc::new(GroupRegistry::default()),
+            Arc::clone(&pending_invites),
+        );
+
+        session
+            .handle_party_invite(party_invite_packet(target, &target_name, None, 0))
+            .await;
+
+        assert_eq!(
+            party_command_result_code(&send_rx.try_recv().expect("party command result")),
+            party_result::WRONG_FACTION
+        );
+        assert!(target_rx.try_recv().is_err());
+        assert!(pending_invites.get(&target).is_none());
+    }
+
+    #[tokio::test]
+    async fn party_invite_rejects_same_map_different_instances_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+        let inviter = ObjectGuid::create_player(1, 42);
+        let target = ObjectGuid::create_player(1, 77);
+        let target_name = format!("Player{}", target.low_value());
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (inviter_tx, _inviter_rx) = bounded(8);
+        let mut inviter_info = broadcast_info(inviter, inviter_tx);
+        inviter_info.map_id = 571;
+        inviter_info.instance_id = 100;
+        player_registry.insert(inviter, inviter_info);
+        let (target_tx, target_rx) = bounded(8);
+        let mut target_info = broadcast_info(target, target_tx);
+        target_info.map_id = 571;
+        target_info.instance_id = 200;
+        player_registry.insert(target, target_info);
+        let pending_invites = Arc::new(PendingInvites::default());
+
+        session.set_player_guid(Some(inviter));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_player_registry(player_registry);
+        session.set_group_registry(
+            Arc::new(GroupRegistry::default()),
+            Arc::clone(&pending_invites),
+        );
+
+        session
+            .handle_party_invite(party_invite_packet(target, &target_name, None, 0))
+            .await;
+
+        assert_eq!(
+            party_command_result_code(&send_rx.try_recv().expect("party command result")),
+            party_result::TARGET_NOT_IN_INSTANCE
+        );
+        assert!(target_rx.try_recv().is_err());
+        assert!(pending_invites.get(&target).is_none());
+    }
+
+    #[tokio::test]
+    async fn party_invite_rejects_instance_difficulty_mismatch_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+        let inviter = ObjectGuid::create_player(1, 42);
+        let target = ObjectGuid::create_player(1, 77);
+        let target_name = format!("Player{}", target.low_value());
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (target_tx, target_rx) = bounded(8);
+        let mut target_info = broadcast_info(target, target_tx);
+        target_info.map_id = 571;
+        target_info.instance_id = 100;
+        target_info.dungeon_difficulty_id = 2;
+        player_registry.insert(target, target_info);
+        let pending_invites = Arc::new(PendingInvites::default());
+
+        session.set_player_guid(Some(inviter));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_represented_dungeon_difficulty_id_for_test_like_cpp(1);
+        session.set_player_registry(player_registry);
+        session.set_group_registry(
+            Arc::new(GroupRegistry::default()),
+            Arc::clone(&pending_invites),
+        );
+
+        session
+            .handle_party_invite(party_invite_packet(target, &target_name, None, 0))
+            .await;
+
+        assert_eq!(
+            party_command_result_code(&send_rx.try_recv().expect("party command result")),
+            party_result::IGNORING_YOU
+        );
+        assert!(target_rx.try_recv().is_err());
+        assert!(pending_invites.get(&target).is_none());
     }
 
     #[tokio::test]
