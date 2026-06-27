@@ -872,11 +872,11 @@ fn unix_timestamp() -> u64 {
 }
 
 fn hex_encode(data: &[u8]) -> String {
-    data.iter().map(|b| format!("{b:02x}")).collect()
+    data.iter().map(|b| format!("{b:02X}")).collect()
 }
 
 fn hex_encode_upper(data: &[u8]) -> String {
-    data.iter().map(|b| format!("{b:02X}")).collect()
+    hex_encode(data)
 }
 
 fn bot_srp_n_like_cpp() -> BigUint {
@@ -1097,6 +1097,23 @@ mod tests {
                 .iter()
                 .any(|(name, _)| name.eq_ignore_ascii_case("Set-Cookie"))
         );
+    }
+
+    #[test]
+    fn hex_encode_uses_cpp_uppercase() {
+        assert_eq!(hex_encode(&[0x00, 0x0a, 0xbc, 0xff]), "000ABCFF");
+    }
+
+    #[test]
+    fn make_login_ticket_uses_cpp_uppercase_hex() {
+        let ticket = make_login_ticket();
+        let Some(hex) = ticket.strip_prefix("TC-") else {
+            panic!("ticket must use TC- prefix");
+        };
+
+        assert_eq!(hex.len(), 40);
+        assert!(hex.bytes().all(|byte| byte.is_ascii_hexdigit()));
+        assert!(!hex.bytes().any(|byte| matches!(byte, b'a'..=b'f')));
     }
 
     #[test]
