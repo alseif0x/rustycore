@@ -22,7 +22,17 @@ use crate::world_packet::PacketError;
 /// C# checks `packetSize > 0x400` where packetSize = payload length (without opcode).
 /// We check `data.len() > COMPRESSION_THRESHOLD` where data = opcode + payload.
 /// The 2-byte difference is negligible.
-pub const COMPRESSION_THRESHOLD: usize = 0x400;
+// WORKAROUND (open bug): packet compression disabled — threshold = MAX, so nothing is
+// compressed. RustyCore's persistent-deflate compressed packets desync the WoW client's
+// inflate stream on large packets (SMSG_SEND_KNOWN_SPELLS, SMSG_UPDATE_OBJECT, action
+// buttons): the client garbles/drops compressed packets, so the spellbook/action bars/UI
+// fail to populate while small uncompressed packets (movement, world states) work. Sending
+// everything uncompressed is functionally correct — the client accepts uncompressed SMSG_*
+// of any size via the uint32 size header — and was verified in-game (known spells render
+// again with this off). The root cause of the deflate-stream mismatch vs C++
+// WorldSocket::CompressPacket (persistent z_stream, -15/8/Z_SYNC_FLUSH) is still open and
+// tracked in a GitHub issue; re-enable once the compressor is byte-faithful to the client.
+pub const COMPRESSION_THRESHOLD: usize = usize::MAX;
 
 /// Custom Adler32 initial value used by the WoW protocol.
 const ADLER32_INIT: u32 = 0x9827_D8F1;
