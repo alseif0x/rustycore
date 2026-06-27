@@ -13581,6 +13581,12 @@ impl WorldSession {
             world_states,
         ));
 
+        // C++ Player::SendInitialPacketsAfterAddToMap calls PhasingHandler::OnMapChange(this)
+        // after SendInitWorldStates, which re-sends SMSG_PHASE_SHIFT_CHANGE (the second
+        // phase-shift of login, byte-identical to the AddToMap one; Player.cpp:23672).
+        // #NEXT.R8.ENTITIES.1228.
+        self.send_packet(&PhaseShiftChange::default_for(guid));
+
         // 28. LoadCufProfiles
         self.send_packet(&self.represented_load_cuf_profiles_packet_like_cpp());
         // C++ `Player::SendInitialPacketsAfterAddToMap` calls
