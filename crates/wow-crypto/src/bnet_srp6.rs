@@ -185,8 +185,8 @@ impl BnetSrp6 {
             return None;
         }
 
-        // u = H(A || B)
-        let u = compute_u(self.hash_fn, &a, &self.big_b);
+        // C++ CalculateU hashes fixed-width A and B operands.
+        let u = compute_u(self.version, self.hash_fn, &a, &self.big_b);
         if (&u % &self.n).is_zero() {
             return None;
         }
@@ -416,9 +416,13 @@ fn compute_public_b(n: &BigUint, g: &BigUint, k: &BigUint, v: &BigUint, b: &BigU
     (gb + kv) % n
 }
 
-fn compute_u(hash_fn: SrpHashFunction, a: &BigUint, b: &BigUint) -> BigUint {
-    let a_bytes = a.to_bytes_be();
-    let b_bytes = b.to_bytes_be();
+fn compute_u(version: SrpVersion, hash_fn: SrpHashFunction, a: &BigUint, b: &BigUint) -> BigUint {
+    let operand_len = match version {
+        SrpVersion::V1 => 128,
+        SrpVersion::V2 => 256,
+    };
+    let a_bytes = biguint_to_fixed_be(a, operand_len);
+    let b_bytes = biguint_to_fixed_be(b, operand_len);
     let mut data = a_bytes;
     data.extend_from_slice(&b_bytes);
 
@@ -426,6 +430,18 @@ fn compute_u(hash_fn: SrpHashFunction, a: &BigUint, b: &BigUint) -> BigUint {
         SrpHashFunction::Sha256 => BigUint::from_bytes_be(&Sha256::digest(&data)),
         SrpHashFunction::Sha512 => BigUint::from_bytes_be(&Sha512::digest(&data)),
     }
+}
+
+fn biguint_to_fixed_be(value: &BigUint, len: usize) -> Vec<u8> {
+    let bytes = value.to_bytes_be();
+    assert!(
+        bytes.len() <= len,
+        "bignum is too large for fixed-width SRP operand"
+    );
+
+    let mut padded = vec![0u8; len - bytes.len()];
+    padded.extend_from_slice(&bytes);
+    padded
 }
 
 /// Compute evidence using "broken evidence vector" padding.
@@ -512,6 +528,44 @@ mod tests {
         // from v2+sha256 which uses SHA256(N || pad || g)
         let k256 = compute_k(SrpVersion::V2, SrpHashFunction::Sha256, &n, &g);
         assert_ne!(k, k256);
+    }
+
+    #[test]
+    fn compute_u_v1_pads_a_and_b_to_128_bytes_like_cpp() {
+        let a = BigUint::from(0x0102u32);
+        let b = BigUint::from(0x03u32);
+        let mut expected_input = vec![0u8; 128];
+        expected_input[126] = 0x01;
+        expected_input[127] = 0x02;
+        expected_input.extend_from_slice(&[0u8; 127]);
+        expected_input.push(0x03);
+
+        let expected = BigUint::from_bytes_be(&Sha256::digest(&expected_input));
+        let unpadded =
+            BigUint::from_bytes_be(&Sha256::digest([&[0x01, 0x02][..], &[0x03][..]].concat()));
+
+        let actual = compute_u(SrpVersion::V1, SrpHashFunction::Sha256, &a, &b);
+        assert_eq!(actual, expected);
+        assert_ne!(actual, unpadded);
+    }
+
+    #[test]
+    fn compute_u_v2_pads_a_and_b_to_256_bytes_like_cpp() {
+        let a = BigUint::from(0xAAu32);
+        let b = BigUint::from(0xBBCCu32);
+        let mut expected_input = vec![0u8; 256];
+        expected_input[255] = 0xAA;
+        expected_input.extend_from_slice(&[0u8; 254]);
+        expected_input.push(0xBB);
+        expected_input.push(0xCC);
+
+        let expected = BigUint::from_bytes_be(&Sha512::digest(&expected_input));
+        let unpadded =
+            BigUint::from_bytes_be(&Sha512::digest([&[0xAA][..], &[0xBB, 0xCC][..]].concat()));
+
+        let actual = compute_u(SrpVersion::V2, SrpHashFunction::Sha512, &a, &b);
+        assert_eq!(actual, expected);
+        assert_ne!(actual, unpadded);
     }
 
     #[test]
