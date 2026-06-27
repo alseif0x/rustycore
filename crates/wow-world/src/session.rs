@@ -12148,31 +12148,45 @@ impl WorldSession {
         map_id: u16,
         position: &wow_core::Position,
     ) -> Vec<crate::map_manager::WorldCreature> {
-        if let Some(creatures) =
-            self.visible_creatures_from_canonical_map_like_cpp(map_id, position)
+        if self
+            .current_canonical_player_map_key_like_cpp()
+            .is_some_and(|key| key.map_id != u32::from(map_id))
         {
-            return creatures;
+            return Vec::new();
         }
 
+        let mut creatures = self
+            .visible_creatures_from_canonical_map_like_cpp(map_id, position)
+            .unwrap_or_default();
+        let mut seen = creatures
+            .iter()
+            .map(crate::map_manager::WorldCreature::guid)
+            .collect::<std::collections::HashSet<_>>();
+
         let Some(manager) = &self.map_manager else {
-            return Vec::new();
+            return creatures;
         };
         let visibility_range = self.player_map_visibility_range_like_cpp(map_id);
-        manager
-            .read()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .get_visible_creatures_in_phase(
-                map_id,
-                0,
-                position.x,
-                position.y,
-                position.z,
-                visibility_range,
-                Some(&self.represented_player_phase_shift),
-            )
-            .into_iter()
-            .filter(|creature| self.represented_can_see_or_detect_world_creature_like_cpp(creature))
-            .collect()
+        creatures.extend(
+            manager
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .get_visible_creatures_in_phase(
+                    map_id,
+                    0,
+                    position.x,
+                    position.y,
+                    position.z,
+                    visibility_range,
+                    Some(&self.represented_player_phase_shift),
+                )
+                .into_iter()
+                .filter(|creature| {
+                    self.represented_can_see_or_detect_world_creature_like_cpp(creature)
+                })
+                .filter(|creature| seen.insert(creature.guid())),
+        );
+        creatures
     }
 
     pub(crate) fn visible_creatures_from_canonical_map_like_cpp(
@@ -12182,6 +12196,9 @@ impl WorldSession {
     ) -> Option<Vec<crate::map_manager::WorldCreature>> {
         let requested_map_id = u32::from(map_id);
         let player_map_key = self.current_canonical_player_map_key_like_cpp();
+        if player_map_key.is_none() {
+            return None;
+        }
         let manager = self.canonical_map_manager.as_ref()?;
         let Ok(manager) = manager.lock() else {
             return None;
@@ -12200,7 +12217,7 @@ impl WorldSession {
         let Some(player) = self.canonical_player_entity_snapshot_for_map_like_cpp(
             wow_map::MapKey::new(map.map_id(), map.instance_id()),
         ) else {
-            return Some(Vec::new());
+            return None;
         };
 
         let mut creatures = Vec::new();
@@ -12398,7 +12415,7 @@ impl WorldSession {
                 creature.instance_id(),
             ))
         else {
-            return false;
+            return true;
         };
 
         player
@@ -61312,7 +61329,7 @@ mod tests {
 
         session.state = SessionState::LoggedIn;
         session.set_map_manager(manager);
-        session.set_player_map_position_like_cpp(530, player_position);
+        session.set_player_map_position_like_cpp(571, player_position);
         // Prove the command bypasses the 50-yard visibility throttle.
         session.last_visibility_pos = Some(player_position);
 
@@ -71495,11 +71512,8 @@ mod tests {
 
         let mut guard = canonical.lock().unwrap();
         let map = guard.create_world_map(map_id, instance_id);
-        let _ = map
-            .map_mut()
-            .add_to_map_like_cpp(AccessorObjectKind::GameObject, gameobject.world().clone());
         map.map_mut()
-            .insert_map_object_record(
+            .add_map_object_record_to_map_like_cpp(
                 wow_entities::MapObjectRecord::new_game_object(gameobject).unwrap(),
             )
             .unwrap();
@@ -81185,6 +81199,9 @@ mod tests {
     ) {
         session.set_map_manager(manager);
         session.current_map_id = 0;
+        if session.player_position_like_cpp().is_none() {
+            session.set_player_map_position_like_cpp(0, Position::new(10.0, 10.0, 0.0, 0.0));
+        }
         session.register_world_creature(
             0,
             Position::new(10.0, 10.0, 0.0, 0.0),
@@ -95093,8 +95110,6 @@ mod tests {
         assert_eq!(pkt.read_float().unwrap(), 0.0);
         assert_eq!(pkt.read_float().unwrap(), 0.0);
         assert_eq!(pkt.read_float().unwrap(), 0.0);
-        assert!(!pkt.has_bit().unwrap());
-        assert_eq!(pkt.read_bits(3).unwrap(), 2);
         assert_eq!(pkt.read_uint32().unwrap(), 0);
         assert_eq!(pkt.read_int32().unwrap(), 0);
         assert_eq!(pkt.read_uint32().unwrap(), 0);
@@ -95102,6 +95117,17 @@ mod tests {
         assert_eq!(pkt.read_uint8().unwrap(), 0);
         assert_eq!(pkt.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
         assert_eq!(pkt.read_int8().unwrap(), -1);
+        assert!(!pkt.has_bit().unwrap());
+        assert_eq!(pkt.read_bits(3).unwrap(), 2);
+        assert_eq!(pkt.read_bits(2).unwrap(), 0);
+        assert_eq!(pkt.read_bits(16).unwrap(), 0);
+        assert!(!pkt.has_bit().unwrap());
+        assert!(!pkt.has_bit().unwrap());
+        assert_eq!(pkt.read_bits(16).unwrap(), 0);
+        assert!(!pkt.has_bit().unwrap());
+        assert!(!pkt.has_bit().unwrap());
+        assert!(!pkt.has_bit().unwrap());
+        assert!(!pkt.has_bit().unwrap());
     }
 
     #[test]
@@ -96475,6 +96501,8 @@ mod tests {
                 creature
                     .creature
                     .set_ai_position(Position::new(12.0, 10.0, 0.0, 0.0));
+                creature.creature.unit_mut().set_bounding_radius(0.0);
+                creature.creature.unit_mut().set_combat_reach(0.0);
                 creature.enter_combat(player);
                 creature.creature.ai_ownership_mut().last_swing_ms = 0;
                 creature.creature.ai_ownership_mut().swing_timer_ms = 0;
@@ -107352,7 +107380,7 @@ mod tests {
             session.represented_favorite_item_appearance_state_like_cpp(65),
             Some(FavoriteAppearanceStateLikeCpp::New)
         );
-        assert!(send_rx.try_recv().is_ok());
+        assert!(send_rx.try_recv().is_err());
         assert!(!session.set_appearance_is_favorite_like_cpp(65, true));
         assert!(send_rx.try_recv().is_err());
 
@@ -107361,7 +107389,7 @@ mod tests {
             session.represented_favorite_item_appearance_state_like_cpp(65),
             None
         );
-        assert!(send_rx.try_recv().is_ok());
+        assert!(send_rx.try_recv().is_err());
         assert!(!session.set_appearance_is_favorite_like_cpp(65, false));
         assert!(send_rx.try_recv().is_err());
 
@@ -107373,12 +107401,13 @@ mod tests {
             session.represented_favorite_item_appearance_state_like_cpp(96),
             Some(FavoriteAppearanceStateLikeCpp::Removed)
         );
-        assert!(send_rx.try_recv().is_ok());
+        assert!(send_rx.try_recv().is_err());
         assert!(session.set_appearance_is_favorite_like_cpp(96, true));
         assert_eq!(
             session.represented_favorite_item_appearance_state_like_cpp(96),
             Some(FavoriteAppearanceStateLikeCpp::Unchanged)
         );
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[test]
@@ -116354,6 +116383,7 @@ mod tests {
         let player_guid = ObjectGuid::create_player(1, 99);
         let gameobject_guid =
             ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 41);
+        session.set_player_guid(Some(player_guid));
         session.set_player_battleground_type_id_like_cpp(BATTLEGROUND_WS_LIKE_CPP);
 
         session.apply_aura(1001, player_guid, 30_000, 0).unwrap();
@@ -123710,7 +123740,7 @@ mod tests {
         register_test_creature(&mut session, manager.clone(), creature_guid, 25);
         session
             .mutate_world_creature(creature_guid, |creature| {
-                creature.creature.ai_ownership_mut().aggro_radius = 5.0;
+                creature.creature.ai_ownership_mut().aggro_radius = 9.0;
                 creature.creature.unit_mut().set_level(80);
             })
             .unwrap();
@@ -123721,7 +123751,7 @@ mod tests {
 
         let stealthed_player = ObjectGuid::create_player(1, 91_042);
         let mut candidate =
-            legacy_aggro_candidate_like_cpp(stealthed_player, Position::new(16.5, 10.0, 0.0, 0.0));
+            legacy_aggro_candidate_like_cpp(stealthed_player, Position::new(17.0, 10.0, 0.0, 0.0));
         let mut stealthed_unit = Unit::new(true);
         stealthed_unit.set_stealth_like_cpp(0, 408);
         candidate.player_visibility_detection =

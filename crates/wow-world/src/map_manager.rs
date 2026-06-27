@@ -4036,7 +4036,11 @@ mod tests {
         // Low health (<=20%): WOUNDED_20/25/35 + WOUND_HEALTH_20_80 + WOUND_HEALTH_35_80
         // bits set, HEALTHY_75 clear. Must include the crash bit 0x100000.
         let low = WorldCreature::health_aura_state_like_cpp(10, 100, true);
-        assert_ne!(low & 0x0010_0000, 0, "WOUND_HEALTH_20_80 (0x100000) set at low HP");
+        assert_ne!(
+            low & 0x0010_0000,
+            0,
+            "WOUND_HEALTH_20_80 (0x100000) set at low HP"
+        );
         assert_eq!(low & 0x0040_0000, 0, "HEALTHY_75 clear at low HP");
         // Mid health (50%): none of the threshold states (not <35, not >75, not <20/>80).
         assert_eq!(WorldCreature::health_aura_state_like_cpp(50, 100, true), 0);
@@ -6853,11 +6857,21 @@ mod tests {
 
     fn make_pending_respawn(respawn_at: Instant) -> PendingRespawn {
         use wow_packet::packets::update::CreatureCreateData;
-        let guid =
-            ObjectGuid::create_world_object(wow_core::guid::HighGuid::Creature, 0, 1, 0, 0, 1, 100);
+        static NEXT_TEST_SPAWN_ID: std::sync::atomic::AtomicU64 =
+            std::sync::atomic::AtomicU64::new(1);
+        let spawn_id = NEXT_TEST_SPAWN_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let guid = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Creature,
+            0,
+            1,
+            0,
+            0,
+            1,
+            spawn_id as i64,
+        );
         PendingRespawn {
             respawn_at,
-            spawn_id: guid.low_value() as u64,
+            spawn_id,
             home_pos: Position {
                 x: 0.0,
                 y: 0.0,

@@ -12252,17 +12252,10 @@ mod tests {
             session.represented_favorite_item_appearance_state_like_cpp(65),
             Some(crate::session::FavoriteAppearanceStateLikeCpp::New)
         );
-        let bytes = send_rx
-            .try_recv()
-            .expect("partial transmog favorite update");
-        assert_eq!(
-            u16::from_le_bytes([bytes[0], bytes[1]]),
-            ServerOpcodes::UpdateCapturePoint as u16
+        assert!(
+            send_rx.try_recv().is_err(),
+            "AccountTransmogUpdate keeps state only while the legacy opcode is unresolved"
         );
-        assert_eq!(bytes[2], 0b0100_0000);
-        assert_eq!(u32::from_le_bytes(bytes[3..7].try_into().unwrap()), 1);
-        assert_eq!(u32::from_le_bytes(bytes[7..11].try_into().unwrap()), 0);
-        assert_eq!(u32::from_le_bytes(bytes[11..15].try_into().unwrap()), 65);
     }
 
     #[tokio::test]

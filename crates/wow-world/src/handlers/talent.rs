@@ -1127,10 +1127,12 @@ mod tests {
     #[tokio::test]
     async fn login_spell_reset_reward_spell_minus_one_removes_source_spell_auras_like_cpp() {
         let (mut session, send_rx) = make_session_with_send_capacity(4);
+        let player_guid = ObjectGuid::create_player(1, 7003);
         let quest_id = 7003;
         let source_spell_id = 9201;
         let other_spell_id = 9202;
 
+        session.set_player_guid(Some(player_guid));
         let mut quest = test_quest_template_like_cpp(quest_id);
         quest.reward_spell = u32::MAX;
         quest.source_spell_id = source_spell_id as u32;

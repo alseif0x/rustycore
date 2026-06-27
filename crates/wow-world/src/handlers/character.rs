@@ -6602,7 +6602,11 @@ impl WorldSession {
             self.visible_dynamic_objects_from_canonical_map_like_cpp(map_id, &pos, range);
         let canonical_area_triggers =
             self.visible_area_triggers_from_canonical_map_like_cpp(map_id, &pos, range);
-        if self.has_world_map_manager_like_cpp() {
+        if self.has_world_map_manager_like_cpp()
+            || canonical_gameobjects.is_some()
+            || canonical_dynamic_objects.is_some()
+            || canonical_area_triggers.is_some()
+        {
             let mut new_visible_creatures: HashSet<ObjectGuid> = HashSet::new();
             let mut new_visible_gos: HashSet<ObjectGuid> = HashSet::new();
             let mut new_visible_dynamic_objects: HashSet<ObjectGuid> = HashSet::new();
