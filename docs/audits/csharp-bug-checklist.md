@@ -22,6 +22,43 @@ Estados:
 - `no bug/comment`: comportamiento contrastado, queda reanclar comentario/docs.
 - `audit`: falta contraste completo.
 
+## Resumen
+
+- Bugs confirmados contra C++: 51.
+- Bugs corregidos: 1 (`#CSharpAudit.MOVEMENT.1`, commit `98ceec4d`).
+- Bugs pendientes de fix: 50.
+- Referencias C# productivas localizadas hoy: 52 archivos bajo `crates/**`.
+- Referencias C# documentales no-audit localizadas hoy: 39 archivos bajo `docs/**`.
+
+## Criterio De Cierre Por Item
+
+Para cerrar cualquier item de esta lista:
+
+- Contrastar primero el Rust actual contra C++ local en `/home/server/woltk-trinity-legacy`.
+- Documentar el ancla C++ usada en `docs/audits/csharp-reference-contrast.md` o en el item si es un cierre menor.
+- Si hay cambio de implementacion, hacerlo en un commit propio con el checklist actualizado en el mismo commit.
+- Anadir o actualizar test/verificacion proporcional al riesgo: byte-for-byte para packets, unit/integration para runtime, build/check para cambios compartidos.
+- Marcar `[x]` solo cuando el fix o la decision auditada ya este verificada.
+- No cerrar un subsistema por inferencia: si una referencia C# abre runtime, serializers, datos y docs, cada slice queda cerrado por separado.
+
+## Cobertura De Referencias Productivas C#
+
+Este mapa cubre los 52 archivos productivos con referencias C# encontrados con
+`rg -l "C#|CSharp|CypherCore" crates --glob '!target/**'`. No implica fix; solo
+indica donde se controla cada referencia.
+
+| Grupo | Archivos | Control actual |
+| --- | --- | --- |
+| BNet REST/SRP/RPC/realm | `crates/bnet-server/src/main.rs`, `realm/mod.rs`, `rest/{handlers.rs,mod.rs,types.rs}`, `rpc/{session.rs,services/game_utilities.rs}` | Bugs `BNETREST.*`, `BNETSRP.*`; RPC/realm/TLS quedan en `Pendientes De Auditoria`. |
+| World login/session | `crates/world-server/src/main.rs` | Parcial en auth/account expansion/locale; pendiente reauditar todo el flujo world-login contra `WorldSocket.cpp`/`WorldSession.cpp`. |
+| Network/crypto/auth | `crates/wow-network/src/{accept.rs,world_socket.rs}`, `crates/wow-crypto/src/{bnet_srp6.rs,ed25519ctx.rs,rsa_sign.rs,world_crypt.rs}` | Bugs BNet SRP; no-bug/comment en RSA/Ed25519/world crypt slices; `accept.rs` HMAC/seeds queda pendiente. |
+| Packet core/compression | `crates/wow-packet/src/{world_packet.rs,compression.rs}` | `COMPRESS.1` confirmado; bit APIs son no-bug/comment. |
+| Packet serializers | `crates/wow-packet/src/packets/{auth.rs,character.rs,chat.rs,combat.rs,item.rs,misc.rs,movement.rs,party.rs,quest.rs,spell.rs}` | Bugs `FEATURE`, `SPELL`, `COMBAT`, `CHAT`, `PARTY`, `ITEM`, `MISC`, `QUEST`, `MOVEMENT`; slices no-bug/comment listados abajo. |
+| World handlers | `crates/wow-world/src/handlers/{battlenet.rs,character.rs,chat.rs,combat.rs,group.rs,loot.rs,misc.rs,movement.rs,quest.rs,spell.rs}` | Bugs confirmados por dominio; `battlenet.rs`, spell runtime y restos de handlers quedan en `Pendientes De Auditoria`. |
+| Data/model helpers | `crates/wow-data/src/{item_stats.rs,player_stats.rs,quest.rs,quest_xp.rs,skill.rs}` | Bugs `DATASTATS`, `ITEMSTATS`, `QUESTXP`, `SKILL`; slices DB2/helpers no-bug/comment abajo. |
+| Database API/statements | `crates/wow-database/src/{lib.rs,params.rs,result.rs,statements/character.rs,statements/login.rs}` | Pendiente: no usar C# para afirmar coverage/nombres de statements. |
+| Core/constants/proto/logging/AI | `crates/wow-core/src/guid.rs`, `crates/wow-constants/src/lib.rs`, `crates/wow-proto/src/lib.rs`, `crates/wow-proto/proto/bgs/low/pb/client/rpc_types.proto`, `crates/wow-logging/src/lib.rs`, `crates/wow-ai/src/lib.rs` | Pendiente salvo slices de corpse/loot ya contrastados; no usar C# como fuente de opcodes, proto, GUID semantics o logging. |
+
 ## Bugs Confirmados
 
 - [ ] `#CSharpAudit.COMPRESS.1` - Threshold de compresion usa longitud con opcode en Rust; C++ usa payload sin opcode.
@@ -104,7 +141,11 @@ Estos slices se contrastaron como no bug en comportamiento revisado, pero aun de
 
 ## Pendientes De Auditoria
 
+- [ ] `crates/bnet-server/src/{main.rs,rest/**,rpc/**,realm/**}` fuera de bugs REST/SRP ya confirmados: TLS/ALPN, HTTP raw, RPC framing, realm list JSON/zlib y GameUtilities.
+- [ ] `crates/world-server/src/main.rs` en login ticket, account expansion, account data y locale.
+- [ ] `crates/wow-network/src/accept.rs` seeds/HMAC/debug contra `WorldSocket.cpp` y `AuthenticationPackets.cpp`.
 - [ ] Resto de `crates/wow-packet/src/packets/misc.rs` no cubierto por pasadas actuales.
+- [ ] `crates/wow-world/src/handlers/battlenet.rs` fallback BNet/GameUtilities contra service dispatch C++.
 - [ ] `crates/wow-world/src/handlers/spell.rs` runtime spell flow.
 - [ ] `crates/wow-world/src/handlers/quest.rs` POI, share, status multiple, gossip/menu, loaders, condiciones/localizacion y persistencia.
 - [ ] `crates/wow-world/src/handlers/misc.rs` handlers fuera de worldport/area-trigger/cemetery/taxi/query-time.
@@ -117,9 +158,15 @@ Estos slices se contrastaron como no bug en comportamiento revisado, pero aun de
 - [ ] `crates/wow-core/src/guid.rs:329` `HasEntry` semantics por tipo GUID.
 - [ ] `crates/wow-constants/src/lib.rs:9` opcodes/flags contra C++ opcode enums y packet registries.
 - [ ] `crates/wow-proto/src/lib.rs` y `proto/bgs/**` service hashes/proto contra C++/capturas.
+- [ ] `crates/wow-logging/src/lib.rs` categorias/config logging contra C++ solo si afectan comportamiento o diagnostico operativo.
+- [ ] `crates/wow-ai/src/lib.rs` corpse removal ya toca loot/corpse; mantener anclado a C++ al auditar AI/lifecycle.
 
 ## Docs Contaminadas
 
+Estas referencias no son fuente de verdad. Se limpian solo cuando el dominio
+correspondiente ya tenga ancla C++ o captura.
+
+- [ ] `docs/MIGRATION_ROADMAP.md`
 - [ ] `docs/world-entry-implementation.md`
 - [ ] `docs/phase4-analysis-and-fixes.md`
 - [ ] `docs/implementation-template.md`
@@ -127,11 +174,34 @@ Estos slices se contrastaron como no bug en comportamiento revisado, pero aun de
 - [ ] `docs/implementations/move-init-active-mover-complete.md`
 - [ ] `docs/implementations/set-active-mover.md`
 - [ ] `docs/NPC_VENDOR_FLOW.md`
+- [ ] `docs/migration/accounts.md`
 - [ ] `docs/migration/movement.md`
 - [ ] `docs/migration/bnetserver.md`
+- [ ] `docs/migration/claude-porting-instructions.md`
+- [ ] `docs/migration/client-tools.md`
+- [ ] `docs/migration/commands.md`
+- [ ] `docs/migration/common.md`
+- [ ] `docs/migration/creature-port-no-gaps-plan.md`
 - [ ] `docs/migration/shared-networking.md`
+- [ ] `docs/migration/entities-conversation.md`
+- [ ] `docs/migration/entities-corpse.md`
+- [ ] `docs/migration/entities-creature.md`
+- [ ] `docs/migration/entities-gameobject.md`
+- [ ] `docs/migration/entities-player.md`
+- [ ] `docs/migration/entities-sceneobject.md`
+- [ ] `docs/migration/entities-transport.md`
 - [ ] `docs/migration/db-schemas.md`
 - [ ] `docs/migration/shared-datastores.md`
 - [ ] `docs/migration/globals.md`
+- [ ] `docs/migration/logging.md`
+- [ ] `docs/migration/login-world-load-cpp-parity-plan.md`
+- [ ] `docs/migration/migration-perf-strategy.md`
+- [ ] `docs/migration/packets-by-domain.md`
+- [ ] `docs/migration/pets.md`
+- [ ] `docs/migration/proto.md`
 - [ ] `docs/migration/current-session-handoff.md`
-- [ ] `docs/migration/inventory/*`
+- [ ] `docs/migration/inventory/creature-port-matrix.tsv`
+- [ ] `docs/migration/inventory/r2-product-scope.md`
+- [ ] `docs/migration/inventory/r2-product-scope.tsv`
+- [ ] `docs/migration/inventory/r8-entities-miniphase.md`
+- [ ] `docs/migration/inventory/r8-entities-miniphase.tsv`
