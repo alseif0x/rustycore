@@ -195,6 +195,15 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::SuspendTokenResponse,
+        status: SessionStatus::Transfer,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_suspend_token_response",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::RequestCemeteryList,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
@@ -2087,12 +2096,149 @@ impl crate::session::WorldSession {
         self.set_player_stand_state_like_cpp(stand_state);
     }
 
+    /// C++ `Map::SendInitSelf` (Map.cpp:1877), invoked by `Map::AddPlayerToMap(initPlayer=true)`
+    /// on a non-seamless far teleport (HandleMoveWorldportAck -> AddPlayerToMap, Map.cpp:470).
+    /// Re-sends the player's OWN object (ActivePlayer create block) so the client finishes the
+    /// loading screen and enters the destination map. Sourced from session state; combat stats
+    /// are placeholders here (health from the live value, the rest defaulted) and corrected by
+    /// the `send_stat_update` that follows. Inventory item objects are not yet re-sent on
+    /// teleport (the client retains them from login) — a #NEXT.R8.ENTITIES.1229 follow-up.
+    async fn send_player_self_create_for_teleport_like_cpp(&mut self) {
+        use wow_core::guid::HighGuid;
+        use wow_packet::packets::update::{PlayerCombatStats, UpdateObject};
+
+        let Some(guid) = self.player_guid() else {
+            return;
+        };
+        let Some(pos) = self.player_position_like_cpp() else {
+            return;
+        };
+        let map_id = self.player_map_id_like_cpp();
+        let (zone_id, _area_id) = self.player_zone_area_like_cpp();
+        let race = self.player_race_like_cpp();
+        let class = self.player_class_like_cpp();
+        let gender = self.player_gender_like_cpp();
+        let level = self.player_level_like_cpp();
+
+        // Equipped items drive the visible model; bag slots / item objects are not re-sent here.
+        let mut visible_items = [(0i32, 0u16, 0u16); 19];
+        for (slot, item) in self.inventory_items_like_cpp() {
+            if (*slot as usize) < 19 {
+                visible_items[*slot as usize] = (item.entry_id as i32, 0, 0);
+            }
+        }
+
+        let health = self.player_health_like_cpp().max(1);
+        let combat = PlayerCombatStats {
+            health: i64::from(health),
+            max_health: i64::from(health),
+            ..PlayerCombatStats::default()
+        };
+
+        let quest_log = self.quest_log_create_entries_like_cpp();
+        let account_toys = self.account_toy_active_player_rows_like_cpp();
+        let account_heirlooms = self.account_heirloom_active_player_rows_like_cpp();
+        let account_transmog = self.account_transmog_active_player_rows_like_cpp();
+        let trait_configs = self.load_active_player_trait_configs_like_cpp(guid).await;
+        let player_customizations = self.load_player_customizations_like_cpp(guid).await;
+        let party_type = self.party_member_party_type_like_cpp();
+        let display_id = crate::handlers::character::default_display_id(race, gender);
+
+        // Skill info — including the language skills (Common/Orcish/etc.) the client uses to
+        // decide which languages the player can speak. Omitting these left the player unable to
+        // chat after a teleport until relog. Built like login (skill_store.starting_skill_info).
+        let skill_info: Vec<(u16, u16, u16, u16, u16, i16, u16)> =
+            if let Some(skill_store) = self.skill_store() {
+                skill_store
+                    .starting_skill_info(race, class, level)
+                    .iter()
+                    .map(|entry| {
+                        (
+                            entry.skill_id,
+                            entry.step,
+                            entry.rank,
+                            entry.starting_rank,
+                            entry.max_rank,
+                            entry.temp_bonus,
+                            entry.perm_bonus,
+                        )
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
+
+        let mut player_pkt = UpdateObject::create_player_with_party_type(
+            guid,
+            race,
+            class,
+            gender,
+            level,
+            display_id,
+            &pos,
+            map_id,
+            zone_id,
+            true, // is_self -> ActivePlayer fields
+            visible_items,
+            [ObjectGuid::EMPTY; 141],
+            combat,
+            skill_info,
+            self.player_gold_like_cpp(),
+            quest_log,
+            party_type,
+        );
+        player_pkt.set_player_account_guids_like_cpp(
+            ObjectGuid::create_global(HighGuid::WowAccount, 0, self.account_id as i64),
+            ObjectGuid::create_global(HighGuid::BNetAccount, 0, self.battlenet_account_id() as i64),
+        );
+        player_pkt.set_player_collection_dynamic_fields_like_cpp(
+            account_toys,
+            account_heirlooms,
+            account_transmog,
+            trait_configs,
+        );
+        player_pkt.set_player_action_buttons_like_cpp(
+            self.represented_action_buttons_snapshot_like_cpp(),
+        );
+        player_pkt.set_player_customizations_like_cpp(player_customizations);
+        self.send_packet(&player_pkt);
+        info!(
+            account = self.account_id,
+            map = map_id,
+            "[FAR_TELEPORT] sent SendInitSelf (player ActivePlayer create) for destination map"
+        );
+    }
+
+    /// CMSG_SUSPEND_TOKEN_RESPONSE — client acknowledges SMSG_SUSPEND_TOKEN during a far
+    /// teleport. C++ `WorldSession::HandleSuspendTokenResponse` (MovementHandler.cpp:239)
+    /// replies with SMSG_NEW_WORLD so the client loads the destination map; only then does
+    /// the client send CMSG_WORLD_PORT_RESPONSE. Without this step the client sits on the
+    /// loading screen at 0% forever. #NEXT.R8.ENTITIES.1229.
+    pub async fn handle_suspend_token_response(&mut self, _pkt: wow_packet::WorldPacket) {
+        if !self.represented_far_teleport_pending_like_cpp() {
+            return;
+        }
+        let Some((new_map, new_pos)) = self.pending_teleport else {
+            return;
+        };
+        self.send_packet(&wow_packet::packets::misc::NewWorld {
+            map_id: new_map,
+            pos: new_pos,
+            reason: 0,
+        });
+        info!(
+            account = self.account_id,
+            map = new_map,
+            "[FAR_TELEPORT] SuspendTokenResponse -> sent SMSG_NEW_WORLD (client now loads destination map)"
+        );
+    }
+
     /// CMSG_WORLD_PORT_RESPONSE — client confirms it has loaded the new map.
     /// C# ref: MovementHandler.HandleMoveWorldportAck
-    /// Sent after SMSG_TRANSFER_PENDING + SMSG_SUSPEND_TOKEN.
-    /// We respond with SMSG_NEW_WORLD + SMSG_RESUME_TOKEN and resend world objects.
+    /// Sent after SMSG_NEW_WORLD (which is emitted from handle_suspend_token_response).
+    /// We respond with SMSG_RESUME_TOKEN and replay the after-add init.
     pub async fn handle_world_port_response(&mut self, _pkt: wow_packet::WorldPacket) {
-        use wow_packet::packets::misc::{NewWorld, ResumeToken};
+        use wow_packet::packets::misc::ResumeToken;
 
         if !self.represented_far_teleport_pending_like_cpp() {
             warn!(
@@ -2129,20 +2275,24 @@ impl crate::session::WorldSession {
         self.resummon_pet_temporary_unsummoned_if_any_like_cpp();
         self.process_represented_delayed_resurrection_after_teleport_like_cpp();
 
-        // SMSG_NEW_WORLD — place player in new world
-        self.send_packet(&NewWorld {
-            map_id: new_map,
-            pos: new_pos,
-            reason: 0,
-        });
+        // SMSG_NEW_WORLD was already sent from handle_suspend_token_response (C++ sends it in
+        // HandleSuspendTokenResponse, BEFORE the client's worldport ack — MovementHandler.cpp:253);
+        // it must NOT be resent here or the client never finishes loading. #NEXT.R8.ENTITIES.1229.
 
         // SMSG_RESUME_TOKEN — C++ HandleMoveWorldportAck sets SequenceIndex =
         // player->m_movementCounter (read here, before SendInitialPacketsBeforeAddToMap resets
         // it) and Reason = 1 for a non-seamless far teleport (MovementHandler.cpp:108-111).
+        let resume_seq = self.movement_counter_like_cpp();
         self.send_packet(&ResumeToken {
-            sequence_index: self.movement_counter_like_cpp(),
+            sequence_index: resume_seq,
             reason: 1,
         });
+        info!(
+            account = self.account_id,
+            map = new_map,
+            resume_seq,
+            "[FAR_TELEPORT] worldport ack: sent ResumeToken(reason=1); NewWorld was sent at SuspendTokenResponse #NEXT.R8.ENTITIES.1229"
+        );
 
         let Some(guid) = self.player_guid() else {
             self.set_state(crate::session::SessionState::LoggedIn);
@@ -2160,11 +2310,23 @@ impl crate::session::WorldSession {
         self.send_packet(&wow_packet::packets::misc::MoveSetActiveMover { mover_guid: guid });
         self.send_time_sync();
 
+        // C++ Map::AddPlayerToMap(initPlayer=true) -> SendInitSelf (Map.cpp:470): re-send the
+        // player's OWN object (ActivePlayer create block) for the destination map. Without it
+        // the client loads to 100% but never enters the world. #NEXT.R8.ENTITIES.1229.
+        self.send_player_self_create_for_teleport_like_cpp().await;
+
         // AddPlayerToMap-equivalent: refresh nearby world objects at the new position.
         self.send_nearby_creatures(new_map as u16, &new_pos, 0)
             .await;
         self.send_nearby_gameobjects(new_map as u16, &new_pos, 0)
             .await;
+        info!(
+            account = self.account_id,
+            map = new_map,
+            visible = self.client_visible_guids_like_cpp.len(),
+            "[FAR_TELEPORT] replayed before-add (MoveSetActiveMover + TimeSync) + refreshed \
+             nearby objects; now sending after-add init"
+        );
 
         // SendInitialPacketsAfterAddToMap: post-add phase shift, InitWorldStates resolved for
         // the destination map, the PhasingHandler::OnMapChange phase shift, CUF profiles, auras.
@@ -2175,6 +2337,21 @@ impl crate::session::WorldSession {
             updateobject_trace_enabled,
         )
         .await;
+
+        let (zone_id, area_id) = self.player_zone_area_like_cpp();
+        info!(
+            account = self.account_id,
+            map = new_map,
+            zone = zone_id,
+            area = area_id,
+            resume_seq,
+            "[FAR_TELEPORT] COMPLETE — sent after-add init (InitWorldStates for this map + \
+             phase-shift x2 + CUF + auras). Client should now be live in the new map."
+        );
+
+        // Full stat VALUES update — C++ login sends this after the create; it overwrites the
+        // self-create block's placeholder combat stats with the player's real values.
+        self.send_stat_update();
 
         // Back to LoggedIn — handler dispatch resumes.
         self.set_state(crate::session::SessionState::LoggedIn);
@@ -6969,6 +7146,50 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn suspend_token_response_sends_new_world_for_far_teleport_like_cpp() {
+        // C++ HandleSuspendTokenResponse (MovementHandler.cpp:239): on the client's suspend
+        // ack during a far teleport, send SMSG_NEW_WORLD so it loads the destination map.
+        // pending_teleport stays set (the later worldport ack consumes it). Without this the
+        // client sits at 0% on the loading screen forever. #NEXT.R8.ENTITIES.1229.
+        let (mut session, send_rx) = make_session();
+        let destination = Position::new(11.0, 22.0, 33.0, 1.5);
+        session.pending_teleport = Some((1, destination));
+        session.set_represented_far_teleport_pending_like_cpp(true);
+        session.set_state(crate::session::SessionState::Transfer);
+
+        session
+            .handle_suspend_token_response(WorldPacket::new_empty())
+            .await;
+
+        assert_eq!(
+            std::iter::from_fn(|| send_rx.try_recv().ok())
+                .map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
+                .collect::<Vec<_>>(),
+            vec![ServerOpcodes::NewWorld as u16]
+        );
+        assert_eq!(session.pending_teleport, Some((1, destination)));
+    }
+
+    #[tokio::test]
+    async fn suspend_token_response_no_op_without_far_teleport_like_cpp() {
+        // C++ HandleSuspendTokenResponse early-returns unless IsBeingTeleportedFar().
+        let (mut session, send_rx) = make_session();
+        session.pending_teleport = Some((1, Position::new(11.0, 22.0, 33.0, 1.5)));
+        // far-teleport semaphore deliberately not set.
+
+        session
+            .handle_suspend_token_response(WorldPacket::new_empty())
+            .await;
+
+        assert_eq!(
+            std::iter::from_fn(|| send_rx.try_recv().ok())
+                .map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
+                .collect::<Vec<_>>(),
+            Vec::<u16>::new()
+        );
+    }
+
+    #[tokio::test]
     async fn world_port_response_clears_far_teleport_semaphore_like_cpp() {
         let (mut session, send_rx) = make_session();
         let canonical = shared_canonical_map_manager_for_misc_test();
@@ -7045,22 +7266,26 @@ mod tests {
             assert_eq!(player.unit().world().map_id(), 0);
             assert_eq!(player.unit().world().position(), destination);
         }
-        // C++ HandleMoveWorldportAck (non-seamless) replays the init sequence after the
-        // NewWorld/ResumeToken pair (#NEXT.R8.ENTITIES.1229): the before-add control packets
-        // SetMovedUnit (MoveSetActiveMover) + a fresh TimeSyncRequest, then (no nearby objects
-        // on the destination test map, so the AddToMap refresh emits nothing) the full
-        // SendInitialPacketsAfterAddToMap helper — post-add PhaseShiftChange, InitWorldStates
-        // resolved for the destination map, the PhasingHandler::OnMapChange PhaseShiftChange,
-        // and LoadCufProfiles (no auras on the test player).
+        // C++ HandleMoveWorldportAck (non-seamless) replays the init sequence on the client's
+        // worldport ack (#NEXT.R8.ENTITIES.1229). SMSG_NEW_WORLD is NOT here — it is sent
+        // earlier from handle_suspend_token_response. This handler starts with ResumeToken,
+        // then the before-add control packets SetMovedUnit (MoveSetActiveMover) + a fresh
+        // TimeSyncRequest, then (no nearby objects on the destination test map, so the AddToMap
+        // refresh emits nothing) the full SendInitialPacketsAfterAddToMap helper — post-add
+        // PhaseShiftChange, InitWorldStates for the destination map, the PhasingHandler::
+        // OnMapChange PhaseShiftChange, and LoadCufProfiles (no auras on the test player). The
+        // UpdateObject after TimeSyncRequest is SendInitSelf (the player's own ActivePlayer
+        // create for the destination map — C++ Map::AddPlayerToMap initPlayer=true). The final
+        // send_stat_update emits nothing in this minimal test (no stat stores configured).
         assert_eq!(
             std::iter::from_fn(|| send_rx.try_recv().ok())
                 .map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
                 .collect::<Vec<_>>(),
             vec![
-                ServerOpcodes::NewWorld as u16,
                 ServerOpcodes::ResumeToken as u16,
                 ServerOpcodes::MoveSetActiveMover as u16,
                 ServerOpcodes::TimeSyncRequest as u16,
+                ServerOpcodes::UpdateObject as u16,
                 ServerOpcodes::PhaseShiftChange as u16,
                 ServerOpcodes::InitWorldStates as u16,
                 ServerOpcodes::PhaseShiftChange as u16,

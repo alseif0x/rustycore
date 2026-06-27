@@ -28649,6 +28649,18 @@ impl WorldSession {
                     Err(e) => warn!("Failed to read MoveInitActiveMoverComplete: {e}"),
                 }
             }
+            // C++ HandleSuspendTokenResponse (MovementHandler.cpp:239): on the client's
+            // suspend ack during a far teleport, send SMSG_NEW_WORLD so it loads the
+            // destination map. Then the client sends CMSG_WORLD_PORT_RESPONSE.
+            ClientOpcodes::SuspendTokenResponse => {
+                self.handle_suspend_token_response(pkt).await;
+            }
+            // C++ HandleMoveWorldportAck (MovementHandler.cpp:49): client finished loading the
+            // new map; resume + replay init. (Inventory entry alone never reached the method —
+            // the match arm was missing, so far teleports never completed. #NEXT.R8.ENTITIES.1229.)
+            ClientOpcodes::WorldPortResponse => {
+                self.handle_world_port_response(pkt).await;
+            }
             ClientOpcodes::MoveSetVehicleRecIdAck => {
                 let opcode = pkt.client_opcode().unwrap_or(opcode);
                 match wow_packet::packets::vehicle::MoveSetVehicleRecIdAck::read(&mut pkt) {
@@ -29989,10 +30001,16 @@ impl WorldSession {
         self.pending_teleport = Some((new_map, new_pos));
         self.active_area_trigger = None;
 
-        // 3. SMSG_SUSPEND_TOKEN — pause movement processing on client
+        // 3. SMSG_SUSPEND_TOKEN — pause movement processing on client. C++
+        // Player::TeleportTo sets SequenceIndex = m_movementCounter WITHOUT incrementing
+        // (Player.cpp:1466), and HandleMoveWorldportAck's ResumeToken uses the SAME counter
+        // (the before-add reset happens only after ResumeToken). The client pairs suspend and
+        // resume by this index, so they MUST match — a hardcoded 1 here vs the real counter in
+        // ResumeToken left the client stuck on the loading screen. #NEXT.R8.ENTITIES.1229.
         if !self.player_logout_like_cpp {
+            let suspend_seq = self.movement_counter_like_cpp();
             self.send_packet(&SuspendToken {
-                sequence_index: 1,
+                sequence_index: suspend_seq,
                 reason: if options & TELE_TO_SEAMLESS_LIKE_CPP != 0 {
                     2
                 } else {
@@ -30204,8 +30222,11 @@ impl WorldSession {
         self.active_area_trigger = None;
 
         if !self.player_logout_like_cpp {
+            // C++ SuspendToken.SequenceIndex = m_movementCounter (Player.cpp:1466); must match
+            // the ResumeToken sent later so the client resumes. #NEXT.R8.ENTITIES.1229.
+            let suspend_seq = self.movement_counter_like_cpp();
             self.send_packet(&SuspendToken {
-                sequence_index: 1,
+                sequence_index: suspend_seq,
                 reason: if options & TELE_TO_SEAMLESS_LIKE_CPP != 0 {
                     2
                 } else {
@@ -35744,7 +35765,6 @@ impl WorldSession {
         self.sync_player_registry_state_like_cpp();
     }
 
-    #[cfg(test)]
     pub(crate) fn player_health_like_cpp(&self) -> u32 {
         self.player_health_like_cpp
     }
@@ -89537,7 +89557,9 @@ mod tests {
         assert_eq!(
             packets.last().expect("SMSG_SUSPEND_TOKEN"),
             &wow_packet::packets::misc::SuspendToken {
-                sequence_index: 1,
+                // SequenceIndex = m_movementCounter (0 here: no movement-control packets sent
+                // in the test). Must match the ResumeToken index. #NEXT.R8.ENTITIES.1229.
+                sequence_index: 0,
                 reason: 2,
             }
             .to_bytes()
@@ -89615,7 +89637,8 @@ mod tests {
         assert_eq!(
             packets.last().expect("SMSG_SUSPEND_TOKEN"),
             &wow_packet::packets::misc::SuspendToken {
-                sequence_index: 1,
+                // SequenceIndex = m_movementCounter (0 here). #NEXT.R8.ENTITIES.1229.
+                sequence_index: 0,
                 reason: 1,
             }
             .to_bytes()
