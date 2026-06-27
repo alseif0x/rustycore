@@ -6007,16 +6007,14 @@ impl ServerPacket for RequestCemeteryListResponse {
 // ── AuctionHelloResponse ─────────────────────────────────────────────────────
 
 /// SMSG_AUCTION_HELLO_RESPONSE — opens the auction house UI on the client.
-/// C# ref: AuctionHousePackets.AuctionHelloResponse
+/// C++ ref: `WorldPackets::AuctionHouse::AuctionHelloResponse`.
 pub struct AuctionHelloResponse {
     /// GUID of the auctioneer NPC.
     pub auctioneer_guid: wow_core::ObjectGuid,
-    /// AuctionHouse.db2 entry id (1=Alliance, 2=Horde, 7=Neutral).
-    pub auction_house_id: i32,
     /// Delay in ms before purchased items are delivered.
-    pub purchased_item_delivery_delay: i32,
+    pub purchased_item_delivery_delay: u32,
     /// Delay in ms before cancelled items are returned.
-    pub cancelled_item_delivery_delay: i32,
+    pub cancelled_item_delivery_delay: u32,
     /// Whether the auction house is currently open for business.
     pub open_for_business: bool,
 }
@@ -6026,9 +6024,8 @@ impl AuctionHelloResponse {
     pub fn open(auctioneer_guid: wow_core::ObjectGuid) -> Self {
         Self {
             auctioneer_guid,
-            auction_house_id: 7,                      // neutral
-            purchased_item_delivery_delay: 3_600_000, // 1 hour
-            cancelled_item_delivery_delay: 3_600_000,
+            purchased_item_delivery_delay: 0,
+            cancelled_item_delivery_delay: 0,
             open_for_business: true,
         }
     }
@@ -6039,9 +6036,8 @@ impl ServerPacket for AuctionHelloResponse {
 
     fn write(&self, pkt: &mut WorldPacket) {
         pkt.write_packed_guid(&self.auctioneer_guid);
-        pkt.write_int32(self.purchased_item_delivery_delay);
-        pkt.write_int32(self.cancelled_item_delivery_delay);
-        pkt.write_int32(self.auction_house_id);
+        pkt.write_uint32(self.purchased_item_delivery_delay);
+        pkt.write_uint32(self.cancelled_item_delivery_delay);
         pkt.write_bit(self.open_for_business);
         pkt.flush_bits();
     }
@@ -8175,6 +8171,26 @@ impl ServerPacket for RatedPvpInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn auction_hello_response_writes_cpp_layout_without_auction_house_id() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 123, 1);
+        let bytes = AuctionHelloResponse::open(guid).to_bytes();
+        let mut packet = WorldPacket::from_bytes(&bytes);
+
+        assert_eq!(
+            packet.read_uint16().expect("opcode"),
+            ServerOpcodes::AuctionHelloResponse as u16
+        );
+        assert_eq!(packet.read_packed_guid().expect("auctioneer guid"), guid);
+        assert_eq!(packet.read_uint32().expect("purchased delivery delay"), 0);
+        assert_eq!(packet.read_uint32().expect("cancelled delivery delay"), 0);
+        assert!(packet.read_bit().expect("open for business"));
+        assert!(
+            packet.is_empty(),
+            "C++ AuctionHelloResponse does not serialize AuctionHouseID"
+        );
+    }
 
     #[test]
     fn can_duel_reads_raw_guid_then_bit_like_cpp() {
