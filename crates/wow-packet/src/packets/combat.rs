@@ -156,7 +156,7 @@ impl ServerPacket for AIReaction {
 /// This is what makes damage numbers appear on screen.
 /// Simplified implementation: normal physical hit, no subdamage breakdown.
 ///
-/// C# format: attackRoundInfo is written to a sub-buffer, then size+bytes appended.
+/// C++ writes the combat-log bit on the outer packet, then size+attackRoundInfo.
 #[derive(Debug, Clone)]
 pub struct AttackerStateUpdate {
     pub attacker: ObjectGuid,
@@ -177,7 +177,7 @@ pub struct AttackerStateUpdate {
     pub expansion: u8,
 }
 
-/// HitInfo flags (uint in C#).
+/// C++ `HitInfo` flags.
 pub const HIT_INFO_NORMAL_SWING: u32 = 0x0000_0002;
 /// C++ `HITINFO_FAKE_DAMAGE`: enables a damage animation even if no damage is done.
 pub const HIT_INFO_FAKE_DAMAGE: u32 = 0x0100_0000;
@@ -188,7 +188,7 @@ impl ServerPacket for AttackerStateUpdate {
     const OPCODE: ServerOpcodes = ServerOpcodes::AttackerStateUpdate;
 
     fn write(&self, pkt: &mut WorldPacket) {
-        // Build the attackRoundInfo sub-buffer (C# does this to a separate WorldPacket)
+        // C++ builds attackRoundInfo in a separate ByteBuffer.
         let mut info = WorldPacket::new_empty();
         info.write_uint32(self.hit_info);
         info.write_packed_guid(&self.attacker);
@@ -201,7 +201,7 @@ impl ServerPacket for AttackerStateUpdate {
         info.write_uint32(0u32); // attacker state
         info.write_uint32(0u32); // melee spell id
 
-        // ContentTuning (10 fields as in C#)
+        // ContentTuning.
         info.write_uint8(0u8); // tuning type = none
         info.write_uint8(self.target_level);
         info.write_uint8(self.expansion);
@@ -214,11 +214,9 @@ impl ServerPacket for AttackerStateUpdate {
         info.write_int32(0i32); // player_content_tuning_id
         info.write_int32(0i32); // target_content_tuning_id
 
-        // WriteLogDataBit + FlushBits (CombatLogServerPacket base)
-        info.write_bit(false); // has_log_data
-        info.flush_bits();
-
-        // The outer packet: u32 size + bytes
+        // CombatLogServerPacket::WriteLogDataBit(false), FlushBits(), then attackRoundInfo.
+        pkt.write_bit(false);
+        pkt.flush_bits();
         let data = info.data().to_vec();
         pkt.write_uint32(data.len() as u32);
         pkt.write_bytes(&data);
@@ -388,6 +386,10 @@ mod tests {
             pkt.read_uint16().expect("opcode"),
             ServerOpcodes::AttackerStateUpdate as u16
         );
+        assert!(
+            !pkt.read_bit().expect("has_log_data"),
+            "CombatLogServerPacket writes the log-data bit before attackRoundInfo size"
+        );
         let attack_round_info_size = pkt.read_uint32().expect("attackRoundInfo size") as usize;
         let attack_round_info = pkt
             .read_bytes(attack_round_info_size)
@@ -397,6 +399,27 @@ mod tests {
             info.read_uint32().expect("hitInfo"),
             HIT_INFO_NORMAL_SWING | HIT_INFO_FAKE_DAMAGE
         );
+        assert_eq!(info.read_packed_guid().expect("attacker"), attacker);
+        assert_eq!(info.read_packed_guid().expect("victim"), victim);
+        assert_eq!(info.read_int32().expect("damage"), 0);
+        assert_eq!(info.read_int32().expect("original damage"), 0);
+        assert_eq!(info.read_int32().expect("over damage"), -1);
+        assert_eq!(info.read_uint8().expect("sub damage"), 0);
+        assert_eq!(info.read_uint8().expect("victim state"), VICTIM_STATE_HIT);
+        assert_eq!(info.read_uint32().expect("attacker state"), 0);
+        assert_eq!(info.read_uint32().expect("melee spell id"), 0);
+        assert_eq!(info.read_uint8().expect("content tuning type"), 0);
+        assert_eq!(info.read_uint8().expect("target level"), 80);
+        assert_eq!(info.read_uint8().expect("expansion"), 2);
+        assert_eq!(info.read_int16().expect("player level delta"), 0);
+        assert_eq!(info.read_int8().expect("target scaling level delta"), 0);
+        assert_eq!(info.read_float().expect("player item level"), 0.0);
+        assert_eq!(info.read_float().expect("target item level"), 0.0);
+        assert_eq!(info.read_uint32().expect("scaling curve"), 0);
+        assert_eq!(info.read_uint32().expect("content tuning flags"), 0);
+        assert_eq!(info.read_int32().expect("player content tuning id"), 0);
+        assert_eq!(info.read_int32().expect("target content tuning id"), 0);
+        assert!(info.is_empty(), "attackRoundInfo must not contain the combat-log bit");
     }
 
     #[test]

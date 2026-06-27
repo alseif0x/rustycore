@@ -25,9 +25,9 @@ Estados:
 ## Resumen
 
 - Bugs confirmados contra C++: 51.
-- Bugs corregidos: 12 (`#CSharpAudit.COMPRESS.1`, `#CSharpAudit.BNETREST.1`, `#CSharpAudit.BNETREST.2`, `#CSharpAudit.BNETREST.3`, `#CSharpAudit.BNETREST.4`, `#CSharpAudit.FEATURE.1`, `#CSharpAudit.BNETSRP.1`, `#CSharpAudit.BNETSRP.2`, `#CSharpAudit.BNETSRP.3`, `#CSharpAudit.BNETSRP.4`, `#CSharpAudit.MOVEMENT.1`, `#CSharpAudit.SPELL.1`).
+- Bugs corregidos: 13 (`#CSharpAudit.COMPRESS.1`, `#CSharpAudit.BNETREST.1`, `#CSharpAudit.BNETREST.2`, `#CSharpAudit.BNETREST.3`, `#CSharpAudit.BNETREST.4`, `#CSharpAudit.FEATURE.1`, `#CSharpAudit.BNETSRP.1`, `#CSharpAudit.BNETSRP.2`, `#CSharpAudit.BNETSRP.3`, `#CSharpAudit.BNETSRP.4`, `#CSharpAudit.MOVEMENT.1`, `#CSharpAudit.SPELL.1`, `#CSharpAudit.COMBAT.1`).
 - Commit historico registrado: `#CSharpAudit.MOVEMENT.1` -> `98ceec4d`.
-- Bugs pendientes de fix: 39.
+- Bugs pendientes de fix: 38.
 - Referencias C# productivas localizadas hoy: 52 archivos bajo `crates/**`.
 - Referencias C# documentales no-audit localizadas hoy: 39 archivos bajo `docs/**`.
 
@@ -73,7 +73,7 @@ indica donde se controla cada referencia.
 - [x] `#CSharpAudit.BNETREST.3` - Corregido; SRP challenge de cuenta inexistente devuelve JSON `authentication_state=DONE` como C++, sin HTTP 400. Test: `srp_challenge_missing_account_returns_done_like_cpp`.
 - [x] `#CSharpAudit.BNETREST.4` - Corregido; challenge REST, `server_evidence_m2` y login ticket usan hex uppercase como C++ `AsHexStr()`/`ByteArrayToHexStr()`. Tests: `hex_encode_uses_cpp_uppercase`, `make_login_ticket_uses_cpp_uppercase_hex`.
 - [x] `#CSharpAudit.SPELL.1` - Corregido; `SMSG_CAST_FAILED` escribe `SpellCastVisual` entre `SpellID` y `Reason`, y `SpellCastVisual` ocupa un solo `int32` como C++ (`ScriptVisualID` esta comentado). Tests: `spell_cast_visual_serializes_one_int32_like_cpp`, `cast_failed_writes_visual_between_spell_and_reason_like_cpp`.
-- [ ] `#CSharpAudit.COMBAT.1` - `SMSG_ATTACKER_STATE_UPDATE` coloca bit combat-log dentro de `attackRoundInfo`; C++ lo escribe fuera antes del size.
+- [x] `#CSharpAudit.COMBAT.1` - Corregido; `SMSG_ATTACKER_STATE_UPDATE` escribe `WriteLogDataBit(false)`/`FlushBits()` en el paquete exterior antes de `attackRoundInfo.size()`, no dentro del sub-buffer. Test: `attacker_state_update_writes_custom_hit_info_like_cpp`.
 - [ ] `#CSharpAudit.CHAT.1` - Rangos chat/emote/yell hardcodeados desde C#; C++ usa config `ListenRange.*`.
 - [ ] `#CSharpAudit.CHAT.2` - `CMSG_EMOTE`/`CMSG_SEND_TEXT_EMOTE` runtime simplificado frente a C++.
 - [ ] `#CSharpAudit.PARTY.1` - `SMSG_PARTY_INVITE` serializa campos vacios/default no C++.

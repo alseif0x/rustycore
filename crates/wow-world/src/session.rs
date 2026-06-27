@@ -97133,6 +97133,7 @@ mod tests {
         let opcode = u16::from_le_bytes([sent[0], sent[1]]);
         assert_eq!(opcode, ServerOpcodes::AttackerStateUpdate as u16);
         let mut outer = WorldPacket::from_bytes(&sent[2..]);
+        assert!(!outer.read_bit().unwrap());
         let size = outer.read_uint32().unwrap() as usize;
         let data = outer.read_bytes(size).unwrap();
         let mut info = WorldPacket::from_bytes(&data);
@@ -125475,6 +125476,7 @@ mod tests {
             packet.read_uint16().expect("opcode"),
             wow_constants::ServerOpcodes::AttackerStateUpdate as u16
         );
+        assert!(!packet.read_bit().expect("has_log_data"));
         let info_len = packet.read_uint32().expect("attackRoundInfo size") as usize;
         let info_bytes = packet.read_bytes(info_len).expect("attackRoundInfo bytes");
         let mut attack_round_info = wow_packet::world_packet::WorldPacket::from_bytes(&info_bytes);
