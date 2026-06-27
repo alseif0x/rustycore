@@ -13284,6 +13284,115 @@ impl WorldSession {
         }
     }
 
+    /// C++ `Player::SendInitialPacketsAfterAddToMap` (Player.cpp:23592-23685): the packets
+    /// sent after the player is added to the map — the post-add phase shift, visibility
+    /// mirror, `UpdateZone` -> SMSG_INIT_WORLD_STATES (resolved for the destination map),
+    /// the PhasingHandler::OnMapChange phase shift, CUF profiles and auras. Shared by login
+    /// and far teleport (#NEXT.R8.ENTITIES.1229). Reads all data from self; the destination
+    /// guid/position/map are passed in.
+    async fn send_initial_packets_after_add_to_map(
+        &mut self,
+        guid: ObjectGuid,
+        position: &Position,
+        map_id: i32,
+        updateobject_trace_enabled: bool,
+    ) {
+        if updateobject_trace_enabled {
+            info!(guid = ?guid, "RUST_LOGIN before_initial_packets_after_add");
+        }
+
+        // C++ Map::AddPlayerToMap sends the phase shift after
+        // UpdateObjectVisibility(false), before post-add world-state packets.
+        self.send_packet(&PhaseShiftChange::default_for(guid));
+
+        // C++ `HandlePlayerLogin` calls `ObjectAccessor::AddObject` after
+        // `Map::AddPlayerToMap` returns and before
+        // `Player::SendInitialPacketsAfterAddToMap`
+        // (`CharacterHandler.cpp:1241-1262`).
+        self.register_in_player_registry();
+        self.sync_object_accessor_player();
+
+        // C++ `HandlePlayerLogin` calls `ObjectAccessor::AddObject`, then
+        // `Player::SendInitialPacketsAfterAddToMap`; that method starts with
+        // `UpdateVisibilityForPlayer()`. In the captured C++ 3.4.3 login stream
+        // this point does not emit a nearby creature/gameobject CREATE batch.
+        // Rust's broad scanner does, so only mirror the player/seer visibility
+        // flags here and let normal movement/map visibility deliver object
+        // creates from the same later phase as C++.
+        self.sync_current_player_session_visibility_detection_like_cpp();
+        if updateobject_trace_enabled {
+            info!(
+                guid = ?guid,
+                count = self.client_visible_guids_like_cpp.len(),
+                "RUST_LOGIN after_initial_update_visibility_for_player"
+            );
+        }
+
+        match zone_and_area_for_position_like_cpp(
+            &self.mmap_runtime_config_like_cpp().data_dir,
+            map_id as u32,
+            position.x,
+            position.y,
+            self.area_table_store().map(|store| store.as_ref()),
+            |map_id| {
+                self.map_store()
+                    .as_deref()
+                    .map(|store| u32::from(store.area_table_id_like_cpp(map_id)))
+                    .unwrap_or(0)
+            },
+        ) {
+            Ok((resolved_zone_id, resolved_area_id)) => {
+                self.set_player_zone_area_like_cpp(resolved_zone_id, resolved_area_id);
+                info!(
+                    map_id,
+                    x = position.x,
+                    y = position.y,
+                    zone_id = resolved_zone_id,
+                    area_id = resolved_area_id,
+                    "Resolved player zone/area like C++ terrain before InitWorldStates"
+                );
+            }
+            Err(error) => {
+                warn!(
+                    map_id,
+                    x = position.x,
+                    y = position.y,
+                    %error,
+                    "failed to resolve C++ terrain zone/area before InitWorldStates; using DB-seeded zone/area"
+                );
+            }
+        }
+
+        // 27. InitWorldStates — C++ `Player::SendInitWorldStates` delegates to
+        // `WorldStateMgr::FillInitialWorldStates`: realm values first, then map
+        // values filtered by AreaIDs.
+        let (represented_zone_id, represented_area_id) = self.player_zone_area_like_cpp();
+        let world_states = self
+            .load_initial_world_states_for_login_like_cpp(map_id, represented_area_id)
+            .await;
+        self.send_packet(&InitWorldStates::with_world_states(
+            map_id,
+            represented_zone_id as i32,
+            represented_area_id as i32,
+            world_states,
+        ));
+
+        // C++ Player::SendInitialPacketsAfterAddToMap calls PhasingHandler::OnMapChange(this)
+        // after SendInitWorldStates, which re-sends SMSG_PHASE_SHIFT_CHANGE (the second
+        // phase-shift of login, byte-identical to the AddToMap one; Player.cpp:23672).
+        // #NEXT.R8.ENTITIES.1228.
+        self.send_packet(&PhaseShiftChange::default_for(guid));
+
+        // 28. LoadCufProfiles
+        self.send_packet(&self.represented_load_cuf_profiles_packet_like_cpp());
+        // C++ `Player::SendInitialPacketsAfterAddToMap` calls
+        // `SendAurasForTarget(this)` after movement aura state setup.
+        self.send_initial_player_auras_like_cpp();
+        if updateobject_trace_enabled {
+            info!(guid = ?guid, "RUST_LOGIN after_initial_packets_after_add");
+        }
+    }
+
     /// Send the player login packet sequence to the client.
     ///
     /// Follows the C++ login phases:
@@ -13594,100 +13703,13 @@ impl WorldSession {
         }
 
         // ── Phase 4: SendInitialPacketsAfterAddToMap ──
-        if updateobject_trace_enabled {
-            info!(guid = ?guid, "RUST_LOGIN before_initial_packets_after_add");
-        }
-
-        // C++ Map::AddPlayerToMap sends the phase shift after
-        // UpdateObjectVisibility(false), before post-add world-state packets.
-        self.send_packet(&PhaseShiftChange::default_for(guid));
-
-        // C++ `HandlePlayerLogin` calls `ObjectAccessor::AddObject` after
-        // `Map::AddPlayerToMap` returns and before
-        // `Player::SendInitialPacketsAfterAddToMap`
-        // (`CharacterHandler.cpp:1241-1262`).
-        self.register_in_player_registry();
-        self.sync_object_accessor_player();
-
-        // C++ `HandlePlayerLogin` calls `ObjectAccessor::AddObject`, then
-        // `Player::SendInitialPacketsAfterAddToMap`; that method starts with
-        // `UpdateVisibilityForPlayer()`. In the captured C++ 3.4.3 login stream
-        // this point does not emit a nearby creature/gameobject CREATE batch.
-        // Rust's broad scanner does, so only mirror the player/seer visibility
-        // flags here and let normal movement/map visibility deliver object
-        // creates from the same later phase as C++.
-        self.sync_current_player_session_visibility_detection_like_cpp();
-        if updateobject_trace_enabled {
-            info!(
-                guid = ?guid,
-                count = self.client_visible_guids_like_cpp.len(),
-                "RUST_LOGIN after_initial_update_visibility_for_player"
-            );
-        }
-
-        match zone_and_area_for_position_like_cpp(
-            &self.mmap_runtime_config_like_cpp().data_dir,
-            map_id as u32,
-            position.x,
-            position.y,
-            self.area_table_store().map(|store| store.as_ref()),
-            |map_id| {
-                self.map_store()
-                    .as_deref()
-                    .map(|store| u32::from(store.area_table_id_like_cpp(map_id)))
-                    .unwrap_or(0)
-            },
-        ) {
-            Ok((resolved_zone_id, resolved_area_id)) => {
-                self.set_player_zone_area_like_cpp(resolved_zone_id, resolved_area_id);
-                info!(
-                    map_id,
-                    x = position.x,
-                    y = position.y,
-                    zone_id = resolved_zone_id,
-                    area_id = resolved_area_id,
-                    "Resolved player zone/area like C++ terrain before InitWorldStates"
-                );
-            }
-            Err(error) => {
-                warn!(
-                    map_id,
-                    x = position.x,
-                    y = position.y,
-                    %error,
-                    "failed to resolve C++ terrain zone/area before InitWorldStates; using DB-seeded zone/area"
-                );
-            }
-        }
-
-        // 27. InitWorldStates — C++ `Player::SendInitWorldStates` delegates to
-        // `WorldStateMgr::FillInitialWorldStates`: realm values first, then map
-        // values filtered by AreaIDs.
-        let (represented_zone_id, represented_area_id) = self.player_zone_area_like_cpp();
-        let world_states = self
-            .load_initial_world_states_for_login_like_cpp(map_id, represented_area_id)
-            .await;
-        self.send_packet(&InitWorldStates::with_world_states(
+        self.send_initial_packets_after_add_to_map(
+            guid,
+            position,
             map_id,
-            represented_zone_id as i32,
-            represented_area_id as i32,
-            world_states,
-        ));
-
-        // C++ Player::SendInitialPacketsAfterAddToMap calls PhasingHandler::OnMapChange(this)
-        // after SendInitWorldStates, which re-sends SMSG_PHASE_SHIFT_CHANGE (the second
-        // phase-shift of login, byte-identical to the AddToMap one; Player.cpp:23672).
-        // #NEXT.R8.ENTITIES.1228.
-        self.send_packet(&PhaseShiftChange::default_for(guid));
-
-        // 28. LoadCufProfiles
-        self.send_packet(&self.represented_load_cuf_profiles_packet_like_cpp());
-        // C++ `Player::SendInitialPacketsAfterAddToMap` calls
-        // `SendAurasForTarget(this)` after movement aura state setup.
-        self.send_initial_player_auras_like_cpp();
-        if updateobject_trace_enabled {
-            info!(guid = ?guid, "RUST_LOGIN after_initial_packets_after_add");
-        }
+            updateobject_trace_enabled,
+        )
+        .await;
 
         // Rust keeps the session status flip after the initial after-add packet
         // subset so the network loop cannot process normal movement/gameplay
