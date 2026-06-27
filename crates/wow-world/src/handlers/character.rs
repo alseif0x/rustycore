@@ -11617,6 +11617,14 @@ impl WorldSession {
             }
         };
 
+        if swap.inv_update.items.len() != 2 {
+            warn!(
+                "HandleSwapInvItemOpcode - Invalid itemCount ({})",
+                swap.inv_update.items.len()
+            );
+            return;
+        }
+
         let src = swap.src_slot;
         let dst = swap.dst_slot;
         debug!(
@@ -11765,6 +11773,14 @@ impl WorldSession {
             None => return,
         };
 
+        if equip.inv_update.items.len() != 1 {
+            warn!(
+                "HandleAutoEquipItemOpcode - Invalid itemCount ({})",
+                equip.inv_update.items.len()
+            );
+            return;
+        }
+
         let src_slot = equip.slot;
         debug!(
             "AutoEquipItem: slot {} (pack_slot {}) for {:?}",
@@ -11828,7 +11844,12 @@ impl WorldSession {
 
         // Perform the swap using the same logic as SwapInvItem
         let swap = SwapInvItem {
-            inv_update: InvUpdate { items: Vec::new() },
+            inv_update: InvUpdate {
+                items: vec![
+                    (INVENTORY_SLOT_BAG_0, src_slot),
+                    (INVENTORY_SLOT_BAG_0, dst_slot),
+                ],
+            },
             src_slot,
             dst_slot,
         };
@@ -11905,6 +11926,14 @@ impl WorldSession {
             None => return,
         };
 
+        if swap.inv_update.items.len() != 2 {
+            warn!(
+                "HandleSwapItem - Invalid itemCount ({})",
+                swap.inv_update.items.len()
+            );
+            return;
+        }
+
         debug!(
             "SwapItem: A=({},{}) B=({},{}) for {:?}",
             swap.container_slot_a, swap.slot_a, swap.container_slot_b, swap.slot_b, player_guid
@@ -11921,7 +11950,12 @@ impl WorldSession {
 
         // Delegate to the existing swap logic
         let inner = SwapInvItem {
-            inv_update: InvUpdate { items: Vec::new() },
+            inv_update: InvUpdate {
+                items: vec![
+                    (swap.container_slot_a, swap.slot_a),
+                    (swap.container_slot_b, swap.slot_b),
+                ],
+            },
             src_slot: swap.slot_a,
             dst_slot: swap.slot_b,
         };
@@ -11940,6 +11974,14 @@ impl WorldSession {
             Some(g) => g,
             None => return,
         };
+
+        if !store.inv_update.items.is_empty() {
+            warn!(
+                "HandleAutoStoreBagItemOpcode - Invalid itemCount ({})",
+                store.inv_update.items.len()
+            );
+            return;
+        }
 
         debug!(
             "AutoStoreBagItem: src container={} slot={} dst container={} for {:?}",
@@ -11974,7 +12016,12 @@ impl WorldSession {
 
         // Delegate to the existing swap logic (move from src to empty dst)
         let inner = SwapInvItem {
-            inv_update: InvUpdate { items: Vec::new() },
+            inv_update: InvUpdate {
+                items: vec![
+                    (store.container_slot_a, store.slot_a),
+                    (store.container_slot_b, NULL_SLOT),
+                ],
+            },
             src_slot,
             dst_slot,
         };
@@ -15520,6 +15567,89 @@ mod tests {
             session
                 .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START + 1)
                 .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn swap_inv_item_rejects_bad_inv_update_count_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+
+        session
+            .handle_swap_inv_item(SwapInvItem {
+                inv_update: InvUpdate {
+                    items: vec![(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)],
+                },
+                src_slot: 250,
+                dst_slot: 251,
+            })
+            .await;
+
+        assert!(
+            send_rx.try_recv().is_err(),
+            "C++ returns on invalid InvUpdate count before slot validation or equip errors"
+        );
+    }
+
+    #[tokio::test]
+    async fn swap_item_rejects_bad_inv_update_count_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+
+        session
+            .handle_swap_item(SwapItem {
+                inv_update: InvUpdate { items: Vec::new() },
+                container_slot_a: INVENTORY_SLOT_BAG_START,
+                container_slot_b: INVENTORY_SLOT_BAG_START,
+                slot_a: 0,
+                slot_b: 1,
+            })
+            .await;
+
+        assert!(
+            send_rx.try_recv().is_err(),
+            "C++ returns on invalid InvUpdate count before container validation"
+        );
+    }
+
+    #[tokio::test]
+    async fn auto_equip_item_rejects_bad_inv_update_count_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+
+        session
+            .handle_auto_equip_item(AutoEquipItem {
+                inv_update: InvUpdate { items: Vec::new() },
+                pack_slot: INVENTORY_SLOT_BAG_0,
+                slot: INVENTORY_SLOT_ITEM_START,
+            })
+            .await;
+
+        assert!(
+            send_rx.try_recv().is_err(),
+            "C++ returns on invalid InvUpdate count before missing-item handling"
+        );
+    }
+
+    #[tokio::test]
+    async fn auto_store_bag_item_rejects_non_empty_inv_update_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+
+        session
+            .handle_auto_store_bag_item(AutoStoreBagItem {
+                inv_update: InvUpdate {
+                    items: vec![(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)],
+                },
+                container_slot_a: INVENTORY_SLOT_BAG_START,
+                container_slot_b: INVENTORY_SLOT_BAG_0,
+                slot_a: 0,
+            })
+            .await;
+
+        assert!(
+            send_rx.try_recv().is_err(),
+            "C++ returns on non-empty InvUpdate before source-container validation"
         );
     }
 
