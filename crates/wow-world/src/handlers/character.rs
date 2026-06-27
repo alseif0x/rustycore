@@ -193,6 +193,39 @@ fn build_initial_world_states_like_cpp(
 
     out
 }
+
+/// Apply the realm-wide PvP-season world states the C++ `WorldStateMgr` seeds and
+/// `FillInitialWorldStates` always sends (World.cpp:1363-1364, 2300-2301):
+/// `WS_CURRENT_PVP_SEASON_ID` (3191) = `in_progress ? season_id : 0`, and
+/// `WS_PREVIOUS_PVP_SEASON_ID` (3901) = `season_id - (in_progress ? 1 : 0)`
+/// (SharedDefines.h:8081-8082). Overrides the value in place when the id is already
+/// present (preserving order), else appends it. Rust previously shipped both as 0.
+fn apply_pvp_season_world_states_like_cpp(
+    states: &mut Vec<(i32, i32)>,
+    arena_season_id: i32,
+    arena_season_in_progress: bool,
+) {
+    const WS_CURRENT_PVP_SEASON_ID: i32 = 3191;
+    const WS_PREVIOUS_PVP_SEASON_ID: i32 = 3901;
+
+    let current = if arena_season_in_progress {
+        arena_season_id
+    } else {
+        0
+    };
+    let previous = arena_season_id - i32::from(arena_season_in_progress);
+
+    for (id, value) in [
+        (WS_CURRENT_PVP_SEASON_ID, current),
+        (WS_PREVIOUS_PVP_SEASON_ID, previous),
+    ] {
+        if let Some(entry) = states.iter_mut().find(|(state_id, _)| *state_id == id) {
+            entry.1 = value;
+        } else {
+            states.push((id, value));
+        }
+    }
+}
 const CREATURE_SPAWN_ROOTED_COLUMN: usize = 35;
 const CREATURE_SPAWN_CHASE_MOVEMENT_TYPE_COLUMN: usize = 36;
 const CREATURE_SPAWN_RANDOM_MOVEMENT_TYPE_COLUMN: usize = 37;
@@ -13724,12 +13757,20 @@ impl WorldSession {
             }
         }
 
-        let states = build_initial_world_states_like_cpp(
+        let mut states = build_initial_world_states_like_cpp(
             templates,
             saved_values,
             map_id,
             player_area_id,
             area_store,
+        );
+        // C++ World.cpp:1363-1364 / 2300-2301: the WorldStateMgr seeds realm-wide PvP-season
+        // world states that FillInitialWorldStates always includes. CONFIG_ARENA_SEASON_ID
+        // defaults to 32, CONFIG_ARENA_SEASON_IN_PROGRESS to false. #NEXT.R8.ENTITIES.1232.
+        apply_pvp_season_world_states_like_cpp(
+            &mut states,
+            wow_config::get_value_default::<i32>("Arena.ArenaSeason.ID", 32),
+            wow_config::get_value_default::<i32>("Arena.ArenaSeason.InProgress", 0) != 0,
         );
         info!(
             map_id,
@@ -13813,6 +13854,26 @@ mod tests {
         assert_eq!(normalize_creature_template_speed_run_like_cpp(0.0), 1.14286);
         assert_eq!(normalize_creature_template_speed_walk_like_cpp(0.75), 0.75);
         assert_eq!(normalize_creature_template_speed_run_like_cpp(2.0), 2.0);
+    }
+
+    #[test]
+    fn pvp_season_world_states_match_cpp_world_state_mgr() {
+        // In-progress arena season 32 -> current(3191)=32, previous(3901)=31. Matches the
+        // captured C++ INIT_WORLD_STATES (World.cpp:1363-1364). Existing ids stay untouched
+        // and the 3191/3901 values are overridden in place (not duplicated).
+        let mut states = vec![(3191, 0), (3901, 0), (1000, 5)];
+        apply_pvp_season_world_states_like_cpp(&mut states, 32, true);
+        assert_eq!(states, vec![(3191, 32), (3901, 31), (1000, 5)]);
+
+        // Default (season not in progress): current=0, previous=season_id.
+        let mut states = vec![(3191, 0), (3901, 0)];
+        apply_pvp_season_world_states_like_cpp(&mut states, 32, false);
+        assert_eq!(states, vec![(3191, 0), (3901, 32)]);
+
+        // Absent ids are appended rather than dropped.
+        let mut states: Vec<(i32, i32)> = Vec::new();
+        apply_pvp_season_world_states_like_cpp(&mut states, 10, true);
+        assert_eq!(states, vec![(3191, 10), (3901, 9)]);
     }
 
     #[test]
