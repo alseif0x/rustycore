@@ -99,7 +99,7 @@ Contraste de las referencias C# de `crates/wow-packet/src/packets/combat.rs`.
 | `AttackStart` / `SAttackStop` | `combat.rs:63-101` | `CombatPackets.cpp:26-51`; `CombatPackets.h:61-80` | No bug | Mismo orden `Attacker`, `Victim`; `SAttackStop` anade bit `NowDead` y flush. |
 | `AIReaction` / `CancelCombat` / `BreakTarget` | `combat.rs:107-147` | `CombatPackets.cpp:140-147`; `CombatPackets.h:130-141` | No bug | `CancelCombat` no tiene payload; `AIReaction` escribe guid y reaction; `BreakTarget` escribe guid. |
 | `AttackerStateUpdate` sub-buffer base | `combat.rs:191-215` | `CombatLogPackets.cpp:346-405`; `CombatLogPackets.h:303-324` | No bug en campos internos del caso simple | Para `SubDmg=false` y sin flags condicionales de block/rage/unk, el contenido interno coincide: hit info, attacker/victim, damage/original/over, SubDmg flag, victim state, attacker state, melee spell id y `ContentTuning`. |
-| `AttackerStateUpdate` log bit / outer layout | `combat.rs:217-224` | `CombatLogPackets.cpp:407-412`; `CombatLogPacketsCommon.h:128-137` | Bug confirmado | C++ escribe `WriteLogDataBit(false)` y `FlushBits()` en el paquete exterior antes de `uint32(attackRoundInfo.size())`. Rust escribe ese bit dentro del sub-buffer `attackRoundInfo` y luego manda exterior como `uint32(size) + bytes`, por lo que el layout no es C++ 1:1. |
+| `AttackerStateUpdate` log bit / outer layout | `combat.rs:187-224`; test `attacker_state_update_writes_custom_hit_info_like_cpp` | `CombatLogPackets.cpp:407-412`; `CombatLogPacketsCommon.h:128-137`; `CombatLogPacketsCommon.cpp:192-195` | Bug corregido `#CSharpAudit.COMBAT.1` | C++ escribe `WriteLogDataBit(false)`, `FlushBits()` y `WriteLogData()` en el paquete exterior antes de `uint32(attackRoundInfo.size())`; `WriteLogData()` solo rellena `_fullLogPacket`. Rust ahora escribe el bit exterior falso antes del size y deja `attackRoundInfo` sin byte extra de combat-log. |
 
 ## Pasada 6: chat serializers y handler text-emote
 
@@ -335,7 +335,7 @@ map-owned de visibilidad/transport end-to-end.
 9. `#CSharpAudit.BNETREST.3`: corregido. SRP challenge de cuenta inexistente devuelve JSON `authentication_state=DONE` como C++, sin HTTP 400 ni mensaje `Account not found`. Test: `srp_challenge_missing_account_returns_done_like_cpp`.
 10. `#CSharpAudit.BNETREST.4`: corregido. Challenge REST, `server_evidence_m2` y login ticket usan hex uppercase como C++ `AsHexStr()`/`ByteArrayToHexStr()`. Tests: `hex_encode_uses_cpp_uppercase`, `make_login_ticket_uses_cpp_uppercase_hex`.
 11. `#CSharpAudit.SPELL.1`: corregido; `SMSG_CAST_FAILED` serializa `SpellCastVisual` entre `SpellID` y `Reason`, y el helper `SpellCastVisual` ocupa un solo `int32` como C++.
-12. `#CSharpAudit.COMBAT.1`: `SMSG_ATTACKER_STATE_UPDATE` coloca el bit de combat-log dentro de `attackRoundInfo`; C++ lo escribe en el paquete exterior antes del size.
+12. `#CSharpAudit.COMBAT.1`: corregido. `SMSG_ATTACKER_STATE_UPDATE` escribe el bit de combat-log en el paquete exterior antes del size, y `attackRoundInfo` queda sin byte extra.
 13. `#CSharpAudit.CHAT.1`: rangos chat/emote/yell hardcodeados desde C#; C++ usa config `ListenRange.*`.
 14. `#CSharpAudit.CHAT.2`: handlers `CMSG_EMOTE`/`CMSG_SEND_TEXT_EMOTE` son runtime simplificado y no reproducen validacion/scripts/criteria/DB2/rango C++.
 15. `#CSharpAudit.PARTY.1`: `SMSG_PARTY_INVITE` se serializa con BNet account GUID vacio, realm vacio, roles propuestos ignorados y `AllowMultipleRoles=true`; C++ alimenta esos campos desde sesion/realm/request y deja `AllowMultipleRoles=false`.
