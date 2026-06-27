@@ -1171,6 +1171,15 @@ impl GroupInfo {
         (self.group_flags & GROUP_FLAG_RAID_LIKE_CPP) != 0
     }
 
+    pub fn is_full_like_cpp(&self) -> bool {
+        let max_members = if self.is_raid_group() {
+            MAX_RAID_SIZE_LIKE_CPP
+        } else {
+            MAX_GROUP_SIZE_LIKE_CPP
+        };
+        self.members.len() >= max_members
+    }
+
     pub fn is_lfg_group_like_cpp(&self) -> bool {
         (self.group_flags & GROUP_FLAG_LFG_LIKE_CPP) != 0
     }
@@ -1358,6 +1367,24 @@ mod tests {
 
         assert_ne!(group.db_store_id, 0);
         assert_ne!(group.group_guid, 0);
+    }
+
+    #[test]
+    fn group_is_full_uses_cpp_party_and_raid_limits() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let mut party = GroupInfo::new(leader);
+        for counter in 43..47 {
+            party.add_member(ObjectGuid::create_player(1, counter));
+        }
+        assert!(party.is_full_like_cpp());
+
+        let mut raid = party.clone();
+        raid.convert_to_raid_like_cpp();
+        assert!(!raid.is_full_like_cpp());
+        for counter in 47..82 {
+            raid.members.push(ObjectGuid::create_player(1, counter));
+        }
+        assert!(raid.is_full_like_cpp());
     }
 
     #[test]
