@@ -13176,6 +13176,10 @@ impl WorldSession {
             info!(guid = ?guid, "RUST_LOGIN before_initial_packets_before_add");
         }
 
+        // C++ `Player::SendInitialPacketsBeforeAddToMap` resets m_movementCounter to 0 for a
+        // non-seamless add (login / far teleport; Player.cpp:23483) before any control packets.
+        self.reset_movement_counter_like_cpp();
+
         // 6. TimeSyncRequest (critical — client needs time sync)
         //    Also initializes the periodic timer (5s first, then 10s).
         self.reset_time_sync_like_cpp();
