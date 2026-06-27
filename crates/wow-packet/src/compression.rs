@@ -9,8 +9,9 @@
 //! encryption. The compressed format prepends uncompressed size and Adler32
 //! checksums for integrity verification.
 //!
-//! C# RustyCore uses a persistent deflate stream with Z_SYNC_FLUSH per packet.
-//! We match this by using flate2's low-level `Compress` API with `FlushCompress::Sync`.
+//! TrinityCore C++ uses a persistent deflate stream with Z_SYNC_FLUSH per
+//! packet. We match this by using flate2's low-level `Compress` API with
+//! `FlushCompress::Sync`.
 
 use flate2::{Compress, Compression, FlushCompress};
 
@@ -18,21 +19,15 @@ use crate::world_packet::PacketError;
 
 /// Packets larger than this are compressed.
 ///
-/// Matches C# RustyCore threshold: 0x400 = 1024 bytes.
-/// C# checks `packetSize > 0x400` where packetSize = payload length (without opcode).
-/// We check `data.len() > COMPRESSION_THRESHOLD` where data = opcode + payload.
-/// The 2-byte difference is negligible.
-// WORKAROUND (open bug): packet compression disabled — threshold = MAX, so nothing is
-// compressed. RustyCore's persistent-deflate compressed packets desync the WoW client's
-// inflate stream on large packets (SMSG_SEND_KNOWN_SPELLS, SMSG_UPDATE_OBJECT, action
-// buttons): the client garbles/drops compressed packets, so the spellbook/action bars/UI
-// fail to populate while small uncompressed packets (movement, world states) work. Sending
-// everything uncompressed is functionally correct — the client accepts uncompressed SMSG_*
-// of any size via the uint32 size header — and was verified in-game (known spells render
-// again with this off). The root cause of the deflate-stream mismatch vs C++
-// WorldSocket::CompressPacket (persistent z_stream, -15/8/Z_SYNC_FLUSH) is still open and
-// tracked in a GitHub issue; re-enable once the compressor is byte-faithful to the client.
-pub const COMPRESSION_THRESHOLD: usize = usize::MAX;
+/// C++ anchor: `WorldSocket::MinSizeForCompression = 0x400`.
+/// `WorldSocket::WritePacketToBuffer` compares `packet.size() > 0x400`, where
+/// `packet.size()` is the payload length without the 2-byte opcode.
+pub const COMPRESSION_THRESHOLD: usize = 0x400;
+
+/// C++ decides compression from payload length only, not opcode + payload.
+pub fn should_compress_payload_len(payload_len: usize) -> bool {
+    payload_len > COMPRESSION_THRESHOLD
+}
 
 /// Custom Adler32 initial value used by the WoW protocol.
 const ADLER32_INIT: u32 = 0x9827_D8F1;
@@ -60,9 +55,9 @@ pub fn adler32_with_init(data: &[u8], init: u32) -> u32 {
 
 /// Persistent compressor that maintains deflate state across packets.
 ///
-/// C# RustyCore uses a single `z_stream` per socket, initialized once
-/// with `deflateInit2(stream, 1, 8, -15, 8, 0)` and reused for all
-/// packets. The WoW client has a matching persistent inflate stream.
+/// TrinityCore C++ uses a single `z_stream` per socket, initialized once with
+/// `deflateInit2(stream, 1, 8, -15, 8, 0)` and reused for all packets. The WoW
+/// client has a matching persistent inflate stream.
 /// We must match this: each `compress_packet_with` call feeds into
 /// the same deflate state, so the client's inflate can decode correctly.
 pub struct PacketCompressor {
@@ -72,7 +67,7 @@ pub struct PacketCompressor {
 impl PacketCompressor {
     /// Create a new persistent compressor (one per socket).
     pub fn new() -> Self {
-        // Raw deflate, level 1 (fast), matching C#:
+        // Raw deflate, level 1 (fast), matching TrinityCore C++:
         // deflateInit2(stream, 1, 8, -15, 8, 0)
         Self {
             inner: Compress::new(Compression::fast(), false),
@@ -397,7 +392,7 @@ mod tests {
 
         let mut decompressor = Decompress::new(false); // raw deflate
 
-        for (i, (compressed, opcode, payload_len)) in [
+        for (i, (compressed, opcode, _payload_len)) in [
             (&compressed1, &opcode1[..], 1441usize),
             (&compressed2, &opcode2[..], 6125),
             (&compressed3, &opcode3[..], 15622),
@@ -411,10 +406,9 @@ mod tests {
             let deflated = &compressed[12..];
 
             let mut output = vec![0u8; uncompressed_size + 256];
-            let base_in = decompressor.total_in() as usize;
             let base_out = decompressor.total_out() as usize;
 
-            let status = decompressor
+            decompressor
                 .decompress(deflated, &mut output, FlushDecompress::Sync)
                 .unwrap_or_else(|e| panic!("packet {i} decompress failed: {e}"));
 

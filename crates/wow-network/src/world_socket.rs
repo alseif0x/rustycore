@@ -256,6 +256,9 @@ pub struct WorldSocket {
     // Outbound channel — receives serialized bytes from WorldSession
     send_rx: Option<flume::Receiver<Vec<u8>>>,
 
+    // Persistent compression stream for direct encrypted sends.
+    compressor: compression::PacketCompressor,
+
     // State
     state: SocketState,
 
@@ -296,6 +299,7 @@ impl WorldSocket {
             session_key: None,
             session_tx: None,
             send_rx: None,
+            compressor: compression::PacketCompressor::new(),
             state: SocketState::Uninitialized,
             account_info: None,
             ip_location_store_like_cpp: None,
@@ -646,10 +650,9 @@ impl WorldSocket {
 
     /// Send a server packet with encryption (after handshake).
     pub async fn send_packet(&mut self, pkt: &impl ServerPacket) -> Result<(), WorldSocketError> {
-        let crypt = match self.crypt.as_mut() {
-            Some(c) => c,
-            None => return self.send_unencrypted_packet(pkt).await,
-        };
+        if self.crypt.is_none() {
+            return self.send_unencrypted_packet(pkt).await;
+        }
 
         let mut data = pkt.to_bytes();
         let opcode_raw = if data.len() >= 2 {
@@ -658,10 +661,10 @@ impl WorldSocket {
             0
         };
 
-        // Compress if above threshold
-        if data.len() > compression::COMPRESSION_THRESHOLD {
+        // C++ compares `WorldPacket::size()` here: payload length without opcode.
+        if should_compress_server_packet_like_cpp(&data) {
             let opcode_bytes = opcode_raw.to_le_bytes();
-            let compressed = compression::compress_packet(&opcode_bytes, &data[2..]);
+            let compressed = self.compressor.compress_packet(&opcode_bytes, &data[2..]);
 
             // Replace data with CompressedPacket opcode + compressed payload
             let comp_opcode = ServerOpcodes::CompressedPacket.to_u16().unwrap_or(0);
@@ -671,6 +674,10 @@ impl WorldSocket {
         }
 
         // Encrypt
+        let crypt = self
+            .crypt
+            .as_mut()
+            .ok_or_else(|| WorldSocketError::AuthFailed("encryption not enabled".into()))?;
         let (encrypted, tag) = crypt.encrypt(&data, &[])?;
 
         let header = PacketHeader::new(encrypted.len() as i32, tag);
@@ -1191,8 +1198,8 @@ impl SocketWriter {
             );
         }
 
-        // Compress if above threshold (uses persistent compressor per socket)
-        if data.len() > compression::COMPRESSION_THRESHOLD {
+        // C++ compares `WorldPacket::size()` here: payload length without opcode.
+        if should_compress_server_packet_like_cpp(&data) {
             let original_len = data.len();
             let opcode_bytes = opcode_raw.to_le_bytes();
             let compressed = self.compressor.compress_packet(&opcode_bytes, &data[2..]);
@@ -1330,6 +1337,11 @@ fn account_country_lock_rejects_like_cpp(lock_country: &str, ip_country: &str) -
         && lock_country != ip_country
 }
 
+fn should_compress_server_packet_like_cpp(data: &[u8]) -> bool {
+    let payload_len = data.len().saturating_sub(2);
+    compression::should_compress_payload_len(payload_len)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1386,6 +1398,21 @@ mod tests {
     #[test]
     fn private_key_is_32_bytes() {
         assert_eq!(ENTER_ENCRYPTED_MODE_PRIVATE_KEY.len(), 32);
+    }
+
+    #[test]
+    fn compression_threshold_uses_payload_len_like_cpp() {
+        let packet_with_payload = |payload_len: usize| vec![0u8; 2 + payload_len];
+
+        assert!(!should_compress_server_packet_like_cpp(
+            &packet_with_payload(compression::COMPRESSION_THRESHOLD - 1)
+        ));
+        assert!(!should_compress_server_packet_like_cpp(
+            &packet_with_payload(compression::COMPRESSION_THRESHOLD)
+        ));
+        assert!(should_compress_server_packet_like_cpp(
+            &packet_with_payload(compression::COMPRESSION_THRESHOLD + 1)
+        ));
     }
 
     #[test]
