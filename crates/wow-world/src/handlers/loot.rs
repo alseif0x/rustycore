@@ -48,13 +48,14 @@ use wow_loot::{
     loot_item_ui_type_for_player_like_cpp,
 };
 use wow_network::player_registry::{
-    ApplyCreatureMeleeDamageLikeCppCommand, ApplyGroupRemovalLikeCppCommand,
-    CancelRepresentedTradeLikeCppCommand, CreatureAttackStartLikeCppCommand,
-    RefreshVisibleWorldCreaturesLikeCppCommand, SendAddonIfRegisteredLikeCppCommand,
-    SendIfVisibleLikeCppCommand, SendPartyUpdateLikeCppCommand,
-    SendRepeatableTurnInRequestItemsLikeCppCommand, SendRepresentedDuelCountdownLikeCppCommand,
-    SendRepresentedDuelRequestedLikeCppCommand, SendRepresentedTradeStatusLikeCppCommand,
-    SetQuestSharingInfoAndSendDetailsCommand, SyncChestGameobjectStateAndRefreshLikeCppCommand,
+    ApplyCreatureMeleeDamageLikeCppCommand, ApplyGroupJoinLikeCppCommand,
+    ApplyGroupRemovalLikeCppCommand, CancelRepresentedTradeLikeCppCommand,
+    CreatureAttackStartLikeCppCommand, RefreshVisibleWorldCreaturesLikeCppCommand,
+    SendAddonIfRegisteredLikeCppCommand, SendIfVisibleLikeCppCommand,
+    SendPartyUpdateLikeCppCommand, SendRepeatableTurnInRequestItemsLikeCppCommand,
+    SendRepresentedDuelCountdownLikeCppCommand, SendRepresentedDuelRequestedLikeCppCommand,
+    SendRepresentedTradeStatusLikeCppCommand, SetQuestSharingInfoAndSendDetailsCommand,
+    SyncChestGameobjectStateAndRefreshLikeCppCommand,
     SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
     SyncGooberGameobjectStateAndRefreshLikeCppCommand, UnacceptRepresentedTradeLikeCppCommand,
     WorldSessionShutdownFlushResultLikeCpp,
@@ -2911,6 +2912,9 @@ impl WorldSession {
                 SessionCommand::ApplyGroupRemovalLikeCpp(command) => {
                     self.handle_apply_group_removal_command_like_cpp(command);
                 }
+                SessionCommand::ApplyGroupJoinLikeCpp(command) => {
+                    self.handle_apply_group_join_command_like_cpp(command);
+                }
                 SessionCommand::ApplyGroupDifficultyLikeCpp(command) => {
                     self.handle_apply_group_difficulty_command_like_cpp(command);
                 }
@@ -2966,6 +2970,19 @@ impl WorldSession {
         }
         if command.send_group_uninvite {
             self.send_packet(&wow_packet::packets::party::GroupUninvite);
+        }
+    }
+
+    fn handle_apply_group_join_command_like_cpp(&mut self, command: ApplyGroupJoinLikeCppCommand) {
+        if self.state() != SessionState::LoggedIn {
+            return;
+        }
+
+        self.apply_group_join_like_cpp(command.group_guid, command.subgroup);
+        self.send_player_party_type_update_like_cpp(command.category, command.party_type);
+
+        if command.refresh_visible_gameobjects_or_spellclicks {
+            let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
         }
     }
 

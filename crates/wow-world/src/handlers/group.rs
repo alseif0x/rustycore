@@ -11,13 +11,15 @@ use wow_constants::ClientOpcodes;
 use wow_core::{ObjectGuid, guid::HighGuid};
 use wow_database::{CharStatements, PreparedStatement, StatementDef};
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
-use wow_network::group_registry::{GROUP_CATEGORY_HOME_LIKE_CPP, RAID_MARKERS_COUNT_LIKE_CPP};
-use wow_network::player_registry::ApplyGroupRemovalLikeCppCommand;
+use wow_network::group_registry::{
+    GROUP_CATEGORY_HOME_LIKE_CPP, PendingInviteLikeCpp, RAID_MARKERS_COUNT_LIKE_CPP,
+};
+use wow_network::player_registry::{ApplyGroupJoinLikeCppCommand, ApplyGroupRemovalLikeCppCommand};
 use wow_network::{
     GROUP_ASSIGN_MAINASSIST_LIKE_CPP, GROUP_ASSIGN_MAINTANK_LIKE_CPP, GroupInfo, GroupRegistry,
     MEMBER_FLAG_ASSISTANT_LIKE_CPP, MEMBER_FLAG_MAINASSIST_LIKE_CPP, MEMBER_FLAG_MAINTANK_LIKE_CPP,
-    PlayerRegistry, ReadyCheckEventLikeCpp, SendPartyUpdateLikeCppCommand, SessionCommand,
-    free_group_db_store_id_like_cpp, register_group_db_store_id_like_cpp,
+    PendingInvites, PlayerRegistry, ReadyCheckEventLikeCpp, SendPartyUpdateLikeCppCommand,
+    SessionCommand, free_group_db_store_id_like_cpp, register_group_db_store_id_like_cpp,
 };
 use wow_packet::packets::misc::{RandomRoll, RandomRollClient};
 use wow_packet::packets::party::{
@@ -81,6 +83,79 @@ fn current_group_guid_like_cpp(
                 && entry.value().matches_party_index_like_cpp(party_index)
         })
         .map(|entry| *entry.key())
+}
+
+fn pending_invite_matches_party_index_like_cpp(
+    invite: PendingInviteLikeCpp,
+    party_index: Option<u8>,
+) -> bool {
+    party_index.is_none_or(|index| invite.group_category == index)
+}
+
+fn pending_group_invite_keys_like_cpp(
+    pending: &PendingInvites,
+    invite: PendingInviteLikeCpp,
+) -> Vec<ObjectGuid> {
+    pending
+        .iter()
+        .filter(|entry| *entry.value() == invite)
+        .map(|entry| *entry.key())
+        .collect()
+}
+
+fn remove_all_pending_group_invites_like_cpp(
+    pending: &PendingInvites,
+    invite: PendingInviteLikeCpp,
+) {
+    for guid in pending_group_invite_keys_like_cpp(pending, invite) {
+        pending.remove(&guid);
+    }
+}
+
+fn remove_pending_invite_like_cpp(
+    pending: &PendingInvites,
+    invitee_guid: ObjectGuid,
+    invite: PendingInviteLikeCpp,
+) {
+    pending.remove(&invitee_guid);
+
+    if invite.group_guid.is_none() && pending_group_invite_keys_like_cpp(pending, invite).len() <= 1
+    {
+        remove_all_pending_group_invites_like_cpp(pending, invite);
+    }
+}
+
+fn promote_pending_group_invites_to_created_group_like_cpp(
+    pending: &PendingInvites,
+    invite: PendingInviteLikeCpp,
+    group_guid: u64,
+) {
+    let promoted = PendingInviteLikeCpp::new_existing_group(
+        invite.leader_guid,
+        group_guid,
+        invite.group_category,
+    );
+    for guid in pending_group_invite_keys_like_cpp(pending, invite) {
+        pending.insert(guid, promoted);
+    }
+}
+
+fn pending_invite_for_new_or_existing_group_like_cpp(
+    pending: &PendingInvites,
+    group_reg: &GroupRegistry,
+    inviter_guid: ObjectGuid,
+    existing_group_guid: Option<u64>,
+) -> Option<PendingInviteLikeCpp> {
+    if let Some(group_guid) = existing_group_guid {
+        let group = group_reg.get(&group_guid)?;
+        return Some(PendingInviteLikeCpp::new_existing_group(
+            group.leader_guid,
+            group_guid,
+            group.group_category_like_cpp(),
+        ));
+    }
+
+    pending.get(&inviter_guid).map(|invite| *invite.value())
 }
 
 // ── inventory registrations ───────────────────────────────────────────────────
@@ -488,9 +563,9 @@ fn send_party_update(group: &GroupInfo, registry: &PlayerRegistry, _vra: u32) {
             {
                 let mut update = command.party_update;
                 update.sequence_num = group.sequence_num as i32;
-                let _ = member_entry.send_tx.send(update.to_bytes());
+                let _ = member_entry.send_tx.try_send(update.to_bytes());
                 for packet in command.member_full_state_packets {
-                    let _ = member_entry.send_tx.send(packet);
+                    let _ = member_entry.send_tx.try_send(packet);
                 }
             }
         }
@@ -1137,10 +1212,11 @@ impl WorldSession {
             return;
         }
 
+        let inviter_group_guid =
+            current_group_guid_like_cpp(group_reg, self.group_guid, my_guid, party_index);
+
         // 5. Existing groups require leader/assistant permission and C++ capacity.
-        if let Some(gid) =
-            current_group_guid_like_cpp(group_reg, self.group_guid, my_guid, party_index)
-        {
+        if let Some(gid) = inviter_group_guid {
             if let Some(g) = group_reg.get(&gid) {
                 if !g.is_leader_like_cpp(my_guid) && !g.is_assistant_like_cpp(my_guid) {
                     send_result!(party_result::NOT_LEADER);
@@ -1153,8 +1229,21 @@ impl WorldSession {
             }
         }
 
-        // 6. Record pending invite: target → inviter.
-        pending.insert(real_target_guid, my_guid);
+        // 6. Record C++ `GroupInvite`: invitee points at either an existing
+        // group or the leader's still-uncreated pending group.
+        let invite = pending_invite_for_new_or_existing_group_like_cpp(
+            pending,
+            group_reg,
+            my_guid,
+            inviter_group_guid,
+        )
+        .unwrap_or_else(|| {
+            let invite =
+                PendingInviteLikeCpp::new_pending_group(my_guid, GROUP_CATEGORY_HOME_LIKE_CPP);
+            pending.insert(my_guid, invite);
+            invite
+        });
+        pending.insert(real_target_guid, invite);
 
         // 7. Send invite dialog to the target.
         if let Some(target_entry) = registry.get(&real_target_guid) {
@@ -1221,9 +1310,9 @@ impl WorldSession {
             None => return,
         };
 
-        // 1. Must have a pending invite.
-        let inviter_guid = match pending.get(&my_guid).map(|e| *e) {
-            Some(g) => g,
+        // 1. Must have a pending C++ `GroupInvite`.
+        let invite = match pending.get(&my_guid).map(|e| *e.value()) {
+            Some(invite) => invite,
             None => return,
         };
 
@@ -1236,46 +1325,82 @@ impl WorldSession {
             Some(r) => std::sync::Arc::clone(r),
             None => return,
         };
-        let existing_gid = current_group_guid_like_cpp(&group_reg, None, inviter_guid, party_index);
-        if existing_gid.is_none()
-            && party_index.is_some_and(|index| index != GROUP_CATEGORY_HOME_LIKE_CPP)
-        {
+        if !pending_invite_matches_party_index_like_cpp(invite, party_index) {
             return;
         }
 
-        pending.remove(&my_guid);
-
         // 2. Declined?
         if !accept {
-            if let Some(inviter_entry) = registry.get(&inviter_guid) {
+            let leader_send_tx = registry
+                .get(&invite.leader_guid)
+                .map(|leader| leader.send_tx.clone());
+            remove_pending_invite_like_cpp(&pending, my_guid, invite);
+            if let Some(leader_send_tx) = leader_send_tx {
                 let decline = GroupDecline { name: my_name };
-                let _ = inviter_entry.send_tx.send(decline.to_bytes());
+                let _ = leader_send_tx.send(decline.to_bytes());
             }
+            return;
+        }
+
+        // C++ removes the invite before self/full/create checks.
+        pending.remove(&my_guid);
+
+        if invite.leader_guid == my_guid {
+            warn!(
+                player = %my_guid,
+                "HandlePartyInviteResponse: player tried to accept an invite to his own group"
+            );
             return;
         }
 
         let mut refresh_visible_gameobjects_or_spellclicks = false;
         let mut group_creation_statements: Vec<PreparedStatement> = Vec::new();
-        let persist_member_row = existing_gid.is_some();
+        let persist_member_row = invite.group_guid.is_some();
         let mut existing_db_store_id: Option<u32> = None;
-        let group_guid = if let Some(gid) = existing_gid {
+        let mut added_member_subgroup: u8 = 0;
+        let group_guid = if let Some(gid) = invite.group_guid {
             if let Some(mut g) = group_reg.get_mut(&gid) {
+                if g.is_full_like_cpp() {
+                    self.send_packet(&PartyCommandResult {
+                        name: String::new(),
+                        command: 0,
+                        result: party_result::GROUP_FULL,
+                        result_data: 0,
+                        result_guid: ObjectGuid::EMPTY,
+                    });
+                    return;
+                }
                 g.add_member(my_guid);
+                added_member_subgroup = g
+                    .member_slot_like_cpp(my_guid)
+                    .map(|slot| slot.subgroup)
+                    .unwrap_or_default();
                 existing_db_store_id = Some(g.db_store_id);
                 refresh_visible_gameobjects_or_spellclicks = g.is_raid_group();
+            } else {
+                return;
             }
             gid
         } else {
+            let Some(leader_command_tx) = registry
+                .get(&invite.leader_guid)
+                .map(|leader| leader.command_tx.clone())
+            else {
+                remove_all_pending_group_invites_like_cpp(&pending, invite);
+                return;
+            };
+
             // Create a new group with the inviter as leader, then add self.
-            let mut new_group = GroupInfo::new(inviter_guid);
+            let mut new_group = GroupInfo::new(invite.leader_guid);
             new_group.add_member(my_guid);
             let gid = new_group.group_guid;
             let db_store_id = new_group.db_store_id;
+            let group_category = new_group.group_category_like_cpp();
             group_creation_statements
                 .push(group_insert_statement_like_cpp(&new_group, db_store_id));
             group_creation_statements.push(group_member_insert_statement_like_cpp(
                 db_store_id,
-                inviter_guid,
+                invite.leader_guid,
                 0,
                 0,
                 0,
@@ -1289,6 +1414,17 @@ impl WorldSession {
             ));
             group_reg.insert(gid, new_group);
             register_group_db_store_id_like_cpp(db_store_id, gid);
+            pending.remove(&invite.leader_guid);
+            promote_pending_group_invites_to_created_group_like_cpp(&pending, invite, gid);
+            let _ = leader_command_tx.try_send(SessionCommand::ApplyGroupJoinLikeCpp(
+                ApplyGroupJoinLikeCppCommand {
+                    group_guid: gid,
+                    category: group_category,
+                    party_type: wow_network::group_registry::GROUP_TYPE_NORMAL_LIKE_CPP,
+                    subgroup: 0,
+                    refresh_visible_gameobjects_or_spellclicks: false,
+                },
+            ));
             gid
         };
 
@@ -1301,7 +1437,7 @@ impl WorldSession {
                 wow_network::group_registry::GROUP_TYPE_NORMAL_LIKE_CPP,
             );
         }
-        self.sync_player_registry_state_like_cpp();
+        self.sync_player_registry_party_member_party_type_like_cpp();
         if refresh_visible_gameobjects_or_spellclicks {
             let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
         }
@@ -1311,7 +1447,13 @@ impl WorldSession {
             existing_db_store_id,
             self.char_db().map(std::sync::Arc::clone),
         ) {
-            let stmt = group_member_insert_statement_like_cpp(db_store_id, my_guid, 0, 0, 0);
+            let stmt = group_member_insert_statement_like_cpp(
+                db_store_id,
+                my_guid,
+                0,
+                added_member_subgroup,
+                0,
+            );
             if let Err(error) = char_db.execute(&stmt).await {
                 warn!(
                     group_guid = db_store_id,
@@ -1430,7 +1572,7 @@ impl WorldSession {
                 if let Some(pending_invites) = pending_invites.as_ref() {
                     let invite_belongs_to_group = pending_invites
                         .get(&uninvite.target_guid)
-                        .is_some_and(|inviter| group.members.contains(inviter.value()));
+                        .is_some_and(|invite| invite.value().group_guid == Some(group_guid));
                     if invite_belongs_to_group {
                         pending_invites.remove(&uninvite.target_guid);
                         return;
@@ -1539,14 +1681,59 @@ impl WorldSession {
             Some(r) => std::sync::Arc::clone(r),
             None => return,
         };
+        let pending_invites = self.pending_invites().map(std::sync::Arc::clone);
         let vra = self.virtual_realm_address();
 
-        // 1. Find the group we're currently in.
-        let Some(gid) =
-            current_group_guid_like_cpp(&group_reg, self.group_guid, my_guid, party_index)
-        else {
+        // 1. Find the real group or the C++ `GroupInvite` we're currently in.
+        let real_group_guid =
+            current_group_guid_like_cpp(&group_reg, self.group_guid, my_guid, party_index);
+        let pending_invite = pending_invites
+            .as_ref()
+            .and_then(|pending| pending.get(&my_guid).map(|invite| *invite.value()));
+
+        if real_group_guid.is_none() && pending_invite.is_none() {
             return;
         };
+
+        if self.player_in_represented_battleground_like_cpp() {
+            self.send_packet(&PartyCommandResult {
+                name: String::new(),
+                command: 0,
+                result: party_result::INVITE_RESTRICTED,
+                result_data: 0,
+                result_guid: ObjectGuid::EMPTY,
+            });
+            return;
+        }
+
+        let player_name = self.player_name_like_cpp().unwrap_or_default().to_string();
+
+        if real_group_guid.is_none() {
+            if let (Some(pending_invites), Some(invite)) =
+                (pending_invites.as_ref(), pending_invite)
+            {
+                if invite.leader_guid == my_guid {
+                    self.send_packet(&PartyCommandResult {
+                        name: player_name,
+                        command: 2,
+                        result: party_result::OK,
+                        result_data: 0,
+                        result_guid: ObjectGuid::EMPTY,
+                    });
+                    remove_all_pending_group_invites_like_cpp(pending_invites, invite);
+                }
+            }
+            return;
+        }
+        let gid = real_group_guid.expect("checked above");
+
+        self.send_packet(&PartyCommandResult {
+            name: player_name,
+            command: 2,
+            result: party_result::OK,
+            result_data: 0,
+            result_guid: ObjectGuid::EMPTY,
+        });
 
         // 2. Remove self from the group.
         let dissolve_remaining: Option<Vec<ObjectGuid>>;
@@ -2995,8 +3182,9 @@ mod tests {
     use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
     use wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP;
     use wow_network::{
-        GroupInfo, GroupMemberCharacterLikeCpp, GroupRegistry, PendingInvites, PlayerBroadcastInfo,
-        PlayerRegistry, ReadyCheckEventLikeCpp, SessionCommand,
+        GroupInfo, GroupMemberCharacterLikeCpp, GroupRegistry, PendingInviteLikeCpp,
+        PendingInvites, PlayerBroadcastInfo, PlayerRegistry, ReadyCheckEventLikeCpp,
+        SessionCommand,
     };
     use wow_packet::{WorldPacket, packets::party::party_result};
 
@@ -4234,7 +4422,14 @@ mod tests {
         group_registry.insert(home_group_guid, home_group);
 
         let pending_invites = Arc::new(PendingInvites::default());
-        pending_invites.insert(target, inviter);
+        pending_invites.insert(
+            target,
+            PendingInviteLikeCpp::new_existing_group(
+                inviter,
+                home_group_guid,
+                GROUP_CATEGORY_HOME_LIKE_CPP,
+            ),
+        );
 
         session.set_player_guid(Some(target));
         session.set_player_registry(player_registry);
@@ -4420,7 +4615,14 @@ mod tests {
         group.add_member(inviter);
         let group_guid = group.group_guid;
         group_registry.insert(group_guid, group);
-        pending_invites.insert(target, inviter);
+        pending_invites.insert(
+            target,
+            PendingInviteLikeCpp::new_existing_group(
+                leader,
+                group_guid,
+                GROUP_CATEGORY_HOME_LIKE_CPP,
+            ),
+        );
 
         session.set_player_guid(Some(leader));
         session.group_guid = Some(group_guid);

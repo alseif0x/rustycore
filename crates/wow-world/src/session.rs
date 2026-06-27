@@ -19512,6 +19512,22 @@ impl WorldSession {
         }
     }
 
+    pub(crate) fn apply_group_join_like_cpp(&mut self, group_guid: u64, subgroup: u8) {
+        self.group_guid = Some(group_guid);
+        self.represented_subgroup_like_cpp = Some(subgroup);
+        self.sync_player_registry_party_member_party_type_like_cpp();
+    }
+
+    pub(crate) fn sync_player_registry_party_member_party_type_like_cpp(&self) {
+        let (Some(guid), Some(registry)) = (self.player_guid(), &self.player_registry) else {
+            return;
+        };
+        let party_type = self.party_member_party_type_like_cpp();
+        if let Some(mut info) = registry.get_mut(&guid) {
+            info.party_member_party_type = party_type;
+        }
+    }
+
     pub(crate) fn clear_represented_group_subgroup_like_cpp(&mut self) {
         self.represented_subgroup_like_cpp = None;
     }
@@ -53044,7 +53060,7 @@ mod tests {
         ApplyCreatureMeleeDamageLikeCppCommand, CreatureAttackStartLikeCppCommand,
         GameEventQuestCompleteClientOutcomeLikeCpp, GameEventQuestCompleteResponseLikeCpp,
         GroupInfo, GroupInstanceResetMethodLikeCpp, GroupInstanceResetResultLikeCpp, GroupRegistry,
-        KickLikeCppCommand, PendingInvites, PlayerBroadcastInfo,
+        KickLikeCppCommand, PendingInviteLikeCpp, PendingInvites, PlayerBroadcastInfo,
         RefreshVisibleWorldCreaturesLikeCppCommand, ResetSeasonalQuestStatusCommand,
         SendIfVisibleLikeCppCommand, SendPartyUpdateLikeCppCommand,
         SendVisibleObjectValuesUpdateCommand, SessionCommand,
@@ -62614,7 +62630,14 @@ mod tests {
         player_registry.insert(inviter_guid, broadcast_info(inviter_guid, inviter_tx));
         player_registry.insert(player_guid, broadcast_info(player_guid, player_tx));
         let pending_invites = Arc::new(PendingInvites::default());
-        pending_invites.insert(player_guid, inviter_guid);
+        pending_invites.insert(
+            player_guid,
+            PendingInviteLikeCpp::new_existing_group(
+                inviter_guid,
+                group_guid,
+                wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP,
+            ),
+        );
 
         session.set_player_guid(Some(player_guid));
         session.set_player_registry(Arc::clone(&player_registry));

@@ -542,7 +542,19 @@ impl GroupInfo {
 
     pub fn add_member(&mut self, guid: ObjectGuid) {
         if !self.members.contains(&guid) {
-            if !self.subgroup_counter_increase_like_cpp(0) {
+            let subgroup = if let Some(counts) = self.raid_subgroup_counts {
+                let Some((index, _)) = counts
+                    .iter()
+                    .enumerate()
+                    .find(|(_, count)| usize::from(**count) < MAX_GROUP_SIZE_LIKE_CPP)
+                else {
+                    return;
+                };
+                index as u8
+            } else {
+                0
+            };
+            if !self.subgroup_counter_increase_like_cpp(subgroup) {
                 return;
             }
             self.members.push(guid);
@@ -551,7 +563,7 @@ impl GroupInfo {
                 name: String::new(),
                 race: 0,
                 class: 0,
-                subgroup: 0,
+                subgroup,
                 flags: 0,
                 roles: 0,
                 ready_checked: false,
@@ -1340,8 +1352,39 @@ pub fn load_groups_from_db_rows_like_cpp(
     summary
 }
 
-/// Pending invites: invited_guid → inviter_guid.
-pub type PendingInvites = DashMap<ObjectGuid, ObjectGuid>;
+/// C++ `Player::m_groupInvite` represented as one pending group pointer per
+/// invited player.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PendingInviteLikeCpp {
+    pub leader_guid: ObjectGuid,
+    pub group_guid: Option<u64>,
+    pub group_category: u8,
+}
+
+impl PendingInviteLikeCpp {
+    pub fn new_pending_group(leader_guid: ObjectGuid, group_category: u8) -> Self {
+        Self {
+            leader_guid,
+            group_guid: None,
+            group_category,
+        }
+    }
+
+    pub fn new_existing_group(
+        leader_guid: ObjectGuid,
+        group_guid: u64,
+        group_category: u8,
+    ) -> Self {
+        Self {
+            leader_guid,
+            group_guid: Some(group_guid),
+            group_category,
+        }
+    }
+}
+
+/// Pending invites: invited_guid → represented C++ group invite.
+pub type PendingInvites = DashMap<ObjectGuid, PendingInviteLikeCpp>;
 
 #[cfg(test)]
 mod tests {

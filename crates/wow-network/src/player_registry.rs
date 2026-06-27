@@ -43,6 +43,9 @@ pub enum SessionCommand {
     /// Apply C++ `Group::Disband`/`Group::RemoveMember` session-local cleanup
     /// for a connected remote member.
     ApplyGroupRemovalLikeCpp(ApplyGroupRemovalLikeCppCommand),
+    /// Apply C++ `Player::SetGroup(group, subgroup)` and `SetPartyType` when a
+    /// connected remote member is added from another session.
+    ApplyGroupJoinLikeCpp(ApplyGroupJoinLikeCppCommand),
     /// Apply C++ `Group::Set*DifficultyID` session-local effects for a
     /// connected group member.
     ApplyGroupDifficultyLikeCpp(ApplyGroupDifficultyLikeCppCommand),
@@ -135,6 +138,16 @@ pub struct ApplyGroupRemovalLikeCppCommand {
     pub party_type: u8,
     pub send_group_destroyed: bool,
     pub send_group_uninvite: bool,
+    pub refresh_visible_gameobjects_or_spellclicks: bool,
+}
+
+/// Payload for [`SessionCommand::ApplyGroupJoinLikeCpp`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ApplyGroupJoinLikeCppCommand {
+    pub group_guid: u64,
+    pub category: u8,
+    pub party_type: u8,
+    pub subgroup: u8,
     pub refresh_visible_gameobjects_or_spellclicks: bool,
 }
 
