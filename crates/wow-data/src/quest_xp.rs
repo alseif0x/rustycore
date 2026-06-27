@@ -74,6 +74,7 @@ impl QuestXpStore {
         player_level: u8,
         xp_difficulty: u32,
         xp_multiplier: f32,
+        min_quest_scaled_xp_ratio: u32,
     ) -> u32 {
         if xp_difficulty >= 10 {
             return 0;
@@ -101,9 +102,12 @@ impl QuestXpStore {
 
         // RoundXPValue: round to nearest 5 (WotLK uses /5 rounding)
         let xp = round_xp(diff_factor * base_xp / 10);
-        let min_scaled_xp = 0;
-        if min_scaled_xp != 0 {
-            xp.max(round_xp((base_xp as f32 * xp_multiplier) as u32) * min_scaled_xp / 100)
+        if min_quest_scaled_xp_ratio != 0 {
+            xp.max(
+                round_xp((base_xp as f32 * xp_multiplier) as u32)
+                    * min_quest_scaled_xp_ratio
+                    / 100,
+            )
         } else {
             xp
         }
@@ -194,7 +198,23 @@ mod tests {
         );
         let store = QuestXpStore { rows };
 
-        assert_eq!(store.calculate_xp(41, 42, 1, 1.0), 0);
+        assert_eq!(store.calculate_xp(41, 42, 1, 1.0, 0), 0);
+    }
+
+    #[test]
+    fn calculate_xp_min_scaled_ratio_raises_grey_quest_like_cpp() {
+        let mut rows = HashMap::new();
+        rows.insert(
+            42,
+            QuestXpRow {
+                level: 42,
+                difficulty: [0, 1000, 0, 0, 0, 0, 0, 0, 0, 0],
+            },
+        );
+        let store = QuestXpStore { rows };
+
+        assert_eq!(store.calculate_xp(42, 80, 1, 2.0, 0), 100);
+        assert_eq!(store.calculate_xp(42, 80, 1, 2.0, 50), 1000);
     }
 
     #[test]
