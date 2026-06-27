@@ -25,9 +25,9 @@ Estados:
 ## Resumen
 
 - Bugs confirmados contra C++: 51.
-- Bugs corregidos: 21 (`#CSharpAudit.COMPRESS.1`, `#CSharpAudit.BNETREST.1`, `#CSharpAudit.BNETREST.2`, `#CSharpAudit.BNETREST.3`, `#CSharpAudit.BNETREST.4`, `#CSharpAudit.FEATURE.1`, `#CSharpAudit.BNETSRP.1`, `#CSharpAudit.BNETSRP.2`, `#CSharpAudit.BNETSRP.3`, `#CSharpAudit.BNETSRP.4`, `#CSharpAudit.MOVEMENT.1`, `#CSharpAudit.SPELL.1`, `#CSharpAudit.COMBAT.1`, `#CSharpAudit.CHAT.1`, `#CSharpAudit.CHAT.2`, `#CSharpAudit.ITEM.1`, `#CSharpAudit.PARTY.3`, `#CSharpAudit.PARTY.1`, `#CSharpAudit.MISC.1`, `#CSharpAudit.MISC.2`, `#CSharpAudit.LOOT.1`).
+- Bugs corregidos: 22 (`#CSharpAudit.COMPRESS.1`, `#CSharpAudit.BNETREST.1`, `#CSharpAudit.BNETREST.2`, `#CSharpAudit.BNETREST.3`, `#CSharpAudit.BNETREST.4`, `#CSharpAudit.FEATURE.1`, `#CSharpAudit.BNETSRP.1`, `#CSharpAudit.BNETSRP.2`, `#CSharpAudit.BNETSRP.3`, `#CSharpAudit.BNETSRP.4`, `#CSharpAudit.MOVEMENT.1`, `#CSharpAudit.SPELL.1`, `#CSharpAudit.COMBAT.1`, `#CSharpAudit.CHAT.1`, `#CSharpAudit.CHAT.2`, `#CSharpAudit.ITEM.1`, `#CSharpAudit.PARTY.3`, `#CSharpAudit.PARTY.1`, `#CSharpAudit.MISC.1`, `#CSharpAudit.MISC.2`, `#CSharpAudit.LOOT.1`, `#CSharpAudit.QUESTXP.1`).
 - Commit historico registrado: `#CSharpAudit.MOVEMENT.1` -> `98ceec4d`.
-- Bugs pendientes de fix: 30.
+- Bugs pendientes de fix: 29.
 - Referencias C# productivas localizadas hoy: 52 archivos bajo `crates/**`.
 - Referencias C# documentales no-audit localizadas hoy: 39 archivos bajo `docs/**`.
 
@@ -95,7 +95,7 @@ indica donde se controla cada referencia.
 - [ ] `#CSharpAudit.AREATRIGGER.1` - `CMSG_AREA_TRIGGER` parser/handler incompleto frente a C++.
 - [ ] `#CSharpAudit.CEMETERY.1` - Cemetery list lee byte no C++ y responde lista vacia.
 - [ ] `#CSharpAudit.TAXI.1` - Taxi node status solo usa NPC flag; C++ valida muchas gates.
-- [ ] `#CSharpAudit.QUESTXP.1` - `QuestXP::calculate_xp` usa fila cercana; C++ devuelve `0` si falta nivel.
+- [x] `#CSharpAudit.QUESTXP.1` - Corregido; `QuestXP::calculate_xp` devuelve `0` si falta la fila exacta de `QuestXP` para el nivel, igual que C++ `sQuestXPStore.LookupEntry(quest_level)`. Test: `calculate_xp_missing_quest_level_returns_zero_like_cpp`.
 - [ ] `#CSharpAudit.QUESTXP.2` - XP minimo escalado ignora `CONFIG_MIN_QUEST_SCALED_XP_RATIO`.
 - [ ] `#CSharpAudit.QUESTCMSG.1` - Query/accept quest leen bits como byte.
 - [ ] `#CSharpAudit.QUESTPKT.1` - `SMSG_QUERY_QUEST_INFO_RESPONSE` omite `ReadyForTranslation`.
