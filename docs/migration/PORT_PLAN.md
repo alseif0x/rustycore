@@ -39,8 +39,8 @@ intent, no mutation — see STATE.md §0). Almost every item below is "convert r
 - [ ] **P0.3** Fix the stale `CLAUDE.md` "Current Checkpoint" (cites `1af9223`, 1402 commits
   behind); re-anchor to audited HEAD; stop citing 96.97% / 98.15%.
 - [ ] **P0.4** Retire `represented-complete` as a closure state in the inventory TSVs.
-- [ ] **P0.5** Stand up the repeatable **capture-diff harness** (C++ swap + trace envs) as the
-  acceptance tool for every item below.
+- [ ] **P0.5** (issue #66) Stand up the repeatable **capture-diff harness** (C++ swap + trace
+  envs) as the acceptance tool for every item below.
 
 ---
 
@@ -128,6 +128,14 @@ intent, no mutation — see STATE.md §0). Almost every item below is "convert r
 
 Per-domain coverage ledgers. Each: current → target, with "done = live + capture-clean".
 Sequenced after/alongside the M0–M6 spine; listed now so the long tail can't fall through.
+
+> 🚦 **Part 2 transition gate (do NOT break this down yet).** Part 2 lives as a single epic
+> (GitHub #48) on purpose. **When Part 1 (M0–M6) is essentially done** — "playable end-to-end"
+> declared at M6.2 — **run a fresh planning pass**: re-audit HEAD (the live state will have moved
+> a lot), then break each L-ledger into PR-sized child issues *at that point* (not now — premature
+> granularity would create hundreds of issues that rot before they're touched). The C#-purge (L26)
+> rides along: re-anchor remaining C# comments as each domain is contrasted. Trigger owner: whoever
+> closes #47 (M6.2) opens the Part-2 planning pass.
 
 - [ ] **L1 CMSG handlers** — 385 / 631 implemented (61%) → 631/631. (`cpp-server-opcodes.tsv`)
 - [ ] **L2 SMSG fidelity** — partial → all capture-clean. (`r3-opcodes-registry.tsv`)
