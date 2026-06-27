@@ -88,14 +88,7 @@ impl QuestXpStore {
 
         let row = match self.rows.get(&(ql as u32)) {
             Some(r) => r,
-            None => {
-                // Grey quest or level out of range → nearest available
-                if let Some(r) = self.nearest(ql as u32) {
-                    r
-                } else {
-                    return 0;
-                }
-            }
+            None => return 0,
         };
 
         let base_xp = row.difficulty[xp_difficulty as usize];
@@ -129,11 +122,6 @@ impl QuestXpStore {
             .unwrap_or(0)
     }
 
-    fn nearest(&self, target: u32) -> Option<&QuestXpRow> {
-        self.rows
-            .values()
-            .min_by_key(|r| (r.level as i64 - target as i64).unsigned_abs())
-    }
 }
 
 /// C++ `Quest::RoundXPValue`.
@@ -192,6 +180,21 @@ mod tests {
         assert_eq!(store.player_level_difficulty_xp_like_cpp(42, 5), 1050);
         assert_eq!(store.player_level_difficulty_xp_like_cpp(41, 5), 0);
         assert_eq!(store.player_level_difficulty_xp_like_cpp(42, 10), 0);
+    }
+
+    #[test]
+    fn calculate_xp_missing_quest_level_returns_zero_like_cpp() {
+        let mut rows = HashMap::new();
+        rows.insert(
+            42,
+            QuestXpRow {
+                level: 42,
+                difficulty: [0, 100, 0, 0, 0, 0, 0, 0, 0, 0],
+            },
+        );
+        let store = QuestXpStore { rows };
+
+        assert_eq!(store.calculate_xp(41, 42, 1, 1.0), 0);
     }
 
     #[test]
