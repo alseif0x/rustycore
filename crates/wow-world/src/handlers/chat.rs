@@ -18,7 +18,7 @@ use tracing::debug;
 
 use wow_chat::hyperlinks::check_all_links_shape_like_cpp;
 use wow_chat::validation::validate_message_like_cpp;
-use wow_constants::ClientOpcodes;
+use wow_constants::{ClientOpcodes, UnitState};
 use wow_core::ObjectGuid;
 use wow_core::guid::HighGuid;
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
@@ -33,13 +33,22 @@ use wow_packet::packets::chat::{
 use wow_packet::{ClientPacket, ServerPacket};
 
 use crate::session::{
-    ChatFloodThrottleIndexLikeCpp, PlayerAwayModeLikeCpp, WorldSession, player_team_for_race_cpp,
+    ChatFloodThrottleIndexLikeCpp, PlayerAwayModeLikeCpp, SPELL_AURA_INTERRUPT_FLAG_ANIM_LIKE_CPP,
+    WorldSession, player_team_for_race_cpp,
 };
 
 const LANG_UNIVERSAL_LIKE_CPP: i32 = 0;
 const LANG_ADDON_LIKE_CPP: u32 = 183;
 const LANG_ADDON_LOGGED_LIKE_CPP: u32 = 184;
 const GM_SILENCE_AURA_LIKE_CPP: i32 = 1852;
+const EMOTE_ONESHOT_NONE_LIKE_CPP: i32 = 0;
+const EMOTE_STATE_DANCE_LIKE_CPP: i32 = 10;
+const EMOTE_STATE_SLEEP_LIKE_CPP: i32 = 12;
+const EMOTE_STATE_SIT_LIKE_CPP: i32 = 13;
+const EMOTE_STATE_KNEEL_LIKE_CPP: i32 = 68;
+const EMOTE_STATE_READ_LIKE_CPP: i32 = 483;
+const ANIM_MOUNT_SPECIAL_LIKE_CPP: i32 = 94;
+const ANIM_MOUNT_SELF_SPECIAL_LIKE_CPP: i32 = 636;
 const KNOWN_LANGUAGES_LIKE_CPP: &[i32] = &[
     // C++ `LanguageMgr::LoadLanguages` accepts Languages.db2 entries plus the
     // code-only languages registered in `SharedDefines.h`.
@@ -813,24 +822,22 @@ impl WorldSession {
 
     /// Handle CMSG_EMOTE — client notifies us it cleared its emote state.
     ///
-    /// C# ref: `ChatHandler.HandleEmote` — sets `EmoteState` to `OneshotNone`.
-    /// We have no emote state machine yet, so just log and return.
+    /// C++ ref: `WorldSession::HandleEmoteOpcode`.
     pub async fn handle_emote(&mut self, mut pkt: wow_packet::WorldPacket) {
         // EmoteClient has no body — read returns Ok(()) immediately.
         let _ = EmoteClient::read(&mut pkt);
+        if !self.player_is_alive_like_cpp() || self.player_has_unit_state_like_cpp(UnitState::DIED)
+        {
+            return;
+        }
+
+        self.set_player_emote_state_like_cpp(EMOTE_ONESHOT_NONE_LIKE_CPP as u32);
         debug!(account = self.account_id, "CMSG_EMOTE: clear emote state");
     }
 
     /// Handle CMSG_SEND_TEXT_EMOTE — player performs a text emote (/wave, /dance…).
     ///
-    /// C# ref: `ChatHandler.HandleTextEmote`:
-    ///  1. Look up `EmotesTextStorage[EmoteID]` → animation `Emote` enum value.
-    ///  2. Broadcast `STextEmote` (chat text) to nearby players.
-    ///  3. Call `HandleEmoteCommand(emote, ...)` → broadcasts `EmoteMessage` (animation).
-    ///
-    /// We don't have EmotesText.db2 parsed yet, so we:
-    ///  - Always send `STextEmote` (shows text in chat log).
-    ///  - Echo `EmoteMessage` back with the raw EmoteID (best-effort animation).
+    /// C++ ref: `WorldSession::HandleTextEmoteOpcode`.
     pub async fn handle_text_emote(&mut self, mut pkt: wow_packet::WorldPacket) {
         let msg = match CTextEmote::read(&mut pkt) {
             Ok(m) => m,
@@ -846,6 +853,17 @@ impl WorldSession {
         if self.send_wait_before_speaking_notification_if_muted_like_cpp() {
             return;
         }
+
+        let Some(text_emote_id) = u32::try_from(msg.emote_id).ok() else {
+            return;
+        };
+        let Some(emote) = self
+            .emotes_text_store_like_cpp()
+            .and_then(|store| store.get(text_emote_id))
+            .map(|entry| i32::from(entry.emote_id))
+        else {
+            return;
+        };
 
         debug!(
             account = self.account_id,
@@ -865,22 +883,65 @@ impl WorldSession {
             sound_index: msg.sound_index,
             target_guid: msg.target,
         };
-        let anim_emote = EmoteMessage {
-            guid: player_guid,
-            emote_id: msg.emote_id,
-            spell_visual_kit_ids: msg.spell_visual_kit_ids.clone(),
-            sequence_variation: msg.sequence_variation,
+
+        let text_emote_range = self.chat_listen_ranges_like_cpp().text_emote;
+        let anim_emote = match emote {
+            EMOTE_STATE_SLEEP_LIKE_CPP
+            | EMOTE_STATE_SIT_LIKE_CPP
+            | EMOTE_STATE_KNEEL_LIKE_CPP
+            | EMOTE_ONESHOT_NONE_LIKE_CPP => None,
+            EMOTE_STATE_DANCE_LIKE_CPP | EMOTE_STATE_READ_LIKE_CPP => {
+                self.set_player_emote_state_like_cpp(emote as u32);
+                None
+            }
+            _ if self.player_has_unit_state_like_cpp(UnitState::DIED) => None,
+            _ => Some(EmoteMessage {
+                guid: player_guid,
+                emote_id: emote,
+                spell_visual_kit_ids: self.spell_visual_kit_ids_for_emote_command_like_cpp(
+                    emote,
+                    &msg.spell_visual_kit_ids,
+                ),
+                sequence_variation: msg.sequence_variation,
+            }),
         };
 
-        // 1. STextEmote — shows the emote text ("PlayerName waves") in the chat log.
+        if let Some(anim_emote) = anim_emote {
+            self.send_packet(&anim_emote);
+            self.broadcast_raw_packet(anim_emote.to_bytes(), crate::map_manager::VISIBILITY_RADIUS);
+        }
         self.send_packet(&text_emote);
-        // 2. EmoteMessage — plays the animation (emote_id passed through directly).
-        self.send_packet(&anim_emote);
-
-        // Broadcast both packets to nearby players.
-        let text_emote_range = self.chat_listen_ranges_like_cpp().text_emote;
         self.broadcast_raw_packet(text_emote.to_bytes(), text_emote_range);
-        self.broadcast_raw_packet(anim_emote.to_bytes(), text_emote_range);
+        if emote != EMOTE_ONESHOT_NONE_LIKE_CPP {
+            self.remove_auras_with_interrupt_flags_like_cpp(
+                SPELL_AURA_INTERRUPT_FLAG_ANIM_LIKE_CPP,
+                0,
+            );
+        }
+    }
+
+    fn spell_visual_kit_ids_for_emote_command_like_cpp(
+        &self,
+        emote: i32,
+        client_spell_visual_kit_ids: &[i32],
+    ) -> Vec<i32> {
+        let Some(emote_id) = u32::try_from(emote).ok() else {
+            return Vec::new();
+        };
+        let is_mount_special = self
+            .emotes_store_like_cpp()
+            .and_then(|store| store.get(emote_id))
+            .map(|entry| {
+                entry.anim_id == ANIM_MOUNT_SPECIAL_LIKE_CPP
+                    || entry.anim_id == ANIM_MOUNT_SELF_SPECIAL_LIKE_CPP
+            })
+            .unwrap_or(false);
+
+        if is_mount_special {
+            client_spell_visual_kit_ids.to_vec()
+        } else {
+            Vec::new()
+        }
     }
 
     /// CMSG_CHAT_REGISTER_ADDON_PREFIXES.
@@ -1610,12 +1671,24 @@ mod tests {
     }
 
     fn text_emote_packet(emote_id: i32, sound_index: i32) -> wow_packet::WorldPacket {
+        text_emote_packet_with_visuals(emote_id, sound_index, &[], 0)
+    }
+
+    fn text_emote_packet_with_visuals(
+        emote_id: i32,
+        sound_index: i32,
+        spell_visual_kit_ids: &[i32],
+        sequence_variation: i32,
+    ) -> wow_packet::WorldPacket {
         let mut writer = wow_packet::WorldPacket::new_empty();
         writer.write_packed_guid(&ObjectGuid::EMPTY);
         writer.write_int32(emote_id);
         writer.write_int32(sound_index);
-        writer.write_int32(0);
-        writer.write_int32(0);
+        writer.write_int32(spell_visual_kit_ids.len() as i32);
+        writer.write_int32(sequence_variation);
+        for &id in spell_visual_kit_ids {
+            writer.write_int32(id);
+        }
         wow_packet::WorldPacket::from_bytes(writer.data())
     }
 
@@ -1684,6 +1757,78 @@ mod tests {
         let text = packet.read_string(text_len).expect("notify text");
         assert!(packet.is_empty());
         text
+    }
+
+    fn emote_message_fields(bytes: &[u8]) -> (i32, Vec<i32>, i32) {
+        let mut packet = wow_packet::WorldPacket::from_bytes(bytes);
+        assert_eq!(
+            packet.read_uint16().expect("emote opcode"),
+            wow_constants::ServerOpcodes::Emote as u16
+        );
+        let _ = packet.read_packed_guid().expect("emote guid");
+        let emote_id = packet.read_int32().expect("emote id");
+        let visual_count = packet.read_int32().expect("visual count") as usize;
+        let sequence_variation = packet.read_int32().expect("sequence variation");
+        let mut visual_ids = Vec::with_capacity(visual_count);
+        for _ in 0..visual_count {
+            visual_ids.push(packet.read_int32().expect("visual kit id"));
+        }
+        assert!(packet.is_empty());
+        (emote_id, visual_ids, sequence_variation)
+    }
+
+    fn text_emote_fields(bytes: &[u8]) -> (i32, i32) {
+        let mut packet = wow_packet::WorldPacket::from_bytes(bytes);
+        assert_eq!(
+            packet.read_uint16().expect("text emote opcode"),
+            wow_constants::ServerOpcodes::TextEmote as u16
+        );
+        let _ = packet.read_packed_guid().expect("source guid");
+        let _ = packet.read_packed_guid().expect("source account guid");
+        let emote_id = packet.read_int32().expect("text emote id");
+        let sound_index = packet.read_int32().expect("sound index");
+        let _ = packet.read_packed_guid().expect("target guid");
+        assert!(packet.is_empty());
+        (emote_id, sound_index)
+    }
+
+    fn set_emotes_text_entries(
+        session: &mut WorldSession,
+        entries: impl IntoIterator<Item = wow_data::EmotesTextEntry>,
+    ) {
+        session.set_emotes_text_store_like_cpp(Arc::new(wow_data::EmotesTextStore::from_entries(
+            entries,
+        )));
+    }
+
+    fn set_emotes_entries(
+        session: &mut WorldSession,
+        entries: impl IntoIterator<Item = wow_data::EmotesEntry>,
+    ) {
+        session.set_emotes_store_like_cpp(Arc::new(wow_data::EmotesStore::from_entries(entries)));
+    }
+
+    fn emotes_text_entry(id: u32, emote_id: u16) -> wow_data::EmotesTextEntry {
+        wow_data::EmotesTextEntry {
+            id,
+            name: format!("emote{id}"),
+            emote_id,
+        }
+    }
+
+    fn emotes_entry(id: u32, anim_id: i32) -> wow_data::EmotesEntry {
+        wow_data::EmotesEntry {
+            id,
+            race_mask: 0,
+            emote_slash_command: String::new(),
+            anim_id,
+            emote_flags: 0,
+            emote_spec_proc: 0,
+            emote_spec_proc_param: 0,
+            event_sound_id: 0,
+            spell_visual_kit_id: 0,
+            class_mask: 0,
+        }
     }
 
     fn mute_session_for_seconds_like_cpp(session: &mut WorldSession, seconds: u64) {
@@ -2241,22 +2386,130 @@ mod tests {
             far,
             broadcast_info_at(far, far_tx, wow_core::Position::new(41.0, 0.0, 0.0, 0.0)),
         );
+        set_emotes_text_entries(
+            &mut session,
+            [emotes_text_entry(66, EMOTE_STATE_SIT_LIKE_CPP as u16)],
+        );
 
         session.handle_text_emote(text_emote_packet(66, 7)).await;
 
-        let mut text_emote =
-            wow_packet::WorldPacket::from_bytes(&nearby_rx.try_recv().expect("nearby text emote"));
         assert_eq!(
-            text_emote.read_uint16().expect("text emote opcode"),
-            wow_constants::ServerOpcodes::TextEmote as u16
+            text_emote_fields(&nearby_rx.try_recv().expect("nearby text emote")),
+            (66, 7)
         );
-        let mut anim_emote =
-            wow_packet::WorldPacket::from_bytes(&nearby_rx.try_recv().expect("nearby anim emote"));
+        assert!(nearby_rx.try_recv().is_err());
+        assert!(far_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn send_text_emote_requires_cpp_emotes_text_entry_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 346);
+        let nearby = ObjectGuid::create_player(1, 347);
+        let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        let (nearby_tx, nearby_rx) = flume::bounded(8);
+        player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
+        set_emotes_text_entries(&mut session, Vec::<wow_data::EmotesTextEntry>::new());
+
+        session.handle_text_emote(text_emote_packet(66, 7)).await;
+
+        assert!(sender_rx.try_recv().is_err());
+        assert!(nearby_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn send_text_emote_translates_emotes_text_and_uses_cpp_order_and_ranges_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 348);
+        let nearby = ObjectGuid::create_player(1, 349);
+        let far = ObjectGuid::create_player(1, 350);
+        let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        let (nearby_tx, nearby_rx) = flume::bounded(8);
+        let (far_tx, far_rx) = flume::bounded(8);
+        session.set_chat_listen_ranges_like_cpp(ChatListenRangesLikeCpp {
+            say: 25.0,
+            text_emote: 40.0,
+            yell: 300.0,
+        });
+        player_registry.insert(
+            nearby,
+            broadcast_info_at(
+                nearby,
+                nearby_tx,
+                wow_core::Position::new(30.0, 0.0, 0.0, 0.0),
+            ),
+        );
+        player_registry.insert(
+            far,
+            broadcast_info_at(far, far_tx, wow_core::Position::new(60.0, 0.0, 0.0, 0.0)),
+        );
+        set_emotes_text_entries(&mut session, [emotes_text_entry(66, 3)]);
+
+        session
+            .handle_text_emote(text_emote_packet_with_visuals(66, 7, &[101, 202], 9))
+            .await;
+
         assert_eq!(
-            anim_emote.read_uint16().expect("anim emote opcode"),
-            wow_constants::ServerOpcodes::Emote as u16
+            emote_message_fields(&sender_rx.try_recv().expect("sender anim emote")),
+            (3, Vec::new(), 9)
+        );
+        assert_eq!(
+            text_emote_fields(&sender_rx.try_recv().expect("sender text emote")),
+            (66, 7)
+        );
+        assert_eq!(
+            emote_message_fields(&nearby_rx.try_recv().expect("nearby anim emote")),
+            (3, Vec::new(), 9)
+        );
+        assert_eq!(
+            text_emote_fields(&nearby_rx.try_recv().expect("nearby text emote")),
+            (66, 7)
+        );
+        assert_eq!(
+            emote_message_fields(&far_rx.try_recv().expect("far anim emote")),
+            (3, Vec::new(), 9)
         );
         assert!(far_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn send_text_emote_keeps_spell_visual_kits_only_for_cpp_mount_special_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 351);
+        let (mut session, _player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        set_emotes_text_entries(&mut session, [emotes_text_entry(77, 555)]);
+        set_emotes_entries(
+            &mut session,
+            [emotes_entry(555, ANIM_MOUNT_SPECIAL_LIKE_CPP)],
+        );
+
+        session
+            .handle_text_emote(text_emote_packet_with_visuals(77, 8, &[11, 22], 4))
+            .await;
+
+        assert_eq!(
+            emote_message_fields(&sender_rx.try_recv().expect("sender anim emote")),
+            (555, vec![11, 22], 4)
+        );
+        assert_eq!(
+            text_emote_fields(&sender_rx.try_recv().expect("sender text emote")),
+            (77, 8)
+        );
+    }
+
+    #[tokio::test]
+    async fn send_text_emote_fake_death_skips_animation_but_keeps_text_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 352);
+        let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        if let Some(mut info) = player_registry.get_mut(&sender) {
+            info.unit_state = UnitState::DIED.bits();
+        }
+        set_emotes_text_entries(&mut session, [emotes_text_entry(66, 3)]);
+
+        session.handle_text_emote(text_emote_packet(66, 7)).await;
+
+        assert_eq!(
+            text_emote_fields(&sender_rx.try_recv().expect("sender text emote")),
+            (66, 7)
+        );
+        assert!(sender_rx.try_recv().is_err());
     }
 
     #[tokio::test]

@@ -1310,6 +1310,11 @@ async fn main() -> Result<ExitCode> {
         wow_data::EmotesStore::load(&data_dir, &locale).context("Failed to load Emotes.db2")?,
     );
     info!("Loaded {} emote rows", emotes_store.len());
+    let emotes_text_store = Arc::new(
+        wow_data::EmotesTextStore::load(&data_dir, &locale)
+            .context("Failed to load EmotesText.db2")?,
+    );
+    info!("Loaded {} emote text rows", emotes_text_store.len());
     let anim_kit_store = Arc::new(
         wow_data::AnimKitStore::load(&data_dir, &locale).context("Failed to load AnimKit.db2")?,
     );
@@ -4412,6 +4417,8 @@ async fn main() -> Result<ExitCode> {
         bank_bag_slot_prices_store: Some(Arc::clone(&bank_bag_slot_prices_store)),
         currency_types_store: Some(Arc::clone(&currency_types_store)),
         import_price_stores: Some(Arc::clone(&import_price_stores)),
+        emotes_store: Some(Arc::clone(&emotes_store)),
+        emotes_text_store: Some(Arc::clone(&emotes_text_store)),
         ip_location_store: Some(Arc::clone(&ip_location_store)),
         item_class_store: Some(Arc::clone(&item_class_store)),
         item_currency_cost_store: Some(Arc::clone(&item_currency_cost_store)),
@@ -11182,6 +11189,12 @@ async fn create_session(
     }
     if let Some(ref stores) = resources.import_price_stores {
         session.set_import_price_stores(Arc::clone(stores));
+    }
+    if let Some(ref store) = resources.emotes_store {
+        session.set_emotes_store_like_cpp(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.emotes_text_store {
+        session.set_emotes_text_store_like_cpp(Arc::clone(store));
     }
     if let Some(ref store) = resources.item_class_store {
         session.set_item_class_store(Arc::clone(store));
