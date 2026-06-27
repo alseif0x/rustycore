@@ -3932,6 +3932,7 @@ mod tests {
     async fn cancel_aura_removes_matching_represented_mount_aura_like_cpp() {
         let (mut session, send_rx) = make_session();
         let caster_guid = ObjectGuid::create_player(1, 42);
+        session.set_player_guid(Some(caster_guid));
         let effect = wow_data::SpellEffectInfo {
             effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
             effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOUNTED,

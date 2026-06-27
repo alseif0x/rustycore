@@ -9129,9 +9129,7 @@ mod tests {
         data.write_values_create(&mut pkt);
         let bytes = pkt.into_data();
         assert!(
-            bytes
-                .windows(4)
-                .any(|w| w == 0x0011_2233u32.to_le_bytes()),
+            bytes.windows(4).any(|w| w == 0x0011_2233u32.to_le_bytes()),
             "MO_TRANSPORT Level (path period) must be serialized in GameObjectData"
         );
         // A zero period must NOT silently survive: changing level changes the wire.

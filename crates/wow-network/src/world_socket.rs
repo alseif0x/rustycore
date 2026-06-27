@@ -797,12 +797,7 @@ impl WorldSocket {
         if opcode != ClientOpcodes::EnterEncryptedModeAck as u16 {
             if opcode == ClientOpcodes::LogDisconnect as u16 {
                 let reason = if pkt.data().len() >= 6 {
-                    u32::from_le_bytes([
-                        pkt.data()[2],
-                        pkt.data()[3],
-                        pkt.data()[4],
-                        pkt.data()[5],
-                    ])
+                    u32::from_le_bytes([pkt.data()[2], pkt.data()[3], pkt.data()[4], pkt.data()[5]])
                 } else {
                     0
                 };
