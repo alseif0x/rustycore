@@ -25,9 +25,9 @@ Estados:
 ## Resumen
 
 - Bugs confirmados contra C++: 51.
-- Bugs corregidos: 5 (`#CSharpAudit.COMPRESS.1`, `#CSharpAudit.BNETREST.1`, `#CSharpAudit.BNETREST.2`, `#CSharpAudit.BNETREST.3`, `#CSharpAudit.MOVEMENT.1`).
+- Bugs corregidos: 6 (`#CSharpAudit.COMPRESS.1`, `#CSharpAudit.BNETREST.1`, `#CSharpAudit.BNETREST.2`, `#CSharpAudit.BNETREST.3`, `#CSharpAudit.FEATURE.1`, `#CSharpAudit.MOVEMENT.1`).
 - Commit historico registrado: `#CSharpAudit.MOVEMENT.1` -> `98ceec4d`.
-- Bugs pendientes de fix: 46.
+- Bugs pendientes de fix: 45.
 - Referencias C# productivas localizadas hoy: 52 archivos bajo `crates/**`.
 - Referencias C# documentales no-audit localizadas hoy: 39 archivos bajo `docs/**`.
 
@@ -54,7 +54,7 @@ indica donde se controla cada referencia.
 | World login/session | `crates/world-server/src/main.rs` | Parcial en auth/account expansion/locale; pendiente reauditar todo el flujo world-login contra `WorldSocket.cpp`/`WorldSession.cpp`. |
 | Network/crypto/auth | `crates/wow-network/src/{accept.rs,world_socket.rs}`, `crates/wow-crypto/src/{bnet_srp6.rs,ed25519ctx.rs,rsa_sign.rs,world_crypt.rs}` | Bugs BNet SRP; no-bug/comment en RSA/Ed25519/world crypt slices; `accept.rs` HMAC/seeds queda pendiente. |
 | Packet core/compression | `crates/wow-packet/src/{world_packet.rs,compression.rs}` | `COMPRESS.1` corregido; bit APIs son no-bug/comment. |
-| Packet serializers | `crates/wow-packet/src/packets/{auth.rs,character.rs,chat.rs,combat.rs,item.rs,misc.rs,movement.rs,party.rs,quest.rs,spell.rs}` | Bugs `FEATURE`, `SPELL`, `COMBAT`, `CHAT`, `PARTY`, `ITEM`, `MISC`, `QUEST`, `MOVEMENT`; slices no-bug/comment listados abajo. |
+| Packet serializers | `crates/wow-packet/src/packets/{auth.rs,character.rs,chat.rs,combat.rs,item.rs,misc.rs,movement.rs,party.rs,quest.rs,spell.rs}` | `FEATURE.1` corregido; bugs `SPELL`, `COMBAT`, `CHAT`, `PARTY`, `ITEM`, `MISC`, `QUEST`, `MOVEMENT`; slices no-bug/comment listados abajo. |
 | World handlers | `crates/wow-world/src/handlers/{battlenet.rs,character.rs,chat.rs,combat.rs,group.rs,loot.rs,misc.rs,movement.rs,quest.rs,spell.rs}` | Bugs confirmados por dominio; `battlenet.rs`, spell runtime y restos de handlers quedan en `Pendientes De Auditoria`. |
 | Data/model helpers | `crates/wow-data/src/{item_stats.rs,player_stats.rs,quest.rs,quest_xp.rs,skill.rs}` | Bugs `DATASTATS`, `ITEMSTATS`, `QUESTXP`, `SKILL`; slices DB2/helpers no-bug/comment abajo. |
 | Database API/statements | `crates/wow-database/src/{lib.rs,params.rs,result.rs,statements/character.rs,statements/login.rs}` | Pendiente: no usar C# para afirmar coverage/nombres de statements. |
@@ -65,7 +65,7 @@ indica donde se controla cada referencia.
 - [x] `#CSharpAudit.COMPRESS.1` - Corregido; threshold de compresion usa payload sin opcode como C++ (`packet.size() > 0x400`). Test: `compression_threshold_uses_payload_len_like_cpp`.
 - [x] `#CSharpAudit.BNETREST.1` - Corregido; `GET /bnetserver/login/` ya no emite `JSESSIONID`, igual que C++ `HandleGetForm`. Test: `login_form_headers_do_not_set_cookie_like_cpp`.
 - [x] `#CSharpAudit.BNETREST.2` - Corregido; `POST /bnetserver/login/srp/` ya no emite ni depende de `JSESSIONID`; usa estado por conexion como C++ `LoginHttpSession`. Tests: `headers_do_not_set_cookie_like_cpp`.
-- [ ] `#CSharpAudit.FEATURE.1` - `FeatureSystemStatus` y glue screen estan hardcoded a defaults y no reflejan config C++.
+- [x] `#CSharpAudit.FEATURE.1` - Corregido; `FeatureSystemStatus` y glue screen ya reflejan config C++ de support/BPay/undelete/max chars/expansion e `IsMuted = !CanSpeak()`. Tests: `feature_system_status_uses_cpp_config_flags`, `feature_system_status_glue_screen_uses_cpp_config_fields`.
 - [ ] `#CSharpAudit.BNETSRP.1` - Challenge v1 envia `iterations=0`; C++ envia `1`.
 - [ ] `#CSharpAudit.BNETSRP.2` - Calculo SRP `u` omite padding fijo 128/256 de C++.
 - [ ] `#CSharpAudit.BNETSRP.3` - `k` para v2+SHA512 omite padding fijo de C++.

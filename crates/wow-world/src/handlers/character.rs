@@ -13450,7 +13450,7 @@ impl WorldSession {
         );
 
         // 4. FeatureSystemStatus (in-game version, different from glue screen)
-        self.send_packet_realm(&FeatureSystemStatus::default_wotlk());
+        self.send_packet_realm(&self.feature_system_status_like_cpp());
 
         // 5. MOTD — C++ `World::SendServerMessage(SERVER_MSG_STRING, motdLine)`.
         self.send_packet_realm(&ChatServerMessage {
