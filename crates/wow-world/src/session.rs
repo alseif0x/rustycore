@@ -32495,6 +32495,13 @@ impl WorldSession {
         self.movement_counter_like_cpp = 0;
     }
 
+    /// Current `Unit::m_movementCounter` value (read without advancing). C++ reads this for
+    /// `SMSG_RESUME_TOKEN.SequenceIndex` on far teleport (MovementHandler.cpp:109), before
+    /// `SendInitialPacketsBeforeAddToMap` resets it.
+    pub(crate) fn movement_counter_like_cpp(&self) -> u32 {
+        self.movement_counter_like_cpp
+    }
+
     /// C++ `CollectionMgr::SaveAccountMounts`.
     pub(crate) fn account_mount_save_rows_like_cpp(&self) -> Vec<AccountMountSaveRowLikeCpp> {
         let bnet_account_id = self.battlenet_account_id();
@@ -33623,7 +33630,6 @@ impl WorldSession {
         rows
     }
 
-    #[cfg(test)]
     pub(crate) fn represented_favorite_known_spells_like_cpp(&self) -> &HashSet<i32> {
         &self.represented_favorite_known_spells_like_cpp
     }
