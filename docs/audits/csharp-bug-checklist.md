@@ -25,9 +25,9 @@ Estados:
 ## Resumen
 
 - Bugs confirmados contra C++: 51.
-- Bugs corregidos: 24 (`#CSharpAudit.COMPRESS.1`, `#CSharpAudit.BNETREST.1`, `#CSharpAudit.BNETREST.2`, `#CSharpAudit.BNETREST.3`, `#CSharpAudit.BNETREST.4`, `#CSharpAudit.FEATURE.1`, `#CSharpAudit.BNETSRP.1`, `#CSharpAudit.BNETSRP.2`, `#CSharpAudit.BNETSRP.3`, `#CSharpAudit.BNETSRP.4`, `#CSharpAudit.MOVEMENT.1`, `#CSharpAudit.SPELL.1`, `#CSharpAudit.COMBAT.1`, `#CSharpAudit.CHAT.1`, `#CSharpAudit.CHAT.2`, `#CSharpAudit.ITEM.1`, `#CSharpAudit.PARTY.3`, `#CSharpAudit.PARTY.1`, `#CSharpAudit.MISC.1`, `#CSharpAudit.MISC.2`, `#CSharpAudit.LOOT.1`, `#CSharpAudit.QUESTXP.1`, `#CSharpAudit.QUESTXP.2`, `#CSharpAudit.CEMETERY.1`).
+- Bugs corregidos: 25 (`#CSharpAudit.COMPRESS.1`, `#CSharpAudit.BNETREST.1`, `#CSharpAudit.BNETREST.2`, `#CSharpAudit.BNETREST.3`, `#CSharpAudit.BNETREST.4`, `#CSharpAudit.FEATURE.1`, `#CSharpAudit.BNETSRP.1`, `#CSharpAudit.BNETSRP.2`, `#CSharpAudit.BNETSRP.3`, `#CSharpAudit.BNETSRP.4`, `#CSharpAudit.MOVEMENT.1`, `#CSharpAudit.SPELL.1`, `#CSharpAudit.COMBAT.1`, `#CSharpAudit.CHAT.1`, `#CSharpAudit.CHAT.2`, `#CSharpAudit.ITEM.1`, `#CSharpAudit.PARTY.3`, `#CSharpAudit.PARTY.1`, `#CSharpAudit.MISC.1`, `#CSharpAudit.MISC.2`, `#CSharpAudit.LOOT.1`, `#CSharpAudit.QUESTXP.1`, `#CSharpAudit.QUESTXP.2`, `#CSharpAudit.CEMETERY.1`, `#CSharpAudit.QUESTCMSG.1`).
 - Commit historico registrado: `#CSharpAudit.MOVEMENT.1` -> `98ceec4d`.
-- Bugs pendientes de fix: 27.
+- Bugs pendientes de fix: 26.
 - Referencias C# productivas localizadas hoy: 52 archivos bajo `crates/**`.
 - Referencias C# documentales no-audit localizadas hoy: 39 archivos bajo `docs/**`.
 
@@ -97,7 +97,7 @@ indica donde se controla cada referencia.
 - [ ] `#CSharpAudit.TAXI.1` - Taxi node status solo usa NPC flag; C++ valida muchas gates.
 - [x] `#CSharpAudit.QUESTXP.1` - Corregido; `QuestXP::calculate_xp` devuelve `0` si falta la fila exacta de `QuestXP` para el nivel, igual que C++ `sQuestXPStore.LookupEntry(quest_level)`. Test: `calculate_xp_missing_quest_level_returns_zero_like_cpp`.
 - [x] `#CSharpAudit.QUESTXP.2` - Corregido; `QuestXP::calculate_xp` aplica `CONFIG_MIN_QUEST_SCALED_XP_RATIO` como C++ y `WorldSession` recibe la config desde `SessionResources`. Test: `calculate_xp_min_scaled_ratio_raises_grey_quest_like_cpp`.
-- [ ] `#CSharpAudit.QUESTCMSG.1` - Query/accept quest leen bits como byte.
+- [x] `#CSharpAudit.QUESTCMSG.1` - Corregido; `CMSG_QUEST_GIVER_QUERY_QUEST` y `CMSG_QUEST_GIVER_ACCEPT_QUEST` leen `RespondToGiver`/`StartCheat` con `ReadBit()` equivalente C++, no `read_uint8()`. Tests: `quest_giver_query_quest_reads_respond_to_giver_as_bit_like_cpp`, `quest_giver_accept_quest_reads_start_cheat_as_bit_like_cpp`.
 - [ ] `#CSharpAudit.QUESTPKT.1` - `SMSG_QUERY_QUEST_INFO_RESPONSE` omite `ReadyForTranslation`.
 - [ ] `#CSharpAudit.QUESTPKT.2` - `QuestRewardsBlock` layout no C++.
 - [ ] `#CSharpAudit.QUESTREWARD.1` - Reward dialogs alimentan rewards incompletos/no escalados.

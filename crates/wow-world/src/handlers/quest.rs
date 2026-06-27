@@ -109,6 +109,25 @@ const QUEST_CHOICE_LOOT_ITEM_TYPE_CURRENCY_LIKE_CPP: u8 = 1;
 const QUEST_FLAGS_REMOVE_SURPLUS_ITEMS_LIKE_CPP: u32 = 0x0200_0000;
 const QUEST_FLAGS_EX_NO_ITEM_REMOVAL_LIKE_CPP: u32 = 0x0000_0001;
 const CURRENCY_DESTROY_REASON_QUEST_TURNIN_LIKE_CPP: i32 = 3;
+
+fn read_quest_giver_query_quest_like_cpp(
+    pkt: &mut wow_packet::WorldPacket,
+) -> Result<(ObjectGuid, u32, bool), wow_packet::PacketError> {
+    let guid = pkt.read_packed_guid()?;
+    let quest_id = pkt.read_uint32().unwrap_or(0);
+    let respond_to_giver = pkt.read_bit().unwrap_or(false);
+    Ok((guid, quest_id, respond_to_giver))
+}
+
+fn read_quest_giver_accept_quest_like_cpp(
+    pkt: &mut wow_packet::WorldPacket,
+) -> Result<(ObjectGuid, u32, bool), wow_packet::PacketError> {
+    let guid = pkt.read_packed_guid()?;
+    let quest_id = pkt.read_uint32().unwrap_or(0);
+    let start_cheat = pkt.read_bit().unwrap_or(false);
+    Ok((guid, quest_id, start_cheat))
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct QuestChoiceItemLikeCpp {
     loot_item_type: u8,
@@ -1340,15 +1359,14 @@ impl WorldSession {
     /// Shows full quest details (objectives, rewards) before accepting.
     /// Legacy non-canonical note: QuestHandler.HandleQuestGiverQueryQuest
     pub async fn handle_quest_giver_query_quest(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let guid = match pkt.read_packed_guid() {
-            Ok(g) => g,
-            Err(_) => {
-                warn!("QuestGiverQueryQuest: failed to read GUID");
-                return;
-            }
-        };
-        let quest_id: u32 = pkt.read_uint32().unwrap_or(0);
-        let _resend_offer: bool = pkt.read_uint8().unwrap_or(0) != 0;
+        let (guid, quest_id, _respond_to_giver) =
+            match read_quest_giver_query_quest_like_cpp(&mut pkt) {
+                Ok(packet) => packet,
+                Err(_) => {
+                    warn!("QuestGiverQueryQuest: failed to read packet");
+                    return;
+                }
+            };
 
         let _ = self.send_represented_quest_giver_query_quest_like_cpp(guid, quest_id);
     }
@@ -1357,15 +1375,14 @@ impl WorldSession {
     /// Saves quest to characters DB and confirms to the client.
     /// Legacy non-canonical note: QuestHandler.HandleQuestGiverAcceptQuest
     pub async fn handle_quest_giver_accept_quest(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let guid = match pkt.read_packed_guid() {
-            Ok(g) => g,
+        let (guid, quest_id, _start_cheat) = match read_quest_giver_accept_quest_like_cpp(&mut pkt)
+        {
+            Ok(packet) => packet,
             Err(_) => {
-                warn!("QuestGiverAcceptQuest: failed to read GUID");
+                warn!("QuestGiverAcceptQuest: failed to read packet");
                 return;
             }
         };
-        let quest_id: u32 = pkt.read_uint32().unwrap_or(0);
-        let _start_cheat: bool = pkt.read_uint8().unwrap_or(0) != 0;
 
         // Validate represented C++ source/relation before any quest-log mutation or DB save.
         // C++ HandleQuestgiverAcceptQuestOpcode closes gossip and clears sharing info on
@@ -7079,6 +7096,51 @@ mod tests {
         session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
         session.set_player_position_like_cpp(Position::new(10.0, 0.0, 0.0, 0.0));
         (session, send_rx)
+    }
+
+    fn quest_giver_cmsg_packet(guid: ObjectGuid, quest_id: u32, bit_byte: u8) -> WorldPacket {
+        let mut packet = WorldPacket::new_empty();
+        packet.write_packed_guid(&guid);
+        packet.write_uint32(quest_id);
+        packet.write_uint8(bit_byte);
+        packet.reset_read();
+        packet
+    }
+
+    #[test]
+    fn quest_giver_query_quest_reads_respond_to_giver_as_bit_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 123, 456);
+
+        for (bit_byte, expected) in [(0x80, true), (0x00, false), (0x01, false)] {
+            let mut packet = quest_giver_cmsg_packet(guid, 7001, bit_byte);
+            let (parsed_guid, quest_id, respond_to_giver) =
+                read_quest_giver_query_quest_like_cpp(&mut packet).unwrap();
+
+            assert_eq!(parsed_guid, guid);
+            assert_eq!(quest_id, 7001);
+            assert_eq!(
+                respond_to_giver, expected,
+                "C++ ReadBit reads the high bit; byte {bit_byte:#04x} must not be treated as bool"
+            );
+        }
+    }
+
+    #[test]
+    fn quest_giver_accept_quest_reads_start_cheat_as_bit_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 123, 456);
+
+        for (bit_byte, expected) in [(0x80, true), (0x00, false), (0x01, false)] {
+            let mut packet = quest_giver_cmsg_packet(guid, 7002, bit_byte);
+            let (parsed_guid, quest_id, start_cheat) =
+                read_quest_giver_accept_quest_like_cpp(&mut packet).unwrap();
+
+            assert_eq!(parsed_guid, guid);
+            assert_eq!(quest_id, 7002);
+            assert_eq!(
+                start_cheat, expected,
+                "C++ ReadBit reads the high bit; byte {bit_byte:#04x} must not be treated as bool"
+            );
+        }
     }
 
     #[test]
