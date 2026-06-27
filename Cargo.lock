@@ -3408,6 +3408,7 @@ dependencies = [
  "wow-ai",
  "wow-anticheat",
  "wow-chat",
+ "wow-config",
  "wow-constants",
  "wow-core",
  "wow-crypto",
