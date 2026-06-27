@@ -854,9 +854,11 @@ impl WorldSession {
             }
         };
         let _realm_name = pkt.read_string(realm_len).unwrap_or_default();
-        if has_party_index {
-            let _ = pkt.read_uint8();
-        }
+        let party_index = if has_party_index {
+            pkt.read_uint8().ok()
+        } else {
+            None
+        };
         info!(account = self.account_id, target_name = %target_name, "PartyInvite parsed");
 
         // — setup —
@@ -923,7 +925,9 @@ impl WorldSession {
             None => return,
         };
 
-        if let Some(gid) = current_group_guid_like_cpp(group_reg, self.group_guid, my_guid, None) {
+        if let Some(gid) =
+            current_group_guid_like_cpp(group_reg, self.group_guid, my_guid, party_index)
+        {
             if let Some(g) = group_reg.get(&gid) {
                 if g.members.len() >= 5 {
                     send_result!(party_result::GROUP_FULL);
@@ -976,9 +980,11 @@ impl WorldSession {
         let accept = pkt.read_bit().unwrap_or(false);
         let has_roles = pkt.read_bit().unwrap_or(false);
 
-        if has_party_index {
-            let _ = pkt.read_uint8();
-        }
+        let party_index = if has_party_index {
+            pkt.read_uint8().ok()
+        } else {
+            None
+        };
         if has_roles {
             let _ = pkt.read_uint8();
         }
@@ -1001,12 +1007,24 @@ impl WorldSession {
             Some(g) => g,
             None => return,
         };
-        pending.remove(&my_guid);
 
         let registry = match self.player_registry() {
             Some(r) => std::sync::Arc::clone(r),
             None => return,
         };
+
+        let group_reg = match self.group_registry() {
+            Some(r) => std::sync::Arc::clone(r),
+            None => return,
+        };
+        let existing_gid = current_group_guid_like_cpp(&group_reg, None, inviter_guid, party_index);
+        if existing_gid.is_none()
+            && party_index.is_some_and(|index| index != GROUP_CATEGORY_HOME_LIKE_CPP)
+        {
+            return;
+        }
+
+        pending.remove(&my_guid);
 
         // 2. Declined?
         if !accept {
@@ -1016,18 +1034,6 @@ impl WorldSession {
             }
             return;
         }
-
-        // 3. Accepted — create or extend the group.
-        let group_reg = match self.group_registry() {
-            Some(r) => std::sync::Arc::clone(r),
-            None => return,
-        };
-
-        // Find if inviter already has a group.
-        let existing_gid: Option<u64> = group_reg
-            .iter()
-            .find(|entry| entry.value().members.contains(&inviter_guid))
-            .map(|entry| *entry.key());
 
         let mut refresh_visible_gameobjects_or_spellclicks = false;
         let mut group_creation_statements: Vec<PreparedStatement> = Vec::new();
@@ -1293,9 +1299,11 @@ impl WorldSession {
     pub async fn handle_leave_group(&mut self, mut pkt: wow_packet::WorldPacket) {
         // — parse —
         let has_party_index = pkt.read_bit().unwrap_or(false);
-        if has_party_index {
-            let _ = pkt.read_uint8();
-        }
+        let party_index = if has_party_index {
+            pkt.read_uint8().ok()
+        } else {
+            None
+        };
 
         // — setup —
         let my_guid = match self.player_guid() {
@@ -1315,7 +1323,8 @@ impl WorldSession {
         let vra = self.virtual_realm_address();
 
         // 1. Find the group we're currently in.
-        let Some(gid) = current_group_guid_like_cpp(&group_reg, self.group_guid, my_guid, None)
+        let Some(gid) =
+            current_group_guid_like_cpp(&group_reg, self.group_guid, my_guid, party_index)
         else {
             return;
         };
@@ -2980,6 +2989,58 @@ mod tests {
         pkt
     }
 
+    fn party_invite_packet(
+        target_guid: ObjectGuid,
+        target_name: &str,
+        party_index: Option<u8>,
+        proposed_roles: u32,
+    ) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(party_index.is_some());
+        pkt.flush_bits();
+        pkt.write_bits(target_name.len() as u32, 9);
+        pkt.write_bits(0, 9);
+        pkt.write_uint32(proposed_roles);
+        pkt.write_packed_guid(&target_guid);
+        pkt.write_string(target_name);
+        if let Some(party_index) = party_index {
+            pkt.write_uint8(party_index);
+        }
+        pkt.reset_read();
+        pkt
+    }
+
+    fn party_invite_response_packet(
+        accept: bool,
+        party_index: Option<u8>,
+        roles: Option<u8>,
+    ) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(party_index.is_some());
+        pkt.write_bit(accept);
+        pkt.write_bit(roles.is_some());
+        if let Some(party_index) = party_index {
+            pkt.write_uint8(party_index);
+        }
+        if let Some(roles) = roles {
+            pkt.write_uint8(roles);
+        }
+        pkt.reset_read();
+        pkt
+    }
+
+    fn leave_group_packet(party_index: Option<u8>) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(party_index.is_some());
+        if let Some(party_index) = party_index {
+            pkt.write_uint8(party_index);
+        } else {
+            pkt.flush_bits();
+        }
+        pkt.reset_read();
+        pkt
+    }
+
     fn set_everyone_is_assistant_packet(
         everyone_is_assistant: bool,
         party_index: Option<u8>,
@@ -3401,6 +3462,131 @@ mod tests {
         );
         assert!(command.send_group_destroyed);
         assert!(command.refresh_visible_gameobjects_or_spellclicks);
+    }
+
+    #[tokio::test]
+    async fn party_invite_party_index_instance_does_not_use_full_home_group_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send();
+        let inviter = ObjectGuid::create_player(1, 42);
+        let target = ObjectGuid::create_player(1, 77);
+        let target_name = format!("Player{}", target.low_value());
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (target_tx, target_rx) = bounded(8);
+        player_registry.insert(target, broadcast_info(target, target_tx));
+
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut home_group = GroupInfo::new(inviter);
+        home_group.add_member(ObjectGuid::create_player(1, 101));
+        home_group.add_member(ObjectGuid::create_player(1, 102));
+        home_group.add_member(ObjectGuid::create_player(1, 103));
+        home_group.add_member(ObjectGuid::create_player(1, 104));
+        let home_group_guid = home_group.group_guid;
+        group_registry.insert(home_group_guid, home_group);
+
+        let pending_invites = Arc::new(PendingInvites::default());
+        session.set_player_guid(Some(inviter));
+        session.group_guid = Some(home_group_guid);
+        session.set_player_registry(player_registry);
+        session.set_group_registry(Arc::clone(&group_registry), Arc::clone(&pending_invites));
+
+        session
+            .handle_party_invite(party_invite_packet(
+                target,
+                &target_name,
+                Some(wow_network::group_registry::GROUP_CATEGORY_INSTANCE_LIKE_CPP),
+                0,
+            ))
+            .await;
+
+        assert!(
+            pending_invites.get(&target).is_some(),
+            "PartyIndex INSTANCE must not treat the full HOME group as the invite group"
+        );
+        let invite = target_rx.try_recv().expect("target invite packet");
+        assert_eq!(
+            u16::from_le_bytes([invite[0], invite[1]]),
+            ServerOpcodes::PartyInvite as u16
+        );
+    }
+
+    #[tokio::test]
+    async fn party_invite_response_party_index_mismatch_keeps_invite_pending_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+        let inviter = ObjectGuid::create_player(1, 42);
+        let target = ObjectGuid::create_player(1, 77);
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let group_registry = Arc::new(GroupRegistry::default());
+        let home_group = GroupInfo::new(inviter);
+        let home_group_guid = home_group.group_guid;
+        group_registry.insert(home_group_guid, home_group);
+
+        let pending_invites = Arc::new(PendingInvites::default());
+        pending_invites.insert(target, inviter);
+
+        session.set_player_guid(Some(target));
+        session.set_player_registry(player_registry);
+        session.set_group_registry(Arc::clone(&group_registry), Arc::clone(&pending_invites));
+
+        session
+            .handle_party_invite_response(party_invite_response_packet(
+                true,
+                Some(wow_network::group_registry::GROUP_CATEGORY_INSTANCE_LIKE_CPP),
+                None,
+            ))
+            .await;
+
+        assert!(
+            pending_invites.get(&target).is_some(),
+            "C++ checks group category before removing the invite"
+        );
+        assert!(
+            !group_registry
+                .get(&home_group_guid)
+                .unwrap()
+                .members
+                .contains(&target),
+            "PartyIndex INSTANCE must not add the invitee to the HOME group"
+        );
+        assert!(send_rx.try_recv().is_err());
+        assert!(session.group_guid.is_none());
+    }
+
+    #[tokio::test]
+    async fn leave_group_party_index_instance_does_not_leave_home_group_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+        let leaving_guid = ObjectGuid::create_player(1, 42);
+        let other_guid = ObjectGuid::create_player(1, 77);
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut home_group = GroupInfo::new(leaving_guid);
+        home_group.add_member(other_guid);
+        let home_group_guid = home_group.group_guid;
+        group_registry.insert(home_group_guid, home_group);
+
+        session.set_player_guid(Some(leaving_guid));
+        session.group_guid = Some(home_group_guid);
+        session.set_player_registry(player_registry);
+        session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
+
+        session
+            .handle_leave_group(leave_group_packet(Some(
+                wow_network::group_registry::GROUP_CATEGORY_INSTANCE_LIKE_CPP,
+            )))
+            .await;
+
+        assert!(
+            group_registry
+                .get(&home_group_guid)
+                .unwrap()
+                .members
+                .contains(&leaving_guid),
+            "PartyIndex INSTANCE must not resolve and leave the HOME group"
+        );
+        assert_eq!(session.group_guid, Some(home_group_guid));
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[tokio::test]

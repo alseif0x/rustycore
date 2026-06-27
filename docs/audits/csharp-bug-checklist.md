@@ -25,9 +25,9 @@ Estados:
 ## Resumen
 
 - Bugs confirmados contra C++: 51.
-- Bugs corregidos: 15 (`#CSharpAudit.COMPRESS.1`, `#CSharpAudit.BNETREST.1`, `#CSharpAudit.BNETREST.2`, `#CSharpAudit.BNETREST.3`, `#CSharpAudit.BNETREST.4`, `#CSharpAudit.FEATURE.1`, `#CSharpAudit.BNETSRP.1`, `#CSharpAudit.BNETSRP.2`, `#CSharpAudit.BNETSRP.3`, `#CSharpAudit.BNETSRP.4`, `#CSharpAudit.MOVEMENT.1`, `#CSharpAudit.SPELL.1`, `#CSharpAudit.COMBAT.1`, `#CSharpAudit.CHAT.1`, `#CSharpAudit.ITEM.1`).
+- Bugs corregidos: 16 (`#CSharpAudit.COMPRESS.1`, `#CSharpAudit.BNETREST.1`, `#CSharpAudit.BNETREST.2`, `#CSharpAudit.BNETREST.3`, `#CSharpAudit.BNETREST.4`, `#CSharpAudit.FEATURE.1`, `#CSharpAudit.BNETSRP.1`, `#CSharpAudit.BNETSRP.2`, `#CSharpAudit.BNETSRP.3`, `#CSharpAudit.BNETSRP.4`, `#CSharpAudit.MOVEMENT.1`, `#CSharpAudit.SPELL.1`, `#CSharpAudit.COMBAT.1`, `#CSharpAudit.CHAT.1`, `#CSharpAudit.ITEM.1`, `#CSharpAudit.PARTY.3`).
 - Commit historico registrado: `#CSharpAudit.MOVEMENT.1` -> `98ceec4d`.
-- Bugs pendientes de fix: 36.
+- Bugs pendientes de fix: 35.
 - Referencias C# productivas localizadas hoy: 52 archivos bajo `crates/**`.
 - Referencias C# documentales no-audit localizadas hoy: 39 archivos bajo `docs/**`.
 
@@ -78,7 +78,7 @@ indica donde se controla cada referencia.
 - [ ] `#CSharpAudit.CHAT.2` - `CMSG_EMOTE`/`CMSG_SEND_TEXT_EMOTE` runtime simplificado frente a C++.
 - [ ] `#CSharpAudit.PARTY.1` - `SMSG_PARTY_INVITE` serializa campos vacios/default no C++.
 - [ ] `#CSharpAudit.PARTY.2` - `HandlePartyInviteOpcode` omite validaciones C++.
-- [ ] `#CSharpAudit.PARTY.3` - `PartyIndex` se lee pero se descarta.
+- [x] `#CSharpAudit.PARTY.3` - Corregido; invite/accept/leave conservan `PartyIndex` y no resuelven/fallan sobre HOME cuando C++ `Player::GetGroup(packet.PartyIndex)` pide otra categoria. Tests: `party_invite_party_index_instance_does_not_use_full_home_group_like_cpp`, `party_invite_response_party_index_mismatch_keeps_invite_pending_like_cpp`, `leave_group_party_index_instance_does_not_leave_home_group_like_cpp`.
 - [ ] `#CSharpAudit.PARTY.4` - Invite response/leave group modelan lifecycle distinto al C++.
 - [x] `#CSharpAudit.ITEM.1` - Corregido; `AutoStoreBagItem` lee `Inv`, `ContainerSlotB`, `ContainerSlotA`, `SlotA` como C++ `ItemPackets.cpp`, preservando `ContainerSlotA` como origen y `ContainerSlotB` como destino. Test: `auto_store_bag_item_parses`.
 - [ ] `#CSharpAudit.ITEM.2` - Inventory move/equip/store/destroy simplificados frente a C++.
