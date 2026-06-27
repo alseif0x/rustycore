@@ -22,7 +22,7 @@ pub mod world_crypt;
 pub use bnet_srp6::{
     BnetSrp6, BnetSrpChallenge, BnetSrpProof, SrpHashFunction, SrpVersion,
     compute_bnet_v1_verifier_from_legacy_sha_hash, compute_bnet_verifier, generate_bnet_salt,
-    srp_username,
+    srp_username, utf8_to_upper_only_latin_like_cpp,
 };
 pub use hmac_utils::{HmacSha1, HmacSha256};
 pub use sarc4::SArc4;
