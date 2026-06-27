@@ -25,9 +25,9 @@ Estados:
 ## Resumen
 
 - Bugs confirmados contra C++: 51.
-- Bugs corregidos: 8 (`#CSharpAudit.COMPRESS.1`, `#CSharpAudit.BNETREST.1`, `#CSharpAudit.BNETREST.2`, `#CSharpAudit.BNETREST.3`, `#CSharpAudit.FEATURE.1`, `#CSharpAudit.BNETSRP.1`, `#CSharpAudit.BNETSRP.2`, `#CSharpAudit.MOVEMENT.1`).
+- Bugs corregidos: 9 (`#CSharpAudit.COMPRESS.1`, `#CSharpAudit.BNETREST.1`, `#CSharpAudit.BNETREST.2`, `#CSharpAudit.BNETREST.3`, `#CSharpAudit.FEATURE.1`, `#CSharpAudit.BNETSRP.1`, `#CSharpAudit.BNETSRP.2`, `#CSharpAudit.BNETSRP.3`, `#CSharpAudit.MOVEMENT.1`).
 - Commit historico registrado: `#CSharpAudit.MOVEMENT.1` -> `98ceec4d`.
-- Bugs pendientes de fix: 43.
+- Bugs pendientes de fix: 42.
 - Referencias C# productivas localizadas hoy: 52 archivos bajo `crates/**`.
 - Referencias C# documentales no-audit localizadas hoy: 39 archivos bajo `docs/**`.
 
@@ -68,7 +68,7 @@ indica donde se controla cada referencia.
 - [x] `#CSharpAudit.FEATURE.1` - Corregido; `FeatureSystemStatus` y glue screen ya reflejan config C++ de support/BPay/undelete/max chars/expansion e `IsMuted = !CanSpeak()`. Tests: `feature_system_status_uses_cpp_config_flags`, `feature_system_status_glue_screen_uses_cpp_config_fields`.
 - [x] `#CSharpAudit.BNETSRP.1` - Corregido; challenge v1 envia `iterations=1` como C++ `BnetSRP6v1Base::GetXIterations()`. Test: `challenge_v1_iterations_match_cpp`.
 - [x] `#CSharpAudit.BNETSRP.2` - Corregido; calculo SRP `u` paddea `A`/`B` a 128 bytes en v1 y 256 bytes en v2 como C++ `CalculateU`. Tests: `compute_u_v1_pads_a_and_b_to_128_bytes_like_cpp`, `compute_u_v2_pads_a_and_b_to_256_bytes_like_cpp`.
-- [ ] `#CSharpAudit.BNETSRP.3` - `k` para v2+SHA512 omite padding fijo de C++.
+- [x] `#CSharpAudit.BNETSRP.3` - Corregido; `k` para v2+SHA512 paddea `g` a 256 bytes como C++ `BnetSRP6v2`. Test: `compute_k_v2_sha512_pads_generator_to_256_bytes_like_cpp`.
 - [ ] `#CSharpAudit.BNETSRP.4` - Normalizacion login/SRP usa uppercase Unicode; C++ solo upper Latin basico.
 - [x] `#CSharpAudit.BNETREST.3` - Corregido; SRP challenge de cuenta inexistente devuelve JSON `authentication_state=DONE` como C++, sin HTTP 400. Test: `srp_challenge_missing_account_returns_done_like_cpp`.
 - [ ] `#CSharpAudit.BNETREST.4` - Hex en challenge/login ticket es lowercase; C++ es uppercase.

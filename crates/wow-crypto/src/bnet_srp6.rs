@@ -327,37 +327,13 @@ fn parse_modulus(version: SrpVersion) -> BigUint {
 }
 
 fn compute_k(version: SrpVersion, hash_fn: SrpHashFunction, n: &BigUint, g: &BigUint) -> BigUint {
-    let n_bytes = n.to_bytes_be();
-    let g_bytes = g.to_bytes_be();
+    let operand_len = srp_fixed_operand_len(version);
+    let mut data = biguint_to_fixed_be(n, operand_len);
+    data.extend_from_slice(&biguint_to_fixed_be(g, operand_len));
 
-    match (version, hash_fn) {
-        // v1Hash256: k = SHA256(N || pad(127) || g)
-        (SrpVersion::V1, SrpHashFunction::Sha256) => {
-            let mut data = n_bytes;
-            data.resize(data.len() + 127, 0);
-            data.extend_from_slice(&g_bytes);
-            BigUint::from_bytes_be(&Sha256::digest(&data))
-        }
-        // v1Hash512: k = SHA512(N || pad(127) || g)
-        (SrpVersion::V1, SrpHashFunction::Sha512) => {
-            let mut data = n_bytes;
-            data.resize(data.len() + 127, 0);
-            data.extend_from_slice(&g_bytes);
-            BigUint::from_bytes_be(&Sha512::digest(&data))
-        }
-        // v2Hash256: k = SHA256(N || pad(255) || g)
-        (SrpVersion::V2, SrpHashFunction::Sha256) => {
-            let mut data = n_bytes;
-            data.resize(data.len() + 255, 0);
-            data.extend_from_slice(&g_bytes);
-            BigUint::from_bytes_be(&Sha256::digest(&data))
-        }
-        // v2Hash512: k = SHA512(N || g) — NO padding!
-        (SrpVersion::V2, SrpHashFunction::Sha512) => {
-            let mut data = n_bytes;
-            data.extend_from_slice(&g_bytes);
-            BigUint::from_bytes_be(&Sha512::digest(&data))
-        }
+    match hash_fn {
+        SrpHashFunction::Sha256 => BigUint::from_bytes_be(&Sha256::digest(&data)),
+        SrpHashFunction::Sha512 => BigUint::from_bytes_be(&Sha512::digest(&data)),
     }
 }
 
@@ -417,10 +393,7 @@ fn compute_public_b(n: &BigUint, g: &BigUint, k: &BigUint, v: &BigUint, b: &BigU
 }
 
 fn compute_u(version: SrpVersion, hash_fn: SrpHashFunction, a: &BigUint, b: &BigUint) -> BigUint {
-    let operand_len = match version {
-        SrpVersion::V1 => 128,
-        SrpVersion::V2 => 256,
-    };
+    let operand_len = srp_fixed_operand_len(version);
     let a_bytes = biguint_to_fixed_be(a, operand_len);
     let b_bytes = biguint_to_fixed_be(b, operand_len);
     let mut data = a_bytes;
@@ -429,6 +402,13 @@ fn compute_u(version: SrpVersion, hash_fn: SrpHashFunction, a: &BigUint, b: &Big
     match hash_fn {
         SrpHashFunction::Sha256 => BigUint::from_bytes_be(&Sha256::digest(&data)),
         SrpHashFunction::Sha512 => BigUint::from_bytes_be(&Sha512::digest(&data)),
+    }
+}
+
+fn srp_fixed_operand_len(version: SrpVersion) -> usize {
+    match version {
+        SrpVersion::V1 => 128,
+        SrpVersion::V2 => 256,
     }
 }
 
@@ -519,15 +499,23 @@ mod tests {
     }
 
     #[test]
-    fn compute_k_v2_sha512_no_padding() {
+    fn compute_k_v2_sha512_pads_generator_to_256_bytes_like_cpp() {
         let n = parse_modulus(SrpVersion::V2);
         let g = BigUint::from(G);
         let k = compute_k(SrpVersion::V2, SrpHashFunction::Sha512, &n, &g);
         assert!(!k.is_zero());
-        // v2+sha512 uses SHA512(N || g) without padding, so k should be different
-        // from v2+sha256 which uses SHA256(N || pad || g)
-        let k256 = compute_k(SrpVersion::V2, SrpHashFunction::Sha256, &n, &g);
-        assert_ne!(k, k256);
+
+        let mut expected_input = n.to_bytes_be();
+        expected_input.extend_from_slice(&[0u8; 255]);
+        expected_input.push(G as u8);
+        let expected = BigUint::from_bytes_be(&Sha512::digest(&expected_input));
+
+        let mut unpadded_input = n.to_bytes_be();
+        unpadded_input.extend_from_slice(&g.to_bytes_be());
+        let unpadded = BigUint::from_bytes_be(&Sha512::digest(&unpadded_input));
+
+        assert_eq!(k, expected);
+        assert_ne!(k, unpadded);
     }
 
     #[test]
