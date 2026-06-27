@@ -65,6 +65,28 @@ If HEAD has moved, audit the commits against C++ instead of trusting their messa
 documentation-only commit is not a new port base; code-bearing commits must still be reviewed
 against C++ before being relied upon.
 
+## Working An Issue (session kickoff)
+
+The port plan is tracked as GitHub issues (`alseif0x/rustycore`), ordered by a `[NN]` prefix
+in the title (the pinned `[INDEX]` issue lists them top-to-bottom). **GitHub's #numbers are
+creation order — ignore them; follow `[NN]`.** One issue = one session = one branch = one PR.
+
+To start a session on an issue, the kickoff is:
+
+```
+Work issue #<N> (alseif0x/rustycore).
+1. Read: CLAUDE.md, docs/migration/STATE.md, and the issue (gh issue view <N>).
+2. C++ is the source of truth (/home/server/woltk-trinity-legacy): contrast BEFORE editing.
+3. Smallest faithful change + focused tests (positive/negative); validate with PROTOC=... cargo check/test.
+4. Git: branch off develop, 1 issue = 1 PR, commit per gap, NO push unless asked.
+5. Do not mark "done" until capture-clean vs C++ (capture-diff harness = issue [01]/#66).
+```
+
+Caveats: respect dependency order — don't start an issue whose deps are open (e.g. M3 spell
+prerequisites need M0.1 stores; many "done" criteria need the harness `[01]/#66`). Work issues
+in `[NN]` order from the top of the `[INDEX]`. The issues are self-contained (C++ refs + Rust
+target + done criteria inline). Part 2 (epic #48) stays a single epic until Part 1 lands.
+
 ## Mandatory Porting Method
 
 Every implementation slice must follow this sequence:
