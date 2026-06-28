@@ -83,14 +83,14 @@ Work issue #<N> (alseif0x/rustycore).
 5. Do not mark "done" until capture-clean vs C++ (capture-diff harness = issue [01]/#66).
 ```
 
-**Linking the branch/PR to the issue:** start the branch with
-`gh issue develop <N> --base develop` so GitHub registers it in the issue's *Development*
-panel. This must happen **at branch creation** — a branch that already exists **cannot be
-linked retroactively** (the `createLinkedBranch` API only creates new branches from the
-issue; it no-ops on an existing name). The repo's **default branch is `main`** but PRs target
-**`develop`**, so a `Closes #<N>` in a develop-targeted PR will **not** auto-close the issue on
-merge — it only cross-references. So: link the branch at kickoff, and close the issue manually
-at the develop→main checkpoint (or link the PR by hand in the issue's *Development* panel).
+**Linking the branch/PR to the issue:** the repo's **default branch is `develop`** (the work
+branch; `main` is the ff-synced checkpoint), so a PR into `develop` with `Closes #<N>` /
+`Refs #<N>` in its body **links the issue and auto-closes it on merge** — always put it in the
+PR body. To also get a linked *branch* in the issue's *Development* panel, start the branch with
+`gh issue develop <N> --base develop` (not a bare `git checkout -b`); this must happen **at
+branch creation** — an existing branch **cannot be linked retroactively** (the
+`createLinkedBranch` API only creates new branches from the issue, and GitHub re-evaluates a
+PR's closing keyword only on a head **push**, not on an API body edit).
 
 Caveats: respect dependency order — don't start an issue whose deps are open (e.g. M3 spell
 prerequisites need M0.1 stores; many "done" criteria need the harness `[01]/#66`). Work issues
