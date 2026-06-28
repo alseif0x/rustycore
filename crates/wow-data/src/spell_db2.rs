@@ -41,7 +41,7 @@ pub struct SpellAuraRestrictionsEntry {
     pub spell_id: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SpellCastTimesEntry {
     pub id: u32,
     pub base: i32,
@@ -95,7 +95,7 @@ pub struct SpellClassOptionsEntry {
     pub spell_class_mask: [u32; 4],
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SpellCooldownsEntry {
     pub id: u32,
     pub difficulty_id: u8,
@@ -218,7 +218,7 @@ pub struct SpellLevelsEntry {
     pub spell_id: u32,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct SpellMiscEntry {
     pub id: u32,
     pub attributes: [i32; 15],
@@ -708,6 +708,12 @@ impl SpellClassOptionsStore {
 }
 
 impl SpellCooldownsStore {
+    /// Iterate all cooldown rows (keyed internally by DB2 row id; each row carries
+    /// its `spell_id` relationship).
+    pub fn entries_like_cpp(&self) -> impl Iterator<Item = &SpellCooldownsEntry> {
+        self.entries.values()
+    }
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "SpellCooldowns.db2", |id, idx, r| {
             SpellCooldownsEntry {
