@@ -1430,6 +1430,17 @@ async fn main() -> Result<ExitCode> {
         "Loaded {} race rows from ChrRaces.db2",
         chr_races_store.len()
     );
+    // [M0.1/#14] ChrClasses powers the class→display-power map (creature stat setup)
+    // and the per-class opening cinematic; without it both fall back to hardcoded
+    // defaults. C++ sChrClassesStore (DB2Stores.cpp:94).
+    let chr_classes_store = Arc::new(
+        wow_data::character_progression::ChrClassesStore::load(&data_dir, &locale)
+            .context("Failed to load ChrClasses.db2")?,
+    );
+    info!(
+        "Loaded {} class rows from ChrClasses.db2",
+        chr_classes_store.len()
+    );
     let creature_family_store = Arc::new(
         wow_data::CreatureFamilyStore::load(&data_dir, &locale)
             .context("Failed to load CreatureFamily.db2")?,
@@ -4485,6 +4496,7 @@ async fn main() -> Result<ExitCode> {
         num_talents_at_level_store: Some(Arc::clone(&num_talents_at_level_store)),
         glyph_properties_store: Some(Arc::clone(&glyph_properties_store)),
         chr_races_store: Some(Arc::clone(&chr_races_store)),
+        chr_classes_store: Some(Arc::clone(&chr_classes_store)),
         spell_chain_store: Some(Arc::clone(&spell_chain_store)),
         spell_store: Some(Arc::clone(&spell_store)),
         spell_levels_store: Some(Arc::clone(&spell_levels_store)),
@@ -11395,6 +11407,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.chr_races_store {
         session.set_chr_races_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.chr_classes_store {
+        session.set_chr_classes_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.spell_store {
         session.set_spell_store(Arc::clone(store));

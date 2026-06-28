@@ -44,7 +44,7 @@ pub struct ChrClassUiDisplayEntry {
     pub splash_player_condition_id: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ChrClassesEntry {
     pub id: u32,
     pub name: String,
