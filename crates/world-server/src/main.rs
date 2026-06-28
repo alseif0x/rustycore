@@ -4150,7 +4150,13 @@ async fn main() -> Result<ExitCode> {
 
     // Shared world state (creatures/grids visible to every session on the same map).
     // Each session gets a clone of this Arc on creation.
-    let shared_map: SharedMapManager = Arc::new(std::sync::RwLock::new(LegacyMapManager::new()));
+    let mut legacy_map_manager = LegacyMapManager::new();
+    // Wire file-backed terrain so the live spawn/respawn path ground-snaps
+    // creatures with real `.map` heights (issue #15). DataDir-rooted, lazy.
+    legacy_map_manager.set_terrain(Arc::new(wow_world::map_manager::LiveTerrainHeights::new(
+        &data_dir,
+    )));
+    let shared_map: SharedMapManager = Arc::new(std::sync::RwLock::new(legacy_map_manager));
     let mut loaded_instance_lock_mgr = InstanceLockMgr::default();
     let instance_lock_load_issues = loaded_instance_lock_mgr
         .load_from_database_like_cpp(&char_db, |map_id, difficulty_id| {

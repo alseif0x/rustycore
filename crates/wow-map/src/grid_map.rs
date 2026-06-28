@@ -32,6 +32,7 @@ const V8_SIZE: usize = 128 * 128;
 const HOLES_SIZE: usize = 16 * 16 * 8;
 
 /// Packed height storage, mirroring the three C++ on-disk encodings + the flat case.
+#[derive(Debug)]
 enum Heights {
     /// `NoHeight` flag: every query returns `grid_height`.
     Flat,
@@ -52,6 +53,7 @@ enum Heights {
 }
 
 /// One parsed `.map` terrain tile's height data.
+#[derive(Debug)]
 pub struct GridMap {
     grid_height: f32,
     heights: Heights,

@@ -9,6 +9,7 @@ pub mod object_grid_loader;
 pub mod personal_phase;
 pub mod pool;
 pub mod spawn;
+pub mod terrain;
 
 use std::fmt;
 
@@ -76,6 +77,7 @@ pub use spawn::{
     SpawnGridLoadStateLikeCpp, SpawnGroupActiveChange, SpawnGroupFlags, SpawnGroupRuntimeState,
     SpawnGroupTemplateData, SpawnId, SpawnMapKey, SpawnObjectType, SpawnPosition, SpawnStore,
 };
+pub use terrain::{GridMapTerrain, VMAP_INVALID_HEIGHT_VALUE};
 
 /// Key used by `MapManager` for world and instance map lookup.
 ///
