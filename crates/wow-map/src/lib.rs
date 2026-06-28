@@ -1,6 +1,7 @@
 pub mod cell;
 pub mod coords;
 pub mod grid;
+pub mod grid_map;
 pub mod grid_unload;
 pub mod manager;
 pub mod map;
