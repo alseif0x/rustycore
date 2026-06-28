@@ -78,9 +78,19 @@ Work issue #<N> (alseif0x/rustycore).
 1. Read: AGENTS.md, docs/migration/STATE.md, and the issue (gh issue view <N>).
 2. C++ is the source of truth (/home/server/woltk-trinity-legacy): contrast BEFORE editing.
 3. Smallest faithful change + focused tests (positive/negative); validate with PROTOC=... cargo check/test.
-4. Git: branch off develop, 1 issue = 1 PR, commit per gap, NO push unless asked.
+4. Git: create the branch LINKED to the issue with `gh issue develop <N> --base develop`
+   (not a bare `git checkout -b`), 1 issue = 1 PR (put `Refs #<N>` in the PR body), commit per gap, NO push unless asked.
 5. Do not mark "done" until capture-clean vs C++ (capture-diff harness = issue [01]/#66).
 ```
+
+**Linking the branch/PR to the issue:** start the branch with
+`gh issue develop <N> --base develop` so GitHub registers it in the issue's *Development*
+panel. This must happen **at branch creation** — a branch that already exists **cannot be
+linked retroactively** (the `createLinkedBranch` API only creates new branches from the
+issue; it no-ops on an existing name). The repo's **default branch is `main`** but PRs target
+**`develop`**, so a `Closes #<N>` in a develop-targeted PR will **not** auto-close the issue on
+merge — it only cross-references. So: link the branch at kickoff, and close the issue manually
+at the develop→main checkpoint (or link the PR by hand in the issue's *Development* panel).
 
 Caveats: respect dependency order — don't start an issue whose deps are open (e.g. M3 spell
 prerequisites need M0.1 stores; many "done" criteria need the harness `[01]/#66`). Work issues
