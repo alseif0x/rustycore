@@ -9,8 +9,11 @@ RustyCore is a Rust port of a TrinityCore-derived World of Warcraft Wrath/Cata-c
 - Rust repo: `/home/server/rustycore`
 - Legacy C++ reference: `/home/server/woltk-trinity-legacy`
 - Remote: `https://github.com/alseif0x/rustycore.git`
-- Main work branch: `develop`
-- `main` is kept fast-forward synced at stable checkpoints.
+- Branch model: **version branches, TrinityCore-style** (#4). The integration **and default**
+  branch is **`3.4.3`** (the WoW 3.4.3 target; cf. TrinityCore's `3.3.5`/`cata_classic`). All work
+  is feature branches → PR into `3.4.3`; releases are tags on `3.4.3`.
+- `main` is retained as an optional stable pointer (ff-advanced at release checkpoints); it is no
+  longer the default and not used for day-to-day work. A pre-rebrand backup is `backup/pre-3.4.3-rebrand`.
 - Rust toolchain: Rust 1.85, edition 2024.
 - `protoc`: `/home/cdmonio/.local/protoc/bin/protoc`
 
@@ -78,19 +81,19 @@ Work issue #<N> (alseif0x/rustycore).
 1. Read: AGENTS.md, docs/migration/STATE.md, and the issue (gh issue view <N>).
 2. C++ is the source of truth (/home/server/woltk-trinity-legacy): contrast BEFORE editing.
 3. Smallest faithful change + focused tests (positive/negative); validate with PROTOC=... cargo check/test.
-4. Git: create the branch LINKED to the issue with `gh issue develop <N> --base develop`
-   (not a bare `git checkout -b`), 1 issue = 1 PR (put `Refs #<N>` in the PR body), commit per gap, NO push unless asked.
+4. Git: create the branch LINKED to the issue with `gh issue develop <N> --base 3.4.3`
+   (not a bare `git checkout -b`), 1 issue = 1 PR into `3.4.3` (put `Closes #<N>` in the PR body), commit per gap, NO push unless asked.
 5. Do not mark "done" until capture-clean vs C++ (capture-diff harness = issue [01]/#66).
 ```
 
-**Linking the branch/PR to the issue:** the repo's **default branch is `develop`** (the work
-branch; `main` is the ff-synced checkpoint), so a PR into `develop` with `Closes #<N>` /
-`Refs #<N>` in its body **links the issue and auto-closes it on merge** — always put it in the
-PR body. To also get a linked *branch* in the issue's *Development* panel, start the branch with
-`gh issue develop <N> --base develop` (not a bare `git checkout -b`); this must happen **at
-branch creation** — an existing branch **cannot be linked retroactively** (the
-`createLinkedBranch` API only creates new branches from the issue, and GitHub re-evaluates a
-PR's closing keyword only on a head **push**, not on an API body edit).
+**Linking the branch/PR to the issue:** the repo's **default branch is `3.4.3`** (the version/
+integration branch), so a PR into `3.4.3` with `Closes #<N>` in its body **links the issue and
+auto-closes it on merge** — always put it in the PR body (GitHub honors closing keywords only
+for PRs targeting the default branch). To also get a linked *branch* in the issue's *Development*
+panel, start the branch with `gh issue develop <N> --base 3.4.3` (not a bare `git checkout -b`);
+this must happen **at branch creation** — an existing branch **cannot be linked retroactively**
+(the `createLinkedBranch` API only creates new branches from the issue; to re-attach a closing
+keyword on an existing PR you must toggle its body via REST `gh api -X PATCH repos/.../pulls/N`).
 
 Caveats: respect dependency order — don't start an issue whose deps are open (e.g. M3 spell
 prerequisites need M0.1 stores; many "done" criteria need the harness `[01]/#66`). Work issues
@@ -110,7 +113,7 @@ Every implementation slice must follow this sequence:
 7. Update migration docs/checklists with the new `#NEXT.R8.ENTITIES.xxx` item when closing a represented implementation gap.
 8. Recalculate progress honestly.
 9. Run validation.
-10. Commit on `develop`, push, fast-forward `main`, push, and return to `develop` only at stable closure points.
+10. Commit on the issue's feature branch, push, and open a PR into `3.4.3` (`Closes #<N>`); merge after review/CI. Tag releases on `3.4.3`.
 
 Do not do "bulk close" inventory edits. A closed `#NEXT` item must correspond to real code and tests, with exact C++ refs, Rust targets, checks run, and remaining boundaries stated. Discovering or documenting a gap is useful, but it is not an implementation closeout.
 
@@ -266,9 +269,13 @@ Never stage credentials, certs, local configs, or built binaries.
 
 ## Git Discipline
 
-Stable closeout workflow:
+Version-branch model (#4): `3.4.3` is the default/integration branch; one feature branch per
+issue → PR into `3.4.3`. No `develop`→`main` ff dance.
+
+Per-issue closeout workflow:
 
 ```bash
+# at kickoff: gh issue develop <N> --base 3.4.3 --checkout   (creates the linked branch)
 git status --short --branch
 cargo fmt --check
 # focused tests
@@ -276,12 +283,8 @@ PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server
 git diff --check
 git add <changed files>
 git commit -m "<short faithful summary>"
-git push origin develop
-git checkout main
-git merge --ff-only develop
-git push origin main
-git checkout develop
-git status --short --branch
+git push origin <feature-branch>        # NO push unless asked
+# open the PR into 3.4.3 with `Closes #<N>` in the body; merge after review/CI.
 ```
 
 Only do this after the slice is genuinely validated. If the tree contains changes from another agent, audit them before building on top of them.
