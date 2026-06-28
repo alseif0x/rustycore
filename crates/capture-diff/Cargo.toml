@@ -15,11 +15,6 @@ path = "src/lib.rs"
 name = "capture-diff"
 path = "src/main.rs"
 
-[[bin]]
-# Reproducible generator for the committed synthetic golden fixtures.
-name = "gen-fixtures"
-path = "src/bin/gen_fixtures.rs"
-
 [dependencies]
 wow-constants = { path = "../wow-constants" }
 num-traits = { workspace = true }

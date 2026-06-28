@@ -2,23 +2,521 @@
   {
     "kind": "body_mismatch",
     "direction": "s2c",
-    "opcode": "0x25BF",
-    "name": "FeatureSystemStatus",
+    "opcode": "0x3048",
+    "name": "AuthChallenge",
+    "cpp_body_len": 49,
+    "rust_body_len": 49,
+    "first_diff_offset": 0
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x3049",
+    "name": "EnterEncryptedMode",
+    "cpp_body_len": 65,
+    "rust_body_len": 65,
+    "first_diff_offset": 0
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x256D",
+    "name": "AuthResponse",
+    "cpp_body_len": 432,
+    "rust_body_len": 432,
+    "first_diff_offset": 35
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x270A",
+    "name": "AccountDataTimes",
+    "cpp_body_len": 130,
+    "rust_body_len": 130,
+    "first_diff_offset": 2
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x2583",
+    "name": "EnumCharactersResult",
+    "cpp_body_len": 1344,
+    "rust_body_len": 1260,
+    "first_diff_offset": 0
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x27CE",
+    "name": "UndeleteCooldownStatusResponse",
+    "cpp_body_len": 9,
+    "rust_body_len": 9,
+    "first_diff_offset": 2
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x2807",
+    "name": "BattlenetResponse",
+    "cpp_body_len": 28,
+    "rust_body_len": 28,
+    "first_diff_offset": 20
+  },
+  {
+    "kind": "missing_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2714",
+    "name": "ServerTimeOffset"
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x290E",
+    "name": "DbReply",
+    "cpp_body_len": 17,
+    "rust_body_len": 17,
+    "first_diff_offset": 8
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x304D",
+    "name": "ConnectTo",
+    "cpp_body_len": 276,
+    "rust_body_len": 276,
+    "first_diff_offset": 272
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x3048",
+    "name": "AuthChallenge",
+    "cpp_body_len": 49,
+    "rust_body_len": 49,
+    "first_diff_offset": 0
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x3049",
+    "name": "EnterEncryptedMode",
+    "cpp_body_len": 65,
+    "rust_body_len": 65,
+    "first_diff_offset": 0
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x2735",
+    "name": "SetProficiency",
+    "cpp_body_len": 5,
+    "rust_body_len": 5,
+    "first_diff_offset": 1
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x2735",
+    "name": "SetProficiency",
     "cpp_body_len": 5,
     "rust_body_len": 5,
     "first_diff_offset": 0
   },
   {
-    "kind": "missing_in_rust",
+    "kind": "body_mismatch",
     "direction": "s2c",
-    "opcode": "0x270A",
-    "name": "AccountDataTimes"
-  },
-  {
-    "kind": "missing_in_rust",
-    "direction": "s2c",
-    "opcode": "0x27BE",
-    "name": "TutorialFlags"
+    "opcode": "0x2735",
+    "name": "SetProficiency",
+    "cpp_body_len": 5,
+    "rust_body_len": 5,
+    "first_diff_offset": 0
   },
   {
     "kind": "body_mismatch",
@@ -48,19 +546,34 @@
     "first_diff_offset": 1
   },
   {
-    "kind": "body_mismatch",
+    "kind": "missing_in_rust",
     "direction": "s2c",
-    "opcode": "0x2735",
-    "name": "SetProficiency",
-    "cpp_body_len": 5,
-    "rust_body_len": 5,
-    "first_diff_offset": 0
+    "opcode": "0x25AE",
+    "name": "AccountMountUpdate"
   },
   {
     "kind": "missing_in_rust",
     "direction": "s2c",
-    "opcode": "0x2C27",
-    "name": "SendKnownSpells"
+    "opcode": "0x25AE",
+    "name": "AccountMountUpdate"
+  },
+  {
+    "kind": "missing_in_rust",
+    "direction": "s2c",
+    "opcode": "0x25AE",
+    "name": "AccountMountUpdate"
+  },
+  {
+    "kind": "missing_in_rust",
+    "direction": "s2c",
+    "opcode": "0x270A",
+    "name": "AccountDataTimes"
+  },
+  {
+    "kind": "missing_in_rust",
+    "direction": "s2c",
+    "opcode": "0x27BE",
+    "name": "TutorialFlags"
   },
   {
     "kind": "extra_in_rust",
@@ -73,6 +586,120 @@
     "direction": "s2c",
     "opcode": "0x2735",
     "name": "SetProficiency"
+  },
+  {
+    "kind": "extra_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2C1F",
+    "name": "AuraUpdate"
+  },
+  {
+    "kind": "extra_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2C1F",
+    "name": "AuraUpdate"
+  },
+  {
+    "kind": "extra_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2C1F",
+    "name": "AuraUpdate"
+  },
+  {
+    "kind": "extra_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2C1F",
+    "name": "AuraUpdate"
+  },
+  {
+    "kind": "extra_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2C1F",
+    "name": "AuraUpdate"
+  },
+  {
+    "kind": "extra_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2C1F",
+    "name": "AuraUpdate"
+  },
+  {
+    "kind": "extra_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2C1F",
+    "name": "AuraUpdate"
+  },
+  {
+    "kind": "extra_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2C1F",
+    "name": "AuraUpdate"
+  },
+  {
+    "kind": "extra_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2C1F",
+    "name": "AuraUpdate"
+  },
+  {
+    "kind": "extra_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2C1F",
+    "name": "AuraUpdate"
+  },
+  {
+    "kind": "extra_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2C1F",
+    "name": "AuraUpdate"
+  },
+  {
+    "kind": "extra_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2C1F",
+    "name": "AuraUpdate"
+  },
+  {
+    "kind": "extra_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2C1F",
+    "name": "AuraUpdate"
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x270A",
+    "name": "AccountDataTimes",
+    "cpp_body_len": 133,
+    "rust_body_len": 133,
+    "first_diff_offset": 5
+  },
+  {
+    "kind": "extra_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2DD2",
+    "name": "TimeSyncRequest"
+  },
+  {
+    "kind": "missing_in_rust",
+    "direction": "s2c",
+    "opcode": "0x25ED",
+    "name": "BattlePetJournalLockAcquired"
+  },
+  {
+    "kind": "missing_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2DD2",
+    "name": "TimeSyncRequest"
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x278C",
+    "name": "ContactList",
+    "cpp_body_len": 41,
+    "rust_body_len": 38,
+    "first_diff_offset": 6
   },
   {
     "kind": "extra_in_rust",
@@ -83,31 +710,265 @@
   {
     "kind": "extra_in_rust",
     "direction": "s2c",
+    "opcode": "0x2C51",
+    "name": "ActiveGlyphs"
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x257D",
+    "name": "BindPointUpdate",
+    "cpp_body_len": 20,
+    "rust_body_len": 20,
+    "first_diff_offset": 0
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x25D7",
+    "name": "UpdateTalentData",
+    "cpp_body_len": 47,
+    "rust_body_len": 47,
+    "first_diff_offset": 20
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
     "opcode": "0x2C27",
-    "name": "SendKnownSpells"
+    "name": "SendKnownSpells",
+    "cpp_body_len": 1169,
+    "rust_body_len": 1189,
+    "first_diff_offset": 1
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x2C28",
+    "name": "SendSpellHistory",
+    "cpp_body_len": 4,
+    "rust_body_len": 29,
+    "first_diff_offset": 0
   },
   {
     "kind": "missing_in_rust",
     "direction": "s2c",
-    "opcode": "0x2BC5",
-    "name": "ChatServerMessage"
+    "opcode": "0x2C51",
+    "name": "ActiveGlyphs"
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x25E0",
+    "name": "UpdateActionButtons",
+    "cpp_body_len": 1441,
+    "rust_body_len": 1441,
+    "first_diff_offset": 0
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x2724",
+    "name": "InitializeFactions",
+    "cpp_body_len": 6125,
+    "rust_body_len": 6125,
+    "first_diff_offset": 138
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x2570",
+    "name": "AllAchievementData",
+    "cpp_body_len": 3501,
+    "rust_body_len": 8,
+    "first_diff_offset": 0
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x270D",
+    "name": "LoginSetTimeSpeed",
+    "cpp_body_len": 20,
+    "rust_body_len": 20,
+    "first_diff_offset": 0
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x25AD",
+    "name": "WorldServerInfo",
+    "cpp_body_len": 9,
+    "rust_body_len": 5,
+    "first_diff_offset": 4
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x2C33",
+    "name": "SetFlatSpellModifier",
+    "cpp_body_len": 204,
+    "rust_body_len": 4,
+    "first_diff_offset": 0
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x2C34",
+    "name": "SetPctSpellModifier",
+    "cpp_body_len": 209,
+    "rust_body_len": 4,
+    "first_diff_offset": 0
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x27CB",
+    "name": "UpdateObject",
+    "cpp_body_len": 49225,
+    "rust_body_len": 49225,
+    "first_diff_offset": 256
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x27CB",
+    "name": "UpdateObject",
+    "cpp_body_len": 944,
+    "rust_body_len": 678,
+    "first_diff_offset": 0
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x2746",
+    "name": "InitWorldStates",
+    "cpp_body_len": 384,
+    "rust_body_len": 384,
+    "first_diff_offset": 16
   },
   {
     "kind": "missing_in_rust",
     "direction": "s2c",
-    "opcode": "0x2BC5",
-    "name": "ChatServerMessage"
+    "opcode": "0x25BC",
+    "name": "LoadCufProfiles"
   },
   {
     "kind": "missing_in_rust",
     "direction": "s2c",
-    "opcode": "0x2BC5",
-    "name": "ChatServerMessage"
+    "opcode": "0x2C1F",
+    "name": "AuraUpdate"
+  },
+  {
+    "kind": "missing_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2931",
+    "name": "RatedPvpInfo"
+  },
+  {
+    "kind": "missing_in_rust",
+    "direction": "s2c",
+    "opcode": "0x25E0",
+    "name": "UpdateActionButtons"
+  },
+  {
+    "kind": "missing_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2C1F",
+    "name": "AuraUpdate"
+  },
+  {
+    "kind": "missing_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2C1F",
+    "name": "AuraUpdate"
+  },
+  {
+    "kind": "missing_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2C1F",
+    "name": "AuraUpdate"
+  },
+  {
+    "kind": "missing_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2C1F",
+    "name": "AuraUpdate"
+  },
+  {
+    "kind": "missing_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2C1F",
+    "name": "AuraUpdate"
+  },
+  {
+    "kind": "missing_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2C1F",
+    "name": "AuraUpdate"
+  },
+  {
+    "kind": "missing_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2C1F",
+    "name": "AuraUpdate"
+  },
+  {
+    "kind": "missing_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2C1F",
+    "name": "AuraUpdate"
+  },
+  {
+    "kind": "missing_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2C1F",
+    "name": "AuraUpdate"
+  },
+  {
+    "kind": "missing_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2C1F",
+    "name": "AuraUpdate"
+  },
+  {
+    "kind": "missing_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2C1F",
+    "name": "AuraUpdate"
+  },
+  {
+    "kind": "missing_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2C1F",
+    "name": "AuraUpdate"
   },
   {
     "kind": "extra_in_rust",
     "direction": "s2c",
-    "opcode": "0x2A2A",
-    "name": "LfgListUpdateBlacklist"
+    "opcode": "0x25BC",
+    "name": "LoadCufProfiles"
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x2C1F",
+    "name": "AuraUpdate",
+    "cpp_body_len": 42,
+    "rust_body_len": 461,
+    "first_diff_offset": 0
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x27CB",
+    "name": "UpdateObject",
+    "cpp_body_len": 78,
+    "rust_body_len": 504,
+    "first_diff_offset": 7
+  },
+  {
+    "kind": "missing_in_rust",
+    "direction": "s2c",
+    "opcode": "0x26D5",
+    "name": "PlayedTime"
   }
 ]

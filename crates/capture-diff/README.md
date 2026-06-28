@@ -83,28 +83,36 @@ flows/login/flow.json                  # description + directions
 them, and asserts the result equals `expected-divergences.json`. When you fix a
 divergence, the test fails until you re-pin with `update-baseline`.
 
-### ⚠ The committed `login` fixtures are synthetic
+### The committed `login` fixtures are a real capture
 
-To avoid committing real (PII-bearing, session-specific) captures, the committed
-`login/cpp.pkt` and `login/rust/` are **synthetic** — authored by
-`cargo run -p capture-diff --bin gen-fixtures` to model the divergences
-catalogued in `docs/migration/world-load-audit.md`. They exercise and
-regression-lock the harness end to end, but **the login flow is not "capture
-clean" per STATE.md §5 until they are replaced with a live capture pair**:
+`login/cpp.pkt` and `login/rust/` are a **real capture** (2026-06-28): the same
+character logging in against C++ TrinityCore (via `PacketLogFile`) and against
+RustyCore (via `RUSTYCORE_PACKET_DUMP_DIR`), trimmed to the login flow (first
+`CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE`, `0x3A46`). The flow diffs **s2c** only —
+c2s carries per-session crypto/timestamps that change every capture. The
+committed baseline is therefore the *current* real C++-vs-Rust login divergence
+set (the live equivalent of `docs/migration/world-load-audit.md`); it shrinks as
+Rust login parity improves.
+
+To re-pin after a Rust login change (records into `target/`, which is gitignored,
+then installs + re-baselines in one step):
 
 ```bash
-crates/capture-diff/scripts/capture-cpp.sh  login          # -> target/captures/login/cpp.pkt
-crates/capture-diff/scripts/capture-rust.sh login          # -> target/captures/login/rust/
-cp target/captures/login/cpp.pkt   crates/capture-diff/flows/login/cpp.pkt
-rm -rf crates/capture-diff/flows/login/rust && \
-  cp -r target/captures/login/rust crates/capture-diff/flows/login/rust
-cargo run -p capture-diff -- update-baseline login         # re-pin accepted divergences
+crates/capture-diff/scripts/capture-cpp.sh  login   # -> target/captures/login/cpp.pkt
+crates/capture-diff/scripts/capture-rust.sh login   # -> target/captures/login/rust/
+cargo run -p capture-diff -- import login \
+  --cpp target/captures/login/cpp.pkt \
+  --rust target/captures/login/rust \
+  --until-opcode 0x3A46 --direction s2c
 ```
+
+`import` trims both captures at the boundary opcode, writes `cpp.pkt` + `rust/`,
+and rewrites `expected-divergences.json`.
 
 ## Adding a flow
 
-1. Record a `cpp.pkt` and `rust/` pair (scripts above).
-2. `mkdir crates/capture-diff/flows/<name>` and drop both in (+ optional
-   `flow.json` with `description`/`directions`).
-3. `cargo run -p capture-diff -- update-baseline <name>` to pin the baseline.
+1. Record a `cpp.pkt` (C++ `PacketLogFile`) and a `rust/` dump (scripts above).
+2. `cargo run -p capture-diff -- import <name> --cpp <pkt> --rust <dir> [--until-opcode 0xNNNN] [--direction s2c]`
+   — installs the fixtures under `flows/<name>/` and pins the baseline.
+3. Optionally edit `flows/<name>/flow.json` (`description` / `directions`).
 4. `cargo test -p capture-diff` — the new flow is now gated.

@@ -1,0 +1,7 @@
+direction=s2c
+addr=127.0.0.1:0
+seq=130
+counter=130
+opcode=0x2580
+name=InitialSetup
+len=4

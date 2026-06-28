@@ -42,6 +42,7 @@ fn run() -> Result<ExitCode> {
         "diff" => cmd_diff(&rest),
         "show" => cmd_show(&rest),
         "list" => cmd_list(),
+        "import" => cmd_import(&rest),
         "update-baseline" => cmd_update_baseline(&rest),
         "-h" | "--help" | "help" => {
             print_usage();
@@ -58,6 +59,7 @@ struct Opts {
     rust: Option<PathBuf>,
     direction: Option<Vec<Direction>>,
     baseline: Option<PathBuf>,
+    until_opcode: Option<u16>,
     json: bool,
     strict: bool,
 }
@@ -69,6 +71,7 @@ fn parse_opts(args: &[String]) -> Result<Opts> {
         rust: None,
         direction: None,
         baseline: None,
+        until_opcode: None,
         json: false,
         strict: false,
     };
@@ -78,6 +81,13 @@ fn parse_opts(args: &[String]) -> Result<Opts> {
             "--cpp" => opts.cpp = Some(PathBuf::from(next(&mut it, "--cpp")?)),
             "--rust" => opts.rust = Some(PathBuf::from(next(&mut it, "--rust")?)),
             "--baseline" => opts.baseline = Some(PathBuf::from(next(&mut it, "--baseline")?)),
+            "--until-opcode" => {
+                let raw = next(&mut it, "--until-opcode")?;
+                let hex = raw.trim().trim_start_matches("0x").trim_start_matches("0X");
+                opts.until_opcode = Some(u16::from_str_radix(hex, 16).with_context(|| {
+                    format!("invalid --until-opcode '{raw}' (expected hex like 0x3A46)")
+                })?);
+            }
             "--direction" => {
                 opts.direction = Some(parse_directions(&next(&mut it, "--direction")?)?);
             }
@@ -212,6 +222,57 @@ fn cmd_list() -> Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
+/// Install a captured cpp/rust pair as a flow's golden fixture, optionally
+/// trimming both to a flow boundary, and (re)write the divergence baseline.
+fn cmd_import(args: &[String]) -> Result<ExitCode> {
+    let opts = parse_opts(args)?;
+    let name = opts.positional.as_deref().context(
+        "usage: capture-diff import <flow> --cpp <PKT> --rust <DIR> [--until-opcode 0xNNNN]",
+    )?;
+    let cpp_path = opts.cpp.clone().context("import requires --cpp <PKT>")?;
+    let rust_path = opts
+        .rust
+        .clone()
+        .context("import requires --rust <DUMPDIR>")?;
+
+    let mut cpp = load_capture(&cpp_path)?;
+    let mut rust = load_capture(&rust_path)?;
+    if let Some(op) = opts.until_opcode {
+        cpp = cpp.truncated_after_first_opcode(op);
+        rust = rust.truncated_after_first_opcode(op);
+    }
+
+    let dir = flow::flows_root().join(name);
+    std::fs::create_dir_all(&dir)?;
+    std::fs::write(dir.join("cpp.pkt"), pkt::write_pkt_bytes(&cpp))
+        .with_context(|| format!("writing {}/cpp.pkt", dir.display()))?;
+    let rust_dir = dir.join("rust");
+    if rust_dir.exists() {
+        std::fs::remove_dir_all(&rust_dir)?;
+    }
+    rustdump::write_rust_dump(&rust_dir, &rust)?;
+
+    let directions = opts
+        .direction
+        .clone()
+        .unwrap_or_else(|| vec![Direction::S2C, Direction::C2S]);
+    let report = DiffReport::compute(&cpp, &rust, &directions);
+    std::fs::write(
+        dir.join("expected-divergences.json"),
+        serde_json::to_string_pretty(&report.signatures())?,
+    )?;
+
+    println!(
+        "imported flow '{name}': cpp={} rust={} packets, {} divergence(s) -> {}",
+        cpp.packets.len(),
+        rust.packets.len(),
+        report.signatures().len(),
+        dir.display()
+    );
+    print!("{}", report.render_text());
+    Ok(ExitCode::SUCCESS)
+}
+
 fn cmd_update_baseline(args: &[String]) -> Result<ExitCode> {
     let opts = parse_opts(args)?;
     let name = opts
@@ -289,6 +350,7 @@ fn print_usage() {
          \x20 capture-diff diff --cpp A.pkt --rust DIR [...]\n\
          \x20 capture-diff show <PKT|DUMPDIR>\n\
          \x20 capture-diff list\n\
+         \x20 capture-diff import <flow> --cpp PKT --rust DIR [--until-opcode 0xNNNN]\n\
          \x20 capture-diff update-baseline <flow> [--rust DIR]\n\
          \n\
          A flow resolves its golden C++ capture, reference Rust dump, and accepted-divergence\n\

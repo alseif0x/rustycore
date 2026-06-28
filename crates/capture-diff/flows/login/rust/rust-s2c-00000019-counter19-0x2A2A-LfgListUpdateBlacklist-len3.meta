@@ -1,7 +1,0 @@
-direction=s2c
-addr=127.0.0.1:0
-seq=19
-counter=19
-opcode=0x2A2A
-name=LfgListUpdateBlacklist
-len=3

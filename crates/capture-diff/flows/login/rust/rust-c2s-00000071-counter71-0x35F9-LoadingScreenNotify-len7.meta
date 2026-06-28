@@ -1,0 +1,7 @@
+direction=c2s
+addr=127.0.0.1:0
+seq=71
+counter=71
+opcode=0x35F9
+name=LoadingScreenNotify
+len=7

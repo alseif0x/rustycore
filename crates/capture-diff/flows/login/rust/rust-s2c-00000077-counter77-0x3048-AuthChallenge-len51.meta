@@ -1,0 +1,7 @@
+direction=s2c
+addr=127.0.0.1:0
+seq=77
+counter=77
+opcode=0x3048
+name=AuthChallenge
+len=51

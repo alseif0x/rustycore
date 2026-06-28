@@ -1,7 +1,0 @@
-direction=s2c
-addr=127.0.0.1:0
-seq=3
-counter=3
-opcode=0x256D
-name=AuthResponse
-len=6

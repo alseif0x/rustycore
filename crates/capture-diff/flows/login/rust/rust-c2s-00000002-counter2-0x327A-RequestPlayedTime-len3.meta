@@ -1,7 +1,0 @@
-direction=c2s
-addr=127.0.0.1:0
-seq=2
-counter=2
-opcode=0x327A
-name=RequestPlayedTime
-len=3

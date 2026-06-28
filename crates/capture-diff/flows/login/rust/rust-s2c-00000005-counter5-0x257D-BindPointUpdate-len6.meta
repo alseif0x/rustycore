@@ -1,7 +1,0 @@
-direction=s2c
-addr=127.0.0.1:0
-seq=5
-counter=5
-opcode=0x257D
-name=BindPointUpdate
-len=6

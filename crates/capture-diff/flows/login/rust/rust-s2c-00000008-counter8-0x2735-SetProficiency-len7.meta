@@ -1,7 +1,0 @@
-direction=s2c
-addr=127.0.0.1:0
-seq=8
-counter=8
-opcode=0x2735
-name=SetProficiency
-len=7

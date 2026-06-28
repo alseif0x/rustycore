@@ -109,4 +109,17 @@ impl Capture {
             .filter(|p| p.direction == direction)
             .collect()
     }
+
+    /// Keep only packets up to and including the first occurrence of `opcode`
+    /// (in capture order). Used to trim a full-session capture to a flow
+    /// boundary — e.g. the login flow ends at the first
+    /// `CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE` (the client taking control).
+    /// Returns the capture unchanged if the opcode never appears.
+    #[must_use]
+    pub fn truncated_after_first_opcode(&self, opcode: u16) -> Capture {
+        match self.packets.iter().position(|p| p.opcode == opcode) {
+            Some(pos) => Capture::new(self.source.clone(), self.packets[..=pos].to_vec()),
+            None => self.clone(),
+        }
+    }
 }

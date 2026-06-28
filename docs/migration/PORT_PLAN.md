@@ -39,15 +39,17 @@ intent, no mutation — see STATE.md §0). Almost every item below is "convert r
 - [ ] **P0.3** Fix the stale `AGENTS.md` "Current Checkpoint" (cites `1af9223`, 1402 commits
   behind); re-anchor to audited HEAD; stop citing 96.97% / 98.15%.
 - [ ] **P0.4** Retire `represented-complete` as a closure state in the inventory TSVs.
-- [ ] **P0.5** (issue #66) Stand up the repeatable **capture-diff harness** (C++ swap + trace
-  envs) as the acceptance tool for every item below.
-  - Tooling landed: `crates/capture-diff/` — parses the C++ PKT 3.1 log + the Rust
+- [x] **P0.5** (issue #66) Repeatable **capture-diff harness** stood up.
+  - `crates/capture-diff/` — parses the C++ PKT 3.1 log + the Rust
     `RUSTYCORE_PACKET_DUMP_DIR` dump, aligns by opcode/direction, reports count/order/value
-    divergences. One command: `cargo run -p capture-diff -- diff <flow> [--strict]`. Login flow
-    wired as a gated test (`cargo test -p capture-diff`); capture scripts in `scripts/`.
-  - **Remaining (live step):** the committed `login` golden is **synthetic** (audit-modelled);
-    replace it with a live C++ `PacketLogFile` capture per STATE.md §5 before login is
-    declared capture-clean. See `crates/capture-diff/README.md`.
+    divergences. One command: `cargo run -p capture-diff -- diff <flow> [--strict]`. Capture
+    scripts in `scripts/`; `import` installs a captured pair as a golden.
+  - **Login golden = real capture** (2026-06-28): C++ TrinityCore vs RustyCore, same character,
+    trimmed to the login flow, s2c-only, wired as a gated test (`cargo test -p capture-diff`).
+    The committed baseline is the *current* real login divergence set (live equivalent of
+    `world-load-audit.md`) and shrinks as login parity improves — re-pin with `import`.
+  - **Note:** "capture-clean" per STATE.md §5 means *zero* divergences for a flow; login is
+    captured and gated but **not yet clean** (the baseline holds the open divergences).
 
 ---
 

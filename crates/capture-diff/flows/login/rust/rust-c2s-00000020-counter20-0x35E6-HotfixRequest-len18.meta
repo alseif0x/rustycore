@@ -1,0 +1,7 @@
+direction=c2s
+addr=127.0.0.1:0
+seq=20
+counter=20
+opcode=0x35E6
+name=HotfixRequest
+len=18

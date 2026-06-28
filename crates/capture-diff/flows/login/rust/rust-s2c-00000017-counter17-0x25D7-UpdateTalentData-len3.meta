@@ -1,7 +1,0 @@
-direction=s2c
-addr=127.0.0.1:0
-seq=17
-counter=17
-opcode=0x25D7
-name=UpdateTalentData
-len=3
