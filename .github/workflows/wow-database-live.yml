@@ -9,8 +9,7 @@ on:
       - "crates/wow-database/**"
   push:
     branches:
-      - develop
-      - main
+      - "3.4.3"
     paths:
       - ".github/workflows/wow-database-live.yml"
       - "Cargo.toml"
