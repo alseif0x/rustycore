@@ -25811,6 +25811,13 @@ impl WorldSession {
         let (Some(guid), Some(registry)) = (self.player_guid(), &self.player_registry) else {
             return;
         };
+        // Compute values that themselves read `player_registry` BEFORE locking the
+        // entry. `player_unit_state_for_registry_like_cpp` falls back to
+        // `registry.get(&guid)` when there is no canonical map manager (e.g. tests);
+        // calling it while holding `get_mut(&guid)` would re-lock the same DashMap
+        // shard on this thread → deadlock. It is the only sync-called helper that
+        // reads the registry, so hoisting just this one is sufficient.
+        let unit_state_for_registry = self.player_unit_state_for_registry_like_cpp();
         if let Some(mut info) = registry.get_mut(&guid) {
             info.is_in_world = self.player_is_in_world_for_registry_like_cpp();
             info.combat_reach = self.canonical_player_combat_reach_snapshot_like_cpp();
@@ -25864,7 +25871,7 @@ impl WorldSession {
             info.spec_id = self.loot_specialization_id_like_cpp();
             info.unit_flags = self.player_unit_flags_like_cpp.bits();
             info.unit_flags2 = self.canonical_player_unit_flags2_snapshot_like_cpp();
-            info.unit_state = self.player_unit_state_for_registry_like_cpp();
+            info.unit_state = unit_state_for_registry;
             info.is_game_master = self.player_game_master_like_cpp;
             info.dungeon_difficulty_id = self.represented_dungeon_difficulty_id_like_cpp;
             info.is_contested_pvp = self.canonical_player_contested_pvp_flag_like_cpp();
