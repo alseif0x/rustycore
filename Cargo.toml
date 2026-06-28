@@ -39,6 +39,8 @@ members = [
     # Executables
     "crates/bnet-server",
     "crates/world-server",
+    # Tooling
+    "crates/capture-diff",
 ]
 
 [workspace.package]

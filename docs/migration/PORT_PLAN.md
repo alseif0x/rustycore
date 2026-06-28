@@ -41,6 +41,13 @@ intent, no mutation — see STATE.md §0). Almost every item below is "convert r
 - [ ] **P0.4** Retire `represented-complete` as a closure state in the inventory TSVs.
 - [ ] **P0.5** (issue #66) Stand up the repeatable **capture-diff harness** (C++ swap + trace
   envs) as the acceptance tool for every item below.
+  - Tooling landed: `crates/capture-diff/` — parses the C++ PKT 3.1 log + the Rust
+    `RUSTYCORE_PACKET_DUMP_DIR` dump, aligns by opcode/direction, reports count/order/value
+    divergences. One command: `cargo run -p capture-diff -- diff <flow> [--strict]`. Login flow
+    wired as a gated test (`cargo test -p capture-diff`); capture scripts in `scripts/`.
+  - **Remaining (live step):** the committed `login` golden is **synthetic** (audit-modelled);
+    replace it with a live C++ `PacketLogFile` capture per STATE.md §5 before login is
+    declared capture-clean. See `crates/capture-diff/README.md`.
 
 ---
 

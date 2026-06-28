@@ -1,0 +1,7 @@
+direction=c2s
+addr=127.0.0.1:0
+seq=0
+counter=0
+opcode=0x35EB
+name=PlayerLogin
+len=10

@@ -1,0 +1,113 @@
+[
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x25BF",
+    "name": "FeatureSystemStatus",
+    "cpp_body_len": 5,
+    "rust_body_len": 5,
+    "first_diff_offset": 0
+  },
+  {
+    "kind": "missing_in_rust",
+    "direction": "s2c",
+    "opcode": "0x270A",
+    "name": "AccountDataTimes"
+  },
+  {
+    "kind": "missing_in_rust",
+    "direction": "s2c",
+    "opcode": "0x27BE",
+    "name": "TutorialFlags"
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x2735",
+    "name": "SetProficiency",
+    "cpp_body_len": 5,
+    "rust_body_len": 5,
+    "first_diff_offset": 0
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x2735",
+    "name": "SetProficiency",
+    "cpp_body_len": 5,
+    "rust_body_len": 5,
+    "first_diff_offset": 0
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x2735",
+    "name": "SetProficiency",
+    "cpp_body_len": 5,
+    "rust_body_len": 5,
+    "first_diff_offset": 1
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x2735",
+    "name": "SetProficiency",
+    "cpp_body_len": 5,
+    "rust_body_len": 5,
+    "first_diff_offset": 0
+  },
+  {
+    "kind": "missing_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2C27",
+    "name": "SendKnownSpells"
+  },
+  {
+    "kind": "extra_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2735",
+    "name": "SetProficiency"
+  },
+  {
+    "kind": "extra_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2735",
+    "name": "SetProficiency"
+  },
+  {
+    "kind": "extra_in_rust",
+    "direction": "s2c",
+    "opcode": "0x301B",
+    "name": "QueryPlayerNamesResponse"
+  },
+  {
+    "kind": "extra_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2C27",
+    "name": "SendKnownSpells"
+  },
+  {
+    "kind": "missing_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2BC5",
+    "name": "ChatServerMessage"
+  },
+  {
+    "kind": "missing_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2BC5",
+    "name": "ChatServerMessage"
+  },
+  {
+    "kind": "missing_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2BC5",
+    "name": "ChatServerMessage"
+  },
+  {
+    "kind": "extra_in_rust",
+    "direction": "s2c",
+    "opcode": "0x2A2A",
+    "name": "LfgListUpdateBlacklist"
+  }
+]

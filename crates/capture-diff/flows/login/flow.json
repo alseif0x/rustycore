@@ -1,0 +1,7 @@
+{
+  "description": "Login → enter world (synthetic golden; replace with live capture per STATE.md §5)",
+  "directions": [
+    "s2c",
+    "c2s"
+  ]
+}
