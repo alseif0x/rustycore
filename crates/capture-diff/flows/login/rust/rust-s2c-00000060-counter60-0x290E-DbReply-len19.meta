@@ -1,0 +1,7 @@
+direction=s2c
+addr=127.0.0.1:0
+seq=60
+counter=60
+opcode=0x290E
+name=DbReply
+len=19

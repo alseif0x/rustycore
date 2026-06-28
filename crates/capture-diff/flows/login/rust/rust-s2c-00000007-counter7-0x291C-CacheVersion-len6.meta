@@ -1,0 +1,7 @@
+direction=s2c
+addr=127.0.0.1:0
+seq=7
+counter=7
+opcode=0x291C
+name=CacheVersion
+len=6

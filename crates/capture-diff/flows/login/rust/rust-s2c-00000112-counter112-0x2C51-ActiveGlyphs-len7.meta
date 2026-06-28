@@ -1,0 +1,7 @@
+direction=s2c
+addr=127.0.0.1:0
+seq=112
+counter=112
+opcode=0x2C51
+name=ActiveGlyphs
+len=7

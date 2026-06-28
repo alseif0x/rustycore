@@ -1,0 +1,7 @@
+direction=s2c
+addr=127.0.0.1:0
+seq=119
+counter=119
+opcode=0x25E0
+name=UpdateActionButtons
+len=1443

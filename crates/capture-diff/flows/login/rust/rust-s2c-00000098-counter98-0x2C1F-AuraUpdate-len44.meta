@@ -1,0 +1,7 @@
+direction=s2c
+addr=127.0.0.1:0
+seq=98
+counter=98
+opcode=0x2C1F
+name=AuraUpdate
+len=44

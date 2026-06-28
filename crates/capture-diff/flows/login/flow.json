@@ -1,0 +1,6 @@
+{
+  "description": "Login → enter world (real capture 2026-06-28: C++ TrinityCore golden vs RustyCore, same character). s2c only — c2s carries per-session crypto/timestamps. Boundary: first CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE (0x3A46).",
+  "directions": [
+    "s2c"
+  ]
+}

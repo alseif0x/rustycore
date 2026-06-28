@@ -1,0 +1,7 @@
+direction=s2c
+addr=127.0.0.1:0
+seq=140
+counter=140
+opcode=0x27CB
+name=UpdateObject
+len=680
