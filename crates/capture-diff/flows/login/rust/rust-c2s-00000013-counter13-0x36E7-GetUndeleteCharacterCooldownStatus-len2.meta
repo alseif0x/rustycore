@@ -1,0 +1,7 @@
+direction=c2s
+addr=127.0.0.1:0
+seq=13
+counter=13
+opcode=0x36E7
+name=GetUndeleteCharacterCooldownStatus
+len=2

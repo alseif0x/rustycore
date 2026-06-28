@@ -1,0 +1,7 @@
+direction=c2s
+addr=127.0.0.1:0
+seq=16
+counter=16
+opcode=0x36FB
+name=UpdateVasPurchaseStates
+len=2

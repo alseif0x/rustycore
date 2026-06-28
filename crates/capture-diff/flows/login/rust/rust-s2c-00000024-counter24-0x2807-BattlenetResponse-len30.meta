@@ -1,0 +1,7 @@
+direction=s2c
+addr=127.0.0.1:0
+seq=24
+counter=24
+opcode=0x2807
+name=BattlenetResponse
+len=30

@@ -1,0 +1,7 @@
+direction=c2s
+addr=127.0.0.1:0
+seq=74
+counter=74
+opcode=0x36C5
+name=BattlePayGetPurchaseList
+len=2

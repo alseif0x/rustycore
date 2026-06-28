@@ -1,0 +1,7 @@
+direction=s2c
+addr=127.0.0.1:0
+seq=18
+counter=18
+opcode=0x27CE
+name=UndeleteCooldownStatusResponse
+len=11

@@ -1,0 +1,7 @@
+direction=c2s
+addr=127.0.0.1:0
+seq=25
+counter=25
+opcode=0x35E5
+name=DbQueryBulk
+len=56

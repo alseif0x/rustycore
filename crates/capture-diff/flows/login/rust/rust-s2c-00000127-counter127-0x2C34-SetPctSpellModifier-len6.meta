@@ -1,0 +1,7 @@
+direction=s2c
+addr=127.0.0.1:0
+seq=127
+counter=127
+opcode=0x2C34
+name=SetPctSpellModifier
+len=6

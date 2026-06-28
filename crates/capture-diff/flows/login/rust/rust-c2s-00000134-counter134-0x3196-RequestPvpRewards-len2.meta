@@ -1,0 +1,7 @@
+direction=c2s
+addr=127.0.0.1:0
+seq=134
+counter=134
+opcode=0x3196
+name=RequestPvpRewards
+len=2

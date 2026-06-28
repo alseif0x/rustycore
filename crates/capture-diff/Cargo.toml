@@ -1,0 +1,26 @@
+[package]
+name = "capture-diff"
+description = "C++(PKT)-vs-Rust packet capture diff harness — the acceptance gate for the port (issue [01]/#66)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+default-run = "capture-diff"
+
+[lib]
+name = "capture_diff"
+path = "src/lib.rs"
+
+[[bin]]
+name = "capture-diff"
+path = "src/main.rs"
+
+[dependencies]
+wow-constants = { path = "../wow-constants" }
+num-traits = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+
+[lints]
+workspace = true

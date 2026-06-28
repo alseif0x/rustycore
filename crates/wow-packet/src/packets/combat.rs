@@ -419,7 +419,10 @@ mod tests {
         assert_eq!(info.read_uint32().expect("content tuning flags"), 0);
         assert_eq!(info.read_int32().expect("player content tuning id"), 0);
         assert_eq!(info.read_int32().expect("target content tuning id"), 0);
-        assert!(info.is_empty(), "attackRoundInfo must not contain the combat-log bit");
+        assert!(
+            info.is_empty(),
+            "attackRoundInfo must not contain the combat-log bit"
+        );
     }
 
     #[test]

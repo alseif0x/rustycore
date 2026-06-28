@@ -1063,11 +1063,17 @@ mod tests {
         }
         .to_bytes();
 
-        assert_eq!(&bytes[0..2], &(ServerOpcodes::CastFailed as u16).to_le_bytes());
+        assert_eq!(
+            &bytes[0..2],
+            &(ServerOpcodes::CastFailed as u16).to_le_bytes()
+        );
         let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
         assert_eq!(pkt.read_packed_guid().unwrap(), cast_id);
         assert_eq!(pkt.read_int32().unwrap(), 12_345);
-        assert_eq!(SpellCastVisual::read(&mut pkt).unwrap().spell_visual_id, 678);
+        assert_eq!(
+            SpellCastVisual::read(&mut pkt).unwrap().spell_visual_id,
+            678
+        );
         assert_eq!(pkt.read_int32().unwrap(), 2);
         assert_eq!(pkt.read_int32().unwrap(), -1);
         assert_eq!(pkt.read_int32().unwrap(), 7);

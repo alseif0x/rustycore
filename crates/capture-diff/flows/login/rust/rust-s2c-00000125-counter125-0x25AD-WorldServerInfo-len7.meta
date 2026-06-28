@@ -1,0 +1,7 @@
+direction=s2c
+addr=127.0.0.1:0
+seq=125
+counter=125
+opcode=0x25AD
+name=WorldServerInfo
+len=7

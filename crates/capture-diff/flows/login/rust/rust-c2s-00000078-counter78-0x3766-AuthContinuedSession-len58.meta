@@ -1,0 +1,7 @@
+direction=c2s
+addr=127.0.0.1:0
+seq=78
+counter=78
+opcode=0x3766
+name=AuthContinuedSession
+len=58

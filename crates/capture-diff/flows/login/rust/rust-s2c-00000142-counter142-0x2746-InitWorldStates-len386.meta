@@ -1,0 +1,7 @@
+direction=s2c
+addr=127.0.0.1:0
+seq=142
+counter=142
+opcode=0x2746
+name=InitWorldStates
+len=386

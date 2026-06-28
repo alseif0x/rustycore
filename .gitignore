@@ -18,6 +18,8 @@ WorldServer.conf
 Logs/
 *.log
 *.pkt
+# ...but committed capture-diff golden fixtures (PKT 3.1) must be tracked.
+!crates/capture-diff/flows/**/*.pkt
 
 # Local DB config
 /my.cnf

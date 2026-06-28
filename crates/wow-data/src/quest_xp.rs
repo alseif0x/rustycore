@@ -104,9 +104,7 @@ impl QuestXpStore {
         let xp = round_xp(diff_factor * base_xp / 10);
         if min_quest_scaled_xp_ratio != 0 {
             xp.max(
-                round_xp((base_xp as f32 * xp_multiplier) as u32)
-                    * min_quest_scaled_xp_ratio
-                    / 100,
+                round_xp((base_xp as f32 * xp_multiplier) as u32) * min_quest_scaled_xp_ratio / 100,
             )
         } else {
             xp
@@ -125,7 +123,6 @@ impl QuestXpStore {
             .map(|row| round_xp(row.difficulty[xp_difficulty as usize]))
             .unwrap_or(0)
     }
-
 }
 
 /// C++ `Quest::RoundXPValue`.
