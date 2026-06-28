@@ -10078,7 +10078,10 @@ mod tests {
             recv_packet_with_opcode(&send_rx, wow_constants::ServerOpcodes::LootResponse);
         assert_eq!(response.read_packed_guid().unwrap(), gameobject_guid);
         assert_eq!(response.read_packed_guid().unwrap(), loot_object);
-        assert_eq!(response.read_uint8().unwrap(), 0);
+        // failure_reason: C++ LootResponse::FailureReason defaults to 17 (LOOT_ERROR_NO_LOOT,
+        // LootPackets.h:72 "Most common value") and is left unset on a successful loot — the
+        // client ignores it once the window opens. (Previously, wrongly asserted as 0.)
+        assert_eq!(response.read_uint8().unwrap(), 17);
         assert_eq!(response.read_uint8().unwrap(), LOOT_TYPE_CHEST_LIKE_CPP);
         assert_eq!(response.read_uint8().unwrap(), 0);
         assert_eq!(response.read_uint8().unwrap(), 2);
