@@ -164,16 +164,14 @@ awk -F '\t' 'NF != 9 { print FNR ":" NF ":" $0; bad=1 } END { if (bad) exit 1; p
 
 No siempre hace falta `cargo test -p wow-world --lib` completo si el cambio esta en otro crate, pero debe haber un test focalizado y un check del crate/ruta afectada. Si toca `world-server` o recursos de sesion, ejecutar `cargo check -p world-server` con `PROTOC`.
 
-11. Commit y sync solo si el slice esta estable:
+11. Commit y abre PR solo si el slice esta estable (modelo de rama por version; default/integracion = `3.4.3`):
 
 ```bash
+# al arrancar la issue: gh issue develop <N> --base 3.4.3 --checkout
 git add <files>
 git commit -m "Short faithful message"
-git push origin develop
-git checkout main
-git merge --ff-only develop
-git push origin main
-git checkout develop
+git push origin <feature-branch>
+# abre el PR hacia 3.4.3 con `Closes #<N>` en el cuerpo; merge tras review/CI.
 git status --short --branch
 ```
 
