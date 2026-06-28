@@ -53107,6 +53107,36 @@ mod tests {
         (session, pkt_tx, send_rx)
     }
 
+    #[test]
+    fn chr_classes_store_drives_creature_display_power_else_fallback_like_cpp() {
+        use wow_data::character_progression::{ChrClassesEntry, ChrClassesStore};
+        let (mut session, _, _) = make_session();
+
+        // [M0.1/#14] Without the ChrClasses store, class display power uses the
+        // hardcoded fallback (class 8 = Mage → Mana).
+        assert_eq!(
+            session.creature_display_power_for_class_like_cpp(8),
+            PowerType::Mana as u8
+        );
+
+        // With the store loaded, the DB2 `display_power` wins over the fallback.
+        // Give class 8 a non-default power (Rage) to prove the store is consulted.
+        session.set_chr_classes_store(Arc::new(ChrClassesStore::from_entries([ChrClassesEntry {
+            id: 8,
+            display_power: PowerType::Rage as u8,
+            ..Default::default()
+        }])));
+        assert_eq!(
+            session.creature_display_power_for_class_like_cpp(8),
+            PowerType::Rage as u8
+        );
+        // A class with no DB2 row still falls back (class 4 = Rogue → Energy).
+        assert_eq!(
+            session.creature_display_power_for_class_like_cpp(4),
+            PowerType::Energy as u8
+        );
+    }
+
     fn difficulty_entry(id: u32, instance_type: u8, flags: DifficultyFlags) -> DifficultyEntry {
         DifficultyEntry {
             id,

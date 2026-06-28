@@ -5358,6 +5358,15 @@ impl SpellStore {
         }
         store.merge_spell_misc_attributes_like_cpp(hotfix_store.spell_misc_attributes);
 
+        // [M0.1/#14] Join DB2 SpellCastTimes via SpellMisc.CastingTimeIndex AFTER the
+        // hotfix merge (the merge overwrites cast_time_ms). C++ sSpellCastTimesStore.
+        let spell_cast_times_store = crate::spell_db2::SpellCastTimesStore::load(data_dir, locale)?;
+        store.apply_db2_cast_times_like_cpp(&spell_misc_store, &spell_cast_times_store);
+
+        // [M0.1/#14] Join DB2 SpellCooldowns (per-spell cooldown), also after the merge.
+        let spell_cooldowns_store = crate::spell_db2::SpellCooldownsStore::load(data_dir, locale)?;
+        store.apply_db2_cooldowns_like_cpp(&spell_cooldowns_store);
+
         info!(
             "Loaded {} spells from SpellMisc/SpellEffect DB2 with hotfix overlay",
             store.spells.len()
@@ -5428,6 +5437,60 @@ impl SpellStore {
         }
 
         store
+    }
+
+    /// [M0.1/#14] Apply DB2 cast times onto already-built SpellInfo rows.
+    ///
+    /// Mirrors the C++ SpellInfo ctor `CastTimeEntry =
+    /// sSpellCastTimesStore.LookupEntry(_misc->CastingTimeIndex)` (SpellInfo.cpp:1185)
+    /// + `CalcCastTime`: cast time = `max(Base, Minimum)`, clamped to ≥ 0
+    /// (SpellInfo.cpp:3922). Must run AFTER the hotfix merge, which overwrites
+    /// `cast_time_ms` (and would clobber this back to 0).
+    fn apply_db2_cast_times_like_cpp(
+        &mut self,
+        spell_misc_store: &crate::spell_db2::SpellMiscStore,
+        spell_cast_times_store: &crate::spell_db2::SpellCastTimesStore,
+    ) {
+        for misc in spell_misc_store.entries_like_cpp() {
+            if misc.difficulty_id != 0 || misc.casting_time_index == 0 {
+                continue;
+            }
+            let Ok(spell_id) = i32::try_from(misc.spell_id) else {
+                continue;
+            };
+            let Some(entry) = spell_cast_times_store.get(u32::from(misc.casting_time_index)) else {
+                continue;
+            };
+            if let Some(spell) = self.spells.get_mut(&spell_id) {
+                spell.cast_time_ms = entry.base.max(entry.minimum).max(0) as u32;
+            }
+        }
+    }
+
+    /// [M0.1/#14] Apply DB2 per-spell cooldowns onto already-built SpellInfo rows.
+    ///
+    /// Mirrors C++ SpellInfo `RecoveryTime/CategoryRecoveryTime` from
+    /// `sSpellCooldownsStore` (SpellInfo.cpp:1263) and `GetRecoveryTime() =
+    /// max(RecoveryTime, CategoryRecoveryTime)` (SpellInfo.cpp:3981) — the per-spell
+    /// cooldown the cast gate checks (`recovery_time_ms`). `StartRecoveryTime` (the
+    /// GCD) is a separate mechanic and is intentionally left to the GCD path.
+    /// Must run AFTER the hotfix merge (which overwrites `recovery_time_ms`).
+    fn apply_db2_cooldowns_like_cpp(
+        &mut self,
+        spell_cooldowns_store: &crate::spell_db2::SpellCooldownsStore,
+    ) {
+        for entry in spell_cooldowns_store.entries_like_cpp() {
+            if entry.difficulty_id != 0 {
+                continue;
+            }
+            let Ok(spell_id) = i32::try_from(entry.spell_id) else {
+                continue;
+            };
+            if let Some(spell) = self.spells.get_mut(&spell_id) {
+                spell.recovery_time_ms =
+                    entry.recovery_time.max(entry.category_recovery_time).max(0) as u32;
+            }
+        }
     }
 
     /// Load spell data from hotfixes database.
@@ -5856,6 +5919,77 @@ mod tests {
         );
         assert!(store.is_channeled_like_cpp(spell_id as i32));
         assert!(!store.is_channeled_like_cpp(99_999));
+    }
+
+    #[test]
+    fn db2_cast_times_set_max_base_minimum_like_cpp() {
+        use crate::spell_db2::{
+            SpellCastTimesEntry, SpellCastTimesStore, SpellMiscEntry, SpellMiscStore,
+        };
+        let mut store = SpellStore::new();
+        store
+            .spells
+            .insert(100, SpellStore::empty_spell_info_like_cpp(100));
+        store
+            .spells
+            .insert(200, SpellStore::empty_spell_info_like_cpp(200));
+
+        let misc = SpellMiscStore::from_entries([
+            SpellMiscEntry {
+                id: 1,
+                spell_id: 100,
+                casting_time_index: 5,
+                difficulty_id: 0,
+                ..Default::default()
+            },
+            // casting_time_index 0 → no cast-time row, stays instant.
+            SpellMiscEntry {
+                id: 2,
+                spell_id: 200,
+                casting_time_index: 0,
+                difficulty_id: 0,
+                ..Default::default()
+            },
+        ]);
+        let cast_times = SpellCastTimesStore::from_entries([SpellCastTimesEntry {
+            id: 5,
+            base: 1500,
+            minimum: 1000,
+            ..Default::default()
+        }]);
+
+        store.apply_db2_cast_times_like_cpp(&misc, &cast_times);
+
+        // C++ CalcCastTime = max(Base, Minimum) = max(1500, 1000) = 1500.
+        assert_eq!(store.spells.get(&100).unwrap().cast_time_ms, 1500);
+        assert!(store.spells.get(&100).unwrap().has_cast_time());
+        // No CastingTimeIndex → untouched (instant).
+        assert_eq!(store.spells.get(&200).unwrap().cast_time_ms, 0);
+        assert!(!store.spells.get(&200).unwrap().has_cast_time());
+    }
+
+    #[test]
+    fn db2_cooldowns_set_recovery_max_like_cpp() {
+        use crate::spell_db2::{SpellCooldownsEntry, SpellCooldownsStore};
+        let mut store = SpellStore::new();
+        store
+            .spells
+            .insert(300, SpellStore::empty_spell_info_like_cpp(300));
+
+        let cooldowns = SpellCooldownsStore::from_entries([SpellCooldownsEntry {
+            id: 1,
+            difficulty_id: 0,
+            recovery_time: 3000,
+            category_recovery_time: 5000,
+            start_recovery_time: 1500,
+            spell_id: 300,
+        }]);
+        store.apply_db2_cooldowns_like_cpp(&cooldowns);
+
+        // C++ GetRecoveryTime = max(RecoveryTime 3000, CategoryRecoveryTime 5000) = 5000.
+        assert_eq!(store.spells.get(&300).unwrap().recovery_time_ms, 5000);
+        // GCD (cooldown_ms) is a separate mechanic — untouched by this slice.
+        assert_eq!(store.spells.get(&300).unwrap().cooldown_ms, 0);
     }
 
     #[test]
