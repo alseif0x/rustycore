@@ -66820,7 +66820,13 @@ mod tests {
         let expected_cast_failed = wow_packet::packets::spell::CastFailed {
             cast_id: ObjectGuid::EMPTY,
             spell_id,
-            visual: wow_packet::packets::spell::SpellCastVisual::default(),
+            // C++ Spell::SendCastResult sets packet.Visual = m_SpellVisual (set in the
+            // Spell ctor, before target selection), so an early BAD_IMPLICIT_TARGETS
+            // failure still carries the spell's visual — not a default/empty one.
+            visual: wow_packet::packets::spell::SpellCastVisual {
+                spell_visual_id: 722,
+                script_visual_id: 0,
+            },
             reason: SpellCastResult::BadImplicitTargets as i32,
             fail_arg1: 0,
             fail_arg2: 0,
@@ -67761,7 +67767,12 @@ mod tests {
         let expected_cast_failed = wow_packet::packets::spell::CastFailed {
             cast_id: ObjectGuid::EMPTY,
             spell_id,
-            visual: wow_packet::packets::spell::SpellCastVisual::default(),
+            // C++ SendCastResult carries m_SpellVisual (set in the Spell ctor) even on an
+            // early REQUIRES_SPELL_FOCUS CheckCast failure — not a default/empty visual.
+            visual: wow_packet::packets::spell::SpellCastVisual {
+                spell_visual_id: 704,
+                script_visual_id: 0,
+            },
             reason: SpellCastResult::RequiresSpellFocus as i32,
             fail_arg1: 181,
             fail_arg2: 0,
