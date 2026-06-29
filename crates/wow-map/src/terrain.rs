@@ -310,6 +310,29 @@ mod tests {
         assert!((h - 33.0).abs() < 1e-2);
     }
 
+    /// Real-data smoke check (not run in CI — needs the server's `DataDir`).
+    /// Run with: `cargo test -p wow-map --lib terrain::tests::real_map -- --ignored --nocapture`.
+    /// Validates the parser + height query against actual extracted `.map` tiles:
+    /// the human start in Elwynn Forest (map 0, ~(-8949.95, -132.49)) sits on
+    /// ground near Z≈83.5 in retail/TC data.
+    #[test]
+    #[ignore = "requires real DataDir at /home/server/woltk-server-core/Data"]
+    fn real_map_tile_returns_plausible_ground_height() {
+        let data_dir = "/home/server/woltk-server-core/Data";
+        let terrain = GridMapTerrain::new(0, data_dir);
+        let (x, y) = (-8949.95_f32, -132.49_f32);
+        let h = terrain.grid_height(x, y);
+        eprintln!("REAL map0 grid_height({x}, {y}) = {h}");
+        assert!(
+            h > 70.0 && h < 100.0,
+            "Elwynn human-start ground should be ~83.5, got {h}"
+        );
+        // GetStaticHeight from above ground accepts the surface.
+        let sh = terrain.static_height(x, y, h + 5.0);
+        eprintln!("REAL map0 static_height(probe={}) = {sh}", h + 5.0);
+        assert!((sh - h).abs() < 1e-2);
+    }
+
     #[test]
     fn out_of_range_world_position_is_safe() {
         let dir = TempMapsDir::new();
