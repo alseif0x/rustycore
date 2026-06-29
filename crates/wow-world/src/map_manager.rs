@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{self, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, RwLock, mpsc};
+use std::sync::{Arc, Mutex, RwLock, mpsc};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -15,10 +15,12 @@ use wow_constants::{
 };
 use wow_core::{ObjectGuid, Position};
 use wow_entities::{
-    Creature, CreatureAddonLifecycleRecordLikeCpp, CreatureAiState, DistractMovementAction,
-    EVENT_CHARGE_PREPATH, GenericMovementInform, MovementGeneratorKind, MovementGeneratorType,
-    MovementSlot, PhaseShift, PointMovementAction, PointMovementInform, RotateMovementUpdate,
+    AllowedPositionZCaps, Creature, CreatureAddonLifecycleRecordLikeCpp, CreatureAiState,
+    DistractMovementAction, EVENT_CHARGE_PREPATH, GenericMovementInform, MovementGeneratorKind,
+    MovementGeneratorType, MovementSlot, PhaseShift, PointMovementAction, PointMovementInform,
+    RotateMovementUpdate, Z_OFFSET_FIND_HEIGHT, allowed_position_z_from_ground_like_cpp,
 };
+use wow_map::GridMapTerrain;
 use wow_movement::generators::CreatureRandomMovementType as MovementCreatureRandomMovementType;
 use wow_movement::{
     MoveSpline, MoveSplineInit, MoveSplineLaunchInput, MoveSplineStopInput, MoveSplineStopResult,
@@ -3009,6 +3011,92 @@ impl RuntimeOutput {
     }
 }
 
+/// Live, file-backed terrain height for the legacy world runtime.
+///
+/// One [`GridMapTerrain`] per map id (created lazily, shared across that map's
+/// instances), mirroring C++ `TerrainInfo` ownership. Rooted at the server's
+/// `DataDir`; tiles load on first query. This is the seam that lets the live
+/// spawn/respawn path ground-snap creatures with real `.map` heights.
+#[derive(Debug)]
+pub struct LiveTerrainHeights {
+    data_dir: PathBuf,
+    per_map: Mutex<HashMap<u32, Arc<GridMapTerrain>>>,
+}
+
+impl LiveTerrainHeights {
+    #[must_use]
+    pub fn new(data_dir: impl AsRef<Path>) -> Self {
+        Self {
+            data_dir: data_dir.as_ref().to_path_buf(),
+            per_map: Mutex::new(HashMap::new()),
+        }
+    }
+
+    fn terrain_for_map(&self, map_id: u32) -> Arc<GridMapTerrain> {
+        let mut per_map = self.per_map.lock().expect("live terrain cache poisoned");
+        Arc::clone(
+            per_map
+                .entry(map_id)
+                .or_insert_with(|| Arc::new(GridMapTerrain::new(map_id, &self.data_dir))),
+        )
+    }
+
+    /// C++ `Map::GetHeight` (no VMap/GO-floor): the raw `.map` ground at `(x, y)`,
+    /// accepted only when the probe `z` is at/above it. The caller supplies the
+    /// already-offset probe `z` (matching `WorldObject::GetMapHeight`).
+    #[must_use]
+    pub fn static_height_like_cpp(&self, map_id: u32, x: f32, y: f32, z: f32) -> f32 {
+        self.terrain_for_map(map_id).static_height(x, y, z)
+    }
+}
+
+/// Ground-snap a freshly respawned creature, like C++ `Creature::Respawn`'s
+/// `UpdateAllowedPositionZ` + `SetHomePosition` (`Creature.cpp:461`).
+///
+/// No-op (Z untouched) when terrain has no tile/ground under the position, so the
+/// no-terrain runtime path is byte-identical to before this wiring. Flyers keep
+/// their altitude (raise-only); grounded creatures sit on `ground + hover`.
+pub fn snap_respawn_creature_to_ground_like_cpp(
+    world_creature: &mut WorldCreature,
+    map_id: u16,
+    terrain: &LiveTerrainHeights,
+) {
+    let creature = &world_creature.creature;
+    let pos = creature.unit().world().position();
+    // C++ `Unit::GetHoverOffset()`: hover height only while the HOVER flag is set.
+    let hover_offset = if creature
+        .movement_flags_like_cpp()
+        .contains(MovementFlag::HOVER)
+    {
+        creature.unit().data().hover_height
+    } else {
+        0.0
+    };
+    let caps = AllowedPositionZCaps {
+        // Transport passengers recompute position from the transport elsewhere;
+        // the legacy respawn path does not model on-transport spawns.
+        on_transport: false,
+        can_fly: creature.can_fly_like_cpp(),
+        can_swim: creature.can_swim_like_cpp(),
+        hover_offset,
+    };
+
+    // C++ `GetMapHeight` offsets the probe by `Z_OFFSET_FIND_HEIGHT` before the
+    // terrain lookup.
+    let probe_z = pos.z + Z_OFFSET_FIND_HEIGHT;
+    let ground = terrain.static_height_like_cpp(u32::from(map_id), pos.x, pos.y, probe_z);
+    let new_z = allowed_position_z_from_ground_like_cpp(true, ground, pos.z, caps);
+    if new_z != pos.z {
+        let snapped = Position::new(pos.x, pos.y, new_z, pos.orientation);
+        world_creature
+            .creature
+            .unit_mut()
+            .world_mut()
+            .relocate(snapped);
+        world_creature.creature.set_ai_home_position(snapped);
+    }
+}
+
 /// Global map manager containing all map instances.
 #[derive(Debug)]
 pub struct MapManager {
@@ -3016,6 +3104,10 @@ pub struct MapManager {
     free_instance_ids: Vec<bool>,
     next_instance_id: u32,
     tick_owner: RuntimeTickOwner,
+    /// Shared, file-backed terrain height (DataDir). `None` until wired at server
+    /// startup; while absent, height-dependent paths fall back to their prior
+    /// no-terrain behaviour.
+    terrain: Option<Arc<LiveTerrainHeights>>,
 }
 
 impl MapManager {
@@ -3025,9 +3117,22 @@ impl MapManager {
             free_instance_ids: Vec::new(),
             next_instance_id: 1,
             tick_owner: RuntimeTickOwner::Session,
+            terrain: None,
         };
         manager.init_instance_ids_from_max(0);
         manager
+    }
+
+    /// Attach the shared, file-backed terrain height store (server startup).
+    pub fn set_terrain(&mut self, terrain: Arc<LiveTerrainHeights>) {
+        self.terrain = Some(terrain);
+    }
+
+    /// Shared terrain height store, if wired. Cloned so callers can use it while
+    /// still holding `&mut self` for the spawn/respawn mutation.
+    #[must_use]
+    pub fn terrain(&self) -> Option<Arc<LiveTerrainHeights>> {
+        self.terrain.clone()
     }
 
     /// Returns the current tick owner for this map manager.
@@ -7168,6 +7273,104 @@ mod tests {
 
         let ready_0 = manager.drain_ready_respawns(0, 0, now);
         assert_eq!(ready_0.len(), 1);
+    }
+
+    /// Unique temp `maps/` dir holding one synthetic constant-height tile.
+    fn temp_dir_with_constant_tile(map_id: u32, gx: i32, gy: i32, height: f32) -> PathBuf {
+        use std::sync::atomic::{AtomicU32, Ordering};
+        static COUNTER: AtomicU32 = AtomicU32::new(0);
+        let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+        let dir =
+            std::env::temp_dir().join(format!("rustycore_live_terrain_{}_{n}", std::process::id()));
+        std::fs::create_dir_all(dir.join("maps")).expect("create temp maps dir");
+
+        // Minimal float `.map`: fileheader(44) + MHGT header(16) + V9 + V8, all = height.
+        const V9: usize = 129 * 129;
+        const V8: usize = 128 * 128;
+        let mut b = Vec::new();
+        b.extend_from_slice(b"MAPS");
+        b.extend_from_slice(&10u32.to_le_bytes()); // version
+        b.extend_from_slice(&0u32.to_le_bytes()); // build
+        b.extend_from_slice(&0u32.to_le_bytes()); // areaMapOffset
+        b.extend_from_slice(&0u32.to_le_bytes()); // areaMapSize
+        b.extend_from_slice(&44u32.to_le_bytes()); // heightMapOffset
+        for _ in 0..5 {
+            b.extend_from_slice(&0u32.to_le_bytes());
+        }
+        b.extend_from_slice(b"MHGT");
+        b.extend_from_slice(&0u32.to_le_bytes()); // flags = float
+        b.extend_from_slice(&height.to_le_bytes()); // gridHeight
+        b.extend_from_slice(&height.to_le_bytes()); // gridMaxHeight
+        for _ in 0..(V9 + V8) {
+            b.extend_from_slice(&height.to_le_bytes());
+        }
+        std::fs::write(
+            dir.join("maps")
+                .join(format!("{map_id:04}_{gx:02}_{gy:02}.map")),
+            &b,
+        )
+        .expect("write tile");
+        dir
+    }
+
+    #[test]
+    fn respawn_ground_snap_uses_real_terrain_like_cpp() {
+        // World (0,0) → raw tile (32,32). Ground at 77.0; spawn hovering above it.
+        let dir = temp_dir_with_constant_tile(0, 32, 32, 77.0);
+        let terrain = LiveTerrainHeights::new(&dir);
+
+        let mut pending = make_pending_respawn(Instant::now());
+        pending.home_pos.z = 80.0; // above ground; probe accepts the surface
+        let mut creature = world_creature_from_pending_respawn_like_cpp(&pending, 0);
+        assert!((creature.creature.unit().world().position().z - 80.0).abs() < 1e-3);
+
+        snap_respawn_creature_to_ground_like_cpp(&mut creature, 0, &terrain);
+
+        // Grounded, non-hovering: snapped exactly onto the surface (+0 hover).
+        assert!(
+            (creature.creature.unit().world().position().z - 77.0).abs() < 1e-2,
+            "respawn must sit on the .map ground like Creature::Respawn/UpdateAllowedPositionZ"
+        );
+        // C++ SetHomePosition takes the snapped Z too.
+        assert!((creature.home_position().z - 77.0).abs() < 1e-2);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn respawn_ground_snap_noop_without_terrain_tile_like_cpp() {
+        // Empty maps dir → no tile → GetGridHeight invalid → Z untouched.
+        let dir = temp_dir_with_constant_tile(0, 10, 10, 5.0); // tile for a different grid
+        let terrain = LiveTerrainHeights::new(&dir);
+
+        let mut pending = make_pending_respawn(Instant::now());
+        pending.home_pos.z = 80.0;
+        let mut creature = world_creature_from_pending_respawn_like_cpp(&pending, 0);
+        snap_respawn_creature_to_ground_like_cpp(&mut creature, 0, &terrain);
+
+        assert!(
+            (creature.creature.unit().world().position().z - 80.0).abs() < 1e-3,
+            "no terrain under the spawn → C++ leaves Z unchanged"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn respawn_ground_snap_skips_creature_far_below_surface_like_cpp() {
+        // Spawn well below ground: probe z < gridHeight - tolerance → GetStaticHeight
+        // returns invalid, so C++ does NOT rescue a buried creature.
+        let dir = temp_dir_with_constant_tile(0, 32, 32, 77.0);
+        let terrain = LiveTerrainHeights::new(&dir);
+
+        let mut pending = make_pending_respawn(Instant::now());
+        pending.home_pos.z = 10.0; // far under the 77.0 surface
+        let mut creature = world_creature_from_pending_respawn_like_cpp(&pending, 0);
+        snap_respawn_creature_to_ground_like_cpp(&mut creature, 0, &terrain);
+
+        assert!((creature.creature.unit().world().position().z - 10.0).abs() < 1e-3);
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

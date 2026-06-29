@@ -3730,15 +3730,17 @@ mod tests {
             .unit_mut()
             .world_mut()
             .relocate(Position::xyz(10.0, 20.0, 30.0));
-        if in_world {
-            creature.unit_mut().world_mut().object_mut().add_to_world();
-        }
         let record = MapObjectRecord::new_creature(creature).unwrap();
         let map = manager.find_map_mut(1, 0).unwrap().map_mut();
-        if in_world {
-            map.add_map_object_record_to_map_like_cpp(record).unwrap();
-        } else {
-            map.insert_map_object_record(record).unwrap();
+        // Full C++ Map::AddToMap: creates the grid, inserts the guid into the cell,
+        // and calls the unit AddToWorld — so the cell-anchored ObjectUpdater can
+        // reach it. (Building the creature already in-world would trip the
+        // already-in-world early return that skips cell insertion.)
+        map.add_map_object_record_to_map_like_cpp(record).unwrap();
+        if !in_world {
+            // Keep the record cell-resident but flip it out of the world to
+            // exercise update_creature's NotInWorld skip (C++ RemoveFromWorld).
+            map.test_remove_creature_from_world_keep_cell_like_cpp(creature_guid);
         }
         creature_guid
     }

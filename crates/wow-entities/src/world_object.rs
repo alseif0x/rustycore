@@ -84,6 +84,65 @@ impl Default for WorldObjectHeightQuery {
     }
 }
 
+/// Movement capabilities `UpdateAllowedPositionZ` reads off the owning `Unit`.
+///
+/// In C++ these come from `ToUnit()->CanFly()/CanSwim()/GetHoverOffset()` and
+/// `GetTransport()`; `WorldObject` has no back-reference to its `Unit`, so the
+/// caller injects them (the live entity knows its own movement flags).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct AllowedPositionZCaps {
+    /// `GetTransport() != nullptr`: a passenger's Z is left to the transport.
+    pub on_transport: bool,
+    /// `Unit::CanFly()` — when set, terrain only *raises* Z (never pulls down).
+    pub can_fly: bool,
+    /// `Unit::CanSwim()` — kept for fidelity; without a parsed liquid map the swim
+    /// branch folds to the ground branch.
+    pub can_swim: bool,
+    /// `Unit::GetHoverOffset()` (0 unless the unit is hovering).
+    pub hover_offset: f32,
+}
+
+/// Pure decision half of `WorldObject::UpdateAllowedPositionZ` (`Object.cpp:1411`),
+/// taking the already-resolved `GetMapHeight` result so it can be reused without a
+/// live `WorldObject`/environment (e.g. the global respawn driver).
+///
+/// `ground` is `GetMapHeight(x, y, z)` (the `Z_OFFSET_FIND_HEIGHT` probe offset is
+/// the caller's responsibility, matching `GetMapHeight`). `on_transport` is handled
+/// by the caller before this is reached.
+///
+/// The grounded clamp `[ground_z+hover, max_z+hover]` reduces to a single point
+/// (`ground+hover`) because, with no parsed liquid map, `GetMapWaterOrGroundLevel`
+/// has no water ceiling and `max_z == ground_z` — exactly C++ behaviour when liquid
+/// data is unavailable, so the swim case collapses to "sit on ground".
+#[must_use]
+pub fn allowed_position_z_from_ground_like_cpp(
+    is_unit: bool,
+    ground: f32,
+    z: f32,
+    caps: AllowedPositionZCaps,
+) -> f32 {
+    if caps.on_transport {
+        return z;
+    }
+    if ground <= INVALID_HEIGHT {
+        // No terrain under the probe: C++ leaves Z untouched in every branch.
+        return z;
+    }
+    if is_unit {
+        let target = ground + caps.hover_offset;
+        if caps.can_fly {
+            // Flying: only lift out of the ground, never pull down.
+            z.max(target)
+        } else {
+            // Grounded (and swim w/o liquid): clamp onto the surface.
+            target
+        }
+    } else {
+        // Non-unit (GameObject/etc.): snapped flat to the ground.
+        ground
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct LineOfSightOptions {
     pub check_dynamic: bool,
@@ -1361,6 +1420,32 @@ impl WorldObject {
         }
     }
 
+    /// Port of `WorldObject::UpdateAllowedPositionZ` (`Object.cpp:1411`).
+    ///
+    /// Returns the corrected Z. Branches:
+    /// - **on transport** → unchanged (transport owns the Z).
+    /// - **unit, can fly** → `max(z, ground + hover)` (only lift off below-ground).
+    /// - **unit, grounded** → clamp into `[ground+hover, max_z+hover]`. With no
+    ///   parsed liquid map `GetMapWaterOrGroundLevel` has no water ceiling, so
+    ///   `max_z == ground_z` (exactly C++ when liquid is unavailable) and the swim
+    ///   case collapses to "sit on ground". When `GetMapHeight` finds no terrain
+    ///   (`<= INVALID_HEIGHT`) the Z is left untouched.
+    /// - **non-unit** → snap to ground when terrain exists, else unchanged.
+    pub fn update_allowed_position_z_like_cpp(
+        &self,
+        environment: &impl WorldObjectEnvironment,
+        caps: AllowedPositionZCaps,
+        x: f32,
+        y: f32,
+        z: f32,
+    ) -> f32 {
+        if caps.on_transport {
+            return z;
+        }
+        let ground = self.get_map_height(environment, x, y, z, WorldObjectHeightQuery::default());
+        allowed_position_z_from_ground_like_cpp(self.is_unit(), ground, z, caps)
+    }
+
     pub fn get_floor_z(&self, environment: &impl WorldObjectEnvironment) -> f32 {
         if !self.object.is_in_world() || !self.is_in_environment(environment) {
             return self.static_floor_z;
@@ -2188,6 +2273,81 @@ mod tests {
             10.0
         );
         assert_eq!(unit.get_floor_z(&environment), 25.0);
+    }
+
+    #[test]
+    fn update_allowed_position_z_matches_cpp_branches() {
+        let environment = TestEnvironment {
+            height: 20.0,
+            ..TestEnvironment::default()
+        };
+        let mut unit = WorldObject::new(false, TypeId::Unit, TypeMask::UNIT);
+        unit.set_map(571, 1).unwrap();
+        unit.object_mut().add_to_world();
+        unit.relocate(Position::xyz(1.0, 2.0, 10.0));
+
+        // Grounded unit below ground (z=10 < ground=20): snap up to ground+hover.
+        let walk = AllowedPositionZCaps {
+            on_transport: false,
+            can_fly: false,
+            can_swim: false,
+            hover_offset: 1.25,
+        };
+        assert_eq!(
+            unit.update_allowed_position_z_like_cpp(&environment, walk, 1.0, 2.0, 10.0),
+            21.25
+        );
+
+        // On a transport: Z is owned by the transport, left untouched.
+        let on_transport = AllowedPositionZCaps {
+            on_transport: true,
+            ..walk
+        };
+        assert_eq!(
+            unit.update_allowed_position_z_like_cpp(&environment, on_transport, 1.0, 2.0, 10.0),
+            10.0
+        );
+
+        // Flying unit *above* ground stays put (raise-only). Ground here is 5.0.
+        let low_ground = TestEnvironment {
+            height: 5.0,
+            ..TestEnvironment::default()
+        };
+        let fly = AllowedPositionZCaps {
+            on_transport: false,
+            can_fly: true,
+            can_swim: false,
+            hover_offset: 0.0,
+        };
+        assert_eq!(
+            unit.update_allowed_position_z_like_cpp(&low_ground, fly, 1.0, 2.0, 10.0),
+            10.0
+        );
+        // Flying unit *below* ground is lifted to ground+hover.
+        assert_eq!(
+            unit.update_allowed_position_z_like_cpp(&environment, fly, 1.0, 2.0, 10.0),
+            20.0
+        );
+
+        // No terrain under the probe: Z unchanged.
+        let no_terrain = TestEnvironment {
+            height: INVALID_HEIGHT,
+            ..TestEnvironment::default()
+        };
+        assert_eq!(
+            unit.update_allowed_position_z_like_cpp(&no_terrain, walk, 1.0, 2.0, 10.0),
+            10.0
+        );
+
+        // Non-unit (GameObject): snapped flat to ground, no hover.
+        let mut gameobject = WorldObject::new(false, TypeId::GameObject, TypeMask::GAME_OBJECT);
+        gameobject.set_map(571, 1).unwrap();
+        gameobject.object_mut().add_to_world();
+        gameobject.relocate(Position::xyz(1.0, 2.0, 10.0));
+        assert_eq!(
+            gameobject.update_allowed_position_z_like_cpp(&environment, walk, 1.0, 2.0, 10.0),
+            20.0
+        );
     }
 
     #[test]

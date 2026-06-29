@@ -2771,6 +2771,21 @@ where
         self.dynamic_tree_unbalanced_times_like_cpp = times;
     }
 
+    /// Test seam: flip a cell-resident creature to not-in-world (post C++
+    /// `RemoveFromWorld`) while leaving its record in the cell/store, so the
+    /// cell-anchored `ObjectUpdater` still visits it and exercises the
+    /// `NotInWorld` skip branch.
+    #[cfg(test)]
+    pub(crate) fn test_remove_creature_from_world_keep_cell_like_cpp(&mut self, guid: ObjectGuid) {
+        if let Some(creature) = self
+            .map_objects
+            .get_mut(&guid)
+            .and_then(MapObjectRecord::creature_mut)
+        {
+            creature.unit_mut().remove_from_world_like_cpp();
+        }
+    }
+
     pub fn generate_low_guid_like_cpp(
         &mut self,
         high: HighGuid,

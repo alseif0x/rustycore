@@ -365,9 +365,10 @@ pub use vehicle::{
     vehicle_base_movement_flags_like_cpp, vehicle_immunity_plan_like_cpp,
 };
 pub use world_object::{
-    DEFAULT_HEIGHT_SEARCH, DEFAULT_VISIBILITY_DISTANCE, DEFAULT_VISIBILITY_INSTANCE,
-    INVALID_HEIGHT, LineOfSightEndpoint, LineOfSightOptions, LineOfSightQuery, MAPID_INVALID,
-    MAX_HEIGHT, MAX_VISIBILITY_DISTANCE, MapBindingError, PhaseShift, SIGHT_RANGE_UNIT,
-    SmoothPhasingInfoLikeCpp, SmoothPhasingLikeCpp, VisibilityDistanceTypeLikeCpp, WorldLocation,
-    WorldObject, WorldObjectEnvironment, WorldObjectHeightQuery, Z_OFFSET_FIND_HEIGHT,
+    AllowedPositionZCaps, DEFAULT_HEIGHT_SEARCH, DEFAULT_VISIBILITY_DISTANCE,
+    DEFAULT_VISIBILITY_INSTANCE, INVALID_HEIGHT, LineOfSightEndpoint, LineOfSightOptions,
+    LineOfSightQuery, MAPID_INVALID, MAX_HEIGHT, MAX_VISIBILITY_DISTANCE, MapBindingError,
+    PhaseShift, SIGHT_RANGE_UNIT, SmoothPhasingInfoLikeCpp, SmoothPhasingLikeCpp,
+    VisibilityDistanceTypeLikeCpp, WorldLocation, WorldObject, WorldObjectEnvironment,
+    WorldObjectHeightQuery, Z_OFFSET_FIND_HEIGHT, allowed_position_z_from_ground_like_cpp,
 };
