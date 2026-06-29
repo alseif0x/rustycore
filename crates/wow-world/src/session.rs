@@ -46097,8 +46097,17 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                 }
                 let position =
                     crate::map_manager::pending_respawn_create_position_like_cpp(&respawn);
-                let world_creature =
+                let mut world_creature =
                     world_creature_from_pending_respawn_like_cpp(&respawn, instance_id);
+                // C++ Creature::Respawn ground-snaps via UpdateAllowedPositionZ
+                // (Creature.cpp:461). No-op when terrain is not wired.
+                if let Some(terrain) = manager.terrain() {
+                    crate::map_manager::snap_respawn_creature_to_ground_like_cpp(
+                        &mut world_creature,
+                        map_id,
+                        &terrain,
+                    );
+                }
                 let canonical_creature = world_creature.creature.clone();
                 let (grid_x, grid_y) = world_to_grid_coords(position.x, position.y);
                 if manager.add_creature(map_id, instance_id, grid_x, grid_y, world_creature) {
