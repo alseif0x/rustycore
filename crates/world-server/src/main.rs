@@ -2426,13 +2426,18 @@ async fn main() -> Result<ExitCode> {
         wow_data::BattlePetXpGameTableLikeCpp::load(&data_dir)
             .context("Failed to load gt/BattlePetXP.txt — check DataDir config")?,
     );
+    let combat_ratings_game_table = Arc::new(
+        wow_data::CombatRatingsGameTableLikeCpp::load(&data_dir)
+            .context("Failed to load gt/CombatRatings.txt - check DataDir config")?,
+    );
     info!(
-        "Loaded battle-pet stat DB2 stores: {} quality rows, {} breed-state rows, {} species rows, {} species-state rows; BattlePetXP rows={}",
+        "Loaded battle-pet stat DB2 stores: {} quality rows, {} breed-state rows, {} species rows, {} species-state rows; BattlePetXP rows={}; CombatRatings rows={}",
         battle_pet_breed_quality_store.len(),
         battle_pet_breed_state_store.len(),
         battle_pet_species_entry_store.len(),
         battle_pet_species_state_store.len(),
-        battle_pet_xp_game_table.len()
+        battle_pet_xp_game_table.len(),
+        combat_ratings_game_table.len()
     );
 
     let shield_block_regular_game_table = Arc::new(
@@ -4453,6 +4458,7 @@ async fn main() -> Result<ExitCode> {
         battle_pet_species_store: Some(Arc::clone(&battle_pet_species_entry_store)),
         battle_pet_species_state_store: Some(Arc::clone(&battle_pet_species_state_store)),
         battle_pet_xp_game_table: Some(Arc::clone(&battle_pet_xp_game_table)),
+        combat_ratings_game_table: Some(Arc::clone(&combat_ratings_game_table)),
         shield_block_regular_game_table: Some(Arc::clone(&shield_block_regular_game_table)),
         transmog_set_item_store: Some(Arc::clone(&transmog_set_item_store)),
         item_price_base_store: Some(Arc::clone(&item_price_base_store)),
@@ -11383,6 +11389,9 @@ async fn create_session(
     }
     if let Some(ref table) = resources.battle_pet_xp_game_table {
         session.set_battle_pet_xp_game_table(Arc::clone(table));
+    }
+    if let Some(ref table) = resources.combat_ratings_game_table {
+        session.set_combat_ratings_game_table(Arc::clone(table));
     }
     if let Some(ref table) = resources.shield_block_regular_game_table {
         session.set_shield_block_regular_game_table(Arc::clone(table));
