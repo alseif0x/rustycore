@@ -1072,6 +1072,15 @@ impl Default for MovementSpline {
 
 impl MovementSpline {
     pub fn write(&self, pkt: &mut WorldPacket) {
+        // C++ `operator<<(MovementSpline)` opens with `data << uint32(Flags)`,
+        // and every `ByteBuffer::operator<<` routes through
+        // `ByteBuffer::append()`, whose first line is `FlushBits()`
+        // (ByteBuffer.cpp:100). That flushes the 4 bits written just before by
+        // `MovementMonsterSpline::write` (CrzTeleport + StopDistanceTolerance)
+        // into their own byte BEFORE the flags u32. Omitting this flush shifts
+        // the entire spline tail one byte earlier on the wire; the 3.4.3 client
+        // then discards the spline and the creature appears frozen.
+        pkt.flush_bits();
         pkt.write_uint32_unflushed(self.flags);
         pkt.write_int32_unflushed(self.elapsed);
         pkt.write_uint32_unflushed(self.move_time);
@@ -1741,24 +1750,27 @@ mod tests {
         assert_eq!(pkt.read_float().unwrap(), 10.0);
         assert_eq!(pkt.read_float().unwrap(), 20.0);
         assert_eq!(pkt.read_float().unwrap(), 30.0);
-        assert_eq!(pkt.read_uint32().unwrap(), 0x0040_0000);
-        assert_eq!(pkt.read_int32().unwrap(), 0);
-        assert_eq!(pkt.read_uint32().unwrap(), 1_500);
-        assert_eq!(pkt.read_uint32().unwrap(), 0);
-        assert_eq!(pkt.read_uint8().unwrap(), 0);
-        assert_eq!(pkt.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
-        assert_eq!(pkt.read_int8().unwrap(), -1);
-        assert!(!pkt.has_bit().unwrap());
-        assert_eq!(pkt.read_bits(3).unwrap(), 0);
-        assert_eq!(pkt.read_bits(2).unwrap(), 0);
-        assert_eq!(pkt.read_bits(16).unwrap(), 1);
-        assert!(!pkt.has_bit().unwrap());
-        assert!(!pkt.has_bit().unwrap());
-        assert_eq!(pkt.read_bits(16).unwrap(), 0);
-        assert!(!pkt.has_bit().unwrap());
-        assert!(!pkt.has_bit().unwrap());
-        assert!(!pkt.has_bit().unwrap());
-        assert!(!pkt.has_bit().unwrap());
+        // C++ MovementMonsterSpline writes CrzTeleport(1) + StopDistanceTolerance(3)
+        // before the spline; the spline's first integer write flushes those
+        // bits into their own byte before Flags.
+        assert!(!pkt.has_bit().unwrap()); // CrzTeleport
+        assert_eq!(pkt.read_bits(3).unwrap(), 0); // StopDistanceTolerance
+        assert_eq!(pkt.read_uint32().unwrap(), 0x0040_0000); // Flags
+        assert_eq!(pkt.read_int32().unwrap(), 0); // Elapsed
+        assert_eq!(pkt.read_uint32().unwrap(), 1_500); // MoveTime
+        assert_eq!(pkt.read_uint32().unwrap(), 0); // FadeObjectTime
+        assert_eq!(pkt.read_uint8().unwrap(), 0); // Mode
+        assert_eq!(pkt.read_packed_guid().unwrap(), ObjectGuid::EMPTY); // TransportGUID
+        assert_eq!(pkt.read_int8().unwrap(), -1); // VehicleSeat
+        assert_eq!(pkt.read_bits(2).unwrap(), 0); // Face
+        assert_eq!(pkt.read_bits(16).unwrap(), 1); // Points.len()
+        assert!(!pkt.has_bit().unwrap()); // VehicleExitVoluntary
+        assert!(!pkt.has_bit().unwrap()); // Interpolate
+        assert_eq!(pkt.read_bits(16).unwrap(), 0); // PackedDeltas.len()
+        assert!(!pkt.has_bit().unwrap()); // SplineFilter
+        assert!(!pkt.has_bit().unwrap()); // SpellEffectExtraData
+        assert!(!pkt.has_bit().unwrap()); // JumpExtraData
+        assert!(!pkt.has_bit().unwrap()); // AnimTierTransition
         assert_eq!(pkt.read_float().unwrap(), 10.0);
         assert_eq!(pkt.read_float().unwrap(), 20.0);
         assert_eq!(pkt.read_float().unwrap(), 30.0);
@@ -1784,24 +1796,24 @@ mod tests {
         assert_eq!(pkt.read_float().unwrap(), 0.0);
         assert_eq!(pkt.read_float().unwrap(), 0.0);
         assert_eq!(pkt.read_float().unwrap(), 0.0);
-        assert_eq!(pkt.read_uint32().unwrap(), 0);
-        assert_eq!(pkt.read_int32().unwrap(), 0);
-        assert_eq!(pkt.read_uint32().unwrap(), 0);
-        assert_eq!(pkt.read_uint32().unwrap(), 0);
-        assert_eq!(pkt.read_uint8().unwrap(), 0);
-        assert_eq!(pkt.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
-        assert_eq!(pkt.read_int8().unwrap(), -1);
-        assert!(!pkt.has_bit().unwrap());
-        assert_eq!(pkt.read_bits(3).unwrap(), 2);
-        assert_eq!(pkt.read_bits(2).unwrap(), 0);
-        assert_eq!(pkt.read_bits(16).unwrap(), 0);
-        assert!(!pkt.has_bit().unwrap());
-        assert!(!pkt.has_bit().unwrap());
-        assert_eq!(pkt.read_bits(16).unwrap(), 0);
-        assert!(!pkt.has_bit().unwrap());
-        assert!(!pkt.has_bit().unwrap());
-        assert!(!pkt.has_bit().unwrap());
-        assert!(!pkt.has_bit().unwrap());
+        assert!(!pkt.has_bit().unwrap()); // CrzTeleport
+        assert_eq!(pkt.read_bits(3).unwrap(), 2); // StopDistanceTolerance
+        assert_eq!(pkt.read_uint32().unwrap(), 0); // Flags
+        assert_eq!(pkt.read_int32().unwrap(), 0); // Elapsed
+        assert_eq!(pkt.read_uint32().unwrap(), 0); // MoveTime
+        assert_eq!(pkt.read_uint32().unwrap(), 0); // FadeObjectTime
+        assert_eq!(pkt.read_uint8().unwrap(), 0); // Mode
+        assert_eq!(pkt.read_packed_guid().unwrap(), ObjectGuid::EMPTY); // TransportGUID
+        assert_eq!(pkt.read_int8().unwrap(), -1); // VehicleSeat
+        assert_eq!(pkt.read_bits(2).unwrap(), 0); // Face
+        assert_eq!(pkt.read_bits(16).unwrap(), 0); // Points.len()
+        assert!(!pkt.has_bit().unwrap()); // VehicleExitVoluntary
+        assert!(!pkt.has_bit().unwrap()); // Interpolate
+        assert_eq!(pkt.read_bits(16).unwrap(), 0); // PackedDeltas.len()
+        assert!(!pkt.has_bit().unwrap()); // SplineFilter
+        assert!(!pkt.has_bit().unwrap()); // SpellEffectExtraData
+        assert!(!pkt.has_bit().unwrap()); // JumpExtraData
+        assert!(!pkt.has_bit().unwrap()); // AnimTierTransition
         assert!(pkt.is_empty());
     }
 
@@ -1834,24 +1846,24 @@ mod tests {
         assert_eq!(pkt.read_float().unwrap(), 12.0);
         assert_eq!(pkt.read_float().unwrap(), 0.0);
         assert_eq!(pkt.read_float().unwrap(), 0.0);
-        assert_eq!(pkt.read_uint32().unwrap(), 0);
-        assert_eq!(pkt.read_int32().unwrap(), 0);
-        assert_eq!(pkt.read_uint32().unwrap(), 0);
-        assert_eq!(pkt.read_uint32().unwrap(), 0);
-        assert_eq!(pkt.read_uint8().unwrap(), 0);
-        assert_eq!(pkt.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
-        assert_eq!(pkt.read_int8().unwrap(), -1);
-        assert!(!pkt.has_bit().unwrap());
-        assert_eq!(pkt.read_bits(3).unwrap(), 0);
-        assert_eq!(pkt.read_bits(2).unwrap(), 3);
-        assert_eq!(pkt.read_bits(16).unwrap(), 1);
-        assert!(!pkt.has_bit().unwrap());
-        assert!(!pkt.has_bit().unwrap());
-        assert_eq!(pkt.read_bits(16).unwrap(), 1);
-        assert!(!pkt.has_bit().unwrap());
-        assert!(!pkt.has_bit().unwrap());
-        assert!(!pkt.has_bit().unwrap());
-        assert!(!pkt.has_bit().unwrap());
+        assert!(!pkt.has_bit().unwrap()); // CrzTeleport
+        assert_eq!(pkt.read_bits(3).unwrap(), 0); // StopDistanceTolerance
+        assert_eq!(pkt.read_uint32().unwrap(), 0); // Flags
+        assert_eq!(pkt.read_int32().unwrap(), 0); // Elapsed
+        assert_eq!(pkt.read_uint32().unwrap(), 0); // MoveTime
+        assert_eq!(pkt.read_uint32().unwrap(), 0); // FadeObjectTime
+        assert_eq!(pkt.read_uint8().unwrap(), 0); // Mode
+        assert_eq!(pkt.read_packed_guid().unwrap(), ObjectGuid::EMPTY); // TransportGUID
+        assert_eq!(pkt.read_int8().unwrap(), -1); // VehicleSeat
+        assert_eq!(pkt.read_bits(2).unwrap(), 3); // Face = FacingAngle
+        assert_eq!(pkt.read_bits(16).unwrap(), 1); // Points.len()
+        assert!(!pkt.has_bit().unwrap()); // VehicleExitVoluntary
+        assert!(!pkt.has_bit().unwrap()); // Interpolate
+        assert_eq!(pkt.read_bits(16).unwrap(), 1); // PackedDeltas.len()
+        assert!(!pkt.has_bit().unwrap()); // SplineFilter
+        assert!(!pkt.has_bit().unwrap()); // SpellEffectExtraData
+        assert!(!pkt.has_bit().unwrap()); // JumpExtraData
+        assert!(!pkt.has_bit().unwrap()); // AnimTierTransition
         assert_eq!(pkt.read_float().unwrap(), 1.25);
         assert_eq!(pkt.read_float().unwrap(), 12.0);
         assert_eq!(pkt.read_float().unwrap(), 0.0);
