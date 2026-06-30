@@ -29,6 +29,7 @@ use wow_packet::packets::movement::{
     MovementAckMessage, MovementInfo, MovementSpeedAck, SetActiveMover,
 };
 
+use crate::map_manager::zone_and_area_for_position_like_cpp;
 use crate::session::{
     SPELL_AURA_INTERRUPT_FLAG_LANDING_OR_FLIGHT_LIKE_CPP, SPELL_AURA_INTERRUPT_FLAG2_JUMP_LIKE_CPP,
     WorldSession,
@@ -197,6 +198,19 @@ impl WorldSession {
         } else {
             None
         };
+        let new_player_cell_like_cpp =
+            mover_is_player.then(|| wow_map::cell_from_world(pos.x, pos.y));
+        let old_player_cell_like_cpp = current_mover_position
+            .filter(|_| mover_is_player)
+            .map(|current| wow_map::cell_from_world(current.x, current.y));
+        let load_player_active_grid_like_cpp = match (
+            old_player_cell_like_cpp.as_ref(),
+            new_player_cell_like_cpp.as_ref(),
+        ) {
+            (Some(old_cell), Some(new_cell)) => old_cell.diff_grid(new_cell),
+            (None, Some(_)) => true,
+            _ => false,
+        };
         if let Some(transport) = &info.transport {
             if current_mover_position.is_some_and(|current| {
                 pos.distance_2d(&current) > wow_core::Position::GRID_SIZE_LIKE_CPP
@@ -256,7 +270,108 @@ impl WorldSession {
             let _ = self.mutate_canonical_player_like_cpp(|player| {
                 player.unit_mut().world_mut().relocate(info.position);
             });
-            let (_, area_id) = self.player_zone_area_like_cpp();
+            if load_player_active_grid_like_cpp
+                && let Some(outcome) =
+                    self.ensure_player_grid_loaded_like_cpp(self.player_map_id_like_cpp(), 0, pos)
+            {
+                trace!(
+                    account = self.account_id,
+                    map_id = self.player_map_id_like_cpp(),
+                    old_grid_x = old_player_cell_like_cpp.as_ref().map(|cell| cell.grid_x()),
+                    old_grid_y = old_player_cell_like_cpp.as_ref().map(|cell| cell.grid_y()),
+                    new_grid_x = new_player_cell_like_cpp.as_ref().map(|cell| cell.grid_x()),
+                    new_grid_y = new_player_cell_like_cpp.as_ref().map(|cell| cell.grid_y()),
+                    grid_loaded_now = outcome.grid_loaded_now,
+                    creature_records_added = outcome.creature_records_added,
+                    gameobject_records_added = outcome.gameobject_records_added,
+                    area_trigger_records_added = outcome.area_trigger_records_added,
+                    legacy_creature_mirrors = outcome.legacy_creature_mirrors,
+                    "C++ Map::PlayerRelocation active grid loaded before player visibility"
+                );
+                if (std::env::var_os("RUSTYCORE_PACKET_SEQUENCE_TRACE").is_some()
+                    || std::env::var_os("RUSTYCORE_CREATURE_VIS_TRACE").is_some())
+                    && (outcome.map_created
+                        || outcome.grid_loaded_now
+                        || outcome.metadata_entries != 0
+                        || outcome.skipped_already_loaded != 0
+                        || outcome.skipped_should_not_spawn != 0
+                        || outcome.skipped_difficulty_mismatch != 0
+                        || outcome.stale_index_entries != 0
+                        || outcome.creature_records_added != 0
+                        || outcome.gameobject_records_added != 0
+                        || outcome.area_trigger_records_added != 0
+                        || outcome.pre_add_records_added != 0
+                        || outcome.add_to_map_errors != 0
+                        || outcome.load_record_missing != 0
+                        || outcome.legacy_creature_mirrors != 0)
+                {
+                    info!(
+                        account = self.account_id,
+                        map_id = self.player_map_id_like_cpp(),
+                        instance_id = 0u32,
+                        x = pos.x,
+                        y = pos.y,
+                        z = pos.z,
+                        old_grid_x = old_player_cell_like_cpp.as_ref().map(|cell| cell.grid_x()),
+                        old_grid_y = old_player_cell_like_cpp.as_ref().map(|cell| cell.grid_y()),
+                        new_grid_x = new_player_cell_like_cpp.as_ref().map(|cell| cell.grid_x()),
+                        new_grid_y = new_player_cell_like_cpp.as_ref().map(|cell| cell.grid_y()),
+                        map_created = outcome.map_created,
+                        grid_loaded_now = outcome.grid_loaded_now,
+                        metadata_entries = outcome.metadata_entries,
+                        skipped_already_loaded = outcome.skipped_already_loaded,
+                        skipped_should_not_spawn = outcome.skipped_should_not_spawn,
+                        skipped_difficulty_mismatch = outcome.skipped_difficulty_mismatch,
+                        stale_index_entries = outcome.stale_index_entries,
+                        creature_records_added = outcome.creature_records_added,
+                        gameobject_records_added = outcome.gameobject_records_added,
+                        area_trigger_records_added = outcome.area_trigger_records_added,
+                        pre_add_records_added = outcome.pre_add_records_added,
+                        add_to_map_errors = outcome.add_to_map_errors,
+                        load_record_missing = outcome.load_record_missing,
+                        creature_load_record_missing = outcome.creature_load_record_missing,
+                        gameobject_load_record_missing = outcome.gameobject_load_record_missing,
+                        area_trigger_load_record_missing = outcome.area_trigger_load_record_missing,
+                        legacy_creature_mirrors = outcome.legacy_creature_mirrors,
+                        "RUST_CREATURE_VIS movement_grid_load"
+                    );
+                }
+            }
+            let area_id = match zone_and_area_for_position_like_cpp(
+                &self.mmap_runtime_config_like_cpp().data_dir,
+                u32::from(self.player_map_id_like_cpp()),
+                info.position.x,
+                info.position.y,
+                self.area_table_store().map(|store| store.as_ref()),
+                |map_id| {
+                    self.map_store()
+                        .as_deref()
+                        .map(|store| u32::from(store.area_table_id_like_cpp(map_id)))
+                        .unwrap_or(0)
+                },
+            ) {
+                Ok((zone_id, area_id)) => {
+                    if area_id != 0 {
+                        self.update_zone_represented_like_cpp(zone_id, area_id);
+                        area_id
+                    } else {
+                        let (_, current_area_id) = self.player_zone_area_like_cpp();
+                        current_area_id
+                    }
+                }
+                Err(error) => {
+                    let (_, area_id) = self.player_zone_area_like_cpp();
+                    warn!(
+                        account = self.account_id,
+                        map_id = self.player_map_id_like_cpp(),
+                        x = info.position.x,
+                        y = info.position.y,
+                        %error,
+                        "failed to resolve C++ terrain zone/area after movement; keeping existing zone/area"
+                    );
+                    area_id
+                }
+            };
             self.check_area_explore_and_outdoor_represented_like_cpp(area_id)
                 .await;
             // Keep the broadcast registry in sync so chat range checks are accurate.
@@ -347,6 +462,7 @@ impl WorldSession {
             for command_tx in candidates {
                 let _ = command_tx.try_send(wow_network::SessionCommand::SendIfVisibleLikeCpp(
                     wow_network::player_registry::SendIfVisibleLikeCppCommand {
+                        queued_at: std::time::Instant::now(),
                         source_guid: mover_guid,
                         map_id,
                         instance_id,
@@ -653,10 +769,14 @@ impl WorldSession {
 mod tests {
     use super::*;
     use crate::session::{
-        AuraApplication, MoveSplineDoneTaxiActionLikeCpp, MoveTeleportAckActionLikeCpp,
-        MovementSpeedAckActionLikeCpp, RepresentedAuraEffectLikeCpp,
-        RepresentedTaxiFlightNodeLikeCpp, SessionPlayerController, UnitMoveTypeLikeCpp,
+        AuraApplication, MMapRuntimeConfigLikeCpp, MoveSplineDoneTaxiActionLikeCpp,
+        MoveTeleportAckActionLikeCpp, MovementSpeedAckActionLikeCpp, PlayerGridLoadOutcomeLikeCpp,
+        RepresentedAuraEffectLikeCpp, RepresentedTaxiFlightNodeLikeCpp, SessionPlayerController,
+        UnitMoveTypeLikeCpp,
     };
+    use std::fs;
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex, RwLock};
     use wow_constants::ServerOpcodes;
     use wow_constants::movement::MovementFlag;
@@ -691,6 +811,63 @@ mod tests {
         movement.write(&mut inbound);
         inbound.read_uint16().expect("movement opcode");
         inbound
+    }
+
+    fn unique_temp_data_dir(test_name: &str) -> PathBuf {
+        let mut dir = std::env::temp_dir();
+        dir.push(format!(
+            "rustycore-movement-{test_name}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        fs::create_dir_all(dir.join("maps")).expect("create maps dir");
+        dir
+    }
+
+    fn write_single_area_map_tile_like_cpp(
+        data_dir: &std::path::Path,
+        map_id: u32,
+        x: f32,
+        y: f32,
+        area_id: u16,
+    ) {
+        const MAP_FILE_HEADER_SIZE_LIKE_CPP: usize = 44;
+        const MAP_AREA_HEADER_SIZE_LIKE_CPP: usize = 8;
+        const MAP_AREA_CELLS_PER_GRID_LIKE_CPP: usize = 16;
+
+        let area_offset = MAP_FILE_HEADER_SIZE_LIKE_CPP as u32;
+        let area_size = (MAP_AREA_HEADER_SIZE_LIKE_CPP
+            + MAP_AREA_CELLS_PER_GRID_LIKE_CPP
+                * MAP_AREA_CELLS_PER_GRID_LIKE_CPP
+                * std::mem::size_of::<u16>()) as u32;
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(b"MAPS");
+        bytes.extend_from_slice(&10_u32.to_le_bytes());
+        bytes.extend_from_slice(&0_u32.to_le_bytes());
+        bytes.extend_from_slice(&area_offset.to_le_bytes());
+        bytes.extend_from_slice(&area_size.to_le_bytes());
+        for _ in 0..6 {
+            bytes.extend_from_slice(&0_u32.to_le_bytes());
+        }
+        assert_eq!(bytes.len(), MAP_FILE_HEADER_SIZE_LIKE_CPP);
+        bytes.extend_from_slice(b"AREA");
+        bytes.extend_from_slice(&0_u16.to_le_bytes());
+        bytes.extend_from_slice(&area_id.to_le_bytes());
+        for _ in 0..(MAP_AREA_CELLS_PER_GRID_LIKE_CPP * MAP_AREA_CELLS_PER_GRID_LIKE_CPP) {
+            bytes.extend_from_slice(&area_id.to_le_bytes());
+        }
+
+        let (gx, gy) = crate::map_manager::terrain_grid_coords_for_wow_position_like_cpp(x, y);
+        fs::write(
+            data_dir
+                .join("maps")
+                .join(format!("{map_id:04}_{gx:02}_{gy:02}.map")),
+            bytes,
+        )
+        .expect("write movement area map");
     }
 
     fn drain_server_opcodes(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<ServerOpcodes> {
@@ -817,6 +994,77 @@ mod tests {
         assert_eq!(jump.xy_speed, 7.5);
     }
 
+    #[tokio::test]
+    async fn player_movement_loads_active_grid_before_visibility_like_cpp() {
+        let mut session = make_session();
+        let guid = ObjectGuid::create_player(1, 45);
+        let login_position = Position::new(1.0, 2.0, 3.0, 0.25);
+        let same_grid_position = Position::new(10.0, 20.0, 30.0, 1.0);
+        let new_grid_position = Position::new(600.0, 20.0, 30.0, 1.0);
+        let calls = Arc::new(AtomicUsize::new(0));
+        let seen = Arc::new(Mutex::new(Vec::new()));
+
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            guid,
+            "MovementGridLoader".to_string(),
+            login_position,
+            1,
+            1,
+            3,
+            10,
+            0,
+        ));
+        session.set_player_moved_unit_guid_like_cpp(guid);
+        let calls_for_resolver = Arc::clone(&calls);
+        let seen_for_resolver = Arc::clone(&seen);
+        session.set_player_grid_load_resolver_like_cpp(Arc::new(
+            move |map_id, instance_id, pos| {
+                calls_for_resolver.fetch_add(1, Ordering::SeqCst);
+                seen_for_resolver
+                    .lock()
+                    .unwrap()
+                    .push((map_id, instance_id, pos));
+                PlayerGridLoadOutcomeLikeCpp {
+                    grid_loaded_now: true,
+                    creature_records_added: 7,
+                    legacy_creature_mirrors: 7,
+                    ..PlayerGridLoadOutcomeLikeCpp::default()
+                }
+            },
+        ));
+
+        let same_grid = MovementInfo {
+            guid,
+            flags: MovementFlag::FORWARD,
+            position: same_grid_position,
+            ..MovementInfo::default()
+        };
+        session
+            .handle_movement_info_like_cpp(Some(ClientOpcodes::MoveHeartbeat), same_grid)
+            .await;
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            0,
+            "C++ Map::PlayerRelocation does not EnsureGridLoadedForActiveObject when the player stays in the same grid"
+        );
+
+        let new_grid = MovementInfo {
+            guid,
+            flags: MovementFlag::FORWARD,
+            position: new_grid_position,
+            ..MovementInfo::default()
+        };
+        session
+            .handle_movement_info_like_cpp(Some(ClientOpcodes::MoveHeartbeat), new_grid)
+            .await;
+
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            seen.lock().unwrap().as_slice(),
+            &[(1, 0, new_grid_position)]
+        );
+    }
+
     #[test]
     fn movement_fall_land_applies_cpp_base_fall_damage_and_updates_fall_info() {
         let (mut session, send_rx) = make_session_with_send_rx();
@@ -840,12 +1088,45 @@ mod tests {
         let sent = send_rx.try_recv().expect("fall environmental damage log");
         let opcode = u16::from_le_bytes([sent[0], sent[1]]);
         assert_eq!(opcode, ServerOpcodes::EnvironmentalDamageLog as u16);
+        assert!(
+            send_rx.try_recv().is_err(),
+            "non-lethal fall damage must not send a death values update"
+        );
 
         let mut harmless = MovementInfo::default();
         harmless.position.z = 99.0;
         harmless.jump.fall_time = 1_600;
         session.apply_movement_side_effects_like_cpp(Some(ClientOpcodes::MoveFallLand), &harmless);
         assert_eq!(session.fall_damage_events_like_cpp().len(), 1);
+    }
+
+    #[test]
+    fn movement_fall_land_lethal_damage_sends_player_values_update_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_rx();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 43)));
+        session.set_player_health_like_cpp(1_000, 1_000);
+        session.set_fall_information_like_cpp(1_200, 300.0);
+        let mut info = MovementInfo::default();
+        info.position.z = 100.0;
+        info.jump.fall_time = 1_500;
+
+        session.apply_movement_side_effects_like_cpp(Some(ClientOpcodes::MoveFallLand), &info);
+
+        let events = session.fall_damage_events_like_cpp();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].damage, 1_000);
+        assert_eq!(events[0].final_damage, 1_000);
+        assert_eq!(session.player_health_like_cpp(), 0);
+        assert!(!session.player_is_alive_like_cpp());
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![
+                ServerOpcodes::HealthUpdate,
+                ServerOpcodes::EnvironmentalDamageLog,
+                ServerOpcodes::UpdateObject,
+            ],
+            "C++ lethal EnvironmentalDamage goes through Unit::Kill/Player::setDeathState before release/cemetery flows; Rust must publish the zero-health values update, not only the combat log"
+        );
     }
 
     #[test]
@@ -942,6 +1223,9 @@ mod tests {
         let sent = send_rx.try_recv().expect("void environmental damage log");
         let opcode = u16::from_le_bytes([sent[0], sent[1]]);
         assert_eq!(opcode, ServerOpcodes::EnvironmentalDamageLog as u16);
+        let sent = send_rx.try_recv().expect("void death values update");
+        let opcode = u16::from_le_bytes([sent[0], sent[1]]);
+        assert_eq!(opcode, ServerOpcodes::UpdateObject as u16);
 
         info.position.z = -499.0;
         session.apply_movement_side_effects_like_cpp(Some(ClientOpcodes::MoveHeartbeat), &info);
@@ -1939,6 +2223,91 @@ mod tests {
             "C++ discovery criteria only fires when the explored-zone bit changes"
         );
         assert!(!drain_server_opcodes(&send_rx).contains(&ServerOpcodes::UpdateObject));
+    }
+
+    #[tokio::test]
+    async fn handle_movement_resolves_zone_area_for_cemetery_flow_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send_rx();
+        let canonical = Arc::new(Mutex::new(wow_map::MapManager::default()));
+        let guid = ObjectGuid::create_player(1, 1095);
+        let map_id = 1_u32;
+        let login_position = Position::new(1.0, 2.0, 3.0, 0.25);
+        let moved_position = Position::new(1922.0, -4345.0, 25.0, 1.0);
+        let data_dir = unique_temp_data_dir("zone-area-cemetery");
+        write_single_area_map_tile_like_cpp(
+            &data_dir,
+            map_id,
+            moved_position.x,
+            moved_position.y,
+            5170,
+        );
+
+        canonical.lock().unwrap().create_world_map(map_id, 0);
+        session.set_mmap_runtime_config_like_cpp(MMapRuntimeConfigLikeCpp {
+            data_dir: data_dir.to_string_lossy().into_owned(),
+            ..MMapRuntimeConfigLikeCpp::default()
+        });
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: map_id,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
+            wow_data::AreaTableEntry {
+                id: 1637,
+                continent_id: map_id as u16,
+                parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: 0,
+            },
+            wow_data::AreaTableEntry {
+                id: 5170,
+                continent_id: map_id as u16,
+                parent_area_id: 1637,
+                area_bit: -1,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: 0x4000_0000,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            guid,
+            "MovementZone".to_string(),
+            login_position,
+            map_id as u16,
+            10,
+            5,
+            80,
+            0,
+        ));
+        session.set_player_moved_unit_guid_like_cpp(guid);
+        session.set_player_zone_area_like_cpp(1, 1);
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+
+        let movement = MovementInfo {
+            guid,
+            flags: MovementFlag::FORWARD,
+            position: moved_position,
+            ..MovementInfo::default()
+        };
+        session
+            .handle_movement(movement_packet(ClientOpcodes::MoveHeartbeat, &movement))
+            .await;
+
+        assert_eq!(
+            session.player_zone_area_like_cpp(),
+            (1637, 5170),
+            "C++ Player::Update uses terrain GetZoneAndAreaId, so cemetery requests after movement must use the Orgrimmar zone, not stale DB zone"
+        );
     }
 
     #[tokio::test]

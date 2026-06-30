@@ -16,9 +16,10 @@ use wow_constants::{
 use wow_core::{ObjectGuid, Position};
 use wow_entities::{
     AllowedPositionZCaps, Creature, CreatureAddonLifecycleRecordLikeCpp, CreatureAiState,
-    DistractMovementAction, EVENT_CHARGE_PREPATH, GenericMovementInform, MovementGeneratorKind,
-    MovementGeneratorType, MovementSlot, PhaseShift, PointMovementAction, PointMovementInform,
-    RotateMovementUpdate, Z_OFFSET_FIND_HEIGHT, allowed_position_z_from_ground_like_cpp,
+    DEFAULT_HEIGHT_SEARCH, DistractMovementAction, EVENT_CHARGE_PREPATH, GenericMovementInform,
+    INVALID_HEIGHT, MovementGeneratorKind, MovementGeneratorType, MovementSlot, PhaseShift,
+    PointMovementAction, PointMovementInform, RotateMovementUpdate, Z_OFFSET_FIND_HEIGHT,
+    allowed_position_z_from_ground_like_cpp,
 };
 use wow_map::GridMapTerrain;
 use wow_movement::generators::CreatureRandomMovementType as MovementCreatureRandomMovementType;
@@ -758,17 +759,37 @@ pub fn path_generator_from_detour_like_cpp(
     detour_path: &DetourPolyPath,
     force_destination: bool,
 ) -> PathGenerator {
+    path_generator_from_detour_with_normalizer_like_cpp(
+        start,
+        destination,
+        detour_path,
+        force_destination,
+        |point| point,
+    )
+}
+
+pub fn path_generator_from_detour_with_normalizer_like_cpp(
+    start: Position,
+    destination: Position,
+    detour_path: &DetourPolyPath,
+    force_destination: bool,
+    mut normalize_position: impl FnMut(Position) -> Position,
+) -> PathGenerator {
     let mut path = PathGenerator::new();
+    let actual_end = normalize_position(position_from_detour_point_like_cpp(
+        detour_path.point_path.actual_end,
+    ));
     path.apply_detour_path_like_cpp(
         start,
         destination,
-        position_from_detour_point_like_cpp(detour_path.point_path.actual_end),
+        actual_end,
         detour_path
             .point_path
             .points
             .iter()
             .copied()
-            .map(position_from_detour_point_like_cpp),
+            .map(position_from_detour_point_like_cpp)
+            .map(normalize_position),
         &detour_path.poly_refs,
         path_type_from_detour_like_cpp(detour_path.point_path.path_type),
         force_destination,
@@ -1684,10 +1705,87 @@ impl WorldCreature {
         true
     }
 
+    fn allowed_position_z_caps_like_cpp(&self) -> AllowedPositionZCaps {
+        let hover_offset = if self
+            .creature
+            .movement_flags_like_cpp()
+            .contains(MovementFlag::HOVER)
+        {
+            self.creature.unit().data().hover_height
+        } else {
+            0.0
+        };
+        AllowedPositionZCaps {
+            on_transport: false,
+            can_fly: self.creature.can_fly_like_cpp(),
+            can_swim: self.creature.can_swim_like_cpp(),
+            hover_offset,
+        }
+    }
+
+    fn normalize_path_position_z_like_cpp(
+        &self,
+        point: Position,
+        terrain: Option<&LiveTerrainHeights>,
+    ) -> Position {
+        let Some(terrain) = terrain else {
+            return point;
+        };
+        let probe_z = point.z + Z_OFFSET_FIND_HEIGHT;
+        let mut ground = terrain.static_height_like_cpp(self.map_id(), point.x, point.y, probe_z);
+        if ground <= INVALID_HEIGHT {
+            let grid_ground = terrain.grid_height_like_cpp(self.map_id(), point.x, point.y);
+            if grid_ground > INVALID_HEIGHT
+                && point.z < grid_ground
+                && grid_ground - point.z <= DEFAULT_HEIGHT_SEARCH
+            {
+                ground = grid_ground;
+            }
+        }
+        let z = allowed_position_z_from_ground_like_cpp(
+            true,
+            ground,
+            point.z,
+            self.allowed_position_z_caps_like_cpp(),
+        );
+        Position::new(point.x, point.y, z, point.orientation)
+    }
+
+    fn path_generator_from_detour_for_creature_like_cpp(
+        &self,
+        destination: Position,
+        detour_path: &DetourPolyPath,
+        force_destination: bool,
+        terrain: Option<&LiveTerrainHeights>,
+    ) -> PathGenerator {
+        path_generator_from_detour_with_normalizer_like_cpp(
+            self.position(),
+            destination,
+            detour_path,
+            force_destination,
+            |point| self.normalize_path_position_z_like_cpp(point, terrain),
+        )
+    }
+
     pub fn update_default_random_movement_with_path_resolver_like_cpp(
         &mut self,
         diff_ms: u32,
         should_try_pathfinding: bool,
+        resolve_path: impl FnMut(Position, Position, usize) -> Option<DetourPolyPath>,
+    ) -> Option<(Position, MoveSpline)> {
+        self.update_default_random_movement_with_path_resolver_and_terrain_like_cpp(
+            diff_ms,
+            should_try_pathfinding,
+            None,
+            resolve_path,
+        )
+    }
+
+    pub fn update_default_random_movement_with_path_resolver_and_terrain_like_cpp(
+        &mut self,
+        diff_ms: u32,
+        should_try_pathfinding: bool,
+        terrain: Option<&LiveTerrainHeights>,
         mut resolve_path: impl FnMut(Position, Position, usize) -> Option<DetourPolyPath>,
     ) -> Option<(Position, MoveSpline)> {
         if self.active_random_generator.is_none() {
@@ -1742,6 +1840,8 @@ impl WorldCreature {
                 if let Some(path) = detour_path.as_ref() {
                     let path_type = path_type_from_detour_like_cpp(path.point_path.path_type);
                     path_result = random_path_result_from_path_type_like_cpp(path_type);
+                } else {
+                    path_result = RandomPathResult::Failed;
                 }
             }
         }
@@ -1759,7 +1859,12 @@ impl WorldCreature {
             Some(generator) => generator.update_like_cpp(true, diff_ms, snapshot),
             None => return None,
         };
-        self.apply_random_movement_action_like_cpp(action, detour_path.as_ref(), 0)
+        self.apply_random_movement_action_with_terrain_like_cpp(
+            action,
+            detour_path.as_ref(),
+            0,
+            terrain,
+        )
     }
 
     pub fn update_default_waypoint_movement_like_cpp(
@@ -1768,6 +1873,36 @@ impl WorldCreature {
     ) -> WaypointMovementAction {
         self.update_default_waypoint_movement_with_launch_like_cpp(diff_ms)
             .0
+    }
+
+    pub fn update_default_waypoint_movement_with_path_resolver_like_cpp(
+        &mut self,
+        diff_ms: u32,
+        should_try_pathfinding: bool,
+        resolve_path: impl FnMut(Position, Position, usize) -> Option<DetourPolyPath>,
+    ) -> (WaypointMovementAction, Option<(Position, MoveSpline)>) {
+        self.update_default_waypoint_movement_with_path_resolver_and_terrain_like_cpp(
+            diff_ms,
+            should_try_pathfinding,
+            None,
+            resolve_path,
+        )
+    }
+
+    pub fn update_default_waypoint_movement_with_path_resolver_and_terrain_like_cpp(
+        &mut self,
+        diff_ms: u32,
+        should_try_pathfinding: bool,
+        terrain: Option<&LiveTerrainHeights>,
+        resolve_path: impl FnMut(Position, Position, usize) -> Option<DetourPolyPath>,
+    ) -> (WaypointMovementAction, Option<(Position, MoveSpline)>) {
+        self.update_default_waypoint_movement_with_wait_roll_path_resolver_and_launch_like_cpp(
+            diff_ms,
+            None,
+            should_try_pathfinding,
+            terrain,
+            resolve_path,
+        )
     }
 
     fn random_unit_snapshot_like_cpp(
@@ -1818,11 +1953,12 @@ impl WorldCreature {
         }
     }
 
-    fn apply_random_movement_action_like_cpp(
+    fn apply_random_movement_action_with_terrain_like_cpp(
         &mut self,
         action: RandomMovementAction,
         detour_path: Option<&DetourPolyPath>,
         planned_travel_time_ms: i32,
+        terrain: Option<&LiveTerrainHeights>,
     ) -> Option<(Position, MoveSpline)> {
         match action {
             RandomMovementAction::StopMoving => {
@@ -1839,10 +1975,11 @@ impl WorldCreature {
                     .unit_mut()
                     .add_unit_state(UnitState::ROAMING_MOVE.bits());
                 let movement = self
-                    .begin_random_move_spline_with_detour_path_like_cpp(
+                    .begin_random_move_spline_with_detour_path_and_terrain_like_cpp(
                         launch.destination,
                         detour_path,
                         false,
+                        terrain,
                     )
                     .map(|(from, spline, _path)| (from, spline))?;
                 self.creature
@@ -1872,7 +2009,13 @@ impl WorldCreature {
         &mut self,
         diff_ms: u32,
     ) -> (WaypointMovementAction, Option<(Position, MoveSpline)>) {
-        self.update_default_waypoint_movement_with_wait_roll_and_launch_like_cpp(diff_ms, None)
+        self.update_default_waypoint_movement_with_wait_roll_path_resolver_and_launch_like_cpp(
+            diff_ms,
+            None,
+            false,
+            None,
+            |_, _, _| None,
+        )
     }
 
     pub fn update_default_waypoint_movement_with_wait_roll_like_cpp(
@@ -1880,17 +2023,23 @@ impl WorldCreature {
         diff_ms: u32,
         wait_time_roll_ms: Option<i32>,
     ) -> WaypointMovementAction {
-        self.update_default_waypoint_movement_with_wait_roll_and_launch_like_cpp(
+        self.update_default_waypoint_movement_with_wait_roll_path_resolver_and_launch_like_cpp(
             diff_ms,
             wait_time_roll_ms,
+            false,
+            None,
+            |_, _, _| None,
         )
         .0
     }
 
-    fn update_default_waypoint_movement_with_wait_roll_and_launch_like_cpp(
+    fn update_default_waypoint_movement_with_wait_roll_path_resolver_and_launch_like_cpp(
         &mut self,
         diff_ms: u32,
         wait_time_roll_ms: Option<i32>,
+        should_try_pathfinding: bool,
+        terrain: Option<&LiveTerrainHeights>,
+        mut resolve_path: impl FnMut(Position, Position, usize) -> Option<DetourPolyPath>,
     ) -> (WaypointMovementAction, Option<(Position, MoveSpline)>) {
         if let Some(mut random) = self.active_waypoint_random_at_path_end {
             let _ = self.update_move_spline_like_cpp();
@@ -1903,12 +2052,22 @@ impl WorldCreature {
             return (WaypointMovementAction::Continue, None);
         }
 
+        // C++ `Unit::Update` advances `UpdateSplineMovement` before
+        // `MotionMaster::Update`, so waypoint generators observe an arrived
+        // `movespline` in the same tick and can launch the next segment.
+        let _ = self.update_move_spline_like_cpp();
+
         let snapshot = self.waypoint_unit_snapshot_like_cpp();
         let Some(generator) = self.active_waypoint_generator.as_mut() else {
             return (WaypointMovementAction::Continue, None);
         };
         let action = generator.update_like_cpp(true, diff_ms, snapshot, wait_time_roll_ms);
-        let launch_result = self.apply_waypoint_movement_action_like_cpp(action);
+        let launch_result = self.apply_waypoint_movement_action_with_path_resolver_like_cpp(
+            action,
+            should_try_pathfinding,
+            terrain,
+            &mut resolve_path,
+        );
         if matches!(
             action,
             WaypointMovementAction::Arrived(arrived)
@@ -1918,7 +2077,13 @@ impl WorldCreature {
             if let Some(generator) = self.active_waypoint_generator.as_mut() {
                 let chained = generator.update_like_cpp(true, 0, snapshot, None);
                 if chained != WaypointMovementAction::Continue {
-                    let chained_launch = self.apply_waypoint_movement_action_like_cpp(chained);
+                    let chained_launch = self
+                        .apply_waypoint_movement_action_with_path_resolver_like_cpp(
+                            chained,
+                            should_try_pathfinding,
+                            terrain,
+                            &mut resolve_path,
+                        );
                     return (chained, chained_launch);
                 }
             }
@@ -1926,9 +2091,12 @@ impl WorldCreature {
         (action, launch_result)
     }
 
-    fn apply_waypoint_movement_action_like_cpp(
+    fn apply_waypoint_movement_action_with_path_resolver_like_cpp(
         &mut self,
         action: WaypointMovementAction,
+        should_try_pathfinding: bool,
+        terrain: Option<&LiveTerrainHeights>,
+        resolve_path: &mut impl FnMut(Position, Position, usize) -> Option<DetourPolyPath>,
     ) -> Option<(Position, MoveSpline)> {
         match action {
             WaypointMovementAction::StopMoving => {
@@ -1972,7 +2140,22 @@ impl WorldCreature {
                 let _ = ended;
                 None
             }
-            WaypointMovementAction::Launch(launch) => self.begin_waypoint_launch_like_cpp(launch),
+            WaypointMovementAction::Launch(launch) => {
+                let detour_path = (launch.generate_path && should_try_pathfinding)
+                    .then(|| {
+                        resolve_path(
+                            self.position(),
+                            launch.destination,
+                            MAX_POINT_PATH_LENGTH_LIKE_CPP,
+                        )
+                    })
+                    .flatten();
+                self.begin_waypoint_launch_with_detour_path_like_cpp(
+                    launch,
+                    detour_path.as_ref(),
+                    terrain,
+                )
+            }
             _ => None,
         }
     }
@@ -1993,16 +2176,32 @@ impl WorldCreature {
         }
     }
 
-    fn begin_waypoint_launch_like_cpp(
+    fn begin_waypoint_launch_with_detour_path_like_cpp(
         &mut self,
         launch: WaypointLaunchPlan,
+        detour_path: Option<&DetourPolyPath>,
+        terrain: Option<&LiveTerrainHeights>,
     ) -> Option<(Position, MoveSpline)> {
         let spline_id = self.spline_id().saturating_add(1);
         let mut init = MoveSplineInit::new(spline_id);
         if launch.disable_transport_transform {
             init.disable_transport_path_transformations();
         }
-        init.move_to(launch.destination);
+        let path = detour_path
+            .map(|detour_path| {
+                self.path_generator_from_detour_for_creature_like_cpp(
+                    launch.destination,
+                    detour_path,
+                    false,
+                    terrain,
+                )
+            })
+            .filter(|path| !path.path_type().contains(PathType::NOPATH));
+        if let Some(path) = path {
+            init.move_by_path(path.path_points().to_vec(), 0);
+        } else {
+            init.move_to(launch.destination);
+        }
         if let Some(facing) = launch.facing {
             init.set_facing_angle(facing);
         }
@@ -2039,17 +2238,32 @@ impl WorldCreature {
         detour_path: Option<&DetourPolyPath>,
         force_destination: bool,
     ) -> Option<(Position, MoveSpline, Option<PathGenerator>)> {
+        self.begin_move_spline_with_detour_path_and_terrain_like_cpp(
+            dst,
+            detour_path,
+            force_destination,
+            None,
+        )
+    }
+
+    pub fn begin_move_spline_with_detour_path_and_terrain_like_cpp(
+        &mut self,
+        dst: Position,
+        detour_path: Option<&DetourPolyPath>,
+        force_destination: bool,
+        terrain: Option<&LiveTerrainHeights>,
+    ) -> Option<(Position, MoveSpline, Option<PathGenerator>)> {
         let Some(detour_path) = detour_path else {
             return self
                 .begin_move_spline_like_cpp(dst)
                 .map(|(from, spline)| (from, spline, None));
         };
 
-        let path = path_generator_from_detour_like_cpp(
-            self.position(),
+        let path = self.path_generator_from_detour_for_creature_like_cpp(
             dst,
             detour_path,
             force_destination,
+            terrain,
         );
         if path.path_type().contains(PathType::NOPATH) {
             return self
@@ -2068,17 +2282,32 @@ impl WorldCreature {
         detour_path: Option<&DetourPolyPath>,
         force_destination: bool,
     ) -> Option<(Position, MoveSpline, Option<PathGenerator>)> {
+        self.begin_random_move_spline_with_detour_path_and_terrain_like_cpp(
+            dst,
+            detour_path,
+            force_destination,
+            None,
+        )
+    }
+
+    pub fn begin_random_move_spline_with_detour_path_and_terrain_like_cpp(
+        &mut self,
+        dst: Position,
+        detour_path: Option<&DetourPolyPath>,
+        force_destination: bool,
+        terrain: Option<&LiveTerrainHeights>,
+    ) -> Option<(Position, MoveSpline, Option<PathGenerator>)> {
         let Some(detour_path) = detour_path else {
             return self
                 .begin_random_move_spline_like_cpp(dst)
                 .map(|(from, spline)| (from, spline, None));
         };
 
-        let path = path_generator_from_detour_like_cpp(
-            self.position(),
+        let path = self.path_generator_from_detour_for_creature_like_cpp(
             dst,
             detour_path,
             force_destination,
+            terrain,
         );
         if path
             .path_type()
@@ -3048,6 +3277,15 @@ impl LiveTerrainHeights {
     pub fn static_height_like_cpp(&self, map_id: u32, x: f32, y: f32, z: f32) -> f32 {
         self.terrain_for_map(map_id).static_height(x, y, z)
     }
+
+    /// Raw `.map` surface height at `(x, y)`, without the C++ probe-Z acceptance
+    /// gate. This is intentionally not a general `Map::GetHeight` replacement;
+    /// creature path normalization uses it only as a guard for Rust MMap points
+    /// that arrived below the client-visible terrain surface.
+    #[must_use]
+    pub fn grid_height_like_cpp(&self, map_id: u32, x: f32, y: f32) -> f32 {
+        self.terrain_for_map(map_id).grid_height(x, y)
+    }
 }
 
 /// Ground-snap a freshly respawned creature, like C++ `Creature::Respawn`'s
@@ -3638,9 +3876,11 @@ impl MapManager {
                             continue;
                         }
 
-                        // Optional: Check actual distance for precise visibility
-                        let dist =
-                            Position::distance(&Position::new(x, y, z, 0.0), &creature.position());
+                        // C++ `CanSeeOrDetect(..., distanceCheck=true)` uses
+                        // `IsWithinDist(..., is3D=false)` for visibility
+                        // (`Object.cpp:1609`). Keep the legacy map path aligned
+                        // with the canonical map visibility path.
+                        let dist = Position::new(x, y, z, 0.0).distance_2d(&creature.position());
                         if dist <= visibility_range {
                             creatures.push(creature.clone());
                         }
@@ -5010,6 +5250,12 @@ mod tests {
             0,
             0,
         );
+        creature
+            .creature
+            .unit_mut()
+            .world_mut()
+            .set_map(0, 0)
+            .expect("bind test creature to map");
         creature.clock_started_at = Instant::now() - Duration::from_secs(10);
         let dst = Position::new(15.0, 10.0, 0.0, 0.0);
 
@@ -5308,6 +5554,128 @@ mod tests {
     }
 
     #[test]
+    fn world_creature_waypoint_generate_path_uses_detour_point_path_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54348);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        let destination = Position::new(30.0, 10.0, 0.0, 0.0);
+        let path = WaypointPath::new(
+            77,
+            vec![wow_movement::WaypointNode::new(10, 30.0, 10.0, 0.0)],
+        );
+        assert_eq!(
+            creature.initialize_default_waypoint_movement_like_cpp(Some(path)),
+            WaypointMovementAction::StopMoving
+        );
+        let mut resolver_calls = 0;
+
+        let (action, launched) = creature
+            .update_default_waypoint_movement_with_path_resolver_like_cpp(
+                wow_movement::WAYPOINT_INITIAL_DELAY_MS_LIKE_CPP as u32,
+                true,
+                |start, destination_arg, point_path_limit| {
+                    resolver_calls += 1;
+                    assert_eq!(start, Position::new(10.0, 10.0, 0.0, 0.0));
+                    assert_eq!(destination_arg, destination);
+                    assert_eq!(point_path_limit, MAX_POINT_PATH_LENGTH_LIKE_CPP);
+                    Some(DetourPolyPath {
+                        poly_refs: vec![11, 22, 33],
+                        point_path: wow_recastdetour::DetourPointPath {
+                            points: vec![[10.0, 10.0, 0.0], [20.0, 15.0, 2.0], [30.0, 10.0, 0.0]],
+                            actual_end: [30.0, 10.0, 0.0],
+                            path_type: DetourPathType::NORMAL,
+                        },
+                        start_far_from_poly: false,
+                        end_far_from_poly: false,
+                    })
+                },
+            );
+
+        assert!(matches!(action, WaypointMovementAction::Launch(_)));
+        assert_eq!(resolver_calls, 1);
+        let (_from, spline) = launched.expect("waypoint detour path launches");
+        assert_eq!(spline.final_destination(), Some(destination));
+        assert!(
+            spline
+                .create_object_path_points_like_cpp()
+                .contains(&Position::new(20.0, 15.0, 2.0, 0.0)),
+            "C++ MoveSplineInit::MoveTo(generatePath=true) switches to MovebyPath(PathGenerator::GetPath())"
+        );
+        assert!(
+            !spline.monster_move_path_data().packed_deltas.is_empty(),
+            "a generated multi-point waypoint path must not serialize as a single direct segment"
+        );
+    }
+
+    #[test]
+    fn world_creature_waypoint_generate_path_nopath_falls_back_direct_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54349);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        let destination = Position::new(30.0, 10.0, 0.0, 0.0);
+        let path = WaypointPath::new(
+            77,
+            vec![wow_movement::WaypointNode::new(10, 30.0, 10.0, 0.0)],
+        );
+        assert_eq!(
+            creature.initialize_default_waypoint_movement_like_cpp(Some(path)),
+            WaypointMovementAction::StopMoving
+        );
+        let mut resolver_calls = 0;
+
+        let (_action, launched) = creature
+            .update_default_waypoint_movement_with_path_resolver_like_cpp(
+                wow_movement::WAYPOINT_INITIAL_DELAY_MS_LIKE_CPP as u32,
+                true,
+                |_start, _destination_arg, _point_path_limit| {
+                    resolver_calls += 1;
+                    Some(DetourPolyPath {
+                        poly_refs: Vec::new(),
+                        point_path: wow_recastdetour::DetourPointPath {
+                            points: vec![[10.0, 10.0, 0.0], [20.0, 15.0, 2.0], [30.0, 10.0, 0.0]],
+                            actual_end: [30.0, 10.0, 0.0],
+                            path_type: DetourPathType::NOPATH,
+                        },
+                        start_far_from_poly: false,
+                        end_far_from_poly: false,
+                    })
+                },
+            );
+
+        assert_eq!(resolver_calls, 1);
+        let (_from, spline) = launched.expect("waypoint direct fallback launches");
+        assert_eq!(spline.final_destination(), Some(destination));
+        assert!(
+            spline.monster_move_path_data().packed_deltas.is_empty(),
+            "C++ MoveSplineInit::MoveTo(generatePath=true) falls back to a direct path when PathGenerator reports NOPATH"
+        );
+    }
+
+    #[test]
     fn world_creature_waypoint_launch_applies_land_takeoff_anim_tier_like_cpp() {
         for (move_type, expected_anim_tier) in [
             (wow_movement::WaypointMoveType::Land, 0),
@@ -5506,6 +5874,75 @@ mod tests {
         assert_eq!(
             creature.move_target(),
             Some(Position::new(12.0, 10.0, 0.0, 0.0))
+        );
+    }
+
+    #[test]
+    fn world_creature_waypoint_tick_advances_spline_before_motionmaster_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54338);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        let path = WaypointPath::new(
+            92,
+            vec![
+                wow_movement::WaypointNode::new(10, 11.0, 10.0, 0.0),
+                wow_movement::WaypointNode::new(20, 12.0, 10.0, 0.0),
+            ],
+        );
+        assert_eq!(
+            creature.initialize_default_waypoint_movement_like_cpp(Some(path)),
+            WaypointMovementAction::StopMoving
+        );
+        assert!(matches!(
+            creature.update_default_waypoint_movement_like_cpp(
+                wow_movement::WAYPOINT_INITIAL_DELAY_MS_LIKE_CPP as u32
+            ),
+            WaypointMovementAction::Launch(_)
+        ));
+        creature
+            .active_move_spline
+            .as_mut()
+            .expect("initial waypoint spline")
+            .finalize();
+        assert!(
+            !creature
+                .creature
+                .unit()
+                .subsystems()
+                .motion
+                .spline
+                .finalized,
+            "the represented MotionSubsystem is stale until Unit::UpdateSplineMovement runs"
+        );
+
+        let action = creature.update_default_waypoint_movement_like_cpp(0);
+
+        match action {
+            WaypointMovementAction::Launch(launch) => {
+                assert_eq!(launch.node_id, 20);
+                assert_eq!(launch.path_id, 92);
+                assert_eq!(launch.destination, Position::new(12.0, 10.0, 0.0, 0.0));
+            }
+            other => panic!("expected next waypoint launch after spline advance, got {other:?}"),
+        }
+        assert_eq!(
+            creature.creature.ai_ownership().last_movement_inform,
+            Some(wow_entities::CreatureMovementInform {
+                movement_type: MovementGeneratorKind::Waypoint.trinity_id(),
+                movement_id: 10,
+            })
         );
     }
 
@@ -5741,6 +6178,214 @@ mod tests {
     }
 
     #[test]
+    fn world_creature_detour_path_bridge_normalizes_points_to_terrain_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54350);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(10.0, 10.0, 1.75, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        creature
+            .creature
+            .unit_mut()
+            .world_mut()
+            .set_map(1, 0)
+            .expect("bind test creature to terrain map");
+        creature.clock_started_at = Instant::now() - Duration::from_secs(10);
+        let data_dir = temp_dir_with_constant_tile(1, 31, 31, 2.0);
+        let terrain = LiveTerrainHeights::new(&data_dir);
+        assert!(
+            (terrain.static_height_like_cpp(1, 10.0, 10.0, 51.75) - 2.0).abs() < 1e-3,
+            "synthetic terrain tile must cover the test path"
+        );
+        let dst = Position::new(15.0, 12.0, 1.75, 0.0);
+        let normal_path = DetourPolyPath {
+            poly_refs: vec![11, 22],
+            point_path: wow_recastdetour::DetourPointPath {
+                points: vec![[10.0, 10.0, 1.75], [12.0, 11.0, 1.75], [15.0, 12.0, 1.75]],
+                actual_end: [15.0, 12.0, 1.75],
+                path_type: DetourPathType::NORMAL,
+            },
+            start_far_from_poly: false,
+            end_far_from_poly: false,
+        };
+
+        let (_from, spline, path) = creature
+            .begin_random_move_spline_with_detour_path_and_terrain_like_cpp(
+                dst,
+                Some(&normal_path),
+                false,
+                Some(&terrain),
+            )
+            .expect("terrain-normalized detour path launches");
+
+        let path = path.expect("path generator");
+        assert_eq!(
+            path.path_points(),
+            &[
+                Position::new(10.0, 10.0, 2.0, 0.0),
+                Position::new(12.0, 11.0, 2.0, 0.0),
+                Position::new(15.0, 12.0, 2.0, 0.0),
+            ],
+            "C++ PathGenerator::NormalizePath calls UpdateAllowedPositionZ for every path point"
+        );
+        assert_eq!(
+            spline.final_destination(),
+            Some(Position::new(15.0, 12.0, 2.0, 0.0))
+        );
+
+        let _ = std::fs::remove_dir_all(&data_dir);
+    }
+
+    #[test]
+    fn world_creature_detour_path_bridge_raises_low_mmap_points_to_grid_ground_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54351);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(10.0, 10.0, 43.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        creature
+            .creature
+            .unit_mut()
+            .world_mut()
+            .set_map(1, 0)
+            .expect("bind test creature to terrain map");
+        creature.clock_started_at = Instant::now() - Duration::from_secs(10);
+        let data_dir = temp_dir_with_constant_tile(1, 31, 31, 50.0);
+        let terrain = LiveTerrainHeights::new(&data_dir);
+        assert!(
+            terrain.static_height_like_cpp(1, 10.0, 10.0, 43.0 + Z_OFFSET_FIND_HEIGHT)
+                <= INVALID_HEIGHT,
+            "the C++ probe gate rejects this low Rust MMap point"
+        );
+        assert!(
+            (terrain.grid_height_like_cpp(1, 10.0, 10.0) - 50.0).abs() < 1e-3,
+            "synthetic terrain still has a usable raw ground height"
+        );
+        let dst = Position::new(15.0, 12.0, 43.0, 0.0);
+        let low_mmap_path = DetourPolyPath {
+            poly_refs: vec![11, 22],
+            point_path: wow_recastdetour::DetourPointPath {
+                points: vec![[10.0, 10.0, 43.0], [12.0, 11.0, 43.0], [15.0, 12.0, 43.0]],
+                actual_end: [15.0, 12.0, 43.0],
+                path_type: DetourPathType::NORMAL,
+            },
+            start_far_from_poly: false,
+            end_far_from_poly: false,
+        };
+
+        let (_from, spline, path) = creature
+            .begin_random_move_spline_with_detour_path_and_terrain_like_cpp(
+                dst,
+                Some(&low_mmap_path),
+                false,
+                Some(&terrain),
+            )
+            .expect("terrain-normalized low detour path launches");
+
+        let path = path.expect("path generator");
+        assert_eq!(
+            path.path_points(),
+            &[
+                Position::new(10.0, 10.0, 50.0, 0.0),
+                Position::new(12.0, 11.0, 50.0, 0.0),
+                Position::new(15.0, 12.0, 50.0, 0.0),
+            ],
+            "NormalizePath must not serialize underground Rust MMap points to the client"
+        );
+        assert_eq!(
+            spline.final_destination(),
+            Some(Position::new(15.0, 12.0, 50.0, 0.0))
+        );
+
+        let _ = std::fs::remove_dir_all(&data_dir);
+    }
+
+    #[test]
+    fn world_creature_detour_path_bridge_keeps_far_below_points_without_ground_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54352);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(10.0, 10.0, -5.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        creature
+            .creature
+            .unit_mut()
+            .world_mut()
+            .set_map(1, 0)
+            .expect("bind test creature to terrain map");
+        creature.clock_started_at = Instant::now() - Duration::from_secs(10);
+        let data_dir = temp_dir_with_constant_tile(1, 31, 31, 50.0);
+        let terrain = LiveTerrainHeights::new(&data_dir);
+        let dst = Position::new(15.0, 12.0, -5.0, 0.0);
+        let far_below_path = DetourPolyPath {
+            poly_refs: vec![11, 22],
+            point_path: wow_recastdetour::DetourPointPath {
+                points: vec![[10.0, 10.0, -5.0], [12.0, 11.0, -5.0], [15.0, 12.0, -5.0]],
+                actual_end: [15.0, 12.0, -5.0],
+                path_type: DetourPathType::NORMAL,
+            },
+            start_far_from_poly: false,
+            end_far_from_poly: false,
+        };
+
+        let (_from, spline, path) = creature
+            .begin_random_move_spline_with_detour_path_and_terrain_like_cpp(
+                dst,
+                Some(&far_below_path),
+                false,
+                Some(&terrain),
+            )
+            .expect("far-below detour path launches without terrain lift");
+
+        let path = path.expect("path generator");
+        assert_eq!(
+            path.path_points(),
+            &[
+                Position::new(10.0, 10.0, -5.0, 0.0),
+                Position::new(12.0, 11.0, -5.0, 0.0),
+                Position::new(15.0, 12.0, -5.0, 0.0),
+            ],
+            "points farther than DEFAULT_HEIGHT_SEARCH below raw ground keep C++ no-ground behavior"
+        );
+        assert_eq!(
+            spline.final_destination(),
+            Some(Position::new(15.0, 12.0, -5.0, 0.0))
+        );
+
+        let _ = std::fs::remove_dir_all(&data_dir);
+    }
+
+    #[test]
     fn world_creature_random_detour_rejects_nopath_and_shortcut_like_cpp() {
         let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54327);
         let mut creature = WorldCreature::new(
@@ -5785,6 +6430,57 @@ mod tests {
             );
             assert!(creature.active_move_spline_like_cpp().is_none());
         }
+    }
+
+    #[test]
+    fn world_creature_random_missing_path_retries_instead_of_direct_fallback_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54340);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        creature
+            .creature
+            .set_default_movement_type_runtime_like_cpp(
+                wow_entities::MovementGeneratorType::Random,
+            );
+        creature.creature.ai_ownership_mut().wander_radius = 8.0;
+        creature.clock_started_at = Instant::now() - Duration::from_secs(10);
+
+        let mut resolver_called = false;
+        let movement = creature.update_default_random_movement_with_path_resolver_like_cpp(
+            10,
+            true,
+            |_start, _destination, _point_path_limit| {
+                resolver_called = true;
+                None
+            },
+        );
+
+        assert!(resolver_called);
+        assert!(
+            movement.is_none(),
+            "C++ RandomMovementGenerator retries when PathGenerator cannot build a usable path"
+        );
+        assert!(creature.active_move_spline_like_cpp().is_none());
+        assert_eq!(
+            creature
+                .active_random_generator
+                .as_ref()
+                .expect("random generator")
+                .timer_ms(),
+            wow_movement::RANDOM_PATH_RETRY_MS_LIKE_CPP
+        );
     }
 
     #[test]
@@ -6425,6 +7121,36 @@ mod tests {
             unfiltered.iter().map(WorldCreature::guid).collect();
         assert!(unfiltered_guids.contains(&visible_guid));
         assert!(unfiltered_guids.contains(&hidden_guid));
+    }
+
+    #[test]
+    fn get_visible_creatures_uses_cpp_2d_sight_range() {
+        let mut manager = MapManager::new();
+        manager.get_or_create_map(1, 0);
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 72);
+        let creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(80.0, 0.0, 80.0, 0.0),
+            50,
+            1,
+            5,
+            10,
+            20.0,
+            0,
+            35,
+            0,
+            0,
+        );
+        manager.add_creature(1, 0, 0, 0, creature);
+
+        let visible = manager.get_visible_creatures_in_phase(1, 0, 0.0, 0.0, 0.0, 100.0, None);
+
+        assert_eq!(
+            visible.iter().map(WorldCreature::guid).collect::<Vec<_>>(),
+            vec![guid],
+            "C++ visibility uses horizontal distance; a vertically separated creature inside sight range must still be sent"
+        );
     }
 
     #[test]

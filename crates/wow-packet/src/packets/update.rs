@@ -11597,8 +11597,16 @@ mod tests {
             "C++ UnitData::WriteCreate writes MountDisplayID after native display scale"
         );
         assert!(
-            bytes.windows(4).any(|window| window == [2, 0, 0x12, 3]),
-            "C++ UnitData::WriteCreate writes StandState/PetTalentPoints/VisFlags/AnimTier"
+            bytes
+                .windows(8)
+                .any(|window| window == [2, 0, 0x12, 3, 0, 0, 0, 0]),
+            "C++ UnitData::WriteCreate writes StandState/PetTalentPoints/VisFlags/AnimTier followed by PetNumber"
+        );
+        assert!(
+            !bytes
+                .windows(5)
+                .any(|window| window == [2, 0, 0x12, 0x12, 3]),
+            "C++ UnitData::WriteCreate writes VisFlags once, not twice"
         );
         assert!(
             bytes

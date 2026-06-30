@@ -783,6 +783,7 @@ impl WorldSession {
                 .command_tx
                 .try_send(SessionCommand::SendIfVisibleLikeCpp(
                     SendIfVisibleLikeCppCommand {
+                        queued_at: Instant::now(),
                         source_guid: gameobject_guid,
                         map_id: current_map_id,
                         instance_id: current_instance_id,
@@ -3379,22 +3380,21 @@ impl WorldSession {
             return;
         }
         // Gate 1b: C++ does not deliver SMSG_ON_MONSTER_MOVE during the
-        // initial enter-world packet burst. Rust can repopulate HaveAtClient
-        // before that burst is complete, so keep this movement-only guard
-        // separate from the generic visibility gate below.
+        // initial enter-world packet burst. Rust queues fan-out commands from
+        // a sessionless world tick, so drop only movement commands that were
+        // queued before the login burst completed.
         if is_monster_move {
-            if let Some(until) = self.suppress_creature_movement_until_like_cpp {
-                let now = Instant::now();
-                if now < until {
+            if let Some(cutoff) = self.suppress_creature_movement_queued_at_or_before_like_cpp {
+                if command.queued_at <= cutoff {
                     tracing::info!(
                         account = self.account_id,
                         source_guid = ?command.source_guid,
-                        remaining_ms = until.saturating_duration_since(now).as_millis(),
-                        "RUST_MONSTER_MOVE_DELIVERY rejected: initial enter-world movement gate"
+                        queued_before_cutoff_ms =
+                            cutoff.saturating_duration_since(command.queued_at).as_millis(),
+                        "RUST_MONSTER_MOVE_DELIVERY rejected: queued before enter-world movement cutoff"
                     );
                     return;
                 }
-                self.suppress_creature_movement_until_like_cpp = None;
             }
         }
         // Gate 2: map must match.

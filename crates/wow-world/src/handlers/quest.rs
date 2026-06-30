@@ -10444,13 +10444,37 @@ mod tests {
             u16::from_le_bytes([bytes[0], bytes[1]]),
             wow_constants::ServerOpcodes::QuestPushResult as u16
         );
+        let result = read_push_quest_result_response_bytes(&bytes);
+        assert!(send_rx.try_recv().is_err());
+        result
+    }
+
+    fn recv_push_quest_result_response_after_death_sync(
+        send_rx: &flume::Receiver<Vec<u8>>,
+    ) -> (ObjectGuid, u8, String) {
+        loop {
+            let bytes = send_rx
+                .try_recv()
+                .expect("quest push result response packet after death sync");
+            let opcode = u16::from_le_bytes([bytes[0], bytes[1]]);
+            if opcode == wow_constants::ServerOpcodes::QuestPushResult as u16 {
+                return read_push_quest_result_response_bytes(&bytes);
+            }
+            assert_eq!(
+                opcode,
+                wow_constants::ServerOpcodes::UpdateObject as u16,
+                "only UpdateObject death-state sync may precede QuestPushResult"
+            );
+        }
+    }
+
+    fn read_push_quest_result_response_bytes(bytes: &[u8]) -> (ObjectGuid, u8, String) {
         let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
         let sender_guid = pkt.read_packed_guid().unwrap();
         let result = pkt.read_uint8().unwrap();
         let title_len = pkt.read_bits(9).unwrap() as usize;
         let quest_title = pkt.read_string(title_len).unwrap();
         assert_eq!(pkt.remaining(), 0);
-        assert!(send_rx.try_recv().is_err());
         (sender_guid, result, quest_title)
     }
 
@@ -15097,7 +15121,7 @@ mod tests {
             )
         );
         assert_eq!(
-            recv_push_quest_result_response(&receiver_rx),
+            recv_push_quest_result_response_after_death_sync(&receiver_rx),
             (
                 sender_guid,
                 QUEST_PUSH_REASON_DEAD_TO_RECIPIENT_LIKE_CPP,

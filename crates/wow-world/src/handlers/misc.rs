@@ -10,7 +10,8 @@
 use tracing::{debug, info, warn};
 use wow_constants::unit::{NPCFlags1, Team};
 use wow_constants::{
-    ClientOpcodes, InventoryResult, ItemExtendedCostFlags, SpellCastResult, UnitStandStateType,
+    ClientOpcodes, ConditionType, InventoryResult, ItemExtendedCostFlags, SpellCastResult,
+    UnitStandStateType,
 };
 use wow_core::{GameTime, ObjectGuid};
 use wow_database::{
@@ -2395,17 +2396,40 @@ impl crate::session::WorldSession {
     /// CMSG_REQUEST_CEMETERY_LIST — client asks for graveyards in zone.
     /// C++ ref: `WorldSession::HandleRequestCemeteryList`.
     pub async fn handle_request_cemetery_list(&mut self, _pkt: wow_packet::WorldPacket) {
-        let (zone_id, _) = self.player_zone_area_like_cpp();
-        let Some(graveyard_store) = self.graveyard_store().cloned() else {
-            debug!(
+        if std::env::var_os("RUSTYCORE_PACKET_SEQUENCE_TRACE").is_some() {
+            info!(
+                account = self.account_id,
+                state = ?self.state(),
+                "RUST_CEMETERY_TRACE handler entry"
+            );
+        }
+        let (zone_id, area_id) = self.player_zone_area_like_cpp();
+        if std::env::var_os("RUSTYCORE_PACKET_SEQUENCE_TRACE").is_some() {
+            info!(
+                account = self.account_id,
+                state = ?self.state(),
                 zone = zone_id,
+                area = area_id,
+                map_id = self.player_map_id_like_cpp(),
+                player = ?self.player_guid(),
+                "RUST_CEMETERY_TRACE handler resolved zone_area"
+            );
+        }
+        let Some(graveyard_store) = self.graveyard_store().cloned() else {
+            info!(
+                zone = zone_id,
+                area = area_id,
+                map_id = self.player_map_id_like_cpp(),
+                player = ?self.player_guid(),
                 "No graveyard store available for CMSG_REQUEST_CEMETERY_LIST"
             );
             return;
         };
         let Some(graveyards) = graveyard_store.graveyards_for_zone(zone_id) else {
-            debug!(
+            info!(
                 zone = zone_id,
+                area = area_id,
+                map_id = self.player_map_id_like_cpp(),
                 player = ?self.player_guid(),
                 "No graveyards found in CMSG_REQUEST_CEMETERY_LIST"
             );
@@ -2423,14 +2447,27 @@ impl crate::session::WorldSession {
         }
 
         if cemetery_ids.is_empty() {
-            debug!(
+            info!(
                 zone = zone_id,
+                area = area_id,
+                map_id = self.player_map_id_like_cpp(),
+                candidate_count = graveyards.len(),
                 player = ?self.player_guid(),
                 "No graveyards passed conditions in CMSG_REQUEST_CEMETERY_LIST"
             );
             return;
         }
 
+        info!(
+            zone = zone_id,
+            area = area_id,
+            map_id = self.player_map_id_like_cpp(),
+            candidate_count = graveyards.len(),
+            accepted_count = cemetery_ids.len(),
+            cemetery_ids = ?cemetery_ids,
+            player = ?self.player_guid(),
+            "Sending C++ RequestCemeteryListResponse"
+        );
         self.send_packet(&RequestCemeteryListResponse {
             is_gossip_triggered: false,
             cemetery_ids,
@@ -2459,16 +2496,26 @@ impl crate::session::WorldSession {
 
         let player_unit_snapshot = self.condition_player_unit_snapshot_like_cpp();
         let player_snapshot = self.condition_player_snapshot_like_cpp();
-        let player_condition_store = self.player_condition_store().cloned();
-        let player_condition_context = self.represented_player_condition_context_like_cpp();
+        let needs_player_condition_context = conditions.iter().any(|condition| {
+            condition.reference_id != 0
+                || condition.condition_type == ConditionType::PlayerCondition
+        });
+        let player_condition_store = needs_player_condition_context
+            .then(|| self.player_condition_store().cloned())
+            .flatten();
+        let player_condition_context = needs_player_condition_context
+            .then(|| self.represented_player_condition_context_like_cpp());
 
         let mut source_info =
             crate::conditions::ConditionSourceInfo::from_targets(Some(&player_object), None, None);
         source_info.set_unit_target_snapshot(0, player_unit_snapshot);
         source_info.set_player_target_snapshot(0, player_snapshot);
-        if let Some(store) = player_condition_store.as_ref() {
+        if let (Some(store), Some(context)) = (
+            player_condition_store.as_ref(),
+            player_condition_context.as_ref(),
+        ) {
             source_info.set_player_condition_store(store.as_ref());
-            source_info.set_player_condition_context(0, player_condition_context.as_context(self));
+            source_info.set_player_condition_context(0, context.as_context(self));
         }
 
         crate::conditions::is_object_meet_to_conditions_like_cpp(
@@ -2902,6 +2949,7 @@ impl crate::session::WorldSession {
         for command_tx in candidates {
             let _ = command_tx.try_send(wow_network::SessionCommand::SendIfVisibleLikeCpp(
                 wow_network::player_registry::SendIfVisibleLikeCppCommand {
+                    queued_at: std::time::Instant::now(),
                     source_guid,
                     map_id,
                     instance_id,

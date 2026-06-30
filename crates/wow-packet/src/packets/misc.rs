@@ -5917,7 +5917,7 @@ impl ServerPacket for TaxiNodeStatusPkt {
 
 // ── RequestCemeteryListResponse (SMSG 0x258F) ────────────────────────────────
 /// Response to CMSG_REQUEST_CEMETERY_LIST.
-/// C# ref: MiscPackets.RequestCemeteryListResponse (ConnectionType.Instance)
+/// C++ ref: `WorldPackets::Misc::RequestCemeteryListResponse::Write`.
 pub struct RequestCemeteryListResponse {
     pub is_gossip_triggered: bool,
     pub cemetery_ids: Vec<u32>,
