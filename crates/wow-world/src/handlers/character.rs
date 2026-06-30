@@ -13692,6 +13692,17 @@ impl WorldSession {
             primary_max_power,
             primary_base_mana,
         );
+        if std::env::var_os("RUSTYCORE_SPELL_POWER_TRACE").is_some() {
+            info!(
+                guid = ?guid,
+                class,
+                power_type = ?primary_power_type,
+                current_power0,
+                max_power0 = primary_max_power,
+                base_mana = primary_base_mana,
+                "RUST_LOGIN_POWER_SYNC"
+            );
+        }
         self.login_time = Some(std::time::Instant::now());
         self.suppress_creature_movement_queued_at_or_before_like_cpp = None;
         // Clear per-session loot/combat state as part of the Rust AddToWorld
@@ -13752,6 +13763,16 @@ impl WorldSession {
                 quest_log,
                 self.party_member_party_type_like_cpp(),
             );
+            player_pkt.set_player_current_power0_like_cpp(current_power0);
+            if std::env::var_os("RUSTYCORE_SPELL_POWER_TRACE").is_some() {
+                info!(
+                    guid = ?guid,
+                    current_power0,
+                    max_power0 = primary_max_power,
+                    base_mana = primary_base_mana,
+                    "RUST_LOGIN_POWER_CREATE"
+                );
+            }
             player_pkt.set_player_account_guids_like_cpp(
                 ObjectGuid::create_global(HighGuid::WowAccount, 0, self.account_id as i64),
                 ObjectGuid::create_global(

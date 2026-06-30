@@ -1174,6 +1174,9 @@ pub enum CharStatements {
     /// UPDATE characters SET money = ? WHERE guid = ?
     UPD_CHAR_MONEY,
     /// C++ `CHAR_UPD_CHARACTER` persists these fields in the full save.
+    /// UPDATE characters SET power1 = ?, ..., power10 = ? WHERE guid = ?
+    UPD_CHAR_POWERS,
+    /// C++ `CHAR_UPD_CHARACTER` persists these fields in the full save.
     /// UPDATE characters SET resettalents_cost = ?, resettalents_time = ? WHERE guid = ?
     UPD_CHAR_TALENT_RESET_STATE,
     /// UPDATE characters SET xp = ? WHERE guid = ?
@@ -2740,6 +2743,9 @@ impl StatementDef for CharStatements {
             Self::UPD_CHAR_XP => "UPDATE characters SET xp = ? WHERE guid = ?",
             Self::UPD_CHAR_LEVEL => "UPDATE characters SET level = ?, xp = ? WHERE guid = ?",
             Self::UPD_CHAR_MONEY => "UPDATE characters SET money = ? WHERE guid = ?",
+            Self::UPD_CHAR_POWERS => {
+                "UPDATE characters SET power1 = ?, power2 = ?, power3 = ?, power4 = ?, power5 = ?, power6 = ?, power7 = ?, power8 = ?, power9 = ?, power10 = ? WHERE guid = ?"
+            }
             Self::UPD_CHAR_TALENT_RESET_STATE => {
                 "UPDATE characters SET resettalents_cost = ?, resettalents_time = ? WHERE guid = ?"
             }
@@ -4578,6 +4584,10 @@ mod tests {
         assert_eq!(
             CharStatements::UPD_CHAR_MONEY.sql(),
             "UPDATE characters SET money = ? WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_CHAR_POWERS.sql(),
+            "UPDATE characters SET power1 = ?, power2 = ?, power3 = ?, power4 = ?, power5 = ?, power6 = ?, power7 = ?, power8 = ?, power9 = ?, power10 = ? WHERE guid = ?"
         );
         assert_eq!(
             CharStatements::UPD_CHAR_DIFFICULTIES.sql(),

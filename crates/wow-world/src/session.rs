@@ -1131,6 +1131,7 @@ pub(crate) struct PlayerSaveToDbSnapshotLikeCpp {
     pub level: u8,
     pub xp: u32,
     pub money: u64,
+    pub powers: [i32; 10],
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -7176,6 +7177,7 @@ impl WorldSession {
                     level: player.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8,
                     xp: player.active_data().xp.max(0) as u32,
                     money: player.active_data().coinage,
+                    powers: player.unit().data().power,
                 });
             });
             if snapshot.is_some() {
@@ -7204,6 +7206,7 @@ impl WorldSession {
             level: self.player_level_like_cpp(),
             xp: self.player_xp_like_cpp(),
             money: self.player_gold_like_cpp(),
+            powers: [0; 10],
         })
     }
 
@@ -7349,6 +7352,9 @@ impl WorldSession {
         base_mana: i32,
     ) -> bool {
         self.mutate_canonical_player_like_cpp(|player| {
+            for raw_power in 0..=25 {
+                player.set_power_index(power_type_from_u8_like_cpp(raw_power), None);
+            }
             player.set_power_index(power_type, Some(0));
             player.unit_mut().set_display_power(power_type);
             player.unit_mut().set_create_mana_like_cpp(base_mana.max(0));
@@ -21630,6 +21636,45 @@ impl WorldSession {
         let _ = char_db.execute(&stmt).await;
     }
 
+    fn build_character_powers_save_statement_like_cpp(
+        powers: [i32; 10],
+        guid_counter: u64,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::UPD_CHAR_POWERS.sql());
+        for (index, power) in powers.into_iter().enumerate() {
+            stmt.set_i32(index, power.max(0));
+        }
+        stmt.set_u64(10, guid_counter);
+        stmt
+    }
+
+    async fn save_player_powers_like_cpp(&self, snapshot: &PlayerSaveToDbSnapshotLikeCpp) {
+        let Some(char_db) = self.char_db().map(Arc::clone) else {
+            return;
+        };
+        let stmt = Self::build_character_powers_save_statement_like_cpp(
+            snapshot.powers,
+            snapshot.guid.counter() as u64,
+        );
+        match char_db.execute(&stmt).await {
+            Ok(_) => {
+                if std::env::var_os("RUSTYCORE_SPELL_POWER_TRACE").is_some() {
+                    info!(
+                        guid = ?snapshot.guid,
+                        powers = ?snapshot.powers,
+                        "RUST_PLAYER_POWER_SAVE"
+                    );
+                }
+            }
+            Err(err) => {
+                warn!(
+                    "Failed to save represented player powers for guid {}: {err}",
+                    snapshot.guid.counter()
+                );
+            }
+        }
+    }
+
     async fn save_player_level_xp_like_cpp(&self) {
         let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
         else {
@@ -21802,6 +21847,7 @@ impl WorldSession {
         self.save_player_position_like_cpp(&snapshot).await;
         self.save_player_level_xp_like_cpp().await;
         self.save_player_gold().await;
+        self.save_player_powers_like_cpp(&snapshot).await;
         self.save_player_talent_reset_state_like_cpp().await;
         self.save_player_explored_zones_like_cpp().await;
         self.save_player_skills_like_cpp().await;
@@ -48942,6 +48988,12 @@ impl WorldSession {
                 spell_id = spell_id,
                 "Failing represented GameObject summon because C++ nearby-entry destination search found no target"
             );
+            return Ok(());
+        }
+
+        if metadata.from_client
+            && !self.take_spell_power_like_cpp(&spell_info, cast_id, spell_id, &spell_visual)
+        {
             return Ok(());
         }
 
@@ -98899,6 +98951,8 @@ mod tests {
                 player.unit_mut().set_level(42);
                 player.set_xp(1234);
                 player.set_money(5678);
+                player.unit_mut().set_max_power(PowerType::Mana, 1000);
+                player.unit_mut().set_power(PowerType::Mana, 321);
             })
             .unwrap();
         session.set_player_position_like_cpp(latest_session_position);
@@ -98916,6 +98970,7 @@ mod tests {
                 level: 42,
                 xp: 1234,
                 money: 5678,
+                powers: [321, 0, 0, 0, 0, 0, 0, 0, 0, 0],
             }
         );
         assert_eq!(
@@ -98971,6 +99026,7 @@ mod tests {
         assert_eq!(snapshot.level, 42);
         assert_eq!(snapshot.xp, 1234);
         assert_eq!(snapshot.money, 5678);
+        assert_eq!(snapshot.powers, [0; 10]);
     }
 
     #[test]
@@ -99069,6 +99125,29 @@ mod tests {
     }
 
     #[test]
+    fn character_powers_save_statement_matches_cpp_power_fields_like_cpp() {
+        let guid = ObjectGuid::create_player(1, 5004);
+        let powers = [321, -1, 0, 100, 5, 6, 7, 8, 9, 10];
+
+        let stmt = WorldSession::build_character_powers_save_statement_like_cpp(
+            powers,
+            guid.counter() as u64,
+        );
+
+        assert_eq!(stmt.sql(), CharStatements::UPD_CHAR_POWERS.sql());
+        assert!(matches!(stmt.params()[0], wow_database::SqlParam::I32(321)));
+        assert!(
+            matches!(stmt.params()[1], wow_database::SqlParam::I32(0)),
+            "C++ power fields are unsigned in practice; represented save clamps stale negatives"
+        );
+        assert!(matches!(stmt.params()[3], wow_database::SqlParam::I32(100)));
+        assert!(matches!(stmt.params()[9], wow_database::SqlParam::I32(10)));
+        assert!(
+            matches!(stmt.params()[10], wow_database::SqlParam::U64(v) if v == guid.counter() as u64)
+        );
+    }
+
+    #[test]
     fn character_position_save_uses_captured_snapshot_map_instance_like_cpp() {
         let guid = ObjectGuid::create_player(1, 5003);
         let snapshot = PlayerSaveToDbSnapshotLikeCpp {
@@ -99079,6 +99158,7 @@ mod tests {
             level: 80,
             xp: 0,
             money: 42,
+            powers: [0; 10],
         };
 
         let stmt = WorldSession::build_character_position_save_statement_from_snapshot_like_cpp(
@@ -99234,6 +99314,62 @@ mod tests {
             create_mana, 3_863,
             "C++ SpellInfo::CalcPowerCost uses Unit::GetCreateMana for mana percentage costs"
         );
+    }
+
+    #[test]
+    fn sync_canonical_player_primary_power_clears_stale_mana_index_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 0xE103);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+
+        session.ensure_login_player_controller_like_cpp(
+            player_guid,
+            "Warrior".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            1,
+            1,
+            1,
+            80,
+            0,
+        );
+        let player = session
+            .canonical_player_entity_snapshot_like_cpp()
+            .expect("canonical player snapshot");
+        {
+            let mut manager = canonical.lock().expect("canonical map manager");
+            let managed = manager.create_world_map(1, 0);
+            session.sync_canonical_player_entity_like_cpp(managed, player);
+        }
+
+        assert!(session.sync_canonical_player_primary_power_like_cpp(
+            PowerType::Rage,
+            500,
+            1_000,
+            0,
+        ));
+
+        let (mana_index, rage_index, mana, rage, rage_max, create_mana) = session
+            .mutate_canonical_player_like_cpp(|player| {
+                (
+                    player.get_power_index(PowerType::Mana),
+                    player.get_power_index(PowerType::Rage),
+                    player.get_power(PowerType::Mana),
+                    player.get_power(PowerType::Rage),
+                    player.get_max_power(PowerType::Rage),
+                    player.unit().get_create_mana_like_cpp(),
+                )
+            })
+            .expect("canonical player");
+        assert_eq!(
+            mana_index, None,
+            "C++ DB2Manager::GetPowerIndexByClass has no Mana power slot for warrior"
+        );
+        assert_eq!(rage_index, Some(0));
+        assert_eq!(mana, 0);
+        assert_eq!(rage, 500);
+        assert_eq!(rage_max, 1_000);
+        assert_eq!(create_mana, 0);
     }
 
     #[test]

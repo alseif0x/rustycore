@@ -205,13 +205,17 @@ inventory::submit! {
 // ── Handler implementations ───────────────────────────────────────
 
 impl WorldSession {
-    fn check_and_take_spell_power_like_cpp(
+    fn spell_power_cost_snapshot_like_cpp(
         &mut self,
         spell_info: &wow_data::SpellInfo,
         cast_id: ObjectGuid,
         spell_id: i32,
-        visual: &SpellCastVisual,
-    ) -> bool {
+        phase: &'static str,
+    ) -> Option<(
+        i32,
+        Vec<wow_data::SpellPowerCostLikeCpp>,
+        Vec<(i8, i32, i32)>,
+    )> {
         let trace_spell_power = spell_power_trace_enabled_like_cpp();
         let Some((caster_create_mana, power_costs, before_power)) = self
             .mutate_canonical_player_like_cpp(|player| {
@@ -233,27 +237,17 @@ impl WorldSession {
         else {
             if trace_spell_power {
                 info!(
-                    "RUST_SPELL_POWER_COST spell_id={} spell_info_id={} cast_id={:?} result=no_canonical_player rows={:?}",
-                    spell_id, spell_info.spell_id, cast_id, spell_info.power_costs
+                    "RUST_SPELL_POWER_COST phase={} spell_id={} spell_info_id={} cast_id={:?} result=no_canonical_player rows={:?}",
+                    phase, spell_id, spell_info.spell_id, cast_id, spell_info.power_costs
                 );
             }
-            if spell_info.power_costs.is_empty() {
-                return true;
-            }
-            self.send_packet(&CastFailed {
-                cast_id,
-                spell_id,
-                visual: visual.clone(),
-                reason: SpellCastResult::NoPower as i32,
-                fail_arg1: 0,
-                fail_arg2: 0,
-            });
-            return false;
+            return None;
         };
 
         if trace_spell_power {
             info!(
-                "RUST_SPELL_POWER_COST spell_id={} spell_info_id={} cast_id={:?} base_mana={} rows={:?} calculated_costs={:?} before_power={:?}",
+                "RUST_SPELL_POWER_COST phase={} spell_id={} spell_info_id={} cast_id={:?} base_mana={} rows={:?} calculated_costs={:?} before_power={:?}",
+                phase,
                 spell_id,
                 spell_info.spell_id,
                 cast_id,
@@ -264,17 +258,14 @@ impl WorldSession {
             );
         }
 
-        if power_costs.is_empty() {
-            if trace_spell_power {
-                info!(
-                    "RUST_SPELL_POWER_COST spell_id={} cast_id={:?} result=no_represented_cost base_mana={}",
-                    spell_id, cast_id, caster_create_mana
-                );
-            }
-            return true;
-        }
+        Some((caster_create_mana, power_costs, before_power))
+    }
 
-        let has_power = power_costs.iter().all(|cost| {
+    fn represented_spell_power_has_power_like_cpp(
+        power_costs: &[wow_data::SpellPowerCostLikeCpp],
+        before_power: &[(i8, i32, i32)],
+    ) -> bool {
+        power_costs.iter().all(|cost| {
             if cost.amount <= 0 {
                 return true;
             }
@@ -292,23 +283,103 @@ impl WorldSession {
                 .find(|(snapshot_power_type, _, _)| *snapshot_power_type == cost.power_type)
                 .map(|(_, current, _)| *current >= cost.amount)
                 .unwrap_or(false)
-        });
+        })
+    }
 
-        if !has_power {
+    fn send_spell_power_no_power_like_cpp(
+        &mut self,
+        cast_id: ObjectGuid,
+        spell_id: i32,
+        visual: &SpellCastVisual,
+    ) {
+        self.send_packet(&CastFailed {
+            cast_id,
+            spell_id,
+            visual: visual.clone(),
+            reason: SpellCastResult::NoPower as i32,
+            fail_arg1: 0,
+            fail_arg2: 0,
+        });
+    }
+
+    pub(crate) fn check_spell_power_like_cpp(
+        &mut self,
+        spell_info: &wow_data::SpellInfo,
+        cast_id: ObjectGuid,
+        spell_id: i32,
+        visual: &SpellCastVisual,
+    ) -> bool {
+        let trace_spell_power = spell_power_trace_enabled_like_cpp();
+        let Some((caster_create_mana, power_costs, before_power)) =
+            self.spell_power_cost_snapshot_like_cpp(spell_info, cast_id, spell_id, "check")
+        else {
+            if spell_info.power_costs.is_empty() {
+                return true;
+            }
+            self.send_spell_power_no_power_like_cpp(cast_id, spell_id, visual);
+            return false;
+        };
+
+        if power_costs.is_empty() {
             if trace_spell_power {
                 info!(
-                    "RUST_SPELL_POWER_COST spell_id={} cast_id={:?} result=no_power costs={:?} before_power={:?}",
+                    "RUST_SPELL_POWER_COST phase=check spell_id={} cast_id={:?} result=no_represented_cost base_mana={}",
+                    spell_id, cast_id, caster_create_mana
+                );
+            }
+            return true;
+        }
+
+        if !Self::represented_spell_power_has_power_like_cpp(&power_costs, &before_power) {
+            if trace_spell_power {
+                info!(
+                    "RUST_SPELL_POWER_COST phase=check spell_id={} cast_id={:?} result=no_power costs={:?} before_power={:?}",
                     spell_id, cast_id, power_costs, before_power
                 );
             }
-            self.send_packet(&CastFailed {
-                cast_id,
-                spell_id,
-                visual: visual.clone(),
-                reason: SpellCastResult::NoPower as i32,
-                fail_arg1: 0,
-                fail_arg2: 0,
-            });
+            self.send_spell_power_no_power_like_cpp(cast_id, spell_id, visual);
+            return false;
+        }
+
+        true
+    }
+
+    pub(crate) fn take_spell_power_like_cpp(
+        &mut self,
+        spell_info: &wow_data::SpellInfo,
+        cast_id: ObjectGuid,
+        spell_id: i32,
+        visual: &SpellCastVisual,
+    ) -> bool {
+        let trace_spell_power = spell_power_trace_enabled_like_cpp();
+        let Some((caster_create_mana, power_costs, before_power)) =
+            self.spell_power_cost_snapshot_like_cpp(spell_info, cast_id, spell_id, "take")
+        else {
+            if spell_info.power_costs.is_empty() {
+                return true;
+            }
+            self.send_spell_power_no_power_like_cpp(cast_id, spell_id, visual);
+            return false;
+        };
+
+        if power_costs.is_empty() {
+            if trace_spell_power {
+                info!(
+                    "RUST_SPELL_POWER_COST phase=take spell_id={} cast_id={:?} result=no_represented_cost base_mana={}",
+                    spell_id, cast_id, caster_create_mana
+                );
+            }
+            return true;
+        }
+
+        if !Self::represented_spell_power_has_power_like_cpp(&power_costs, &before_power) {
+            if trace_spell_power {
+                info!(
+                    "RUST_SPELL_POWER_COST phase=take spell_id={} cast_id={:?} result=no_power costs={:?} before_power={:?}",
+                    spell_id, cast_id, power_costs, before_power
+                );
+            }
+            self.send_spell_power_no_power_like_cpp(cast_id, spell_id, visual);
             return false;
         }
 
@@ -344,7 +415,7 @@ impl WorldSession {
         if let Some((update, after_power)) = update {
             if trace_spell_power {
                 info!(
-                    "RUST_SPELL_POWER_COST spell_id={} cast_id={:?} result=deducted costs={:?} before_power={:?} after_power={:?}",
+                    "RUST_SPELL_POWER_COST phase=take spell_id={} cast_id={:?} result=deducted costs={:?} before_power={:?} after_power={:?}",
                     spell_id, cast_id, power_costs, before_power, after_power
                 );
             }
@@ -352,7 +423,7 @@ impl WorldSession {
         } else {
             if trace_spell_power {
                 info!(
-                    "RUST_SPELL_POWER_COST spell_id={} cast_id={:?} result=lost_canonical_player_before_deduct costs={:?}",
+                    "RUST_SPELL_POWER_COST phase=take spell_id={} cast_id={:?} result=lost_canonical_player_before_deduct costs={:?}",
                     spell_id, cast_id, power_costs
                 );
             }
@@ -580,10 +651,10 @@ impl WorldSession {
             }
         }
 
-        // C++ `Spell::CheckCast` verifies power and `Spell::TakePower` deducts
-        // the calculated `SpellInfo::PowerCosts` for accepted casts. This
-        // represented path covers flat DB2 costs and mana percentage costs.
-        if !self.check_and_take_spell_power_like_cpp(&spell_info, cast_id, spell_id, &req.visual) {
+        // C++ `Spell::CheckCast` verifies power before cast start/execution.
+        // `Spell::TakePower` happens later, after represented cast-failure
+        // gates have passed and immediately before `SMSG_SPELL_GO`.
+        if !self.check_spell_power_like_cpp(&spell_info, cast_id, spell_id, &req.visual) {
             return;
         }
 
@@ -624,7 +695,12 @@ impl WorldSession {
                     spell_visual_id: req.visual.spell_visual_id,
                     script_visual_id: 0,
                 },
-                metadata: crate::session::SpellCastMetadata::default(),
+                metadata: crate::session::SpellCastMetadata {
+                    from_client: true,
+                    misc: req.misc,
+                    original_cast_id: cast_id,
+                    ..crate::session::SpellCastMetadata::default()
+                },
             });
 
             info!(
@@ -641,7 +717,22 @@ impl WorldSession {
                 "Instant cast, executing immediately"
             );
             if let Err(e) = self
-                .execute_spell_with_target_data(spell_id, target_guid, spell_target)
+                .execute_spell_with_visual_and_target_data_with_metadata(
+                    spell_id,
+                    target_guid,
+                    cast_id,
+                    SpellCastVisual {
+                        spell_visual_id: req.visual.spell_visual_id,
+                        script_visual_id: 0,
+                    },
+                    spell_target,
+                    crate::session::SpellCastMetadata {
+                        from_client: true,
+                        misc: req.misc,
+                        original_cast_id: cast_id,
+                        ..crate::session::SpellCastMetadata::default()
+                    },
+                )
                 .await
             {
                 warn!(
@@ -3135,6 +3226,78 @@ mod tests {
         Arc::new(spell_store)
     }
 
+    fn spell_store_with_global_cooldown_and_mana_power_cost_like_cpp(
+        spell_id: i32,
+        cooldown_ms: u32,
+        mana_cost: i32,
+        power_cost_pct: f32,
+    ) -> Arc<wow_data::SpellStore> {
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: vec![wow_data::SpellPowerCostInfoLikeCpp {
+                    order_index: 0,
+                    power_type: PowerType::Mana as i8,
+                    mana_cost,
+                    power_cost_pct,
+                    power_cost_max_pct: 0.0,
+                    required_aura_spell_id: 0,
+                    optional_cost: 0,
+                }],
+                effects: Vec::new(),
+            },
+        );
+        Arc::new(spell_store)
+    }
+
+    fn spell_store_with_mana_cost_and_missing_focus_like_cpp(
+        spell_id: i32,
+        mana_cost: i32,
+    ) -> Arc<wow_data::SpellStore> {
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_SUMMON_OBJECT_WILD,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 777,
+                power_costs: vec![wow_data::SpellPowerCostInfoLikeCpp {
+                    order_index: 0,
+                    power_type: PowerType::Mana as i8,
+                    mana_cost,
+                    power_cost_pct: 0.0,
+                    power_cost_max_pct: 0.0,
+                    required_aura_spell_id: 0,
+                    optional_cost: 0,
+                }],
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_SUMMON_OBJECT_WILD,
+                    ..Default::default()
+                }],
+            },
+        );
+        Arc::new(spell_store)
+    }
+
     fn set_canonical_player_mana_like_cpp(
         session: &mut crate::session::WorldSession,
         current: i32,
@@ -3151,6 +3314,15 @@ mod tests {
     fn canonical_player_mana_like_cpp(session: &mut crate::session::WorldSession) -> i32 {
         session
             .mutate_canonical_player_like_cpp(|player| player.get_power(PowerType::Mana))
+            .unwrap_or(0)
+    }
+
+    fn canonical_player_power_like_cpp(
+        session: &mut crate::session::WorldSession,
+        power: PowerType,
+    ) -> i32 {
+        session
+            .mutate_canonical_player_like_cpp(|player| player.get_power(power))
             .unwrap_or(0)
     }
 
@@ -4659,6 +4831,122 @@ mod tests {
             canonical_player_mana_like_cpp(&mut session),
             149,
             "failed casts must not deduct power"
+        );
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 1);
+        assert_eq!(
+            cast_failed_reason_like_cpp(&packets[0]),
+            SpellCastResult::NoPower as i32
+        );
+    }
+
+    #[tokio::test]
+    async fn cast_spell_late_check_failure_does_not_deduct_power_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let spell_id = 13_353;
+        install_canonical_player(&mut session, &canonical, player_guid);
+        set_canonical_player_mana_like_cpp(&mut session, 500, 1000);
+        session.set_known_spells_like_cpp(vec![spell_id]);
+        session.set_spell_store(spell_store_with_mana_cost_and_missing_focus_like_cpp(
+            spell_id, 150,
+        ));
+
+        session
+            .handle_cast_spell(cast_spell_packet(spell_id, player_guid))
+            .await;
+
+        assert_eq!(
+            canonical_player_mana_like_cpp(&mut session),
+            500,
+            "C++ Spell::TakePower happens after represented CheckCast failures such as missing spell focus"
+        );
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 1);
+        assert_eq!(
+            cast_failed_reason_like_cpp(&packets[0]),
+            SpellCastResult::RequiresSpellFocus as i32
+        );
+    }
+
+    #[tokio::test]
+    async fn queued_spell_with_mana_cost_deducts_when_executed_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let spell_id = 13_354;
+        install_canonical_player(&mut session, &canonical, player_guid);
+        set_canonical_player_mana_like_cpp(&mut session, 500, 1000);
+        session.set_known_spells_like_cpp(vec![spell_id]);
+        session.set_spell_store(
+            spell_store_with_global_cooldown_and_mana_power_cost_like_cpp(
+                spell_id, 1_500, 50, 10.0,
+            ),
+        );
+        session.last_spell_cast_time =
+            Some(std::time::Instant::now() - std::time::Duration::from_millis(1_200));
+
+        session
+            .handle_cast_spell(cast_spell_packet(spell_id, player_guid))
+            .await;
+
+        assert!(
+            session
+                .represented_pending_spell_cast_request_like_cpp
+                .as_ref()
+                .is_some_and(|pending| pending.spell_id == spell_id)
+        );
+        assert!(
+            send_rx.is_empty(),
+            "C++ Player::_pendingSpellCastRequest queues without executing or spending power"
+        );
+        assert_eq!(canonical_player_mana_like_cpp(&mut session), 500);
+
+        session.last_spell_cast_time =
+            Some(std::time::Instant::now() - std::time::Duration::from_millis(1_500));
+        session.tick_pending_spell_cast_request_like_cpp().await;
+
+        assert!(
+            session
+                .represented_pending_spell_cast_request_like_cpp
+                .is_none()
+        );
+        assert_eq!(
+            canonical_player_mana_like_cpp(&mut session),
+            350,
+            "queued C++ casts still run Spell::TakePower when the pending request executes"
+        );
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert!(opcodes.contains(&ServerOpcodes::UpdateObject));
+        assert!(opcodes.contains(&ServerOpcodes::SpellGo));
+        assert!(opcodes.contains(&ServerOpcodes::CooldownEvent));
+    }
+
+    #[tokio::test]
+    async fn mana_cost_spell_on_non_mana_class_does_not_spend_primary_power_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let spell_id = 13_355;
+        install_canonical_player(&mut session, &canonical, player_guid);
+        assert!(session.sync_canonical_player_primary_power_like_cpp(
+            PowerType::Rage,
+            500,
+            1000,
+            0
+        ));
+        session.set_known_spells_like_cpp(vec![spell_id]);
+        session.set_spell_store(spell_store_with_mana_power_cost_like_cpp(spell_id, 50, 0.0));
+
+        session
+            .handle_cast_spell(cast_spell_packet(spell_id, player_guid))
+            .await;
+
+        assert_eq!(
+            canonical_player_power_like_cpp(&mut session, PowerType::Rage),
+            500,
+            "C++ GetPowerIndexByClass has no Mana slot for warrior, so mana-cost spells cannot spend Rage as Mana"
         );
         let packets = drain_server_packet_bytes(&send_rx);
         assert_eq!(packets.len(), 1);
