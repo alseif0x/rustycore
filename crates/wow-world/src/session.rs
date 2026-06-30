@@ -63,10 +63,10 @@ use wow_data::{
     BankBagSlotPricesStore, BattlePetBreedQualityStore, BattlePetBreedStateStore,
     BattlePetSpeciesStateStore, BattlePetSpeciesStore, BattlePetXpGameTableLikeCpp,
     BattlemasterListStore, ChrSpecializationStore, CinematicSequencesStore,
-    ConditionEntriesByTypeStore, CreatureAddonStoreLikeCpp, CreatureBaseStatsStoreLikeCpp,
-    CreatureClassificationHealthRatesLikeCpp, CreatureDifficultyStoreLikeCpp,
-    CreatureDisplayInfoExtraStore, CreatureDisplayInfoStore, CreatureEquipmentStoreLikeCpp,
-    CreatureModelDataStore, CreatureTemplateLifecycleStoreLikeCpp,
+    CombatRatingsGameTableLikeCpp, ConditionEntriesByTypeStore, CreatureAddonStoreLikeCpp,
+    CreatureBaseStatsStoreLikeCpp, CreatureClassificationHealthRatesLikeCpp,
+    CreatureDifficultyStoreLikeCpp, CreatureDisplayInfoExtraStore, CreatureDisplayInfoStore,
+    CreatureEquipmentStoreLikeCpp, CreatureModelDataStore, CreatureTemplateLifecycleStoreLikeCpp,
     CreatureTemplateMountStoreLikeCpp, CurrencyTypesEntry, CurrencyTypesStore,
     DISABLE_TYPE_BATTLEGROUND, DISABLE_TYPE_MAP, DifficultyStore, DisableMgrLikeCpp,
     DisableWorldObjectRefLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
@@ -3769,6 +3769,9 @@ pub struct WorldSession {
     battle_pet_species_state_store: Option<Arc<BattlePetSpeciesStateStore>>,
     battle_pet_xp_game_table: Option<Arc<BattlePetXpGameTableLikeCpp>>,
 
+    // C++ `sCombatRatingsGameTable` used by `Player::GetRatingMultiplier`.
+    combat_ratings_game_table: Option<Arc<CombatRatingsGameTableLikeCpp>>,
+
     // C++ `sShieldBlockRegularGameTable` used by `ItemTemplate::GetShieldBlockValue`.
     shield_block_regular_game_table: Option<Arc<ShieldBlockRegularGameTableLikeCpp>>,
 
@@ -5744,6 +5747,7 @@ impl WorldSession {
             battle_pet_species_store: None,
             battle_pet_species_state_store: None,
             battle_pet_xp_game_table: None,
+            combat_ratings_game_table: None,
             shield_block_regular_game_table: None,
             transmog_set_item_store: None,
             item_price_base_store: None,
@@ -13886,11 +13890,22 @@ impl WorldSession {
         self.battle_pet_xp_game_table = Some(table);
     }
 
+    pub fn set_combat_ratings_game_table(&mut self, table: Arc<CombatRatingsGameTableLikeCpp>) {
+        self.combat_ratings_game_table = Some(table);
+    }
+
     pub fn set_shield_block_regular_game_table(
         &mut self,
         table: Arc<ShieldBlockRegularGameTableLikeCpp>,
     ) {
         self.shield_block_regular_game_table = Some(table);
+    }
+
+    pub(crate) fn combat_rating_multiplier_like_cpp(&self, level: u8, rating: u32) -> f32 {
+        self.combat_ratings_game_table
+            .as_ref()
+            .map(|table| table.rating_multiplier_like_cpp(u16::from(level), rating))
+            .unwrap_or(1.0)
     }
 
     pub(crate) fn battle_pet_calculate_stats_like_cpp(
@@ -53299,6 +53314,33 @@ mod tests {
         );
 
         (session, pkt_tx, send_rx)
+    }
+
+    #[test]
+    fn combat_rating_multiplier_uses_gt_table_like_cpp() {
+        let (mut session, _, _) = make_session();
+        assert_eq!(session.combat_rating_multiplier_like_cpp(80, 8), 1.0);
+
+        let mut columns = [0.0f32; wow_data::CombatRatingsGameTableLikeCpp::VALUE_COLUMN_COUNT];
+        columns[wow_data::CombatRatingsEntryLikeCpp::CRIT_MELEE] = 45.905987;
+        columns[wow_data::CombatRatingsEntryLikeCpp::DODGE] = 45.250187;
+        session.set_combat_ratings_game_table(Arc::new(
+            wow_data::CombatRatingsGameTableLikeCpp::from_rows([
+                wow_data::CombatRatingsEntryLikeCpp::from_columns(columns),
+            ]),
+        ));
+
+        assert!(
+            (session.combat_rating_multiplier_like_cpp(1, 8) - (1.0 / 45.905987)).abs() < 0.00001
+        );
+        assert!(
+            (session.combat_rating_multiplier_like_cpp(1, 2) - (1.0 / 45.250187)).abs() < 0.00001
+        );
+        assert_eq!(
+            session.combat_rating_multiplier_like_cpp(1, 23),
+            1.0,
+            "C++ ratings without a CombatRatings column use default multiplier"
+        );
     }
 
     #[test]
