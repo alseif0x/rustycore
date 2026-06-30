@@ -16,9 +16,10 @@ use wow_constants::{
 use wow_core::{ObjectGuid, Position};
 use wow_entities::{
     AllowedPositionZCaps, Creature, CreatureAddonLifecycleRecordLikeCpp, CreatureAiState,
-    DistractMovementAction, EVENT_CHARGE_PREPATH, GenericMovementInform, MovementGeneratorKind,
-    MovementGeneratorType, MovementSlot, PhaseShift, PointMovementAction, PointMovementInform,
-    RotateMovementUpdate, Z_OFFSET_FIND_HEIGHT, allowed_position_z_from_ground_like_cpp,
+    DEFAULT_HEIGHT_SEARCH, DistractMovementAction, EVENT_CHARGE_PREPATH, GenericMovementInform,
+    INVALID_HEIGHT, MovementGeneratorKind, MovementGeneratorType, MovementSlot, PhaseShift,
+    PointMovementAction, PointMovementInform, RotateMovementUpdate, Z_OFFSET_FIND_HEIGHT,
+    allowed_position_z_from_ground_like_cpp,
 };
 use wow_map::GridMapTerrain;
 use wow_movement::generators::CreatureRandomMovementType as MovementCreatureRandomMovementType;
@@ -1731,7 +1732,16 @@ impl WorldCreature {
             return point;
         };
         let probe_z = point.z + Z_OFFSET_FIND_HEIGHT;
-        let ground = terrain.static_height_like_cpp(self.map_id(), point.x, point.y, probe_z);
+        let mut ground = terrain.static_height_like_cpp(self.map_id(), point.x, point.y, probe_z);
+        if ground <= INVALID_HEIGHT {
+            let grid_ground = terrain.grid_height_like_cpp(self.map_id(), point.x, point.y);
+            if grid_ground > INVALID_HEIGHT
+                && point.z < grid_ground
+                && grid_ground - point.z <= DEFAULT_HEIGHT_SEARCH
+            {
+                ground = grid_ground;
+            }
+        }
         let z = allowed_position_z_from_ground_like_cpp(
             true,
             ground,
@@ -3266,6 +3276,15 @@ impl LiveTerrainHeights {
     #[must_use]
     pub fn static_height_like_cpp(&self, map_id: u32, x: f32, y: f32, z: f32) -> f32 {
         self.terrain_for_map(map_id).static_height(x, y, z)
+    }
+
+    /// Raw `.map` surface height at `(x, y)`, without the C++ probe-Z acceptance
+    /// gate. This is intentionally not a general `Map::GetHeight` replacement;
+    /// creature path normalization uses it only as a guard for Rust MMap points
+    /// that arrived below the client-visible terrain surface.
+    #[must_use]
+    pub fn grid_height_like_cpp(&self, map_id: u32, x: f32, y: f32) -> f32 {
+        self.terrain_for_map(map_id).grid_height(x, y)
     }
 }
 
@@ -6222,6 +6241,145 @@ mod tests {
         assert_eq!(
             spline.final_destination(),
             Some(Position::new(15.0, 12.0, 2.0, 0.0))
+        );
+
+        let _ = std::fs::remove_dir_all(&data_dir);
+    }
+
+    #[test]
+    fn world_creature_detour_path_bridge_raises_low_mmap_points_to_grid_ground_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54351);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(10.0, 10.0, 43.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        creature
+            .creature
+            .unit_mut()
+            .world_mut()
+            .set_map(1, 0)
+            .expect("bind test creature to terrain map");
+        creature.clock_started_at = Instant::now() - Duration::from_secs(10);
+        let data_dir = temp_dir_with_constant_tile(1, 31, 31, 50.0);
+        let terrain = LiveTerrainHeights::new(&data_dir);
+        assert!(
+            terrain.static_height_like_cpp(1, 10.0, 10.0, 43.0 + Z_OFFSET_FIND_HEIGHT)
+                <= INVALID_HEIGHT,
+            "the C++ probe gate rejects this low Rust MMap point"
+        );
+        assert!(
+            (terrain.grid_height_like_cpp(1, 10.0, 10.0) - 50.0).abs() < 1e-3,
+            "synthetic terrain still has a usable raw ground height"
+        );
+        let dst = Position::new(15.0, 12.0, 43.0, 0.0);
+        let low_mmap_path = DetourPolyPath {
+            poly_refs: vec![11, 22],
+            point_path: wow_recastdetour::DetourPointPath {
+                points: vec![[10.0, 10.0, 43.0], [12.0, 11.0, 43.0], [15.0, 12.0, 43.0]],
+                actual_end: [15.0, 12.0, 43.0],
+                path_type: DetourPathType::NORMAL,
+            },
+            start_far_from_poly: false,
+            end_far_from_poly: false,
+        };
+
+        let (_from, spline, path) = creature
+            .begin_random_move_spline_with_detour_path_and_terrain_like_cpp(
+                dst,
+                Some(&low_mmap_path),
+                false,
+                Some(&terrain),
+            )
+            .expect("terrain-normalized low detour path launches");
+
+        let path = path.expect("path generator");
+        assert_eq!(
+            path.path_points(),
+            &[
+                Position::new(10.0, 10.0, 50.0, 0.0),
+                Position::new(12.0, 11.0, 50.0, 0.0),
+                Position::new(15.0, 12.0, 50.0, 0.0),
+            ],
+            "NormalizePath must not serialize underground Rust MMap points to the client"
+        );
+        assert_eq!(
+            spline.final_destination(),
+            Some(Position::new(15.0, 12.0, 50.0, 0.0))
+        );
+
+        let _ = std::fs::remove_dir_all(&data_dir);
+    }
+
+    #[test]
+    fn world_creature_detour_path_bridge_keeps_far_below_points_without_ground_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54352);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(10.0, 10.0, -5.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        creature
+            .creature
+            .unit_mut()
+            .world_mut()
+            .set_map(1, 0)
+            .expect("bind test creature to terrain map");
+        creature.clock_started_at = Instant::now() - Duration::from_secs(10);
+        let data_dir = temp_dir_with_constant_tile(1, 31, 31, 50.0);
+        let terrain = LiveTerrainHeights::new(&data_dir);
+        let dst = Position::new(15.0, 12.0, -5.0, 0.0);
+        let far_below_path = DetourPolyPath {
+            poly_refs: vec![11, 22],
+            point_path: wow_recastdetour::DetourPointPath {
+                points: vec![[10.0, 10.0, -5.0], [12.0, 11.0, -5.0], [15.0, 12.0, -5.0]],
+                actual_end: [15.0, 12.0, -5.0],
+                path_type: DetourPathType::NORMAL,
+            },
+            start_far_from_poly: false,
+            end_far_from_poly: false,
+        };
+
+        let (_from, spline, path) = creature
+            .begin_random_move_spline_with_detour_path_and_terrain_like_cpp(
+                dst,
+                Some(&far_below_path),
+                false,
+                Some(&terrain),
+            )
+            .expect("far-below detour path launches without terrain lift");
+
+        let path = path.expect("path generator");
+        assert_eq!(
+            path.path_points(),
+            &[
+                Position::new(10.0, 10.0, -5.0, 0.0),
+                Position::new(12.0, 11.0, -5.0, 0.0),
+                Position::new(15.0, 12.0, -5.0, 0.0),
+            ],
+            "points farther than DEFAULT_HEIGHT_SEARCH below raw ground keep C++ no-ground behavior"
+        );
+        assert_eq!(
+            spline.final_destination(),
+            Some(Position::new(15.0, 12.0, -5.0, 0.0))
         );
 
         let _ = std::fs::remove_dir_all(&data_dir);
