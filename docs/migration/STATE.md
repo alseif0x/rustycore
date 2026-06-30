@@ -78,7 +78,7 @@ observable mutation · **ABSENT**.
 |---|---|---|
 | Spell cast → SPELL_START / SPELL_GO | WORKS | `handlers/spell.rs:203-483` |
 | Spell effects dispatched | PARTIAL **~42/150** | `session.rs:48774-49383` |
-| Spell cast cost/timing/cooldown | **STUB** | cast time hardcoded 0ms ("Phase 1"); SpellPower/SpellCastTimes/SpellCooldowns DB2 **not loaded** |
+| Spell cast cost/timing/cooldown | **PARTIAL** | SpellCastTimes/SpellCooldowns/SpellPower DB2 now hydrate represented `SpellInfo`; flat + mana-pct costs are checked/deducted, but full C++ SpellHistory/modifiers/range/LOS/reagents are still absent |
 | Spell damage calc (coeff/crit/resist/absorb) | **ABSENT** | `SpellEffectDb2Entry` parsed but unused |
 | Spell LOS/range/facing/reagent checks | **ABSENT** | `handlers/spell.rs:341` only checks GCD + active-cast |
 | Aura apply + client update | PARTIAL | `session.rs:26431` |
@@ -111,7 +111,7 @@ observable mutation · **ABSENT**.
 | VMap line-of-sight | **STUB** (returns `true`) | `world_object.rs:1551`; spells/pathing tunnel walls |
 | Stat-formula GameTables (Gt* crit/dodge/HP) | **ABSENT** | combat/stat scaling unanchored |
 | `ChrClasses`, `FactionTemplate`, `CharBaseInfo` stores | **ABSENT** | class scaling hardcoded; **NPC hostility checks broken** |
-| `SpellPower`/`SpellCastTimes`/`SpellCooldowns` stores | **ABSENT** | see spell engine above |
+| `SpellPower`/`SpellCastTimes`/`SpellCooldowns` stores | **PARTIAL** | loaded into represented spell metadata for normal difficulty; full C++ modifier and runtime integration still incomplete |
 | DBC/DB2 store coverage | **~110 / ~325 (34%)** | `cpp-db2-stores.tsv` |
 | Player periodic save | **ABSENT** | save only on logout → **crash = data loss** |
 | Multi-statement save transactions | **ABSENT** | `session.rs:21667` serial awaits → partial-save races |

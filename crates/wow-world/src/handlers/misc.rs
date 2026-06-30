@@ -9845,6 +9845,7 @@ mod tests {
             aura_type: None,
             display_flags: 0,
             requires_spell_focus: 0,
+            power_costs: Vec::new(),
             effects: Vec::new(),
         }
     }

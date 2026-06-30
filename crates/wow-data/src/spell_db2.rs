@@ -753,22 +753,26 @@ impl SpellNameStore {
 }
 
 impl SpellPowerStore {
+    pub fn entries_like_cpp(&self) -> impl Iterator<Item = &SpellPowerEntry> {
+        self.entries.values()
+    }
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
-        load_store(data_dir, locale, "SpellPower.db2", |id, idx, r| {
+        load_store(data_dir, locale, "SpellPower.db2", |_id, idx, r| {
             SpellPowerEntry {
-                id,
-                order_index: r.get_field_u8(idx, 0),
-                mana_cost: r.get_field_i32(idx, 1),
-                mana_cost_per_level: r.get_field_i32(idx, 2),
-                mana_per_second: r.get_field_i32(idx, 3),
-                power_display_id: r.get_field_u32(idx, 4),
-                alt_power_bar_id: r.get_field_i32(idx, 5),
-                power_cost_pct: f32_field(r, idx, 6),
-                power_cost_max_pct: f32_field(r, idx, 7),
-                power_pct_per_second: f32_field(r, idx, 8),
-                power_type: r.get_field_i8(idx, 9),
-                required_aura_spell_id: r.get_field_i32(idx, 10),
-                optional_cost: r.get_field_u32(idx, 11),
+                id: r.get_field_u32(idx, 0),
+                order_index: r.get_field_u8(idx, 1),
+                mana_cost: r.get_field_i32(idx, 2),
+                mana_cost_per_level: r.get_field_i32(idx, 3),
+                mana_per_second: r.get_field_i32(idx, 4),
+                power_display_id: r.get_field_u32(idx, 5),
+                alt_power_bar_id: r.get_field_i32(idx, 6),
+                power_cost_pct: f32_field(r, idx, 7),
+                power_cost_max_pct: f32_field(r, idx, 8),
+                power_pct_per_second: f32_field(r, idx, 9),
+                power_type: r.get_field_i8(idx, 10),
+                required_aura_spell_id: r.get_field_i32(idx, 11),
+                optional_cost: r.get_field_u32(idx, 12),
                 spell_id: r.get_relationship_id(idx).unwrap_or(0),
             }
         })
@@ -781,8 +785,8 @@ impl SpellPowerDifficultyStore {
             data_dir,
             locale,
             "SpellPowerDifficulty.db2",
-            |id, idx, r| SpellPowerDifficultyEntry {
-                id,
+            |_id, idx, r| SpellPowerDifficultyEntry {
+                id: r.get_field_u32(idx, 0),
                 difficulty_id: r.get_field_u8(idx, 1),
                 order_index: r.get_field_u8(idx, 2),
             },
@@ -1612,5 +1616,30 @@ mod tests {
         load_if_exists!("SpellVisualKit.db2", SpellVisualKitStore);
         load_if_exists!("SpellVisualMissile.db2", SpellVisualMissileStore);
         load_if_exists!("SpellXSpellVisual.db2", SpellXSpellVisualStore);
+    }
+
+    #[test]
+    fn spell_power_fixture_maps_relationship_spell_id_and_percent_fields_like_cpp() {
+        let data_dir = "/home/server/woltk-server-core/Data";
+        let locale = "enUS";
+        let dbc_dir = Path::new(data_dir).join("dbc").join(locale);
+        if !dbc_dir.join("SpellPower.db2").exists() {
+            eprintln!(
+                "Skipping test: SpellPower fixture not found at {}",
+                dbc_dir.display()
+            );
+            return;
+        }
+
+        let store = SpellPowerStore::load(data_dir, locale).expect("load SpellPower.db2");
+        let row = store
+            .entries_like_cpp()
+            .find(|entry| entry.spell_id == 48_071)
+            .expect("Flash Heal row should be keyed by SpellID relationship");
+        assert_eq!(row.power_type, 0);
+        assert_eq!(row.order_index, 0);
+        assert_eq!(row.mana_cost, 0);
+        assert_eq!(row.power_cost_pct, 18.0);
+        assert_eq!(row.power_cost_max_pct, 0.0);
     }
 }

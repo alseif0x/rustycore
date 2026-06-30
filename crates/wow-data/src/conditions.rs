@@ -2466,6 +2466,7 @@ mod tests {
             aura_type: None,
             display_flags: 0,
             requires_spell_focus: 0,
+            power_costs: Vec::new(),
             effects: Vec::new(),
         }
     }
@@ -3595,6 +3596,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![
                     crate::SpellEffectInfo {
                         effect_index: 0,
