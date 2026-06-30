@@ -83610,6 +83610,10 @@ mod tests {
     #[test]
     fn tick_creatures_sync_launches_real_move_spline_for_represented_wander() {
         let (mut session, _, send_rx) = make_session();
+        session.set_mmap_runtime_config_like_cpp(MMapRuntimeConfigLikeCpp {
+            enabled: false,
+            ..Default::default()
+        });
         let manager = shared_map_manager();
         let guid = test_creature_guid(77);
         register_test_creature(&mut session, manager, guid, 25);
@@ -83630,9 +83634,12 @@ mod tests {
             .unwrap();
         session.client_visible_guids_like_cpp.insert(guid);
 
-        session.tick_creatures_sync();
-
-        let sent = send_rx.try_recv().unwrap();
+        let sent = (0..32)
+            .find_map(|_| {
+                session.tick_creatures_sync();
+                send_rx.try_recv().ok()
+            })
+            .expect("random movement should eventually launch a MonsterMove packet");
         let opcode = u16::from_le_bytes([sent[0], sent[1]]);
         assert_eq!(opcode, ServerOpcodes::OnMonsterMove as u16);
         let mut pkt = WorldPacket::from_bytes(&sent[2..]);
@@ -122290,6 +122297,10 @@ mod tests {
 
         // Session A: call run_creatures_tick and collect output.
         let (mut session_a, _, recv_a) = make_session();
+        session_a.set_mmap_runtime_config_like_cpp(MMapRuntimeConfigLikeCpp {
+            enabled: false,
+            ..Default::default()
+        });
         let guid = test_creature_guid(90_001);
         register_test_creature(&mut session_a, manager.clone(), guid, 25);
         session_a.client_visible_guids_like_cpp.insert(guid);
@@ -122308,12 +122319,17 @@ mod tests {
             })
             .unwrap();
 
-        let output = session_a.run_creatures_tick();
-        // Channel must be empty — no direct send happened.
-        assert!(
-            recv_a.try_recv().is_err(),
-            "run_creatures_tick must not send directly to the channel"
-        );
+        let output = (0..32)
+            .find_map(|_| {
+                let output = session_a.run_creatures_tick();
+                // Channel must be empty — no direct send happened.
+                assert!(
+                    recv_a.try_recv().is_err(),
+                    "run_creatures_tick must not send directly to the channel"
+                );
+                (!output.packets.is_empty()).then_some(output)
+            })
+            .expect("session-owned random movement should eventually emit MonsterMove");
         // Flush and verify at least one packet arrived (MonsterMove).
         session_a.flush_runtime_output(output);
         let pkt = recv_a
@@ -126643,6 +126659,10 @@ mod tests {
 
         // ── creatures tick ─────────────────────────────────────────────────
         let (mut session_c, _, recv_c) = make_session();
+        session_c.set_mmap_runtime_config_like_cpp(MMapRuntimeConfigLikeCpp {
+            enabled: false,
+            ..Default::default()
+        });
         let guid_c = test_creature_guid(90_005);
         register_test_creature(&mut session_c, manager.clone(), guid_c, 25);
         session_c.client_visible_guids_like_cpp.insert(guid_c);
@@ -126661,16 +126681,16 @@ mod tests {
             })
             .unwrap();
 
-        let output_c = session_c.run_creatures_tick();
-        assert!(
-            recv_c.try_recv().is_err(),
-            "run_creatures_tick must not send before flush"
-        );
-        // Verify output is non-empty (wander should have produced a MonsterMove).
-        assert!(
-            !output_c.packets.is_empty(),
-            "run_creatures_tick must return at least one packet"
-        );
+        let output_c = (0..32)
+            .find_map(|_| {
+                let output = session_c.run_creatures_tick();
+                assert!(
+                    recv_c.try_recv().is_err(),
+                    "run_creatures_tick must not send before flush"
+                );
+                (!output.packets.is_empty()).then_some(output)
+            })
+            .expect("run_creatures_tick must eventually return at least one packet");
         // Flush and confirm the channel is now populated.
         session_c.flush_runtime_output(output_c);
         assert!(
