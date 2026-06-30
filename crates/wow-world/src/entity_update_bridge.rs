@@ -494,6 +494,7 @@ fn unit_data_update_to_packet(update: &UnitDataUpdate) -> UnitDataValuesDeltaUpd
     packet_update.mod_time_rate = update.values.mod_time_rate;
     packet_update.hover_height = update.values.hover_height;
     packet_update.wild_battle_pet_level = update.values.wild_battle_pet_level;
+    packet_update.base_mana = update.values.base_mana;
     packet_update.power = update.values.power;
     packet_update.max_power = update.values.max_power;
 

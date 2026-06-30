@@ -7337,6 +7337,23 @@ impl WorldSession {
         self.mutate_canonical_player_by_guid_like_cpp(guid, f)
     }
 
+    pub(crate) fn sync_canonical_player_primary_power_like_cpp(
+        &mut self,
+        power_type: PowerType,
+        current: i32,
+        max: i32,
+        base_mana: i32,
+    ) -> bool {
+        self.mutate_canonical_player_like_cpp(|player| {
+            player.set_power_index(power_type, Some(0));
+            player.unit_mut().set_display_power(power_type);
+            player.unit_mut().set_create_mana_like_cpp(base_mana.max(0));
+            player.unit_mut().set_max_power(power_type, max.max(0));
+            player.unit_mut().set_power(power_type, current.max(0));
+        })
+        .is_some()
+    }
+
     pub(crate) fn set_canonical_chosen_title_like_cpp(
         &mut self,
         title_id: i32,
@@ -53421,6 +53438,7 @@ mod tests {
                     aura_type: None,
                     display_flags: 0,
                     requires_spell_focus: 0,
+                    power_costs: Vec::new(),
                     effects: Vec::new(),
                 };
                 spell.effects.push(wow_data::SpellEffectInfo {
@@ -54819,6 +54837,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_TITAN_GRIP,
@@ -55107,6 +55126,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_DUAL_WIELD,
@@ -55207,6 +55227,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_DUAL_WIELD,
@@ -55320,6 +55341,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_DUAL_WIELD,
@@ -65013,6 +65035,7 @@ mod tests {
             aura_type: None,
             display_flags: 0,
             requires_spell_focus,
+            power_costs: Vec::new(),
             effects,
         }
     }
@@ -65032,6 +65055,7 @@ mod tests {
             aura_type: None,
             display_flags: 0,
             requires_spell_focus: 0,
+            power_costs: Vec::new(),
             effects,
         }
     }
@@ -65051,6 +65075,7 @@ mod tests {
             aura_type: None,
             display_flags: 0,
             requires_spell_focus: 0,
+            power_costs: Vec::new(),
             effects,
         }
     }
@@ -65070,6 +65095,7 @@ mod tests {
             aura_type: None,
             display_flags: 0,
             requires_spell_focus: 0,
+            power_costs: Vec::new(),
             effects,
         }
     }
@@ -67411,6 +67437,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: Vec::new(),
             },
         );
@@ -67628,6 +67655,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: Vec::new(),
             },
         );
@@ -67780,6 +67808,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: Vec::new(),
             },
         );
@@ -68048,6 +68077,7 @@ mod tests {
                 aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_PROVIDE_SPELL_FOCUS),
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
@@ -68154,6 +68184,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 1,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
@@ -68217,6 +68248,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 2,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
@@ -68281,6 +68313,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
@@ -68342,6 +68375,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
@@ -68403,6 +68437,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![
                     wow_data::SpellEffectInfo {
                         effect_index: 0,
@@ -68479,6 +68514,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
@@ -68551,6 +68587,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
@@ -68962,6 +68999,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
                     effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED,
@@ -69055,6 +69093,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
                     effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED,
@@ -69216,6 +69255,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![
                     wow_data::SpellEffectInfo {
                         effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
@@ -69409,6 +69449,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
@@ -69525,6 +69566,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
@@ -70207,6 +70249,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
                     effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED,
@@ -70769,6 +70812,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
                     effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED,
@@ -72440,6 +72484,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_ADD_FARSIGHT,
                     effect_radius_index_1: 11,
@@ -78243,6 +78288,7 @@ mod tests {
                 aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_CONTROL_VEHICLE),
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![
                     wow_data::SpellEffectInfo {
                         effect_index: 0,
@@ -78333,6 +78379,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE,
@@ -78553,6 +78600,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: Vec::new(),
             },
         );
@@ -78674,6 +78722,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: Vec::new(),
             },
         );
@@ -78782,6 +78831,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: Vec::new(),
             },
         );
@@ -78914,6 +78964,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: Vec::new(),
             },
         );
@@ -84720,6 +84771,7 @@ mod tests {
                 aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_CONTROL_VEHICLE),
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
@@ -85601,6 +85653,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: Vec::new(),
             },
         );
@@ -85646,6 +85699,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![
                     wow_data::SpellEffectInfo {
                         effect_index: 0,
@@ -85713,6 +85767,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_INSTAKILL,
@@ -85934,6 +85989,7 @@ mod tests {
             aura_type: None,
             display_flags: 0,
             requires_spell_focus: 0,
+            power_costs: Vec::new(),
             effects: vec![wow_data::SpellEffectInfo {
                 effect_index: 0,
                 effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_STUCK,
@@ -85954,6 +86010,7 @@ mod tests {
             aura_type: None,
             display_flags: 0,
             requires_spell_focus: 0,
+            power_costs: Vec::new(),
             effects: Vec::new(),
         }
     }
@@ -85977,6 +86034,7 @@ mod tests {
             aura_type: None,
             display_flags: 0,
             requires_spell_focus: 0,
+            power_costs: Vec::new(),
             effects: vec![wow_data::SpellEffectInfo {
                 effect_index: 0,
                 effect,
@@ -86004,6 +86062,7 @@ mod tests {
             aura_type: None,
             display_flags: 0,
             requires_spell_focus: 0,
+            power_costs: Vec::new(),
             effects: vec![wow_data::SpellEffectInfo {
                 effect_index: 0,
                 effect,
@@ -86032,6 +86091,7 @@ mod tests {
             aura_type: None,
             display_flags: 0,
             requires_spell_focus: 0,
+            power_costs: Vec::new(),
             effects: vec![wow_data::SpellEffectInfo {
                 effect_index: 0,
                 effect,
@@ -86288,6 +86348,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_ADD_EXTRA_ATTACKS,
@@ -86346,6 +86407,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: Vec::new(),
             },
         );
@@ -86396,6 +86458,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: Vec::new(),
             },
         );
@@ -86444,6 +86507,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_INEBRIATE,
@@ -86495,6 +86559,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: Vec::new(),
             },
         );
@@ -86541,6 +86606,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: Vec::new(),
             },
         );
@@ -86589,6 +86655,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: Vec::new(),
             },
         );
@@ -86635,6 +86702,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_REPUTATION,
@@ -86732,6 +86800,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_REPUTATION,
@@ -86780,6 +86849,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_REPUTATION,
@@ -86831,6 +86901,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_REPUTATION,
@@ -86912,6 +86983,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_DUEL,
@@ -87046,6 +87118,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_DUEL,
@@ -87200,6 +87273,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_SELF_RESURRECT,
@@ -87260,6 +87334,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_SELF_RESURRECT,
@@ -87320,6 +87395,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_SELF_RESURRECT,
@@ -88428,6 +88504,7 @@ mod tests {
                     aura_type: None,
                     display_flags: 0,
                     requires_spell_focus: 0,
+                    power_costs: Vec::new(),
                     effects: Vec::new(),
                 },
             );
@@ -92726,6 +92803,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: Vec::new(),
             },
         );
@@ -92765,6 +92843,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_MECHANICAL,
@@ -92812,6 +92891,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: Vec::new(),
             },
         );
@@ -92854,6 +92934,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: Vec::new(),
             },
         );
@@ -92903,6 +92984,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_MAX_HEALTH,
@@ -92975,6 +93057,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: Vec::new(),
             },
         );
@@ -93033,6 +93116,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_PCT,
@@ -93089,6 +93173,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: Vec::new(),
             },
         );
@@ -93137,6 +93222,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: Vec::new(),
             },
         );
@@ -93187,6 +93273,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_HEALTH_LEECH,
@@ -93255,6 +93342,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: Vec::new(),
             },
         );
@@ -93319,6 +93407,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: Vec::new(),
             },
         );
@@ -93394,6 +93483,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_KILL_CREDIT,
@@ -93476,6 +93566,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_KILL_CREDIT2,
@@ -93525,6 +93616,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_GIVE_HONOR,
@@ -93614,6 +93706,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_GIVE_HONOR,
@@ -93671,6 +93764,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_GIVE_HONOR,
@@ -93713,6 +93807,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_SPELL,
@@ -93782,6 +93877,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_SPELL,
@@ -93827,6 +93923,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_SPELL,
@@ -93875,6 +93972,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_DISMISS_PET,
@@ -93931,6 +94029,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_DISMISS_PET,
@@ -93980,6 +94079,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_FORCE_DESELECT,
@@ -94070,6 +94170,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_CHANGE_RAID_MARKER,
@@ -94172,6 +94273,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_CHANGE_RAID_MARKER,
@@ -94250,6 +94352,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_QUEST_COMPLETE,
@@ -94325,6 +94428,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_QUEST_COMPLETE,
@@ -94387,6 +94491,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_QUEST_COMPLETE,
@@ -94453,6 +94558,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_QUEST_COMPLETE,
@@ -94502,6 +94608,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: [
                     wow_data::spell::spell_effect_types::SPELL_EFFECT_ATTACK,
                     wow_data::spell::spell_effect_types::SPELL_EFFECT_ADD_COMBO_POINTS,
@@ -94580,6 +94687,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_PLAY_MOVIE,
@@ -94646,6 +94754,7 @@ mod tests {
                     aura_type: None,
                     display_flags: 0,
                     requires_spell_focus: 0,
+                    power_costs: Vec::new(),
                     effects: vec![wow_data::SpellEffectInfo {
                         effect_index: 0,
                         effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_PLAY_MOVIE,
@@ -94701,6 +94810,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect:
@@ -94723,6 +94833,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: Vec::new(),
             },
         );
@@ -94739,6 +94850,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_PULL,
@@ -94760,6 +94872,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: Vec::new(),
             },
         );
@@ -94776,6 +94889,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_TRADE_SKILL,
@@ -94798,6 +94912,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: Vec::new(),
             },
         );
@@ -95255,6 +95370,7 @@ mod tests {
                     aura_type: None,
                     display_flags: 0,
                     requires_spell_focus: 0,
+                    power_costs: Vec::new(),
                     effects: Vec::new(),
                 },
             );
@@ -95331,6 +95447,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_DUAL_WIELD,
@@ -95412,6 +95529,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_TITAN_GRIP,
@@ -95489,6 +95607,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_DUAL_WIELD,
@@ -95566,6 +95685,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_PARRY,
@@ -95642,6 +95762,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_BLOCK,
@@ -95714,6 +95835,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: Vec::new(),
             },
         );
@@ -95730,6 +95852,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: Vec::new(),
             },
         );
@@ -95794,6 +95917,7 @@ mod tests {
                     aura_type: None,
                     display_flags: 0,
                     requires_spell_focus: 0,
+                    power_costs: Vec::new(),
                     effects: vec![wow_data::SpellEffectInfo {
                         effect_index: 0,
                         effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_PROFICIENCY,
@@ -95872,6 +95996,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: Vec::new(),
             },
         );
@@ -99020,6 +99145,56 @@ mod tests {
     }
 
     #[test]
+    fn sync_canonical_player_primary_power_sets_create_mana_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 0xE102);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+
+        session.ensure_login_player_controller_like_cpp(
+            player_guid,
+            "Caster".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            1,
+            10,
+            5,
+            80,
+            0,
+        );
+        let player = session
+            .canonical_player_entity_snapshot_like_cpp()
+            .expect("canonical player snapshot");
+        {
+            let mut manager = canonical.lock().expect("canonical map manager");
+            let managed = manager.create_world_map(1, 0);
+            session.sync_canonical_player_entity_like_cpp(managed, player);
+        }
+
+        assert!(session.sync_canonical_player_primary_power_like_cpp(
+            PowerType::Mana,
+            500,
+            1_000,
+            3_863,
+        ));
+
+        let (current, max, create_mana) = session
+            .mutate_canonical_player_like_cpp(|player| {
+                (
+                    player.get_power(PowerType::Mana),
+                    player.get_max_power(PowerType::Mana),
+                    player.unit().get_create_mana_like_cpp(),
+                )
+            })
+            .expect("canonical player");
+        assert_eq!(current, 500);
+        assert_eq!(max, 1_000);
+        assert_eq!(
+            create_mana, 3_863,
+            "C++ SpellInfo::CalcPowerCost uses Unit::GetCreateMana for mana percentage costs"
+        );
+    }
+
+    #[test]
     fn update_area_records_enter_leave_area_criteria_like_cpp() {
         let (mut session, _, _) = make_session();
         session.set_player_zone_area_like_cpp(10, 100);
@@ -99916,6 +100091,7 @@ mod tests {
             aura_type: None,
             display_flags: 0,
             requires_spell_focus: 0,
+            power_costs: Vec::new(),
             effects: Vec::new(),
         }
     }
@@ -104497,6 +104673,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_UPGRADE_HEIRLOOM,
@@ -106413,6 +106590,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_GRANT_BATTLEPET_EXPERIENCE,
@@ -106508,6 +106686,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_GRANT_BATTLEPET_EXPERIENCE,
@@ -106602,6 +106781,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_UNCAGE_BATTLEPET,
@@ -106709,6 +106889,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_UNCAGE_BATTLEPET,
@@ -106806,6 +106987,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_UNCAGE_BATTLEPET,
@@ -106967,6 +107149,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_GRANT_BATTLEPET_LEVEL,
@@ -107101,6 +107284,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_GRANT_BATTLEPET_EXPERIENCE,
@@ -107160,6 +107344,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_GRANT_BATTLEPET_EXPERIENCE,
@@ -107256,6 +107441,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_GRANT_BATTLEPET_LEVEL,
@@ -107360,6 +107546,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect:
@@ -107917,6 +108104,7 @@ mod tests {
             aura_type: None,
             display_flags: 0,
             requires_spell_focus: 0,
+            power_costs: Vec::new(),
             effects: Vec::new(),
         }
     }
@@ -108896,6 +109084,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_TRANSMOG_SET,
@@ -108961,6 +109150,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_TRANSMOG_SET,
@@ -110166,6 +110356,7 @@ mod tests {
                     aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE),
                     display_flags: 0,
                     requires_spell_focus: 0,
+                    power_costs: Vec::new(),
                     effects: vec![wow_data::SpellEffectInfo {
                         effect_index: 0,
                         effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
@@ -110226,6 +110417,7 @@ mod tests {
                         .then_some(wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE),
                     display_flags: 0,
                     requires_spell_focus: 0,
+                    power_costs: Vec::new(),
                     effects: has_aura
                         .then(|| {
                             vec![wow_data::SpellEffectInfo {
@@ -110642,6 +110834,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: Vec::new(),
             },
         );

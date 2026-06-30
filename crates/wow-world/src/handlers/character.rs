@@ -20,7 +20,7 @@ use wow_constants::{
     ClientOpcodes, ConditionSourceType, CreatureFlagsExtra, CreatureRandomMovementType,
     EnchantmentSlot, InventoryResult, InventoryType, ItemBondingType, ItemContext,
     ItemExtendedCostFlags, ItemFieldFlags, ItemFlags, ItemFlags2, ItemUpdateState, ItemVendorType,
-    Team, TypeId, TypeMask, UnitStandStateType,
+    PowerType, Team, TypeId, TypeMask, UnitStandStateType,
 };
 use wow_core::guid::HighGuid;
 use wow_core::{ObjectGuid, Position};
@@ -80,6 +80,23 @@ const GO_SPAWN_EFFECTIVE_FLAGS_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN +
 const GO_SPAWN_EFFECTIVE_FACTION_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 5;
 const GO_SPAWN_OVERRIDE_SOURCE_KNOWN_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 6;
 const WORLDSTATE_ANY_MAP_LIKE_CPP: i32 = -1;
+
+fn primary_power_type_for_class_like_cpp(class_id: u8) -> PowerType {
+    match class_id {
+        1 => PowerType::Rage,
+        4 => PowerType::Energy,
+        6 => PowerType::RunicPower,
+        _ => PowerType::Mana,
+    }
+}
+
+fn primary_max_power_for_class_like_cpp(class_id: u8, max_mana: i64) -> i32 {
+    match class_id {
+        1 | 6 => 1_000,
+        4 => 100,
+        _ => max_mana.max(0).min(i64::from(i32::MAX)) as i32,
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct LoginWorldStateTemplateLikeCpp {
@@ -5477,8 +5494,10 @@ impl WorldSession {
                 ([0i32; 5], 0, 0, 0, 0)
             };
 
+        let current_power0 = result.try_read::<u32>(52).unwrap_or(0).min(i32::MAX as u32) as i32;
+
         // Compute real stats from player_levelstats + gear bonuses
-        let combat = if let Some(store) = self.player_stats() {
+        let (combat, base_mana_like_cpp) = if let Some(store) = self.player_stats() {
             if let Some(ls) = store.get(race, class, level) {
                 // Total stats = base + gear
                 let total_str = ls.strength as i32 + gear_stats[0];
@@ -5496,6 +5515,7 @@ impl WorldSession {
                 // MaxMana from total INT
                 let int64 = total_int as i64;
                 let base_mp = ls.base_mana as i64;
+                let base_mana = base_mp.max(0).min(i64::from(i32::MAX)) as i32;
                 let mp_bonus = int64.min(20) + (int64 - 20).max(0) * 15 + gear_mana as i64;
                 let max_mana = base_mp + mp_bonus;
 
@@ -5534,44 +5554,53 @@ impl WorldSession {
                     (0.0, 0.0)
                 };
 
-                PlayerCombatStats {
-                    health: max_health,
-                    max_health,
-                    stats: [total_str, total_agi, total_sta, total_int, total_spi],
-                    base_armor,
-                    max_mana,
-                    attack_power: melee_ap,
-                    ranged_attack_power: ranged_ap,
-                    min_damage: min_d,
-                    max_damage: max_d,
-                    min_ranged_damage: min_rd,
-                    max_ranged_damage: max_rd,
-                    dodge_pct: ls.dodge_pct(class, level),
-                    parry_pct: ls.parry_pct(class),
-                    crit_pct: ls.crit_pct(class, level),
-                    ranged_crit_pct: ls.crit_pct(class, level),
-                    spell_crit_pct: ls.spell_crit_pct(class, level),
-                }
+                (
+                    PlayerCombatStats {
+                        health: max_health,
+                        max_health,
+                        stats: [total_str, total_agi, total_sta, total_int, total_spi],
+                        base_armor,
+                        max_mana,
+                        attack_power: melee_ap,
+                        ranged_attack_power: ranged_ap,
+                        min_damage: min_d,
+                        max_damage: max_d,
+                        min_ranged_damage: min_rd,
+                        max_ranged_damage: max_rd,
+                        dodge_pct: ls.dodge_pct(class, level),
+                        parry_pct: ls.parry_pct(class),
+                        crit_pct: ls.crit_pct(class, level),
+                        ranged_crit_pct: ls.crit_pct(class, level),
+                        spell_crit_pct: ls.spell_crit_pct(class, level),
+                    },
+                    base_mana,
+                )
             } else {
                 warn!(
                     "No player_levelstats for race={race} class={class} level={level}, using fallback"
                 );
                 let (h, m) = default_health_mana(class);
+                (
+                    PlayerCombatStats {
+                        health: h as i64,
+                        max_health: h as i64,
+                        max_mana: m as i64,
+                        ..PlayerCombatStats::default()
+                    },
+                    m as i32,
+                )
+            }
+        } else {
+            let (h, m) = default_health_mana(class);
+            (
                 PlayerCombatStats {
                     health: h as i64,
                     max_health: h as i64,
                     max_mana: m as i64,
                     ..PlayerCombatStats::default()
-                }
-            }
-        } else {
-            let (h, m) = default_health_mana(class);
-            PlayerCombatStats {
-                health: h as i64,
-                max_health: h as i64,
-                max_mana: m as i64,
-                ..PlayerCombatStats::default()
-            }
+                },
+                m as i32,
+            )
         };
 
         info!(
@@ -5709,6 +5738,8 @@ impl WorldSession {
             inv_slots,
             item_creates,
             combat,
+            current_power0,
+            base_mana_like_cpp,
             login_known_spells,
             login_favorite_spells,
             spell_history_entries,
@@ -13530,6 +13561,8 @@ impl WorldSession {
         inv_slots: [ObjectGuid; 141],
         item_creates: Vec<wow_packet::packets::update::ItemCreateData>,
         combat: PlayerCombatStats,
+        current_power0: i32,
+        base_mana: i32,
         known_spells: Vec<i32>,
         favorite_spells: Vec<i32>,
         spell_history_entries: Vec<SpellHistoryEntry>,
@@ -13665,6 +13698,19 @@ impl WorldSession {
         self.set_player_health_like_cpp(
             combat.health.max(0).min(u32::MAX as i64) as u32,
             combat.max_health.max(1).min(u32::MAX as i64) as u32,
+        );
+        let primary_power_type = primary_power_type_for_class_like_cpp(class);
+        let primary_max_power = primary_max_power_for_class_like_cpp(class, combat.max_mana);
+        let primary_base_mana = if primary_power_type == PowerType::Mana {
+            base_mana
+        } else {
+            0
+        };
+        self.sync_canonical_player_primary_power_like_cpp(
+            primary_power_type,
+            current_power0,
+            primary_max_power,
+            primary_base_mana,
         );
         self.login_time = Some(std::time::Instant::now());
         self.suppress_creature_movement_queued_at_or_before_like_cpp = None;

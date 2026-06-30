@@ -70,6 +70,7 @@ pub const UNIT_DATA_HOVER_HEIGHT_BIT: usize = 94;
 pub const UNIT_DATA_POWER_PARENT_BIT: usize = 116;
 pub const UNIT_DATA_POWER_FIRST_BIT: usize = 137;
 pub const UNIT_DATA_MAX_POWER_FIRST_BIT: usize = 147;
+pub const UNIT_DATA_BASE_MANA_BIT: usize = 75;
 pub const UNIT_DATA_VIRTUAL_ITEMS_PARENT_BIT: usize = 167;
 pub const UNIT_DATA_VIRTUAL_ITEMS_FIRST_BIT: usize = 168;
 pub const UNIT_DATA_WILD_BATTLE_PET_LEVEL_BIT: usize = 99;
@@ -115,6 +116,7 @@ pub struct UnitDataValues {
     pub hover_height: f32,
     pub wild_battle_pet_level: i32,
     pub npc_flags: [u32; 2],
+    pub base_mana: i32,
     pub power: [i32; MAX_POWERS_PER_CLASS],
     pub max_power: [i32; MAX_POWERS_PER_CLASS],
     pub virtual_items: [VisibleItemValues; MAX_ATTACK],
@@ -159,6 +161,7 @@ impl Default for UnitDataValues {
             hover_height: 1.0,
             wild_battle_pet_level: 0,
             npc_flags: [0; 2],
+            base_mana: 0,
             power: [0; MAX_POWERS_PER_CLASS],
             max_power: [0; MAX_POWERS_PER_CLASS],
             virtual_items: [VisibleItemValues::default(); MAX_ATTACK],
@@ -1927,6 +1930,16 @@ impl Unit {
         self.get_power_index(power)
             .map(|index| self.data.max_power[index])
             .unwrap_or(0)
+    }
+
+    pub fn get_create_mana_like_cpp(&self) -> i32 {
+        self.data.base_mana
+    }
+
+    pub fn set_create_mana_like_cpp(&mut self, value: i32) {
+        self.set_i32_field(UNIT_DATA_BASE_MANA_BIT, value.max(0), |data| {
+            &mut data.base_mana
+        });
     }
 
     pub fn set_power(&mut self, power: PowerType, mut value: i32) {

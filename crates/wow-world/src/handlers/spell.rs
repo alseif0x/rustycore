@@ -19,14 +19,18 @@
 //!
 //! Reference: C# Game/Handlers/SpellHandler.cs, Game/Spells/Spell.cs
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::{Arc, OnceLock},
+};
 
+use num_traits::FromPrimitive;
 use rand::Rng;
 use tracing::{debug, info, warn};
 
 use wow_constants::{
     BagFamilyMask, ClientOpcodes, InventoryResult, ItemFieldFlags, ItemFlags, ItemUpdateState,
-    SpellCastResult, TypeId,
+    PowerType, SpellCastResult, TypeId,
 };
 use wow_core::ObjectGuid;
 use wow_data::{DISABLE_TYPE_SPELL, DisableWorldObjectRefLikeCpp};
@@ -68,6 +72,16 @@ const PLAYER_TYPE_MASK_LIKE_CPP: u32 = 0x0001 | 0x0020 | 0x0040;
 const SPELL_FAILED_SPELL_UNAVAILABLE_LIKE_CPP: i32 = 128;
 const MAP_BATTLEGROUND_LIKE_CPP: i8 = 3;
 const MAP_ARENA_LIKE_CPP: i8 = 4;
+const SPELL_POWER_TRACE_ENV_LIKE_CPP: &str = "RUSTYCORE_SPELL_POWER_TRACE";
+
+fn spell_power_trace_enabled_like_cpp() -> bool {
+    static ENABLED: OnceLock<bool> = OnceLock::new();
+    *ENABLED.get_or_init(|| {
+        std::env::var(SPELL_POWER_TRACE_ENV_LIKE_CPP)
+            .map(|value| matches!(value.as_str(), "1" | "true" | "TRUE" | "yes" | "YES"))
+            .unwrap_or(false)
+    })
+}
 
 // ── Handler registrations ─────────────────────────────────────────
 
@@ -191,6 +205,162 @@ inventory::submit! {
 // ── Handler implementations ───────────────────────────────────────
 
 impl WorldSession {
+    fn check_and_take_spell_power_like_cpp(
+        &mut self,
+        spell_info: &wow_data::SpellInfo,
+        cast_id: ObjectGuid,
+        spell_id: i32,
+        visual: &SpellCastVisual,
+    ) -> bool {
+        let trace_spell_power = spell_power_trace_enabled_like_cpp();
+        let Some((caster_create_mana, power_costs, before_power)) = self
+            .mutate_canonical_player_like_cpp(|player| {
+                let caster_create_mana = player.unit().get_create_mana_like_cpp();
+                let power_costs = spell_info.calc_power_costs_like_cpp(caster_create_mana);
+                let before_power = power_costs
+                    .iter()
+                    .filter_map(|cost| {
+                        let power_type = PowerType::from_i8(cost.power_type)?;
+                        Some((
+                            cost.power_type,
+                            player.get_power(power_type),
+                            player.get_max_power(power_type),
+                        ))
+                    })
+                    .collect::<Vec<_>>();
+                (caster_create_mana, power_costs, before_power)
+            })
+        else {
+            if trace_spell_power {
+                info!(
+                    "RUST_SPELL_POWER_COST spell_id={} spell_info_id={} cast_id={:?} result=no_canonical_player rows={:?}",
+                    spell_id, spell_info.spell_id, cast_id, spell_info.power_costs
+                );
+            }
+            if spell_info.power_costs.is_empty() {
+                return true;
+            }
+            self.send_packet(&CastFailed {
+                cast_id,
+                spell_id,
+                visual: visual.clone(),
+                reason: SpellCastResult::NoPower as i32,
+                fail_arg1: 0,
+                fail_arg2: 0,
+            });
+            return false;
+        };
+
+        if trace_spell_power {
+            info!(
+                "RUST_SPELL_POWER_COST spell_id={} spell_info_id={} cast_id={:?} base_mana={} rows={:?} calculated_costs={:?} before_power={:?}",
+                spell_id,
+                spell_info.spell_id,
+                cast_id,
+                caster_create_mana,
+                spell_info.power_costs,
+                power_costs,
+                before_power
+            );
+        }
+
+        if power_costs.is_empty() {
+            if trace_spell_power {
+                info!(
+                    "RUST_SPELL_POWER_COST spell_id={} cast_id={:?} result=no_represented_cost base_mana={}",
+                    spell_id, cast_id, caster_create_mana
+                );
+            }
+            return true;
+        }
+
+        let has_power = power_costs.iter().all(|cost| {
+            if cost.amount <= 0 {
+                return true;
+            }
+            let Some(power_type) = PowerType::from_i8(cost.power_type) else {
+                return true;
+            };
+            if matches!(
+                power_type,
+                PowerType::Health | PowerType::None | PowerType::Max
+            ) {
+                return true;
+            }
+            before_power
+                .iter()
+                .find(|(snapshot_power_type, _, _)| *snapshot_power_type == cost.power_type)
+                .map(|(_, current, _)| *current >= cost.amount)
+                .unwrap_or(false)
+        });
+
+        if !has_power {
+            if trace_spell_power {
+                info!(
+                    "RUST_SPELL_POWER_COST spell_id={} cast_id={:?} result=no_power costs={:?} before_power={:?}",
+                    spell_id, cast_id, power_costs, before_power
+                );
+            }
+            self.send_packet(&CastFailed {
+                cast_id,
+                spell_id,
+                visual: visual.clone(),
+                reason: SpellCastResult::NoPower as i32,
+                fail_arg1: 0,
+                fail_arg2: 0,
+            });
+            return false;
+        }
+
+        let update = self.mutate_canonical_player_like_cpp(|player| {
+            for cost in &power_costs {
+                let Some(power_type) = PowerType::from_i8(cost.power_type) else {
+                    continue;
+                };
+                if matches!(
+                    power_type,
+                    PowerType::Health | PowerType::None | PowerType::Max
+                ) {
+                    continue;
+                }
+                let current = player.get_power(power_type);
+                player
+                    .unit_mut()
+                    .set_power(power_type, current.saturating_sub(cost.amount));
+            }
+            let after_power = power_costs
+                .iter()
+                .filter_map(|cost| {
+                    let power_type = PowerType::from_i8(cost.power_type)?;
+                    Some((
+                        cost.power_type,
+                        player.get_power(power_type),
+                        player.get_max_power(power_type),
+                    ))
+                })
+                .collect::<Vec<_>>();
+            (player.values_update(true), after_power)
+        });
+        if let Some((update, after_power)) = update {
+            if trace_spell_power {
+                info!(
+                    "RUST_SPELL_POWER_COST spell_id={} cast_id={:?} result=deducted costs={:?} before_power={:?} after_power={:?}",
+                    spell_id, cast_id, power_costs, before_power, after_power
+                );
+            }
+            self.send_player_values_update_like_cpp(&update);
+        } else {
+            if trace_spell_power {
+                info!(
+                    "RUST_SPELL_POWER_COST spell_id={} cast_id={:?} result=lost_canonical_player_before_deduct costs={:?}",
+                    spell_id, cast_id, power_costs
+                );
+            }
+        }
+
+        true
+    }
+
     /// Handle `CMSG_CAST_SPELL` (0x329C).
     ///
     /// Phase 2: cast timers + cooldowns + mechanical effects.
@@ -408,6 +578,13 @@ impl WorldSession {
                     return;
                 }
             }
+        }
+
+        // C++ `Spell::CheckCast` verifies power and `Spell::TakePower` deducts
+        // the calculated `SpellInfo::PowerCosts` for accepted casts. This
+        // represented path covers flat DB2 costs and mana percentage costs.
+        if !self.check_and_take_spell_power_like_cpp(&spell_info, cast_id, spell_id, &req.visual) {
+            return;
         }
 
         // ── Initiate cast or execute immediately ─────────────────────────
@@ -2447,7 +2624,7 @@ mod tests {
 
     use wow_constants::{
         BagFamilyMask, DeathState, ItemContext, ItemFieldFlags, ItemFlags, ItemUpdateState,
-        ServerOpcodes, SpellCastResult,
+        PowerType, ServerOpcodes, SpellCastResult,
     };
     use wow_core::{ObjectGuid, Position, guid::HighGuid};
     use wow_entities::{
@@ -2916,11 +3093,65 @@ mod tests {
                     aura_type: None,
                     display_flags: 0,
                     requires_spell_focus: 0,
+                    power_costs: Vec::new(),
                     effects: Vec::new(),
                 },
             );
         }
         Arc::new(spell_store)
+    }
+
+    fn spell_store_with_mana_power_cost_like_cpp(
+        spell_id: i32,
+        mana_cost: i32,
+        power_cost_pct: f32,
+    ) -> Arc<wow_data::SpellStore> {
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: vec![wow_data::SpellPowerCostInfoLikeCpp {
+                    order_index: 0,
+                    power_type: PowerType::Mana as i8,
+                    mana_cost,
+                    power_cost_pct,
+                    power_cost_max_pct: 0.0,
+                    required_aura_spell_id: 0,
+                    optional_cost: 0,
+                }],
+                effects: Vec::new(),
+            },
+        );
+        Arc::new(spell_store)
+    }
+
+    fn set_canonical_player_mana_like_cpp(
+        session: &mut crate::session::WorldSession,
+        current: i32,
+        max: i32,
+    ) {
+        session.mutate_canonical_player_like_cpp(|player| {
+            player.set_power_index(PowerType::Mana, Some(0));
+            player.unit_mut().set_create_mana_like_cpp(max);
+            player.unit_mut().set_max_power(PowerType::Mana, max);
+            player.unit_mut().set_power(PowerType::Mana, current);
+        });
+    }
+
+    fn canonical_player_mana_like_cpp(session: &mut crate::session::WorldSession) -> i32 {
+        session
+            .mutate_canonical_player_like_cpp(|player| player.get_power(PowerType::Mana))
+            .unwrap_or(0)
     }
 
     fn spell_store_with_global_cooldown(
@@ -2941,6 +3172,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: Vec::new(),
             },
         );
@@ -2962,6 +3194,7 @@ mod tests {
                 aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOUNTED),
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
@@ -2990,6 +3223,7 @@ mod tests {
                 aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOUNTED),
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![
                     wow_data::SpellEffectInfo {
                         effect_index: 0,
@@ -3027,6 +3261,7 @@ mod tests {
                 aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOD_SHAPESHIFT),
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
@@ -3058,6 +3293,7 @@ mod tests {
                 aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOUNTED),
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
@@ -3080,6 +3316,7 @@ mod tests {
                 aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOD_SHAPESHIFT),
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
@@ -3111,6 +3348,7 @@ mod tests {
                 aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOUNTED),
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
@@ -3133,6 +3371,7 @@ mod tests {
                 aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_TRANSFORM),
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
@@ -3308,6 +3547,7 @@ mod tests {
                 aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOUNTED),
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
@@ -3339,6 +3579,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: Vec::new(),
             },
         );
@@ -3363,6 +3604,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: Vec::new(),
             },
         );
@@ -3388,6 +3630,7 @@ mod tests {
                 aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOD_SCALE),
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
@@ -3423,6 +3666,7 @@ mod tests {
                 aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOD_SPEED_NO_CONTROL),
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
@@ -3550,6 +3794,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![wow_data::SpellEffectInfo {
                     effect_index: 0,
                     effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_SELF_RESURRECT,
@@ -4357,6 +4602,69 @@ mod tests {
             spell_go_spell_id_like_cpp(&packets[0]),
             original_spell_id,
             "C++ Player::GetCastSpellInfo ignores override entries whose SpellInfo cannot be resolved"
+        );
+    }
+
+    #[tokio::test]
+    async fn cast_spell_with_mana_cost_deducts_power_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let spell_id = 13_351;
+        install_canonical_player(&mut session, &canonical, player_guid);
+        set_canonical_player_mana_like_cpp(&mut session, 500, 1000);
+        session.set_known_spells_like_cpp(vec![spell_id]);
+        session.set_spell_store(spell_store_with_mana_power_cost_like_cpp(
+            spell_id, 50, 10.0,
+        ));
+
+        session
+            .handle_cast_spell(cast_spell_packet(spell_id, player_guid))
+            .await;
+
+        assert_eq!(
+            canonical_player_mana_like_cpp(&mut session),
+            350,
+            "C++ CalcPowerCost charges flat ManaCost plus PowerCostPct of create mana"
+        );
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert!(
+            !opcodes.contains(&ServerOpcodes::CastFailed),
+            "accepted casts must not send SPELL_FAILED_NO_POWER"
+        );
+        assert!(
+            opcodes.contains(&ServerOpcodes::UpdateObject),
+            "accepted casts with represented power cost must send a player values update"
+        );
+    }
+
+    #[tokio::test]
+    async fn cast_spell_with_insufficient_mana_fails_no_power_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let spell_id = 13_352;
+        install_canonical_player(&mut session, &canonical, player_guid);
+        set_canonical_player_mana_like_cpp(&mut session, 149, 1000);
+        session.set_known_spells_like_cpp(vec![spell_id]);
+        session.set_spell_store(spell_store_with_mana_power_cost_like_cpp(
+            spell_id, 50, 10.0,
+        ));
+
+        session
+            .handle_cast_spell(cast_spell_packet(spell_id, player_guid))
+            .await;
+
+        assert_eq!(
+            canonical_player_mana_like_cpp(&mut session),
+            149,
+            "failed casts must not deduct power"
+        );
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 1);
+        assert_eq!(
+            cast_failed_reason_like_cpp(&packets[0]),
+            SpellCastResult::NoPower as i32
         );
     }
 

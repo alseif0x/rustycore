@@ -17,7 +17,7 @@ use std::f32::consts::TAU;
 
 use anyhow::Result;
 use tracing::info;
-use wow_constants::SpellCastResult;
+use wow_constants::{PowerType, SpellCastResult};
 use wow_database::{HotfixDatabase, StatementDef, WorldDatabase, WorldStatements};
 use wow_entities::PetAuraLikeCpp;
 
@@ -564,8 +564,29 @@ pub struct SpellInfo {
     /// C++ `SpellInfo::RequiresSpellFocus`, hydrated from
     /// `SpellCastingRequirementsEntry::RequiresSpellFocus`.
     pub requires_spell_focus: u32,
+    /// C++ `SpellInfo::PowerCosts`, hydrated from `SpellPower.db2`.
+    pub power_costs: Vec<SpellPowerCostInfoLikeCpp>,
     /// Spell effects keyed by C++ `SpellEffectInfo::EffectIndex`.
     pub effects: Vec<SpellEffectInfo>,
+}
+
+/// Represented subset of C++ `SpellPowerEntry` stored on `SpellInfo::PowerCosts`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SpellPowerCostInfoLikeCpp {
+    pub order_index: u8,
+    pub power_type: i8,
+    pub mana_cost: i32,
+    pub power_cost_pct: f32,
+    pub power_cost_max_pct: f32,
+    pub required_aura_spell_id: i32,
+    pub optional_cost: u32,
+}
+
+/// Calculated spell power cost, mirroring C++ `Spell::m_powerCost`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellPowerCostLikeCpp {
+    pub power_type: i8,
+    pub amount: i32,
 }
 
 /// Minimal `SpellEffectInfo` fields needed by C++ ConditionMgr validation.
@@ -4913,6 +4934,10 @@ pub struct SpellLearnSpellLoadOutcomeLikeCpp {
     pub warnings: Vec<SpellLearnSpellLoadWarningLikeCpp>,
 }
 
+fn calculate_pct_i32_like_cpp(base: i32, pct: f32) -> i32 {
+    ((base as f32) * pct / 100.0) as i32
+}
+
 impl SpellInfo {
     /// Convenience: returns the effective cooldown (per-spell or global, whichever is larger).
     pub fn effective_cooldown_ms(&self) -> u32 {
@@ -4942,6 +4967,54 @@ impl SpellInfo {
 
     pub fn requires_spell_focus_like_cpp(&self) -> bool {
         self.requires_spell_focus != 0
+    }
+
+    /// Represented subset of C++ `SpellInfo::CalcPowerCost` (`SpellInfo.cpp:3984`).
+    ///
+    /// This covers the DB2 `ManaCost` flat amount and mana percentage costs used
+    /// by early live casts. Aura/spellmod/NPC scaling and non-mana max-power DB2
+    /// lookups are intentionally deferred.
+    pub fn calc_power_costs_like_cpp(&self, caster_create_mana: i32) -> Vec<SpellPowerCostLikeCpp> {
+        let mut costs = Vec::new();
+
+        for power in &self.power_costs {
+            // C++ skips this power entry unless the caster has the required aura.
+            // The represented cast path has no full aura query yet, so fail-open
+            // by ignoring gated costs rather than charging the wrong row.
+            if power.required_aura_spell_id != 0 {
+                continue;
+            }
+
+            let mut amount = power.mana_cost;
+            if power.power_cost_pct != 0.0 {
+                if power.power_type == PowerType::Mana as i8 {
+                    amount +=
+                        calculate_pct_i32_like_cpp(caster_create_mana.max(0), power.power_cost_pct);
+                } else {
+                    continue;
+                }
+            }
+
+            Self::push_power_cost_like_cpp(&mut costs, power.power_type, amount);
+        }
+
+        costs
+    }
+
+    fn push_power_cost_like_cpp(
+        costs: &mut Vec<SpellPowerCostLikeCpp>,
+        power_type: i8,
+        amount: i32,
+    ) {
+        if amount == 0 {
+            return;
+        }
+
+        if let Some(existing) = costs.iter_mut().find(|cost| cost.power_type == power_type) {
+            existing.amount = existing.amount.saturating_add(amount);
+        } else {
+            costs.push(SpellPowerCostLikeCpp { power_type, amount });
+        }
     }
 
     pub fn normalized_implicit_target_effect_mask_like_cpp(&self, mut effect_mask: u32) -> u32 {
@@ -5265,6 +5338,7 @@ impl SpellStore {
             aura_type: None,
             display_flags: 0,
             requires_spell_focus: 0,
+            power_costs: Vec::new(),
             effects: Vec::new(),
         }
     }
@@ -5311,6 +5385,9 @@ impl SpellStore {
         entry.recovery_time_ms = incoming.recovery_time_ms;
         entry.requires_spell_focus = incoming.requires_spell_focus;
         entry.display_flags = incoming.display_flags;
+        if !incoming.power_costs.is_empty() {
+            entry.power_costs = incoming.power_costs;
+        }
 
         if !incoming.effects.is_empty() {
             for hotfix_effect in incoming.effects {
@@ -5366,6 +5443,13 @@ impl SpellStore {
         // [M0.1/#14] Join DB2 SpellCooldowns (per-spell cooldown), also after the merge.
         let spell_cooldowns_store = crate::spell_db2::SpellCooldownsStore::load(data_dir, locale)?;
         store.apply_db2_cooldowns_like_cpp(&spell_cooldowns_store);
+
+        // [M0.1/#72] C++ SpellMgr loads SpellInfo::PowerCosts from
+        // `sSpellPowerStore` after base SpellInfo construction.
+        let spell_power_store = crate::spell_db2::SpellPowerStore::load(data_dir, locale)?;
+        let spell_power_difficulty_store =
+            crate::spell_db2::SpellPowerDifficultyStore::load(data_dir, locale)?;
+        store.apply_db2_power_costs_like_cpp(&spell_power_store, &spell_power_difficulty_store);
 
         info!(
             "Loaded {} spells from SpellMisc/SpellEffect DB2 with hotfix overlay",
@@ -5493,6 +5577,62 @@ impl SpellStore {
         }
     }
 
+    /// [M0.1/#72] Apply DB2 power costs onto already-built SpellInfo rows.
+    ///
+    /// Mirrors C++ `SpellMgr::LoadSpellInfoStore`, which stores
+    /// `SpellPowerEntry` rows in `SpellInfo::PowerCosts` keyed by
+    /// `SpellID`/difficulty/order (`SpellMgr.cpp:2550`, `DB2Stores.cpp:301`).
+    fn apply_db2_power_costs_like_cpp(
+        &mut self,
+        spell_power_store: &crate::spell_db2::SpellPowerStore,
+        spell_power_difficulty_store: &crate::spell_db2::SpellPowerDifficultyStore,
+    ) {
+        for spell in self.spells.values_mut() {
+            spell.power_costs.clear();
+        }
+
+        for power in spell_power_store.entries_like_cpp() {
+            if power.spell_id == 0 {
+                continue;
+            }
+            let Ok(spell_id) = i32::try_from(power.spell_id) else {
+                continue;
+            };
+
+            let (difficulty_id, order_index) = spell_power_difficulty_store
+                .get(power.id)
+                .map(|difficulty| (difficulty.difficulty_id, difficulty.order_index))
+                .unwrap_or((0, power.order_index));
+            if difficulty_id != 0 {
+                continue;
+            }
+
+            let Some(spell) = self.spells.get_mut(&spell_id) else {
+                continue;
+            };
+            let power_cost = SpellPowerCostInfoLikeCpp {
+                order_index,
+                power_type: power.power_type,
+                mana_cost: power.mana_cost,
+                power_cost_pct: power.power_cost_pct,
+                power_cost_max_pct: power.power_cost_max_pct,
+                required_aura_spell_id: power.required_aura_spell_id,
+                optional_cost: power.optional_cost,
+            };
+
+            if let Some(existing) = spell
+                .power_costs
+                .iter_mut()
+                .find(|existing| existing.order_index == order_index)
+            {
+                *existing = power_cost;
+            } else {
+                spell.power_costs.push(power_cost);
+            }
+            spell.power_costs.sort_by_key(|entry| entry.order_index);
+        }
+    }
+
     /// Load spell data from hotfixes database.
     ///
     /// Queries `hotfixes.spell_misc` (cast time, cooldowns) and
@@ -5586,6 +5726,7 @@ ORDER BY sm.ID, se.EffectIndex
                     aura_type,
                     display_flags: 0,
                     requires_spell_focus,
+                    power_costs: Vec::new(),
                     effects: Vec::new(),
                 });
 
@@ -5993,6 +6134,110 @@ mod tests {
     }
 
     #[test]
+    fn db2_spell_power_sets_power_costs_like_cpp() {
+        use crate::spell_db2::{
+            SpellPowerDifficultyEntry, SpellPowerDifficultyStore, SpellPowerEntry, SpellPowerStore,
+        };
+
+        let mut store = SpellStore::new();
+        store
+            .spells
+            .insert(400, SpellStore::empty_spell_info_like_cpp(400));
+
+        let spell_power = SpellPowerStore::from_entries([
+            SpellPowerEntry {
+                id: 10,
+                order_index: 1,
+                mana_cost: 40,
+                mana_cost_per_level: 0,
+                mana_per_second: 0,
+                power_display_id: 0,
+                alt_power_bar_id: 0,
+                power_cost_pct: 10.0,
+                power_cost_max_pct: 0.0,
+                power_pct_per_second: 0.0,
+                power_type: PowerType::Mana as i8,
+                required_aura_spell_id: 0,
+                optional_cost: 0,
+                spell_id: 400,
+            },
+            SpellPowerEntry {
+                id: 11,
+                order_index: 2,
+                mana_cost: 999,
+                mana_cost_per_level: 0,
+                mana_per_second: 0,
+                power_display_id: 0,
+                alt_power_bar_id: 0,
+                power_cost_pct: 0.0,
+                power_cost_max_pct: 0.0,
+                power_pct_per_second: 0.0,
+                power_type: PowerType::Mana as i8,
+                required_aura_spell_id: 0,
+                optional_cost: 0,
+                spell_id: 400,
+            },
+        ]);
+        let spell_power_difficulty =
+            SpellPowerDifficultyStore::from_entries([SpellPowerDifficultyEntry {
+                id: 11,
+                difficulty_id: 1,
+                order_index: 2,
+            }]);
+
+        store.apply_db2_power_costs_like_cpp(&spell_power, &spell_power_difficulty);
+
+        let costs = &store.spells.get(&400).unwrap().power_costs;
+        assert_eq!(costs.len(), 1, "non-default difficulty rows are skipped");
+        assert_eq!(costs[0].order_index, 1);
+        assert_eq!(costs[0].mana_cost, 40);
+        assert_eq!(costs[0].power_cost_pct, 10.0);
+        assert_eq!(costs[0].power_type, PowerType::Mana as i8);
+    }
+
+    #[test]
+    fn spell_info_calc_power_costs_flat_plus_mana_pct_like_cpp() {
+        let mut spell = SpellStore::empty_spell_info_like_cpp(500);
+        spell.power_costs.push(SpellPowerCostInfoLikeCpp {
+            order_index: 0,
+            power_type: PowerType::Mana as i8,
+            mana_cost: 50,
+            power_cost_pct: 12.5,
+            power_cost_max_pct: 0.0,
+            required_aura_spell_id: 0,
+            optional_cost: 0,
+        });
+
+        let costs = spell.calc_power_costs_like_cpp(1000);
+
+        assert_eq!(
+            costs,
+            vec![SpellPowerCostLikeCpp {
+                power_type: PowerType::Mana as i8,
+                amount: 175,
+            }]
+        );
+    }
+
+    #[test]
+    fn spell_info_calc_power_costs_ignores_mana_max_pct_like_cpp() {
+        let mut spell = SpellStore::empty_spell_info_like_cpp(501);
+        spell.power_costs.push(SpellPowerCostInfoLikeCpp {
+            order_index: 0,
+            power_type: PowerType::Mana as i8,
+            mana_cost: 0,
+            power_cost_pct: 0.0,
+            power_cost_max_pct: 18.0,
+            required_aura_spell_id: 0,
+            optional_cost: 0,
+        });
+
+        let costs = spell.calc_power_costs_like_cpp(1000);
+
+        assert!(costs.is_empty());
+    }
+
+    #[test]
     fn spell_store_db2_loader_composes_shapeshift_masks_like_cpp() {
         let spell_id = 70_001;
         let misc_store =
@@ -6072,6 +6317,7 @@ mod tests {
             aura_type: None,
             display_flags: 0,
             requires_spell_focus: 0,
+            power_costs: Vec::new(),
             effects: Vec::new(),
         };
 
@@ -6089,6 +6335,7 @@ mod tests {
             aura_type: None,
             display_flags: 0,
             requires_spell_focus: 0,
+            power_costs: Vec::new(),
             effects: Vec::new(),
         };
 
@@ -6109,6 +6356,7 @@ mod tests {
             aura_type: None,
             display_flags: 0,
             requires_spell_focus: 0,
+            power_costs: Vec::new(),
             effects: Vec::new(),
         };
 
@@ -6130,6 +6378,7 @@ mod tests {
             aura_type: None,
             display_flags: 0,
             requires_spell_focus: 0,
+            power_costs: Vec::new(),
             effects: vec![
                 SpellEffectInfo {
                     effect_index: 0,
@@ -6831,6 +7080,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![SpellEffectInfo {
                     effect_index: 1,
                     implicit_target_1: implicit_targets::TARGET_DEST_NEARBY_ENTRY_OR_DB,
@@ -6876,6 +7126,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![SpellEffectInfo {
                     effect_index: 0,
                     position_facing: 90.0,
@@ -6919,6 +7170,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![SpellEffectInfo {
                     effect_index: 0,
                     implicit_target_1: implicit_targets::TARGET_DEST_NEARBY_ENTRY,
@@ -6961,6 +7213,7 @@ mod tests {
                 aura_type: None,
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![
                     SpellEffectInfo {
                         effect_index: 0,
@@ -8681,6 +8934,7 @@ mod tests {
                 aura_type: Some(aura_types::SPELL_AURA_PROC_TRIGGER_SPELL),
                 display_flags: 0,
                 requires_spell_focus: 0,
+                power_costs: Vec::new(),
                 effects: vec![SpellEffectInfo {
                     effect_index: 0,
                     effect: spell_effect_types::SPELL_EFFECT_APPLY_AURA,
@@ -9136,6 +9390,7 @@ mod tests {
             aura_type: Some(aura_type),
             display_flags: 0,
             requires_spell_focus: 0,
+            power_costs: Vec::new(),
             effects: vec![SpellEffectInfo {
                 effect_index: 0,
                 effect: spell_effect_types::SPELL_EFFECT_APPLY_AURA,
@@ -9157,6 +9412,7 @@ mod tests {
             aura_type: None,
             display_flags: 0,
             requires_spell_focus: 0,
+            power_costs: Vec::new(),
             effects: Vec::new(),
         }
     }
