@@ -12526,8 +12526,14 @@ impl WorldSession {
         let mut combat_ratings = [0i32; 32];
         combat_ratings[..25].copy_from_slice(&gear_combat_ratings);
 
-        // ── Percentage calculations (WotLK level 80 formulas) ──
-        let lvl = level as f32;
+        // ── Percentage calculations (WotLK represented formulas) ──
+        let combat_rating_bonus_like_cpp = |rating: u32| -> f32 {
+            gear_combat_ratings
+                .get(usize::try_from(rating).unwrap_or(usize::MAX))
+                .copied()
+                .unwrap_or(0) as f32
+                * self.combat_rating_multiplier_like_cpp(level, rating)
+        };
 
         // Crit from AGI: class-dependent AGI-to-crit ratio at level 80
         let agi_crit_ratio = match class {
@@ -12541,13 +12547,8 @@ impl WorldSession {
         };
         let crit_from_agi = total_agi as f32 / agi_crit_ratio;
 
-        // Crit from rating: ~45.91 rating per 1% at level 80
-        let crit_rating_per_pct = if lvl >= 80.0 {
-            45.91
-        } else {
-            (lvl * 0.574).max(1.0)
-        };
-        let crit_from_rating = gear_combat_ratings[8] as f32 / crit_rating_per_pct as f32;
+        // C++ `Player::GetRatingBonusValue(CR_CRIT_MELEE)`.
+        let crit_from_rating = combat_rating_bonus_like_cpp(8);
 
         // Base crit varies by class (roughly)
         let base_crit = match class {
@@ -12571,7 +12572,7 @@ impl WorldSession {
             _ => 160.0, // Non-casters
         };
         let spell_crit_from_int = total_int as f32 / int_crit_ratio;
-        let spell_crit_from_rating = gear_combat_ratings[10] as f32 / crit_rating_per_pct as f32;
+        let spell_crit_from_rating = combat_rating_bonus_like_cpp(10);
         let base_spell_crit = match class {
             8 => 0.91,  // Mage
             9 => 1.70,  // Warlock
@@ -12586,33 +12587,18 @@ impl WorldSession {
 
         // Dodge from AGI + rating
         let dodge_from_agi = total_agi as f32 / agi_crit_ratio; // simplified: same ratio
-        let dodge_rating_per_pct = if lvl >= 80.0 {
-            39.35
-        } else {
-            (lvl * 0.492).max(1.0)
-        };
-        let dodge_from_rating = gear_combat_ratings[2] as f32 / dodge_rating_per_pct as f32;
+        let dodge_from_rating = combat_rating_bonus_like_cpp(2);
         let dodge_pct = (dodge_from_agi + dodge_from_rating + 5.0).min(100.0); // 5% base
 
         // Parry from STR + rating (for classes that can parry)
-        let parry_rating_per_pct = if lvl >= 80.0 {
-            49.18
-        } else {
-            (lvl * 0.615).max(1.0)
-        };
-        let parry_from_rating = gear_combat_ratings[3] as f32 / parry_rating_per_pct as f32;
+        let parry_from_rating = combat_rating_bonus_like_cpp(3);
         let parry_pct = match class {
             1 | 2 | 4 | 6 => (5.0 + parry_from_rating).min(100.0), // 5% base for melee
             _ => parry_from_rating.min(100.0),
         };
 
         // Block from rating (only shield users)
-        let block_rating_per_pct = if lvl >= 80.0 {
-            16.39
-        } else {
-            (lvl * 0.205).max(1.0)
-        };
-        let block_from_rating = gear_combat_ratings[4] as f32 / block_rating_per_pct as f32;
+        let block_from_rating = combat_rating_bonus_like_cpp(4);
         let block_pct = match class {
             1 | 2 | 7 => (5.0 + block_from_rating).min(100.0), // 5% base
             _ => block_from_rating.min(100.0),
@@ -12644,13 +12630,7 @@ impl WorldSession {
         };
 
         // ── Expertise from rating ──
-        // CombatRating::Expertise = index 23, 15.77 rating per expertise at level 80
-        let expertise_rating_per_pct = if lvl >= 80.0 {
-            15.77
-        } else {
-            (lvl * 0.197).max(1.0)
-        };
-        let expertise_value = gear_combat_ratings[23] as f32 / expertise_rating_per_pct;
+        let expertise_value = combat_rating_bonus_like_cpp(23);
 
         // ── Dodge/Parry from attribute (for tooltip display) ──
         let dodge_from_attr = dodge_from_agi;
