@@ -6649,6 +6649,48 @@ impl WorldSession {
             || canonical_dynamic_objects.is_some()
             || canonical_area_triggers.is_some()
         {
+            let creature_vis_trace = std::env::var_os("RUSTYCORE_CREATURE_VIS_TRACE").is_some();
+            if creature_vis_trace {
+                info!(
+                    account = self.account_id,
+                    map_id,
+                    x = pos.x,
+                    y = pos.y,
+                    z = pos.z,
+                    visibility_range = range,
+                    candidate_creatures = map_creatures.len(),
+                    already_visible_guids = self.client_visible_guids_like_cpp.len(),
+                    "RUST_CREATURE_VIS visibility_candidates"
+                );
+                for (idx, creature) in map_creatures.iter().take(80).enumerate() {
+                    let creature_pos = creature.position();
+                    let guid = creature.guid();
+                    info!(
+                        account = self.account_id,
+                        map_id,
+                        idx,
+                        ?guid,
+                        entry = creature.entry(),
+                        level = creature.level(),
+                        hp = creature.current_hp(),
+                        max_hp = creature.max_hp(),
+                        x = creature_pos.x,
+                        y = creature_pos.y,
+                        z = creature_pos.z,
+                        distance_2d = creature_pos.distance_2d(&pos),
+                        already_client_visible = self.client_visible_guids_like_cpp.contains(&guid),
+                        "RUST_CREATURE_VIS candidate"
+                    );
+                }
+                if map_creatures.len() > 80 {
+                    info!(
+                        account = self.account_id,
+                        map_id,
+                        omitted = map_creatures.len() - 80,
+                        "RUST_CREATURE_VIS candidates_omitted"
+                    );
+                }
+            }
             let mut new_visible_creatures: HashSet<ObjectGuid> = HashSet::new();
             let mut new_visible_gos: HashSet<ObjectGuid> = HashSet::new();
             let mut new_visible_dynamic_objects: HashSet<ObjectGuid> = HashSet::new();
@@ -6674,6 +6716,26 @@ impl WorldSession {
                             guid,
                             create_data.npc_flags,
                         );
+                    if creature_vis_trace {
+                        let creature_pos = creature.position();
+                        info!(
+                            account = self.account_id,
+                            map_id,
+                            ?guid,
+                            entry = creature.entry(),
+                            level = create_data.level,
+                            hp = create_data.health,
+                            max_hp = create_data.max_health,
+                            npc_flags = create_data.npc_flags,
+                            unit_flags = create_data.unit_flags,
+                            unit_flags2 = create_data.unit_flags2,
+                            unit_flags3 = create_data.unit_flags3,
+                            x = creature_pos.x,
+                            y = creature_pos.y,
+                            z = creature_pos.z,
+                            "RUST_CREATURE_VIS create_creature"
+                        );
+                    }
                     update_blocks.push(UpdateObject::create_creature_block_with_spline(
                         create_data,
                         &creature.position(),
@@ -13365,12 +13427,12 @@ impl WorldSession {
 
         // C++ `HandlePlayerLogin` calls `ObjectAccessor::AddObject`, then
         // `Player::SendInitialPacketsAfterAddToMap`; that method starts with
-        // `UpdateVisibilityForPlayer()`. In the captured C++ 3.4.3 login stream
-        // this point does not emit a nearby creature/gameobject CREATE batch.
-        // Rust's broad scanner does, so only mirror the player/seer visibility
-        // flags here and let normal movement/map visibility deliver object
-        // creates from the same later phase as C++.
+        // `UpdateVisibilityForPlayer()`. Rust must force the same rebuild here
+        // because Map::AddPlayerToMap just cleared the client-visible GUID cache;
+        // after logout/relogin at the same position the normal movement-distance
+        // throttle can otherwise leave the client with no visible creatures.
         self.sync_current_player_session_visibility_detection_like_cpp();
+        self.force_update_visibility_like_cpp().await;
         if updateobject_trace_enabled {
             info!(
                 guid = ?guid,
@@ -13605,8 +13667,7 @@ impl WorldSession {
             combat.max_health.max(1).min(u32::MAX as i64) as u32,
         );
         self.login_time = Some(std::time::Instant::now());
-        self.suppress_creature_movement_until_like_cpp =
-            Some(std::time::Instant::now() + std::time::Duration::from_secs(10));
+        self.suppress_creature_movement_queued_at_or_before_like_cpp = None;
         // Clear per-session loot/combat state as part of the Rust AddToWorld
         // equivalent, before C++ would build `Map::SendInitSelf`.
         self.loot_table.clear();
@@ -13733,6 +13794,10 @@ impl WorldSession {
             );
         }
         self.client_visible_guids_like_cpp.clear();
+        // C++ clears m_clientGUIDs here, then Player::SendInitialPacketsAfterAddToMap
+        // starts with UpdateVisibilityForPlayer. Do not let Rust's movement-distance
+        // throttle reuse the previous login/logout position after the clear.
+        self.last_visibility_pos = None;
         if updateobject_trace_enabled {
             info!(
                 guid = ?guid,
@@ -13761,6 +13826,13 @@ impl WorldSession {
             updateobject_trace_enabled,
         )
         .await;
+
+        // C++ does not deliver SMSG_ON_MONSTER_MOVE inside the initial
+        // enter-world packet burst. Rust fan-out commands are queued from a
+        // sessionless world tick, so remember the burst boundary and drop only
+        // movement commands that were queued at or before it.
+        self.suppress_creature_movement_queued_at_or_before_like_cpp =
+            Some(std::time::Instant::now());
 
         // Rust keeps the session status flip after the initial after-add packet
         // subset so the network loop cannot process normal movement/gameplay

@@ -383,9 +383,15 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
         runtime_row.wander_distance,
     );
     let npc_flags = runtime_row.npc_flags.unwrap_or(template.npc_flags);
-    let unit_flags = runtime_row.unit_flags.unwrap_or(template.unit_flags);
-    let unit_flags2 = runtime_row.unit_flags2.unwrap_or(template.unit_flags2);
-    let unit_flags3 = runtime_row.unit_flags3.unwrap_or(template.unit_flags3);
+    // C++ `ObjectMgr::LoadCreatureTemplates` / `LoadCreatureData` strips
+    // disallowed SQL-backed creature unit flags before `ChooseCreatureFlags`
+    // feeds `Creature::UpdateEntry`.
+    let unit_flags = runtime_row.unit_flags.unwrap_or(template.unit_flags)
+        & wow_constants::unit::UNIT_FLAGS_ALLOWED_LIKE_CPP;
+    let unit_flags2 = runtime_row.unit_flags2.unwrap_or(template.unit_flags2)
+        & wow_constants::unit::UNIT_FLAGS2_ALLOWED_LIKE_CPP;
+    let unit_flags3 = runtime_row.unit_flags3.unwrap_or(template.unit_flags3)
+        & wow_constants::unit::UNIT_FLAGS3_ALLOWED_LIKE_CPP;
 
     let resolved_template = ResolvedCreatureTemplateLikeCpp {
         entry: template.entry,
@@ -1062,12 +1068,12 @@ mod tests {
             wow_constants::UnitFlags::IMMUNE_TO_PC.bits()
         );
         assert_eq!(
-            template.unit_flags2,
-            wow_constants::UnitFlags2::IGNORE_REPUTATION.bits()
+            template.unit_flags2, 0,
+            "C++ ObjectMgr strips disallowed creature `unit_flags2` SQL bits before UpdateEntry"
         );
         assert_eq!(
-            template.unit_flags3,
-            wow_constants::UnitFlags3::IGNORE_COMBAT.bits()
+            template.unit_flags3, 0,
+            "C++ ObjectMgr strips disallowed creature `unit_flags3` SQL bits before UpdateEntry"
         );
         assert_eq!(template.static_flags[0], static_flags[0]);
         assert_eq!(template.display_id, 999);
@@ -1115,8 +1121,90 @@ mod tests {
     }
 
     #[test]
-    fn loaded_grid_db_backed_builder_applies_creature_equipment_like_cpp() {
+    fn loaded_grid_db_backed_builder_sanitizes_sql_unit_flags_like_cpp() {
         let entry = 12_401;
+        let spawn = db_backed_spawn(entry);
+        let runtime_row = CreatureSpawnRuntimeRowLikeCpp {
+            spawn_id: spawn.spawn_id,
+            model_id: 0,
+            equipment_id: 0,
+            wander_distance: 0.0,
+            curhealth: 77,
+            curmana: 33,
+            movement_type: 0,
+            npc_flags: None,
+            unit_flags: Some(
+                wow_constants::UnitFlags::SKINNABLE.bits()
+                    | wow_constants::UnitFlags::PREVENT_EMOTES_FROM_CHAT_TEXT.bits()
+                    | wow_constants::UnitFlags::CAN_SWIM.bits(),
+            ),
+            unit_flags2: Some(
+                wow_constants::UnitFlags2::FEIGN_DEATH.bits()
+                    | wow_constants::UnitFlags2::REGENERATE_POWER.bits()
+                    | wow_constants::UnitFlags2::CANNOT_TURN.bits(),
+            ),
+            unit_flags3: Some(
+                wow_constants::UnitFlags3::IGNORE_COMBAT.bits()
+                    | wow_constants::UnitFlags3::FAKE_DEAD.bits()
+                    | wow_constants::UnitFlags3::AI_OBSTACLE.bits(),
+            ),
+            ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
+            swim_allowed: true,
+            flight_movement_type: 0,
+            rooted: false,
+            chase_movement_type: wow_constants::CreatureChaseMovementType::Run as u8,
+            random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
+            interaction_pause_timer_ms:
+                wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
+            string_id: String::new(),
+            spawn_time_secs: 300,
+        };
+        let (display_store, model_store) = empty_display_stores();
+        let model_info_store = loaded_grid_model_info_store_like_cpp();
+        let mut random = TestLoadedGridCreatureRandomLikeCpp::default();
+
+        let (template, _, _) = build_loaded_grid_creature_inputs_from_db_like_cpp(
+            &spawn,
+            &runtime_row,
+            &db_backed_template_store(entry),
+            &db_backed_difficulty_store(entry),
+            &db_backed_base_stats_store(),
+            &CreatureClassificationHealthRatesLikeCpp::default(),
+            &display_store,
+            &model_store,
+            &model_info_store,
+            None,
+            &CreatureAddonStoreLikeCpp::default(),
+            2,
+            9,
+            123,
+            true,
+            None,
+            &mut random,
+        )
+        .expect("DB-backed builder should sanitize SQL creature unit flags");
+
+        assert_eq!(
+            template.unit_flags,
+            wow_constants::UnitFlags::CAN_SWIM.bits(),
+            "C++ ObjectMgr strips disallowed creature `unit_flags` SQL bits"
+        );
+        assert_eq!(
+            template.unit_flags2,
+            (wow_constants::UnitFlags2::REGENERATE_POWER | wow_constants::UnitFlags2::CANNOT_TURN)
+                .bits(),
+            "C++ ObjectMgr strips FEIGN_DEATH but keeps allowed `unit_flags2` SQL bits"
+        );
+        assert_eq!(
+            template.unit_flags3,
+            (wow_constants::UnitFlags3::FAKE_DEAD | wow_constants::UnitFlags3::AI_OBSTACLE).bits(),
+            "C++ ObjectMgr strips disallowed `unit_flags3` SQL bits and keeps allowed fake-dead/AI-obstacle bits"
+        );
+    }
+
+    #[test]
+    fn loaded_grid_db_backed_builder_applies_creature_equipment_like_cpp() {
+        let entry = 12_402;
         let spawn = db_backed_spawn(entry);
         let runtime_row = CreatureSpawnRuntimeRowLikeCpp {
             spawn_id: spawn.spawn_id,

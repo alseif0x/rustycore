@@ -11,6 +11,7 @@
 
 use dashmap::DashMap;
 use std::collections::{HashMap, HashSet};
+use std::time::Instant;
 use wow_core::{ObjectGuid, Position};
 use wow_packet::packets::loot::LootEntry;
 use wow_packet::packets::party::{
@@ -203,6 +204,9 @@ pub struct CreatureAttackStartLikeCppCommand {
 /// cross-instance delivery without touching the canonical map manager.
 #[derive(Clone, Debug)]
 pub struct SendIfVisibleLikeCppCommand {
+    /// Monotonic enqueue time. Rust uses this to drop movement fan-out produced
+    /// before a login's initial visibility burst has completed.
+    pub queued_at: Instant,
     /// GUID of the entity that emitted the packet — checked against
     /// `client_visible_guids_like_cpp` (C++ `HaveAtClient`).
     pub source_guid: ObjectGuid,
@@ -701,6 +705,7 @@ mod tests {
     fn send_if_visible_like_cpp_command_carries_map_and_instance_id() {
         let guid = ObjectGuid::create_player(1, 7);
         let cmd = SendIfVisibleLikeCppCommand {
+            queued_at: Instant::now(),
             source_guid: guid,
             map_id: 532,
             instance_id: 99,
