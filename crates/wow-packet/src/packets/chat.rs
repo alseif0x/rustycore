@@ -614,7 +614,8 @@ impl ClientPacket for ChatAddonMessageWhisper {
 
 /// Server sends this to broadcast a chat message to nearby players.
 ///
-/// C# ChatPkt.Write():
+/// C++ ref: `WorldPackets::Chat::Chat::Write` in
+/// `Server/Packets/ChatPackets.cpp`.
 /// ```text
 /// u8   slash_cmd (ChatMsg)
 /// u32  language
@@ -814,7 +815,8 @@ impl ServerPacket for ChatRestricted {
 
 /// CMSG_EMOTE — client clears its emote state (no body).
 ///
-/// C# ref: `EmoteClient` in `ChatPackets.cs` — `Read()` is empty.
+/// C++ ref: `WorldPackets::Chat::EmoteClient` in `Server/Packets/ChatPackets.h`;
+/// `Read()` is empty.
 pub struct EmoteClient;
 
 impl ClientPacket for EmoteClient {
@@ -826,7 +828,8 @@ impl ClientPacket for EmoteClient {
 
 /// CMSG_SEND_TEXT_EMOTE — player performs a text emote (/wave, /dance, etc.).
 ///
-/// C# ref: `CTextEmote.Read()` in `ChatPackets.cs`.
+/// C++ ref: `WorldPackets::Chat::CTextEmote::Read` in
+/// `Server/Packets/ChatPackets.cpp`.
 pub struct CTextEmote {
     pub target: ObjectGuid,
     pub emote_id: i32,
@@ -860,7 +863,8 @@ impl ClientPacket for CTextEmote {
 
 /// SMSG_TEXT_EMOTE — broadcasts text emote to nearby players (chat text).
 ///
-/// C# ref: `STextEmote.Write()` in `ChatPackets.cs`.
+/// C++ ref: `WorldPackets::Chat::STextEmote::Write` in
+/// `Server/Packets/ChatPackets.cpp`.
 pub struct STextEmote {
     pub source_guid: ObjectGuid,
     pub source_account_guid: ObjectGuid,
@@ -883,8 +887,9 @@ impl ServerPacket for STextEmote {
 
 /// SMSG_EMOTE — plays the emote animation on the unit.
 ///
-/// C# ref: `EmoteMessage.Write()` in `ChatPackets.cs`.
-/// Also sent by `Unit.HandleEmoteCommand()`.
+/// C++ ref: `WorldPackets::Chat::Emote::Write` in
+/// `Server/Packets/ChatPackets.cpp`. Also sent by
+/// `Unit::HandleEmoteCommand`.
 pub struct EmoteMessage {
     pub guid: ObjectGuid,
     pub emote_id: i32,
