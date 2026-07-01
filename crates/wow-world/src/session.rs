@@ -145,7 +145,7 @@ use wow_entities::{
     ITEM_DATA_CONTAINED_IN_BIT, ITEM_DATA_DURABILITY_BIT, Item, ItemCreateInfo, ItemDataUpdate,
     ItemLimitCategoryTemplate, ItemPosCount, ItemSlotRef, ItemStorageRef, ItemStorageTemplate,
     ItemValuesUpdate, MAX_BAG_SIZE, MAX_ITEM_SPELLS, MAX_MONEY_AMOUNT, MAX_POWERS,
-    MovementGeneratorKind, MovementSlot, NULL_BAG, NULL_SLOT, ObjectAccessor,
+    MAX_POWERS_PER_CLASS, MovementGeneratorKind, MovementSlot, NULL_BAG, NULL_SLOT, ObjectAccessor,
     PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP, PLAYER_SLOT_END, Pet, PetAuraLikeCpp,
     PetDeclinedNamesLikeCpp, PetSaveMode, PetSpellState, PetSpellType, PetStable, PetStableInfo,
     PetType, PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerInventoryStorage,
@@ -423,6 +423,15 @@ const fn power_type_from_u8_like_cpp(power: u8) -> PowerType {
         23 => PowerType::AlternateQuest,
         24 => PowerType::AlternateEncounter,
         25 => PowerType::AlternateMount,
+        _ => PowerType::Mana,
+    }
+}
+
+const fn primary_power_type_for_player_class_like_cpp(class_id: u8) -> PowerType {
+    match class_id {
+        1 => PowerType::Rage,
+        4 => PowerType::Energy,
+        6 => PowerType::RunicPower,
         _ => PowerType::Mana,
     }
 }
@@ -1122,6 +1131,28 @@ pub(crate) struct RepresentedLootRollState {
     pub voters: HashMap<ObjectGuid, RepresentedLootRollVote>,
 }
 
+pub(crate) type CharacterPowerSnapshotLikeCpp = [Option<i32>; MAX_POWERS_PER_CLASS];
+
+fn empty_character_power_snapshot_like_cpp() -> CharacterPowerSnapshotLikeCpp {
+    [None; MAX_POWERS_PER_CLASS]
+}
+
+fn loaded_character_power_snapshot_like_cpp(
+    powers: [i32; MAX_POWERS_PER_CLASS],
+) -> CharacterPowerSnapshotLikeCpp {
+    powers.map(|power| Some(power.max(0)))
+}
+
+fn character_power_snapshot_values_like_cpp(
+    powers: &CharacterPowerSnapshotLikeCpp,
+) -> Option<[i32; MAX_POWERS_PER_CLASS]> {
+    let mut values = [0; MAX_POWERS_PER_CLASS];
+    for (index, power) in powers.iter().copied().enumerate() {
+        values[index] = power?;
+    }
+    Some(values)
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct PlayerSaveToDbSnapshotLikeCpp {
     pub guid: ObjectGuid,
@@ -1131,7 +1162,7 @@ pub(crate) struct PlayerSaveToDbSnapshotLikeCpp {
     pub level: u8,
     pub xp: u32,
     pub money: u64,
-    pub powers: Option<[i32; 10]>,
+    pub powers: CharacterPowerSnapshotLikeCpp,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -4034,6 +4065,12 @@ pub struct WorldSession {
     player_bank_bag_slot_count_like_cpp: u8,
     /// C++ `UF::ActivePlayerData::CharacterPoints`, recalculated by InitTalentForLevel/LearnTalent.
     player_character_points_like_cpp: i32,
+    /// Current `characters.power1..power10` values loaded from DB or mutated by represented runtime.
+    represented_player_powers_like_cpp: CharacterPowerSnapshotLikeCpp,
+    /// Max powers known by represented runtime for canonical player rebuilds.
+    represented_player_max_powers_like_cpp: CharacterPowerSnapshotLikeCpp,
+    /// C++ `UnitData::BaseMana` known by represented runtime.
+    represented_player_base_mana_like_cpp: i32,
     represented_bank_bag_slot_flags_like_cpp: [u32; 7],
     represented_current_banker_guid_like_cpp: Option<ObjectGuid>,
     represented_bank_item_moves_like_cpp: Vec<RepresentedBankItemMoveLikeCpp>,
@@ -5888,6 +5925,9 @@ impl WorldSession {
             represented_talent_reset_time_secs_like_cpp: 0,
             player_bank_bag_slot_count_like_cpp: 0,
             player_character_points_like_cpp: 0,
+            represented_player_powers_like_cpp: empty_character_power_snapshot_like_cpp(),
+            represented_player_max_powers_like_cpp: empty_character_power_snapshot_like_cpp(),
+            represented_player_base_mana_like_cpp: 0,
             represented_bank_bag_slot_flags_like_cpp: [0; 7],
             represented_current_banker_guid_like_cpp: None,
             represented_bank_item_moves_like_cpp: Vec::new(),
@@ -7043,6 +7083,7 @@ impl WorldSession {
         player
             .unit_mut()
             .set_health(u64::from(self.player_health_like_cpp));
+        self.apply_represented_player_powers_to_canonical_like_cpp(&mut player);
         player.set_xp(self.player_xp_like_cpp() as i32);
         player.set_next_level_xp(self.player_next_level_xp_like_cpp() as i32);
         player.set_money(self.player_gold_like_cpp());
@@ -7079,6 +7120,26 @@ impl WorldSession {
         }
         self.apply_represented_player_unit_shape_to_canonical_like_cpp(&mut player);
         Some(player)
+    }
+
+    fn apply_represented_player_powers_to_canonical_like_cpp(&self, player: &mut Player) {
+        let Some(current) = self.represented_player_powers_like_cpp[0] else {
+            return;
+        };
+        let primary_power_type =
+            primary_power_type_for_player_class_like_cpp(self.player_class_like_cpp());
+        for raw_power in 0..=25 {
+            player.set_power_index(power_type_from_u8_like_cpp(raw_power), None);
+        }
+        player.set_power_index(primary_power_type, Some(0));
+        player.unit_mut().set_display_power(primary_power_type);
+        player
+            .unit_mut()
+            .set_create_mana_like_cpp(self.represented_player_base_mana_like_cpp.max(0));
+        if let Some(max) = self.represented_player_max_powers_like_cpp[0] {
+            player.unit_mut().set_max_power(primary_power_type, max);
+            player.unit_mut().set_power(primary_power_type, current);
+        }
     }
 
     fn apply_represented_player_unit_shape_to_canonical_like_cpp(&self, player: &mut Player) {
@@ -7169,6 +7230,15 @@ impl WorldSession {
                         )
                     };
 
+                let mut powers = self.represented_player_powers_like_cpp;
+                let primary_power_type =
+                    primary_power_type_for_player_class_like_cpp(self.player_class_like_cpp());
+                if let Some(primary_slot) = player.unit().get_power_index(primary_power_type)
+                    && primary_slot < MAX_POWERS_PER_CLASS
+                {
+                    powers[primary_slot] = Some(player.unit().get_power(primary_power_type).max(0));
+                }
+
                 snapshot = Some(PlayerSaveToDbSnapshotLikeCpp {
                     guid,
                     map_id,
@@ -7177,7 +7247,7 @@ impl WorldSession {
                     level: player.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8,
                     xp: player.active_data().xp.max(0) as u32,
                     money: player.active_data().coinage,
-                    powers: Some(player.unit().data().power),
+                    powers,
                 });
             });
             if snapshot.is_some() {
@@ -7206,7 +7276,7 @@ impl WorldSession {
             level: self.player_level_like_cpp(),
             xp: self.player_xp_like_cpp(),
             money: self.player_gold_like_cpp(),
-            powers: None,
+            powers: self.represented_player_powers_like_cpp,
         })
     }
 
@@ -7228,6 +7298,7 @@ impl WorldSession {
         self.set_player_level_like_cpp(snapshot.level);
         self.set_player_xp_like_cpp(snapshot.xp);
         self.set_player_gold_like_cpp(snapshot.money);
+        self.represented_player_powers_like_cpp = snapshot.powers;
         Some(snapshot)
     }
 
@@ -7351,17 +7422,23 @@ impl WorldSession {
         max: i32,
         base_mana: i32,
     ) -> bool {
-        self.mutate_canonical_player_like_cpp(|player| {
-            for raw_power in 0..=25 {
-                player.set_power_index(power_type_from_u8_like_cpp(raw_power), None);
-            }
-            player.set_power_index(power_type, Some(0));
-            player.unit_mut().set_display_power(power_type);
-            player.unit_mut().set_create_mana_like_cpp(base_mana.max(0));
-            player.unit_mut().set_max_power(power_type, max.max(0));
-            player.unit_mut().set_power(power_type, current.max(0));
-        })
-        .is_some()
+        let synced = self
+            .mutate_canonical_player_like_cpp(|player| {
+                for raw_power in 0..=25 {
+                    player.set_power_index(power_type_from_u8_like_cpp(raw_power), None);
+                }
+                player.set_power_index(power_type, Some(0));
+                player.unit_mut().set_display_power(power_type);
+                player.unit_mut().set_create_mana_like_cpp(base_mana.max(0));
+                player.unit_mut().set_max_power(power_type, max.max(0));
+                player.unit_mut().set_power(power_type, current.max(0));
+            })
+            .is_some();
+        if synced {
+            self.represented_player_base_mana_like_cpp = base_mana.max(0);
+            self.set_represented_player_power_slot_like_cpp(0, current, Some(max));
+        }
+        synced
     }
 
     pub(crate) fn sync_canonical_player_primary_power_max_like_cpp(
@@ -7370,7 +7447,7 @@ impl WorldSession {
         max: i32,
         base_mana: i32,
     ) -> Option<(i32, i32)> {
-        self.mutate_canonical_player_like_cpp(|player| {
+        let result = self.mutate_canonical_player_like_cpp(|player| {
             if player.unit().get_power_index(power_type).is_none() {
                 player.set_power_index(power_type, Some(0));
             }
@@ -7382,7 +7459,12 @@ impl WorldSession {
                 player.unit().get_power(power_type),
                 player.unit().get_max_power(power_type),
             )
-        })
+        });
+        if let Some((current, max)) = result {
+            self.represented_player_base_mana_like_cpp = base_mana.max(0);
+            self.set_represented_player_power_slot_like_cpp(0, current, Some(max));
+        }
+        result
     }
 
     pub(crate) fn set_canonical_chosen_title_like_cpp(
@@ -21685,7 +21767,7 @@ impl WorldSession {
         snapshot: &PlayerSaveToDbSnapshotLikeCpp,
     ) -> Option<PreparedStatement> {
         Some(Self::build_character_powers_save_statement_like_cpp(
-            snapshot.powers?,
+            character_power_snapshot_values_like_cpp(&snapshot.powers)?,
             snapshot.guid.counter() as u64,
         ))
     }
@@ -31729,6 +31811,34 @@ impl WorldSession {
         }
         self.initialize_reputation_mgr_like_cpp();
         self.refresh_represented_talent_points_like_cpp();
+    }
+
+    pub(crate) fn set_loaded_player_powers_like_cpp(
+        &mut self,
+        powers: [i32; MAX_POWERS_PER_CLASS],
+    ) {
+        self.represented_player_powers_like_cpp = loaded_character_power_snapshot_like_cpp(powers);
+    }
+
+    pub(crate) fn set_represented_player_power_slot_like_cpp(
+        &mut self,
+        slot: usize,
+        current: i32,
+        max: Option<i32>,
+    ) {
+        if slot >= MAX_POWERS_PER_CLASS {
+            return;
+        }
+        self.represented_player_powers_like_cpp[slot] = Some(current.max(0));
+        if let Some(max) = max {
+            self.represented_player_max_powers_like_cpp[slot] = Some(max.max(0));
+        }
+    }
+
+    pub(crate) fn represented_player_power_values_like_cpp(
+        &self,
+    ) -> Option<[i32; MAX_POWERS_PER_CLASS]> {
+        character_power_snapshot_values_like_cpp(&self.represented_player_powers_like_cpp)
     }
 
     pub(crate) fn attach_player_controller_like_cpp(
@@ -98988,6 +99098,7 @@ mod tests {
             10,
             0,
         ));
+        session.set_loaded_player_powers_like_cpp([111, 222, 0, 0, 0, 0, 0, 0, 0, 0]);
         session.set_player_xp_like_cpp(1);
         session.set_player_gold_like_cpp(2);
         let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
@@ -99019,7 +99130,9 @@ mod tests {
                 level: 42,
                 xp: 1234,
                 money: 5678,
-                powers: Some([321, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+                powers: loaded_character_power_snapshot_like_cpp([
+                    321, 222, 0, 0, 0, 0, 0, 0, 0, 0,
+                ]),
             }
         );
         assert_eq!(
@@ -99075,7 +99188,7 @@ mod tests {
         assert_eq!(snapshot.level, 42);
         assert_eq!(snapshot.xp, 1234);
         assert_eq!(snapshot.money, 5678);
-        assert_eq!(snapshot.powers, None);
+        assert_eq!(snapshot.powers, empty_character_power_snapshot_like_cpp());
     }
 
     #[test]
@@ -99206,7 +99319,7 @@ mod tests {
             level: 80,
             xp: 0,
             money: 42,
-            powers: None,
+            powers: empty_character_power_snapshot_like_cpp(),
         };
 
         assert!(
@@ -99227,7 +99340,7 @@ mod tests {
             level: 80,
             xp: 0,
             money: 42,
-            powers: None,
+            powers: empty_character_power_snapshot_like_cpp(),
         };
 
         let stmt = WorldSession::build_character_position_save_statement_from_snapshot_like_cpp(

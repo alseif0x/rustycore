@@ -405,6 +405,7 @@ impl WorldSession {
                     let power_type = PowerType::from_i8(cost.power_type)?;
                     Some((
                         cost.power_type,
+                        player.unit().get_power_index(power_type),
                         player.get_power(power_type),
                         player.get_max_power(power_type),
                     ))
@@ -413,6 +414,11 @@ impl WorldSession {
             (player.values_update(true), after_power)
         });
         if let Some((update, after_power)) = update {
+            for (_, slot, current, max) in &after_power {
+                if let Some(slot) = slot {
+                    self.set_represented_player_power_slot_like_cpp(*slot, *current, Some(*max));
+                }
+            }
             if trace_spell_power {
                 info!(
                     "RUST_SPELL_POWER_COST phase=take spell_id={} cast_id={:?} result=deducted costs={:?} before_power={:?} after_power={:?}",
@@ -4808,6 +4814,65 @@ mod tests {
             opcodes.contains(&ServerOpcodes::UpdateObject),
             "accepted casts with represented power cost must send a player values update"
         );
+    }
+
+    #[tokio::test]
+    async fn cast_spell_power_spend_survives_canonical_resync_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let spell_id = 13_356;
+        install_canonical_player(&mut session, &canonical, player_guid);
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
+        session.set_loaded_player_powers_like_cpp([500, 222, 0, 0, 0, 0, 0, 0, 0, 0]);
+        assert!(session.sync_canonical_player_primary_power_like_cpp(
+            PowerType::Mana,
+            500,
+            1_000,
+            1_000,
+        ));
+        session.set_known_spells_like_cpp(vec![spell_id]);
+        session.set_spell_store(spell_store_with_mana_power_cost_like_cpp(
+            spell_id, 50, 10.0,
+        ));
+
+        session
+            .handle_cast_spell(cast_spell_packet(spell_id, player_guid))
+            .await;
+
+        assert_eq!(canonical_player_mana_like_cpp(&mut session), 350);
+        assert_eq!(
+            session.represented_player_power_values_like_cpp().unwrap()[0],
+            350,
+            "represented session power must mirror Spell::TakePower before later AddToMap-style resync"
+        );
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        assert_eq!(
+            canonical_player_mana_like_cpp(&mut session),
+            350,
+            "resync from the session snapshot must not resurrect pre-cast mana"
+        );
+        let snapshot = session
+            .current_player_save_to_db_snapshot_like_cpp()
+            .unwrap();
+        assert_eq!(snapshot.powers[0], Some(350));
+        assert_eq!(
+            snapshot.powers[1],
+            Some(222),
+            "saving power1 after a cast must preserve other loaded character power columns"
+        );
+        let _ = drain_server_opcodes(&send_rx);
     }
 
     #[tokio::test]

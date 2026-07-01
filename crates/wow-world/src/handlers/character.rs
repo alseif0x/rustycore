@@ -1331,6 +1331,13 @@ fn default_health_mana(class: u8) -> (u32, u32) {
     }
 }
 
+fn default_character_power1_like_cpp(class: u8, mana: u32) -> u32 {
+    match primary_power_type_for_class_like_cpp(class) {
+        PowerType::Energy => 100,
+        _ => mana,
+    }
+}
+
 /// Maximum characters per account.
 const MAX_CHARACTERS_PER_ACCOUNT: u32 = 10;
 
@@ -2748,6 +2755,7 @@ impl WorldSession {
 
         // Default health/power for a fresh level 1 character
         let (health, mana) = default_health_mana(pkt.class);
+        let power1 = default_character_power1_like_cpp(pkt.class, mana);
 
         let create_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -2808,7 +2816,7 @@ impl WorldSession {
         ins_stmt.set_i32(50, 0); // watchedFaction
         ins_stmt.set_u8(51, 0); // drunk
         ins_stmt.set_u32(52, health); // health
-        ins_stmt.set_u32(53, mana); // power1
+        ins_stmt.set_u32(53, power1); // power1
         ins_stmt.set_u32(54, 0); // power2
         ins_stmt.set_u32(55, 0); // power3
         ins_stmt.set_u32(56, 0); // power4
@@ -5494,7 +5502,14 @@ impl WorldSession {
                 ([0i32; 5], 0, 0, 0, 0)
             };
 
-        let current_power0 = result.try_read::<u32>(52).unwrap_or(0).min(i32::MAX as u32) as i32;
+        let loaded_powers = std::array::from_fn(|index| {
+            result
+                .try_read::<u32>(52 + index)
+                .unwrap_or(0)
+                .min(i32::MAX as u32) as i32
+        });
+        self.set_loaded_player_powers_like_cpp(loaded_powers);
+        let current_power0 = loaded_powers[0];
 
         // Compute real stats from player_levelstats + gear bonuses
         let (combat, base_mana_like_cpp) = if let Some(store) = self.player_stats() {
@@ -14676,6 +14691,17 @@ mod tests {
             stmt.params()[18],
             wow_database::SqlParam::U8(DIFFICULTY_10_N_LIKE_CPP)
         );
+    }
+
+    #[test]
+    fn default_character_power1_seeds_energy_classes_like_cpp() {
+        assert_eq!(
+            default_character_power1_like_cpp(4, 0),
+            100,
+            "C++ level-1 rogues enter with full base Energy, not zeroed mana"
+        );
+        assert_eq!(default_character_power1_like_cpp(5, 160), 160);
+        assert_eq!(default_character_power1_like_cpp(1, 0), 0);
     }
 
     #[test]
