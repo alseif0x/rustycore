@@ -9402,6 +9402,125 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn duel_accept_live_bridge_records_and_applies_once_like_cpp() {
+        let (mut source_session, source_send_rx) = make_session();
+        let (mut partner_session, partner_send_rx) = make_session();
+        let canonical = shared_canonical_map_manager_for_misc_test();
+        let source_guid = ObjectGuid::create_player(1, 77);
+        let partner_guid = ObjectGuid::create_player(1, 88);
+        let arbiter_guid = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::GameObject,
+            0,
+            1,
+            571,
+            0,
+            7,
+            100,
+        );
+        add_canonical_test_player_on_map_for_misc_test(
+            &canonical,
+            source_guid,
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            0,
+        );
+        add_canonical_test_player_on_map_for_misc_test(
+            &canonical,
+            partner_guid,
+            Position::new(2.0, 2.0, 3.0, 0.0),
+            571,
+            0,
+        );
+        {
+            let mut manager = canonical.lock().unwrap();
+            let map = manager.find_map_mut(571, 0).unwrap().map_mut();
+            map.get_typed_player_mut(source_guid)
+                .unwrap()
+                .set_duel_info_like_cpp(Some(wow_entities::PlayerDuelInfoLikeCpp {
+                    opponent: partner_guid,
+                    state: wow_entities::PlayerDuelStateLikeCpp::Challenged,
+                }));
+            map.get_typed_player_mut(partner_guid)
+                .unwrap()
+                .set_duel_info_like_cpp(Some(wow_entities::PlayerDuelInfoLikeCpp {
+                    opponent: source_guid,
+                    state: wow_entities::PlayerDuelStateLikeCpp::Challenged,
+                }));
+        }
+        source_session.set_player_guid(Some(source_guid));
+        source_session.set_player_map_position_like_cpp(571, Position::new(1.0, 2.0, 3.0, 0.0));
+        source_session.set_canonical_map_manager(Arc::clone(&canonical));
+        partner_session.set_player_guid(Some(partner_guid));
+
+        let registry = Arc::new(PlayerRegistry::default());
+        registry.insert(
+            partner_guid,
+            broadcast_info_with_command_tx(partner_session.session_command_tx()),
+        );
+        source_session.set_player_registry(registry);
+
+        assert!(
+            source_session.record_and_apply_represented_live_intent_like_cpp(
+                crate::session::RepresentedLiveIntentLikeCpp::DuelAccepted(
+                    crate::session::RepresentedDuelAcceptedLikeCpp {
+                        opponent_guid: partner_guid,
+                        arbiter_guid,
+                        countdown_ms: crate::session::DUEL_COUNTDOWN_MS_LIKE_CPP,
+                    },
+                ),
+            )
+        );
+        partner_session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        assert_eq!(
+            source_session.represented_duel_accepts_like_cpp(),
+            &[crate::session::RepresentedDuelAcceptedLikeCpp {
+                opponent_guid: partner_guid,
+                arbiter_guid,
+                countdown_ms: crate::session::DUEL_COUNTDOWN_MS_LIKE_CPP,
+            }],
+            "the bridge records the accepted intent exactly once"
+        );
+        {
+            let manager = canonical.lock().unwrap();
+            let map = manager.find_map(571, 0).unwrap().map();
+            assert_eq!(
+                map.get_typed_player(source_guid)
+                    .unwrap()
+                    .duel_info_like_cpp()
+                    .unwrap()
+                    .state,
+                wow_entities::PlayerDuelStateLikeCpp::Countdown
+            );
+            assert_eq!(
+                map.get_typed_player(partner_guid)
+                    .unwrap()
+                    .duel_info_like_cpp()
+                    .unwrap()
+                    .state,
+                wow_entities::PlayerDuelStateLikeCpp::Countdown
+            );
+        }
+        let source_bytes = source_send_rx
+            .try_recv()
+            .expect("source bridge duel countdown");
+        let partner_bytes = partner_send_rx
+            .try_recv()
+            .expect("partner bridge duel countdown");
+        assert_eq!(source_bytes, partner_bytes);
+        assert!(
+            source_send_rx.try_recv().is_err(),
+            "the bridge applies the source packet once"
+        );
+        assert!(
+            partner_send_rx.try_recv().is_err(),
+            "the bridge applies the partner packet once"
+        );
+    }
+
+    #[tokio::test]
     async fn duel_response_accepts_challenged_duel_and_sends_countdown_like_cpp() {
         let (mut source_session, source_send_rx) = make_session();
         let (mut partner_session, partner_send_rx) = make_session();

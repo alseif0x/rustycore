@@ -32,6 +32,10 @@ This is why the old "98% represented" metric and "bags don't open" coexist witho
 contradiction: ~98% of logic is *represented*, a much smaller fraction is *live*. The plan's
 job is to convert represented→live for the playable path, then for everything.
 
+Initial bridge convention: [represented-live-bridge.md](represented-live-bridge.md) documents
+the handler → represented intent → live application boundary. The first converted example is
+accepted-duel countdown state.
+
 ---
 
 ## 1. The honest progress picture (three axes, not one number)

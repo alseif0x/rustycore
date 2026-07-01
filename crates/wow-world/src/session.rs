@@ -2318,6 +2318,13 @@ pub(crate) struct RepresentedDuelAcceptedLikeCpp {
     pub countdown_ms: u32,
 }
 
+/// Validated represented intent whose live side effect is applied through the
+/// represented->live bridge instead of directly inside the packet handler.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RepresentedLiveIntentLikeCpp {
+    DuelAccepted(RepresentedDuelAcceptedLikeCpp),
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedDuelCancelOutcomeLikeCpp {
     Interrupted,
@@ -38538,6 +38545,71 @@ impl WorldSession {
         }
     }
 
+    /// Single boundary for validated represented intents that now have a live
+    /// application. The handler constructs one intent after C++ validation;
+    /// this bridge records the represented evidence and applies the live state
+    /// mutation exactly once.
+    pub(crate) fn record_and_apply_represented_live_intent_like_cpp(
+        &mut self,
+        intent: RepresentedLiveIntentLikeCpp,
+    ) -> bool {
+        self.record_represented_live_intent_like_cpp(intent);
+        self.apply_represented_live_intent_like_cpp(intent)
+    }
+
+    fn record_represented_live_intent_like_cpp(&mut self, intent: RepresentedLiveIntentLikeCpp) {
+        match intent {
+            RepresentedLiveIntentLikeCpp::DuelAccepted(accepted) => {
+                self.represented_duel_accepts_like_cpp.push(accepted);
+            }
+        }
+    }
+
+    fn apply_represented_live_intent_like_cpp(
+        &mut self,
+        intent: RepresentedLiveIntentLikeCpp,
+    ) -> bool {
+        match intent {
+            RepresentedLiveIntentLikeCpp::DuelAccepted(accepted) => {
+                self.apply_represented_duel_accepted_live_like_cpp(accepted)
+            }
+        }
+    }
+
+    /// C++ `WorldSession::HandleDuelAccepted` switches both players to
+    /// `DUEL_STATE_COUNTDOWN` and sends one `DuelCountdown` packet to each.
+    fn apply_represented_duel_accepted_live_like_cpp(
+        &mut self,
+        accepted: RepresentedDuelAcceptedLikeCpp,
+    ) -> bool {
+        let Some(player_guid) = self.player_guid() else {
+            return false;
+        };
+
+        self.set_represented_duel_state_like_cpp(
+            player_guid,
+            accepted.opponent_guid,
+            wow_entities::PlayerDuelStateLikeCpp::Countdown,
+        );
+        self.set_represented_duel_state_like_cpp(
+            accepted.opponent_guid,
+            player_guid,
+            wow_entities::PlayerDuelStateLikeCpp::Countdown,
+        );
+
+        use wow_packet::ServerPacket;
+        let packet = wow_packet::packets::misc::DuelCountdown {
+            countdown_ms: accepted.countdown_ms,
+        };
+        let packet_bytes = packet.to_bytes();
+        self.send_raw_packet(&packet_bytes);
+        self.send_represented_duel_countdown_to_opponent_like_cpp(
+            accepted.opponent_guid,
+            packet_bytes,
+        );
+        true
+    }
+
     /// C++ `Spell::EffectDuel`.
     ///
     /// Represented boundary: canonical connected players only. This creates the
@@ -38653,31 +38725,13 @@ impl WorldSession {
             return false;
         }
 
-        self.set_represented_duel_state_like_cpp(
-            player_guid,
-            opponent_guid,
-            wow_entities::PlayerDuelStateLikeCpp::Countdown,
-        );
-        self.set_represented_duel_state_like_cpp(
-            opponent_guid,
-            player_guid,
-            wow_entities::PlayerDuelStateLikeCpp::Countdown,
-        );
-
-        use wow_packet::ServerPacket;
-        let packet = wow_packet::packets::misc::DuelCountdown {
-            countdown_ms: DUEL_COUNTDOWN_MS_LIKE_CPP,
-        };
-        let packet_bytes = packet.to_bytes();
-        self.send_raw_packet(&packet_bytes);
-        self.send_represented_duel_countdown_to_opponent_like_cpp(opponent_guid, packet_bytes);
-        self.represented_duel_accepts_like_cpp
-            .push(RepresentedDuelAcceptedLikeCpp {
+        self.record_and_apply_represented_live_intent_like_cpp(
+            RepresentedLiveIntentLikeCpp::DuelAccepted(RepresentedDuelAcceptedLikeCpp {
                 opponent_guid,
                 arbiter_guid,
                 countdown_ms: DUEL_COUNTDOWN_MS_LIKE_CPP,
-            });
-        true
+            }),
+        )
     }
 
     fn handle_duel_cancelled_like_cpp(&mut self) -> bool {
