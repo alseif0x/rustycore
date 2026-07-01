@@ -1550,6 +1550,8 @@ pub struct PlayerCreateData {
     pub base_armor: i32,
     /// Max mana from level stats (for caster classes).
     pub max_mana: i64,
+    /// Current primary power stored in `UnitData::Power[0]`.
+    pub current_power0: i32,
     /// Melee attack power.
     pub attack_power: i32,
     /// Ranged attack power.
@@ -1659,18 +1661,31 @@ impl PlayerCreateData {
         }
     }
 
-    /// Get the power value for slot 0, using real mana for caster classes.
+    /// Get the max power value for slot 0, using real mana for caster classes.
     ///
     /// - Warrior (1): rage = 1000 (stored as 10×)
     /// - Rogue (4): energy = 100
     /// - DK (6): runic power = 1000 (stored as 10×)
     /// - All others: mana from `max_mana` field (loaded from player_levelstats)
-    fn power_for_slot0(&self) -> i32 {
+    fn max_power_for_slot0(&self) -> i32 {
         match self.class {
             1 => 1000,                 // Warrior: rage
             4 => 100,                  // Rogue: energy
             6 => 1000,                 // DK: runic power
             _ => self.max_mana as i32, // Casters: real mana from DB
+        }
+    }
+
+    fn current_power_for_slot0(&self) -> i32 {
+        self.current_power0
+            .clamp(0, self.max_power_for_slot0().max(0))
+    }
+
+    fn base_mana_for_create_like_cpp(&self) -> i32 {
+        if power_type_for_class(self.class) == 0 {
+            self.max_mana.max(0).min(i64::from(i32::MAX)) as i32
+        } else {
+            0
         }
     }
 
@@ -1804,11 +1819,12 @@ impl PlayerCreateData {
         }
 
         // Power[10], MaxPower[10], ModPowerRegen[10]
-        let power0 = self.power_for_slot0();
+        let current_power0 = self.current_power_for_slot0();
+        let max_power0 = self.max_power_for_slot0();
         for i in 0..10 {
             if i == 0 {
-                buf.write_int32(power0);
-                buf.write_int32(power0);
+                buf.write_int32(current_power0);
+                buf.write_int32(max_power0);
             } else {
                 buf.write_int32(0);
                 buf.write_int32(0);
@@ -1943,7 +1959,7 @@ impl PlayerCreateData {
         }
 
         // BaseMana — use real mana from stats store for caster classes
-        buf.write_int32(self.power_for_slot0());
+        buf.write_int32(self.base_mana_for_create_like_cpp());
 
         // BaseHealth (Owner only)
         if is_owner {
@@ -3745,6 +3761,12 @@ impl UpdateObject {
             stats: combat.stats,
             base_armor: combat.base_armor,
             max_mana: combat.max_mana,
+            current_power0: match class {
+                1 => 1000,
+                4 => 100,
+                6 => 1000,
+                _ => combat.max_mana.max(0).min(i64::from(i32::MAX)) as i32,
+            },
             attack_power: combat.attack_power,
             ranged_attack_power: combat.ranged_attack_power,
             min_damage: combat.min_damage,
@@ -3825,6 +3847,24 @@ impl UpdateObject {
                 create_data.transmog = transmog;
                 create_data.trait_configs = trait_configs;
                 return;
+            }
+        }
+    }
+
+    /// Override `UnitData::Power[0]` for the self player create block.
+    ///
+    /// C++ `Player::BuildValuesCreate` serializes the live current power and
+    /// max power separately. Login loads current `characters.power1`; callers
+    /// that do not have that DB value keep the default full-power create data.
+    pub fn set_player_current_power0_like_cpp(&mut self, current_power0: i32) {
+        for block in &mut self.blocks {
+            if let UpdateBlock::CreateObject {
+                create_data,
+                is_self: true,
+                ..
+            } = block
+            {
+                create_data.current_power0 = current_power0;
             }
         }
     }
@@ -10936,6 +10976,7 @@ mod tests {
             stats: [0; 5],
             base_armor: 0,
             max_mana: 0,
+            current_power0: 1000,
             attack_power: 0,
             ranged_attack_power: 0,
             min_damage: 1.0,
@@ -11264,6 +11305,53 @@ mod tests {
             panic!("create_player should emit one CreateObject block");
         };
         assert_eq!(create_data.farsight_object, ObjectGuid::EMPTY);
+    }
+
+    #[test]
+    fn create_player_self_current_power_can_use_saved_db_value_like_cpp() {
+        let guid = ObjectGuid::create_player(1, 42);
+        let pos = Position::new(0.0, 0.0, 0.0, 0.0);
+        let mut combat = PlayerCombatStats::default();
+        combat.max_mana = 1000;
+        let mut packet = UpdateObject::create_player(
+            guid,
+            1,
+            5,
+            0,
+            1,
+            49,
+            &pos,
+            0,
+            12,
+            true,
+            [(0, 0, 0); 19],
+            [ObjectGuid::EMPTY; 141],
+            combat,
+            Vec::new(),
+            0,
+            Vec::new(),
+        );
+
+        packet.set_player_current_power0_like_cpp(321);
+
+        let UpdateBlock::CreateObject { create_data, .. } = &packet.blocks[0] else {
+            panic!("create_player should emit one CreateObject block");
+        };
+        assert_eq!(
+            create_data.current_power_for_slot0(),
+            321,
+            "C++ login self UpdateObject serializes current UnitData::Power[0] from characters.power1"
+        );
+        assert_eq!(
+            create_data.max_power_for_slot0(),
+            1000,
+            "current power must not overwrite UnitData::MaxPower[0]"
+        );
+        assert_eq!(
+            create_data.base_mana_for_create_like_cpp(),
+            1000,
+            "mana percentage spell costs still use create/base mana"
+        );
     }
 
     #[test]

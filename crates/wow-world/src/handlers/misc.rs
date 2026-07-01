@@ -3137,6 +3137,7 @@ impl crate::session::WorldSession {
             cast_flags_ex: CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP,
             original_cast_id: request.cast.cast_id,
             unit_target_battle_pet_companion_guid: None,
+            ..SpellCastMetadata::default()
         };
 
         let mut spell_target = request.cast.target.clone();
