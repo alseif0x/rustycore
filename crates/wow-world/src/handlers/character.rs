@@ -12388,13 +12388,14 @@ impl WorldSession {
         None
     }
 
-    /// Recalculate all stats from base + gear and send a VALUES update to the client.
+    /// Recalculate all stats from base + gear.
     ///
-    /// Called after equip/desequip changes to gear slots (0-18).
-    pub(crate) fn send_stat_update(&self) {
+    /// C++ `Player::UpdateAllStats` updates max power but preserves current power,
+    /// clamping only when the max drops below current (`Unit::SetMaxPower`).
+    fn player_stat_changes_like_cpp(&self) -> Option<(ObjectGuid, PlayerStatChanges)> {
         let player_guid = match self.player_guid() {
             Some(g) => g,
-            None => return,
+            None => return None,
         };
 
         let race = self.player_race_like_cpp();
@@ -12402,7 +12403,7 @@ impl WorldSession {
         let level = self.player_level_like_cpp();
 
         if race == 0 || class == 0 || level == 0 {
-            return; // Not fully logged in yet
+            return None; // Not fully logged in yet
         }
 
         // Sum gear stat bonuses from equipped items (slots 0-18)
@@ -12454,11 +12455,11 @@ impl WorldSession {
         // Compute total stats from base + gear
         let store = match self.player_stats() {
             Some(s) => s.clone(),
-            None => return,
+            None => return None,
         };
         let ls = match store.get(race, class, level) {
             Some(ls) => ls,
-            None => return,
+            None => return None,
         };
 
         let total_str = ls.strength as i32 + gear_stats[0];
@@ -12514,12 +12515,18 @@ impl WorldSession {
             (0.0, 0.0)
         };
 
-        // Power for slot 0 (mana/rage/energy/runic)
-        let power0 = match class {
-            1 => 1000,            // Warrior: rage
-            4 => 100,             // Rogue: energy
-            6 => 1000,            // DK: runic power
-            _ => max_mana as i32, // Casters: mana
+        // Power for slot 0 (mana/rage/energy/runic). Keep current power from
+        // the runtime player and update only the max, like C++ `SetMaxPower`.
+        let primary_power_type = primary_power_type_for_class_like_cpp(class);
+        let max_power0 = primary_max_power_for_class_like_cpp(class, max_mana);
+        let power0 = self
+            .canonical_player_power_snapshot_like_cpp(primary_power_type)
+            .map(|(current, _)| current.max(0).min(max_power0))
+            .unwrap_or(max_power0);
+        let base_mana = if primary_power_type == PowerType::Mana {
+            base_mp.max(0).min(i64::from(i32::MAX)) as i32
+        } else {
+            0
         };
 
         // CombatRatings[32]: copy 25 used indices, rest 0
@@ -12647,14 +12654,14 @@ impl WorldSession {
             max_health,
             min_damage: min_d,
             max_damage: max_d,
-            base_mana: power0,
+            base_mana,
             base_health: max_health as i32,
             attack_power: melee_ap,
             ranged_attack_power: ranged_ap,
             min_ranged_damage: min_rd,
             max_ranged_damage: max_rd,
             power0,
-            max_power0: power0,
+            max_power0,
             stats: [total_str, total_agi, total_sta, total_int, total_spi],
             stat_pos_buff: gear_stats,
             armor: total_armor,
@@ -12687,6 +12694,17 @@ impl WorldSession {
             mod_spell_power_pct: 1.0,
         };
 
+        if std::env::var_os("RUSTYCORE_SPELL_POWER_TRACE").is_some() {
+            info!(
+                guid = ?player_guid,
+                power_type = ?primary_power_type,
+                current_power0 = power0,
+                max_power0,
+                base_mana,
+                "RUST_STAT_POWER_UPDATE"
+            );
+        }
+
         debug!(
             "Stat update for {:?}: HP={} AP={} STR/AGI/STA/INT/SPI={:?} Armor={} SP={} Crit={:.1}% SCrit={:.1}% Dodge={:.1}% Parry={:.1}% Exp={:.1} ManaRegen={:.1}",
             player_guid,
@@ -12702,6 +12720,17 @@ impl WorldSession {
             expertise_value,
             spirit_regen
         );
+
+        Some((player_guid, changes))
+    }
+
+    /// Recalculate all stats from base + gear and send a VALUES update to the client.
+    ///
+    /// Called after equip/desequip changes to gear slots (0-18).
+    pub(crate) fn send_stat_update(&self) {
+        let Some((player_guid, changes)) = self.player_stat_changes_like_cpp() else {
+            return;
+        };
 
         let update =
             UpdateObject::player_stat_update(player_guid, self.player_map_id_like_cpp(), changes);
@@ -14043,6 +14072,7 @@ mod tests {
         QUEST_ITEM_DROP_COUNT, QUEST_REWARD_CHOICES_COUNT, QUEST_REWARD_DISPLAY_SPELL_COUNT,
         QUEST_REWARD_ITEM_COUNT, QUEST_REWARD_REPUTATIONS_COUNT, QuestStore, QuestTemplate,
     };
+    use wow_data::{PlayerLevelStats, PlayerStatsStore};
     use wow_database::StatementDef;
     use wow_entities::EQUIPMENT_SLOT_MAINHAND;
     use wow_packet::WorldPacket;
@@ -14333,6 +14363,51 @@ mod tests {
         )
     }
 
+    fn stats_store_with_priest_level80(base_mana: u16, intellect: u16) -> PlayerStatsStore {
+        PlayerStatsStore::from_entries([(
+            (1, 5, 80),
+            PlayerLevelStats {
+                strength: 10,
+                agility: 10,
+                stamina: 10,
+                intellect,
+                spirit: 30,
+                base_health: 100,
+                base_mana,
+            },
+        )])
+    }
+
+    fn attach_stat_update_player_with_mana(
+        session: &mut WorldSession,
+        player_guid: ObjectGuid,
+        current_mana: i32,
+        max_mana: i32,
+    ) {
+        let mut player = wow_entities::Player::new(Some(1), false);
+        player
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .create(player_guid);
+        player.unit_mut().world_mut().set_map(571, 0).unwrap();
+        player
+            .unit_mut()
+            .world_mut()
+            .relocate(Position::new(10.0, 20.0, 30.0, 0.0));
+        player.unit_mut().set_power_index(PowerType::Mana, Some(0));
+        player.unit_mut().set_max_power(PowerType::Mana, max_mana);
+        player.unit_mut().set_power(PowerType::Mana, current_mana);
+
+        let mut manager = wow_map::MapManager::default();
+        manager
+            .create_world_map(571, 0)
+            .map_mut()
+            .insert_map_object_record(wow_entities::MapObjectRecord::new_player(player).unwrap())
+            .unwrap();
+        attach_map_manager(session, manager);
+    }
+
     fn drain_server_opcodes(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<ServerOpcodes> {
         let mut opcodes = Vec::new();
         while let Ok(bytes) = send_rx.try_recv() {
@@ -14342,6 +14417,42 @@ mod tests {
             }
         }
         opcodes
+    }
+
+    #[test]
+    fn stat_update_preserves_current_mana_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send_capacity(1);
+        let player_guid = ObjectGuid::create_player(1, 77);
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
+        session.set_player_stats(Arc::new(stats_store_with_priest_level80(1000, 40)));
+        attach_stat_update_player_with_mana(&mut session, player_guid, 777, 1320);
+
+        let (_, changes) = session
+            .player_stat_changes_like_cpp()
+            .expect("stat changes");
+
+        assert_eq!(changes.power0, 777);
+        assert_eq!(changes.max_power0, 1320);
+        assert_eq!(changes.base_mana, 1000);
+    }
+
+    #[test]
+    fn stat_update_clamps_current_mana_to_new_max_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send_capacity(1);
+        let player_guid = ObjectGuid::create_player(1, 78);
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
+        session.set_player_stats(Arc::new(stats_store_with_priest_level80(1000, 40)));
+        attach_stat_update_player_with_mana(&mut session, player_guid, 2_000, 2_500);
+
+        let (_, changes) = session
+            .player_stat_changes_like_cpp()
+            .expect("stat changes");
+
+        assert_eq!(changes.power0, 1320);
+        assert_eq!(changes.max_power0, 1320);
+        assert_eq!(changes.base_mana, 1000);
     }
 
     #[tokio::test]

@@ -18370,6 +18370,18 @@ impl WorldSession {
         Some(f(player))
     }
 
+    pub(crate) fn canonical_player_power_snapshot_like_cpp(
+        &self,
+        power_type: PowerType,
+    ) -> Option<(i32, i32)> {
+        self.canonical_player_snapshot_like_cpp(|player| {
+            (
+                player.unit().get_power(power_type),
+                player.unit().get_max_power(power_type),
+            )
+        })
+    }
+
     pub(crate) fn canonical_player_reputation_standings_snapshot_like_cpp(
         &self,
     ) -> Vec<(u32, i32)> {
