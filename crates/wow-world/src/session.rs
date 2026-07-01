@@ -7219,11 +7219,10 @@ impl WorldSession {
                 };
                 // C++ has one live Player object, and Player::SaveToDB reads a
                 // coherent snapshot from that object. Rust still has split
-                // session/canonical state: accepted client movement and some
-                // runtime damage update the session immediately, while other
-                // gameplay fields may only touch the canonical typed Player.
-                // Keep canonical gameplay fields where they are authoritative,
-                // but prefer latest session movement/health mirrors for
+                // session/canonical state: accepted client movement updates the
+                // session immediately, while gameplay fields may be fresher on
+                // the canonical typed Player. Keep canonical gameplay fields,
+                // but prefer the latest accepted session map/position for
                 // logout/disconnect persistence.
                 let (map_id, instance_id, position) =
                     if let Some((map_id, position)) = pending_teleport_destination {
@@ -7254,8 +7253,13 @@ impl WorldSession {
                     level: player.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8,
                     xp: player.active_data().xp.max(0) as u32,
                     money: player.active_data().coinage,
-                    health: self.player_health_like_cpp,
-                    max_health: self.player_max_health_like_cpp.max(1),
+                    health: player.unit().data().health.min(u64::from(u32::MAX)) as u32,
+                    max_health: player
+                        .unit()
+                        .data()
+                        .max_health
+                        .max(1)
+                        .min(u64::from(u32::MAX)) as u32,
                     powers,
                 });
             });
@@ -36379,6 +36383,10 @@ impl WorldSession {
         self.player_health_like_cpp =
             health_after.min(u64::from(self.player_max_health_like_cpp)) as u32;
         self.player_alive_like_cpp = self.player_health_like_cpp > 0;
+        let health = self.player_health_like_cpp;
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_health(u64::from(health));
+        });
         self.sync_player_registry_state_like_cpp();
     }
 
@@ -36561,7 +36569,10 @@ impl WorldSession {
         if killed_player {
             self.apply_represented_player_environmental_death_like_cpp();
         } else {
-            self.sync_player_registry_state_like_cpp();
+            let _ = self.sync_canonical_player_health_like_cpp(
+                self.player_health_like_cpp,
+                self.player_max_health_like_cpp,
+            );
         }
         if final_damage > 0
             && let Some(player_guid) = self.player_guid()
@@ -36683,6 +36694,11 @@ impl WorldSession {
         let killed_player = self.player_health_like_cpp == 0;
         if killed_player {
             self.apply_represented_player_environmental_death_like_cpp();
+        } else {
+            let _ = self.sync_canonical_player_health_like_cpp(
+                self.player_health_like_cpp,
+                self.player_max_health_like_cpp,
+            );
         }
         if self.player_health_like_cpp != original_health
             && let Some(player_guid) = self.player_guid()
@@ -50681,9 +50697,13 @@ impl WorldSession {
         let final_damage = damage.min(original_health);
         self.player_health_like_cpp = self.player_health_like_cpp.saturating_sub(final_damage);
         if self.player_health_like_cpp == 0 {
-            self.player_alive_like_cpp = false;
+            self.apply_represented_player_environmental_death_like_cpp();
+        } else {
+            let _ = self.sync_canonical_player_health_like_cpp(
+                self.player_health_like_cpp,
+                self.player_max_health_like_cpp,
+            );
         }
-        self.sync_player_registry_state_like_cpp();
         if self.player_health_like_cpp != original_health {
             self.send_player_health_update_like_cpp(
                 player_guid,
@@ -99265,7 +99285,7 @@ mod tests {
     }
 
     #[test]
-    fn logout_save_snapshot_prefers_latest_session_health_over_stale_canonical_like_cpp() {
+    fn logout_save_snapshot_uses_fall_damage_synced_to_canonical_health_like_cpp() {
         let (mut session, _, _) = make_session();
         let canonical = shared_canonical_map_manager();
         let player_guid = ObjectGuid::create_player(1, 74);
@@ -99301,18 +99321,79 @@ mod tests {
                 player.unit_mut().set_health(6_310);
             })
             .unwrap();
-        // Fall/environmental damage is accepted through the session path before
-        // logout. C++ has one Player object; Rust must not let a stale canonical
-        // mirror overwrite the health the client just saw.
-        session.set_player_health_like_cpp(5_782, 6_310);
+        session.set_player_health_like_cpp(6_310, 6_310);
+        session.set_fall_information_like_cpp(1_200, 120.0);
+        let mut fall_land = wow_packet::packets::movement::MovementInfo::default();
+        fall_land.position.z = 100.0;
+        fall_land.jump.fall_time = 1_500;
+
+        let fall = session
+            .handle_fall_like_cpp(&fall_land)
+            .expect("fall damage should apply");
+        assert!(fall.final_damage > 0);
+        let damaged_health = session.player_health_like_cpp();
+        assert!(damaged_health < 6_310);
+        assert_eq!(
+            session.canonical_player_health_snapshot_like_cpp(),
+            Some((damaged_health, 6_310)),
+            "session-side fall damage must sync the canonical Player before SaveToDB snapshots it"
+        );
 
         let snapshot = session
             .sync_session_from_save_to_db_snapshot_like_cpp()
             .expect("snapshot should exist");
 
-        assert_eq!(snapshot.health, 5_782);
+        assert_eq!(snapshot.health, damaged_health);
         assert_eq!(snapshot.max_health, 6_310);
-        assert_eq!(session.player_health_like_cpp(), 5_782);
+        assert_eq!(session.player_health_like_cpp(), damaged_health);
+    }
+
+    #[test]
+    fn logout_save_snapshot_uses_canonical_health_when_session_mirror_is_stale_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 75);
+        let position = Position::new(77.0, 88.0, 99.0, 2.5);
+
+        canonical.lock().unwrap().create_world_map(571, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "CanonicalDamaged".to_string(),
+            position,
+            571,
+            1,
+            3,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        session.set_player_health_like_cpp(100, 100);
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.unit_mut().set_max_health(100);
+                player.unit_mut().set_health(41);
+            })
+            .unwrap();
+
+        let snapshot = session
+            .sync_session_from_save_to_db_snapshot_like_cpp()
+            .expect("snapshot should exist");
+
+        assert_eq!(snapshot.health, 41);
+        assert_eq!(snapshot.max_health, 100);
+        assert_eq!(session.player_health_like_cpp(), 41);
     }
 
     #[test]
