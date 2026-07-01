@@ -113,8 +113,8 @@ observable mutation · **ABSENT**.
 | `ChrClasses`, `FactionTemplate`, `CharBaseInfo` stores | **ABSENT** | class scaling hardcoded; **NPC hostility checks broken** |
 | `SpellPower`/`SpellCastTimes`/`SpellCooldowns` stores | **PARTIAL** | loaded into represented spell metadata for normal difficulty; full C++ modifier and runtime integration still incomplete |
 | DBC/DB2 store coverage | **~110 / ~325 (34%)** | `cpp-db2-stores.tsv` |
-| Player periodic save | **ABSENT** | save only on logout → **crash = data loss** |
-| Multi-statement save transactions | **ABSENT** | `session.rs:21667` serial awaits → partial-save races |
+| Player periodic save | **REPRESENTED-PARTIAL** | session timer now uses `CONFIG_INTERVAL_SAVE` / `PlayerSaveInterval` and queues represented `Player::SaveToDB`; first-save randomization, capture diff, install/restart, and live-client QA still pending |
+| Multi-statement save transactions | **REPRESENTED-PARTIAL** | represented character save now commits the Rust-covered `Player::SaveToDB` statement set in one `SqlTransaction`; full C++ save surface, login/account transaction coupling, capture diff, and manual runtime QA still pending |
 | Respawn DB persistence | **ABSENT** | in-memory queue; respawns lost on restart |
 | Quest objective auto-credit (loot item / explore) | **ABSENT** | not hooked to loot/area-trigger |
 

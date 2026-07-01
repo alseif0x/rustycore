@@ -3751,46 +3751,6 @@ impl WorldSession {
         self.send_packet(&LogoutCancelAck);
     }
 
-    /// Save accumulated played time (`totaltime` + `leveltime`) back to the
-    /// characters database.  Called on logout so time is not lost.
-    pub(crate) async fn save_played_time(&self) {
-        let guid = match self.player_guid() {
-            Some(g) => g,
-            None => return,
-        };
-
-        let char_db = match self.char_db() {
-            Some(db) => Arc::clone(db),
-            None => return,
-        };
-
-        // Compute current total values: base (from DB at login) + session elapsed.
-        let session_secs: u32 = self
-            .login_time
-            .map(|t| t.elapsed().as_secs() as u32)
-            .unwrap_or(0);
-        let total_time = self.total_played_time.saturating_add(session_secs);
-        let level_time = self.level_played_time.saturating_add(session_secs);
-
-        let mut stmt = char_db.prepare(CharStatements::UPD_CHAR_PLAYED_TIME);
-        stmt.set_u32(0, total_time);
-        stmt.set_u32(1, level_time);
-        stmt.set_u32(2, guid.counter() as u32);
-        if let Err(e) = char_db.execute(&stmt).await {
-            warn!(
-                "Failed to save played time for guid {}: {e}",
-                guid.counter()
-            );
-        } else {
-            info!(
-                "Saved played time: total={}s level={}s for guid {}",
-                total_time,
-                level_time,
-                guid.counter()
-            );
-        }
-    }
-
     /// Mark the current character as offline in the database.
     pub(crate) async fn mark_character_offline(&self) {
         let guid = match self.player_guid() {

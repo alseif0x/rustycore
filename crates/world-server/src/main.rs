@@ -4766,6 +4766,11 @@ async fn main() -> Result<ExitCode> {
                 86_400,
             ),
         },
+        player_save_interval_ms: world_config_u32(
+            &world_configs,
+            "CONFIG_INTERVAL_SAVE",
+            15 * 60 * 1000,
+        ),
         realm_id,
         realm_region: active_realm.id.region,
         realm_battlegroup: active_realm.id.site,
@@ -11847,6 +11852,7 @@ async fn create_session(
     session.set_chat_flood_config_like_cpp(resources.chat_flood_config);
     session.set_socket_timeouts_like_cpp(resources.socket_timeouts);
     session.set_packet_spoof_config_like_cpp(resources.packet_spoof_config);
+    session.set_player_save_interval_ms_like_cpp(resources.player_save_interval_ms);
     session.set_legacy_creature_aggro_config_like_cpp(legacy_creature_aggro_config);
     session.set_mmap_runtime_config_like_cpp(mmap_runtime_config);
     if let Some(pathfinder) = mmap_pathfinder {
