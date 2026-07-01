@@ -12392,7 +12392,7 @@ impl WorldSession {
     ///
     /// C++ `Player::UpdateAllStats` updates max power but preserves current power,
     /// clamping only when the max drops below current (`Unit::SetMaxPower`).
-    fn player_stat_changes_like_cpp(&self) -> Option<(ObjectGuid, PlayerStatChanges)> {
+    fn player_stat_changes_like_cpp(&mut self) -> Option<(ObjectGuid, PlayerStatChanges)> {
         let player_guid = match self.player_guid() {
             Some(g) => g,
             None => return None,
@@ -12518,16 +12518,25 @@ impl WorldSession {
         // Power for slot 0 (mana/rage/energy/runic). Keep current power from
         // the runtime player and update only the max, like C++ `SetMaxPower`.
         let primary_power_type = primary_power_type_for_class_like_cpp(class);
-        let max_power0 = primary_max_power_for_class_like_cpp(class, max_mana);
-        let power0 = self
-            .canonical_player_power_snapshot_like_cpp(primary_power_type)
-            .map(|(current, _)| current.max(0).min(max_power0))
-            .unwrap_or(max_power0);
+        let computed_max_power0 = primary_max_power_for_class_like_cpp(class, max_mana);
         let base_mana = if primary_power_type == PowerType::Mana {
             base_mp.max(0).min(i64::from(i32::MAX)) as i32
         } else {
             0
         };
+        let (power0, max_power0) = self
+            .sync_canonical_player_primary_power_max_like_cpp(
+                primary_power_type,
+                computed_max_power0,
+                base_mana,
+            )
+            .or_else(|| {
+                self.canonical_player_power_snapshot_like_cpp(primary_power_type)
+                    .map(|(current, _)| {
+                        (current.max(0).min(computed_max_power0), computed_max_power0)
+                    })
+            })
+            .unwrap_or((computed_max_power0, computed_max_power0));
 
         // CombatRatings[32]: copy 25 used indices, rest 0
         let mut combat_ratings = [0i32; 32];
@@ -12727,7 +12736,7 @@ impl WorldSession {
     /// Recalculate all stats from base + gear and send a VALUES update to the client.
     ///
     /// Called after equip/desequip changes to gear slots (0-18).
-    pub(crate) fn send_stat_update(&self) {
+    pub(crate) fn send_stat_update(&mut self) {
         let Some((player_guid, changes)) = self.player_stat_changes_like_cpp() else {
             return;
         };
@@ -14435,6 +14444,10 @@ mod tests {
         assert_eq!(changes.power0, 777);
         assert_eq!(changes.max_power0, 1320);
         assert_eq!(changes.base_mana, 1000);
+        assert_eq!(
+            session.canonical_player_power_snapshot_like_cpp(PowerType::Mana),
+            Some((777, 1320))
+        );
     }
 
     #[test]
@@ -14453,6 +14466,10 @@ mod tests {
         assert_eq!(changes.power0, 1320);
         assert_eq!(changes.max_power0, 1320);
         assert_eq!(changes.base_mana, 1000);
+        assert_eq!(
+            session.canonical_player_power_snapshot_like_cpp(PowerType::Mana),
+            Some((1320, 1320))
+        );
     }
 
     #[tokio::test]

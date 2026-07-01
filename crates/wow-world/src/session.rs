@@ -1131,7 +1131,7 @@ pub(crate) struct PlayerSaveToDbSnapshotLikeCpp {
     pub level: u8,
     pub xp: u32,
     pub money: u64,
-    pub powers: [i32; 10],
+    pub powers: Option<[i32; 10]>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -7177,7 +7177,7 @@ impl WorldSession {
                     level: player.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8,
                     xp: player.active_data().xp.max(0) as u32,
                     money: player.active_data().coinage,
-                    powers: player.unit().data().power,
+                    powers: Some(player.unit().data().power),
                 });
             });
             if snapshot.is_some() {
@@ -7206,7 +7206,7 @@ impl WorldSession {
             level: self.player_level_like_cpp(),
             xp: self.player_xp_like_cpp(),
             money: self.player_gold_like_cpp(),
-            powers: [0; 10],
+            powers: None,
         })
     }
 
@@ -7362,6 +7362,27 @@ impl WorldSession {
             player.unit_mut().set_power(power_type, current.max(0));
         })
         .is_some()
+    }
+
+    pub(crate) fn sync_canonical_player_primary_power_max_like_cpp(
+        &mut self,
+        power_type: PowerType,
+        max: i32,
+        base_mana: i32,
+    ) -> Option<(i32, i32)> {
+        self.mutate_canonical_player_like_cpp(|player| {
+            if player.unit().get_power_index(power_type).is_none() {
+                player.set_power_index(power_type, Some(0));
+            }
+            player.unit_mut().set_display_power(power_type);
+            player.unit_mut().set_create_mana_like_cpp(base_mana.max(0));
+            // C++ `Unit::SetMaxPower` updates max and clamps current if needed.
+            player.unit_mut().set_max_power(power_type, max.max(0));
+            (
+                player.unit().get_power(power_type),
+                player.unit().get_max_power(power_type),
+            )
+        })
     }
 
     pub(crate) fn set_canonical_chosen_title_like_cpp(
@@ -21660,14 +21681,30 @@ impl WorldSession {
         stmt
     }
 
+    fn build_character_powers_save_statement_from_snapshot_like_cpp(
+        snapshot: &PlayerSaveToDbSnapshotLikeCpp,
+    ) -> Option<PreparedStatement> {
+        Some(Self::build_character_powers_save_statement_like_cpp(
+            snapshot.powers?,
+            snapshot.guid.counter() as u64,
+        ))
+    }
+
     async fn save_player_powers_like_cpp(&self, snapshot: &PlayerSaveToDbSnapshotLikeCpp) {
         let Some(char_db) = self.char_db().map(Arc::clone) else {
             return;
         };
-        let stmt = Self::build_character_powers_save_statement_like_cpp(
-            snapshot.powers,
-            snapshot.guid.counter() as u64,
-        );
+        let Some(stmt) =
+            Self::build_character_powers_save_statement_from_snapshot_like_cpp(snapshot)
+        else {
+            if std::env::var_os("RUSTYCORE_SPELL_POWER_TRACE").is_some() {
+                info!(
+                    guid = ?snapshot.guid,
+                    "RUST_PLAYER_POWER_SAVE skipped: no authoritative canonical power snapshot"
+                );
+            }
+            return;
+        };
         match char_db.execute(&stmt).await {
             Ok(_) => {
                 if std::env::var_os("RUSTYCORE_SPELL_POWER_TRACE").is_some() {
@@ -98982,7 +99019,7 @@ mod tests {
                 level: 42,
                 xp: 1234,
                 money: 5678,
-                powers: [321, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                powers: Some([321, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
             }
         );
         assert_eq!(
@@ -99038,7 +99075,7 @@ mod tests {
         assert_eq!(snapshot.level, 42);
         assert_eq!(snapshot.xp, 1234);
         assert_eq!(snapshot.money, 5678);
-        assert_eq!(snapshot.powers, [0; 10]);
+        assert_eq!(snapshot.powers, None);
     }
 
     #[test]
@@ -99160,6 +99197,26 @@ mod tests {
     }
 
     #[test]
+    fn character_powers_save_statement_skips_missing_authoritative_powers_like_cpp() {
+        let snapshot = PlayerSaveToDbSnapshotLikeCpp {
+            guid: ObjectGuid::create_player(1, 5005),
+            map_id: 571,
+            instance_id: 0,
+            position: Position::new(11.0, 22.0, 33.0, 1.5),
+            level: 80,
+            xp: 0,
+            money: 42,
+            powers: None,
+        };
+
+        assert!(
+            WorldSession::build_character_powers_save_statement_from_snapshot_like_cpp(&snapshot)
+                .is_none(),
+            "fallback snapshots preserve old DB powers by skipping the power update"
+        );
+    }
+
+    #[test]
     fn character_position_save_uses_captured_snapshot_map_instance_like_cpp() {
         let guid = ObjectGuid::create_player(1, 5003);
         let snapshot = PlayerSaveToDbSnapshotLikeCpp {
@@ -99170,7 +99227,7 @@ mod tests {
             level: 80,
             xp: 0,
             money: 42,
-            powers: [0; 10],
+            powers: None,
         };
 
         let stmt = WorldSession::build_character_position_save_statement_from_snapshot_like_cpp(
