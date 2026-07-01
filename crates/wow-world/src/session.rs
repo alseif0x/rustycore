@@ -1162,6 +1162,8 @@ pub(crate) struct PlayerSaveToDbSnapshotLikeCpp {
     pub level: u8,
     pub xp: u32,
     pub money: u64,
+    pub health: u32,
+    pub max_health: u32,
     pub powers: CharacterPowerSnapshotLikeCpp,
 }
 
@@ -7217,11 +7219,12 @@ impl WorldSession {
                 };
                 // C++ has one live Player object, and Player::SaveToDB reads a
                 // coherent snapshot from that object. Rust still has split
-                // session/canonical state: accepted client movement updates the
-                // session immediately, while other gameplay fields may only
-                // touch the canonical typed Player. Keep canonical gameplay
-                // fields, but prefer the latest accepted session map/position
-                // for logout/disconnect persistence.
+                // session/canonical state: accepted client movement and some
+                // runtime damage update the session immediately, while other
+                // gameplay fields may only touch the canonical typed Player.
+                // Keep canonical gameplay fields where they are authoritative,
+                // but prefer latest session movement/health mirrors for
+                // logout/disconnect persistence.
                 let (map_id, instance_id, position) =
                     if let Some((map_id, position)) = pending_teleport_destination {
                         (map_id, 0, position)
@@ -7251,6 +7254,8 @@ impl WorldSession {
                     level: player.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8,
                     xp: player.active_data().xp.max(0) as u32,
                     money: player.active_data().coinage,
+                    health: self.player_health_like_cpp,
+                    max_health: self.player_max_health_like_cpp.max(1),
                     powers,
                 });
             });
@@ -7280,6 +7285,8 @@ impl WorldSession {
             level: self.player_level_like_cpp(),
             xp: self.player_xp_like_cpp(),
             money: self.player_gold_like_cpp(),
+            health: self.player_health_like_cpp,
+            max_health: self.player_max_health_like_cpp.max(1),
             powers: self.represented_player_powers_like_cpp,
         })
     }
@@ -7302,6 +7309,7 @@ impl WorldSession {
         self.set_player_level_like_cpp(snapshot.level);
         self.set_player_xp_like_cpp(snapshot.xp);
         self.set_player_gold_like_cpp(snapshot.money);
+        self.set_player_health_like_cpp(snapshot.health, snapshot.max_health);
         self.represented_player_powers_like_cpp = snapshot.powers;
         Some(snapshot)
     }
@@ -7467,6 +7475,60 @@ impl WorldSession {
         if let Some((current, max)) = result {
             self.represented_player_base_mana_like_cpp = base_mana.max(0);
             self.set_represented_player_power_slot_like_cpp(0, current, Some(max));
+        }
+        result
+    }
+
+    pub(crate) fn sync_canonical_player_max_health_like_cpp(
+        &mut self,
+        max_health: u32,
+    ) -> Option<(u32, u32)> {
+        let max_health = max_health.max(1);
+        let result = self.mutate_canonical_player_like_cpp(|player| {
+            // C++ `Unit::SetMaxHealth` updates max and clamps current only if needed.
+            player.unit_mut().set_max_health(u64::from(max_health));
+            (
+                player.unit().data().health.min(u64::from(u32::MAX)) as u32,
+                player.unit().data().max_health.min(u64::from(u32::MAX)) as u32,
+            )
+        });
+        if let Some((current, max)) = result {
+            self.set_player_health_like_cpp(current, max);
+        }
+        result
+    }
+
+    pub(crate) fn sync_canonical_player_health_like_cpp(
+        &mut self,
+        health: u32,
+        max_health: u32,
+    ) -> Option<(u32, u32)> {
+        let max_health = max_health.max(1);
+        let health = health.min(max_health);
+        let result = self.mutate_canonical_player_like_cpp(|player| {
+            if health == 0 {
+                player
+                    .unit_mut()
+                    .set_death_state(wow_constants::DeathState::Corpse);
+            } else if matches!(
+                player.unit().death_state(),
+                wow_constants::DeathState::JustDied | wow_constants::DeathState::Corpse
+            ) {
+                player
+                    .unit_mut()
+                    .set_death_state(wow_constants::DeathState::Alive);
+            }
+            player.unit_mut().set_max_health(u64::from(max_health));
+            player.unit_mut().set_health(u64::from(health));
+            (
+                player.unit().data().health.min(u64::from(u32::MAX)) as u32,
+                player.unit().data().max_health.min(u64::from(u32::MAX)) as u32,
+            )
+        });
+        if let Some((current, max)) = result {
+            self.set_player_health_like_cpp(current, max);
+        } else {
+            self.set_player_health_like_cpp(health, max_health);
         }
         result
     }
@@ -18489,6 +18551,15 @@ impl WorldSession {
         })
     }
 
+    pub(crate) fn canonical_player_health_snapshot_like_cpp(&self) -> Option<(u32, u32)> {
+        self.canonical_player_snapshot_like_cpp(|player| {
+            (
+                player.unit().data().health.min(u64::from(u32::MAX)) as u32,
+                player.unit().data().max_health.min(u64::from(u32::MAX)) as u32,
+            )
+        })
+    }
+
     pub(crate) fn canonical_player_reputation_standings_snapshot_like_cpp(
         &self,
     ) -> Vec<(u32, i32)> {
@@ -21755,6 +21826,38 @@ impl WorldSession {
         let _ = char_db.execute(&stmt).await;
     }
 
+    fn build_character_health_save_statement_like_cpp(
+        health: u32,
+        guid_counter: u64,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::UPD_CHAR_HEALTH.sql());
+        stmt.set_u32(0, health);
+        stmt.set_u64(1, guid_counter);
+        stmt
+    }
+
+    fn build_character_health_save_statement_from_snapshot_like_cpp(
+        snapshot: &PlayerSaveToDbSnapshotLikeCpp,
+    ) -> PreparedStatement {
+        Self::build_character_health_save_statement_like_cpp(
+            snapshot.health,
+            snapshot.guid.counter() as u64,
+        )
+    }
+
+    async fn save_player_health_like_cpp(&self, snapshot: &PlayerSaveToDbSnapshotLikeCpp) {
+        let Some(char_db) = self.char_db().map(Arc::clone) else {
+            return;
+        };
+        let stmt = Self::build_character_health_save_statement_from_snapshot_like_cpp(snapshot);
+        if let Err(err) = char_db.execute(&stmt).await {
+            warn!(
+                "Failed to save represented player health for guid {}: {err}",
+                snapshot.guid.counter()
+            );
+        }
+    }
+
     fn build_character_powers_save_statement_like_cpp(
         powers: [i32; 10],
         guid_counter: u64,
@@ -21982,6 +22085,7 @@ impl WorldSession {
         self.save_player_position_like_cpp(&snapshot).await;
         self.save_player_level_xp_like_cpp().await;
         self.save_player_gold().await;
+        self.save_player_health_like_cpp(&snapshot).await;
         self.save_player_powers_like_cpp(&snapshot).await;
         self.save_player_talent_reset_state_like_cpp().await;
         self.save_player_explored_zones_like_cpp().await;
@@ -99121,10 +99225,13 @@ mod tests {
                 player.unit_mut().set_level(42);
                 player.set_xp(1234);
                 player.set_money(5678);
+                player.unit_mut().set_max_health(900);
+                player.unit_mut().set_health(456);
                 player.unit_mut().set_max_power(PowerType::Mana, 1000);
                 player.unit_mut().set_power(PowerType::Mana, 321);
             })
             .unwrap();
+        session.set_player_health_like_cpp(456, 900);
         session.set_player_position_like_cpp(latest_session_position);
 
         let snapshot = session
@@ -99140,6 +99247,8 @@ mod tests {
                 level: 42,
                 xp: 1234,
                 money: 5678,
+                health: 456,
+                max_health: 900,
                 powers: loaded_character_power_snapshot_like_cpp([
                     321, 222, 0, 0, 0, 0, 0, 0, 0, 0,
                 ]),
@@ -99152,6 +99261,58 @@ mod tests {
         assert_eq!(session.player_level_like_cpp(), 42);
         assert_eq!(session.player_xp_like_cpp(), 1234);
         assert_eq!(session.player_gold_like_cpp(), 5678);
+        assert_eq!(session.player_health_like_cpp(), 456);
+    }
+
+    #[test]
+    fn logout_save_snapshot_prefers_latest_session_health_over_stale_canonical_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 74);
+        let position = Position::new(77.0, 88.0, 99.0, 2.5);
+
+        canonical.lock().unwrap().create_world_map(571, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "Damaged".to_string(),
+            position,
+            571,
+            1,
+            3,
+            80,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.unit_mut().set_max_health(6_310);
+                player.unit_mut().set_health(6_310);
+            })
+            .unwrap();
+        // Fall/environmental damage is accepted through the session path before
+        // logout. C++ has one Player object; Rust must not let a stale canonical
+        // mirror overwrite the health the client just saw.
+        session.set_player_health_like_cpp(5_782, 6_310);
+
+        let snapshot = session
+            .sync_session_from_save_to_db_snapshot_like_cpp()
+            .expect("snapshot should exist");
+
+        assert_eq!(snapshot.health, 5_782);
+        assert_eq!(snapshot.max_health, 6_310);
+        assert_eq!(session.player_health_like_cpp(), 5_782);
     }
 
     #[test]
@@ -99188,6 +99349,7 @@ mod tests {
         session.set_player_level_like_cpp(42);
         session.set_player_xp_like_cpp(1234);
         session.set_player_gold_like_cpp(5678);
+        session.set_player_health_like_cpp(33, 100);
         session.set_player_position_like_cpp(moved_position);
 
         let snapshot = session
@@ -99198,6 +99360,8 @@ mod tests {
         assert_eq!(snapshot.level, 42);
         assert_eq!(snapshot.xp, 1234);
         assert_eq!(snapshot.money, 5678);
+        assert_eq!(snapshot.health, 33);
+        assert_eq!(snapshot.max_health, 100);
         assert_eq!(snapshot.powers, empty_character_power_snapshot_like_cpp());
     }
 
@@ -99297,6 +99461,22 @@ mod tests {
     }
 
     #[test]
+    fn character_health_save_statement_matches_cpp_bind_order() {
+        let guid = ObjectGuid::create_player(1, 5006);
+
+        let stmt = WorldSession::build_character_health_save_statement_like_cpp(
+            321,
+            guid.counter() as u64,
+        );
+
+        assert_eq!(stmt.sql(), CharStatements::UPD_CHAR_HEALTH.sql());
+        assert!(matches!(stmt.params()[0], wow_database::SqlParam::U32(321)));
+        assert!(
+            matches!(stmt.params()[1], wow_database::SqlParam::U64(v) if v == guid.counter() as u64)
+        );
+    }
+
+    #[test]
     fn character_powers_save_statement_matches_cpp_power_fields_like_cpp() {
         let guid = ObjectGuid::create_player(1, 5004);
         let powers = [321, -1, 0, 100, 5, 6, 7, 8, 9, 10];
@@ -99329,6 +99509,8 @@ mod tests {
             level: 80,
             xp: 0,
             money: 42,
+            health: 77,
+            max_health: 100,
             powers: empty_character_power_snapshot_like_cpp(),
         };
 
@@ -99350,6 +99532,8 @@ mod tests {
             level: 80,
             xp: 0,
             money: 42,
+            health: 77,
+            max_health: 100,
             powers: empty_character_power_snapshot_like_cpp(),
         };
 
@@ -99455,6 +99639,84 @@ mod tests {
                 .take(4)
                 .collect::<Vec<_>>(),
             vec!["1", "2", "5", "6"]
+        );
+    }
+
+    #[test]
+    fn sync_canonical_player_health_sets_current_and_max_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 0xE112);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+
+        session.ensure_login_player_controller_like_cpp(
+            player_guid,
+            "Healthy".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            1,
+            1,
+            1,
+            80,
+            0,
+        );
+        let player = session
+            .canonical_player_entity_snapshot_like_cpp()
+            .expect("canonical player snapshot");
+        {
+            let mut manager = canonical.lock().expect("canonical map manager");
+            let managed = manager.create_world_map(1, 0);
+            session.sync_canonical_player_entity_like_cpp(managed, player);
+        }
+
+        assert_eq!(
+            session.sync_canonical_player_health_like_cpp(42, 120),
+            Some((42, 120))
+        );
+        assert_eq!(session.player_health_like_cpp(), 42);
+        assert_eq!(
+            session.canonical_player_health_snapshot_like_cpp(),
+            Some((42, 120))
+        );
+    }
+
+    #[test]
+    fn sync_canonical_player_health_zero_sets_corpse_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 0xE113);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+
+        session.ensure_login_player_controller_like_cpp(
+            player_guid,
+            "Dead".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            1,
+            1,
+            1,
+            80,
+            0,
+        );
+        let player = session
+            .canonical_player_entity_snapshot_like_cpp()
+            .expect("canonical player snapshot");
+        {
+            let mut manager = canonical.lock().expect("canonical map manager");
+            let managed = manager.create_world_map(1, 0);
+            session.sync_canonical_player_entity_like_cpp(managed, player);
+        }
+
+        assert_eq!(
+            session.sync_canonical_player_health_like_cpp(0, 120),
+            Some((0, 120))
+        );
+        assert_eq!(session.player_health_like_cpp(), 0);
+        assert_eq!(
+            session.canonical_player_health_snapshot_like_cpp(),
+            Some((0, 120))
+        );
+        assert_eq!(
+            session.canonical_player_snapshot_like_cpp(|player| player.unit().death_state()),
+            Some(wow_constants::DeathState::Corpse)
         );
     }
 

@@ -1331,6 +1331,17 @@ fn default_health_mana(class: u8) -> (u32, u32) {
     }
 }
 
+fn max_health_u32_like_cpp(max_health: i64) -> u32 {
+    max_health.max(1).min(i64::from(u32::MAX)) as u32
+}
+
+fn restored_saved_health_like_cpp(saved_health: Option<u32>, max_health: i64) -> i64 {
+    let max_health = max_health_u32_like_cpp(max_health);
+    saved_health
+        .map(|health| i64::from(health.min(max_health)))
+        .unwrap_or(i64::from(max_health))
+}
+
 fn default_character_power1_like_cpp(class: u8, mana: u32) -> u32 {
     match primary_power_type_for_class_like_cpp(class) {
         PowerType::Energy => 100,
@@ -5502,6 +5513,9 @@ impl WorldSession {
                 ([0i32; 5], 0, 0, 0, 0)
             };
 
+        // C++ `Player::LoadFromDB` restores `fields.health` after `UpdateAllStats`,
+        // clamping it to the recalculated max and preserving zero as corpse state.
+        let saved_health = result.try_read::<u32>(51);
         let loaded_powers = std::array::from_fn(|index| {
             result
                 .try_read::<u32>(52 + index)
@@ -5571,7 +5585,7 @@ impl WorldSession {
 
                 (
                     PlayerCombatStats {
-                        health: max_health,
+                        health: restored_saved_health_like_cpp(saved_health, max_health),
                         max_health,
                         stats: [total_str, total_agi, total_sta, total_int, total_spi],
                         base_armor,
@@ -5597,7 +5611,7 @@ impl WorldSession {
                 let (h, m) = default_health_mana(class);
                 (
                     PlayerCombatStats {
-                        health: h as i64,
+                        health: restored_saved_health_like_cpp(saved_health, h as i64),
                         max_health: h as i64,
                         max_mana: m as i64,
                         ..PlayerCombatStats::default()
@@ -5609,7 +5623,7 @@ impl WorldSession {
             let (h, m) = default_health_mana(class);
             (
                 PlayerCombatStats {
-                    health: h as i64,
+                    health: restored_saved_health_like_cpp(saved_health, h as i64),
                     max_health: h as i64,
                     max_mana: m as i64,
                     ..PlayerCombatStats::default()
@@ -12489,6 +12503,17 @@ impl WorldSession {
         let hp_bonus = sta64.min(20) + (sta64 - 20).max(0) * 10 + gear_health as i64;
         let max_health = base_hp + hp_bonus;
 
+        let computed_max_health_u32 = max_health_u32_like_cpp(max_health);
+        let (health, max_health_for_update) = self
+            .sync_canonical_player_max_health_like_cpp(computed_max_health_u32)
+            .unwrap_or_else(|| {
+                let current = self.player_health_like_cpp().min(computed_max_health_u32);
+                self.set_player_health_like_cpp(current, computed_max_health_u32);
+                (current, computed_max_health_u32)
+            });
+        let health = i64::from(health);
+        let max_health = i64::from(max_health_for_update);
+
         // MaxMana from total INT
         let int64 = total_int as i64;
         let base_mp = ls.base_mana as i64;
@@ -12674,7 +12699,7 @@ impl WorldSession {
         };
 
         let changes = PlayerStatChanges {
-            health: max_health,
+            health,
             max_health,
             min_damage: min_d,
             max_damage: max_d,
@@ -13728,7 +13753,7 @@ impl WorldSession {
         if attached_controller {
             let _ = self.ensure_canonical_world_map_for_current_player_like_cpp();
         }
-        self.set_player_health_like_cpp(
+        self.sync_canonical_player_health_like_cpp(
             combat.health.max(0).min(u32::MAX as i64) as u32,
             combat.max_health.max(1).min(u32::MAX as i64) as u32,
         );
@@ -14408,6 +14433,24 @@ mod tests {
         current_mana: i32,
         max_mana: i32,
     ) {
+        attach_stat_update_player_with_mana_and_health(
+            session,
+            player_guid,
+            current_mana,
+            max_mana,
+            100,
+            100,
+        );
+    }
+
+    fn attach_stat_update_player_with_mana_and_health(
+        session: &mut WorldSession,
+        player_guid: ObjectGuid,
+        current_mana: i32,
+        max_mana: i32,
+        current_health: u32,
+        max_health: u32,
+    ) {
         let mut player = wow_entities::Player::new(Some(1), false);
         player
             .unit_mut()
@@ -14419,6 +14462,8 @@ mod tests {
             .unit_mut()
             .world_mut()
             .relocate(Position::new(10.0, 20.0, 30.0, 0.0));
+        player.unit_mut().set_max_health(u64::from(max_health));
+        player.unit_mut().set_health(u64::from(current_health));
         player.unit_mut().set_power_index(PowerType::Mana, Some(0));
         player.unit_mut().set_max_power(PowerType::Mana, max_mana);
         player.unit_mut().set_power(PowerType::Mana, current_mana);
@@ -14441,6 +14486,17 @@ mod tests {
             }
         }
         opcodes
+    }
+
+    #[test]
+    fn restored_saved_health_preserves_dead_zero_like_cpp() {
+        assert_eq!(restored_saved_health_like_cpp(Some(0), 110), 0);
+    }
+
+    #[test]
+    fn restored_saved_health_clamps_to_recomputed_max_like_cpp() {
+        assert_eq!(restored_saved_health_like_cpp(Some(500), 110), 110);
+        assert_eq!(restored_saved_health_like_cpp(Some(77), 110), 77);
     }
 
     #[test]
@@ -14484,6 +14540,64 @@ mod tests {
         assert_eq!(
             session.canonical_player_power_snapshot_like_cpp(PowerType::Mana),
             Some((1320, 1320))
+        );
+    }
+
+    #[test]
+    fn stat_update_preserves_current_health_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send_capacity(1);
+        let player_guid = ObjectGuid::create_player(1, 79);
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
+        session.set_player_stats(Arc::new(stats_store_with_priest_level80(1000, 40)));
+        attach_stat_update_player_with_mana_and_health(
+            &mut session,
+            player_guid,
+            777,
+            1320,
+            77,
+            500,
+        );
+
+        let (_, changes) = session
+            .player_stat_changes_like_cpp()
+            .expect("stat changes");
+
+        assert_eq!(changes.health, 77);
+        assert_eq!(changes.max_health, 110);
+        assert_eq!(session.player_health_like_cpp(), 77);
+        assert_eq!(
+            session.canonical_player_health_snapshot_like_cpp(),
+            Some((77, 110))
+        );
+    }
+
+    #[test]
+    fn stat_update_clamps_current_health_to_new_max_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send_capacity(1);
+        let player_guid = ObjectGuid::create_player(1, 80);
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
+        session.set_player_stats(Arc::new(stats_store_with_priest_level80(1000, 40)));
+        attach_stat_update_player_with_mana_and_health(
+            &mut session,
+            player_guid,
+            777,
+            1320,
+            500,
+            500,
+        );
+
+        let (_, changes) = session
+            .player_stat_changes_like_cpp()
+            .expect("stat changes");
+
+        assert_eq!(changes.health, 110);
+        assert_eq!(changes.max_health, 110);
+        assert_eq!(session.player_health_like_cpp(), 110);
+        assert_eq!(
+            session.canonical_player_health_snapshot_like_cpp(),
+            Some((110, 110))
         );
     }
 
