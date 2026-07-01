@@ -1883,7 +1883,8 @@ impl StatementDef for CharStatements {
             Self::SEL_MAX_GUID => "SELECT MAX(guid) FROM characters",
             Self::SEL_CHAR_EQUIPMENT => {
                 "SELECT ci.slot, ii.itemEntry, ci.item, ii.count, ii.durability, ii.context, \
-                 ii.flags, ii.playedTime, ir.paidMoney, ir.paidExtendedCost \
+                 ii.flags, ii.playedTime, ii.enchantments, ii.randomPropertiesId, \
+                 ii.randomPropertiesSeed, ir.paidMoney, ir.paidExtendedCost \
                  FROM character_inventory ci \
                  JOIN item_instance ii ON ci.item = ii.guid \
                  LEFT JOIN item_refund_instance ir \
@@ -3118,7 +3119,8 @@ impl StatementDef for CharStatements {
             }
             Self::SEL_CHAR_BAG_CONTENTS => {
                 "SELECT bag_ci.slot, ci.slot, ii.itemEntry, ci.item, ii.count, ii.durability, ii.context, \
-                 ii.flags, ii.playedTime, ir.paidMoney, ir.paidExtendedCost \
+                 ii.flags, ii.playedTime, ii.enchantments, ii.randomPropertiesId, \
+                 ii.randomPropertiesSeed, ir.paidMoney, ir.paidExtendedCost \
                  FROM character_inventory ci \
                  JOIN character_inventory bag_ci \
                    ON bag_ci.guid = ci.guid AND bag_ci.item = ci.bag \
@@ -6034,6 +6036,21 @@ mod tests {
                 .count(),
             1
         );
+        assert!(
+            CharStatements::SEL_CHAR_EQUIPMENT
+                .sql()
+                .contains("ii.enchantments")
+        );
+        assert!(
+            CharStatements::SEL_CHAR_EQUIPMENT
+                .sql()
+                .contains("ii.randomPropertiesId")
+        );
+        assert!(
+            CharStatements::SEL_CHAR_EQUIPMENT
+                .sql()
+                .contains("ii.randomPropertiesSeed")
+        );
         assert_eq!(
             CharStatements::INS_ITEM_INSTANCE_WITH_RANDOM_CONTEXT
                 .sql()
@@ -6080,6 +6097,21 @@ mod tests {
                 .matches('?')
                 .count(),
             1
+        );
+        assert!(
+            CharStatements::SEL_CHAR_BAG_CONTENTS
+                .sql()
+                .contains("ii.enchantments")
+        );
+        assert!(
+            CharStatements::SEL_CHAR_BAG_CONTENTS
+                .sql()
+                .contains("ii.randomPropertiesId")
+        );
+        assert!(
+            CharStatements::SEL_CHAR_BAG_CONTENTS
+                .sql()
+                .contains("ii.randomPropertiesSeed")
         );
         assert_eq!(
             CharStatements::DEL_ITEM_REFUND_INSTANCE

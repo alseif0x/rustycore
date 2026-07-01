@@ -58,7 +58,8 @@ use wow_packet::packets::quest::{
     quest_push_reason,
 };
 use wow_packet::packets::update::{
-    ItemCreateData, PlayerDataValuesDeltaUpdate, QuestLogValuesUpdate, UpdateObject,
+    ItemCreateData, ItemEnchantmentValuesUpdate, PlayerDataValuesDeltaUpdate,
+    QuestLogValuesUpdate, UpdateObject,
 };
 use wow_packet::{ClientPacket, ServerPacket};
 
@@ -2038,6 +2039,7 @@ impl WorldSession {
                     max_durability: stack.max_durability,
                     random_properties_seed: 0,
                     random_properties_id: 0,
+                    enchantments: [ItemEnchantmentValuesUpdate::default(); 13],
                     context: ItemContext::None as u8,
                     container_slots: 0,
                     container_item_guids: [ObjectGuid::EMPTY; 36],
@@ -2397,6 +2399,7 @@ impl WorldSession {
                     max_durability: stack.max_durability,
                     random_properties_seed: 0,
                     random_properties_id: 0,
+                    enchantments: [ItemEnchantmentValuesUpdate::default(); 13],
                     context: ItemContext::QuestReward as u8,
                     container_slots: 0,
                     container_item_guids: [ObjectGuid::EMPTY; 36],

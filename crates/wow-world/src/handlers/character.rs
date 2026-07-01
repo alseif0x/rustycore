@@ -108,6 +108,7 @@ const TRAINER_NPC_FLAGS_MASK_LIKE_CPP: u32 = 0x10 | 0x20 | 0x40;
 const GOSSIP_OPTION_ID_AUTO_TRAINER_LIKE_CPP: i32 = -1;
 const GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP: u8 = 3;
 const GOSSIP_OPTION_TRAINER_TEXT_LIKE_CPP: &str = "I would like to train.";
+const ITEM_ENCHANTMENT_DB_FIELDS: usize = 3;
 
 fn creature_has_trainer_flag_like_cpp(npc_flags: u32) -> bool {
     (npc_flags & TRAINER_NPC_FLAGS_MASK_LIKE_CPP) != 0
@@ -160,7 +161,6 @@ fn add_represented_trainer_gossip_option_if_missing_like_cpp(
     stored_options.push(represented_trainer_gossip_option_info_like_cpp());
     true
 }
-
 fn primary_power_type_for_class_like_cpp(class_id: u8) -> PowerType {
     match class_id {
         1 => PowerType::Rage,
@@ -176,6 +176,57 @@ fn primary_max_power_for_class_like_cpp(class_id: u8, max_mana: i64) -> i32 {
         4 => 100,
         _ => max_mana.max(0).min(i64::from(i32::MAX)) as i32,
     }
+}
+
+fn apply_loaded_item_instance_fields_like_cpp(
+    item: &mut wow_entities::Item,
+    enchantments: Option<&[ItemEnchantmentValuesUpdate; wow_entities::MAX_ENCHANTMENT_SLOT]>,
+    random_properties_id: i32,
+    random_properties_seed: i32,
+) {
+    if random_properties_id != 0 {
+        item.set_random_properties_id(random_properties_id);
+        item.set_property_seed(random_properties_seed);
+    }
+
+    if let Some(enchantments) = enchantments {
+        for (slot_index, enchantment) in enchantments.iter().enumerate() {
+            let Some(slot) = <EnchantmentSlot as num_traits::FromPrimitive>::from_usize(slot_index)
+            else {
+                continue;
+            };
+            item.set_enchantment(
+                slot,
+                enchantment.id,
+                enchantment.duration,
+                enchantment.charges,
+            );
+        }
+    }
+}
+
+fn loaded_item_enchantments_like_cpp(
+    enchantments: &str,
+) -> Option<[ItemEnchantmentValuesUpdate; wow_entities::MAX_ENCHANTMENT_SLOT]> {
+    let mut values = [ItemEnchantmentValuesUpdate::default(); wow_entities::MAX_ENCHANTMENT_SLOT];
+    let tokens: Vec<&str> = enchantments.split_whitespace().collect();
+    if tokens.len() != wow_entities::MAX_ENCHANTMENT_SLOT * ITEM_ENCHANTMENT_DB_FIELDS {
+        return None;
+    }
+
+    for slot_index in 0..wow_entities::MAX_ENCHANTMENT_SLOT {
+        let base = slot_index * ITEM_ENCHANTMENT_DB_FIELDS;
+        values[slot_index] = ItemEnchantmentValuesUpdate {
+            item_enchantment_mask: 0,
+            id: tokens[base].parse::<i32>().unwrap_or(0),
+            duration: tokens[base + 1].parse::<u32>().unwrap_or(0),
+            charges: tokens[base + 2].parse::<i16>().unwrap_or(0),
+            field_a: 0,
+            field_b: 0,
+        };
+    }
+
+    Some(values)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -4916,11 +4967,21 @@ impl WorldSession {
                                 .unwrap_or(ItemContext::None);
                             let item_flags = eq_result.try_read::<u32>(6).unwrap_or(0);
                             let item_played_time = eq_result.try_read::<u32>(7).unwrap_or(0);
+                            let item_enchantments =
+                                eq_result.try_read::<String>(8).unwrap_or_default();
+                            let item_enchantment_values =
+                                loaded_item_enchantments_like_cpp(&item_enchantments);
+                            let item_create_enchantments = item_enchantment_values
+                                .as_ref()
+                                .copied()
+                                .unwrap_or([ItemEnchantmentValuesUpdate::default(); 13]);
+                            let random_properties_id = eq_result.try_read::<i32>(9).unwrap_or(0);
+                            let random_properties_seed = eq_result.try_read::<i32>(10).unwrap_or(0);
                             let refund_decision = loaded_item_refund_decision(
                                 item_flags,
                                 item_played_time,
-                                eq_result.try_read::<u64>(8),
-                                eq_result.try_read::<u16>(9),
+                                eq_result.try_read::<u64>(11),
+                                eq_result.try_read::<u16>(12),
                             );
                             if item_entry > 0 && (slot as usize) < 141 {
                                 let item_max_durability = self
@@ -4977,8 +5038,9 @@ impl WorldSession {
                                     dynamic_flags: stored_flags,
                                     durability: item_durability,
                                     max_durability: item_max_durability,
-                                    random_properties_seed: 0,
-                                    random_properties_id: 0,
+                                    random_properties_seed,
+                                    random_properties_id,
+                                    enchantments: item_create_enchantments,
                                     context: item_context as u8,
                                     container_slots,
                                     container_item_guids: [ObjectGuid::EMPTY; 36],
@@ -5007,6 +5069,12 @@ impl WorldSession {
                                     slot,
                                 );
                                 item_object.set_create_played_time(item_played_time);
+                                apply_loaded_item_instance_fields_like_cpp(
+                                    &mut item_object,
+                                    item_enchantment_values.as_ref(),
+                                    random_properties_id,
+                                    random_properties_seed,
+                                );
                                 item_object.replace_all_item_flags(
                                     ItemFieldFlags::from_bits_retain(stored_flags),
                                 );
@@ -5072,6 +5140,18 @@ impl WorldSession {
                                     .unwrap_or(ItemContext::None);
                                 let item_flags = bag_result.try_read::<u32>(7).unwrap_or(0);
                                 let item_played_time = bag_result.try_read::<u32>(8).unwrap_or(0);
+                                let item_enchantments =
+                                    bag_result.try_read::<String>(9).unwrap_or_default();
+                                let item_enchantment_values =
+                                    loaded_item_enchantments_like_cpp(&item_enchantments);
+                                let item_create_enchantments = item_enchantment_values
+                                    .as_ref()
+                                    .copied()
+                                    .unwrap_or([ItemEnchantmentValuesUpdate::default(); 13]);
+                                let random_properties_id =
+                                    bag_result.try_read::<i32>(10).unwrap_or(0);
+                                let random_properties_seed =
+                                    bag_result.try_read::<i32>(11).unwrap_or(0);
                                 if item_entry > 0 && is_represented_bag_slot(bag_slot) {
                                     if let Some(bag_item_guid) = self
                                         .inventory_items_like_cpp()
@@ -5093,6 +5173,12 @@ impl WorldSession {
                                             inner_slot,
                                         );
                                         item_object.set_create_played_time(item_played_time);
+                                        apply_loaded_item_instance_fields_like_cpp(
+                                            &mut item_object,
+                                            item_enchantment_values.as_ref(),
+                                            random_properties_id,
+                                            random_properties_seed,
+                                        );
                                         item_object.replace_all_item_flags(
                                             ItemFieldFlags::from_bits_retain(item_flags),
                                         );
@@ -5120,8 +5206,9 @@ impl WorldSession {
                                                 dynamic_flags: item_flags,
                                                 durability: item_durability,
                                                 max_durability: item_max_durability,
-                                                random_properties_seed: 0,
-                                                random_properties_id: 0,
+                                                random_properties_seed,
+                                                random_properties_id,
+                                                enchantments: item_create_enchantments,
                                                 context: item_context as u8,
                                                 container_slots: 0,
                                                 container_item_guids: [ObjectGuid::EMPTY; 36],
@@ -10988,6 +11075,7 @@ impl WorldSession {
                     max_durability,
                     random_properties_seed: 0,
                     random_properties_id: 0,
+                    enchantments: [ItemEnchantmentValuesUpdate::default(); 13],
                     context: 0,
                     container_slots: 0,
                     container_item_guids: [ObjectGuid::EMPTY; 36],
@@ -11537,6 +11625,7 @@ impl WorldSession {
                     max_durability,
                     random_properties_seed: 0,
                     random_properties_id: 0,
+                    enchantments: [ItemEnchantmentValuesUpdate::default(); 13],
                     context: 0,
                     container_slots: 0,
                     container_item_guids: [ObjectGuid::EMPTY; 36],
@@ -12036,6 +12125,7 @@ impl WorldSession {
                     max_durability: stack.max_durability,
                     random_properties_seed: 0,
                     random_properties_id: 0,
+                    enchantments: [ItemEnchantmentValuesUpdate::default(); 13],
                     context: 0,
                     container_slots: 0,
                     container_item_guids: [ObjectGuid::EMPTY; 36],
@@ -14915,6 +15005,73 @@ mod tests {
         CreatureLoot, LOOT_TYPE_CORPSE_LIKE_CPP, LootEntry, LootEntryFlags,
     };
     use wow_packet::packets::quest::quest_giver_status;
+
+    fn test_item_enchantments_db_string(entries: &[(usize, i32, u32, i16)]) -> String {
+        let mut fields = vec!["0".to_string(); wow_entities::MAX_ENCHANTMENT_SLOT * 3];
+        for &(slot, id, duration, charges) in entries {
+            let base = slot * 3;
+            fields[base] = id.to_string();
+            fields[base + 1] = duration.to_string();
+            fields[base + 2] = charges.to_string();
+        }
+        fields.join(" ")
+    }
+
+    #[test]
+    fn loaded_item_instance_fields_preserve_enchantments_and_random_suffix_like_cpp() {
+        let mut item = wow_entities::Item::default();
+        let enchantments = test_item_enchantments_db_string(&[
+            (EnchantmentSlot::EnhancementPermanent as usize, 2673, 0, 0),
+            (
+                EnchantmentSlot::EnhancementTemporary as usize,
+                3826,
+                30_000,
+                3,
+            ),
+            (EnchantmentSlot::Property2 as usize, 901, 0, 0),
+        ]);
+        let enchantments =
+            loaded_item_enchantments_like_cpp(&enchantments).expect("valid C++ enchantment string");
+
+        apply_loaded_item_instance_fields_like_cpp(&mut item, Some(&enchantments), -77, 456);
+
+        assert_eq!(item.data().random_properties_id, -77);
+        assert_eq!(item.data().property_seed, 456);
+        assert_eq!(
+            item.data().enchantments[EnchantmentSlot::EnhancementPermanent as usize].id,
+            2673
+        );
+        assert_eq!(
+            item.data().enchantments[EnchantmentSlot::EnhancementTemporary as usize].duration,
+            30_000
+        );
+        assert_eq!(
+            item.data().enchantments[EnchantmentSlot::EnhancementTemporary as usize].charges,
+            3
+        );
+        assert_eq!(
+            item.data().enchantments[EnchantmentSlot::Property2 as usize].id,
+            901
+        );
+    }
+
+    #[test]
+    fn loaded_item_instance_fields_ignore_short_enchantment_string_like_cpp() {
+        let mut item = wow_entities::Item::default();
+        let enchantments = loaded_item_enchantments_like_cpp("2673 0 0");
+        assert!(enchantments.is_none());
+
+        apply_loaded_item_instance_fields_like_cpp(&mut item, enchantments.as_ref(), 0, 0);
+
+        assert!(
+            item.data()
+                .enchantments
+                .iter()
+                .all(|enchantment| *enchantment == wow_entities::ItemEnchantment::default())
+        );
+        assert_eq!(item.data().random_properties_id, 0);
+        assert_eq!(item.data().property_seed, 0);
+    }
 
     #[test]
     fn sql_creature_template_speed_defaults_match_cpp_check_creature_template() {

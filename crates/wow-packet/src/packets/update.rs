@@ -1369,6 +1369,7 @@ pub struct ItemCreateData {
     pub max_durability: u32,
     pub random_properties_seed: i32,
     pub random_properties_id: i32,
+    pub enchantments: [ItemEnchantmentValuesUpdate; 13],
     pub context: u8,
     /// Non-zero for `Bag` objects. C++ writes those as TYPEID_CONTAINER
     /// and appends `ContainerData::WriteCreate` after `ItemData::WriteCreate`.
@@ -5340,13 +5341,13 @@ fn write_item_create_block(
     // DynamicFlags
     val_buf.write_uint32(data.dynamic_flags);
 
-    // 13 x ItemEnchantment (all zeros)
-    for _ in 0..13 {
-        val_buf.write_int32(0); // ID
-        val_buf.write_int32(0); // Duration
-        val_buf.write_int16(0); // Charges
-        val_buf.write_uint8(0); // Field_A
-        val_buf.write_uint8(0); // Field_B
+    // 13 x ItemEnchantment
+    for enchantment in data.enchantments {
+        val_buf.write_int32(enchantment.id);
+        val_buf.write_uint32(enchantment.duration);
+        val_buf.write_int16(enchantment.charges);
+        val_buf.write_uint8(enchantment.field_a);
+        val_buf.write_uint8(enchantment.field_b);
     }
 
     // PropertySeed, RandomPropertiesID
@@ -9569,6 +9570,16 @@ mod tests {
                 max_durability: 20,
                 random_properties_seed: 456,
                 random_properties_id: -77,
+                enchantments: {
+                    let mut enchantments = [ItemEnchantmentValuesUpdate::default(); 13];
+                    enchantments[0] = ItemEnchantmentValuesUpdate {
+                        id: 2673,
+                        duration: 0,
+                        charges: 0,
+                        ..Default::default()
+                    };
+                    enchantments
+                },
                 context: 2,
                 container_slots: 0,
                 container_item_guids: [ObjectGuid::EMPTY; 36],
@@ -9600,6 +9611,11 @@ mod tests {
                 .any(|window| window == (-77i32).to_le_bytes())
         );
         assert!(bytes.windows(4).any(|window| window == 2i32.to_le_bytes()));
+        assert!(
+            bytes
+                .windows(4)
+                .any(|window| window == 2673i32.to_le_bytes())
+        );
     }
 
     #[test]
@@ -9622,6 +9638,7 @@ mod tests {
                 max_durability: 0,
                 random_properties_seed: 0,
                 random_properties_id: 0,
+                enchantments: [ItemEnchantmentValuesUpdate::default(); 13],
                 context: 0,
                 container_slots: 16,
                 container_item_guids,
