@@ -8,7 +8,7 @@
 //! Legacy non-canonical note: Game/Networking/Packets/QuestPackets.cs
 //! Legacy non-canonical note: Game/Networking/Packets/NPCPackets.cs (ClientGossipText)
 
-use crate::{ClientPacket, PacketError, ServerPacket, WorldPacket};
+use crate::{ClientPacket, PacketError, ServerPacket, WorldPacket, packets::item::ItemInstance};
 use wow_constants::{ClientOpcodes, ServerOpcodes};
 use wow_core::ObjectGuid;
 
@@ -322,7 +322,9 @@ pub struct QuestObjectiveSimple {
 }
 
 /// Full reward block for a quest details / offer reward packet.
-/// Legacy non-canonical note: QuestRewards
+///
+/// C++ target: `WorldPackets::Quest::QuestRewards`,
+/// `QuestPackets.cpp:283-330`. This Rust block is still partial; see issue #57.
 pub struct QuestRewardsBlock {
     pub items: [(u32, u32); QUEST_REWARD_ITEM_COUNT], // (item_id, qty) — fixed rewards
     pub choice_items: [(u32, u32); QUEST_REWARD_CHOICES_COUNT], // (item_id, qty) — player picks one
@@ -385,8 +387,11 @@ impl QuestRewardsBlock {
         pkt.write_int32(0); // SkillLineID
         pkt.write_int32(0); // NumSkillUps
         pkt.write_int32(0); // TreasurePickerID
-        // ChoiceItems (6 entries, each: ItemID, Quantity, Context+Bonuses, DisplayID, Unused)
-        // Legacy non-canonical note: QuestChoiceItem.Write / ItemInstance.Write
+        // TODO(issue #57 / QUESTPKT.2 + QUESTREWARD.1): C++ writes each choice as
+        // 2-bit LootItemType, ItemInstance, then int32 Quantity, and reward dialogs
+        // must feed this block with the scaled Player::RewardQuest data.
+        // Current partial legacy layout: ItemID, Quantity, Context+Bonuses, DisplayID, Unused.
+        // C++ target: `QuestChoiceItem`, `QuestPackets.cpp:264-270`.
         for (item_id, qty) in &self.choice_items {
             pkt.write_int32(*item_id as i32); // Item.ItemID
             pkt.write_int32(*qty as i32); // Item.Quantity
@@ -474,7 +479,10 @@ impl ServerPacket for QuestGiverQuestDetails {
 // ── SMSG_QUEST_GIVER_QUEST_COMPLETE ──────────────────────────────────────────
 
 /// Shown after accepting a quest — "Quest Accepted" popup.
-/// Legacy non-canonical note: QuestGiverQuestComplete
+///
+/// C++ anchors:
+/// - `QuestGiverQuestComplete::Write`, `QuestPackets.cpp:397-411`.
+/// - `WorldPackets::Item::ItemInstance`, `ItemPacketsCommon.cpp:176-190`.
 pub struct QuestGiverQuestComplete {
     pub quest_id: u32,
     pub xp: u32,
@@ -494,9 +502,10 @@ impl ServerPacket for QuestGiverQuestComplete {
         pkt.write_uint32(self.skill_points);
         pkt.write_bit(self.use_quest_reward_currency);
         pkt.write_bit(false); // LaunchGossip
+        pkt.write_bit(false); // LaunchQuest
         pkt.write_bit(false); // HideChatMessage
-        pkt.write_bit(false); // ShowKeybind
         pkt.flush_bits();
+        ItemInstance::default().write(pkt);
     }
 }
 
@@ -536,7 +545,9 @@ pub struct QuestObjectiveInfo {
 }
 
 /// Response to CMSG_QUERY_QUEST_INFO — full quest data.
-/// Legacy non-canonical note: QueryQuestInfoResponse
+///
+/// C++ target: `QueryQuestInfoResponse::Write`, `QuestPackets.cpp:87-213`.
+/// This Rust packet is still partial; see issue #57 for `ReadyForTranslation`.
 #[derive(Default)]
 pub struct QueryQuestInfoResponse {
     pub quest_id: u32,
@@ -674,6 +685,7 @@ impl ServerPacket for QueryQuestInfoResponse {
         pkt.write_bits(0u32, 10); // PortraitTurnInText
         pkt.write_bits(0u32, 8); // PortraitTurnInName
         pkt.write_bits(self.quest_completion_log.len() as u32, 11);
+        // TODO(issue #57 / QUESTPKT.1): C++ writes Info.ReadyForTranslation here.
         pkt.flush_bits();
 
         // Objectives
@@ -1243,5 +1255,26 @@ mod quest_giver_quest_complete_tests {
         assert_eq!(&bytes[10..18], &0x0102_0304u64.to_le_bytes());
         assert_eq!(&bytes[18..22], &0x0A0B_0C0Du32.to_le_bytes());
         assert_eq!(&bytes[22..26], &0x0E0F_1011u32.to_le_bytes());
+        assert_eq!(bytes[26], 0x80); // UseQuestReward=true, remaining C++ bits false.
+        assert_eq!(&bytes[27..41], &[0; 14]); // Default ItemReward ItemInstance.
+        assert_eq!(bytes.len(), 41);
+    }
+
+    #[test]
+    fn quest_giver_quest_complete_keeps_empty_item_reward_when_flags_are_false() {
+        let complete = QuestGiverQuestComplete {
+            quest_id: 7,
+            xp: 0,
+            money: 0,
+            skill_line_id: 0,
+            skill_points: 0,
+            use_quest_reward_currency: false,
+        };
+
+        let bytes = complete.to_bytes();
+
+        assert_eq!(bytes[26], 0x00);
+        assert_eq!(&bytes[27..41], &[0; 14]);
+        assert_eq!(bytes.len(), 41);
     }
 }
