@@ -69,7 +69,7 @@ use crate::session::{
     CharacterPetSpellChargeRowLikeCpp, CharacterPetSpellCooldownRowLikeCpp,
     CharacterPetSpellRowLikeCpp, CharacterPetStableRowLikeCpp, RepresentedAlterAppearanceLikeCpp,
     RepresentedBankItemMoveLikeCpp, RepresentedConfirmBarbersChoiceLikeCpp,
-    RepresentedGameObjectUseState,
+    RepresentedGameObjectUseState, RepresentedHomebindLikeCpp,
 };
 
 // ── Handler registration ────────────────────────────────────────────
@@ -4933,6 +4933,34 @@ impl WorldSession {
         // (`Player::SendInitialPacketsAfterAddToMap`). Seed from DB until
         // that post-add terrain pass runs.
         self.set_player_zone_area_like_cpp(zone as u32, zone as u32);
+        {
+            let mut homebind_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_HOMEBIND);
+            homebind_stmt.set_u64(0, guid.counter() as u64);
+            match char_db.query(&homebind_stmt).await {
+                Ok(homebind_result) => {
+                    if !homebind_result.is_empty() {
+                        let homebind = RepresentedHomebindLikeCpp {
+                            map_id: u32::from(homebind_result.try_read::<u16>(0).unwrap_or(0)),
+                            area_id: u32::from(homebind_result.try_read::<u16>(1).unwrap_or(0)),
+                            position: Position::new(
+                                homebind_result.try_read(2).unwrap_or(0.0),
+                                homebind_result.try_read(3).unwrap_or(0.0),
+                                homebind_result.try_read(4).unwrap_or(0.0),
+                                homebind_result.try_read(5).unwrap_or(0.0),
+                            ),
+                        };
+                        self.set_represented_homebind_like_cpp(homebind);
+                    }
+                }
+                Err(error) => {
+                    warn!(
+                        player_guid = guid.counter(),
+                        %error,
+                        "failed to load represented character_homebind row"
+                    );
+                }
+            }
+        }
         self.set_represented_guild_id_like_cpp(result.try_read::<u64>(11).unwrap_or(0));
         self.load_represented_player_difficulties_like_cpp(
             result.try_read::<u32>(44).unwrap_or(0),
@@ -10740,16 +10768,34 @@ impl WorldSession {
     }
 
     /// CMSG_BINDER_ACTIVATE — player sets hearthstone at innkeeper.
-    /// C++ ref: `HandleBinderActivateOpcode`
-    /// (`Handlers/NPCHandler.cpp:373-381`).
+    /// C++ refs: `WorldSession::HandleBinderActivateOpcode` /
+    /// `WorldSession::SendBindPoint` (`Handlers/NPCHandler.cpp:373-402`).
     pub async fn handle_binder_activate(&mut self, hello: Hello) {
-        use wow_packet::packets::misc::NpcInteractionOpenResult;
         info!(
             "BinderActivate {:?} account {}",
             hello.unit, self.account_id
         );
-        // TODO: actually set hearthstone bind point in DB.
-        self.send_packet(&NpcInteractionOpenResult::new(hello.unit, 20)); // Binder
+        if !self.player_is_alive_like_cpp() {
+            return;
+        }
+        let Some(_innkeeper) = self.represented_npc_can_interact_with_like_cpp(
+            hello.unit,
+            NPCFlags1::INNKEEPER.bits(),
+            0,
+        ) else {
+            debug!(
+                innkeeper_guid = ?hello.unit,
+                account = self.account_id,
+                "BinderActivate rejected: NPC missing, out of range, dead, or lacks INNKEEPER flag"
+            );
+            return;
+        };
+
+        // C++ SendBindPoint has the creature cast spell 3286 on the player.
+        // The represented spell hook stores the same current-location bind.
+        let _ = self
+            .set_homebind_to_current_location_like_cpp(hello.unit)
+            .await;
     }
 
     /// CMSG_TABARD_VENDOR_ACTIVATE — player talks to a tabard designer.
@@ -20319,6 +20365,46 @@ mod tests {
             Some(source_guid)
         );
         assert_eq!(session.represented_non_bank_item_count_like_cpp(703), 0);
+    }
+
+    #[tokio::test]
+    async fn binder_activate_sets_current_homebind_and_sends_bind_packets_like_cpp() {
+        let (mut session, send_rx, canonical) = make_bank_slot_session(4);
+        let innkeeper = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 30);
+        insert_banker_creature(&canonical, innkeeper, NPCFlags1::INNKEEPER.bits());
+        session.set_player_zone_area_like_cpp(12, 34);
+
+        session
+            .handle_binder_activate(Hello { unit: innkeeper })
+            .await;
+
+        assert_eq!(
+            session.represented_homebind_like_cpp(),
+            Some(RepresentedHomebindLikeCpp {
+                map_id: 571,
+                area_id: 34,
+                position: Position::new(0.0, 0.0, 0.0, 0.0),
+            })
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::BindPointUpdate, ServerOpcodes::PlayerBound]
+        );
+    }
+
+    #[tokio::test]
+    async fn binder_activate_rejects_non_innkeeper_like_cpp() {
+        let (mut session, send_rx, canonical) = make_bank_slot_session(1);
+        let creature = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 31);
+        insert_banker_creature(&canonical, creature, NPCFlags1::BANKER.bits());
+        session.set_player_zone_area_like_cpp(12, 34);
+
+        session
+            .handle_binder_activate(Hello { unit: creature })
+            .await;
+
+        assert!(session.represented_homebind_like_cpp().is_none());
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[tokio::test]

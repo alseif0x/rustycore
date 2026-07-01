@@ -486,6 +486,7 @@ pub mod aura_types {
 
 /// Selected `Targets` ids from C++ `SpellImplicitTargetInfo::_data`.
 pub mod implicit_targets {
+    pub const TARGET_DEST_HOME: u32 = 9;
     pub const TARGET_DEST_DB: u32 = 17;
     pub const TARGET_DEST_NEARBY_ENTRY: u32 = 46;
     pub const TARGET_DEST_NEARBY_ENTRY_2: u32 = 107;

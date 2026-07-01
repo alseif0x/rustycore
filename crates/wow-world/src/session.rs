@@ -4690,8 +4690,8 @@ pub struct WorldSession {
         Option<(u32, wow_core::Position, TeleportToOptionsLikeCpp)>,
     /// Represented zone/area for the pending near-teleport destination.
     near_teleport_destination_zone_area_like_cpp: Option<(u32, u32)>,
-    /// C++ `Player::m_homebind` / `m_homebindAreaId` represented until
-    /// `character_homebind` loading/saving is wired into the player runtime.
+    /// C++ `Player::m_homebind` / `m_homebindAreaId` represented until full
+    /// player-owned load validation/fallback replaces the session field.
     represented_homebind_like_cpp: Option<RepresentedHomebindLikeCpp>,
     /// C++ `Player::_resurrectionData`, represented until real Player/Spell
     /// resurrection request ownership exists.
@@ -52187,16 +52187,24 @@ impl WorldSession {
         }
 
         for effect in spell_info.effects() {
+            let represented_home_target_data =
+                self.represented_home_destination_target_data_like_cpp(effect, &target_data);
             let represented_db_target_data = self
                 .represented_db_caster_destination_target_data_like_cpp(
                     &spell_info,
                     effect,
-                    &target_data,
+                    represented_home_target_data
+                        .as_ref()
+                        .unwrap_or(&target_data),
                 );
-            let effect_target_data = represented_db_target_data.as_ref().unwrap_or(&target_data);
+            let effect_target_data = represented_db_target_data
+                .as_ref()
+                .or(represented_home_target_data.as_ref())
+                .unwrap_or(&target_data);
             self.apply_effect_teleport_units_like_cpp(effect, target_guid, effect_target_data)
                 .await;
-            self.apply_effect_bind_like_cpp(effect, player_guid, target_guid, effect_target_data);
+            self.apply_effect_bind_like_cpp(effect, player_guid, target_guid, effect_target_data)
+                .await;
         }
 
         if spell_info.effects().is_empty() {
@@ -52217,7 +52225,8 @@ impl WorldSession {
                 player_guid,
                 target_guid,
                 &target_data,
-            );
+            )
+            .await;
         }
 
         let mut force_visibility_after_gameobject_summon = false;
@@ -53469,7 +53478,7 @@ impl WorldSession {
         self.teleport_to(target_map, destination).await;
     }
 
-    fn apply_effect_bind_like_cpp(
+    async fn apply_effect_bind_like_cpp(
         &mut self,
         effect: &wow_data::SpellEffectInfo,
         caster_guid: ObjectGuid,
@@ -53507,30 +53516,129 @@ impl WorldSession {
             .and_then(|map_id| u32::try_from(map_id).ok())
             .unwrap_or_else(|| u32::from(self.player_map_id_like_cpp()));
 
-        self.represented_homebind_like_cpp = Some(RepresentedHomebindLikeCpp {
-            map_id,
-            area_id,
-            position,
-        });
+        self.set_homebind_like_cpp(
+            caster_guid,
+            RepresentedHomebindLikeCpp {
+                map_id,
+                area_id,
+                position,
+            },
+        )
+        .await;
+    }
+
+    pub(crate) async fn set_homebind_to_current_location_like_cpp(
+        &mut self,
+        binder_id: ObjectGuid,
+    ) -> bool {
+        let Some(position) = self.player_position_like_cpp() else {
+            return false;
+        };
+        let (_, area_id) = self.player_zone_area_like_cpp();
+        let map_id = u32::from(self.player_map_id_like_cpp());
+        self.set_homebind_like_cpp(
+            binder_id,
+            RepresentedHomebindLikeCpp {
+                map_id,
+                area_id,
+                position,
+            },
+        )
+        .await;
+        true
+    }
+
+    async fn set_homebind_like_cpp(
+        &mut self,
+        binder_id: ObjectGuid,
+        homebind: RepresentedHomebindLikeCpp,
+    ) {
+        self.represented_homebind_like_cpp = Some(homebind);
+        self.persist_player_homebind_like_cpp(homebind).await;
 
         self.send_packet(&wow_packet::packets::misc::BindPointUpdate {
-            x: position.x,
-            y: position.y,
-            z: position.z,
-            map_id: i32::try_from(map_id).unwrap_or(i32::MAX),
-            area_id: i32::try_from(area_id).unwrap_or(i32::MAX),
+            x: homebind.position.x,
+            y: homebind.position.y,
+            z: homebind.position.z,
+            map_id: i32::try_from(homebind.map_id).unwrap_or(i32::MAX),
+            area_id: i32::try_from(homebind.area_id).unwrap_or(i32::MAX),
         });
         self.send_packet(&wow_packet::packets::misc::PlayerBound {
-            binder_id: caster_guid,
-            area_id,
+            binder_id,
+            area_id: homebind.area_id,
         });
+    }
+
+    fn build_player_homebind_update_statement_like_cpp(
+        homebind: RepresentedHomebindLikeCpp,
+        guid_counter: u64,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::UPD_PLAYER_HOMEBIND.sql());
+        stmt.set_u16(0, u16::try_from(homebind.map_id).unwrap_or(u16::MAX));
+        stmt.set_u16(1, u16::try_from(homebind.area_id).unwrap_or(u16::MAX));
+        stmt.set_f32(2, homebind.position.x);
+        stmt.set_f32(3, homebind.position.y);
+        stmt.set_f32(4, homebind.position.z);
+        stmt.set_f32(5, homebind.position.orientation);
+        stmt.set_u64(6, guid_counter);
+        stmt
+    }
+
+    fn build_player_homebind_insert_statement_like_cpp(
+        homebind: RepresentedHomebindLikeCpp,
+        guid_counter: u64,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::INS_PLAYER_HOMEBIND.sql());
+        stmt.set_u64(0, guid_counter);
+        stmt.set_u16(1, u16::try_from(homebind.map_id).unwrap_or(u16::MAX));
+        stmt.set_u16(2, u16::try_from(homebind.area_id).unwrap_or(u16::MAX));
+        stmt.set_f32(3, homebind.position.x);
+        stmt.set_f32(4, homebind.position.y);
+        stmt.set_f32(5, homebind.position.z);
+        stmt.set_f32(6, homebind.position.orientation);
+        stmt
+    }
+
+    async fn persist_player_homebind_like_cpp(&self, homebind: RepresentedHomebindLikeCpp) {
+        let (Some(player_guid), Some(char_db)) =
+            (self.player_guid(), self.char_db().map(Arc::clone))
+        else {
+            return;
+        };
+        let guid_counter = player_guid.counter() as u64;
+        let update_stmt =
+            Self::build_player_homebind_update_statement_like_cpp(homebind, guid_counter);
+        match char_db.execute(&update_stmt).await {
+            Ok(0) => {
+                // C++ Player::_LoadHomebind creates a missing row before
+                // Player::SetHomebind later uses CHAR_UPD_PLAYER_HOMEBIND.
+                // Rust's represented login path can still lack that invariant,
+                // so recover it here without changing the C++ update bind order.
+                let insert_stmt =
+                    Self::build_player_homebind_insert_statement_like_cpp(homebind, guid_counter);
+                if let Err(error) = char_db.execute(&insert_stmt).await {
+                    warn!(
+                        player_guid = guid_counter,
+                        %error,
+                        "failed to insert represented player homebind after update affected zero rows"
+                    );
+                }
+            }
+            Ok(_) => {}
+            Err(error) => {
+                warn!(
+                    player_guid = guid_counter,
+                    %error,
+                    "failed to update represented player homebind"
+                );
+            }
+        }
     }
 
     pub(crate) fn represented_homebind_like_cpp(&self) -> Option<RepresentedHomebindLikeCpp> {
         self.represented_homebind_like_cpp
     }
 
-    #[cfg(test)]
     pub(crate) fn set_represented_homebind_like_cpp(
         &mut self,
         homebind: RepresentedHomebindLikeCpp,
@@ -53661,6 +53769,33 @@ impl WorldSession {
         map.map()
             .get_typed_dynamic_object(target_guid)
             .map(|dynamic_object| dynamic_object.world().position())
+    }
+
+    fn represented_home_destination_target_data_like_cpp(
+        &self,
+        effect: &wow_data::SpellEffectInfo,
+        target_data: &SpellTargetData,
+    ) -> Option<SpellTargetData> {
+        if target_data.dst_location.is_some()
+            || !matches!(
+                effect.implicit_target_1,
+                wow_data::spell::implicit_targets::TARGET_DEST_HOME
+            ) && !matches!(
+                effect.implicit_target_2,
+                wow_data::spell::implicit_targets::TARGET_DEST_HOME
+            )
+        {
+            return None;
+        }
+
+        let homebind = self.represented_homebind_like_cpp()?;
+        let mut target_data = target_data.clone();
+        target_data.dst_location = Some(wow_packet::packets::spell::TargetLocation {
+            transport: ObjectGuid::EMPTY,
+            position: homebind.position,
+        });
+        target_data.map_id = Some(i32::try_from(homebind.map_id).unwrap_or(i32::MAX));
+        Some(target_data)
     }
 
     fn represented_db_caster_destination_target_data_like_cpp(
@@ -71681,6 +71816,110 @@ mod tests {
             "C++ EffectTeleportUnits accepts cross-map TARGET_DEST_DB, fills missing orientation from unitTarget, and calls Player::TeleportTo"
         );
         assert_eq!(session.state, SessionState::Transfer);
+    }
+
+    #[tokio::test]
+    async fn teleport_units_target_dest_home_uses_represented_homebind_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let spell_id = 8690_i32;
+        let player_guid = ObjectGuid::create_player(1, 7040);
+        let player_position = Position::new(300.0, 400.0, 60.0, 0.5);
+        let home_position = Position::new(40.0, 50.0, 60.0, 1.25);
+        let canonical = shared_canonical_map_manager();
+        let hearth_effect = wow_data::SpellEffectInfo {
+            effect_index: 0,
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS,
+            implicit_target_1: wow_data::spell::implicit_targets::TARGET_DEST_HOME,
+            ..Default::default()
+        };
+        let spell_info = teleport_units_spell_info_like_cpp(spell_id, vec![hearth_effect]);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "HearthHome".to_string(),
+            player_position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
+            map_id: 1,
+            area_id: 1519,
+            position: home_position,
+        });
+        add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(spell_id, spell_info);
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 8690,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("TARGET_DEST_HOME hearthstone teleport should execute");
+
+        assert_eq!(session.pending_teleport, Some((1, home_position)));
+        assert_eq!(session.state, SessionState::Transfer);
+    }
+
+    #[tokio::test]
+    async fn teleport_units_target_dest_home_without_homebind_is_noop_boundary_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let spell_id = 8690_i32;
+        let player_guid = ObjectGuid::create_player(1, 7041);
+        let player_position = Position::new(301.0, 401.0, 61.0, 0.5);
+        let canonical = shared_canonical_map_manager();
+        let hearth_effect = wow_data::SpellEffectInfo {
+            effect_index: 0,
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS,
+            implicit_target_1: wow_data::spell::implicit_targets::TARGET_DEST_HOME,
+            ..Default::default()
+        };
+        let spell_info = teleport_units_spell_info_like_cpp(spell_id, vec![hearth_effect]);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "HearthNoHome".to_string(),
+            player_position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(spell_id, spell_info);
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 8690,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("missing represented homebind keeps current bounded no-op");
+
+        assert_eq!(session.pending_teleport, None);
+        assert_ne!(session.state, SessionState::Transfer);
     }
 
     #[tokio::test]
@@ -104242,6 +104481,58 @@ mod tests {
         assert!(
             matches!(stmt.params()[1], wow_database::SqlParam::U64(v) if v == guid.counter() as u64)
         );
+    }
+
+    #[test]
+    fn player_homebind_update_statement_matches_cpp_bind_order() {
+        let guid = ObjectGuid::create_player(1, 5007);
+        let homebind = RepresentedHomebindLikeCpp {
+            map_id: 571,
+            area_id: 495,
+            position: Position::new(11.0, 22.0, 33.0, 1.5),
+        };
+
+        let stmt = WorldSession::build_player_homebind_update_statement_like_cpp(
+            homebind,
+            guid.counter() as u64,
+        );
+
+        assert_eq!(stmt.sql(), CharStatements::UPD_PLAYER_HOMEBIND.sql());
+        assert!(matches!(stmt.params()[0], wow_database::SqlParam::U16(571)));
+        assert!(matches!(stmt.params()[1], wow_database::SqlParam::U16(495)));
+        assert!(matches!(stmt.params()[2], wow_database::SqlParam::F32(v) if v == 11.0));
+        assert!(matches!(stmt.params()[3], wow_database::SqlParam::F32(v) if v == 22.0));
+        assert!(matches!(stmt.params()[4], wow_database::SqlParam::F32(v) if v == 33.0));
+        assert!(matches!(stmt.params()[5], wow_database::SqlParam::F32(v) if v == 1.5));
+        assert!(
+            matches!(stmt.params()[6], wow_database::SqlParam::U64(v) if v == guid.counter() as u64)
+        );
+    }
+
+    #[test]
+    fn player_homebind_insert_statement_matches_cpp_load_fallback_bind_order() {
+        let guid = ObjectGuid::create_player(1, 5008);
+        let homebind = RepresentedHomebindLikeCpp {
+            map_id: 0,
+            area_id: 12,
+            position: Position::new(-1.0, -2.0, 3.0, 4.0),
+        };
+
+        let stmt = WorldSession::build_player_homebind_insert_statement_like_cpp(
+            homebind,
+            guid.counter() as u64,
+        );
+
+        assert_eq!(stmt.sql(), CharStatements::INS_PLAYER_HOMEBIND.sql());
+        assert!(
+            matches!(stmt.params()[0], wow_database::SqlParam::U64(v) if v == guid.counter() as u64)
+        );
+        assert!(matches!(stmt.params()[1], wow_database::SqlParam::U16(0)));
+        assert!(matches!(stmt.params()[2], wow_database::SqlParam::U16(12)));
+        assert!(matches!(stmt.params()[3], wow_database::SqlParam::F32(v) if v == -1.0));
+        assert!(matches!(stmt.params()[4], wow_database::SqlParam::F32(v) if v == -2.0));
+        assert!(matches!(stmt.params()[5], wow_database::SqlParam::F32(v) if v == 3.0));
+        assert!(matches!(stmt.params()[6], wow_database::SqlParam::F32(v) if v == 4.0));
     }
 
     #[test]
