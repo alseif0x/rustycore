@@ -253,6 +253,15 @@ impl PlayerStatsStore {
         self.stats.get(&(race, class, level))
     }
 
+    /// Build a store from known rows.
+    pub fn from_entries(
+        entries: impl IntoIterator<Item = ((u8, u8, u8), PlayerLevelStats)>,
+    ) -> Self {
+        Self {
+            stats: entries.into_iter().collect(),
+        }
+    }
+
     /// Number of entries loaded.
     pub fn len(&self) -> usize {
         self.stats.len()
