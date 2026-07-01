@@ -4936,6 +4936,49 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn timed_spell_late_power_failure_restores_global_cooldown_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 0, 1, 0, 0, 1, 22);
+        let spell_id = 13_357;
+        install_canonical_player(&mut session, &canonical, player_guid);
+        set_canonical_player_mana_like_cpp(&mut session, 149, 1000);
+        session.set_known_spells_like_cpp(vec![spell_id]);
+        session.set_spell_store(spell_store_with_mana_power_cost_like_cpp(
+            spell_id, 50, 10.0,
+        ));
+        let previous_last_spell_cast_time =
+            Some(std::time::Instant::now() - std::time::Duration::from_millis(5_000));
+        session.last_spell_cast_time = previous_last_spell_cast_time;
+        install_active_spell_cast(&mut session, spell_id, cast_id);
+        if let Some(active) = session.active_spell_cast.as_mut() {
+            active.cast_start_time =
+                std::time::Instant::now() - std::time::Duration::from_millis(30_000);
+            active.metadata = SpellCastMetadata {
+                from_client: true,
+                original_cast_id: cast_id,
+                ..SpellCastMetadata::default()
+            };
+        }
+
+        session.tick_active_spell_cast().await;
+
+        assert!(session.active_spell_cast.is_none());
+        assert_eq!(canonical_player_mana_like_cpp(&mut session), 149);
+        assert_eq!(
+            session.last_spell_cast_time, previous_last_spell_cast_time,
+            "C++ failed casts do not leave a fresh successful global cooldown"
+        );
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(packets.len(), 1);
+        assert_eq!(
+            cast_failed_reason_like_cpp(&packets[0]),
+            SpellCastResult::NoPower as i32
+        );
+    }
+
+    #[tokio::test]
     async fn queued_spell_with_mana_cost_deducts_when_executed_like_cpp() {
         let (mut session, send_rx) = make_session();
         let canonical = shared_canonical_map_manager();

@@ -61,6 +61,19 @@ jobs:
               output = subprocess.check_output(["gh", "api", path], text=True)
               return json.loads(output)
 
+          def gh_json_pages(path):
+              page = 1
+              items = []
+              while True:
+                  separator = "&" if "?" in path else "?"
+                  page_items = gh_json(f"{path}{separator}per_page=100&page={page}")
+                  if not isinstance(page_items, list):
+                      raise TypeError(f"Expected paginated list from gh api {path}")
+                  items.extend(page_items)
+                  if len(page_items) < 100:
+                      return items
+                  page += 1
+
           def reviewed_commits(body, fallback_commit=None):
               commits = [
                   commit.lower()
@@ -77,8 +90,8 @@ jobs:
               return bool(commit) and (head_sha.startswith(commit) or commit.startswith(head_sha))
 
           def codex_items_for_current_head():
-              comments = gh_json(f"repos/{repo}/issues/{pr_number}/comments?per_page=100")
-              reviews = gh_json(f"repos/{repo}/pulls/{pr_number}/reviews?per_page=100")
+              comments = gh_json_pages(f"repos/{repo}/issues/{pr_number}/comments")
+              reviews = gh_json_pages(f"repos/{repo}/pulls/{pr_number}/reviews")
 
               items = []
               for item in comments:
@@ -86,7 +99,12 @@ jobs:
                       continue
                   body = item.get("body") or ""
                   if any(is_current_head(commit) for commit in reviewed_commits(body)):
-                      items.append(("comment", body, item.get("html_url", "")))
+                      items.append((
+                          "comment",
+                          body,
+                          item.get("html_url", ""),
+                          item.get("created_at", ""),
+                      ))
 
               for item in reviews:
                   if item.get("user", {}).get("login") not in codex_logins:
@@ -98,26 +116,35 @@ jobs:
                       for commit in reviewed_commits(body, fallback_commit)
                   ):
                       url = item.get("html_url") or item.get("_links", {}).get("html", {}).get("href", "")
-                      items.append(("review", body, url))
+                      items.append((
+                          "review",
+                          body,
+                          url,
+                          item.get("submitted_at") or item.get("updated_at") or "",
+                      ))
 
               return items
 
+          def classify_codex_body(body):
+              lower_body = body.lower()
+              if any(marker in lower_body for marker in negative_markers):
+                  return "fail"
+              if any(marker in lower_body for marker in positive_markers):
+                  return "pass"
+              return None
+
           def verdict():
               items = codex_items_for_current_head()
-              positives = []
-              negatives = []
+              classified = []
 
-              for kind, body, url in items:
-                  lower_body = body.lower()
-                  if any(marker in lower_body for marker in positive_markers):
-                      positives.append((kind, url))
-                  elif any(marker in lower_body for marker in negative_markers):
-                      negatives.append((kind, url))
+              for kind, body, url, timestamp in items:
+                  state = classify_codex_body(body)
+                  if state:
+                      classified.append((timestamp, state, kind, url))
 
-              if positives:
-                  return "pass", positives
-              if negatives:
-                  return "fail", negatives
+              if classified:
+                  timestamp, state, kind, url = max(classified, key=lambda item: item[0])
+                  return state, [(kind, url)]
               return "wait", items
 
           print(f"Waiting for clean Codex review on PR #{pr_number} at {head_sha[:10]}")

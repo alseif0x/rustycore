@@ -3555,6 +3555,8 @@ pub struct SpellCastMetadata {
     pub cast_flags_ex: u32,
     pub original_cast_id: ObjectGuid,
     pub unit_target_battle_pet_companion_guid: Option<ObjectGuid>,
+    pub restore_last_spell_cast_time_on_power_failure: bool,
+    pub previous_last_spell_cast_time_on_power_failure: Option<Instant>,
 }
 
 impl Default for SpellCastMetadata {
@@ -3567,6 +3569,8 @@ impl Default for SpellCastMetadata {
             cast_flags_ex: 0,
             original_cast_id: ObjectGuid::EMPTY,
             unit_target_battle_pet_companion_guid: None,
+            restore_last_spell_cast_time_on_power_failure: false,
+            previous_last_spell_cast_time_on_power_failure: None,
         }
     }
 }
@@ -48133,7 +48137,10 @@ impl WorldSession {
             let target_data = cast_state.target_data.clone();
             let cast_id = cast_state.cast_id;
             let spell_visual = cast_state.spell_visual.clone();
-            let metadata = cast_state.metadata;
+            let mut metadata = cast_state.metadata;
+            let previous_last_spell_cast_time = self.last_spell_cast_time;
+            metadata.restore_last_spell_cast_time_on_power_failure = true;
+            metadata.previous_last_spell_cast_time_on_power_failure = previous_last_spell_cast_time;
 
             self.active_spell_cast = None;
             self.last_spell_cast_time = Some(Instant::now());
@@ -49153,6 +49160,9 @@ impl WorldSession {
         if metadata.from_client
             && !self.take_spell_power_like_cpp(&spell_info, cast_id, spell_id, &spell_visual)
         {
+            if metadata.restore_last_spell_cast_time_on_power_failure {
+                self.last_spell_cast_time = metadata.previous_last_spell_cast_time_on_power_failure;
+            }
             return Ok(());
         }
 
@@ -105062,6 +105072,7 @@ mod tests {
                     cast_flags_ex: CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP,
                     original_cast_id: ObjectGuid::EMPTY,
                     unit_target_battle_pet_companion_guid: None,
+                    ..SpellCastMetadata::default()
                 },
             )
             .await
