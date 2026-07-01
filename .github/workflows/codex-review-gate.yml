@@ -1,0 +1,154 @@
+name: Codex Review Gate
+
+on:
+  pull_request:
+    branches:
+      - "3.4.3"
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  codex-review-verdict:
+    name: Codex reviewer verdict
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require clean Codex review on current HEAD
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CODEX_REVIEW_TIMEOUT_SECONDS: "1800"
+          CODEX_REVIEW_POLL_SECONDS: "30"
+        run: |
+          python3 <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+          import sys
+          import time
+
+          repo = os.environ["REPOSITORY"]
+          pr_number = os.environ["PR_NUMBER"]
+          head_sha = os.environ["HEAD_SHA"].lower()
+          timeout_seconds = int(os.environ.get("CODEX_REVIEW_TIMEOUT_SECONDS", "1800"))
+          poll_seconds = int(os.environ.get("CODEX_REVIEW_POLL_SECONDS", "30"))
+
+          codex_logins = {"chatgpt-codex-connector", "chatgpt-codex-connector[bot]"}
+          positive_markers = (
+              "didn't find any major issues",
+              "did not find any major issues",
+              "no major issues",
+          )
+          negative_markers = (
+              "automated review suggestions",
+              "p0 badge",
+              "p1 badge",
+              "p2 badge",
+              "p3 badge",
+          )
+
+          def gh_json(path):
+              output = subprocess.check_output(["gh", "api", path], text=True)
+              return json.loads(output)
+
+          def reviewed_commits(body, fallback_commit=None):
+              commits = [
+                  commit.lower()
+                  for commit in re.findall(
+                      r"Reviewed commit:[*\s]*`?([0-9a-fA-F]{7,40})`?",
+                      body or "",
+                  )
+              ]
+              if fallback_commit:
+                  commits.append(fallback_commit.lower())
+              return commits
+
+          def is_current_head(commit):
+              return bool(commit) and (head_sha.startswith(commit) or commit.startswith(head_sha))
+
+          def codex_items_for_current_head():
+              comments = gh_json(f"repos/{repo}/issues/{pr_number}/comments?per_page=100")
+              reviews = gh_json(f"repos/{repo}/pulls/{pr_number}/reviews?per_page=100")
+
+              items = []
+              for item in comments:
+                  if item.get("user", {}).get("login") not in codex_logins:
+                      continue
+                  body = item.get("body") or ""
+                  if any(is_current_head(commit) for commit in reviewed_commits(body)):
+                      items.append(("comment", body, item.get("html_url", "")))
+
+              for item in reviews:
+                  if item.get("user", {}).get("login") not in codex_logins:
+                      continue
+                  body = item.get("body") or ""
+                  fallback_commit = item.get("commit_id")
+                  if any(
+                      is_current_head(commit)
+                      for commit in reviewed_commits(body, fallback_commit)
+                  ):
+                      url = item.get("html_url") or item.get("_links", {}).get("html", {}).get("href", "")
+                      items.append(("review", body, url))
+
+              return items
+
+          def verdict():
+              items = codex_items_for_current_head()
+              positives = []
+              negatives = []
+
+              for kind, body, url in items:
+                  lower_body = body.lower()
+                  if any(marker in lower_body for marker in positive_markers):
+                      positives.append((kind, url))
+                  elif any(marker in lower_body for marker in negative_markers):
+                      negatives.append((kind, url))
+
+              if positives:
+                  return "pass", positives
+              if negatives:
+                  return "fail", negatives
+              return "wait", items
+
+          print(f"Waiting for clean Codex review on PR #{pr_number} at {head_sha[:10]}")
+          print("Comment '@codex review' on the PR if the review has not started.")
+          deadline = time.time() + timeout_seconds
+
+          while True:
+              state, items = verdict()
+              if state == "pass":
+                  print("Found clean Codex review for current HEAD:")
+                  for kind, url in items:
+                      print(f"- {kind}: {url}")
+                  sys.exit(0)
+
+              if state == "fail":
+                  print("Codex left review feedback for current HEAD; address it before merge:")
+                  for kind, url in items:
+                      print(f"- {kind}: {url}")
+                  sys.exit(1)
+
+              remaining = int(deadline - time.time())
+              if remaining <= 0:
+                  print(
+                      "Timed out waiting for a clean Codex review on the current HEAD. "
+                      "Comment '@codex review' on the PR, then rerun this job after Codex responds."
+                  )
+                  sys.exit(1)
+
+              print(
+                  f"No clean Codex verdict for {head_sha[:10]} yet; "
+                  f"checking again in {poll_seconds}s ({remaining}s left)."
+              )
+              time.sleep(poll_seconds)
+          PY
