@@ -36442,9 +36442,16 @@ impl WorldSession {
     }
 
     pub(crate) fn apply_represented_resurrection_health_like_cpp(&mut self, health: u32) {
-        self.set_player_health_like_cpp(health, self.player_max_health_like_cpp);
-        self.player_alive_like_cpp = true;
-        self.sync_player_registry_state_like_cpp();
+        let _ = self.sync_canonical_player_health_like_cpp(health, self.player_max_health_like_cpp);
+    }
+
+    pub(crate) fn apply_represented_resurrection_alive_like_cpp(&mut self) {
+        let health = if self.player_health_like_cpp == 0 {
+            self.player_max_health_like_cpp.max(1)
+        } else {
+            self.player_health_like_cpp
+        };
+        self.apply_represented_resurrection_health_like_cpp(health);
     }
 
     pub(crate) fn schedule_represented_resurrection_after_teleport_like_cpp(
@@ -99798,6 +99805,50 @@ mod tests {
         assert_eq!(
             session.canonical_player_snapshot_like_cpp(|player| player.unit().death_state()),
             Some(wow_constants::DeathState::Corpse)
+        );
+    }
+
+    #[test]
+    fn represented_resurrection_health_syncs_canonical_before_save_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 0xE114);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+
+        session.ensure_login_player_controller_like_cpp(
+            player_guid,
+            "Resurrected".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            1,
+            1,
+            1,
+            80,
+            0,
+        );
+        let player = session
+            .canonical_player_entity_snapshot_like_cpp()
+            .expect("canonical player snapshot");
+        {
+            let mut manager = canonical.lock().expect("canonical map manager");
+            let managed = manager.create_world_map(1, 0);
+            session.sync_canonical_player_entity_like_cpp(managed, player);
+        }
+        let _ = session.sync_canonical_player_health_like_cpp(0, 120);
+
+        session.apply_represented_resurrection_health_like_cpp(42);
+        let snapshot = session
+            .sync_session_from_save_to_db_snapshot_like_cpp()
+            .expect("save snapshot");
+
+        assert_eq!(snapshot.health, 42);
+        assert_eq!(snapshot.max_health, 120);
+        assert_eq!(
+            session.canonical_player_health_snapshot_like_cpp(),
+            Some((42, 120))
+        );
+        assert_eq!(
+            session.canonical_player_snapshot_like_cpp(|player| player.unit().death_state()),
+            Some(wow_constants::DeathState::Alive)
         );
     }
 

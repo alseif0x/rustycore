@@ -2656,7 +2656,7 @@ impl crate::session::WorldSession {
         // full player-corpse runtime; this represented slice only clears the
         // ghost/dead state when the already-known C++ gates pass.
         self.set_player_ghost_flag_like_cpp(false);
-        self.set_player_alive_like_cpp(true);
+        self.apply_represented_resurrection_alive_like_cpp();
     }
 
     /// CMSG_ACTIVATE_TAXI.
@@ -8727,6 +8727,7 @@ mod tests {
         );
         session.set_player_alive_like_cpp(false);
         session.set_player_ghost_flag_like_cpp(true);
+        let _ = session.sync_canonical_player_health_like_cpp(0, 100);
 
         session
             .handle_reclaim_corpse(reclaim_corpse_packet(corpse_guid))
@@ -8734,6 +8735,10 @@ mod tests {
 
         assert!(session.player_is_alive_like_cpp());
         assert!(!session.player_has_ghost_flag_like_cpp());
+        assert_eq!(
+            session.canonical_player_health_snapshot_like_cpp(),
+            Some((100, 100))
+        );
         assert!(send_rx.try_recv().is_err());
     }
 

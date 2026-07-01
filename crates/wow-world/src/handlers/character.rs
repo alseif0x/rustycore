@@ -9200,7 +9200,7 @@ impl WorldSession {
         // C++ first lets Battlefield own the leave flow when one exists. Rust
         // has no battlefield manager attached to WorldSession yet, so this
         // represented branch covers the AreaTable/homebind path only.
-        self.set_player_alive_like_cpp(true);
+        self.apply_represented_resurrection_alive_like_cpp();
         if let Some(homebind) = self.represented_homebind_like_cpp() {
             self.teleport_to(homebind.map_id, homebind.position).await;
         }
