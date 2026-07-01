@@ -83,7 +83,9 @@ Work issue #<N> (alseif0x/rustycore).
 3. Smallest faithful change + focused tests (positive/negative); validate with PROTOC=... cargo check/test.
 4. Git: create the branch LINKED to the issue with `gh issue develop <N> --base 3.4.3`
    (not a bare `git checkout -b`), 1 issue = 1 PR into `3.4.3` (put `Closes #<N>` in the PR body), commit per gap, NO push unless asked.
-5. Do not mark "done" until capture-clean vs C++ (capture-diff harness = issue [01]/#66).
+   Once push is approved, open the PR immediately so CI and the configured Codex reviewer can run; creating the PR is not the same as closing/merging it.
+5. Do not mark "done" until capture-clean vs C++ (capture-diff harness = issue [01]/#66)
+   and the required `Codex reviewer verdict` check is green for the PR's current HEAD.
 ```
 
 **Linking the branch/PR to the issue:** the repo's **default branch is `3.4.3`** (the version/
@@ -113,7 +115,7 @@ Every implementation slice must follow this sequence:
 7. Update migration docs/checklists with the new `#NEXT.R8.ENTITIES.xxx` item when closing a represented implementation gap.
 8. Recalculate progress honestly.
 9. Run validation.
-10. Commit on the issue's feature branch, push, and open a PR into `3.4.3` (`Closes #<N>`); merge after review/CI. Tag releases on `3.4.3`.
+10. Commit on the issue's feature branch, push, and open a PR into `3.4.3` (`Closes #<N>`); merge only after CI and the required `Codex reviewer verdict` check are both green on the PR's current HEAD, and every actionable reviewer comment is either fixed or explicitly documented as intentionally deferred. Tag releases on `3.4.3`.
 
 Do not do "bulk close" inventory edits. A closed `#NEXT` item must correspond to real code and tests, with exact C++ refs, Rust targets, checks run, and remaining boundaries stated. Discovering or documenting a gap is useful, but it is not an implementation closeout.
 
@@ -284,10 +286,21 @@ git diff --check
 git add <changed files>
 git commit -m "<short faithful summary>"
 git push origin <feature-branch>        # NO push unless asked
-# open the PR into 3.4.3 with `Closes #<N>` in the body; merge after review/CI.
+# after push, open the PR into 3.4.3 with `Closes #<N>` in the body so CI and
+# the configured Codex reviewer can run.
+# Do not merge or close the issue until CI is green and the required
+# `Codex reviewer verdict` check is green for the PR's current HEAD.
+# If Codex leaves feedback, fix or explicitly defer every actionable comment,
+# resolve the review threads, push the fix, comment `@codex review`, and wait
+# for `Codex reviewer verdict` to pass again on the new HEAD.
 ```
 
 Only do this after the slice is genuinely validated. If the tree contains changes from another agent, audit them before building on top of them.
+
+Branch protection on `3.4.3` requires strict status checks, linear history, conversation
+resolution, and these checks: `Format`, `Check core crates`, `Focused library tests`, and
+`Codex reviewer verdict`. A PR can show normal CI green while still being blocked if Codex has
+not reviewed the current HEAD or has left unresolved feedback.
 
 ## Local Context Files
 
