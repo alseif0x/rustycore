@@ -14,6 +14,9 @@ use wow_constants::{
     UnitStandStateType, UnitState, WeaponAttackType,
 };
 use wow_core::{ObjectGuid, Position};
+use wow_database::{
+    CharStatements, CharacterDatabase, DatabaseError, PreparedStatement, StatementDef,
+};
 use wow_entities::{
     AllowedPositionZCaps, Creature, CreatureAddonLifecycleRecordLikeCpp, CreatureAiState,
     DEFAULT_HEIGHT_SEARCH, DistractMovementAction, EVENT_CHARGE_PREPATH, GenericMovementInform,
@@ -21,7 +24,7 @@ use wow_entities::{
     PointMovementAction, PointMovementInform, RotateMovementUpdate, Z_OFFSET_FIND_HEIGHT,
     allowed_position_z_from_ground_like_cpp,
 };
-use wow_map::{GridMapTerrain, SharedStaticVMapLineOfSightProvider};
+use wow_map::{GridMapTerrain, SharedStaticVMapLineOfSightProvider, SpawnObjectType};
 use wow_movement::generators::CreatureRandomMovementType as MovementCreatureRandomMovementType;
 use wow_movement::{
     MoveSpline, MoveSplineInit, MoveSplineLaunchInput, MoveSplineStopInput, MoveSplineStopResult,
@@ -80,6 +83,182 @@ const MAP_AREA_CELLS_PER_GRID_LIKE_CPP: usize = 16;
 const TERRAIN_GRID_COUNT_LIKE_CPP: usize =
     MAX_NUMBER_OF_GRIDS_LIKE_CPP as usize * MAX_NUMBER_OF_GRIDS_LIKE_CPP as usize;
 const SMOOTH_PATH_STEP_SIZE_LIKE_CPP: f32 = 4.0;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PersistedRespawnRowLikeCpp {
+    pub object_type: SpawnObjectType,
+    pub spawn_id: u64,
+    pub respawn_time: i64,
+    pub map_id: u16,
+    pub instance_id: u32,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct PersistedRespawnLoadReportLikeCpp {
+    pub rows: usize,
+    pub loaded: usize,
+    pub invalid_type: usize,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct LegacyRespawnQueueReloadReportLikeCpp {
+    pub rows: usize,
+    pub timers_loaded: usize,
+    pub creature_queued: usize,
+    pub gameobject_loaded: usize,
+    pub rejected_zero_spawn_id: usize,
+    pub rejected_unsupported_type: usize,
+    pub rejected_existing_later: usize,
+    pub missing_creature_runtime: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LegacyRespawnTimeAddOutcomeLikeCpp {
+    Inserted,
+    ReplacedExisting,
+    RejectedZeroSpawnId,
+    RejectedUnsupportedType,
+    RejectedExistingSoonerOrEqual,
+}
+
+fn spawn_object_type_raw_like_cpp(object_type: SpawnObjectType) -> u16 {
+    u16::from(object_type as u8)
+}
+
+pub fn respawn_time_from_instant_like_cpp(respawn_at: Instant, now: Instant, now_secs: i64) -> i64 {
+    let delay_secs = respawn_at
+        .checked_duration_since(now)
+        .map(|delay| i64::try_from(delay.as_secs()).unwrap_or(i64::MAX))
+        .unwrap_or(0);
+    now_secs.saturating_add(delay_secs)
+}
+
+pub fn instant_from_respawn_time_like_cpp(
+    respawn_time: i64,
+    now: Instant,
+    now_secs: i64,
+) -> Instant {
+    let delay_secs = respawn_time.saturating_sub(now_secs);
+    if delay_secs <= 0 {
+        return now;
+    }
+
+    now.checked_add(Duration::from_secs(
+        u64::try_from(delay_secs).unwrap_or(u64::MAX),
+    ))
+    .unwrap_or(now)
+}
+
+pub fn respawn_replace_statement_like_cpp(row: &PersistedRespawnRowLikeCpp) -> PreparedStatement {
+    let mut stmt = PreparedStatement::new(CharStatements::REP_RESPAWN.sql());
+    // C++ `Map::SaveRespawnInfoDB`: type, spawnId, respawnTime, mapId, instanceId.
+    stmt.set_u16(0, spawn_object_type_raw_like_cpp(row.object_type));
+    stmt.set_u64(1, row.spawn_id);
+    stmt.set_i64(2, row.respawn_time);
+    stmt.set_u16(3, row.map_id);
+    stmt.set_u32(4, row.instance_id);
+    stmt
+}
+
+pub fn respawn_delete_statement_like_cpp(
+    object_type: SpawnObjectType,
+    spawn_id: u64,
+    map_id: u16,
+    instance_id: u32,
+) -> PreparedStatement {
+    let mut stmt = PreparedStatement::new(CharStatements::DEL_RESPAWN.sql());
+    // C++ `Map::DeleteRespawnInfoFromDB`: type, spawnId, mapId, instanceId.
+    stmt.set_u16(0, spawn_object_type_raw_like_cpp(object_type));
+    stmt.set_u64(1, spawn_id);
+    stmt.set_u16(2, map_id);
+    stmt.set_u32(3, instance_id);
+    stmt
+}
+
+pub async fn load_persisted_respawn_rows_for_map_like_cpp(
+    character_db: &CharacterDatabase,
+    map_id: u16,
+    instance_id: u32,
+) -> Result<
+    (
+        Vec<PersistedRespawnRowLikeCpp>,
+        PersistedRespawnLoadReportLikeCpp,
+    ),
+    DatabaseError,
+> {
+    let mut stmt = character_db.prepare(CharStatements::SEL_RESPAWNS);
+    stmt.set_u16(0, map_id);
+    stmt.set_u32(1, instance_id);
+    let mut result = character_db.query(&stmt).await?;
+    let mut rows = Vec::new();
+    let mut report = PersistedRespawnLoadReportLikeCpp::default();
+
+    if result.is_empty() {
+        return Ok((rows, report));
+    }
+
+    loop {
+        report.rows += 1;
+        let object_type_raw = result
+            .try_read::<u16>(0)
+            .or_else(|| result.try_read::<u8>(0).map(u16::from))
+            .unwrap_or(u16::MAX);
+        let Some(object_type) = u8::try_from(object_type_raw)
+            .ok()
+            .and_then(SpawnObjectType::from_raw)
+        else {
+            report.invalid_type += 1;
+            if !result.next_row() {
+                break;
+            }
+            continue;
+        };
+
+        rows.push(PersistedRespawnRowLikeCpp {
+            object_type,
+            spawn_id: result
+                .try_read::<u64>(1)
+                .or_else(|| result.try_read::<i64>(1).map(|value| value as u64))
+                .unwrap_or(0),
+            respawn_time: result.try_read::<i64>(2).unwrap_or(0),
+            map_id,
+            instance_id,
+        });
+        report.loaded += 1;
+
+        if !result.next_row() {
+            break;
+        }
+    }
+
+    Ok((rows, report))
+}
+
+pub async fn execute_respawn_replace_like_cpp(
+    character_db: &CharacterDatabase,
+    row: &PersistedRespawnRowLikeCpp,
+) -> Result<u64, DatabaseError> {
+    character_db
+        .execute(&respawn_replace_statement_like_cpp(row))
+        .await
+}
+
+pub async fn execute_respawn_delete_like_cpp(
+    character_db: &CharacterDatabase,
+    object_type: SpawnObjectType,
+    spawn_id: u64,
+    map_id: u16,
+    instance_id: u32,
+) -> Result<u64, DatabaseError> {
+    character_db
+        .execute(&respawn_delete_statement_like_cpp(
+            object_type,
+            spawn_id,
+            map_id,
+            instance_id,
+        ))
+        .await
+}
 
 fn point_path_limit_for_distance_like_cpp(distance: f32) -> usize {
     let point_limit = if distance.is_sign_negative() {
@@ -2873,6 +3052,9 @@ pub struct MapInstance {
     pub grid_unload_timeout: Duration,
     pub personal_phases: MultiPersonalPhaseTracker,
     personal_phase_objects_to_remove: HashSet<ObjectGuid>,
+    /// C++ `Map::_creatureRespawnTimesBySpawnId` and
+    /// `_gameObjectRespawnTimesBySpawnId`, represented as DB-persistable rows.
+    pub persisted_respawn_times: HashMap<(SpawnObjectType, u64), PersistedRespawnRowLikeCpp>,
     /// Creatures waiting to respawn; drained by `tick_creatures_sync`.
     /// C++ ref: `Map::_respawnTimes` (Map.h:748).
     pub respawn_queue: Vec<PendingRespawn>,
@@ -2887,6 +3069,7 @@ impl MapInstance {
             grid_unload_timeout: DEFAULT_GRID_UNLOAD_TIME,
             personal_phases: MultiPersonalPhaseTracker::default(),
             personal_phase_objects_to_remove: HashSet::new(),
+            persisted_respawn_times: HashMap::new(),
             respawn_queue: Vec::new(),
         }
     }
@@ -3064,6 +3247,57 @@ impl MapInstance {
     // Mirrors `Map::_respawnTimes` (Map.h:748-750) ownership model.
     // The queue is a plain `Vec`; heap/SpawnId convergence is deferred.
 
+    pub fn add_persisted_respawn_time_like_cpp(
+        &mut self,
+        row: PersistedRespawnRowLikeCpp,
+    ) -> LegacyRespawnTimeAddOutcomeLikeCpp {
+        if row.spawn_id == 0 {
+            return LegacyRespawnTimeAddOutcomeLikeCpp::RejectedZeroSpawnId;
+        }
+        if !matches!(
+            row.object_type,
+            SpawnObjectType::Creature | SpawnObjectType::GameObject
+        ) {
+            return LegacyRespawnTimeAddOutcomeLikeCpp::RejectedUnsupportedType;
+        }
+
+        let key = (row.object_type, row.spawn_id);
+        if let Some(existing) = self.persisted_respawn_times.get(&key) {
+            if row.respawn_time <= existing.respawn_time {
+                self.persisted_respawn_times.insert(key, row);
+                LegacyRespawnTimeAddOutcomeLikeCpp::ReplacedExisting
+            } else {
+                LegacyRespawnTimeAddOutcomeLikeCpp::RejectedExistingSoonerOrEqual
+            }
+        } else {
+            self.persisted_respawn_times.insert(key, row);
+            LegacyRespawnTimeAddOutcomeLikeCpp::Inserted
+        }
+    }
+
+    pub fn remove_persisted_respawn_time_like_cpp(
+        &mut self,
+        object_type: SpawnObjectType,
+        spawn_id: u64,
+    ) -> Option<PersistedRespawnRowLikeCpp> {
+        self.persisted_respawn_times
+            .remove(&(object_type, spawn_id))
+    }
+
+    pub fn persisted_respawn_time_like_cpp(
+        &self,
+        object_type: SpawnObjectType,
+        spawn_id: u64,
+    ) -> Option<i64> {
+        self.persisted_respawn_times
+            .get(&(object_type, spawn_id))
+            .map(|row| row.respawn_time)
+    }
+
+    pub fn persisted_respawn_rows_like_cpp(&self) -> Vec<PersistedRespawnRowLikeCpp> {
+        self.persisted_respawn_times.values().copied().collect()
+    }
+
     /// Enqueue a creature waiting to respawn.
     /// C++ ref: `Map::_respawnTimes` insertion path (Map.cpp:2191).
     pub fn push_respawn(&mut self, respawn: PendingRespawn) {
@@ -3102,6 +3336,83 @@ impl MapInstance {
     /// Number of entries currently waiting to respawn.
     pub fn respawn_queue_len(&self) -> usize {
         self.respawn_queue.len()
+    }
+
+    pub fn save_pending_respawn_time_like_cpp(
+        &mut self,
+        respawn: &PendingRespawn,
+        now: Instant,
+        now_secs: i64,
+    ) -> Option<PreparedStatement> {
+        let row = PersistedRespawnRowLikeCpp {
+            object_type: SpawnObjectType::Creature,
+            spawn_id: respawn.spawn_id,
+            respawn_time: respawn_time_from_instant_like_cpp(respawn.respawn_at, now, now_secs),
+            map_id: self.map_id,
+            instance_id: self.instance_id,
+        };
+        match self.add_persisted_respawn_time_like_cpp(row) {
+            LegacyRespawnTimeAddOutcomeLikeCpp::Inserted
+            | LegacyRespawnTimeAddOutcomeLikeCpp::ReplacedExisting => {
+                Some(respawn_replace_statement_like_cpp(&row))
+            }
+            LegacyRespawnTimeAddOutcomeLikeCpp::RejectedZeroSpawnId
+            | LegacyRespawnTimeAddOutcomeLikeCpp::RejectedUnsupportedType
+            | LegacyRespawnTimeAddOutcomeLikeCpp::RejectedExistingSoonerOrEqual => None,
+        }
+    }
+
+    pub fn load_persisted_respawns_into_queue_like_cpp(
+        &mut self,
+        rows: impl IntoIterator<Item = PersistedRespawnRowLikeCpp>,
+        now: Instant,
+        now_secs: i64,
+        mut resolve_creature: impl FnMut(&PersistedRespawnRowLikeCpp, Instant) -> Option<PendingRespawn>,
+    ) -> LegacyRespawnQueueReloadReportLikeCpp {
+        let mut report = LegacyRespawnQueueReloadReportLikeCpp::default();
+        for row in rows {
+            report.rows += 1;
+            match self.add_persisted_respawn_time_like_cpp(row) {
+                LegacyRespawnTimeAddOutcomeLikeCpp::Inserted
+                | LegacyRespawnTimeAddOutcomeLikeCpp::ReplacedExisting => {
+                    report.timers_loaded += 1;
+                }
+                LegacyRespawnTimeAddOutcomeLikeCpp::RejectedZeroSpawnId => {
+                    report.rejected_zero_spawn_id += 1;
+                    continue;
+                }
+                LegacyRespawnTimeAddOutcomeLikeCpp::RejectedUnsupportedType => {
+                    report.rejected_unsupported_type += 1;
+                    continue;
+                }
+                LegacyRespawnTimeAddOutcomeLikeCpp::RejectedExistingSoonerOrEqual => {
+                    report.rejected_existing_later += 1;
+                    continue;
+                }
+            }
+
+            let respawn_at = instant_from_respawn_time_like_cpp(row.respawn_time, now, now_secs);
+            match row.object_type {
+                SpawnObjectType::Creature => {
+                    if let Some(mut pending) = resolve_creature(&row, respawn_at) {
+                        pending.respawn_at = respawn_at;
+                        pending.spawn_id = row.spawn_id;
+                        pending.map_id = row.map_id;
+                        self.push_respawn(pending);
+                        report.creature_queued += 1;
+                    } else {
+                        report.missing_creature_runtime += 1;
+                    }
+                }
+                SpawnObjectType::GameObject => {
+                    report.gameobject_loaded += 1;
+                }
+                SpawnObjectType::AreaTrigger => {
+                    report.rejected_unsupported_type += 1;
+                }
+            }
+        }
+        report
     }
 }
 
@@ -3810,6 +4121,82 @@ impl MapManager {
         self.get_map(map_id, instance_id)
             .map(|m| m.respawn_queue_len())
             .unwrap_or(0)
+    }
+
+    pub fn save_pending_respawn_time_like_cpp(
+        &mut self,
+        map_id: u16,
+        instance_id: u32,
+        respawn: &PendingRespawn,
+        now: Instant,
+        now_secs: i64,
+    ) -> Option<PreparedStatement> {
+        self.get_or_create_map(map_id, instance_id)
+            .save_pending_respawn_time_like_cpp(respawn, now, now_secs)
+    }
+
+    pub fn remove_persisted_respawn_time_like_cpp(
+        &mut self,
+        map_id: u16,
+        instance_id: u32,
+        object_type: SpawnObjectType,
+        spawn_id: u64,
+    ) -> Option<PreparedStatement> {
+        let map = self.get_map_mut(map_id, instance_id)?;
+        map.remove_persisted_respawn_time_like_cpp(object_type, spawn_id)?;
+        Some(respawn_delete_statement_like_cpp(
+            object_type,
+            spawn_id,
+            map_id,
+            instance_id,
+        ))
+    }
+
+    pub fn persisted_respawn_time_like_cpp(
+        &self,
+        map_id: u16,
+        instance_id: u32,
+        object_type: SpawnObjectType,
+        spawn_id: u64,
+    ) -> Option<i64> {
+        self.get_map(map_id, instance_id)?
+            .persisted_respawn_time_like_cpp(object_type, spawn_id)
+    }
+
+    pub fn persisted_respawn_rows_like_cpp(
+        &self,
+        map_id: u16,
+        instance_id: u32,
+    ) -> Vec<PersistedRespawnRowLikeCpp> {
+        self.get_map(map_id, instance_id)
+            .map(|map| map.persisted_respawn_rows_like_cpp())
+            .unwrap_or_default()
+    }
+
+    pub fn load_persisted_respawns_into_queue_like_cpp(
+        &mut self,
+        rows: impl IntoIterator<Item = PersistedRespawnRowLikeCpp>,
+        now: Instant,
+        now_secs: i64,
+        mut resolve_creature: impl FnMut(&PersistedRespawnRowLikeCpp, Instant) -> Option<PendingRespawn>,
+    ) -> LegacyRespawnQueueReloadReportLikeCpp {
+        let mut report = LegacyRespawnQueueReloadReportLikeCpp::default();
+        for row in rows {
+            let row_report = self
+                .get_or_create_map(row.map_id, row.instance_id)
+                .load_persisted_respawns_into_queue_like_cpp([row], now, now_secs, |row, at| {
+                    resolve_creature(row, at)
+                });
+            report.rows += row_report.rows;
+            report.timers_loaded += row_report.timers_loaded;
+            report.creature_queued += row_report.creature_queued;
+            report.gameobject_loaded += row_report.gameobject_loaded;
+            report.rejected_zero_spawn_id += row_report.rejected_zero_spawn_id;
+            report.rejected_unsupported_type += row_report.rejected_unsupported_type;
+            report.rejected_existing_later += row_report.rejected_existing_later;
+            report.missing_creature_runtime += row_report.missing_creature_runtime;
+        }
+        report
     }
 
     pub fn player_enter_grid(
@@ -7904,6 +8291,65 @@ mod tests {
     }
 
     #[test]
+    fn pending_respawn_save_load_roundtrip_uses_cpp_respawn_table_statement() {
+        let mut manager = MapManager::new();
+        let now = Instant::now();
+        let now_secs = 1_700_000_000;
+        let mut pending = make_pending_respawn(now + Duration::from_secs(45));
+        pending.spawn_id = u64::from(u32::MAX) + 17;
+        pending.map_id = 571;
+
+        let stmt = manager
+            .save_pending_respawn_time_like_cpp(571, 0, &pending, now, now_secs)
+            .expect("future creature respawn should queue CHAR_REP_RESPAWN");
+
+        assert_eq!(stmt.sql(), CharStatements::REP_RESPAWN.sql());
+        assert!(matches!(stmt.params()[0], wow_database::SqlParam::U16(0)));
+        assert!(matches!(
+            stmt.params()[1],
+            wow_database::SqlParam::U64(value) if value == pending.spawn_id
+        ));
+        assert!(matches!(
+            stmt.params()[2],
+            wow_database::SqlParam::I64(value) if value == now_secs + 45
+        ));
+        assert!(matches!(stmt.params()[3], wow_database::SqlParam::U16(571)));
+        assert!(matches!(stmt.params()[4], wow_database::SqlParam::U32(0)));
+
+        assert_eq!(
+            manager.persisted_respawn_time_like_cpp(
+                571,
+                0,
+                SpawnObjectType::Creature,
+                pending.spawn_id
+            ),
+            Some(now_secs + 45)
+        );
+
+        let rows = manager.persisted_respawn_rows_like_cpp(571, 0);
+        let mut restarted = MapManager::new();
+        let report = restarted.load_persisted_respawns_into_queue_like_cpp(
+            rows,
+            now,
+            now_secs,
+            |_row, at| Some(make_pending_respawn(at)),
+        );
+
+        assert_eq!(report.rows, 1);
+        assert_eq!(report.timers_loaded, 1);
+        assert_eq!(report.creature_queued, 1);
+        assert_eq!(restarted.respawn_queue_len(571, 0), 1);
+        assert!(
+            restarted
+                .drain_ready_respawns(571, 0, now + Duration::from_secs(44))
+                .is_empty()
+        );
+        let ready = restarted.drain_ready_respawns(571, 0, now + Duration::from_secs(45));
+        assert_eq!(ready.len(), 1);
+        assert_eq!(ready[0].spawn_id, pending.spawn_id);
+    }
+
+    #[test]
     fn push_respawn_replaces_later_duplicate_spawn_id_like_cpp() {
         let mut map = MapInstance::new(0, 0);
         let now = Instant::now();
@@ -8044,6 +8490,78 @@ mod tests {
         let ready = map.drain_ready_respawns(Instant::now());
         assert_eq!(ready.len(), 0);
         assert_eq!(map.respawn_queue_len(), 1);
+    }
+
+    #[test]
+    fn persisted_respawn_restart_load_expired_ready_future_queued_and_gameobject_timer_loaded() {
+        let mut manager = MapManager::new();
+        let now = Instant::now();
+        let now_secs = 2_000_000;
+        let rows = vec![
+            PersistedRespawnRowLikeCpp {
+                object_type: SpawnObjectType::Creature,
+                spawn_id: 10,
+                respawn_time: now_secs - 5,
+                map_id: 571,
+                instance_id: 0,
+            },
+            PersistedRespawnRowLikeCpp {
+                object_type: SpawnObjectType::Creature,
+                spawn_id: 11,
+                respawn_time: now_secs + 60,
+                map_id: 571,
+                instance_id: 0,
+            },
+            PersistedRespawnRowLikeCpp {
+                object_type: SpawnObjectType::GameObject,
+                spawn_id: 12,
+                respawn_time: now_secs + 90,
+                map_id: 571,
+                instance_id: 0,
+            },
+        ];
+
+        let report =
+            manager.load_persisted_respawns_into_queue_like_cpp(rows, now, now_secs, |_row, at| {
+                Some(make_pending_respawn(at))
+            });
+
+        assert_eq!(report.rows, 3);
+        assert_eq!(report.timers_loaded, 3);
+        assert_eq!(report.creature_queued, 2);
+        assert_eq!(report.gameobject_loaded, 1);
+        assert_eq!(
+            manager.persisted_respawn_time_like_cpp(571, 0, SpawnObjectType::GameObject, 12),
+            Some(now_secs + 90)
+        );
+
+        let ready = manager.drain_ready_respawns(571, 0, now);
+        assert_eq!(ready.len(), 1);
+        assert_eq!(ready[0].spawn_id, 10);
+        assert_eq!(manager.respawn_queue_len(571, 0), 1);
+
+        let delete = manager
+            .remove_persisted_respawn_time_like_cpp(571, 0, SpawnObjectType::Creature, 10)
+            .expect("processed C++ respawn should queue CHAR_DEL_RESPAWN");
+        assert_eq!(delete.sql(), CharStatements::DEL_RESPAWN.sql());
+        assert!(matches!(delete.params()[0], wow_database::SqlParam::U16(0)));
+        assert!(matches!(
+            delete.params()[1],
+            wow_database::SqlParam::U64(10)
+        ));
+        assert!(matches!(
+            delete.params()[2],
+            wow_database::SqlParam::U16(571)
+        ));
+        assert!(matches!(delete.params()[3], wow_database::SqlParam::U32(0)));
+        assert_eq!(
+            manager.persisted_respawn_time_like_cpp(571, 0, SpawnObjectType::Creature, 10),
+            None
+        );
+
+        let future = manager.drain_ready_respawns(571, 0, now + Duration::from_secs(59));
+        assert!(future.is_empty());
+        assert_eq!(manager.respawn_queue_len(571, 0), 1);
     }
 
     /// Ready entries are returned in insertion order.

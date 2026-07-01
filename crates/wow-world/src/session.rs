@@ -2978,6 +2978,7 @@ pub struct LegacyCreatureLifecycleTickOutcomeLikeCpp {
     pub creatures_seen: usize,
     pub corpses_despawned: usize,
     pub respawns_processed: usize,
+    pub respawn_db_statements: Vec<PreparedStatement>,
     pub canonical_removes: usize,
     pub canonical_inserts: usize,
     /// Map instances whose sessions must recompute creature visibility.
@@ -46580,6 +46581,7 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
     let mut affected_maps = BTreeSet::new();
     let mut canonical_removes: Vec<(u32, u32, ObjectGuid)> = Vec::new();
     let mut canonical_inserts: Vec<(u32, u32, wow_entities::Creature)> = Vec::new();
+    let now_secs = unix_now();
 
     {
         let mut manager = legacy_map_manager
@@ -46622,6 +46624,15 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                     );
                 let pending =
                     pending_respawn_from_world_creature_like_cpp(&creature, respawn_at, map_id);
+                if let Some(stmt) = manager.save_pending_respawn_time_like_cpp(
+                    map_id,
+                    instance_id,
+                    &pending,
+                    now,
+                    now_secs,
+                ) {
+                    outcome.respawn_db_statements.push(stmt);
+                }
                 manager.push_respawn(map_id, instance_id, pending);
                 canonical_removes.push((u32::from(map_id), instance_id, guid));
                 affected_maps.insert((map_id, instance_id));
@@ -46650,6 +46661,14 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                 let canonical_creature = world_creature.creature.clone();
                 let (grid_x, grid_y) = world_to_grid_coords(position.x, position.y);
                 if manager.add_creature(map_id, instance_id, grid_x, grid_y, world_creature) {
+                    if let Some(stmt) = manager.remove_persisted_respawn_time_like_cpp(
+                        map_id,
+                        instance_id,
+                        wow_map::SpawnObjectType::Creature,
+                        respawn.spawn_id,
+                    ) {
+                        outcome.respawn_db_statements.push(stmt);
+                    }
                     canonical_inserts.push((u32::from(map_id), instance_id, canonical_creature));
                     affected_maps.insert((map_id, instance_id));
                     outcome.respawns_processed += 1;
@@ -127534,6 +127553,11 @@ mod tests {
         assert_eq!(outcome.creatures_seen, 1);
         assert_eq!(outcome.corpses_despawned, 1);
         assert_eq!(outcome.respawns_processed, 0);
+        assert_eq!(outcome.respawn_db_statements.len(), 1);
+        assert_eq!(
+            outcome.respawn_db_statements[0].sql(),
+            CharStatements::REP_RESPAWN.sql()
+        );
         assert_eq!(outcome.canonical_removes, 1);
         assert_eq!(outcome.canonical_inserts, 0);
         assert_eq!(outcome.refresh_map_keys, vec![(0, 0)]);
@@ -127604,7 +127628,11 @@ mod tests {
             now - Duration::from_secs(1),
             0,
         );
-        manager.write().unwrap().push_respawn(0, 0, pending);
+        {
+            let mut guard = manager.write().unwrap();
+            guard.save_pending_respawn_time_like_cpp(0, 0, &pending, now, unix_now());
+            guard.push_respawn(0, 0, pending);
+        }
 
         let outcome =
             run_legacy_creature_lifecycle_tick_once_like_cpp(&manager, Some(&canonical), now);
@@ -127613,6 +127641,11 @@ mod tests {
         assert_eq!(outcome.maps_seen, 1);
         assert_eq!(outcome.corpses_despawned, 0);
         assert_eq!(outcome.respawns_processed, 1);
+        assert_eq!(outcome.respawn_db_statements.len(), 1);
+        assert_eq!(
+            outcome.respawn_db_statements[0].sql(),
+            CharStatements::DEL_RESPAWN.sql()
+        );
         assert_eq!(outcome.canonical_removes, 0);
         assert_eq!(outcome.canonical_inserts, 1);
         assert_eq!(outcome.refresh_map_keys, vec![(0, 0)]);

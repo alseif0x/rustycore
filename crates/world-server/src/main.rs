@@ -4932,6 +4932,7 @@ async fn main() -> Result<ExitCode> {
         mmap_pathfinder.clone(),
         legacy_creature_aggro_config.clone(),
         map_update_interval_ms,
+        Some(Arc::clone(&char_db)),
         Arc::clone(&player_registry),
     );
 
@@ -12931,6 +12932,7 @@ fn spawn_legacy_creature_runtime_update_loop_like_cpp(
     mmap_pathfinder: Option<Arc<WorldMMapPathfinderWorkerLikeCpp>>,
     aggro_config: wow_world::session::LegacyCreatureAggroConfigLikeCpp,
     tick_interval_ms: u32,
+    character_db: Option<Arc<CharacterDatabase>>,
     player_registry: Arc<PlayerRegistry>,
 ) -> tokio::task::JoinHandle<()> {
     if !enabled {
@@ -12972,6 +12974,18 @@ fn spawn_legacy_creature_runtime_update_loop_like_cpp(
                 tracing::error!("Legacy global creature runtime tick task panicked; stopping loop");
                 break;
             };
+
+            if let Some(character_db) = character_db.as_ref() {
+                for stmt in &outcome.lifecycle.respawn_db_statements {
+                    if let Err(error) = character_db.execute(stmt).await {
+                        warn!(
+                            ?error,
+                            sql = stmt.sql(),
+                            "Failed to persist legacy creature respawn timer like C++"
+                        );
+                    }
+                }
+            }
 
             let touched_creatures = outcome.lifecycle.corpses_despawned
                 + outcome.movement.movement_packets
@@ -23360,6 +23374,7 @@ mmap.enablePathFinding = 0
             None,
             wow_world::session::LegacyCreatureAggroConfigLikeCpp::default(),
             1,
+            None,
             Arc::clone(&registry),
         );
 
