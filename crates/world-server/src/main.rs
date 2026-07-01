@@ -5202,6 +5202,7 @@ async fn main() -> Result<ExitCode> {
         addon_channel: world_config_bool(&world_configs, "CONFIG_ADDON_CHANNEL", true),
         server_expansion: world_config_u8(&world_configs, "CONFIG_EXPANSION", 2),
         characters_per_realm: world_config_u32(&world_configs, "CONFIG_CHARACTERS_PER_REALM", 60),
+        declined_names_used: world_config_bool(&world_configs, "CONFIG_DECLINED_NAMES_USED", false),
         feature_system_bpay_store_enabled: world_config_bool(
             &world_configs,
             "CONFIG_FEATURE_SYSTEM_BPAY_STORE_ENABLED",
@@ -12806,6 +12807,7 @@ async fn create_session(
     session.set_addon_channel_like_cpp(resources.addon_channel);
     session.set_server_expansion_like_cpp(resources.server_expansion);
     session.set_characters_per_realm_like_cpp(resources.characters_per_realm);
+    session.set_declined_names_used_like_cpp(resources.declined_names_used);
     session.set_feature_system_bpay_store_enabled_like_cpp(
         resources.feature_system_bpay_store_enabled,
     );

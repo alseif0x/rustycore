@@ -420,6 +420,8 @@ pub struct SessionResources {
     pub server_expansion: u8,
     /// C++ `CONFIG_CHARACTERS_PER_REALM` / `CharactersPerRealm`.
     pub characters_per_realm: u32,
+    /// C++ `CONFIG_DECLINED_NAMES_USED` / `DeclinedNames`.
+    pub declined_names_used: bool,
     /// C++ `CONFIG_FEATURE_SYSTEM_BPAY_STORE_ENABLED`.
     pub feature_system_bpay_store_enabled: bool,
     /// C++ `CONFIG_FEATURE_SYSTEM_CHARACTER_UNDELETE_ENABLED`.

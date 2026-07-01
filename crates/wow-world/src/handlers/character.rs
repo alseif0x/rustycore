@@ -767,12 +767,112 @@ const CHAR_NAME_NO_NAME_LIKE_CPP: u8 = 92;
 const CHAR_NAME_TOO_SHORT_LIKE_CPP: u8 = 93;
 const CHAR_NAME_TOO_LONG_LIKE_CPP: u8 = 94;
 const CHAR_NAME_INVALID_CHARACTER_LIKE_CPP: u8 = 95;
+const CLASS_HUNTER_LIKE_CPP: u8 = 3;
+const CLASS_DEATH_KNIGHT_LIKE_CPP: u8 = 6;
+const CLASS_WARLOCK_LIKE_CPP: u8 = 9;
+const PLAYER_FLAGS_GHOST_LIKE_CPP: u32 = 0x0000_0010;
 const AT_LOGIN_RENAME_LIKE_CPP: u16 = 0x001;
 const AT_LOGIN_CUSTOMIZE_LIKE_CPP: u16 = 0x008;
+const AT_LOGIN_FIRST_LIKE_CPP: u16 = 0x020;
+const AT_LOGIN_CHANGE_FACTION_LIKE_CPP: u16 = 0x040;
+const AT_LOGIN_CHANGE_RACE_LIKE_CPP: u16 = 0x080;
+const AT_LOGIN_RESURRECT_LIKE_CPP: u16 = 0x100;
+const CHARACTER_FLAG_LOCKED_FOR_TRANSFER_LIKE_CPP: u32 = 0x0000_0004;
+const CHARACTER_FLAG_GHOST_LIKE_CPP: u32 = 0x0000_2000;
+const CHARACTER_FLAG_RENAME_LIKE_CPP: u32 = 0x0000_4000;
+const CHARACTER_FLAG_LOCKED_BY_BILLING_LIKE_CPP: u32 = 0x0100_0000;
+const CHARACTER_FLAG_DECLINED_LIKE_CPP: u32 = 0x0200_0000;
+const CHAR_CUSTOMIZE_FLAG_CUSTOMIZE_LIKE_CPP: u32 = 0x0000_0001;
+const CHAR_CUSTOMIZE_FLAG_FACTION_LIKE_CPP: u32 = 0x0001_0000;
+const CHAR_CUSTOMIZE_FLAG_RACE_LIKE_CPP: u32 = 0x0010_0000;
 const DIFFICULTY_10_N_LIKE_CPP: u8 = 3;
 const GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT_LIKE_CPP: u8 = 15;
 const TAXI_PATH_NODE_FLAG_TELEPORT_LIKE_CPP: i32 = 0x1;
 const TAXI_PATH_NODE_FLAG_STOP_LIKE_CPP: i32 = 0x2;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct EnumCharacterFlagsLikeCpp {
+    flags: u32,
+    flags2: u32,
+    first_login: bool,
+}
+
+fn enum_character_effective_player_flags_like_cpp(player_flags: u32, at_login_flags: u16) -> u32 {
+    if (at_login_flags & AT_LOGIN_RESURRECT_LIKE_CPP) != 0 {
+        player_flags & !PLAYER_FLAGS_GHOST_LIKE_CPP
+    } else {
+        player_flags
+    }
+}
+
+/// C++ anchors:
+/// - `Server/Packets/CharacterPackets.cpp:118-145`
+/// - `Miscellaneous/SharedDefines.h:1019-1061`
+fn enum_character_flags_like_cpp(
+    player_flags: u32,
+    at_login_flags: u16,
+    banned_guid: u64,
+    declined_genitive: Option<&str>,
+    declined_names_used: bool,
+) -> EnumCharacterFlagsLikeCpp {
+    let player_flags = enum_character_effective_player_flags_like_cpp(player_flags, at_login_flags);
+    let mut flags = 0;
+
+    if (player_flags & PLAYER_FLAGS_GHOST_LIKE_CPP) != 0 {
+        flags |= CHARACTER_FLAG_GHOST_LIKE_CPP;
+    }
+    if (at_login_flags & AT_LOGIN_RENAME_LIKE_CPP) != 0 {
+        flags |= CHARACTER_FLAG_RENAME_LIKE_CPP;
+    }
+    if banned_guid != 0 {
+        flags |= CHARACTER_FLAG_LOCKED_BY_BILLING_LIKE_CPP;
+    }
+    if declined_names_used && declined_genitive.is_some_and(|name| !name.is_empty()) {
+        flags |= CHARACTER_FLAG_DECLINED_LIKE_CPP;
+    }
+
+    let flags2 = if (at_login_flags & AT_LOGIN_CUSTOMIZE_LIKE_CPP) != 0 {
+        CHAR_CUSTOMIZE_FLAG_CUSTOMIZE_LIKE_CPP
+    } else if (at_login_flags & AT_LOGIN_CHANGE_FACTION_LIKE_CPP) != 0 {
+        CHAR_CUSTOMIZE_FLAG_FACTION_LIKE_CPP
+    } else if (at_login_flags & AT_LOGIN_CHANGE_RACE_LIKE_CPP) != 0 {
+        CHAR_CUSTOMIZE_FLAG_RACE_LIKE_CPP
+    } else {
+        0
+    };
+
+    EnumCharacterFlagsLikeCpp {
+        flags,
+        flags2,
+        first_login: (at_login_flags & AT_LOGIN_FIRST_LIKE_CPP) != 0,
+    }
+}
+
+/// C++ anchor: `Server/Packets/CharacterPackets.cpp:147-156`.
+fn enum_character_pet_data_like_cpp(
+    player_flags: u32,
+    at_login_flags: u16,
+    class_id: u8,
+    pet_entry: u32,
+    pet_display_id: u32,
+    pet_level: u32,
+    creature_templates: Option<&wow_data::CreatureTemplateLifecycleStoreLikeCpp>,
+) -> (u32, u32, u32) {
+    let player_flags = enum_character_effective_player_flags_like_cpp(player_flags, at_login_flags);
+    if (player_flags & PLAYER_FLAGS_GHOST_LIKE_CPP) != 0
+        || !matches!(
+            class_id,
+            CLASS_WARLOCK_LIKE_CPP | CLASS_HUNTER_LIKE_CPP | CLASS_DEATH_KNIGHT_LIKE_CPP
+        )
+    {
+        return (0, 0, 0);
+    }
+
+    creature_templates
+        .and_then(|store| store.get(pet_entry))
+        .map(|template| (pet_display_id, pet_level, template.family))
+        .unwrap_or((0, 0, 0))
+}
 
 #[derive(Debug, Clone)]
 struct MapTransportCreateLikeCpp {
@@ -1868,8 +1968,9 @@ fn slot_to_inventory_type(slot: u8) -> Option<u8> {
 
 /// Parse a space-separated equipment cache string into VisualItemInfo array.
 ///
-/// C# format: 5 values per slot (InvType, DisplayId, DisplayEnchantId, Subclass,
-/// SecondaryItemModifiedAppearanceID), space-separated, up to 34 slots.
+/// C++ `EnumCharactersResult::CharacterInfo` parses `equipmentCache` as five
+/// fields per slot: InvType, DisplayID, DisplayEnchantID, Subclass, and
+/// SecondaryItemModifiedAppearanceID.
 fn parse_equipment_cache(cache: &str) -> [VisualItemInfo; 34] {
     let mut equipment = [VisualItemInfo::default(); 34];
     if cache.is_empty() {
@@ -3053,7 +3154,11 @@ impl WorldSession {
             }
         };
 
-        let mut stmt = char_db.prepare(CharStatements::SEL_ENUM);
+        let mut stmt = char_db.prepare(if self.declined_names_used_like_cpp() {
+            CharStatements::SEL_ENUM_DECLINED_NAME
+        } else {
+            CharStatements::SEL_ENUM
+        });
         stmt.set_u32(0, self.account_id);
 
         let result = match char_db.query(&stmt).await {
@@ -3092,52 +3197,47 @@ impl WorldSession {
                 let guild_id: u64 = result.try_read(11).unwrap_or(0); // nullable gm.guildid
                 let player_flags: u32 = result.try_read(12).unwrap_or(0);
                 let at_login_flags: u16 = result.try_read(13).unwrap_or(0); // smallint unsigned
-                let _pet_entry: u32 = result.try_read(14).unwrap_or(0);
+                let pet_entry: u32 = result.try_read(14).unwrap_or(0);
                 let pet_display_id: u32 = result.try_read(15).unwrap_or(0);
                 let pet_level: u32 = result.try_read(16).unwrap_or(0);
                 let equipment_cache: String = result.try_read(17).unwrap_or_default();
-                let _banned_guid: u64 = result.try_read(18).unwrap_or(0);
+                let banned_guid: u64 = result.try_read(18).unwrap_or(0);
                 let list_slot: u8 = result.try_read(19).unwrap_or(characters.len() as u8);
                 let last_played_time: i64 = result.try_read(20).unwrap_or(0);
                 let active_talent_group: i16 = result.try_read::<u8>(21).unwrap_or(0) as i16;
                 let last_login_build: u32 = result.try_read(22).unwrap_or(54261);
+                let declined_genitive = self
+                    .declined_names_used_like_cpp()
+                    .then(|| result.try_read::<String>(28).unwrap_or_default())
+                    .unwrap_or_default();
 
                 let realm_id = self.realm_id();
                 let guid = ObjectGuid::create_player(realm_id, guid_low as i64);
 
-                // ── Convert PlayerFlags → CharacterFlags (matching C# exactly) ──
-                // C# does NOT pass raw playerFlags as CharacterFlags.
-                // Only specific bits are mapped:
-                let mut char_flags: u32 = 0;
-                // PlayerFlags::Resting (0x20) → CharacterFlags::Resting (0x02)
-                if (player_flags & 0x20) != 0 {
-                    char_flags |= 0x02;
-                }
-                // PlayerFlags::Ghost (0x10) → CharacterFlags::Ghost (0x2000)
-                // But suppress if AtLoginFlags::Resurrect (0x100) is set
-                if (player_flags & 0x10) != 0 && (at_login_flags & 0x100) == 0 {
-                    char_flags |= 0x2000;
-                }
-                // AtLoginFlags::Rename (0x01) → CharacterFlags::Rename (0x4000)
-                if (at_login_flags & 0x01) != 0 {
-                    char_flags |= 0x4000;
-                }
-
-                // ── CharacterCustomizeFlags (Flags2) from AtLoginFlags ──
-                let char_flags2: u32 = if (at_login_flags & 0x08) != 0 {
-                    1 // CharacterCustomizeFlags::Customize
-                } else if (at_login_flags & 0x40) != 0 {
-                    2 // CharacterCustomizeFlags::Faction
-                } else if (at_login_flags & 0x80) != 0 {
-                    4 // CharacterCustomizeFlags::Race
-                } else {
-                    0
-                };
+                let enum_flags = enum_character_flags_like_cpp(
+                    player_flags,
+                    at_login_flags,
+                    banned_guid,
+                    (!declined_genitive.is_empty()).then_some(declined_genitive.as_str()),
+                    self.declined_names_used_like_cpp(),
+                );
+                let (pet_display_id, pet_level, pet_family) = enum_character_pet_data_like_cpp(
+                    player_flags,
+                    at_login_flags,
+                    class,
+                    pet_entry,
+                    pet_display_id,
+                    pet_level,
+                    self.creature_template_lifecycle_store_like_cpp()
+                        .map(Arc::as_ref),
+                );
 
                 // Only add to legit list if not locked
-                // CharacterFlags::CharacterLockedForTransfer (0x04) |
-                // CharacterFlags::LockedByBilling (0x01000000)
-                if (char_flags & (0x04 | 0x0100_0000)) == 0 {
+                if (enum_flags.flags
+                    & (CHARACTER_FLAG_LOCKED_FOR_TRANSFER_LIKE_CPP
+                        | CHARACTER_FLAG_LOCKED_BY_BILLING_LIKE_CPP))
+                    == 0
+                {
                     legit_guids.push(guid);
                 }
 
@@ -3158,14 +3258,14 @@ impl WorldSession {
                     } else {
                         ObjectGuid::create_guild(HighGuid::Guild, realm_id, guild_id as i64)
                     },
-                    flags: char_flags,
-                    flags2: char_flags2,
+                    flags: enum_flags.flags,
+                    flags2: enum_flags.flags2,
                     flags3: 0,
                     flags4: 0,
-                    first_login: (at_login_flags & 0x20) != 0, // AT_LOGIN_FIRST
+                    first_login: enum_flags.first_login,
                     pet_display_id,
                     pet_level,
-                    pet_family: 0,
+                    pet_family,
                     profession_ids: [0; 2],
                     equipment: parse_equipment_cache(&equipment_cache),
                     last_played_time,
@@ -22680,53 +22780,179 @@ mod tests {
     }
 
     #[test]
-    fn player_flags_to_char_flags_resting() {
-        // PlayerFlags::Resting = 0x20 → CharacterFlags::Resting = 0x02
-        let player_flags: u32 = 0x20;
-        let mut char_flags: u32 = 0;
-        if (player_flags & 0x20) != 0 {
-            char_flags |= 0x02;
-        }
-        assert_eq!(char_flags, 0x02);
+    fn enum_character_flags_do_not_map_resting_like_cpp() {
+        let flags = enum_character_flags_like_cpp(0x20, 0, 0, None, false);
+
+        assert_eq!(flags.flags, 0);
     }
 
     #[test]
-    fn player_flags_to_char_flags_ghost() {
-        // PlayerFlags::Ghost = 0x10 → CharacterFlags::Ghost = 0x2000
-        let player_flags: u32 = 0x10;
-        let at_login_flags: u16 = 0;
-        let mut char_flags: u32 = 0;
-        if (player_flags & 0x10) != 0 && (at_login_flags & 0x100) == 0 {
-            char_flags |= 0x2000;
-        }
-        assert_eq!(char_flags, 0x2000);
+    fn enum_character_flags_map_ghost_rename_billing_and_declined_like_cpp() {
+        let flags = enum_character_flags_like_cpp(
+            PLAYER_FLAGS_GHOST_LIKE_CPP,
+            AT_LOGIN_RENAME_LIKE_CPP,
+            42,
+            Some("Genitive"),
+            true,
+        );
+
+        assert_eq!(
+            flags.flags,
+            CHARACTER_FLAG_GHOST_LIKE_CPP
+                | CHARACTER_FLAG_RENAME_LIKE_CPP
+                | CHARACTER_FLAG_LOCKED_BY_BILLING_LIKE_CPP
+                | CHARACTER_FLAG_DECLINED_LIKE_CPP
+        );
+        assert_eq!(flags.flags2, 0);
+        assert!(!flags.first_login);
     }
 
     #[test]
-    fn player_flags_ghost_suppressed_by_resurrect() {
-        // Ghost flag suppressed when AtLoginFlags::Resurrect (0x100) is set
-        let player_flags: u32 = 0x10;
-        let at_login_flags: u16 = 0x100;
-        let mut char_flags: u32 = 0;
-        if (player_flags & 0x10) != 0 && (at_login_flags & 0x100) == 0 {
-            char_flags |= 0x2000;
-        }
-        assert_eq!(char_flags, 0); // Ghost NOT set
+    fn enum_character_flags_keep_declined_names_config_gated_like_cpp() {
+        let disabled = enum_character_flags_like_cpp(0, 0, 0, Some("Genitive"), false);
+        let empty = enum_character_flags_like_cpp(0, 0, 0, Some(""), true);
+        let enabled = enum_character_flags_like_cpp(0, 0, 0, Some("Genitive"), true);
+
+        assert_eq!(disabled.flags & CHARACTER_FLAG_DECLINED_LIKE_CPP, 0);
+        assert_eq!(empty.flags & CHARACTER_FLAG_DECLINED_LIKE_CPP, 0);
+        assert_eq!(
+            enabled.flags & CHARACTER_FLAG_DECLINED_LIKE_CPP,
+            CHARACTER_FLAG_DECLINED_LIKE_CPP
+        );
+    }
+
+    #[test]
+    fn enum_character_flags_suppress_ghost_by_resurrect_like_cpp() {
+        let flags = enum_character_flags_like_cpp(
+            PLAYER_FLAGS_GHOST_LIKE_CPP,
+            AT_LOGIN_RESURRECT_LIKE_CPP,
+            0,
+            None,
+            false,
+        );
+
+        assert_eq!(flags.flags & CHARACTER_FLAG_GHOST_LIKE_CPP, 0);
+    }
+
+    #[test]
+    fn enum_character_flags2_use_cpp_customize_values_and_priority() {
+        let customize =
+            enum_character_flags_like_cpp(0, AT_LOGIN_CUSTOMIZE_LIKE_CPP, 0, None, false);
+        let faction = enum_character_flags_like_cpp(
+            0,
+            AT_LOGIN_CHANGE_FACTION_LIKE_CPP | AT_LOGIN_CHANGE_RACE_LIKE_CPP,
+            0,
+            None,
+            false,
+        );
+        let race = enum_character_flags_like_cpp(0, AT_LOGIN_CHANGE_RACE_LIKE_CPP, 0, None, false);
+        let first = enum_character_flags_like_cpp(0, AT_LOGIN_FIRST_LIKE_CPP, 0, None, false);
+
+        assert_eq!(customize.flags2, CHAR_CUSTOMIZE_FLAG_CUSTOMIZE_LIKE_CPP);
+        assert_eq!(faction.flags2, CHAR_CUSTOMIZE_FLAG_FACTION_LIKE_CPP);
+        assert_eq!(race.flags2, CHAR_CUSTOMIZE_FLAG_RACE_LIKE_CPP);
+        assert!(first.first_login);
     }
 
     #[test]
     fn raw_player_flags_not_passed_directly() {
-        // Verify that raw playerFlags (e.g. AFK=0x02) don't leak into CharacterFlags
-        let player_flags: u32 = 0x02; // PlayerFlags::AFK
-        let mut char_flags: u32 = 0;
-        // Only map known flags
-        if (player_flags & 0x20) != 0 {
-            char_flags |= 0x02;
-        }
-        if (player_flags & 0x10) != 0 {
-            char_flags |= 0x2000;
-        }
-        // AFK (0x02) should NOT map to anything in CharacterFlags
-        assert_eq!(char_flags, 0);
+        let flags = enum_character_flags_like_cpp(0x02, 0, 0, None, false);
+
+        assert_eq!(flags.flags, 0);
+    }
+
+    fn enum_pet_template_store(
+        entry: u32,
+        family: u32,
+    ) -> wow_data::CreatureTemplateLifecycleStoreLikeCpp {
+        wow_data::CreatureTemplateLifecycleStoreLikeCpp::from_templates([
+            wow_data::CreatureTemplateLifecycleRecordLikeCpp {
+                entry,
+                name: String::new(),
+                ai_name: String::new(),
+                script_name: String::new(),
+                required_expansion: 0,
+                faction: 0,
+                npc_flags: 0,
+                speed_walk: 1.0,
+                speed_run: 1.0,
+                scale: 1.0,
+                classification: 0,
+                damage_school: 0,
+                unit_flags: 0,
+                unit_flags2: 0,
+                unit_flags3: 0,
+                creature_type: 0,
+                family,
+                trainer_class: 0,
+                unit_class: 0,
+                vehicle_id: 0,
+                movement_type: 0,
+                ground_movement_type: 1,
+                swim_allowed: true,
+                flight_movement_type: 0,
+                rooted: false,
+                chase_movement_type: 0,
+                random_movement_type: 0,
+                interaction_pause_timer_ms: 180_000,
+                flags_extra: 0,
+                string_id: String::new(),
+                regen_health: true,
+                spells: [0; wow_data::MAX_CREATURE_SPELLS_LIKE_CPP],
+                models: Vec::new(),
+            },
+        ])
+    }
+
+    #[test]
+    fn enum_character_pet_family_uses_creature_template_for_pet_classes_like_cpp() {
+        let store = enum_pet_template_store(416, 8);
+
+        assert_eq!(
+            enum_character_pet_data_like_cpp(
+                0,
+                0,
+                CLASS_HUNTER_LIKE_CPP,
+                416,
+                1234,
+                27,
+                Some(&store),
+            ),
+            (1234, 27, 8)
+        );
+    }
+
+    #[test]
+    fn enum_character_pet_data_stays_zero_for_ghost_non_pet_class_or_missing_template_like_cpp() {
+        let store = enum_pet_template_store(416, 8);
+
+        assert_eq!(
+            enum_character_pet_data_like_cpp(
+                PLAYER_FLAGS_GHOST_LIKE_CPP,
+                0,
+                CLASS_HUNTER_LIKE_CPP,
+                416,
+                1234,
+                27,
+                Some(&store),
+            ),
+            (0, 0, 0)
+        );
+        assert_eq!(
+            enum_character_pet_data_like_cpp(0, 0, 1, 416, 1234, 27, Some(&store)),
+            (0, 0, 0)
+        );
+        assert_eq!(
+            enum_character_pet_data_like_cpp(
+                0,
+                0,
+                CLASS_HUNTER_LIKE_CPP,
+                999,
+                1234,
+                27,
+                Some(&store)
+            ),
+            (0, 0, 0)
+        );
     }
 }
