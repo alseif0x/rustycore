@@ -21,7 +21,7 @@ use wow_entities::{
     PointMovementAction, PointMovementInform, RotateMovementUpdate, Z_OFFSET_FIND_HEIGHT,
     allowed_position_z_from_ground_like_cpp,
 };
-use wow_map::GridMapTerrain;
+use wow_map::{GridMapTerrain, SharedStaticVMapLineOfSightProvider};
 use wow_movement::generators::CreatureRandomMovementType as MovementCreatureRandomMovementType;
 use wow_movement::{
     MoveSpline, MoveSplineInit, MoveSplineLaunchInput, MoveSplineStopInput, MoveSplineStopResult,
@@ -3249,25 +3249,54 @@ impl RuntimeOutput {
 #[derive(Debug)]
 pub struct LiveTerrainHeights {
     data_dir: PathBuf,
+    static_vmap_los: Option<SharedStaticVMapLineOfSightProvider>,
     per_map: Mutex<HashMap<u32, Arc<GridMapTerrain>>>,
 }
 
 impl LiveTerrainHeights {
     #[must_use]
     pub fn new(data_dir: impl AsRef<Path>) -> Self {
+        Self::new_with_optional_static_vmap_line_of_sight(data_dir, None)
+    }
+
+    /// Build the live terrain cache with a static VMAP LOS provider wired into
+    /// every lazily-created map terrain.
+    ///
+    /// C++ startup creates/configures one `VMapManager2` and each map's
+    /// `TerrainInfo`/`Map::isInLineOfSight` consults it for static geometry. This
+    /// keeps the Rust live cache usable by a real provider once the VMAP
+    /// `StaticMapTree` parser owns model geometry; without a provider, LOS
+    /// remains C++'s disabled/missing-tree clear fallback.
+    #[must_use]
+    pub fn new_with_static_vmap_line_of_sight(
+        data_dir: impl AsRef<Path>,
+        provider: SharedStaticVMapLineOfSightProvider,
+    ) -> Self {
+        Self::new_with_optional_static_vmap_line_of_sight(data_dir, Some(provider))
+    }
+
+    #[must_use]
+    fn new_with_optional_static_vmap_line_of_sight(
+        data_dir: impl AsRef<Path>,
+        static_vmap_los: Option<SharedStaticVMapLineOfSightProvider>,
+    ) -> Self {
         Self {
             data_dir: data_dir.as_ref().to_path_buf(),
+            static_vmap_los,
             per_map: Mutex::new(HashMap::new()),
         }
     }
 
     fn terrain_for_map(&self, map_id: u32) -> Arc<GridMapTerrain> {
         let mut per_map = self.per_map.lock().expect("live terrain cache poisoned");
-        Arc::clone(
-            per_map
-                .entry(map_id)
-                .or_insert_with(|| Arc::new(GridMapTerrain::new(map_id, &self.data_dir))),
-        )
+        Arc::clone(per_map.entry(map_id).or_insert_with(|| {
+            let terrain = GridMapTerrain::new(map_id, &self.data_dir);
+            let terrain = match &self.static_vmap_los {
+                Some(provider) => terrain.with_static_vmap_line_of_sight(Arc::clone(provider)),
+                None => terrain,
+            };
+            Arc::new(terrain)
+        }))
     }
 
     /// C++ `Map::GetHeight` (no VMap/GO-floor): the raw `.map` ground at `(x, y)`,
@@ -4299,6 +4328,7 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
     use wow_constants::{CreatureFlagsExtra, PhaseFlags};
     use wow_core::guid::HighGuid;
+    use wow_map::map::MapWorldObjectEnvironment;
 
     fn unique_temp_data_dir(test_name: &str) -> PathBuf {
         let unique = SystemTime::now()
@@ -4361,6 +4391,66 @@ mod tests {
             0,
             0,
         )
+    }
+
+    #[derive(Debug)]
+    struct RecordingLiveStaticVMapLos {
+        result: bool,
+        calls: std::sync::Mutex<Vec<wow_map::VMapLineOfSightQuery>>,
+    }
+
+    impl RecordingLiveStaticVMapLos {
+        fn new(result: bool) -> Self {
+            Self {
+                result,
+                calls: std::sync::Mutex::new(Vec::new()),
+            }
+        }
+    }
+
+    impl wow_map::StaticVMapLineOfSightProvider for RecordingLiveStaticVMapLos {
+        fn is_in_line_of_sight(&self, query: wow_map::VMapLineOfSightQuery) -> bool {
+            self.calls
+                .lock()
+                .expect("recording live vmap LOS calls poisoned")
+                .push(query);
+            self.result
+        }
+    }
+
+    #[test]
+    fn live_terrain_wires_static_vmap_los_provider_into_map_cache_like_cpp() {
+        let dir = unique_temp_data_dir("live-vmap-los-provider");
+        let provider = Arc::new(RecordingLiveStaticVMapLos::new(false));
+        let shared_provider: SharedStaticVMapLineOfSightProvider = provider.clone();
+        let terrain_cache =
+            LiveTerrainHeights::new_with_static_vmap_line_of_sight(&dir, shared_provider);
+
+        let terrain = terrain_cache.terrain_for_map(1);
+        let mut source = wow_entities::WorldObject::new(
+            false,
+            wow_constants::TypeId::Unit,
+            wow_constants::TypeMask::UNIT,
+        );
+        source.relocate(Position::new(10.0, 10.0, 1.0, 0.0));
+        let query = wow_entities::LineOfSightQuery::to_position_like_cpp(
+            &source,
+            Position::new(20.0, 10.0, 1.0, 0.0),
+            wow_entities::LineOfSightOptions::default(),
+        );
+
+        assert!(
+            !terrain.line_of_sight(query),
+            "live terrain must not bypass an installed static VMAP LOS provider"
+        );
+        let calls = provider
+            .calls
+            .lock()
+            .expect("recording live vmap LOS calls poisoned");
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].map_id, 1);
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
