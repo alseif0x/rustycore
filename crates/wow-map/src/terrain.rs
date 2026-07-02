@@ -2,16 +2,19 @@
 //!
 //! Faithful port of the height-query half of C++ `TerrainInfo` (`TerrainMgr.cpp`)
 //! for WoW 3.4.3: it owns the per-grid `.map` tiles for one map and answers
-//! `GetGridHeight` / `GetStaticHeight` / `Map::GetHeight`. It plugs into [`Map`]
+//! `GetGridHeight` / `GetStaticHeight` / `Map::GetHeight`, plus a narrow static
+//! VMAP line-of-sight hook for `Map::isInLineOfSight`. It plugs into [`Map`]
 //! through the [`TerrainGridLoader`] + [`MapWorldObjectEnvironment`] seams so the
 //! `WorldObject -> WorldObjectEnvironment -> Map -> terrain` chain returns real
-//! ground heights instead of the [`NoopTerrainGridLoader`] sentinel.
+//! ground/LOS answers instead of the [`NoopTerrainGridLoader`] sentinel.
 //!
-//! Scope (issue [03]/#15): **grid terrain height only**. VMap, liquid level, the
-//! dynamic GO-floor tree, and mmaps are out of scope here — exactly the branches
-//! that, in C++, would otherwise contribute to `GetStaticHeight`/`GetGameObjectFloor`.
-//! Those collapse to "no value" the same way C++ does when VMap/liquid are
-//! disabled, so the height returned is the raw `.map` surface (+ holes).
+//! Scope: grid terrain height is file-backed. Static VMAP LOS is delegated to a
+//! provider seam because the BIH/VMO parser is not in this slice. Liquid level,
+//! the dynamic GO-floor/LOS tree, and mmaps are out of scope here - exactly the
+//! branches that, in C++, would otherwise contribute to
+//! `GetStaticHeight`/`GetGameObjectFloor`/dynamic `LINEOFSIGHT_CHECK_GOBJECT`.
+//! Missing providers collapse to "no value" or clear LOS the same way C++ does
+//! when VMAP/liquid/GO LOS are disabled.
 //!
 //! [`Map`]: crate::map::Map
 //! [`NoopTerrainGridLoader`]: crate::map::NoopTerrainGridLoader
@@ -25,6 +28,7 @@ use wow_entities::{INVALID_HEIGHT, LineOfSightQuery, WorldObject, WorldObjectHei
 
 use crate::grid_map::GridMap;
 use crate::map::{MapWorldObjectEnvironment, TerrainGridLoader};
+use crate::vmap::{SharedStaticVMapLineOfSightProvider, VMapLineOfSightQuery};
 
 // C++ Grids/GridDefines.h
 const SIZE_OF_GRIDS: f32 = 533.333_3;
@@ -50,6 +54,7 @@ const GROUND_HEIGHT_TOLERANCE: f32 = 0.05;
 pub struct GridMapTerrain {
     map_id: u32,
     data_dir: PathBuf,
+    static_vmap_los: Option<SharedStaticVMapLineOfSightProvider>,
     /// Key = raw tile index `(gx, gy)`; value `Some` = loaded, `None` = tried and
     /// absent/invalid (cached negative so we do not re-stat every query). An
     /// absent key means "not yet attempted".
@@ -65,8 +70,20 @@ impl GridMapTerrain {
         Self {
             map_id,
             data_dir: data_dir.as_ref().to_path_buf(),
+            static_vmap_los: None,
             grids: Mutex::new(HashMap::new()),
         }
+    }
+
+    /// Attach a static VMAP LOS provider. Without one, C++ `VMapManager2`'s
+    /// disabled/missing-tree behavior is clear LOS.
+    #[must_use]
+    pub fn with_static_vmap_line_of_sight(
+        mut self,
+        provider: SharedStaticVMapLineOfSightProvider,
+    ) -> Self {
+        self.static_vmap_los = Some(provider);
+        self
     }
 
     pub fn map_id(&self) -> u32 {
@@ -151,10 +168,23 @@ impl TerrainGridLoader for GridMapTerrain {
 }
 
 impl MapWorldObjectEnvironment for GridMapTerrain {
-    fn line_of_sight(&self, _query: LineOfSightQuery<'_>) -> bool {
-        // No VMap/dynamic tree in scope: C++ `Map::isInLineOfSight` with VMap
-        // disabled reports clear LOS. Real occlusion arrives with the VMap port.
-        true
+    fn line_of_sight(&self, query: LineOfSightQuery<'_>) -> bool {
+        // C++ `Map::isInLineOfSight` checks static VMAP first:
+        // `VMapManager2::isInLineOfSight` returns true when LOS is disabled, the
+        // map tree is missing, or the converted endpoints are identical. The
+        // dynamic GO tree branch remains unported; `query.options.check_dynamic`
+        // is intentionally not treated as geometry evidence here.
+        let Some(static_vmap_los) = &self.static_vmap_los else {
+            return true;
+        };
+
+        let vmap_query =
+            VMapLineOfSightQuery::from_world(self.map_id, query.from.position, query.to.position);
+        if vmap_query.same_internal_position_like_cpp() {
+            return true;
+        }
+
+        static_vmap_los.is_in_line_of_sight(vmap_query)
     }
 
     fn map_height(
@@ -182,10 +212,43 @@ impl MapWorldObjectEnvironment for GridMapTerrain {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
     use std::sync::atomic::{AtomicU32, Ordering};
     use wow_constants::{TypeId, TypeMask};
+    use wow_entities::LineOfSightOptions;
 
     const Z_PROBE: f32 = 100_000.0; // MAX_HEIGHT-ish: always "above ground".
+
+    #[derive(Debug)]
+    struct RecordingStaticVMapLos {
+        result: bool,
+        calls: std::sync::Mutex<Vec<VMapLineOfSightQuery>>,
+    }
+
+    impl RecordingStaticVMapLos {
+        fn new(result: bool) -> Self {
+            Self {
+                result,
+                calls: std::sync::Mutex::new(Vec::new()),
+            }
+        }
+    }
+
+    impl crate::vmap::StaticVMapLineOfSightProvider for RecordingStaticVMapLos {
+        fn is_in_line_of_sight(&self, query: VMapLineOfSightQuery) -> bool {
+            self.calls
+                .lock()
+                .expect("recording vmap LOS calls poisoned")
+                .push(query);
+            self.result
+        }
+    }
+
+    fn player_world_object_at(position: Position) -> WorldObject {
+        let mut object = WorldObject::new(false, TypeId::Player, TypeMask::PLAYER | TypeMask::UNIT);
+        object.relocate(position);
+        object
+    }
 
     /// Unique scratch dir per test; cleaned on drop.
     struct TempMapsDir(PathBuf);
@@ -308,6 +371,98 @@ mod tests {
             WorldObjectHeightQuery::default(),
         );
         assert!((h - 33.0).abs() < 1e-2);
+    }
+
+    #[test]
+    fn line_of_sight_without_vmap_provider_reports_clear_like_cpp_disabled_vmap() {
+        let dir = TempMapsDir::new();
+        let terrain = GridMapTerrain::new(0, &dir.0);
+        let source = player_world_object_at(Position::new(1.0, 2.0, 3.0, 0.0));
+        let query = LineOfSightQuery::to_position_like_cpp(
+            &source,
+            Position::new(4.0, 5.0, 6.0, 0.0),
+            LineOfSightOptions::default(),
+        );
+
+        assert!(terrain.line_of_sight(query));
+    }
+
+    #[test]
+    fn line_of_sight_delegates_clear_result_to_static_vmap_provider_like_cpp() {
+        let dir = TempMapsDir::new();
+        let provider = Arc::new(RecordingStaticVMapLos::new(true));
+        let shared_provider: crate::vmap::SharedStaticVMapLineOfSightProvider = provider.clone();
+        let terrain =
+            GridMapTerrain::new(571, &dir.0).with_static_vmap_line_of_sight(shared_provider);
+        let source = player_world_object_at(Position::new(10.0, 20.0, 30.0, 0.0));
+        let query = LineOfSightQuery::to_position_like_cpp(
+            &source,
+            Position::new(15.0, 25.0, 35.0, 0.0),
+            LineOfSightOptions::default(),
+        );
+
+        assert!(terrain.line_of_sight(query));
+        let calls = provider
+            .calls
+            .lock()
+            .expect("recording vmap LOS calls poisoned");
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].map_id, 571);
+        assert_eq!(calls[0].from.world.x, 10.0);
+        assert_eq!(calls[0].from.world.y, 20.0);
+        assert_eq!(calls[0].from.world.z, 30.0);
+        assert_eq!(calls[0].to.world.x, 15.0);
+        assert_eq!(calls[0].to.world.y, 25.0);
+        assert_eq!(calls[0].to.world.z, 35.0);
+    }
+
+    #[test]
+    fn line_of_sight_delegates_blocking_geometry_to_static_vmap_provider_like_cpp() {
+        let dir = TempMapsDir::new();
+        let provider = Arc::new(RecordingStaticVMapLos::new(false));
+        let shared_provider: crate::vmap::SharedStaticVMapLineOfSightProvider = provider.clone();
+        let terrain =
+            GridMapTerrain::new(0, &dir.0).with_static_vmap_line_of_sight(shared_provider);
+        let source = player_world_object_at(Position::new(-1.0, -2.0, 3.0, 0.0));
+        let query = LineOfSightQuery::to_position_like_cpp(
+            &source,
+            Position::new(-4.0, -5.0, 6.0, 0.0),
+            LineOfSightOptions::default(),
+        );
+
+        assert!(!terrain.line_of_sight(query));
+        assert_eq!(
+            provider
+                .calls
+                .lock()
+                .expect("recording vmap LOS calls poisoned")
+                .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn line_of_sight_same_endpoint_skips_static_vmap_provider_like_cpp() {
+        let dir = TempMapsDir::new();
+        let provider = Arc::new(RecordingStaticVMapLos::new(false));
+        let shared_provider: crate::vmap::SharedStaticVMapLineOfSightProvider = provider.clone();
+        let terrain =
+            GridMapTerrain::new(0, &dir.0).with_static_vmap_line_of_sight(shared_provider);
+        let source = player_world_object_at(Position::new(7.0, 8.0, 9.0, 0.0));
+        let query = LineOfSightQuery::to_position_like_cpp(
+            &source,
+            Position::new(7.0, 8.0, 9.0, 2.0),
+            LineOfSightOptions::default(),
+        );
+
+        assert!(terrain.line_of_sight(query));
+        assert!(
+            provider
+                .calls
+                .lock()
+                .expect("recording vmap LOS calls poisoned")
+                .is_empty()
+        );
     }
 
     /// Real-data smoke check (not run in CI — needs the server's `DataDir`).
