@@ -58,8 +58,8 @@ use wow_packet::packets::quest::{
     quest_push_reason,
 };
 use wow_packet::packets::update::{
-    ItemCreateData, ItemEnchantmentValuesUpdate, PlayerDataValuesDeltaUpdate,
-    QuestLogValuesUpdate, UpdateObject,
+    ItemCreateData, ItemEnchantmentValuesUpdate, PlayerDataValuesDeltaUpdate, QuestLogValuesUpdate,
+    UpdateObject,
 };
 use wow_packet::{ClientPacket, ServerPacket};
 

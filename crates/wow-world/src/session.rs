@@ -3369,6 +3369,8 @@ pub(crate) struct LoadedEquippedItemEnchantmentsOutcomeLikeCpp {
     pub duration_updates: Vec<PlayerEnchantTimeUpdate>,
     pub send_stat_update: bool,
     pub visible_item_changes: Vec<(u8, i32, u16, u16)>,
+    pub effect_actions: Vec<RepresentedItemBonusActionLikeCpp>,
+    pub unrepresented_effect_actions: Vec<RepresentedItemBonusActionLikeCpp>,
 }
 
 impl LoadedEquippedItemEnchantmentsOutcomeLikeCpp {
@@ -3378,6 +3380,9 @@ impl LoadedEquippedItemEnchantmentsOutcomeLikeCpp {
         self.send_stat_update |= other.send_stat_update;
         self.visible_item_changes
             .append(&mut other.visible_item_changes);
+        self.effect_actions.append(&mut other.effect_actions);
+        self.unrepresented_effect_actions
+            .append(&mut other.unrepresented_effect_actions);
     }
 }
 
@@ -20738,13 +20743,18 @@ impl WorldSession {
                         outcome.duration_updates.push(duration_update);
                     }
                     if effects_allowed {
-                        outcome.send_stat_update |= self
-                            .apply_loaded_equipped_item_enchantment_effects_like_cpp(
+                        let (changed_stats, mut effect_actions, mut unrepresented_effect_actions) =
+                            self.apply_loaded_equipped_item_enchantment_effects_like_cpp(
                                 item_guid,
                                 slot,
                                 enchantment_id,
                                 apply,
                             );
+                        outcome.send_stat_update |= changed_stats;
+                        outcome.effect_actions.append(&mut effect_actions);
+                        outcome
+                            .unrepresented_effect_actions
+                            .append(&mut unrepresented_effect_actions);
                     }
                     if update_permanent_visible_item
                         && let Some(visible_item_update) =
@@ -20815,19 +20825,23 @@ impl WorldSession {
         slot: EnchantmentSlot,
         enchantment_id: i32,
         apply: bool,
-    ) -> bool {
+    ) -> (
+        bool,
+        Vec<RepresentedItemBonusActionLikeCpp>,
+        Vec<RepresentedItemBonusActionLikeCpp>,
+    ) {
         let Some(item) = self
             .inventory_item_objects_like_cpp()
             .get(&item_guid)
             .cloned()
         else {
-            return false;
+            return (false, Vec::new(), Vec::new());
         };
         let Some(effects) = u32::try_from(enchantment_id)
             .ok()
             .and_then(|enchantment_id| self.apply_enchantment_effect_refs(enchantment_id))
         else {
-            return false;
+            return (false, Vec::new(), Vec::new());
         };
         let item_template = self.item_storage_template(item.object().entry());
         let random_suffix =
@@ -20847,11 +20861,43 @@ impl WorldSession {
             .unwrap_or_default();
 
         let mut changed_stats = false;
+        let mut represented_actions = Vec::new();
+        let mut unrepresented_actions = Vec::new();
         for action in actions {
+            if matches!(action, ApplyEnchantmentEffectAction::Noop) {
+                continue;
+            }
             changed_stats |= Self::represented_item_bonus_action_updates_stats_like_cpp(action);
+            let represented_action = RepresentedItemBonusActionLikeCpp {
+                item_guid,
+                slot: slot as u8,
+                action,
+            };
+            self.represented_item_bonus_actions_like_cpp
+                .push(represented_action.clone());
+            if Self::loaded_enchantment_effect_action_is_unrepresented_like_cpp(action) {
+                unrepresented_actions.push(represented_action.clone());
+            }
+            represented_actions.push(represented_action);
             self.apply_represented_item_bonus_action_state_like_cpp(action);
         }
-        changed_stats
+        (changed_stats, represented_actions, unrepresented_actions)
+    }
+
+    fn loaded_enchantment_effect_action_is_unrepresented_like_cpp(
+        action: ApplyEnchantmentEffectAction,
+    ) -> bool {
+        matches!(
+            action,
+            ApplyEnchantmentEffectAction::DeferredCombatSpell
+                | ApplyEnchantmentEffectAction::DeferredUseSpell
+                | ApplyEnchantmentEffectAction::UpdateDamageDoneMods { .. }
+                | ApplyEnchantmentEffectAction::CastEquipSpell { .. }
+                | ApplyEnchantmentEffectAction::RemoveEquipSpellAura { .. }
+                | ApplyEnchantmentEffectAction::UnhandledStatModifier { .. }
+                | ApplyEnchantmentEffectAction::MissingItemTemplateForAttack { .. }
+                | ApplyEnchantmentEffectAction::Unknown { .. }
+        )
     }
 
     /// Set the hotfix blob cache for this session.
@@ -26987,12 +27033,7 @@ impl WorldSession {
         let class = self.player_class_like_cpp();
         let gender = self.player_gender_like_cpp();
         let level = self.player_level_like_cpp();
-        let mut visible_items = [(0i32, 0u16, 0u16); 19];
-        for (slot, item) in self.inventory_items_like_cpp() {
-            if (*slot as usize) < 19 {
-                visible_items[*slot as usize] = (item.entry_id as i32, 0u16, 0u16);
-            }
-        }
+        let visible_items = self.loaded_player_visible_items_for_create_like_cpp();
         // Fallback to 0 (world/default instance) when no canonical map key is
         // available — mirrors C++ world-map phase where instance_id == 0.
         let instance_id = self
@@ -50464,6 +50505,22 @@ impl WorldSession {
             .unwrap_or(RuntimeTickOwner::Session)
     }
 
+    fn loaded_player_visible_items_for_create_like_cpp(&self) -> [(i32, u16, u16); 19] {
+        let mut visible_items = [(0i32, 0u16, 0u16); 19];
+        for (slot, item) in self.inventory_items_like_cpp() {
+            if (*slot as usize) < 19 {
+                visible_items[*slot as usize] = self
+                    .inventory_item_objects_like_cpp()
+                    .get(&item.guid)
+                    .map(|item_object| {
+                        self.loaded_inventory_item_visible_fields_like_cpp(item_object)
+                    })
+                    .unwrap_or((item.entry_id as i32, 0u16, 0u16));
+            }
+        }
+        visible_items
+    }
+
     /// Broadcast the newly logged-in player's CREATE block to nearby players on the same map.
     ///
     /// Called after login is complete. Iterates through all players in the registry
@@ -50498,12 +50555,7 @@ impl WorldSession {
         let level = self.player_level_like_cpp();
 
         // Build visible_items from this player's equipped inventory.
-        let mut visible_items = [(0i32, 0u16, 0u16); 19];
-        for (slot, item) in self.inventory_items_like_cpp() {
-            if (*slot as usize) < 19 {
-                visible_items[*slot as usize] = (item.entry_id as i32, 0u16, 0u16);
-            }
-        }
+        let visible_items = self.loaded_player_visible_items_for_create_like_cpp();
         let empty_inv_slots = [ObjectGuid::EMPTY; 141];
         let empty_skills = Vec::new();
 
@@ -87772,6 +87824,58 @@ mod tests {
     }
 
     #[test]
+    fn loaded_player_visible_items_for_create_includes_loaded_enchant_visual_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 90_526);
+        let item_guid = ObjectGuid::create_item(1, 90_527);
+        session.set_player_guid(Some(player_guid));
+        session.set_spell_item_enchantment_store(Arc::new(
+            SpellItemEnchantmentStore::from_entries([SpellItemEnchantmentEntry {
+                id: 908,
+                effect_arg: [0; 3],
+                effect_points_min: [0; 3],
+                item_visual: 44,
+                flags: SpellItemEnchantmentFlags::empty(),
+                required_skill_id: 0,
+                required_skill_rank: 0,
+                item_level: 1,
+                charges: 0,
+                effect: [ItemEnchantmentType::None as u8; 3],
+                condition_id: 0,
+                min_level: 1,
+                max_level: 0,
+            }]),
+        ));
+        session.insert_inventory_item_like_cpp(
+            EQUIPMENT_SLOT_MAINHAND,
+            InventoryItem {
+                guid: item_guid,
+                entry_id: 700,
+                db_guid: 90_527,
+                inventory_type: Some(InventoryType::Weapon as u8),
+            },
+        );
+        let mut item = session.make_inventory_item_object(
+            item_guid,
+            700,
+            player_guid,
+            1,
+            0,
+            ItemContext::None,
+            EQUIPMENT_SLOT_MAINHAND,
+        );
+        item.set_enchantment(EnchantmentSlot::EnhancementPermanent, 908, 0, 0);
+        session.insert_inventory_item_object(item);
+
+        let visible_items = session.loaded_player_visible_items_for_create_like_cpp();
+
+        assert_eq!(
+            visible_items[EQUIPMENT_SLOT_MAINHAND as usize],
+            (700, 0, 44)
+        );
+    }
+
+    #[test]
     fn create_player_broadcast_skips_out_of_visibility_range_like_cpp() {
         let (mut session, _, _) = make_session();
         let guid = ObjectGuid::create_player(1, 42);
@@ -120140,6 +120244,12 @@ mod tests {
             session.represented_item_bonus_state_like_cpp().health_base,
             17
         );
+        assert_eq!(outcome.effect_actions.len(), 1);
+        assert!(matches!(
+            outcome.effect_actions[0].action,
+            ApplyEnchantmentEffectAction::UnitModifier { .. }
+        ));
+        assert!(outcome.unrepresented_effect_actions.is_empty());
         assert!(outcome.send_stat_update);
         assert!(
             send_rx.try_recv().is_err(),
@@ -120152,6 +120262,71 @@ mod tests {
                 .any(|bytes| WorldPacket::from_bytes(bytes).server_opcode()
                     == Some(ServerOpcodes::UpdateObject)),
             "loaded enchantment effects send a represented player stat update"
+        );
+    }
+
+    #[test]
+    fn loaded_equipped_item_enchantments_records_unrepresented_effect_actions_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 90_524);
+        let player_position = Position::new(1.0, 2.0, 3.0, 0.0);
+        let item_guid = ObjectGuid::create_item(1, 90_525);
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+        session
+            .mutate_canonical_player_like_cpp(|player| player.unit_mut().set_level(80))
+            .unwrap();
+        session.set_spell_item_enchantment_store(Arc::new(
+            SpellItemEnchantmentStore::from_entries([SpellItemEnchantmentEntry {
+                id: 907,
+                effect_arg: [1234, 0, 0],
+                effect_points_min: [0, 0, 0],
+                item_visual: 0,
+                flags: SpellItemEnchantmentFlags::empty(),
+                required_skill_id: 0,
+                required_skill_rank: 0,
+                item_level: 1,
+                charges: 0,
+                effect: [
+                    ItemEnchantmentType::EquipSpell as u8,
+                    ItemEnchantmentType::None as u8,
+                    ItemEnchantmentType::None as u8,
+                ],
+                condition_id: 0,
+                min_level: 1,
+                max_level: 0,
+            }]),
+        ));
+
+        let mut item = session.make_inventory_item_object(
+            item_guid,
+            702,
+            player_guid,
+            1,
+            0,
+            ItemContext::None,
+            EQUIPMENT_SLOT_CHEST,
+        );
+        item.set_enchantment(EnchantmentSlot::EnhancementPermanent, 907, 0, 0);
+        session.insert_inventory_item_object(item);
+
+        let outcome = session.apply_loaded_equipped_item_enchantments_like_cpp(item_guid);
+
+        assert!(matches!(
+            outcome.effect_actions.first().map(|action| action.action),
+            Some(ApplyEnchantmentEffectAction::CastEquipSpell {
+                spell_id: 1234,
+                item_guid: action_item_guid,
+            }) if action_item_guid == item_guid
+        ));
+        assert_eq!(outcome.unrepresented_effect_actions, outcome.effect_actions);
+        assert!(!outcome.send_stat_update);
+        assert_eq!(
+            session.represented_item_bonus_actions_like_cpp(),
+            outcome.effect_actions.as_slice()
         );
     }
 

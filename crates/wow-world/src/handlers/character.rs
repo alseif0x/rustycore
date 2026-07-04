@@ -237,7 +237,11 @@ fn loaded_item_effective_enchantments_like_cpp(
         }
     }
 
-    if let Some(loaded_enchantments) = loaded_enchantments {
+    if let Some(loaded_enchantments) = loaded_enchantments
+        && loaded_enchantments.iter().any(|enchantment| {
+            enchantment.id != 0 || enchantment.duration != 0 || enchantment.charges != 0
+        })
+    {
         values = *loaded_enchantments;
     }
 
@@ -5294,12 +5298,6 @@ impl WorldSession {
             // inventory_type is now loaded from the canonical ItemTemplate bridge.
             // No SQL cache needed.
         }
-        let mut loaded_enchantment_updates =
-            LoadedEquippedItemEnchantmentsOutcomeLikeCpp::default();
-        for item_guid in loaded_equipped_item_guids {
-            loaded_enchantment_updates
-                .append(self.apply_loaded_equipped_item_enchantments_like_cpp(item_guid));
-        }
         self.sync_player_inventory_like_cpp();
 
         // ── Load equipment sets / transmog outfits ──
@@ -5712,6 +5710,12 @@ impl WorldSession {
         }
         if loaded_skill_records_like_cpp {
             self.set_player_skill_records_like_cpp(skill_records);
+        }
+        let mut loaded_enchantment_updates =
+            LoadedEquippedItemEnchantmentsOutcomeLikeCpp::default();
+        for item_guid in loaded_equipped_item_guids {
+            loaded_enchantment_updates
+                .append(self.apply_loaded_equipped_item_enchantments_like_cpp(item_guid));
         }
 
         // ── Load talents from character_talent ──
@@ -15201,6 +15205,39 @@ mod tests {
         );
         assert_eq!(
             item.data().enchantments[EnchantmentSlot::Property4 as usize].id,
+            1003
+        );
+    }
+
+    #[test]
+    fn loaded_item_instance_fields_rebuild_random_property_slots_for_zero_db_string_like_cpp() {
+        let properties = wow_data::ItemRandomPropertiesStore::from_entries([
+            wow_data::ItemRandomPropertiesEntry {
+                id: 77,
+                enchantments: [1001, 1002, 1003, 0, 0],
+            },
+        ]);
+        let enchantments = test_item_enchantments_db_string(&[]);
+        let enchantments =
+            loaded_item_enchantments_like_cpp(&enchantments).expect("valid C++ enchantment string");
+
+        let effective_enchantments = loaded_item_effective_enchantments_like_cpp(
+            Some(&enchantments),
+            77,
+            Some(&properties),
+            None,
+        );
+
+        assert_eq!(
+            effective_enchantments[EnchantmentSlot::Property2 as usize].id,
+            1001
+        );
+        assert_eq!(
+            effective_enchantments[EnchantmentSlot::Property3 as usize].id,
+            1002
+        );
+        assert_eq!(
+            effective_enchantments[EnchantmentSlot::Property4 as usize].id,
             1003
         );
     }
