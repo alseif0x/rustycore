@@ -53548,6 +53548,21 @@ impl WorldSession {
         true
     }
 
+    pub(crate) fn player_current_map_instanceable_like_cpp(&self) -> bool {
+        let map_id = u32::from(self.player_map_id_like_cpp());
+        self.map_store()
+            .and_then(|store| store.get(map_id))
+            .is_some_and(|entry| entry.instance_type != wow_data::map::MAP_COMMON)
+    }
+
+    pub(crate) async fn seed_represented_homebind_from_load_like_cpp(
+        &mut self,
+        homebind: RepresentedHomebindLikeCpp,
+    ) {
+        self.represented_homebind_like_cpp = Some(homebind);
+        self.persist_player_homebind_like_cpp(homebind).await;
+    }
+
     async fn set_homebind_like_cpp(
         &mut self,
         binder_id: ObjectGuid,

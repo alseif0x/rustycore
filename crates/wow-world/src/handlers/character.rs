@@ -4950,6 +4950,14 @@ impl WorldSession {
                             ),
                         };
                         self.set_represented_homebind_like_cpp(homebind);
+                    } else {
+                        let homebind = RepresentedHomebindLikeCpp {
+                            map_id: u32::try_from(map_id).unwrap_or(0),
+                            area_id: u32::try_from(zone).unwrap_or(0),
+                            position,
+                        };
+                        self.seed_represented_homebind_from_load_like_cpp(homebind)
+                            .await;
                     }
                 }
                 Err(error) => {
@@ -10790,12 +10798,25 @@ impl WorldSession {
             );
             return;
         };
+        if self.player_current_map_instanceable_like_cpp() {
+            debug!(
+                innkeeper_guid = ?hello.unit,
+                map_id = self.player_map_id_like_cpp(),
+                "BinderActivate rejected: current map is instanceable like C++ SendBindPoint"
+            );
+            return;
+        }
 
         // C++ SendBindPoint has the creature cast spell 3286 on the player.
         // The represented spell hook stores the same current-location bind.
-        let _ = self
+        if self
             .set_homebind_to_current_location_like_cpp(hello.unit)
-            .await;
+            .await
+        {
+            self.send_packet(&GossipComplete {
+                suppress_sound: false,
+            });
+        }
     }
 
     /// CMSG_TABARD_VENDOR_ACTIVATE — player talks to a tabard designer.
@@ -20388,8 +20409,37 @@ mod tests {
         );
         assert_eq!(
             drain_server_opcodes(&send_rx),
-            vec![ServerOpcodes::BindPointUpdate, ServerOpcodes::PlayerBound]
+            vec![
+                ServerOpcodes::BindPointUpdate,
+                ServerOpcodes::PlayerBound,
+                ServerOpcodes::GossipComplete,
+            ]
         );
+    }
+
+    #[tokio::test]
+    async fn binder_activate_rejects_instanceable_map_like_cpp() {
+        let (mut session, send_rx, canonical) = make_bank_slot_session(1);
+        let innkeeper = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 31);
+        insert_banker_creature(&canonical, innkeeper, NPCFlags1::INNKEEPER.bits());
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_INSTANCE,
+                expansion_id: 2,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+
+        session
+            .handle_binder_activate(Hello { unit: innkeeper })
+            .await;
+
+        assert!(session.represented_homebind_like_cpp().is_none());
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[tokio::test]
