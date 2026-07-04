@@ -2961,6 +2961,43 @@ pub(crate) fn remove_canonical_creature_map_object_on_map_like_cpp(
     let _ = map.map_mut().remove_from_map_like_cpp(guid, true);
 }
 
+pub(crate) fn add_canonical_creature_respawn_info_on_map_like_cpp(
+    manager: &SharedCanonicalMapManager,
+    map_id: u32,
+    instance_id: u32,
+    info: wow_map::RespawnInfoLikeCpp,
+) -> bool {
+    let Ok(mut manager) = manager.lock() else {
+        return false;
+    };
+    let Some(map) = manager.find_map_mut(map_id, instance_id) else {
+        return false;
+    };
+    matches!(
+        map.map_mut().add_respawn_info_like_cpp(info),
+        wow_map::AddRespawnInfoOutcomeLikeCpp::Inserted
+            | wow_map::AddRespawnInfoOutcomeLikeCpp::ReplacedExisting
+    )
+}
+
+pub(crate) fn remove_canonical_respawn_time_on_map_like_cpp(
+    manager: &SharedCanonicalMapManager,
+    map_id: u32,
+    instance_id: u32,
+    object_type: wow_map::SpawnObjectType,
+    spawn_id: wow_map::SpawnId,
+) -> bool {
+    let Ok(mut manager) = manager.lock() else {
+        return false;
+    };
+    let Some(map) = manager.find_map_mut(map_id, instance_id) else {
+        return false;
+    };
+    map.map_mut()
+        .remove_respawn_time_like_cpp(object_type, spawn_id)
+        .is_some()
+}
+
 #[derive(Debug, Clone)]
 pub struct LegacyCreatureMovementTickOutcomeLikeCpp {
     pub skipped_owner_not_global: bool,
@@ -2981,6 +3018,8 @@ pub struct LegacyCreatureLifecycleTickOutcomeLikeCpp {
     pub respawn_db_statements: Vec<PreparedStatement>,
     pub canonical_removes: usize,
     pub canonical_inserts: usize,
+    pub canonical_respawn_adds: usize,
+    pub canonical_respawn_removes: usize,
     /// Map instances whose sessions must recompute creature visibility.
     pub refresh_map_keys: Vec<(u16, u32)>,
 }
@@ -46573,13 +46612,17 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
 ) -> LegacyCreatureLifecycleTickOutcomeLikeCpp {
     use crate::map_manager::{
         RuntimeTickOwner, pending_respawn_from_world_creature_like_cpp,
-        world_creature_from_pending_respawn_like_cpp, world_to_grid_coords,
+        respawn_time_from_instant_like_cpp, world_creature_from_pending_respawn_like_cpp,
+        world_to_grid_coords,
     };
     use std::collections::BTreeSet;
 
     let mut outcome = LegacyCreatureLifecycleTickOutcomeLikeCpp::default();
     let mut affected_maps = BTreeSet::new();
     let mut canonical_removes: Vec<(u32, u32, ObjectGuid)> = Vec::new();
+    let mut canonical_respawn_adds: Vec<(u32, u32, wow_map::RespawnInfoLikeCpp)> = Vec::new();
+    let mut canonical_respawn_removes: Vec<(u32, u32, wow_map::SpawnObjectType, wow_map::SpawnId)> =
+        Vec::new();
     let mut canonical_inserts: Vec<(u32, u32, wow_entities::Creature)> = Vec::new();
     let now_secs = unix_now();
 
@@ -46624,6 +46667,14 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                     );
                 let pending =
                     pending_respawn_from_world_creature_like_cpp(&creature, respawn_at, map_id);
+                let grid = wow_map::compute_grid_coord(pending.home_pos.x, pending.home_pos.y);
+                let canonical_respawn_info = wow_map::RespawnInfoLikeCpp {
+                    object_type: wow_map::SpawnObjectType::Creature,
+                    spawn_id: pending.spawn_id,
+                    entry: pending.create_data.entry,
+                    respawn_time: respawn_time_from_instant_like_cpp(respawn_at, now, now_secs),
+                    grid_id: grid.get_id(),
+                };
                 if let Some(stmt) = manager.save_pending_respawn_time_like_cpp(
                     map_id,
                     instance_id,
@@ -46635,6 +46686,11 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                 }
                 manager.push_respawn(map_id, instance_id, pending);
                 canonical_removes.push((u32::from(map_id), instance_id, guid));
+                canonical_respawn_adds.push((
+                    u32::from(map_id),
+                    instance_id,
+                    canonical_respawn_info,
+                ));
                 affected_maps.insert((map_id, instance_id));
                 outcome.corpses_despawned += 1;
             }
@@ -46669,6 +46725,12 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                     ) {
                         outcome.respawn_db_statements.push(stmt);
                     }
+                    canonical_respawn_removes.push((
+                        u32::from(map_id),
+                        instance_id,
+                        wow_map::SpawnObjectType::Creature,
+                        respawn.spawn_id,
+                    ));
                     canonical_inserts.push((u32::from(map_id), instance_id, canonical_creature));
                     affected_maps.insert((map_id, instance_id));
                     outcome.respawns_processed += 1;
@@ -46686,6 +46748,27 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                 guid,
             );
             outcome.canonical_removes += 1;
+        }
+        for (map_id, instance_id, info) in canonical_respawn_adds {
+            if add_canonical_creature_respawn_info_on_map_like_cpp(
+                canonical_map_manager,
+                map_id,
+                instance_id,
+                info,
+            ) {
+                outcome.canonical_respawn_adds += 1;
+            }
+        }
+        for (map_id, instance_id, object_type, spawn_id) in canonical_respawn_removes {
+            if remove_canonical_respawn_time_on_map_like_cpp(
+                canonical_map_manager,
+                map_id,
+                instance_id,
+                object_type,
+                spawn_id,
+            ) {
+                outcome.canonical_respawn_removes += 1;
+            }
         }
         for (map_id, instance_id, creature) in canonical_inserts {
             insert_canonical_creature_map_object_on_map_like_cpp(
@@ -127560,6 +127643,8 @@ mod tests {
         );
         assert_eq!(outcome.canonical_removes, 1);
         assert_eq!(outcome.canonical_inserts, 0);
+        assert_eq!(outcome.canonical_respawn_adds, 1);
+        assert_eq!(outcome.canonical_respawn_removes, 0);
         assert_eq!(outcome.refresh_map_keys, vec![(0, 0)]);
 
         {
@@ -127584,6 +127669,18 @@ mod tests {
                     .get_typed_creature(guid)
                     .is_none(),
                 "canonical map object must be removed outside the legacy lock"
+            );
+            assert!(
+                guard
+                    .find_map(0, 0)
+                    .unwrap()
+                    .map()
+                    .get_respawn_time_like_cpp(
+                        wow_map::SpawnObjectType::Creature,
+                        (guid.low_value() as u64) & 0xFF_FFFF_FFFF,
+                    )
+                    > 0,
+                "canonical respawn store must retain the same timer C++ Map::SaveRespawnTime adds"
             );
         }
     }
@@ -127629,6 +127726,22 @@ mod tests {
             0,
         );
         {
+            let grid = wow_map::compute_grid_coord(pending.home_pos.x, pending.home_pos.y);
+            canonical
+                .lock()
+                .unwrap()
+                .find_map_mut(0, 0)
+                .unwrap()
+                .map_mut()
+                .add_respawn_info_like_cpp(wow_map::RespawnInfoLikeCpp {
+                    object_type: wow_map::SpawnObjectType::Creature,
+                    spawn_id: pending.spawn_id,
+                    entry: pending.create_data.entry,
+                    respawn_time: unix_now() + 1,
+                    grid_id: grid.get_id(),
+                });
+        }
+        {
             let mut guard = manager.write().unwrap();
             guard.save_pending_respawn_time_like_cpp(0, 0, &pending, now, unix_now());
             guard.push_respawn(0, 0, pending);
@@ -127648,6 +127761,8 @@ mod tests {
         );
         assert_eq!(outcome.canonical_removes, 0);
         assert_eq!(outcome.canonical_inserts, 1);
+        assert_eq!(outcome.canonical_respawn_adds, 0);
+        assert_eq!(outcome.canonical_respawn_removes, 1);
         assert_eq!(outcome.refresh_map_keys, vec![(0, 0)]);
 
         {
@@ -127673,6 +127788,18 @@ mod tests {
             assert!(
                 typed.unit().world().phase_shift().has_phase_like_cpp(77),
                 "canonical respawn must preserve the captured phase shift"
+            );
+            assert_eq!(
+                guard
+                    .find_map(0, 0)
+                    .unwrap()
+                    .map()
+                    .get_respawn_time_like_cpp(
+                        wow_map::SpawnObjectType::Creature,
+                        (guid.low_value() as u64) & 0xFF_FFFF_FFFF,
+                    ),
+                0,
+                "ready respawn must clear the canonical timer before the grid can reload stale state"
             );
         }
     }
