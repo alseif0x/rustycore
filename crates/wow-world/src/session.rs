@@ -129,11 +129,12 @@ use wow_database::{
     SqlTransaction, StatementDef, WorldDatabase,
 };
 use wow_entities::{
-    AccessorObjectKind, ActiveState, ApplyEnchantmentArgs, ApplyEnchantmentEffectAction,
-    ApplyEnchantmentEffectRef, ApplyEnchantmentPlan, ApplyEnchantmentRandomSuffixRef,
-    ApplyEnchantmentTemplateRef, BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_COUNT,
-    BUYBACK_SLOT_END, BUYBACK_SLOT_START, BagTemplateRef, CanEquipItemArgs, CanEquipUniqueItemArgs,
-    CanStoreItemArgs, CanUnequipItemArgs, CanUseItemArgs, CanUseItemTemplateArgs,
+    AccessorObjectKind, ActiveState, ApplyEnchantmentArgs, ApplyEnchantmentDurationAction,
+    ApplyEnchantmentEffectAction, ApplyEnchantmentEffectRef, ApplyEnchantmentPlan,
+    ApplyEnchantmentRandomSuffixRef, ApplyEnchantmentResult, ApplyEnchantmentTemplateRef,
+    BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_COUNT, BUYBACK_SLOT_END,
+    BUYBACK_SLOT_START, BagTemplateRef, CanEquipItemArgs, CanEquipUniqueItemArgs, CanStoreItemArgs,
+    CanUnequipItemArgs, CanUseItemArgs, CanUseItemTemplateArgs,
     CreatureAddonLifecycleRecordLikeCpp, EQUIPMENT_SLOT_BACK, EQUIPMENT_SLOT_BODY,
     EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_END, EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_FINGER1,
     EQUIPMENT_SLOT_FINGER2, EQUIPMENT_SLOT_HANDS, EQUIPMENT_SLOT_HEAD, EQUIPMENT_SLOT_LEGS,
@@ -20651,6 +20652,54 @@ impl WorldSession {
         });
         self.insert_inventory_item_object(item);
         plan
+    }
+
+    /// C++ `Player::_LoadInventory` finishes by `_ApplyAllItemMods`, which in
+    /// turn calls `ApplyEnchantment(m_items[i], true)` for equipped items.
+    pub(crate) fn apply_loaded_equipped_item_enchantments_like_cpp(
+        &mut self,
+        item_guid: ObjectGuid,
+    ) -> Vec<ApplyEnchantmentPlan> {
+        let slots = self
+            .inventory_item_objects_like_cpp()
+            .get(&item_guid)
+            .map(|item| {
+                item.data()
+                    .enchantments
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(slot_index, enchantment)| {
+                        if enchantment.id == 0 {
+                            return None;
+                        }
+                        <EnchantmentSlot as num_traits::FromPrimitive>::from_usize(slot_index)
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+
+        let mut plans = Vec::new();
+        let mut duration_updates = Vec::new();
+        for slot in slots {
+            if let Some(plan) = self.apply_current_player_item_enchantment_plan_like_cpp(
+                item_guid,
+                slot,
+                ApplyEnchantmentArgs::apply(),
+            ) {
+                if let ApplyEnchantmentResult::Applied {
+                    duration_action: Some(ApplyEnchantmentDurationAction::Added(duration_update)),
+                    ..
+                } = plan.result
+                {
+                    duration_updates.push(duration_update);
+                }
+                plans.push(plan);
+            }
+        }
+        if let Some(owner_guid) = self.player_guid() {
+            self.send_item_enchant_time_update_plans(owner_guid, &duration_updates);
+        }
+        plans
     }
 
     /// Set the hotfix blob cache for this session.
@@ -119735,6 +119784,120 @@ mod tests {
                 .enchantments[EnchantmentSlot::EnhancementTemporary as usize]
                 .id,
             905
+        );
+    }
+
+    #[test]
+    fn loaded_equipped_item_enchantments_apply_and_send_durations_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 90_520);
+        let player_position = Position::new(1.0, 2.0, 3.0, 0.0);
+        let item_guid = ObjectGuid::create_item(1, 90_521);
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+        session
+            .mutate_canonical_player_like_cpp(|player| player.unit_mut().set_level(80))
+            .unwrap();
+        session.set_spell_item_enchantment_store(Arc::new(
+            SpellItemEnchantmentStore::from_entries([
+                SpellItemEnchantmentEntry {
+                    id: 903,
+                    effect_arg: [0; 3],
+                    effect_points_min: [0; 3],
+                    item_visual: 0,
+                    flags: SpellItemEnchantmentFlags::empty(),
+                    required_skill_id: 0,
+                    required_skill_rank: 0,
+                    item_level: 1,
+                    charges: 0,
+                    effect: [ItemEnchantmentType::None as u8; 3],
+                    condition_id: 0,
+                    min_level: 1,
+                    max_level: 0,
+                },
+                SpellItemEnchantmentEntry {
+                    id: 904,
+                    effect_arg: [0; 3],
+                    effect_points_min: [0; 3],
+                    item_visual: 0,
+                    flags: SpellItemEnchantmentFlags::empty(),
+                    required_skill_id: 0,
+                    required_skill_rank: 0,
+                    item_level: 1,
+                    charges: 0,
+                    effect: [ItemEnchantmentType::None as u8; 3],
+                    condition_id: 0,
+                    min_level: 1,
+                    max_level: 0,
+                },
+            ]),
+        ));
+
+        let mut item = session.make_inventory_item_object(
+            item_guid,
+            700,
+            player_guid,
+            1,
+            0,
+            ItemContext::None,
+            EQUIPMENT_SLOT_MAINHAND,
+        );
+        item.set_enchantment(EnchantmentSlot::EnhancementPermanent, 904, 0, 0);
+        item.set_enchantment(EnchantmentSlot::EnhancementTemporary, 903, 6_000, 0);
+        session.insert_inventory_item_object(item);
+
+        let plans = session.apply_loaded_equipped_item_enchantments_like_cpp(item_guid);
+
+        assert_eq!(plans.len(), 2);
+        assert!(plans.iter().any(|plan| matches!(
+            plan.result,
+            ApplyEnchantmentResult::Applied {
+                item_guid: applied_item_guid,
+                slot: EnchantmentSlot::EnhancementPermanent,
+                enchantment_id: 904,
+                apply: true,
+                update_permanent_visible_item: true,
+                ..
+            } if applied_item_guid == item_guid
+        )));
+        assert!(plans.iter().any(|plan| matches!(
+            plan.result,
+            ApplyEnchantmentResult::Applied {
+                item_guid: applied_item_guid,
+                slot: EnchantmentSlot::EnhancementTemporary,
+                enchantment_id: 903,
+                apply: true,
+                duration_action: Some(ApplyEnchantmentDurationAction::Added(
+                    PlayerEnchantTimeUpdate {
+                        item_guid: duration_item_guid,
+                        slot: EnchantmentSlot::EnhancementTemporary,
+                        duration_secs: 6,
+                    }
+                )),
+                ..
+            } if applied_item_guid == item_guid && duration_item_guid == item_guid
+        )));
+        assert_eq!(
+            session
+                .canonical_player_snapshot_like_cpp(|player| player.enchant_durations().to_vec()),
+            Some(vec![PlayerEnchantDuration {
+                item_guid,
+                slot: EnchantmentSlot::EnhancementTemporary,
+                left_duration_ms: 6_000,
+            }])
+        );
+        assert_eq!(
+            send_rx.try_recv().unwrap(),
+            ItemEnchantTimeUpdate {
+                owner_guid: player_guid,
+                item_guid,
+                duration_left: 6,
+                slot: EnchantmentSlot::EnhancementTemporary as u32,
+            }
+            .to_bytes()
         );
     }
 

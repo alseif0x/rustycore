@@ -39,12 +39,12 @@ use wow_database::{
 };
 use wow_entities::{
     BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_START,
-    CreatureAddonLifecycleRecordLikeCpp, GAMEOBJECT_TYPE_FISHING_HOLE, GAMEOBJECT_TYPE_QUESTGIVER,
-    GameObjectTemplateData, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END,
-    INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, MAX_BAG_SIZE, MAX_GAMEOBJECT_DATA,
-    MovementGeneratorType, NULL_BAG, NULL_SLOT, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START,
-    WorldObject, is_equipment_pos, is_inventory_pos,
-    normalize_creature_chase_movement_type_like_cpp,
+    CreatureAddonLifecycleRecordLikeCpp, EQUIPMENT_SLOT_END, GAMEOBJECT_TYPE_FISHING_HOLE,
+    GAMEOBJECT_TYPE_QUESTGIVER, GameObjectTemplateData, INVENTORY_DEFAULT_SIZE,
+    INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
+    INVENTORY_SLOT_ITEM_START, MAX_BAG_SIZE, MAX_GAMEOBJECT_DATA, MovementGeneratorType, NULL_BAG,
+    NULL_SLOT, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, WorldObject, is_equipment_pos,
+    is_inventory_pos, normalize_creature_chase_movement_type_like_cpp,
     normalize_creature_random_movement_type_like_cpp,
 };
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
@@ -4945,6 +4945,7 @@ impl WorldSession {
         let mut inv_slots = [ObjectGuid::EMPTY; 141];
         let mut item_creates: Vec<wow_packet::packets::update::ItemCreateData> = Vec::new();
         let mut login_bag_create_index_by_slot: HashMap<u8, usize> = HashMap::new();
+        let mut loaded_equipped_item_guids: Vec<ObjectGuid> = Vec::new();
         let realm_id = self.realm_id();
         self.clear_inventory_items_and_objects_like_cpp();
         self.clear_player_currencies_like_cpp();
@@ -5093,6 +5094,9 @@ impl WorldSession {
                                 );
                                 item_object.set_state(ItemUpdateState::Unchanged);
                                 self.insert_inventory_item_object(item_object);
+                                if slot < EQUIPMENT_SLOT_END {
+                                    loaded_equipped_item_guids.push(item_guid);
+                                }
                                 // Slots 0-18 also populate VisibleItems for character model
                                 if (slot as usize) < 19 {
                                     visible_items[slot as usize] = (item_entry as i32, 0, 0);
@@ -5239,6 +5243,9 @@ impl WorldSession {
 
             // inventory_type is now loaded from the canonical ItemTemplate bridge.
             // No SQL cache needed.
+        }
+        for item_guid in loaded_equipped_item_guids {
+            let _ = self.apply_loaded_equipped_item_enchantments_like_cpp(item_guid);
         }
         self.sync_player_inventory_like_cpp();
 
