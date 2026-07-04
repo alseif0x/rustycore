@@ -16748,6 +16748,26 @@ impl WorldSession {
         true
     }
 
+    fn represented_item_bonus_action_updates_stats_like_cpp(
+        action: ApplyEnchantmentEffectAction,
+    ) -> bool {
+        matches!(
+            action,
+            ApplyEnchantmentEffectAction::UnitModifier { .. }
+                | ApplyEnchantmentEffectAction::UpdateStatBuffMod(_)
+                | ApplyEnchantmentEffectAction::RatingModifier { .. }
+                | ApplyEnchantmentEffectAction::ManaRegenBonus { .. }
+                | ApplyEnchantmentEffectAction::SpellPowerBonus { .. }
+                | ApplyEnchantmentEffectAction::HealthRegenBonus { .. }
+                | ApplyEnchantmentEffectAction::SpellPenetrationBonus { .. }
+                | ApplyEnchantmentEffectAction::BaseModFlatValue { .. }
+                | ApplyEnchantmentEffectAction::SetShieldBlockValue { .. }
+                | ApplyEnchantmentEffectAction::SetBaseWeaponDamage { .. }
+                | ApplyEnchantmentEffectAction::SetBaseAttackTime { .. }
+                | ApplyEnchantmentEffectAction::UpdateDamagePhysical { .. }
+        )
+    }
+
     fn apply_represented_item_bonus_action_state_like_cpp(
         &mut self,
         action: ApplyEnchantmentEffectAction,
@@ -20680,6 +20700,7 @@ impl WorldSession {
 
         let mut plans = Vec::new();
         let mut duration_updates = Vec::new();
+        let mut send_stat_update = false;
         for slot in slots {
             if let Some(plan) = self.apply_current_player_item_enchantment_plan_like_cpp(
                 item_guid,
@@ -20687,11 +20708,27 @@ impl WorldSession {
                 ApplyEnchantmentArgs::apply(),
             ) {
                 if let ApplyEnchantmentResult::Applied {
-                    duration_action: Some(ApplyEnchantmentDurationAction::Added(duration_update)),
+                    enchantment_id,
+                    apply,
+                    effects_allowed,
+                    duration_action,
                     ..
                 } = plan.result
                 {
-                    duration_updates.push(duration_update);
+                    if let Some(ApplyEnchantmentDurationAction::Added(duration_update)) =
+                        duration_action
+                    {
+                        duration_updates.push(duration_update);
+                    }
+                    if effects_allowed {
+                        send_stat_update |= self
+                            .apply_loaded_equipped_item_enchantment_effects_like_cpp(
+                                item_guid,
+                                slot,
+                                enchantment_id,
+                                apply,
+                            );
+                    }
                 }
                 plans.push(plan);
             }
@@ -20699,7 +20736,55 @@ impl WorldSession {
         if let Some(owner_guid) = self.player_guid() {
             self.send_item_enchant_time_update_plans(owner_guid, &duration_updates);
         }
+        if send_stat_update {
+            self.send_represented_item_bonus_player_stat_update_like_cpp();
+        }
         plans
+    }
+
+    fn apply_loaded_equipped_item_enchantment_effects_like_cpp(
+        &mut self,
+        item_guid: ObjectGuid,
+        slot: EnchantmentSlot,
+        enchantment_id: i32,
+        apply: bool,
+    ) -> bool {
+        let Some(item) = self
+            .inventory_item_objects_like_cpp()
+            .get(&item_guid)
+            .cloned()
+        else {
+            return false;
+        };
+        let Some(effects) = u32::try_from(enchantment_id)
+            .ok()
+            .and_then(|enchantment_id| self.apply_enchantment_effect_refs(enchantment_id))
+        else {
+            return false;
+        };
+        let item_template = self.item_storage_template(item.object().entry());
+        let random_suffix =
+            self.apply_enchantment_random_suffix_ref(item.data().random_properties_id);
+        let actions = self
+            .mutate_canonical_player_like_cpp(|player| {
+                player.apply_enchantment_effect_actions_for_enchantment(
+                    &item,
+                    item_template.as_ref(),
+                    slot,
+                    enchantment_id,
+                    random_suffix,
+                    apply,
+                    &effects,
+                )
+            })
+            .unwrap_or_default();
+
+        let mut changed_stats = false;
+        for action in actions {
+            changed_stats |= Self::represented_item_bonus_action_updates_stats_like_cpp(action);
+            self.apply_represented_item_bonus_action_state_like_cpp(action);
+        }
+        changed_stats
     }
 
     /// Set the hotfix blob cache for this session.
@@ -119898,6 +119983,78 @@ mod tests {
                 slot: EnchantmentSlot::EnhancementTemporary as u32,
             }
             .to_bytes()
+        );
+    }
+
+    #[test]
+    fn loaded_equipped_item_enchantments_apply_effect_actions_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 90_522);
+        let player_position = Position::new(1.0, 2.0, 3.0, 0.0);
+        let item_guid = ObjectGuid::create_item(1, 90_523);
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+        session
+            .mutate_canonical_player_like_cpp(|player| player.unit_mut().set_level(80))
+            .unwrap();
+        session.set_spell_item_enchantment_store(Arc::new(
+            SpellItemEnchantmentStore::from_entries([SpellItemEnchantmentEntry {
+                id: 906,
+                effect_arg: [ItemModType::Health as u32, 0, 0],
+                effect_points_min: [17, 0, 0],
+                item_visual: 0,
+                flags: SpellItemEnchantmentFlags::empty(),
+                required_skill_id: 0,
+                required_skill_rank: 0,
+                item_level: 1,
+                charges: 0,
+                effect: [
+                    ItemEnchantmentType::Stat as u8,
+                    ItemEnchantmentType::None as u8,
+                    ItemEnchantmentType::None as u8,
+                ],
+                condition_id: 0,
+                min_level: 1,
+                max_level: 0,
+            }]),
+        ));
+
+        let mut item = session.make_inventory_item_object(
+            item_guid,
+            701,
+            player_guid,
+            1,
+            0,
+            ItemContext::None,
+            EQUIPMENT_SLOT_CHEST,
+        );
+        item.set_enchantment(EnchantmentSlot::EnhancementPermanent, 906, 0, 0);
+        session.insert_inventory_item_object(item);
+
+        let plans = session.apply_loaded_equipped_item_enchantments_like_cpp(item_guid);
+
+        assert!(matches!(
+            plans.first().map(|plan| plan.result),
+            Some(ApplyEnchantmentResult::Applied {
+                enchantment_id: 906,
+                apply: true,
+                effects_allowed: true,
+                ..
+            })
+        ));
+        assert_eq!(
+            session.represented_item_bonus_state_like_cpp().health_base,
+            17
+        );
+        assert!(
+            drain_server_packet_bytes(&send_rx)
+                .iter()
+                .any(|bytes| WorldPacket::from_bytes(bytes).server_opcode()
+                    == Some(ServerOpcodes::UpdateObject)),
+            "loaded enchantment effects send a represented player stat update"
         );
     }
 
