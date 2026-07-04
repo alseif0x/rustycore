@@ -3363,6 +3363,24 @@ impl RepresentedCharacterSpellChargeLikeCpp {
     }
 }
 
+#[derive(Debug, Clone, Default)]
+pub(crate) struct LoadedEquippedItemEnchantmentsOutcomeLikeCpp {
+    pub plans: Vec<ApplyEnchantmentPlan>,
+    pub duration_updates: Vec<PlayerEnchantTimeUpdate>,
+    pub send_stat_update: bool,
+    pub visible_item_changes: Vec<(u8, i32, u16, u16)>,
+}
+
+impl LoadedEquippedItemEnchantmentsOutcomeLikeCpp {
+    pub(crate) fn append(&mut self, mut other: Self) {
+        self.plans.append(&mut other.plans);
+        self.duration_updates.append(&mut other.duration_updates);
+        self.send_stat_update |= other.send_stat_update;
+        self.visible_item_changes
+            .append(&mut other.visible_item_changes);
+    }
+}
+
 #[allow(dead_code)]
 fn represented_skill_records_from_values_like_cpp(
     skill_values: &HashMap<u16, u16>,
@@ -20679,7 +20697,7 @@ impl WorldSession {
     pub(crate) fn apply_loaded_equipped_item_enchantments_like_cpp(
         &mut self,
         item_guid: ObjectGuid,
-    ) -> Vec<ApplyEnchantmentPlan> {
+    ) -> LoadedEquippedItemEnchantmentsOutcomeLikeCpp {
         let slots = self
             .inventory_item_objects_like_cpp()
             .get(&item_guid)
@@ -20698,9 +20716,7 @@ impl WorldSession {
             })
             .unwrap_or_default();
 
-        let mut plans = Vec::new();
-        let mut duration_updates = Vec::new();
-        let mut send_stat_update = false;
+        let mut outcome = LoadedEquippedItemEnchantmentsOutcomeLikeCpp::default();
         for slot in slots {
             if let Some(plan) = self.apply_current_player_item_enchantment_plan_like_cpp(
                 item_guid,
@@ -20711,6 +20727,7 @@ impl WorldSession {
                     enchantment_id,
                     apply,
                     effects_allowed,
+                    update_permanent_visible_item,
                     duration_action,
                     ..
                 } = plan.result
@@ -20718,10 +20735,10 @@ impl WorldSession {
                     if let Some(ApplyEnchantmentDurationAction::Added(duration_update)) =
                         duration_action
                     {
-                        duration_updates.push(duration_update);
+                        outcome.duration_updates.push(duration_update);
                     }
                     if effects_allowed {
-                        send_stat_update |= self
+                        outcome.send_stat_update |= self
                             .apply_loaded_equipped_item_enchantment_effects_like_cpp(
                                 item_guid,
                                 slot,
@@ -20729,17 +20746,67 @@ impl WorldSession {
                                 apply,
                             );
                     }
+                    if update_permanent_visible_item
+                        && let Some(visible_item_update) =
+                            self.loaded_inventory_item_visible_update_like_cpp(item_guid)
+                    {
+                        outcome.visible_item_changes.push(visible_item_update);
+                    }
                 }
-                plans.push(plan);
+                outcome.plans.push(plan);
             }
         }
+        outcome
+    }
+
+    pub(crate) fn send_loaded_equipped_item_enchantment_updates_like_cpp(
+        &self,
+        outcome: &LoadedEquippedItemEnchantmentsOutcomeLikeCpp,
+    ) {
         if let Some(owner_guid) = self.player_guid() {
-            self.send_item_enchant_time_update_plans(owner_guid, &duration_updates);
+            self.send_item_enchant_time_update_plans(owner_guid, &outcome.duration_updates);
         }
-        if send_stat_update {
+        if !outcome.visible_item_changes.is_empty() {
+            self.send_player_values_update_from_entity_bridge(
+                &[],
+                &outcome.visible_item_changes,
+                &[],
+                &[],
+                None,
+            );
+        }
+        if outcome.send_stat_update {
             self.send_represented_item_bonus_player_stat_update_like_cpp();
         }
-        plans
+    }
+
+    pub(crate) fn loaded_inventory_item_visible_fields_like_cpp(
+        &self,
+        item: &Item,
+    ) -> (i32, u16, u16) {
+        (
+            item.object().entry() as i32,
+            0,
+            item.visible_item_visual(0, |enchantment_id| {
+                self.spell_item_enchantment_store()
+                    .and_then(|store| store.get(enchantment_id))
+                    .map(|entry| entry.item_visual)
+            }),
+        )
+    }
+
+    fn loaded_inventory_item_visible_update_like_cpp(
+        &self,
+        item_guid: ObjectGuid,
+    ) -> Option<(u8, i32, u16, u16)> {
+        let item = self.inventory_item_objects_like_cpp().get(&item_guid)?;
+        let slot = item.slot();
+        if slot >= EQUIPMENT_SLOT_END {
+            return None;
+        }
+        let (item_id, appearance_mod_id, item_visual) =
+            self.loaded_inventory_item_visible_fields_like_cpp(item);
+        Some((slot, item_id, appearance_mod_id, item_visual))
     }
 
     fn apply_loaded_equipped_item_enchantment_effects_like_cpp(
@@ -119907,7 +119974,7 @@ mod tests {
                     id: 904,
                     effect_arg: [0; 3],
                     effect_points_min: [0; 3],
-                    item_visual: 0,
+                    item_visual: 44,
                     flags: SpellItemEnchantmentFlags::empty(),
                     required_skill_id: 0,
                     required_skill_rank: 0,
@@ -119934,10 +120001,10 @@ mod tests {
         item.set_enchantment(EnchantmentSlot::EnhancementTemporary, 903, 6_000, 0);
         session.insert_inventory_item_object(item);
 
-        let plans = session.apply_loaded_equipped_item_enchantments_like_cpp(item_guid);
+        let outcome = session.apply_loaded_equipped_item_enchantments_like_cpp(item_guid);
 
-        assert_eq!(plans.len(), 2);
-        assert!(plans.iter().any(|plan| matches!(
+        assert_eq!(outcome.plans.len(), 2);
+        assert!(outcome.plans.iter().any(|plan| matches!(
             plan.result,
             ApplyEnchantmentResult::Applied {
                 item_guid: applied_item_guid,
@@ -119948,7 +120015,7 @@ mod tests {
                 ..
             } if applied_item_guid == item_guid
         )));
-        assert!(plans.iter().any(|plan| matches!(
+        assert!(outcome.plans.iter().any(|plan| matches!(
             plan.result,
             ApplyEnchantmentResult::Applied {
                 item_guid: applied_item_guid,
@@ -119966,6 +120033,18 @@ mod tests {
             } if applied_item_guid == item_guid && duration_item_guid == item_guid
         )));
         assert_eq!(
+            outcome.visible_item_changes,
+            vec![(EQUIPMENT_SLOT_MAINHAND, 700, 0, 44)]
+        );
+        assert_eq!(
+            outcome.duration_updates,
+            vec![PlayerEnchantTimeUpdate {
+                item_guid,
+                slot: EnchantmentSlot::EnhancementTemporary,
+                duration_secs: 6,
+            }]
+        );
+        assert_eq!(
             session
                 .canonical_player_snapshot_like_cpp(|player| player.enchant_durations().to_vec()),
             Some(vec![PlayerEnchantDuration {
@@ -119974,6 +120053,11 @@ mod tests {
                 left_duration_ms: 6_000,
             }])
         );
+        assert!(
+            send_rx.try_recv().is_err(),
+            "loaded enchant replay queues packets until after login CREATE"
+        );
+        session.send_loaded_equipped_item_enchantment_updates_like_cpp(&outcome);
         assert_eq!(
             send_rx.try_recv().unwrap(),
             ItemEnchantTimeUpdate {
@@ -119983,6 +120067,13 @@ mod tests {
                 slot: EnchantmentSlot::EnhancementTemporary as u32,
             }
             .to_bytes()
+        );
+        assert!(
+            drain_server_packet_bytes(&send_rx)
+                .iter()
+                .any(|bytes| WorldPacket::from_bytes(bytes).server_opcode()
+                    == Some(ServerOpcodes::UpdateObject)),
+            "permanent enchant visual update is emitted after login CREATE"
         );
     }
 
@@ -120034,10 +120125,10 @@ mod tests {
         item.set_enchantment(EnchantmentSlot::EnhancementPermanent, 906, 0, 0);
         session.insert_inventory_item_object(item);
 
-        let plans = session.apply_loaded_equipped_item_enchantments_like_cpp(item_guid);
+        let outcome = session.apply_loaded_equipped_item_enchantments_like_cpp(item_guid);
 
         assert!(matches!(
-            plans.first().map(|plan| plan.result),
+            outcome.plans.first().map(|plan| plan.result),
             Some(ApplyEnchantmentResult::Applied {
                 enchantment_id: 906,
                 apply: true,
@@ -120049,6 +120140,12 @@ mod tests {
             session.represented_item_bonus_state_like_cpp().health_base,
             17
         );
+        assert!(outcome.send_stat_update);
+        assert!(
+            send_rx.try_recv().is_err(),
+            "loaded enchant stat update is queued until after login CREATE"
+        );
+        session.send_loaded_equipped_item_enchantment_updates_like_cpp(&outcome);
         assert!(
             drain_server_packet_bytes(&send_rx)
                 .iter()

@@ -43,8 +43,9 @@ use wow_entities::{
     GAMEOBJECT_TYPE_QUESTGIVER, GameObjectTemplateData, INVENTORY_DEFAULT_SIZE,
     INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
     INVENTORY_SLOT_ITEM_START, MAX_BAG_SIZE, MAX_GAMEOBJECT_DATA, MovementGeneratorType, NULL_BAG,
-    NULL_SLOT, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, WorldObject, is_equipment_pos,
-    is_inventory_pos, normalize_creature_chase_movement_type_like_cpp,
+    NULL_SLOT, PROFESSION_SLOT_END, PROFESSION_SLOT_START, REAGENT_BAG_SLOT_END,
+    REAGENT_BAG_SLOT_START, WorldObject, is_equipment_pos, is_inventory_pos,
+    normalize_creature_chase_movement_type_like_cpp,
     normalize_creature_random_movement_type_like_cpp,
 };
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
@@ -67,7 +68,8 @@ use crate::session::{
     ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP, CharacterPetAuraEffectRowLikeCpp,
     CharacterPetAuraRowLikeCpp, CharacterPetDeclinedNamesRowLikeCpp,
     CharacterPetSpellChargeRowLikeCpp, CharacterPetSpellCooldownRowLikeCpp,
-    CharacterPetSpellRowLikeCpp, CharacterPetStableRowLikeCpp, RepresentedAlterAppearanceLikeCpp,
+    CharacterPetSpellRowLikeCpp, CharacterPetStableRowLikeCpp,
+    LoadedEquippedItemEnchantmentsOutcomeLikeCpp, RepresentedAlterAppearanceLikeCpp,
     RepresentedBankItemMoveLikeCpp, RepresentedConfirmBarbersChoiceLikeCpp,
     RepresentedGameObjectUseState,
 };
@@ -201,6 +203,10 @@ fn apply_loaded_item_instance_fields_like_cpp(
             enchantment.charges,
         );
     }
+}
+
+fn loaded_item_slot_applies_equipped_enchantments_like_cpp(slot: u8) -> bool {
+    slot < EQUIPMENT_SLOT_END || (PROFESSION_SLOT_START..PROFESSION_SLOT_END).contains(&slot)
 }
 
 fn loaded_item_effective_enchantments_like_cpp(
@@ -5130,13 +5136,16 @@ impl WorldSession {
                                     &item_object,
                                 );
                                 item_object.set_state(ItemUpdateState::Unchanged);
+                                let visible_item_fields = ((slot as usize) < 19).then(|| {
+                                    self.loaded_inventory_item_visible_fields_like_cpp(&item_object)
+                                });
                                 self.insert_inventory_item_object(item_object);
-                                if slot < EQUIPMENT_SLOT_END {
+                                if loaded_item_slot_applies_equipped_enchantments_like_cpp(slot) {
                                     loaded_equipped_item_guids.push(item_guid);
                                 }
                                 // Slots 0-18 also populate VisibleItems for character model
-                                if (slot as usize) < 19 {
-                                    visible_items[slot as usize] = (item_entry as i32, 0, 0);
+                                if let Some(fields) = visible_item_fields {
+                                    visible_items[slot as usize] = fields;
                                 }
                             }
                             if !eq_result.next_row() {
@@ -5285,8 +5294,11 @@ impl WorldSession {
             // inventory_type is now loaded from the canonical ItemTemplate bridge.
             // No SQL cache needed.
         }
+        let mut loaded_enchantment_updates =
+            LoadedEquippedItemEnchantmentsOutcomeLikeCpp::default();
         for item_guid in loaded_equipped_item_guids {
-            let _ = self.apply_loaded_equipped_item_enchantments_like_cpp(item_guid);
+            loaded_enchantment_updates
+                .append(self.apply_loaded_equipped_item_enchantments_like_cpp(item_guid));
         }
         self.sync_player_inventory_like_cpp();
 
@@ -6248,6 +6260,7 @@ impl WorldSession {
         {
             return;
         }
+        self.send_loaded_equipped_item_enchantment_updates_like_cpp(&loaded_enchantment_updates);
         self.apply_represented_login_spell_reset_if_needed_like_cpp();
         self.apply_represented_login_talent_reset_if_needed_like_cpp();
         if self.apply_represented_first_login_flag_if_needed_like_cpp() {
@@ -15220,6 +15233,22 @@ mod tests {
             effective_enchantments[EnchantmentSlot::Property3 as usize].id,
             0
         );
+    }
+
+    #[test]
+    fn loaded_item_slots_apply_equipped_enchantments_for_equipment_and_profession_like_cpp() {
+        assert!(loaded_item_slot_applies_equipped_enchantments_like_cpp(
+            EQUIPMENT_SLOT_END - 1
+        ));
+        assert!(loaded_item_slot_applies_equipped_enchantments_like_cpp(
+            PROFESSION_SLOT_START
+        ));
+        assert!(loaded_item_slot_applies_equipped_enchantments_like_cpp(
+            PROFESSION_SLOT_END - 1
+        ));
+        assert!(!loaded_item_slot_applies_equipped_enchantments_like_cpp(
+            INVENTORY_SLOT_BAG_START
+        ));
     }
 
     #[test]
