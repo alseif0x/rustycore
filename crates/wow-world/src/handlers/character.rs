@@ -874,6 +874,19 @@ fn enum_character_pet_data_like_cpp(
         .unwrap_or((0, 0, 0))
 }
 
+fn enum_character_query_statements_like_cpp(
+    declined_names_used: bool,
+) -> (CharStatements, CharStatements) {
+    (
+        CharStatements::DEL_EXPIRED_BANS,
+        if declined_names_used {
+            CharStatements::SEL_ENUM_DECLINED_NAME
+        } else {
+            CharStatements::SEL_ENUM
+        },
+    )
+}
+
 #[derive(Debug, Clone)]
 struct MapTransportCreateLikeCpp {
     guid_low: u32,
@@ -3154,11 +3167,17 @@ impl WorldSession {
             }
         };
 
-        let mut stmt = char_db.prepare(if self.declined_names_used_like_cpp() {
-            CharStatements::SEL_ENUM_DECLINED_NAME
-        } else {
-            CharStatements::SEL_ENUM
-        });
+        let (expire_bans_stmt, enum_stmt) =
+            enum_character_query_statements_like_cpp(self.declined_names_used_like_cpp());
+        let expire_bans_stmt = char_db.prepare(expire_bans_stmt);
+        if let Err(e) = char_db.execute(&expire_bans_stmt).await {
+            warn!(
+                "Failed to expire elapsed character bans before enum for account {}: {e}",
+                self.account_id
+            );
+        }
+
+        let mut stmt = char_db.prepare(enum_stmt);
         stmt.set_u32(0, self.account_id);
 
         let result = match char_db.query(&stmt).await {
@@ -22784,6 +22803,21 @@ mod tests {
         let flags = enum_character_flags_like_cpp(0x20, 0, 0, None, false);
 
         assert_eq!(flags.flags, 0);
+    }
+
+    #[test]
+    fn enum_character_query_statements_expire_bans_before_select_like_cpp() {
+        assert_eq!(
+            enum_character_query_statements_like_cpp(false),
+            (CharStatements::DEL_EXPIRED_BANS, CharStatements::SEL_ENUM)
+        );
+        assert_eq!(
+            enum_character_query_statements_like_cpp(true),
+            (
+                CharStatements::DEL_EXPIRED_BANS,
+                CharStatements::SEL_ENUM_DECLINED_NAME
+            )
+        );
     }
 
     #[test]
