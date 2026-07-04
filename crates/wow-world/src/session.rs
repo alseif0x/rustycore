@@ -7282,9 +7282,9 @@ impl WorldSession {
                     map_id,
                     instance_id,
                     position,
-                    level: player.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8,
-                    xp: player.active_data().xp.max(0) as u32,
-                    money: player.active_data().coinage,
+                    level: self.player_level_like_cpp(),
+                    xp: self.player_xp_like_cpp(),
+                    money: self.player_gold_like_cpp(),
                     health,
                     max_health: canonical_max_health,
                     powers,
@@ -22443,6 +22443,9 @@ impl WorldSession {
 
     async fn process_pending_periodic_player_save_like_cpp(&mut self) {
         if !self.pending_periodic_player_save_like_cpp || self.state != SessionState::LoggedIn {
+            return;
+        }
+        if self.pending_teleport_save_destination_like_cpp().is_some() {
             return;
         }
 
@@ -99561,7 +99564,7 @@ mod tests {
     }
 
     #[test]
-    fn logout_save_snapshot_uses_latest_session_position_and_canonical_gameplay_like_cpp() {
+    fn logout_save_snapshot_uses_session_money_xp_and_canonical_health_like_cpp() {
         let (mut session, _, _) = make_session();
         let canonical = shared_canonical_map_manager();
         let player_guid = ObjectGuid::create_player(1, 70);
@@ -99623,9 +99626,9 @@ mod tests {
                 map_id: 571,
                 instance_id: 0,
                 position: latest_session_position,
-                level: 42,
-                xp: 1234,
-                money: 5678,
+                level: 10,
+                xp: 1,
+                money: 2,
                 health: 456,
                 max_health: 900,
                 powers: loaded_character_power_snapshot_like_cpp([
@@ -99637,9 +99640,9 @@ mod tests {
             session.player_position_like_cpp(),
             Some(latest_session_position)
         );
-        assert_eq!(session.player_level_like_cpp(), 42);
-        assert_eq!(session.player_xp_like_cpp(), 1234);
-        assert_eq!(session.player_gold_like_cpp(), 5678);
+        assert_eq!(session.player_level_like_cpp(), 10);
+        assert_eq!(session.player_xp_like_cpp(), 1);
+        assert_eq!(session.player_gold_like_cpp(), 2);
         assert_eq!(session.player_health_like_cpp(), 456);
     }
 
@@ -100177,6 +100180,25 @@ mod tests {
             session.pending_periodic_player_save_like_cpp,
             "C++ Player::Update calls SaveToDB when m_nextSave expires; Rust marks the async save pending"
         );
+    }
+
+    #[tokio::test]
+    async fn periodic_player_save_defers_while_teleport_pending_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.state = SessionState::LoggedIn;
+        session.set_player_save_interval_ms_like_cpp(100);
+        session.pending_teleport = Some((0, Position::new(10.0, 20.0, 30.0, 1.5)));
+        session.update_player_save_timer_like_cpp(100);
+
+        session
+            .process_pending_periodic_player_save_like_cpp()
+            .await;
+
+        assert!(
+            session.pending_periodic_player_save_like_cpp,
+            "autosave remains pending until the teleport handshake clears"
+        );
+        assert_eq!(session.next_player_save_ms_like_cpp, 0);
     }
 
     #[test]

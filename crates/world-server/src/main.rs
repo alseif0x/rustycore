@@ -11925,10 +11925,18 @@ async fn create_session(
     info!("Session ready for account {}", account.id);
 
     // Session update loop
+    let mut last_session_update = Instant::now();
     loop {
         let (count, disconnecting) = warn_about_sync_queries_scope_like_cpp(async {
+            let now = Instant::now();
+            let diff_ms = now
+                .saturating_duration_since(last_session_update)
+                .as_millis()
+                .min(u128::from(u32::MAX)) as u32;
+            last_session_update = now;
+
             // Process incoming packets
-            let count = session.update(50);
+            let count = session.update(diff_ms);
 
             // Dispatch pending packets (async handlers)
             session.process_pending().await;
