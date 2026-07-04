@@ -504,8 +504,7 @@ impl ServerPacket for QuestGiverQuestComplete {
         pkt.write_bit(false); // LaunchGossip
         pkt.write_bit(false); // LaunchQuest
         pkt.write_bit(false); // HideChatMessage
-        pkt.flush_bits();
-        ItemInstance::default().write(pkt);
+        ItemInstance::default().write_preserving_pending_bits_like_cpp(pkt);
     }
 }
 
@@ -1255,9 +1254,12 @@ mod quest_giver_quest_complete_tests {
         assert_eq!(&bytes[10..18], &0x0102_0304u64.to_le_bytes());
         assert_eq!(&bytes[18..22], &0x0A0B_0C0Du32.to_le_bytes());
         assert_eq!(&bytes[22..26], &0x0E0F_1011u32.to_le_bytes());
-        assert_eq!(bytes[26], 0x80); // UseQuestReward=true, remaining C++ bits false.
-        assert_eq!(&bytes[27..41], &[0; 14]); // Default ItemReward ItemInstance.
-        assert_eq!(bytes.len(), 41);
+        assert_eq!(&bytes[26..30], &0i32.to_le_bytes()); // Default ItemReward ItemID.
+        assert_eq!(&bytes[30..34], &0i32.to_le_bytes()); // RandomPropertiesSeed.
+        assert_eq!(&bytes[34..38], &0i32.to_le_bytes()); // RandomPropertiesID.
+        assert_eq!(bytes[38], 0x80); // UseQuestReward=true, remaining C++ bits false.
+        assert_eq!(bytes[39], 0x00); // Empty ItemReward modifications.
+        assert_eq!(bytes.len(), 40);
     }
 
     #[test]
@@ -1273,8 +1275,9 @@ mod quest_giver_quest_complete_tests {
 
         let bytes = complete.to_bytes();
 
-        assert_eq!(bytes[26], 0x00);
-        assert_eq!(&bytes[27..41], &[0; 14]);
-        assert_eq!(bytes.len(), 41);
+        assert_eq!(&bytes[26..38], &[0; 12]);
+        assert_eq!(bytes[38], 0x00);
+        assert_eq!(bytes[39], 0x00);
+        assert_eq!(bytes.len(), 40);
     }
 }

@@ -88,6 +88,18 @@ impl ItemInstance {
             item_bonus.write(pkt);
         }
     }
+
+    pub fn write_preserving_pending_bits_like_cpp(&self, pkt: &mut WorldPacket) {
+        pkt.write_int32_unflushed(self.item_id);
+        pkt.write_int32_unflushed(self.random_properties_seed);
+        pkt.write_int32_unflushed(self.random_properties_id);
+        pkt.write_bit(self.item_bonus.is_some());
+        pkt.flush_bits();
+        self.modifications.write(pkt);
+        if let Some(item_bonus) = &self.item_bonus {
+            item_bonus.write(pkt);
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
