@@ -4112,6 +4112,8 @@ pub struct WorldSession {
 
     /// GUID of the character currently logged in (set after login completes).
     player_guid: Option<ObjectGuid>,
+    /// C++ `WorldSession::m_GUIDLow`: last logged-in character low GUID kept after logout.
+    recent_player_guid_low_like_cpp: u64,
     /// Attached player controller, mirroring C++ `WorldSession::_player` ownership.
     player_controller: Option<SessionPlayerController>,
     /// C++ `WorldSession::_accountData`, represented in-memory until DB load/save is wired.
@@ -5972,6 +5974,7 @@ impl WorldSession {
             min_discovered_scaled_xp_ratio_like_cpp: 0,
             selection_guid: None,
             player_guid: None,
+            recent_player_guid_low_like_cpp: 0,
             player_controller: None,
             account_data_like_cpp: default_account_data_like_cpp(),
             tutorials_like_cpp: [0; 8],
@@ -31675,6 +31678,7 @@ impl WorldSession {
     pub fn set_player_guid(&mut self, guid: Option<ObjectGuid>) {
         self.player_guid = guid;
         if let Some(guid) = guid {
+            self.recent_player_guid_low_like_cpp = guid.counter() as u64;
             self.represented_seer_guid_like_cpp = Some(guid);
         }
         if guid.is_none() {
@@ -31973,9 +31977,9 @@ impl WorldSession {
         }
 
         let is_global = (1u32 << data_type) & GLOBAL_CACHE_MASK_LIKE_CPP != 0;
-        let player_guid = self.player_guid();
+        let player_guid_low = self.recent_player_guid_low_like_cpp;
 
-        if !is_global && player_guid.is_none() {
+        if !is_global && player_guid_low == 0 {
             return false;
         }
 
@@ -31995,9 +31999,8 @@ impl WorldSession {
             stmt.set_string(3, data.clone());
             stmt
         } else {
-            let guid = player_guid.expect("checked above");
             let mut stmt = char_db.prepare(CharStatements::REP_PLAYER_ACCOUNT_DATA);
-            stmt.set_u64(0, guid.counter() as u64);
+            stmt.set_u64(0, player_guid_low);
             stmt.set_u8(1, data_type);
             stmt.set_i64(2, time);
             stmt.set_string(3, data.clone());
