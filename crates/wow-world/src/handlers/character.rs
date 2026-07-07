@@ -80,6 +80,63 @@ const GO_SPAWN_EFFECTIVE_FLAGS_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN +
 const GO_SPAWN_EFFECTIVE_FACTION_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 5;
 const GO_SPAWN_OVERRIDE_SOURCE_KNOWN_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 6;
 const WORLDSTATE_ANY_MAP_LIKE_CPP: i32 = -1;
+const DEFAULT_GOSSIP_MESSAGE_LIKE_CPP: i32 = 0x00FF_FFFF;
+const TRAINER_NPC_FLAGS_MASK_LIKE_CPP: u32 = 0x10 | 0x20 | 0x40;
+const GOSSIP_OPTION_ID_AUTO_TRAINER_LIKE_CPP: i32 = -1;
+const GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP: u8 = 3;
+const GOSSIP_OPTION_TRAINER_TEXT_LIKE_CPP: &str = "I would like to train.";
+
+fn creature_has_trainer_flag_like_cpp(npc_flags: u32) -> bool {
+    (npc_flags & TRAINER_NPC_FLAGS_MASK_LIKE_CPP) != 0
+}
+
+fn represented_trainer_gossip_option_like_cpp() -> wow_packet::packets::gossip::ClientGossipOption {
+    wow_packet::packets::gossip::ClientGossipOption {
+        gossip_option_id: GOSSIP_OPTION_ID_AUTO_TRAINER_LIKE_CPP,
+        option_npc: GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP,
+        option_flags: 0,
+        option_cost: 0,
+        option_language: 0,
+        flags: 0,
+        order_index: 0,
+        status: 0,
+        text: GOSSIP_OPTION_TRAINER_TEXT_LIKE_CPP.to_string(),
+        confirm: String::new(),
+        spell_id: None,
+        override_icon_id: None,
+    }
+}
+
+fn represented_trainer_gossip_option_info_like_cpp() -> crate::session::GossipOptionInfo {
+    crate::session::GossipOptionInfo {
+        gossip_option_id: GOSSIP_OPTION_ID_AUTO_TRAINER_LIKE_CPP,
+        menu_id: 0,
+        order_index: 0,
+        option_npc: GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP,
+        action_menu_id: 0,
+    }
+}
+
+fn add_represented_trainer_gossip_option_if_missing_like_cpp(
+    gossip_options: &mut Vec<wow_packet::packets::gossip::ClientGossipOption>,
+    stored_options: &mut Vec<crate::session::GossipOptionInfo>,
+    npc_flags: u32,
+) -> bool {
+    if !creature_has_trainer_flag_like_cpp(npc_flags) {
+        return false;
+    }
+
+    if gossip_options
+        .iter()
+        .any(|option| option.option_npc == GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP)
+    {
+        return false;
+    }
+
+    gossip_options.push(represented_trainer_gossip_option_like_cpp());
+    stored_options.push(represented_trainer_gossip_option_info_like_cpp());
+    true
+}
 
 fn primary_power_type_for_class_like_cpp(class_id: u8) -> PowerType {
     match class_id {
@@ -8286,10 +8343,14 @@ impl WorldSession {
         // If the NPC has Gossip flag AND we have a world DB, try to load the gossip menu.
         if npc_flags & GOSSIP_FLAG != 0 && entry != 0 {
             if let Some(world_db) = self.world_db().map(Arc::clone) {
-                if let Some(msg) = self.build_gossip_menu(&world_db, entry, hello.unit).await {
+                if let Some(msg) = self
+                    .build_gossip_menu(&world_db, entry, npc_flags, hello.unit)
+                    .await
+                {
                     info!(
-                        "Sending GossipMessage with {} options for entry {}",
+                        "Sending GossipMessage with {} options and {} quests for entry {}",
                         msg.gossip_options.len(),
+                        msg.gossip_text.len(),
                         entry
                     );
                     self.send_packet(&msg);
@@ -8298,8 +8359,37 @@ impl WorldSession {
             }
         }
 
-        // No gossip menu found — fall back to direct interaction based on NPC flags.
-        self.handle_npc_direct_interaction(hello).await;
+        if entry != 0
+            && self.send_represented_creature_trainer_gossip_menu_like_cpp(
+                hello.unit, entry, npc_flags,
+            )
+        {
+            info!(
+                "GossipHello trainer fallback sent prepared gossip menu for entry={} {:?}",
+                entry, hello.unit
+            );
+            return;
+        }
+
+        // No DB gossip menu found. C++ `HandleQuestgiverHelloOpcode` uses the
+        // same prepared-gossip path as `HandleGossipHelloOpcode`; the represented
+        // seam currently models the quest part of that prepared menu.
+        if (npc_flags & NPCFlags1::QUEST_GIVER.bits()) != 0 && entry != 0 {
+            if self.use_represented_creature_questgiver_like_cpp(hello.unit, entry) {
+                info!(
+                    "GossipHello questgiver fallback consumed entry={} for {:?}",
+                    entry, hello.unit
+                );
+                return;
+            }
+            info!(
+                "GossipHello questgiver fallback found no quest menu for entry={} {:?}",
+                entry, hello.unit
+            );
+        }
+
+        // No gossip or quest menu found — fall back to direct interaction based on NPC flags.
+        self.handle_npc_direct_interaction(hello, npc_flags).await;
     }
 
     pub(crate) fn build_condition_player_object_like_cpp(&self) -> Option<WorldObject> {
@@ -8523,10 +8613,11 @@ impl WorldSession {
 
     /// Build a GossipMessage from the database for a creature entry.
     /// Returns None if no gossip menu exists.
-    async fn build_gossip_menu(
+    pub(crate) async fn build_gossip_menu(
         &mut self,
         world_db: &Arc<WorldDatabase>,
         entry: u32,
+        npc_flags: u32,
         npc_guid: wow_core::ObjectGuid,
     ) -> Option<GossipMessage> {
         use crate::session::GossipOptionInfo;
@@ -8610,39 +8701,51 @@ impl WorldSession {
                 _ => return None,
             };
 
-        if opt_result.is_empty() {
-            return None;
-        }
-
         // Collect raw option rows first, then resolve localized text.
         struct RawOption {
+            menu_id: u32,
             gossip_option_id: i32,
             option_id: u32,
             option_npc: u8,
             option_text: String,
+            option_broadcast_text_id: u32,
+            language: u32,
+            flags: i32,
             action_menu_id: u32,
+            action_poi_id: u32,
+            gossip_npc_option_id: Option<i32>,
+            box_coded: bool,
             box_money: u32,
             box_text: String,
+            box_broadcast_text_id: u32,
             spell_id: Option<i32>,
             override_icon_id: Option<i32>,
-            broadcast_text_id: u32,
         }
         let mut raw_options = Vec::new();
-        loop {
-            raw_options.push(RawOption {
-                gossip_option_id: opt_result.try_read(0).unwrap_or(0),
-                option_id: opt_result.try_read(1).unwrap_or(0),
-                option_npc: opt_result.try_read(2).unwrap_or(0),
-                option_text: opt_result.read_string(3),
-                action_menu_id: opt_result.try_read(4).unwrap_or(0),
-                box_money: opt_result.try_read(6).unwrap_or(0),
-                box_text: opt_result.read_string(7),
-                spell_id: opt_result.try_read(8),
-                override_icon_id: opt_result.try_read(9),
-                broadcast_text_id: opt_result.try_read::<u32>(10).unwrap_or(0),
-            });
-            if !opt_result.next_row() {
-                break;
+        if !opt_result.is_empty() {
+            loop {
+                raw_options.push(RawOption {
+                    menu_id: opt_result.try_read(0).unwrap_or(menu_id),
+                    gossip_option_id: opt_result.try_read(1).unwrap_or(0),
+                    option_id: opt_result.try_read(2).unwrap_or(0),
+                    option_npc: opt_result.try_read(3).unwrap_or(0),
+                    option_text: opt_result.read_string(4),
+                    option_broadcast_text_id: opt_result.try_read::<u32>(5).unwrap_or(0),
+                    language: opt_result.try_read::<u32>(6).unwrap_or(0),
+                    flags: opt_result.try_read::<i32>(7).unwrap_or(0),
+                    action_menu_id: opt_result.try_read(8).unwrap_or(0),
+                    action_poi_id: opt_result.try_read(9).unwrap_or(0),
+                    gossip_npc_option_id: opt_result.try_read(10),
+                    box_coded: opt_result.try_read::<u8>(11).unwrap_or(0) != 0,
+                    box_money: opt_result.try_read(12).unwrap_or(0),
+                    box_text: opt_result.read_string(13),
+                    box_broadcast_text_id: opt_result.try_read::<u32>(14).unwrap_or(0),
+                    spell_id: opt_result.try_read(15),
+                    override_icon_id: opt_result.try_read(16),
+                });
+                if !opt_result.next_row() {
+                    break;
+                }
             }
         }
 
@@ -8670,9 +8773,9 @@ impl WorldSession {
 
             let mut text = opt.option_text.clone();
 
-            if opt.broadcast_text_id != 0 && locale != "enUS" {
+            if opt.option_broadcast_text_id != 0 && locale != "enUS" {
                 let mut stmt = world_db.prepare(WorldStatements::SEL_BROADCAST_TEXT_LOCALE);
-                stmt.set_u32(0, opt.broadcast_text_id);
+                stmt.set_u32(0, opt.option_broadcast_text_id);
                 stmt.set_string(1, &locale);
                 if let Ok(Ok(r)) =
                     tokio::time::timeout(std::time::Duration::from_secs(2), world_db.query(&stmt))
@@ -8690,10 +8793,10 @@ impl WorldSession {
             gossip_options.push(ClientGossipOption {
                 gossip_option_id: opt.gossip_option_id,
                 option_npc: opt.option_npc,
-                option_flags: 0,
+                option_flags: i8::from(opt.box_coded),
                 option_cost: opt.box_money as i32,
-                option_language: 0,
-                flags: 0,
+                option_language: i32::try_from(opt.language).unwrap_or(i32::MAX),
+                flags: opt.flags,
                 order_index: opt.option_id as i32,
                 status: 0,
                 text,
@@ -8704,14 +8807,50 @@ impl WorldSession {
 
             stored_options.push(GossipOptionInfo {
                 gossip_option_id: opt.gossip_option_id,
+                menu_id: opt.menu_id,
+                order_index: opt.option_id,
                 option_npc: opt.option_npc,
                 action_menu_id: opt.action_menu_id,
             });
+
+            if opt.action_poi_id != 0
+                || opt.gossip_npc_option_id.is_some()
+                || opt.box_broadcast_text_id != 0
+            {
+                debug!(
+                    account = self.account_id,
+                    menu_id = opt.menu_id,
+                    option_id = opt.option_id,
+                    action_poi_id = opt.action_poi_id,
+                    gossip_npc_option_id = ?opt.gossip_npc_option_id,
+                    box_broadcast_text_id = opt.box_broadcast_text_id,
+                    "Gossip option loaded C++ auxiliary fields for represented runtime"
+                );
+            }
+        }
+
+        // C++ `Player::PrepareGossipMenu` adds a trainer menu option automatically when
+        // a creature has trainer flags but no DB gossip option for `GossipOptionNpc::Trainer`.
+        // This is required for mixed questgiver+trainer NPCs such as Ranger Sallina.
+        add_represented_trainer_gossip_option_if_missing_like_cpp(
+            &mut gossip_options,
+            &mut stored_options,
+            npc_flags,
+        );
+
+        if gossip_options.is_empty() {
+            return None;
         }
 
         // Store gossip state for when the player selects an option.
         self.gossip_options = stored_options;
         self.gossip_source_guid = Some(npc_guid);
+
+        let gossip_text = if npc_flags & NPCFlags1::QUEST_GIVER.bits() != 0 {
+            self.represented_creature_gossip_text_like_cpp(entry)
+        } else {
+            Vec::new()
+        };
 
         Some(GossipMessage {
             gossip_guid: npc_guid,
@@ -8720,12 +8859,48 @@ impl WorldSession {
             text_id: None,
             broadcast_text_id,
             gossip_options,
-            gossip_text: Vec::new(),
+            gossip_text,
         })
     }
 
+    pub(crate) fn send_represented_creature_trainer_gossip_menu_like_cpp(
+        &mut self,
+        npc_guid: ObjectGuid,
+        entry: u32,
+        npc_flags: u32,
+    ) -> bool {
+        let mut gossip_options = Vec::new();
+        let mut stored_options = Vec::new();
+        if !add_represented_trainer_gossip_option_if_missing_like_cpp(
+            &mut gossip_options,
+            &mut stored_options,
+            npc_flags,
+        ) {
+            return false;
+        }
+
+        let gossip_text = if npc_flags & NPCFlags1::QUEST_GIVER.bits() != 0 {
+            self.represented_creature_gossip_text_like_cpp(entry)
+        } else {
+            Vec::new()
+        };
+
+        self.gossip_options = stored_options;
+        self.gossip_source_guid = Some(npc_guid);
+        self.send_packet(&GossipMessage {
+            gossip_guid: npc_guid,
+            gossip_id: 0,
+            friendship_faction_id: 0,
+            text_id: Some(DEFAULT_GOSSIP_MESSAGE_LIKE_CPP),
+            broadcast_text_id: None,
+            gossip_options,
+            gossip_text,
+        });
+        true
+    }
+
     /// Direct interaction for NPCs without gossip menus (banker, auctioneer, etc.).
-    async fn handle_npc_direct_interaction(&mut self, hello: Hello) {
+    async fn handle_npc_direct_interaction(&mut self, hello: Hello, npc_flags: u32) {
         use wow_packet::packets::misc::{AuctionHelloResponse, NpcInteractionOpenResult};
 
         const VENDOR_MASK: u32 = 0x80 | 0x100 | 0x200 | 0x400 | 0x800;
@@ -8736,10 +8911,6 @@ impl WorldSession {
         const TABARD_DESIGNER: u32 = 0x80000;
         const STABLE_MASTER: u32 = 0x400000;
         const GUILD_BANKER: u32 = 0x800000;
-
-        let npc_flags = self
-            .mutate_world_creature(hello.unit, |creature| creature.npc_flags())
-            .unwrap_or(0);
 
         if npc_flags & VENDOR_MASK != 0 {
             self.handle_list_inventory(hello).await;
@@ -8781,31 +8952,25 @@ impl WorldSession {
         let opt = self
             .gossip_options
             .iter()
-            .find(|o| o.gossip_option_id == select.gossip_option_id);
-        let (option_npc, _action_menu_id) = match opt {
-            Some(o) => (o.option_npc, o.action_menu_id),
+            .find(|o| o.gossip_option_id == select.gossip_option_id)
+            .cloned();
+        let opt = match opt {
+            Some(o) => o,
             None => {
                 warn!(
-                    "GossipSelectOption: unknown gossip_option_id={} — closing.",
+                    "GossipSelectOption: unknown gossip_option_id={} — ignoring like C++.",
                     select.gossip_option_id
                 );
-                self.send_packet(&GossipComplete {
-                    suppress_sound: false,
-                });
                 return;
             }
         };
+        let (option_npc, _action_menu_id) = (opt.option_npc, opt.action_menu_id);
 
         let npc_guid = self.gossip_source_guid.unwrap_or(select.gossip_unit);
         info!(
             "GossipSelectOption: OptionNpc={} for {:?}",
             option_npc, npc_guid
         );
-
-        // Close the gossip window before opening the interaction.
-        self.send_packet(&GossipComplete {
-            suppress_sound: false,
-        });
 
         let hello = Hello { unit: npc_guid };
         match option_npc {
@@ -8819,7 +8984,12 @@ impl WorldSession {
             }
             3 => {
                 // Trainer
-                self.handle_trainer_list(hello).await;
+                self.handle_trainer_list_for_gossip_option_like_cpp(
+                    hello,
+                    opt.menu_id,
+                    opt.order_index,
+                )
+                .await;
             }
             5 => {
                 // Binder (Innkeeper)
@@ -16875,6 +17045,36 @@ mod tests {
         session.set_canonical_map_manager(Arc::new(std::sync::Mutex::new(manager)));
     }
 
+    fn attach_legacy_creature(
+        session: &mut WorldSession,
+        guid: ObjectGuid,
+        entry: u32,
+        npc_flags: u32,
+    ) {
+        let manager = Arc::new(std::sync::RwLock::new(crate::map_manager::MapManager::new()));
+        manager.write().unwrap().add_creature(
+            571,
+            0,
+            0,
+            0,
+            crate::map_manager::WorldCreature::new(
+                guid,
+                entry,
+                Position::new(10.0, 0.0, 0.0, 0.0),
+                100,
+                80,
+                1,
+                2,
+                0.0,
+                1,
+                35,
+                npc_flags,
+                0,
+            ),
+        );
+        session.set_map_manager(manager);
+    }
+
     fn mark_gameobject_questgiver(session: &mut WorldSession, guid: ObjectGuid) {
         let mut state = crate::session::RepresentedGameObjectUseState::default();
         state.go_type = Some(wow_entities::GAMEOBJECT_TYPE_QUESTGIVER as u8);
@@ -16890,6 +17090,27 @@ mod tests {
             pkt.write_packed_guid(guid);
         }
         pkt
+    }
+
+    fn quest_giver_hello_packet(guid: ObjectGuid) -> WorldPacket {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_packed_guid(&guid);
+        pkt.reset_read();
+        pkt
+    }
+
+    fn gossip_message_counts(bytes: &[u8], expected_guid: ObjectGuid) -> (i32, i32) {
+        assert_eq!(
+            wow_packet::WorldPacket::from_bytes(bytes).server_opcode(),
+            Some(ServerOpcodes::GossipMessage)
+        );
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_packed_guid().unwrap(), expected_guid);
+        let _gossip_id = pkt.read_int32().unwrap();
+        let _friendship_faction_id = pkt.read_int32().unwrap();
+        let option_count = pkt.read_int32().unwrap();
+        let quest_count = pkt.read_int32().unwrap();
+        (option_count, quest_count)
     }
 
     fn recv_status_multiple(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<(ObjectGuid, u64)> {
@@ -16931,6 +17152,246 @@ mod tests {
                 assert!(id > 0, "Race {race} sex {sex} has zero display ID");
             }
         }
+    }
+
+    #[tokio::test]
+    async fn gossip_hello_questgiver_without_db_gossip_menu_opens_quest_like_cpp() {
+        let (mut session, send_rx) = make_quest_status_session();
+        let entry = 9306;
+        let guid = creature_guid(entry, 306);
+        let mut store = store_with_quests(&[3006]);
+        store.starter_quests.entry(entry).or_default().push(3006);
+        session.set_quest_store(Arc::new(store));
+        attach_legacy_creature(
+            &mut session,
+            guid,
+            entry,
+            NPCFlags1::GOSSIP.bits() | NPCFlags1::QUEST_GIVER.bits(),
+        );
+
+        session.handle_gossip_hello(Hello { unit: guid }).await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::QuestGiverQuestDetails]
+        );
+    }
+
+    #[tokio::test]
+    async fn gossip_hello_questgiver_without_quest_relation_keeps_empty_gossip_fallback() {
+        let (mut session, send_rx) = make_quest_status_session();
+        let entry = 9307;
+        let guid = creature_guid(entry, 307);
+        session.set_quest_store(Arc::new(store_with_quests(&[3007])));
+        attach_legacy_creature(
+            &mut session,
+            guid,
+            entry,
+            NPCFlags1::GOSSIP.bits() | NPCFlags1::QUEST_GIVER.bits(),
+        );
+
+        session.handle_gossip_hello(Hello { unit: guid }).await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::GossipMessage]
+        );
+    }
+
+    #[tokio::test]
+    async fn quest_giver_hello_trainer_questgiver_sends_mixed_gossip_like_cpp() {
+        let (mut session, send_rx) = make_quest_status_session();
+        let entry = 15_513;
+        let guid = creature_guid(entry, 513);
+        let mut store = store_with_quests(&[9_393]);
+        store.starter_quests.entry(entry).or_default().push(9_393);
+        session.set_quest_store(Arc::new(store));
+        attach_legacy_creature(
+            &mut session,
+            guid,
+            entry,
+            NPCFlags1::GOSSIP.bits()
+                | NPCFlags1::QUEST_GIVER.bits()
+                | NPCFlags1::TRAINER.bits()
+                | NPCFlags1::TRAINER_CLASS.bits(),
+        );
+
+        session
+            .handle_quest_giver_hello(quest_giver_hello_packet(guid))
+            .await;
+
+        let bytes = send_rx.try_recv().expect("mixed prepared gossip menu");
+        assert_eq!(gossip_message_counts(&bytes, guid), (1, 1));
+        assert_eq!(session.gossip_source_guid, Some(guid));
+        assert_eq!(session.gossip_options.len(), 1);
+        assert_eq!(
+            session.gossip_options[0].gossip_option_id,
+            GOSSIP_OPTION_ID_AUTO_TRAINER_LIKE_CPP
+        );
+        assert_eq!(
+            session.gossip_options[0].option_npc,
+            GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn gossip_select_trainer_does_not_close_before_trainer_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(2);
+        let guid = creature_guid(15_513, 513);
+        let gossip_option_id = -1_702_912;
+        session.gossip_source_guid = Some(guid);
+        session
+            .gossip_options
+            .push(crate::session::GossipOptionInfo {
+                gossip_option_id,
+                menu_id: 6_652,
+                order_index: 0,
+                option_npc: GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP,
+                action_menu_id: 0,
+            });
+
+        session
+            .handle_gossip_select_option(wow_packet::packets::gossip::GossipSelectOption {
+                gossip_unit: guid,
+                gossip_id: 6_652,
+                gossip_option_id,
+                promotion_code: String::new(),
+            })
+            .await;
+
+        // C++ dedicated trainer open flow sends TrainerList if it can resolve a trainer,
+        // but it does not pre-send `SMSG_GOSSIP_COMPLETE`.
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn quest_giver_hello_plain_questgiver_keeps_direct_quest_open_like_cpp() {
+        let (mut session, send_rx) = make_quest_status_session();
+        let entry = 9308;
+        let guid = creature_guid(entry, 308);
+        let mut store = store_with_quests(&[3008]);
+        store.starter_quests.entry(entry).or_default().push(3008);
+        session.set_quest_store(Arc::new(store));
+        attach_legacy_creature(
+            &mut session,
+            guid,
+            entry,
+            NPCFlags1::GOSSIP.bits() | NPCFlags1::QUEST_GIVER.bits(),
+        );
+
+        session
+            .handle_quest_giver_hello(quest_giver_hello_packet(guid))
+            .await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::QuestGiverQuestDetails]
+        );
+    }
+
+    #[test]
+    fn gossip_quest_text_filters_race_class_and_level_like_cpp() {
+        let (mut session, _send_rx) = make_quest_status_session();
+        session.set_loaded_player_identity_like_cpp(571, 10, 3, 3, 0);
+        let entry = 15_278;
+
+        let blood_elf_mask = 1u64 << (10 - 1);
+        let hunter_mask = 1u32 << (3 - 1);
+        let mage_mask = 1u32 << (8 - 1);
+        let human_mask = 1u64 << (1 - 1);
+
+        let mut generic = quest_template(8_325);
+        generic.allowable_races = blood_elf_mask;
+        generic.min_level = 1;
+        generic.log_title = "Reclaiming Sunstrider Isle".into();
+
+        let mut hunter = quest_template(9_393);
+        hunter.allowable_races = blood_elf_mask;
+        hunter.allowable_classes = hunter_mask;
+        hunter.min_level = 1;
+        hunter.log_title = "Hunter Training".into();
+
+        let mut mage = quest_template(8_328);
+        mage.allowable_races = blood_elf_mask;
+        mage.allowable_classes = mage_mask;
+        mage.min_level = 1;
+        mage.log_title = "Mage Training".into();
+
+        let mut too_high = quest_template(99_001);
+        too_high.allowable_races = blood_elf_mask;
+        too_high.min_level = 4;
+
+        let mut wrong_race = quest_template(99_002);
+        wrong_race.allowable_races = human_mask;
+        wrong_race.min_level = 1;
+
+        let mut store =
+            QuestStore::from_quests_like_cpp([generic, hunter, mage, too_high, wrong_race]);
+        store
+            .starter_quests
+            .entry(entry)
+            .or_default()
+            .extend([8_325, 9_393, 8_328, 99_001, 99_002]);
+        session.set_quest_store(Arc::new(store));
+
+        let quest_text = session.represented_creature_gossip_text_like_cpp(entry);
+
+        assert_eq!(
+            quest_text
+                .iter()
+                .map(|text| text.quest_id)
+                .collect::<Vec<_>>(),
+            vec![8_325, 9_393]
+        );
+        assert!(quest_text.iter().all(|text| text.quest_type == 2));
+    }
+
+    #[test]
+    fn gossip_quest_text_offers_sallina_followup_after_hunter_training_rewarded_like_cpp() {
+        let (mut session, _send_rx) = make_quest_status_session();
+        session.set_loaded_player_identity_like_cpp(530, 10, 3, 3, 0);
+        let sallina_entry = 15_513;
+        let blood_elf_mask = 1u64 << (10 - 1);
+        let hunter_mask = 1u32 << (3 - 1);
+
+        let mut hunter_training = quest_template(9_393);
+        hunter_training.allowable_races = blood_elf_mask;
+        hunter_training.allowable_classes = hunter_mask;
+        hunter_training.min_level = 1;
+        hunter_training.log_title = "Hunter Training".into();
+
+        let mut followup = quest_template(10_070);
+        followup.allowable_races = blood_elf_mask;
+        followup.allowable_classes = hunter_mask;
+        followup.min_level = 2;
+        followup.prev_quest_id = 9_393;
+        followup.exclusive_group = 10_068;
+        followup.log_title = "Well Watcher Solanian".into();
+
+        let mut store = QuestStore::from_quests_like_cpp([hunter_training, followup]);
+        store
+            .ender_quests
+            .entry(sallina_entry)
+            .or_default()
+            .push(9_393);
+        store
+            .starter_quests
+            .entry(sallina_entry)
+            .or_default()
+            .push(10_070);
+        session.set_quest_store(Arc::new(store));
+        session.rewarded_quests.insert(9_393);
+
+        let quest_text = session.represented_creature_gossip_text_like_cpp(sallina_entry);
+
+        assert_eq!(
+            quest_text
+                .iter()
+                .map(|text| (text.quest_id, text.quest_title.as_str(), text.quest_type))
+                .collect::<Vec<_>>(),
+            vec![(10_070, "Well Watcher Solanian", 2)]
+        );
     }
 
     #[tokio::test]

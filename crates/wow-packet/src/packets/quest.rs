@@ -18,6 +18,7 @@ const QUEST_REWARD_CHOICES_COUNT: usize = 6;
 const QUEST_REWARD_REPUTATIONS_COUNT: usize = 5;
 const QUEST_REWARD_CURRENCY_COUNT: usize = 4;
 const QUEST_REWARD_DISPLAY_SPELL_COUNT: usize = 3;
+const QUEST_EMOTE_COUNT: usize = 4;
 
 /// Client request to start an Adventure Map quest.
 ///
@@ -268,6 +269,7 @@ pub struct QuestListEntry {
     pub quest_flags: u32,
     pub quest_flags_ex: u32,
     pub repeatable: bool,
+    pub important: bool,
     pub title: String,
 }
 
@@ -300,7 +302,7 @@ impl ServerPacket for QuestGiverQuestList {
             pkt.write_uint32(q.quest_flags);
             pkt.write_uint32(q.quest_flags_ex);
             pkt.write_bit(q.repeatable);
-            pkt.write_bit(false); // Important
+            pkt.write_bit(q.important);
             pkt.write_bits(q.title.len() as u32, 9);
             pkt.flush_bits();
             pkt.write_string(&q.title);
@@ -328,6 +330,7 @@ pub struct QuestObjectiveSimple {
 pub struct QuestRewardsBlock {
     pub items: [(u32, u32); QUEST_REWARD_ITEM_COUNT], // (item_id, qty) — fixed rewards
     pub choice_items: [(u32, u32); QUEST_REWARD_CHOICES_COUNT], // (item_id, qty) — player picks one
+    pub choice_item_types: [u8; QUEST_REWARD_CHOICES_COUNT], // C++ LootItemType, 0=item, 1=currency
     pub money: i32,
     pub xp: i32,
     pub honor: i32,
@@ -341,6 +344,7 @@ impl Default for QuestRewardsBlock {
         Self {
             items: [(0, 0); QUEST_REWARD_ITEM_COUNT],
             choice_items: [(0, 0); QUEST_REWARD_CHOICES_COUNT],
+            choice_item_types: [0; QUEST_REWARD_CHOICES_COUNT],
             money: 0,
             xp: 0,
             honor: 0,
@@ -387,18 +391,15 @@ impl QuestRewardsBlock {
         pkt.write_int32(0); // SkillLineID
         pkt.write_int32(0); // NumSkillUps
         pkt.write_int32(0); // TreasurePickerID
-        // TODO(issue #57 / QUESTPKT.2 + QUESTREWARD.1): C++ writes each choice as
-        // 2-bit LootItemType, ItemInstance, then int32 Quantity, and reward dialogs
-        // must feed this block with the scaled Player::RewardQuest data.
-        // Current partial legacy layout: ItemID, Quantity, Context+Bonuses, DisplayID, Unused.
-        // C++ target: `QuestChoiceItem`, `QuestPackets.cpp:264-270`.
-        for (item_id, qty) in &self.choice_items {
-            pkt.write_int32(*item_id as i32); // Item.ItemID
-            pkt.write_int32(*qty as i32); // Item.Quantity
-            pkt.write_uint64(0u64); // Item.Mask (ItemContext bits)
-            pkt.write_uint32(0); // Item.Bonuses count
-            pkt.write_int32(0); // DisplayID
-            pkt.write_int32(0); // Unused (LootItemType 0=Item)
+        // C++ `QuestChoiceItem`: 2-bit LootItemType, ItemInstance, int32 Quantity.
+        for (idx, (item_id, qty)) in self.choice_items.iter().enumerate() {
+            pkt.write_bits(u32::from(self.choice_item_types[idx]), 2);
+            ItemInstance {
+                item_id: *item_id as i32,
+                ..ItemInstance::default()
+            }
+            .write(pkt);
+            pkt.write_int32(*qty as i32);
         }
         pkt.write_bit(false); // IsBoostSpell
         pkt.flush_bits();
@@ -409,6 +410,7 @@ impl QuestRewardsBlock {
 /// Legacy non-canonical note: QuestGiverQuestDetails
 pub struct QuestGiverQuestDetails {
     pub giver_guid: ObjectGuid,
+    pub giver_creature_id: i32,
     pub quest_id: u32,
     pub quest_flags: [u32; 3],
     pub suggested_party_members: u8,
@@ -436,14 +438,19 @@ impl ServerPacket for QuestGiverQuestDetails {
         pkt.write_uint32(self.quest_flags[2]);
         pkt.write_int32(self.suggested_party_members as i32);
         pkt.write_int32(0); // LearnSpells count
-        pkt.write_int32(0); // DescEmotes count
+        pkt.write_int32(QUEST_EMOTE_COUNT as i32); // DescEmotes count
         pkt.write_int32(self.objectives.len() as i32);
         pkt.write_int32(0); // QuestStartItemID
         pkt.write_int32(0); // QuestSessionBonus
-        pkt.write_int32(0); // QuestGiverCreatureID
+        pkt.write_int32(self.giver_creature_id); // QuestGiverCreatureID
         pkt.write_int32(0); // ConditionalDescriptionText count
 
         // Objectives
+        for _ in 0..QUEST_EMOTE_COUNT {
+            pkt.write_int32(0); // DescEmote.Type
+            pkt.write_uint32(0); // DescEmote.Delay
+        }
+
         for obj in &self.objectives {
             pkt.write_uint32(obj.id);
             pkt.write_int32(obj.object_id);
@@ -684,7 +691,7 @@ impl ServerPacket for QueryQuestInfoResponse {
         pkt.write_bits(0u32, 10); // PortraitTurnInText
         pkt.write_bits(0u32, 8); // PortraitTurnInName
         pkt.write_bits(self.quest_completion_log.len() as u32, 11);
-        // TODO(issue #57 / QUESTPKT.1): C++ writes Info.ReadyForTranslation here.
+        pkt.write_bit(false); // ReadyForTranslation
         pkt.flush_bits();
 
         // Objectives
@@ -719,6 +726,7 @@ impl ServerPacket for QueryQuestInfoResponse {
 /// Legacy non-canonical note: QuestGiverOfferRewardMessage / QuestGiverOfferReward
 pub struct QuestGiverOfferReward {
     pub giver_guid: ObjectGuid,
+    pub giver_creature_id: i32,
     pub quest_id: u32,
     pub quest_flags: [u32; 3],
     pub suggested_party_members: u8,
@@ -733,7 +741,7 @@ impl ServerPacket for QuestGiverOfferReward {
     fn write(&self, pkt: &mut WorldPacket) {
         // QuestGiverOfferReward inner block
         pkt.write_packed_guid(&self.giver_guid);
-        pkt.write_int32(0); // QuestGiverCreatureID
+        pkt.write_int32(self.giver_creature_id); // QuestGiverCreatureID
         pkt.write_uint32(self.quest_id);
         pkt.write_uint32(self.quest_flags[0]);
         pkt.write_uint32(self.quest_flags[1]);
@@ -751,7 +759,7 @@ impl ServerPacket for QuestGiverOfferReward {
         pkt.write_int32(0); // PortraitGiverMount
         pkt.write_int32(0); // PortraitGiverModelSceneID
         pkt.write_int32(0); // PortraitTurnIn
-        pkt.write_int32(0); // QuestGiverCreatureID (outer)
+        pkt.write_int32(self.giver_creature_id); // QuestGiverCreatureID (outer)
         pkt.write_int32(0); // ConditionalRewardText count
 
         pkt.write_bits(self.title.len() as u32, 9);
@@ -950,6 +958,42 @@ mod tests {
         assert_eq!(pkt.read_int32().unwrap(), 1);
         assert_eq!(pkt.read_packed_guid().unwrap(), guid);
         assert_eq!(pkt.read_uint64().unwrap(), status);
+    }
+
+    #[test]
+    fn quest_giver_quest_details_sallina_capture_length_matches_cpp_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 0, 530, 0, 15513, 27);
+        let bytes = QuestGiverQuestDetails {
+            giver_guid: guid,
+            giver_creature_id: 15513,
+            quest_id: 10070,
+            quest_flags: [0x0008_0088, 0, 0],
+            suggested_party_members: 0,
+            objectives: Vec::new(),
+            rewards: QuestRewardsBlock::default(),
+            title: "Well Watcher Solanian".to_string(),
+            description: "And now, I need for you to do something.$B$BWell Watcher Solanian is in need of your services.  You would do well to ingratiate yourself with him.$B$BHe awaits you on the exterior platform that the ramp in this chamber leads up to.".to_string(),
+            log_description: "Speak with Well Watcher Solanian at the Sunspire on Sunstrider Isle.".to_string(),
+            auto_launched: false,
+        }
+        .to_bytes();
+
+        // C++ capture `/tmp/cpp-sallina-packets/0564...QuestDetails.bin` is 769
+        // bytes of payload; Rust `to_bytes` includes the 2-byte opcode.
+        assert_eq!(bytes.len(), 771);
+
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_packed_guid().unwrap(), guid);
+        assert_eq!(pkt.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
+        assert_eq!(pkt.read_int32().unwrap(), 10070);
+        for _ in 0..10 {
+            let _ = pkt.read_int32().unwrap();
+        }
+        assert_eq!(pkt.read_int32().unwrap(), QUEST_EMOTE_COUNT as i32);
+        assert_eq!(pkt.read_int32().unwrap(), 0);
+        assert_eq!(pkt.read_int32().unwrap(), 0);
+        assert_eq!(pkt.read_int32().unwrap(), 0);
+        assert_eq!(pkt.read_int32().unwrap(), 15513);
     }
 
     #[test]

@@ -4016,7 +4016,7 @@ pub fn grid_corner(grid_x: i16, grid_y: i16) -> (f32, f32) {
 pub struct PendingRespawn {
     /// When to respawn.
     pub respawn_at: Instant,
-    /// C++ `RespawnInfo::spawnId`, encoded as the low counter of creature map GUIDs.
+    /// C++ `RespawnInfo::spawnId` / `Creature::m_spawnId`, separate from the live ObjectGuid low counter.
     pub spawn_id: u64,
     /// Home position (spawn point).
     pub home_pos: wow_core::Position,
@@ -4081,7 +4081,7 @@ pub fn pending_respawn_from_world_creature_like_cpp(
 ) -> PendingRespawn {
     PendingRespawn {
         respawn_at,
-        spawn_id: (creature.guid().low_value() as u64) & 0xFF_FFFF_FFFF,
+        spawn_id: creature.creature.spawn_id(),
         home_pos: creature.home_position(),
         create_data: CreatureCreateData {
             guid: creature.guid(),

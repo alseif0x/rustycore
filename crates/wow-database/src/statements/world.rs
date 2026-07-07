@@ -206,7 +206,7 @@ pub enum WorldStatements {
     SEL_GOSSIP_MENUS,
     /// NPC text BroadcastTextID by npc_text ID.
     SEL_NPC_TEXT,
-    /// Gossip menu options (gossip_menu_option) — includes OptionBroadcastTextID for localization.
+    /// C++ `ObjectMgr::LoadGossipMenuItems` column order, filtered by `MenuID`.
     SEL_GOSSIP_MENU_OPTIONS,
     /// Load all C++ ObjectMgr gossip_menu_option condition keys.
     SEL_GOSSIP_MENU_OPTION_KEYS,
@@ -385,8 +385,10 @@ pub enum WorldStatements {
     SEL_QUEST_ENDERS,
     SEL_GAMEOBJECT_QUEST_STARTERS,
     SEL_GAMEOBJECT_QUEST_ENDERS,
-    /// Get TrainerId from creature_trainer by creature entry (NPC template ID).
+    /// C++ `ObjectMgr::GetCreatureDefaultTrainer` (`MenuID=0`, `OptionID=0`).
     SEL_TRAINER_BY_CREATURE,
+    /// C++ `ObjectMgr::GetCreatureTrainerForGossipOption`.
+    SEL_TRAINER_BY_CREATURE_GOSSIP_OPTION,
     /// Load all spells for a trainer by TrainerId.
     SEL_TRAINER_SPELLS,
     /// Load trainer type and greeting by trainer ID.
@@ -875,10 +877,10 @@ impl StatementDef for WorldStatements {
             Self::SEL_GOSSIP_MENUS => "SELECT MenuID, TextID FROM gossip_menu",
             Self::SEL_NPC_TEXT => "SELECT BroadcastTextID0 FROM npc_text WHERE ID = ? LIMIT 1",
             Self::SEL_GOSSIP_MENU_OPTIONS => concat!(
-                "SELECT GossipOptionID, OptionID, OptionNpc, OptionText, ",
-                "ActionMenuID, BoxCoded, BoxMoney, BoxText, SpellID, OverrideIconID, ",
-                "OptionBroadcastTextID ",
-                "FROM gossip_menu_option WHERE MenuID = ? ORDER BY OptionID ASC",
+                "SELECT MenuID, GossipOptionID, OptionID, OptionNpc, OptionText, OptionBroadcastTextID, ",
+                "Language, Flags, ActionMenuID, ActionPoiID, GossipNpcOptionID, BoxCoded, BoxMoney, ",
+                "BoxText, BoxBroadcastTextID, SpellID, OverrideIconID FROM gossip_menu_option ",
+                "WHERE MenuID = ? ORDER BY MenuID, OptionID"
             ),
             Self::SEL_GOSSIP_MENU_OPTION_KEYS => {
                 "SELECT MenuID, OptionID FROM gossip_menu_option ORDER BY MenuID, OptionID"
@@ -1163,7 +1165,10 @@ impl StatementDef for WorldStatements {
                 "SELECT id, speed, treatSpeedAsMoveTimeSeconds, jumpGravity, spellVisualId, progressCurveId, parabolicCurveId FROM jump_charge_params"
             }
             Self::SEL_TRAINER_BY_CREATURE => {
-                "SELECT TrainerId FROM creature_trainer WHERE CreatureID = ?"
+                "SELECT TrainerID FROM creature_trainer WHERE CreatureID = ? AND MenuID = 0 AND OptionID = 0"
+            }
+            Self::SEL_TRAINER_BY_CREATURE_GOSSIP_OPTION => {
+                "SELECT TrainerID FROM creature_trainer WHERE CreatureID = ? AND MenuID = ? AND OptionID = ?"
             }
             Self::SEL_TRAINER_SPELLS => {
                 "SELECT SpellId, MoneyCost, ReqSkillLine, ReqSkillRank, \
@@ -1226,51 +1231,51 @@ impl StatementDef for WorldStatements {
                 "qt.RewardItem3, qt.RewardAmount3, qt.ItemDrop3, qt.ItemDropQuantity3, ",
                 "qt.RewardItem4, qt.RewardAmount4, qt.ItemDrop4, qt.ItemDropQuantity4, ",
                 "qt.LogTitle, qt.LogDescription, qt.QuestDescription, qt.AreaDescription, qt.QuestCompletionLog, ",
-                "COALESCE(qt.AllowableRaces, 0) AS AllowableRaces, ",
-                "COALESCE(qta.AllowableClasses, 0) AS AllowableClasses, ",
-                "COALESCE(qta.MaxLevel, 0) AS MaxLevel, ",
-                "COALESCE(qta.PrevQuestID, 0) AS PrevQuestID, ",
-                "COALESCE(qta.RequiredMinRepFaction, 0) AS RequiredMinRepFaction, ",
-                "COALESCE(qta.RequiredMinRepValue, 0) AS RequiredMinRepValue, ",
-                "COALESCE(qta.RequiredMaxRepFaction, 0) AS RequiredMaxRepFaction, ",
-                "COALESCE(qta.RequiredMaxRepValue, 0) AS RequiredMaxRepValue, ",
+                "qt.AllowableRaces AS AllowableRaces, ",
+                "CAST(COALESCE(qta.AllowableClasses, 0) AS UNSIGNED) AS AllowableClasses, ",
+                "CAST(COALESCE(qta.MaxLevel, 0) AS UNSIGNED) AS MaxLevel, ",
+                "CAST(COALESCE(qta.PrevQuestID, 0) AS SIGNED) AS PrevQuestID, ",
+                "CAST(COALESCE(qta.RequiredMinRepFaction, 0) AS UNSIGNED) AS RequiredMinRepFaction, ",
+                "CAST(COALESCE(qta.RequiredMinRepValue, 0) AS SIGNED) AS RequiredMinRepValue, ",
+                "CAST(COALESCE(qta.RequiredMaxRepFaction, 0) AS UNSIGNED) AS RequiredMaxRepFaction, ",
+                "CAST(COALESCE(qta.RequiredMaxRepValue, 0) AS SIGNED) AS RequiredMaxRepValue, ",
                 "qt.RewardChoiceItemID1, qt.RewardChoiceItemQuantity1, ",
                 "qt.RewardChoiceItemID2, qt.RewardChoiceItemQuantity2, ",
                 "qt.RewardChoiceItemID3, qt.RewardChoiceItemQuantity3, ",
                 "qt.RewardChoiceItemID4, qt.RewardChoiceItemQuantity4, ",
                 "qt.RewardChoiceItemID5, qt.RewardChoiceItemQuantity5, ",
                 "qt.RewardChoiceItemID6, qt.RewardChoiceItemQuantity6, ",
-                "COALESCE(qta.NextQuestID, 0) AS NextQuestID, ",
-                "COALESCE(qta.ExclusiveGroup, 0) AS ExclusiveGroup, ",
-                "COALESCE(qta.BreadcrumbForQuestId, 0) AS BreadcrumbForQuestId, ",
-                "COALESCE(qta.SpecialFlags, 0) AS SpecialFlags, ",
+                "CAST(COALESCE(qta.NextQuestID, 0) AS UNSIGNED) AS NextQuestID, ",
+                "CAST(COALESCE(qta.ExclusiveGroup, 0) AS SIGNED) AS ExclusiveGroup, ",
+                "CAST(COALESCE(qta.BreadcrumbForQuestId, 0) AS SIGNED) AS BreadcrumbForQuestId, ",
+                "CAST(COALESCE(qta.SpecialFlags, 0) AS UNSIGNED) AS SpecialFlags, ",
                 "qt.Expansion, ",
                 "qt.StartItem, ",
-                "COALESCE(qta.SourceSpellID, 0) AS SourceSpellID, ",
-                "COALESCE(qta.ProvidedItemCount, 0) AS ProvidedItemCount, ",
+                "CAST(COALESCE(qta.SourceSpellID, 0) AS UNSIGNED) AS SourceSpellID, ",
+                "CAST(COALESCE(qta.ProvidedItemCount, 0) AS UNSIGNED) AS ProvidedItemCount, ",
                 "qt.TimeAllowed, ",
-                "COALESCE(qrci.Type1, 0) AS RewardChoiceItemType1, ",
-                "COALESCE(qrci.Type2, 0) AS RewardChoiceItemType2, ",
-                "COALESCE(qrci.Type3, 0) AS RewardChoiceItemType3, ",
-                "COALESCE(qrci.Type4, 0) AS RewardChoiceItemType4, ",
-                "COALESCE(qrci.Type5, 0) AS RewardChoiceItemType5, ",
-                "COALESCE(qrci.Type6, 0) AS RewardChoiceItemType6, ",
+                "CAST(COALESCE(qrci.Type1, 0) AS UNSIGNED) AS RewardChoiceItemType1, ",
+                "CAST(COALESCE(qrci.Type2, 0) AS UNSIGNED) AS RewardChoiceItemType2, ",
+                "CAST(COALESCE(qrci.Type3, 0) AS UNSIGNED) AS RewardChoiceItemType3, ",
+                "CAST(COALESCE(qrci.Type4, 0) AS UNSIGNED) AS RewardChoiceItemType4, ",
+                "CAST(COALESCE(qrci.Type5, 0) AS UNSIGNED) AS RewardChoiceItemType5, ",
+                "CAST(COALESCE(qrci.Type6, 0) AS UNSIGNED) AS RewardChoiceItemType6, ",
                 "qt.RewardCurrencyID1, qt.RewardCurrencyQty1, ",
                 "qt.RewardCurrencyID2, qt.RewardCurrencyQty2, ",
                 "qt.RewardCurrencyID3, qt.RewardCurrencyQty3, ",
                 "qt.RewardCurrencyID4, qt.RewardCurrencyQty4, ",
                 "qt.RewardSkillLineID, qt.RewardNumSkillUps, qt.RewardTitle, ",
-                "COALESCE(qta.RewardMailTemplateID, 0) AS RewardMailTemplateID, ",
-                "COALESCE(qta.RewardMailDelay, 0) AS RewardMailDelay, ",
-                "COALESCE(qms.RewardMailSenderEntry, 0) AS RewardMailSenderEntry, ",
+                "CAST(COALESCE(qta.RewardMailTemplateID, 0) AS UNSIGNED) AS RewardMailTemplateID, ",
+                "CAST(COALESCE(qta.RewardMailDelay, 0) AS UNSIGNED) AS RewardMailDelay, ",
+                "CAST(COALESCE(qms.RewardMailSenderEntry, 0) AS UNSIGNED) AS RewardMailSenderEntry, ",
                 "qt.RewardFactionID1, qt.RewardFactionValue1, qt.RewardFactionOverride1, qt.RewardFactionCapIn1, ",
                 "qt.RewardFactionID2, qt.RewardFactionValue2, qt.RewardFactionOverride2, qt.RewardFactionCapIn2, ",
                 "qt.RewardFactionID3, qt.RewardFactionValue3, qt.RewardFactionOverride3, qt.RewardFactionCapIn3, ",
                 "qt.RewardFactionID4, qt.RewardFactionValue4, qt.RewardFactionOverride4, qt.RewardFactionCapIn4, ",
                 "qt.RewardFactionID5, qt.RewardFactionValue5, qt.RewardFactionOverride5, qt.RewardFactionCapIn5, ",
                 "qt.RewardFactionFlags, ",
-                "COALESCE(qta.RequiredSkillID, 0) AS RequiredSkillID, ",
-                "COALESCE(qta.RequiredSkillPoints, 0) AS RequiredSkillPoints ",
+                "CAST(COALESCE(qta.RequiredSkillID, 0) AS UNSIGNED) AS RequiredSkillID, ",
+                "CAST(COALESCE(qta.RequiredSkillPoints, 0) AS UNSIGNED) AS RequiredSkillPoints ",
                 "FROM quest_template qt ",
                 "LEFT JOIN quest_template_addon qta ON qt.ID = qta.ID ",
                 "LEFT JOIN quest_reward_choice_items qrci ON qt.ID = qrci.QuestID ",
@@ -1293,6 +1298,29 @@ impl StatementDef for WorldStatements {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn gossip_menu_options_select_keeps_cpp_load_column_order_like_cpp() {
+        let sql = WorldStatements::SEL_GOSSIP_MENU_OPTIONS.sql();
+
+        assert!(sql.contains(
+            "SELECT MenuID, GossipOptionID, OptionID, OptionNpc, OptionText, OptionBroadcastTextID, Language, Flags, ActionMenuID, ActionPoiID, GossipNpcOptionID, BoxCoded, BoxMoney, BoxText, BoxBroadcastTextID, SpellID, OverrideIconID"
+        ));
+        assert!(sql.contains("FROM gossip_menu_option WHERE MenuID = ?"));
+        assert!(sql.contains("ORDER BY MenuID, OptionID"));
+    }
+
+    #[test]
+    fn trainer_by_creature_gossip_option_matches_cpp_lookup_key() {
+        assert_eq!(
+            WorldStatements::SEL_TRAINER_BY_CREATURE.sql(),
+            "SELECT TrainerID FROM creature_trainer WHERE CreatureID = ? AND MenuID = 0 AND OptionID = 0"
+        );
+        assert_eq!(
+            WorldStatements::SEL_TRAINER_BY_CREATURE_GOSSIP_OPTION.sql(),
+            "SELECT TrainerID FROM creature_trainer WHERE CreatureID = ? AND MenuID = ? AND OptionID = ?"
+        );
+    }
 
     #[test]
     fn creatures_in_range_selects_addon_path_and_effective_movement_like_cpp() {
@@ -1443,21 +1471,35 @@ mod tests {
         let sql = WorldStatements::SEL_QUEST_TEMPLATE.sql();
 
         assert!(sql.contains("qt.QuestPackageID"));
-        assert!(sql.contains("COALESCE(qrci.Type1, 0) AS RewardChoiceItemType1"));
-        assert!(sql.contains("COALESCE(qrci.Type6, 0) AS RewardChoiceItemType6"));
+        assert!(sql.contains("qt.AllowableRaces AS AllowableRaces"));
+        assert!(
+            sql.contains("CAST(COALESCE(qta.AllowableClasses, 0) AS UNSIGNED) AS AllowableClasses")
+        );
+        assert!(sql.contains("CAST(COALESCE(qrci.Type1, 0) AS UNSIGNED) AS RewardChoiceItemType1"));
+        assert!(sql.contains("CAST(COALESCE(qrci.Type6, 0) AS UNSIGNED) AS RewardChoiceItemType6"));
         assert!(sql.contains("LEFT JOIN quest_reward_choice_items qrci ON qt.ID = qrci.QuestID"));
         assert!(sql.contains("qt.RewardCurrencyID1, qt.RewardCurrencyQty1"));
         assert!(sql.contains("qt.RewardCurrencyID4, qt.RewardCurrencyQty4"));
         assert!(sql.contains("qt.RewardSkillLineID, qt.RewardNumSkillUps, qt.RewardTitle"));
-        assert!(sql.contains("COALESCE(qta.RewardMailTemplateID, 0) AS RewardMailTemplateID"));
-        assert!(sql.contains("COALESCE(qta.RewardMailDelay, 0) AS RewardMailDelay"));
-        assert!(sql.contains("COALESCE(qms.RewardMailSenderEntry, 0) AS RewardMailSenderEntry"));
+        assert!(sql.contains(
+            "CAST(COALESCE(qta.RewardMailTemplateID, 0) AS UNSIGNED) AS RewardMailTemplateID"
+        ));
+        assert!(
+            sql.contains("CAST(COALESCE(qta.RewardMailDelay, 0) AS UNSIGNED) AS RewardMailDelay")
+        );
+        assert!(sql.contains(
+            "CAST(COALESCE(qms.RewardMailSenderEntry, 0) AS UNSIGNED) AS RewardMailSenderEntry"
+        ));
         assert!(sql.contains("LEFT JOIN quest_mail_sender qms ON qt.ID = qms.QuestId"));
         assert!(sql.contains("qt.RewardFactionID1, qt.RewardFactionValue1"));
         assert!(sql.contains("qt.RewardFactionID5, qt.RewardFactionValue5"));
         assert!(sql.contains("qt.RewardFactionFlags"));
-        assert!(sql.contains("COALESCE(qta.RequiredSkillID, 0) AS RequiredSkillID"));
-        assert!(sql.contains("COALESCE(qta.RequiredSkillPoints, 0) AS RequiredSkillPoints"));
+        assert!(
+            sql.contains("CAST(COALESCE(qta.RequiredSkillID, 0) AS UNSIGNED) AS RequiredSkillID")
+        );
+        assert!(sql.contains(
+            "CAST(COALESCE(qta.RequiredSkillPoints, 0) AS UNSIGNED) AS RequiredSkillPoints"
+        ));
     }
 
     #[test]

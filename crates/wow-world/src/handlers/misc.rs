@@ -15881,6 +15881,8 @@ mod tests {
             .gossip_options
             .push(crate::session::GossipOptionInfo {
                 gossip_option_id: 1,
+                menu_id: 0,
+                order_index: 0,
                 option_npc: 2,
                 action_menu_id: 3,
             });
@@ -15905,6 +15907,8 @@ mod tests {
             .gossip_options
             .push(crate::session::GossipOptionInfo {
                 gossip_option_id: 1,
+                menu_id: 0,
+                order_index: 0,
                 option_npc: 2,
                 action_menu_id: 3,
             });

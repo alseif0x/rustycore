@@ -3599,7 +3599,11 @@ impl WorldSession {
         };
 
         self.set_represented_pending_quest_sharing_like_cpp(command.sender_guid, command.quest.id);
-        self.send_represented_quest_giver_quest_details_like_cpp(receiver_guid, &command.quest);
+        self.send_represented_quest_giver_quest_details_like_cpp(
+            receiver_guid,
+            &command.quest,
+            false,
+        );
     }
 
     async fn handle_represented_loot_roll_vote_command_like_cpp(

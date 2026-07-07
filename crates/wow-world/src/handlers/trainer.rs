@@ -73,6 +73,24 @@ impl WorldSession {
     /// Opens the trainer window: resolves the NPC, loads spells from DB,
     /// and sends SMSG_TRAINER_LIST back to the client.
     pub async fn handle_trainer_list(&mut self, hello: wow_packet::packets::gossip::Hello) {
+        self.send_trainer_list_like_cpp(hello, None).await;
+    }
+
+    pub(crate) async fn handle_trainer_list_for_gossip_option_like_cpp(
+        &mut self,
+        hello: wow_packet::packets::gossip::Hello,
+        gossip_menu_id: u32,
+        gossip_option_id: u32,
+    ) {
+        self.send_trainer_list_like_cpp(hello, Some((gossip_menu_id, gossip_option_id)))
+            .await;
+    }
+
+    async fn send_trainer_list_like_cpp(
+        &mut self,
+        hello: wow_packet::packets::gossip::Hello,
+        gossip_option: Option<(u32, u32)>,
+    ) {
         let trainer_guid = hello.unit;
         info!(
             account = self.account_id,
@@ -140,32 +158,24 @@ impl WorldSession {
         };
 
         // ── Look up TrainerId ──────────────────────────────────────────────
-        let mut ct_stmt = world_db.prepare(WorldStatements::SEL_TRAINER_BY_CREATURE);
-        ct_stmt.set_u32(0, entry);
-        let trainer_id =
-            match tokio::time::timeout(std::time::Duration::from_secs(2), world_db.query(&ct_stmt))
-                .await
-            {
-                Ok(Ok(r)) if !r.is_empty() => match r.try_read::<u32>(0) {
-                    Some(id) => id,
-                    None => {
-                        warn!(
-                            account = self.account_id,
-                            entry = entry,
-                            "creature_trainer row has no TrainerId"
-                        );
-                        return;
-                    }
-                },
-                _ => {
-                    warn!(
-                        account = self.account_id,
-                        entry = entry,
-                        "No creature_trainer row for entry"
-                    );
-                    return;
-                }
-            };
+        let trainer_id = match Self::resolve_creature_trainer_id_like_cpp(
+            world_db.as_ref(),
+            entry,
+            gossip_option,
+        )
+        .await
+        {
+            Some(id) => id,
+            None => {
+                warn!(
+                    account = self.account_id,
+                    entry = entry,
+                    gossip_option = ?gossip_option,
+                    "No creature_trainer row for C++ trainer lookup"
+                );
+                return;
+            }
+        };
 
         // ── Load trainer info (type + greeting) ────────────────────────────
         let (trainer_type, greeting) = {
@@ -330,6 +340,40 @@ impl WorldSession {
             spells,
             greeting,
         });
+    }
+
+    async fn resolve_creature_trainer_id_like_cpp(
+        world_db: &wow_database::WorldDatabase,
+        entry: u32,
+        gossip_option: Option<(u32, u32)>,
+    ) -> Option<u32> {
+        async fn query(
+            world_db: &wow_database::WorldDatabase,
+            entry: u32,
+            menu_id: u32,
+            option_id: u32,
+        ) -> Option<u32> {
+            let mut stmt = world_db.prepare(WorldStatements::SEL_TRAINER_BY_CREATURE_GOSSIP_OPTION);
+            stmt.set_u32(0, entry);
+            stmt.set_u32(1, menu_id);
+            stmt.set_u32(2, option_id);
+            match tokio::time::timeout(std::time::Duration::from_secs(2), world_db.query(&stmt))
+                .await
+            {
+                Ok(Ok(r)) if !r.is_empty() => r.try_read::<u32>(0),
+                _ => None,
+            }
+        }
+
+        if let Some((menu_id, option_id)) = gossip_option
+            && let Some(trainer_id) = query(world_db, entry, menu_id, option_id).await
+        {
+            return Some(trainer_id);
+        }
+
+        // C++ fallback: `ObjectMgr::GetCreatureDefaultTrainer(creatureId)`,
+        // implemented as `GetCreatureTrainerForGossipOption(creatureId, 0, 0)`.
+        query(world_db, entry, 0, 0).await
     }
 
     /// Handle `CMSG_TRAINER_BUY_SPELL` (0x34ae).

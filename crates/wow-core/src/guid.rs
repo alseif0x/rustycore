@@ -1,6 +1,8 @@
 use std::fmt;
 use std::sync::atomic::{AtomicI64, Ordering};
 
+const DEFAULT_OBJECT_GUID_REALM_ID_LIKE_CPP: u16 = 1;
+
 /// High-type discriminator for ObjectGuid. Stored in bits [63:58] of the high qword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(u8)]
@@ -439,6 +441,11 @@ impl ObjectGuid {
         entry: u32,
         counter: i64,
     ) -> Self {
+        let realm_id = if realm_id == 0 {
+            DEFAULT_OBJECT_GUID_REALM_ID_LIKE_CPP
+        } else {
+            realm_id
+        };
         Self::new(
             ((guid_type as i64) << 58)
                 | ((realm_id as i64 & 0x1FFF) << 42)
@@ -451,8 +458,8 @@ impl ObjectGuid {
 
     /// Matches TrinityCore `ObjectGuid::Create<HighGuid::Creature>(mapId, entry, counter)`.
     ///
-    /// C++ routes this through `CreateWorldObject(type, 0, 0, mapId, 0, entry, counter)`,
-    /// so creature map GUIDs do not carry realm or server ids.
+    /// C++ routes this through `CreateWorldObject(type, 0, 0, mapId, 0, entry, counter)`;
+    /// `GetRealmIdForObjectGuid(0)` then resolves the current realm id.
     pub fn create_creature_like_cpp(map_id: u16, entry: u32, counter: i64) -> Self {
         Self::create_world_object(HighGuid::Creature, 0, 0, map_id, 0, entry, counter)
     }
@@ -709,7 +716,7 @@ mod tests {
         );
         assert!(guid.is_creature());
         assert_eq!(guid.high_type(), HighGuid::Creature);
-        assert_eq!(guid.realm_id(), 0);
+        assert_eq!(guid.realm_id(), 1);
         assert_eq!(guid.server_id(), 0);
         assert_eq!(guid.map_id(), 530);
         assert_eq!(guid.entry(), 1234);
@@ -721,7 +728,7 @@ mod tests {
     fn test_create_world_object_helpers_like_cpp() {
         let vehicle = ObjectGuid::create_vehicle_like_cpp(571, 29929, 0x6A);
         assert_eq!(vehicle.high_type(), HighGuid::Vehicle);
-        assert_eq!(vehicle.realm_id(), 0);
+        assert_eq!(vehicle.realm_id(), 1);
         assert_eq!(vehicle.server_id(), 0);
         assert_eq!(vehicle.map_id(), 571);
         assert_eq!(vehicle.entry(), 29929);
@@ -729,7 +736,7 @@ mod tests {
 
         let gameobject = ObjectGuid::create_gameobject_like_cpp(571, 9001, 22);
         assert_eq!(gameobject.high_type(), HighGuid::GameObject);
-        assert_eq!(gameobject.realm_id(), 0);
+        assert_eq!(gameobject.realm_id(), 1);
         assert_eq!(gameobject.server_id(), 0);
         assert_eq!(gameobject.map_id(), 571);
         assert_eq!(gameobject.entry(), 9001);
@@ -737,7 +744,7 @@ mod tests {
 
         let area_trigger = ObjectGuid::create_area_trigger_like_cpp(571, 2001, 99);
         assert_eq!(area_trigger.high_type(), HighGuid::AreaTrigger);
-        assert_eq!(area_trigger.realm_id(), 0);
+        assert_eq!(area_trigger.realm_id(), 1);
         assert_eq!(area_trigger.server_id(), 0);
         assert_eq!(area_trigger.map_id(), 571);
         assert_eq!(area_trigger.entry(), 2001);
