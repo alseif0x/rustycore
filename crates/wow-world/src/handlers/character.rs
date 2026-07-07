@@ -8398,6 +8398,20 @@ impl WorldSession {
             && !npc_has_direct_interaction_like_cpp(npc_flags)
             && entry != 0
         {
+            if self
+                .represented_npc_can_interact_with_like_cpp(
+                    hello.unit,
+                    NPCFlags1::QUEST_GIVER.bits(),
+                    0,
+                )
+                .is_none()
+            {
+                debug!(
+                    "GossipHello questgiver fallback rejected by C++ interaction checks for {:?}",
+                    hello.unit
+                );
+                return;
+            }
             if self.use_represented_creature_questgiver_like_cpp(hello.unit, entry) {
                 info!(
                     "GossipHello questgiver fallback consumed entry={} for {:?}",
@@ -16951,6 +16965,27 @@ mod tests {
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, entry, counter)
     }
 
+    fn faction_template_entry(
+        id: u32,
+        faction: u16,
+        faction_group: u8,
+        friend_group: u8,
+        enemy: u16,
+    ) -> wow_data::progression_rewards::FactionTemplateEntry {
+        let mut enemies = [0; 8];
+        enemies[0] = enemy;
+        wow_data::progression_rewards::FactionTemplateEntry {
+            id,
+            faction,
+            flags: 0,
+            faction_group,
+            friend_group,
+            enemy_group: 0,
+            enemies,
+            friend: [0; 8],
+        }
+    }
+
     fn insert_creature(manager: &mut wow_map::MapManager, guid: ObjectGuid, entry: u32) {
         let mut creature = wow_entities::Creature::new(false);
         creature.unit_mut().world_mut().object_mut().create(guid);
@@ -17232,6 +17267,36 @@ mod tests {
         assert_eq!(
             drain_server_opcodes(&send_rx),
             vec![ServerOpcodes::GossipMessage]
+        );
+    }
+
+    #[tokio::test]
+    async fn gossip_hello_hostile_questgiver_fallback_is_rejected_like_cpp() {
+        let (mut session, send_rx) = make_quest_status_session();
+        let entry = 9310;
+        let guid = creature_guid(entry, 310);
+        let mut store = store_with_quests(&[3010]);
+        store.starter_quests.entry(entry).or_default().push(3010);
+        session.set_quest_store(Arc::new(store));
+        session.set_player_faction_template_like_cpp(1);
+        session.set_faction_template_store(Arc::new(
+            wow_data::progression_rewards::FactionTemplateStore::from_entries([
+                faction_template_entry(35, 35, 0, 0, 1),
+                faction_template_entry(1, 1, 0, 0, 0),
+            ]),
+        ));
+        attach_legacy_creature(
+            &mut session,
+            guid,
+            entry,
+            NPCFlags1::GOSSIP.bits() | NPCFlags1::QUEST_GIVER.bits(),
+        );
+
+        session.handle_gossip_hello(Hello { unit: guid }).await;
+
+        assert!(
+            send_rx.try_recv().is_err(),
+            "C++ HandleGossipHelloOpcode returns when GetNPCIfCanInteractWith rejects a hostile questgiver"
         );
     }
 

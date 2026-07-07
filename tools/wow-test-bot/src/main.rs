@@ -2330,7 +2330,7 @@ fn resolve_quest_target_for_bot(
         spawn_guid,
         quest_options.creature_entry,
     )?;
-    let (low, high) = create_creature_guid_raw(map_id, entry, guid_counter, realm_id());
+    let (low, high) = create_creature_guid_raw(map_id, entry, guid_counter);
     Ok(ResolvedCreatureTarget {
         entry,
         spawn_guid,
@@ -3075,9 +3075,8 @@ fn resolve_quest_runtime_counter(
     })
 }
 
-fn create_creature_guid_raw(map_id: u16, entry: u32, counter: u64, realm_id: u32) -> (u64, u64) {
+fn create_creature_guid_raw(map_id: u16, entry: u32, counter: u64) -> (u64, u64) {
     let high = (8u64 << 58)
-        | ((u64::from(realm_id) & 0x1FFF) << 42)
         | ((map_id as u64 & 0x1FFF) << 29)
         | ((entry as u64 & 0x7F_FFFF) << 6);
     let low = counter & 0xFF_FFFF_FFFF;
@@ -3125,12 +3124,12 @@ mod tests {
     }
 
     #[test]
-    fn creature_guid_uses_runtime_counter_and_realm() {
-        let (low, high) = create_creature_guid_raw(571, 15_513, 77_001, 3);
+    fn creature_guid_uses_runtime_counter_and_zero_realm_like_cpp() {
+        let (low, high) = create_creature_guid_raw(571, 15_513, 77_001);
 
         assert_eq!(low, 77_001);
         assert_eq!((high >> 58) & 0x3F, 8);
-        assert_eq!((high >> 42) & 0x1FFF, 3);
+        assert_eq!((high >> 42) & 0x1FFF, 0);
         assert_eq!((high >> 29) & 0x1FFF, 571);
         assert_eq!((high >> 6) & 0x7F_FFFF, 15_513);
     }

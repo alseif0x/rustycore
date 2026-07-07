@@ -42537,11 +42537,9 @@ impl WorldSession {
             .filter(|objective| objective.obj_type == QUEST_OBJECTIVE_MONEY_LIKE_CPP)
             .map(|objective| objective.amount)
             .sum::<i32>();
-        let giver_creature_id = i32::try_from(source_guid.entry()).unwrap_or(0);
-
         self.send_packet(&QuestGiverRequestItems {
             giver_guid: source_guid,
-            giver_creature_id,
+            giver_creature_id: quest_giver_creature_id_from_source_like_cpp(source_guid),
             quest_id: quest.id,
             comp_emote_delay: 0,
             comp_emote_type: 0,
@@ -61622,6 +61620,7 @@ mod tests {
 
     #[derive(Debug, PartialEq, Eq)]
     struct QuestGiverRequestItemsSummaryLikeCpp {
+        giver_creature_id: i32,
         quest_id: u32,
         status_flags: u32,
         auto_launched: bool,
@@ -61632,7 +61631,7 @@ mod tests {
     ) -> QuestGiverRequestItemsSummaryLikeCpp {
         let mut pkt = wow_packet::WorldPacket::from_bytes(&bytes[2..]);
         pkt.read_packed_guid().unwrap();
-        pkt.read_int32().unwrap(); // GiverCreatureID
+        let giver_creature_id = pkt.read_int32().unwrap();
         let quest_id = pkt.read_int32().unwrap() as u32;
         pkt.read_int32().unwrap(); // CompEmoteDelay
         pkt.read_int32().unwrap(); // CompEmoteType
@@ -61656,6 +61655,7 @@ mod tests {
         }
 
         QuestGiverRequestItemsSummaryLikeCpp {
+            giver_creature_id,
             quest_id,
             status_flags,
             auto_launched: pkt.read_bit().unwrap(),
@@ -120950,6 +120950,15 @@ mod tests {
             Some(ServerOpcodes::QuestGiverRequestItems)
         );
         assert!(packet_contains_quest_ids_in_order(&bytes, &[9_003]));
+        assert_eq!(
+            quest_giver_request_items_summary_like_cpp(&bytes),
+            QuestGiverRequestItemsSummaryLikeCpp {
+                giver_creature_id: 0,
+                quest_id: 9_003,
+                status_flags: 0xFF,
+                auto_launched: true,
+            }
+        );
     }
 
     #[test]
@@ -121037,6 +121046,7 @@ mod tests {
         assert_eq!(
             quest_giver_request_items_summary_like_cpp(&bytes),
             QuestGiverRequestItemsSummaryLikeCpp {
+                giver_creature_id: 777,
                 quest_id: 9_103,
                 status_flags: 0xFF,
                 auto_launched: true,
@@ -121904,6 +121914,7 @@ mod tests {
         assert_eq!(
             quest_giver_request_items_summary_like_cpp(&bytes),
             QuestGiverRequestItemsSummaryLikeCpp {
+                giver_creature_id: 778,
                 quest_id: 9_203,
                 status_flags: 0xFF,
                 auto_launched: false,
@@ -121953,6 +121964,7 @@ mod tests {
         assert_eq!(
             quest_giver_request_items_summary_like_cpp(&bytes),
             QuestGiverRequestItemsSummaryLikeCpp {
+                giver_creature_id: 778,
                 quest_id: 9_204,
                 status_flags: 0xFD,
                 auto_launched: false,
@@ -122025,6 +122037,15 @@ mod tests {
             Some(ServerOpcodes::QuestGiverRequestItems)
         );
         assert!(packet_contains_quest_ids_in_order(&bytes, &[9_206]));
+        assert_eq!(
+            quest_giver_request_items_summary_like_cpp(&bytes),
+            QuestGiverRequestItemsSummaryLikeCpp {
+                giver_creature_id: 0,
+                quest_id: 9_206,
+                status_flags: 0xFF,
+                auto_launched: false,
+            }
+        );
     }
 
     #[test]

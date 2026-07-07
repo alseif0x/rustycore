@@ -4243,6 +4243,7 @@ pub fn world_creature_from_pending_respawn_like_cpp(
     let damage_school = create_data.damage_school;
 
     let mut creature = Creature::new(false);
+    creature.set_spawn_id(respawn.spawn_id);
     creature.unit_mut().world_mut().object_mut().create(guid);
     creature
         .unit_mut()
@@ -8254,6 +8255,11 @@ mod tests {
         );
 
         let respawned = world_creature_from_pending_respawn_like_cpp(&pending, 0);
+        assert_eq!(
+            respawned.creature.spawn_id(),
+            42,
+            "C++ Creature::LoadFromDB restores m_spawnId before registering the respawned creature"
+        );
         assert!(
             respawned.creature.is_civilian_like_cpp(),
             "map-owned respawn must keep C++ flags_extra gates"
@@ -8317,5 +8323,11 @@ mod tests {
         assert_eq!(first_pending.spawn_id, first_guid.low_value() as u64);
         assert_eq!(second_pending.spawn_id, second_guid.low_value() as u64);
         assert_ne!(first_pending.spawn_id, second_pending.spawn_id);
+        assert_eq!(
+            world_creature_from_pending_respawn_like_cpp(&first_pending, 0)
+                .creature
+                .spawn_id(),
+            first_pending.spawn_id
+        );
     }
 }
