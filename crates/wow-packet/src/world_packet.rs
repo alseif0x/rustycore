@@ -707,7 +707,7 @@ mod tests {
     }
 
     #[test]
-    fn packed_guid_world_objects_resolve_default_realm_and_do_not_encode_server_like_cpp() {
+    fn packed_guid_raw_world_objects_do_not_encode_realm_or_server() {
         let cpp_guid = ObjectGuid::create_vehicle_like_cpp(571, 29929, 0x6A);
         let mut cpp_packet = WorldPacket::new_empty();
         cpp_packet.write_packed_guid(&cpp_guid);
@@ -724,12 +724,12 @@ mod tests {
         let mut contaminated_packet = WorldPacket::new_empty();
         contaminated_packet.write_packed_guid(&contaminated_guid);
 
-        assert_eq!(cpp_guid.realm_id(), 1);
+        assert_eq!(cpp_guid.realm_id(), 0);
         assert_eq!(cpp_guid.server_id(), 0);
         assert_eq!(
             contaminated_packet.size(),
-            cpp_packet.size() + 1,
-            "non-zero server fields add packed GUID bytes that C++ WorldObject GUIDs do not have"
+            cpp_packet.size() + 2,
+            "non-zero realm/server fields add packed GUID bytes outside the current raw world-object GUID contract"
         );
 
         cpp_packet.reset_read();

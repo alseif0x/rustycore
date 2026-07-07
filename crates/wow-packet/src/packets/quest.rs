@@ -392,6 +392,7 @@ impl QuestRewardsBlock {
         pkt.write_int32(0); // NumSkillUps
         pkt.write_int32(0); // TreasurePickerID
         // C++ `QuestChoiceItem`: 2-bit LootItemType, ItemInstance, int32 Quantity.
+        // `ByteBuffer::append` flushes pending bits before the ItemInstance integers.
         for (idx, (item_id, qty)) in self.choice_items.iter().enumerate() {
             pkt.write_bits(u32::from(self.choice_item_types[idx]), 2);
             ItemInstance {
@@ -962,7 +963,8 @@ mod tests {
 
     #[test]
     fn quest_giver_quest_details_sallina_capture_length_matches_cpp_like_cpp() {
-        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 0, 530, 0, 15513, 27);
+        // The C++ runtime normalizes realm 0 to the active realm before this packet is captured.
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 530, 0, 15513, 27);
         let bytes = QuestGiverQuestDetails {
             giver_guid: guid,
             giver_creature_id: 15513,
@@ -1323,5 +1325,48 @@ mod quest_giver_quest_complete_tests {
         assert_eq!(bytes[38], 0x00);
         assert_eq!(bytes[39], 0x00);
         assert_eq!(bytes.len(), 40);
+    }
+
+    #[test]
+    fn quest_rewards_choice_item_flushes_loot_type_before_item_instance_like_cpp() {
+        let mut rewards = QuestRewardsBlock::default();
+        rewards.choice_items[0] = (0x0102_0304, 7);
+        rewards.choice_item_types[0] = 0b10;
+
+        let mut pkt = WorldPacket::new_empty();
+        rewards.write(&mut pkt);
+        let bytes = pkt.into_data();
+
+        // Counts + fixed reward slots + money/xp/artifact/honor/title + faction/spell/currency/skill fields.
+        let choice_start = 4
+            + 4
+            + (QUEST_REWARD_ITEM_COUNT * 2 * 4)
+            + 4
+            + 4
+            + 8
+            + 4
+            + 4
+            + 4
+            + 4
+            + (QUEST_REWARD_REPUTATIONS_COUNT * 4 * 4)
+            + (QUEST_REWARD_DISPLAY_SPELL_COUNT * 4)
+            + 4
+            + (QUEST_REWARD_CURRENCY_COUNT * 2 * 4)
+            + 4
+            + 4
+            + 4;
+        assert_eq!(
+            bytes[choice_start] >> 6,
+            0b10,
+            "C++ ByteBuffer::append flushes the 2-bit LootItemType before ItemInstance"
+        );
+        assert_eq!(
+            &bytes[choice_start + 1..choice_start + 5],
+            &0x0102_0304_i32.to_le_bytes()
+        );
+        assert_eq!(
+            &bytes[choice_start + 15..choice_start + 19],
+            &7_i32.to_le_bytes()
+        );
     }
 }

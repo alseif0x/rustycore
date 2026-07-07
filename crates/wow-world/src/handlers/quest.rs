@@ -80,6 +80,14 @@ use crate::session::{
     SeasonalQuestStatusDbRowLikeCpp, WorldSession,
 };
 
+fn quest_giver_creature_id_from_source_like_cpp(source_guid: ObjectGuid) -> i32 {
+    if source_guid.is_any_type_creature() {
+        i32::try_from(source_guid.entry()).unwrap_or(0)
+    } else {
+        0
+    }
+}
+
 pub(crate) const QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP: u32 = 0x0001_0000;
 pub(crate) const QUEST_FLAGS_PLAYER_CAST_COMPLETE_LIKE_CPP: u32 = 0x0020_0000;
 pub(crate) const QUEST_FLAGS_SHARABLE_LIKE_CPP: u32 = 0x0000_0008;
@@ -5217,7 +5225,7 @@ impl WorldSession {
         // C#: SendQuestGiverOfferReward(quest, questGiverGUID, true)
         self.send_packet(&QuestGiverOfferReward {
             giver_guid: guid,
-            giver_creature_id: i32::try_from(guid.entry()).unwrap_or(0),
+            giver_creature_id: quest_giver_creature_id_from_source_like_cpp(guid),
             quest_id,
             quest_flags: [quest.flags, quest.flags_ex, quest.flags_ex2],
             suggested_party_members: quest.suggested_group_num,
@@ -5340,7 +5348,7 @@ impl WorldSession {
             // Legacy non-canonical note: SendQuestGiverRequestItems(quest, guid, canComplete=false, false)
             self.send_packet(&QuestGiverRequestItems {
                 giver_guid: guid,
-                giver_creature_id: i32::try_from(guid.entry()).unwrap_or(0),
+                giver_creature_id: quest_giver_creature_id_from_source_like_cpp(guid),
                 quest_id,
                 comp_emote_delay: 0,
                 comp_emote_type: 0,
@@ -5360,7 +5368,7 @@ impl WorldSession {
         // All objectives done — show offer reward dialog
         self.send_packet(&QuestGiverOfferReward {
             giver_guid: guid,
-            giver_creature_id: i32::try_from(guid.entry()).unwrap_or(0),
+            giver_creature_id: quest_giver_creature_id_from_source_like_cpp(guid),
             quest_id,
             quest_flags: [quest.flags, quest.flags_ex, quest.flags_ex2],
             suggested_party_members: quest.suggested_group_num,
@@ -7425,6 +7433,18 @@ mod tests {
                 "C++ ReadBit reads the high bit; byte {bit_byte:#04x} must not be treated as bool"
             );
         }
+    }
+
+    #[test]
+    fn quest_giver_creature_id_is_zero_for_gameobject_sources_like_cpp() {
+        assert_eq!(
+            quest_giver_creature_id_from_source_like_cpp(creature_guid(15513, 27)),
+            15513
+        );
+        assert_eq!(
+            quest_giver_creature_id_from_source_like_cpp(gameobject_guid(180516, 301)),
+            0
+        );
     }
 
     #[tokio::test]

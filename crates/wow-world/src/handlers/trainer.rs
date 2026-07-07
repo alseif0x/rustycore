@@ -45,6 +45,12 @@ const TRAINER_BUY_NPC_FLAGS_LIKE_CPP: u32 = NPCFlags1::TRAINER.bits()
     | NPCFlags1::TRAINER_CLASS.bits()
     | NPCFlags1::TRAINER_PROFESSION.bits();
 
+fn default_trainer_lookup_key_for_request_like_cpp(
+    gossip_option: Option<(u32, u32)>,
+) -> Option<(u32, u32)> {
+    gossip_option.is_none().then_some((0, 0))
+}
+
 // ── Handler registrations ─────────────────────────────────────────────────────
 
 inventory::submit! {
@@ -365,15 +371,14 @@ impl WorldSession {
             }
         }
 
-        if let Some((menu_id, option_id)) = gossip_option
-            && let Some(trainer_id) = query(world_db, entry, menu_id, option_id).await
-        {
-            return Some(trainer_id);
+        if let Some((menu_id, option_id)) = gossip_option {
+            return query(world_db, entry, menu_id, option_id).await;
         }
 
         // C++ fallback: `ObjectMgr::GetCreatureDefaultTrainer(creatureId)`,
         // implemented as `GetCreatureTrainerForGossipOption(creatureId, 0, 0)`.
-        query(world_db, entry, 0, 0).await
+        let (menu_id, option_id) = default_trainer_lookup_key_for_request_like_cpp(gossip_option)?;
+        query(world_db, entry, menu_id, option_id).await
     }
 
     /// Handle `CMSG_TRAINER_BUY_SPELL` (0x34ae).
@@ -603,5 +608,23 @@ impl WorldSession {
 
         // ── Send SMSG_LEARNED_SPELLS ───────────────────────────────────────
         self.send_packet(&LearnedSpells::single(spell_id));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn trainer_default_lookup_is_only_for_direct_requests_like_cpp() {
+        assert_eq!(
+            default_trainer_lookup_key_for_request_like_cpp(None),
+            Some((0, 0))
+        );
+        assert_eq!(
+            default_trainer_lookup_key_for_request_like_cpp(Some((900, 3))),
+            None,
+            "C++ gossip-option trainer selection uses the selected (MenuID, OptionID) row; default trainer lookup belongs to direct trainer list requests"
+        );
     }
 }

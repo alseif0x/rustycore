@@ -12038,6 +12038,7 @@ impl WorldSession {
             return None;
         }
 
+        let mut canonical_record_found_like_cpp = false;
         let canonical_access = (|| {
             let manager = self.canonical_map_manager.as_ref()?;
             let Ok(manager) = manager.lock() else {
@@ -12052,6 +12053,7 @@ impl WorldSession {
                 return None;
             }
             let record = map.map().map_object_record(guid)?;
+            canonical_record_found_like_cpp = true;
             let creature = if guid.is_pet() {
                 record.pet()?.creature()
             } else {
@@ -12142,6 +12144,9 @@ impl WorldSession {
         })();
         if canonical_access.is_some() {
             return canonical_access;
+        }
+        if canonical_record_found_like_cpp {
+            return None;
         }
 
         self.represented_legacy_npc_can_interact_with_like_cpp(
@@ -80294,6 +80299,37 @@ mod tests {
                 0,
             ),
             None
+        );
+        let legacy_manager = shared_map_manager();
+        legacy_manager.write().unwrap().add_creature(
+            571,
+            0,
+            0,
+            0,
+            crate::map_manager::WorldCreature::new(
+                trainer_guid,
+                500,
+                Position::new(14.0, 0.0, 0.0, 0.0),
+                100,
+                80,
+                1,
+                2,
+                0.0,
+                1,
+                35,
+                wow_constants::unit::NPCFlags1::TRAINER.bits(),
+                0,
+            ),
+        );
+        session.set_map_manager(legacy_manager);
+        assert_eq!(
+            session.represented_npc_can_interact_with_like_cpp(
+                trainer_guid,
+                wow_constants::unit::NPCFlags1::TRAINER.bits(),
+                0,
+            ),
+            None,
+            "C++ GetNPCIfCanInteractWith rejects the canonical hostile NPC; legacy mirrors must not bypass that rejection"
         );
 
         {

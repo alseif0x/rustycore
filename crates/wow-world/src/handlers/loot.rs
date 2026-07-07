@@ -86,7 +86,7 @@ use wow_packet::{ClientPacket, ServerPacket};
 
 use crate::conditions::{
     QUEST_STATUS_COMPLETE_LIKE_CPP, QUEST_STATUS_FAILED_LIKE_CPP, QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-    QUEST_STATUS_NONE_LIKE_CPP,
+    QUEST_STATUS_NONE_LIKE_CPP, QUEST_STATUS_REWARDED_LIKE_CPP,
 };
 use crate::session::{
     InventoryItem, RepresentedGameObjectSpellCaster, RepresentedGameObjectUseEffect,
@@ -7136,6 +7136,11 @@ impl RepresentedLootPlayerContext {
         self.active_quest_statuses
             .get(&quest_id)
             .copied()
+            .or_else(|| {
+                self.rewarded_quests
+                    .contains(&quest_id)
+                    .then_some(QUEST_STATUS_REWARDED_LIKE_CPP)
+            })
             .unwrap_or(QUEST_STATUS_NONE_LIKE_CPP)
     }
 
@@ -8087,6 +8092,7 @@ mod tests {
         represented_loot_object_guid_like_cpp, represented_loot_response_items_like_cpp,
         select_weighted_random_enchantment_like_cpp, start_loot_roll_packet_like_cpp,
     };
+    use crate::conditions::QUEST_STATUS_REWARDED_LIKE_CPP;
     use crate::session::{
         RepresentedGameObjectSpellCaster, RepresentedGameObjectUseEffect,
         RepresentedLootRollCriteriaEvent, SessionState,
@@ -9306,6 +9312,18 @@ mod tests {
                 &remote_context,
             ),
             Some(true)
+        );
+        assert_eq!(
+            remote_context.quest_status(300),
+            QUEST_STATUS_REWARDED_LIKE_CPP
+        );
+        assert_eq!(
+            session.evaluate_creature_loot_condition_for_player_like_cpp_representable(
+                &loot_condition(14, 300, 0, 0),
+                &remote_context,
+            ),
+            Some(false),
+            "C++ Player::GetQuestStatus returns REWARDED before QUEST_STATUS_NONE"
         );
         assert_eq!(
             session.evaluate_creature_loot_condition_for_player_like_cpp_representable(
