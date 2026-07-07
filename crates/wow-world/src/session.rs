@@ -122513,7 +122513,7 @@ mod tests {
             200,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id: 200,
-                status: 1,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
                 explored: false,
                 accept_time_secs: 0,
                 end_time_secs: 0,

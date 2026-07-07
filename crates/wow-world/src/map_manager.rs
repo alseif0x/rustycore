@@ -8193,6 +8193,7 @@ mod tests {
     fn pending_respawn_preserves_flags_extra_like_cpp() {
         let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 42);
         let mut creature = test_creature(guid);
+        creature.creature.set_spawn_id(42);
         creature
             .creature
             .set_flags_extra_runtime_like_cpp(CreatureFlagsExtra::CIVILIAN.bits());
@@ -8227,7 +8228,7 @@ mod tests {
         });
         assert_eq!(
             pending.spawn_id, 42,
-            "creature respawn must preserve C++ RespawnInfo::spawnId from the map GUID low counter"
+            "creature respawn must preserve C++ RespawnInfo::spawnId from Creature::GetSpawnId"
         );
         assert_eq!(pending.flags_extra, CreatureFlagsExtra::CIVILIAN.bits());
         assert_eq!(pending.static_flags[0], static_flags[0]);
