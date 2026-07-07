@@ -98,6 +98,8 @@ const QUEST_OBJECTIVE_ITEM_LIKE_CPP_LOCAL: u8 = 1;
 const QUEST_OBJECTIVE_GAMEOBJECT_LIKE_CPP_LOCAL: u8 = 2;
 const QUEST_OBJECTIVE_TALKTO_LIKE_CPP_LOCAL: u8 = 3;
 const QUEST_OBJECTIVE_CURRENCY_LIKE_CPP_LOCAL: u8 = 4;
+#[cfg(test)]
+const QUEST_OBJECTIVE_MONEY_LIKE_CPP_LOCAL: u8 = 8;
 const QUEST_OBJECTIVE_PLAYERKILLS_LIKE_CPP_LOCAL: u8 = 9;
 const QUEST_OBJECTIVE_WINPVPPETBATTLES_LIKE_CPP_LOCAL: u8 = 13;
 const QUEST_OBJECTIVE_CRITERIA_TREE_LIKE_CPP_LOCAL: u8 = 14;
@@ -944,13 +946,24 @@ impl WorldSession {
         true
     }
 
-    async fn save_represented_quest_status_like_cpp(&mut self, quest_id: u32) {
+    pub(crate) async fn save_represented_quest_status_like_cpp(&self, quest_id: u32) {
         if let Some(status) = self
             .player_quests
             .get(&quest_id)
             .map(|status| status.status)
         {
             self.save_quest_to_db(quest_id, status).await;
+        }
+    }
+
+    pub(crate) async fn save_changed_represented_quest_statuses_like_cpp(
+        &self,
+        quest_ids: &mut Vec<u32>,
+    ) {
+        quest_ids.sort_unstable();
+        quest_ids.dedup();
+        for quest_id in quest_ids.drain(..) {
+            self.save_represented_quest_status_like_cpp(quest_id).await;
         }
     }
 
@@ -1058,7 +1071,7 @@ impl WorldSession {
         quest_log_item_id
     }
 
-    async fn apply_quest_source_item_added_non_bound_objective_progress_like_cpp(
+    pub(crate) async fn apply_quest_source_item_added_non_bound_objective_progress_like_cpp(
         &mut self,
         entry_id: u32,
         quest_log_item_id: u32,
@@ -6765,43 +6778,33 @@ impl WorldSession {
     /// The represented path keeps Rust's existing direct save timing, but mirrors the
     /// C++ objective persistence order for a saved quest: status row first, then delete
     /// stale objective rows for the quest, then replace nonzero objective counters.
-    async fn save_quest_to_db(&self, quest_id: u32, status: u8) {
-        use wow_database::CharStatements;
+    fn represented_quest_status_save_statements_like_cpp(
+        &self,
+        guid: u64,
+        quest_id: u32,
+        status: u8,
+        mut prepare: impl FnMut(CharStatements) -> PreparedStatement,
+    ) -> Vec<PreparedStatement> {
+        let mut statements = Vec::new();
 
-        let guid = match self.player_guid() {
-            Some(g) => g.counter() as u64,
-            None => return,
-        };
-        let char_db = match self.char_db() {
-            Some(db) => Arc::clone(db),
-            None => return,
-        };
-
-        let mut tx = SqlTransaction::new();
         if status == QUEST_STATUS_REWARDED_LIKE_CPP {
-            let mut del_status = char_db.prepare(CharStatements::DEL_CHAR_QUEST_STATUS);
+            let mut del_status = prepare(CharStatements::DEL_CHAR_QUEST_STATUS);
             del_status.set_u64(0, guid);
             del_status.set_u32(1, quest_id);
-            tx.append(del_status);
+            statements.push(del_status);
 
             let mut del_objectives =
-                char_db.prepare(CharStatements::DEL_CHAR_QUEST_STATUS_OBJECTIVES_BY_QUEST);
+                prepare(CharStatements::DEL_CHAR_QUEST_STATUS_OBJECTIVES_BY_QUEST);
             del_objectives.set_u64(0, guid);
             del_objectives.set_u32(1, quest_id);
-            tx.append(del_objectives);
+            statements.push(del_objectives);
 
-            let mut rewarded = char_db.prepare(CharStatements::INS_CHAR_QUESTSTATUS_REWARDED);
+            let mut rewarded = prepare(CharStatements::INS_CHAR_QUESTSTATUS_REWARDED);
             rewarded.set_u64(0, guid);
             rewarded.set_u32(1, quest_id);
-            tx.append(rewarded);
+            statements.push(rewarded);
 
-            if let Err(e) = char_db.commit_transaction(tx).await {
-                warn!(
-                    account = self.account_id,
-                    quest_id, "Failed to save rewarded quest status: {e}"
-                );
-            }
-            return;
+            return statements;
         }
 
         let represented_explored = self
@@ -6819,20 +6822,19 @@ impl WorldSession {
             .get(&quest_id)
             .map(|status| status.end_time_secs)
             .unwrap_or(0);
-        let mut stmt = char_db.prepare(CharStatements::INS_CHAR_QUEST_STATUS);
+        let mut stmt = prepare(CharStatements::INS_CHAR_QUEST_STATUS);
         stmt.set_u64(0, guid);
         stmt.set_u32(1, quest_id);
         stmt.set_u8(2, status);
         stmt.set_u8(3, u8::from(represented_explored));
         stmt.set_i64(4, represented_accept_time);
         stmt.set_i64(5, represented_end_time);
-        tx.append(stmt);
+        statements.push(stmt);
 
-        let mut del_objectives =
-            char_db.prepare(CharStatements::DEL_CHAR_QUEST_STATUS_OBJECTIVES_BY_QUEST);
+        let mut del_objectives = prepare(CharStatements::DEL_CHAR_QUEST_STATUS_OBJECTIVES_BY_QUEST);
         del_objectives.set_u64(0, guid);
         del_objectives.set_u32(1, quest_id);
-        tx.append(del_objectives);
+        statements.push(del_objectives);
 
         if let (Some(quest_store), Some(saved_status)) =
             (self.quest_store.as_ref(), self.player_quests.get(&quest_id))
@@ -6855,14 +6857,36 @@ impl WorldSession {
                 let Ok(objective_index) = u8::try_from(objective.storage_index) else {
                     continue;
                 };
-                let mut rep_objective =
-                    char_db.prepare(CharStatements::REP_CHAR_QUEST_STATUS_OBJECTIVES);
+                let mut rep_objective = prepare(CharStatements::REP_CHAR_QUEST_STATUS_OBJECTIVES);
                 rep_objective.set_u64(0, guid);
                 rep_objective.set_u32(1, quest_id);
                 rep_objective.set_u8(2, objective_index);
                 rep_objective.set_i32(3, count);
-                tx.append(rep_objective);
+                statements.push(rep_objective);
             }
+        }
+
+        statements
+    }
+
+    async fn save_quest_to_db(&self, quest_id: u32, status: u8) {
+        let guid = match self.player_guid() {
+            Some(g) => g.counter() as u64,
+            None => return,
+        };
+        let char_db = match self.char_db() {
+            Some(db) => Arc::clone(db),
+            None => return,
+        };
+
+        let mut tx = SqlTransaction::new();
+        for stmt in self.represented_quest_status_save_statements_like_cpp(
+            guid,
+            quest_id,
+            status,
+            |statement| char_db.prepare(statement),
+        ) {
+            tx.append(stmt);
         }
 
         if let Err(e) = char_db.commit_transaction(tx).await {
@@ -16383,6 +16407,146 @@ mod tests {
     }
 
     #[test]
+    fn save_to_db_quest_status_statements_persist_nonzero_objectives_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        let quest_id = 5925;
+        let mut quest = quest_template(quest_id);
+        quest.objectives.push(QuestObjective {
+            id: quest_id * 10,
+            quest_id,
+            obj_type: QUEST_OBJECTIVE_MONSTER_LIKE_CPP_LOCAL,
+            order: 0,
+            storage_index: 0,
+            object_id: 44,
+            amount: 5,
+            flags: 0,
+            flags2: 0,
+            progress_bar_weight: 0.0,
+            description: String::new(),
+        });
+        quest.objectives.push(QuestObjective {
+            id: quest_id * 10 + 1,
+            quest_id,
+            obj_type: QUEST_OBJECTIVE_MONSTER_LIKE_CPP_LOCAL,
+            order: 1,
+            storage_index: 1,
+            object_id: 45,
+            amount: 1,
+            flags: 0,
+            flags2: 0,
+            progress_bar_weight: 0.0,
+            description: String::new(),
+        });
+        quest.objectives.push(QuestObjective {
+            id: quest_id * 10 + 2,
+            quest_id,
+            obj_type: QUEST_OBJECTIVE_MONEY_LIKE_CPP_LOCAL,
+            order: 2,
+            storage_index: -1,
+            object_id: 0,
+            amount: 20,
+            flags: 0,
+            flags2: 0,
+            progress_bar_weight: 0.0,
+            description: String::new(),
+        });
+        session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
+        session.player_quests.insert(
+            quest_id,
+            PlayerQuestStatus {
+                quest_id,
+                status: QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: true,
+                accept_time_secs: 12,
+                end_time_secs: 34,
+                objective_counts: vec![3, 0, 9],
+                slot: 0,
+            },
+        );
+
+        let statements = session.represented_quest_status_save_statements_like_cpp(
+            42,
+            quest_id,
+            QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+            |statement| PreparedStatement::new(statement.sql()),
+        );
+
+        assert_eq!(
+            statements
+                .iter()
+                .map(PreparedStatement::sql)
+                .collect::<Vec<_>>(),
+            vec![
+                CharStatements::INS_CHAR_QUEST_STATUS.sql(),
+                CharStatements::DEL_CHAR_QUEST_STATUS_OBJECTIVES_BY_QUEST.sql(),
+                CharStatements::REP_CHAR_QUEST_STATUS_OBJECTIVES.sql(),
+            ],
+            "C++ Player::_SaveQuestStatus rewrites the status row, deletes stale objective rows, then saves only nonzero storage-backed counters"
+        );
+        assert_eq!(
+            statements[0].params(),
+            &[
+                SqlParam::U64(42),
+                SqlParam::U32(quest_id),
+                SqlParam::U8(QUEST_STATUS_INCOMPLETE_LIKE_CPP),
+                SqlParam::U8(1),
+                SqlParam::I64(12),
+                SqlParam::I64(34),
+            ]
+        );
+        assert_eq!(
+            statements[1].params(),
+            &[SqlParam::U64(42), SqlParam::U32(quest_id)]
+        );
+        assert_eq!(
+            statements[2].params(),
+            &[
+                SqlParam::U64(42),
+                SqlParam::U32(quest_id),
+                SqlParam::U8(0),
+                SqlParam::I32(3),
+            ]
+        );
+    }
+
+    #[test]
+    fn save_to_db_rewarded_quest_statements_delete_active_objectives_like_cpp() {
+        let (session, _send_rx) = make_session();
+        let quest_id = 5926;
+
+        let statements = session.represented_quest_status_save_statements_like_cpp(
+            42,
+            quest_id,
+            QUEST_STATUS_REWARDED_LIKE_CPP,
+            |statement| PreparedStatement::new(statement.sql()),
+        );
+
+        assert_eq!(
+            statements
+                .iter()
+                .map(PreparedStatement::sql)
+                .collect::<Vec<_>>(),
+            vec![
+                CharStatements::DEL_CHAR_QUEST_STATUS.sql(),
+                CharStatements::DEL_CHAR_QUEST_STATUS_OBJECTIVES_BY_QUEST.sql(),
+                CharStatements::INS_CHAR_QUESTSTATUS_REWARDED.sql(),
+            ]
+        );
+        assert_eq!(
+            statements[0].params(),
+            &[SqlParam::U64(42), SqlParam::U32(quest_id)]
+        );
+        assert_eq!(
+            statements[1].params(),
+            &[SqlParam::U64(42), SqlParam::U32(quest_id)]
+        );
+        assert_eq!(
+            statements[2].params(),
+            &[SqlParam::U64(42), SqlParam::U32(quest_id)]
+        );
+    }
+
+    #[test]
     fn save_to_db_quest_status_list_skips_rewarded_non_repeatable_active_duplicate_like_cpp() {
         let (mut session, _send_rx) = make_session();
         let active_rewarded_quest_id = 5921;
@@ -17020,7 +17184,7 @@ mod tests {
 #[derive(Debug, Clone)]
 pub struct PlayerQuestStatus {
     pub quest_id: u32,
-    /// 0=None, 1=Incomplete, 2=Complete, 3=Failed
+    /// C++ QuestStatus values: 0=None, 1=Complete, 3=Incomplete, 5=Failed, 6=Rewarded.
     pub status: u8,
     pub explored: bool,
     /// TrinityCore QuestStatusData::AcceptTime, persisted as Unix seconds.

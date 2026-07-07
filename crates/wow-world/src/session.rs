@@ -24792,6 +24792,7 @@ impl WorldSession {
             .collect();
 
         let mut quests_to_complete = Vec::new();
+        let mut quests_to_save = Vec::new();
         for (quest_id, obj_idx, required, objective_id) in matching {
             let Some(qs) = self.player_quests.get_mut(&quest_id) else {
                 continue;
@@ -24806,6 +24807,7 @@ impl WorldSession {
                 .saturating_add(add_count)
                 .clamp(0, required);
             let current = qs.objective_counts[obj_idx];
+            quests_to_save.push(quest_id);
 
             debug!(
                 account = self.account_id,
@@ -24872,6 +24874,8 @@ impl WorldSession {
                 );
             }
         }
+        self.save_changed_represented_quest_statuses_like_cpp(&mut quests_to_save)
+            .await;
         self.sync_player_registry_state_like_cpp();
     }
 
@@ -24910,6 +24914,7 @@ impl WorldSession {
             .collect();
 
         let mut quests_to_complete = Vec::new();
+        let mut quests_to_save = Vec::new();
         for (quest_id, obj_idx, objective_id) in matching {
             let Some(qs) = self.player_quests.get_mut(&quest_id) else {
                 continue;
@@ -24920,6 +24925,9 @@ impl WorldSession {
             let objective_was_complete = qs.objective_counts[obj_idx] != 0;
             qs.objective_counts[obj_idx] = i32::from(add_count > 0);
             let objective_is_now_complete = qs.objective_counts[obj_idx] != 0;
+            if objective_was_complete != objective_is_now_complete {
+                quests_to_save.push(quest_id);
+            }
 
             if add_count > 0 {
                 self.send_packet(&QuestUpdateAddCreditSimple {
@@ -24965,6 +24973,8 @@ impl WorldSession {
                 );
             }
         }
+        self.save_changed_represented_quest_statuses_like_cpp(&mut quests_to_save)
+            .await;
         self.sync_player_registry_state_like_cpp();
     }
 
@@ -25014,6 +25024,7 @@ impl WorldSession {
             .collect();
 
         let mut quests_to_complete = Vec::new();
+        let mut quests_to_save = Vec::new();
         for (quest_id, objective_id, required, objective_was_complete, objective_is_now_complete) in
             matching
         {
@@ -25046,6 +25057,7 @@ impl WorldSession {
                 if let Some(status) = self.player_quests.get_mut(&quest_id) {
                     if status.status == crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP {
                         status.status = crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP;
+                        quests_to_save.push(quest_id);
                     }
                 }
             }
@@ -25059,6 +25071,7 @@ impl WorldSession {
                 .complete_represented_quest_after_objective_if_ready_like_cpp(&quest, objective_id)
                 .await;
             if completed {
+                quests_to_save.push(quest_id);
                 if self.player_quests.get(&quest_id).is_some_and(|qs| {
                     qs.status == crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP
                 }) {
@@ -25070,6 +25083,8 @@ impl WorldSession {
                 );
             }
         }
+        self.save_changed_represented_quest_statuses_like_cpp(&mut quests_to_save)
+            .await;
         self.sync_player_registry_state_like_cpp();
     }
 
@@ -25121,6 +25136,7 @@ impl WorldSession {
             .collect();
 
         let mut quests_to_complete = Vec::new();
+        let mut quests_to_save = Vec::new();
         for (quest_id, objective_id, required, objective_was_complete, objective_is_now_complete) in
             matching
         {
@@ -25154,6 +25170,7 @@ impl WorldSession {
                 if let Some(status) = self.player_quests.get_mut(&quest_id) {
                     if status.status == crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP {
                         status.status = crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP;
+                        quests_to_save.push(quest_id);
                     }
                 }
             }
@@ -25167,6 +25184,7 @@ impl WorldSession {
                 .complete_represented_quest_after_objective_if_ready_like_cpp(&quest, objective_id)
                 .await;
             if completed {
+                quests_to_save.push(quest_id);
                 if self.player_quests.get(&quest_id).is_some_and(|qs| {
                     qs.status == crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP
                 }) {
@@ -25178,6 +25196,8 @@ impl WorldSession {
                 );
             }
         }
+        self.save_changed_represented_quest_statuses_like_cpp(&mut quests_to_save)
+            .await;
         self.sync_player_registry_state_like_cpp();
     }
 
@@ -25246,6 +25266,7 @@ impl WorldSession {
             .collect();
 
         let mut quests_to_complete = Vec::new();
+        let mut quests_to_save = Vec::new();
         for (quest_id, objective_id, required, objective_was_complete, objective_is_now_complete) in
             matching
         {
@@ -25280,6 +25301,7 @@ impl WorldSession {
                 if let Some(status) = self.player_quests.get_mut(&quest_id) {
                     if status.status == crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP {
                         status.status = crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP;
+                        quests_to_save.push(quest_id);
                     }
                 }
             }
@@ -25293,6 +25315,7 @@ impl WorldSession {
                 .complete_represented_quest_after_objective_if_ready_like_cpp(&quest, objective_id)
                 .await;
             if completed {
+                quests_to_save.push(quest_id);
                 if self.player_quests.get(&quest_id).is_some_and(|qs| {
                     qs.status == crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP
                 }) {
@@ -25304,6 +25327,8 @@ impl WorldSession {
                 );
             }
         }
+        self.save_changed_represented_quest_statuses_like_cpp(&mut quests_to_save)
+            .await;
         self.sync_player_registry_state_like_cpp();
     }
 
@@ -42785,7 +42810,9 @@ impl WorldSession {
             && self
                 .player_quests
                 .get(&source.quest_id)
-                .map_or(true, |status| status.status != 1)
+                .map_or(true, |status| {
+                    status.status != crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP
+                })
         {
             self.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::GooberQuestGateRejected {
