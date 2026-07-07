@@ -78,6 +78,26 @@ const GO_SPAWN_PHASE_GROUP_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 2;
 const GO_SPAWN_TERRAIN_SWAP_MAP_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 3;
 const GO_SPAWN_EFFECTIVE_FLAGS_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 4;
 const GO_SPAWN_EFFECTIVE_FACTION_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 5;
+const DIRECT_VENDOR_MASK_LIKE_CPP: u32 = 0x80 | 0x100 | 0x200 | 0x400 | 0x800;
+const DIRECT_TRAINER_MASK_LIKE_CPP: u32 = 0x10 | 0x20 | 0x40;
+const DIRECT_FLIGHT_MASTER_LIKE_CPP: u32 = 0x2000;
+const DIRECT_AUCTIONEER_LIKE_CPP: u32 = 0x200000;
+const DIRECT_BANKER_LIKE_CPP: u32 = 0x20000;
+const DIRECT_TABARD_DESIGNER_LIKE_CPP: u32 = 0x80000;
+const DIRECT_STABLE_MASTER_LIKE_CPP: u32 = 0x400000;
+const DIRECT_GUILD_BANKER_LIKE_CPP: u32 = 0x800000;
+const DIRECT_INTERACTION_MASK_LIKE_CPP: u32 = DIRECT_VENDOR_MASK_LIKE_CPP
+    | DIRECT_TRAINER_MASK_LIKE_CPP
+    | DIRECT_FLIGHT_MASTER_LIKE_CPP
+    | DIRECT_AUCTIONEER_LIKE_CPP
+    | DIRECT_BANKER_LIKE_CPP
+    | DIRECT_TABARD_DESIGNER_LIKE_CPP
+    | DIRECT_STABLE_MASTER_LIKE_CPP
+    | DIRECT_GUILD_BANKER_LIKE_CPP;
+
+fn npc_has_direct_interaction_like_cpp(npc_flags: u32) -> bool {
+    npc_flags & DIRECT_INTERACTION_MASK_LIKE_CPP != 0
+}
 const GO_SPAWN_OVERRIDE_SOURCE_KNOWN_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 6;
 const WORLDSTATE_ANY_MAP_LIKE_CPP: i32 = -1;
 const DEFAULT_GOSSIP_MESSAGE_LIKE_CPP: i32 = 0x00FF_FFFF;
@@ -8374,7 +8394,10 @@ impl WorldSession {
         // No DB gossip menu found. C++ `HandleQuestgiverHelloOpcode` uses the
         // same prepared-gossip path as `HandleGossipHelloOpcode`; the represented
         // seam currently models the quest part of that prepared menu.
-        if (npc_flags & NPCFlags1::QUEST_GIVER.bits()) != 0 && entry != 0 {
+        if (npc_flags & NPCFlags1::QUEST_GIVER.bits()) != 0
+            && !npc_has_direct_interaction_like_cpp(npc_flags)
+            && entry != 0
+        {
             if self.use_represented_creature_questgiver_like_cpp(hello.unit, entry) {
                 info!(
                     "GossipHello questgiver fallback consumed entry={} for {:?}",
@@ -8903,30 +8926,21 @@ impl WorldSession {
     async fn handle_npc_direct_interaction(&mut self, hello: Hello, npc_flags: u32) {
         use wow_packet::packets::misc::{AuctionHelloResponse, NpcInteractionOpenResult};
 
-        const VENDOR_MASK: u32 = 0x80 | 0x100 | 0x200 | 0x400 | 0x800;
-        const TRAINER_MASK: u32 = 0x10 | 0x20 | 0x40;
-        const FLIGHT_MASTER: u32 = 0x2000;
-        const AUCTIONEER: u32 = 0x200000;
-        const BANKER: u32 = 0x20000;
-        const TABARD_DESIGNER: u32 = 0x80000;
-        const STABLE_MASTER: u32 = 0x400000;
-        const GUILD_BANKER: u32 = 0x800000;
-
-        if npc_flags & VENDOR_MASK != 0 {
+        if npc_flags & DIRECT_VENDOR_MASK_LIKE_CPP != 0 {
             self.handle_list_inventory(hello).await;
-        } else if npc_flags & TRAINER_MASK != 0 {
+        } else if npc_flags & DIRECT_TRAINER_MASK_LIKE_CPP != 0 {
             self.handle_trainer_list(hello).await;
-        } else if npc_flags & AUCTIONEER != 0 {
+        } else if npc_flags & DIRECT_AUCTIONEER_LIKE_CPP != 0 {
             self.send_packet(&AuctionHelloResponse::open(hello.unit));
-        } else if npc_flags & BANKER != 0 {
+        } else if npc_flags & DIRECT_BANKER_LIKE_CPP != 0 {
             self.send_packet(&NpcInteractionOpenResult::new(hello.unit, 8));
-        } else if npc_flags & FLIGHT_MASTER != 0 {
+        } else if npc_flags & DIRECT_FLIGHT_MASTER_LIKE_CPP != 0 {
             self.send_packet(&NpcInteractionOpenResult::new(hello.unit, 6));
-        } else if npc_flags & TABARD_DESIGNER != 0 {
+        } else if npc_flags & DIRECT_TABARD_DESIGNER_LIKE_CPP != 0 {
             self.send_packet(&NpcInteractionOpenResult::new(hello.unit, 14));
-        } else if npc_flags & STABLE_MASTER != 0 {
+        } else if npc_flags & DIRECT_STABLE_MASTER_LIKE_CPP != 0 {
             self.send_packet(&NpcInteractionOpenResult::new(hello.unit, 22));
-        } else if npc_flags & GUILD_BANKER != 0 {
+        } else if npc_flags & DIRECT_GUILD_BANKER_LIKE_CPP != 0 {
             self.send_packet(&NpcInteractionOpenResult::new(hello.unit, 10));
         } else {
             self.send_packet(&GossipMessage::empty(hello.unit, 0, 1));
@@ -17174,6 +17188,29 @@ mod tests {
         assert_eq!(
             drain_server_opcodes(&send_rx),
             vec![ServerOpcodes::QuestGiverQuestDetails]
+        );
+    }
+
+    #[tokio::test]
+    async fn gossip_hello_mixed_direct_service_keeps_service_like_cpp() {
+        let (mut session, send_rx) = make_quest_status_session();
+        let entry = 9309;
+        let guid = creature_guid(entry, 309);
+        let mut store = store_with_quests(&[3009]);
+        store.starter_quests.entry(entry).or_default().push(3009);
+        session.set_quest_store(Arc::new(store));
+        attach_legacy_creature(
+            &mut session,
+            guid,
+            entry,
+            NPCFlags1::GOSSIP.bits() | NPCFlags1::QUEST_GIVER.bits() | NPCFlags1::BANKER.bits(),
+        );
+
+        session.handle_gossip_hello(Hello { unit: guid }).await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::NpcInteractionOpenResult]
         );
     }
 

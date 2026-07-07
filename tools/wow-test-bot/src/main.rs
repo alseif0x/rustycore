@@ -317,7 +317,8 @@ fn parse_cli() -> Result<CliOptions> {
         quest_creature_guid: std::env::var("WOW_BOT_QUEST_CREATURE_GUID")
             .ok()
             .and_then(|s| s.parse().ok()),
-        quest_guid_counter: std::env::var("WOW_BOT_QUEST_GUID_COUNTER")
+        quest_guid_counter: std::env::var("WOW_BOT_QUEST_RUNTIME_COUNTER")
+            .or_else(|_| std::env::var("WOW_BOT_QUEST_GUID_COUNTER"))
             .ok()
             .and_then(|s| s.parse().ok()),
         quest_map_id: std::env::var("WOW_BOT_QUEST_MAP_ID")
@@ -419,6 +420,10 @@ fn parse_cli() -> Result<CliOptions> {
             "--quest-guid-counter" => {
                 opts.quest_guid_counter =
                     Some(next_arg(&mut args, "--quest-guid-counter")?.parse()?);
+            }
+            "--quest-runtime-counter" => {
+                opts.quest_guid_counter =
+                    Some(next_arg(&mut args, "--quest-runtime-counter")?.parse()?);
             }
             "--quest-map" => opts.quest_map_id = Some(next_arg(&mut args, "--quest-map")?.parse()?),
             "--expect-quest" => {
@@ -535,7 +540,8 @@ fn print_help() {
     println!("  --quest-smoke            After login, right-click/query one questgiver NPC");
     println!("  --quest-creature-entry <id>  Creature entry to resolve from world.creature");
     println!("  --quest-creature-guid <guid> Optional world.creature spawn guid override");
-    println!("  --quest-guid-counter <n> Optional live ObjectGuid low counter override");
+    println!("  --quest-runtime-counter <n> Live ObjectGuid low counter for the target");
+    println!("  --quest-guid-counter <n> Legacy alias for --quest-runtime-counter");
     println!("  --quest-map <id>         Optional map id override for GUID construction");
     println!("  --expect-quest <id>      Require this quest id in gossip/list/details");
     println!("  --forbid-quest <id>      Fail if this quest id is offered");
@@ -1347,7 +1353,7 @@ async fn run_bot(
         "[Bot {}] Step 7b: Sending CMSG_PLAYER_LOGIN (guid={})...",
         bot_index, bot.character_guid
     );
-    let login_data = build_player_login(bot.character_guid, 500.0);
+    let login_data = build_player_login(bot.character_guid, realm_id(), 500.0);
     send_encrypted_packet(&mut stream, &mut crypt, 0x35EB, &login_data).await?;
     info!("[Bot {}] ✅ CMSG_PLAYER_LOGIN sent", bot_index);
 
@@ -2319,8 +2325,12 @@ fn resolve_quest_target_for_bot(
         })?
     };
 
-    let guid_counter = quest_options.creature_guid_counter.unwrap_or(spawn_guid);
-    let (low, high) = create_creature_guid_raw(map_id, entry, guid_counter);
+    let guid_counter = resolve_quest_runtime_counter(
+        quest_options.creature_guid_counter,
+        spawn_guid,
+        quest_options.creature_entry,
+    )?;
+    let (low, high) = create_creature_guid_raw(map_id, entry, guid_counter, realm_id());
     Ok(ResolvedCreatureTarget {
         entry,
         spawn_guid,
@@ -3036,12 +3046,11 @@ fn build_cmsg_auth_session(
 }
 
 /// Build player login data (packed GUID + farClip)
-fn build_player_login(guid: u64, far_clip: f32) -> Vec<u8> {
+fn build_player_login(guid: u64, realm_id: u32, far_clip: f32) -> Vec<u8> {
     let (low_mask, low_bytes) = pack_u64(guid);
 
     // High part: (HighGuid::Player << 58) | (realmId << 42)
-    let realm_id = 1u64;
-    let high = (2u64 << 58) | (realm_id << 42);
+    let high = (2u64 << 58) | ((u64::from(realm_id) & 0x1FFF) << 42);
     let (high_mask, high_bytes) = pack_u64(high);
 
     let mut data = Vec::with_capacity(2 + low_bytes.len() + high_bytes.len() + 4);
@@ -3054,9 +3063,21 @@ fn build_player_login(guid: u64, far_clip: f32) -> Vec<u8> {
     data
 }
 
-fn create_creature_guid_raw(map_id: u16, entry: u32, counter: u64) -> (u64, u64) {
+fn resolve_quest_runtime_counter(
+    runtime_counter: Option<u64>,
+    spawn_guid: u64,
+    entry: u32,
+) -> Result<u64> {
+    runtime_counter.ok_or_else(|| {
+        anyhow!(
+            "Quest smoke for entry {entry} resolved world.creature guid {spawn_guid}, but needs the live ObjectGuid low counter. Set WOW_BOT_QUEST_RUNTIME_COUNTER or pass --quest-runtime-counter."
+        )
+    })
+}
+
+fn create_creature_guid_raw(map_id: u16, entry: u32, counter: u64, realm_id: u32) -> (u64, u64) {
     let high = (8u64 << 58)
-        | (1u64 << 42)
+        | ((u64::from(realm_id) & 0x1FFF) << 42)
         | ((map_id as u64 & 0x1FFF) << 29)
         | ((entry as u64 & 0x7F_FFFF) << 6);
     let low = counter & 0xFF_FFFF_FFFF;
@@ -3072,6 +3093,47 @@ fn build_packed_guid(low: u64, high: u64) -> Vec<u8> {
     data.extend_from_slice(&low_bytes);
     data.extend_from_slice(&high_bytes);
     data
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn player_login_guid_uses_configured_realm() {
+        let guid = 0x1234;
+        let realm_id = 7;
+        let far_clip = 500.0f32;
+        let mut expected = Vec::new();
+        let (low_mask, low_bytes) = pack_u64(guid);
+        let high = (2u64 << 58) | ((u64::from(realm_id) & 0x1FFF) << 42);
+        let (high_mask, high_bytes) = pack_u64(high);
+        expected.push(low_mask);
+        expected.push(high_mask);
+        expected.extend_from_slice(&low_bytes);
+        expected.extend_from_slice(&high_bytes);
+        expected.extend_from_slice(&far_clip.to_le_bytes());
+
+        assert_eq!(build_player_login(guid, realm_id, far_clip), expected);
+    }
+
+    #[test]
+    fn quest_smoke_requires_live_runtime_counter() {
+        let error = resolve_quest_runtime_counter(None, 12_345, 15_513).unwrap_err();
+
+        assert!(error.to_string().contains("WOW_BOT_QUEST_RUNTIME_COUNTER"));
+    }
+
+    #[test]
+    fn creature_guid_uses_runtime_counter_and_realm() {
+        let (low, high) = create_creature_guid_raw(571, 15_513, 77_001, 3);
+
+        assert_eq!(low, 77_001);
+        assert_eq!((high >> 58) & 0x3F, 8);
+        assert_eq!((high >> 42) & 0x1FFF, 3);
+        assert_eq!((high >> 29) & 0x1FFF, 571);
+        assert_eq!((high >> 6) & 0x7F_FFFF, 15_513);
+    }
 }
 
 fn build_quest_giver_query_quest(packed_guid: &[u8], quest_id: u32) -> Vec<u8> {

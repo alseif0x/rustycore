@@ -12154,6 +12154,7 @@ impl WorldSession {
             npc_flags,
             npc_flags2,
             player_position,
+            target_player_contested_pvp,
         )
     }
 
@@ -12163,6 +12164,7 @@ impl WorldSession {
         npc_flags: u32,
         npc_flags2: u32,
         player_position: Position,
+        target_player_contested_pvp: bool,
     ) -> Option<RepresentedCreatureAccessLikeCpp> {
         let manager = self.map_manager.as_ref()?;
         let manager = manager
@@ -12177,6 +12179,37 @@ impl WorldSession {
             && (creature.npc_flags2() & npc_flags2) == 0
         {
             return None;
+        }
+        if !creature
+            .unit_flags2_like_cpp()
+            .contains(UnitFlags2::INTERACT_WHILE_HOSTILE)
+        {
+            let reaction =
+                self.represented_get_reaction_to_like_cpp(RepresentedGetReactionInputLikeCpp {
+                    self_faction_template_id: creature.faction(),
+                    target_faction_template_id: self.player_faction_template_like_cpp.unwrap_or(0),
+                    same_object: false,
+                    attackable_by_summoner: false,
+                    same_charmer_or_owner_or_self: false,
+                    self_has_player_owner: false,
+                    target_has_player_owner: true,
+                    target_player_owner_is_current_session: true,
+                    target_owner_forced_rank_for_self: None,
+                    same_player_owner: false,
+                    duel_in_progress: false,
+                    same_raid: false,
+                    self_unit_player_controlled: false,
+                    target_unit_player_controlled: true,
+                    self_ffa_pvp: false,
+                    target_ffa_pvp: false,
+                    self_ignores_reputation: false,
+                    target_ignores_reputation: false,
+                    target_is_unit: true,
+                    target_player_contested_pvp,
+                });
+            if reaction <= wow_data::reputation::ReputationRankLikeCpp::Unfriendly {
+                return None;
+            }
         }
         if !creature.position().is_within_dist(&player_position, 8.0) {
             return None;
@@ -80424,6 +80457,86 @@ mod tests {
             ),
             Some(RepresentedCreatureAccessLikeCpp {
                 entry: 503,
+                position: Position::new(14.0, 0.0, 0.0, 0.0),
+                npc_flags: wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                npc_flags2: 0,
+                faction_template_id: 35,
+                trainer_class: 0,
+            })
+        );
+    }
+
+    #[test]
+    fn legacy_only_hostile_npc_interaction_is_rejected_like_cpp() {
+        let (mut session, _pkt_tx, _send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 43);
+        let questgiver_guid = test_creature_guid(14);
+        let manager = shared_map_manager();
+
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "Tester".to_string(),
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_player_faction_template_like_cpp(1);
+        session.set_faction_template_store(Arc::new(
+            wow_data::progression_rewards::FactionTemplateStore::from_entries([
+                faction_template_entry(35, 35, 0, 0, 1),
+                faction_template_entry(1, 1, 0, 0, 0),
+            ]),
+        ));
+        manager.write().unwrap().add_creature(
+            571,
+            0,
+            0,
+            0,
+            crate::map_manager::WorldCreature::new(
+                questgiver_guid,
+                504,
+                Position::new(14.0, 0.0, 0.0, 0.0),
+                100,
+                80,
+                1,
+                2,
+                0.0,
+                1,
+                35,
+                wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                0,
+            ),
+        );
+        session.set_map_manager(Arc::clone(&manager));
+
+        assert_eq!(
+            session.represented_npc_can_interact_with_like_cpp(
+                questgiver_guid,
+                wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                0,
+            ),
+            None
+        );
+
+        manager
+            .write()
+            .unwrap()
+            .find_creature_mut(571, 0, questgiver_guid)
+            .unwrap()
+            .creature
+            .set_unit_flags2_runtime_like_cpp(UnitFlags2::INTERACT_WHILE_HOSTILE.bits());
+
+        assert_eq!(
+            session.represented_npc_can_interact_with_like_cpp(
+                questgiver_guid,
+                wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                0,
+            ),
+            Some(RepresentedCreatureAccessLikeCpp {
+                entry: 504,
                 position: Position::new(14.0, 0.0, 0.0, 0.0),
                 npc_flags: wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
                 npc_flags2: 0,

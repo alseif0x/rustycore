@@ -10,8 +10,8 @@ use rand::{Rng, SeedableRng, rngs::StdRng};
 use tracing::{debug, info, warn};
 use wow_constants::movement::MovementFlag;
 use wow_constants::{
-    CreatureRandomMovementType as ConstantsCreatureRandomMovementType, UnitDynFlags, UnitMoveType,
-    UnitStandStateType, UnitState, WeaponAttackType,
+    CreatureRandomMovementType as ConstantsCreatureRandomMovementType, UnitDynFlags, UnitFlags2,
+    UnitMoveType, UnitStandStateType, UnitState, WeaponAttackType,
 };
 use wow_core::{ObjectGuid, Position};
 use wow_entities::{
@@ -1241,6 +1241,10 @@ impl WorldCreature {
 
     pub fn npc_flags2(&self) -> u32 {
         self.creature.ai_ownership().npc_flags2
+    }
+
+    pub fn unit_flags2_like_cpp(&self) -> UnitFlags2 {
+        self.creature.unit().unit_flags2_like_cpp()
     }
 
     pub fn trainer_class_like_cpp(&self) -> u8 {
@@ -4079,9 +4083,13 @@ pub fn pending_respawn_from_world_creature_like_cpp(
     respawn_at: Instant,
     map_id: u16,
 ) -> PendingRespawn {
+    let spawn_id = match creature.creature.spawn_id() {
+        0 => creature.guid().low_value().max(0) as u64,
+        spawn_id => spawn_id,
+    };
     PendingRespawn {
         respawn_at,
-        spawn_id: creature.creature.spawn_id(),
+        spawn_id,
         home_pos: creature.home_position(),
         create_data: CreatureCreateData {
             guid: creature.guid(),
@@ -8290,5 +8298,24 @@ mod tests {
                 .has_aura_spell_like_cpp(70_020),
             "C++ LoadCreaturesAddon reapplies addon auras on respawn"
         );
+    }
+
+    #[test]
+    fn pending_respawn_uses_guid_counter_for_legacy_zero_spawn_id() {
+        let first_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 43);
+        let second_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 44);
+        let first = test_creature(first_guid);
+        let second = test_creature(second_guid);
+
+        assert_eq!(first.creature.spawn_id(), 0);
+        assert_eq!(second.creature.spawn_id(), 0);
+
+        let first_pending = pending_respawn_from_world_creature_like_cpp(&first, Instant::now(), 0);
+        let second_pending =
+            pending_respawn_from_world_creature_like_cpp(&second, Instant::now(), 0);
+
+        assert_eq!(first_pending.spawn_id, first_guid.low_value() as u64);
+        assert_eq!(second_pending.spawn_id, second_guid.low_value() as u64);
+        assert_ne!(first_pending.spawn_id, second_pending.spawn_id);
     }
 }
