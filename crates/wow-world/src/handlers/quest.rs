@@ -1085,6 +1085,8 @@ impl WorldSession {
         quest_log_item_id: u32,
         count: u32,
     ) -> Vec<u32> {
+        use wow_packet::packets::quest::{QuestUpdateAddCredit, QuestUpdateComplete};
+
         let Some(quest_store) = self.quest_store.clone() else {
             return Vec::new();
         };
@@ -1096,6 +1098,7 @@ impl WorldSession {
 
         let mut changed_quest_ids = Vec::new();
         let mut quests_to_complete = Vec::new();
+        let mut objective_updates = Vec::new();
         for status in self.player_quests.values_mut() {
             if status.status != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
                 continue;
@@ -1140,6 +1143,15 @@ impl WorldSession {
                 if !changed_quest_ids.contains(&status.quest_id) {
                     changed_quest_ids.push(status.quest_id);
                 }
+                if count > 0 {
+                    objective_updates.push((
+                        status.quest_id,
+                        objective.object_id,
+                        new_count,
+                        objective.amount,
+                        objective.obj_type,
+                    ));
+                }
                 let quest_already_rewarded = self.rewarded_quests.contains(&status.quest_id);
                 if new_count >= objective.amount
                     && Self::represented_can_complete_quest_after_objective_like_cpp(
@@ -1153,10 +1165,29 @@ impl WorldSession {
                 }
             }
         }
+        for (quest_id, object_id, current, required, objective_type) in objective_updates {
+            self.send_packet(&QuestUpdateAddCredit {
+                victim_guid: ObjectGuid::EMPTY,
+                quest_id,
+                object_id,
+                count: current as u16,
+                required: required as u16,
+                objective_type,
+            });
+        }
         for quest_id in quests_to_complete {
             if let Some(quest) = quest_store.get(quest_id).cloned() {
-                self.complete_represented_quest_after_add_if_ready_like_cpp(&quest)
+                let completed = self
+                    .complete_represented_quest_after_add_if_ready_like_cpp(&quest)
                     .await;
+                if completed
+                    && self
+                        .player_quests
+                        .get(&quest_id)
+                        .is_some_and(|status| status.status == QUEST_STATUS_COMPLETE_LIKE_CPP)
+                {
+                    self.send_packet(&QuestUpdateComplete { quest_id });
+                }
             }
         }
         self.sync_player_registry_state_like_cpp();

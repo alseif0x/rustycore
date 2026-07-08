@@ -12041,6 +12041,7 @@ impl WorldSession {
         }
 
         let mut canonical_record_found_like_cpp = false;
+        let mut canonical_fail_closed_like_cpp = false;
         let canonical_access = (|| {
             let manager = self.canonical_map_manager.as_ref()?;
             let Ok(manager) = manager.lock() else {
@@ -12052,6 +12053,7 @@ impl WorldSession {
                 .get_typed_player(player_guid)
                 .is_some_and(|player| !player.unit().world().object().is_in_world())
             {
+                canonical_fail_closed_like_cpp = true;
                 return None;
             }
             let record = map.map().map_object_record(guid)?;
@@ -12148,7 +12150,7 @@ impl WorldSession {
         if canonical_access.is_some() {
             return canonical_access;
         }
-        if canonical_record_found_like_cpp {
+        if canonical_record_found_like_cpp || canonical_fail_closed_like_cpp {
             return None;
         }
 
@@ -80491,6 +80493,69 @@ mod tests {
                 faction_template_id: 35,
                 trainer_class: 0,
             })
+        );
+    }
+
+    #[test]
+    fn npc_interaction_rejects_legacy_fallback_when_canonical_player_is_out_of_world_like_cpp() {
+        let (mut session, _pkt_tx, _send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 46);
+        let questgiver_guid = test_creature_guid(17);
+        let position = Position::new(10.0, 0.0, 0.0, 0.0);
+        let canonical = shared_canonical_map_manager();
+        let manager = shared_map_manager();
+
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "Tester".to_string(),
+            position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player
+                    .unit_mut()
+                    .world_mut()
+                    .object_mut()
+                    .remove_from_world();
+            })
+            .unwrap();
+        manager.write().unwrap().add_creature(
+            571,
+            0,
+            0,
+            0,
+            crate::map_manager::WorldCreature::new(
+                questgiver_guid,
+                507,
+                Position::new(14.0, 0.0, 0.0, 0.0),
+                100,
+                80,
+                1,
+                2,
+                0.0,
+                1,
+                35,
+                wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                0,
+            ),
+        );
+        session.set_map_manager(manager);
+
+        assert_eq!(
+            session.represented_npc_can_interact_with_like_cpp(
+                questgiver_guid,
+                wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                0,
+            ),
+            None,
+            "C++ GetNPCIfCanInteractWith requires the canonical player to be in world; stale legacy state must not authorize interaction"
         );
     }
 

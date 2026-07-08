@@ -76,8 +76,9 @@ if [[ "${WOW_BOT_QUEST_SMOKE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
   if [[ -n "${WOW_BOT_QUEST_CREATURE_GUID:-}" ]]; then
     mode_args+=(--quest-creature-guid "$WOW_BOT_QUEST_CREATURE_GUID")
   fi
-  if [[ -n "${WOW_BOT_QUEST_GUID_COUNTER:-}" ]]; then
-    mode_args+=(--quest-guid-counter "$WOW_BOT_QUEST_GUID_COUNTER")
+  quest_runtime_counter="${WOW_BOT_QUEST_RUNTIME_COUNTER:-${WOW_BOT_QUEST_GUID_COUNTER:-}}"
+  if [[ -n "$quest_runtime_counter" ]]; then
+    mode_args+=(--quest-runtime-counter "$quest_runtime_counter")
   fi
   if [[ -n "${WOW_BOT_QUEST_MAP_ID:-}" ]]; then
     mode_args+=(--quest-map "$WOW_BOT_QUEST_MAP_ID")

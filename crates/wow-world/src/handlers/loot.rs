@@ -9520,7 +9520,7 @@ mod tests {
 
     #[tokio::test]
     async fn loot_item_added_progresses_incomplete_quest_item_objective_like_cpp() {
-        let (mut session, _) = make_session_with_send_capacity(1);
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
         let quest_id = 8_336;
         let item_id = 20_482;
         let mut quest = test_quest_template(quest_id);
@@ -9569,6 +9569,13 @@ mod tests {
                 .expect("quest progress should remain active")
                 .objective_counts,
             vec![3]
+        );
+        let update = send_rx
+            .try_recv()
+            .expect("looted quest item progress should notify the client");
+        assert_eq!(
+            WorldPacket::from_bytes(&update).server_opcode(),
+            Some(wow_constants::ServerOpcodes::QuestUpdateAddCredit)
         );
     }
 
