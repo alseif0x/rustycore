@@ -8364,9 +8364,14 @@ impl WorldSession {
         // `GetNPCIfCanInteractWith(..., UNIT_NPC_FLAG_GOSSIP, ...)` before
         // preparing DB-backed gossip, including quest text synthesized from a
         // gossip menu with no options.
-        if let Some(access) =
-            self.represented_npc_can_interact_with_like_cpp(hello.unit, GOSSIP_FLAG, 0)
-        {
+        let gossip_access =
+            self.represented_npc_can_interact_with_like_cpp(hello.unit, GOSSIP_FLAG, 0);
+        let (resolved_npc_flags, resolved_entry) = gossip_access
+            .as_ref()
+            .map(|access| (access.npc_flags, access.entry))
+            .unwrap_or((npc_flags, entry));
+
+        if let Some(access) = gossip_access.as_ref() {
             if let Some(world_db) = self.world_db().map(Arc::clone) {
                 if let Some(msg) = self
                     .build_gossip_menu(&world_db, access.entry, access.npc_flags, hello.unit)
@@ -8405,9 +8410,9 @@ impl WorldSession {
         // No DB gossip menu found. C++ `HandleQuestgiverHelloOpcode` uses the
         // same prepared-gossip path as `HandleGossipHelloOpcode`; the represented
         // seam currently models the quest part of that prepared menu.
-        if (npc_flags & NPCFlags1::QUEST_GIVER.bits()) != 0
-            && !npc_has_direct_interaction_like_cpp(npc_flags)
-            && entry != 0
+        if (resolved_npc_flags & NPCFlags1::QUEST_GIVER.bits()) != 0
+            && !npc_has_direct_interaction_like_cpp(resolved_npc_flags)
+            && resolved_entry != 0
         {
             if self
                 .represented_npc_can_interact_with_like_cpp(
@@ -8423,21 +8428,22 @@ impl WorldSession {
                 );
                 return;
             }
-            if self.use_represented_creature_questgiver_like_cpp(hello.unit, entry) {
+            if self.use_represented_creature_questgiver_like_cpp(hello.unit, resolved_entry) {
                 info!(
                     "GossipHello questgiver fallback consumed entry={} for {:?}",
-                    entry, hello.unit
+                    resolved_entry, hello.unit
                 );
                 return;
             }
             info!(
                 "GossipHello questgiver fallback found no quest menu for entry={} {:?}",
-                entry, hello.unit
+                resolved_entry, hello.unit
             );
         }
 
         // No gossip or quest menu found — fall back to direct interaction based on NPC flags.
-        self.handle_npc_direct_interaction(hello, npc_flags).await;
+        self.handle_npc_direct_interaction(hello, resolved_npc_flags)
+            .await;
     }
 
     pub(crate) fn build_condition_player_object_like_cpp(&self) -> Option<WorldObject> {
@@ -17269,6 +17275,29 @@ mod tests {
         assert_eq!(
             drain_server_opcodes(&send_rx),
             vec![ServerOpcodes::NpcInteractionOpenResult]
+        );
+    }
+
+    #[tokio::test]
+    async fn gossip_hello_canonical_only_direct_fallback_uses_resolved_flags_like_cpp() {
+        let (mut session, send_rx) = make_quest_status_session();
+        let entry = 9311;
+        let guid = creature_guid(entry, 311);
+        let mut manager = wow_map::MapManager::default();
+        insert_canonical_creature_with_npc_flags(
+            &mut manager,
+            guid,
+            entry,
+            NPCFlags1::GOSSIP.bits() | NPCFlags1::BANKER.bits(),
+        );
+        attach_map_manager(&mut session, manager);
+
+        session.handle_gossip_hello(Hello { unit: guid }).await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::NpcInteractionOpenResult],
+            "C++-resolved canonical NPC flags must drive fallback interactions when the legacy mirror has no creature"
         );
     }
 
