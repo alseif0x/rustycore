@@ -872,9 +872,9 @@ pub async fn load_quests(db: &WorldDatabase) -> Result<QuestStore> {
                 reward_title_id: result.try_read::<u32>(89).unwrap_or(0),
                 reward_skill_line_id: result.try_read::<u32>(87).unwrap_or(0),
                 reward_skill_points: result.try_read::<u32>(88).unwrap_or(0),
-                reward_mail_template_id: result.try_read::<u32>(90).unwrap_or(0),
-                reward_mail_delay_secs: result.try_read::<u32>(91).unwrap_or(0),
-                reward_mail_sender_entry: result.try_read::<u32>(92).unwrap_or(0),
+                reward_mail_template_id: read_quest_u32_like_cpp(&result, 90).unwrap_or(0),
+                reward_mail_delay_secs: read_quest_u32_like_cpp(&result, 91).unwrap_or(0),
+                reward_mail_sender_entry: read_quest_u32_like_cpp(&result, 92).unwrap_or(0),
                 reward_faction_ids: [
                     result.try_read::<u32>(93).unwrap_or(0),
                     result.try_read::<u32>(97).unwrap_or(0),
@@ -905,8 +905,8 @@ pub async fn load_quests(db: &WorldDatabase) -> Result<QuestStore> {
                 ],
                 reward_faction_flags: result.try_read::<u32>(113).unwrap_or(0),
                 source_item_id: result.try_read::<u32>(69).unwrap_or(0),
-                source_item_count: result.try_read::<u32>(71).unwrap_or(0),
-                source_spell_id: result.try_read::<u32>(70).unwrap_or(0),
+                source_item_count: read_quest_u32_like_cpp(&result, 71).unwrap_or(0),
+                source_spell_id: read_quest_u32_like_cpp(&result, 70).unwrap_or(0),
                 limit_time_secs: result.try_read::<i64>(72).unwrap_or(0),
                 expansion: result.try_read::<i32>(68).unwrap_or(0),
                 flags,
@@ -955,21 +955,23 @@ pub async fn load_quests(db: &WorldDatabase) -> Result<QuestStore> {
                 quest_description: result.try_read::<String>(41).unwrap_or_default(),
                 area_description: result.try_read::<String>(42).unwrap_or_default(),
                 quest_completion_log: result.try_read::<String>(43).unwrap_or_default(),
-                allowable_races: result.try_read::<i64>(44).map(|v| v as u64).unwrap_or(0),
-                allowable_classes: result.try_read::<u32>(45).unwrap_or(0),
-                max_level: result.try_read::<u8>(46).unwrap_or(0),
+                allowable_races: read_quest_u64_like_cpp(&result, 44).unwrap_or(0),
+                allowable_classes: read_quest_u32_like_cpp(&result, 45).unwrap_or(0),
+                max_level: read_quest_u32_like_cpp(&result, 46)
+                    .and_then(|value| u8::try_from(value).ok())
+                    .unwrap_or(0),
                 prev_quest_id: result.try_read::<i32>(47).unwrap_or(0),
-                next_quest_id: result.try_read::<u32>(64).unwrap_or(0),
+                next_quest_id: read_quest_u32_like_cpp(&result, 64).unwrap_or(0),
                 exclusive_group: result.try_read::<i32>(65).unwrap_or(0),
                 breadcrumb_for_quest_id: result.try_read::<i32>(66).unwrap_or(0),
                 dependent_previous_quests: Vec::new(),
                 dependent_breadcrumb_quests: Vec::new(),
-                required_min_rep_faction: result.try_read::<u32>(48).unwrap_or(0),
+                required_min_rep_faction: read_quest_u32_like_cpp(&result, 48).unwrap_or(0),
                 required_min_rep_value: result.try_read::<i32>(49).unwrap_or(0),
-                required_max_rep_faction: result.try_read::<u32>(50).unwrap_or(0),
+                required_max_rep_faction: read_quest_u32_like_cpp(&result, 50).unwrap_or(0),
                 required_max_rep_value: result.try_read::<i32>(51).unwrap_or(0),
-                required_skill_id: result.try_read::<u32>(114).unwrap_or(0),
-                required_skill_points: result.try_read::<u32>(115).unwrap_or(0),
+                required_skill_id: read_quest_u32_like_cpp(&result, 114).unwrap_or(0),
+                required_skill_points: read_quest_u32_like_cpp(&result, 115).unwrap_or(0),
                 reward_choice_items: [
                     (
                         result.try_read::<u32>(52).unwrap_or(0),
@@ -1185,7 +1187,6 @@ pub async fn load_quests(db: &WorldDatabase) -> Result<QuestStore> {
         store.gameobject_starter_quests.len(),
         store.gameobject_ender_quests.len()
     );
-
     Ok(store)
 }
 
@@ -1216,9 +1217,48 @@ fn read_quest_u32_like_cpp(result: &SqlResult, column: usize) -> Option<u32> {
         .and_then(|value| u32::try_from(value).ok())
 }
 
+fn read_quest_u64_like_cpp(result: &SqlResult, column: usize) -> Option<u64> {
+    if let Some(value) = result.try_read::<u64>(column) {
+        return Some(value);
+    }
+    if let Some(value) = result.try_read::<u32>(column) {
+        return Some(u64::from(value));
+    }
+    if let Some(value) = result.try_read::<u16>(column) {
+        return Some(u64::from(value));
+    }
+    if let Some(value) = result.try_read::<u8>(column) {
+        return Some(u64::from(value));
+    }
+    if let Some(value) = result.try_read::<i64>(column) {
+        return Some(value as u64);
+    }
+    if let Some(value) = result.try_read::<i32>(column) {
+        return Some(value as u64);
+    }
+    if let Some(value) = result.try_read::<i16>(column) {
+        return Some(value as u64);
+    }
+    result.try_read::<i8>(column).map(|value| value as u64)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn quest_template_loader_reads_addon_unsigned_fields_tolerantly_like_cpp() {
+        let source = include_str!("quest.rs");
+
+        assert!(source.contains("allowable_races: read_quest_u64_like_cpp(&result, 44)"));
+        assert!(source.contains("allowable_classes: read_quest_u32_like_cpp(&result, 45)"));
+        assert!(source.contains("max_level: read_quest_u32_like_cpp(&result, 46)"));
+        assert!(source.contains("next_quest_id: read_quest_u32_like_cpp(&result, 64)"));
+        assert!(source.contains("source_spell_id: read_quest_u32_like_cpp(&result, 70)"));
+        assert!(source.contains("source_item_count: read_quest_u32_like_cpp(&result, 71)"));
+        assert!(source.contains("required_skill_id: read_quest_u32_like_cpp(&result, 114)"));
+        assert!(source.contains("required_skill_points: read_quest_u32_like_cpp(&result, 115)"));
+    }
 
     fn quest_with_sort_and_flags(
         quest_sort_id: i32,

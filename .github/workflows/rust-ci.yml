@@ -11,6 +11,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  PROTOC_VERSION: "28.3"
 
 jobs:
   fmt:
@@ -42,7 +43,11 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Install protoc
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+        run: |
+          curl -sSL -o /tmp/protoc.zip "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip"
+          python3 -m zipfile -e /tmp/protoc.zip "$HOME/.local"
+          chmod +x "$HOME/.local/bin/protoc"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Cargo check
         run: cargo check -p wow-data -p wow-database -p wow-network -p wow-world -p world-server
@@ -61,7 +66,11 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Install protoc
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+        run: |
+          curl -sSL -o /tmp/protoc.zip "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip"
+          python3 -m zipfile -e /tmp/protoc.zip "$HOME/.local"
+          chmod +x "$HOME/.local/bin/protoc"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Run packet/data/world tests
         run: |

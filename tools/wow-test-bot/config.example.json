@@ -1,0 +1,64 @@
+{
+  "bots": [
+    {
+      "account": "TESTBOT1@bot.local",
+      "password": "",
+      "character_guid": 14,
+      "account_id": 8,
+      "lfg_role": 2,
+      "class": "warrior",
+      "enabled": true,
+      "session_key_bnet": ""
+    },
+    {
+      "account": "TESTBOT2@bot.local",
+      "password": "",
+      "character_guid": 15,
+      "account_id": 9,
+      "lfg_role": 4,
+      "class": "paladin",
+      "enabled": true,
+      "session_key_bnet": ""
+    },
+    {
+      "account": "TESTBOT3@bot.local",
+      "password": "",
+      "character_guid": 16,
+      "account_id": 10,
+      "lfg_role": 8,
+      "class": "mage",
+      "enabled": true,
+      "session_key_bnet": ""
+    },
+    {
+      "account": "TESTBOT4@bot.local",
+      "password": "",
+      "character_guid": 17,
+      "account_id": 11,
+      "lfg_role": 8,
+      "class": "warlock",
+      "enabled": true,
+      "session_key_bnet": ""
+    },
+    {
+      "account": "TESTBOT5@bot.local",
+      "password": "",
+      "character_guid": 18,
+      "account_id": 12,
+      "lfg_role": 8,
+      "class": "hunter",
+      "enabled": true,
+      "session_key_bnet": ""
+    }
+  ],
+  "test_config": {
+    "dungeon_id": 220,
+    "wait_for_proposal_timeout_secs": 60,
+    "launch_delay_ms": 2000,
+    "tests": {
+      "lfg_join": true,
+      "lfg_proposal": true,
+      "bg_join": false
+    }
+  }
+}

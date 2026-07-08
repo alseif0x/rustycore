@@ -42,6 +42,9 @@ members = [
     # Tooling
     "crates/capture-diff",
 ]
+exclude = [
+    "tools/wow-test-bot",
+]
 
 [workspace.package]
 version = "0.1.0"

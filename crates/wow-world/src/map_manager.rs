@@ -10,8 +10,8 @@ use rand::{Rng, SeedableRng, rngs::StdRng};
 use tracing::{debug, info, warn};
 use wow_constants::movement::MovementFlag;
 use wow_constants::{
-    CreatureRandomMovementType as ConstantsCreatureRandomMovementType, UnitDynFlags, UnitMoveType,
-    UnitStandStateType, UnitState, WeaponAttackType,
+    CreatureRandomMovementType as ConstantsCreatureRandomMovementType, UnitDynFlags, UnitFlags2,
+    UnitMoveType, UnitStandStateType, UnitState, WeaponAttackType,
 };
 use wow_core::{ObjectGuid, Position};
 use wow_entities::{
@@ -1241,6 +1241,10 @@ impl WorldCreature {
 
     pub fn npc_flags2(&self) -> u32 {
         self.creature.ai_ownership().npc_flags2
+    }
+
+    pub fn unit_flags2_like_cpp(&self) -> UnitFlags2 {
+        self.creature.unit().unit_flags2_like_cpp()
     }
 
     pub fn trainer_class_like_cpp(&self) -> u8 {
@@ -4016,7 +4020,7 @@ pub fn grid_corner(grid_x: i16, grid_y: i16) -> (f32, f32) {
 pub struct PendingRespawn {
     /// When to respawn.
     pub respawn_at: Instant,
-    /// C++ `RespawnInfo::spawnId`, encoded as the low counter of creature map GUIDs.
+    /// C++ `RespawnInfo::spawnId` / `Creature::m_spawnId`, separate from the live ObjectGuid low counter.
     pub spawn_id: u64,
     /// Home position (spawn point).
     pub home_pos: wow_core::Position,
@@ -4079,9 +4083,13 @@ pub fn pending_respawn_from_world_creature_like_cpp(
     respawn_at: Instant,
     map_id: u16,
 ) -> PendingRespawn {
+    let spawn_id = match creature.creature.spawn_id() {
+        0 => creature.guid().low_value().max(0) as u64,
+        spawn_id => spawn_id,
+    };
     PendingRespawn {
         respawn_at,
-        spawn_id: (creature.guid().low_value() as u64) & 0xFF_FFFF_FFFF,
+        spawn_id,
         home_pos: creature.home_position(),
         create_data: CreatureCreateData {
             guid: creature.guid(),
@@ -4235,6 +4243,7 @@ pub fn world_creature_from_pending_respawn_like_cpp(
     let damage_school = create_data.damage_school;
 
     let mut creature = Creature::new(false);
+    creature.set_spawn_id(respawn.spawn_id);
     creature.unit_mut().world_mut().object_mut().create(guid);
     creature
         .unit_mut()
@@ -8193,6 +8202,7 @@ mod tests {
     fn pending_respawn_preserves_flags_extra_like_cpp() {
         let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 42);
         let mut creature = test_creature(guid);
+        creature.creature.set_spawn_id(42);
         creature
             .creature
             .set_flags_extra_runtime_like_cpp(CreatureFlagsExtra::CIVILIAN.bits());
@@ -8227,7 +8237,7 @@ mod tests {
         });
         assert_eq!(
             pending.spawn_id, 42,
-            "creature respawn must preserve C++ RespawnInfo::spawnId from the map GUID low counter"
+            "creature respawn must preserve C++ RespawnInfo::spawnId from Creature::GetSpawnId"
         );
         assert_eq!(pending.flags_extra, CreatureFlagsExtra::CIVILIAN.bits());
         assert_eq!(pending.static_flags[0], static_flags[0]);
@@ -8245,6 +8255,11 @@ mod tests {
         );
 
         let respawned = world_creature_from_pending_respawn_like_cpp(&pending, 0);
+        assert_eq!(
+            respawned.creature.spawn_id(),
+            42,
+            "C++ Creature::LoadFromDB restores m_spawnId before registering the respawned creature"
+        );
         assert!(
             respawned.creature.is_civilian_like_cpp(),
             "map-owned respawn must keep C++ flags_extra gates"
@@ -8288,6 +8303,31 @@ mod tests {
                 .auras
                 .has_aura_spell_like_cpp(70_020),
             "C++ LoadCreaturesAddon reapplies addon auras on respawn"
+        );
+    }
+
+    #[test]
+    fn pending_respawn_uses_guid_counter_for_legacy_zero_spawn_id() {
+        let first_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 43);
+        let second_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 44);
+        let first = test_creature(first_guid);
+        let second = test_creature(second_guid);
+
+        assert_eq!(first.creature.spawn_id(), 0);
+        assert_eq!(second.creature.spawn_id(), 0);
+
+        let first_pending = pending_respawn_from_world_creature_like_cpp(&first, Instant::now(), 0);
+        let second_pending =
+            pending_respawn_from_world_creature_like_cpp(&second, Instant::now(), 0);
+
+        assert_eq!(first_pending.spawn_id, first_guid.low_value() as u64);
+        assert_eq!(second_pending.spawn_id, second_guid.low_value() as u64);
+        assert_ne!(first_pending.spawn_id, second_pending.spawn_id);
+        assert_eq!(
+            world_creature_from_pending_respawn_like_cpp(&first_pending, 0)
+                .creature
+                .spawn_id(),
+            first_pending.spawn_id
         );
     }
 }

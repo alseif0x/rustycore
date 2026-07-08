@@ -178,6 +178,7 @@ use wow_network::{
     SocketTimeoutsLikeCpp, group_guid_by_db_store_id_like_cpp,
 };
 use wow_packet::packets::chat::{ChatMsg, ChatPkt, PrintNotification};
+use wow_packet::packets::gossip::ClientGossipText;
 use wow_packet::packets::item::{
     InventoryChangeFailure, ItemEnchantTimeUpdate, ItemInstance, ItemMod, ItemModList,
     ItemPushResult, ItemPushResultDisplayType, ItemTimeUpdate,
@@ -351,9 +352,24 @@ fn quest_rewards_block_like_cpp(quest: &wow_data::quest::QuestTemplate) -> Quest
             *slot = *display_spell;
         }
     }
+    for (idx, choice_item) in quest.reward_choice_items.iter().enumerate() {
+        if let Some(slot) = rewards.choice_items.get_mut(idx) {
+            *slot = *choice_item;
+        }
+    }
+    rewards.choice_item_types = quest.reward_choice_item_types;
     rewards
 }
+
+fn quest_giver_creature_id_from_source_like_cpp(source_guid: ObjectGuid) -> i32 {
+    if source_guid.is_any_type_creature() {
+        i32::try_from(source_guid.entry()).unwrap_or(0)
+    } else {
+        0
+    }
+}
 const ATTACK_DISPLAY_DELAY_LIKE_CPP_MS: u32 = 200;
+const DEFAULT_PLAYER_COMBAT_REACH_LIKE_CPP: f32 = 1.5;
 const MIN_MELEE_REACH_LIKE_CPP: f32 = 2.0;
 const NOMINAL_MELEE_RANGE_LIKE_CPP: f32 = 5.0;
 const SUMMON_PROPERTIES_ONLY_VISIBLE_TO_SUMMONER_LIKE_CPP: u32 = 0x0000_0010;
@@ -4097,6 +4113,8 @@ pub struct WorldSession {
 
     /// GUID of the character currently logged in (set after login completes).
     player_guid: Option<ObjectGuid>,
+    /// C++ `WorldSession::m_GUIDLow`: last logged-in character low GUID kept after logout.
+    recent_player_guid_low_like_cpp: u64,
     /// Attached player controller, mirroring C++ `WorldSession::_player` ownership.
     player_controller: Option<SessionPlayerController>,
     /// C++ `WorldSession::_accountData`, represented in-memory until DB load/save is wired.
@@ -4948,6 +4966,8 @@ pub struct WorldSession {
 #[derive(Debug, Clone)]
 pub struct GossipOptionInfo {
     pub gossip_option_id: i32,
+    pub menu_id: u32,
+    pub order_index: u32,
     pub option_npc: u8,
     pub action_menu_id: u32,
 }
@@ -5955,6 +5975,7 @@ impl WorldSession {
             min_discovered_scaled_xp_ratio_like_cpp: 0,
             selection_guid: None,
             player_guid: None,
+            recent_player_guid_low_like_cpp: 0,
             player_controller: None,
             account_data_like_cpp: default_account_data_like_cpp(),
             tutorials_like_cpp: [0; 8],
@@ -12014,30 +12035,157 @@ impl WorldSession {
                 PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP,
             )
             .unwrap_or(false);
+        let player_interaction_combat_reach = self.player_interaction_combat_reach_like_cpp();
         if self.taxi_flight_state_like_cpp.is_some() {
             return None;
         }
-        let manager = self.canonical_map_manager.as_ref()?;
-        let Ok(manager) = manager.lock() else {
-            return None;
-        };
-        let map = manager.find_map(u32::from(self.player_map_id_like_cpp()), 0)?;
-        if map
-            .map()
-            .get_typed_player(player_guid)
-            .is_some_and(|player| !player.unit().world().object().is_in_world())
-        {
+
+        let player_map_key = self
+            .current_canonical_player_map_key_like_cpp()
+            .unwrap_or_else(|| wow_map::MapKey::new(u32::from(self.player_map_id_like_cpp()), 0));
+        let mut canonical_record_found_like_cpp = false;
+        let mut canonical_fail_closed_like_cpp = false;
+        let canonical_access = (|| {
+            let manager = self.canonical_map_manager.as_ref()?;
+            let Ok(manager) = manager.lock() else {
+                return None;
+            };
+            let map = manager.find_map(player_map_key.map_id, player_map_key.instance_id)?;
+            if map
+                .map()
+                .get_typed_player(player_guid)
+                .is_some_and(|player| !player.unit().world().object().is_in_world())
+            {
+                canonical_fail_closed_like_cpp = true;
+                return None;
+            }
+            let record = map.map().map_object_record(guid)?;
+            canonical_record_found_like_cpp = true;
+            let creature = if guid.is_pet() {
+                record.pet()?.creature()
+            } else {
+                record.creature()?
+            };
+
+            let type_flags =
+                CreatureTypeFlags::from_bits_retain(creature.lifecycle_metadata().type_flags);
+            if !self.player_is_alive_like_cpp()
+                && !type_flags.contains(CreatureTypeFlags::VISIBLE_TO_GHOSTS)
+            {
+                return None;
+            }
+            if !creature.is_alive() && !type_flags.contains(CreatureTypeFlags::INTERACT_WHILE_DEAD)
+            {
+                return None;
+            }
+            if (npc_flags != 0 || npc_flags2 != 0)
+                && (creature.ai_ownership().npc_flags & npc_flags) == 0
+                && (creature.ai_ownership().npc_flags2 & npc_flags2) == 0
+            {
+                return None;
+            }
+            if creature.unit().subsystems().control.charmer_guid.is_some() {
+                return None;
+            }
+            let unit_flags2 = creature.unit().unit_flags2_like_cpp();
+            if !unit_flags2.contains(UnitFlags2::INTERACT_WHILE_HOSTILE) {
+                let reaction =
+                    self.represented_get_reaction_to_like_cpp(RepresentedGetReactionInputLikeCpp {
+                        self_faction_template_id: creature.unit().data().faction_template.max(0)
+                            as u32,
+                        target_faction_template_id: self
+                            .player_faction_template_like_cpp
+                            .unwrap_or(0),
+                        same_object: false,
+                        attackable_by_summoner: false,
+                        same_charmer_or_owner_or_self: false,
+                        self_has_player_owner: false,
+                        target_has_player_owner: true,
+                        target_player_owner_is_current_session: true,
+                        target_owner_forced_rank_for_self: None,
+                        same_player_owner: false,
+                        duel_in_progress: false,
+                        same_raid: false,
+                        self_unit_player_controlled: false,
+                        target_unit_player_controlled: true,
+                        self_ffa_pvp: false,
+                        target_ffa_pvp: false,
+                        self_ignores_reputation: false,
+                        target_ignores_reputation: false,
+                        target_is_unit: true,
+                        target_player_contested_pvp,
+                    });
+                if reaction <= wow_data::reputation::ReputationRankLikeCpp::Unfriendly {
+                    return None;
+                }
+            }
+
+            let interaction_distance = creature.unit().world().combat_reach() + 4.0;
+            let in_range = if let Some(player) = map.map().get_typed_player(player_guid) {
+                creature.unit().world().is_within_dist_in_map(
+                    player.unit().world(),
+                    interaction_distance,
+                    true,
+                )
+            } else {
+                let fallback_distance = interaction_distance
+                    + creature.unit().world().combat_reach()
+                    + player_interaction_combat_reach;
+                creature
+                    .unit()
+                    .world()
+                    .position()
+                    .is_within_dist(&player_position, fallback_distance)
+            };
+            if !in_range {
+                return None;
+            }
+
+            Some(RepresentedCreatureAccessLikeCpp {
+                entry: creature.entry(),
+                position: creature.unit().world().position(),
+                npc_flags: creature.ai_ownership().npc_flags,
+                npc_flags2: creature.ai_ownership().npc_flags2,
+                trainer_class: creature.trainer_class_like_cpp(),
+                faction_template_id: creature.unit().data().faction_template.max(0) as u32,
+            })
+        })();
+        if canonical_access.is_some() {
+            return canonical_access;
+        }
+        if canonical_record_found_like_cpp || canonical_fail_closed_like_cpp {
             return None;
         }
-        let record = map.map().map_object_record(guid)?;
-        let creature = if guid.is_pet() {
-            record.pet()?.creature()
-        } else {
-            record.creature()?
-        };
 
+        self.represented_legacy_npc_can_interact_with_like_cpp(
+            guid,
+            npc_flags,
+            npc_flags2,
+            player_position,
+            player_map_key.instance_id,
+            player_interaction_combat_reach,
+            target_player_contested_pvp,
+        )
+    }
+
+    fn represented_legacy_npc_can_interact_with_like_cpp(
+        &self,
+        guid: ObjectGuid,
+        npc_flags: u32,
+        npc_flags2: u32,
+        player_position: Position,
+        player_instance_id: u32,
+        player_interaction_combat_reach: f32,
+        target_player_contested_pvp: bool,
+    ) -> Option<RepresentedCreatureAccessLikeCpp> {
+        let manager = self.map_manager.as_ref()?;
+        let manager = manager
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let creature =
+            manager.find_creature(self.player_map_id_like_cpp(), player_instance_id, guid)?;
         let type_flags =
-            CreatureTypeFlags::from_bits_retain(creature.lifecycle_metadata().type_flags);
+            CreatureTypeFlags::from_bits_retain(creature.creature.lifecycle_metadata().type_flags);
         if !self.player_is_alive_like_cpp()
             && !type_flags.contains(CreatureTypeFlags::VISIBLE_TO_GHOSTS)
         {
@@ -12047,19 +12195,28 @@ impl WorldSession {
             return None;
         }
         if (npc_flags != 0 || npc_flags2 != 0)
-            && (creature.ai_ownership().npc_flags & npc_flags) == 0
-            && (creature.ai_ownership().npc_flags2 & npc_flags2) == 0
+            && (creature.npc_flags() & npc_flags) == 0
+            && (creature.npc_flags2() & npc_flags2) == 0
         {
             return None;
         }
-        if creature.unit().subsystems().control.charmer_guid.is_some() {
+        if creature
+            .creature
+            .unit()
+            .subsystems()
+            .control
+            .charmer_guid
+            .is_some()
+        {
             return None;
         }
-        let unit_flags2 = creature.unit().unit_flags2_like_cpp();
-        if !unit_flags2.contains(UnitFlags2::INTERACT_WHILE_HOSTILE) {
+        if !creature
+            .unit_flags2_like_cpp()
+            .contains(UnitFlags2::INTERACT_WHILE_HOSTILE)
+        {
             let reaction =
                 self.represented_get_reaction_to_like_cpp(RepresentedGetReactionInputLikeCpp {
-                    self_faction_template_id: creature.unit().data().faction_template.max(0) as u32,
+                    self_faction_template_id: creature.faction(),
                     target_faction_template_id: self.player_faction_template_like_cpp.unwrap_or(0),
                     same_object: false,
                     attackable_by_summoner: false,
@@ -12084,33 +12241,24 @@ impl WorldSession {
                 return None;
             }
         }
-
-        let interaction_distance = creature.unit().world().combat_reach() + 4.0;
-        let in_range = if let Some(player) = map.map().get_typed_player(player_guid) {
-            creature.unit().world().is_within_dist_in_map(
-                player.unit().world(),
-                interaction_distance,
-                true,
-            )
-        } else {
-            let fallback_distance = interaction_distance + creature.unit().world().combat_reach();
-            creature
-                .unit()
-                .world()
-                .position()
-                .is_within_dist(&player_position, fallback_distance)
-        };
-        if !in_range {
+        let interaction_distance = creature.creature.unit().world().combat_reach() + 4.0;
+        let interaction_distance_with_radii = interaction_distance
+            + creature.creature.unit().world().combat_reach()
+            + player_interaction_combat_reach;
+        if !creature
+            .position()
+            .is_within_dist(&player_position, interaction_distance_with_radii)
+        {
             return None;
         }
 
         Some(RepresentedCreatureAccessLikeCpp {
             entry: creature.entry(),
-            position: creature.unit().world().position(),
-            npc_flags: creature.ai_ownership().npc_flags,
-            npc_flags2: creature.ai_ownership().npc_flags2,
+            position: creature.position(),
+            npc_flags: creature.npc_flags(),
+            npc_flags2: creature.npc_flags2(),
             trainer_class: creature.trainer_class_like_cpp(),
-            faction_template_id: creature.unit().data().faction_template.max(0) as u32,
+            faction_template_id: creature.faction(),
         })
     }
 
@@ -18659,6 +18807,15 @@ impl WorldSession {
             .unwrap_or(0.0)
     }
 
+    fn player_interaction_combat_reach_like_cpp(&self) -> f32 {
+        let canonical_reach = self.canonical_player_combat_reach_snapshot_like_cpp();
+        if canonical_reach > 0.0 {
+            canonical_reach
+        } else {
+            DEFAULT_PLAYER_COMBAT_REACH_LIKE_CPP
+        }
+    }
+
     pub(crate) fn canonical_player_party_power_snapshot_like_cpp(&self) -> Option<(u8, u16, u16)> {
         self.canonical_player_snapshot_like_cpp(|player| {
             let power_type = player.unit().data().display_power;
@@ -22108,6 +22265,7 @@ impl WorldSession {
         self.save_player_spell_charges_like_cpp().await;
         self.save_player_action_buttons_like_cpp().await;
         self.save_player_equipment_sets_like_cpp().await;
+        self.save_player_quest_statuses_to_db_like_cpp().await;
         self.save_tutorials_data_like_cpp().await;
         self.save_instance_time_restrictions_like_cpp().await;
         self.save_played_time().await;
@@ -24721,6 +24879,7 @@ impl WorldSession {
             .collect();
 
         let mut quests_to_complete = Vec::new();
+        let mut quests_to_save = Vec::new();
         for (quest_id, obj_idx, required, objective_id) in matching {
             let Some(qs) = self.player_quests.get_mut(&quest_id) else {
                 continue;
@@ -24735,6 +24894,7 @@ impl WorldSession {
                 .saturating_add(add_count)
                 .clamp(0, required);
             let current = qs.objective_counts[obj_idx];
+            quests_to_save.push(quest_id);
 
             debug!(
                 account = self.account_id,
@@ -24801,6 +24961,8 @@ impl WorldSession {
                 );
             }
         }
+        self.save_changed_represented_quest_statuses_like_cpp(&mut quests_to_save)
+            .await;
         self.sync_player_registry_state_like_cpp();
     }
 
@@ -24839,6 +25001,7 @@ impl WorldSession {
             .collect();
 
         let mut quests_to_complete = Vec::new();
+        let mut quests_to_save = Vec::new();
         for (quest_id, obj_idx, objective_id) in matching {
             let Some(qs) = self.player_quests.get_mut(&quest_id) else {
                 continue;
@@ -24849,6 +25012,9 @@ impl WorldSession {
             let objective_was_complete = qs.objective_counts[obj_idx] != 0;
             qs.objective_counts[obj_idx] = i32::from(add_count > 0);
             let objective_is_now_complete = qs.objective_counts[obj_idx] != 0;
+            if objective_was_complete != objective_is_now_complete {
+                quests_to_save.push(quest_id);
+            }
 
             if add_count > 0 {
                 self.send_packet(&QuestUpdateAddCreditSimple {
@@ -24894,6 +25060,8 @@ impl WorldSession {
                 );
             }
         }
+        self.save_changed_represented_quest_statuses_like_cpp(&mut quests_to_save)
+            .await;
         self.sync_player_registry_state_like_cpp();
     }
 
@@ -24943,6 +25111,7 @@ impl WorldSession {
             .collect();
 
         let mut quests_to_complete = Vec::new();
+        let mut quests_to_save = Vec::new();
         for (quest_id, objective_id, required, objective_was_complete, objective_is_now_complete) in
             matching
         {
@@ -24975,6 +25144,7 @@ impl WorldSession {
                 if let Some(status) = self.player_quests.get_mut(&quest_id) {
                     if status.status == crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP {
                         status.status = crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP;
+                        quests_to_save.push(quest_id);
                     }
                 }
             }
@@ -24988,6 +25158,7 @@ impl WorldSession {
                 .complete_represented_quest_after_objective_if_ready_like_cpp(&quest, objective_id)
                 .await;
             if completed {
+                quests_to_save.push(quest_id);
                 if self.player_quests.get(&quest_id).is_some_and(|qs| {
                     qs.status == crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP
                 }) {
@@ -24999,6 +25170,8 @@ impl WorldSession {
                 );
             }
         }
+        self.save_changed_represented_quest_statuses_like_cpp(&mut quests_to_save)
+            .await;
         self.sync_player_registry_state_like_cpp();
     }
 
@@ -25050,6 +25223,7 @@ impl WorldSession {
             .collect();
 
         let mut quests_to_complete = Vec::new();
+        let mut quests_to_save = Vec::new();
         for (quest_id, objective_id, required, objective_was_complete, objective_is_now_complete) in
             matching
         {
@@ -25083,6 +25257,7 @@ impl WorldSession {
                 if let Some(status) = self.player_quests.get_mut(&quest_id) {
                     if status.status == crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP {
                         status.status = crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP;
+                        quests_to_save.push(quest_id);
                     }
                 }
             }
@@ -25096,6 +25271,7 @@ impl WorldSession {
                 .complete_represented_quest_after_objective_if_ready_like_cpp(&quest, objective_id)
                 .await;
             if completed {
+                quests_to_save.push(quest_id);
                 if self.player_quests.get(&quest_id).is_some_and(|qs| {
                     qs.status == crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP
                 }) {
@@ -25107,6 +25283,8 @@ impl WorldSession {
                 );
             }
         }
+        self.save_changed_represented_quest_statuses_like_cpp(&mut quests_to_save)
+            .await;
         self.sync_player_registry_state_like_cpp();
     }
 
@@ -25175,6 +25353,7 @@ impl WorldSession {
             .collect();
 
         let mut quests_to_complete = Vec::new();
+        let mut quests_to_save = Vec::new();
         for (quest_id, objective_id, required, objective_was_complete, objective_is_now_complete) in
             matching
         {
@@ -25209,6 +25388,7 @@ impl WorldSession {
                 if let Some(status) = self.player_quests.get_mut(&quest_id) {
                     if status.status == crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP {
                         status.status = crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP;
+                        quests_to_save.push(quest_id);
                     }
                 }
             }
@@ -25222,6 +25402,7 @@ impl WorldSession {
                 .complete_represented_quest_after_objective_if_ready_like_cpp(&quest, objective_id)
                 .await;
             if completed {
+                quests_to_save.push(quest_id);
                 if self.player_quests.get(&quest_id).is_some_and(|qs| {
                     qs.status == crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP
                 }) {
@@ -25233,6 +25414,8 @@ impl WorldSession {
                 );
             }
         }
+        self.save_changed_represented_quest_statuses_like_cpp(&mut quests_to_save)
+            .await;
         self.sync_player_registry_state_like_cpp();
     }
 
@@ -29114,8 +29297,26 @@ impl WorldSession {
             ClientOpcodes::QuestGiverStatusTrackedQuery => {
                 self.handle_quest_giver_status_tracked_query(pkt).await;
             }
+            ClientOpcodes::QuestGiverQueryQuest => {
+                self.handle_quest_giver_query_quest(pkt).await;
+            }
+            ClientOpcodes::QuestGiverAcceptQuest => {
+                self.handle_quest_giver_accept_quest(pkt).await;
+            }
+            ClientOpcodes::QuestGiverRequestReward => {
+                self.handle_quest_giver_request_reward(pkt).await;
+            }
+            ClientOpcodes::QuestGiverCompleteQuest => {
+                self.handle_quest_giver_complete_quest(pkt).await;
+            }
+            ClientOpcodes::QuestGiverChooseReward => {
+                self.handle_quest_giver_choose_reward(pkt).await;
+            }
             ClientOpcodes::QuestGiverCloseQuest => {
                 self.handle_quest_giver_close_quest(pkt).await;
+            }
+            ClientOpcodes::QueryQuestInfo => {
+                self.handle_query_quest_info(pkt).await;
             }
             ClientOpcodes::RequestWorldQuestUpdate => {
                 self.handle_request_world_quest_update(pkt).await;
@@ -31561,6 +31762,7 @@ impl WorldSession {
     pub fn set_player_guid(&mut self, guid: Option<ObjectGuid>) {
         self.player_guid = guid;
         if let Some(guid) = guid {
+            self.recent_player_guid_low_like_cpp = guid.counter() as u64;
             self.represented_seer_guid_like_cpp = Some(guid);
         }
         if guid.is_none() {
@@ -31859,9 +32061,9 @@ impl WorldSession {
         }
 
         let is_global = (1u32 << data_type) & GLOBAL_CACHE_MASK_LIKE_CPP != 0;
-        let player_guid = self.player_guid();
+        let player_guid_low = self.recent_player_guid_low_like_cpp;
 
-        if !is_global && player_guid.is_none() {
+        if !is_global && player_guid_low == 0 {
             return false;
         }
 
@@ -31881,9 +32083,8 @@ impl WorldSession {
             stmt.set_string(3, data.clone());
             stmt
         } else {
-            let guid = player_guid.expect("checked above");
             let mut stmt = char_db.prepare(CharStatements::REP_PLAYER_ACCOUNT_DATA);
-            stmt.set_u64(0, guid.counter() as u64);
+            stmt.set_u64(0, player_guid_low);
             stmt.set_u8(1, data_type);
             stmt.set_i64(2, time);
             stmt.set_string(3, data.clone());
@@ -41686,6 +41887,58 @@ impl WorldSession {
 
         let menu_items =
             self.represented_creature_quest_menu_items_like_cpp(&quest_store, creature_entry);
+        let ender_candidates = quest_store
+            .quests_for_ender(creature_entry)
+            .iter()
+            .map(|quest| {
+                (
+                    quest.id,
+                    quest.log_title.clone(),
+                    quest.allowable_races,
+                    quest.allowable_classes,
+                    quest.min_level,
+                    quest.max_level,
+                    self.player_quests
+                        .get(&quest.id)
+                        .map(|status| status.status),
+                    self.rewarded_quests.contains(&quest.id),
+                )
+            })
+            .collect::<Vec<_>>();
+        let starter_candidates = quest_store
+            .quests_for_starter(creature_entry)
+            .iter()
+            .map(|quest| {
+                (
+                    quest.id,
+                    quest.log_title.clone(),
+                    quest.allowable_races,
+                    quest.allowable_classes,
+                    quest.min_level,
+                    quest.max_level,
+                    quest.is_available_for(
+                        self.player_race_like_cpp(),
+                        self.player_class_like_cpp(),
+                        self.player_level_like_cpp(),
+                    ),
+                    self.can_take_quest(quest),
+                    self.player_quests
+                        .get(&quest.id)
+                        .map(|status| status.status),
+                    self.rewarded_quests.contains(&quest.id),
+                )
+            })
+            .collect::<Vec<_>>();
+        info!(
+            creature_entry,
+            race = self.player_race_like_cpp(),
+            class = self.player_class_like_cpp(),
+            level = self.player_level_like_cpp(),
+            ender_candidates = ?ender_candidates,
+            starter_candidates = ?starter_candidates,
+            menu_items = ?self.represented_quest_menu_item_log_rows_like_cpp(&menu_items),
+            "Prepared creature questgiver fallback menu like C++"
+        );
         if menu_items.is_empty() {
             return false;
         }
@@ -41797,12 +42050,14 @@ impl WorldSession {
         }
 
         if source_guid.is_game_object() {
-            let Some(access) = self.canonical_gameobject_access_like_cpp(source_guid) else {
+            let Some(access) =
+                self.represented_gameobject_questgiver_can_interact_with_like_cpp(source_guid)
+            else {
                 debug!(
                     account = self.account_id,
                     ?source_guid,
                     quest_id,
-                    "QuestGiverAcceptQuest: represented GameObject source missing"
+                    "QuestGiverAcceptQuest: represented GameObject source missing or not interactable"
                 );
                 return false;
             };
@@ -41866,12 +42121,14 @@ impl WorldSession {
                 &quest,
             )
         } else if source_guid.is_game_object() {
-            let Some(access) = self.canonical_gameobject_access_like_cpp(source_guid) else {
+            let Some(access) =
+                self.represented_gameobject_questgiver_can_interact_with_like_cpp(source_guid)
+            else {
                 debug!(
                     account = self.account_id,
                     ?source_guid,
                     quest_id,
-                    "QuestGiverQueryQuest: represented GameObject source missing"
+                    "QuestGiverQueryQuest: represented GameObject source missing or not interactable"
                 );
                 return false;
             };
@@ -41901,7 +42158,7 @@ impl WorldSession {
             return false;
         };
 
-        self.send_represented_prepared_single_quest_like_cpp(source_guid, &menu_item);
+        self.send_represented_prepared_single_quest_like_cpp(source_guid, &menu_item, false);
         true
     }
 
@@ -41920,7 +42177,9 @@ impl WorldSession {
                     has_involved_relation: true,
                 });
             }
-            return None;
+            // C++ `HandleQuestgiverQueryQuestOpcode` accepts hasQuest OR
+            // hasInvolvedQuest; `PrepareQuestMenu` still checks starters after
+            // skipping inactive involved quests on the same source.
         }
 
         if quest_store.creature_has_starter_relation_like_cpp(creature_entry, quest.id) {
@@ -41945,7 +42204,9 @@ impl WorldSession {
                     has_involved_relation: true,
                 });
             }
-            return None;
+            // C++ `HandleQuestgiverQueryQuestOpcode` accepts hasQuest OR
+            // hasInvolvedQuest; `PrepareQuestMenu` still checks starters after
+            // skipping inactive involved quests on the same source.
         }
 
         if quest_store.gameobject_has_starter_relation_like_cpp(gameobject_entry, quest.id) {
@@ -42069,10 +42330,24 @@ impl WorldSession {
         menu_items: Vec<RepresentedPreparedQuestMenuItemLikeCpp>,
     ) {
         if let [menu_item] = menu_items.as_slice() {
-            self.send_represented_prepared_single_quest_like_cpp(source_guid, menu_item);
+            info!(
+                ?source_guid,
+                quest_id = menu_item.quest.id,
+                quest_icon = menu_item.quest_icon,
+                starter = menu_item.has_starter_relation,
+                involved = menu_item.has_involved_relation,
+                title = menu_item.quest.log_title.as_str(),
+                "Sending represented single prepared quest like C++"
+            );
+            self.send_represented_prepared_single_quest_like_cpp(source_guid, menu_item, true);
             return;
         }
 
+        info!(
+            ?source_guid,
+            quests = ?self.represented_quest_menu_item_log_rows_like_cpp(&menu_items),
+            "Sending represented QuestGiverQuestList like C++"
+        );
         self.send_packet(&QuestGiverQuestList {
             guid: source_guid,
             greeting: String::new(),
@@ -42080,7 +42355,7 @@ impl WorldSession {
             greet_emote_type: 0,
             quests: menu_items
                 .iter()
-                .map(|item| Self::quest_list_entry_from_template_like_cpp(&item.quest))
+                .map(|item| self.quest_list_entry_from_menu_item_like_cpp(item))
                 .collect(),
         });
     }
@@ -42089,11 +42364,26 @@ impl WorldSession {
         &mut self,
         source_guid: ObjectGuid,
         menu_item: &RepresentedPreparedQuestMenuItemLikeCpp,
+        auto_launched: bool,
     ) {
         let quest = &menu_item.quest;
 
         if menu_item.quest_icon == QUEST_MENU_ICON_COMPLETE_LIKE_CPP {
-            self.send_represented_quest_giver_request_items_like_cpp(source_guid, quest);
+            let can_complete = self.can_reward_quest_represented_bounded_like_cpp(quest);
+            info!(
+                ?source_guid,
+                quest_id = quest.id,
+                can_complete,
+                auto_launched,
+                title = quest.log_title.as_str(),
+                "Sending represented QuestGiverRequestItems from complete icon like C++"
+            );
+            self.send_represented_quest_giver_request_items_with_completion_like_cpp(
+                source_guid,
+                quest,
+                can_complete,
+                auto_launched,
+            );
             return;
         }
 
@@ -42110,28 +42400,74 @@ impl WorldSession {
             && !quest.is_daily_or_weekly_like_cpp()
             && !quest.is_monthly_like_cpp()
         {
-            self.send_represented_quest_giver_request_items_like_cpp(source_guid, quest);
+            info!(
+                ?source_guid,
+                quest_id = quest.id,
+                auto_launched,
+                title = quest.log_title.as_str(),
+                "Sending represented QuestGiverRequestItems for repeatable turn-in like C++"
+            );
+            let can_complete =
+                self.can_complete_repeatable_quest_represented_bounded_like_cpp(quest);
+            self.send_represented_quest_giver_request_items_with_completion_like_cpp(
+                source_guid,
+                quest,
+                can_complete,
+                auto_launched,
+            );
         } else if quest.is_turn_in_like_cpp()
             && !quest.is_daily_or_weekly_like_cpp()
             && !quest.is_monthly_like_cpp()
         {
-            self.send_represented_quest_giver_request_items_like_cpp(source_guid, quest);
+            let can_complete = self.can_reward_quest_represented_bounded_like_cpp(quest);
+            info!(
+                ?source_guid,
+                quest_id = quest.id,
+                can_complete,
+                auto_launched,
+                title = quest.log_title.as_str(),
+                "Sending represented QuestGiverRequestItems for turn-in like C++"
+            );
+            self.send_represented_quest_giver_request_items_with_completion_like_cpp(
+                source_guid,
+                quest,
+                can_complete,
+                auto_launched,
+            );
         } else {
-            self.send_represented_quest_giver_quest_details_like_cpp(source_guid, quest);
+            info!(
+                ?source_guid,
+                quest_id = quest.id,
+                auto_launched,
+                title = quest.log_title.as_str(),
+                "Sending represented QuestGiverQuestDetails like C++"
+            );
+            self.send_represented_quest_giver_quest_details_like_cpp(
+                source_guid,
+                quest,
+                auto_launched,
+            );
         }
     }
 
-    fn send_represented_quest_giver_request_items_like_cpp(
-        &mut self,
-        source_guid: ObjectGuid,
-        quest: &wow_data::quest::QuestTemplate,
-    ) {
-        self.send_represented_quest_giver_request_items_with_completion_like_cpp(
-            source_guid,
-            quest,
-            false,
-            false,
-        );
+    fn represented_quest_menu_item_log_rows_like_cpp(
+        &self,
+        menu_items: &[RepresentedPreparedQuestMenuItemLikeCpp],
+    ) -> Vec<(u32, String, u8, bool, bool, u32, u32)> {
+        menu_items
+            .iter()
+            .map(|item| {
+                (
+                    item.quest.id,
+                    item.quest.log_title.clone(),
+                    item.quest_icon,
+                    item.has_starter_relation,
+                    item.has_involved_relation,
+                    item.quest.allowable_classes,
+                    item.quest.flags,
+                )
+            })
+            .collect()
     }
 
     pub(crate) fn send_repeatable_turn_in_request_items_like_cpp(
@@ -42194,6 +42530,35 @@ impl WorldSession {
         false
     }
 
+    pub(crate) fn can_reward_quest_represented_bounded_like_cpp(
+        &self,
+        quest: &wow_data::quest::QuestTemplate,
+    ) -> bool {
+        // C++ `Player::CanRewardQuest(quest, false)` requires the quest to be complete
+        // unless it is a DF/turn-in-only quest, then rejects already rewarded
+        // non-repeatable quests. This represented seam covers the status/reward gates
+        // needed by `SendQuestGiverRequestItems`; inventory-capacity and long-tail
+        // reward blockers remain in the reward handler path.
+        if self.is_quest_disabled_like_cpp(quest.id) {
+            return false;
+        }
+
+        if !quest.is_df_quest_like_cpp()
+            && !quest.is_turn_in_like_cpp()
+            && !self.player_quests.get(&quest.id).is_some_and(|status| {
+                status.status == crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP
+            })
+        {
+            return false;
+        }
+
+        if self.rewarded_quests.contains(&quest.id) && !quest.is_repeatable() {
+            return false;
+        }
+
+        true
+    }
+
     pub(crate) fn send_represented_quest_giver_request_items_with_completion_like_cpp(
         &mut self,
         source_guid: ObjectGuid,
@@ -42226,11 +42591,9 @@ impl WorldSession {
             .filter(|objective| objective.obj_type == QUEST_OBJECTIVE_MONEY_LIKE_CPP)
             .map(|objective| objective.amount)
             .sum::<i32>();
-        let giver_creature_id = i32::try_from(source_guid.entry()).unwrap_or(0);
-
         self.send_packet(&QuestGiverRequestItems {
             giver_guid: source_guid,
-            giver_creature_id,
+            giver_creature_id: quest_giver_creature_id_from_source_like_cpp(source_guid),
             quest_id: quest.id,
             comp_emote_delay: 0,
             comp_emote_type: 0,
@@ -42254,6 +42617,7 @@ impl WorldSession {
     ) {
         self.send_packet(&QuestGiverOfferReward {
             giver_guid: source_guid,
+            giver_creature_id: quest_giver_creature_id_from_source_like_cpp(source_guid),
             quest_id: quest.id,
             quest_flags: [quest.flags, quest.flags_ex, quest.flags_ex2],
             suggested_party_members: quest.suggested_group_num,
@@ -42268,6 +42632,7 @@ impl WorldSession {
         &mut self,
         source_guid: ObjectGuid,
         quest: &wow_data::quest::QuestTemplate,
+        auto_launched: bool,
     ) {
         let objectives: Vec<QuestObjectiveSimple> = quest
             .objectives
@@ -42282,6 +42647,7 @@ impl WorldSession {
 
         self.send_packet(&QuestGiverQuestDetails {
             giver_guid: source_guid,
+            giver_creature_id: quest_giver_creature_id_from_source_like_cpp(source_guid),
             quest_id: quest.id,
             quest_flags: [quest.flags, quest.flags_ex, quest.flags_ex2],
             suggested_party_members: quest.suggested_group_num,
@@ -42290,22 +42656,92 @@ impl WorldSession {
             title: quest.log_title.clone(),
             description: quest.quest_description.clone(),
             log_description: quest.log_description.clone(),
-            auto_launched: false,
+            auto_launched,
         });
     }
 
-    fn quest_list_entry_from_template_like_cpp(
-        quest: &wow_data::quest::QuestTemplate,
+    pub(crate) fn represented_creature_gossip_text_like_cpp(
+        &self,
+        creature_entry: u32,
+    ) -> Vec<ClientGossipText> {
+        let Some(quest_store) = self.quest_store.as_ref() else {
+            return Vec::new();
+        };
+
+        let starter_candidates = quest_store
+            .quests_for_starter(creature_entry)
+            .iter()
+            .map(|quest| {
+                (
+                    quest.id,
+                    quest.allowable_races,
+                    quest.allowable_classes,
+                    quest.min_level,
+                    quest.max_level,
+                    self.can_take_quest(quest),
+                )
+            })
+            .collect::<Vec<_>>();
+        let menu_items =
+            self.represented_creature_quest_menu_items_like_cpp(quest_store, creature_entry);
+        info!(
+            creature_entry,
+            race = self.player_race_like_cpp(),
+            class = self.player_class_like_cpp(),
+            level = self.player_level_like_cpp(),
+            starter_candidates = ?starter_candidates,
+            quests = ?menu_items.iter().map(|item| item.quest.id).collect::<Vec<_>>(),
+            "Prepared creature gossip quest text like C++"
+        );
+
+        menu_items
+            .iter()
+            .map(|item| self.gossip_text_from_menu_item_like_cpp(item))
+            .collect()
+    }
+
+    fn quest_list_entry_from_menu_item_like_cpp(
+        &self,
+        menu_item: &RepresentedPreparedQuestMenuItemLikeCpp,
     ) -> QuestListEntry {
+        let quest = &menu_item.quest;
         QuestListEntry {
             quest_id: quest.id,
-            quest_type: quest.quest_type,
+            // C++ `PlayerMenu::SendQuestGiverQuestListMessage` writes
+            // `QuestMenuItem::QuestIcon`, not `Quest::GetQuestType`.
+            quest_type: menu_item.quest_icon,
+            quest_level: 0,
+            quest_max_scaling_level: 0,
+            quest_flags: quest.flags,
+            quest_flags_ex: quest.flags_ex,
+            repeatable: quest.is_turn_in_like_cpp()
+                && quest.is_repeatable()
+                && !quest.is_daily_or_weekly_like_cpp()
+                && !quest.is_monthly_like_cpp(),
+            important: self.represented_quest_is_important_like_cpp(quest),
+            title: quest.log_title.clone(),
+        }
+    }
+
+    fn gossip_text_from_menu_item_like_cpp(
+        &self,
+        menu_item: &RepresentedPreparedQuestMenuItemLikeCpp,
+    ) -> ClientGossipText {
+        let quest = &menu_item.quest;
+        ClientGossipText {
+            quest_id: quest.id as i32,
+            content_tuning_id: 0,
+            quest_type: i32::from(menu_item.quest_icon),
             quest_level: quest.quest_level,
             quest_max_scaling_level: quest.quest_max_scaling_level,
             quest_flags: quest.flags,
             quest_flags_ex: quest.flags_ex,
-            repeatable: quest.is_repeatable(),
-            title: quest.log_title.clone(),
+            repeatable: quest.is_turn_in_like_cpp()
+                && quest.is_repeatable()
+                && !quest.is_daily_or_weekly_like_cpp()
+                && !quest.is_monthly_like_cpp(),
+            important: self.represented_quest_is_important_like_cpp(quest),
+            quest_title: quest.log_title.clone(),
         }
     }
 
@@ -42467,7 +42903,9 @@ impl WorldSession {
             && self
                 .player_quests
                 .get(&source.quest_id)
-                .map_or(true, |status| status.status != 1)
+                .map_or(true, |status| {
+                    status.status != crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP
+                })
         {
             self.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::GooberQuestGateRejected {
@@ -61234,6 +61672,78 @@ mod tests {
         true
     }
 
+    #[derive(Debug, PartialEq, Eq)]
+    struct QuestGiverRequestItemsSummaryLikeCpp {
+        giver_creature_id: i32,
+        quest_id: u32,
+        status_flags: u32,
+        auto_launched: bool,
+    }
+
+    fn quest_giver_request_items_summary_like_cpp(
+        bytes: &[u8],
+    ) -> QuestGiverRequestItemsSummaryLikeCpp {
+        let mut pkt = wow_packet::WorldPacket::from_bytes(&bytes[2..]);
+        pkt.read_packed_guid().unwrap();
+        let giver_creature_id = pkt.read_int32().unwrap();
+        let quest_id = pkt.read_int32().unwrap() as u32;
+        pkt.read_int32().unwrap(); // CompEmoteDelay
+        pkt.read_int32().unwrap(); // CompEmoteType
+        pkt.read_uint32().unwrap(); // QuestFlags[0]
+        pkt.read_uint32().unwrap(); // QuestFlags[1]
+        pkt.read_uint32().unwrap(); // QuestFlags[2]
+        pkt.read_int32().unwrap(); // SuggestedPartyMembers
+        pkt.read_int32().unwrap(); // MoneyToGet
+        let collect_count = pkt.read_int32().unwrap().max(0) as usize;
+        let currency_count = pkt.read_int32().unwrap().max(0) as usize;
+        let status_flags = pkt.read_int32().unwrap() as u32;
+
+        for _ in 0..collect_count {
+            pkt.read_int32().unwrap(); // ObjectID
+            pkt.read_int32().unwrap(); // Amount
+            pkt.read_uint32().unwrap(); // Flags
+        }
+        for _ in 0..currency_count {
+            pkt.read_int32().unwrap(); // CurrencyID
+            pkt.read_int32().unwrap(); // Amount
+        }
+
+        QuestGiverRequestItemsSummaryLikeCpp {
+            giver_creature_id,
+            quest_id,
+            status_flags,
+            auto_launched: pkt.read_bit().unwrap(),
+        }
+    }
+
+    fn quest_list_level_fields_like_cpp(bytes: &[u8]) -> Vec<(u32, i32, i32)> {
+        let mut pkt = wow_packet::WorldPacket::from_bytes(&bytes[2..]);
+        pkt.read_packed_guid().unwrap();
+        pkt.read_uint32().unwrap();
+        pkt.read_uint32().unwrap();
+        let quest_count = pkt.read_uint32().unwrap();
+        let greeting_len = pkt.read_bits(11).unwrap();
+
+        let mut levels = Vec::new();
+        for _ in 0..quest_count {
+            let quest_id = pkt.read_uint32().unwrap();
+            let _content_tuning_id = pkt.read_uint32().unwrap();
+            let _quest_type = pkt.read_int32().unwrap();
+            let quest_level = pkt.read_int32().unwrap();
+            let quest_max_scaling_level = pkt.read_int32().unwrap();
+            let _quest_flags = pkt.read_uint32().unwrap();
+            let _quest_flags_ex = pkt.read_uint32().unwrap();
+            let _repeatable = pkt.read_bit().unwrap();
+            let _important = pkt.read_bit().unwrap();
+            let title_len = pkt.read_bits(9).unwrap();
+            let _title = pkt.read_string(title_len as usize).unwrap();
+            levels.push((quest_id, quest_level, quest_max_scaling_level));
+        }
+
+        let _greeting = pkt.read_string(greeting_len as usize).unwrap();
+        levels
+    }
+
     #[test]
     fn load_character_reputation_rows_like_cpp_merges_rows_after_identity_and_store() {
         let (mut session, _, _) = make_session();
@@ -63742,6 +64252,7 @@ mod tests {
             drain_server_opcodes(&send_rx),
             vec![
                 ServerOpcodes::QuestUpdateAddCredit,
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
             ]
@@ -63810,6 +64321,7 @@ mod tests {
             drain_server_opcodes(&send_rx),
             vec![
                 ServerOpcodes::QuestUpdateAddPvpCredit,
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
             ]
@@ -63933,6 +64445,7 @@ mod tests {
             drain_server_opcodes(&send_rx),
             vec![
                 ServerOpcodes::QuestUpdateAddCredit,
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
             ]
@@ -64003,6 +64516,7 @@ mod tests {
             drain_server_opcodes(&send_rx),
             vec![
                 ServerOpcodes::QuestUpdateAddCreditSimple,
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
             ]
@@ -64070,6 +64584,7 @@ mod tests {
         assert_eq!(
             drain_server_opcodes(&send_rx),
             vec![
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
             ]
@@ -64122,6 +64637,7 @@ mod tests {
         assert_eq!(
             drain_server_opcodes(&send_rx),
             vec![
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
             ]
@@ -64254,8 +64770,10 @@ mod tests {
         assert_eq!(
             drain_server_opcodes(&send_rx),
             vec![
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
             ]
@@ -64320,6 +64838,7 @@ mod tests {
             drain_server_opcodes(&send_rx),
             vec![
                 ServerOpcodes::SetCurrency,
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
             ]
@@ -64372,6 +64891,7 @@ mod tests {
             drain_server_opcodes(&send_rx),
             vec![
                 ServerOpcodes::QuestUpdateAddCredit,
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
             ]
@@ -64424,6 +64944,7 @@ mod tests {
             drain_server_opcodes(&send_rx),
             vec![
                 ServerOpcodes::QuestUpdateAddCredit,
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
             ]
@@ -64484,6 +65005,7 @@ mod tests {
         assert_eq!(
             drain_server_opcodes(&send_rx),
             vec![
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
             ]
@@ -64540,6 +65062,7 @@ mod tests {
             drain_server_opcodes(&send_rx),
             vec![
                 ServerOpcodes::QuestUpdateAddCredit,
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
             ]
@@ -64600,6 +65123,7 @@ mod tests {
         assert_eq!(
             drain_server_opcodes(&send_rx),
             vec![
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
             ]
@@ -79877,6 +80401,37 @@ mod tests {
             ),
             None
         );
+        let legacy_manager = shared_map_manager();
+        legacy_manager.write().unwrap().add_creature(
+            571,
+            0,
+            0,
+            0,
+            crate::map_manager::WorldCreature::new(
+                trainer_guid,
+                500,
+                Position::new(14.0, 0.0, 0.0, 0.0),
+                100,
+                80,
+                1,
+                2,
+                0.0,
+                1,
+                35,
+                wow_constants::unit::NPCFlags1::TRAINER.bits(),
+                0,
+            ),
+        );
+        session.set_map_manager(legacy_manager);
+        assert_eq!(
+            session.represented_npc_can_interact_with_like_cpp(
+                trainer_guid,
+                wow_constants::unit::NPCFlags1::TRAINER.bits(),
+                0,
+            ),
+            None,
+            "C++ GetNPCIfCanInteractWith rejects the canonical hostile NPC; legacy mirrors must not bypass that rejection"
+        );
 
         {
             let mut canonical = canonical.lock().unwrap();
@@ -79920,6 +80475,524 @@ mod tests {
                 0,
             ),
             None
+        );
+    }
+
+    #[test]
+    fn npc_interaction_falls_back_to_legacy_creature_like_cpp() {
+        let (mut session, _pkt_tx, _send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let questgiver_guid = test_creature_guid(13);
+        let manager = shared_map_manager();
+
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "Tester".to_string(),
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        manager.write().unwrap().add_creature(
+            571,
+            0,
+            0,
+            0,
+            crate::map_manager::WorldCreature::new(
+                questgiver_guid,
+                503,
+                Position::new(14.0, 0.0, 0.0, 0.0),
+                100,
+                80,
+                1,
+                2,
+                0.0,
+                1,
+                35,
+                wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                0,
+            ),
+        );
+        session.set_map_manager(manager);
+
+        assert_eq!(
+            session.represented_npc_can_interact_with_like_cpp(
+                questgiver_guid,
+                wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                0,
+            ),
+            Some(RepresentedCreatureAccessLikeCpp {
+                entry: 503,
+                position: Position::new(14.0, 0.0, 0.0, 0.0),
+                npc_flags: wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                npc_flags2: 0,
+                faction_template_id: 35,
+                trainer_class: 0,
+            })
+        );
+    }
+
+    #[test]
+    fn npc_interaction_legacy_fallback_uses_player_instance_like_cpp() {
+        let (mut session, _pkt_tx, _send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 47);
+        let questgiver_guid = test_creature_guid(18);
+        let player_position = Position::new(10.0, 0.0, 0.0, 0.0);
+        let npc_position = Position::new(14.0, 0.0, 0.0, 0.0);
+        let canonical = shared_canonical_map_manager();
+        let manager = shared_map_manager();
+
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "Tester".to_string(),
+            player_position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 7);
+        manager.write().unwrap().add_creature(
+            571,
+            0,
+            0,
+            0,
+            crate::map_manager::WorldCreature::new(
+                questgiver_guid,
+                999,
+                npc_position,
+                100,
+                80,
+                1,
+                2,
+                0.0,
+                1,
+                35,
+                wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                0,
+            ),
+        );
+        manager.write().unwrap().add_creature(
+            571,
+            7,
+            0,
+            0,
+            crate::map_manager::WorldCreature::new(
+                questgiver_guid,
+                508,
+                npc_position,
+                100,
+                80,
+                1,
+                2,
+                0.0,
+                1,
+                35,
+                wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                0,
+            ),
+        );
+        session.set_map_manager(manager);
+
+        assert_eq!(
+            session.represented_npc_can_interact_with_like_cpp(
+                questgiver_guid,
+                wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                0,
+            ),
+            Some(RepresentedCreatureAccessLikeCpp {
+                entry: 508,
+                position: npc_position,
+                npc_flags: wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                npc_flags2: 0,
+                faction_template_id: 35,
+                trainer_class: 0,
+            }),
+            "C++ ObjectAccessor resolves relative to the player's current instance, not a hard-coded instance 0"
+        );
+    }
+
+    #[test]
+    fn npc_interaction_rejects_legacy_fallback_when_canonical_player_is_out_of_world_like_cpp() {
+        let (mut session, _pkt_tx, _send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 46);
+        let questgiver_guid = test_creature_guid(17);
+        let position = Position::new(10.0, 0.0, 0.0, 0.0);
+        let canonical = shared_canonical_map_manager();
+        let manager = shared_map_manager();
+
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "Tester".to_string(),
+            position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player
+                    .unit_mut()
+                    .world_mut()
+                    .object_mut()
+                    .remove_from_world();
+            })
+            .unwrap();
+        manager.write().unwrap().add_creature(
+            571,
+            0,
+            0,
+            0,
+            crate::map_manager::WorldCreature::new(
+                questgiver_guid,
+                507,
+                Position::new(14.0, 0.0, 0.0, 0.0),
+                100,
+                80,
+                1,
+                2,
+                0.0,
+                1,
+                35,
+                wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                0,
+            ),
+        );
+        session.set_map_manager(manager);
+
+        assert_eq!(
+            session.represented_npc_can_interact_with_like_cpp(
+                questgiver_guid,
+                wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                0,
+            ),
+            None,
+            "C++ GetNPCIfCanInteractWith requires the canonical player to be in world; stale legacy state must not authorize interaction"
+        );
+    }
+
+    #[test]
+    fn legacy_only_npc_interaction_uses_combat_reach_like_cpp() {
+        let (mut session, _pkt_tx, _send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 44);
+        let questgiver_guid = test_creature_guid(15);
+        let manager = shared_map_manager();
+
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "Tester".to_string(),
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let mut creature = crate::map_manager::WorldCreature::new(
+            questgiver_guid,
+            505,
+            Position::new(15.75, 0.0, 0.0, 0.0),
+            100,
+            80,
+            1,
+            2,
+            0.0,
+            1,
+            35,
+            wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+            0,
+        );
+        creature.creature.unit_mut().set_combat_reach(0.0);
+        manager
+            .write()
+            .unwrap()
+            .add_creature(571, 0, 0, 0, creature);
+        session.set_map_manager(Arc::clone(&manager));
+
+        assert_eq!(
+            session.represented_npc_can_interact_with_like_cpp(
+                questgiver_guid,
+                wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                0,
+            ),
+            None,
+            "C++ Player::GetNPCIfCanInteractWith uses creature combat reach + 4.0 plus both combat radii, not a fixed 8-yard radius"
+        );
+
+        manager
+            .write()
+            .unwrap()
+            .find_creature_mut(571, 0, questgiver_guid)
+            .unwrap()
+            .creature
+            .unit_mut()
+            .set_combat_reach(1.5);
+
+        assert_eq!(
+            session.represented_npc_can_interact_with_like_cpp(
+                questgiver_guid,
+                wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                0,
+            ),
+            Some(RepresentedCreatureAccessLikeCpp {
+                entry: 505,
+                position: Position::new(15.75, 0.0, 0.0, 0.0),
+                npc_flags: wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                npc_flags2: 0,
+                faction_template_id: 35,
+                trainer_class: 0,
+            })
+        );
+    }
+
+    #[test]
+    fn legacy_only_npc_interaction_preserves_dead_and_ghost_exceptions_like_cpp() {
+        let (mut session, _pkt_tx, _send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 45);
+        let questgiver_guid = test_creature_guid(16);
+        let manager = shared_map_manager();
+
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "Tester".to_string(),
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        manager.write().unwrap().add_creature(
+            571,
+            0,
+            0,
+            0,
+            crate::map_manager::WorldCreature::new(
+                questgiver_guid,
+                506,
+                Position::new(12.0, 0.0, 0.0, 0.0),
+                100,
+                80,
+                1,
+                2,
+                0.0,
+                1,
+                35,
+                wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                0,
+            ),
+        );
+        session.set_map_manager(Arc::clone(&manager));
+
+        session.set_player_alive_like_cpp(false);
+        assert_eq!(
+            session.represented_npc_can_interact_with_like_cpp(
+                questgiver_guid,
+                wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                0,
+            ),
+            None
+        );
+
+        manager
+            .write()
+            .unwrap()
+            .find_creature_mut(571, 0, questgiver_guid)
+            .unwrap()
+            .creature
+            .set_type_flags_runtime_like_cpp(CreatureTypeFlags::VISIBLE_TO_GHOSTS.bits());
+        assert_eq!(
+            session
+                .represented_npc_can_interact_with_like_cpp(
+                    questgiver_guid,
+                    wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                    0,
+                )
+                .map(|access| access.entry),
+            Some(506),
+            "C++ allows dead players to interact with creatures visible to ghosts"
+        );
+
+        session.set_player_alive_like_cpp(true);
+        {
+            let mut manager = manager.write().unwrap();
+            let creature = manager.find_creature_mut(571, 0, questgiver_guid).unwrap();
+            creature
+                .creature
+                .set_type_flags_runtime_like_cpp(CreatureTypeFlags::empty().bits());
+            creature
+                .creature
+                .set_death_state_runtime(wow_constants::DeathState::JustDied, 0);
+            creature.creature.unit_mut().set_health(0);
+        }
+        assert_eq!(
+            session.represented_npc_can_interact_with_like_cpp(
+                questgiver_guid,
+                wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                0,
+            ),
+            None
+        );
+
+        manager
+            .write()
+            .unwrap()
+            .find_creature_mut(571, 0, questgiver_guid)
+            .unwrap()
+            .creature
+            .set_type_flags_runtime_like_cpp(CreatureTypeFlags::INTERACT_WHILE_DEAD.bits());
+        assert_eq!(
+            session
+                .represented_npc_can_interact_with_like_cpp(
+                    questgiver_guid,
+                    wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                    0,
+                )
+                .map(|access| access.entry),
+            Some(506),
+            "C++ allows interaction with dead creatures flagged INTERACT_WHILE_DEAD"
+        );
+    }
+
+    #[test]
+    fn legacy_only_hostile_npc_interaction_is_rejected_like_cpp() {
+        let (mut session, _pkt_tx, _send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 43);
+        let questgiver_guid = test_creature_guid(14);
+        let manager = shared_map_manager();
+
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "Tester".to_string(),
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_player_faction_template_like_cpp(1);
+        session.set_faction_template_store(Arc::new(
+            wow_data::progression_rewards::FactionTemplateStore::from_entries([
+                faction_template_entry(35, 35, 0, 0, 1),
+                faction_template_entry(1, 1, 0, 0, 0),
+            ]),
+        ));
+        manager.write().unwrap().add_creature(
+            571,
+            0,
+            0,
+            0,
+            crate::map_manager::WorldCreature::new(
+                questgiver_guid,
+                504,
+                Position::new(14.0, 0.0, 0.0, 0.0),
+                100,
+                80,
+                1,
+                2,
+                0.0,
+                1,
+                35,
+                wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                0,
+            ),
+        );
+        session.set_map_manager(Arc::clone(&manager));
+
+        assert_eq!(
+            session.represented_npc_can_interact_with_like_cpp(
+                questgiver_guid,
+                wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                0,
+            ),
+            None
+        );
+
+        manager
+            .write()
+            .unwrap()
+            .find_creature_mut(571, 0, questgiver_guid)
+            .unwrap()
+            .creature
+            .set_unit_flags2_runtime_like_cpp(UnitFlags2::INTERACT_WHILE_HOSTILE.bits());
+
+        assert_eq!(
+            session.represented_npc_can_interact_with_like_cpp(
+                questgiver_guid,
+                wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                0,
+            ),
+            Some(RepresentedCreatureAccessLikeCpp {
+                entry: 504,
+                position: Position::new(14.0, 0.0, 0.0, 0.0),
+                npc_flags: wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                npc_flags2: 0,
+                faction_template_id: 35,
+                trainer_class: 0,
+            })
+        );
+    }
+
+    #[test]
+    fn legacy_only_charmed_npc_interaction_is_rejected_like_cpp() {
+        let (mut session, _pkt_tx, _send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 47);
+        let questgiver_guid = test_creature_guid(18);
+        let manager = shared_map_manager();
+
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "Tester".to_string(),
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let mut creature = crate::map_manager::WorldCreature::new(
+            questgiver_guid,
+            508,
+            Position::new(14.0, 0.0, 0.0, 0.0),
+            100,
+            80,
+            1,
+            2,
+            0.0,
+            1,
+            35,
+            wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+            0,
+        );
+        creature
+            .creature
+            .unit_mut()
+            .subsystems_mut()
+            .control
+            .set_charmer(player_guid, true);
+        manager
+            .write()
+            .unwrap()
+            .add_creature(571, 0, 0, 0, creature);
+        session.set_map_manager(Arc::clone(&manager));
+
+        assert_eq!(
+            session.represented_npc_can_interact_with_like_cpp(
+                questgiver_guid,
+                wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                0,
+            ),
+            None,
+            "C++ Player::GetNPCIfCanInteractWith rejects creatures with GetCharmerGUID set"
         );
     }
 
@@ -93911,6 +94984,7 @@ mod tests {
             vec![
                 ServerOpcodes::SpellGo,
                 ServerOpcodes::QuestUpdateAddCredit,
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
                 ServerOpcodes::CooldownEvent,
@@ -93994,6 +95068,7 @@ mod tests {
             vec![
                 ServerOpcodes::SpellGo,
                 ServerOpcodes::QuestUpdateAddCredit,
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
                 ServerOpcodes::CooldownEvent,
@@ -94856,6 +95931,7 @@ mod tests {
             vec![
                 ServerOpcodes::SpellGo,
                 ServerOpcodes::QuestUpdateComplete,
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
                 ServerOpcodes::CooldownEvent,
@@ -120253,6 +121329,80 @@ mod tests {
     }
 
     #[test]
+    fn quest_giver_query_gameobject_inactive_ender_falls_through_to_same_starter_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        session.set_player_level_like_cpp(1);
+        let canonical = shared_canonical_map_manager();
+        let source_guid =
+            ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 778, 20);
+        let position = Position::new(1.0, 2.0, 3.0, 0.0);
+        session.set_player_map_position_like_cpp(571, position);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_gameobject(&canonical, source_guid, 778, position);
+        session.record_represented_gameobject_runtime_state_like_cpp(
+            571,
+            source_guid,
+            778,
+            position,
+            wow_entities::GAMEOBJECT_TYPE_QUESTGIVER as u8,
+        );
+        let mut quest = test_quest_template(9_004);
+        quest.quest_type = 2;
+        quest.log_title = "GO same source starter".into();
+        let mut quest_store = wow_data::quest::QuestStore::from_quests_like_cpp([quest]);
+        assert!(quest_store.insert_gameobject_ender_relation_like_cpp(778, 9_004));
+        assert!(quest_store.insert_gameobject_starter_relation_like_cpp(778, 9_004));
+        session.quest_store = Some(Arc::new(quest_store));
+
+        assert!(session.send_represented_quest_giver_query_quest_like_cpp(source_guid, 9_004));
+
+        let bytes = send_rx.try_recv().unwrap();
+        assert_eq!(
+            wow_packet::WorldPacket::from_bytes(&bytes).server_opcode(),
+            Some(ServerOpcodes::QuestGiverQuestDetails)
+        );
+        assert!(packet_contains_quest_ids_in_order(&bytes, &[9_004]));
+    }
+
+    #[test]
+    fn questgiver_quest_list_leaves_level_fields_zero_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        session.set_player_level_like_cpp(1);
+        let player_guid = ObjectGuid::create_player(1, 99);
+        let gameobject_guid =
+            ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 19);
+        let mut first = test_quest_template(9_001);
+        first.quest_level = 10;
+        first.quest_max_scaling_level = 70;
+        first.log_title = "First".into();
+        let mut second = test_quest_template(9_002);
+        second.quest_level = 11;
+        second.quest_max_scaling_level = 80;
+        second.log_title = "Second".into();
+        let mut quest_store = wow_data::quest::QuestStore::from_quests_like_cpp([first, second]);
+        assert!(quest_store.insert_gameobject_starter_relation_like_cpp(777, 9_001));
+        assert!(quest_store.insert_gameobject_starter_relation_like_cpp(777, 9_002));
+        session.quest_store = Some(Arc::new(quest_store));
+
+        assert!(session.use_represented_gameobject_questgiver_like_cpp(
+            gameobject_guid,
+            player_guid,
+            777,
+            wow_entities::QuestgiverUseSource { gossip_id: 123 },
+        ));
+
+        let bytes = send_rx.try_recv().unwrap();
+        assert_eq!(
+            wow_packet::WorldPacket::from_bytes(&bytes).server_opcode(),
+            Some(ServerOpcodes::QuestGiverQuestListMessage)
+        );
+        assert_eq!(
+            quest_list_level_fields_like_cpp(&bytes),
+            vec![(9_001, 0, 0), (9_002, 0, 0)]
+        );
+    }
+
+    #[test]
     fn gameobject_use_questgiver_single_incomplete_ender_auto_opens_request_items_like_cpp() {
         let (mut session, _pkt_tx, send_rx) = make_session();
         let player_guid = ObjectGuid::create_player(1, 99);
@@ -120289,6 +121439,15 @@ mod tests {
             Some(ServerOpcodes::QuestGiverRequestItems)
         );
         assert!(packet_contains_quest_ids_in_order(&bytes, &[9_003]));
+        assert_eq!(
+            quest_giver_request_items_summary_like_cpp(&bytes),
+            QuestGiverRequestItemsSummaryLikeCpp {
+                giver_creature_id: 0,
+                quest_id: 9_003,
+                status_flags: 0xFF,
+                auto_launched: true,
+            }
+        );
     }
 
     #[test]
@@ -120344,6 +121503,47 @@ mod tests {
     }
 
     #[test]
+    fn creature_questgiver_single_complete_ender_auto_opens_request_items_can_complete_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let creature_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 21);
+        let mut quest = test_quest_template(9_103);
+        quest.log_title = "Creature complete ender".into();
+        let mut quest_store = wow_data::quest::QuestStore::from_quests_like_cpp([quest]);
+        quest_store.ender_quests.insert(777, vec![9_103]);
+        session.quest_store = Some(Arc::new(quest_store));
+        session.player_quests.insert(
+            9_103,
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id: 9_103,
+                status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: Vec::new(),
+                slot: 0,
+            },
+        );
+
+        assert!(session.use_represented_creature_questgiver_like_cpp(creature_guid, 777));
+
+        let bytes = send_rx.try_recv().unwrap();
+        assert_eq!(
+            wow_packet::WorldPacket::from_bytes(&bytes).server_opcode(),
+            Some(ServerOpcodes::QuestGiverRequestItems)
+        );
+        assert_eq!(
+            quest_giver_request_items_summary_like_cpp(&bytes),
+            QuestGiverRequestItemsSummaryLikeCpp {
+                giver_creature_id: 777,
+                quest_id: 9_103,
+                status_flags: 0xFF,
+                auto_launched: true,
+            }
+        );
+    }
+
+    #[test]
     fn creature_questgiver_ender_relation_precedes_starter_like_cpp() {
         let (mut session, _pkt_tx, send_rx) = make_session();
         session.set_player_level_like_cpp(1);
@@ -120379,6 +121579,73 @@ mod tests {
             Some(ServerOpcodes::QuestGiverQuestListMessage)
         );
         assert!(packet_contains_quest_ids_in_order(&bytes, &[9_101, 9_102]));
+    }
+
+    #[test]
+    fn quest_giver_query_creature_inactive_ender_falls_through_to_same_starter_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        session.set_player_level_like_cpp(1);
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 99);
+        let source_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 779, 24);
+        let position = Position::new(1.0, 2.0, 3.0, 0.0);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_map_position_like_cpp(571, position);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
+        add_canonical_test_creature(
+            &canonical,
+            source_guid,
+            779,
+            position,
+            wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+        );
+        let mut quest = test_quest_template(9_104);
+        quest.quest_type = 2;
+        quest.log_title = "Creature same source starter".into();
+        let mut quest_store = wow_data::quest::QuestStore::from_quests_like_cpp([quest]);
+        quest_store.ender_quests.insert(779, vec![9_104]);
+        quest_store.starter_quests.insert(779, vec![9_104]);
+        session.quest_store = Some(Arc::new(quest_store));
+
+        assert!(session.send_represented_quest_giver_query_quest_like_cpp(source_guid, 9_104));
+
+        let bytes = send_rx.try_recv().unwrap();
+        assert_eq!(
+            wow_packet::WorldPacket::from_bytes(&bytes).server_opcode(),
+            Some(ServerOpcodes::QuestGiverQuestDetails)
+        );
+        assert!(packet_contains_quest_ids_in_order(&bytes, &[9_104]));
+    }
+
+    #[test]
+    fn quest_giver_query_creature_inactive_ender_without_starter_rejects_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        session.set_player_level_like_cpp(1);
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 99);
+        let source_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 780, 25);
+        let position = Position::new(1.0, 2.0, 3.0, 0.0);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_map_position_like_cpp(571, position);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
+        add_canonical_test_creature(
+            &canonical,
+            source_guid,
+            780,
+            position,
+            wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+        );
+        let mut quest_store =
+            wow_data::quest::QuestStore::from_quests_like_cpp([test_quest_template(9_105)]);
+        quest_store.ender_quests.insert(780, vec![9_105]);
+        session.quest_store = Some(Arc::new(quest_store));
+
+        assert!(!session.send_represented_quest_giver_query_quest_like_cpp(source_guid, 9_105));
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[test]
@@ -120473,6 +121740,13 @@ mod tests {
         session.set_player_map_position_like_cpp(571, position);
         session.set_canonical_map_manager(Arc::clone(&canonical));
         add_canonical_test_gameobject(&canonical, source_guid, 784, position);
+        session.record_represented_gameobject_runtime_state_like_cpp(
+            571,
+            source_guid,
+            784,
+            position,
+            wow_entities::GAMEOBJECT_TYPE_QUESTGIVER as u8,
+        );
         let mut quest_store =
             wow_data::quest::QuestStore::from_quests_like_cpp([test_quest_template(9_210)]);
         assert!(quest_store.insert_gameobject_starter_relation_like_cpp(784, 9_210));
@@ -120488,6 +121762,32 @@ mod tests {
     }
 
     #[test]
+    fn quest_giver_accept_gameobject_starter_relation_without_interaction_rejects_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let source_guid =
+            ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 784, 131);
+        let position = Position::new(1.0, 2.0, 3.0, 0.0);
+        session.set_player_map_position_like_cpp(571, position);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_gameobject(&canonical, source_guid, 784, position);
+        let mut quest_store =
+            wow_data::quest::QuestStore::from_quests_like_cpp([test_quest_template(9_210)]);
+        assert!(quest_store.insert_gameobject_starter_relation_like_cpp(784, 9_210));
+
+        assert!(
+            !session.represented_quest_giver_accept_source_allows_quest_like_cpp(
+                source_guid,
+                9_210,
+                &quest_store,
+            ),
+            "C++ CanInteractWithQuestGiver(TYPEID_GAMEOBJECT) requires an interactable questgiver GO, not just a canonical object"
+        );
+        assert!(session.player_quests.is_empty());
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[test]
     fn quest_giver_accept_gameobject_ender_only_or_unrelated_rejects_like_cpp() {
         let (mut session, _pkt_tx, send_rx) = make_session();
         let canonical = shared_canonical_map_manager();
@@ -120497,6 +121797,13 @@ mod tests {
         session.set_player_map_position_like_cpp(571, position);
         session.set_canonical_map_manager(Arc::clone(&canonical));
         add_canonical_test_gameobject(&canonical, source_guid, 785, position);
+        session.record_represented_gameobject_runtime_state_like_cpp(
+            571,
+            source_guid,
+            785,
+            position,
+            wow_entities::GAMEOBJECT_TYPE_QUESTGIVER as u8,
+        );
         let mut quest_store = wow_data::quest::QuestStore::from_quests_like_cpp([
             test_quest_template(9_211),
             test_quest_template(9_212),
@@ -120838,6 +122145,7 @@ mod tests {
         assert_eq!(
             drain_server_opcodes(&send_rx),
             vec![
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
             ]
@@ -120982,6 +122290,7 @@ mod tests {
         assert_eq!(
             drain_server_opcodes(&send_rx),
             vec![
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
             ]
@@ -121200,6 +122509,65 @@ mod tests {
             Some(ServerOpcodes::QuestGiverRequestItems)
         );
         assert!(packet_contains_quest_ids_in_order(&bytes, &[9_203]));
+        assert_eq!(
+            quest_giver_request_items_summary_like_cpp(&bytes),
+            QuestGiverRequestItemsSummaryLikeCpp {
+                giver_creature_id: 778,
+                quest_id: 9_203,
+                status_flags: 0xFF,
+                auto_launched: false,
+            }
+        );
+    }
+
+    #[test]
+    fn quest_giver_query_rewarded_nonrepeatable_complete_ender_is_not_completable_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 99);
+        let source_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 778, 25);
+        let position = Position::new(1.0, 2.0, 3.0, 0.0);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_map_position_like_cpp(571, position);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
+        add_canonical_test_creature(
+            &canonical,
+            source_guid,
+            778,
+            position,
+            wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+        );
+        let mut quest_store =
+            wow_data::quest::QuestStore::from_quests_like_cpp([test_quest_template(9_204)]);
+        quest_store.ender_quests.insert(778, vec![9_204]);
+        session.quest_store = Some(Arc::new(quest_store));
+        session.player_quests.insert(
+            9_204,
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id: 9_204,
+                status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: Vec::new(),
+                slot: 0,
+            },
+        );
+        session.rewarded_quests.insert(9_204);
+
+        assert!(session.send_represented_quest_giver_query_quest_like_cpp(source_guid, 9_204));
+        let bytes = send_rx.try_recv().unwrap();
+        assert_eq!(
+            quest_giver_request_items_summary_like_cpp(&bytes),
+            QuestGiverRequestItemsSummaryLikeCpp {
+                giver_creature_id: 778,
+                quest_id: 9_204,
+                status_flags: 0xFD,
+                auto_launched: false,
+            }
+        );
     }
 
     #[test]
@@ -121213,6 +122581,13 @@ mod tests {
         session.set_player_level_like_cpp(1);
         session.set_canonical_map_manager(Arc::clone(&canonical));
         add_canonical_test_gameobject(&canonical, source_guid, 779, position);
+        session.record_represented_gameobject_runtime_state_like_cpp(
+            571,
+            source_guid,
+            779,
+            position,
+            wow_entities::GAMEOBJECT_TYPE_QUESTGIVER as u8,
+        );
         let mut quest = test_quest_template(9_204);
         quest.quest_type = 2;
         let other_quest = test_quest_template(9_205);
@@ -121234,6 +122609,30 @@ mod tests {
     }
 
     #[test]
+    fn quest_giver_query_gameobject_without_interaction_rejects_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let source_guid =
+            ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 779, 126);
+        let position = Position::new(1.0, 2.0, 3.0, 0.0);
+        session.set_player_map_position_like_cpp(571, position);
+        session.set_player_level_like_cpp(1);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_gameobject(&canonical, source_guid, 779, position);
+        let mut quest = test_quest_template(9_204);
+        quest.quest_type = 2;
+        let mut quest_store = wow_data::quest::QuestStore::from_quests_like_cpp([quest]);
+        assert!(quest_store.insert_gameobject_starter_relation_like_cpp(779, 9_204));
+        session.quest_store = Some(Arc::new(quest_store));
+
+        assert!(
+            !session.send_represented_quest_giver_query_quest_like_cpp(source_guid, 9_204),
+            "C++ CanInteractWithQuestGiver(TYPEID_GAMEOBJECT) gates query details before trusting starter relations"
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[test]
     fn quest_giver_query_gameobject_ender_relation_allows_request_items_like_cpp() {
         let (mut session, _pkt_tx, send_rx) = make_session();
         let canonical = shared_canonical_map_manager();
@@ -121243,6 +122642,13 @@ mod tests {
         session.set_player_map_position_like_cpp(571, position);
         session.set_canonical_map_manager(Arc::clone(&canonical));
         add_canonical_test_gameobject(&canonical, source_guid, 780, position);
+        session.record_represented_gameobject_runtime_state_like_cpp(
+            571,
+            source_guid,
+            780,
+            position,
+            wow_entities::GAMEOBJECT_TYPE_QUESTGIVER as u8,
+        );
         let mut quest_store =
             wow_data::quest::QuestStore::from_quests_like_cpp([test_quest_template(9_206)]);
         assert!(quest_store.insert_gameobject_ender_relation_like_cpp(780, 9_206));
@@ -121267,6 +122673,15 @@ mod tests {
             Some(ServerOpcodes::QuestGiverRequestItems)
         );
         assert!(packet_contains_quest_ids_in_order(&bytes, &[9_206]));
+        assert_eq!(
+            quest_giver_request_items_summary_like_cpp(&bytes),
+            QuestGiverRequestItemsSummaryLikeCpp {
+                giver_creature_id: 0,
+                quest_id: 9_206,
+                status_flags: 0xFF,
+                auto_launched: false,
+            }
+        );
     }
 
     #[test]
@@ -121842,6 +123257,7 @@ mod tests {
             drain_server_opcodes(&send_rx),
             vec![
                 ServerOpcodes::QuestUpdateAddCredit,
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
             ]
@@ -121904,7 +123320,7 @@ mod tests {
             200,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id: 200,
-                status: 1,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
                 explored: false,
                 accept_time_secs: 0,
                 end_time_secs: 0,

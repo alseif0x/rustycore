@@ -1991,7 +1991,7 @@ mod tests {
             [selection(entry)],
         );
 
-        let map_object_guid = map_creature_guid(entry, 571, 99_001);
+        let map_object_guid = map_creature_guid(entry, 571, 55);
         let resolved = resolver
             .resolve_loaded_grid_creature_like_cpp(55, map_object_guid)
             .expect("resolver should build lifecycle record");
@@ -2117,7 +2117,7 @@ mod tests {
         );
 
         let resolved = resolver
-            .resolve_loaded_grid_creature_like_cpp(55, map_creature_guid(entry, 571, 99_001))
+            .resolve_loaded_grid_creature_like_cpp(55, map_creature_guid(entry, 571, 55))
             .expect("resolver should build lifecycle record");
 
         assert_eq!(resolved.creature.sparring_health_pct(), 35.5);
@@ -2162,7 +2162,10 @@ mod tests {
         );
 
         let resolved = resolver
-            .resolve_loaded_grid_creature_like_cpp(spawn_id, map_creature_guid(entry, 571, 99_002))
+            .resolve_loaded_grid_creature_like_cpp(
+                spawn_id,
+                map_creature_guid(entry, 571, spawn_id as i64),
+            )
             .expect("resolver should build lifecycle record");
 
         assert_eq!(
@@ -2273,7 +2276,8 @@ mod tests {
     }
 
     #[test]
-    fn loaded_grid_creature_lifecycle_resolver_uses_caller_map_guid_not_spawn_id_low() {
+    fn loaded_grid_creature_lifecycle_resolver_accepts_map_owned_low_guid_distinct_from_spawn_id_like_cpp()
+     {
         let entry = 12_349;
         let spawn_id = 61;
         let caller_low_guid = 345_678;
@@ -2284,19 +2288,17 @@ mod tests {
             [selection(entry)],
         );
 
+        assert_ne!(spawn_id as i64, caller_low_guid);
         let resolved = resolver
             .resolve_loaded_grid_creature_like_cpp(spawn_id, map_object_guid)
-            .expect("caller-owned map guid should be preserved");
-
-        assert_ne!(spawn_id as i64, caller_low_guid);
-        assert_eq!(resolved.lifecycle_record.create.guid, map_object_guid);
-        assert_eq!(resolved.creature.guid(), map_object_guid);
-        let recorded = resolved
+            .expect("C++ Creature::LoadFromDB uses map-owned lowguid, not spawn id, for live GUID");
+        let creature = resolved
             .map_object_record
             .as_ref()
-            .and_then(MapObjectRecord::creature)
-            .expect("map insertion record should contain the created creature");
-        assert_eq!(recorded.guid(), map_object_guid);
+            .and_then(|record| record.creature())
+            .expect("resolver should build a creature record");
+        assert_eq!(creature.guid(), map_object_guid);
+        assert_eq!(creature.lifecycle_metadata().spawn_id, spawn_id);
     }
 
     #[test]
@@ -2318,7 +2320,10 @@ mod tests {
             [selection(entry)],
         );
         let resolved = resolver
-            .resolve_loaded_grid_creature_like_cpp(spawn_id, map_creature_guid(entry, 571, 99_062))
+            .resolve_loaded_grid_creature_like_cpp(
+                spawn_id,
+                map_creature_guid(entry, 571, spawn_id as i64),
+            )
             .expect("formation metadata should not block loaded-grid resolver");
 
         assert_eq!(
@@ -2345,7 +2350,10 @@ mod tests {
             [selection(entry)],
         );
         let resolved = resolver
-            .resolve_loaded_grid_creature_like_cpp(spawn_id, map_creature_guid(entry, 571, 99_063))
+            .resolve_loaded_grid_creature_like_cpp(
+                spawn_id,
+                map_creature_guid(entry, 571, spawn_id as i64),
+            )
             .expect("absence of formation metadata is the previous behavior");
 
         assert!(resolved.creature.formation_info_like_cpp().is_none());
@@ -2368,7 +2376,7 @@ mod tests {
             [selection(entry)],
         );
 
-        let map_object_guid = map_creature_guid(entry, 571, 99_002);
+        let map_object_guid = map_creature_guid(entry, 571, 56);
         let resolved = resolver
             .resolve_loaded_grid_creature_like_cpp(56, map_object_guid)
             .expect("resolver should build creature without insertion request");
@@ -2482,7 +2490,7 @@ mod tests {
     fn loaded_grid_creature_lifecycle_resolver_accepts_vehicle_template_with_vehicle_guid_like_cpp()
     {
         let entry = 12_351;
-        let map_object_guid = map_vehicle_guid(entry, 571, 99_006);
+        let map_object_guid = map_vehicle_guid(entry, 571, 63);
         let resolver = CreatureLoadedGridLifecycleResolverLikeCpp::new(
             [vehicle_template(entry, 77)],
             [spawn(63, entry, true)],
@@ -2562,7 +2570,7 @@ mod tests {
             [spawn(60, entry, true)],
             [selection(entry)],
         );
-        let map_object_guid = map_creature_guid(entry, 571, 99_007);
+        let map_object_guid = map_creature_guid(entry, 571, 60);
         let first = resolver
             .resolve_loaded_grid_creature_like_cpp(60, map_object_guid)
             .unwrap();

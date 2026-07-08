@@ -56,6 +56,7 @@ use wow_packet::packets::spell::{
 };
 use wow_packet::packets::totem::TotemDestroyed;
 
+use crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP;
 use crate::session::{RepresentedPendingSpellCastRequestLikeCpp, WorldSession};
 
 const LOOT_MODE_DEFAULT_LIKE_CPP: u16 = 1;
@@ -1656,7 +1657,7 @@ impl WorldSession {
         };
 
         self.player_quests.values().any(|status| {
-            if status.status != 1 {
+            if status.status != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
                 return false;
             }
 
@@ -1692,7 +1693,7 @@ impl WorldSession {
         };
 
         self.player_quests.values().any(|status| {
-            if status.status != 1 {
+            if status.status != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
                 return false;
             }
 
@@ -1776,7 +1777,7 @@ impl WorldSession {
             9 => Some(
                 self.player_quests
                     .get(&condition.value1)
-                    .is_some_and(|status| status.status == 1),
+                    .is_some_and(|status| status.status == QUEST_STATUS_INCOMPLETE_LIKE_CPP),
             ),
             14 => Some(
                 !self.player_quests.contains_key(&condition.value1)

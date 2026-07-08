@@ -3269,8 +3269,30 @@ impl UpdateObject {
                         .iter()
                         .filter(|(item_id, _, _)| *item_id != 0)
                         .count();
+                    let quest_slots = create_data
+                        .quest_log
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(slot, (quest_id, state_flags, _, objective_progress))| {
+                            (*quest_id != 0).then(|| {
+                                let progress = objective_progress
+                                    .iter()
+                                    .copied()
+                                    .filter(|count| *count != 0)
+                                    .map(|count| count.to_string())
+                                    .collect::<Vec<_>>()
+                                    .join("/");
+                                if progress.is_empty() {
+                                    format!("{slot}:{quest_id}:0x{state_flags:X}")
+                                } else {
+                                    format!("{slot}:{quest_id}:0x{state_flags:X}:{progress}")
+                                }
+                            })
+                        })
+                        .collect::<Vec<_>>()
+                        .join(",");
                     lines.push(format!(
-                        "#{index:03} player guid={guid:?} update_type={} type_id={} self={} bytes={} movementBytes={} valuesBytes={} level={} display={} native_display={} health={}/{} inv_slots={} visible_items={} skills={} quests={} toys={} heirlooms={} coinage={}",
+                        "#{index:03} player guid={guid:?} update_type={} type_id={} self={} bytes={} movementBytes={} valuesBytes={} level={} display={} native_display={} health={}/{} inv_slots={} visible_items={} skills={} quests={} quest_slots=[{}] toys={} heirlooms={} coinage={}",
                         *update_type as u8,
                         *type_id as u8,
                         is_self,
@@ -3286,6 +3308,7 @@ impl UpdateObject {
                         visible_items,
                         create_data.skill_info.len(),
                         create_data.quest_log.len(),
+                        quest_slots,
                         create_data.toys.len(),
                         create_data.heirlooms.len(),
                         create_data.coinage

@@ -1,0 +1,10 @@
+/target/
+/config.json
+/.env.local
+*.log
+*.tmp
+*.bak
+/reports/
+*.pcap
+*.key
+*.pem

@@ -8211,7 +8211,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn update_account_data_ignores_per_character_data_without_player_guid_like_cpp() {
+    async fn update_account_data_ignores_per_character_data_without_recent_player_guid_like_cpp() {
         let (mut session, _send_rx) = make_session();
         let player_guid = ObjectGuid::create_player(1, 42);
 
@@ -8227,6 +8227,27 @@ mod tests {
         let account_data = session.account_data_like_cpp(1).unwrap();
         assert_eq!(account_data.time, 0);
         assert!(account_data.data.is_empty());
+    }
+
+    #[tokio::test]
+    async fn update_account_data_accepts_per_character_data_after_logout_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_guid(None);
+
+        session
+            .handle_update_account_data(update_account_data_packet(
+                player_guid,
+                1,
+                1234,
+                "SET trackedQuests \"v11#|h#|U$2=\"\r\n",
+            ))
+            .await;
+
+        let account_data = session.account_data_like_cpp(1).unwrap();
+        assert_eq!(account_data.time, 1234);
+        assert_eq!(account_data.data, "SET trackedQuests \"v11#|h#|U$2=\"\r\n");
     }
 
     #[tokio::test]
@@ -15881,6 +15902,8 @@ mod tests {
             .gossip_options
             .push(crate::session::GossipOptionInfo {
                 gossip_option_id: 1,
+                menu_id: 0,
+                order_index: 0,
                 option_npc: 2,
                 action_menu_id: 3,
             });
@@ -15905,6 +15928,8 @@ mod tests {
             .gossip_options
             .push(crate::session::GossipOptionInfo {
                 gossip_option_id: 1,
+                menu_id: 0,
+                order_index: 0,
                 option_npc: 2,
                 action_menu_id: 3,
             });

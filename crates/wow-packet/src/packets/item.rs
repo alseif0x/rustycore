@@ -78,6 +78,8 @@ pub struct ItemInstance {
 
 impl ItemInstance {
     pub fn write(&self, pkt: &mut WorldPacket) {
+        // C++ `ItemInstance::operator<<` starts with normal `data << int32` writes;
+        // `ByteBuffer::append<T>` flushes pending bits before appending those bytes.
         pkt.write_int32(self.item_id);
         pkt.write_int32(self.random_properties_seed);
         pkt.write_int32(self.random_properties_id);
