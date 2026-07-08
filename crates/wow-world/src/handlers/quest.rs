@@ -6786,6 +6786,8 @@ impl WorldSession {
     /// The represented path keeps Rust's existing direct save timing, but mirrors the
     /// C++ objective persistence order for a saved quest: status row first, then delete
     /// stale objective rows for the quest, then replace nonzero objective counters.
+    /// For Rust's combined rewarded migration path, preserve the rewarded row before
+    /// deleting the stale active row.
     fn represented_quest_status_save_statements_like_cpp(
         &self,
         guid: u64,
@@ -6796,6 +6798,11 @@ impl WorldSession {
         let mut statements = Vec::new();
 
         if status == QUEST_STATUS_REWARDED_LIKE_CPP {
+            let mut rewarded = prepare(CharStatements::INS_CHAR_QUESTSTATUS_REWARDED);
+            rewarded.set_u64(0, guid);
+            rewarded.set_u32(1, quest_id);
+            statements.push(rewarded);
+
             let mut del_status = prepare(CharStatements::DEL_CHAR_QUEST_STATUS);
             del_status.set_u64(0, guid);
             del_status.set_u32(1, quest_id);
@@ -6806,11 +6813,6 @@ impl WorldSession {
             del_objectives.set_u64(0, guid);
             del_objectives.set_u32(1, quest_id);
             statements.push(del_objectives);
-
-            let mut rewarded = prepare(CharStatements::INS_CHAR_QUESTSTATUS_REWARDED);
-            rewarded.set_u64(0, guid);
-            rewarded.set_u32(1, quest_id);
-            statements.push(rewarded);
 
             return statements;
         }
@@ -7101,9 +7103,10 @@ impl WorldSession {
             info!(
                 account = self.account_id,
                 quest_id,
-                "QuestLoad: deleting stale active quest status already represented as rewarded like C++"
+                "QuestLoad: migrating stale active rewarded quest status before deleting active row like C++"
             );
-            self.delete_quest_from_db(quest_id).await;
+            self.save_quest_to_db(quest_id, QUEST_STATUS_REWARDED_LIKE_CPP)
+                .await;
         }
 
         self.df_quests_like_cpp.clear();
@@ -16530,7 +16533,7 @@ mod tests {
     }
 
     #[test]
-    fn save_to_db_rewarded_quest_statements_delete_active_objectives_like_cpp() {
+    fn save_to_db_rewarded_quest_statements_preserve_rewarded_before_delete_like_cpp() {
         let (session, _send_rx) = make_session();
         let quest_id = 5926;
 
@@ -16547,9 +16550,9 @@ mod tests {
                 .map(PreparedStatement::sql)
                 .collect::<Vec<_>>(),
             vec![
+                CharStatements::INS_CHAR_QUESTSTATUS_REWARDED.sql(),
                 CharStatements::DEL_CHAR_QUEST_STATUS.sql(),
                 CharStatements::DEL_CHAR_QUEST_STATUS_OBJECTIVES_BY_QUEST.sql(),
-                CharStatements::INS_CHAR_QUESTSTATUS_REWARDED.sql(),
             ]
         );
         assert_eq!(
@@ -16563,6 +16566,32 @@ mod tests {
         assert_eq!(
             statements[2].params(),
             &[SqlParam::U64(42), SqlParam::U32(quest_id)]
+        );
+    }
+
+    #[test]
+    fn quest_load_rewarded_active_migration_persists_rewarded_before_delete_like_cpp() {
+        let (session, _send_rx) = make_session();
+        let quest_id = 5927;
+
+        let statements = session.represented_quest_status_save_statements_like_cpp(
+            42,
+            quest_id,
+            QUEST_STATUS_REWARDED_LIKE_CPP,
+            |statement| PreparedStatement::new(statement.sql()),
+        );
+
+        assert_eq!(
+            statements
+                .iter()
+                .map(PreparedStatement::sql)
+                .collect::<Vec<_>>(),
+            vec![
+                CharStatements::INS_CHAR_QUESTSTATUS_REWARDED.sql(),
+                CharStatements::DEL_CHAR_QUEST_STATUS.sql(),
+                CharStatements::DEL_CHAR_QUEST_STATUS_OBJECTIVES_BY_QUEST.sql(),
+            ],
+            "load-time migration must not delete a legacy active REWARDED row without first preserving it in character_queststatus_rewarded"
         );
     }
 
