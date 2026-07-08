@@ -13902,7 +13902,7 @@ mod tests {
 
     #[tokio::test]
     async fn loot_money_gain_completes_money_tracking_event_objective_like_cpp() {
-        let (mut session, send_rx) = make_session_with_send_capacity(4);
+        let (mut session, send_rx) = make_session_with_send_capacity(5);
         let player_guid = ObjectGuid::create_player(1, 42);
         let loot_guid = test_creature_guid(19_029);
         let quest_id = 12_530;
@@ -13957,6 +13957,12 @@ mod tests {
         assert_eq!(
             sent.read_uint16().unwrap(),
             wow_constants::ServerOpcodes::LootMoneyNotify as u16
+        );
+        let sent = send_rx.try_recv().unwrap();
+        let mut sent = WorldPacket::from_bytes(&sent);
+        assert_eq!(
+            sent.read_uint16().unwrap(),
+            wow_constants::ServerOpcodes::UpdateObject as u16
         );
         let sent = send_rx.try_recv().unwrap();
         let mut sent = WorldPacket::from_bytes(&sent);

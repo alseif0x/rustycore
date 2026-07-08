@@ -12194,6 +12194,16 @@ impl WorldSession {
         {
             return None;
         }
+        if creature
+            .creature
+            .unit()
+            .subsystems()
+            .control
+            .charmer_guid
+            .is_some()
+        {
+            return None;
+        }
         if !creature
             .unit_flags2_like_cpp()
             .contains(UnitFlags2::INTERACT_WHILE_HOSTILE)
@@ -64228,6 +64238,7 @@ mod tests {
             drain_server_opcodes(&send_rx),
             vec![
                 ServerOpcodes::QuestUpdateAddCredit,
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
             ]
@@ -64296,6 +64307,7 @@ mod tests {
             drain_server_opcodes(&send_rx),
             vec![
                 ServerOpcodes::QuestUpdateAddPvpCredit,
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
             ]
@@ -64419,6 +64431,7 @@ mod tests {
             drain_server_opcodes(&send_rx),
             vec![
                 ServerOpcodes::QuestUpdateAddCredit,
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
             ]
@@ -64489,6 +64502,7 @@ mod tests {
             drain_server_opcodes(&send_rx),
             vec![
                 ServerOpcodes::QuestUpdateAddCreditSimple,
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
             ]
@@ -64556,6 +64570,7 @@ mod tests {
         assert_eq!(
             drain_server_opcodes(&send_rx),
             vec![
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
             ]
@@ -64608,6 +64623,7 @@ mod tests {
         assert_eq!(
             drain_server_opcodes(&send_rx),
             vec![
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
             ]
@@ -64740,8 +64756,10 @@ mod tests {
         assert_eq!(
             drain_server_opcodes(&send_rx),
             vec![
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
             ]
@@ -64806,6 +64824,7 @@ mod tests {
             drain_server_opcodes(&send_rx),
             vec![
                 ServerOpcodes::SetCurrency,
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
             ]
@@ -64858,6 +64877,7 @@ mod tests {
             drain_server_opcodes(&send_rx),
             vec![
                 ServerOpcodes::QuestUpdateAddCredit,
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
             ]
@@ -64910,6 +64930,7 @@ mod tests {
             drain_server_opcodes(&send_rx),
             vec![
                 ServerOpcodes::QuestUpdateAddCredit,
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
             ]
@@ -64970,6 +64991,7 @@ mod tests {
         assert_eq!(
             drain_server_opcodes(&send_rx),
             vec![
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
             ]
@@ -65026,6 +65048,7 @@ mod tests {
             drain_server_opcodes(&send_rx),
             vec![
                 ServerOpcodes::QuestUpdateAddCredit,
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
             ]
@@ -65086,6 +65109,7 @@ mod tests {
         assert_eq!(
             drain_server_opcodes(&send_rx),
             vec![
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
             ]
@@ -80823,6 +80847,60 @@ mod tests {
     }
 
     #[test]
+    fn legacy_only_charmed_npc_interaction_is_rejected_like_cpp() {
+        let (mut session, _pkt_tx, _send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 47);
+        let questgiver_guid = test_creature_guid(18);
+        let manager = shared_map_manager();
+
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "Tester".to_string(),
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let mut creature = crate::map_manager::WorldCreature::new(
+            questgiver_guid,
+            508,
+            Position::new(14.0, 0.0, 0.0, 0.0),
+            100,
+            80,
+            1,
+            2,
+            0.0,
+            1,
+            35,
+            wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+            0,
+        );
+        creature
+            .creature
+            .unit_mut()
+            .subsystems_mut()
+            .control
+            .set_charmer(player_guid, true);
+        manager
+            .write()
+            .unwrap()
+            .add_creature(571, 0, 0, 0, creature);
+        session.set_map_manager(Arc::clone(&manager));
+
+        assert_eq!(
+            session.represented_npc_can_interact_with_like_cpp(
+                questgiver_guid,
+                wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                0,
+            ),
+            None,
+            "C++ Player::GetNPCIfCanInteractWith rejects creatures with GetCharmerGUID set"
+        );
+    }
+
+    #[test]
     fn canonical_world_map_login_binding_uses_cpp_split_faction_instance() {
         let (mut session, _pkt_tx, _send_rx) = make_session();
         let canonical = shared_canonical_map_manager();
@@ -94810,6 +94888,7 @@ mod tests {
             vec![
                 ServerOpcodes::SpellGo,
                 ServerOpcodes::QuestUpdateAddCredit,
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
                 ServerOpcodes::CooldownEvent,
@@ -94893,6 +94972,7 @@ mod tests {
             vec![
                 ServerOpcodes::SpellGo,
                 ServerOpcodes::QuestUpdateAddCredit,
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
                 ServerOpcodes::CooldownEvent,
@@ -95755,6 +95835,7 @@ mod tests {
             vec![
                 ServerOpcodes::SpellGo,
                 ServerOpcodes::QuestUpdateComplete,
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
                 ServerOpcodes::CooldownEvent,
@@ -121825,6 +121906,7 @@ mod tests {
         assert_eq!(
             drain_server_opcodes(&send_rx),
             vec![
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
             ]
@@ -121969,6 +122051,7 @@ mod tests {
         assert_eq!(
             drain_server_opcodes(&send_rx),
             vec![
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
             ]
@@ -122897,6 +122980,7 @@ mod tests {
             drain_server_opcodes(&send_rx),
             vec![
                 ServerOpcodes::QuestUpdateAddCredit,
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::QuestGiverQuestComplete,
                 ServerOpcodes::QuestUpdateComplete,
             ]

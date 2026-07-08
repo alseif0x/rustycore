@@ -5786,6 +5786,7 @@ impl WorldSession {
         self.apply_quest_reward_lockout_status_like_cpp(quest).await;
 
         let xp = self.quest_xp_reward_like_cpp(quest);
+        let rewarded_slot = self.find_quest_slot_like_cpp(quest_id);
 
         self.player_quests.remove(&quest_id);
         if !quest.is_repeatable() {
@@ -5796,6 +5797,9 @@ impl WorldSession {
             self.delete_quest_from_db(quest_id).await;
         }
         self.sync_player_registry_state_like_cpp();
+        if let Some(slot) = rewarded_slot {
+            self.send_represented_quest_log_slot_update_like_cpp(slot);
+        }
 
         info!(
             account = self.account_id,
@@ -8695,6 +8699,7 @@ mod tests {
         assert_eq!(
             opcodes,
             vec![
+                Some(wow_constants::ServerOpcodes::UpdateObject),
                 Some(wow_constants::ServerOpcodes::QuestGiverQuestComplete),
                 Some(wow_constants::ServerOpcodes::QuestUpdateComplete),
             ]
@@ -8770,6 +8775,7 @@ mod tests {
         assert_eq!(
             opcodes,
             vec![
+                Some(wow_constants::ServerOpcodes::UpdateObject),
                 Some(wow_constants::ServerOpcodes::QuestGiverQuestComplete),
                 Some(wow_constants::ServerOpcodes::QuestUpdateComplete),
             ]
@@ -8893,6 +8899,11 @@ mod tests {
         assert_eq!(
             session.represented_quest_reward_skill_updates_like_cpp(),
             &[(333, 5)]
+        );
+        let update = send_rx.try_recv().unwrap();
+        assert_eq!(
+            wow_packet::WorldPacket::from_bytes(&update).server_opcode(),
+            Some(wow_constants::ServerOpcodes::UpdateObject)
         );
         let complete = send_rx.try_recv().unwrap();
         assert_eq!(
@@ -13226,6 +13237,13 @@ mod tests {
         assert!(!session.player_quests.contains_key(&quest_id));
         assert!(session.rewarded_quests.contains(&quest_id));
         assert_complete_status_update_like_cpp(&session, quest_id, false);
+        let slot_update = send_rx
+            .try_recv()
+            .expect("tracking event auto reward should clear quest log slot");
+        assert_eq!(
+            wow_packet::WorldPacket::from_bytes(&slot_update).server_opcode(),
+            Some(wow_constants::ServerOpcodes::UpdateObject)
+        );
         let complete = send_rx
             .try_recv()
             .expect("tracking event auto reward should send quest complete");
