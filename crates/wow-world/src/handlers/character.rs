@@ -8875,19 +8875,19 @@ impl WorldSession {
             npc_flags,
         );
 
-        if gossip_options.is_empty() {
+        let gossip_text = if npc_flags & NPCFlags1::QUEST_GIVER.bits() != 0 {
+            self.represented_creature_gossip_text_like_cpp(entry)
+        } else {
+            Vec::new()
+        };
+
+        if gossip_options.is_empty() && gossip_text.is_empty() {
             return None;
         }
 
         // Store gossip state for when the player selects an option.
         self.gossip_options = stored_options;
         self.gossip_source_guid = Some(npc_guid);
-
-        let gossip_text = if npc_flags & NPCFlags1::QUEST_GIVER.bits() != 0 {
-            self.represented_creature_gossip_text_like_cpp(entry)
-        } else {
-            Vec::new()
-        };
 
         Some(GossipMessage {
             gossip_guid: npc_guid,

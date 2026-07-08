@@ -993,10 +993,11 @@ mod tests {
             let _ = pkt.read_int32().unwrap();
         }
         assert_eq!(pkt.read_int32().unwrap(), QUEST_EMOTE_COUNT as i32);
-        assert_eq!(pkt.read_int32().unwrap(), 0);
-        assert_eq!(pkt.read_int32().unwrap(), 0);
-        assert_eq!(pkt.read_int32().unwrap(), 0);
-        assert_eq!(pkt.read_int32().unwrap(), 15513);
+        assert_eq!(pkt.read_int32().unwrap(), 0); // Objectives count.
+        assert_eq!(pkt.read_int32().unwrap(), 0); // QuestStartItemID.
+        // C++ `QuestGiverQuestDetails::Write` has no QuestInfoID field here.
+        assert_eq!(pkt.read_int32().unwrap(), 0); // QuestSessionBonus.
+        assert_eq!(pkt.read_int32().unwrap(), 15513); // QuestGiverCreatureID.
     }
 
     #[test]

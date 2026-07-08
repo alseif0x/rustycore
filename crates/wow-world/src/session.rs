@@ -369,6 +369,7 @@ fn quest_giver_creature_id_from_source_like_cpp(source_guid: ObjectGuid) -> i32 
     }
 }
 const ATTACK_DISPLAY_DELAY_LIKE_CPP_MS: u32 = 200;
+const DEFAULT_PLAYER_COMBAT_REACH_LIKE_CPP: f32 = 1.5;
 const MIN_MELEE_REACH_LIKE_CPP: f32 = 2.0;
 const NOMINAL_MELEE_RANGE_LIKE_CPP: f32 = 5.0;
 const SUMMON_PROPERTIES_ONLY_VISIBLE_TO_SUMMONER_LIKE_CPP: u32 = 0x0000_0010;
@@ -12121,8 +12122,9 @@ impl WorldSession {
                     true,
                 )
             } else {
-                let fallback_distance =
-                    interaction_distance + creature.unit().world().combat_reach();
+                let fallback_distance = interaction_distance
+                    + creature.unit().world().combat_reach()
+                    + self.player_interaction_combat_reach_like_cpp();
                 creature
                     .unit()
                     .world()
@@ -12171,7 +12173,14 @@ impl WorldSession {
             .read()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         let creature = manager.find_creature(self.player_map_id_like_cpp(), 0, guid)?;
-        if !self.player_is_alive_like_cpp() || !creature.is_alive() {
+        let type_flags =
+            CreatureTypeFlags::from_bits_retain(creature.creature.lifecycle_metadata().type_flags);
+        if !self.player_is_alive_like_cpp()
+            && !type_flags.contains(CreatureTypeFlags::VISIBLE_TO_GHOSTS)
+        {
+            return None;
+        }
+        if !creature.is_alive() && !type_flags.contains(CreatureTypeFlags::INTERACT_WHILE_DEAD) {
             return None;
         }
         if (npc_flags != 0 || npc_flags2 != 0)
@@ -12212,9 +12221,12 @@ impl WorldSession {
             }
         }
         let interaction_distance = creature.creature.unit().world().combat_reach() + 4.0;
+        let interaction_distance_with_radii = interaction_distance
+            + creature.creature.unit().world().combat_reach()
+            + self.player_interaction_combat_reach_like_cpp();
         if !creature
             .position()
-            .is_within_dist(&player_position, interaction_distance)
+            .is_within_dist(&player_position, interaction_distance_with_radii)
         {
             return None;
         }
@@ -18772,6 +18784,15 @@ impl WorldSession {
     pub(crate) fn canonical_player_combat_reach_snapshot_like_cpp(&self) -> f32 {
         self.canonical_player_snapshot_like_cpp(|player| player.unit().data().combat_reach)
             .unwrap_or(0.0)
+    }
+
+    fn player_interaction_combat_reach_like_cpp(&self) -> f32 {
+        let canonical_reach = self.canonical_player_combat_reach_snapshot_like_cpp();
+        if canonical_reach > 0.0 {
+            canonical_reach
+        } else {
+            DEFAULT_PLAYER_COMBAT_REACH_LIKE_CPP
+        }
     }
 
     pub(crate) fn canonical_player_party_power_snapshot_like_cpp(&self) -> Option<(u8, u16, u16)> {
@@ -80490,7 +80511,7 @@ mod tests {
         let mut creature = crate::map_manager::WorldCreature::new(
             questgiver_guid,
             505,
-            Position::new(15.0, 0.0, 0.0, 0.0),
+            Position::new(15.75, 0.0, 0.0, 0.0),
             100,
             80,
             1,
@@ -80515,7 +80536,7 @@ mod tests {
                 0,
             ),
             None,
-            "C++ Player::GetNPCIfCanInteractWith uses creature combat reach + 4.0, not a fixed 8-yard radius"
+            "C++ Player::GetNPCIfCanInteractWith uses creature combat reach + 4.0 plus both combat radii, not a fixed 8-yard radius"
         );
 
         manager
@@ -80535,12 +80556,121 @@ mod tests {
             ),
             Some(RepresentedCreatureAccessLikeCpp {
                 entry: 505,
-                position: Position::new(15.0, 0.0, 0.0, 0.0),
+                position: Position::new(15.75, 0.0, 0.0, 0.0),
                 npc_flags: wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
                 npc_flags2: 0,
                 faction_template_id: 35,
                 trainer_class: 0,
             })
+        );
+    }
+
+    #[test]
+    fn legacy_only_npc_interaction_preserves_dead_and_ghost_exceptions_like_cpp() {
+        let (mut session, _pkt_tx, _send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 45);
+        let questgiver_guid = test_creature_guid(16);
+        let manager = shared_map_manager();
+
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "Tester".to_string(),
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        manager.write().unwrap().add_creature(
+            571,
+            0,
+            0,
+            0,
+            crate::map_manager::WorldCreature::new(
+                questgiver_guid,
+                506,
+                Position::new(12.0, 0.0, 0.0, 0.0),
+                100,
+                80,
+                1,
+                2,
+                0.0,
+                1,
+                35,
+                wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                0,
+            ),
+        );
+        session.set_map_manager(Arc::clone(&manager));
+
+        session.set_player_alive_like_cpp(false);
+        assert_eq!(
+            session.represented_npc_can_interact_with_like_cpp(
+                questgiver_guid,
+                wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                0,
+            ),
+            None
+        );
+
+        manager
+            .write()
+            .unwrap()
+            .find_creature_mut(571, 0, questgiver_guid)
+            .unwrap()
+            .creature
+            .set_type_flags_runtime_like_cpp(CreatureTypeFlags::VISIBLE_TO_GHOSTS.bits());
+        assert_eq!(
+            session
+                .represented_npc_can_interact_with_like_cpp(
+                    questgiver_guid,
+                    wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                    0,
+                )
+                .map(|access| access.entry),
+            Some(506),
+            "C++ allows dead players to interact with creatures visible to ghosts"
+        );
+
+        session.set_player_alive_like_cpp(true);
+        {
+            let mut manager = manager.write().unwrap();
+            let creature = manager.find_creature_mut(571, 0, questgiver_guid).unwrap();
+            creature
+                .creature
+                .set_type_flags_runtime_like_cpp(CreatureTypeFlags::empty().bits());
+            creature
+                .creature
+                .set_death_state_runtime(wow_constants::DeathState::JustDied, 0);
+            creature.creature.unit_mut().set_health(0);
+        }
+        assert_eq!(
+            session.represented_npc_can_interact_with_like_cpp(
+                questgiver_guid,
+                wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                0,
+            ),
+            None
+        );
+
+        manager
+            .write()
+            .unwrap()
+            .find_creature_mut(571, 0, questgiver_guid)
+            .unwrap()
+            .creature
+            .set_type_flags_runtime_like_cpp(CreatureTypeFlags::INTERACT_WHILE_DEAD.bits());
+        assert_eq!(
+            session
+                .represented_npc_can_interact_with_like_cpp(
+                    questgiver_guid,
+                    wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                    0,
+                )
+                .map(|access| access.entry),
+            Some(506),
+            "C++ allows interaction with dead creatures flagged INTERACT_WHILE_DEAD"
         );
     }
 
