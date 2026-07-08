@@ -12035,6 +12035,7 @@ impl WorldSession {
                 PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP,
             )
             .unwrap_or(false);
+        let player_interaction_combat_reach = self.player_interaction_combat_reach_like_cpp();
         if self.taxi_flight_state_like_cpp.is_some() {
             return None;
         }
@@ -12124,7 +12125,7 @@ impl WorldSession {
             } else {
                 let fallback_distance = interaction_distance
                     + creature.unit().world().combat_reach()
-                    + self.player_interaction_combat_reach_like_cpp();
+                    + player_interaction_combat_reach;
                 creature
                     .unit()
                     .world()
@@ -12156,6 +12157,7 @@ impl WorldSession {
             npc_flags,
             npc_flags2,
             player_position,
+            player_interaction_combat_reach,
             target_player_contested_pvp,
         )
     }
@@ -12166,6 +12168,7 @@ impl WorldSession {
         npc_flags: u32,
         npc_flags2: u32,
         player_position: Position,
+        player_interaction_combat_reach: f32,
         target_player_contested_pvp: bool,
     ) -> Option<RepresentedCreatureAccessLikeCpp> {
         let manager = self.map_manager.as_ref()?;
@@ -12223,7 +12226,7 @@ impl WorldSession {
         let interaction_distance = creature.creature.unit().world().combat_reach() + 4.0;
         let interaction_distance_with_radii = interaction_distance
             + creature.creature.unit().world().combat_reach()
-            + self.player_interaction_combat_reach_like_cpp();
+            + player_interaction_combat_reach;
         if !creature
             .position()
             .is_within_dist(&player_position, interaction_distance_with_radii)
