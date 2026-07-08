@@ -566,7 +566,11 @@ pub struct QuestObjectiveInfo {
 /// Response to CMSG_QUERY_QUEST_INFO — full quest data.
 ///
 /// C++ target: `QueryQuestInfoResponse::Write`, `QuestPackets.cpp:87-213`.
-/// This Rust packet is still partial; see issue #57 for `ReadyForTranslation`.
+///
+/// The configured 3.4.3 C++ target writes `TreasurePickerID`, `Expansion`,
+/// `ManagedWorldStateID`, `QuestSessionBonus`, then `QuestGiverCreatureID`
+/// after `AllowableRaces`. It does not write `TreasurePickerID2` or
+/// conditional-text counts in this response layout.
 #[derive(Default)]
 pub struct QueryQuestInfoResponse {
     pub quest_id: u32,
@@ -688,11 +692,11 @@ impl ServerPacket for QueryQuestInfoResponse {
         pkt.write_int64(0i64); // TimeAllowed
         pkt.write_int32(self.objectives.len() as i32);
         pkt.write_uint64(0u64); // AllowableRaces
-        pkt.write_int32(0); // TreasurePickerID
-        pkt.write_int32(0); // Expansion
-        pkt.write_int32(0); // ManagedWorldStateID
-        pkt.write_int32(0); // QuestSessionBonus
-        pkt.write_int32(0); // QuestGiverCreatureID
+        pkt.write_int32(0); // TreasurePickerID; no TreasurePickerID2 in local C++.
+        pkt.write_int32(0); // Expansion.
+        pkt.write_int32(0); // ManagedWorldStateID.
+        pkt.write_int32(0); // QuestSessionBonus.
+        pkt.write_int32(0); // QuestGiverCreatureID; lengths follow immediately.
 
         // Bit string lengths
         pkt.write_bits(self.log_title.len() as u32, 9);
@@ -1009,6 +1013,57 @@ mod tests {
         // C++ `QuestGiverQuestDetails::Write` has no QuestInfoID field here.
         assert_eq!(pkt.read_int32().unwrap(), 0); // QuestSessionBonus.
         assert_eq!(pkt.read_int32().unwrap(), 15513); // QuestGiverCreatureID.
+    }
+
+    #[test]
+    fn query_quest_info_response_tail_matches_configured_cpp_layout_like_cpp() {
+        let bytes = QueryQuestInfoResponse {
+            quest_id: 0x0102_0304,
+            allow: true,
+            log_title: "Q".to_string(),
+            ..QueryQuestInfoResponse::default()
+        }
+        .to_bytes();
+
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_uint32().unwrap(), 0x0102_0304);
+        assert!(pkt.read_bit().unwrap());
+
+        let bytes_before_objectives_size = 17 * 4 // QuestID through RewardBonusMoney.
+            + QUEST_REWARD_DISPLAY_SPELL_COUNT * 4
+            + 10 * 4 // RewardSpell through FlagsEx2.
+            + QUEST_REWARD_ITEM_COUNT * 4 * 4
+            + QUEST_REWARD_CHOICES_COUNT * 3 * 4
+            + 4 * 4 // POIContinent through POIPriority.
+            + 4 * 4 // RewardTitle through RewardNumSkillUps.
+            + 4 * 4 // PortraitGiver through PortraitTurnIn.
+            + QUEST_REWARD_REPUTATIONS_COUNT * 4 * 4
+            + 4 // RewardFactionFlags.
+            + QUEST_REWARD_CURRENCY_COUNT * 2 * 4
+            + 2 * 4 // AcceptedSoundKitID, CompleteSoundKitID.
+            + 4 // AreaGroupID.
+            + 8; // TimeAllowed.
+        pkt.skip(bytes_before_objectives_size).unwrap();
+
+        assert_eq!(pkt.read_uint32().unwrap(), 0); // Objectives.size()
+        assert_eq!(pkt.read_uint64().unwrap(), 0); // AllowableRaces
+        assert_eq!(pkt.read_int32().unwrap(), 0); // TreasurePickerID.
+        // Local C++ has no TreasurePickerID2 here.
+        assert_eq!(pkt.read_int32().unwrap(), 0); // Expansion.
+        assert_eq!(pkt.read_int32().unwrap(), 0); // ManagedWorldStateID.
+        assert_eq!(pkt.read_int32().unwrap(), 0); // QuestSessionBonus.
+        assert_eq!(pkt.read_int32().unwrap(), 0); // QuestGiverCreatureID.
+        // String bit lengths follow immediately; no conditional-text counts precede them.
+        assert_eq!(pkt.read_bits(9).unwrap(), 1); // LogTitle.size()
+        assert_eq!(pkt.read_bits(12).unwrap(), 0); // LogDescription.size()
+        assert_eq!(pkt.read_bits(12).unwrap(), 0); // QuestDescription.size()
+        assert_eq!(pkt.read_bits(9).unwrap(), 0); // AreaDescription.size()
+        assert_eq!(pkt.read_bits(10).unwrap(), 0); // PortraitGiverText.size()
+        assert_eq!(pkt.read_bits(8).unwrap(), 0); // PortraitGiverName.size()
+        assert_eq!(pkt.read_bits(10).unwrap(), 0); // PortraitTurnInText.size()
+        assert_eq!(pkt.read_bits(8).unwrap(), 0); // PortraitTurnInName.size()
+        assert_eq!(pkt.read_bits(11).unwrap(), 0); // QuestCompletionLog.size()
+        assert!(!pkt.read_bit().unwrap()); // ReadyForTranslation.
     }
 
     #[test]
