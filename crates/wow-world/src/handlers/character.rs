@@ -8379,23 +8379,22 @@ impl WorldSession {
             }
         }
 
-        if entry != 0
-            && self
-                .represented_npc_can_interact_with_like_cpp(
-                    hello.unit,
-                    TRAINER_NPC_FLAGS_MASK_LIKE_CPP,
-                    0,
-                )
-                .is_some()
-            && self.send_represented_creature_trainer_gossip_menu_like_cpp(
-                hello.unit, entry, npc_flags,
-            )
-        {
-            info!(
-                "GossipHello trainer fallback sent prepared gossip menu for entry={} {:?}",
-                entry, hello.unit
-            );
-            return;
+        if let Some(access) = self.represented_npc_can_interact_with_like_cpp(
+            hello.unit,
+            TRAINER_NPC_FLAGS_MASK_LIKE_CPP,
+            0,
+        ) {
+            if self.send_represented_creature_trainer_gossip_menu_like_cpp(
+                hello.unit,
+                access.entry,
+                access.npc_flags,
+            ) {
+                info!(
+                    "GossipHello trainer fallback sent prepared gossip menu for entry={} {:?}",
+                    access.entry, hello.unit
+                );
+                return;
+            }
         }
 
         // No DB gossip menu found. C++ `HandleQuestgiverHelloOpcode` uses the
@@ -17071,9 +17070,23 @@ mod tests {
         guid: ObjectGuid,
         npc_flags: u32,
     ) {
+        let mut manager = manager.lock().unwrap();
+        insert_canonical_creature_with_npc_flags(&mut manager, guid, 2456, npc_flags);
+    }
+
+    fn insert_canonical_creature_with_npc_flags(
+        manager: &mut wow_map::MapManager,
+        guid: ObjectGuid,
+        entry: u32,
+        npc_flags: u32,
+    ) {
         let mut creature = wow_entities::Creature::new(false);
         creature.unit_mut().world_mut().object_mut().create(guid);
-        creature.unit_mut().world_mut().object_mut().set_entry(2456);
+        creature
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .set_entry(entry);
         creature.unit_mut().world_mut().set_map(571, 0).unwrap();
         creature
             .unit_mut()
@@ -17087,8 +17100,6 @@ mod tests {
         creature.unit_mut().world_mut().object_mut().add_to_world();
 
         manager
-            .lock()
-            .unwrap()
             .create_world_map(571, 0)
             .map_mut()
             .insert_map_object_record(
@@ -17305,6 +17316,32 @@ mod tests {
             send_rx.try_recv().is_err(),
             "C++ HandleGossipHelloOpcode returns when GetNPCIfCanInteractWith rejects a hostile questgiver"
         );
+    }
+
+    #[tokio::test]
+    async fn gossip_hello_trainer_fallback_uses_canonical_access_like_cpp() {
+        let (mut session, send_rx) = make_quest_status_session();
+        let entry = 15_513;
+        let guid = creature_guid(entry, 515);
+        let mut manager = wow_map::MapManager::default();
+        insert_canonical_creature_with_npc_flags(
+            &mut manager,
+            guid,
+            entry,
+            NPCFlags1::TRAINER.bits() | NPCFlags1::TRAINER_CLASS.bits(),
+        );
+        attach_map_manager(&mut session, manager);
+
+        session.handle_gossip_hello(Hello { unit: guid }).await;
+
+        let bytes = send_rx.try_recv().expect("canonical trainer gossip menu");
+        assert_eq!(gossip_message_counts(&bytes, guid), (1, 0));
+        assert_eq!(session.gossip_source_guid, Some(guid));
+        assert_eq!(
+            session.gossip_options[0].option_npc,
+            GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP
+        );
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[tokio::test]

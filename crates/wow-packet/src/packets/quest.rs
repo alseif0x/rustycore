@@ -391,7 +391,8 @@ impl QuestRewardsBlock {
         pkt.write_int32(0); // SkillLineID
         pkt.write_int32(0); // NumSkillUps
         pkt.write_int32(0); // TreasurePickerID
-        // C++ `QuestChoiceItem`: 2-bit LootItemType, ItemInstance, int32 Quantity.
+        // C++ `QuestChoiceItem` in QuestPackets.{h,cpp}: 2-bit LootItemType,
+        // ItemInstance, int32 Quantity. This 3.4.3 target has no ContextFlags field here.
         // `ByteBuffer::append` flushes pending bits before the ItemInstance integers.
         for (idx, (item_id, qty)) in self.choice_items.iter().enumerate() {
             pkt.write_bits(u32::from(self.choice_item_types[idx]), 2);
