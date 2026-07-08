@@ -392,8 +392,9 @@ impl QuestRewardsBlock {
         pkt.write_int32(0); // NumSkillUps
         pkt.write_int32(0); // TreasurePickerID
         // C++ `QuestChoiceItem` in QuestPackets.{h,cpp}: 2-bit LootItemType,
-        // ItemInstance, int32 Quantity. This 3.4.3 target has no ContextFlags field here.
-        // `ByteBuffer::append` flushes pending bits before the ItemInstance integers.
+        // ItemInstance, int32 Quantity. C++ `ByteBuffer::append<T>` flushes
+        // pending bits before `ItemInstance`'s integer bytes, so this intentionally
+        // uses the normal ItemInstance writer. This 3.4.3 target has no ContextFlags field here.
         for (idx, (item_id, qty)) in self.choice_items.iter().enumerate() {
             pkt.write_bits(u32::from(self.choice_item_types[idx]), 2);
             ItemInstance {
@@ -521,7 +522,8 @@ impl ServerPacket for QuestGiverQuestComplete {
         pkt.write_bit(false); // LaunchGossip
         pkt.write_bit(false); // LaunchQuest
         pkt.write_bit(false); // HideChatMessage
-        // C++ appends ItemReward after ByteBuffer flushes the four pending quest-complete bits.
+        // C++ appends ItemReward with `data << ItemReward`; `ByteBuffer::append<T>`
+        // flushes these four pending bits before ItemReward's integer bytes.
         ItemInstance::default().write(pkt);
     }
 }

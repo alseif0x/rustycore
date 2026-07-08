@@ -78,21 +78,11 @@ pub struct ItemInstance {
 
 impl ItemInstance {
     pub fn write(&self, pkt: &mut WorldPacket) {
+        // C++ `ItemInstance::operator<<` starts with normal `data << int32` writes;
+        // `ByteBuffer::append<T>` flushes pending bits before appending those bytes.
         pkt.write_int32(self.item_id);
         pkt.write_int32(self.random_properties_seed);
         pkt.write_int32(self.random_properties_id);
-        pkt.write_bit(self.item_bonus.is_some());
-        pkt.flush_bits();
-        self.modifications.write(pkt);
-        if let Some(item_bonus) = &self.item_bonus {
-            item_bonus.write(pkt);
-        }
-    }
-
-    pub fn write_preserving_pending_bits_like_cpp(&self, pkt: &mut WorldPacket) {
-        pkt.write_int32_unflushed(self.item_id);
-        pkt.write_int32_unflushed(self.random_properties_seed);
-        pkt.write_int32_unflushed(self.random_properties_id);
         pkt.write_bit(self.item_bonus.is_some());
         pkt.flush_bits();
         self.modifications.write(pkt);
