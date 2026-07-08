@@ -84,6 +84,14 @@ pub struct ClientGossipOption {
 }
 
 /// A quest entry in a gossip menu.
+///
+/// C++ source of truth:
+/// - `Server/Packets/NPCPackets.h::ClientGossipText`
+/// - `Server/Packets/NPCPackets.cpp::operator<<(ClientGossipText const&)`
+///
+/// The configured 3.4.3 C++ target writes exactly two `QuestFlags` ints and
+/// does not write `LfgDungeonsID`, `Unused1102`, `QuestFlags[2]`,
+/// `ResetByScheduler`, or `Meta` in this packet layout.
 pub struct ClientGossipText {
     pub quest_id: i32,
     pub content_tuning_id: i32,
@@ -301,6 +309,59 @@ mod tests {
             bytes.len() > 10,
             "GossipMessage too small: {} bytes",
             bytes.len()
+        );
+    }
+
+    #[test]
+    fn gossip_message_quest_text_matches_cpp_npc_client_gossip_text_layout() {
+        let msg = GossipMessage {
+            gossip_guid: ObjectGuid::EMPTY,
+            gossip_id: 7,
+            friendship_faction_id: 0,
+            text_id: None,
+            broadcast_text_id: None,
+            gossip_options: Vec::new(),
+            gossip_text: vec![ClientGossipText {
+                quest_id: 10070,
+                content_tuning_id: 2,
+                quest_type: 3,
+                quest_level: 4,
+                quest_max_scaling_level: 5,
+                quest_flags: 0x0102_0304,
+                quest_flags_ex: 0x0506_0708,
+                repeatable: true,
+                important: false,
+                quest_title: "Well Watcher Solanian".to_string(),
+            }],
+        };
+
+        let bytes = msg.to_bytes();
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+
+        assert_eq!(pkt.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
+        assert_eq!(pkt.read_int32().unwrap(), 7);
+        assert_eq!(pkt.read_int32().unwrap(), 0);
+        assert_eq!(pkt.read_int32().unwrap(), 0);
+        assert_eq!(pkt.read_int32().unwrap(), 1);
+        assert!(!pkt.read_bit().unwrap());
+        assert!(!pkt.read_bit().unwrap());
+
+        assert_eq!(pkt.read_int32().unwrap(), 10070);
+        assert_eq!(pkt.read_int32().unwrap(), 2);
+        assert_eq!(pkt.read_int32().unwrap(), 3);
+        assert_eq!(pkt.read_int32().unwrap(), 4);
+        assert_eq!(pkt.read_int32().unwrap(), 5);
+        assert_eq!(pkt.read_uint32().unwrap(), 0x0102_0304);
+        assert_eq!(pkt.read_uint32().unwrap(), 0x0506_0708);
+        assert!(pkt.read_bit().unwrap());
+        assert!(!pkt.read_bit().unwrap());
+        let title_len = pkt.read_bits(9).unwrap() as usize;
+        assert_eq!(title_len, "Well Watcher Solanian".len());
+        assert_eq!(pkt.read_string(title_len).unwrap(), "Well Watcher Solanian");
+        assert_eq!(
+            pkt.remaining(),
+            0,
+            "C++ NPCPackets::ClientGossipText has exactly two QuestFlags ints and no trailing ResetByScheduler/Meta fields"
         );
     }
 

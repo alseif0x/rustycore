@@ -8,7 +8,7 @@
 //! Legacy non-canonical note: Game/Networking/Packets/QuestPackets.cs
 //! Legacy non-canonical note: Game/Networking/Packets/NPCPackets.cs (ClientGossipText)
 
-use crate::{ClientPacket, PacketError, ServerPacket, WorldPacket};
+use crate::{ClientPacket, PacketError, ServerPacket, WorldPacket, packets::item::ItemInstance};
 use wow_constants::{ClientOpcodes, ServerOpcodes};
 use wow_core::ObjectGuid;
 
@@ -18,6 +18,7 @@ const QUEST_REWARD_CHOICES_COUNT: usize = 6;
 const QUEST_REWARD_REPUTATIONS_COUNT: usize = 5;
 const QUEST_REWARD_CURRENCY_COUNT: usize = 4;
 const QUEST_REWARD_DISPLAY_SPELL_COUNT: usize = 3;
+const QUEST_EMOTE_COUNT: usize = 4;
 
 /// Client request to start an Adventure Map quest.
 ///
@@ -268,6 +269,7 @@ pub struct QuestListEntry {
     pub quest_flags: u32,
     pub quest_flags_ex: u32,
     pub repeatable: bool,
+    pub important: bool,
     pub title: String,
 }
 
@@ -300,7 +302,7 @@ impl ServerPacket for QuestGiverQuestList {
             pkt.write_uint32(q.quest_flags);
             pkt.write_uint32(q.quest_flags_ex);
             pkt.write_bit(q.repeatable);
-            pkt.write_bit(false); // Important
+            pkt.write_bit(q.important);
             pkt.write_bits(q.title.len() as u32, 9);
             pkt.flush_bits();
             pkt.write_string(&q.title);
@@ -322,10 +324,13 @@ pub struct QuestObjectiveSimple {
 }
 
 /// Full reward block for a quest details / offer reward packet.
-/// Legacy non-canonical note: QuestRewards
+///
+/// C++ target: `WorldPackets::Quest::QuestRewards`,
+/// `QuestPackets.cpp:283-330`. This Rust block is still partial; see issue #57.
 pub struct QuestRewardsBlock {
     pub items: [(u32, u32); QUEST_REWARD_ITEM_COUNT], // (item_id, qty) — fixed rewards
     pub choice_items: [(u32, u32); QUEST_REWARD_CHOICES_COUNT], // (item_id, qty) — player picks one
+    pub choice_item_types: [u8; QUEST_REWARD_CHOICES_COUNT], // C++ LootItemType, 0=item, 1=currency
     pub money: i32,
     pub xp: i32,
     pub honor: i32,
@@ -339,6 +344,7 @@ impl Default for QuestRewardsBlock {
         Self {
             items: [(0, 0); QUEST_REWARD_ITEM_COUNT],
             choice_items: [(0, 0); QUEST_REWARD_CHOICES_COUNT],
+            choice_item_types: [0; QUEST_REWARD_CHOICES_COUNT],
             money: 0,
             xp: 0,
             honor: 0,
@@ -385,25 +391,37 @@ impl QuestRewardsBlock {
         pkt.write_int32(0); // SkillLineID
         pkt.write_int32(0); // NumSkillUps
         pkt.write_int32(0); // TreasurePickerID
-        // ChoiceItems (6 entries, each: ItemID, Quantity, Context+Bonuses, DisplayID, Unused)
-        // Legacy non-canonical note: QuestChoiceItem.Write / ItemInstance.Write
-        for (item_id, qty) in &self.choice_items {
-            pkt.write_int32(*item_id as i32); // Item.ItemID
-            pkt.write_int32(*qty as i32); // Item.Quantity
-            pkt.write_uint64(0u64); // Item.Mask (ItemContext bits)
-            pkt.write_uint32(0); // Item.Bonuses count
-            pkt.write_int32(0); // DisplayID
-            pkt.write_int32(0); // Unused (LootItemType 0=Item)
+        // C++ `QuestChoiceItem` in QuestPackets.{h,cpp}: 2-bit LootItemType,
+        // ItemInstance, int32 Quantity. C++ `ByteBuffer::append<T>` flushes
+        // pending bits before `ItemInstance`'s integer bytes, so this intentionally
+        // uses the normal ItemInstance writer. This 3.4.3 target has no ContextFlags field here.
+        for (idx, (item_id, qty)) in self.choice_items.iter().enumerate() {
+            pkt.write_bits(u32::from(self.choice_item_types[idx]), 2);
+            ItemInstance {
+                item_id: *item_id as i32,
+                ..ItemInstance::default()
+            }
+            .write(pkt);
+            pkt.write_int32(*qty as i32);
         }
         pkt.write_bit(false); // IsBoostSpell
         pkt.flush_bits();
     }
 }
 
-/// Full quest details packet shown when clicking a quest name in the list.
-/// Legacy non-canonical note: QuestGiverQuestDetails
+/// Quest details packet shown when opening a quest from a represented giver.
+///
+/// C++ source of truth:
+/// - `Server/Packets/QuestPackets.h::QuestGiverQuestDetails`
+/// - `Server/Packets/QuestPackets.cpp::QuestGiverQuestDetails::Write`
+///
+/// The configured 3.4.3 C++ target writes `QuestStartItemID`,
+/// `QuestSessionBonus`, then `QuestGiverCreatureID`; it does not write
+/// `QuestInfoID` in this packet. `QuestInfoID` exists in other quest packet
+/// structs, but not in `QuestGiverQuestDetails::Write`.
 pub struct QuestGiverQuestDetails {
     pub giver_guid: ObjectGuid,
+    pub giver_creature_id: i32,
     pub quest_id: u32,
     pub quest_flags: [u32; 3],
     pub suggested_party_members: u8,
@@ -431,14 +449,19 @@ impl ServerPacket for QuestGiverQuestDetails {
         pkt.write_uint32(self.quest_flags[2]);
         pkt.write_int32(self.suggested_party_members as i32);
         pkt.write_int32(0); // LearnSpells count
-        pkt.write_int32(0); // DescEmotes count
+        pkt.write_int32(QUEST_EMOTE_COUNT as i32); // DescEmotes count
         pkt.write_int32(self.objectives.len() as i32);
         pkt.write_int32(0); // QuestStartItemID
         pkt.write_int32(0); // QuestSessionBonus
-        pkt.write_int32(0); // QuestGiverCreatureID
+        pkt.write_int32(self.giver_creature_id); // QuestGiverCreatureID
         pkt.write_int32(0); // ConditionalDescriptionText count
 
         // Objectives
+        for _ in 0..QUEST_EMOTE_COUNT {
+            pkt.write_int32(0); // DescEmote.Type
+            pkt.write_uint32(0); // DescEmote.Delay
+        }
+
         for obj in &self.objectives {
             pkt.write_uint32(obj.id);
             pkt.write_int32(obj.object_id);
@@ -474,7 +497,10 @@ impl ServerPacket for QuestGiverQuestDetails {
 // ── SMSG_QUEST_GIVER_QUEST_COMPLETE ──────────────────────────────────────────
 
 /// Shown after accepting a quest — "Quest Accepted" popup.
-/// Legacy non-canonical note: QuestGiverQuestComplete
+///
+/// C++ anchors:
+/// - `QuestGiverQuestComplete::Write`, `QuestPackets.cpp:397-411`.
+/// - `WorldPackets::Item::ItemInstance`, `ItemPacketsCommon.cpp:176-190`.
 pub struct QuestGiverQuestComplete {
     pub quest_id: u32,
     pub xp: u32,
@@ -494,9 +520,11 @@ impl ServerPacket for QuestGiverQuestComplete {
         pkt.write_uint32(self.skill_points);
         pkt.write_bit(self.use_quest_reward_currency);
         pkt.write_bit(false); // LaunchGossip
+        pkt.write_bit(false); // LaunchQuest
         pkt.write_bit(false); // HideChatMessage
-        pkt.write_bit(false); // ShowKeybind
-        pkt.flush_bits();
+        // C++ appends ItemReward with `data << ItemReward`; `ByteBuffer::append<T>`
+        // flushes these four pending bits before ItemReward's integer bytes.
+        ItemInstance::default().write(pkt);
     }
 }
 
@@ -536,7 +564,13 @@ pub struct QuestObjectiveInfo {
 }
 
 /// Response to CMSG_QUERY_QUEST_INFO — full quest data.
-/// Legacy non-canonical note: QueryQuestInfoResponse
+///
+/// C++ target: `QueryQuestInfoResponse::Write`, `QuestPackets.cpp:87-213`.
+///
+/// The configured 3.4.3 C++ target writes `TreasurePickerID`, `Expansion`,
+/// `ManagedWorldStateID`, `QuestSessionBonus`, then `QuestGiverCreatureID`
+/// after `AllowableRaces`. It does not write `TreasurePickerID2` or
+/// conditional-text counts in this response layout.
 #[derive(Default)]
 pub struct QueryQuestInfoResponse {
     pub quest_id: u32,
@@ -658,11 +692,11 @@ impl ServerPacket for QueryQuestInfoResponse {
         pkt.write_int64(0i64); // TimeAllowed
         pkt.write_int32(self.objectives.len() as i32);
         pkt.write_uint64(0u64); // AllowableRaces
-        pkt.write_int32(0); // TreasurePickerID
-        pkt.write_int32(0); // Expansion
-        pkt.write_int32(0); // ManagedWorldStateID
-        pkt.write_int32(0); // QuestSessionBonus
-        pkt.write_int32(0); // QuestGiverCreatureID
+        pkt.write_int32(0); // TreasurePickerID; no TreasurePickerID2 in local C++.
+        pkt.write_int32(0); // Expansion.
+        pkt.write_int32(0); // ManagedWorldStateID.
+        pkt.write_int32(0); // QuestSessionBonus.
+        pkt.write_int32(0); // QuestGiverCreatureID; lengths follow immediately.
 
         // Bit string lengths
         pkt.write_bits(self.log_title.len() as u32, 9);
@@ -674,6 +708,7 @@ impl ServerPacket for QueryQuestInfoResponse {
         pkt.write_bits(0u32, 10); // PortraitTurnInText
         pkt.write_bits(0u32, 8); // PortraitTurnInName
         pkt.write_bits(self.quest_completion_log.len() as u32, 11);
+        pkt.write_bit(false); // ReadyForTranslation
         pkt.flush_bits();
 
         // Objectives
@@ -708,6 +743,7 @@ impl ServerPacket for QueryQuestInfoResponse {
 /// Legacy non-canonical note: QuestGiverOfferRewardMessage / QuestGiverOfferReward
 pub struct QuestGiverOfferReward {
     pub giver_guid: ObjectGuid,
+    pub giver_creature_id: i32,
     pub quest_id: u32,
     pub quest_flags: [u32; 3],
     pub suggested_party_members: u8,
@@ -722,7 +758,7 @@ impl ServerPacket for QuestGiverOfferReward {
     fn write(&self, pkt: &mut WorldPacket) {
         // QuestGiverOfferReward inner block
         pkt.write_packed_guid(&self.giver_guid);
-        pkt.write_int32(0); // QuestGiverCreatureID
+        pkt.write_int32(self.giver_creature_id); // QuestGiverCreatureID
         pkt.write_uint32(self.quest_id);
         pkt.write_uint32(self.quest_flags[0]);
         pkt.write_uint32(self.quest_flags[1]);
@@ -740,7 +776,7 @@ impl ServerPacket for QuestGiverOfferReward {
         pkt.write_int32(0); // PortraitGiverMount
         pkt.write_int32(0); // PortraitGiverModelSceneID
         pkt.write_int32(0); // PortraitTurnIn
-        pkt.write_int32(0); // QuestGiverCreatureID (outer)
+        pkt.write_int32(self.giver_creature_id); // QuestGiverCreatureID (outer)
         pkt.write_int32(0); // ConditionalRewardText count
 
         pkt.write_bits(self.title.len() as u32, 9);
@@ -939,6 +975,95 @@ mod tests {
         assert_eq!(pkt.read_int32().unwrap(), 1);
         assert_eq!(pkt.read_packed_guid().unwrap(), guid);
         assert_eq!(pkt.read_uint64().unwrap(), status);
+    }
+
+    #[test]
+    fn quest_giver_quest_details_sallina_capture_length_matches_cpp_like_cpp() {
+        // The C++ runtime normalizes realm 0 to the active realm before this packet is captured.
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 530, 0, 15513, 27);
+        let bytes = QuestGiverQuestDetails {
+            giver_guid: guid,
+            giver_creature_id: 15513,
+            quest_id: 10070,
+            quest_flags: [0x0008_0088, 0, 0],
+            suggested_party_members: 0,
+            objectives: Vec::new(),
+            rewards: QuestRewardsBlock::default(),
+            title: "Well Watcher Solanian".to_string(),
+            description: "And now, I need for you to do something.$B$BWell Watcher Solanian is in need of your services.  You would do well to ingratiate yourself with him.$B$BHe awaits you on the exterior platform that the ramp in this chamber leads up to.".to_string(),
+            log_description: "Speak with Well Watcher Solanian at the Sunspire on Sunstrider Isle.".to_string(),
+            auto_launched: false,
+        }
+        .to_bytes();
+
+        // C++ capture `/tmp/cpp-sallina-packets/0564...QuestDetails.bin` is 769
+        // bytes of payload; Rust `to_bytes` includes the 2-byte opcode.
+        assert_eq!(bytes.len(), 771);
+
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_packed_guid().unwrap(), guid);
+        assert_eq!(pkt.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
+        assert_eq!(pkt.read_int32().unwrap(), 10070);
+        for _ in 0..10 {
+            let _ = pkt.read_int32().unwrap();
+        }
+        assert_eq!(pkt.read_int32().unwrap(), QUEST_EMOTE_COUNT as i32);
+        assert_eq!(pkt.read_int32().unwrap(), 0); // Objectives count.
+        assert_eq!(pkt.read_int32().unwrap(), 0); // QuestStartItemID.
+        // C++ `QuestGiverQuestDetails::Write` has no QuestInfoID field here.
+        assert_eq!(pkt.read_int32().unwrap(), 0); // QuestSessionBonus.
+        assert_eq!(pkt.read_int32().unwrap(), 15513); // QuestGiverCreatureID.
+    }
+
+    #[test]
+    fn query_quest_info_response_tail_matches_configured_cpp_layout_like_cpp() {
+        let bytes = QueryQuestInfoResponse {
+            quest_id: 0x0102_0304,
+            allow: true,
+            log_title: "Q".to_string(),
+            ..QueryQuestInfoResponse::default()
+        }
+        .to_bytes();
+
+        let mut pkt = WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(pkt.read_uint32().unwrap(), 0x0102_0304);
+        assert!(pkt.read_bit().unwrap());
+
+        let bytes_before_objectives_size = 17 * 4 // QuestID through RewardBonusMoney.
+            + QUEST_REWARD_DISPLAY_SPELL_COUNT * 4
+            + 10 * 4 // RewardSpell through FlagsEx2.
+            + QUEST_REWARD_ITEM_COUNT * 4 * 4
+            + QUEST_REWARD_CHOICES_COUNT * 3 * 4
+            + 4 * 4 // POIContinent through POIPriority.
+            + 4 * 4 // RewardTitle through RewardNumSkillUps.
+            + 4 * 4 // PortraitGiver through PortraitTurnIn.
+            + QUEST_REWARD_REPUTATIONS_COUNT * 4 * 4
+            + 4 // RewardFactionFlags.
+            + QUEST_REWARD_CURRENCY_COUNT * 2 * 4
+            + 2 * 4 // AcceptedSoundKitID, CompleteSoundKitID.
+            + 4 // AreaGroupID.
+            + 8; // TimeAllowed.
+        pkt.skip(bytes_before_objectives_size).unwrap();
+
+        assert_eq!(pkt.read_uint32().unwrap(), 0); // Objectives.size()
+        assert_eq!(pkt.read_uint64().unwrap(), 0); // AllowableRaces
+        assert_eq!(pkt.read_int32().unwrap(), 0); // TreasurePickerID.
+        // Local C++ has no TreasurePickerID2 here.
+        assert_eq!(pkt.read_int32().unwrap(), 0); // Expansion.
+        assert_eq!(pkt.read_int32().unwrap(), 0); // ManagedWorldStateID.
+        assert_eq!(pkt.read_int32().unwrap(), 0); // QuestSessionBonus.
+        assert_eq!(pkt.read_int32().unwrap(), 0); // QuestGiverCreatureID.
+        // String bit lengths follow immediately; no conditional-text counts precede them.
+        assert_eq!(pkt.read_bits(9).unwrap(), 1); // LogTitle.size()
+        assert_eq!(pkt.read_bits(12).unwrap(), 0); // LogDescription.size()
+        assert_eq!(pkt.read_bits(12).unwrap(), 0); // QuestDescription.size()
+        assert_eq!(pkt.read_bits(9).unwrap(), 0); // AreaDescription.size()
+        assert_eq!(pkt.read_bits(10).unwrap(), 0); // PortraitGiverText.size()
+        assert_eq!(pkt.read_bits(8).unwrap(), 0); // PortraitGiverName.size()
+        assert_eq!(pkt.read_bits(10).unwrap(), 0); // PortraitTurnInText.size()
+        assert_eq!(pkt.read_bits(8).unwrap(), 0); // PortraitTurnInName.size()
+        assert_eq!(pkt.read_bits(11).unwrap(), 0); // QuestCompletionLog.size()
+        assert!(!pkt.read_bit().unwrap()); // ReadyForTranslation.
     }
 
     #[test]
@@ -1243,5 +1368,75 @@ mod quest_giver_quest_complete_tests {
         assert_eq!(&bytes[10..18], &0x0102_0304u64.to_le_bytes());
         assert_eq!(&bytes[18..22], &0x0A0B_0C0Du32.to_le_bytes());
         assert_eq!(&bytes[22..26], &0x0E0F_1011u32.to_le_bytes());
+        assert_eq!(bytes[26], 0x80); // UseQuestReward=true, remaining C++ bits false.
+        assert_eq!(&bytes[27..31], &0i32.to_le_bytes()); // Default ItemReward ItemID.
+        assert_eq!(&bytes[31..35], &0i32.to_le_bytes()); // RandomPropertiesSeed.
+        assert_eq!(&bytes[35..39], &0i32.to_le_bytes()); // RandomPropertiesID.
+        assert_eq!(bytes[39], 0x00); // Empty ItemReward bonus bit.
+        assert_eq!(bytes[40], 0x00); // Empty ItemReward modifications.
+        assert_eq!(bytes.len(), 41);
+    }
+
+    #[test]
+    fn quest_giver_quest_complete_keeps_empty_item_reward_when_flags_are_false() {
+        let complete = QuestGiverQuestComplete {
+            quest_id: 7,
+            xp: 0,
+            money: 0,
+            skill_line_id: 0,
+            skill_points: 0,
+            use_quest_reward_currency: false,
+        };
+
+        let bytes = complete.to_bytes();
+
+        assert_eq!(bytes[26], 0x00);
+        assert_eq!(&bytes[27..39], &[0; 12]);
+        assert_eq!(bytes[39], 0x00);
+        assert_eq!(bytes[40], 0x00);
+        assert_eq!(bytes.len(), 41);
+    }
+
+    #[test]
+    fn quest_rewards_choice_item_flushes_loot_type_before_item_instance_like_cpp() {
+        let mut rewards = QuestRewardsBlock::default();
+        rewards.choice_items[0] = (0x0102_0304, 7);
+        rewards.choice_item_types[0] = 0b10;
+
+        let mut pkt = WorldPacket::new_empty();
+        rewards.write(&mut pkt);
+        let bytes = pkt.into_data();
+
+        // Counts + fixed reward slots + money/xp/artifact/honor/title + faction/spell/currency/skill fields.
+        let choice_start = 4
+            + 4
+            + (QUEST_REWARD_ITEM_COUNT * 2 * 4)
+            + 4
+            + 4
+            + 8
+            + 4
+            + 4
+            + 4
+            + 4
+            + (QUEST_REWARD_REPUTATIONS_COUNT * 4 * 4)
+            + (QUEST_REWARD_DISPLAY_SPELL_COUNT * 4)
+            + 4
+            + (QUEST_REWARD_CURRENCY_COUNT * 2 * 4)
+            + 4
+            + 4
+            + 4;
+        assert_eq!(
+            bytes[choice_start] >> 6,
+            0b10,
+            "C++ ByteBuffer::append flushes the 2-bit LootItemType before ItemInstance"
+        );
+        assert_eq!(
+            &bytes[choice_start + 1..choice_start + 5],
+            &0x0102_0304_i32.to_le_bytes()
+        );
+        assert_eq!(
+            &bytes[choice_start + 15..choice_start + 19],
+            &7_i32.to_le_bytes()
+        );
     }
 }
