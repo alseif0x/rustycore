@@ -408,8 +408,16 @@ impl QuestRewardsBlock {
     }
 }
 
-/// Full quest details packet shown when clicking a quest name in the list.
-/// Legacy non-canonical note: QuestGiverQuestDetails
+/// Quest details packet shown when opening a quest from a represented giver.
+///
+/// C++ source of truth:
+/// - `Server/Packets/QuestPackets.h::QuestGiverQuestDetails`
+/// - `Server/Packets/QuestPackets.cpp::QuestGiverQuestDetails::Write`
+///
+/// The configured 3.4.3 C++ target writes `QuestStartItemID`,
+/// `QuestSessionBonus`, then `QuestGiverCreatureID`; it does not write
+/// `QuestInfoID` in this packet. `QuestInfoID` exists in other quest packet
+/// structs, but not in `QuestGiverQuestDetails::Write`.
 pub struct QuestGiverQuestDetails {
     pub giver_guid: ObjectGuid,
     pub giver_creature_id: i32,

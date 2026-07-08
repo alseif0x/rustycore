@@ -84,6 +84,14 @@ pub struct ClientGossipOption {
 }
 
 /// A quest entry in a gossip menu.
+///
+/// C++ source of truth:
+/// - `Server/Packets/NPCPackets.h::ClientGossipText`
+/// - `Server/Packets/NPCPackets.cpp::operator<<(ClientGossipText const&)`
+///
+/// The configured 3.4.3 C++ target writes exactly two `QuestFlags` ints and
+/// does not write `LfgDungeonsID`, `Unused1102`, `QuestFlags[2]`,
+/// `ResetByScheduler`, or `Meta` in this packet layout.
 pub struct ClientGossipText {
     pub quest_id: i32,
     pub content_tuning_id: i32,
