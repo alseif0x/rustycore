@@ -7511,6 +7511,13 @@ mod tests {
         let mut manager = wow_map::MapManager::default();
         insert_gameobject(&mut manager, source_guid, gameobject_entry);
         attach_map_manager(&mut session, manager);
+        session.record_represented_gameobject_runtime_state_like_cpp(
+            571,
+            source_guid,
+            gameobject_entry,
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            wow_entities::GAMEOBJECT_TYPE_QUESTGIVER as u8,
+        );
 
         session
             .handle_quest_giver_accept_quest(quest_giver_cmsg_packet(source_guid, quest_id, 0x00))

@@ -12040,6 +12040,9 @@ impl WorldSession {
             return None;
         }
 
+        let player_map_key = self
+            .current_canonical_player_map_key_like_cpp()
+            .unwrap_or_else(|| wow_map::MapKey::new(u32::from(self.player_map_id_like_cpp()), 0));
         let mut canonical_record_found_like_cpp = false;
         let mut canonical_fail_closed_like_cpp = false;
         let canonical_access = (|| {
@@ -12047,7 +12050,7 @@ impl WorldSession {
             let Ok(manager) = manager.lock() else {
                 return None;
             };
-            let map = manager.find_map(u32::from(self.player_map_id_like_cpp()), 0)?;
+            let map = manager.find_map(player_map_key.map_id, player_map_key.instance_id)?;
             if map
                 .map()
                 .get_typed_player(player_guid)
@@ -12159,6 +12162,7 @@ impl WorldSession {
             npc_flags,
             npc_flags2,
             player_position,
+            player_map_key.instance_id,
             player_interaction_combat_reach,
             target_player_contested_pvp,
         )
@@ -12170,6 +12174,7 @@ impl WorldSession {
         npc_flags: u32,
         npc_flags2: u32,
         player_position: Position,
+        player_instance_id: u32,
         player_interaction_combat_reach: f32,
         target_player_contested_pvp: bool,
     ) -> Option<RepresentedCreatureAccessLikeCpp> {
@@ -12177,7 +12182,8 @@ impl WorldSession {
         let manager = manager
             .read()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        let creature = manager.find_creature(self.player_map_id_like_cpp(), 0, guid)?;
+        let creature =
+            manager.find_creature(self.player_map_id_like_cpp(), player_instance_id, guid)?;
         let type_flags =
             CreatureTypeFlags::from_bits_retain(creature.creature.lifecycle_metadata().type_flags);
         if !self.player_is_alive_like_cpp()
@@ -42044,12 +42050,14 @@ impl WorldSession {
         }
 
         if source_guid.is_game_object() {
-            let Some(access) = self.canonical_gameobject_access_like_cpp(source_guid) else {
+            let Some(access) =
+                self.represented_gameobject_questgiver_can_interact_with_like_cpp(source_guid)
+            else {
                 debug!(
                     account = self.account_id,
                     ?source_guid,
                     quest_id,
-                    "QuestGiverAcceptQuest: represented GameObject source missing"
+                    "QuestGiverAcceptQuest: represented GameObject source missing or not interactable"
                 );
                 return false;
             };
@@ -42113,12 +42121,14 @@ impl WorldSession {
                 &quest,
             )
         } else if source_guid.is_game_object() {
-            let Some(access) = self.canonical_gameobject_access_like_cpp(source_guid) else {
+            let Some(access) =
+                self.represented_gameobject_questgiver_can_interact_with_like_cpp(source_guid)
+            else {
                 debug!(
                     account = self.account_id,
                     ?source_guid,
                     quest_id,
-                    "QuestGiverQueryQuest: represented GameObject source missing"
+                    "QuestGiverQueryQuest: represented GameObject source missing or not interactable"
                 );
                 return false;
             };
@@ -80517,6 +80527,88 @@ mod tests {
                 faction_template_id: 35,
                 trainer_class: 0,
             })
+        );
+    }
+
+    #[test]
+    fn npc_interaction_legacy_fallback_uses_player_instance_like_cpp() {
+        let (mut session, _pkt_tx, _send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 47);
+        let questgiver_guid = test_creature_guid(18);
+        let player_position = Position::new(10.0, 0.0, 0.0, 0.0);
+        let npc_position = Position::new(14.0, 0.0, 0.0, 0.0);
+        let canonical = shared_canonical_map_manager();
+        let manager = shared_map_manager();
+
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "Tester".to_string(),
+            player_position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 7);
+        manager.write().unwrap().add_creature(
+            571,
+            0,
+            0,
+            0,
+            crate::map_manager::WorldCreature::new(
+                questgiver_guid,
+                999,
+                npc_position,
+                100,
+                80,
+                1,
+                2,
+                0.0,
+                1,
+                35,
+                wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                0,
+            ),
+        );
+        manager.write().unwrap().add_creature(
+            571,
+            7,
+            0,
+            0,
+            crate::map_manager::WorldCreature::new(
+                questgiver_guid,
+                508,
+                npc_position,
+                100,
+                80,
+                1,
+                2,
+                0.0,
+                1,
+                35,
+                wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                0,
+            ),
+        );
+        session.set_map_manager(manager);
+
+        assert_eq!(
+            session.represented_npc_can_interact_with_like_cpp(
+                questgiver_guid,
+                wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                0,
+            ),
+            Some(RepresentedCreatureAccessLikeCpp {
+                entry: 508,
+                position: npc_position,
+                npc_flags: wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+                npc_flags2: 0,
+                faction_template_id: 35,
+                trainer_class: 0,
+            }),
+            "C++ ObjectAccessor resolves relative to the player's current instance, not a hard-coded instance 0"
         );
     }
 
@@ -121541,6 +121633,13 @@ mod tests {
         session.set_player_map_position_like_cpp(571, position);
         session.set_canonical_map_manager(Arc::clone(&canonical));
         add_canonical_test_gameobject(&canonical, source_guid, 784, position);
+        session.record_represented_gameobject_runtime_state_like_cpp(
+            571,
+            source_guid,
+            784,
+            position,
+            wow_entities::GAMEOBJECT_TYPE_QUESTGIVER as u8,
+        );
         let mut quest_store =
             wow_data::quest::QuestStore::from_quests_like_cpp([test_quest_template(9_210)]);
         assert!(quest_store.insert_gameobject_starter_relation_like_cpp(784, 9_210));
@@ -121556,6 +121655,32 @@ mod tests {
     }
 
     #[test]
+    fn quest_giver_accept_gameobject_starter_relation_without_interaction_rejects_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let source_guid =
+            ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 784, 131);
+        let position = Position::new(1.0, 2.0, 3.0, 0.0);
+        session.set_player_map_position_like_cpp(571, position);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_gameobject(&canonical, source_guid, 784, position);
+        let mut quest_store =
+            wow_data::quest::QuestStore::from_quests_like_cpp([test_quest_template(9_210)]);
+        assert!(quest_store.insert_gameobject_starter_relation_like_cpp(784, 9_210));
+
+        assert!(
+            !session.represented_quest_giver_accept_source_allows_quest_like_cpp(
+                source_guid,
+                9_210,
+                &quest_store,
+            ),
+            "C++ CanInteractWithQuestGiver(TYPEID_GAMEOBJECT) requires an interactable questgiver GO, not just a canonical object"
+        );
+        assert!(session.player_quests.is_empty());
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[test]
     fn quest_giver_accept_gameobject_ender_only_or_unrelated_rejects_like_cpp() {
         let (mut session, _pkt_tx, send_rx) = make_session();
         let canonical = shared_canonical_map_manager();
@@ -121565,6 +121690,13 @@ mod tests {
         session.set_player_map_position_like_cpp(571, position);
         session.set_canonical_map_manager(Arc::clone(&canonical));
         add_canonical_test_gameobject(&canonical, source_guid, 785, position);
+        session.record_represented_gameobject_runtime_state_like_cpp(
+            571,
+            source_guid,
+            785,
+            position,
+            wow_entities::GAMEOBJECT_TYPE_QUESTGIVER as u8,
+        );
         let mut quest_store = wow_data::quest::QuestStore::from_quests_like_cpp([
             test_quest_template(9_211),
             test_quest_template(9_212),
@@ -122342,6 +122474,13 @@ mod tests {
         session.set_player_level_like_cpp(1);
         session.set_canonical_map_manager(Arc::clone(&canonical));
         add_canonical_test_gameobject(&canonical, source_guid, 779, position);
+        session.record_represented_gameobject_runtime_state_like_cpp(
+            571,
+            source_guid,
+            779,
+            position,
+            wow_entities::GAMEOBJECT_TYPE_QUESTGIVER as u8,
+        );
         let mut quest = test_quest_template(9_204);
         quest.quest_type = 2;
         let other_quest = test_quest_template(9_205);
@@ -122363,6 +122502,30 @@ mod tests {
     }
 
     #[test]
+    fn quest_giver_query_gameobject_without_interaction_rejects_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let source_guid =
+            ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 779, 126);
+        let position = Position::new(1.0, 2.0, 3.0, 0.0);
+        session.set_player_map_position_like_cpp(571, position);
+        session.set_player_level_like_cpp(1);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_gameobject(&canonical, source_guid, 779, position);
+        let mut quest = test_quest_template(9_204);
+        quest.quest_type = 2;
+        let mut quest_store = wow_data::quest::QuestStore::from_quests_like_cpp([quest]);
+        assert!(quest_store.insert_gameobject_starter_relation_like_cpp(779, 9_204));
+        session.quest_store = Some(Arc::new(quest_store));
+
+        assert!(
+            !session.send_represented_quest_giver_query_quest_like_cpp(source_guid, 9_204),
+            "C++ CanInteractWithQuestGiver(TYPEID_GAMEOBJECT) gates query details before trusting starter relations"
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[test]
     fn quest_giver_query_gameobject_ender_relation_allows_request_items_like_cpp() {
         let (mut session, _pkt_tx, send_rx) = make_session();
         let canonical = shared_canonical_map_manager();
@@ -122372,6 +122535,13 @@ mod tests {
         session.set_player_map_position_like_cpp(571, position);
         session.set_canonical_map_manager(Arc::clone(&canonical));
         add_canonical_test_gameobject(&canonical, source_guid, 780, position);
+        session.record_represented_gameobject_runtime_state_like_cpp(
+            571,
+            source_guid,
+            780,
+            position,
+            wow_entities::GAMEOBJECT_TYPE_QUESTGIVER as u8,
+        );
         let mut quest_store =
             wow_data::quest::QuestStore::from_quests_like_cpp([test_quest_template(9_206)]);
         assert!(quest_store.insert_gameobject_ender_relation_like_cpp(780, 9_206));

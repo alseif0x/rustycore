@@ -8360,18 +8360,23 @@ impl WorldSession {
             npc_flags, entry, hello.unit
         );
 
-        // If the NPC has Gossip flag AND we have a world DB, try to load the gossip menu.
-        if npc_flags & GOSSIP_FLAG != 0 && entry != 0 {
+        // C++ `HandleGossipHelloOpcode` resolves the creature through
+        // `GetNPCIfCanInteractWith(..., UNIT_NPC_FLAG_GOSSIP, ...)` before
+        // preparing DB-backed gossip, including quest text synthesized from a
+        // gossip menu with no options.
+        if let Some(access) =
+            self.represented_npc_can_interact_with_like_cpp(hello.unit, GOSSIP_FLAG, 0)
+        {
             if let Some(world_db) = self.world_db().map(Arc::clone) {
                 if let Some(msg) = self
-                    .build_gossip_menu(&world_db, entry, npc_flags, hello.unit)
+                    .build_gossip_menu(&world_db, access.entry, access.npc_flags, hello.unit)
                     .await
                 {
                     info!(
                         "Sending GossipMessage with {} options and {} quests for entry {}",
                         msg.gossip_options.len(),
                         msg.gossip_text.len(),
-                        entry
+                        access.entry
                     );
                     self.send_packet(&msg);
                     return;
