@@ -489,6 +489,11 @@ impl WorldSession {
         opcode: Option<ClientOpcodes>,
         info: &MovementInfo,
     ) {
+        if let Some(update) = self.clear_player_emote_state_on_movement_like_cpp() {
+            self.send_packet(&update);
+            self.broadcast_raw_packet(update.to_bytes(), crate::map_manager::VISIBILITY_RADIUS);
+        }
+
         if matches!(opcode, Some(ClientOpcodes::MoveFallLand)) {
             self.handle_fall_like_cpp(info);
         }
@@ -959,6 +964,36 @@ mod tests {
             UnitStandStateType::Stand
         );
         assert_eq!(session.temporary_pet_unsummon_requests_like_cpp(), 1);
+    }
+
+    #[test]
+    fn movement_clears_player_emote_state_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_rx();
+        let guid = ObjectGuid::create_player(1, 46);
+        session.set_player_guid(Some(guid));
+        session.set_player_position_like_cpp(Position::new(1.0, 2.0, 3.0, 0.0));
+        session
+            .set_player_emote_state_like_cpp(10)
+            .expect("emote state update packet");
+        assert_eq!(session.player_emote_state_like_cpp(), 10);
+
+        let mut info = MovementInfo::default();
+        info.flags = MovementFlag::FORWARD;
+        session.apply_movement_side_effects_like_cpp(Some(ClientOpcodes::MoveHeartbeat), &info);
+
+        assert_eq!(session.player_emote_state_like_cpp(), 0);
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::UpdateObject],
+            "C++ MovementHandler clears UnitData::EmoteState on accepted player movement"
+        );
+
+        session.apply_movement_side_effects_like_cpp(Some(ClientOpcodes::MoveHeartbeat), &info);
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            Vec::<ServerOpcodes>::new(),
+            "C++ only updates EmoteState when a stateful emote was active"
+        );
     }
 
     #[tokio::test]

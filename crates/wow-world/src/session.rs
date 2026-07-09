@@ -152,7 +152,8 @@ use wow_entities::{
     PlayerItemTimeUpdate, QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE,
     REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, ReactState, SendNewItemDelivery,
     SendNewItemDisplayText, SendNewItemPlan, SocketedGemUniqueRef, TYPEID_CONTAINER, TYPEID_ITEM,
-    TitanGripPenaltyAction, UNIT_DATA_HEALTH_BIT, Unit, UnitDataUpdate, UnitDataValues,
+    TitanGripPenaltyAction, UNIT_DATA_BITS, UNIT_DATA_EMOTE_STATE_BIT, UNIT_DATA_HEALTH_BIT,
+    UNIT_DATA_MODS_PARENT_BIT, Unit, UnitDataUpdate, UnitDataValues,
     UnitVisibilityDetectionStateLikeCpp, UpdateMask, Vehicle, VehicleAccessory, VisibleItemValues,
     WorldObject, explored_zones_db_string_from_blocks_like_cpp, is_bag_pos,
     is_equipment_packed_pos, is_inventory_pos, item_resistance_bonus_actions_like_cpp,
@@ -4332,6 +4333,8 @@ pub struct WorldSession {
     under_map_damage_events_like_cpp: Vec<MovementUnderMapDamageEvent>,
     /// Represented stand state used by movement side effects until UnitData owns it.
     player_stand_state_like_cpp: UnitStandStateType,
+    /// Represented `UnitData::EmoteState`, used to clear stateful emotes on movement like C++.
+    player_emote_state_like_cpp: u32,
     /// Count of C++ temporary pet unsummon side effects requested by movement.
     temporary_pet_unsummon_requests_like_cpp: u32,
     /// Count of C++ jump proc side effects requested by movement.
@@ -6090,6 +6093,7 @@ impl WorldSession {
             player_out_of_bounds_like_cpp: false,
             under_map_damage_events_like_cpp: Vec::new(),
             player_stand_state_like_cpp: UnitStandStateType::Stand,
+            player_emote_state_like_cpp: 0,
             temporary_pet_unsummon_requests_like_cpp: 0,
             movement_jump_proc_requests_like_cpp: 0,
             active_player_local_flags_like_cpp: 0,
@@ -26027,10 +26031,70 @@ impl WorldSession {
         self.player_unit_state_for_registry_like_cpp() & state.bits() != 0
     }
 
-    pub(crate) fn set_player_emote_state_like_cpp(&mut self, emote_state: u32) {
+    pub(crate) fn set_player_emote_state_like_cpp(
+        &mut self,
+        emote_state: u32,
+    ) -> Option<wow_packet::packets::update::UpdateObject> {
+        self.player_emote_state_like_cpp = emote_state;
         let _ = self.mutate_canonical_player_like_cpp(|player| {
             player.unit_mut().set_emote_state_like_cpp(emote_state);
         });
+        self.player_emote_state_update_packet_like_cpp(emote_state)
+    }
+
+    pub(crate) fn player_emote_state_like_cpp(&self) -> u32 {
+        if let Some(guid) = self.player_guid()
+            && let Some(manager) = &self.canonical_map_manager
+            && let Ok(manager) = manager.lock()
+        {
+            let mut emote_state = None;
+            manager.do_for_all_maps(|managed| {
+                if emote_state.is_none()
+                    && let Some(player) = managed.map().get_typed_player(guid)
+                {
+                    emote_state = Some(player.unit().emote_state_like_cpp());
+                }
+            });
+            if let Some(emote_state) = emote_state {
+                return emote_state;
+            }
+        }
+
+        self.player_emote_state_like_cpp
+    }
+
+    pub(crate) fn clear_player_emote_state_on_movement_like_cpp(
+        &mut self,
+    ) -> Option<wow_packet::packets::update::UpdateObject> {
+        if self.player_emote_state_like_cpp() == 0 {
+            return None;
+        }
+
+        self.set_player_emote_state_like_cpp(0)
+    }
+
+    fn player_emote_state_update_packet_like_cpp(
+        &self,
+        emote_state: u32,
+    ) -> Option<wow_packet::packets::update::UpdateObject> {
+        let guid = self.player_guid()?;
+        let mut mask = UpdateMask::new(UNIT_DATA_BITS);
+        mask.set(UNIT_DATA_MODS_PARENT_BIT);
+        mask.set(UNIT_DATA_EMOTE_STATE_BIT);
+        let update = wow_entities::PlayerValuesUpdate {
+            changed_object_type_mask: 0,
+            object_data: None,
+            unit_data: Some(UnitDataUpdate {
+                mask,
+                values: UnitDataValues {
+                    emote_state: emote_state.min(i32::MAX as u32) as i32,
+                    ..Default::default()
+                },
+            }),
+            player_data: None,
+            active_player_data: None,
+        };
+        player_values_update_to_update_object(guid, self.player_map_id_like_cpp(), &update)
     }
 
     fn party_member_visible_auras_like_cpp(
@@ -29732,6 +29796,12 @@ impl WorldSession {
             }
             ClientOpcodes::ChatMessageEmote => {
                 self.handle_chat_emote(pkt).await;
+            }
+            ClientOpcodes::Emote => {
+                self.handle_emote(pkt).await;
+            }
+            ClientOpcodes::SendTextEmote => {
+                self.handle_text_emote(pkt).await;
             }
             ClientOpcodes::ChatRegisterAddonPrefixes => {
                 self.handle_chat_register_addon_prefixes(pkt).await;
@@ -72509,6 +72579,58 @@ mod tests {
                 "{opcode:?} must record one clock-delta sample through the shared handler"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn dispatch_routes_send_text_emote_to_handler_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 101);
+        session.set_state(SessionState::LoggedIn);
+        session.set_player_guid(Some(player_guid));
+        session.player_name = Some("Emoter".to_string());
+        session.set_emotes_text_store_like_cpp(Arc::new(wow_data::EmotesTextStore::from_entries(
+            [wow_data::EmotesTextEntry {
+                id: 101,
+                name: "wave".to_string(),
+                emote_id: 3,
+            }],
+        )));
+
+        let mut packet = WorldPacket::new_empty();
+        packet.write_uint16(ClientOpcodes::SendTextEmote as u16);
+        packet.write_packed_guid(&ObjectGuid::EMPTY);
+        packet.write_int32(101);
+        packet.write_int32(-1);
+        packet.write_uint32(0);
+        packet.write_int32(0);
+        let bytes = packet.data().to_vec();
+
+        session
+            .dispatch_packet(WorldPacket::from_bytes(&bytes))
+            .await;
+
+        let mut anim = WorldPacket::from_bytes(&send_rx.try_recv().expect("anim emote"));
+        assert_eq!(
+            anim.read_uint16().expect("anim opcode"),
+            ServerOpcodes::Emote as u16
+        );
+        assert_eq!(anim.read_packed_guid().expect("anim source"), player_guid);
+        assert_eq!(anim.read_int32().expect("anim emote"), 3);
+
+        let mut text = WorldPacket::from_bytes(&send_rx.try_recv().expect("text emote"));
+        assert_eq!(
+            text.read_uint16().expect("text opcode"),
+            ServerOpcodes::TextEmote as u16
+        );
+        assert_eq!(text.read_packed_guid().expect("text source"), player_guid);
+        let _account_guid = text.read_packed_guid().expect("source account");
+        assert_eq!(text.read_int32().expect("text emote id"), 101);
+        assert_eq!(text.read_int32().expect("text sound index"), -1);
+        assert_eq!(
+            text.read_packed_guid().expect("text target"),
+            ObjectGuid::EMPTY
+        );
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[test]

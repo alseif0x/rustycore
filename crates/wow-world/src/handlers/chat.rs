@@ -832,7 +832,7 @@ impl WorldSession {
             return;
         }
 
-        self.set_player_emote_state_like_cpp(EMOTE_ONESHOT_NONE_LIKE_CPP as u32);
+        self.publish_player_emote_state_like_cpp(EMOTE_ONESHOT_NONE_LIKE_CPP as u32);
         debug!(account = self.account_id, "CMSG_EMOTE: clear emote state");
     }
 
@@ -892,7 +892,7 @@ impl WorldSession {
             | EMOTE_STATE_KNEEL_LIKE_CPP
             | EMOTE_ONESHOT_NONE_LIKE_CPP => None,
             EMOTE_STATE_DANCE_LIKE_CPP | EMOTE_STATE_READ_LIKE_CPP => {
-                self.set_player_emote_state_like_cpp(emote as u32);
+                self.publish_player_emote_state_like_cpp(emote as u32);
                 None
             }
             _ if self.player_has_unit_state_like_cpp(UnitState::DIED) => None,
@@ -947,6 +947,13 @@ impl WorldSession {
             client_spell_visual_kit_ids.to_vec()
         } else {
             Vec::new()
+        }
+    }
+
+    fn publish_player_emote_state_like_cpp(&mut self, emote_state: u32) {
+        if let Some(update) = self.set_player_emote_state_like_cpp(emote_state) {
+            self.send_packet(&update);
+            self.broadcast_raw_packet(update.to_bytes(), crate::map_manager::VISIBILITY_RADIUS);
         }
     }
 
@@ -1394,7 +1401,7 @@ impl WorldSession {
 
     /// Send pre-serialised packet `bytes` to all players in the same map
     /// instance within `range` yards, excluding this session's player.
-    fn broadcast_raw_packet(&self, bytes: Vec<u8>, range: f32) {
+    pub(crate) fn broadcast_raw_packet(&self, bytes: Vec<u8>, range: f32) {
         let registry = match self.player_registry() {
             Some(r) => r,
             None => return,
@@ -2624,6 +2631,45 @@ mod tests {
             (66, 7)
         );
         assert!(sender_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn send_text_emote_dance_publishes_emote_state_update_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 353);
+        let nearby = ObjectGuid::create_player(1, 354);
+        let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        let (nearby_tx, nearby_rx) = flume::bounded(8);
+        player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
+        set_emotes_text_entries(
+            &mut session,
+            [emotes_text_entry(34, EMOTE_STATE_DANCE_LIKE_CPP as u16)],
+        );
+
+        session.handle_text_emote(text_emote_packet(34, -1)).await;
+
+        let mut sender_update =
+            wow_packet::WorldPacket::from_bytes(&sender_rx.try_recv().expect("sender update"));
+        assert_eq!(
+            sender_update.read_uint16().expect("sender update opcode"),
+            wow_constants::ServerOpcodes::UpdateObject as u16
+        );
+        assert_eq!(
+            text_emote_fields(&sender_rx.try_recv().expect("sender text emote")),
+            (34, -1)
+        );
+        assert!(sender_rx.try_recv().is_err());
+
+        let mut nearby_update =
+            wow_packet::WorldPacket::from_bytes(&nearby_rx.try_recv().expect("nearby update"));
+        assert_eq!(
+            nearby_update.read_uint16().expect("nearby update opcode"),
+            wow_constants::ServerOpcodes::UpdateObject as u16
+        );
+        assert_eq!(
+            text_emote_fields(&nearby_rx.try_recv().expect("nearby text emote")),
+            (34, -1)
+        );
+        assert!(nearby_rx.try_recv().is_err());
     }
 
     #[tokio::test]
