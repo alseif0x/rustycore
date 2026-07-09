@@ -26041,6 +26041,10 @@ impl WorldSession {
         &mut self,
         emote_state: u32,
     ) -> Option<wow_packet::packets::update::UpdateObject> {
+        if self.player_emote_state_like_cpp() == emote_state {
+            return None;
+        }
+
         self.player_emote_state_like_cpp = emote_state;
         let _ = self.mutate_canonical_player_like_cpp(|player| {
             player.unit_mut().set_emote_state_like_cpp(emote_state);

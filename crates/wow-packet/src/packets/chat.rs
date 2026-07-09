@@ -851,6 +851,13 @@ impl ClientPacket for CTextEmote {
         let sound_index = pkt.read_int32()?;
         let count = pkt.read_uint32()? as usize;
         let sequence_variation = pkt.read_int32()?;
+        let available_visual_ids = pkt.remaining() / std::mem::size_of::<i32>();
+        if count > available_visual_ids {
+            return Err(PacketError::ReadPastEnd {
+                wanted: count.saturating_mul(std::mem::size_of::<i32>()),
+                available: pkt.remaining(),
+            });
+        }
         let mut spell_visual_kit_ids = Vec::with_capacity(count);
         for _ in 0..count {
             spell_visual_kit_ids.push(pkt.read_int32()?);
@@ -1339,6 +1346,31 @@ mod tests {
         assert_eq!(packet.sequence_variation, 9);
         assert_eq!(packet.spell_visual_kit_ids, vec![101, 202]);
         assert!(reader.is_empty());
+    }
+
+    #[test]
+    fn ctext_emote_rejects_visual_kit_count_larger_than_remaining_payload() {
+        let target = ObjectGuid::create_player(1, 0x45);
+        let mut writer = WorldPacket::new_empty();
+        writer.write_packed_guid(&target);
+        writer.write_int32(66);
+        writer.write_int32(7);
+        writer.write_uint32(u32::MAX);
+        writer.write_int32(9);
+
+        let mut reader = WorldPacket::from_bytes(writer.data());
+        let err = match CTextEmote::read(&mut reader) {
+            Ok(_) => panic!("oversized visual kit count should fail"),
+            Err(err) => err,
+        };
+
+        assert!(matches!(
+            err,
+            PacketError::ReadPastEnd {
+                wanted,
+                available: 0
+            } if wanted > 0
+        ));
     }
 
     #[test]
