@@ -62564,6 +62564,25 @@ impl WorldSession {
                     .creature
                     .set_tapped_by_player(player_guid, &tap_group_guids);
                 let died = creature.take_damage_before_death_state_like_cpp(damage_amount);
+                let threat_value = if !died && damage_amount > 0 {
+                    // C++ `Spell::DoAllEffectOnTarget` calls `Unit::AtTargetAttacked`, then
+                    // `Unit::DealDamage` adds threat for non-player hostile victims.
+                    creature.enter_combat(player_guid);
+                    creature
+                        .creature
+                        .unit_mut()
+                        .subsystems_mut()
+                        .combat
+                        .add_threat(player_guid, damage_amount as f32);
+                    creature
+                        .creature
+                        .unit()
+                        .subsystems()
+                        .combat
+                        .threat_value(player_guid)
+                } else {
+                    None
+                };
                 let kill_info = if died {
                     info!(
                         "Creature {} (entry={}) killed",
@@ -62582,12 +62601,23 @@ impl WorldSession {
                 } else {
                     None
                 };
-                Some((kill_info, creature.creature.unit().values_update()))
+                Some((
+                    kill_info,
+                    creature.creature.unit().values_update(),
+                    threat_value,
+                ))
             })
             .ok_or("Target creature not found")?;
-        let Some((kill_info, mut values_update)) = damage_outcome else {
+        let Some((kill_info, mut values_update, threat_value)) = damage_outcome else {
             return Ok(());
         };
+        if let Some(threat_value) = threat_value {
+            self.sync_represented_creature_threat_to_canonical_like_cpp(
+                target_guid,
+                player_guid,
+                threat_value,
+            );
+        }
 
         // Process creature death outside the mutable borrow
         if let Some((entry, guid, move_stop)) = kill_info {
@@ -98815,6 +98845,32 @@ mod tests {
         let sent = send_rx.try_recv().unwrap();
         let opcode = u16::from_le_bytes([sent[0], sent[1]]);
         assert_eq!(opcode, ServerOpcodes::UpdateObject as u16);
+    }
+
+    #[tokio::test]
+    async fn spell_damage_engages_creature_and_adds_threat_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let manager = shared_map_manager();
+        let guid = test_creature_guid(18_003);
+        let player = ObjectGuid::create_player(1, 43);
+        session.player_guid = Some(player);
+        register_test_creature(&mut session, manager.clone(), guid, 40);
+
+        session.apply_damage(guid, 7).await.unwrap();
+
+        let manager = manager.read().unwrap();
+        let world_creature = manager.find_creature(0, 0, guid).unwrap();
+        assert_eq!(
+            world_creature.state(),
+            wow_entities::CreatureAiState::InCombat
+        );
+        assert_eq!(
+            world_creature.creature.ai_ownership().combat_target,
+            Some(player)
+        );
+        let combat = &world_creature.creature.unit().subsystems().combat;
+        assert_eq!(combat.threat_value(player), Some(7.0));
+        assert_eq!(combat.current_victim_guid, Some(player));
     }
 
     #[tokio::test]
