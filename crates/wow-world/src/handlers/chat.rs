@@ -886,12 +886,17 @@ impl WorldSession {
         };
 
         let text_emote_range = self.chat_listen_ranges_like_cpp().text_emote;
+        let mut stateful_emote_like_cpp = false;
         let anim_emote = match emote {
             EMOTE_STATE_SLEEP_LIKE_CPP
             | EMOTE_STATE_SIT_LIKE_CPP
             | EMOTE_STATE_KNEEL_LIKE_CPP
             | EMOTE_ONESHOT_NONE_LIKE_CPP => None,
+            // Local C++ source of truth:
+            // `WorldSession::HandleTextEmoteOpcode` only routes DANCE and READ
+            // through `SetEmoteState` in this branch.
             EMOTE_STATE_DANCE_LIKE_CPP | EMOTE_STATE_READ_LIKE_CPP => {
+                stateful_emote_like_cpp = true;
                 self.publish_player_emote_state_like_cpp(emote as u32);
                 None
             }
@@ -912,7 +917,14 @@ impl WorldSession {
             self.broadcast_raw_packet(anim_emote.to_bytes(), crate::map_manager::VISIBILITY_RADIUS);
         }
         self.send_packet(&text_emote);
-        self.broadcast_raw_packet(text_emote.to_bytes(), text_emote_range);
+        if stateful_emote_like_cpp {
+            self.broadcast_to_movement_set_in_range_like_cpp(
+                text_emote.to_bytes(),
+                text_emote_range,
+            );
+        } else {
+            self.broadcast_raw_packet(text_emote.to_bytes(), text_emote_range);
+        }
         // C++ then resolves `ObjectAccessor::GetUnit(*_player, packet.Target)` for
         // `CriteriaType::DoEmote` and `CreatureAI::ReceiveEmote`. Rust has no
         // live chat->criteria/CreatureAI bridge here yet; keep the C++ packet
@@ -2682,8 +2694,12 @@ mod tests {
             nearby_update.read_uint16().expect("nearby update opcode"),
             wow_constants::ServerOpcodes::UpdateObject as u16
         );
+        let nearby_text_command = expect_send_if_visible_command(&nearby_command_rx);
+        assert_eq!(nearby_text_command.source_guid, sender);
+        assert_eq!(nearby_text_command.map_id, 571);
+        assert_eq!(nearby_text_command.instance_id, 0);
         assert_eq!(
-            text_emote_fields(&nearby_rx.try_recv().expect("nearby text emote")),
+            text_emote_fields(&nearby_text_command.packet_bytes),
             (34, -1)
         );
         assert!(nearby_rx.try_recv().is_err());

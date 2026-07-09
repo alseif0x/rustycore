@@ -25904,6 +25904,13 @@ impl WorldSession {
     }
 
     pub(crate) fn broadcast_to_movement_set_like_cpp(&self, bytes: Vec<u8>, _include_self: bool) {
+        self.broadcast_to_movement_set_in_range_like_cpp(
+            bytes,
+            crate::map_manager::VISIBILITY_RADIUS,
+        );
+    }
+
+    pub(crate) fn broadcast_to_movement_set_in_range_like_cpp(&self, bytes: Vec<u8>, range: f32) {
         let (Some(guid), Some(registry)) = (self.player_guid(), self.player_registry()) else {
             return;
         };
@@ -25915,8 +25922,7 @@ impl WorldSession {
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
-        let range_sq =
-            crate::map_manager::VISIBILITY_RADIUS * crate::map_manager::VISIBILITY_RADIUS;
+        let range_sq = range * range;
 
         let candidates: Vec<_> = registry
             .iter()
