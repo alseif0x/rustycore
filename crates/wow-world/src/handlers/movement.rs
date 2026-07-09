@@ -491,7 +491,7 @@ impl WorldSession {
     ) {
         if let Some(update) = self.clear_player_emote_state_on_movement_like_cpp() {
             self.send_packet(&update);
-            self.broadcast_raw_packet(update.to_bytes(), crate::map_manager::VISIBILITY_RADIUS);
+            self.broadcast_to_movement_set_like_cpp(update.to_bytes(), false);
         }
 
         if matches!(opcode, Some(ClientOpcodes::MoveFallLand)) {

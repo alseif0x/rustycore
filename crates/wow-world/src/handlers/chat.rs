@@ -953,7 +953,7 @@ impl WorldSession {
     fn publish_player_emote_state_like_cpp(&mut self, emote_state: u32) {
         if let Some(update) = self.set_player_emote_state_like_cpp(emote_state) {
             self.send_packet(&update);
-            self.broadcast_raw_packet(update.to_bytes(), crate::map_manager::VISIBILITY_RADIUS);
+            self.broadcast_to_movement_set_like_cpp(update.to_bytes(), false);
         }
     }
 
@@ -2011,6 +2011,15 @@ mod tests {
         }
     }
 
+    fn expect_send_if_visible_command(
+        rx: &flume::Receiver<SessionCommand>,
+    ) -> wow_network::SendIfVisibleLikeCppCommand {
+        match rx.try_recv().expect("visible command") {
+            SessionCommand::SendIfVisibleLikeCpp(command) => command,
+            other => panic!("expected SendIfVisibleLikeCpp, got {other:?}"),
+        }
+    }
+
     fn session_for_chat_routing_like_cpp(
         sender_guid: ObjectGuid,
     ) -> (WorldSession, Arc<PlayerRegistry>, flume::Receiver<Vec<u8>>) {
@@ -2639,7 +2648,11 @@ mod tests {
         let nearby = ObjectGuid::create_player(1, 354);
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (nearby_tx, nearby_rx) = flume::bounded(8);
-        player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
+        let (nearby_command_tx, nearby_command_rx) = flume::bounded(8);
+        player_registry.insert(
+            nearby,
+            broadcast_info_with_command_tx(nearby, nearby_tx, nearby_command_tx),
+        );
         set_emotes_text_entries(
             &mut session,
             [emotes_text_entry(34, EMOTE_STATE_DANCE_LIKE_CPP as u16)],
@@ -2659,8 +2672,12 @@ mod tests {
         );
         assert!(sender_rx.try_recv().is_err());
 
+        let nearby_update_command = expect_send_if_visible_command(&nearby_command_rx);
+        assert_eq!(nearby_update_command.source_guid, sender);
+        assert_eq!(nearby_update_command.map_id, 571);
+        assert_eq!(nearby_update_command.instance_id, 0);
         let mut nearby_update =
-            wow_packet::WorldPacket::from_bytes(&nearby_rx.try_recv().expect("nearby update"));
+            wow_packet::WorldPacket::from_bytes(&nearby_update_command.packet_bytes);
         assert_eq!(
             nearby_update.read_uint16().expect("nearby update opcode"),
             wow_constants::ServerOpcodes::UpdateObject as u16
@@ -2670,6 +2687,7 @@ mod tests {
             (34, -1)
         );
         assert!(nearby_rx.try_recv().is_err());
+        assert!(nearby_command_rx.try_recv().is_err());
     }
 
     #[tokio::test]
