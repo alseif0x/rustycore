@@ -674,6 +674,8 @@ impl ServerPacket for ChatPkt {
         pkt.write_uint32(self.virtual_realm); // target_virtual_address
         pkt.write_uint32(self.virtual_realm); // sender_virtual_address
         pkt.write_int32(0i32); // achievement_id
+        // C++ writes DisplayTime and SpellID as scalar fields before the bit-packed
+        // string lengths and 15-bit ChatFlags.
         pkt.write_float(0.0f32); // display_time
         pkt.write_int32(0i32); // spell_id
 
@@ -829,7 +831,9 @@ impl ClientPacket for EmoteClient {
 /// CMSG_SEND_TEXT_EMOTE — player performs a text emote (/wave, /dance, etc.).
 ///
 /// C++ ref: `WorldPackets::Chat::CTextEmote::Read` in
-/// `Server/Packets/ChatPackets.cpp`.
+/// `Server/Packets/ChatPackets.cpp`. The configured 3.4.3 C++ target reads
+/// `SpellVisualKitIDs.resize(_worldPacket.read<uint32>())`, then
+/// `SequenceVariation`.
 pub struct CTextEmote {
     pub target: ObjectGuid,
     pub emote_id: i32,
@@ -845,7 +849,7 @@ impl ClientPacket for CTextEmote {
         let target = pkt.read_packed_guid()?;
         let emote_id = pkt.read_int32()?;
         let sound_index = pkt.read_int32()?;
-        let count = pkt.read_int32()? as usize;
+        let count = pkt.read_uint32()? as usize;
         let sequence_variation = pkt.read_int32()?;
         let mut spell_visual_kit_ids = Vec::with_capacity(count);
         for _ in 0..count {
@@ -903,7 +907,7 @@ impl ServerPacket for EmoteMessage {
     fn write(&self, pkt: &mut WorldPacket) {
         pkt.write_packed_guid(&self.guid);
         pkt.write_int32(self.emote_id);
-        pkt.write_int32(self.spell_visual_kit_ids.len() as i32);
+        pkt.write_uint32(self.spell_visual_kit_ids.len() as u32);
         pkt.write_int32(self.sequence_variation);
         for &id in &self.spell_visual_kit_ids {
             pkt.write_int32(id);
@@ -1315,6 +1319,29 @@ mod tests {
     }
 
     #[test]
+    fn ctext_emote_reads_visual_kit_count_as_uint32_like_cpp() {
+        let target = ObjectGuid::create_player(1, 0x44);
+        let mut writer = WorldPacket::new_empty();
+        writer.write_packed_guid(&target);
+        writer.write_int32(66);
+        writer.write_int32(7);
+        writer.write_uint32(2);
+        writer.write_int32(9);
+        writer.write_int32(101);
+        writer.write_int32(202);
+
+        let mut reader = WorldPacket::from_bytes(writer.data());
+        let packet = CTextEmote::read(&mut reader).unwrap();
+
+        assert_eq!(packet.target, target);
+        assert_eq!(packet.emote_id, 66);
+        assert_eq!(packet.sound_index, 7);
+        assert_eq!(packet.sequence_variation, 9);
+        assert_eq!(packet.spell_visual_kit_ids, vec![101, 202]);
+        assert!(reader.is_empty());
+    }
+
+    #[test]
     fn chat_pkt_system_universal_writes_cpp_wire_values() {
         let packet = ChatPkt {
             msg_type: ChatMsg::System,
@@ -1334,5 +1361,57 @@ mod tests {
 
         assert_eq!(payload[0], 0x00, "CHAT_MSG_SYSTEM must be 0x00 on wire");
         assert_eq!(&payload[1..5], &[0x00, 0x00, 0x00, 0x00]);
+    }
+
+    #[test]
+    fn chat_pkt_writes_display_time_spell_id_before_bitpacked_chat_flags_like_cpp() {
+        let packet = ChatPkt {
+            msg_type: ChatMsg::Say,
+            language: 7,
+            sender_guid: ObjectGuid::EMPTY,
+            sender_name: "Luq".to_string(),
+            target_guid: ObjectGuid::EMPTY,
+            target_name: "Mob".to_string(),
+            prefix: "P".to_string(),
+            channel: "C".to_string(),
+            text: "hello".to_string(),
+            virtual_realm: 0x1122_3344,
+        };
+        let mut writer = WorldPacket::new_empty();
+        packet.write(&mut writer);
+        let mut reader = WorldPacket::from_bytes(writer.data());
+
+        assert_eq!(reader.read_uint8().unwrap(), ChatMsg::Say as u8);
+        assert_eq!(reader.read_uint32().unwrap(), 7);
+        assert_eq!(reader.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
+        assert_eq!(reader.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
+        assert_eq!(reader.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
+        assert_eq!(reader.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
+        assert_eq!(reader.read_uint32().unwrap(), 0x1122_3344);
+        assert_eq!(reader.read_uint32().unwrap(), 0x1122_3344);
+        assert_eq!(reader.read_int32().unwrap(), 0);
+
+        // C++ `Chat::Write` emits DisplayTime and SpellID here, then starts the
+        // bit block with SenderName length. A uint16 ChatFlags inserted here
+        // would make this first length read as zero for this packet.
+        assert_eq!(reader.read_float().unwrap(), 0.0);
+        assert_eq!(reader.read_int32().unwrap(), 0);
+        assert_eq!(reader.read_bits(11).unwrap(), 3);
+        assert_eq!(reader.read_bits(11).unwrap(), 3);
+        assert_eq!(reader.read_bits(5).unwrap(), 1);
+        assert_eq!(reader.read_bits(7).unwrap(), 1);
+        assert_eq!(reader.read_bits(12).unwrap(), 5);
+        assert_eq!(reader.read_bits(15).unwrap(), 0);
+        assert!(!reader.read_bit().unwrap());
+        assert!(!reader.read_bit().unwrap());
+        assert!(!reader.read_bit().unwrap());
+        assert!(!reader.read_bit().unwrap());
+        reader.flush_bits();
+        assert_eq!(reader.read_string(3).unwrap(), "Luq");
+        assert_eq!(reader.read_string(3).unwrap(), "Mob");
+        assert_eq!(reader.read_string(1).unwrap(), "P");
+        assert_eq!(reader.read_string(1).unwrap(), "C");
+        assert_eq!(reader.read_string(5).unwrap(), "hello");
+        assert!(reader.is_empty());
     }
 }

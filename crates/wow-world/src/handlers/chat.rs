@@ -1723,7 +1723,7 @@ mod tests {
         writer.write_packed_guid(&target);
         writer.write_int32(emote_id);
         writer.write_int32(sound_index);
-        writer.write_int32(spell_visual_kit_ids.len() as i32);
+        writer.write_uint32(spell_visual_kit_ids.len() as u32);
         writer.write_int32(sequence_variation);
         for &id in spell_visual_kit_ids {
             writer.write_int32(id);
