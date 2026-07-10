@@ -42,11 +42,14 @@ members = [
     # Tooling
     "crates/capture-diff",
 ]
+exclude = [
+    "tools/wow-test-bot",
+]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 license = "GPL-3.0-or-later"
 repository = "https://github.com/user/rustycore"
 

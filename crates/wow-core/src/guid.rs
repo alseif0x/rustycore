@@ -449,10 +449,10 @@ impl ObjectGuid {
         )
     }
 
-    /// Matches TrinityCore `ObjectGuid::Create<HighGuid::Creature>(mapId, entry, counter)`.
+    /// Matches the current Rust world-object GUID contract.
     ///
-    /// C++ routes this through `CreateWorldObject(type, 0, 0, mapId, 0, entry, counter)`,
-    /// so creature map GUIDs do not carry realm or server ids.
+    /// The call shape keeps raw realm/server fields at zero. Active-realm normalization is a
+    /// broader GUID parity concern and is intentionally outside quest packet review fixes.
     pub fn create_creature_like_cpp(map_id: u16, entry: u32, counter: i64) -> Self {
         Self::create_world_object(HighGuid::Creature, 0, 0, map_id, 0, entry, counter)
     }

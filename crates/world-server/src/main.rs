@@ -4766,6 +4766,11 @@ async fn main() -> Result<ExitCode> {
                 86_400,
             ),
         },
+        player_save_interval_ms: world_config_u32(
+            &world_configs,
+            "CONFIG_INTERVAL_SAVE",
+            15 * 60 * 1000,
+        ),
         realm_id,
         realm_region: active_realm.id.region,
         realm_battlegroup: active_realm.id.site,
@@ -11848,6 +11853,7 @@ async fn create_session(
     session.set_chat_flood_config_like_cpp(resources.chat_flood_config);
     session.set_socket_timeouts_like_cpp(resources.socket_timeouts);
     session.set_packet_spoof_config_like_cpp(resources.packet_spoof_config);
+    session.set_player_save_interval_ms_like_cpp(resources.player_save_interval_ms);
     session.set_legacy_creature_aggro_config_like_cpp(legacy_creature_aggro_config);
     session.set_mmap_runtime_config_like_cpp(mmap_runtime_config);
     if let Some(pathfinder) = mmap_pathfinder {
@@ -11920,10 +11926,18 @@ async fn create_session(
     info!("Session ready for account {}", account.id);
 
     // Session update loop
+    let mut last_session_update = Instant::now();
     loop {
         let (count, disconnecting) = warn_about_sync_queries_scope_like_cpp(async {
+            let now = Instant::now();
+            let diff_ms = now
+                .saturating_duration_since(last_session_update)
+                .as_millis()
+                .min(u128::from(u32::MAX)) as u32;
+            last_session_update = now;
+
             // Process incoming packets
-            let count = session.update(50);
+            let count = session.update(diff_ms);
 
             // Dispatch pending packets (async handlers)
             session.process_pending().await;
@@ -20639,9 +20653,14 @@ mmap.enablePathFinding = 0
 
     #[test]
     fn loaded_grid_creature_respawn_record_variable_level_returns_creature_record_like_cpp() {
-        let mut metadata = test_spawn_metadata_with_flags([(67, 571, SpawnGroupFlags::NONE)]);
-        let spawn_id = 1;
+        let spawn_id = 54_984;
         let entry = 42;
+        let mut metadata = test_spawn_metadata_with_explicit_spawn_ids([(
+            67,
+            571,
+            SpawnGroupFlags::NONE,
+            spawn_id,
+        )]);
         metadata = metadata.with_creature_runtime_rows_like_cpp(BTreeMap::from([(
             spawn_id,
             super::spawn_store_loader::CreatureSpawnRuntimeRowLikeCpp {
@@ -20705,6 +20724,7 @@ mmap.enablePathFinding = 0
         assert_eq!(u32::from(creature.guid().map_id()), 571);
         assert_eq!(creature.guid().entry(), entry);
         assert_eq!(creature.guid().counter(), 1);
+        assert_ne!(creature.guid().counter(), spawn_id as i64);
         assert_eq!(creature.ai_max_health(), u64::from(level) * 20);
         assert_eq!(creature.ai_current_health(), creature.ai_max_health());
     }
@@ -21024,9 +21044,14 @@ mmap.enablePathFinding = 0
 
     #[test]
     fn loaded_grid_creature_spawn_group_spawn_record_does_not_require_respawn_timer_like_cpp() {
-        let mut metadata = test_spawn_metadata_with_flags([(68, 571, SpawnGroupFlags::NONE)]);
-        let spawn_id = 1;
+        let spawn_id = 54_985;
         let entry = 42;
+        let mut metadata = test_spawn_metadata_with_explicit_spawn_ids([(
+            68,
+            571,
+            SpawnGroupFlags::NONE,
+            spawn_id,
+        )]);
         metadata = metadata.with_creature_runtime_rows_like_cpp(BTreeMap::from([(
             spawn_id,
             super::spawn_store_loader::CreatureSpawnRuntimeRowLikeCpp {
@@ -21079,14 +21104,21 @@ mmap.enablePathFinding = 0
         assert_eq!(creature.respawn_time(), 0);
         assert_eq!(creature.lifecycle_metadata().spawn_id, spawn_id);
         assert_eq!(creature.guid().entry(), entry);
+        assert_eq!(creature.guid().counter(), 1);
+        assert_ne!(creature.guid().counter(), spawn_id as i64);
     }
 
     #[test]
     fn spawn_group_condition_update_spawn_loads_loaded_grid_creature_without_respawn_timer_like_cpp()
      {
-        let mut metadata = test_spawn_metadata_with_flags([(69, 571, SpawnGroupFlags::NONE)]);
-        let spawn_id = 1;
+        let spawn_id = 54_986;
         let entry = 42;
+        let mut metadata = test_spawn_metadata_with_explicit_spawn_ids([(
+            69,
+            571,
+            SpawnGroupFlags::NONE,
+            spawn_id,
+        )]);
         metadata = metadata.with_creature_runtime_rows_like_cpp(BTreeMap::from([(
             spawn_id,
             super::spawn_store_loader::CreatureSpawnRuntimeRowLikeCpp {
@@ -21158,13 +21190,20 @@ mmap.enablePathFinding = 0
             .expect("loaded-grid Creature should be indexed by spawn id");
         assert_eq!(creature.respawn_time(), 0);
         assert_eq!(creature.lifecycle_metadata().spawn_id, spawn_id);
+        assert_eq!(creature.guid().counter(), 1);
+        assert_ne!(creature.guid().counter(), spawn_id as i64);
     }
 
     #[test]
     fn spawn_group_condition_update_tick_mirrors_loaded_grid_creature_to_legacy_like_cpp() {
-        let mut metadata = test_spawn_metadata_with_flags([(69, 571, SpawnGroupFlags::NONE)]);
-        let spawn_id = 1;
+        let spawn_id = 54_987;
         let entry = 42;
+        let mut metadata = test_spawn_metadata_with_explicit_spawn_ids([(
+            69,
+            571,
+            SpawnGroupFlags::NONE,
+            spawn_id,
+        )]);
         metadata = metadata.with_creature_runtime_rows_like_cpp(BTreeMap::from([(
             spawn_id,
             super::spawn_store_loader::CreatureSpawnRuntimeRowLikeCpp {
@@ -21230,6 +21269,8 @@ mmap.enablePathFinding = 0
             .map()
             .get_creature_by_spawn_id_like_cpp(spawn_id)
             .expect("canonical loaded-grid creature");
+        assert_eq!(creature.guid().counter(), 1);
+        assert_ne!(creature.guid().counter(), spawn_id as i64);
         assert!(
             legacy
                 .read()
@@ -21243,9 +21284,14 @@ mmap.enablePathFinding = 0
     #[test]
     fn loaded_grid_creature_respawn_record_vehicle_template_uses_creature_low_vehicle_high_like_cpp()
      {
-        let mut metadata = test_spawn_metadata_with_flags([(67, 571, SpawnGroupFlags::NONE)]);
-        let spawn_id = 1;
+        let spawn_id = 54_988;
         let entry = 42;
+        let mut metadata = test_spawn_metadata_with_explicit_spawn_ids([(
+            67,
+            571,
+            SpawnGroupFlags::NONE,
+            spawn_id,
+        )]);
         metadata = metadata.with_creature_runtime_rows_like_cpp(BTreeMap::from([(
             spawn_id,
             super::spawn_store_loader::CreatureSpawnRuntimeRowLikeCpp {
@@ -21320,6 +21366,7 @@ mmap.enablePathFinding = 0
             wow_core::guid::HighGuid::Vehicle
         );
         assert_eq!(creature.guid().counter(), 1);
+        assert_ne!(creature.guid().counter(), spawn_id as i64);
         assert_eq!(creature.guid().entry(), entry);
         assert_eq!(creature.lifecycle_metadata().spawn_id, spawn_id);
         assert_eq!(creature.lifecycle_metadata().vehicle_id, Some(101));
@@ -21535,6 +21582,13 @@ mmap.enablePathFinding = 0
                     display_id_other_gender: 0,
                     is_trigger: false,
                 },
+                wow_data::CreatureModelInfoLikeCpp {
+                    display_id: 999,
+                    bounding_radius: 0.0,
+                    combat_reach: 1.5,
+                    display_id_other_gender: 0,
+                    is_trigger: false,
+                },
             ])),
             creature_equipment_store: Arc::new(wow_data::CreatureEquipmentStoreLikeCpp::default()),
             creature_addon_store: Arc::new(wow_data::CreatureAddonStoreLikeCpp::default()),
@@ -21629,6 +21683,34 @@ mmap.enablePathFinding = 0
                 },
             );
             let spawn_id = u64::try_from(index).expect("test index fits") + 1;
+            let spawn = test_spawn(spawn_id, map_id);
+            store.add_object_spawn(&spawn, |_| false);
+            rows.push(SpawnGroupMemberRow {
+                group_id,
+                spawn_type: SpawnObjectType::Creature as u8,
+                spawn_id,
+            });
+        }
+        store.apply_spawn_groups_like_cpp(&mut templates, rows);
+        super::spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(store, templates)
+    }
+
+    fn test_spawn_metadata_with_explicit_spawn_ids<const N: usize>(
+        groups: [(u32, u32, SpawnGroupFlags, u64); N],
+    ) -> super::spawn_store_loader::CanonicalSpawnMetadataLikeCpp {
+        let mut store = SpawnStore::new();
+        let mut templates = BTreeMap::new();
+        let mut rows = Vec::new();
+        for (group_id, map_id, flags, spawn_id) in groups {
+            templates.insert(
+                group_id,
+                SpawnGroupTemplateData {
+                    group_id,
+                    name: format!("test group {group_id}"),
+                    map_id: wow_map::spawn::SPAWNGROUP_MAP_UNSET,
+                    flags,
+                },
+            );
             let spawn = test_spawn(spawn_id, map_id);
             store.add_object_spawn(&spawn, |_| false);
             rows.push(SpawnGroupMemberRow {
