@@ -1505,6 +1505,16 @@ impl WorldCreature {
         self.creature.corpse_delay()
     }
 
+    pub fn respawn_at_from_death_like_cpp(&self) -> Instant {
+        let death_at = self
+            .creature
+            .ai_ownership()
+            .death_time_ms
+            .map(|ms| self.clock_started_at + Duration::from_millis(ms))
+            .unwrap_or_else(Instant::now);
+        death_at + Duration::from_secs(self.creature.ai_ownership().respawn_time_secs)
+    }
+
     pub fn ignore_corpse_decay_ratio_like_cpp(&self) -> bool {
         self.creature.ignore_corpse_decay_ratio()
     }
@@ -4029,6 +4039,21 @@ impl MapManager {
                     .collect()
             })
             .unwrap_or_default()
+    }
+
+    pub fn find_creature_guid_by_spawn_id_like_cpp(
+        &self,
+        map_id: u16,
+        instance_id: u32,
+        spawn_id: u64,
+    ) -> Option<ObjectGuid> {
+        (spawn_id != 0).then_some(())?;
+        self.creature_guids(map_id, instance_id)
+            .into_iter()
+            .find(|guid| {
+                self.find_creature(map_id, instance_id, *guid)
+                    .is_some_and(|creature| creature.creature.spawn_id() == spawn_id)
+            })
     }
 
     pub fn active_creature_guids_for_player_update_like_cpp(

@@ -6512,7 +6512,7 @@ impl WorldSession {
         let marked = self
             .mutate_world_creature(owner_guid, |creature| {
                 creature.remove_lootable_dynamic_flag_like_cpp();
-                if !creature.is_alive() && creature.corpse_despawn_at().is_none() {
+                if !creature.is_alive() {
                     let is_fully_skinned = represented_loot_type == LOOT_TYPE_SKINNING_LIKE_CPP;
                     let corpse_decay_secs = looted_corpse_decay_secs_like_cpp(
                         is_fully_skinned,
@@ -6522,8 +6522,15 @@ impl WorldSession {
                     );
                     let corpse_despawn_at =
                         Instant::now() + Duration::from_secs(u64::from(corpse_decay_secs));
-                    creature.set_corpse_despawn_at(Some(corpse_despawn_at));
-                    Some((creature.entry(), corpse_decay_secs))
+                    if creature
+                        .corpse_despawn_at()
+                        .is_none_or(|current| corpse_despawn_at < current)
+                    {
+                        creature.set_corpse_despawn_at(Some(corpse_despawn_at));
+                        Some((creature.entry(), corpse_decay_secs))
+                    } else {
+                        None
+                    }
                 } else {
                     None
                 }

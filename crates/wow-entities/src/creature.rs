@@ -2101,6 +2101,9 @@ impl Creature {
     pub fn can_give_experience_like_cpp(&self) -> bool {
         !CreatureStaticFlags::from_bits_truncate(self.lifecycle_metadata.static_flags[0])
             .contains(CreatureStaticFlags::NO_XP)
+            && !CreatureFlagsExtra::from_bits_truncate(self.lifecycle_metadata.flags_extra)
+                .contains(CreatureFlagsExtra::NO_XP)
+            && !self.has_unit_type_mask_like_cpp(UNIT_MASK_PET | UNIT_MASK_TOTEM)
     }
 
     pub fn set_template_rooted_like_cpp(&mut self, rooted: bool) {

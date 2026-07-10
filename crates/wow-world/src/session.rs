@@ -47548,6 +47548,45 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
             let guids = manager.creature_guids(map_id, instance_id);
             outcome.creatures_seen += guids.len();
 
+            // C++ saves the respawn time from JUST_DIED, not when the corpse
+            // is eventually removed. Only persistent world-map spawns belong
+            // in the global characters.respawn table.
+            if instance_id == 0 {
+                for guid in &guids {
+                    let pending =
+                        manager
+                            .find_creature(map_id, instance_id, *guid)
+                            .and_then(|creature| {
+                                (!creature.is_alive()
+                                    && creature.creature.spawn_id() != 0
+                                    && creature.creature.runtime_state().save_respawn_requested)
+                                    .then(|| {
+                                        pending_respawn_from_world_creature_like_cpp(
+                                            creature,
+                                            creature.respawn_at_from_death_like_cpp(),
+                                            map_id,
+                                        )
+                                    })
+                            });
+                    if let Some(pending) = pending {
+                        if let Some(stmt) = manager.save_pending_respawn_time_like_cpp(
+                            map_id,
+                            instance_id,
+                            &pending,
+                            now,
+                            now_secs,
+                        ) {
+                            outcome.respawn_db_statements.push(stmt);
+                        }
+                        if let Some(creature) =
+                            manager.find_creature_mut(map_id, instance_id, *guid)
+                        {
+                            creature.creature.runtime_state_mut().save_respawn_requested = false;
+                        }
+                    }
+                }
+            }
+
             let despawn_guids: Vec<ObjectGuid> = guids
                 .iter()
                 .filter(|guid| {
@@ -47568,10 +47607,7 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                 let Some(creature) = manager.remove_creature_any(map_id, instance_id, guid) else {
                     continue;
                 };
-                let respawn_at = now
-                    + std::time::Duration::from_secs(
-                        creature.creature.ai_ownership().respawn_time_secs,
-                    );
+                let respawn_at = creature.respawn_at_from_death_like_cpp();
                 let pending =
                     pending_respawn_from_world_creature_like_cpp(&creature, respawn_at, map_id);
                 let grid = wow_map::compute_grid_coord(pending.home_pos.x, pending.home_pos.y);
@@ -47582,14 +47618,26 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                     respawn_time: respawn_time_from_instant_like_cpp(respawn_at, now, now_secs),
                     grid_id: grid.get_id(),
                 };
-                if let Some(stmt) = manager.save_pending_respawn_time_like_cpp(
-                    map_id,
-                    instance_id,
-                    &pending,
-                    now,
-                    now_secs,
-                ) {
-                    outcome.respawn_db_statements.push(stmt);
+                if instance_id == 0
+                    && creature.creature.spawn_id() != 0
+                    && manager
+                        .persisted_respawn_time_like_cpp(
+                            map_id,
+                            instance_id,
+                            wow_map::SpawnObjectType::Creature,
+                            pending.spawn_id,
+                        )
+                        .is_none()
+                {
+                    if let Some(stmt) = manager.save_pending_respawn_time_like_cpp(
+                        map_id,
+                        instance_id,
+                        &pending,
+                        now,
+                        now_secs,
+                    ) {
+                        outcome.respawn_db_statements.push(stmt);
+                    }
                 }
                 manager.push_respawn(map_id, instance_id, pending);
                 canonical_respawn_despawns.push((
@@ -47605,7 +47653,15 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
             let ready_respawns = manager.drain_ready_respawns(map_id, instance_id, now);
             for respawn in ready_respawns {
                 let guid = respawn.create_data.guid;
-                if manager.find_creature(map_id, instance_id, guid).is_some() {
+                if manager.find_creature(map_id, instance_id, guid).is_some()
+                    || manager
+                        .find_creature_guid_by_spawn_id_like_cpp(
+                            map_id,
+                            instance_id,
+                            respawn.spawn_id,
+                        )
+                        .is_some()
+                {
                     if let Some(stmt) = manager.remove_persisted_respawn_time_like_cpp(
                         map_id,
                         instance_id,
@@ -129802,6 +129858,7 @@ mod tests {
         let past = now - Duration::from_secs(1);
         session
             .mutate_world_creature(guid, |creature| {
+                creature.creature.set_spawn_id(90_010);
                 creature.take_damage(10);
                 creature.set_corpse_despawn_at(Some(past));
             })
