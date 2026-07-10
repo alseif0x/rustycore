@@ -14,7 +14,7 @@ RustyCore is a Rust port of a TrinityCore-derived World of Warcraft Wrath/Cata-c
   is feature branches → PR into `3.4.3`; releases are tags on `3.4.3`.
 - `main` is retained as an optional stable pointer (ff-advanced at release checkpoints); it is no
   longer the default and not used for day-to-day work. A pre-rebrand backup is `backup/pre-3.4.3-rebrand`.
-- Rust toolchain: Rust 1.85, edition 2024.
+- Rust toolchain: Rust 1.88, edition 2024.
 - `protoc`: `/home/cdmonio/.local/protoc/bin/protoc`
 
 Do not trust existing Rust, old AI summaries, or migration docs as correctness proof. Always contrast behavior against the C++ source before implementing or approving a change.

@@ -194,7 +194,7 @@ Complexity: **L** (<1h), **M** (1-4h), **H** (4-12h), **XL** (>12h, split).
 - [ ] **#TEST.12** Add an `insta`-based snapshot test for chat-message formatting and for log output formatting (covered in `logging.md` too). (M)
 - [ ] **#TEST.13** Backfill regression tests for every commit matching `^fix:` in `git log`. Initial sweep produces a count; one named `regression_<short-sha>` test per. (H)
 - [ ] **#TEST.14** Document a "vector capture playbook" — how to produce a new golden vector from C++: which logger to enable, which file to read, how to convert. Lives at `docs/migration/vector-capture-playbook.md`. (M)
-- [ ] **#TEST.15** Add CI matrix (`stable`, `1.85.0` as MSRV per workspace `rust-version`) running `cargo test --workspace` plus an opt-in `--features slow-tests` job. (M)
+- [ ] **#TEST.15** Add CI matrix (`stable`, `1.88.0` as MSRV per workspace `rust-version`) running `cargo test --workspace` plus an opt-in `--features slow-tests` job. (M)
 - [ ] **#TEST.16** Add a "test-debt watch" job: on each PR, fail if `cargo test --workspace --no-run` count drops below the committed baseline (catches accidentally-deleted tests). (L)
 
 ---

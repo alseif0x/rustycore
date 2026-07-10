@@ -15,10 +15,15 @@ permissions:
   issues: read
   pull-requests: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   codex-review-verdict:
     name: Codex reviewer verdict
     runs-on: ubuntu-24.04
+    timeout-minutes: 35
     steps:
       - name: Require clean Codex review on current HEAD
         env:
