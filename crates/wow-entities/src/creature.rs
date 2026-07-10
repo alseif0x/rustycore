@@ -1869,6 +1869,12 @@ impl Creature {
             self.ai_ownership.combat_target = None;
             self.ai_ownership.move_target = None;
             self.ai_ownership.death_time_ms = Some(now_ms);
+            // C++ `Creature::setDeathState(JUST_DIED)` always schedules
+            // `m_corpseRemoveTime`, independently of whether the corpse is
+            // subsequently looted. The legacy global lifecycle consumes this
+            // monotonic mirror to remove the corpse before processing respawn.
+            self.ai_ownership.corpse_despawn_at_ms =
+                Some(now_ms.saturating_add(u64::from(self.corpse_delay).saturating_mul(1_000)));
             self.respawn_delay =
                 self.ai_ownership.respawn_time_secs.min(u64::from(u32::MAX)) as u32;
             true
@@ -3816,6 +3822,11 @@ mod tests {
         assert!(creature.apply_ai_damage_before_death_state_at_game_time_like_cpp(100, 10, 1_000));
 
         assert_eq!(creature.last_damaged_time(), 0);
+        assert_eq!(
+            creature.ai_ownership().corpse_despawn_at_ms,
+            Some(10 + u64::from(creature.corpse_delay()) * 1_000),
+            "C++ arms corpse removal on JUST_DIED even when loot remains"
+        );
     }
 
     #[test]

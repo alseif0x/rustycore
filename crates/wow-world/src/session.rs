@@ -47166,9 +47166,9 @@ pub(crate) fn step_creature_movement_like_cpp(
     use wow_packet::packets::movement::{MonsterMove, MovementMonsterSpline};
 
     if !creature.is_alive() {
-        if creature.should_respawn() {
-            creature.respawn();
-        }
+        // Respawn ownership belongs to the global lifecycle tick. Reviving here
+        // skips corpse removal, persisted timers, and destroy/create visibility,
+        // leaving the client with a dead model that continues to move.
         return None;
     }
 
@@ -130611,7 +130611,7 @@ mod tests {
     }
 
     #[test]
-    fn step_creature_movement_dead_should_respawn_respawns_and_returns_none() {
+    fn step_creature_movement_dead_ready_respawn_waits_for_lifecycle_owner_like_cpp() {
         let guid = test_creature_guid(200_003);
         let mut creature = make_test_world_creature(guid);
         // Kill the creature: death_time_ms=0, respawn_time_secs=0 so
@@ -130632,13 +130632,15 @@ mod tests {
 
         let result = step_creature_movement_like_cpp(&mut creature, guid, &config, None, None, 200);
 
-        assert!(result.is_none(), "dead + respawn must return None");
-        // After respawn the creature is alive and in Idle state.
-        assert!(creature.is_alive(), "creature must be alive after respawn");
+        assert!(result.is_none(), "dead creature movement must return None");
+        assert!(
+            !creature.is_alive(),
+            "movement must not bypass corpse removal, DB timer cleanup, and visibility recreation"
+        );
         assert_eq!(
             creature.state(),
-            wow_entities::CreatureAiState::Idle,
-            "state must be Idle after respawn"
+            wow_entities::CreatureAiState::Dead,
+            "global lifecycle remains the sole respawn owner"
         );
     }
 }
