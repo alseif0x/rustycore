@@ -156,6 +156,96 @@ Current useful baselines from recent handoff:
 
 If a test fails, do not assume production is wrong or the test is wrong. Contrast with C++ and document which one it is.
 
+## QA Bot / Client Automation
+
+The live client QA bot is an integrated project QA tool, not throwaway scratch code or a separate
+side project.
+
+- Integrated bot path: `tools/wow-test-bot`
+- It is intentionally excluded from the root Cargo workspace so its live-QA dependencies and local
+  runtime assumptions do not affect normal `cargo check/test` or CI.
+- Temporary experiments may use a `/tmp/...` copy when sandbox permissions require it, but useful
+  bot improvements must be ported back to `tools/wow-test-bot` and committed with the RustyCore PR
+  before the work is considered preserved.
+- Keep server fixes and bot-tooling changes logically separated in the commit message/body when
+  practical. Mention the bot scenario and report path in issue/PR QA notes when a PR depends on a
+  new bot capability.
+
+Baseline login smoke:
+
+```bash
+cd /home/server/rustycore/tools/wow-test-bot
+WOW_BOT_PASSWORD='local-password' ./run_rustycore_login_smoke.sh
+```
+
+Useful overrides:
+
+```bash
+WOW_BOT_PASSWORD='local-password' WOW_BOT_ACCOUNT=TESTBOT5@bot.local ./run_rustycore_login_smoke.sh
+WOW_BOT_PASSWORD='local-password' WOW_BOT_REPORT=/tmp/rustycore-bot-report.json WOW_BOT_LOG=/tmp/rustycore-bot.log ./run_rustycore_login_smoke.sh
+WOW_BOT_PASSWORD='local-password' BNET_HOST=127.0.0.1 BNET_PORT=8081 WORLD_HOST=127.0.0.1 WORLD_PORT=8085 REALM_ID=1 ./run_rustycore_login_smoke.sh
+```
+
+Quest/gossip smoke for QA of one questgiver:
+
+```bash
+WOW_BOT_QUEST_SMOKE=1 \
+WOW_BOT_QUEST_CREATURE_ENTRY=<creature-template-entry> \
+WOW_BOT_QUEST_EXPECT_ID=<quest-id> \
+WOW_BOT_PASSWORD='local-password' \
+./run_rustycore_login_smoke.sh
+```
+
+Optional quest overrides include `WOW_BOT_QUEST_CREATURE_GUID` for an exact
+`world.creature.guid`, `WOW_BOT_QUEST_MAP_ID`, `WOW_BOT_QUEST_FORBID_ID`,
+`WOW_BOT_QUEST_FORBID_TITLE_CONTAINS`, `WOW_BOT_QUEST_QUERY_DETAILS=0`,
+`WOW_BOT_QUEST_RESET=1`, `WOW_BOT_QUEST_RELOCATE=1`,
+`WOW_BOT_QUEST_RUNTIME_COUNTER=<visible-counter>`, `WOW_BOT_QUEST_SET_RACE=<id>`,
+`WOW_BOT_QUEST_SET_CLASS=<id>`, `WOW_BOT_QUEST_SET_LEVEL=<1-80>`, and
+`WOW_BOT_QUEST_ACCEPT=1`.
+
+For deterministic quest accept QA, prefer a fully specified flow that prepares the selected test
+character before login, for example:
+
+```bash
+WOW_BOT_QUEST_SMOKE=1 \
+WOW_BOT_QUEST_CREATURE_ENTRY=15278 \
+WOW_BOT_QUEST_RUNTIME_COUNTER=90 \
+WOW_BOT_QUEST_MAP_ID=530 \
+WOW_BOT_QUEST_EXPECT_ID=9393 \
+WOW_BOT_QUEST_RESET=1 \
+WOW_BOT_QUEST_RELOCATE=1 \
+WOW_BOT_QUEST_SET_RACE=10 \
+WOW_BOT_QUEST_SET_CLASS=3 \
+WOW_BOT_QUEST_SET_LEVEL=3 \
+WOW_BOT_QUEST_ACCEPT=1 \
+WOW_BOT_PASSWORD='local-password' \
+./run_rustycore_login_smoke.sh
+```
+
+The bot authenticates against the live `bnet-server`, writes/uses auth DB session data, connects to
+`world-server`, enumerates characters, and enters world. It requires the local runtime and MariaDB
+databases (`auth`, `characters`, `world`, `hotfixes`) to be available. Do not print, stage, or
+commit bot credentials, local configs, DB URLs with secrets, generated logs containing secrets, or
+runtime certificates. `tools/wow-test-bot/config.example.json` is versioned with blank passwords;
+use `WOW_BOT_PASSWORD`, `WOW_BOT_PASSWORD_<ACCOUNT>`, or an ignored local `config.json`.
+`tools/wow-test-bot/.env.local` is also ignored and may be used for local-only passwords or DB URL
+overrides. If DB URL env vars are omitted, the bot reads database connection info from
+`WOW_BOT_DB_CONF` (default `/home/server/trinity-legacy-install/etc/worldserver.conf`).
+
+When extending the bot for an issue:
+
+1. Anchor packet layouts/opcodes to C++ source or to a real capture before sending new packets.
+2. Add a focused CLI mode or wrapper script for the QA scenario, not a one-off manual edit.
+3. Report pass/fail as structured JSON fields so PR QA can cite the exact checks.
+4. Keep the first version narrow: login, one interaction, one expected server response, then expand.
+5. Commit useful bot work under `tools/wow-test-bot`; do not leave the only copy in `/tmp`.
+
+Runtime bot QA complements, but does not replace, `cargo` validation and CI. A PR is not
+`manual-test-ready` merely because bot code exists; install/restart the target server build, run the
+bot scenario, and record the result in the PR/issue. Until CI has a full live server + DB fixture,
+bot runs are local QA evidence rather than required GitHub status checks.
+
 ## Architecture: Current Runtime Reality
 
 The runtime currently has three coexisting world models. This is important; old notes that describe a single pending `MapManager` integration are stale.

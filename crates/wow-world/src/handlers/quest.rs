@@ -9,7 +9,7 @@
 //!   CMSG_QUEST_GIVER_STATUS_QUERY  → SMSG_QUEST_GIVER_STATUS
 //!   CMSG_QUEST_GIVER_HELLO         → SMSG_QUEST_GIVER_QUEST_LIST_MESSAGE
 //!   CMSG_QUEST_GIVER_QUERY_QUEST   → SMSG_QUEST_GIVER_QUEST_DETAILS
-//!   CMSG_QUEST_GIVER_ACCEPT_QUEST  → save to DB + SMSG_QUEST_GIVER_QUEST_COMPLETE
+//!   CMSG_QUEST_GIVER_ACCEPT_QUEST  → save to DB + player quest-log update
 //!   CMSG_QUEST_LOG_REMOVE_QUEST    → remove from DB
 //!   CMSG_QUERY_QUEST_INFO          → SMSG_QUERY_QUEST_INFO_RESPONSE
 //!
@@ -34,7 +34,7 @@ use wow_data::{
     reputation::reputation_rank_from_standing_like_cpp as reputation_rank_from_standing_data_like_cpp,
 };
 use wow_database::{
-    CharStatements, PreparedStatement, SqlTransaction, WorldDatabase, WorldStatements,
+    CharStatements, PreparedStatement, SqlTransaction, StatementDef, WorldDatabase, WorldStatements,
 };
 use wow_entities::{
     ItemPosCount, SendNewItemDelivery, SendNewItemDisplayText, SendNewItemInstancePlan,
@@ -57,7 +57,9 @@ use wow_packet::packets::quest::{
     QuestRewardsBlock, QuestUpdateComplete, WorldQuestUpdateResponse, quest_giver_status,
     quest_push_reason,
 };
-use wow_packet::packets::update::{ItemCreateData, UpdateObject};
+use wow_packet::packets::update::{
+    ItemCreateData, PlayerDataValuesDeltaUpdate, QuestLogValuesUpdate, UpdateObject,
+};
 use wow_packet::{ClientPacket, ServerPacket};
 
 use crate::conditions::{
@@ -78,6 +80,14 @@ use crate::session::{
     SeasonalQuestStatusDbRowLikeCpp, WorldSession,
 };
 
+fn quest_giver_creature_id_from_source_like_cpp(source_guid: ObjectGuid) -> i32 {
+    if source_guid.is_any_type_creature() {
+        i32::try_from(source_guid.entry()).unwrap_or(0)
+    } else {
+        0
+    }
+}
+
 pub(crate) const QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP: u32 = 0x0001_0000;
 pub(crate) const QUEST_FLAGS_PLAYER_CAST_COMPLETE_LIKE_CPP: u32 = 0x0020_0000;
 pub(crate) const QUEST_FLAGS_SHARABLE_LIKE_CPP: u32 = 0x0000_0008;
@@ -86,6 +96,9 @@ const QUEST_FLAGS_COMPLETION_AREA_TRIGGER_LIKE_CPP: u32 = 0x0000_0004;
 const QUEST_FLAGS_TRACKING_EVENT_LIKE_CPP: u32 = 0x0000_0400;
 const QUEST_FLAGS_EX_REWARDS_IGNORE_CAPS_LIKE_CPP: u32 = 0x0080_0000;
 const QUEST_FLAGS_EX_IS_WORLD_QUEST_LIKE_CPP: u32 = 0x0100_0000;
+const QUEST_STATE_COMPLETE_LIKE_CPP: u32 = 0x0001;
+const QUEST_STATE_FAIL_LIKE_CPP: u32 = 0x0002;
+const QUEST_STATE_OBJECTIVE_FLAG_BASE_LIKE_CPP: u32 = 256;
 pub(crate) const QUEST_PUSH_REASON_INVALID_LIKE_CPP: u8 = 1;
 pub(crate) const QUEST_PUSH_REASON_INVALID_TO_RECIPIENT_LIKE_CPP: u8 = 2;
 const QUEST_OBJECTIVE_MONSTER_LIKE_CPP_LOCAL: u8 = 0;
@@ -93,6 +106,8 @@ const QUEST_OBJECTIVE_ITEM_LIKE_CPP_LOCAL: u8 = 1;
 const QUEST_OBJECTIVE_GAMEOBJECT_LIKE_CPP_LOCAL: u8 = 2;
 const QUEST_OBJECTIVE_TALKTO_LIKE_CPP_LOCAL: u8 = 3;
 const QUEST_OBJECTIVE_CURRENCY_LIKE_CPP_LOCAL: u8 = 4;
+#[cfg(test)]
+const QUEST_OBJECTIVE_MONEY_LIKE_CPP_LOCAL: u8 = 8;
 const QUEST_OBJECTIVE_PLAYERKILLS_LIKE_CPP_LOCAL: u8 = 9;
 const QUEST_OBJECTIVE_WINPVPPETBATTLES_LIKE_CPP_LOCAL: u8 = 13;
 const QUEST_OBJECTIVE_CRITERIA_TREE_LIKE_CPP_LOCAL: u8 = 14;
@@ -939,7 +954,7 @@ impl WorldSession {
         true
     }
 
-    async fn save_represented_quest_status_like_cpp(&mut self, quest_id: u32) {
+    pub(crate) async fn save_represented_quest_status_like_cpp(&self, quest_id: u32) {
         if let Some(status) = self
             .player_quests
             .get(&quest_id)
@@ -947,6 +962,78 @@ impl WorldSession {
         {
             self.save_quest_to_db(quest_id, status).await;
         }
+    }
+
+    pub(crate) async fn save_changed_represented_quest_statuses_like_cpp(
+        &self,
+        quest_ids: &mut Vec<u32>,
+    ) {
+        quest_ids.sort_unstable();
+        quest_ids.dedup();
+        for quest_id in quest_ids.drain(..) {
+            self.save_represented_quest_status_like_cpp(quest_id).await;
+        }
+    }
+
+    pub(crate) fn represented_quest_statuses_for_save_like_cpp(&self) -> Vec<(u32, u8)> {
+        let mut quests = self
+            .player_quests
+            .iter()
+            .filter_map(|(quest_id, status)| {
+                if self.rewarded_quests.contains(quest_id)
+                    && self
+                        .quest_store
+                        .as_ref()
+                        .and_then(|store| store.get(*quest_id))
+                        .is_some_and(|quest| !quest.is_repeatable())
+                {
+                    return None;
+                }
+
+                Some((*quest_id, status.status))
+            })
+            .collect::<Vec<_>>();
+        quests.sort_by_key(|(quest_id, _)| *quest_id);
+        quests
+    }
+
+    pub(crate) fn remove_represented_active_rewarded_duplicates_like_cpp(&mut self) -> Vec<u32> {
+        let mut duplicate_quest_ids = self
+            .player_quests
+            .keys()
+            .filter(|quest_id| {
+                self.rewarded_quests.contains(quest_id)
+                    && self
+                        .quest_store
+                        .as_ref()
+                        .and_then(|store| store.get(**quest_id))
+                        .is_some_and(|quest| !quest.is_repeatable())
+            })
+            .copied()
+            .collect::<Vec<_>>();
+        duplicate_quest_ids.sort_unstable();
+        duplicate_quest_ids.dedup();
+
+        for quest_id in &duplicate_quest_ids {
+            self.player_quests.remove(quest_id);
+        }
+
+        if !duplicate_quest_ids.is_empty() {
+            let mut remaining_slots = self
+                .player_quests
+                .iter()
+                .map(|(quest_id, status)| (*quest_id, status.slot))
+                .collect::<Vec<_>>();
+            remaining_slots.sort_by_key(|(_, slot)| *slot);
+            for (slot, (quest_id, _)) in remaining_slots.into_iter().enumerate() {
+                if let Some(status) = self.player_quests.get_mut(&quest_id) {
+                    status.slot =
+                        u8::try_from(slot).unwrap_or(MAX_QUEST_LOG_SIZE_LIKE_CPP.saturating_sub(1));
+                }
+            }
+        }
+
+        duplicate_quest_ids
     }
 
     async fn quest_source_item_quest_log_item_id_like_cpp(&mut self, entry_id: u32) -> u32 {
@@ -984,12 +1071,14 @@ impl WorldSession {
         quest_log_item_id
     }
 
-    async fn apply_quest_source_item_added_non_bound_objective_progress_like_cpp(
+    pub(crate) async fn apply_quest_source_item_added_non_bound_objective_progress_like_cpp(
         &mut self,
         entry_id: u32,
         quest_log_item_id: u32,
         count: u32,
     ) -> Vec<u32> {
+        use wow_packet::packets::quest::{QuestUpdateAddCredit, QuestUpdateComplete};
+
         let Some(quest_store) = self.quest_store.clone() else {
             return Vec::new();
         };
@@ -1001,6 +1090,7 @@ impl WorldSession {
 
         let mut changed_quest_ids = Vec::new();
         let mut quests_to_complete = Vec::new();
+        let mut objective_updates = Vec::new();
         for status in self.player_quests.values_mut() {
             if status.status != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
                 continue;
@@ -1045,6 +1135,15 @@ impl WorldSession {
                 if !changed_quest_ids.contains(&status.quest_id) {
                     changed_quest_ids.push(status.quest_id);
                 }
+                if count > 0 {
+                    objective_updates.push((
+                        status.quest_id,
+                        objective.object_id,
+                        new_count,
+                        objective.amount,
+                        objective.obj_type,
+                    ));
+                }
                 let quest_already_rewarded = self.rewarded_quests.contains(&status.quest_id);
                 if new_count >= objective.amount
                     && Self::represented_can_complete_quest_after_objective_like_cpp(
@@ -1058,10 +1157,29 @@ impl WorldSession {
                 }
             }
         }
+        for (quest_id, object_id, current, required, objective_type) in objective_updates {
+            self.send_packet(&QuestUpdateAddCredit {
+                victim_guid: ObjectGuid::EMPTY,
+                quest_id,
+                object_id,
+                count: current as u16,
+                required: required as u16,
+                objective_type,
+            });
+        }
         for quest_id in quests_to_complete {
             if let Some(quest) = quest_store.get(quest_id).cloned() {
-                self.complete_represented_quest_after_add_if_ready_like_cpp(&quest)
+                let completed = self
+                    .complete_represented_quest_after_add_if_ready_like_cpp(&quest)
                     .await;
+                if completed
+                    && self
+                        .player_quests
+                        .get(&quest_id)
+                        .is_some_and(|status| status.status == QUEST_STATUS_COMPLETE_LIKE_CPP)
+                {
+                    self.send_packet(&QuestUpdateComplete { quest_id });
+                }
             }
         }
         self.sync_player_registry_state_like_cpp();
@@ -1323,7 +1441,7 @@ impl WorldSession {
     /// - `WorldSession::HandleQuestgiverHelloOpcode`, `QuestHandler.cpp:76-103`.
     /// - `Player::PrepareQuestMenu`, `Player.cpp:13947-14004`.
     /// Remaining represented gaps: fake-death aura removal, `AI()->OnGossipHello`,
-    /// `PrepareGossipMenu`, `SendPreparedGossip` / auto-open / PlayerTalkClass.
+    /// full PlayerTalkClass ownership.
     pub async fn handle_quest_giver_hello(&mut self, mut pkt: wow_packet::WorldPacket) {
         let guid = match pkt.read_packed_guid() {
             Ok(g) => g,
@@ -1346,6 +1464,34 @@ impl WorldSession {
 
         self.pause_interacted_creature_movement_like_cpp(guid);
 
+        if (access.npc_flags & NPCFlags1::GOSSIP.bits()) != 0
+            && let Some(world_db) = self.world_db().map(Arc::clone)
+            && let Some(msg) = self
+                .build_gossip_menu(&world_db, access.entry, access.npc_flags, guid)
+                .await
+        {
+            debug!(
+                account = self.account_id,
+                creature_entry = access.entry,
+                "QuestGiverHello sent DB-backed prepared gossip menu like C++"
+            );
+            self.send_packet(&msg);
+            return;
+        }
+
+        if self.send_represented_creature_trainer_gossip_menu_like_cpp(
+            guid,
+            access.entry,
+            access.npc_flags,
+        ) {
+            debug!(
+                account = self.account_id,
+                creature_entry = access.entry,
+                "QuestGiverHello sent trainer fallback prepared gossip menu like C++"
+            );
+            return;
+        }
+
         if self.use_represented_creature_questgiver_like_cpp(guid, access.entry) {
             debug!(
                 account = self.account_id,
@@ -1359,7 +1505,7 @@ impl WorldSession {
     /// Shows full quest details (objectives, rewards) before accepting.
     /// Legacy non-canonical note: QuestHandler.HandleQuestGiverQueryQuest
     pub async fn handle_quest_giver_query_quest(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let (guid, quest_id, _respond_to_giver) =
+        let (guid, quest_id, respond_to_giver) =
             match read_quest_giver_query_quest_like_cpp(&mut pkt) {
                 Ok(packet) => packet,
                 Err(_) => {
@@ -1368,21 +1514,42 @@ impl WorldSession {
                 }
             };
 
-        let _ = self.send_represented_quest_giver_query_quest_like_cpp(guid, quest_id);
+        info!(
+            account = self.account_id,
+            ?guid,
+            quest_id,
+            respond_to_giver,
+            "Received QuestGiverQueryQuest like C++"
+        );
+        if !self.send_represented_quest_giver_query_quest_like_cpp(guid, quest_id) {
+            warn!(
+                account = self.account_id,
+                ?guid,
+                quest_id,
+                "QuestGiverQueryQuest produced no represented response"
+            );
+        }
     }
 
     /// CMSG_QUEST_GIVER_ACCEPT_QUEST — player clicks "Accept" in the quest details dialog.
     /// Saves quest to characters DB and confirms to the client.
     /// Legacy non-canonical note: QuestHandler.HandleQuestGiverAcceptQuest
     pub async fn handle_quest_giver_accept_quest(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let (guid, quest_id, _start_cheat) = match read_quest_giver_accept_quest_like_cpp(&mut pkt)
-        {
+        let (guid, quest_id, start_cheat) = match read_quest_giver_accept_quest_like_cpp(&mut pkt) {
             Ok(packet) => packet,
             Err(_) => {
                 warn!("QuestGiverAcceptQuest: failed to read packet");
                 return;
             }
         };
+
+        info!(
+            account = self.account_id,
+            ?guid,
+            quest_id,
+            start_cheat,
+            "Received QuestGiverAcceptQuest like C++"
+        );
 
         // Validate represented C++ source/relation before any quest-log mutation or DB save.
         // C++ HandleQuestgiverAcceptQuestOpcode closes gossip and clears sharing info on
@@ -1396,7 +1563,7 @@ impl WorldSession {
             quest_id,
             &quest_store,
         ) {
-            debug!(
+            warn!(
                 account = self.account_id,
                 ?guid,
                 quest_id,
@@ -1465,6 +1632,7 @@ impl WorldSession {
             self.save_quest_to_db(quest_id, status).await;
         }
         self.sync_player_registry_state_like_cpp();
+        self.send_represented_quest_log_slot_update_like_cpp(slot);
 
         info!(account = self.account_id, quest_id, "Quest accepted");
 
@@ -4682,6 +4850,7 @@ impl WorldSession {
         self.player_quests.remove(&qid);
         self.delete_quest_from_db(qid).await;
         self.sync_player_registry_state_like_cpp();
+        self.send_represented_quest_log_slot_update_like_cpp(slot);
         info!(
             account = self.account_id,
             quest_id = qid,
@@ -4697,13 +4866,15 @@ impl WorldSession {
 
     fn quest_slot_has_active_entry_like_cpp(&self, slot: u8) -> bool {
         // C++ `QuestSlotOffset` stores the quest id independently from the status fields;
-        // represented active slots are COMPLETE or INCOMPLETE only for this bounded helper.
+        // represented active slots are INCOMPLETE, COMPLETE, or FAILED.
         slot < MAX_QUEST_LOG_SIZE_LIKE_CPP
             && self.player_quests.values().any(|status| {
                 status.slot == slot
                     && matches!(
                         status.status,
-                        QUEST_STATUS_COMPLETE_LIKE_CPP | QUEST_STATUS_INCOMPLETE_LIKE_CPP
+                        QUEST_STATUS_INCOMPLETE_LIKE_CPP
+                            | QUEST_STATUS_COMPLETE_LIKE_CPP
+                            | QUEST_STATUS_FAILED_LIKE_CPP
                     )
             })
     }
@@ -4718,7 +4889,9 @@ impl WorldSession {
             status.slot == slot
                 && matches!(
                     status.status,
-                    QUEST_STATUS_COMPLETE_LIKE_CPP | QUEST_STATUS_INCOMPLETE_LIKE_CPP
+                    QUEST_STATUS_INCOMPLETE_LIKE_CPP
+                        | QUEST_STATUS_COMPLETE_LIKE_CPP
+                        | QUEST_STATUS_FAILED_LIKE_CPP
                 )
         }) {
             if matching_quest_id.is_some() {
@@ -4736,7 +4909,9 @@ impl WorldSession {
             (status.slot < MAX_QUEST_LOG_SIZE_LIKE_CPP
                 && matches!(
                     status.status,
-                    QUEST_STATUS_COMPLETE_LIKE_CPP | QUEST_STATUS_INCOMPLETE_LIKE_CPP
+                    QUEST_STATUS_INCOMPLETE_LIKE_CPP
+                        | QUEST_STATUS_COMPLETE_LIKE_CPP
+                        | QUEST_STATUS_FAILED_LIKE_CPP
                 ))
             .then_some(status.slot)
         })
@@ -4752,18 +4927,72 @@ impl WorldSession {
                     return (0, 0, 0, [0; 24]);
                 };
 
-                let state_flags: u32 = if qs.status == QUEST_STATUS_COMPLETE_LIKE_CPP {
-                    1
-                } else {
-                    0
+                let quest = self
+                    .quest_store
+                    .as_ref()
+                    .and_then(|store| store.get(qs.quest_id));
+                let mut state_flags: u32 = match qs.status {
+                    QUEST_STATUS_COMPLETE_LIKE_CPP => QUEST_STATE_COMPLETE_LIKE_CPP,
+                    QUEST_STATUS_FAILED_LIKE_CPP => QUEST_STATE_FAIL_LIKE_CPP,
+                    _ => 0,
                 };
                 let mut obj_progress = [0u16; 24];
-                for (i, &count) in qs.objective_counts.iter().enumerate().take(24) {
-                    obj_progress[i] = count.min(u16::MAX as i32) as u16;
+                for (i, slot_progress) in obj_progress.iter_mut().enumerate() {
+                    let count = qs.objective_counts.get(i).copied().unwrap_or(0);
+                    let stores_flag = quest.is_some_and(|quest| {
+                        quest.objectives.iter().any(|objective| {
+                            objective.storage_index == i as i8
+                                && objective.is_storing_flag_like_cpp()
+                        })
+                    });
+                    if stores_flag {
+                        if count != 0 {
+                            state_flags |= QUEST_STATE_OBJECTIVE_FLAG_BASE_LIKE_CPP << i;
+                        }
+                        continue;
+                    }
+                    *slot_progress = count.min(u16::MAX as i32) as u16;
                 }
-                (qs.quest_id, state_flags, 0i64, obj_progress)
+                (qs.quest_id, state_flags, qs.end_time_secs, obj_progress)
             })
             .collect()
+    }
+
+    pub(crate) fn send_represented_quest_log_slot_update_like_cpp(&mut self, slot: u8) {
+        if slot >= MAX_QUEST_LOG_SIZE_LIKE_CPP {
+            return;
+        }
+        let Some(guid) = self.player_guid() else {
+            return;
+        };
+
+        let Some((quest_id, state_flags, end_time, objective_progress)) = self
+            .quest_log_create_entries_like_cpp()
+            .get(slot as usize)
+            .copied()
+        else {
+            return;
+        };
+
+        let mut data = PlayerDataValuesDeltaUpdate::default();
+        data.player_data_mask[35 / 32] |= 1 << (35 % 32);
+        let slot_bit = 36 + usize::from(slot);
+        data.player_data_mask[slot_bit / 32] |= 1 << (slot_bit % 32);
+        data.quest_log[slot as usize] = QuestLogValuesUpdate {
+            // C++ Player::SetQuestSlot marks QuestID, StateFlags, EndTime,
+            // and every ObjectiveProgress field changed for the slot.
+            quest_log_mask: 0x1FFF_FFFF,
+            end_time,
+            quest_id: quest_id.min(i32::MAX as u32) as i32,
+            state_flags,
+            objective_progress,
+        };
+
+        self.send_packet(&UpdateObject::full_player_values_update(
+            guid,
+            self.player_map_id_like_cpp(),
+            data,
+        ));
     }
 
     /// CMSG_QUERY_QUEST_INFO — client asks for full quest template data by ID.
@@ -4915,6 +5144,13 @@ impl WorldSession {
         };
         let quest_id: u32 = pkt.read_uint32().unwrap_or(0);
 
+        info!(
+            account = self.account_id,
+            ?guid,
+            quest_id,
+            "Received QuestGiverRequestReward like C++"
+        );
+
         let quest_store = match &self.quest_store {
             Some(s) => Arc::clone(s),
             None => return,
@@ -4945,7 +5181,7 @@ impl WorldSession {
                 &quest_store,
             )
         {
-            debug!(
+            warn!(
                 account = self.account_id,
                 ?guid,
                 quest_id,
@@ -4983,7 +5219,7 @@ impl WorldSession {
         if !is_complete {
             // Objectives not finished — silently ignore
             // (C# would send SMSG_QUEST_GIVER_REQUEST_ITEMS instead)
-            debug!(
+            warn!(
                 account = self.account_id,
                 quest_id, "RequestReward: quest not complete"
             );
@@ -5007,10 +5243,12 @@ impl WorldSession {
                 quest.reward_choice_items[i].1,
             );
         }
+        rewards.choice_item_types = quest.reward_choice_item_types;
 
         // C#: SendQuestGiverOfferReward(quest, questGiverGUID, true)
         self.send_packet(&QuestGiverOfferReward {
             giver_guid: guid,
+            giver_creature_id: quest_giver_creature_id_from_source_like_cpp(guid),
             quest_id,
             quest_flags: [quest.flags, quest.flags_ex, quest.flags_ex2],
             suggested_party_members: quest.suggested_group_num,
@@ -5034,6 +5272,14 @@ impl WorldSession {
         };
         let quest_id: u32 = pkt.read_uint32().unwrap_or(0);
         let from_script: bool = pkt.read_bit().unwrap_or(false);
+
+        info!(
+            account = self.account_id,
+            ?guid,
+            quest_id,
+            from_script,
+            "Received QuestGiverCompleteQuest like C++"
+        );
 
         let quest_store = match &self.quest_store {
             Some(s) => Arc::clone(s),
@@ -5067,7 +5313,7 @@ impl WorldSession {
                     &quest_store,
                 )
             {
-                debug!(
+                warn!(
                     account = self.account_id,
                     ?guid,
                     quest_id,
@@ -5077,7 +5323,7 @@ impl WorldSession {
                 return;
             }
         } else if !from_script || self.player_guid() != Some(guid) {
-            debug!(
+            warn!(
                 account = self.account_id,
                 ?guid,
                 quest_id,
@@ -5106,6 +5352,13 @@ impl WorldSession {
             rewards.display_spells[i] = quest.reward_display_spell[i];
         }
         rewards.completion_spell = quest.reward_spell as i32;
+        for i in 0..6 {
+            rewards.choice_items[i] = (
+                quest.reward_choice_items[i].0,
+                quest.reward_choice_items[i].1,
+            );
+        }
+        rewards.choice_item_types = quest.reward_choice_item_types;
 
         // Check if all objectives are done — C++ GetQuestStatus == QUEST_STATUS_COMPLETE.
         let is_complete = self
@@ -5118,7 +5371,7 @@ impl WorldSession {
             // Legacy non-canonical note: SendQuestGiverRequestItems(quest, guid, canComplete=false, false)
             self.send_packet(&QuestGiverRequestItems {
                 giver_guid: guid,
-                giver_creature_id: i32::try_from(guid.entry()).unwrap_or(0),
+                giver_creature_id: quest_giver_creature_id_from_source_like_cpp(guid),
                 quest_id,
                 comp_emote_delay: 0,
                 comp_emote_type: 0,
@@ -5138,6 +5391,7 @@ impl WorldSession {
         // All objectives done — show offer reward dialog
         self.send_packet(&QuestGiverOfferReward {
             giver_guid: guid,
+            giver_creature_id: quest_giver_creature_id_from_source_like_cpp(guid),
             quest_id,
             quest_flags: [quest.flags, quest.flags_ex, quest.flags_ex2],
             suggested_party_members: quest.suggested_group_num,
@@ -5524,6 +5778,7 @@ impl WorldSession {
         self.apply_quest_reward_lockout_status_like_cpp(quest).await;
 
         let xp = self.quest_xp_reward_like_cpp(quest);
+        let rewarded_slot = self.find_quest_slot_like_cpp(quest_id);
 
         self.player_quests.remove(&quest_id);
         if !quest.is_repeatable() {
@@ -5534,6 +5789,9 @@ impl WorldSession {
             self.delete_quest_from_db(quest_id).await;
         }
         self.sync_player_registry_state_like_cpp();
+        if let Some(slot) = rewarded_slot {
+            self.send_represented_quest_log_slot_update_like_cpp(slot);
+        }
 
         info!(
             account = self.account_id,
@@ -5604,6 +5862,15 @@ impl WorldSession {
             }
         };
         let choice_item_id = choice.item_id;
+
+        info!(
+            account = self.account_id,
+            ?guid,
+            quest_id,
+            choice_item_id,
+            choice_loot_type = choice.loot_item_type,
+            "Received QuestGiverChooseReward like C++"
+        );
 
         let quest_store = match &self.quest_store {
             Some(s) => Arc::clone(s),
@@ -5699,7 +5966,7 @@ impl WorldSession {
                 &quest_store,
             )
         {
-            debug!(
+            warn!(
                 account = self.account_id,
                 ?guid,
                 quest_id,
@@ -6102,7 +6369,7 @@ impl WorldSession {
             .and_then(|store| store.get(quest.quest_info_id as u32))
     }
 
-    fn represented_quest_is_important_like_cpp(
+    pub(crate) fn represented_quest_is_important_like_cpp(
         &self,
         quest: &wow_data::quest::QuestTemplate,
     ) -> bool {
@@ -6534,7 +6801,7 @@ impl WorldSession {
         true
     }
 
-    fn is_quest_disabled_like_cpp(&self, quest_id: u32) -> bool {
+    pub(crate) fn is_quest_disabled_like_cpp(&self, quest_id: u32) -> bool {
         self.disable_mgr().is_some_and(|disable_mgr| {
             disable_mgr.is_disabled_for_like_cpp(DISABLE_TYPE_QUEST, quest_id, None, 0, None)
         })
@@ -6546,19 +6813,37 @@ impl WorldSession {
     /// The represented path keeps Rust's existing direct save timing, but mirrors the
     /// C++ objective persistence order for a saved quest: status row first, then delete
     /// stale objective rows for the quest, then replace nonzero objective counters.
-    async fn save_quest_to_db(&self, quest_id: u32, status: u8) {
-        use wow_database::CharStatements;
+    /// For Rust's combined rewarded migration path, preserve the rewarded row before
+    /// deleting the stale active row.
+    fn represented_quest_status_save_statements_like_cpp(
+        &self,
+        guid: u64,
+        quest_id: u32,
+        status: u8,
+        mut prepare: impl FnMut(CharStatements) -> PreparedStatement,
+    ) -> Vec<PreparedStatement> {
+        let mut statements = Vec::new();
 
-        let guid = match self.player_guid() {
-            Some(g) => g.counter() as u64,
-            None => return,
-        };
-        let char_db = match self.char_db() {
-            Some(db) => Arc::clone(db),
-            None => return,
-        };
+        if status == QUEST_STATUS_REWARDED_LIKE_CPP {
+            let mut rewarded = prepare(CharStatements::INS_CHAR_QUESTSTATUS_REWARDED);
+            rewarded.set_u64(0, guid);
+            rewarded.set_u32(1, quest_id);
+            statements.push(rewarded);
 
-        let mut tx = SqlTransaction::new();
+            let mut del_status = prepare(CharStatements::DEL_CHAR_QUEST_STATUS);
+            del_status.set_u64(0, guid);
+            del_status.set_u32(1, quest_id);
+            statements.push(del_status);
+
+            let mut del_objectives =
+                prepare(CharStatements::DEL_CHAR_QUEST_STATUS_OBJECTIVES_BY_QUEST);
+            del_objectives.set_u64(0, guid);
+            del_objectives.set_u32(1, quest_id);
+            statements.push(del_objectives);
+
+            return statements;
+        }
+
         let represented_explored = self
             .player_quests
             .get(&quest_id)
@@ -6574,20 +6859,19 @@ impl WorldSession {
             .get(&quest_id)
             .map(|status| status.end_time_secs)
             .unwrap_or(0);
-        let mut stmt = char_db.prepare(CharStatements::INS_CHAR_QUEST_STATUS);
+        let mut stmt = prepare(CharStatements::INS_CHAR_QUEST_STATUS);
         stmt.set_u64(0, guid);
         stmt.set_u32(1, quest_id);
         stmt.set_u8(2, status);
         stmt.set_u8(3, u8::from(represented_explored));
         stmt.set_i64(4, represented_accept_time);
         stmt.set_i64(5, represented_end_time);
-        tx.append(stmt);
+        statements.push(stmt);
 
-        let mut del_objectives =
-            char_db.prepare(CharStatements::DEL_CHAR_QUEST_STATUS_OBJECTIVES_BY_QUEST);
+        let mut del_objectives = prepare(CharStatements::DEL_CHAR_QUEST_STATUS_OBJECTIVES_BY_QUEST);
         del_objectives.set_u64(0, guid);
         del_objectives.set_u32(1, quest_id);
-        tx.append(del_objectives);
+        statements.push(del_objectives);
 
         if let (Some(quest_store), Some(saved_status)) =
             (self.quest_store.as_ref(), self.player_quests.get(&quest_id))
@@ -6610,14 +6894,52 @@ impl WorldSession {
                 let Ok(objective_index) = u8::try_from(objective.storage_index) else {
                     continue;
                 };
-                let mut rep_objective =
-                    char_db.prepare(CharStatements::REP_CHAR_QUEST_STATUS_OBJECTIVES);
+                let mut rep_objective = prepare(CharStatements::REP_CHAR_QUEST_STATUS_OBJECTIVES);
                 rep_objective.set_u64(0, guid);
                 rep_objective.set_u32(1, quest_id);
                 rep_objective.set_u8(2, objective_index);
                 rep_objective.set_i32(3, count);
-                tx.append(rep_objective);
+                statements.push(rep_objective);
             }
+        }
+
+        statements
+    }
+
+    pub(crate) fn represented_quest_status_save_statement_plan_like_cpp(
+        &self,
+        guid: u64,
+    ) -> Vec<PreparedStatement> {
+        let mut statements = Vec::new();
+        for (quest_id, status) in self.represented_quest_statuses_for_save_like_cpp() {
+            statements.extend(self.represented_quest_status_save_statements_like_cpp(
+                guid,
+                quest_id,
+                status,
+                |statement| PreparedStatement::new(statement.sql()),
+            ));
+        }
+        statements
+    }
+
+    async fn save_quest_to_db(&self, quest_id: u32, status: u8) {
+        let guid = match self.player_guid() {
+            Some(g) => g.counter() as u64,
+            None => return,
+        };
+        let char_db = match self.char_db() {
+            Some(db) => Arc::clone(db),
+            None => return,
+        };
+
+        let mut tx = SqlTransaction::new();
+        for stmt in self.represented_quest_status_save_statements_like_cpp(
+            guid,
+            quest_id,
+            status,
+            |statement| char_db.prepare(statement),
+        ) {
+            tx.append(stmt);
         }
 
         if let Err(e) = char_db.commit_transaction(tx).await {
@@ -6692,6 +7014,7 @@ impl WorldSession {
         self.rewarded_quests.clear();
 
         let mut next_active_slot: u8 = 0;
+        let mut stale_rewarded_active_rows = Vec::new();
 
         if !result.is_empty() {
             let mut result = result;
@@ -6706,6 +7029,7 @@ impl WorldSession {
                     // Rewarded (C++ QuestStatus::QUEST_STATUS_REWARDED / m_RewardedQuests).
                     // Non-repeatable quests cannot be re-taken once rewarded.
                     self.rewarded_quests.insert(quest_id);
+                    stale_rewarded_active_rows.push(quest_id);
                 } else if next_active_slot < MAX_QUEST_LOG_SIZE_LIKE_CPP {
                     // Active or complete-but-not-turned-in.
                     // C++ _LoadQuestStatus assigns sequential visible slots in DB row order
@@ -6812,6 +7136,20 @@ impl WorldSession {
                     "Failed to load rewarded quest status: {e}"
                 );
             }
+        }
+
+        stale_rewarded_active_rows
+            .extend(self.remove_represented_active_rewarded_duplicates_like_cpp());
+        stale_rewarded_active_rows.sort_unstable();
+        stale_rewarded_active_rows.dedup();
+        for quest_id in stale_rewarded_active_rows {
+            info!(
+                account = self.account_id,
+                quest_id,
+                "QuestLoad: migrating stale active rewarded quest status before deleting active row like C++"
+            );
+            self.save_quest_to_db(quest_id, QUEST_STATUS_REWARDED_LIKE_CPP)
+                .await;
         }
 
         self.df_quests_like_cpp.clear();
@@ -7141,6 +7479,106 @@ mod tests {
                 "C++ ReadBit reads the high bit; byte {bit_byte:#04x} must not be treated as bool"
             );
         }
+    }
+
+    #[test]
+    fn quest_giver_creature_id_is_zero_for_gameobject_sources_like_cpp() {
+        assert_eq!(
+            quest_giver_creature_id_from_source_like_cpp(creature_guid(15513, 27)),
+            15513
+        );
+        assert_eq!(
+            quest_giver_creature_id_from_source_like_cpp(gameobject_guid(180516, 301)),
+            0
+        );
+    }
+
+    #[tokio::test]
+    async fn quest_giver_accept_emits_player_quest_log_update_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let quest_id = 7201;
+        let gameobject_entry = 9301;
+        let source_guid = gameobject_guid(gameobject_entry, 301);
+        let mut quest = quest_template(quest_id);
+        quest.objectives.push(QuestObjective {
+            id: quest_id * 10,
+            quest_id,
+            obj_type: QUEST_OBJECTIVE_MONSTER_LIKE_CPP_LOCAL,
+            order: 0,
+            storage_index: 0,
+            object_id: 44,
+            amount: 1,
+            flags: 0,
+            flags2: 0,
+            progress_bar_weight: 0.0,
+            description: String::new(),
+        });
+        let mut store = QuestStore::from_quests_like_cpp([quest]);
+        assert!(store.insert_gameobject_starter_relation_like_cpp(gameobject_entry, quest_id));
+        session.set_quest_store(Arc::new(store));
+        let mut manager = wow_map::MapManager::default();
+        insert_gameobject(&mut manager, source_guid, gameobject_entry);
+        attach_map_manager(&mut session, manager);
+        session.record_represented_gameobject_runtime_state_like_cpp(
+            571,
+            source_guid,
+            gameobject_entry,
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            wow_entities::GAMEOBJECT_TYPE_QUESTGIVER as u8,
+        );
+
+        session
+            .handle_quest_giver_accept_quest(quest_giver_cmsg_packet(source_guid, quest_id, 0x00))
+            .await;
+
+        let status = session
+            .player_quests
+            .get(&quest_id)
+            .expect("accepted quest should enter the represented quest log");
+        assert_eq!(status.slot, 0);
+        assert_eq!(status.status, QUEST_STATUS_INCOMPLETE_LIKE_CPP);
+
+        let update = send_rx
+            .try_recv()
+            .expect("C++ SetQuestSlot must become an immediate player UpdateObject");
+        assert_eq!(
+            wow_packet::WorldPacket::from_bytes(&update).server_opcode(),
+            Some(wow_constants::ServerOpcodes::UpdateObject)
+        );
+        assert!(
+            update
+                .windows(std::mem::size_of::<u32>())
+                .any(|window| window == quest_id.to_le_bytes()),
+            "quest-log UpdateObject should carry the accepted QuestID"
+        );
+
+        let complete = send_rx
+            .try_recv()
+            .expect("legacy represented accept confirmation should still be sent");
+        assert_eq!(
+            wow_packet::WorldPacket::from_bytes(&complete).server_opcode(),
+            Some(wow_constants::ServerOpcodes::QuestGiverQuestComplete)
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn quest_giver_accept_rejected_source_sends_no_quest_log_update_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let quest_id = 7202;
+        let gameobject_entry = 9302;
+        let source_guid = gameobject_guid(gameobject_entry, 302);
+        session.set_quest_store(Arc::new(store_with_quests(&[quest_id])));
+        let mut manager = wow_map::MapManager::default();
+        insert_gameobject(&mut manager, source_guid, gameobject_entry);
+        attach_map_manager(&mut session, manager);
+
+        session
+            .handle_quest_giver_accept_quest(quest_giver_cmsg_packet(source_guid, quest_id, 0x00))
+            .await;
+
+        assert!(!session.player_quests.contains_key(&quest_id));
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[test]
@@ -8276,6 +8714,7 @@ mod tests {
         assert_eq!(
             opcodes,
             vec![
+                Some(wow_constants::ServerOpcodes::UpdateObject),
                 Some(wow_constants::ServerOpcodes::QuestGiverQuestComplete),
                 Some(wow_constants::ServerOpcodes::QuestUpdateComplete),
             ]
@@ -8351,6 +8790,7 @@ mod tests {
         assert_eq!(
             opcodes,
             vec![
+                Some(wow_constants::ServerOpcodes::UpdateObject),
                 Some(wow_constants::ServerOpcodes::QuestGiverQuestComplete),
                 Some(wow_constants::ServerOpcodes::QuestUpdateComplete),
             ]
@@ -8474,6 +8914,11 @@ mod tests {
         assert_eq!(
             session.represented_quest_reward_skill_updates_like_cpp(),
             &[(333, 5)]
+        );
+        let update = send_rx.try_recv().unwrap();
+        assert_eq!(
+            wow_packet::WorldPacket::from_bytes(&update).server_opcode(),
+            Some(wow_constants::ServerOpcodes::UpdateObject)
         );
         let complete = send_rx.try_recv().unwrap();
         assert_eq!(
@@ -12807,6 +13252,13 @@ mod tests {
         assert!(!session.player_quests.contains_key(&quest_id));
         assert!(session.rewarded_quests.contains(&quest_id));
         assert_complete_status_update_like_cpp(&session, quest_id, false);
+        let slot_update = send_rx
+            .try_recv()
+            .expect("tracking event auto reward should clear quest log slot");
+        assert_eq!(
+            wow_packet::WorldPacket::from_bytes(&slot_update).server_opcode(),
+            Some(wow_constants::ServerOpcodes::UpdateObject)
+        );
         let complete = send_rx
             .try_recv()
             .expect("tracking event auto reward should send quest complete");
@@ -15174,6 +15626,62 @@ mod tests {
         );
     }
 
+    #[test]
+    fn quest_packet_registration_and_dispatch_are_wired_like_cpp() {
+        let cases = [
+            (
+                ClientOpcodes::QuestGiverQueryQuest,
+                "handle_quest_giver_query_quest",
+                "ClientOpcodes::QuestGiverQueryQuest =>",
+                "self.handle_quest_giver_query_quest(pkt).await",
+            ),
+            (
+                ClientOpcodes::QuestGiverAcceptQuest,
+                "handle_quest_giver_accept_quest",
+                "ClientOpcodes::QuestGiverAcceptQuest =>",
+                "self.handle_quest_giver_accept_quest(pkt).await",
+            ),
+            (
+                ClientOpcodes::QuestGiverRequestReward,
+                "handle_quest_giver_request_reward",
+                "ClientOpcodes::QuestGiverRequestReward =>",
+                "self.handle_quest_giver_request_reward(pkt).await",
+            ),
+            (
+                ClientOpcodes::QuestGiverCompleteQuest,
+                "handle_quest_giver_complete_quest",
+                "ClientOpcodes::QuestGiverCompleteQuest =>",
+                "self.handle_quest_giver_complete_quest(pkt).await",
+            ),
+            (
+                ClientOpcodes::QuestGiverChooseReward,
+                "handle_quest_giver_choose_reward",
+                "ClientOpcodes::QuestGiverChooseReward =>",
+                "self.handle_quest_giver_choose_reward(pkt).await",
+            ),
+            (
+                ClientOpcodes::QueryQuestInfo,
+                "handle_query_quest_info",
+                "ClientOpcodes::QueryQuestInfo =>",
+                "self.handle_query_quest_info(pkt).await",
+            ),
+        ];
+        let dispatcher = include_str!("../session.rs");
+
+        for (opcode, handler_name, match_arm, call) in cases {
+            let entry = inventory::iter::<PacketHandlerEntry>
+                .into_iter()
+                .find(|entry| entry.opcode == opcode)
+                .unwrap_or_else(|| panic!("{opcode:?} handler registration"));
+
+            assert_eq!(entry.status, SessionStatus::LoggedIn, "{opcode:?}");
+            assert_eq!(entry.processing, PacketProcessing::Inplace, "{opcode:?}");
+            assert_eq!(entry.handler_name, handler_name, "{opcode:?}");
+            assert!(dispatcher.contains(match_arm), "{opcode:?}");
+            assert!(dispatcher.contains(call), "{opcode:?}");
+        }
+    }
+
     #[tokio::test]
     async fn request_world_quest_update_empty_payload_sends_empty_response_like_cpp() {
         let (mut session, send_rx) = make_session();
@@ -15890,6 +16398,20 @@ mod tests {
         assert!(session.player_quests.contains_key(&17));
         assert_eq!(session.get_quest_slot_quest_id_like_cpp(7), None);
         assert_eq!(session.get_quest_slot_quest_id_like_cpp(3), Some(17));
+
+        let update = send_rx
+            .try_recv()
+            .expect("C++ SetQuestSlot(slot, 0) must become an immediate player UpdateObject");
+        assert_eq!(
+            wow_packet::WorldPacket::from_bytes(&update).server_opcode(),
+            Some(wow_constants::ServerOpcodes::UpdateObject)
+        );
+        assert!(
+            !update
+                .windows(std::mem::size_of::<u32>())
+                .any(|window| window == 880_001_u32.to_le_bytes()),
+            "quest-log abandon UpdateObject should clear the removed QuestID"
+        );
         assert!(send_rx.try_recv().is_err());
     }
 
@@ -15933,6 +16455,347 @@ mod tests {
         assert_eq!(entries[0], (0, 0, 0, [0; 24]));
         assert_eq!(entries[2].0, 5915);
         assert_eq!(entries[9].0, 5916);
+    }
+
+    #[test]
+    fn quest_log_create_entries_preserve_end_time_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        add_active_quest_in_slot(&mut session, 5917, 4);
+        session
+            .player_quests
+            .get_mut(&5917)
+            .expect("active quest")
+            .end_time_secs = 123_456;
+
+        let entries = session.quest_log_create_entries_like_cpp();
+
+        assert_eq!(entries[4].2, 123_456);
+    }
+
+    #[test]
+    fn save_to_db_quest_status_list_includes_active_quests_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        add_active_quest_in_slot_with_status(
+            &mut session,
+            5920,
+            2,
+            QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+        );
+        add_active_quest_in_slot_with_status(&mut session, 5919, 3, QUEST_STATUS_COMPLETE_LIKE_CPP);
+
+        assert_eq!(
+            session.represented_quest_statuses_for_save_like_cpp(),
+            vec![
+                (5919, QUEST_STATUS_COMPLETE_LIKE_CPP),
+                (5920, QUEST_STATUS_INCOMPLETE_LIKE_CPP)
+            ],
+            "C++ Player::SaveToDB reaches _SaveQuestStatus for represented active quests"
+        );
+    }
+
+    #[test]
+    fn save_to_db_quest_status_statements_persist_nonzero_objectives_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        let quest_id = 5925;
+        let mut quest = quest_template(quest_id);
+        quest.objectives.push(QuestObjective {
+            id: quest_id * 10,
+            quest_id,
+            obj_type: QUEST_OBJECTIVE_MONSTER_LIKE_CPP_LOCAL,
+            order: 0,
+            storage_index: 0,
+            object_id: 44,
+            amount: 5,
+            flags: 0,
+            flags2: 0,
+            progress_bar_weight: 0.0,
+            description: String::new(),
+        });
+        quest.objectives.push(QuestObjective {
+            id: quest_id * 10 + 1,
+            quest_id,
+            obj_type: QUEST_OBJECTIVE_MONSTER_LIKE_CPP_LOCAL,
+            order: 1,
+            storage_index: 1,
+            object_id: 45,
+            amount: 1,
+            flags: 0,
+            flags2: 0,
+            progress_bar_weight: 0.0,
+            description: String::new(),
+        });
+        quest.objectives.push(QuestObjective {
+            id: quest_id * 10 + 2,
+            quest_id,
+            obj_type: QUEST_OBJECTIVE_MONEY_LIKE_CPP_LOCAL,
+            order: 2,
+            storage_index: -1,
+            object_id: 0,
+            amount: 20,
+            flags: 0,
+            flags2: 0,
+            progress_bar_weight: 0.0,
+            description: String::new(),
+        });
+        session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
+        session.player_quests.insert(
+            quest_id,
+            PlayerQuestStatus {
+                quest_id,
+                status: QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: true,
+                accept_time_secs: 12,
+                end_time_secs: 34,
+                objective_counts: vec![3, 0, 9],
+                slot: 0,
+            },
+        );
+
+        let statements = session.represented_quest_status_save_statements_like_cpp(
+            42,
+            quest_id,
+            QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+            |statement| PreparedStatement::new(statement.sql()),
+        );
+
+        assert_eq!(
+            statements
+                .iter()
+                .map(PreparedStatement::sql)
+                .collect::<Vec<_>>(),
+            vec![
+                CharStatements::INS_CHAR_QUEST_STATUS.sql(),
+                CharStatements::DEL_CHAR_QUEST_STATUS_OBJECTIVES_BY_QUEST.sql(),
+                CharStatements::REP_CHAR_QUEST_STATUS_OBJECTIVES.sql(),
+            ],
+            "C++ Player::_SaveQuestStatus rewrites the status row, deletes stale objective rows, then saves only nonzero storage-backed counters"
+        );
+        assert_eq!(
+            statements[0].params(),
+            &[
+                SqlParam::U64(42),
+                SqlParam::U32(quest_id),
+                SqlParam::U8(QUEST_STATUS_INCOMPLETE_LIKE_CPP),
+                SqlParam::U8(1),
+                SqlParam::I64(12),
+                SqlParam::I64(34),
+            ]
+        );
+        assert_eq!(
+            statements[1].params(),
+            &[SqlParam::U64(42), SqlParam::U32(quest_id)]
+        );
+        assert_eq!(
+            statements[2].params(),
+            &[
+                SqlParam::U64(42),
+                SqlParam::U32(quest_id),
+                SqlParam::U8(0),
+                SqlParam::I32(3),
+            ]
+        );
+    }
+
+    #[test]
+    fn save_to_db_rewarded_quest_statements_preserve_rewarded_before_delete_like_cpp() {
+        let (session, _send_rx) = make_session();
+        let quest_id = 5926;
+
+        let statements = session.represented_quest_status_save_statements_like_cpp(
+            42,
+            quest_id,
+            QUEST_STATUS_REWARDED_LIKE_CPP,
+            |statement| PreparedStatement::new(statement.sql()),
+        );
+
+        assert_eq!(
+            statements
+                .iter()
+                .map(PreparedStatement::sql)
+                .collect::<Vec<_>>(),
+            vec![
+                CharStatements::INS_CHAR_QUESTSTATUS_REWARDED.sql(),
+                CharStatements::DEL_CHAR_QUEST_STATUS.sql(),
+                CharStatements::DEL_CHAR_QUEST_STATUS_OBJECTIVES_BY_QUEST.sql(),
+            ]
+        );
+        assert_eq!(
+            statements[0].params(),
+            &[SqlParam::U64(42), SqlParam::U32(quest_id)]
+        );
+        assert_eq!(
+            statements[1].params(),
+            &[SqlParam::U64(42), SqlParam::U32(quest_id)]
+        );
+        assert_eq!(
+            statements[2].params(),
+            &[SqlParam::U64(42), SqlParam::U32(quest_id)]
+        );
+    }
+
+    #[test]
+    fn quest_load_rewarded_active_migration_persists_rewarded_before_delete_like_cpp() {
+        let (session, _send_rx) = make_session();
+        let quest_id = 5927;
+
+        let statements = session.represented_quest_status_save_statements_like_cpp(
+            42,
+            quest_id,
+            QUEST_STATUS_REWARDED_LIKE_CPP,
+            |statement| PreparedStatement::new(statement.sql()),
+        );
+
+        assert_eq!(
+            statements
+                .iter()
+                .map(PreparedStatement::sql)
+                .collect::<Vec<_>>(),
+            vec![
+                CharStatements::INS_CHAR_QUESTSTATUS_REWARDED.sql(),
+                CharStatements::DEL_CHAR_QUEST_STATUS.sql(),
+                CharStatements::DEL_CHAR_QUEST_STATUS_OBJECTIVES_BY_QUEST.sql(),
+            ],
+            "load-time migration must not delete a legacy active REWARDED row without first preserving it in character_queststatus_rewarded"
+        );
+    }
+
+    #[test]
+    fn save_to_db_quest_status_list_skips_rewarded_non_repeatable_active_duplicate_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        let active_rewarded_quest_id = 5921;
+        let active_quest_id = 5922;
+        let quest_store = QuestStore::from_quests_like_cpp([
+            quest_template(active_rewarded_quest_id),
+            quest_template(active_quest_id),
+        ]);
+        session.quest_store = Some(Arc::new(quest_store));
+        add_active_quest_in_slot_with_status(
+            &mut session,
+            active_rewarded_quest_id,
+            0,
+            QUEST_STATUS_COMPLETE_LIKE_CPP,
+        );
+        add_active_quest_in_slot_with_status(
+            &mut session,
+            active_quest_id,
+            1,
+            QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+        );
+        session.rewarded_quests.insert(active_rewarded_quest_id);
+
+        assert_eq!(
+            session.represented_quest_statuses_for_save_like_cpp(),
+            vec![(active_quest_id, QUEST_STATUS_INCOMPLETE_LIKE_CPP)],
+            "C++ reward save deletes active quest status and stores rewarded separately"
+        );
+    }
+
+    #[test]
+    fn quest_load_removes_active_rewarded_duplicate_and_compacts_slots_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        let duplicate_quest_id = 5923;
+        let active_quest_id = 5924;
+        let quest_store = QuestStore::from_quests_like_cpp([
+            quest_template(duplicate_quest_id),
+            quest_template(active_quest_id),
+        ]);
+        session.quest_store = Some(Arc::new(quest_store));
+        add_active_quest_in_slot_with_status(
+            &mut session,
+            duplicate_quest_id,
+            0,
+            QUEST_STATUS_COMPLETE_LIKE_CPP,
+        );
+        add_active_quest_in_slot_with_status(
+            &mut session,
+            active_quest_id,
+            3,
+            QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+        );
+        session.rewarded_quests.insert(duplicate_quest_id);
+
+        assert_eq!(
+            session.remove_represented_active_rewarded_duplicates_like_cpp(),
+            vec![duplicate_quest_id]
+        );
+        assert!(!session.player_quests.contains_key(&duplicate_quest_id));
+        assert_eq!(
+            session
+                .player_quests
+                .get(&active_quest_id)
+                .map(|status| status.slot),
+            Some(0)
+        );
+    }
+
+    #[test]
+    fn save_to_db_quest_status_list_is_empty_without_active_quests_like_cpp() {
+        let (session, _send_rx) = make_session();
+
+        assert!(
+            session
+                .represented_quest_statuses_for_save_like_cpp()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn quest_log_create_entries_store_flag_objectives_in_state_flags_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        let quest_id = 5918;
+        let mut quest = quest_template(quest_id);
+        quest.objectives.push(QuestObjective {
+            id: quest_id * 10,
+            quest_id,
+            obj_type: QUEST_OBJECTIVE_MONSTER_LIKE_CPP_LOCAL,
+            order: 0,
+            storage_index: 0,
+            object_id: 44,
+            amount: 5,
+            flags: 0,
+            flags2: 0,
+            progress_bar_weight: 0.0,
+            description: String::new(),
+        });
+        quest.objectives.push(QuestObjective {
+            id: quest_id * 10 + 1,
+            quest_id,
+            obj_type: 10,
+            order: 1,
+            storage_index: 1,
+            object_id: 45,
+            amount: 1,
+            flags: 0,
+            flags2: 0,
+            progress_bar_weight: 0.0,
+            description: String::new(),
+        });
+        session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
+        add_active_quest_in_slot(&mut session, quest_id, 3);
+        session
+            .player_quests
+            .get_mut(&quest_id)
+            .expect("active quest")
+            .objective_counts = vec![3, 1];
+
+        let entries = session.quest_log_create_entries_like_cpp();
+
+        assert_eq!(entries[3].1, 256 << 1);
+        assert_eq!(entries[3].3[0], 3);
+        assert_eq!(
+            entries[3].3[1], 0,
+            "C++ stores flag objectives in QuestLog.StateFlags, not ObjectiveProgress"
+        );
+    }
+
+    #[test]
+    fn quest_log_create_entries_preserve_failed_state_flag_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        add_active_quest_in_slot_with_status(&mut session, 5919, 5, QUEST_STATUS_FAILED_LIKE_CPP);
+
+        let entries = session.quest_log_create_entries_like_cpp();
+
+        assert_eq!(entries[5].1, 2);
     }
 
     #[test]
@@ -16434,7 +17297,7 @@ mod tests {
 #[derive(Debug, Clone)]
 pub struct PlayerQuestStatus {
     pub quest_id: u32,
-    /// 0=None, 1=Incomplete, 2=Complete, 3=Failed
+    /// C++ QuestStatus values: 0=None, 1=Complete, 3=Incomplete, 5=Failed, 6=Rewarded.
     pub status: u8,
     pub explored: bool,
     /// TrinityCore QuestStatusData::AcceptTime, persisted as Unix seconds.

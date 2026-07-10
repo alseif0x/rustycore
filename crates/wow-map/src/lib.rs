@@ -10,6 +10,7 @@ pub mod personal_phase;
 pub mod pool;
 pub mod spawn;
 pub mod terrain;
+pub mod vmap;
 
 use std::fmt;
 
@@ -78,6 +79,10 @@ pub use spawn::{
     SpawnGroupTemplateData, SpawnId, SpawnMapKey, SpawnObjectType, SpawnPosition, SpawnStore,
 };
 pub use terrain::{GridMapTerrain, VMAP_INVALID_HEIGHT_VALUE};
+pub use vmap::{
+    SharedStaticVMapLineOfSightProvider, StaticVMapLineOfSightProvider, VMapLineOfSightEndpoint,
+    VMapLineOfSightQuery, VMapPosition,
+};
 
 /// Key used by `MapManager` for world and instance map lookup.
 ///

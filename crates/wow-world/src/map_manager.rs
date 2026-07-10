@@ -10,8 +10,8 @@ use rand::{Rng, SeedableRng, rngs::StdRng};
 use tracing::{debug, info, warn};
 use wow_constants::movement::MovementFlag;
 use wow_constants::{
-    CreatureRandomMovementType as ConstantsCreatureRandomMovementType, UnitDynFlags, UnitMoveType,
-    UnitStandStateType, UnitState, WeaponAttackType,
+    CreatureRandomMovementType as ConstantsCreatureRandomMovementType, UnitDynFlags, UnitFlags2,
+    UnitMoveType, UnitStandStateType, UnitState, WeaponAttackType,
 };
 use wow_core::{ObjectGuid, Position};
 use wow_entities::{
@@ -21,7 +21,7 @@ use wow_entities::{
     PointMovementAction, PointMovementInform, RotateMovementUpdate, Z_OFFSET_FIND_HEIGHT,
     allowed_position_z_from_ground_like_cpp,
 };
-use wow_map::GridMapTerrain;
+use wow_map::{GridMapTerrain, SharedStaticVMapLineOfSightProvider};
 use wow_movement::generators::CreatureRandomMovementType as MovementCreatureRandomMovementType;
 use wow_movement::{
     MoveSpline, MoveSplineInit, MoveSplineLaunchInput, MoveSplineStopInput, MoveSplineStopResult,
@@ -1241,6 +1241,10 @@ impl WorldCreature {
 
     pub fn npc_flags2(&self) -> u32 {
         self.creature.ai_ownership().npc_flags2
+    }
+
+    pub fn unit_flags2_like_cpp(&self) -> UnitFlags2 {
+        self.creature.unit().unit_flags2_like_cpp()
     }
 
     pub fn trainer_class_like_cpp(&self) -> u8 {
@@ -3249,25 +3253,54 @@ impl RuntimeOutput {
 #[derive(Debug)]
 pub struct LiveTerrainHeights {
     data_dir: PathBuf,
+    static_vmap_los: Option<SharedStaticVMapLineOfSightProvider>,
     per_map: Mutex<HashMap<u32, Arc<GridMapTerrain>>>,
 }
 
 impl LiveTerrainHeights {
     #[must_use]
     pub fn new(data_dir: impl AsRef<Path>) -> Self {
+        Self::new_with_optional_static_vmap_line_of_sight(data_dir, None)
+    }
+
+    /// Build the live terrain cache with a static VMAP LOS provider wired into
+    /// every lazily-created map terrain.
+    ///
+    /// C++ startup creates/configures one `VMapManager2` and each map's
+    /// `TerrainInfo`/`Map::isInLineOfSight` consults it for static geometry. This
+    /// keeps the Rust live cache usable by a real provider once the VMAP
+    /// `StaticMapTree` parser owns model geometry; without a provider, LOS
+    /// remains C++'s disabled/missing-tree clear fallback.
+    #[must_use]
+    pub fn new_with_static_vmap_line_of_sight(
+        data_dir: impl AsRef<Path>,
+        provider: SharedStaticVMapLineOfSightProvider,
+    ) -> Self {
+        Self::new_with_optional_static_vmap_line_of_sight(data_dir, Some(provider))
+    }
+
+    #[must_use]
+    fn new_with_optional_static_vmap_line_of_sight(
+        data_dir: impl AsRef<Path>,
+        static_vmap_los: Option<SharedStaticVMapLineOfSightProvider>,
+    ) -> Self {
         Self {
             data_dir: data_dir.as_ref().to_path_buf(),
+            static_vmap_los,
             per_map: Mutex::new(HashMap::new()),
         }
     }
 
     fn terrain_for_map(&self, map_id: u32) -> Arc<GridMapTerrain> {
         let mut per_map = self.per_map.lock().expect("live terrain cache poisoned");
-        Arc::clone(
-            per_map
-                .entry(map_id)
-                .or_insert_with(|| Arc::new(GridMapTerrain::new(map_id, &self.data_dir))),
-        )
+        Arc::clone(per_map.entry(map_id).or_insert_with(|| {
+            let terrain = GridMapTerrain::new(map_id, &self.data_dir);
+            let terrain = match &self.static_vmap_los {
+                Some(provider) => terrain.with_static_vmap_line_of_sight(Arc::clone(provider)),
+                None => terrain,
+            };
+            Arc::new(terrain)
+        }))
     }
 
     /// C++ `Map::GetHeight` (no VMap/GO-floor): the raw `.map` ground at `(x, y)`,
@@ -3987,7 +4020,7 @@ pub fn grid_corner(grid_x: i16, grid_y: i16) -> (f32, f32) {
 pub struct PendingRespawn {
     /// When to respawn.
     pub respawn_at: Instant,
-    /// C++ `RespawnInfo::spawnId`, encoded as the low counter of creature map GUIDs.
+    /// C++ `RespawnInfo::spawnId` / `Creature::m_spawnId`, separate from the live ObjectGuid low counter.
     pub spawn_id: u64,
     /// Home position (spawn point).
     pub home_pos: wow_core::Position,
@@ -4050,9 +4083,13 @@ pub fn pending_respawn_from_world_creature_like_cpp(
     respawn_at: Instant,
     map_id: u16,
 ) -> PendingRespawn {
+    let spawn_id = match creature.creature.spawn_id() {
+        0 => creature.guid().low_value().max(0) as u64,
+        spawn_id => spawn_id,
+    };
     PendingRespawn {
         respawn_at,
-        spawn_id: (creature.guid().low_value() as u64) & 0xFF_FFFF_FFFF,
+        spawn_id,
         home_pos: creature.home_position(),
         create_data: CreatureCreateData {
             guid: creature.guid(),
@@ -4206,6 +4243,7 @@ pub fn world_creature_from_pending_respawn_like_cpp(
     let damage_school = create_data.damage_school;
 
     let mut creature = Creature::new(false);
+    creature.set_spawn_id(respawn.spawn_id);
     creature.unit_mut().world_mut().object_mut().create(guid);
     creature
         .unit_mut()
@@ -4299,6 +4337,7 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
     use wow_constants::{CreatureFlagsExtra, PhaseFlags};
     use wow_core::guid::HighGuid;
+    use wow_map::map::MapWorldObjectEnvironment;
 
     fn unique_temp_data_dir(test_name: &str) -> PathBuf {
         let unique = SystemTime::now()
@@ -4361,6 +4400,66 @@ mod tests {
             0,
             0,
         )
+    }
+
+    #[derive(Debug)]
+    struct RecordingLiveStaticVMapLos {
+        result: bool,
+        calls: std::sync::Mutex<Vec<wow_map::VMapLineOfSightQuery>>,
+    }
+
+    impl RecordingLiveStaticVMapLos {
+        fn new(result: bool) -> Self {
+            Self {
+                result,
+                calls: std::sync::Mutex::new(Vec::new()),
+            }
+        }
+    }
+
+    impl wow_map::StaticVMapLineOfSightProvider for RecordingLiveStaticVMapLos {
+        fn is_in_line_of_sight(&self, query: wow_map::VMapLineOfSightQuery) -> bool {
+            self.calls
+                .lock()
+                .expect("recording live vmap LOS calls poisoned")
+                .push(query);
+            self.result
+        }
+    }
+
+    #[test]
+    fn live_terrain_wires_static_vmap_los_provider_into_map_cache_like_cpp() {
+        let dir = unique_temp_data_dir("live-vmap-los-provider");
+        let provider = Arc::new(RecordingLiveStaticVMapLos::new(false));
+        let shared_provider: SharedStaticVMapLineOfSightProvider = provider.clone();
+        let terrain_cache =
+            LiveTerrainHeights::new_with_static_vmap_line_of_sight(&dir, shared_provider);
+
+        let terrain = terrain_cache.terrain_for_map(1);
+        let mut source = wow_entities::WorldObject::new(
+            false,
+            wow_constants::TypeId::Unit,
+            wow_constants::TypeMask::UNIT,
+        );
+        source.relocate(Position::new(10.0, 10.0, 1.0, 0.0));
+        let query = wow_entities::LineOfSightQuery::to_position_like_cpp(
+            &source,
+            Position::new(20.0, 10.0, 1.0, 0.0),
+            wow_entities::LineOfSightOptions::default(),
+        );
+
+        assert!(
+            !terrain.line_of_sight(query),
+            "live terrain must not bypass an installed static VMAP LOS provider"
+        );
+        let calls = provider
+            .calls
+            .lock()
+            .expect("recording live vmap LOS calls poisoned");
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].map_id, 1);
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -8103,6 +8202,7 @@ mod tests {
     fn pending_respawn_preserves_flags_extra_like_cpp() {
         let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 42);
         let mut creature = test_creature(guid);
+        creature.creature.set_spawn_id(42);
         creature
             .creature
             .set_flags_extra_runtime_like_cpp(CreatureFlagsExtra::CIVILIAN.bits());
@@ -8137,7 +8237,7 @@ mod tests {
         });
         assert_eq!(
             pending.spawn_id, 42,
-            "creature respawn must preserve C++ RespawnInfo::spawnId from the map GUID low counter"
+            "creature respawn must preserve C++ RespawnInfo::spawnId from Creature::GetSpawnId"
         );
         assert_eq!(pending.flags_extra, CreatureFlagsExtra::CIVILIAN.bits());
         assert_eq!(pending.static_flags[0], static_flags[0]);
@@ -8155,6 +8255,11 @@ mod tests {
         );
 
         let respawned = world_creature_from_pending_respawn_like_cpp(&pending, 0);
+        assert_eq!(
+            respawned.creature.spawn_id(),
+            42,
+            "C++ Creature::LoadFromDB restores m_spawnId before registering the respawned creature"
+        );
         assert!(
             respawned.creature.is_civilian_like_cpp(),
             "map-owned respawn must keep C++ flags_extra gates"
@@ -8198,6 +8303,31 @@ mod tests {
                 .auras
                 .has_aura_spell_like_cpp(70_020),
             "C++ LoadCreaturesAddon reapplies addon auras on respawn"
+        );
+    }
+
+    #[test]
+    fn pending_respawn_uses_guid_counter_for_legacy_zero_spawn_id() {
+        let first_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 43);
+        let second_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 44);
+        let first = test_creature(first_guid);
+        let second = test_creature(second_guid);
+
+        assert_eq!(first.creature.spawn_id(), 0);
+        assert_eq!(second.creature.spawn_id(), 0);
+
+        let first_pending = pending_respawn_from_world_creature_like_cpp(&first, Instant::now(), 0);
+        let second_pending =
+            pending_respawn_from_world_creature_like_cpp(&second, Instant::now(), 0);
+
+        assert_eq!(first_pending.spawn_id, first_guid.low_value() as u64);
+        assert_eq!(second_pending.spawn_id, second_guid.low_value() as u64);
+        assert_ne!(first_pending.spawn_id, second_pending.spawn_id);
+        assert_eq!(
+            world_creature_from_pending_respawn_like_cpp(&first_pending, 0)
+                .creature
+                .spawn_id(),
+            first_pending.spawn_id
         );
     }
 }

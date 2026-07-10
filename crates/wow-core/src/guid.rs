@@ -326,8 +326,30 @@ impl ObjectGuid {
     }
 
     pub fn has_entry(&self) -> bool {
-        // In the C# code, HasEntry always returns true for all types
-        true
+        // TrinityCore stores an entry field only for ObjectGuidFormatType::WorldObject.
+        matches!(
+            self.high_type(),
+            HighGuid::WorldTransaction
+                | HighGuid::Conversation
+                | HighGuid::Creature
+                | HighGuid::Vehicle
+                | HighGuid::Pet
+                | HighGuid::GameObject
+                | HighGuid::DynamicObject
+                | HighGuid::AreaTrigger
+                | HighGuid::Corpse
+                | HighGuid::LootObject
+                | HighGuid::SceneObject
+                | HighGuid::Scenario
+                | HighGuid::AIGroup
+                | HighGuid::DynamicDoor
+                | HighGuid::Vignette
+                | HighGuid::CallForHelp
+                | HighGuid::AIResource
+                | HighGuid::AILock
+                | HighGuid::AILockTicket
+                | HighGuid::Cast
+        )
     }
 
     pub fn is_map_specific(high: HighGuid) -> bool {
@@ -427,10 +449,10 @@ impl ObjectGuid {
         )
     }
 
-    /// Matches TrinityCore `ObjectGuid::Create<HighGuid::Creature>(mapId, entry, counter)`.
+    /// Matches the current Rust world-object GUID contract.
     ///
-    /// C++ routes this through `CreateWorldObject(type, 0, 0, mapId, 0, entry, counter)`,
-    /// so creature map GUIDs do not carry realm or server ids.
+    /// The call shape keeps raw realm/server fields at zero. Active-realm normalization is a
+    /// broader GUID parity concern and is intentionally outside quest packet review fixes.
     pub fn create_creature_like_cpp(map_id: u16, entry: u32, counter: i64) -> Self {
         Self::create_world_object(HighGuid::Creature, 0, 0, map_id, 0, entry, counter)
     }
@@ -720,6 +742,111 @@ mod tests {
         assert_eq!(area_trigger.map_id(), 571);
         assert_eq!(area_trigger.entry(), 2001);
         assert_eq!(area_trigger.counter(), 99);
+    }
+
+    #[test]
+    fn test_has_entry_matches_cpp_world_object_format_types() {
+        let with_entry = [
+            HighGuid::WorldTransaction,
+            HighGuid::Conversation,
+            HighGuid::Creature,
+            HighGuid::Vehicle,
+            HighGuid::Pet,
+            HighGuid::GameObject,
+            HighGuid::DynamicObject,
+            HighGuid::AreaTrigger,
+            HighGuid::Corpse,
+            HighGuid::LootObject,
+            HighGuid::SceneObject,
+            HighGuid::Scenario,
+            HighGuid::AIGroup,
+            HighGuid::DynamicDoor,
+            HighGuid::Vignette,
+            HighGuid::CallForHelp,
+            HighGuid::AIResource,
+            HighGuid::AILock,
+            HighGuid::AILockTicket,
+            HighGuid::Cast,
+        ];
+
+        for high in with_entry {
+            let guid = ObjectGuid::create_world_object(high, 0, 0, 571, 0, 1234, 55);
+            assert!(
+                guid.has_entry(),
+                "{high:?} should expose entry like C++ WorldObject"
+            );
+            assert_eq!(guid.entry(), 1234);
+        }
+    }
+
+    #[test]
+    fn test_has_entry_rejects_cpp_non_world_object_format_types() {
+        let without_entry = [
+            HighGuid::Null,
+            HighGuid::Uniq,
+            HighGuid::Player,
+            HighGuid::Item,
+            HighGuid::StaticDoor,
+            HighGuid::Transport,
+            HighGuid::ClientActor,
+            HighGuid::ChatChannel,
+            HighGuid::Party,
+            HighGuid::Guild,
+            HighGuid::WowAccount,
+            HighGuid::BNetAccount,
+            HighGuid::GMTask,
+            HighGuid::MobileSession,
+            HighGuid::RaidGroup,
+            HighGuid::Spell,
+            HighGuid::Mail,
+            HighGuid::WebObj,
+            HighGuid::LFGObject,
+            HighGuid::LFGList,
+            HighGuid::UserRouter,
+            HighGuid::PVPQueueGroup,
+            HighGuid::UserClient,
+            HighGuid::PetBattle,
+            HighGuid::UniqUserClient,
+            HighGuid::BattlePet,
+            HighGuid::CommerceObj,
+            HighGuid::ClientSession,
+            HighGuid::ClientConnection,
+            HighGuid::ClubFinder,
+            HighGuid::ToolsClient,
+            HighGuid::WorldLayer,
+            HighGuid::ArenaTeam,
+            HighGuid::LMMParty,
+            HighGuid::LMMLobby,
+        ];
+
+        for high in without_entry {
+            let guid = ObjectGuid::new(
+                ((high as i64) << 58) | ((0x12_3456i64 & 0x7F_FFFF) << 6),
+                0xABCD,
+            );
+            assert!(
+                !guid.has_entry(),
+                "{high:?} should not expose entry in C++ non-WorldObject format"
+            );
+        }
+    }
+
+    #[test]
+    fn test_has_entry_only_controls_display_not_packed_bits() {
+        let raw = ObjectGuid::new(
+            ((HighGuid::Player as i64) << 58) | ((0x12_3456i64 & 0x7F_FFFF) << 6),
+            42,
+        );
+        let restored = ObjectGuid::from_raw_bytes(&raw.to_raw_bytes());
+
+        assert_eq!(raw, restored);
+        assert_eq!(restored.entry(), 0x12_3456);
+        assert!(!restored.has_entry());
+        assert!(!format!("{restored}").contains("Entry:"));
+
+        let creature = ObjectGuid::create_creature_like_cpp(571, 9999, 123456);
+        assert!(creature.has_entry());
+        assert!(format!("{creature}").contains("Entry: 9999"));
     }
 
     #[test]

@@ -12,7 +12,8 @@
 //! Broadcast ranges use C++ `ListenRange.Say`, `ListenRange.TextEmote`, and
 //! `ListenRange.Yell` from `World.cpp`.
 //!
-//! Reference: C# Game/Handlers/ChatHandler.cs, Game/Entities/Player/Player.cs
+//! Reference: C++ `Handlers/ChatHandler.cpp`, `Entities/Player/Player.cpp`,
+//! and `Server/Packets/ChatPackets.cpp`.
 
 use tracing::debug;
 
@@ -831,7 +832,7 @@ impl WorldSession {
             return;
         }
 
-        self.set_player_emote_state_like_cpp(EMOTE_ONESHOT_NONE_LIKE_CPP as u32);
+        self.publish_player_emote_state_like_cpp(EMOTE_ONESHOT_NONE_LIKE_CPP as u32);
         debug!(account = self.account_id, "CMSG_EMOTE: clear emote state");
     }
 
@@ -890,8 +891,11 @@ impl WorldSession {
             | EMOTE_STATE_SIT_LIKE_CPP
             | EMOTE_STATE_KNEEL_LIKE_CPP
             | EMOTE_ONESHOT_NONE_LIKE_CPP => None,
+            // Local C++ source of truth:
+            // `WorldSession::HandleTextEmoteOpcode` only routes DANCE and READ
+            // through `SetEmoteState` in this branch.
             EMOTE_STATE_DANCE_LIKE_CPP | EMOTE_STATE_READ_LIKE_CPP => {
-                self.set_player_emote_state_like_cpp(emote as u32);
+                self.publish_player_emote_state_like_cpp(emote as u32);
                 None
             }
             _ if self.player_has_unit_state_like_cpp(UnitState::DIED) => None,
@@ -908,10 +912,15 @@ impl WorldSession {
 
         if let Some(anim_emote) = anim_emote {
             self.send_packet(&anim_emote);
-            self.broadcast_raw_packet(anim_emote.to_bytes(), crate::map_manager::VISIBILITY_RADIUS);
+            self.broadcast_to_movement_set_like_cpp(anim_emote.to_bytes(), false);
         }
         self.send_packet(&text_emote);
-        self.broadcast_raw_packet(text_emote.to_bytes(), text_emote_range);
+        self.broadcast_to_movement_set_in_range_like_cpp(text_emote.to_bytes(), text_emote_range);
+        // C++ then resolves `ObjectAccessor::GetUnit(*_player, packet.Target)` for
+        // `CriteriaType::DoEmote` and `CreatureAI::ReceiveEmote`. Rust has no
+        // live chat->criteria/CreatureAI bridge here yet; keep the C++ packet
+        // order, target GUID, and fanout gates above while leaving those
+        // post-broadcast side effects explicit.
         if emote != EMOTE_ONESHOT_NONE_LIKE_CPP {
             self.remove_auras_with_interrupt_flags_like_cpp(
                 SPELL_AURA_INTERRUPT_FLAG_ANIM_LIKE_CPP,
@@ -941,6 +950,13 @@ impl WorldSession {
             client_spell_visual_kit_ids.to_vec()
         } else {
             Vec::new()
+        }
+    }
+
+    fn publish_player_emote_state_like_cpp(&mut self, emote_state: u32) {
+        if let Some(update) = self.set_player_emote_state_like_cpp(emote_state) {
+            self.send_packet(&update);
+            self.broadcast_to_movement_set_like_cpp(update.to_bytes(), false);
         }
     }
 
@@ -1204,7 +1220,7 @@ impl WorldSession {
     }
 
     /// Serialize `pkt` and broadcast its bytes to all players on the same map
-    /// within `range` yards (excluding the sender).
+    /// instance within `range` yards (excluding the sender).
     fn broadcast_chat_packet(&self, pkt: &ChatPkt, range: f32) {
         self.broadcast_raw_packet(pkt.to_bytes(), range);
     }
@@ -1386,9 +1402,9 @@ impl WorldSession {
         }
     }
 
-    /// Send pre-serialised packet `bytes` to all players on the same map
-    /// within `range` yards, excluding this session's player.
-    fn broadcast_raw_packet(&self, bytes: Vec<u8>, range: f32) {
+    /// Send pre-serialised packet `bytes` to all players in the same map
+    /// instance within `range` yards, excluding this session's player.
+    pub(crate) fn broadcast_raw_packet(&self, bytes: Vec<u8>, range: f32) {
         let registry = match self.player_registry() {
             Some(r) => r,
             None => return,
@@ -1397,6 +1413,14 @@ impl WorldSession {
         let sender_guid = self.player_guid().unwrap_or(ObjectGuid::EMPTY);
         let sender_pos = self.player_position_like_cpp();
         let sender_map = self.player_map_id_like_cpp();
+        let sender_instance = registry
+            .get(&sender_guid)
+            .map(|info| info.instance_id)
+            .or_else(|| {
+                self.current_canonical_player_map_key_like_cpp()
+                    .map(|key| key.instance_id)
+            })
+            .unwrap_or(0);
         let range_sq = range * range;
 
         for entry in registry.iter() {
@@ -1407,8 +1431,9 @@ impl WorldSession {
 
             let info = entry.value();
 
-            // Must be on the same map.
-            if info.map_id != sender_map {
+            // Must be an in-world player on the same map instance.
+            if !info.is_in_world || info.map_id != sender_map || info.instance_id != sender_instance
+            {
                 continue;
             }
 
@@ -1671,7 +1696,7 @@ mod tests {
     }
 
     fn text_emote_packet(emote_id: i32, sound_index: i32) -> wow_packet::WorldPacket {
-        text_emote_packet_with_visuals(emote_id, sound_index, &[], 0)
+        text_emote_packet_with_target_and_visuals(ObjectGuid::EMPTY, emote_id, sound_index, &[], 0)
     }
 
     fn text_emote_packet_with_visuals(
@@ -1680,11 +1705,35 @@ mod tests {
         spell_visual_kit_ids: &[i32],
         sequence_variation: i32,
     ) -> wow_packet::WorldPacket {
+        text_emote_packet_with_target_and_visuals(
+            ObjectGuid::EMPTY,
+            emote_id,
+            sound_index,
+            spell_visual_kit_ids,
+            sequence_variation,
+        )
+    }
+
+    fn text_emote_packet_with_target(
+        target: ObjectGuid,
+        emote_id: i32,
+        sound_index: i32,
+    ) -> wow_packet::WorldPacket {
+        text_emote_packet_with_target_and_visuals(target, emote_id, sound_index, &[], 0)
+    }
+
+    fn text_emote_packet_with_target_and_visuals(
+        target: ObjectGuid,
+        emote_id: i32,
+        sound_index: i32,
+        spell_visual_kit_ids: &[i32],
+        sequence_variation: i32,
+    ) -> wow_packet::WorldPacket {
         let mut writer = wow_packet::WorldPacket::new_empty();
-        writer.write_packed_guid(&ObjectGuid::EMPTY);
+        writer.write_packed_guid(&target);
         writer.write_int32(emote_id);
         writer.write_int32(sound_index);
-        writer.write_int32(spell_visual_kit_ids.len() as i32);
+        writer.write_uint32(spell_visual_kit_ids.len() as u32);
         writer.write_int32(sequence_variation);
         for &id in spell_visual_kit_ids {
             writer.write_int32(id);
@@ -1778,6 +1827,11 @@ mod tests {
     }
 
     fn text_emote_fields(bytes: &[u8]) -> (i32, i32) {
+        let (emote_id, sound_index, _) = text_emote_fields_with_target(bytes);
+        (emote_id, sound_index)
+    }
+
+    fn text_emote_fields_with_target(bytes: &[u8]) -> (i32, i32, ObjectGuid) {
         let mut packet = wow_packet::WorldPacket::from_bytes(bytes);
         assert_eq!(
             packet.read_uint16().expect("text emote opcode"),
@@ -1787,9 +1841,9 @@ mod tests {
         let _ = packet.read_packed_guid().expect("source account guid");
         let emote_id = packet.read_int32().expect("text emote id");
         let sound_index = packet.read_int32().expect("sound index");
-        let _ = packet.read_packed_guid().expect("target guid");
+        let target_guid = packet.read_packed_guid().expect("target guid");
         assert!(packet.is_empty());
-        (emote_id, sound_index)
+        (emote_id, sound_index, target_guid)
     }
 
     fn set_emotes_text_entries(
@@ -1847,6 +1901,17 @@ mod tests {
         position: wow_core::Position,
     ) -> PlayerBroadcastInfo {
         let mut info = broadcast_info(guid, send_tx);
+        info.position = position;
+        info
+    }
+
+    fn broadcast_info_at_with_command_tx(
+        guid: ObjectGuid,
+        send_tx: flume::Sender<Vec<u8>>,
+        command_tx: flume::Sender<SessionCommand>,
+        position: wow_core::Position,
+    ) -> PlayerBroadcastInfo {
+        let mut info = broadcast_info_with_command_tx(guid, send_tx, command_tx);
         info.position = position;
         info
     }
@@ -1957,6 +2022,15 @@ mod tests {
         match rx.try_recv().expect("addon command") {
             SessionCommand::SendAddonIfRegisteredLikeCpp(command) => command,
             other => panic!("expected SendAddonIfRegisteredLikeCpp, got {other:?}"),
+        }
+    }
+
+    fn expect_send_if_visible_command(
+        rx: &flume::Receiver<SessionCommand>,
+    ) -> wow_network::SendIfVisibleLikeCppCommand {
+        match rx.try_recv().expect("visible command") {
+            SessionCommand::SendIfVisibleLikeCpp(command) => command,
+            other => panic!("expected SendIfVisibleLikeCpp, got {other:?}"),
         }
     }
 
@@ -2369,7 +2443,9 @@ mod tests {
         let far = ObjectGuid::create_player(1, 345);
         let (mut session, player_registry, _sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (nearby_tx, nearby_rx) = flume::bounded(8);
+        let (nearby_command_tx, nearby_command_rx) = flume::bounded(8);
         let (far_tx, far_rx) = flume::bounded(8);
+        let (far_command_tx, far_command_rx) = flume::bounded(8);
         session.set_chat_listen_ranges_like_cpp(ChatListenRangesLikeCpp {
             say: 25.0,
             text_emote: 40.0,
@@ -2377,15 +2453,21 @@ mod tests {
         });
         player_registry.insert(
             nearby,
-            broadcast_info_at(
+            broadcast_info_at_with_command_tx(
                 nearby,
                 nearby_tx,
+                nearby_command_tx,
                 wow_core::Position::new(30.0, 0.0, 0.0, 0.0),
             ),
         );
         player_registry.insert(
             far,
-            broadcast_info_at(far, far_tx, wow_core::Position::new(41.0, 0.0, 0.0, 0.0)),
+            broadcast_info_at_with_command_tx(
+                far,
+                far_tx,
+                far_command_tx,
+                wow_core::Position::new(41.0, 0.0, 0.0, 0.0),
+            ),
         );
         set_emotes_text_entries(
             &mut session,
@@ -2394,18 +2476,101 @@ mod tests {
 
         session.handle_text_emote(text_emote_packet(66, 7)).await;
 
+        let nearby_text_command = expect_send_if_visible_command(&nearby_command_rx);
         assert_eq!(
-            text_emote_fields(&nearby_rx.try_recv().expect("nearby text emote")),
+            text_emote_fields(&nearby_text_command.packet_bytes),
             (66, 7)
         );
         assert!(nearby_rx.try_recv().is_err());
         assert!(far_rx.try_recv().is_err());
+        assert!(nearby_command_rx.try_recv().is_err());
+        assert!(far_command_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn send_text_emote_filters_visible_map_instance_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 346);
+        let target = ObjectGuid::create_player(1, 347);
+        let nearby = ObjectGuid::create_player(1, 348);
+        let other_instance = ObjectGuid::create_player(1, 349);
+        let not_in_world = ObjectGuid::create_player(1, 350);
+        let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        let (target_tx, target_rx) = flume::bounded(8);
+        let (nearby_tx, nearby_rx) = flume::bounded(8);
+        let (nearby_command_tx, nearby_command_rx) = flume::bounded(8);
+        let (other_instance_tx, other_instance_rx) = flume::bounded(8);
+        let (other_instance_command_tx, other_instance_command_rx) = flume::bounded(8);
+        let (not_in_world_tx, not_in_world_rx) = flume::bounded(8);
+        let (not_in_world_command_tx, not_in_world_command_rx) = flume::bounded(8);
+        session.set_chat_listen_ranges_like_cpp(ChatListenRangesLikeCpp {
+            say: 25.0,
+            text_emote: 40.0,
+            yell: 300.0,
+        });
+        player_registry.insert(
+            target,
+            broadcast_info_at(
+                target,
+                target_tx,
+                wow_core::Position::new(60.0, 0.0, 0.0, 0.0),
+            ),
+        );
+        player_registry.insert(
+            nearby,
+            broadcast_info_at_with_command_tx(
+                nearby,
+                nearby_tx,
+                nearby_command_tx,
+                wow_core::Position::new(20.0, 0.0, 0.0, 0.0),
+            ),
+        );
+        let mut other_instance_info = broadcast_info_at_with_command_tx(
+            other_instance,
+            other_instance_tx,
+            other_instance_command_tx,
+            wow_core::Position::new(20.0, 0.0, 0.0, 0.0),
+        );
+        other_instance_info.instance_id = 1;
+        player_registry.insert(other_instance, other_instance_info);
+        let mut not_in_world_info = broadcast_info_at_with_command_tx(
+            not_in_world,
+            not_in_world_tx,
+            not_in_world_command_tx,
+            wow_core::Position::new(20.0, 0.0, 0.0, 0.0),
+        );
+        not_in_world_info.is_in_world = false;
+        player_registry.insert(not_in_world, not_in_world_info);
+        set_emotes_text_entries(
+            &mut session,
+            [emotes_text_entry(66, EMOTE_STATE_SIT_LIKE_CPP as u16)],
+        );
+
+        session
+            .handle_text_emote(text_emote_packet_with_target(target, 66, 7))
+            .await;
+
+        assert_eq!(
+            text_emote_fields_with_target(&sender_rx.try_recv().expect("sender text emote")),
+            (66, 7, target)
+        );
+        let nearby_text_command = expect_send_if_visible_command(&nearby_command_rx);
+        assert_eq!(
+            text_emote_fields_with_target(&nearby_text_command.packet_bytes),
+            (66, 7, target)
+        );
+        assert!(nearby_rx.try_recv().is_err());
+        assert!(target_rx.try_recv().is_err());
+        assert!(other_instance_rx.try_recv().is_err());
+        assert!(not_in_world_rx.try_recv().is_err());
+        assert!(nearby_command_rx.try_recv().is_err());
+        assert!(other_instance_command_rx.try_recv().is_err());
+        assert!(not_in_world_command_rx.try_recv().is_err());
     }
 
     #[tokio::test]
     async fn send_text_emote_requires_cpp_emotes_text_entry_like_cpp() {
-        let sender = ObjectGuid::create_player(1, 346);
-        let nearby = ObjectGuid::create_player(1, 347);
+        let sender = ObjectGuid::create_player(1, 351);
+        let nearby = ObjectGuid::create_player(1, 352);
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (nearby_tx, nearby_rx) = flume::bounded(8);
         player_registry.insert(nearby, broadcast_info(nearby, nearby_tx));
@@ -2418,13 +2583,28 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn emote_client_does_not_publish_noop_clear_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 355);
+        let (mut session, _player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+
+        session
+            .handle_emote(wow_packet::WorldPacket::new_empty())
+            .await;
+
+        assert_eq!(session.player_emote_state_like_cpp(), 0);
+        assert!(sender_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
     async fn send_text_emote_translates_emotes_text_and_uses_cpp_order_and_ranges_like_cpp() {
         let sender = ObjectGuid::create_player(1, 348);
         let nearby = ObjectGuid::create_player(1, 349);
         let far = ObjectGuid::create_player(1, 350);
         let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
         let (nearby_tx, nearby_rx) = flume::bounded(8);
+        let (nearby_command_tx, nearby_command_rx) = flume::bounded(8);
         let (far_tx, far_rx) = flume::bounded(8);
+        let (far_command_tx, far_command_rx) = flume::bounded(8);
         session.set_chat_listen_ranges_like_cpp(ChatListenRangesLikeCpp {
             say: 25.0,
             text_emote: 40.0,
@@ -2432,15 +2612,21 @@ mod tests {
         });
         player_registry.insert(
             nearby,
-            broadcast_info_at(
+            broadcast_info_at_with_command_tx(
                 nearby,
                 nearby_tx,
+                nearby_command_tx,
                 wow_core::Position::new(30.0, 0.0, 0.0, 0.0),
             ),
         );
         player_registry.insert(
             far,
-            broadcast_info_at(far, far_tx, wow_core::Position::new(60.0, 0.0, 0.0, 0.0)),
+            broadcast_info_at_with_command_tx(
+                far,
+                far_tx,
+                far_command_tx,
+                wow_core::Position::new(60.0, 0.0, 0.0, 0.0),
+            ),
         );
         set_emotes_text_entries(&mut session, [emotes_text_entry(66, 3)]);
 
@@ -2456,19 +2642,25 @@ mod tests {
             text_emote_fields(&sender_rx.try_recv().expect("sender text emote")),
             (66, 7)
         );
+        let nearby_anim_command = expect_send_if_visible_command(&nearby_command_rx);
         assert_eq!(
-            emote_message_fields(&nearby_rx.try_recv().expect("nearby anim emote")),
+            emote_message_fields(&nearby_anim_command.packet_bytes),
             (3, Vec::new(), 9)
         );
+        let nearby_text_command = expect_send_if_visible_command(&nearby_command_rx);
         assert_eq!(
-            text_emote_fields(&nearby_rx.try_recv().expect("nearby text emote")),
+            text_emote_fields(&nearby_text_command.packet_bytes),
             (66, 7)
         );
+        let far_anim_command = expect_send_if_visible_command(&far_command_rx);
         assert_eq!(
-            emote_message_fields(&far_rx.try_recv().expect("far anim emote")),
+            emote_message_fields(&far_anim_command.packet_bytes),
             (3, Vec::new(), 9)
         );
+        assert!(nearby_rx.try_recv().is_err());
         assert!(far_rx.try_recv().is_err());
+        assert!(nearby_command_rx.try_recv().is_err());
+        assert!(far_command_rx.try_recv().is_err());
     }
 
     #[tokio::test]
@@ -2511,6 +2703,58 @@ mod tests {
             (66, 7)
         );
         assert!(sender_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn send_text_emote_dance_publishes_emote_state_update_like_cpp() {
+        let sender = ObjectGuid::create_player(1, 353);
+        let nearby = ObjectGuid::create_player(1, 354);
+        let (mut session, player_registry, sender_rx) = session_for_chat_routing_like_cpp(sender);
+        let (nearby_tx, nearby_rx) = flume::bounded(8);
+        let (nearby_command_tx, nearby_command_rx) = flume::bounded(8);
+        player_registry.insert(
+            nearby,
+            broadcast_info_with_command_tx(nearby, nearby_tx, nearby_command_tx),
+        );
+        set_emotes_text_entries(
+            &mut session,
+            [emotes_text_entry(34, EMOTE_STATE_DANCE_LIKE_CPP as u16)],
+        );
+
+        session.handle_text_emote(text_emote_packet(34, -1)).await;
+
+        let mut sender_update =
+            wow_packet::WorldPacket::from_bytes(&sender_rx.try_recv().expect("sender update"));
+        assert_eq!(
+            sender_update.read_uint16().expect("sender update opcode"),
+            wow_constants::ServerOpcodes::UpdateObject as u16
+        );
+        assert_eq!(
+            text_emote_fields(&sender_rx.try_recv().expect("sender text emote")),
+            (34, -1)
+        );
+        assert!(sender_rx.try_recv().is_err());
+
+        let nearby_update_command = expect_send_if_visible_command(&nearby_command_rx);
+        assert_eq!(nearby_update_command.source_guid, sender);
+        assert_eq!(nearby_update_command.map_id, 571);
+        assert_eq!(nearby_update_command.instance_id, 0);
+        let mut nearby_update =
+            wow_packet::WorldPacket::from_bytes(&nearby_update_command.packet_bytes);
+        assert_eq!(
+            nearby_update.read_uint16().expect("nearby update opcode"),
+            wow_constants::ServerOpcodes::UpdateObject as u16
+        );
+        let nearby_text_command = expect_send_if_visible_command(&nearby_command_rx);
+        assert_eq!(nearby_text_command.source_guid, sender);
+        assert_eq!(nearby_text_command.map_id, 571);
+        assert_eq!(nearby_text_command.instance_id, 0);
+        assert_eq!(
+            text_emote_fields(&nearby_text_command.packet_bytes),
+            (34, -1)
+        );
+        assert!(nearby_rx.try_recv().is_err());
+        assert!(nearby_command_rx.try_recv().is_err());
     }
 
     #[tokio::test]

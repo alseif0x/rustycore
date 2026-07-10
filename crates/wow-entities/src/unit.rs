@@ -66,6 +66,8 @@ pub const UNIT_DATA_MOD_HASTE_BIT: usize = 67;
 pub const UNIT_DATA_MOD_RANGED_HASTE_BIT: usize = 68;
 pub const UNIT_DATA_MOD_HASTE_REGEN_BIT: usize = 69;
 pub const UNIT_DATA_MOD_TIME_RATE_BIT: usize = 70;
+pub const UNIT_DATA_MODS_PARENT_BIT: usize = 64;
+pub const UNIT_DATA_EMOTE_STATE_BIT: usize = 72;
 pub const UNIT_DATA_HOVER_HEIGHT_BIT: usize = 94;
 pub const UNIT_DATA_POWER_PARENT_BIT: usize = 116;
 pub const UNIT_DATA_POWER_FIRST_BIT: usize = 137;
@@ -113,6 +115,7 @@ pub struct UnitDataValues {
     pub mod_ranged_haste: f32,
     pub mod_haste_regen: f32,
     pub mod_time_rate: f32,
+    pub emote_state: i32,
     pub hover_height: f32,
     pub wild_battle_pet_level: i32,
     pub npc_flags: [u32; 2],
@@ -158,6 +161,7 @@ impl Default for UnitDataValues {
             mod_ranged_haste: 1.0,
             mod_haste_regen: 1.0,
             mod_time_rate: 1.0,
+            emote_state: 0,
             hover_height: 1.0,
             wild_battle_pet_level: 0,
             npc_flags: [0; 2],
@@ -1436,7 +1440,12 @@ impl Unit {
     }
 
     pub fn set_emote_state_like_cpp(&mut self, emote_state: u32) {
-        self.emote_state = emote_state;
+        let packet_value = emote_state.min(i32::MAX as u32) as i32;
+        if self.emote_state != emote_state || self.data.emote_state != packet_value {
+            self.emote_state = emote_state;
+            self.data.emote_state = packet_value;
+            self.mark_unit_data_nested(UNIT_DATA_MODS_PARENT_BIT, UNIT_DATA_EMOTE_STATE_BIT);
+        }
     }
 
     fn apply_creature_attack_ai_side_effects_like_cpp(&mut self, victim_guid: ObjectGuid) {
@@ -2121,6 +2130,11 @@ impl Unit {
     fn mark_unit_data_array(&mut self, parent_bit: usize, first_element_bit: usize, index: usize) {
         self.unit_data_changes.set(parent_bit);
         self.unit_data_changes.set(first_element_bit + index);
+    }
+
+    fn mark_unit_data_nested(&mut self, parent_bit: usize, bit: usize) {
+        self.unit_data_changes.set(parent_bit);
+        self.unit_data_changes.set(bit);
     }
 }
 
@@ -3861,6 +3875,28 @@ mod tests {
         let unit_data = update.unit_data.unwrap();
         assert_eq!(unit_data.values.level, 12);
         assert!(unit_data.mask.is_set(UNIT_DATA_LEVEL_BIT));
+    }
+
+    #[test]
+    fn emote_state_marks_cpp_nested_unit_data_bits() {
+        let mut unit = Unit::new(true);
+        unit.clear_unit_data_changes();
+
+        unit.set_emote_state_like_cpp(10);
+
+        assert_eq!(unit.emote_state_like_cpp(), 10);
+        assert_eq!(
+            unit.values_update().unit_data.unwrap().values.emote_state,
+            10
+        );
+        assert!(
+            unit.unit_data_changes_mask()
+                .is_set(UNIT_DATA_MODS_PARENT_BIT)
+        );
+        assert!(
+            unit.unit_data_changes_mask()
+                .is_set(UNIT_DATA_EMOTE_STATE_BIT)
+        );
     }
 
     #[test]

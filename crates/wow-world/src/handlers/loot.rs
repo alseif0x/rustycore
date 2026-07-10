@@ -84,6 +84,10 @@ use wow_packet::packets::loot::{
 use wow_packet::packets::update::{ItemCreateData, UpdateObject};
 use wow_packet::{ClientPacket, ServerPacket};
 
+use crate::conditions::{
+    QUEST_STATUS_COMPLETE_LIKE_CPP, QUEST_STATUS_FAILED_LIKE_CPP, QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+    QUEST_STATUS_NONE_LIKE_CPP, QUEST_STATUS_REWARDED_LIKE_CPP,
+};
 use crate::session::{
     InventoryItem, RepresentedGameObjectSpellCaster, RepresentedGameObjectUseEffect,
     RepresentedLootRollState, RepresentedLootRollVote,
@@ -3599,7 +3603,11 @@ impl WorldSession {
         };
 
         self.set_represented_pending_quest_sharing_like_cpp(command.sender_guid, command.quest.id);
-        self.send_represented_quest_giver_quest_details_like_cpp(receiver_guid, &command.quest);
+        self.send_represented_quest_giver_quest_details_like_cpp(
+            receiver_guid,
+            &command.quest,
+            false,
+        );
     }
 
     async fn handle_represented_loot_roll_vote_command_like_cpp(
@@ -5470,7 +5478,7 @@ impl WorldSession {
         };
 
         self.player_quests.values().any(|status| {
-            if status.status != 1 {
+            if status.status != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
                 return false;
             }
 
@@ -5506,7 +5514,7 @@ impl WorldSession {
         };
 
         self.player_quests.values().any(|status| {
-            if status.status != 1 {
+            if status.status != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
                 return false;
             }
 
@@ -5584,7 +5592,7 @@ impl WorldSession {
             .active_quest_objective_counts
             .iter()
             .any(|(quest_id, objective_counts)| {
-                if player_context.quest_status(*quest_id) != 1 {
+                if player_context.quest_status(*quest_id) != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
                     return false;
                 }
 
@@ -5623,7 +5631,7 @@ impl WorldSession {
             .active_quest_statuses
             .iter()
             .any(|(quest_id, status)| {
-                if *status != 1 {
+                if *status != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
                     return false;
                 }
 
@@ -5688,8 +5696,10 @@ impl WorldSession {
                 player_team_for_race_cpp_representable(player_context.race) == condition.value1,
             ),
             8 => Some(player_context.rewarded_quests.contains(&condition.value1)),
-            9 => Some(player_context.quest_status(condition.value1) == 1),
-            14 => Some(player_context.quest_status(condition.value1) == 0),
+            9 => Some(
+                player_context.quest_status(condition.value1) == QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+            ),
+            14 => Some(player_context.quest_status(condition.value1) == QUEST_STATUS_NONE_LIKE_CPP),
             15 => Some(
                 player_class_mask_like_cpp(player_context.class)
                     .is_some_and(|mask| mask & condition.value1 != 0),
@@ -5708,7 +5718,7 @@ impl WorldSession {
                 condition.value1,
             ),
             28 => Some(
-                player_context.quest_status(condition.value1) == 2
+                player_context.quest_status(condition.value1) == QUEST_STATUS_COMPLETE_LIKE_CPP
                     && !player_context.rewarded_quests.contains(&condition.value1),
             ),
             47 => Some(
@@ -6806,6 +6816,22 @@ impl WorldSession {
         }
         self.sync_object_accessor_player();
 
+        let quest_log_item_id = self
+            .load_creature_item_template_addon_loot_metadata_like_cpp(item_id)
+            .await
+            .quest_log_item_id
+            .try_into()
+            .unwrap_or(0);
+        let mut changed_quest_ids = self
+            .apply_quest_source_item_added_non_bound_objective_progress_like_cpp(
+                item_id,
+                quest_log_item_id,
+                count,
+            )
+            .await;
+        self.save_changed_represented_quest_statuses_like_cpp(&mut changed_quest_ids)
+            .await;
+
         let map_id = self.player_map_id_like_cpp();
         if !created_new_stacks.is_empty() {
             let item_creates = created_new_stacks
@@ -7107,13 +7133,15 @@ struct RepresentedLootPlayerContext {
 
 impl RepresentedLootPlayerContext {
     fn quest_status(&self, quest_id: u32) -> u8 {
-        if self.rewarded_quests.contains(&quest_id) {
-            return 3;
-        }
         self.active_quest_statuses
             .get(&quest_id)
             .copied()
-            .unwrap_or(0)
+            .or_else(|| {
+                self.rewarded_quests
+                    .contains(&quest_id)
+                    .then_some(QUEST_STATUS_REWARDED_LIKE_CPP)
+            })
+            .unwrap_or(QUEST_STATUS_NONE_LIKE_CPP)
     }
 
     fn inventory_item_count(&self, item_id: u32) -> u32 {
@@ -7182,9 +7210,9 @@ fn player_quest_status_mask_like_cpp(status: Option<u8>, rewarded: bool) -> u32 
 
     match status {
         None => 0x01,
-        Some(2) => 0x02,
-        Some(1) => 0x08,
-        Some(3) => 0x20,
+        Some(QUEST_STATUS_COMPLETE_LIKE_CPP) => 0x02,
+        Some(QUEST_STATUS_INCOMPLETE_LIKE_CPP) => 0x08,
+        Some(QUEST_STATUS_FAILED_LIKE_CPP) => 0x20,
         _ => 0,
     }
 }
@@ -8064,6 +8092,7 @@ mod tests {
         represented_loot_object_guid_like_cpp, represented_loot_response_items_like_cpp,
         select_weighted_random_enchantment_like_cpp, start_loot_roll_packet_like_cpp,
     };
+    use crate::conditions::QUEST_STATUS_REWARDED_LIKE_CPP;
     use crate::session::{
         RepresentedGameObjectSpellCaster, RepresentedGameObjectUseEffect,
         RepresentedLootRollCriteriaEvent, SessionState,
@@ -9239,8 +9268,8 @@ mod tests {
     fn represented_personal_loot_remote_quest_and_spell_conditions_use_registry_like_cpp() {
         let (session, _) = make_session_with_send_capacity(1);
         let mut active_quest_statuses = HashMap::new();
-        active_quest_statuses.insert(100, 1);
-        active_quest_statuses.insert(200, 2);
+        active_quest_statuses.insert(100, crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP);
+        active_quest_statuses.insert(200, crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP);
         let mut rewarded_quests = HashSet::new();
         rewarded_quests.insert(300);
         let remote_context = RepresentedLootPlayerContext {
@@ -9285,6 +9314,18 @@ mod tests {
             Some(true)
         );
         assert_eq!(
+            remote_context.quest_status(300),
+            QUEST_STATUS_REWARDED_LIKE_CPP
+        );
+        assert_eq!(
+            session.evaluate_creature_loot_condition_for_player_like_cpp_representable(
+                &loot_condition(14, 300, 0, 0),
+                &remote_context,
+            ),
+            Some(false),
+            "C++ Player::GetQuestStatus returns REWARDED before QUEST_STATUS_NONE"
+        );
+        assert_eq!(
             session.evaluate_creature_loot_condition_for_player_like_cpp_representable(
                 &loot_condition(25, 12_345, 0, 0),
                 &remote_context,
@@ -9321,7 +9362,7 @@ mod tests {
         quest_store.quests.insert(100, quest);
         session.set_quest_store(Arc::new(quest_store));
         let mut active_quest_statuses = HashMap::new();
-        active_quest_statuses.insert(100, 1);
+        active_quest_statuses.insert(100, crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP);
         let mut active_quest_objective_counts = HashMap::new();
         active_quest_objective_counts.insert(100, vec![5]);
         let mut inventory_item_counts = HashMap::new();
@@ -9399,7 +9440,7 @@ mod tests {
         session.set_quest_store(Arc::new(quest_store));
 
         let mut active_quest_statuses = HashMap::new();
-        active_quest_statuses.insert(100, 1);
+        active_quest_statuses.insert(100, crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP);
         let mut active_quest_objective_counts = HashMap::new();
         active_quest_objective_counts.insert(100, vec![2]);
         let mut remote_context = RepresentedLootPlayerContext {
@@ -9445,7 +9486,7 @@ mod tests {
         session.set_quest_store(Arc::new(quest_store));
 
         let mut active_quest_statuses = HashMap::new();
-        active_quest_statuses.insert(200, 1);
+        active_quest_statuses.insert(200, crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP);
         let mut inventory_item_counts = HashMap::new();
         inventory_item_counts.insert(7002, 3);
         let mut remote_context = RepresentedLootPlayerContext {
@@ -9475,6 +9516,122 @@ mod tests {
             ItemTemplateAddonLootMetadataLikeCpp::default(),
             &remote_context,
         ));
+    }
+
+    #[tokio::test]
+    async fn loot_item_added_progresses_incomplete_quest_item_objective_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        let quest_id = 8_336;
+        let item_id = 20_482;
+        let mut quest = test_quest_template(quest_id);
+        quest.objectives.push(QuestObjective {
+            id: quest_id * 10,
+            quest_id,
+            obj_type: 1,
+            order: 0,
+            storage_index: 0,
+            object_id: item_id as i32,
+            amount: 6,
+            flags: 0,
+            flags2: 0,
+            progress_bar_weight: 0.0,
+            description: String::new(),
+        });
+        session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
+        session.player_quests.insert(
+            quest_id,
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![0],
+                slot: 0,
+            },
+        );
+
+        assert!(session.item_loot_quest_status_allows_like_cpp(
+            item_id,
+            true,
+            ItemTemplateAddonLootMetadataLikeCpp::default(),
+        ));
+
+        let changed_quest_ids = session
+            .apply_quest_source_item_added_non_bound_objective_progress_like_cpp(item_id, 0, 3)
+            .await;
+
+        assert_eq!(changed_quest_ids, vec![quest_id]);
+        assert_eq!(
+            session
+                .player_quests
+                .get(&quest_id)
+                .expect("quest progress should remain active")
+                .objective_counts,
+            vec![3]
+        );
+        let update = send_rx
+            .try_recv()
+            .expect("looted quest item progress should notify the client");
+        assert_eq!(
+            WorldPacket::from_bytes(&update).server_opcode(),
+            Some(wow_constants::ServerOpcodes::QuestUpdateAddCredit)
+        );
+    }
+
+    #[tokio::test]
+    async fn loot_item_eligibility_does_not_treat_complete_quest_as_incomplete_like_cpp() {
+        let (mut session, _) = make_session_with_send_capacity(1);
+        let quest_id = 8_337;
+        let item_id = 20_483;
+        let mut quest = test_quest_template(quest_id);
+        quest.objectives.push(QuestObjective {
+            id: quest_id * 10,
+            quest_id,
+            obj_type: 1,
+            order: 0,
+            storage_index: 0,
+            object_id: item_id as i32,
+            amount: 1,
+            flags: 0,
+            flags2: 0,
+            progress_bar_weight: 0.0,
+            description: String::new(),
+        });
+        session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
+        session.player_quests.insert(
+            quest_id,
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![0],
+                slot: 0,
+            },
+        );
+
+        assert!(!session.has_incomplete_quest_objective_for_item_like_cpp(item_id));
+        assert!(!session.item_loot_quest_status_allows_like_cpp(
+            item_id,
+            true,
+            ItemTemplateAddonLootMetadataLikeCpp::default(),
+        ));
+
+        let changed_quest_ids = session
+            .apply_quest_source_item_added_non_bound_objective_progress_like_cpp(item_id, 0, 1)
+            .await;
+
+        assert!(changed_quest_ids.is_empty());
+        assert_eq!(
+            session
+                .player_quests
+                .get(&quest_id)
+                .expect("complete quest should not progress as incomplete")
+                .objective_counts,
+            vec![0]
+        );
     }
 
     fn install_master_loot_group(
@@ -13745,7 +13902,7 @@ mod tests {
 
     #[tokio::test]
     async fn loot_money_gain_completes_money_tracking_event_objective_like_cpp() {
-        let (mut session, send_rx) = make_session_with_send_capacity(4);
+        let (mut session, send_rx) = make_session_with_send_capacity(5);
         let player_guid = ObjectGuid::create_player(1, 42);
         let loot_guid = test_creature_guid(19_029);
         let quest_id = 12_530;
@@ -13800,6 +13957,12 @@ mod tests {
         assert_eq!(
             sent.read_uint16().unwrap(),
             wow_constants::ServerOpcodes::LootMoneyNotify as u16
+        );
+        let sent = send_rx.try_recv().unwrap();
+        let mut sent = WorldPacket::from_bytes(&sent);
+        assert_eq!(
+            sent.read_uint16().unwrap(),
+            wow_constants::ServerOpcodes::UpdateObject as u16
         );
         let sent = send_rx.try_recv().unwrap();
         let mut sent = WorldPacket::from_bytes(&sent);
