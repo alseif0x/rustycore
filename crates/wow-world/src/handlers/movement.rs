@@ -193,6 +193,10 @@ impl WorldSession {
             return;
         }
 
+        if mover_is_player {
+            self.clear_player_emote_state_on_player_movement_like_cpp();
+        }
+
         let current_mover_position = if mover_is_player {
             self.player_position_like_cpp()
         } else {
@@ -489,6 +493,8 @@ impl WorldSession {
         opcode: Option<ClientOpcodes>,
         info: &MovementInfo,
     ) {
+        self.clear_player_emote_state_on_player_movement_like_cpp();
+
         if matches!(opcode, Some(ClientOpcodes::MoveFallLand)) {
             self.handle_fall_like_cpp(info);
         }
@@ -533,6 +539,13 @@ impl WorldSession {
             matches!(opcode, Some(ClientOpcodes::MoveFallLand)),
         );
         self.handle_under_map_like_cpp(info);
+    }
+
+    fn clear_player_emote_state_on_player_movement_like_cpp(&mut self) {
+        if let Some(update) = self.clear_player_emote_state_on_movement_like_cpp() {
+            self.send_packet(&update);
+            self.broadcast_to_movement_set_like_cpp(update.to_bytes(), false);
+        }
     }
 
     /// Handle CMSG_SET_ACTIVE_MOVER — client sets which unit is currently being moved.
@@ -782,6 +795,7 @@ mod tests {
     use wow_constants::movement::MovementFlag;
     use wow_constants::unit::UnitFlags;
     use wow_core::{ObjectGuid, Position, guid::HighGuid};
+    use wow_packet::packets::movement::TransportInfo;
 
     fn make_session() -> WorldSession {
         make_session_with_send_rx().0
@@ -959,6 +973,76 @@ mod tests {
             UnitStandStateType::Stand
         );
         assert_eq!(session.temporary_pet_unsummon_requests_like_cpp(), 1);
+    }
+
+    #[test]
+    fn movement_clears_player_emote_state_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_rx();
+        let guid = ObjectGuid::create_player(1, 46);
+        session.set_player_guid(Some(guid));
+        session.set_player_position_like_cpp(Position::new(1.0, 2.0, 3.0, 0.0));
+        session
+            .set_player_emote_state_like_cpp(10)
+            .expect("emote state update packet");
+        assert_eq!(session.player_emote_state_like_cpp(), 10);
+
+        let mut info = MovementInfo::default();
+        info.flags = MovementFlag::FORWARD;
+        session.apply_movement_side_effects_like_cpp(Some(ClientOpcodes::MoveHeartbeat), &info);
+
+        assert_eq!(session.player_emote_state_like_cpp(), 0);
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::UpdateObject],
+            "C++ MovementHandler clears UnitData::EmoteState on accepted player movement"
+        );
+
+        session.apply_movement_side_effects_like_cpp(Some(ClientOpcodes::MoveHeartbeat), &info);
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            Vec::<ServerOpcodes>::new(),
+            "C++ only updates EmoteState when a stateful emote was active"
+        );
+    }
+
+    #[tokio::test]
+    async fn rejected_transport_movement_clears_player_emote_state_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_rx();
+        let guid = ObjectGuid::create_player(1, 47);
+        session.set_player_guid(Some(guid));
+        session.set_player_moved_unit_guid_like_cpp(guid);
+        session.set_player_position_like_cpp(Position::new(1.0, 2.0, 3.0, 0.0));
+        session
+            .set_player_emote_state_like_cpp(10)
+            .expect("emote state update packet");
+
+        let info = MovementInfo {
+            guid,
+            position: Position::new(1.0, 2.0, 3.0, 0.0),
+            transport: Some(TransportInfo {
+                guid: ObjectGuid::EMPTY,
+                x: 76.0,
+                y: 0.0,
+                z: 0.0,
+                o: 0.0,
+                seat: 0,
+                time: 0,
+                prev_time: None,
+                vehicle_id: None,
+            }),
+            ..MovementInfo::default()
+        };
+
+        session
+            .handle_movement_info_like_cpp(Some(ClientOpcodes::MoveHeartbeat), info)
+            .await;
+
+        assert_eq!(session.player_emote_state_like_cpp(), 0);
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::UpdateObject],
+            "C++ clears EmoteState before transport movement early returns"
+        );
     }
 
     #[tokio::test]
