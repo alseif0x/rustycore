@@ -3076,9 +3076,7 @@ fn resolve_quest_runtime_counter(
 }
 
 fn create_creature_guid_raw(map_id: u16, entry: u32, counter: u64) -> (u64, u64) {
-    let high = (8u64 << 58)
-        | ((map_id as u64 & 0x1FFF) << 29)
-        | ((entry as u64 & 0x7F_FFFF) << 6);
+    let high = (8u64 << 58) | ((map_id as u64 & 0x1FFF) << 29) | ((entry as u64 & 0x7F_FFFF) << 6);
     let low = counter & 0xFF_FFFF_FFFF;
     (low, high)
 }

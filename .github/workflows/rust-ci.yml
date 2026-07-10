@@ -7,7 +7,16 @@ on:
   push:
     branches:
       - "3.4.3"
+  schedule:
+    - cron: "0 6 * * 1"
   workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
@@ -17,6 +26,7 @@ jobs:
   fmt:
     name: Format
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -27,11 +37,14 @@ jobs:
           components: rustfmt
 
       - name: Check formatting
-        run: cargo fmt --all --check
+        run: |
+          cargo fmt --all --check
+          cargo fmt --manifest-path tools/wow-test-bot/Cargo.toml -- --check
 
   check:
     name: Check core crates
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -44,19 +57,23 @@ jobs:
 
       - name: Install protoc
         run: |
-          curl -sSL -o /tmp/protoc.zip "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip"
+          curl --fail --show-error --location --retry 3 --retry-all-errors \
+            -o /tmp/protoc.zip \
+            "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip"
           python3 -m zipfile -e /tmp/protoc.zip "$HOME/.local"
           chmod +x "$HOME/.local/bin/protoc"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Cargo check
         run: |
-          cargo check --locked -p wow-data -p wow-database -p wow-network -p wow-world -p world-server
+          cargo check --locked -p wow-data -p wow-database -p wow-network -p wow-world -p bnet-server -p world-server
           cargo check --locked --manifest-path tools/wow-test-bot/Cargo.toml
+          cargo build --locked -p bnet-server -p world-server
 
   tests:
     name: Focused library tests
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -69,7 +86,9 @@ jobs:
 
       - name: Install protoc
         run: |
-          curl -sSL -o /tmp/protoc.zip "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip"
+          curl --fail --show-error --location --retry 3 --retry-all-errors \
+            -o /tmp/protoc.zip \
+            "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip"
           python3 -m zipfile -e /tmp/protoc.zip "$HOME/.local"
           chmod +x "$HOME/.local/bin/protoc"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
@@ -78,4 +97,38 @@ jobs:
         run: |
           cargo test --locked -p wow-data --lib
           cargo test --locked -p wow-packet --lib
+          cargo test --locked -p wow-map --lib
           cargo test --locked -p wow-world --lib
+
+  latest-stable:
+    name: Latest stable compatibility
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      RUSTUP_TOOLCHAIN: stable
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install latest stable Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: latest-stable
+
+      - name: Install protoc
+        run: |
+          curl --fail --show-error --location --retry 3 --retry-all-errors \
+            -o /tmp/protoc.zip \
+            "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip"
+          python3 -m zipfile -e /tmp/protoc.zip "$HOME/.local"
+          chmod +x "$HOME/.local/bin/protoc"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Check and link server binaries on latest stable
+        run: |
+          cargo +stable check --locked -p bnet-server -p world-server
+          cargo +stable build --locked -p bnet-server -p world-server

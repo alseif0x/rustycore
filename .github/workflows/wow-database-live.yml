@@ -2,6 +2,8 @@ name: wow-database live MariaDB
 
 on:
   pull_request:
+    branches:
+      - "3.4.3"
     paths:
       - ".github/workflows/wow-database-live.yml"
       - "rust-toolchain.toml"
@@ -19,10 +21,18 @@ on:
       - "crates/wow-database/**"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   live-db-updater:
     name: DbUpdater populate/update against MariaDB 10.6
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
 
     services:
       mariadb:
