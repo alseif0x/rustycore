@@ -1512,7 +1512,18 @@ impl WorldCreature {
             .death_time_ms
             .map(|ms| self.clock_started_at + Duration::from_millis(ms))
             .unwrap_or_else(Instant::now);
-        death_at + Duration::from_secs(self.creature.ai_ownership().respawn_time_secs)
+        let compatibility_corpse_delay = self
+            .creature
+            .respawn_compatibility_mode()
+            .then_some(u64::from(self.creature.corpse_delay()))
+            .unwrap_or(0);
+        death_at
+            + Duration::from_secs(
+                self.creature
+                    .ai_ownership()
+                    .respawn_time_secs
+                    .saturating_add(compatibility_corpse_delay),
+            )
     }
 
     pub fn ignore_corpse_decay_ratio_like_cpp(&self) -> bool {

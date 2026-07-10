@@ -47528,6 +47528,7 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
     let mut affected_maps = BTreeSet::new();
     let mut canonical_respawn_despawns: Vec<(u32, u32, ObjectGuid, wow_map::RespawnInfoLikeCpp)> =
         Vec::new();
+    let mut canonical_plain_despawns: Vec<(u32, u32, ObjectGuid)> = Vec::new();
     let mut canonical_respawn_removes: Vec<(u32, u32, wow_map::SpawnObjectType, wow_map::SpawnId)> =
         Vec::new();
     let mut canonical_inserts: Vec<(u32, u32, wow_entities::Creature)> = Vec::new();
@@ -47594,6 +47595,8 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                         .find_creature(map_id, instance_id, **guid)
                         .is_some_and(|creature| {
                             !creature.is_alive()
+                                && creature.creature.unit().death_state()
+                                    == wow_constants::DeathState::Corpse
                                 && creature
                                     .corpse_despawn_at()
                                     .map(|despawn_at| now >= despawn_at)
@@ -47640,12 +47643,16 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                     }
                 }
                 manager.push_respawn(map_id, instance_id, pending);
-                canonical_respawn_despawns.push((
-                    u32::from(map_id),
-                    instance_id,
-                    guid,
-                    canonical_respawn_info,
-                ));
+                if creature.creature.spawn_id() != 0 {
+                    canonical_respawn_despawns.push((
+                        u32::from(map_id),
+                        instance_id,
+                        guid,
+                        canonical_respawn_info,
+                    ));
+                } else {
+                    canonical_plain_despawns.push((u32::from(map_id), instance_id, guid));
+                }
                 affected_maps.insert((map_id, instance_id));
                 outcome.corpses_despawned += 1;
             }
@@ -47718,6 +47725,15 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
     }
 
     if let Some(canonical_map_manager) = canonical_map_manager {
+        for (map_id, instance_id, guid) in canonical_plain_despawns {
+            remove_canonical_creature_map_object_on_map_like_cpp(
+                canonical_map_manager,
+                map_id,
+                instance_id,
+                guid,
+            );
+            outcome.canonical_removes += 1;
+        }
         for (map_id, instance_id, guid, info) in canonical_respawn_despawns {
             let (respawn_added, object_removed) =
                 add_canonical_creature_respawn_info_and_remove_map_object_on_map_like_cpp(

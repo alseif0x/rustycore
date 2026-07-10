@@ -12959,6 +12959,7 @@ fn spawn_legacy_creature_runtime_update_loop_like_cpp(
         let mut interval =
             tokio::time::interval(Duration::from_millis(u64::from(tick_interval_ms.max(1))));
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        let mut pending_respawn_db_statements = Vec::new();
 
         loop {
             interval.tick().await;
@@ -12984,21 +12985,25 @@ fn spawn_legacy_creature_runtime_update_loop_like_cpp(
             })
             .await;
 
-            let Ok(outcome) = tick_result else {
+            let Ok(mut outcome) = tick_result else {
                 tracing::error!("Legacy global creature runtime tick task panicked; stopping loop");
                 break;
             };
 
+            pending_respawn_db_statements.append(&mut outcome.lifecycle.respawn_db_statements);
             if let Some(character_db) = character_db.as_ref() {
-                for stmt in &outcome.lifecycle.respawn_db_statements {
-                    if let Err(error) = character_db.execute(stmt).await {
+                let mut failed_statements = Vec::new();
+                for stmt in pending_respawn_db_statements.drain(..) {
+                    if let Err(error) = character_db.execute(&stmt).await {
                         warn!(
                             ?error,
                             sql = stmt.sql(),
-                            "Failed to persist legacy creature respawn timer like C++"
+                            "Failed to persist legacy creature respawn timer like C++; retrying next tick"
                         );
+                        failed_statements.push(stmt);
                     }
                 }
+                pending_respawn_db_statements = failed_statements;
             }
 
             let touched_creatures = outcome.lifecycle.corpses_despawned
