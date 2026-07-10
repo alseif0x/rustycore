@@ -2096,6 +2096,13 @@ impl Creature {
             .contains(CreatureStaticFlags::SESSILE)
     }
 
+    /// Mirrors `Creature::CanGiveExperience`: critters, pets, totems, and
+    /// templates carrying `CREATURE_FLAG_EXTRA_NO_XP` cannot reward kill XP.
+    pub fn can_give_experience_like_cpp(&self) -> bool {
+        !CreatureStaticFlags::from_bits_truncate(self.lifecycle_metadata.static_flags[0])
+            .contains(CreatureStaticFlags::NO_XP)
+    }
+
     pub fn set_template_rooted_like_cpp(&mut self, rooted: bool) {
         self.lifecycle_metadata.rooted = rooted;
         let mut flags =
@@ -6204,6 +6211,7 @@ mod tests {
         assert!(primary.contains(CreatureStaticFlags::SESSILE));
         assert!(primary.contains(CreatureStaticFlags::NO_MELEE_FLEE));
         assert!(primary.contains(CreatureStaticFlags::NO_XP));
+        assert!(!creature.can_give_experience_like_cpp());
         assert!(flags4.contains(CreatureStaticFlags4::TREAT_AS_RAID_UNIT_FOR_HELPFUL_SPELLS));
         assert!(creature.is_template_rooted_like_cpp());
         assert!(creature.unit().has_unit_state(UnitState::ROOT.bits()));

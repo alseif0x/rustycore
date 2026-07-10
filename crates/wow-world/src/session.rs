@@ -29250,7 +29250,14 @@ impl WorldSession {
         });
         rewards.dedup_by_key(|reward| reward.creature_guid);
         for reward in rewards {
-            let xp = self.creature_kill_xp(reward.creature_level);
+            let can_give_experience = self
+                .mutate_world_creature(reward.creature_guid, |creature| {
+                    creature.creature.can_give_experience_like_cpp()
+                })
+                .unwrap_or(false);
+            let xp = can_give_experience
+                .then(|| self.creature_kill_xp(reward.creature_level))
+                .unwrap_or(0);
             if xp > 0 {
                 self.give_xp(xp, reward.creature_guid, true).await;
             }
@@ -38738,7 +38745,10 @@ impl WorldSession {
         attacker_guid: ObjectGuid,
         creature_guid: ObjectGuid,
     ) -> Option<wow_entities::UnitValuesUpdate> {
-        let lootable = self.loot_table.contains_key(&creature_guid);
+        let lootable = self
+            .loot_table
+            .get(&creature_guid)
+            .is_some_and(|loot| loot.coins != 0 || loot.unlooted_count != 0);
         let can_skin = self.represented_creature_can_skin_after_death_state_like_cpp(creature_guid);
         let values_update = self.mutate_world_creature(creature_guid, |creature| {
             creature.complete_death_state_after_kill_hooks_like_cpp();
@@ -54317,10 +54327,17 @@ impl WorldSession {
             self.ensure_represented_creature_kill_loot_like_cpp(guid)
                 .await;
             // Give XP for the kill
-            let mob_level = self
-                .mutate_world_creature(guid, |creature| creature.level())
-                .unwrap_or(1);
-            let xp = self.creature_kill_xp(mob_level);
+            let (mob_level, can_give_experience) = self
+                .mutate_world_creature(guid, |creature| {
+                    (
+                        creature.level(),
+                        creature.creature.can_give_experience_like_cpp(),
+                    )
+                })
+                .unwrap_or((1, false));
+            let xp = can_give_experience
+                .then(|| self.creature_kill_xp(mob_level))
+                .unwrap_or(0);
             if xp > 0 {
                 self.give_xp(xp, guid, true).await;
             }
@@ -87417,7 +87434,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn spell_damage_kill_generates_creature_loot_for_tappers_like_cpp() {
+    async fn spell_damage_kill_keeps_empty_creature_loot_non_lootable_like_cpp() {
         let (mut session, _, _) = make_session();
         let manager = shared_map_manager();
         let guid = test_creature_guid(18_006);
@@ -87437,7 +87454,11 @@ mod tests {
         let world_creature = manager.find_creature(0, 0, guid).unwrap();
         assert!(world_creature.creature.is_tapped_by(player));
         assert!(
-            world_creature
+            loot.coins == 0 && loot.unlooted_count == 0,
+            "the test creature has no configured loot"
+        );
+        assert!(
+            !world_creature
                 .creature
                 .unit()
                 .world()
@@ -87472,7 +87493,7 @@ mod tests {
                 RepresentedCreatureKillEventLikeCpp::ZoneScriptUnitDeath { unit_guid: guid },
                 RepresentedCreatureKillEventLikeCpp::LootFlagsApplied {
                     creature_guid: guid,
-                    lootable: true,
+                    lootable: false,
                     can_skin: false,
                     skinnable: false,
                 },
@@ -87603,7 +87624,7 @@ mod tests {
                 },
                 RepresentedCreatureKillEventLikeCpp::LootFlagsApplied {
                     creature_guid: guid,
-                    lootable: true,
+                    lootable: false,
                     can_skin: false,
                     skinnable: false,
                 },
@@ -87699,7 +87720,7 @@ mod tests {
                 .represented_creature_kill_events_like_cpp()
                 .contains(&RepresentedCreatureKillEventLikeCpp::LootFlagsApplied {
                     creature_guid: guid,
-                    lootable: true,
+                    lootable: false,
                     can_skin: true,
                     skinnable: true,
                 })
