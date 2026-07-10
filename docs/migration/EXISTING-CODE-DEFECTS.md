@@ -33,8 +33,14 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
   slot *before* store.
 - [ ] **D-C6 Loot money TOCTOU → duplication.** `loot.coins` zeroed *after* distribute; two
   concurrent `handle_loot_money` both pay out. `handlers/loot.rs:1293-1356`.
-- [ ] **D-C7 Player save has no transaction.** Serial awaits; crash mid-save leaves DB
-  inconsistent (gold debited, item not added; level saved, position reverted). `session.rs:21667`.
+- [ ] **D-C7 Player save has incomplete transaction coverage.** Issue #17 wraps the
+  Rust-covered represented `Player::SaveToDB` character statements in one `SqlTransaction`, but
+  full C++ save parity, login/account transaction coupling, capture diff, and manual live-client
+  QA remain pending. Automated runtime QA now covers login/logout plus preservation of action rows
+  outside the active spec, travel columns, and unchanged quest-objective rows outside this seam's
+  ownership. Previous serial awaits could leave DB inconsistent (gold debited, item not added;
+  level saved, position reverted).
+  `session.rs`.
 - [ ] **D-C8 Vendor buy not atomic.** Gold/currency applied to runtime before item DB commit;
   commit fail = paid, no item. `handlers/character.rs:10177-10292`.
 - [ ] **D-C9 Group full-check race.** Size checked then join without re-check → 6+ member
@@ -59,8 +65,12 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
   objectives. `handlers/loot.rs:6786`.
 - [ ] **D-H7 Auras not saved at logout.** All buffs/debuffs reset on relog. `session.rs:21656`.
   C++ `Player::_SaveAuras`.
-- [ ] **D-H8 No periodic save + incomplete logout save.** Full inventory / mid-quest progress /
-  newly-learned spells may not persist; crash loses them. (Pairs with M0.4.)
+- [ ] **D-H8 Periodic save represented-partial + incomplete logout save.** Issue #17 adds a
+  `CONFIG_INTERVAL_SAVE` / `PlayerSaveInterval` session timer for represented `Player::SaveToDB`,
+  but full inventory / mid-quest progress / newly-learned spells may still be outside the Rust
+  save surface; first-save randomization, capture diff, and manual live-client QA remain pending.
+  The installed runtime passed bot login/logout and action/travel/quest-objective preservation QA.
+  (Pairs with M0.4.)
 - [ ] **D-H9 Trainer skips req-skill-rank + prerequisite-spell checks.** Loaded but ignored →
   learn spells you shouldn't. `handlers/trainer.rs:405-463`. C++ `Trainer.cpp:195-200`.
 - [ ] **D-H10 Movement trusts client position.** Only NaN/map-bounds checks; no speed/teleport

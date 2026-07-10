@@ -208,6 +208,7 @@ const QUEST_OBJECTIVE_MIN_REPUTATION_LIKE_CPP: u8 = 6;
 const QUEST_OBJECTIVE_MAX_REPUTATION_LIKE_CPP: u8 = 7;
 const QUEST_OBJECTIVE_MONEY_LIKE_CPP: u8 = 8;
 const COPPER_PER_GOLD_LIKE_CPP: u32 = 10_000;
+const DEFAULT_PLAYER_SAVE_INTERVAL_MS_LIKE_CPP: u32 = 15 * 60 * 1000;
 const TALENT_RESET_MONTH_SECS_LIKE_CPP: u64 = 30 * 24 * 60 * 60;
 const QUEST_OBJECTIVE_PLAYERKILLS_LIKE_CPP: u8 = 9;
 const QUEST_OBJECTIVE_HAVE_CURRENCY_LIKE_CPP: u8 = 16;
@@ -1182,6 +1183,15 @@ pub(crate) struct PlayerSaveToDbSnapshotLikeCpp {
     pub health: u32,
     pub max_health: u32,
     pub powers: CharacterPowerSnapshotLikeCpp,
+}
+
+#[derive(Debug, Default)]
+struct PlayerSaveToDbStatementPlanLikeCpp {
+    statements: Vec<PreparedStatement>,
+    tutorials_insert_committed_like_cpp: bool,
+    tutorials_changed_committed_like_cpp: bool,
+    equipment_sets_committed_like_cpp: bool,
+    reputation_committed_like_cpp: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -4073,6 +4083,12 @@ pub struct WorldSession {
     pub(crate) logout_time: Option<Instant>,
     /// Timestamp set when the player enters the world (PlayerLogin).
     pub(crate) login_time: Option<Instant>,
+    /// C++ `CONFIG_INTERVAL_SAVE` / `PlayerSaveInterval` in milliseconds.
+    player_save_interval_ms_like_cpp: u32,
+    /// C++ `Player::m_nextSave` countdown in milliseconds; 0 disables autosave.
+    next_player_save_ms_like_cpp: u32,
+    /// Set by the sync update loop when the autosave countdown expires.
+    pending_periodic_player_save_like_cpp: bool,
     /// Total played time loaded from DB (seconds).
     pub(crate) total_played_time: u32,
     /// Time played at current level loaded from DB (seconds).
@@ -5947,6 +5963,9 @@ impl WorldSession {
             time_sync_clock_delta: 0,
             logout_time: None,
             login_time: None,
+            player_save_interval_ms_like_cpp: DEFAULT_PLAYER_SAVE_INTERVAL_MS_LIKE_CPP,
+            next_player_save_ms_like_cpp: DEFAULT_PLAYER_SAVE_INTERVAL_MS_LIKE_CPP,
+            pending_periodic_player_save_like_cpp: false,
             total_played_time: 0,
             level_played_time: 0,
             player_gold: 0,
@@ -7288,9 +7307,9 @@ impl WorldSession {
                     map_id,
                     instance_id,
                     position,
-                    level: player.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8,
-                    xp: player.active_data().xp.max(0) as u32,
-                    money: player.active_data().coinage,
+                    level: self.player_level_like_cpp(),
+                    xp: self.player_xp_like_cpp(),
+                    money: self.player_gold_like_cpp(),
                     health,
                     max_health: canonical_max_health,
                     powers,
@@ -17353,6 +17372,29 @@ impl WorldSession {
         self.packet_spoof_config_like_cpp = config;
     }
 
+    pub fn set_player_save_interval_ms_like_cpp(&mut self, interval_ms: u32) {
+        self.player_save_interval_ms_like_cpp = interval_ms;
+        self.reset_player_save_timer_like_cpp();
+    }
+
+    fn reset_player_save_timer_like_cpp(&mut self) {
+        self.next_player_save_ms_like_cpp = self.player_save_interval_ms_like_cpp;
+        self.pending_periodic_player_save_like_cpp = false;
+    }
+
+    fn update_player_save_timer_like_cpp(&mut self, diff_ms: u32) {
+        if self.player_save_interval_ms_like_cpp == 0 || self.next_player_save_ms_like_cpp == 0 {
+            return;
+        }
+
+        if diff_ms >= self.next_player_save_ms_like_cpp {
+            self.next_player_save_ms_like_cpp = 0;
+            self.pending_periodic_player_save_like_cpp = true;
+        } else {
+            self.next_player_save_ms_like_cpp -= diff_ms;
+        }
+    }
+
     pub fn set_server_expansion_like_cpp(&mut self, expansion: u8) {
         self.server_expansion_like_cpp = expansion;
     }
@@ -21983,19 +22025,27 @@ impl WorldSession {
 
     /// Save current player gold to the characters DB.
     pub(crate) async fn save_player_gold(&self) {
-        use wow_database::CharStatements;
         let guid = match self.player_guid() {
-            Some(g) => g.counter() as u32,
+            Some(g) => g.counter() as u64,
             None => return,
         };
         let char_db = match self.char_db() {
             Some(db) => Arc::clone(db),
             None => return,
         };
-        let mut stmt = char_db.prepare(CharStatements::UPD_CHAR_MONEY);
-        stmt.set_u64(0, self.player_gold_like_cpp());
-        stmt.set_u32(1, guid);
+        let stmt =
+            Self::build_character_gold_save_statement_like_cpp(self.player_gold_like_cpp(), guid);
         let _ = char_db.execute(&stmt).await;
+    }
+
+    fn build_character_gold_save_statement_like_cpp(
+        money: u64,
+        guid_counter: u64,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::UPD_CHAR_MONEY.sql());
+        stmt.set_u64(0, money);
+        stmt.set_u64(1, guid_counter);
+        stmt
     }
 
     fn build_character_health_save_statement_like_cpp(
@@ -22085,15 +22135,28 @@ impl WorldSession {
         }
     }
 
+    fn build_character_level_xp_save_statement_like_cpp(
+        level: u8,
+        xp: u32,
+        guid_counter: u64,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::UPD_CHAR_LEVEL.sql());
+        stmt.set_u8(0, level);
+        stmt.set_u32(1, xp);
+        stmt.set_u64(2, guid_counter);
+        stmt
+    }
+
     async fn save_player_level_xp_like_cpp(&self) {
         let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
         else {
             return;
         };
-        let mut stmt = char_db.prepare(CharStatements::UPD_CHAR_LEVEL);
-        stmt.set_u8(0, self.player_level_like_cpp());
-        stmt.set_u32(1, self.player_xp_like_cpp());
-        stmt.set_u32(2, guid.counter() as u32);
+        let stmt = Self::build_character_level_xp_save_statement_like_cpp(
+            self.player_level_like_cpp(),
+            self.player_xp_like_cpp(),
+            guid.counter() as u64,
+        );
         if let Err(err) = char_db.execute(&stmt).await {
             warn!("Failed to save level/xp for guid {}: {err}", guid.counter());
         }
@@ -22165,7 +22228,12 @@ impl WorldSession {
         zone_id: u32,
         guid_counter: u64,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::UPD_CHARACTER_POSITION.sql());
+        // This represented save seam does not yet own transport offsets or the complete taxi
+        // destination path. C++ Player::SaveToDB writes those fields from the live Player; until
+        // Rust can do the same, preserve the DB values instead of using the teleport helper that
+        // clears them.
+        let mut stmt =
+            PreparedStatement::new(CharStatements::UPD_CHARACTER_POSITION_PRESERVE_TRAVEL.sql());
         stmt.set_f32(0, position.x);
         stmt.set_f32(1, position.y);
         stmt.set_f32(2, position.z);
@@ -22187,6 +22255,55 @@ impl WorldSession {
             snapshot.instance_id,
             zone_id,
             snapshot.guid.counter() as u64,
+        )
+    }
+
+    fn build_character_difficulties_save_statement_like_cpp(
+        dungeon_difficulty_id: u32,
+        raid_difficulty_id: u32,
+        legacy_raid_difficulty_id: u32,
+        guid_counter: u64,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::UPD_CHAR_DIFFICULTIES.sql());
+        stmt.set_u32(0, dungeon_difficulty_id);
+        stmt.set_u32(1, raid_difficulty_id);
+        stmt.set_u32(2, legacy_raid_difficulty_id);
+        stmt.set_u64(3, guid_counter);
+        stmt
+    }
+
+    pub(crate) fn current_played_time_values_like_cpp(&self) -> (u32, u32) {
+        let session_secs: u32 = self
+            .login_time
+            .map(|time| time.elapsed().as_secs() as u32)
+            .unwrap_or(0);
+        (
+            self.total_played_time.saturating_add(session_secs),
+            self.level_played_time.saturating_add(session_secs),
+        )
+    }
+
+    pub(crate) fn build_character_played_time_save_statement_like_cpp(
+        total_time: u32,
+        level_time: u32,
+        guid_counter: u64,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::UPD_CHAR_PLAYED_TIME.sql());
+        stmt.set_u32(0, total_time);
+        stmt.set_u32(1, level_time);
+        stmt.set_u64(2, guid_counter);
+        stmt
+    }
+
+    pub(crate) fn played_time_save_statement_like_cpp(
+        &self,
+        guid_counter: u64,
+    ) -> PreparedStatement {
+        let (total_time, level_time) = self.current_played_time_values_like_cpp();
+        Self::build_character_played_time_save_statement_like_cpp(
+            total_time,
+            level_time,
+            guid_counter,
         )
     }
 
@@ -22243,7 +22360,216 @@ impl WorldSession {
         }
     }
 
+    fn current_player_save_to_db_statement_plan_like_cpp(
+        &mut self,
+        snapshot: &PlayerSaveToDbSnapshotLikeCpp,
+        now_unix_secs: i64,
+    ) -> PlayerSaveToDbStatementPlanLikeCpp {
+        let guid_counter = snapshot.guid.counter() as u64;
+        let mut plan = PlayerSaveToDbStatementPlanLikeCpp::default();
+
+        plan.statements.push(
+            Self::build_character_position_save_statement_from_snapshot_like_cpp(
+                snapshot,
+                self.player_zone_id_like_cpp as u32,
+            ),
+        );
+        plan.statements
+            .push(Self::build_character_level_xp_save_statement_like_cpp(
+                self.player_level_like_cpp(),
+                self.player_xp_like_cpp(),
+                guid_counter,
+            ));
+        plan.statements
+            .push(Self::build_character_gold_save_statement_like_cpp(
+                self.player_gold_like_cpp(),
+                guid_counter,
+            ));
+        plan.statements
+            .push(Self::build_character_health_save_statement_from_snapshot_like_cpp(snapshot));
+        if let Some(stmt) =
+            Self::build_character_powers_save_statement_from_snapshot_like_cpp(snapshot)
+        {
+            plan.statements.push(stmt);
+        } else if std::env::var_os("RUSTYCORE_SPELL_POWER_TRACE").is_some() {
+            info!(
+                guid = ?snapshot.guid,
+                "RUST_PLAYER_POWER_SAVE skipped: no authoritative canonical power snapshot"
+            );
+        }
+        plan.statements.push(
+            Self::build_character_talent_reset_state_save_statement_like_cpp(
+                self.represented_talent_reset_cost_like_cpp,
+                self.represented_talent_reset_time_secs_like_cpp,
+                guid_counter,
+            ),
+        );
+
+        self.sync_represented_explored_zones_from_canonical_like_cpp();
+        plan.statements.push(
+            Self::build_character_explored_zones_save_statement_like_cpp(
+                self.represented_explored_zones_db_string_like_cpp(),
+                guid_counter,
+            ),
+        );
+
+        if self.player_skill_records_loaded_like_cpp() {
+            plan.statements
+                .extend(self.character_skill_save_statements_like_cpp(guid_counter));
+        } else {
+            warn!(
+                account = self.account_id,
+                player_guid = ?self.player_guid(),
+                "Skipping represented player skill save because character_skills were not loaded coherently"
+            );
+        }
+
+        plan.statements
+            .push(Self::build_character_difficulties_save_statement_like_cpp(
+                self.represented_dungeon_difficulty_id_like_cpp,
+                self.represented_raid_difficulty_id_like_cpp,
+                self.represented_legacy_raid_difficulty_id_like_cpp,
+                guid_counter,
+            ));
+
+        if let Some(statements) = self.character_glyph_save_statements_like_cpp(guid_counter) {
+            plan.statements.extend(statements);
+        } else {
+            warn!(
+                account = self.account_id,
+                player_guid = ?self.player_guid(),
+                "Skipping represented player glyph save because character_glyphs was not loaded coherently"
+            );
+        }
+
+        if let Some(statements) = self.character_talent_save_statements_like_cpp(guid_counter) {
+            plan.statements.extend(statements);
+        } else {
+            warn!(
+                account = self.account_id,
+                player_guid = ?self.player_guid(),
+                "Skipping represented player talent save because character_talent was not loaded coherently"
+            );
+        }
+
+        if let Some(statements) =
+            self.character_spell_cooldown_save_statements_like_cpp(guid_counter, now_unix_secs)
+        {
+            plan.statements.extend(statements);
+        } else {
+            warn!(
+                account = self.account_id,
+                player_guid = ?self.player_guid(),
+                "Skipping represented player spell cooldown save because character_spell_cooldown was not loaded coherently"
+            );
+        }
+
+        if let Some(statements) =
+            self.character_spell_charge_save_statements_like_cpp(guid_counter, now_unix_secs)
+        {
+            plan.statements.extend(statements);
+        } else {
+            warn!(
+                account = self.account_id,
+                player_guid = ?self.player_guid(),
+                "Skipping represented player spell charge save because character_spell_charges was not loaded coherently"
+            );
+        }
+
+        if let Some(statements) =
+            self.character_action_button_save_statements_like_cpp(guid_counter)
+        {
+            plan.statements.extend(statements);
+        } else {
+            warn!(
+                account = self.account_id,
+                player_guid = ?self.player_guid(),
+                "Skipping represented player action-button save because character_action was not loaded coherently"
+            );
+        }
+
+        if let Some(statements) = self.equipment_set_save_statements_like_cpp(guid_counter) {
+            if !statements.is_empty() {
+                plan.equipment_sets_committed_like_cpp = true;
+                plan.statements.extend(statements);
+            }
+        } else {
+            warn!(
+                account = self.account_id,
+                player_guid = ?self.player_guid(),
+                "Skipping represented equipment-set save because character_equipmentsets/character_transmog_outfits were not loaded coherently"
+            );
+        }
+
+        // C++ `_SaveQuestStatus` only consumes entries present in `m_QuestStatusSave`; it does
+        // not rewrite every loaded quest during Player::SaveToDB. Rust's quest mutation paths
+        // already persist their changed quest directly, but there is no coherent dirty-set seam
+        // yet. Rewriting every active quest here can delete objective rows that were not mapped
+        // into represented state, so preserve them until that dirty tracking exists.
+
+        if self.tutorials_changed_like_cpp {
+            if let Some(stmt) = self.tutorial_save_statement_like_cpp(self.account_id) {
+                plan.tutorials_insert_committed_like_cpp = !self.tutorials_loaded_from_db_like_cpp;
+                plan.tutorials_changed_committed_like_cpp = true;
+                plan.statements.push(stmt);
+            } else {
+                warn!(
+                    account = self.account_id,
+                    "Skipping SaveTutorialsData because tutorial data was not loaded coherently"
+                );
+            }
+        }
+
+        plan.statements
+            .extend(self.instance_time_restriction_save_statements_like_cpp());
+        plan.statements
+            .push(self.played_time_save_statement_like_cpp(guid_counter));
+
+        let reputation_statements = self
+            .reputation_mgr_like_cpp()
+            .pending_save_to_db_statement_plan_like_cpp(guid_counter);
+        if !reputation_statements.is_empty() {
+            plan.reputation_committed_like_cpp = true;
+            plan.statements.extend(reputation_statements);
+        }
+
+        if let Some(statements) = self.cuf_profile_save_statements_like_cpp(guid_counter) {
+            plan.statements.extend(statements);
+        } else {
+            warn!(
+                account = self.account_id,
+                player_guid = ?self.player_guid(),
+                "Skipping represented CUF profile save because character_cuf_profiles was not loaded coherently"
+            );
+        }
+
+        plan
+    }
+
+    fn mark_current_player_save_to_db_committed_like_cpp(
+        &mut self,
+        plan: &PlayerSaveToDbStatementPlanLikeCpp,
+    ) {
+        if plan.equipment_sets_committed_like_cpp {
+            self.mark_equipment_sets_saved_like_cpp();
+        }
+        if plan.tutorials_insert_committed_like_cpp {
+            self.tutorials_loaded_from_db_like_cpp = true;
+        }
+        if plan.tutorials_changed_committed_like_cpp {
+            self.tutorials_changed_like_cpp = false;
+        }
+        if plan.reputation_committed_like_cpp {
+            self.reputation_mgr_like_cpp_mut()
+                .mark_pending_save_to_db_committed_like_cpp();
+        }
+    }
+
     pub(crate) async fn save_current_player_to_db_like_cpp(&mut self) {
+        // C++ `Player::SaveToDB` delays the next autosave for manual, code, and
+        // autosave callers before it appends statements.
+        self.reset_player_save_timer_like_cpp();
+
         let Some(snapshot) = self.sync_session_from_save_to_db_snapshot_like_cpp() else {
             warn!(
                 account = self.account_id,
@@ -22254,27 +22580,48 @@ impl WorldSession {
             );
             return;
         };
-        self.save_player_position_like_cpp(&snapshot).await;
-        self.save_player_level_xp_like_cpp().await;
-        self.save_player_gold().await;
-        self.save_player_health_like_cpp(&snapshot).await;
-        self.save_player_powers_like_cpp(&snapshot).await;
-        self.save_player_talent_reset_state_like_cpp().await;
-        self.save_player_explored_zones_like_cpp().await;
-        self.save_player_skills_like_cpp().await;
-        self.save_player_difficulties_like_cpp().await;
-        self.save_player_glyphs_like_cpp().await;
-        self.save_player_talents_like_cpp().await;
-        self.save_player_spell_cooldowns_like_cpp().await;
-        self.save_player_spell_charges_like_cpp().await;
-        self.save_player_action_buttons_like_cpp().await;
-        self.save_player_equipment_sets_like_cpp().await;
-        self.save_player_quest_statuses_to_db_like_cpp().await;
-        self.save_tutorials_data_like_cpp().await;
-        self.save_instance_time_restrictions_like_cpp().await;
-        self.save_played_time().await;
-        self.save_reputation_to_db_like_cpp().await;
-        self.save_cuf_profiles_like_cpp().await;
+        let Some(char_db) = self.char_db().map(Arc::clone) else {
+            warn!(
+                account = self.account_id,
+                player_guid = ?self.player_guid(),
+                "Skipping Player::SaveToDB represented save because character database is unavailable"
+            );
+            return;
+        };
+
+        let mut plan =
+            self.current_player_save_to_db_statement_plan_like_cpp(&snapshot, unix_now());
+        let statement_count = plan.statements.len();
+        let mut tx = SqlTransaction::new();
+        for statement in std::mem::take(&mut plan.statements) {
+            tx.append(statement);
+        }
+
+        match char_db.commit_transaction(tx).await {
+            Ok(()) => {
+                self.mark_current_player_save_to_db_committed_like_cpp(&plan);
+                info!(
+                    guid = snapshot.guid.counter(),
+                    statement_count,
+                    "Player::SaveToDB represented save committed in one CharacterDatabase transaction"
+                );
+            }
+            Err(err) => warn!(
+                guid = snapshot.guid.counter(),
+                statement_count, "Failed to commit Player::SaveToDB represented transaction: {err}"
+            ),
+        }
+    }
+
+    async fn process_pending_periodic_player_save_like_cpp(&mut self) {
+        if !self.pending_periodic_player_save_like_cpp || self.state != SessionState::LoggedIn {
+            return;
+        }
+        if self.pending_teleport_save_destination_like_cpp().is_some() {
+            return;
+        }
+
+        self.save_current_player_to_db_like_cpp().await;
     }
 
     pub(crate) fn reset_represented_glyphs_like_cpp(&mut self) {
@@ -22291,6 +22638,16 @@ impl WorldSession {
     pub(crate) fn set_represented_active_talent_group_like_cpp(&mut self, active_group: u8) {
         self.represented_active_talent_group_like_cpp =
             active_group.min((MAX_SPECIALIZATIONS_LIKE_CPP - 1) as u8);
+    }
+
+    pub(crate) fn represented_active_talent_group_like_cpp(&self) -> u8 {
+        self.represented_active_talent_group_like_cpp
+    }
+
+    pub(crate) fn represented_action_button_db_context_like_cpp(&self) -> (u8, i32) {
+        // Trait-config-specific action bars are not represented yet. Both load and save must use
+        // the same C++ fallback context so an autosave cannot mutate rows it never loaded.
+        (self.represented_active_talent_group_like_cpp, 0)
     }
 
     pub(crate) fn set_represented_bonus_talent_groups_like_cpp(&mut self, bonus_groups: u8) {
@@ -23705,16 +24062,22 @@ impl WorldSession {
         statements
     }
 
-    pub(crate) fn build_character_action_delete_all_statement_like_cpp(
+    pub(crate) fn build_character_action_delete_spec_statement_like_cpp(
         guid_counter: u64,
+        spec: u8,
+        trait_config_id: i32,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::DEL_CHAR_ACTION.sql());
+        let mut stmt = PreparedStatement::new(CharStatements::DEL_CHAR_ACTION_BY_SPEC.sql());
         stmt.set_u64(0, guid_counter);
+        stmt.set_u8(1, spec);
+        stmt.set_i32(2, trait_config_id);
         stmt
     }
 
     pub(crate) fn build_character_action_insert_statement_like_cpp(
         guid_counter: u64,
+        spec: u8,
+        trait_config_id: i32,
         button: u8,
         packed_action: u32,
     ) -> Option<PreparedStatement> {
@@ -23724,8 +24087,8 @@ impl WorldSession {
 
         let mut stmt = PreparedStatement::new(CharStatements::INS_CHAR_ACTION.sql());
         stmt.set_u64(0, guid_counter);
-        stmt.set_u8(1, 0);
-        stmt.set_i32(2, 0);
+        stmt.set_u8(1, spec);
+        stmt.set_i32(2, trait_config_id);
         stmt.set_u8(3, button);
         stmt.set_u32(4, action_button_action_like_cpp(packed_action));
         stmt.set_u8(5, action_button_type_like_cpp(packed_action));
@@ -23740,8 +24103,11 @@ impl WorldSession {
             return None;
         }
 
-        let mut statements = vec![Self::build_character_action_delete_all_statement_like_cpp(
+        let (spec, trait_config_id) = self.represented_action_button_db_context_like_cpp();
+        let mut statements = vec![Self::build_character_action_delete_spec_statement_like_cpp(
             guid_counter,
+            spec,
+            trait_config_id,
         )];
         statements.extend(
             self.represented_action_buttons_like_cpp
@@ -23753,6 +24119,8 @@ impl WorldSession {
                     };
                     Self::build_character_action_insert_statement_like_cpp(
                         guid_counter,
+                        spec,
+                        trait_config_id,
                         button,
                         *packed_action,
                     )
@@ -24147,11 +24515,12 @@ impl WorldSession {
             return;
         };
 
-        let mut stmt = char_db.prepare(CharStatements::UPD_CHAR_DIFFICULTIES);
-        stmt.set_u32(0, self.represented_dungeon_difficulty_id_like_cpp);
-        stmt.set_u32(1, self.represented_raid_difficulty_id_like_cpp);
-        stmt.set_u32(2, self.represented_legacy_raid_difficulty_id_like_cpp);
-        stmt.set_u32(3, guid.counter() as u32);
+        let stmt = Self::build_character_difficulties_save_statement_like_cpp(
+            self.represented_dungeon_difficulty_id_like_cpp,
+            self.represented_raid_difficulty_id_like_cpp,
+            self.represented_legacy_raid_difficulty_id_like_cpp,
+            guid.counter() as u64,
+        );
         if let Err(err) = char_db.execute(&stmt).await {
             warn!(
                 "Failed to save player difficulties for guid {}: {err}",
@@ -24191,8 +24560,8 @@ impl WorldSession {
             return;
         };
         let statements = self
-            .reputation_mgr_like_cpp_mut()
-            .save_to_db_statement_plan_like_cpp(guid.counter() as u64);
+            .reputation_mgr_like_cpp()
+            .pending_save_to_db_statement_plan_like_cpp(guid.counter() as u64);
         if statements.is_empty() {
             return;
         }
@@ -24201,11 +24570,14 @@ impl WorldSession {
         for statement in statements {
             tx.append(statement);
         }
-        if let Err(err) = char_db.commit_transaction(tx).await {
-            warn!(
+        match char_db.commit_transaction(tx).await {
+            Ok(()) => self
+                .reputation_mgr_like_cpp_mut()
+                .mark_pending_save_to_db_committed_like_cpp(),
+            Err(err) => warn!(
                 "Failed to save character reputation for guid {}: {err}",
                 guid.counter()
-            );
+            ),
         }
     }
 
@@ -27136,6 +27508,7 @@ impl WorldSession {
             if self.creature_tick % 4 == 0 {
                 self.tick_auras();
             }
+            self.update_player_save_timer_like_cpp(diff_ms);
             self.represented_can_delay_teleport_like_cpp = false;
             self.process_represented_delayed_teleport_after_update_like_cpp();
         }
@@ -28811,6 +29184,8 @@ impl WorldSession {
             }
             self.dispatch_packet(pkt).await;
         }
+
+        self.process_pending_periodic_player_save_like_cpp().await;
     }
 
     async fn process_pending_creature_kills_like_cpp(&mut self) {
@@ -100428,7 +100803,7 @@ mod tests {
     }
 
     #[test]
-    fn logout_save_snapshot_uses_latest_session_position_and_canonical_gameplay_like_cpp() {
+    fn logout_save_snapshot_uses_session_money_xp_and_canonical_health_like_cpp() {
         let (mut session, _, _) = make_session();
         let canonical = shared_canonical_map_manager();
         let player_guid = ObjectGuid::create_player(1, 70);
@@ -100490,9 +100865,9 @@ mod tests {
                 map_id: 571,
                 instance_id: 0,
                 position: latest_session_position,
-                level: 42,
-                xp: 1234,
-                money: 5678,
+                level: 10,
+                xp: 1,
+                money: 2,
                 health: 456,
                 max_health: 900,
                 powers: loaded_character_power_snapshot_like_cpp([
@@ -100504,9 +100879,9 @@ mod tests {
             session.player_position_like_cpp(),
             Some(latest_session_position)
         );
-        assert_eq!(session.player_level_like_cpp(), 42);
-        assert_eq!(session.player_xp_like_cpp(), 1234);
-        assert_eq!(session.player_gold_like_cpp(), 5678);
+        assert_eq!(session.player_level_like_cpp(), 10);
+        assert_eq!(session.player_xp_like_cpp(), 1);
+        assert_eq!(session.player_gold_like_cpp(), 2);
         assert_eq!(session.player_health_like_cpp(), 456);
     }
 
@@ -100805,7 +101180,10 @@ mod tests {
             guid.counter() as u64,
         );
 
-        assert_eq!(stmt.sql(), CharStatements::UPD_CHARACTER_POSITION.sql());
+        assert_eq!(
+            stmt.sql(),
+            CharStatements::UPD_CHARACTER_POSITION_PRESERVE_TRAVEL.sql()
+        );
         assert!(matches!(stmt.params()[0], wow_database::SqlParam::F32(v) if v == 101.0));
         assert!(matches!(stmt.params()[1], wow_database::SqlParam::F32(v) if v == 202.0));
         assert!(matches!(stmt.params()[2], wow_database::SqlParam::F32(v) if v == 303.0));
@@ -100883,6 +101261,209 @@ mod tests {
     }
 
     #[test]
+    fn player_save_transaction_plan_orders_represented_statements_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 5010);
+        let powers = loaded_character_power_snapshot_like_cpp([321, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        let snapshot = PlayerSaveToDbSnapshotLikeCpp {
+            guid,
+            map_id: 571,
+            instance_id: 7,
+            position: Position::new(11.0, 22.0, 33.0, 1.5),
+            level: 70,
+            xp: 12_345,
+            money: 67_890,
+            health: 444,
+            max_health: 555,
+            powers,
+        };
+        session.set_player_guid(Some(guid));
+        session.set_player_level_like_cpp(70);
+        session.set_player_xp_like_cpp(12_345);
+        session.set_player_gold_like_cpp(67_890);
+        session.set_loaded_player_powers_like_cpp([321, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        session.set_player_skill_records_like_cpp(HashMap::from([(
+            762,
+            RepresentedPlayerSkillLikeCpp {
+                skill_id: 762,
+                value: 75,
+                max: 75,
+                profession_slot: -1,
+            },
+        )]));
+        session.player_quests.insert(
+            8_888,
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id: 8_888,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: true,
+                accept_time_secs: 123,
+                end_time_secs: 0,
+                objective_counts: Vec::new(),
+                slot: 0,
+            },
+        );
+
+        let plan = session.current_player_save_to_db_statement_plan_like_cpp(&snapshot, 1_000);
+        let sqls: Vec<&str> = plan.statements.iter().map(PreparedStatement::sql).collect();
+
+        assert_eq!(
+            &sqls[..10],
+            &[
+                CharStatements::UPD_CHARACTER_POSITION_PRESERVE_TRAVEL.sql(),
+                CharStatements::UPD_CHAR_LEVEL.sql(),
+                CharStatements::UPD_CHAR_MONEY.sql(),
+                CharStatements::UPD_CHAR_HEALTH.sql(),
+                CharStatements::UPD_CHAR_POWERS.sql(),
+                CharStatements::UPD_CHAR_TALENT_RESET_STATE.sql(),
+                CharStatements::UPD_CHAR_EXPLORED_ZONES.sql(),
+                CharStatements::DEL_CHAR_SKILLS.sql(),
+                CharStatements::INS_CHAR_SKILLS.sql(),
+                CharStatements::UPD_CHAR_DIFFICULTIES.sql(),
+            ],
+            "C++ Player::SaveToDB appends represented character statements to one CharacterDatabaseTransaction in save order"
+        );
+        assert_eq!(
+            sqls.last().copied(),
+            Some(CharStatements::UPD_CHAR_PLAYED_TIME.sql())
+        );
+        assert!(
+            !sqls.iter().any(|sql| {
+                *sql == CharStatements::INS_CHAR_QUEST_STATUS.sql()
+                    || *sql == CharStatements::DEL_CHAR_QUEST_STATUS_OBJECTIVES_BY_QUEST.sql()
+                    || *sql == CharStatements::REP_CHAR_QUEST_STATUS_OBJECTIVES.sql()
+            }),
+            "C++ _SaveQuestStatus only writes m_QuestStatusSave dirty entries; represented full-save must preserve unchanged objective rows until Rust owns that dirty set"
+        );
+    }
+
+    #[test]
+    fn player_save_plan_marks_dirty_state_only_after_commit_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 5011);
+        let snapshot = PlayerSaveToDbSnapshotLikeCpp {
+            guid,
+            map_id: 571,
+            instance_id: 7,
+            position: Position::new(11.0, 22.0, 33.0, 1.5),
+            level: 70,
+            xp: 12_345,
+            money: 67_890,
+            health: 444,
+            max_health: 555,
+            powers: loaded_character_power_snapshot_like_cpp([321, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+        };
+        session.set_player_guid(Some(guid));
+
+        session.tutorials_loaded_coherently_like_cpp = true;
+        session.tutorials_loaded_from_db_like_cpp = false;
+        session.tutorials_changed_like_cpp = true;
+
+        session.mark_represented_equipment_sets_loaded_like_cpp();
+        let mut changed_equipment = RepresentedEquipmentSetLikeCpp::equipment(
+            9,
+            0,
+            RepresentedEquipmentSetUpdateStateLikeCpp::Changed,
+        );
+        changed_equipment.guid = 900;
+        session.insert_represented_equipment_set_like_cpp(900, changed_equipment);
+
+        session
+            .reputation_mgr_like_cpp_mut()
+            .insert_state_for_test_like_cpp(crate::reputation::mgr::FactionStateLikeCpp {
+                standing: 123,
+                flags: ReputationFlagsLikeCpp::VISIBLE,
+                ..crate::reputation::mgr::FactionStateLikeCpp::new_like_cpp(
+                    85,
+                    14,
+                    ReputationFlagsLikeCpp::VISIBLE,
+                )
+            });
+
+        let plan = session.current_player_save_to_db_statement_plan_like_cpp(&snapshot, 1_000);
+
+        assert!(plan.tutorials_changed_committed_like_cpp);
+        assert!(plan.equipment_sets_committed_like_cpp);
+        assert!(plan.reputation_committed_like_cpp);
+        assert!(session.tutorials_changed_like_cpp);
+        assert!(!session.tutorials_loaded_from_db_like_cpp);
+        assert_eq!(
+            session
+                .represented_equipment_set_like_cpp(900)
+                .expect("equipment set")
+                .state,
+            RepresentedEquipmentSetUpdateStateLikeCpp::Changed,
+            "failed transaction must leave equipment-set state dirty for retry"
+        );
+        assert!(
+            session
+                .reputation_mgr_like_cpp()
+                .get_state(14)
+                .expect("reputation state")
+                .need_save,
+            "failed transaction must leave reputation state dirty for retry"
+        );
+
+        session.mark_current_player_save_to_db_committed_like_cpp(&plan);
+
+        assert!(!session.tutorials_changed_like_cpp);
+        assert!(session.tutorials_loaded_from_db_like_cpp);
+        assert_eq!(
+            session
+                .represented_equipment_set_like_cpp(900)
+                .expect("equipment set")
+                .state,
+            RepresentedEquipmentSetUpdateStateLikeCpp::Unchanged
+        );
+        assert!(
+            !session
+                .reputation_mgr_like_cpp()
+                .get_state(14)
+                .expect("reputation state")
+                .need_save
+        );
+    }
+
+    #[test]
+    fn player_save_timer_marks_periodic_save_due_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_player_save_interval_ms_like_cpp(100);
+
+        assert_eq!(session.next_player_save_ms_like_cpp, 100);
+        assert!(!session.pending_periodic_player_save_like_cpp);
+
+        session.update_player_save_timer_like_cpp(99);
+        assert_eq!(session.next_player_save_ms_like_cpp, 1);
+        assert!(!session.pending_periodic_player_save_like_cpp);
+
+        session.update_player_save_timer_like_cpp(1);
+        assert_eq!(session.next_player_save_ms_like_cpp, 0);
+        assert!(
+            session.pending_periodic_player_save_like_cpp,
+            "C++ Player::Update calls SaveToDB when m_nextSave expires; Rust marks the async save pending"
+        );
+    }
+
+    #[tokio::test]
+    async fn periodic_player_save_defers_while_teleport_pending_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.state = SessionState::LoggedIn;
+        session.set_player_save_interval_ms_like_cpp(100);
+        session.pending_teleport = Some((0, Position::new(10.0, 20.0, 30.0, 1.5)));
+        session.update_player_save_timer_like_cpp(100);
+
+        session
+            .process_pending_periodic_player_save_like_cpp()
+            .await;
+
+        assert!(
+            session.pending_periodic_player_save_like_cpp,
+            "autosave remains pending until the teleport handshake clears"
+        );
+        assert_eq!(session.next_player_save_ms_like_cpp, 0);
+    }
+
+    #[test]
     fn character_position_save_uses_captured_snapshot_map_instance_like_cpp() {
         let guid = ObjectGuid::create_player(1, 5003);
         let snapshot = PlayerSaveToDbSnapshotLikeCpp {
@@ -100902,7 +101483,10 @@ mod tests {
             &snapshot, 210,
         );
 
-        assert_eq!(stmt.sql(), CharStatements::UPD_CHARACTER_POSITION.sql());
+        assert_eq!(
+            stmt.sql(),
+            CharStatements::UPD_CHARACTER_POSITION_PRESERVE_TRAVEL.sql()
+        );
         assert!(matches!(stmt.params()[0], wow_database::SqlParam::F32(v) if v == 11.0));
         assert!(matches!(stmt.params()[1], wow_database::SqlParam::F32(v) if v == 22.0));
         assert!(matches!(stmt.params()[2], wow_database::SqlParam::F32(v) if v == 33.0));
@@ -102486,6 +103070,7 @@ mod tests {
     #[test]
     fn character_action_button_save_deletes_and_reinserts_non_empty_buttons_like_cpp() {
         let (mut session, _, _) = make_session();
+        session.set_represented_active_talent_group_like_cpp(1);
         session.reset_represented_action_buttons_like_cpp();
         assert!(session.record_loaded_action_button_like_cpp(7, 12_345, 0x80));
         assert!(session.record_loaded_action_button_like_cpp(2, 1_337, 0x40));
@@ -102496,15 +103081,26 @@ mod tests {
             .expect("loaded action buttons should be persisted");
 
         assert_eq!(statements.len(), 3);
-        assert_eq!(statements[0].sql(), CharStatements::DEL_CHAR_ACTION.sql());
-        assert_eq!(statements[0].params(), &[wow_database::SqlParam::U64(42)]);
+        assert_eq!(
+            statements[0].sql(),
+            CharStatements::DEL_CHAR_ACTION_BY_SPEC.sql()
+        );
+        assert_eq!(
+            statements[0].params(),
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U8(1),
+                wow_database::SqlParam::I32(0),
+            ],
+            "saving active spec 1 must leave action bars for every other spec/config untouched"
+        );
 
         assert_eq!(statements[1].sql(), CharStatements::INS_CHAR_ACTION.sql());
         assert_eq!(
             statements[1].params(),
             &[
                 wow_database::SqlParam::U64(42),
-                wow_database::SqlParam::U8(0),
+                wow_database::SqlParam::U8(1),
                 wow_database::SqlParam::I32(0),
                 wow_database::SqlParam::U8(2),
                 wow_database::SqlParam::U32(1_337),
@@ -102515,7 +103111,7 @@ mod tests {
             statements[2].params(),
             &[
                 wow_database::SqlParam::U64(42),
-                wow_database::SqlParam::U8(0),
+                wow_database::SqlParam::U8(1),
                 wow_database::SqlParam::I32(0),
                 wow_database::SqlParam::U8(7),
                 wow_database::SqlParam::U32(12_345),
@@ -102539,8 +103135,8 @@ mod tests {
         assert_eq!(statements.len(), 1);
         assert_eq!(
             statements[0].sql(),
-            CharStatements::DEL_CHAR_ACTION.sql(),
-            "C++ RemoveActionButton persists by deleting changed/deleted buttons; represented Rust uses a coherent delete+insert snapshot"
+            CharStatements::DEL_CHAR_ACTION_BY_SPEC.sql(),
+            "C++ RemoveActionButton scopes deletes to the active spec/config; represented Rust uses a coherent scoped delete+insert snapshot"
         );
     }
 

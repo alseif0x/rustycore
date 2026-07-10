@@ -975,6 +975,7 @@ impl WorldSession {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_quest_statuses_for_save_like_cpp(&self) -> Vec<(u32, u8)> {
         let mut quests = self
             .player_quests
@@ -1034,14 +1035,6 @@ impl WorldSession {
         }
 
         duplicate_quest_ids
-    }
-
-    pub(crate) async fn save_player_quest_statuses_to_db_like_cpp(&self) {
-        // C++ Player::SaveToDB delegates to Player::_SaveQuestStatus. Rust has no
-        // m_QuestStatusSave dirty map yet, so save the represented active quest set.
-        for (quest_id, status) in self.represented_quest_statuses_for_save_like_cpp() {
-            self.save_quest_to_db(quest_id, status).await;
-        }
     }
 
     async fn quest_source_item_quest_log_item_id_like_cpp(&mut self, entry_id: u32) -> u32 {
