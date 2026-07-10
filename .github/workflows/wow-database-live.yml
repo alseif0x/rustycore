@@ -2,8 +2,11 @@ name: wow-database live MariaDB
 
 on:
   pull_request:
+    branches:
+      - "3.4.3"
     paths:
       - ".github/workflows/wow-database-live.yml"
+      - "rust-toolchain.toml"
       - "Cargo.toml"
       - "Cargo.lock"
       - "crates/wow-database/**"
@@ -12,15 +15,24 @@ on:
       - "3.4.3"
     paths:
       - ".github/workflows/wow-database-live.yml"
+      - "rust-toolchain.toml"
       - "Cargo.toml"
       - "Cargo.lock"
       - "crates/wow-database/**"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   live-db-updater:
     name: DbUpdater populate/update against MariaDB 10.6
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
 
     services:
       mariadb:
@@ -40,7 +52,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.88.0
 
       - name: Install MySQL-compatible client
         run: |
@@ -64,4 +76,4 @@ jobs:
           RUSTYCORE_DB_IT_USER: root
           RUSTYCORE_DB_IT_PASS: root
         run: |
-          cargo test -p wow-database live_mariadb_populate_and_update_records_updates_like_cpp -- --ignored --nocapture
+          cargo test --locked -p wow-database live_mariadb_populate_and_update_records_updates_like_cpp -- --ignored --nocapture
