@@ -98233,7 +98233,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn combat_tick_kill_generates_creature_loot_after_pending_drain_like_cpp() {
+    async fn combat_tick_kill_keeps_empty_creature_loot_non_lootable_after_pending_drain_like_cpp()
+    {
         let (mut session, _, _) = make_session();
         let manager = shared_map_manager();
         let guid = test_creature_guid(18_015);
@@ -98365,6 +98366,7 @@ mod tests {
             .expect("melee kill loot is generated from pending bridge");
         assert!(loot.allowed_looters.contains(&player));
         assert_eq!(loot.loot_type, LOOT_TYPE_CORPSE_LIKE_CPP);
+        assert_eq!((loot.coins, loot.unlooted_count), (0, 0));
         assert!(session.player_xp_like_cpp() > 0);
         let quest = session.player_quests.get(&9_001).unwrap();
         assert_eq!(
@@ -98376,7 +98378,7 @@ mod tests {
         let world_creature = manager.find_creature(0, 0, guid).unwrap();
         assert!(world_creature.creature.is_tapped_by(player));
         assert!(
-            world_creature
+            !world_creature
                 .creature
                 .unit()
                 .world()
@@ -98411,7 +98413,7 @@ mod tests {
                 RepresentedCreatureKillEventLikeCpp::ZoneScriptUnitDeath { unit_guid: guid },
                 RepresentedCreatureKillEventLikeCpp::LootFlagsApplied {
                     creature_guid: guid,
-                    lootable: true,
+                    lootable: false,
                     can_skin: false,
                     skinnable: false,
                 },
