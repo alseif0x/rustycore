@@ -22,7 +22,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.88.0
         with:
           components: rustfmt
 
@@ -37,7 +37,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.88.0
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
@@ -50,7 +50,9 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Cargo check
-        run: cargo check -p wow-data -p wow-database -p wow-network -p wow-world -p world-server
+        run: |
+          cargo check --locked -p wow-data -p wow-database -p wow-network -p wow-world -p world-server
+          cargo check --locked --manifest-path tools/wow-test-bot/Cargo.toml
 
   tests:
     name: Focused library tests
@@ -60,7 +62,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.88.0
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
@@ -74,6 +76,6 @@ jobs:
 
       - name: Run packet/data/world tests
         run: |
-          cargo test -p wow-data --lib
-          cargo test -p wow-packet --lib
-          cargo test -p wow-world --lib
+          cargo test --locked -p wow-data --lib
+          cargo test --locked -p wow-packet --lib
+          cargo test --locked -p wow-world --lib
