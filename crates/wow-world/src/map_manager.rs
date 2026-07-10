@@ -4445,6 +4445,9 @@ pub struct PendingRespawn {
     pub respawn_at: Instant,
     /// C++ `RespawnInfo::spawnId` / `Creature::m_spawnId`, separate from the live ObjectGuid low counter.
     pub spawn_id: u64,
+    /// Whether `spawn_id` is a real DB spawn identity rather than the
+    /// queue-only GUID-low fallback used for dynamic creatures.
+    pub persistent_spawn: bool,
     /// Home position (spawn point).
     pub home_pos: wow_core::Position,
     /// Full create data retained until the represented loader converges on
@@ -4506,6 +4509,7 @@ pub fn pending_respawn_from_world_creature_like_cpp(
     respawn_at: Instant,
     map_id: u16,
 ) -> PendingRespawn {
+    let persistent_spawn = creature.creature.spawn_id() != 0;
     let spawn_id = match creature.creature.spawn_id() {
         0 => creature.guid().low_value().max(0) as u64,
         spawn_id => spawn_id,
@@ -4513,6 +4517,7 @@ pub fn pending_respawn_from_world_creature_like_cpp(
     PendingRespawn {
         respawn_at,
         spawn_id,
+        persistent_spawn,
         home_pos: creature.home_position(),
         create_data: CreatureCreateData {
             guid: creature.guid(),
@@ -4666,7 +4671,11 @@ pub fn world_creature_from_pending_respawn_like_cpp(
     let damage_school = create_data.damage_school;
 
     let mut creature = Creature::new(false);
-    creature.set_spawn_id(respawn.spawn_id);
+    creature.set_spawn_id(if respawn.persistent_spawn {
+        respawn.spawn_id
+    } else {
+        0
+    });
     creature.unit_mut().world_mut().object_mut().create(guid);
     creature
         .unit_mut()
@@ -8225,6 +8234,7 @@ mod tests {
         PendingRespawn {
             respawn_at,
             spawn_id,
+            persistent_spawn: true,
             home_pos: Position {
                 x: 0.0,
                 y: 0.0,
@@ -8861,7 +8871,7 @@ mod tests {
     }
 
     #[test]
-    fn pending_respawn_uses_guid_counter_for_legacy_zero_spawn_id() {
+    fn pending_respawn_keeps_guid_counter_queue_only_for_legacy_zero_spawn_id() {
         let first_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 43);
         let second_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 44);
         let first = test_creature(first_guid);
@@ -8877,11 +8887,12 @@ mod tests {
         assert_eq!(first_pending.spawn_id, first_guid.low_value() as u64);
         assert_eq!(second_pending.spawn_id, second_guid.low_value() as u64);
         assert_ne!(first_pending.spawn_id, second_pending.spawn_id);
+        assert!(!first_pending.persistent_spawn);
         assert_eq!(
             world_creature_from_pending_respawn_like_cpp(&first_pending, 0)
                 .creature
                 .spawn_id(),
-            first_pending.spawn_id
+            0
         );
     }
 }

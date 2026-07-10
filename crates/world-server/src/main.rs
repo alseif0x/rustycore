@@ -33,8 +33,9 @@ use wow_core::{
 use wow_database::{
     CharStatements, CharacterDatabase, DATABASE_CHARACTER_LIKE_CPP, DATABASE_HOTFIX_LIKE_CPP,
     DATABASE_LOGIN_LIKE_CPP, DATABASE_MASK_ALL_LIKE_CPP, DATABASE_WORLD_LIKE_CPP, HotfixDatabase,
-    LoginDatabase, LoginStatements, PreparedStatement, SqlResult, SqlTransaction, StatementDef,
-    WorldDatabase, WorldStatements, escape_string_like_cpp, warn_about_sync_queries_scope_like_cpp,
+    LoginDatabase, LoginStatements, PreparedStatement, SqlParam, SqlResult, SqlTransaction,
+    StatementDef, WorldDatabase, WorldStatements, escape_string_like_cpp,
+    warn_about_sync_queries_scope_like_cpp,
 };
 use wow_instances::{InstanceLockMgr, MapDb2Entries, ResetSchedule};
 use wow_loot::{
@@ -86,6 +87,33 @@ const RUSTYCORE_LEGACY_CREATURE_GLOBAL_RUNTIME_CONFIG: &str =
 const DEFAULT_RESPAWN_MIN_CHECK_INTERVAL_MS: u32 = 5_000;
 const CREATURE_TYPE_MECHANICAL_LIKE_CPP: u32 = 9;
 const CREATURE_TYPE_FLAG_BOSS_MOB_LIKE_CPP: u32 = 0x0001_0000;
+
+fn legacy_respawn_statement_key_like_cpp(
+    statement: &PreparedStatement,
+) -> Option<(u16, u64, u16, u32)> {
+    let params = statement.params();
+    let (map_index, instance_index) = if statement.sql() == CharStatements::REP_RESPAWN.sql() {
+        (3, 4)
+    } else if statement.sql() == CharStatements::DEL_RESPAWN.sql() {
+        (2, 3)
+    } else {
+        return None;
+    };
+    match (
+        params.first(),
+        params.get(1),
+        params.get(map_index),
+        params.get(instance_index),
+    ) {
+        (
+            Some(SqlParam::U16(object_type)),
+            Some(SqlParam::U64(spawn_id)),
+            Some(SqlParam::U16(map_id)),
+            Some(SqlParam::U32(instance_id)),
+        ) => Some((*object_type, *spawn_id, *map_id, *instance_id)),
+        _ => None,
+    }
+}
 
 type SharedCanonicalSpawnMetadataLikeCpp =
     Arc<Mutex<spawn_store_loader::CanonicalSpawnMetadataLikeCpp>>;
@@ -12990,7 +13018,14 @@ fn spawn_legacy_creature_runtime_update_loop_like_cpp(
                 break;
             };
 
-            pending_respawn_db_statements.append(&mut outcome.lifecycle.respawn_db_statements);
+            for statement in outcome.lifecycle.respawn_db_statements.drain(..) {
+                if let Some(key) = legacy_respawn_statement_key_like_cpp(&statement) {
+                    pending_respawn_db_statements.retain(|queued| {
+                        legacy_respawn_statement_key_like_cpp(queued) != Some(key)
+                    });
+                }
+                pending_respawn_db_statements.push(statement);
+            }
             if let Some(character_db) = character_db.as_ref() {
                 let mut failed_statements = Vec::new();
                 for stmt in pending_respawn_db_statements.drain(..) {

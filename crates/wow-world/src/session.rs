@@ -130435,6 +130435,7 @@ mod tests {
         let pending = crate::map_manager::PendingRespawn {
             respawn_at: past,
             spawn_id: dummy_guid.low_value() as u64,
+            persistent_spawn: true,
             home_pos: Position::new(0.0, 0.0, 0.0, 0.0),
             create_data,
             max_hp: 10,
