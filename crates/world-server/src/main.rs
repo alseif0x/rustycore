@@ -4766,6 +4766,11 @@ async fn main() -> Result<ExitCode> {
                 86_400,
             ),
         },
+        player_save_interval_ms: world_config_u32(
+            &world_configs,
+            "CONFIG_INTERVAL_SAVE",
+            15 * 60 * 1000,
+        ),
         realm_id,
         realm_region: active_realm.id.region,
         realm_battlegroup: active_realm.id.site,
@@ -11847,6 +11852,7 @@ async fn create_session(
     session.set_chat_flood_config_like_cpp(resources.chat_flood_config);
     session.set_socket_timeouts_like_cpp(resources.socket_timeouts);
     session.set_packet_spoof_config_like_cpp(resources.packet_spoof_config);
+    session.set_player_save_interval_ms_like_cpp(resources.player_save_interval_ms);
     session.set_legacy_creature_aggro_config_like_cpp(legacy_creature_aggro_config);
     session.set_mmap_runtime_config_like_cpp(mmap_runtime_config);
     if let Some(pathfinder) = mmap_pathfinder {
@@ -11919,10 +11925,18 @@ async fn create_session(
     info!("Session ready for account {}", account.id);
 
     // Session update loop
+    let mut last_session_update = Instant::now();
     loop {
         let (count, disconnecting) = warn_about_sync_queries_scope_like_cpp(async {
+            let now = Instant::now();
+            let diff_ms = now
+                .saturating_duration_since(last_session_update)
+                .as_millis()
+                .min(u128::from(u32::MAX)) as u32;
+            last_session_update = now;
+
             // Process incoming packets
-            let count = session.update(50);
+            let count = session.update(diff_ms);
 
             // Dispatch pending packets (async handlers)
             session.process_pending().await;

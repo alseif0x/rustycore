@@ -603,6 +603,9 @@ pub enum CharStatements {
     /// UPDATE characters position by guid and current map.
     UPD_CHARACTER_POSITION_BY_MAPID,
 
+    /// Update represented player position without clearing transport offsets or taxi path.
+    UPD_CHARACTER_POSITION_PRESERVE_TRAVEL,
+
     /// SELECT frozen aura rows for spell 9454.
     SEL_CHARACTER_AURA_FROZEN,
 
@@ -873,6 +876,9 @@ pub enum CharStatements {
 
     /// DELETE FROM character_action WHERE guid = ? and button = ? and spec = ? AND traitConfigId = ?
     DEL_CHAR_ACTION_BY_BUTTON_SPEC,
+
+    /// DELETE FROM character_action WHERE guid = ? AND spec = ? AND traitConfigId = ?
+    DEL_CHAR_ACTION_BY_SPEC,
 
     /// DELETE FROM character_action WHERE guid = ? AND traitConfigId = ?
     DEL_CHAR_ACTION_BY_TRAIT_CONFIG,
@@ -2279,6 +2285,9 @@ impl StatementDef for CharStatements {
             Self::UPD_CHARACTER_POSITION_BY_MAPID => {
                 "UPDATE characters SET position_x = ?, position_y = ?, position_z = ?, orientation = ?, map = ?, zone = ?, trans_x = 0, trans_y = 0, trans_z = 0, transguid = 0, taxi_path = '', cinematic = 1 WHERE guid = ? AND map = ?"
             }
+            Self::UPD_CHARACTER_POSITION_PRESERVE_TRAVEL => {
+                "UPDATE characters SET position_x = ?, position_y = ?, position_z = ?, orientation = ?, map = ?, instance_id = ?, zone = ? WHERE guid = ?"
+            }
             Self::SEL_CHARACTER_AURA_FROZEN => {
                 "SELECT characters.name, character_aura.remainTime FROM characters LEFT JOIN character_aura ON (characters.guid = character_aura.guid) WHERE character_aura.spell = 9454"
             }
@@ -2483,6 +2492,9 @@ impl StatementDef for CharStatements {
             }
             Self::DEL_CHAR_ACTION_BY_BUTTON_SPEC => {
                 "DELETE FROM character_action WHERE guid = ? and button = ? and spec = ? AND traitConfigId = ?"
+            }
+            Self::DEL_CHAR_ACTION_BY_SPEC => {
+                "DELETE FROM character_action WHERE guid = ? AND spec = ? AND traitConfigId = ?"
             }
             Self::DEL_CHAR_ACTION_BY_TRAIT_CONFIG => {
                 "DELETE FROM character_action WHERE guid = ? AND traitConfigId = ?"
@@ -4241,6 +4253,10 @@ mod tests {
             CharStatements::UPD_CHARACTER_POSITION_BY_MAPID.sql(),
             "UPDATE characters SET position_x = ?, position_y = ?, position_z = ?, orientation = ?, map = ?, zone = ?, trans_x = 0, trans_y = 0, trans_z = 0, transguid = 0, taxi_path = '', cinematic = 1 WHERE guid = ? AND map = ?"
         );
+        assert_eq!(
+            CharStatements::UPD_CHARACTER_POSITION_PRESERVE_TRAVEL.sql(),
+            "UPDATE characters SET position_x = ?, position_y = ?, position_z = ?, orientation = ?, map = ?, instance_id = ?, zone = ? WHERE guid = ?"
+        );
     }
 
     #[test]
@@ -4620,6 +4636,10 @@ mod tests {
         assert_eq!(
             CharStatements::DEL_CHAR_ACTION_BY_BUTTON_SPEC.sql(),
             "DELETE FROM character_action WHERE guid = ? and button = ? and spec = ? AND traitConfigId = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_ACTION_BY_SPEC.sql(),
+            "DELETE FROM character_action WHERE guid = ? AND spec = ? AND traitConfigId = ?"
         );
         assert_eq!(
             CharStatements::DEL_CHAR_ACTION_BY_TRAIT_CONFIG.sql(),

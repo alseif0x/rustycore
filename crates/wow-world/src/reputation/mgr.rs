@@ -584,12 +584,12 @@ impl ReputationMgrLikeCpp {
         }
     }
 
-    pub fn save_to_db_statement_plan_like_cpp(
-        &mut self,
+    pub fn pending_save_to_db_statement_plan_like_cpp(
+        &self,
         player_guid_counter: u64,
     ) -> Vec<PreparedStatement> {
         let mut statements = Vec::new();
-        for faction in self.factions.values_mut() {
+        for faction in self.factions.values() {
             if !faction.need_save {
                 continue;
             }
@@ -607,9 +607,24 @@ impl ReputationMgrLikeCpp {
             insert.set_i32(2, faction.standing);
             insert.set_u16(3, faction.flags.bits());
             statements.push(insert);
-
-            faction.need_save = false;
         }
+        statements
+    }
+
+    pub fn mark_pending_save_to_db_committed_like_cpp(&mut self) {
+        for faction in self.factions.values_mut() {
+            if faction.need_save {
+                faction.need_save = false;
+            }
+        }
+    }
+
+    pub fn save_to_db_statement_plan_like_cpp(
+        &mut self,
+        player_guid_counter: u64,
+    ) -> Vec<PreparedStatement> {
+        let statements = self.pending_save_to_db_statement_plan_like_cpp(player_guid_counter);
+        self.mark_pending_save_to_db_committed_like_cpp();
         statements
     }
 
@@ -1776,6 +1791,28 @@ mod tests {
             ]
         );
         assert!(!mgr.get_state(14).expect("saved state").need_save);
+    }
+
+    #[test]
+    fn pending_save_to_db_statement_plan_like_cpp_does_not_clear_dirty_until_commit() {
+        let mut mgr = ReputationMgrLikeCpp::new_like_cpp();
+        mgr.insert_state_for_test_like_cpp(FactionStateLikeCpp {
+            standing: 456,
+            flags: ReputationFlagsLikeCpp::VISIBLE,
+            ..FactionStateLikeCpp::new_like_cpp(86, 15, ReputationFlagsLikeCpp::VISIBLE)
+        });
+
+        let statements = mgr.pending_save_to_db_statement_plan_like_cpp(44);
+
+        assert_eq!(statements.len(), 2);
+        assert!(
+            mgr.get_state(15).expect("pending state").need_save,
+            "failed Player::SaveToDB transaction must leave reputation dirty for retry"
+        );
+
+        mgr.mark_pending_save_to_db_committed_like_cpp();
+
+        assert!(!mgr.get_state(15).expect("committed state").need_save);
     }
 
     #[test]

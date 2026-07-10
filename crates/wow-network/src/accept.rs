@@ -441,6 +441,8 @@ pub struct SessionResources {
     pub max_overspeed_pings: u32,
     pub socket_timeouts: SocketTimeoutsLikeCpp,
     pub packet_spoof_config: PacketSpoofConfigLikeCpp,
+    /// C++ `CONFIG_INTERVAL_SAVE` / `PlayerSaveInterval` in milliseconds.
+    pub player_save_interval_ms: u32,
     pub realm_id: u16,
     /// Region from `realmlist.Region`, used in C++ `RealmHandle::GetAddress()`.
     pub realm_region: u8,

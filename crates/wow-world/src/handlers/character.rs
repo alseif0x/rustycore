@@ -3828,46 +3828,6 @@ impl WorldSession {
         self.send_packet(&LogoutCancelAck);
     }
 
-    /// Save accumulated played time (`totaltime` + `leveltime`) back to the
-    /// characters database.  Called on logout so time is not lost.
-    pub(crate) async fn save_played_time(&self) {
-        let guid = match self.player_guid() {
-            Some(g) => g,
-            None => return,
-        };
-
-        let char_db = match self.char_db() {
-            Some(db) => Arc::clone(db),
-            None => return,
-        };
-
-        // Compute current total values: base (from DB at login) + session elapsed.
-        let session_secs: u32 = self
-            .login_time
-            .map(|t| t.elapsed().as_secs() as u32)
-            .unwrap_or(0);
-        let total_time = self.total_played_time.saturating_add(session_secs);
-        let level_time = self.level_played_time.saturating_add(session_secs);
-
-        let mut stmt = char_db.prepare(CharStatements::UPD_CHAR_PLAYED_TIME);
-        stmt.set_u32(0, total_time);
-        stmt.set_u32(1, level_time);
-        stmt.set_u32(2, guid.counter() as u32);
-        if let Err(e) = char_db.execute(&stmt).await {
-            warn!(
-                "Failed to save played time for guid {}: {e}",
-                guid.counter()
-            );
-        } else {
-            info!(
-                "Saved played time: total={}s level={}s for guid {}",
-                total_time,
-                level_time,
-                guid.counter()
-            );
-        }
-    }
-
     /// Mark the current character as offline in the database.
     pub(crate) async fn mark_character_offline(&self) {
         let guid = match self.player_guid() {
@@ -5488,8 +5448,11 @@ impl WorldSession {
         {
             let mut action_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_ACTIONS_SPEC);
             action_stmt.set_u64(0, guid.counter() as u64);
-            action_stmt.set_u8(1, 0); // spec = 0
-            action_stmt.set_u8(2, 0); // traitConfigId = 0
+            // C++ loads the action-button map for GetActiveTalentGroup(), not always spec 0.
+            let (active_spec, trait_config_id) =
+                self.represented_action_button_db_context_like_cpp();
+            action_stmt.set_u8(1, active_spec);
+            action_stmt.set_i32(2, trait_config_id);
             match char_db.query(&action_stmt).await {
                 Ok(mut action_result) => {
                     if !action_result.is_empty() {
