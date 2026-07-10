@@ -492,6 +492,7 @@ fn unit_data_update_to_packet(update: &UnitDataUpdate) -> UnitDataValuesDeltaUpd
     packet_update.mod_ranged_haste = update.values.mod_ranged_haste;
     packet_update.mod_haste_regen = update.values.mod_haste_regen;
     packet_update.mod_time_rate = update.values.mod_time_rate;
+    packet_update.emote_state = update.values.emote_state;
     packet_update.hover_height = update.values.hover_height;
     packet_update.wild_battle_pet_level = update.values.wild_battle_pet_level;
     packet_update.base_mana = update.values.base_mana;
@@ -1020,8 +1021,9 @@ mod tests {
         PLAYER_DATA_FLAGS_BIT, PLAYER_DATA_HONOR_LEVEL_BIT, PLAYER_DATA_PARENT_BIT,
         PLAYER_DATA_PARTY_TYPE_FIRST_BIT, PLAYER_DATA_PARTY_TYPE_PARENT_BIT,
         PLAYER_DATA_PLAYER_TITLE_BIT, Player, SCENE_OBJECT_DATA_PARENT_BIT,
-        SCENE_OBJECT_DATA_SCRIPT_PACKAGE_ID_BIT, SceneObject, UNIT_DATA_HEALTH_BIT,
-        UNIT_DATA_PARENT_BIT, UNIT_DATA_STAND_STATE_BIT, UNIT_DATA_VIRTUAL_ITEMS_FIRST_BIT,
+        SCENE_OBJECT_DATA_SCRIPT_PACKAGE_ID_BIT, SceneObject, UNIT_DATA_EMOTE_STATE_BIT,
+        UNIT_DATA_HEALTH_BIT, UNIT_DATA_MODS_PARENT_BIT, UNIT_DATA_PARENT_BIT,
+        UNIT_DATA_STAND_STATE_BIT, UNIT_DATA_VIRTUAL_ITEMS_FIRST_BIT,
         UNIT_DATA_VIRTUAL_ITEMS_PARENT_BIT, VisibleItemValues,
     };
     use wow_packet::ServerPacket;
@@ -1327,6 +1329,22 @@ mod tests {
             packet_update.active_player_data.as_ref().unwrap().coinage,
             42
         );
+    }
+
+    #[test]
+    fn bridges_unit_emote_state_from_player_values_update_like_cpp() {
+        let mut player = Player::new(Some(7), false);
+        player.clear_data_changes();
+
+        player.unit_mut().set_emote_state_like_cpp(10);
+
+        let update = player.values_update(true);
+        let packet_update = player_values_update_to_packet(&update).unwrap();
+        let unit = packet_update.unit_data.unwrap();
+
+        assert!(mask_has(&unit.unit_data_mask, UNIT_DATA_MODS_PARENT_BIT));
+        assert!(mask_has(&unit.unit_data_mask, UNIT_DATA_EMOTE_STATE_BIT));
+        assert_eq!(unit.emote_state, 10);
     }
 
     #[test]
