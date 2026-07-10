@@ -5448,8 +5448,11 @@ impl WorldSession {
         {
             let mut action_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_ACTIONS_SPEC);
             action_stmt.set_u64(0, guid.counter() as u64);
-            action_stmt.set_u8(1, 0); // spec = 0
-            action_stmt.set_u8(2, 0); // traitConfigId = 0
+            // C++ loads the action-button map for GetActiveTalentGroup(), not always spec 0.
+            let (active_spec, trait_config_id) =
+                self.represented_action_button_db_context_like_cpp();
+            action_stmt.set_u8(1, active_spec);
+            action_stmt.set_i32(2, trait_config_id);
             match char_db.query(&action_stmt).await {
                 Ok(mut action_result) => {
                     if !action_result.is_empty() {

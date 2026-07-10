@@ -22228,7 +22228,12 @@ impl WorldSession {
         zone_id: u32,
         guid_counter: u64,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::UPD_CHARACTER_POSITION.sql());
+        // This represented save seam does not yet own transport offsets or the complete taxi
+        // destination path. C++ Player::SaveToDB writes those fields from the live Player; until
+        // Rust can do the same, preserve the DB values instead of using the teleport helper that
+        // clears them.
+        let mut stmt =
+            PreparedStatement::new(CharStatements::UPD_CHARACTER_POSITION_PRESERVE_TRAVEL.sql());
         stmt.set_f32(0, position.x);
         stmt.set_f32(1, position.y);
         stmt.set_f32(2, position.z);
@@ -22496,8 +22501,11 @@ impl WorldSession {
             );
         }
 
-        plan.statements
-            .extend(self.represented_quest_status_save_statement_plan_like_cpp(guid_counter));
+        // C++ `_SaveQuestStatus` only consumes entries present in `m_QuestStatusSave`; it does
+        // not rewrite every loaded quest during Player::SaveToDB. Rust's quest mutation paths
+        // already persist their changed quest directly, but there is no coherent dirty-set seam
+        // yet. Rewriting every active quest here can delete objective rows that were not mapped
+        // into represented state, so preserve them until that dirty tracking exists.
 
         if self.tutorials_changed_like_cpp {
             if let Some(stmt) = self.tutorial_save_statement_like_cpp(self.account_id) {
@@ -22630,6 +22638,16 @@ impl WorldSession {
     pub(crate) fn set_represented_active_talent_group_like_cpp(&mut self, active_group: u8) {
         self.represented_active_talent_group_like_cpp =
             active_group.min((MAX_SPECIALIZATIONS_LIKE_CPP - 1) as u8);
+    }
+
+    pub(crate) fn represented_active_talent_group_like_cpp(&self) -> u8 {
+        self.represented_active_talent_group_like_cpp
+    }
+
+    pub(crate) fn represented_action_button_db_context_like_cpp(&self) -> (u8, i32) {
+        // Trait-config-specific action bars are not represented yet. Both load and save must use
+        // the same C++ fallback context so an autosave cannot mutate rows it never loaded.
+        (self.represented_active_talent_group_like_cpp, 0)
     }
 
     pub(crate) fn set_represented_bonus_talent_groups_like_cpp(&mut self, bonus_groups: u8) {
@@ -24044,16 +24062,22 @@ impl WorldSession {
         statements
     }
 
-    pub(crate) fn build_character_action_delete_all_statement_like_cpp(
+    pub(crate) fn build_character_action_delete_spec_statement_like_cpp(
         guid_counter: u64,
+        spec: u8,
+        trait_config_id: i32,
     ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::DEL_CHAR_ACTION.sql());
+        let mut stmt = PreparedStatement::new(CharStatements::DEL_CHAR_ACTION_BY_SPEC.sql());
         stmt.set_u64(0, guid_counter);
+        stmt.set_u8(1, spec);
+        stmt.set_i32(2, trait_config_id);
         stmt
     }
 
     pub(crate) fn build_character_action_insert_statement_like_cpp(
         guid_counter: u64,
+        spec: u8,
+        trait_config_id: i32,
         button: u8,
         packed_action: u32,
     ) -> Option<PreparedStatement> {
@@ -24063,8 +24087,8 @@ impl WorldSession {
 
         let mut stmt = PreparedStatement::new(CharStatements::INS_CHAR_ACTION.sql());
         stmt.set_u64(0, guid_counter);
-        stmt.set_u8(1, 0);
-        stmt.set_i32(2, 0);
+        stmt.set_u8(1, spec);
+        stmt.set_i32(2, trait_config_id);
         stmt.set_u8(3, button);
         stmt.set_u32(4, action_button_action_like_cpp(packed_action));
         stmt.set_u8(5, action_button_type_like_cpp(packed_action));
@@ -24079,8 +24103,11 @@ impl WorldSession {
             return None;
         }
 
-        let mut statements = vec![Self::build_character_action_delete_all_statement_like_cpp(
+        let (spec, trait_config_id) = self.represented_action_button_db_context_like_cpp();
+        let mut statements = vec![Self::build_character_action_delete_spec_statement_like_cpp(
             guid_counter,
+            spec,
+            trait_config_id,
         )];
         statements.extend(
             self.represented_action_buttons_like_cpp
@@ -24092,6 +24119,8 @@ impl WorldSession {
                     };
                     Self::build_character_action_insert_statement_like_cpp(
                         guid_counter,
+                        spec,
+                        trait_config_id,
                         button,
                         *packed_action,
                     )
@@ -101151,7 +101180,10 @@ mod tests {
             guid.counter() as u64,
         );
 
-        assert_eq!(stmt.sql(), CharStatements::UPD_CHARACTER_POSITION.sql());
+        assert_eq!(
+            stmt.sql(),
+            CharStatements::UPD_CHARACTER_POSITION_PRESERVE_TRAVEL.sql()
+        );
         assert!(matches!(stmt.params()[0], wow_database::SqlParam::F32(v) if v == 101.0));
         assert!(matches!(stmt.params()[1], wow_database::SqlParam::F32(v) if v == 202.0));
         assert!(matches!(stmt.params()[2], wow_database::SqlParam::F32(v) if v == 303.0));
@@ -101278,7 +101310,7 @@ mod tests {
         assert_eq!(
             &sqls[..10],
             &[
-                CharStatements::UPD_CHARACTER_POSITION.sql(),
+                CharStatements::UPD_CHARACTER_POSITION_PRESERVE_TRAVEL.sql(),
                 CharStatements::UPD_CHAR_LEVEL.sql(),
                 CharStatements::UPD_CHAR_MONEY.sql(),
                 CharStatements::UPD_CHAR_HEALTH.sql(),
@@ -101295,17 +101327,13 @@ mod tests {
             sqls.last().copied(),
             Some(CharStatements::UPD_CHAR_PLAYED_TIME.sql())
         );
-        let quest_status_index = sqls
-            .iter()
-            .position(|sql| *sql == CharStatements::INS_CHAR_QUEST_STATUS.sql())
-            .expect("active quest status statement");
-        let played_time_index = sqls
-            .iter()
-            .position(|sql| *sql == CharStatements::UPD_CHAR_PLAYED_TIME.sql())
-            .expect("played time statement");
         assert!(
-            quest_status_index < played_time_index,
-            "C++ Player::SaveToDB appends quest status statements before later account/time saves"
+            !sqls.iter().any(|sql| {
+                *sql == CharStatements::INS_CHAR_QUEST_STATUS.sql()
+                    || *sql == CharStatements::DEL_CHAR_QUEST_STATUS_OBJECTIVES_BY_QUEST.sql()
+                    || *sql == CharStatements::REP_CHAR_QUEST_STATUS_OBJECTIVES.sql()
+            }),
+            "C++ _SaveQuestStatus only writes m_QuestStatusSave dirty entries; represented full-save must preserve unchanged objective rows until Rust owns that dirty set"
         );
     }
 
@@ -101455,7 +101483,10 @@ mod tests {
             &snapshot, 210,
         );
 
-        assert_eq!(stmt.sql(), CharStatements::UPD_CHARACTER_POSITION.sql());
+        assert_eq!(
+            stmt.sql(),
+            CharStatements::UPD_CHARACTER_POSITION_PRESERVE_TRAVEL.sql()
+        );
         assert!(matches!(stmt.params()[0], wow_database::SqlParam::F32(v) if v == 11.0));
         assert!(matches!(stmt.params()[1], wow_database::SqlParam::F32(v) if v == 22.0));
         assert!(matches!(stmt.params()[2], wow_database::SqlParam::F32(v) if v == 33.0));
@@ -103039,6 +103070,7 @@ mod tests {
     #[test]
     fn character_action_button_save_deletes_and_reinserts_non_empty_buttons_like_cpp() {
         let (mut session, _, _) = make_session();
+        session.set_represented_active_talent_group_like_cpp(1);
         session.reset_represented_action_buttons_like_cpp();
         assert!(session.record_loaded_action_button_like_cpp(7, 12_345, 0x80));
         assert!(session.record_loaded_action_button_like_cpp(2, 1_337, 0x40));
@@ -103049,15 +103081,26 @@ mod tests {
             .expect("loaded action buttons should be persisted");
 
         assert_eq!(statements.len(), 3);
-        assert_eq!(statements[0].sql(), CharStatements::DEL_CHAR_ACTION.sql());
-        assert_eq!(statements[0].params(), &[wow_database::SqlParam::U64(42)]);
+        assert_eq!(
+            statements[0].sql(),
+            CharStatements::DEL_CHAR_ACTION_BY_SPEC.sql()
+        );
+        assert_eq!(
+            statements[0].params(),
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U8(1),
+                wow_database::SqlParam::I32(0),
+            ],
+            "saving active spec 1 must leave action bars for every other spec/config untouched"
+        );
 
         assert_eq!(statements[1].sql(), CharStatements::INS_CHAR_ACTION.sql());
         assert_eq!(
             statements[1].params(),
             &[
                 wow_database::SqlParam::U64(42),
-                wow_database::SqlParam::U8(0),
+                wow_database::SqlParam::U8(1),
                 wow_database::SqlParam::I32(0),
                 wow_database::SqlParam::U8(2),
                 wow_database::SqlParam::U32(1_337),
@@ -103068,7 +103111,7 @@ mod tests {
             statements[2].params(),
             &[
                 wow_database::SqlParam::U64(42),
-                wow_database::SqlParam::U8(0),
+                wow_database::SqlParam::U8(1),
                 wow_database::SqlParam::I32(0),
                 wow_database::SqlParam::U8(7),
                 wow_database::SqlParam::U32(12_345),
@@ -103092,8 +103135,8 @@ mod tests {
         assert_eq!(statements.len(), 1);
         assert_eq!(
             statements[0].sql(),
-            CharStatements::DEL_CHAR_ACTION.sql(),
-            "C++ RemoveActionButton persists by deleting changed/deleted buttons; represented Rust uses a coherent delete+insert snapshot"
+            CharStatements::DEL_CHAR_ACTION_BY_SPEC.sql(),
+            "C++ RemoveActionButton scopes deletes to the active spec/config; represented Rust uses a coherent scoped delete+insert snapshot"
         );
     }
 

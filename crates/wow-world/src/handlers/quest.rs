@@ -34,7 +34,7 @@ use wow_data::{
     reputation::reputation_rank_from_standing_like_cpp as reputation_rank_from_standing_data_like_cpp,
 };
 use wow_database::{
-    CharStatements, PreparedStatement, SqlTransaction, StatementDef, WorldDatabase, WorldStatements,
+    CharStatements, PreparedStatement, SqlTransaction, WorldDatabase, WorldStatements,
 };
 use wow_entities::{
     ItemPosCount, SendNewItemDelivery, SendNewItemDisplayText, SendNewItemInstancePlan,
@@ -975,6 +975,7 @@ impl WorldSession {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn represented_quest_statuses_for_save_like_cpp(&self) -> Vec<(u32, u8)> {
         let mut quests = self
             .player_quests
@@ -6903,22 +6904,6 @@ impl WorldSession {
             }
         }
 
-        statements
-    }
-
-    pub(crate) fn represented_quest_status_save_statement_plan_like_cpp(
-        &self,
-        guid: u64,
-    ) -> Vec<PreparedStatement> {
-        let mut statements = Vec::new();
-        for (quest_id, status) in self.represented_quest_statuses_for_save_like_cpp() {
-            statements.extend(self.represented_quest_status_save_statements_like_cpp(
-                guid,
-                quest_id,
-                status,
-                |statement| PreparedStatement::new(statement.sql()),
-            ));
-        }
         statements
     }
 
