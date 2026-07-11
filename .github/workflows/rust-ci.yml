@@ -20,7 +20,6 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  PROTOC_VERSION: "28.3"
 
 jobs:
   fmt:
@@ -37,9 +36,7 @@ jobs:
           components: rustfmt
 
       - name: Check formatting
-        run: |
-          cargo fmt --all --check
-          cargo fmt --manifest-path tools/wow-test-bot/Cargo.toml -- --check
+        run: ./tools/pr-preflight.sh format
 
   check:
     name: Check core crates
@@ -57,18 +54,16 @@ jobs:
 
       - name: Install protoc
         run: |
+          protoc_version="$(tr -d '[:space:]' < .protoc-version)"
           curl --fail --show-error --location --retry 3 --retry-all-errors \
             -o /tmp/protoc.zip \
-            "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip"
+            "https://github.com/protocolbuffers/protobuf/releases/download/v${protoc_version}/protoc-${protoc_version}-linux-x86_64.zip"
           python3 -m zipfile -e /tmp/protoc.zip "$HOME/.local"
           chmod +x "$HOME/.local/bin/protoc"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Cargo check
-        run: |
-          cargo check --locked -p wow-data -p wow-database -p wow-network -p wow-world -p bnet-server -p world-server
-          cargo check --locked --manifest-path tools/wow-test-bot/Cargo.toml
-          cargo build --locked -p bnet-server -p world-server
+        run: ./tools/pr-preflight.sh check
 
   tests:
     name: Focused library tests
@@ -86,19 +81,16 @@ jobs:
 
       - name: Install protoc
         run: |
+          protoc_version="$(tr -d '[:space:]' < .protoc-version)"
           curl --fail --show-error --location --retry 3 --retry-all-errors \
             -o /tmp/protoc.zip \
-            "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip"
+            "https://github.com/protocolbuffers/protobuf/releases/download/v${protoc_version}/protoc-${protoc_version}-linux-x86_64.zip"
           python3 -m zipfile -e /tmp/protoc.zip "$HOME/.local"
           chmod +x "$HOME/.local/bin/protoc"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Run packet/data/world tests
-        run: |
-          cargo test --locked -p wow-data --lib
-          cargo test --locked -p wow-packet --lib
-          cargo test --locked -p wow-map --lib
-          cargo test --locked -p wow-world --lib
+        run: ./tools/pr-preflight.sh test
 
   latest-stable:
     name: Latest stable compatibility
@@ -121,14 +113,13 @@ jobs:
 
       - name: Install protoc
         run: |
+          protoc_version="$(tr -d '[:space:]' < .protoc-version)"
           curl --fail --show-error --location --retry 3 --retry-all-errors \
             -o /tmp/protoc.zip \
-            "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip"
+            "https://github.com/protocolbuffers/protobuf/releases/download/v${protoc_version}/protoc-${protoc_version}-linux-x86_64.zip"
           python3 -m zipfile -e /tmp/protoc.zip "$HOME/.local"
           chmod +x "$HOME/.local/bin/protoc"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Check and link server binaries on latest stable
-        run: |
-          cargo +stable check --locked -p bnet-server -p world-server
-          cargo +stable build --locked -p bnet-server -p world-server
+        run: ./tools/pr-preflight.sh stable
