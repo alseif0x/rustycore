@@ -47533,6 +47533,37 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
         Vec::new();
     let mut canonical_inserts: Vec<(u32, u32, wow_entities::Creature)> = Vec::new();
     let now_secs = unix_now();
+    let legacy_map_keys = legacy_map_manager
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .active_map_keys();
+    let persistent_world_map_keys: BTreeSet<(u16, u32)> = if let Some(canonical) =
+        canonical_map_manager
+    {
+        canonical
+            .lock()
+            .ok()
+            .map(|manager| {
+                legacy_map_keys
+                    .iter()
+                    .copied()
+                    .filter(|(map_id, instance_id)| {
+                        manager
+                            .find_map(u32::from(*map_id), *instance_id)
+                            .is_some_and(|map| matches!(map.kind(), wow_map::ManagedMapKind::World))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    } else {
+        // Without the canonical map-kind registry, retain the legacy world-map
+        // fallback. C++ skips only Instanceable maps, not all nonzero instances.
+        legacy_map_keys
+            .iter()
+            .copied()
+            .filter(|(_, instance_id)| *instance_id == 0)
+            .collect()
+    };
 
     {
         let mut manager = legacy_map_manager
@@ -47543,7 +47574,7 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
             return outcome;
         }
 
-        let map_keys = manager.active_map_keys();
+        let map_keys = legacy_map_keys;
         outcome.maps_seen = map_keys.len();
         for (map_id, instance_id) in map_keys {
             let guids = manager.creature_guids(map_id, instance_id);
@@ -47552,7 +47583,7 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
             // C++ saves the respawn time from JUST_DIED, not when the corpse
             // is eventually removed. Only persistent world-map spawns belong
             // in the global characters.respawn table.
-            if instance_id == 0 {
+            if persistent_world_map_keys.contains(&(map_id, instance_id)) {
                 for guid in &guids {
                     let pending =
                         manager
@@ -47614,14 +47645,16 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                 let pending =
                     pending_respawn_from_world_creature_like_cpp(&creature, respawn_at, map_id);
                 let grid = wow_map::compute_grid_coord(pending.home_pos.x, pending.home_pos.y);
+                let pending_respawn_secs =
+                    respawn_time_from_instant_like_cpp(respawn_at, now, now_secs);
                 let canonical_respawn_info = wow_map::RespawnInfoLikeCpp {
                     object_type: wow_map::SpawnObjectType::Creature,
                     spawn_id: pending.spawn_id,
                     entry: pending.create_data.entry,
-                    respawn_time: respawn_time_from_instant_like_cpp(respawn_at, now, now_secs),
+                    respawn_time: pending_respawn_secs,
                     grid_id: grid.get_id(),
                 };
-                if instance_id == 0
+                if persistent_world_map_keys.contains(&(map_id, instance_id))
                     && creature.creature.spawn_id() != 0
                     && manager
                         .persisted_respawn_time_like_cpp(
@@ -47630,8 +47663,16 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                             wow_map::SpawnObjectType::Creature,
                             pending.spawn_id,
                         )
-                        .is_none()
+                        .is_none_or(|stored| stored < pending_respawn_secs)
                 {
+                    // REP_RESPAWN is an upsert, so replace the in-memory row
+                    // directly; no intermediate DEL is needed for the DB row.
+                    let _ = manager.remove_persisted_respawn_time_like_cpp(
+                        map_id,
+                        instance_id,
+                        wow_map::SpawnObjectType::Creature,
+                        pending.spawn_id,
+                    );
                     if let Some(stmt) = manager.save_pending_respawn_time_like_cpp(
                         map_id,
                         instance_id,
@@ -49048,10 +49089,7 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                     game_time_secs,
                 );
                 if killed {
-                    victim.creature.set_death_state_runtime(
-                        wow_constants::DeathState::JustDied,
-                        game_time_secs,
-                    );
+                    victim.complete_death_state_after_kill_hooks_like_cpp();
                     victim.creature.unit_mut().set_health(0);
                 }
             } else {

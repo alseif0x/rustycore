@@ -6522,8 +6522,7 @@ impl WorldSession {
                     );
                     let corpse_despawn_at =
                         Instant::now() + Duration::from_secs(u64::from(corpse_decay_secs));
-                    let _ = creature.creature.all_loot_removed_from_corpse(
-                        wow_entities::game_time_secs_like_cpp(),
+                    creature.all_loot_removed_from_corpse_like_cpp(
                         corpse_decay_looted_rate,
                         is_fully_skinned,
                     );

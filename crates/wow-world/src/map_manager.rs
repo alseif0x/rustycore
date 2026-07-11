@@ -1355,6 +1355,13 @@ impl WorldCreature {
             .min(u128::from(u64::MAX)) as u64
     }
 
+    pub(crate) fn now_secs_like_cpp(&self) -> i64 {
+        self.clock_started_at
+            .elapsed()
+            .as_secs()
+            .min(i64::MAX as u64) as i64
+    }
+
     pub fn guid(&self) -> ObjectGuid {
         self.creature.ai_guid()
     }
@@ -1525,7 +1532,7 @@ impl WorldCreature {
                     .saturating_add(compatibility_corpse_delay),
             );
         let now = Instant::now();
-        let now_secs = wow_entities::game_time_secs_like_cpp();
+        let now_secs = self.now_secs_like_cpp();
         let stored_respawn = self.creature.respawn_time();
         let stored_based = if stored_respawn > now_secs {
             now.checked_add(Duration::from_secs(
@@ -1599,7 +1606,20 @@ impl WorldCreature {
 
     pub fn complete_death_state_after_kill_hooks_like_cpp(&mut self) {
         self.creature
-            .complete_ai_death_state_after_kill_hooks_like_cpp(self.now_ms());
+            .complete_ai_death_state_after_kill_hooks_like_cpp(
+                self.now_secs_like_cpp().max(0) as u64
+            );
+    }
+
+    pub fn all_loot_removed_from_corpse_like_cpp(
+        &mut self,
+        decay_rate: f32,
+        is_fully_skinned: bool,
+    ) {
+        let now_secs = self.now_secs_like_cpp();
+        let _ = self
+            .creature
+            .all_loot_removed_from_corpse(now_secs, decay_rate, is_fully_skinned);
     }
 
     pub fn apply_corpse_loot_flags_after_death_state_like_cpp(
