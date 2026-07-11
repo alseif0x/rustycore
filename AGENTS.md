@@ -142,6 +142,21 @@ cargo clippy -p wow-map -p wow-world --all-targets
 git diff --check
 ```
 
+Local preflight commands mirroring GitHub CI:
+
+```bash
+# During iteration (diff + format + the core check/build job):
+./tools/pr-preflight.sh quick origin/3.4.3
+
+# Before push, after committing to a clean HEAD (exact CI + capture-diff + local Codex review):
+./tools/pr-preflight.sh full origin/3.4.3
+```
+
+`full` is the standard pre-push gate. Its local Codex result reduces remote review cycles but does
+not satisfy branch protection; the GitHub `Codex reviewer verdict` must still be green for the
+current remote HEAD. See `docs/operations/pr-preflight.md` for all profiles. Live bot QA and fresh
+capture recording are explicit operations and never run as part of `full`.
+
 TSV inventory files must keep 9 tab-separated columns:
 
 ```bash
@@ -369,12 +384,10 @@ Per-issue closeout workflow:
 ```bash
 # at kickoff: gh issue develop <N> --base 3.4.3 --checkout   (creates the linked branch)
 git status --short --branch
-cargo fmt --check
 # focused tests
-PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p world-server
-git diff --check
 git add <changed files>
 git commit -m "<short faithful summary>"
+./tools/pr-preflight.sh full origin/3.4.3
 git push origin <feature-branch>        # NO push unless asked
 # after push, open the PR into 3.4.3 with `Closes #<N>` in the body so CI and
 # the configured Codex reviewer can run.
