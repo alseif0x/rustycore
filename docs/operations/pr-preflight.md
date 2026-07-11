@@ -13,8 +13,9 @@ The entry point is:
 
 It reads `rust-toolchain.toml` and runs the required jobs with Rust `1.88.0`. Protobuf-dependent
 commands require the version pinned in `.protoc-version` (`28.3`); the script uses `PROTOC` when
-set, then checks the project's usual local install and `PATH`. GitHub downloads the version from
-the same file. Review commands require an authenticated `codex` CLI.
+set (resolving bare command names through `PATH`), then checks the project's usual local install
+and `PATH`. GitHub downloads the version from the same file. Review commands require an
+authenticated `codex` CLI.
 Printing `review` or `full` with `--dry-run` does not require Codex or its execution-time helpers.
 
 ## Profiles
@@ -80,8 +81,13 @@ cycles, not to create a maintainer bypass.
 The policy in `tools/codex-review-policy.md` supplements `AGENTS.md`, and
 `tools/codex-review-schema.json` makes the result machine-readable. Codex runs ephemerally with
 user configuration, hooks, plugins, apps, and approval prompts disabled, inside a read-only
-sandbox. The harness interprets the structured review rather than assuming a successful process
-exit means a clean patch. Review is limited to 1800 seconds by default; set
+sandbox. Read-only shell inspections remain available, while writes and approval escalation are
+blocked. The harness also checks the JSON event log for the profile's required successful
+inspections: the merge-base diff for committed review, or unstaged, staged, and untracked-file
+discovery for uncommitted review. Each must be its own exact successful command-execution event,
+so a later command cannot mask an inspection failure. The harness then interprets the structured
+result rather than assuming a successful process exit means a clean patch. Review is limited to
+1800 seconds by default; set
 `CODEX_REVIEW_TIMEOUT_SECONDS` to another positive number when needed.
 
 Exit status:
@@ -89,7 +95,7 @@ Exit status:
 - `0`: selected deterministic profiles passed and the requested review was clean;
 - `10`: Codex returned one or more findings, or judged the patch incorrect;
 - `64`: local usage, dependency, dirty-tree, base-ref, toolchain, or protoc error;
-- `65`: Codex did not return the expected structured result;
+- `65`: Codex did not return the expected structured result or inspection event log;
 - any other nonzero Codex status is preserved as an operational failure.
 
 Review artifacts are deleted after a clean result. They are retained and printed when review fails.

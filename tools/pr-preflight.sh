@@ -106,6 +106,9 @@ resolve_protoc() {
   expected_version="$(project_protoc_version)"
 
   if [[ -n "$explicit" ]]; then
+    if [[ "$explicit" != */* ]] && candidate="$(command -v "$explicit" 2>/dev/null)"; then
+      explicit="$candidate"
+    fi
     candidates+=("$explicit")
   else
     candidates+=("$HOME/.local/protoc/bin/protoc")
@@ -140,7 +143,7 @@ resolve_protoc() {
   done
 
   if [[ -n "$explicit" ]]; then
-    die "PROTOC must point to protoc $expected_version; checked:${found_versions:- none}"
+    die "PROTOC must resolve to protoc $expected_version; checked:${found_versions:- none}"
   fi
 
   die "protoc $expected_version is required to match CI; checked:${found_versions:- none}"
@@ -344,15 +347,143 @@ print("LOCAL CODEX REVIEW: CLEAN")
 PY
 }
 
+review_inspection_result() {
+  local events_file="$1"
+  local selector="$2"
+  local expected_merge_base="${3:-}"
+
+  python3 - "$events_file" "$selector" "$expected_merge_base" <<'PY'
+import json
+import pathlib
+import shlex
+import sys
+
+path = pathlib.Path(sys.argv[1])
+selector = sys.argv[2]
+expected_merge_base = sys.argv[3]
+try:
+    lines = path.read_text(encoding="utf-8").splitlines()
+except OSError as exc:
+    print(f"error: cannot read Codex review event log: {exc}", file=sys.stderr)
+    raise SystemExit(65)
+
+completed_commands = []
+for line_number, line in enumerate(lines, start=1):
+    if not line.strip():
+        continue
+    try:
+        event = json.loads(line)
+    except json.JSONDecodeError as exc:
+        print(
+            f"error: invalid Codex review event at line {line_number}: {exc}",
+            file=sys.stderr,
+        )
+        raise SystemExit(65)
+
+    item = event.get("item")
+    if not isinstance(item, dict):
+        continue
+    command = item.get("command")
+    if (
+        event.get("type") == "item.completed"
+        and item.get("type") == "command_execution"
+        and item.get("status") == "completed"
+        and item.get("exit_code") == 0
+        and isinstance(command, str)
+        and command.strip()
+    ):
+        completed_commands.append(command)
+
+if not completed_commands:
+    print("error: Codex review completed without a successful command", file=sys.stderr)
+    raise SystemExit(65)
+
+
+def shell_payload(command):
+    try:
+        outer = shlex.split(command, posix=True)
+    except ValueError:
+        return None
+    if not outer:
+        return None
+    executable = pathlib.Path(outer[0]).name
+    if executable in {"bash", "sh"} and len(outer) >= 3 and outer[1] in {
+        "-c",
+        "-lc",
+        "-cl",
+    }:
+        return outer[2]
+    return command
+
+
+def executed_invocation(command):
+    payload = shell_payload(command)
+    if payload is None:
+        return None
+    try:
+        tokens = shlex.split(payload, posix=True)
+    except ValueError:
+        return None
+    return tokens or None
+
+
+invocations = [
+    invocation
+    for command in completed_commands
+    if (invocation := executed_invocation(command)) is not None
+]
+git_invocations = [
+    invocation[1:]
+    for invocation in invocations
+    if pathlib.Path(invocation[0]).name == "git"
+]
+missing = []
+if selector == "--base":
+    if not expected_merge_base:
+        missing.append("expected merge base")
+    elif ["diff", f"{expected_merge_base}..HEAD"] not in git_invocations:
+        missing.append(f"exact content diff: git diff {expected_merge_base}..HEAD")
+elif selector == "--uncommitted":
+    if ["diff"] not in git_invocations:
+        missing.append("exact unstaged content diff: git diff")
+    if ["diff", "--cached"] not in git_invocations:
+        missing.append("exact staged content diff: git diff --cached")
+    if ["ls-files", "--others", "--exclude-standard"] not in git_invocations:
+        missing.append("exact untracked-file listing")
+else:
+    missing.append(f"known review selector (got {selector})")
+
+if missing:
+    print(
+        "error: Codex review did not complete required inspection: " + ", ".join(missing),
+        file=sys.stderr,
+    )
+    raise SystemExit(65)
+
+print(f"Codex review inspection commands: {len(completed_commands)} ({selector})")
+PY
+}
+
 run_self_test() {
   local artifacts
   local capture_output
   local clean_result
+  local combined_inspection_result
+  local committed_inspection_result
   local dependency
+  local expected_protoc_version
+  local echo_inspection_result
   local findings_result
   local full_dry_run_output
+  local incomplete_inspection_result
+  local inspection_result
   local invalid_result
+  local no_inspection_result
+  local path_limited_inspection_result
+  local protoc_output
+  local range_summary_inspection_result
   local review_dry_run_output
+  local staged_alias_inspection_result
   local rc=0
 
   if ((DRY_RUN)); then
@@ -370,12 +501,43 @@ run_self_test() {
   clean_result="$artifacts/clean.json"
   findings_result="$artifacts/findings.json"
   invalid_result="$artifacts/invalid.json"
+  inspection_result="$artifacts/inspection.jsonl"
+  combined_inspection_result="$artifacts/combined-inspection.jsonl"
+  committed_inspection_result="$artifacts/committed-inspection.jsonl"
+  echo_inspection_result="$artifacts/echo-inspection.jsonl"
+  incomplete_inspection_result="$artifacts/incomplete-inspection.jsonl"
+  no_inspection_result="$artifacts/no-inspection.jsonl"
+  path_limited_inspection_result="$artifacts/path-limited-inspection.jsonl"
+  range_summary_inspection_result="$artifacts/range-summary-inspection.jsonl"
+  staged_alias_inspection_result="$artifacts/staged-alias-inspection.jsonl"
 
   printf '%s\n' \
     '{"findings":[],"overall_correctness":"patch is correct","overall_explanation":"clean","overall_confidence_score":1}' >"$clean_result"
   printf '%s\n' \
     '{"findings":[{"title":"[P2] test","body":"test","confidence_score":1,"code_location":{"absolute_file_path":"/tmp/test","line_range":{"start":1,"end":1}}}],"overall_correctness":"patch is incorrect","overall_explanation":"finding","overall_confidence_score":1}' >"$findings_result"
   printf '%s\n' '[]' >"$invalid_result"
+  printf '%s\n' \
+    '{"type":"item.completed","item":{"type":"command_execution","command":"git diff","status":"completed","exit_code":0}}' \
+    '{"type":"item.completed","item":{"type":"command_execution","command":"git diff --cached","status":"completed","exit_code":0}}' \
+    '{"type":"item.completed","item":{"type":"command_execution","command":"git ls-files --others --exclude-standard","status":"completed","exit_code":0}}' >"$inspection_result"
+  printf '%s\n' \
+    '{"type":"item.completed","item":{"type":"command_execution","command":"git diff && git diff --cached && git ls-files --others --exclude-standard","status":"completed","exit_code":0}}' >"$combined_inspection_result"
+  printf '%s\n' \
+    '{"type":"item.completed","item":{"type":"command_execution","command":"git diff deadbeef..HEAD","status":"completed","exit_code":0}}' >"$committed_inspection_result"
+  printf '%s\n' \
+    '{"type":"item.completed","item":{"type":"command_execution","command":"git diff --stat && git diff --cached","status":"completed","exit_code":0}}' >"$incomplete_inspection_result"
+  printf '%s\n' \
+    '{"type":"item.completed","item":{"type":"command_execution","command":"pwd","status":"completed","exit_code":0}}' >"$no_inspection_result"
+  printf '%s\n' \
+    '{"type":"item.completed","item":{"type":"command_execution","command":"echo git diff && echo git diff --cached && echo git ls-files --others --exclude-standard","status":"completed","exit_code":0}}' >"$echo_inspection_result"
+  printf '%s\n' \
+    '{"type":"item.completed","item":{"type":"command_execution","command":"git diff -- tools/pr-preflight.sh && git diff --cached -- tools/pr-preflight.sh && git ls-files --others --exclude-standard","status":"completed","exit_code":0}}' >"$path_limited_inspection_result"
+  printf '%s\n' \
+    '{"type":"item.completed","item":{"type":"command_execution","command":"git diff HEAD~1..HEAD && git diff --cached --stat && git ls-files --others --exclude-standard","status":"completed","exit_code":0}}' >"$range_summary_inspection_result"
+  printf '%s\n' \
+    '{"type":"item.completed","item":{"type":"command_execution","command":"git diff","status":"completed","exit_code":0}}' \
+    '{"type":"item.completed","item":{"type":"command_execution","command":"git diff --staged","status":"completed","exit_code":0}}' \
+    '{"type":"item.completed","item":{"type":"command_execution","command":"git ls-files --others --exclude-standard","status":"completed","exit_code":0}}' >"$staged_alias_inspection_result"
 
   review_result "$clean_result" >/dev/null
   review_result "$findings_result" >/dev/null 2>&1 || rc=$?
@@ -385,12 +547,57 @@ run_self_test() {
   review_result "$invalid_result" >/dev/null 2>&1 || rc=$?
   [[ "$rc" == "65" ]] || die "invalid review self-test returned $rc instead of 65"
 
+  review_inspection_result "$inspection_result" --uncommitted >/dev/null
+  review_inspection_result "$committed_inspection_result" --base deadbeef >/dev/null
+  rc=0
+  review_inspection_result "$no_inspection_result" --uncommitted >/dev/null 2>&1 || rc=$?
+  [[ "$rc" == "65" ]] || die "missing inspection self-test returned $rc instead of 65"
+
+  rc=0
+  review_inspection_result "$combined_inspection_result" --uncommitted \
+    >/dev/null 2>&1 || rc=$?
+  [[ "$rc" == "65" ]] || die "combined inspection self-test returned $rc instead of 65"
+
+  rc=0
+  review_inspection_result "$echo_inspection_result" --uncommitted \
+    >/dev/null 2>&1 || rc=$?
+  [[ "$rc" == "65" ]] || die "echo inspection self-test returned $rc instead of 65"
+
+  rc=0
+  review_inspection_result "$incomplete_inspection_result" --uncommitted \
+    >/dev/null 2>&1 || rc=$?
+  [[ "$rc" == "65" ]] || die "incomplete inspection self-test returned $rc instead of 65"
+
+  rc=0
+  review_inspection_result "$path_limited_inspection_result" --uncommitted \
+    >/dev/null 2>&1 || rc=$?
+  [[ "$rc" == "65" ]] || die "path-limited inspection self-test returned $rc instead of 65"
+
+  rc=0
+  review_inspection_result "$range_summary_inspection_result" --uncommitted \
+    >/dev/null 2>&1 || rc=$?
+  [[ "$rc" == "65" ]] || die "range/summary inspection self-test returned $rc instead of 65"
+
+  rc=0
+  review_inspection_result "$staged_alias_inspection_result" --uncommitted \
+    >/dev/null 2>&1 || rc=$?
+  [[ "$rc" == "65" ]] || die "staged alias inspection self-test returned $rc instead of 65"
+
   mkdir -p "$artifacts/bin"
-  for dependency in dirname git head sed tr; do
+  for dependency in awk dirname git head sed tr; do
     ln -s "$(command -v "$dependency")" "$artifacts/bin/$dependency"
   done
   printf '#!/bin/sh\nexit 0\n' >"$artifacts/bin/cargo"
-  chmod +x "$artifacts/bin/cargo"
+  expected_protoc_version="$(project_protoc_version)"
+  printf '#!/bin/sh\nprintf "libprotoc %s\\n"\n' \
+    "$expected_protoc_version" >"$artifacts/bin/protoc"
+  chmod +x "$artifacts/bin/cargo" "$artifacts/bin/protoc"
+
+  protoc_output="$(PATH="$artifacts/bin" PROTOC=protoc \
+    "$BASH" "$REPO_ROOT/tools/pr-preflight.sh" check 2>&1)" || die \
+    "bare PROTOC command name did not resolve through PATH"
+  [[ "$protoc_output" == *"Using protoc $expected_protoc_version at $artifacts/bin/protoc"* ]] || die \
+    "bare PROTOC command resolved to the wrong executable"
 
   capture_output="$(PATH="$artifacts/bin" PROTOC="$artifacts/missing-protoc" \
     "$BASH" "$REPO_ROOT/tools/pr-preflight.sh" capture 2>&1)" || die \
@@ -424,6 +631,7 @@ run_codex_review() {
   local result_file
   local events_file
   local codex_rc=0
+  local inspection_rc=0
   local review_rc=0
   local merge_base=""
   local prompt=""
@@ -436,9 +644,9 @@ run_codex_review() {
   if [[ "$selector" == "--base" ]]; then
     require_clean_worktree
     merge_base="$(merge_base_for "$value")"
-    prompt="Review only the committed patch in git diff ${merge_base}..HEAD. Use read-only commands to inspect the repository and relevant C++ reference sources. Do not review uncommitted files. Return the structured review required by the output schema."
+    prompt="Before other inspection, run the exact unmodified command git diff ${merge_base}..HEAD in its own shell tool call. Do not combine it with another command, pipe, redirection, or fallback. Review only that committed patch. Use additional read-only commands to inspect the repository and relevant C++ reference sources. Do not review uncommitted files. Return the structured review required by the output schema."
   else
-    prompt="Review all staged, unstaged, and untracked changes in this repository. Use read-only commands to inspect git diff, git diff --cached, and untracked files plus relevant C++ reference sources. Return the structured review required by the output schema."
+    prompt="Before other inspection, run each of these exact unmodified commands in its own separate shell tool call: git diff; git diff --cached; git ls-files --others --exclude-standard. Do not combine them with another command, pipe, redirection, or fallback. Review all staged, unstaged, and untracked changes in this repository. Inspect the contents of any untracked files plus relevant C++ reference sources with additional read-only commands. Return the structured review required by the output schema."
   fi
 
   if ((DRY_RUN)); then
@@ -471,6 +679,12 @@ run_codex_review() {
   if ((codex_rc != 0)); then
     warn "Codex failed with exit code $codex_rc; event log: $events_file"
     return "$codex_rc"
+  fi
+
+  review_inspection_result "$events_file" "$selector" "$merge_base" || inspection_rc=$?
+  if ((inspection_rc != 0)); then
+    warn "Codex review artifacts: $artifacts"
+    return "$inspection_rc"
   fi
 
   review_result "$result_file" || review_rc=$?

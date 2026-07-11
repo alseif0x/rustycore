@@ -25,8 +25,8 @@ RustyCore currently targets:
 - **Tested game build:** `51943`
 - **World DB expectation:** `TDB 343.24081`, `cache_id = 24081`
 - **Reference implementation:** TrinityCore/WotLK-style C++ source
-- **Main development branch:** `develop`
-- **Stable checkpoint branch:** `main`, fast-forwarded from `develop`
+- **Integration and default branch:** `3.4.3`
+- **Development flow:** feature branches -> PRs into `3.4.3`; `main` is an optional stable pointer
 
 Modern client systems that are not part of the WotLK gameplay target, such as Battle Pets and Black Market, can exist in notes or partial code because the source tree has modern-era surface area. They are parked for future-version work and are not current WotLK migration priorities.
 
