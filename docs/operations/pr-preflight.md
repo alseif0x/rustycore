@@ -1,8 +1,9 @@
 # Local PR preflight and Codex review
 
 The local preflight catches deterministic CI failures and review findings before a branch is
-pushed. It is the shared implementation behind the required Rust CI jobs, so the commands used
-locally and by GitHub Actions cannot drift independently.
+pushed. Its profiles mirror the required Rust CI jobs. GitHub keeps the enforcing Cargo commands
+inline in the workflow so changing a pull request's local wrapper cannot silently weaken a
+required check.
 
 The entry point is:
 
@@ -14,6 +15,7 @@ It reads `rust-toolchain.toml` and runs the required jobs with Rust `1.88.0`. Pr
 commands require the version pinned in `.protoc-version` (`28.3`); the script uses `PROTOC` when
 set, then checks the project's usual local install and `PATH`. GitHub downloads the version from
 the same file. Review commands require an authenticated `codex` CLI.
+Printing `review` or `full` with `--dry-run` does not require Codex or its execution-time helpers.
 
 ## Profiles
 
@@ -26,7 +28,7 @@ the same file. Review commands require an authenticated `codex` CLI.
 | `test` | Run the four focused library suites from CI | No |
 | `ci` | Run `format`, `check`, and `test` | No |
 | `quick [BASE]` | Run `diff`, `format`, and `check` during iteration | No |
-| `capture` | Test the committed C++↔Rust capture-diff fixtures | No |
+| `capture` | Test the committed C++↔Rust capture-diff fixtures without `protoc` | No |
 | `review [BASE]` | Review a clean committed diff with Codex in read-only mode | No |
 | `review-uncommitted` | Review staged, unstaged, and untracked work during iteration | No |
 | `full [BASE]` | Run `diff`, `ci`, `capture`, and `review` | No |
@@ -34,7 +36,7 @@ the same file. Review commands require an authenticated `codex` CLI.
 | `qa-login` | Run the integrated live login bot | **Yes** |
 
 `BASE` defaults to `origin/3.4.3`. Use `--dry-run` before a command to print its underlying
-commands without executing them.
+commands without executing them or provisioning optional review tools.
 
 `qa-login` is intentionally outside `full`. It requires running services and may create/update
 local QA accounts and session data, so it refuses to run without explicit acknowledgement:
@@ -45,7 +47,7 @@ local QA accounts and session data, so it refuses to run without explicit acknow
 
 Fresh C++ or Rust packet recording is also intentionally excluded: the capture scripts can
 restart services and require an interactive client flow. The safe `capture` profile only tests
-the fixtures already committed to the repository.
+the fixtures already committed to the repository and does not invoke protobuf tooling.
 
 ## Recommended maintainer flow
 
@@ -67,7 +69,7 @@ git commit
 
 If Codex reports findings, fix them, amend or add the appropriate behavior-complete commit, and
 rerun `full`. Push only after it passes. Then open the PR into `3.4.3`; GitHub still runs the same
-deterministic profiles and requires its independent Codex review on the exact remote HEAD.
+deterministic command lists and requires its independent Codex review on the exact remote HEAD.
 
 Local review does **not** satisfy branch protection and can differ from the GitHub reviewer because
 the model run and context are independent. Its purpose is to remove avoidable push/review/fix
@@ -95,14 +97,16 @@ Set `CODEX_REVIEW_KEEP_ARTIFACTS=1` to retain them after a clean review as well.
 
 ## CI source of truth
 
-`.github/workflows/rust-ci.yml` invokes these exact profiles:
+`.github/workflows/rust-ci.yml` executes the required Cargo commands directly. These local
+profiles mirror the workflow-owned command lists:
 
 ```text
-Format                -> ./tools/pr-preflight.sh format
-Check core crates     -> ./tools/pr-preflight.sh check
-Focused library tests -> ./tools/pr-preflight.sh test
-Latest stable         -> ./tools/pr-preflight.sh stable
+Format                <-> ./tools/pr-preflight.sh format
+Check core crates     <-> ./tools/pr-preflight.sh check
+Focused library tests <-> ./tools/pr-preflight.sh test
+Latest stable         <-> ./tools/pr-preflight.sh stable
 ```
 
-Keep CI commands in the script and call the profile from Actions. Do not duplicate new command
-lists in both places.
+When a required command changes, update the workflow and its matching local profile together. The
+workflow is authoritative for branch protection; `Format` also runs the harness self-test, but no
+required job trusts the pull request's wrapper as its sole enforcement path.

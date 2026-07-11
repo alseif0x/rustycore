@@ -30,7 +30,7 @@ Commands:
   ci                  Run format, check, and test (the required Rust CI jobs).
   diff [BASE]         Check committed, staged, and unstaged diffs for whitespace errors.
   quick [BASE]        Run diff, format, and check.
-  capture             Run the committed capture-diff regression tests.
+  capture             Run capture-diff regression tests (protoc not required).
   review [BASE]       Review the clean committed diff with local Codex.
   review-uncommitted  Review staged, unstaged, and untracked changes with local Codex.
   full [BASE]         Run diff, ci, capture, and review on a clean committed HEAD.
@@ -80,6 +80,7 @@ toolchain_channel() {
 
 cargo_cmd() {
   local channel
+  ((DRY_RUN)) || require_command cargo
   channel="$(toolchain_channel)"
   run_cmd cargo "+$channel" "$@"
 }
@@ -233,7 +234,6 @@ run_quick() {
 
 run_capture() {
   log "Committed capture-diff regression gate"
-  resolve_protoc
   cargo_cmd test --locked -p capture-diff
 }
 
@@ -346,9 +346,13 @@ PY
 
 run_self_test() {
   local artifacts
+  local capture_output
   local clean_result
+  local dependency
   local findings_result
+  local full_dry_run_output
   local invalid_result
+  local review_dry_run_output
   local rc=0
 
   if ((DRY_RUN)); then
@@ -381,6 +385,33 @@ run_self_test() {
   review_result "$invalid_result" >/dev/null 2>&1 || rc=$?
   [[ "$rc" == "65" ]] || die "invalid review self-test returned $rc instead of 65"
 
+  mkdir -p "$artifacts/bin"
+  for dependency in dirname git head sed tr; do
+    ln -s "$(command -v "$dependency")" "$artifacts/bin/$dependency"
+  done
+  printf '#!/bin/sh\nexit 0\n' >"$artifacts/bin/cargo"
+  chmod +x "$artifacts/bin/cargo"
+
+  capture_output="$(PATH="$artifacts/bin" PROTOC="$artifacts/missing-protoc" \
+    "$BASH" "$REPO_ROOT/tools/pr-preflight.sh" capture 2>&1)" || die \
+    "capture profile unexpectedly requires protoc"
+  [[ "$capture_output" == *"test --locked -p capture-diff"* ]] || die \
+    "capture profile did not run the capture-diff tests"
+
+  review_dry_run_output="$(PATH="$artifacts/bin" \
+    "$BASH" "$REPO_ROOT/tools/pr-preflight.sh" --dry-run review HEAD 2>&1)" || die \
+    "review dry-run unexpectedly requires optional execution tools"
+  [[ "$review_dry_run_output" == *"+ codex"* ]] || die \
+    "review dry-run did not print the Codex command"
+
+  full_dry_run_output="$(PATH="$artifacts/bin" \
+    "$BASH" "$REPO_ROOT/tools/pr-preflight.sh" --dry-run full HEAD 2>&1)" || die \
+    "full dry-run unexpectedly requires optional execution tools"
+  [[ "$full_dry_run_output" == *"+ codex"* ]] || die \
+    "full dry-run did not print the Codex command"
+  [[ "$full_dry_run_output" == *"test --locked -p capture-diff"* ]] || die \
+    "full dry-run did not print the capture-diff command"
+
   rm -rf "$artifacts"
   log "Preflight self-test passed"
 }
@@ -397,9 +428,6 @@ run_codex_review() {
   local merge_base=""
   local prompt=""
 
-  require_command codex
-  require_command python3
-  require_command timeout
   [[ -f "$POLICY_FILE" ]] || die "missing Codex review policy: $POLICY_FILE"
   [[ -f "$SCHEMA_FILE" ]] || die "missing Codex review schema: $SCHEMA_FILE"
   [[ "$CODEX_REVIEW_TIMEOUT_SECONDS" =~ ^[1-9][0-9]*$ ]] || die \
@@ -413,8 +441,6 @@ run_codex_review() {
     prompt="Review all staged, unstaged, and untracked changes in this repository. Use read-only commands to inspect git diff, git diff --cached, and untracked files plus relevant C++ reference sources. Return the structured review required by the output schema."
   fi
 
-  policy_toml="$(python3 -c 'import json, pathlib, sys; print(json.dumps(pathlib.Path(sys.argv[1]).read_text()))' "$POLICY_FILE")"
-
   if ((DRY_RUN)); then
     print_command codex -a never -c "developer_instructions=<tools/codex-review-policy.md>" \
       exec --ephemeral --ignore-user-config --ignore-rules --disable hooks --disable plugins \
@@ -422,6 +448,11 @@ run_codex_review() {
       --output-schema "$SCHEMA_FILE" -o '<result.json>' '<review prompt>'
     return
   fi
+
+  require_command codex
+  require_command python3
+  require_command timeout
+  policy_toml="$(python3 -c 'import json, pathlib, sys; print(json.dumps(pathlib.Path(sys.argv[1]).read_text()))' "$POLICY_FILE")"
 
   artifacts="$(mktemp -d "${TMPDIR:-/tmp}/rustycore-codex-review.XXXXXX")"
   result_file="$artifacts/result.json"
@@ -519,7 +550,6 @@ fi
 
 cd "$REPO_ROOT"
 require_command git
-require_command cargo
 
 case "$COMMAND" in
   self-test)

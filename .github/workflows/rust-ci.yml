@@ -35,8 +35,13 @@ jobs:
         with:
           components: rustfmt
 
+      - name: Validate local preflight harness
+        run: ./tools/pr-preflight.sh self-test
+
       - name: Check formatting
-        run: ./tools/pr-preflight.sh format
+        run: |
+          cargo +1.88.0 fmt --all --check
+          cargo +1.88.0 fmt --manifest-path tools/wow-test-bot/Cargo.toml -- --check
 
   check:
     name: Check core crates
@@ -63,7 +68,10 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Cargo check
-        run: ./tools/pr-preflight.sh check
+        run: |
+          cargo +1.88.0 check --locked -p wow-data -p wow-database -p wow-network -p wow-world -p bnet-server -p world-server
+          cargo +1.88.0 check --locked --manifest-path tools/wow-test-bot/Cargo.toml
+          cargo +1.88.0 build --locked -p bnet-server -p world-server
 
   tests:
     name: Focused library tests
@@ -90,7 +98,11 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Run packet/data/world tests
-        run: ./tools/pr-preflight.sh test
+        run: |
+          cargo +1.88.0 test --locked -p wow-data --lib
+          cargo +1.88.0 test --locked -p wow-packet --lib
+          cargo +1.88.0 test --locked -p wow-map --lib
+          cargo +1.88.0 test --locked -p wow-world --lib
 
   latest-stable:
     name: Latest stable compatibility
@@ -122,4 +134,6 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Check and link server binaries on latest stable
-        run: ./tools/pr-preflight.sh stable
+        run: |
+          cargo +stable check --locked -p bnet-server -p world-server
+          cargo +stable build --locked -p bnet-server -p world-server

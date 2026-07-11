@@ -142,7 +142,7 @@ cargo clippy -p wow-map -p wow-world --all-targets
 git diff --check
 ```
 
-Shared local/GitHub preflight commands:
+Local preflight commands mirroring GitHub CI:
 
 ```bash
 # During iteration (diff + format + the core check/build job):

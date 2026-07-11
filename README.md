@@ -218,8 +218,8 @@ PROTOC=/path/to/protoc cargo check -p world-server
 git diff --check
 ```
 
-The shared local/GitHub preflight is the recommended gate before pushing. Use `quick` while
-iterating and `full` after committing to a clean HEAD:
+The local preflight mirrors GitHub's required Rust commands and is the recommended gate before
+pushing. Use `quick` while iterating and `full` after committing to a clean HEAD:
 
 ```bash
 ./tools/pr-preflight.sh quick
