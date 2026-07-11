@@ -6522,6 +6522,11 @@ impl WorldSession {
                     );
                     let corpse_despawn_at =
                         Instant::now() + Duration::from_secs(u64::from(corpse_decay_secs));
+                    let _ = creature.creature.all_loot_removed_from_corpse(
+                        wow_entities::game_time_secs_like_cpp(),
+                        corpse_decay_looted_rate,
+                        is_fully_skinned,
+                    );
                     // C++ resets the deadline from the loot event. A corpse
                     // looted late must still receive the full looted-decay window.
                     creature.set_corpse_despawn_at(Some(corpse_despawn_at));

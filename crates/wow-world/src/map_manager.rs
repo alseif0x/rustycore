@@ -1517,13 +1517,25 @@ impl WorldCreature {
             .respawn_compatibility_mode()
             .then_some(u64::from(self.creature.corpse_delay()))
             .unwrap_or(0);
-        death_at
+        let death_based = death_at
             + Duration::from_secs(
                 self.creature
                     .ai_ownership()
                     .respawn_time_secs
                     .saturating_add(compatibility_corpse_delay),
-            )
+            );
+        let now = Instant::now();
+        let now_secs = wow_entities::game_time_secs_like_cpp();
+        let stored_respawn = self.creature.respawn_time();
+        let stored_based = if stored_respawn > now_secs {
+            now.checked_add(Duration::from_secs(
+                stored_respawn.saturating_sub(now_secs) as u64
+            ))
+            .unwrap_or(death_based)
+        } else {
+            now
+        };
+        death_based.max(stored_based)
     }
 
     pub fn ignore_corpse_decay_ratio_like_cpp(&self) -> bool {
