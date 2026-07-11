@@ -1571,6 +1571,20 @@ impl WorldCreature {
             .apply_ai_damage_before_death_state_like_cpp(damage, self.now_ms())
     }
 
+    pub fn take_damage_before_death_state_at_game_time_like_cpp(
+        &mut self,
+        damage: u32,
+        game_time_secs: i64,
+    ) -> bool {
+        let local_elapsed_ms = self.now_ms();
+        self.creature
+            .apply_ai_damage_before_death_state_at_game_time_like_cpp(
+                damage,
+                local_elapsed_ms,
+                game_time_secs,
+            )
+    }
+
     pub fn complete_death_state_after_kill_hooks_like_cpp(&mut self) {
         self.creature
             .complete_ai_death_state_after_kill_hooks_like_cpp(self.now_ms());

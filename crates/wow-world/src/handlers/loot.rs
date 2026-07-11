@@ -6522,15 +6522,10 @@ impl WorldSession {
                     );
                     let corpse_despawn_at =
                         Instant::now() + Duration::from_secs(u64::from(corpse_decay_secs));
-                    if creature
-                        .corpse_despawn_at()
-                        .is_none_or(|current| corpse_despawn_at < current)
-                    {
-                        creature.set_corpse_despawn_at(Some(corpse_despawn_at));
-                        Some((creature.entry(), corpse_decay_secs))
-                    } else {
-                        None
-                    }
+                    // C++ resets the deadline from the loot event. A corpse
+                    // looted late must still receive the full looted-decay window.
+                    creature.set_corpse_despawn_at(Some(corpse_despawn_at));
+                    Some((creature.entry(), corpse_decay_secs))
                 } else {
                     None
                 }

@@ -47669,20 +47669,22 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                         )
                         .is_some()
                 {
-                    if let Some(stmt) = manager.remove_persisted_respawn_time_like_cpp(
-                        map_id,
-                        instance_id,
-                        wow_map::SpawnObjectType::Creature,
-                        respawn.spawn_id,
-                    ) {
-                        outcome.respawn_db_statements.push(stmt);
+                    if respawn.persistent_spawn {
+                        if let Some(stmt) = manager.remove_persisted_respawn_time_like_cpp(
+                            map_id,
+                            instance_id,
+                            wow_map::SpawnObjectType::Creature,
+                            respawn.spawn_id,
+                        ) {
+                            outcome.respawn_db_statements.push(stmt);
+                        }
+                        canonical_respawn_removes.push((
+                            u32::from(map_id),
+                            instance_id,
+                            wow_map::SpawnObjectType::Creature,
+                            respawn.spawn_id,
+                        ));
                     }
-                    canonical_respawn_removes.push((
-                        u32::from(map_id),
-                        instance_id,
-                        wow_map::SpawnObjectType::Creature,
-                        respawn.spawn_id,
-                    ));
                     affected_maps.insert((map_id, instance_id));
                     continue;
                 }
@@ -47702,20 +47704,22 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                 let canonical_creature = world_creature.creature.clone();
                 let (grid_x, grid_y) = world_to_grid_coords(position.x, position.y);
                 if manager.add_creature(map_id, instance_id, grid_x, grid_y, world_creature) {
-                    if let Some(stmt) = manager.remove_persisted_respawn_time_like_cpp(
-                        map_id,
-                        instance_id,
-                        wow_map::SpawnObjectType::Creature,
-                        respawn.spawn_id,
-                    ) {
-                        outcome.respawn_db_statements.push(stmt);
+                    if respawn.persistent_spawn {
+                        if let Some(stmt) = manager.remove_persisted_respawn_time_like_cpp(
+                            map_id,
+                            instance_id,
+                            wow_map::SpawnObjectType::Creature,
+                            respawn.spawn_id,
+                        ) {
+                            outcome.respawn_db_statements.push(stmt);
+                        }
+                        canonical_respawn_removes.push((
+                            u32::from(map_id),
+                            instance_id,
+                            wow_map::SpawnObjectType::Creature,
+                            respawn.spawn_id,
+                        ));
                     }
-                    canonical_respawn_removes.push((
-                        u32::from(map_id),
-                        instance_id,
-                        wow_map::SpawnObjectType::Creature,
-                        respawn.spawn_id,
-                    ));
                     canonical_inserts.push((u32::from(map_id), instance_id, canonical_creature));
                     affected_maps.insert((map_id, instance_id));
                     outcome.respawns_processed += 1;
@@ -49029,7 +49033,6 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
         let mut manager = legacy_map_manager
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        let now_ms = u64::from(WorldSession::game_time_ms_like_cpp());
         let game_time_secs = wow_entities::game_time_secs_like_cpp();
         for (swing, victim_health_after) in creature_victim_syncs {
             let Some(victim) =
@@ -49040,13 +49043,10 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
             let current = victim.creature.unit().data().health;
             if victim_health_after == 0 {
                 let damage_to_zero = current.min(u64::from(u32::MAX)) as u32;
-                let killed = victim
-                    .creature
-                    .apply_ai_damage_before_death_state_at_game_time_like_cpp(
-                        damage_to_zero,
-                        now_ms,
-                        game_time_secs,
-                    );
+                let killed = victim.take_damage_before_death_state_at_game_time_like_cpp(
+                    damage_to_zero,
+                    game_time_secs,
+                );
                 if killed {
                     victim.creature.set_death_state_runtime(
                         wow_constants::DeathState::JustDied,
@@ -129976,6 +129976,7 @@ mod tests {
             .phase_shift_mut()
             .add_phase_like_cpp(77, wow_constants::PhaseFlags::empty(), 1);
         world_creature.creature.ai_ownership_mut().phase_id = 77;
+        world_creature.creature.set_spawn_id(90_011);
         let pending = pending_respawn_from_world_creature_like_cpp(
             &world_creature,
             now - Duration::from_secs(1),
@@ -130076,7 +130077,7 @@ mod tests {
 
         let now = Instant::now();
         let guid = test_creature_guid(90_012);
-        let world_creature = crate::map_manager::WorldCreature::new(
+        let mut world_creature = crate::map_manager::WorldCreature::new(
             guid,
             9002,
             Position::new(8.0, 9.0, 10.0, 1.5),
@@ -130090,6 +130091,7 @@ mod tests {
             0,
             0,
         );
+        world_creature.creature.set_spawn_id(90_012);
         let pending = pending_respawn_from_world_creature_like_cpp(
             &world_creature,
             now - Duration::from_secs(1),
