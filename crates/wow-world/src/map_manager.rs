@@ -1615,11 +1615,27 @@ impl WorldCreature {
         &mut self,
         decay_rate: f32,
         is_fully_skinned: bool,
-    ) {
+    ) -> bool {
         let now_secs = self.now_secs_like_cpp();
-        let _ = self
+        let plan =
+            self.creature
+                .all_loot_removed_from_corpse(now_secs, decay_rate, is_fully_skinned);
+        if plan.is_empty() {
+            return false;
+        }
+
+        // `corpse_remove_time` and this AI mirror are both relative to
+        // `clock_started_at`. Keep the lifecycle deadline on that same clock
+        // instead of recomputing it from a separate `Instant::now()` sample.
+        let corpse_remove_time_ms = self
             .creature
-            .all_loot_removed_from_corpse(now_secs, decay_rate, is_fully_skinned);
+            .corpse_remove_time()
+            .max(0)
+            .unsigned_abs()
+            .saturating_mul(1_000);
+        self.creature
+            .set_ai_corpse_despawn_at(Some(corpse_remove_time_ms));
+        true
     }
 
     pub fn apply_corpse_loot_flags_after_death_state_like_cpp(
@@ -3372,11 +3388,10 @@ impl MapInstance {
     /// Enqueue a creature waiting to respawn.
     /// C++ ref: `Map::_respawnTimes` insertion path (Map.cpp:2191).
     pub fn push_respawn(&mut self, respawn: PendingRespawn) {
-        if let Some(existing_index) = self
-            .respawn_queue
-            .iter()
-            .position(|queued| queued.spawn_id == respawn.spawn_id)
-        {
+        if let Some(existing_index) = self.respawn_queue.iter().position(|queued| {
+            queued.persistent_spawn == respawn.persistent_spawn
+                && queued.spawn_id == respawn.spawn_id
+        }) {
             if respawn.respawn_at <= self.respawn_queue[existing_index].respawn_at {
                 self.respawn_queue.remove(existing_index);
             } else {
@@ -4109,7 +4124,9 @@ impl MapManager {
             .into_iter()
             .find(|guid| {
                 self.find_creature(map_id, instance_id, *guid)
-                    .is_some_and(|creature| creature.creature.spawn_id() == spawn_id)
+                    .is_some_and(|creature| {
+                        creature.is_alive() && creature.creature.spawn_id() == spawn_id
+                    })
             })
     }
 
@@ -8490,6 +8507,28 @@ mod tests {
         let ready = map.drain_ready_respawns(now + Duration::from_secs(11));
         assert_eq!(ready.len(), 1);
         assert_eq!(ready[0].spawn_id, 77);
+    }
+
+    #[test]
+    fn push_respawn_keeps_persistent_and_synthetic_id_namespaces_separate_like_cpp() {
+        let mut map = MapInstance::new(0, 0);
+        let now = Instant::now();
+
+        let mut persistent = make_pending_respawn(now);
+        persistent.spawn_id = 91;
+        persistent.persistent_spawn = true;
+        let mut synthetic = make_pending_respawn(now);
+        synthetic.spawn_id = 91;
+        synthetic.persistent_spawn = false;
+
+        map.push_respawn(persistent);
+        map.push_respawn(synthetic);
+
+        assert_eq!(map.respawn_queue_len(), 2);
+        let ready = map.drain_ready_respawns(now);
+        assert_eq!(ready.len(), 2);
+        assert!(ready.iter().any(|respawn| respawn.persistent_spawn));
+        assert!(ready.iter().any(|respawn| !respawn.persistent_spawn));
     }
 
     #[test]

@@ -7241,24 +7241,63 @@ fn materialize_loaded_player_grid_records_like_cpp(
     }
 }
 
+fn can_create_missing_login_grid_as_world_map_like_cpp(entry: wow_data::MapEntry) -> bool {
+    // A missing non-split common world map is safe to materialize here.
+    // Faction-split and instanceable maps (including battlegrounds, scenarios,
+    // and garrisons) must already have been selected by the authoritative
+    // CreateMap path, which owns team routing, access checks, difficulty,
+    // locks, reset schedules, and instance IDs.
+    entry.is_world_map() && !entry.is_garrison() && !entry.is_split_by_faction()
+}
+
+fn existing_login_grid_map_matches_map_entry_like_cpp(
+    entry: wow_data::MapEntry,
+    kind: wow_map::ManagedMapKind,
+    instance_id: u32,
+    authoritative_instance_selected: bool,
+) -> bool {
+    if entry.is_garrison() {
+        return authoritative_instance_selected && matches!(kind, wow_map::ManagedMapKind::World);
+    }
+    if entry.is_world_map() && !entry.is_garrison() {
+        if entry.is_split_by_faction() && !authoritative_instance_selected {
+            return false;
+        }
+        return matches!(kind, wow_map::ManagedMapKind::World);
+    }
+    if !authoritative_instance_selected || instance_id == 0 {
+        return false;
+    }
+    if entry.is_dungeon() {
+        return matches!(kind, wow_map::ManagedMapKind::Dungeon { .. });
+    }
+    if entry.is_battleground_or_arena() {
+        return matches!(kind, wow_map::ManagedMapKind::Battleground);
+    }
+    false
+}
+
 fn ensure_login_player_grid_loaded_like_cpp(
     canonical_map_manager: &SharedCanonicalMapManager,
     legacy_manager: &SharedMapManager,
     canonical_spawn_metadata: &SharedCanonicalSpawnMetadataLikeCpp,
     loaded_grid_creature_respawn_caches: &LoadedGridCreatureRespawnCachesLikeCpp,
     area_trigger_template_store: &wow_data::AreaTriggerTemplateStore,
+    map_store: Option<&wow_data::MapStore>,
     map_id: u16,
-    instance_id: u32,
+    authoritative_instance_id: Option<u32>,
     position: Position,
 ) -> wow_world::session::PlayerGridLoadOutcomeLikeCpp {
     let mut outcome = wow_world::session::PlayerGridLoadOutcomeLikeCpp::default();
     let map_id_u32 = u32::from(map_id);
+    let instance_id = authoritative_instance_id.unwrap_or(0);
     let cell = wow_map::cell_from_world(position.x, position.y);
     let grid = wow_map::GridCoord::new(cell.grid_x(), cell.grid_y());
     let visible_grids =
         player_visible_grid_coords_like_cpp(position, wow_world::map_manager::VISIBILITY_RADIUS);
 
     let Ok(metadata) = canonical_spawn_metadata.lock() else {
+        outcome.map_unavailable = true;
         warn!(
             map_id = map_id_u32,
             instance_id, "C++ login grid load skipped: canonical spawn metadata lock poisoned"
@@ -7266,6 +7305,7 @@ fn ensure_login_player_grid_loaded_like_cpp(
         return outcome;
     };
     let Ok(mut manager) = canonical_map_manager.lock() else {
+        outcome.map_unavailable = true;
         warn!(
             map_id = map_id_u32,
             instance_id, "C++ login grid load skipped: canonical map manager lock poisoned"
@@ -7273,8 +7313,53 @@ fn ensure_login_player_grid_loaded_like_cpp(
         return outcome;
     };
 
-    outcome.map_created = manager.find_map(map_id_u32, instance_id).is_none();
-    let managed_map = manager.create_world_map(map_id_u32, instance_id);
+    let Some(map_entry) = map_store.and_then(|store| store.get(map_id_u32).copied()) else {
+        outcome.map_unavailable = true;
+        warn!(
+            map_id = map_id_u32,
+            instance_id, "C++ login grid load rejected: Map.db2 entry unavailable"
+        );
+        return outcome;
+    };
+
+    let managed_map = if manager.find_map(map_id_u32, instance_id).is_some() {
+        let existing_kind = manager
+            .find_map(map_id_u32, instance_id)
+            .expect("canonical map checked above")
+            .kind();
+        if !existing_login_grid_map_matches_map_entry_like_cpp(
+            map_entry,
+            existing_kind,
+            instance_id,
+            authoritative_instance_id.is_some(),
+        ) {
+            outcome.map_unavailable = true;
+            warn!(
+                map_id = map_id_u32,
+                instance_id,
+                instance_type = map_entry.instance_type,
+                kind = ?existing_kind,
+                "C++ login grid load rejected: canonical map kind or instance ID is incompatible"
+            );
+            return outcome;
+        }
+        manager
+            .find_map_mut(map_id_u32, instance_id)
+            .expect("canonical map checked above")
+    } else {
+        if !can_create_missing_login_grid_as_world_map_like_cpp(map_entry) {
+            outcome.map_unavailable = true;
+            warn!(
+                map_id = map_id_u32,
+                instance_id,
+                instance_type = map_entry.instance_type,
+                "C++ login grid load rejected: authoritative instanceable map is unavailable"
+            );
+            return outcome;
+        }
+        outcome.map_created = true;
+        manager.create_world_map(map_id_u32, instance_id)
+    };
     let map = managed_map.map_mut();
 
     // C++ Map::AddPlayerToMap -> EnsureGridLoadedForActiveObject(cell, player)
@@ -11898,6 +11983,7 @@ async fn create_session(
     let grid_legacy_manager = Arc::clone(&shared_map);
     let grid_spawn_metadata = Arc::clone(&canonical_spawn_metadata);
     let grid_loaded_caches = loaded_grid_creature_respawn_caches.clone();
+    let grid_map_store = resources.map_store.as_ref().map(Arc::clone);
     let grid_area_trigger_template_store = resources
         .area_trigger_template_store
         .as_ref()
@@ -11911,6 +11997,7 @@ async fn create_session(
                 &grid_spawn_metadata,
                 &grid_loaded_caches,
                 grid_area_trigger_template_store.as_ref(),
+                grid_map_store.as_deref(),
                 map_id,
                 instance_id,
                 position,
@@ -13881,6 +13968,111 @@ mod tests {
                 wow_data::GameObjectOverrideLifecycleStoreLikeCpp::default(),
             ),
         }
+    }
+
+    fn loaded_grid_map_store_like_cpp(map_id: u32, instance_type: i8) -> wow_data::MapStore {
+        wow_data::MapStore::from_entries([wow_data::MapEntry {
+            id: map_id,
+            instance_type,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+            flags2: 0,
+        }])
+    }
+
+    #[test]
+    fn login_grid_world_fallback_rejects_instanceable_map_kinds_like_cpp() {
+        let world = loaded_grid_map_store_like_cpp(1, wow_data::map::MAP_COMMON);
+        let dungeon = loaded_grid_map_store_like_cpp(33, wow_data::map::MAP_INSTANCE);
+        let battleground = loaded_grid_map_store_like_cpp(489, wow_data::map::MAP_BATTLEGROUND);
+        let garrison = wow_data::MapEntry {
+            id: 1_151,
+            instance_type: wow_data::map::MAP_COMMON,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: wow_data::map::MAP_FLAG_GARRISON,
+            flags2: 0,
+        };
+        let faction_split_world = wow_data::MapEntry {
+            id: 609,
+            instance_type: wow_data::map::MAP_COMMON,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+            flags2: 0,
+        };
+
+        assert!(super::can_create_missing_login_grid_as_world_map_like_cpp(
+            *world.get(1).unwrap()
+        ));
+        assert!(!super::can_create_missing_login_grid_as_world_map_like_cpp(
+            *dungeon.get(33).unwrap()
+        ));
+        assert!(!super::can_create_missing_login_grid_as_world_map_like_cpp(
+            *battleground.get(489).unwrap()
+        ));
+        assert!(!super::can_create_missing_login_grid_as_world_map_like_cpp(
+            garrison
+        ));
+        assert!(!super::can_create_missing_login_grid_as_world_map_like_cpp(
+            faction_split_world
+        ));
+        assert!(super::existing_login_grid_map_matches_map_entry_like_cpp(
+            *world.get(1).unwrap(),
+            wow_map::ManagedMapKind::World,
+            0,
+            false,
+        ));
+        assert!(super::existing_login_grid_map_matches_map_entry_like_cpp(
+            *dungeon.get(33).unwrap(),
+            wow_map::ManagedMapKind::Dungeon {
+                has_reset_schedule: false,
+            },
+            77,
+            true,
+        ));
+        assert!(!super::existing_login_grid_map_matches_map_entry_like_cpp(
+            *dungeon.get(33).unwrap(),
+            wow_map::ManagedMapKind::Dungeon {
+                has_reset_schedule: false,
+            },
+            0,
+            true,
+        ));
+        assert!(!super::existing_login_grid_map_matches_map_entry_like_cpp(
+            *dungeon.get(33).unwrap(),
+            wow_map::ManagedMapKind::World,
+            77,
+            true,
+        ));
+        assert!(!super::existing_login_grid_map_matches_map_entry_like_cpp(
+            faction_split_world,
+            wow_map::ManagedMapKind::World,
+            0,
+            false,
+        ));
+        assert!(super::existing_login_grid_map_matches_map_entry_like_cpp(
+            faction_split_world,
+            wow_map::ManagedMapKind::World,
+            0,
+            true,
+        ));
+        assert!(!super::existing_login_grid_map_matches_map_entry_like_cpp(
+            garrison,
+            wow_map::ManagedMapKind::World,
+            0,
+            false,
+        ));
+        assert!(super::existing_login_grid_map_matches_map_entry_like_cpp(
+            garrison,
+            wow_map::ManagedMapKind::World,
+            0,
+            true,
+        ));
     }
 
     fn area_trigger_template_store_for_loaded_grid_like_cpp(
@@ -20770,6 +20962,234 @@ mmap.enablePathFinding = 0
     }
 
     #[test]
+    fn login_grid_load_preserves_precreated_dungeon_kind_like_cpp() {
+        let canonical: wow_world::SharedCanonicalMapManager =
+            Arc::new(Mutex::new(wow_map::MapManager::default()));
+        canonical.lock().unwrap().create_map_entry(
+            33,
+            77,
+            0,
+            wow_map::ManagedMapKind::Dungeon {
+                has_reset_schedule: false,
+            },
+        );
+        let legacy: wow_world::SharedMapManager =
+            Arc::new(RwLock::new(wow_world::MapManager::new()));
+        let metadata = Arc::new(Mutex::new(
+            super::spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(
+                SpawnStore::new(),
+                BTreeMap::new(),
+            ),
+        ));
+        let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
+        let area_trigger_templates = area_trigger_template_store_for_loaded_grid_like_cpp(1, 1);
+        let map_store = loaded_grid_map_store_like_cpp(33, wow_data::map::MAP_INSTANCE);
+
+        let outcome = super::ensure_login_player_grid_loaded_like_cpp(
+            &canonical,
+            &legacy,
+            &metadata,
+            &caches,
+            &area_trigger_templates,
+            Some(&map_store),
+            33,
+            Some(77),
+            Position::ZERO,
+        );
+
+        assert!(!outcome.map_unavailable);
+        assert!(!outcome.map_created);
+        assert!(matches!(
+            canonical.lock().unwrap().find_map(33, 77).unwrap().kind(),
+            wow_map::ManagedMapKind::Dungeon { .. }
+        ));
+    }
+
+    #[test]
+    fn login_grid_load_accepts_authoritative_garrison_world_map_like_cpp() {
+        let canonical: wow_world::SharedCanonicalMapManager =
+            Arc::new(Mutex::new(wow_map::MapManager::default()));
+        canonical.lock().unwrap().create_world_map(1_151, 0);
+        let legacy: wow_world::SharedMapManager =
+            Arc::new(RwLock::new(wow_world::MapManager::new()));
+        let metadata = Arc::new(Mutex::new(
+            super::spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(
+                SpawnStore::new(),
+                BTreeMap::new(),
+            ),
+        ));
+        let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
+        let area_trigger_templates = area_trigger_template_store_for_loaded_grid_like_cpp(1, 1);
+        let map_store = wow_data::MapStore::from_entries([wow_data::MapEntry {
+            id: 1_151,
+            instance_type: wow_data::map::MAP_COMMON,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: wow_data::map::MAP_FLAG_GARRISON,
+            flags2: 0,
+        }]);
+
+        let outcome = super::ensure_login_player_grid_loaded_like_cpp(
+            &canonical,
+            &legacy,
+            &metadata,
+            &caches,
+            &area_trigger_templates,
+            Some(&map_store),
+            1_151,
+            Some(0),
+            Position::ZERO,
+        );
+
+        assert!(!outcome.map_unavailable);
+        assert!(!outcome.map_created);
+        assert!(matches!(
+            canonical.lock().unwrap().find_map(1_151, 0).unwrap().kind(),
+            wow_map::ManagedMapKind::World
+        ));
+    }
+
+    #[test]
+    fn login_grid_load_does_not_fabricate_missing_instanceable_map_like_cpp() {
+        let canonical: wow_world::SharedCanonicalMapManager =
+            Arc::new(Mutex::new(wow_map::MapManager::default()));
+        let legacy: wow_world::SharedMapManager =
+            Arc::new(RwLock::new(wow_world::MapManager::new()));
+        let metadata = Arc::new(Mutex::new(
+            super::spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(
+                SpawnStore::new(),
+                BTreeMap::new(),
+            ),
+        ));
+        let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
+        let area_trigger_templates = area_trigger_template_store_for_loaded_grid_like_cpp(1, 1);
+        let map_store = loaded_grid_map_store_like_cpp(33, wow_data::map::MAP_INSTANCE);
+
+        let outcome = super::ensure_login_player_grid_loaded_like_cpp(
+            &canonical,
+            &legacy,
+            &metadata,
+            &caches,
+            &area_trigger_templates,
+            Some(&map_store),
+            33,
+            Some(77),
+            Position::ZERO,
+        );
+
+        assert!(outcome.map_unavailable);
+        assert!(!outcome.map_created);
+        assert!(canonical.lock().unwrap().find_map(33, 77).is_none());
+    }
+
+    #[test]
+    fn login_grid_load_rejects_stale_dungeon_zero_world_map_like_cpp() {
+        let canonical: wow_world::SharedCanonicalMapManager =
+            Arc::new(Mutex::new(wow_map::MapManager::default()));
+        canonical.lock().unwrap().create_world_map(33, 0);
+        let legacy: wow_world::SharedMapManager =
+            Arc::new(RwLock::new(wow_world::MapManager::new()));
+        let metadata = Arc::new(Mutex::new(
+            super::spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(
+                SpawnStore::new(),
+                BTreeMap::new(),
+            ),
+        ));
+        let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
+        let area_trigger_templates = area_trigger_template_store_for_loaded_grid_like_cpp(1, 1);
+        let map_store = loaded_grid_map_store_like_cpp(33, wow_data::map::MAP_INSTANCE);
+
+        let outcome = super::ensure_login_player_grid_loaded_like_cpp(
+            &canonical,
+            &legacy,
+            &metadata,
+            &caches,
+            &area_trigger_templates,
+            Some(&map_store),
+            33,
+            None,
+            Position::ZERO,
+        );
+
+        assert!(outcome.map_unavailable);
+        assert!(!outcome.grid_loaded_now);
+        assert!(matches!(
+            canonical.lock().unwrap().find_map(33, 0).unwrap().kind(),
+            wow_map::ManagedMapKind::World
+        ));
+    }
+
+    #[test]
+    fn login_grid_load_can_materialize_missing_common_world_map_like_cpp() {
+        let canonical: wow_world::SharedCanonicalMapManager =
+            Arc::new(Mutex::new(wow_map::MapManager::default()));
+        let legacy: wow_world::SharedMapManager =
+            Arc::new(RwLock::new(wow_world::MapManager::new()));
+        let metadata = Arc::new(Mutex::new(
+            super::spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(
+                SpawnStore::new(),
+                BTreeMap::new(),
+            ),
+        ));
+        let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
+        let area_trigger_templates = area_trigger_template_store_for_loaded_grid_like_cpp(1, 1);
+        let map_store = loaded_grid_map_store_like_cpp(571, wow_data::map::MAP_COMMON);
+
+        let outcome = super::ensure_login_player_grid_loaded_like_cpp(
+            &canonical,
+            &legacy,
+            &metadata,
+            &caches,
+            &area_trigger_templates,
+            Some(&map_store),
+            571,
+            None,
+            Position::ZERO,
+        );
+
+        assert!(!outcome.map_unavailable);
+        assert!(outcome.map_created);
+        assert!(matches!(
+            canonical.lock().unwrap().find_map(571, 0).unwrap().kind(),
+            wow_map::ManagedMapKind::World
+        ));
+    }
+
+    #[test]
+    fn login_grid_load_does_not_guess_missing_faction_split_world_map_like_cpp() {
+        let canonical: wow_world::SharedCanonicalMapManager =
+            Arc::new(Mutex::new(wow_map::MapManager::default()));
+        let legacy: wow_world::SharedMapManager =
+            Arc::new(RwLock::new(wow_world::MapManager::new()));
+        let metadata = Arc::new(Mutex::new(
+            super::spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(
+                SpawnStore::new(),
+                BTreeMap::new(),
+            ),
+        ));
+        let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
+        let area_trigger_templates = area_trigger_template_store_for_loaded_grid_like_cpp(1, 1);
+        let map_store = loaded_grid_map_store_like_cpp(609, wow_data::map::MAP_COMMON);
+
+        let outcome = super::ensure_login_player_grid_loaded_like_cpp(
+            &canonical,
+            &legacy,
+            &metadata,
+            &caches,
+            &area_trigger_templates,
+            Some(&map_store),
+            609,
+            None,
+            Position::ZERO,
+        );
+
+        assert!(outcome.map_unavailable);
+        assert!(!outcome.map_created);
+        assert!(canonical.lock().unwrap().find_map(609, 0).is_none());
+    }
+
+    #[test]
     fn login_grid_load_mirrors_already_loaded_canonical_creature_to_legacy_like_cpp() {
         let spawn_id = 70_001;
         let entry = 42;
@@ -20845,6 +21265,7 @@ mmap.enablePathFinding = 0
         let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
 
         let area_trigger_templates = area_trigger_template_store_for_loaded_grid_like_cpp(1, 1);
+        let map_store = loaded_grid_map_store_like_cpp(571, wow_data::map::MAP_COMMON);
 
         let outcome = super::ensure_login_player_grid_loaded_like_cpp(
             &canonical,
@@ -20852,8 +21273,9 @@ mmap.enablePathFinding = 0
             &metadata,
             &caches,
             &area_trigger_templates,
+            Some(&map_store),
             571,
-            0,
+            Some(0),
             position,
         );
 
@@ -20953,6 +21375,8 @@ mmap.enablePathFinding = 0
                 entry, 0, 0,
             );
         let area_trigger_templates = area_trigger_template_store_for_loaded_grid_like_cpp(1, 1);
+        canonical.lock().unwrap().create_world_map(1, 0);
+        let map_store = loaded_grid_map_store_like_cpp(1, wow_data::map::MAP_COMMON);
 
         let outcome = super::ensure_login_player_grid_loaded_like_cpp(
             &canonical,
@@ -20960,8 +21384,9 @@ mmap.enablePathFinding = 0
             &metadata,
             &caches,
             &area_trigger_templates,
+            Some(&map_store),
             1,
-            0,
+            Some(0),
             player_position,
         );
 
@@ -21052,6 +21477,8 @@ mmap.enablePathFinding = 0
         let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
         let area_trigger_templates =
             area_trigger_template_store_for_loaded_grid_like_cpp(create_properties_id, template_id);
+        canonical.lock().unwrap().create_world_map(571, 0);
+        let map_store = loaded_grid_map_store_like_cpp(571, wow_data::map::MAP_COMMON);
 
         let outcome = super::ensure_login_player_grid_loaded_like_cpp(
             &canonical,
@@ -21059,8 +21486,9 @@ mmap.enablePathFinding = 0
             &metadata,
             &caches,
             &area_trigger_templates,
+            Some(&map_store),
             571,
-            0,
+            Some(0),
             position,
         );
 
