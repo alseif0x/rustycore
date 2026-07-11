@@ -25,8 +25,8 @@ RustyCore currently targets:
 - **Tested game build:** `51943`
 - **World DB expectation:** `TDB 343.24081`, `cache_id = 24081`
 - **Reference implementation:** TrinityCore/WotLK-style C++ source
-- **Main development branch:** `develop`
-- **Stable checkpoint branch:** `main`, fast-forwarded from `develop`
+- **Integration and default branch:** `3.4.3`
+- **Development flow:** feature branches -> PRs into `3.4.3`; `main` is an optional stable pointer
 
 Modern client systems that are not part of the WotLK gameplay target, such as Battle Pets and Black Market, can exist in notes or partial code because the source tree has modern-era surface area. They are parked for future-version work and are not current WotLK migration priorities.
 
@@ -193,7 +193,8 @@ If a C++ server is running on the same machine, stop it first and verify the por
 
 Login/realm/initial enter-world smoke testing is the first runtime gate. It does not prove gameplay parity, but it catches broken auth, realm config, character enum, and initial world entry.
 
-There is a separate client-emulation smoke bot used during development. Its setup is documented in that bot repository; this README only describes the expected server-side path.
+The integrated client-emulation smoke bot lives under [`tools/wow-test-bot`](tools/wow-test-bot/README.md).
+It is an explicit live-QA profile because it can update local test-account and session data.
 
 Minimum smoke-test path:
 
@@ -217,6 +218,18 @@ PROTOC=/path/to/protoc cargo check -p world-server
 git diff --check
 ```
 
+The local preflight mirrors GitHub's required Rust commands and is the recommended gate before
+pushing. Use `quick` while iterating and `full` after committing to a clean HEAD:
+
+```bash
+./tools/pr-preflight.sh quick
+./tools/pr-preflight.sh full origin/3.4.3
+```
+
+`full` reproduces the required Rust CI commands, runs the committed capture-diff gate, and invokes
+a read-only local Codex review. It does not replace the required GitHub reviewer verdict. See
+[`docs/operations/pr-preflight.md`](docs/operations/pr-preflight.md) for profiles and safety bounds.
+
 Inventory TSV files are part of the migration state. Keep their column counts valid:
 
 ```bash
@@ -236,9 +249,9 @@ Every meaningful gameplay change should follow this shape:
 5. Add focused positive and negative tests.
 6. Update migration docs and inventories.
 7. Run checks.
-8. Commit the slice on `develop`.
-9. Push `develop`.
-10. Fast-forward `main` only at stable checkpoints.
+8. Commit the slice on its issue-linked feature branch.
+9. Run `./tools/pr-preflight.sh full origin/3.4.3` on the clean committed HEAD.
+10. Push and open a PR into `3.4.3`; merge only after every required remote check passes.
 
 Do not bulk-close rows. Do not mark a runtime feature complete just because a packet parser exists. Do not trust existing Rust code just because it compiles.
 
