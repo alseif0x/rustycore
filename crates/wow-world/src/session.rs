@@ -47571,7 +47571,11 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
     let mut canonical_respawn_removes: Vec<(u32, u32, wow_map::SpawnObjectType, wow_map::SpawnId)> =
         Vec::new();
     let mut canonical_inserts: Vec<(u32, u32, wow_entities::Creature)> = Vec::new();
-    let now_secs = unix_now();
+    // `now` is the scheduler's tick deadline and may predate a blocking-worker
+    // stall. Keep it for due checks, but pair conversions to Unix game time
+    // with a fresh monotonic snapshot from the same execution point.
+    let conversion_now = Instant::now();
+    let conversion_now_secs = unix_now();
     let legacy_map_keys = legacy_map_manager
         .read()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -47616,7 +47620,10 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                                     .then(|| {
                                         pending_respawn_from_world_creature_like_cpp(
                                             creature,
-                                            creature.respawn_at_from_death_like_cpp(),
+                                            creature.respawn_at_from_death_at_game_time_like_cpp(
+                                                conversion_now,
+                                                conversion_now_secs,
+                                            ),
                                             map_id,
                                         )
                                     })
@@ -47626,8 +47633,8 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                             map_id,
                             instance_id,
                             &pending,
-                            now,
-                            now_secs,
+                            conversion_now,
+                            conversion_now_secs,
                         ) {
                             outcome.respawn_db_statements.push(stmt);
                         }
@@ -47662,12 +47669,18 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                 let Some(creature) = manager.remove_creature_any(map_id, instance_id, guid) else {
                     continue;
                 };
-                let respawn_at = creature.respawn_at_from_death_like_cpp();
+                let respawn_at = creature.respawn_at_from_death_at_game_time_like_cpp(
+                    conversion_now,
+                    conversion_now_secs,
+                );
                 let pending =
                     pending_respawn_from_world_creature_like_cpp(&creature, respawn_at, map_id);
                 let grid = wow_map::compute_grid_coord(pending.home_pos.x, pending.home_pos.y);
-                let pending_respawn_secs =
-                    respawn_time_from_instant_like_cpp(respawn_at, now, now_secs);
+                let pending_respawn_secs = respawn_time_from_instant_like_cpp(
+                    respawn_at,
+                    conversion_now,
+                    conversion_now_secs,
+                );
                 let canonical_respawn_info = wow_map::RespawnInfoLikeCpp {
                     object_type: wow_map::SpawnObjectType::Creature,
                     spawn_id: pending.spawn_id,
@@ -47698,8 +47711,8 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                         map_id,
                         instance_id,
                         &pending,
-                        now,
-                        now_secs,
+                        conversion_now,
+                        conversion_now_secs,
                     ) {
                         outcome.respawn_db_statements.push(stmt);
                     }
@@ -49111,7 +49124,9 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                     game_time_secs,
                 );
                 if killed {
-                    victim.complete_death_state_after_kill_hooks_like_cpp();
+                    victim.complete_death_state_after_kill_hooks_at_game_time_like_cpp(
+                        game_time_secs,
+                    );
                     victim.creature.unit_mut().set_health(0);
                 }
             } else {
@@ -54784,6 +54799,7 @@ mod tests {
         reputation::ReputationFlagsLikeCpp,
     };
     use wow_data::{ItemStatEntry, PvpItemEntry};
+    use wow_database::SqlParam;
     use wow_entities::{
         AccessorObjectRef, ApplyEnchantmentDurationAction, ApplyEnchantmentResult,
         BANK_SLOT_BAG_START, BANK_SLOT_ITEM_START, CharmType, EQUIPMENT_SLOT_CHEST,
@@ -129941,6 +129957,51 @@ mod tests {
     }
 
     #[test]
+    fn legacy_creature_lifecycle_persistence_does_not_double_count_stale_tick_time_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        let (mut session, _, _) = make_session();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        let guid = test_creature_guid(90_020);
+        register_test_creature(&mut session, Arc::clone(&manager), guid, 10);
+        session
+            .mutate_world_creature(guid, |creature| {
+                creature.creature.set_spawn_id(90_020);
+                creature.creature.ai_ownership_mut().respawn_time_secs = 30;
+                assert!(creature.take_damage(10));
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let before_unix = unix_now();
+        let stale_tick_now = Instant::now() - Duration::from_secs(10);
+        let outcome = run_legacy_creature_lifecycle_tick_once_like_cpp(
+            &manager,
+            Some(&canonical),
+            &lifecycle_test_map_store_like_cpp(0, wow_data::map::MAP_COMMON, 0),
+            stale_tick_now,
+        );
+
+        assert_eq!(outcome.corpses_despawned, 0);
+        assert_eq!(outcome.respawn_db_statements.len(), 1);
+        let respawn_time = match &outcome.respawn_db_statements[0].params()[2] {
+            SqlParam::I64(value) => *value,
+            _ => panic!("REP_RESPAWN must bind its absolute respawn timestamp as I64"),
+        };
+        assert!(respawn_time >= before_unix + 28);
+        assert!(
+            respawn_time <= unix_now() + 30,
+            "the stale scheduler Instant must not be added again to the Unix respawn time"
+        );
+    }
+
+    #[test]
     fn legacy_creature_lifecycle_tick_once_despawns_corpse_queues_respawn_and_refresh_like_cpp() {
         use crate::map_manager::RuntimeTickOwner;
 
@@ -129983,6 +130044,13 @@ mod tests {
         assert_eq!(
             outcome.respawn_db_statements[0].sql(),
             CharStatements::REP_RESPAWN.sql()
+        );
+        assert!(
+            matches!(
+                outcome.respawn_db_statements[0].params()[2],
+                SqlParam::I64(respawn_time) if respawn_time > unix_now()
+            ),
+            "C++ persists an absolute future GameTime value, never creature-local uptime"
         );
         assert_eq!(outcome.canonical_removes, 1);
         assert_eq!(outcome.canonical_inserts, 0);

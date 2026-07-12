@@ -22,7 +22,7 @@ use wow_entities::{
     DEFAULT_HEIGHT_SEARCH, DistractMovementAction, EVENT_CHARGE_PREPATH, GenericMovementInform,
     INVALID_HEIGHT, MovementGeneratorKind, MovementGeneratorType, MovementSlot, PhaseShift,
     PointMovementAction, PointMovementInform, RotateMovementUpdate, Z_OFFSET_FIND_HEIGHT,
-    allowed_position_z_from_ground_like_cpp,
+    allowed_position_z_from_ground_like_cpp, game_time_secs_like_cpp,
 };
 use wow_map::{GridMapTerrain, SharedStaticVMapLineOfSightProvider, SpawnObjectType};
 use wow_movement::generators::CreatureRandomMovementType as MovementCreatureRandomMovementType;
@@ -143,10 +143,26 @@ pub fn instant_from_respawn_time_like_cpp(
         return now;
     }
 
-    now.checked_add(Duration::from_secs(
-        u64::try_from(delay_secs).unwrap_or(u64::MAX),
-    ))
-    .unwrap_or(now)
+    let requested_delay_secs = u64::try_from(delay_secs).unwrap_or(u64::MAX);
+    if let Some(deadline) = now.checked_add(Duration::from_secs(requested_delay_secs)) {
+        return deadline;
+    }
+
+    // C++ uses `time_t::max()` as a never-respawn sentinel for some bosses.
+    // `Instant` has a platform-specific upper bound; saturate to its farthest
+    // representable future point instead of turning overflow into "ready now".
+    let mut low = 0_u64;
+    let mut high = requested_delay_secs;
+    while low < high {
+        let span = high - low;
+        let midpoint = low + span / 2 + span % 2;
+        if now.checked_add(Duration::from_secs(midpoint)).is_some() {
+            low = midpoint;
+        } else {
+            high = midpoint - 1;
+        }
+    }
+    now.checked_add(Duration::from_secs(low)).unwrap_or(now)
 }
 
 pub fn respawn_replace_statement_like_cpp(row: &PersistedRespawnRowLikeCpp) -> PreparedStatement {
@@ -1355,13 +1371,6 @@ impl WorldCreature {
             .min(u128::from(u64::MAX)) as u64
     }
 
-    pub(crate) fn now_secs_like_cpp(&self) -> i64 {
-        self.clock_started_at
-            .elapsed()
-            .as_secs()
-            .min(i64::MAX as u64) as i64
-    }
-
     pub fn guid(&self) -> ObjectGuid {
         self.creature.ai_guid()
     }
@@ -1513,12 +1522,20 @@ impl WorldCreature {
     }
 
     pub fn respawn_at_from_death_like_cpp(&self) -> Instant {
+        self.respawn_at_from_death_at_game_time_like_cpp(Instant::now(), game_time_secs_like_cpp())
+    }
+
+    pub fn respawn_at_from_death_at_game_time_like_cpp(
+        &self,
+        now: Instant,
+        game_time_secs: i64,
+    ) -> Instant {
         let death_at = self
             .creature
             .ai_ownership()
             .death_time_ms
             .map(|ms| self.clock_started_at + Duration::from_millis(ms))
-            .unwrap_or_else(Instant::now);
+            .unwrap_or(now);
         let compatibility_corpse_delay = self
             .creature
             .respawn_compatibility_mode()
@@ -1531,17 +1548,8 @@ impl WorldCreature {
                     .respawn_time_secs
                     .saturating_add(compatibility_corpse_delay),
             );
-        let now = Instant::now();
-        let now_secs = self.now_secs_like_cpp();
-        let stored_respawn = self.creature.respawn_time();
-        let stored_based = if stored_respawn > now_secs {
-            now.checked_add(Duration::from_secs(
-                stored_respawn.saturating_sub(now_secs) as u64
-            ))
-            .unwrap_or(death_based)
-        } else {
-            now
-        };
+        let stored_based =
+            instant_from_respawn_time_like_cpp(self.creature.respawn_time(), now, game_time_secs);
         death_based.max(stored_based)
     }
 
@@ -1605,10 +1613,16 @@ impl WorldCreature {
     }
 
     pub fn complete_death_state_after_kill_hooks_like_cpp(&mut self) {
+        self.complete_death_state_after_kill_hooks_at_game_time_like_cpp(game_time_secs_like_cpp());
+    }
+
+    pub fn complete_death_state_after_kill_hooks_at_game_time_like_cpp(
+        &mut self,
+        game_time_secs: i64,
+    ) {
+        let local_elapsed_ms = self.now_ms();
         self.creature
-            .complete_ai_death_state_after_kill_hooks_like_cpp(
-                self.now_secs_like_cpp().max(0) as u64
-            );
+            .complete_ai_death_state_after_kill_hooks_like_cpp(local_elapsed_ms, game_time_secs);
     }
 
     pub fn all_loot_removed_from_corpse_like_cpp(
@@ -1616,23 +1630,41 @@ impl WorldCreature {
         decay_rate: f32,
         is_fully_skinned: bool,
     ) -> bool {
-        let now_secs = self.now_secs_like_cpp();
-        let plan =
-            self.creature
-                .all_loot_removed_from_corpse(now_secs, decay_rate, is_fully_skinned);
+        self.all_loot_removed_from_corpse_at_game_time_like_cpp(
+            Instant::now(),
+            game_time_secs_like_cpp(),
+            decay_rate,
+            is_fully_skinned,
+        )
+    }
+
+    pub fn all_loot_removed_from_corpse_at_game_time_like_cpp(
+        &mut self,
+        now: Instant,
+        game_time_secs: i64,
+        decay_rate: f32,
+        is_fully_skinned: bool,
+    ) -> bool {
+        let plan = self.creature.all_loot_removed_from_corpse(
+            game_time_secs,
+            decay_rate,
+            is_fully_skinned,
+        );
         if plan.is_empty() {
             return false;
         }
 
-        // `corpse_remove_time` and this AI mirror are both relative to
-        // `clock_started_at`. Keep the lifecycle deadline on that same clock
-        // instead of recomputing it from a separate `Instant::now()` sample.
-        let corpse_remove_time_ms = self
-            .creature
-            .corpse_remove_time()
-            .max(0)
-            .unsigned_abs()
-            .saturating_mul(1_000);
+        // C++ stores `m_corpseRemoveTime` in the absolute GameTime domain;
+        // the legacy AI mirror is elapsed milliseconds from `clock_started_at`.
+        let corpse_remove_at = instant_from_respawn_time_like_cpp(
+            self.creature.corpse_remove_time(),
+            now,
+            game_time_secs,
+        );
+        let corpse_remove_time_ms = corpse_remove_at
+            .checked_duration_since(self.clock_started_at)
+            .map(|duration| duration.as_millis().min(u128::from(u64::MAX)) as u64)
+            .unwrap_or(0);
         self.creature
             .set_ai_corpse_despawn_at(Some(corpse_remove_time_ms));
         true
@@ -4895,6 +4927,75 @@ mod tests {
             0,
             0,
         )
+    }
+
+    #[test]
+    fn world_creature_death_and_loot_keep_game_time_and_monotonic_deadlines_separate_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 70_010);
+        let mut creature = test_creature(guid);
+        creature.creature.set_respawn_compatibility_mode(false);
+        creature.creature.set_corpse_delay(60, false);
+
+        let clock_started_at = Instant::now();
+        let death_game_time_secs = 1_700_000_000;
+        creature.clock_started_at = clock_started_at;
+        assert!(
+            creature
+                .creature
+                .apply_ai_damage_before_death_state_at_game_time_like_cpp(
+                    50,
+                    0,
+                    death_game_time_secs,
+                )
+        );
+        creature.complete_death_state_after_kill_hooks_at_game_time_like_cpp(death_game_time_secs);
+
+        let completion_ms = creature
+            .creature
+            .ai_ownership()
+            .death_time_ms
+            .expect("death completion must record the monotonic mirror");
+        let completion_now = clock_started_at + Duration::from_millis(completion_ms);
+        assert_eq!(
+            creature.creature.corpse_remove_time(),
+            death_game_time_secs + 60
+        );
+        assert_eq!(creature.creature.respawn_time(), death_game_time_secs + 30);
+        assert_eq!(
+            creature
+                .respawn_at_from_death_at_game_time_like_cpp(completion_now, death_game_time_secs,),
+            completion_now + Duration::from_secs(30)
+        );
+
+        let loot_now = completion_now + Duration::from_secs(3);
+        let loot_game_time_secs = death_game_time_secs + 3;
+        assert!(creature.all_loot_removed_from_corpse_at_game_time_like_cpp(
+            loot_now,
+            loot_game_time_secs,
+            0.5,
+            false,
+        ));
+        assert_eq!(
+            creature.creature.corpse_remove_time(),
+            loot_game_time_secs + 30
+        );
+        assert_eq!(creature.creature.respawn_time(), loot_game_time_secs + 60);
+        assert_eq!(
+            creature.corpse_despawn_at(),
+            Some(loot_now + Duration::from_secs(30))
+        );
+        assert_eq!(
+            creature.respawn_at_from_death_at_game_time_like_cpp(loot_now, loot_game_time_secs,),
+            loot_now + Duration::from_secs(60)
+        );
+    }
+
+    #[test]
+    fn never_respawn_time_saturates_to_future_instant_instead_of_ready_now_like_cpp() {
+        let now = Instant::now();
+        let deadline = instant_from_respawn_time_like_cpp(i64::MAX, now, 1_700_000_000);
+
+        assert!(deadline > now);
     }
 
     #[derive(Debug)]

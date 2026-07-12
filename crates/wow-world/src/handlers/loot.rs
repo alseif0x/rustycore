@@ -15824,6 +15824,10 @@ mod tests {
                 .creature
                 .set_personal_loot_like_cpp(player_guid, CreatureOwnedLoot::new(0, 1));
         });
+        let corpse_despawn_before = session
+            .mutate_world_creature(loot_guid, |creature| creature.corpse_despawn_at())
+            .unwrap()
+            .expect("C++ arms corpse removal when the creature reaches JUST_DIED");
         session.loot_table.insert(
             loot_guid,
             CreatureLoot {
@@ -15861,11 +15865,12 @@ mod tests {
             session.loot_table.get(&loot_guid).unwrap().players_looting,
             vec![other_guid]
         );
-        assert!(
+        assert_eq!(
             session
                 .mutate_world_creature(loot_guid, |creature| creature.corpse_despawn_at())
-                .unwrap()
-                .is_none()
+                .unwrap(),
+            Some(corpse_despawn_before),
+            "releasing partial loot must not change the existing corpse timer"
         );
     }
 
@@ -15880,6 +15885,10 @@ mod tests {
         session.set_player_guid(Some(player_guid));
         session.set_active_loot_guid(loot_guid);
         register_test_creature_like_cpp(&mut session, test_creature(loot_guid, false));
+        let corpse_despawn_before = session
+            .mutate_world_creature(loot_guid, |creature| creature.corpse_despawn_at())
+            .unwrap()
+            .expect("C++ arms corpse removal when the creature reaches JUST_DIED");
         session.loot_table.insert(
             loot_guid,
             CreatureLoot {
@@ -15917,11 +15926,12 @@ mod tests {
             Some(&CreatureOwnedLoot::new(7, 0))
         );
         assert!(!canonical.is_fully_looted_like_cpp());
-        assert!(
+        assert_eq!(
             session
                 .mutate_world_creature(loot_guid, |creature| creature.corpse_despawn_at())
-                .unwrap()
-                .is_none()
+                .unwrap(),
+            Some(corpse_despawn_before),
+            "releasing partial canonical loot must not change the existing corpse timer"
         );
     }
 
