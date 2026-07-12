@@ -20924,13 +20924,73 @@ impl WorldSession {
             };
             self.represented_item_bonus_actions_like_cpp
                 .push(represented_action.clone());
-            if Self::loaded_enchantment_effect_action_is_unrepresented_like_cpp(action) {
+            let spell_action_applied = self.apply_loaded_enchantment_spell_action_like_cpp(action);
+            if !spell_action_applied
+                && Self::loaded_enchantment_effect_action_is_unrepresented_like_cpp(action)
+            {
                 unrepresented_actions.push(represented_action.clone());
             }
             represented_actions.push(represented_action);
             self.apply_represented_item_bonus_action_state_like_cpp(action);
         }
         (changed_stats, represented_actions, unrepresented_actions)
+    }
+
+    fn apply_loaded_enchantment_spell_action_like_cpp(
+        &mut self,
+        action: ApplyEnchantmentEffectAction,
+    ) -> bool {
+        match action {
+            ApplyEnchantmentEffectAction::CastEquipSpell {
+                spell_id,
+                item_guid,
+            } => {
+                let Ok(spell_id) = i32::try_from(spell_id) else {
+                    return false;
+                };
+                let Some(spell_info) = self
+                    .spell_store()
+                    .and_then(|store| store.get(spell_id))
+                    .cloned()
+                else {
+                    return false;
+                };
+                let effect_mask = unit_owned_apply_aura_effect_mask_like_cpp(&spell_info);
+                if effect_mask == 0 {
+                    return false;
+                }
+                self.apply_aura_with_effect_mask_without_update_like_cpp(
+                    spell_id,
+                    item_guid,
+                    0,
+                    AFLAG_NOCASTER_LIKE_CPP | 0x0000_0100 | 0x0000_0200,
+                    effect_mask,
+                )
+                .is_ok()
+            }
+            ApplyEnchantmentEffectAction::RemoveEquipSpellAura {
+                spell_id,
+                item_guid,
+            } => {
+                let Ok(spell_id) = i32::try_from(spell_id) else {
+                    return false;
+                };
+                let slots = self
+                    .visible_auras
+                    .values()
+                    .filter_map(|aura| {
+                        (aura.spell_id == spell_id && aura.caster_guid == item_guid)
+                            .then_some(aura.slot)
+                    })
+                    .collect::<Vec<_>>();
+                let removed = !slots.is_empty();
+                for slot in slots {
+                    let _ = self.remove_aura(slot);
+                }
+                removed
+            }
+            _ => false,
+        }
     }
 
     fn loaded_enchantment_effect_action_is_unrepresented_like_cpp(
@@ -28021,6 +28081,43 @@ impl WorldSession {
         aura_flags: u32,
         effect_mask: u32,
     ) -> Result<(), &'static str> {
+        self.apply_aura_with_effect_mask_and_update_like_cpp(
+            spell_id,
+            caster_guid,
+            duration_ms,
+            aura_flags,
+            effect_mask,
+            true,
+        )
+    }
+
+    fn apply_aura_with_effect_mask_without_update_like_cpp(
+        &mut self,
+        spell_id: i32,
+        caster_guid: ObjectGuid,
+        duration_ms: u32,
+        aura_flags: u32,
+        effect_mask: u32,
+    ) -> Result<(), &'static str> {
+        self.apply_aura_with_effect_mask_and_update_like_cpp(
+            spell_id,
+            caster_guid,
+            duration_ms,
+            aura_flags,
+            effect_mask,
+            false,
+        )
+    }
+
+    fn apply_aura_with_effect_mask_and_update_like_cpp(
+        &mut self,
+        spell_id: i32,
+        caster_guid: ObjectGuid,
+        duration_ms: u32,
+        aura_flags: u32,
+        effect_mask: u32,
+        send_update: bool,
+    ) -> Result<(), &'static str> {
         // Find a free slot (0-254)
         let mut slot = 0u8;
         while self.visible_auras.contains_key(&slot) && slot < 255 {
@@ -28053,15 +28150,16 @@ impl WorldSession {
 
         self.visible_auras.insert(slot, aura);
 
-        // Send SMSG_AURA_UPDATE
-        self.send_aura_update_applied(
-            spell_id,
-            slot,
-            caster_guid,
-            duration_ms,
-            aura_flags,
-            effect_mask,
-        );
+        if send_update {
+            self.send_aura_update_applied(
+                spell_id,
+                slot,
+                caster_guid,
+                duration_ms,
+                aura_flags,
+                effect_mask,
+            );
+        }
         if spell_id == SPELL_PVP_RULES_ENABLED_LIKE_CPP {
             let _ = self.update_represented_item_level_area_based_scaling_like_cpp();
         }
@@ -120391,8 +120489,8 @@ mod tests {
     }
 
     #[test]
-    fn loaded_equipped_item_enchantments_records_unrepresented_effect_actions_like_cpp() {
-        let (mut session, _, _) = make_session();
+    fn loaded_equipped_item_enchantments_apply_equip_spell_aura_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
         let canonical = shared_canonical_map_manager();
         let player_guid = ObjectGuid::create_player(1, 90_524);
         let player_position = Position::new(1.0, 2.0, 3.0, 0.0);
@@ -120425,6 +120523,30 @@ mod tests {
                 max_level: 0,
             }]),
         ));
+        let mut spell_store = SpellStore::new();
+        spell_store.insert(
+            1234,
+            SpellInfo {
+                spell_id: 1234,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
 
         let mut item = session.make_inventory_item_object(
             item_guid,
@@ -120447,11 +120569,18 @@ mod tests {
                 item_guid: action_item_guid,
             }) if action_item_guid == item_guid
         ));
-        assert_eq!(outcome.unrepresented_effect_actions, outcome.effect_actions);
+        assert!(outcome.unrepresented_effect_actions.is_empty());
         assert!(!outcome.send_stat_update);
         assert_eq!(
             session.represented_item_bonus_actions_like_cpp(),
             outcome.effect_actions.as_slice()
+        );
+        assert!(session.visible_auras.values().any(|aura| {
+            aura.spell_id == 1234 && aura.caster_guid == item_guid && aura.effect_mask == 1
+        }));
+        assert!(
+            send_rx.try_recv().is_err(),
+            "login equip-spell aura is included in the later full AuraUpdate"
         );
     }
 
