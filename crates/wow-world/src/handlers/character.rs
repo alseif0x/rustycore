@@ -237,11 +237,11 @@ fn loaded_item_effective_enchantments_like_cpp(
         }
     }
 
-    if let Some(loaded_enchantments) = loaded_enchantments
-        && loaded_enchantments.iter().any(|enchantment| {
-            enchantment.id != 0 || enchantment.duration != 0 || enchantment.charges != 0
-        })
-    {
+    // C++ Item::LoadFromDB synthesizes random-property slots first, then a
+    // correctly sized persisted enchantment array overwrites every slot. A
+    // valid all-zero array is therefore authoritative; only a missing or
+    // malformed array keeps the synthesized fallback.
+    if let Some(loaded_enchantments) = loaded_enchantments {
         values = *loaded_enchantments;
     }
 
@@ -15210,7 +15210,7 @@ mod tests {
     }
 
     #[test]
-    fn loaded_item_instance_fields_rebuild_random_property_slots_for_zero_db_string_like_cpp() {
+    fn loaded_item_instance_fields_preserve_valid_zero_db_enchantments_like_cpp() {
         let properties = wow_data::ItemRandomPropertiesStore::from_entries([
             wow_data::ItemRandomPropertiesEntry {
                 id: 77,
@@ -15228,18 +15228,9 @@ mod tests {
             None,
         );
 
-        assert_eq!(
-            effective_enchantments[EnchantmentSlot::Property2 as usize].id,
-            1001
-        );
-        assert_eq!(
-            effective_enchantments[EnchantmentSlot::Property3 as usize].id,
-            1002
-        );
-        assert_eq!(
-            effective_enchantments[EnchantmentSlot::Property4 as usize].id,
-            1003
-        );
+        assert!(effective_enchantments.iter().all(|enchantment| {
+            *enchantment == wow_packet::packets::update::ItemEnchantmentValuesUpdate::default()
+        }));
     }
 
     #[test]
