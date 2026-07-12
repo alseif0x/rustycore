@@ -1469,6 +1469,16 @@ async fn main() -> Result<ExitCode> {
         "Loaded {} class rows from ChrClasses.db2",
         chr_classes_store.len()
     );
+    let chr_model_store = wow_data::character_progression::ChrModelStore::load(&data_dir, &locale)
+        .context("Failed to load ChrModel.db2")?;
+    let chr_race_x_chr_model_store =
+        wow_data::character_progression::ChrRaceXChrModelStore::load(&data_dir, &locale)
+            .context("Failed to load ChrRaceXChrModel.db2")?;
+    info!(
+        "Loaded {} character models and {} race/model links from DB2",
+        chr_model_store.len(),
+        chr_race_x_chr_model_store.len()
+    );
     let creature_family_store = Arc::new(
         wow_data::CreatureFamilyStore::load(&data_dir, &locale)
             .context("Failed to load CreatureFamily.db2")?,
@@ -2502,6 +2512,37 @@ async fn main() -> Result<ExitCode> {
             .context("Failed to load player_levelstats")?,
     );
     info!("Loaded {} player level stat entries", player_stats.len());
+    let player_create_taxi_path_store = wow_data::TaxiPathStore::load(&data_dir, &locale)
+        .context("Failed to load TaxiPath.db2 for C++ playercreateinfo")?;
+    let player_create_taxi_path_node_store = wow_data::TaxiPathNodeStore::load(&data_dir, &locale)
+        .context("Failed to load TaxiPathNode.db2 for C++ playercreateinfo")?;
+    let player_create_info_store = Arc::new(
+        wow_data::PlayerCreateInfoStoreLikeCpp::load_like_cpp(
+            &world_db,
+            &map_store,
+            &chr_races_store,
+            &chr_classes_store,
+            &chr_model_store,
+            &chr_race_x_chr_model_store,
+            &gameobject_template_lifecycle_store,
+            &player_create_taxi_path_store,
+            &player_create_taxi_path_node_store,
+        )
+        .await
+        .context("Failed to load C++ playercreateinfo base store")?,
+    );
+    let player_create_info_report = player_create_info_store.load_report_like_cpp().clone();
+    info!(
+        loaded = player_create_info_report.loaded,
+        skipped_invalid_race = player_create_info_report.skipped_invalid_race,
+        skipped_invalid_class = player_create_info_report.skipped_invalid_class,
+        skipped_missing_gender_models = player_create_info_report.skipped_missing_gender_models,
+        skipped_invalid_position = player_create_info_report.skipped_invalid_position,
+        skipped_instanceable_map = player_create_info_report.skipped_instanceable_map,
+        discarded_invalid_npe_map = player_create_info_report.discarded_invalid_npe_map,
+        discarded_invalid_npe_transport = player_create_info_report.discarded_invalid_npe_transport,
+        "Loaded C++ player create base definitions"
+    );
     let player_create_cast_spell_store = Arc::new(
         wow_data::PlayerCreateInfoCastSpellStoreLikeCpp::load_like_cpp(&world_db)
             .await
@@ -4492,6 +4533,7 @@ async fn main() -> Result<ExitCode> {
         item_price_base_store: Some(Arc::clone(&item_price_base_store)),
         item_limit_category_store: Some(Arc::clone(&item_limit_category_store)),
         item_limit_category_condition_store: Some(Arc::clone(&item_limit_category_condition_store)),
+        player_create_info_store: Some(Arc::clone(&player_create_info_store)),
         player_create_cast_spell_store: Some(Arc::clone(&player_create_cast_spell_store)),
         player_create_custom_spell_store: Some(Arc::clone(&player_create_custom_spell_store)),
         player_stats: Some(Arc::clone(&player_stats)),
@@ -11526,6 +11568,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.item_limit_category_condition_store {
         session.set_item_limit_category_condition_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.player_create_info_store {
+        session.set_player_create_info_store_like_cpp(Arc::clone(store));
     }
     if let Some(ref store) = resources.player_create_cast_spell_store {
         session.set_player_create_cast_spell_store_like_cpp(Arc::clone(store));

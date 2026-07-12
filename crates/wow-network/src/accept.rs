@@ -219,6 +219,7 @@ pub struct SessionResources {
     pub item_price_base_store: Option<Arc<wow_data::ItemPriceBaseStore>>,
     pub item_limit_category_store: Option<Arc<wow_data::ItemLimitCategoryStore>>,
     pub item_limit_category_condition_store: Option<Arc<wow_data::ItemLimitCategoryConditionStore>>,
+    pub player_create_info_store: Option<Arc<wow_data::PlayerCreateInfoStoreLikeCpp>>,
     pub player_create_cast_spell_store:
         Option<Arc<wow_data::PlayerCreateInfoCastSpellStoreLikeCpp>>,
     pub player_create_custom_spell_store:

@@ -88,10 +88,10 @@ use wow_data::{
     PlayerConditionCountLikeCpp, PlayerConditionPartyStatusLikeCpp,
     PlayerConditionQuestKillLikeCpp, PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp,
     PlayerConditionStore, PlayerCreateInfoCastSpellStoreLikeCpp,
-    PlayerCreateInfoCustomSpellStoreLikeCpp, PlayerStatsStore, PvpItemStore, RandPropPointsStore,
-    ScriptIdLikeCpp, ScriptNameInternerLikeCpp, ServersideSpellInfoLikeCpp,
-    ServersideSpellStoreLikeCpp, ShieldBlockRegularGameTableLikeCpp, SkillLineStore,
-    SkillRangeTypeLikeCpp, SkillStore, SkillTiersStoreLikeCpp, SpellAreaLikeCpp,
+    PlayerCreateInfoCustomSpellStoreLikeCpp, PlayerCreateInfoStoreLikeCpp, PlayerStatsStore,
+    PvpItemStore, RandPropPointsStore, ScriptIdLikeCpp, ScriptNameInternerLikeCpp,
+    ServersideSpellInfoLikeCpp, ServersideSpellStoreLikeCpp, ShieldBlockRegularGameTableLikeCpp,
+    SkillLineStore, SkillRangeTypeLikeCpp, SkillStore, SkillTiersStoreLikeCpp, SpellAreaLikeCpp,
     SpellAreaStoreLikeCpp, SpellAuraOptionsStore, SpellAuraRestrictionsStore, SpellCategoryStore,
     SpellChainStoreLikeCpp, SpellCustomAttributeStoreLikeCpp, SpellDurationStore,
     SpellEnchantProcEntryLikeCpp, SpellEnchantProcStoreLikeCpp, SpellEquippedItemsEntry,
@@ -3785,6 +3785,7 @@ pub struct WorldSession {
     start_all_explored_like_cpp: bool,
     start_all_reputation_like_cpp: bool,
     start_all_spells_like_cpp: bool,
+    player_create_info_store_like_cpp: Option<Arc<PlayerCreateInfoStoreLikeCpp>>,
     player_create_cast_spell_store_like_cpp: Option<Arc<PlayerCreateInfoCastSpellStoreLikeCpp>>,
     player_create_custom_spell_store_like_cpp: Option<Arc<PlayerCreateInfoCustomSpellStoreLikeCpp>>,
     pub build: u32,
@@ -5830,6 +5831,7 @@ impl WorldSession {
             start_all_explored_like_cpp: false,
             start_all_reputation_like_cpp: false,
             start_all_spells_like_cpp: false,
+            player_create_info_store_like_cpp: None,
             player_create_cast_spell_store_like_cpp: None,
             player_create_custom_spell_store_like_cpp: None,
             build,
@@ -15869,6 +15871,19 @@ impl WorldSession {
         store: Arc<PlayerCreateInfoCastSpellStoreLikeCpp>,
     ) {
         self.player_create_cast_spell_store_like_cpp = Some(store);
+    }
+
+    pub fn set_player_create_info_store_like_cpp(
+        &mut self,
+        store: Arc<PlayerCreateInfoStoreLikeCpp>,
+    ) {
+        self.player_create_info_store_like_cpp = Some(store);
+    }
+
+    pub(crate) fn player_create_info_store_like_cpp(
+        &self,
+    ) -> Option<&Arc<PlayerCreateInfoStoreLikeCpp>> {
+        self.player_create_info_store_like_cpp.as_ref()
     }
 
     pub fn set_player_create_custom_spell_store_like_cpp(
