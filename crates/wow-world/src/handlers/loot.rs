@@ -6512,7 +6512,7 @@ impl WorldSession {
         let marked = self
             .mutate_world_creature(owner_guid, |creature| {
                 creature.remove_lootable_dynamic_flag_like_cpp();
-                if !creature.is_alive() && creature.corpse_despawn_at().is_none() {
+                if !creature.is_alive() {
                     let is_fully_skinned = represented_loot_type == LOOT_TYPE_SKINNING_LIKE_CPP;
                     let corpse_decay_secs = looted_corpse_decay_secs_like_cpp(
                         is_fully_skinned,
@@ -6520,9 +6520,14 @@ impl WorldSession {
                         creature.ignore_corpse_decay_ratio_like_cpp(),
                         corpse_decay_looted_rate,
                     );
-                    let corpse_despawn_at =
-                        Instant::now() + Duration::from_secs(u64::from(corpse_decay_secs));
-                    creature.set_corpse_despawn_at(Some(corpse_despawn_at));
+                    if !creature.all_loot_removed_from_corpse_like_cpp(
+                        corpse_decay_looted_rate,
+                        is_fully_skinned,
+                    ) {
+                        // C++ returns without resetting an already-expired
+                        // corpse. The lifecycle mirror must remain expired too.
+                        return None;
+                    }
                     Some((creature.entry(), corpse_decay_secs))
                 } else {
                     None
@@ -15819,6 +15824,10 @@ mod tests {
                 .creature
                 .set_personal_loot_like_cpp(player_guid, CreatureOwnedLoot::new(0, 1));
         });
+        let corpse_despawn_before = session
+            .mutate_world_creature(loot_guid, |creature| creature.corpse_despawn_at())
+            .unwrap()
+            .expect("C++ arms corpse removal when the creature reaches JUST_DIED");
         session.loot_table.insert(
             loot_guid,
             CreatureLoot {
@@ -15856,11 +15865,12 @@ mod tests {
             session.loot_table.get(&loot_guid).unwrap().players_looting,
             vec![other_guid]
         );
-        assert!(
+        assert_eq!(
             session
                 .mutate_world_creature(loot_guid, |creature| creature.corpse_despawn_at())
-                .unwrap()
-                .is_none()
+                .unwrap(),
+            Some(corpse_despawn_before),
+            "releasing partial loot must not change the existing corpse timer"
         );
     }
 
@@ -15875,6 +15885,10 @@ mod tests {
         session.set_player_guid(Some(player_guid));
         session.set_active_loot_guid(loot_guid);
         register_test_creature_like_cpp(&mut session, test_creature(loot_guid, false));
+        let corpse_despawn_before = session
+            .mutate_world_creature(loot_guid, |creature| creature.corpse_despawn_at())
+            .unwrap()
+            .expect("C++ arms corpse removal when the creature reaches JUST_DIED");
         session.loot_table.insert(
             loot_guid,
             CreatureLoot {
@@ -15912,11 +15926,12 @@ mod tests {
             Some(&CreatureOwnedLoot::new(7, 0))
         );
         assert!(!canonical.is_fully_looted_like_cpp());
-        assert!(
+        assert_eq!(
             session
                 .mutate_world_creature(loot_guid, |creature| creature.corpse_despawn_at())
-                .unwrap()
-                .is_none()
+                .unwrap(),
+            Some(corpse_despawn_before),
+            "releasing partial canonical loot must not change the existing corpse timer"
         );
     }
 
@@ -15983,6 +15998,67 @@ mod tests {
         assert!(
             (55..=60).contains(&remaining.as_secs()),
             "C++ uses corpse_delay * Rate.Corpse.Decay.Looted; got {remaining:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn creature_owned_loot_release_does_not_extend_expired_corpse_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let loot_guid = test_creature_guid(19_118);
+        let creature = make_canonical_creature_for_session(&session, loot_guid);
+        attach_canonical_creature(&mut session, creature);
+        session.set_player_guid(Some(player_guid));
+        session.set_active_loot_guid(loot_guid);
+        session.set_loot_drop_rates_like_cpp(LootDropRatesLikeCpp {
+            corpse_decay_looted: 0.5,
+            ..LootDropRatesLikeCpp::default()
+        });
+        register_test_creature_like_cpp(&mut session, test_creature(loot_guid, true));
+        let expired = Instant::now() - Duration::from_secs(1);
+        let deadline_before = session
+            .mutate_world_creature(loot_guid, |creature| {
+                creature.creature.set_corpse_delay(0, false);
+                creature.creature.mark_ai_dead(0);
+                creature.creature.set_corpse_delay(120, false);
+                creature.set_corpse_despawn_at(Some(expired));
+                creature.corpse_despawn_at().unwrap()
+            })
+            .unwrap();
+        assert!(deadline_before <= Instant::now());
+        session.loot_table.insert(
+            loot_guid,
+            CreatureLoot {
+                loot_guid,
+                coins: 0,
+                unlooted_count: 0,
+                loot_type: LOOT_TYPE_CORPSE_LIKE_CPP,
+                dungeon_encounter_id: 0,
+                loot_method: 0,
+                loot_master: ObjectGuid::EMPTY,
+                round_robin_player: ObjectGuid::EMPTY,
+                player_ffa_items: Vec::new(),
+                players_looting: vec![player_guid],
+                allowed_looters: Vec::new(),
+                items: Vec::new(),
+                looted_by_player: false,
+            },
+        );
+
+        session
+            .handle_loot_release(loot_release_packet(loot_guid))
+            .await;
+
+        assert!(send_rx.try_recv().is_ok());
+        assert!(!session.loot_table.contains_key(&loot_guid));
+        let deadline_after = session
+            .mutate_world_creature(loot_guid, |creature| creature.corpse_despawn_at())
+            .unwrap()
+            .expect("expired corpse must retain its existing lifecycle deadline");
+        assert_eq!(deadline_after, deadline_before);
+        assert!(
+            deadline_after <= Instant::now(),
+            "C++ AllLootRemovedFromCorpse is a no-op after corpse removal expires"
         );
     }
 

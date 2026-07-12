@@ -33,8 +33,9 @@ use wow_core::{
 use wow_database::{
     CharStatements, CharacterDatabase, DATABASE_CHARACTER_LIKE_CPP, DATABASE_HOTFIX_LIKE_CPP,
     DATABASE_LOGIN_LIKE_CPP, DATABASE_MASK_ALL_LIKE_CPP, DATABASE_WORLD_LIKE_CPP, HotfixDatabase,
-    LoginDatabase, LoginStatements, PreparedStatement, SqlResult, SqlTransaction, StatementDef,
-    WorldDatabase, WorldStatements, escape_string_like_cpp, warn_about_sync_queries_scope_like_cpp,
+    LoginDatabase, LoginStatements, PreparedStatement, SqlParam, SqlResult, SqlTransaction,
+    StatementDef, WorldDatabase, WorldStatements, escape_string_like_cpp,
+    warn_about_sync_queries_scope_like_cpp,
 };
 use wow_instances::{InstanceLockMgr, MapDb2Entries, ResetSchedule};
 use wow_loot::{
@@ -84,8 +85,381 @@ const WORLD_CONFIG_DIR: &str = "worldserver.conf.d";
 const RUSTYCORE_LEGACY_CREATURE_GLOBAL_RUNTIME_CONFIG: &str =
     "RustyCore.LegacyCreatureGlobalRuntime";
 const DEFAULT_RESPAWN_MIN_CHECK_INTERVAL_MS: u32 = 5_000;
+const RESPAWN_DB_RETRY_INITIAL_DELAY: Duration = Duration::from_secs(1);
+const RESPAWN_DB_RETRY_MAX_DELAY: Duration = Duration::from_secs(30);
+const RESPAWN_DB_PRODUCER_STOP_TIMEOUT: Duration = Duration::from_secs(10);
+const RESPAWN_DB_WRITER_DRAIN_TIMEOUT: Duration = Duration::from_secs(10);
 const CREATURE_TYPE_MECHANICAL_LIKE_CPP: u32 = 9;
 const CREATURE_TYPE_FLAG_BOSS_MOB_LIKE_CPP: u32 = 0x0001_0000;
+
+type RespawnDbStatementKeyLikeCpp = (u16, u64, u16, u32);
+type SharedRespawnDbMutationOrderLikeCpp = Arc<Mutex<()>>;
+type SharedRespawnDbProducerStopLikeCpp = Arc<AtomicBool>;
+
+fn respawn_statement_key_like_cpp(
+    statement: &PreparedStatement,
+) -> Option<RespawnDbStatementKeyLikeCpp> {
+    let params = statement.params();
+    let (map_index, instance_index) = if statement.sql() == CharStatements::REP_RESPAWN.sql() {
+        (3, 4)
+    } else if statement.sql() == CharStatements::DEL_RESPAWN.sql() {
+        (2, 3)
+    } else {
+        return None;
+    };
+    match (
+        params.first(),
+        params.get(1),
+        params.get(map_index),
+        params.get(instance_index),
+    ) {
+        (
+            Some(SqlParam::U16(object_type)),
+            Some(SqlParam::U64(spawn_id)),
+            Some(SqlParam::U16(map_id)),
+            Some(SqlParam::U32(instance_id)),
+        ) => Some((*object_type, *spawn_id, *map_id, *instance_id)),
+        _ => None,
+    }
+}
+
+/// Keeps the latest respawn DB operation per spawn for the shared DB writer.
+///
+/// C++ submits each respawn statement once from `Map::SaveRespawnInfoDB` /
+/// `Map::DeleteRespawnInfoFromDB` and executes it on the CharacterDatabase
+/// worker. RustyCore mirrors that ownership with one writer for canonical and
+/// legacy producers, avoiding both map-tick stalls and cross-runtime REP/DEL
+/// reordering. Retry cadence is independent per spawn key.
+#[derive(Debug)]
+struct PendingRespawnDbStatementLikeCpp {
+    statement: PreparedStatement,
+    consecutive_failures: u32,
+    retry_not_before: Instant,
+}
+
+#[derive(Debug, Default)]
+struct RespawnDbRetryQueueLikeCpp {
+    pending: BTreeMap<RespawnDbStatementKeyLikeCpp, PendingRespawnDbStatementLikeCpp>,
+}
+
+#[derive(Debug)]
+struct RespawnDbAttemptLikeCpp {
+    key: RespawnDbStatementKeyLikeCpp,
+    pending: PendingRespawnDbStatementLikeCpp,
+}
+
+impl RespawnDbRetryQueueLikeCpp {
+    fn enqueue_latest(
+        &mut self,
+        statement: PreparedStatement,
+        now: Instant,
+    ) -> Option<RespawnDbStatementKeyLikeCpp> {
+        let key = respawn_statement_key_like_cpp(&statement)?;
+        self.pending.insert(
+            key,
+            PendingRespawnDbStatementLikeCpp {
+                statement,
+                consecutive_failures: 0,
+                retry_not_before: now,
+            },
+        );
+        Some(key)
+    }
+
+    fn next_deadline(&self) -> Option<Instant> {
+        self.pending
+            .values()
+            .map(|pending| pending.retry_not_before)
+            .min()
+    }
+
+    fn take_due(&mut self, now: Instant) -> Option<RespawnDbAttemptLikeCpp> {
+        let key = self
+            .pending
+            .iter()
+            .filter(|(_, pending)| pending.retry_not_before <= now)
+            .min_by_key(|(key, pending)| (pending.retry_not_before, **key))
+            .map(|(key, _)| *key)?;
+        self.pending
+            .remove(&key)
+            .map(|pending| RespawnDbAttemptLikeCpp { key, pending })
+    }
+
+    fn retry_failed(
+        &mut self,
+        mut attempt: RespawnDbAttemptLikeCpp,
+        observed_at: Instant,
+    ) -> (Duration, u32) {
+        attempt.pending.consecutive_failures =
+            attempt.pending.consecutive_failures.saturating_add(1);
+        let delay = respawn_db_retry_delay(attempt.pending.consecutive_failures);
+        attempt.pending.retry_not_before = observed_at.checked_add(delay).unwrap_or(observed_at);
+        let failed_count = attempt.pending.consecutive_failures;
+        // Keep the failed operation only until the writer receives a newer
+        // operation for the same key; `enqueue_latest` then replaces it.
+        self.pending.entry(attempt.key).or_insert(attempt.pending);
+        (delay, failed_count)
+    }
+
+    fn pending_len(&self) -> usize {
+        self.pending.len()
+    }
+
+    fn make_all_due(&mut self, now: Instant) {
+        for pending in self.pending.values_mut() {
+            pending.retry_not_before = now;
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+struct RespawnDbMailboxStateLikeCpp {
+    queue: RespawnDbRetryQueueLikeCpp,
+    closed: bool,
+}
+
+/// Producer-visible, latest-per-spawn mailbox for respawn persistence.
+///
+/// Producers coalesce synchronously before waking the DB writer, so a slow or
+/// unavailable CharacterDatabase cannot create an unbounded event backlog.
+/// The retained domain is bounded by distinct spawn keys with pending durable
+/// state; repeated REP/DEL operations for one key always replace each other.
+#[derive(Debug, Default)]
+struct RespawnDbMailboxLikeCpp {
+    state: Mutex<RespawnDbMailboxStateLikeCpp>,
+    notify: Notify,
+}
+
+impl RespawnDbMailboxLikeCpp {
+    fn close_like_cpp(&self) {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        state.closed = true;
+        state.queue.make_all_due(Instant::now());
+        drop(state);
+        self.notify.notify_one();
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RespawnDbSubmitErrorLikeCpp {
+    Closed,
+    UnrecognizedStatement,
+}
+
+#[derive(Debug, Clone)]
+struct RespawnDbWriterSenderLikeCpp {
+    mailbox: Arc<RespawnDbMailboxLikeCpp>,
+}
+
+impl RespawnDbWriterSenderLikeCpp {
+    fn new_like_cpp() -> Self {
+        Self {
+            mailbox: Arc::new(RespawnDbMailboxLikeCpp::default()),
+        }
+    }
+
+    fn send(
+        &self,
+        statement: PreparedStatement,
+    ) -> std::result::Result<(), RespawnDbSubmitErrorLikeCpp> {
+        let mut state = self
+            .mailbox
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if state.closed {
+            return Err(RespawnDbSubmitErrorLikeCpp::Closed);
+        }
+        if state
+            .queue
+            .enqueue_latest(statement, Instant::now())
+            .is_none()
+        {
+            return Err(RespawnDbSubmitErrorLikeCpp::UnrecognizedStatement);
+        }
+        drop(state);
+        self.mailbox.notify.notify_one();
+        Ok(())
+    }
+
+    fn close_like_cpp(&self) {
+        self.mailbox.close_like_cpp();
+    }
+}
+
+struct RespawnDbWriterTaskGuardLikeCpp {
+    mailbox: Arc<RespawnDbMailboxLikeCpp>,
+}
+
+impl Drop for RespawnDbWriterTaskGuardLikeCpp {
+    fn drop(&mut self) {
+        // Reject further producer submissions if the supervised writer exits,
+        // panics, or is aborted unexpectedly.
+        self.mailbox.close_like_cpp();
+    }
+}
+
+enum RespawnDbWriterPollLikeCpp {
+    Attempt(RespawnDbAttemptLikeCpp),
+    WaitForNotification,
+    WaitUntil(Instant),
+    Finished,
+}
+
+fn respawn_db_retry_delay(consecutive_failed_flushes: u32) -> Duration {
+    let exponent = consecutive_failed_flushes.saturating_sub(1).min(31);
+    let multiplier = 1_u32.checked_shl(exponent).unwrap_or(u32::MAX);
+    RESPAWN_DB_RETRY_INITIAL_DELAY
+        .saturating_mul(multiplier)
+        .min(RESPAWN_DB_RETRY_MAX_DELAY)
+}
+
+async fn execute_respawn_db_attempt_like_cpp(
+    attempt: RespawnDbAttemptLikeCpp,
+    mailbox: &RespawnDbMailboxLikeCpp,
+    character_db: &CharacterDatabase,
+) {
+    if let Err(error) = character_db.execute(&attempt.pending.statement).await {
+        let key = attempt.key;
+        let sql = attempt.pending.statement.sql().to_string();
+        let (retry_delay, failed_attempts) = mailbox
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .queue
+            .retry_failed(attempt, Instant::now());
+        warn!(
+            error = %error,
+            sql = %sql,
+            object_type = key.0,
+            spawn_id = key.1,
+            map_id = key.2,
+            instance_id = key.3,
+            retry_in_ms = retry_delay.as_millis(),
+            failed_attempts,
+            "Failed to persist respawn operation like C++; shared DB-writer retry deferred"
+        );
+    }
+}
+
+fn spawn_respawn_db_writer_like_cpp(
+    character_db: Arc<CharacterDatabase>,
+) -> (RespawnDbWriterSenderLikeCpp, tokio::task::JoinHandle<()>) {
+    let sender = RespawnDbWriterSenderLikeCpp::new_like_cpp();
+    let mailbox = Arc::clone(&sender.mailbox);
+    let handle = tokio::spawn(async move {
+        let _writer_guard = RespawnDbWriterTaskGuardLikeCpp {
+            mailbox: Arc::clone(&mailbox),
+        };
+
+        loop {
+            // Arm the notification before inspecting the mailbox. A producer
+            // racing this check therefore leaves a permit instead of losing
+            // the idle-writer wakeup.
+            let notified = mailbox.notify.notified();
+            let poll = {
+                let mut state = mailbox
+                    .state
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                let now = Instant::now();
+                if let Some(attempt) = state.queue.take_due(now) {
+                    RespawnDbWriterPollLikeCpp::Attempt(attempt)
+                } else if state.closed && state.queue.pending_len() == 0 {
+                    RespawnDbWriterPollLikeCpp::Finished
+                } else if let Some(deadline) = state.queue.next_deadline() {
+                    RespawnDbWriterPollLikeCpp::WaitUntil(deadline)
+                } else {
+                    RespawnDbWriterPollLikeCpp::WaitForNotification
+                }
+            };
+
+            match poll {
+                RespawnDbWriterPollLikeCpp::Attempt(attempt) => {
+                    // Never hold the mailbox mutex across a database await.
+                    // If a newer same-key operation arrives while this SQL is
+                    // in flight, `retry_failed(...).or_insert(...)` preserves
+                    // that newer operation instead of restoring stale state.
+                    execute_respawn_db_attempt_like_cpp(
+                        attempt,
+                        mailbox.as_ref(),
+                        character_db.as_ref(),
+                    )
+                    .await;
+                }
+                RespawnDbWriterPollLikeCpp::WaitForNotification => notified.await,
+                RespawnDbWriterPollLikeCpp::WaitUntil(deadline) => {
+                    tokio::select! {
+                        _ = notified => {}
+                        _ = tokio::time::sleep_until(tokio::time::Instant::from_std(deadline)) => {}
+                    }
+                }
+                RespawnDbWriterPollLikeCpp::Finished => break,
+            }
+        }
+    });
+    (sender, handle)
+}
+
+async fn stop_respawn_db_producer_like_cpp(
+    task_name: &'static str,
+    handle: &mut tokio::task::JoinHandle<()>,
+    already_finished: bool,
+) -> bool {
+    if already_finished {
+        return true;
+    }
+
+    match tokio::time::timeout(RESPAWN_DB_PRODUCER_STOP_TIMEOUT, &mut *handle).await {
+        Ok(Ok(())) => true,
+        Ok(Err(error)) => {
+            tracing::error!(task_name, %error, "Respawn DB producer task failed during shutdown");
+            false
+        }
+        Err(_) => {
+            // `spawn_blocking` cannot be force-cancelled. Aborting the outer
+            // task prevents further async iterations; a still-running closure
+            // may attempt a late mailbox submission, which explicit writer
+            // close rejects before the separately bounded drain.
+            handle.abort();
+            tracing::error!(
+                task_name,
+                timeout_ms = RESPAWN_DB_PRODUCER_STOP_TIMEOUT.as_millis(),
+                "Respawn DB producer shutdown timed out; abort requested and terminal error status required"
+            );
+            false
+        }
+    }
+}
+
+async fn drain_respawn_db_writer_like_cpp(
+    handle: &mut tokio::task::JoinHandle<()>,
+    already_finished: bool,
+) -> bool {
+    if already_finished {
+        return false;
+    }
+
+    match tokio::time::timeout(RESPAWN_DB_WRITER_DRAIN_TIMEOUT, &mut *handle).await {
+        Ok(Ok(())) => true,
+        Ok(Err(error)) => {
+            tracing::error!(%error, "Shared respawn DB writer failed while draining");
+            false
+        }
+        Err(_) => {
+            tracing::error!(
+                timeout_ms = RESPAWN_DB_WRITER_DRAIN_TIMEOUT.as_millis(),
+                "Shared respawn DB writer drain timed out; aborting with persistence work still pending"
+            );
+            handle.abort();
+            let _ = (&mut *handle).await;
+            false
+        }
+    }
+}
 
 type SharedCanonicalSpawnMetadataLikeCpp =
     Arc<Mutex<spawn_store_loader::CanonicalSpawnMetadataLikeCpp>>;
@@ -97,6 +471,8 @@ const ERROR_EXIT_CODE_LIKE_CPP: i32 = 1;
 const RESTART_EXIT_CODE_LIKE_CPP: i32 = 2;
 const WORLD_SESSION_SHUTDOWN_FLUSH_TIMEOUT_LIKE_CPP: Duration = Duration::from_millis(500);
 const WORLD_SESSION_SHUTDOWN_DRAIN_TIMEOUT_LIKE_CPP: Duration = Duration::from_millis(500);
+const WORLD_SESSION_FINALIZE_STEP_TIMEOUT_LIKE_CPP: Duration = Duration::from_secs(5);
+const WORLD_SESSION_FORCE_CANCEL_TIMEOUT_LIKE_CPP: Duration = Duration::from_secs(12);
 const REALM_TYPE_NORMAL_LIKE_CPP: u8 = 0;
 const REALM_TYPE_PVP_LIKE_CPP: u8 = 1;
 const MAX_CLIENT_REALM_TYPE_LIKE_CPP: u8 = 14;
@@ -286,10 +662,48 @@ fn process_exit_code_like_cpp(exit_code: i32) -> ExitCode {
     ExitCode::from(exit_code)
 }
 
+#[derive(Debug, Default)]
+struct ActiveWorldSessionCancellationLikeCpp {
+    cancelled: AtomicBool,
+    notify: Notify,
+}
+
+impl ActiveWorldSessionCancellationLikeCpp {
+    fn cancel_like_cpp(&self) {
+        self.cancelled.store(true, Ordering::Release);
+        // One cancellation waiter exists per session; `notify_one` stores a
+        // permit when the waiter has not been polled yet, avoiding a lost wake.
+        self.notify.notify_one();
+    }
+
+    async fn cancelled_like_cpp(&self) {
+        loop {
+            let notified = self.notify.notified();
+            if self.cancelled.load(Ordering::Acquire) {
+                return;
+            }
+            notified.await;
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 struct ActiveWorldSessionLikeCpp {
     account_id: u32,
     command_tx: flume::Sender<SessionCommand>,
+    cancellation: Arc<ActiveWorldSessionCancellationLikeCpp>,
+}
+
+#[derive(Debug)]
+struct ActiveWorldSessionRegistrationGuardLikeCpp {
+    registry: Arc<ActiveWorldSessionRegistryLikeCpp>,
+    id: u64,
+}
+
+impl Drop for ActiveWorldSessionRegistrationGuardLikeCpp {
+    fn drop(&mut self) {
+        self.registry.unregister(self.id);
+    }
 }
 
 /// Minimal Rust equivalent of C++ `World::m_sessions`.
@@ -300,11 +714,23 @@ struct ActiveWorldSessionLikeCpp {
 /// sessions with a logged-in player. This registry intentionally stores only
 /// the command rail needed by world-owned operations; the session task remains
 /// the sole owner of `WorldSession` mutation.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct ActiveWorldSessionRegistryLikeCpp {
     next_id: AtomicU64,
     sessions: Mutex<BTreeMap<u64, ActiveWorldSessionLikeCpp>>,
-    session_removed: Notify,
+    accepting_sessions: AtomicBool,
+    stop_sessions: AtomicBool,
+}
+
+impl Default for ActiveWorldSessionRegistryLikeCpp {
+    fn default() -> Self {
+        Self {
+            next_id: AtomicU64::new(0),
+            sessions: Mutex::new(BTreeMap::new()),
+            accepting_sessions: AtomicBool::new(true),
+            stop_sessions: AtomicBool::new(false),
+        }
+    }
 }
 
 impl ActiveWorldSessionRegistryLikeCpp {
@@ -312,23 +738,71 @@ impl ActiveWorldSessionRegistryLikeCpp {
         Self::default()
     }
 
-    fn register(&self, account_id: u32, command_tx: flume::Sender<SessionCommand>) -> u64 {
-        let id = self
-            .next_id
-            .fetch_add(1, Ordering::Relaxed)
-            .saturating_add(1);
+    fn try_register(
+        &self,
+        account_id: u32,
+        command_tx: flume::Sender<SessionCommand>,
+    ) -> Option<(u64, Arc<ActiveWorldSessionCancellationLikeCpp>)> {
         let mut sessions = self
             .sessions
             .lock()
             .expect("active world session registry lock poisoned");
+        if !self.accepting_sessions.load(Ordering::Acquire) {
+            return None;
+        }
+        let id = self
+            .next_id
+            .fetch_add(1, Ordering::Relaxed)
+            .saturating_add(1);
+        let cancellation = Arc::new(ActiveWorldSessionCancellationLikeCpp::default());
         sessions.insert(
             id,
             ActiveWorldSessionLikeCpp {
                 account_id,
                 command_tx,
+                cancellation: Arc::clone(&cancellation),
             },
         );
-        id
+        Some((id, cancellation))
+    }
+
+    #[cfg(test)]
+    fn register(&self, account_id: u32, command_tx: flume::Sender<SessionCommand>) -> u64 {
+        self.try_register(account_id, command_tx)
+            .expect("test registry must still accept sessions")
+            .0
+    }
+
+    fn begin_shutdown_like_cpp(&self) {
+        // Serialize with `try_register`: when this method returns, every
+        // registration that won the race is already visible in `sessions`,
+        // and every later registration is rejected.
+        let _sessions = self
+            .sessions
+            .lock()
+            .expect("active world session registry lock poisoned");
+        self.accepting_sessions.store(false, Ordering::Release);
+    }
+
+    fn is_shutting_down_like_cpp(&self) -> bool {
+        !self.accepting_sessions.load(Ordering::Acquire)
+    }
+
+    fn request_session_stop_like_cpp(&self) {
+        self.stop_sessions.store(true, Ordering::Release);
+    }
+
+    fn should_stop_sessions_like_cpp(&self) -> bool {
+        self.stop_sessions.load(Ordering::Acquire)
+    }
+
+    fn cancel_all_sessions_like_cpp(&self) -> usize {
+        debug_assert!(self.is_shutting_down_like_cpp());
+        let sessions = self.snapshot_like_cpp();
+        for (_, session) in &sessions {
+            session.cancellation.cancel_like_cpp();
+        }
+        sessions.len()
     }
 
     fn unregister(&self, id: u64) -> Option<ActiveWorldSessionLikeCpp> {
@@ -336,12 +810,7 @@ impl ActiveWorldSessionRegistryLikeCpp {
             .sessions
             .lock()
             .expect("active world session registry lock poisoned");
-        let removed = sessions.remove(&id);
-        drop(sessions);
-        if removed.is_some() {
-            self.session_removed.notify_waiters();
-        }
-        removed
+        sessions.remove(&id)
     }
 
     fn snapshot_like_cpp(&self) -> Vec<(u64, ActiveWorldSessionLikeCpp)> {
@@ -367,16 +836,11 @@ impl ActiveWorldSessionRegistryLikeCpp {
     }
 
     async fn wait_until_empty_like_cpp(&self, wait_timeout: Duration) -> bool {
-        if self.is_empty_like_cpp() {
-            return true;
-        }
-
         tokio::time::timeout(wait_timeout, async {
-            loop {
-                self.session_removed.notified().await;
-                if self.is_empty_like_cpp() {
-                    break;
-                }
+            while !self.is_empty_like_cpp() {
+                // Polling avoids losing a `notify_waiters` wake between an
+                // empty check and creation of a `Notified` future.
+                tokio::time::sleep(Duration::from_millis(10)).await;
             }
         })
         .await
@@ -1441,6 +1905,16 @@ async fn main() -> Result<ExitCode> {
         "Loaded {} class rows from ChrClasses.db2",
         chr_classes_store.len()
     );
+    let chr_model_store = wow_data::character_progression::ChrModelStore::load(&data_dir, &locale)
+        .context("Failed to load ChrModel.db2")?;
+    let chr_race_x_chr_model_store =
+        wow_data::character_progression::ChrRaceXChrModelStore::load(&data_dir, &locale)
+            .context("Failed to load ChrRaceXChrModel.db2")?;
+    info!(
+        "Loaded {} character models and {} race/model links from DB2",
+        chr_model_store.len(),
+        chr_race_x_chr_model_store.len()
+    );
     let creature_family_store = Arc::new(
         wow_data::CreatureFamilyStore::load(&data_dir, &locale)
             .context("Failed to load CreatureFamily.db2")?,
@@ -2474,6 +2948,37 @@ async fn main() -> Result<ExitCode> {
             .context("Failed to load player_levelstats")?,
     );
     info!("Loaded {} player level stat entries", player_stats.len());
+    let player_create_taxi_path_store = wow_data::TaxiPathStore::load(&data_dir, &locale)
+        .context("Failed to load TaxiPath.db2 for C++ playercreateinfo")?;
+    let player_create_taxi_path_node_store = wow_data::TaxiPathNodeStore::load(&data_dir, &locale)
+        .context("Failed to load TaxiPathNode.db2 for C++ playercreateinfo")?;
+    let player_create_info_store = Arc::new(
+        wow_data::PlayerCreateInfoStoreLikeCpp::load_like_cpp(
+            &world_db,
+            &map_store,
+            &chr_races_store,
+            &chr_classes_store,
+            &chr_model_store,
+            &chr_race_x_chr_model_store,
+            &gameobject_template_lifecycle_store,
+            &player_create_taxi_path_store,
+            &player_create_taxi_path_node_store,
+        )
+        .await
+        .context("Failed to load C++ playercreateinfo base store")?,
+    );
+    let player_create_info_report = player_create_info_store.load_report_like_cpp().clone();
+    info!(
+        loaded = player_create_info_report.loaded,
+        skipped_invalid_race = player_create_info_report.skipped_invalid_race,
+        skipped_invalid_class = player_create_info_report.skipped_invalid_class,
+        skipped_missing_gender_models = player_create_info_report.skipped_missing_gender_models,
+        skipped_invalid_position = player_create_info_report.skipped_invalid_position,
+        skipped_instanceable_map = player_create_info_report.skipped_instanceable_map,
+        discarded_invalid_npe_map = player_create_info_report.discarded_invalid_npe_map,
+        discarded_invalid_npe_transport = player_create_info_report.discarded_invalid_npe_transport,
+        "Loaded C++ player create base definitions"
+    );
     let player_create_cast_spell_store = Arc::new(
         wow_data::PlayerCreateInfoCastSpellStoreLikeCpp::load_like_cpp(&world_db)
             .await
@@ -4189,6 +4694,7 @@ async fn main() -> Result<ExitCode> {
             Arc::clone(&canonical_spawn_metadata),
             Arc::clone(&condition_store),
             Arc::clone(&persisted_respawn_times),
+            Arc::clone(&map_store),
         ),
         Err(_) => {
             warn!("Canonical MapManager lock poisoned; InitSpawnGroupState hook not installed")
@@ -4464,6 +4970,7 @@ async fn main() -> Result<ExitCode> {
         item_price_base_store: Some(Arc::clone(&item_price_base_store)),
         item_limit_category_store: Some(Arc::clone(&item_limit_category_store)),
         item_limit_category_condition_store: Some(Arc::clone(&item_limit_category_condition_store)),
+        player_create_info_store: Some(Arc::clone(&player_create_info_store)),
         player_create_cast_spell_store: Some(Arc::clone(&player_create_cast_spell_store)),
         player_create_custom_spell_store: Some(Arc::clone(&player_create_custom_spell_store)),
         player_stats: Some(Arc::clone(&player_stats)),
@@ -4823,8 +5330,11 @@ async fn main() -> Result<ExitCode> {
     legacy_creature_aggro_config.spell_misc_store = Some(Arc::clone(&spell_misc_store));
     legacy_creature_aggro_config.spell_range_store = Some(Arc::clone(&spell_range_store));
 
+    let (realm_listener_ready_tx, realm_listener_ready_rx) = tokio::sync::oneshot::channel();
+    let (instance_listener_ready_tx, instance_listener_ready_rx) = tokio::sync::oneshot::channel();
+
     // Spawn realm listener (existing world listener)
-    let realm_handle = tokio::spawn({
+    let mut realm_handle = tokio::spawn({
         let lookup = Arc::clone(&account_lookup);
         let resources = Arc::clone(&session_resources);
         let mgr = Arc::clone(&session_mgr);
@@ -4834,6 +5344,7 @@ async fn main() -> Result<ExitCode> {
         let loaded_grid_caches = loaded_grid_creature_respawn_caches.clone();
         let accessor = Arc::clone(&object_accessor);
         let active_sessions = Arc::clone(&active_session_registry);
+        let runtime_state = Arc::clone(&world_runtime_state);
         let port = instance_port;
         let mmap_config = mmap_runtime_config.clone();
         let mmap_pathfinder = mmap_pathfinder.clone();
@@ -4851,6 +5362,7 @@ async fn main() -> Result<ExitCode> {
                     let loaded_grid_caches = loaded_grid_caches.clone();
                     let accessor = Arc::clone(&accessor);
                     let active_sessions = Arc::clone(&active_sessions);
+                    let runtime_state = Arc::clone(&runtime_state);
                     let mmap_pathfinder = mmap_pathfinder.clone();
                     let session_aggro_config = session_aggro_config.clone();
                     create_session(
@@ -4870,8 +5382,10 @@ async fn main() -> Result<ExitCode> {
                         mmap_pathfinder,
                         active_sessions,
                         session_aggro_config,
+                        runtime_state,
                     )
                 },
+                realm_listener_ready_tx,
             )
             .await
             .context("Realm listener error")
@@ -4879,16 +5393,44 @@ async fn main() -> Result<ExitCode> {
     });
 
     // Spawn instance listener
-    let instance_handle = tokio::spawn({
+    let mut instance_handle = tokio::spawn({
         let mgr = Arc::clone(&session_mgr);
         async move {
-            wow_network::start_instance_listener(instance_addr, mgr)
+            wow_network::start_instance_listener(instance_addr, mgr, instance_listener_ready_tx)
                 .await
                 .context("Instance listener error")
         }
     });
     let realm_network_abort_handle = realm_handle.abort_handle();
     let instance_network_abort_handle = instance_handle.abort_handle();
+
+    let (realm_listener_ready, instance_listener_ready) =
+        tokio::join!(realm_listener_ready_rx, instance_listener_ready_rx);
+    let listener_start_error = match (realm_listener_ready, instance_listener_ready) {
+        (Ok(Ok(())), Ok(Ok(()))) => None,
+        (Ok(Err(error)), _) => Some(format!("realm listener bind failed: {error}")),
+        (_, Ok(Err(error))) => Some(format!("instance listener bind failed: {error}")),
+        (Err(error), _) => Some(format!("realm listener readiness task failed: {error}")),
+        (_, Err(error)) => Some(format!("instance listener readiness task failed: {error}")),
+    };
+    if let Some(error) = listener_start_error {
+        stop_world_network_like_cpp([
+            ("realm", &realm_network_abort_handle),
+            ("instance", &instance_network_abort_handle),
+        ]);
+        bail!(error);
+    }
+
+    // Match C++ startup: bind both world listeners successfully before
+    // clearing the realm's offline flag, but still do so before DB writers and
+    // map/runtime producers begin.
+    if let Err(error) = set_realm_online(&login_db, realm_id).await {
+        stop_world_network_like_cpp([
+            ("realm", &realm_network_abort_handle),
+            ("instance", &instance_network_abort_handle),
+        ]);
+        return Err(error);
+    }
 
     let map_update_interval_ms = world_config_u32(&world_configs, "CONFIG_INTERVAL_MAPUPDATE", 10)
         .max(wow_map::MIN_MAP_UPDATE_DELAY_MS);
@@ -4914,14 +5456,22 @@ async fn main() -> Result<ExitCode> {
         DEFAULT_RESPAWN_MIN_CHECK_INTERVAL_MS,
     )
     .max(1);
-    let map_update_handle = spawn_canonical_map_update_loop(
+    let respawn_db_mutation_order = Arc::new(Mutex::new(()));
+    let respawn_db_producer_stop = Arc::new(AtomicBool::new(false));
+    let (respawn_db_writer_tx, mut respawn_db_writer_handle) =
+        spawn_respawn_db_writer_like_cpp(Arc::clone(&char_db));
+    let mut map_update_handle = spawn_canonical_map_update_loop(
         Arc::clone(&canonical_map_manager),
         Arc::clone(&shared_map),
         map_update_interval_ms,
         respawn_condition_interval_ms,
         Arc::clone(&canonical_spawn_metadata),
         Arc::clone(&condition_store),
+        Arc::clone(&map_store),
         Arc::clone(&char_db),
+        respawn_db_writer_tx.clone(),
+        Arc::clone(&respawn_db_mutation_order),
+        Arc::clone(&respawn_db_producer_stop),
         loaded_grid_creature_respawn_caches.clone(),
         Arc::clone(&area_trigger_template_store),
         game_event_scheduler,
@@ -4929,18 +5479,22 @@ async fn main() -> Result<ExitCode> {
         Arc::clone(&battlemaster_list_typed_store),
         Arc::clone(&world_state_mgr),
     );
-    let legacy_creature_runtime_handle = spawn_legacy_creature_runtime_update_loop_like_cpp(
+    let mut legacy_creature_runtime_handle = spawn_legacy_creature_runtime_update_loop_like_cpp(
         legacy_creature_global_runtime_enabled,
         Arc::clone(&shared_map),
         Arc::clone(&canonical_map_manager),
+        Arc::clone(&map_store),
         mmap_runtime_config.clone(),
         mmap_pathfinder.clone(),
         legacy_creature_aggro_config.clone(),
         map_update_interval_ms,
+        Some(respawn_db_writer_tx.clone()),
+        Arc::clone(&respawn_db_mutation_order),
+        Arc::clone(&respawn_db_producer_stop),
         Arc::clone(&player_registry),
     );
 
-    let ready_check_tick_handle = spawn_group_ready_check_tick_loop(
+    let mut ready_check_tick_handle = spawn_group_ready_check_tick_loop(
         Arc::clone(&group_registry),
         Arc::clone(&player_registry),
         map_update_interval_ms,
@@ -4952,20 +5506,23 @@ async fn main() -> Result<ExitCode> {
         db_keepalive_interval_minutes_like_cpp(&world_configs),
     );
 
-    set_realm_online(&login_db, realm_id).await?;
     let startup_script_summary = wow_scripts::lifecycle::on_startup().await;
     info!(
         callbacks = startup_script_summary.callbacks,
         "Ran ScriptMgr::OnStartup-style lifecycle hooks"
     );
 
-    // Wait for shutdown signal
+    let mut map_update_finished = false;
+    let mut legacy_creature_runtime_finished = false;
+    let mut respawn_db_writer_finished = false;
+
+    // Wait for shutdown signal or a supervised background task failure.
     tokio::select! {
         _ = shutdown_signal() => {
             world_runtime_state.stop_now_like_cpp(SHUTDOWN_EXIT_CODE_LIKE_CPP);
             info!("Shutdown signal received, stopping...");
         }
-        result = realm_handle => {
+        result = &mut realm_handle => {
             match result {
                 Ok(Ok(())) => {
                     world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
@@ -4981,7 +5538,7 @@ async fn main() -> Result<ExitCode> {
                 }
             }
         }
-        result = instance_handle => {
+        result = &mut instance_handle => {
             match result {
                 Ok(Ok(())) => {
                     world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
@@ -4997,7 +5554,8 @@ async fn main() -> Result<ExitCode> {
                 }
             }
         }
-        result = map_update_handle => {
+        result = &mut map_update_handle => {
+            map_update_finished = true;
             match result {
                 Ok(()) => {
                     world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
@@ -5009,7 +5567,8 @@ async fn main() -> Result<ExitCode> {
                 }
             }
         }
-        result = legacy_creature_runtime_handle => {
+        result = &mut legacy_creature_runtime_handle => {
+            legacy_creature_runtime_finished = true;
             match result {
                 Ok(()) => {
                     world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
@@ -5021,7 +5580,7 @@ async fn main() -> Result<ExitCode> {
                 }
             }
         }
-        result = ready_check_tick_handle => {
+        result = &mut ready_check_tick_handle => {
             match result {
                 Ok(()) => {
                     world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
@@ -5033,8 +5592,25 @@ async fn main() -> Result<ExitCode> {
                 }
             }
         }
+        result = &mut respawn_db_writer_handle => {
+            respawn_db_writer_finished = true;
+            world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
+            match result {
+                Ok(()) => {
+                    tracing::error!("Shared respawn DB writer stopped unexpectedly");
+                }
+                Err(e) => {
+                    tracing::error!("Shared respawn DB writer task failed: {e}");
+                }
+            }
+        }
     }
 
+    // Close registration under the same mutex used by `try_register`. An
+    // in-flight authenticated connection is therefore either already in the
+    // KickAll snapshot or rejected, while C++ KickAll -> UpdateSessions ->
+    // StopNetwork ordering remains intact.
+    active_session_registry.begin_shutdown_like_cpp();
     let kick_summary = kick_all_sessions_like_cpp(&active_session_registry);
     info!(
         sessions_seen = kick_summary.sessions_seen,
@@ -5042,6 +5618,13 @@ async fn main() -> Result<ExitCode> {
         failed = kick_summary.send_failed,
         "Queued World::KickAll-style shutdown kicks"
     );
+    if kick_summary.send_failed > 0 {
+        world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
+        tracing::error!(
+            failed = kick_summary.send_failed,
+            "World::KickAll shutdown delivery failed; forcing terminal error status"
+        );
+    }
     let flush_summary = update_sessions_shutdown_flush_once_like_cpp(
         &active_session_registry,
         1,
@@ -5058,14 +5641,18 @@ async fn main() -> Result<ExitCode> {
         disconnecting = flush_summary.disconnecting,
         "Ran World::UpdateSessions(1)-style shutdown flush"
     );
-    let sessions_drained = active_session_registry
-        .wait_until_empty_like_cpp(WORLD_SESSION_SHUTDOWN_DRAIN_TIMEOUT_LIKE_CPP)
-        .await;
-    info!(
-        drained = sessions_drained,
-        remaining = active_session_registry.len_like_cpp(),
-        "Waited for task-owned sessions to unregister after shutdown flush"
-    );
+    if flush_summary.send_failed > 0
+        || flush_summary.ack_failed > 0
+        || flush_summary.ack_timeout > 0
+    {
+        world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
+        tracing::error!(
+            send_failed = flush_summary.send_failed,
+            ack_failed = flush_summary.ack_failed,
+            ack_timeout = flush_summary.ack_timeout,
+            "World::UpdateSessions shutdown flush was incomplete; forcing terminal error status"
+        );
+    }
     let network_stop_summary = stop_world_network_like_cpp([
         ("realm", &realm_network_abort_handle),
         ("instance", &instance_network_abort_handle),
@@ -5074,6 +5661,73 @@ async fn main() -> Result<ExitCode> {
         listeners = network_stop_summary.listeners,
         "Stopped world network listeners like C++ WorldSocketMgr::StopNetwork"
     );
+    // Any session that could not receive/ack the explicit commands now sees
+    // this cooperative stop at its next update boundary. Registration has
+    // already been closed, so the registry can only drain from this point.
+    active_session_registry.request_session_stop_like_cpp();
+    let sessions_drained = active_session_registry
+        .wait_until_empty_like_cpp(WORLD_SESSION_SHUTDOWN_DRAIN_TIMEOUT_LIKE_CPP)
+        .await;
+    info!(
+        drained = sessions_drained,
+        remaining = active_session_registry.len_like_cpp(),
+        "Waited for task-owned sessions to unregister after shutdown flush"
+    );
+    if !sessions_drained {
+        world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
+        let cancelled = active_session_registry.cancel_all_sessions_like_cpp();
+        tracing::error!(
+            remaining = active_session_registry.len_like_cpp(),
+            cancelled,
+            "World-session shutdown grace period expired; force-cancelling registered session futures"
+        );
+        let forced_sessions_drained = active_session_registry
+            .wait_until_empty_like_cpp(WORLD_SESSION_FORCE_CANCEL_TIMEOUT_LIKE_CPP)
+            .await;
+        if !forced_sessions_drained {
+            tracing::error!(
+                remaining = active_session_registry.len_like_cpp(),
+                timeout_ms = WORLD_SESSION_FORCE_CANCEL_TIMEOUT_LIKE_CPP.as_millis(),
+                "Force-cancelled world sessions did not unregister before terminal timeout"
+            );
+        }
+    }
+
+    // Quiesce sessions before closing respawn persistence. Each enabled
+    // producer observes this flag on its next interval, performs one final
+    // tick to consume state such as `save_respawn_requested`, then returns.
+    respawn_db_producer_stop.store(true, Ordering::Release);
+    let (map_update_stopped, legacy_runtime_stopped) = tokio::join!(
+        stop_respawn_db_producer_like_cpp(
+            "canonical-map-update",
+            &mut map_update_handle,
+            map_update_finished,
+        ),
+        stop_respawn_db_producer_like_cpp(
+            "legacy-creature-runtime",
+            &mut legacy_creature_runtime_handle,
+            legacy_creature_runtime_finished,
+        ),
+    );
+    if !map_update_stopped || !legacy_runtime_stopped {
+        world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
+    }
+
+    // Close the producer-visible mailbox explicitly after both producers have
+    // stopped. This makes existing backoff immediately due, rejects any late
+    // submission from an aborted blocking tick, and lets the writer drain the
+    // latest retained operation for every spawn key.
+    respawn_db_writer_tx.close_like_cpp();
+    drop(respawn_db_writer_tx);
+
+    // A bounded writer retry failure is explicit and makes shutdown non-zero
+    // instead of silently losing acknowledged persistence work. The writer
+    // has already been draining concurrently during the session flush.
+    if !drain_respawn_db_writer_like_cpp(&mut respawn_db_writer_handle, respawn_db_writer_finished)
+        .await
+    {
+        world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
+    }
 
     game_event_quest_complete_handle.abort();
     if let Some(db_keepalive_handle) = db_keepalive_handle {
@@ -5580,7 +6234,7 @@ async fn update_sessions_shutdown_flush_once_like_cpp(
     ack_timeout: Duration,
 ) -> UpdateSessionsShutdownFlushSummaryLikeCpp {
     let mut summary = UpdateSessionsShutdownFlushSummaryLikeCpp::default();
-    let mut pending_acks = Vec::new();
+    let mut pending_acks = tokio::task::JoinSet::new();
 
     for (session_id, session) in registry.snapshot_like_cpp() {
         summary.sessions_seen = summary.sessions_seen.saturating_add(1);
@@ -5596,7 +6250,9 @@ async fn update_sessions_shutdown_flush_once_like_cpp(
         match session.command_tx.try_send(command) {
             Ok(()) => {
                 summary.queued = summary.queued.saturating_add(1);
-                pending_acks.push((session_id, session.account_id, response_rx));
+                let account_id = session.account_id;
+                pending_acks
+                    .spawn(async move { (session_id, account_id, response_rx.recv_async().await) });
             }
             Err(error) => {
                 summary.send_failed = summary.send_failed.saturating_add(1);
@@ -5610,33 +6266,45 @@ async fn update_sessions_shutdown_flush_once_like_cpp(
         }
     }
 
-    for (session_id, account_id, response_rx) in pending_acks {
-        match tokio::time::timeout(ack_timeout, response_rx.recv_async()).await {
-            Ok(Ok(result)) => {
-                summary.acked = summary.acked.saturating_add(1);
-                if result.disconnecting {
-                    summary.disconnecting = summary.disconnecting.saturating_add(1);
+    let wait_outcome = tokio::time::timeout(ack_timeout, async {
+        while let Some(joined) = pending_acks.join_next().await {
+            match joined {
+                Ok((_session_id, _account_id, Ok(result))) => {
+                    summary.acked = summary.acked.saturating_add(1);
+                    if result.disconnecting {
+                        summary.disconnecting = summary.disconnecting.saturating_add(1);
+                    }
+                }
+                Ok((session_id, account_id, Err(error))) => {
+                    summary.ack_failed = summary.ack_failed.saturating_add(1);
+                    warn!(
+                        account = account_id,
+                        session_id,
+                        error = %error,
+                        "World::UpdateSessions(1)-style shutdown flush acknowledgement failed"
+                    );
+                }
+                Err(error) => {
+                    summary.ack_failed = summary.ack_failed.saturating_add(1);
+                    warn!(
+                        error = %error,
+                        "World::UpdateSessions(1)-style shutdown acknowledgement task failed"
+                    );
                 }
             }
-            Ok(Err(error)) => {
-                summary.ack_failed = summary.ack_failed.saturating_add(1);
-                warn!(
-                    account = account_id,
-                    session_id,
-                    error = %error,
-                    "World::UpdateSessions(1)-style shutdown flush acknowledgement failed"
-                );
-            }
-            Err(_) => {
-                summary.ack_timeout = summary.ack_timeout.saturating_add(1);
-                warn!(
-                    account = account_id,
-                    session_id,
-                    timeout_ms = ack_timeout.as_millis(),
-                    "Timed out waiting for World::UpdateSessions(1)-style shutdown flush acknowledgement"
-                );
-            }
         }
+    })
+    .await;
+
+    if wait_outcome.is_err() {
+        let timed_out = pending_acks.len();
+        summary.ack_timeout = summary.ack_timeout.saturating_add(timed_out);
+        pending_acks.abort_all();
+        warn!(
+            timed_out,
+            timeout_ms = ack_timeout.as_millis(),
+            "Timed out at the shared World::UpdateSessions shutdown acknowledgement deadline"
+        );
     }
 
     summary
@@ -6383,11 +7051,13 @@ struct PersistedRespawnApplyReportLikeCpp {
     rejected_unsupported_type: usize,
     rejected_existing_sooner_or_equal: usize,
     skipped_non_world_map: usize,
+    skipped_instanceable_map: usize,
 }
 
 fn apply_persisted_respawns_to_managed_map_like_cpp(
     managed_map: &mut wow_map::ManagedMap,
     persisted_respawn_times: &PersistedRespawnTimesLikeCpp,
+    map_store: &wow_data::MapStore,
 ) -> PersistedRespawnApplyReportLikeCpp {
     let key = wow_map::MapKey::new(managed_map.map_id(), managed_map.instance_id());
     let respawns = persisted_respawn_times.for_map(key);
@@ -6398,6 +7068,16 @@ fn apply_persisted_respawns_to_managed_map_like_cpp(
 
     if !matches!(managed_map.kind(), wow_map::ManagedMapKind::World) {
         report.skipped_non_world_map = respawns.len();
+        return report;
+    }
+    if map_store
+        .get(managed_map.map_id())
+        .is_some_and(|entry| entry.is_instanceable_like_cpp())
+    {
+        // C++ `Map::LoadRespawnTimes` returns immediately for every
+        // `MapEntry::Instanceable()` map. `ManagedMapKind::World` alone is not
+        // sufficient because garrisons are represented by that kind too.
+        report.skipped_instanceable_map = respawns.len();
         return report;
     }
 
@@ -6430,6 +7110,7 @@ fn install_canonical_spawn_group_initializer_like_cpp(
     canonical_spawn_metadata: SharedCanonicalSpawnMetadataLikeCpp,
     condition_store: Arc<wow_data::ConditionEntriesByTypeStore>,
     persisted_respawn_times: Arc<PersistedRespawnTimesLikeCpp>,
+    map_store: Arc<wow_data::MapStore>,
 ) {
     manager.set_spawn_group_initializer_like_cpp(move |managed_map| {
         let map_id = managed_map.map_id();
@@ -6478,6 +7159,7 @@ fn install_canonical_spawn_group_initializer_like_cpp(
         let respawn_report = apply_persisted_respawns_to_managed_map_like_cpp(
             managed_map,
             persisted_respawn_times.as_ref(),
+            map_store.as_ref(),
         );
         if respawn_report.candidates > 0 {
             debug!(
@@ -6491,6 +7173,7 @@ fn install_canonical_spawn_group_initializer_like_cpp(
                 rejected_unsupported_type = respawn_report.rejected_unsupported_type,
                 rejected_existing_sooner_or_equal = respawn_report.rejected_existing_sooner_or_equal,
                 skipped_non_world_map = respawn_report.skipped_non_world_map,
+                skipped_instanceable_map = respawn_report.skipped_instanceable_map,
                 "Applied C++ startup LoadRespawnTimes snapshot to canonical map before InitSpawnGroupState"
             );
         }
@@ -7212,24 +7895,63 @@ fn materialize_loaded_player_grid_records_like_cpp(
     }
 }
 
+fn can_create_missing_login_grid_as_world_map_like_cpp(entry: wow_data::MapEntry) -> bool {
+    // A missing non-split common world map is safe to materialize here.
+    // Faction-split and instanceable maps (including battlegrounds, scenarios,
+    // and garrisons) must already have been selected by the authoritative
+    // CreateMap path, which owns team routing, access checks, difficulty,
+    // locks, reset schedules, and instance IDs.
+    entry.is_world_map() && !entry.is_garrison() && !entry.is_split_by_faction()
+}
+
+fn existing_login_grid_map_matches_map_entry_like_cpp(
+    entry: wow_data::MapEntry,
+    kind: wow_map::ManagedMapKind,
+    instance_id: u32,
+    authoritative_instance_selected: bool,
+) -> bool {
+    if entry.is_garrison() {
+        return authoritative_instance_selected && matches!(kind, wow_map::ManagedMapKind::World);
+    }
+    if entry.is_world_map() && !entry.is_garrison() {
+        if entry.is_split_by_faction() && !authoritative_instance_selected {
+            return false;
+        }
+        return matches!(kind, wow_map::ManagedMapKind::World);
+    }
+    if !authoritative_instance_selected || instance_id == 0 {
+        return false;
+    }
+    if entry.is_dungeon() {
+        return matches!(kind, wow_map::ManagedMapKind::Dungeon { .. });
+    }
+    if entry.is_battleground_or_arena() {
+        return matches!(kind, wow_map::ManagedMapKind::Battleground);
+    }
+    false
+}
+
 fn ensure_login_player_grid_loaded_like_cpp(
     canonical_map_manager: &SharedCanonicalMapManager,
     legacy_manager: &SharedMapManager,
     canonical_spawn_metadata: &SharedCanonicalSpawnMetadataLikeCpp,
     loaded_grid_creature_respawn_caches: &LoadedGridCreatureRespawnCachesLikeCpp,
     area_trigger_template_store: &wow_data::AreaTriggerTemplateStore,
+    map_store: Option<&wow_data::MapStore>,
     map_id: u16,
-    instance_id: u32,
+    authoritative_instance_id: Option<u32>,
     position: Position,
 ) -> wow_world::session::PlayerGridLoadOutcomeLikeCpp {
     let mut outcome = wow_world::session::PlayerGridLoadOutcomeLikeCpp::default();
     let map_id_u32 = u32::from(map_id);
+    let instance_id = authoritative_instance_id.unwrap_or(0);
     let cell = wow_map::cell_from_world(position.x, position.y);
     let grid = wow_map::GridCoord::new(cell.grid_x(), cell.grid_y());
     let visible_grids =
         player_visible_grid_coords_like_cpp(position, wow_world::map_manager::VISIBILITY_RADIUS);
 
     let Ok(metadata) = canonical_spawn_metadata.lock() else {
+        outcome.map_unavailable = true;
         warn!(
             map_id = map_id_u32,
             instance_id, "C++ login grid load skipped: canonical spawn metadata lock poisoned"
@@ -7237,6 +7959,7 @@ fn ensure_login_player_grid_loaded_like_cpp(
         return outcome;
     };
     let Ok(mut manager) = canonical_map_manager.lock() else {
+        outcome.map_unavailable = true;
         warn!(
             map_id = map_id_u32,
             instance_id, "C++ login grid load skipped: canonical map manager lock poisoned"
@@ -7244,8 +7967,53 @@ fn ensure_login_player_grid_loaded_like_cpp(
         return outcome;
     };
 
-    outcome.map_created = manager.find_map(map_id_u32, instance_id).is_none();
-    let managed_map = manager.create_world_map(map_id_u32, instance_id);
+    let Some(map_entry) = map_store.and_then(|store| store.get(map_id_u32).copied()) else {
+        outcome.map_unavailable = true;
+        warn!(
+            map_id = map_id_u32,
+            instance_id, "C++ login grid load rejected: Map.db2 entry unavailable"
+        );
+        return outcome;
+    };
+
+    let managed_map = if manager.find_map(map_id_u32, instance_id).is_some() {
+        let existing_kind = manager
+            .find_map(map_id_u32, instance_id)
+            .expect("canonical map checked above")
+            .kind();
+        if !existing_login_grid_map_matches_map_entry_like_cpp(
+            map_entry,
+            existing_kind,
+            instance_id,
+            authoritative_instance_id.is_some(),
+        ) {
+            outcome.map_unavailable = true;
+            warn!(
+                map_id = map_id_u32,
+                instance_id,
+                instance_type = map_entry.instance_type,
+                kind = ?existing_kind,
+                "C++ login grid load rejected: canonical map kind or instance ID is incompatible"
+            );
+            return outcome;
+        }
+        manager
+            .find_map_mut(map_id_u32, instance_id)
+            .expect("canonical map checked above")
+    } else {
+        if !can_create_missing_login_grid_as_world_map_like_cpp(map_entry) {
+            outcome.map_unavailable = true;
+            warn!(
+                map_id = map_id_u32,
+                instance_id,
+                instance_type = map_entry.instance_type,
+                "C++ login grid load rejected: authoritative instanceable map is unavailable"
+            );
+            return outcome;
+        }
+        outcome.map_created = true;
+        manager.create_world_map(map_id_u32, instance_id)
+    };
     let map = managed_map.map_mut();
 
     // C++ Map::AddPlayerToMap -> EnsureGridLoadedForActiveObject(cell, player)
@@ -9137,6 +9905,7 @@ struct RespawnDbDeleteLikeCpp {
 enum RespawnDbDeleteQueueOutcomeLikeCpp {
     Queued(RespawnDbDeleteLikeCpp),
     SkippedNonWorldMap,
+    SkippedInstanceableMap,
     SkippedInvalidMapId,
 }
 
@@ -9154,11 +9923,13 @@ struct RespawnDbSaveLikeCpp {
 enum RespawnDbSaveQueueOutcomeLikeCpp {
     Queued(RespawnDbSaveLikeCpp),
     SkippedNonWorldMap,
+    SkippedInstanceableMap,
     SkippedInvalidMapId,
 }
 
 fn queue_respawn_db_delete_like_cpp(
     map_kind: wow_map::ManagedMapKind,
+    map_is_instanceable: bool,
     map_id: u32,
     instance_id: u32,
     object_type: wow_map::SpawnObjectType,
@@ -9166,6 +9937,9 @@ fn queue_respawn_db_delete_like_cpp(
 ) -> RespawnDbDeleteQueueOutcomeLikeCpp {
     if !matches!(map_kind, wow_map::ManagedMapKind::World) {
         return RespawnDbDeleteQueueOutcomeLikeCpp::SkippedNonWorldMap;
+    }
+    if map_is_instanceable {
+        return RespawnDbDeleteQueueOutcomeLikeCpp::SkippedInstanceableMap;
     }
 
     let Ok(map_id) = u16::try_from(map_id) else {
@@ -9188,12 +9962,16 @@ fn queue_respawn_db_delete_like_cpp(
 
 fn queue_respawn_db_save_like_cpp(
     map_kind: wow_map::ManagedMapKind,
+    map_is_instanceable: bool,
     map_id: u32,
     instance_id: u32,
     info: wow_map::RespawnInfoLikeCpp,
 ) -> RespawnDbSaveQueueOutcomeLikeCpp {
     if !matches!(map_kind, wow_map::ManagedMapKind::World) {
         return RespawnDbSaveQueueOutcomeLikeCpp::SkippedNonWorldMap;
+    }
+    if map_is_instanceable {
+        return RespawnDbSaveQueueOutcomeLikeCpp::SkippedInstanceableMap;
     }
 
     let Ok(map_id) = u16::try_from(map_id) else {
@@ -9834,12 +10612,14 @@ struct CanonicalSpawnGroupConditionTickSummaryLikeCpp {
     respawn_db_delete_executed: usize,
     respawn_db_delete_failed: usize,
     respawn_db_delete_skipped_non_world_map: usize,
+    respawn_db_delete_skipped_instanceable_map: usize,
     respawn_db_delete_skipped_invalid_map_id: usize,
     respawn_db_deletes: Vec<RespawnDbDeleteLikeCpp>,
     respawn_db_save_queued: usize,
     respawn_db_save_executed: usize,
     respawn_db_save_failed: usize,
     respawn_db_save_skipped_non_world_map: usize,
+    respawn_db_save_skipped_instanceable_map: usize,
     respawn_db_save_skipped_invalid_map_id: usize,
     respawn_db_saves: Vec<RespawnDbSaveLikeCpp>,
 }
@@ -10414,6 +11194,7 @@ fn canonical_map_update_tick_set_inactive_like_cpp(
     scheduler: &mut CanonicalRespawnConditionSchedulerLikeCpp,
     canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
     condition_store: &wow_data::ConditionEntriesByTypeStore,
+    map_store: &wow_data::MapStore,
     loaded_grid_creature_respawn_caches: &LoadedGridCreatureRespawnCachesLikeCpp,
 ) -> Option<CanonicalSpawnGroupConditionTickSummaryLikeCpp> {
     let Some(effective_diff_ms) = manager.update_with_pool_update_loaded_grid_records_context(
@@ -10435,8 +11216,43 @@ fn canonical_map_update_tick_set_inactive_like_cpp(
     ) else {
         return None;
     };
+    let mut summary = CanonicalSpawnGroupConditionTickSummaryLikeCpp::default();
+    manager.do_for_all_maps_mut(|managed_map| {
+        let map_kind = managed_map.kind();
+        let map_id = managed_map.map_id();
+        let instance_id = managed_map.instance_id();
+        let map_is_instanceable = map_store
+            .get(map_id)
+            .is_some_and(|entry| entry.is_instanceable_like_cpp());
+        for info in managed_map
+            .last_game_objects_update_summary()
+            .respawn_db_saves
+        {
+            match queue_respawn_db_save_like_cpp(
+                map_kind,
+                map_is_instanceable,
+                map_id,
+                instance_id,
+                info,
+            ) {
+                RespawnDbSaveQueueOutcomeLikeCpp::Queued(save) => {
+                    summary.respawn_db_save_queued += 1;
+                    summary.respawn_db_saves.push(save);
+                }
+                RespawnDbSaveQueueOutcomeLikeCpp::SkippedNonWorldMap => {
+                    summary.respawn_db_save_skipped_non_world_map += 1;
+                }
+                RespawnDbSaveQueueOutcomeLikeCpp::SkippedInstanceableMap => {
+                    summary.respawn_db_save_skipped_instanceable_map += 1;
+                }
+                RespawnDbSaveQueueOutcomeLikeCpp::SkippedInvalidMapId => {
+                    summary.respawn_db_save_skipped_invalid_map_id += 1;
+                }
+            }
+        }
+    });
     if !scheduler.update(effective_diff_ms) {
-        return None;
+        return (!summary.respawn_db_saves.is_empty()).then_some(summary);
     }
 
     // C++ `Map::Update` runs `ProcessRespawns()` immediately before
@@ -10461,12 +11277,14 @@ fn canonical_map_update_tick_set_inactive_like_cpp(
         .map_or(0, |duration| {
             i64::try_from(duration.as_secs()).unwrap_or(i64::MAX)
         });
-    let mut summary = CanonicalSpawnGroupConditionTickSummaryLikeCpp::default();
     manager.do_for_all_maps_mut(|managed_map| {
         summary.maps_evaluated += 1;
         let map_kind = managed_map.kind();
         let map_id = managed_map.map_id();
         let instance_id = managed_map.instance_id();
+        let map_is_instanceable = map_store
+            .get(map_id)
+            .is_some_and(|entry| entry.is_instanceable_like_cpp());
         let before_respawn_keys = managed_map
             .map()
             .respawn_timer_keys_like_cpp()
@@ -10483,6 +11301,7 @@ fn canonical_map_update_tick_set_inactive_like_cpp(
                 |_, _| false,
                 |_, _| 0.0,
                 |_candidates, count| (0..count).collect(),
+                true,
                 |map, object_type, spawn_id| match object_type {
                     wow_map::SpawnObjectType::Creature => {
                         build_loaded_grid_creature_respawn_record_like_cpp(
@@ -10509,13 +11328,22 @@ fn canonical_map_update_tick_set_inactive_like_cpp(
             respawn_summary.deleted_inactive_spawn_group;
         summary.respawn_deleted_live_object_blocker += respawn_summary.deleted_live_object_blocker;
         for rescheduled in respawn_summary.rescheduled_linked_respawns {
-            match queue_respawn_db_save_like_cpp(map_kind, map_id, instance_id, rescheduled) {
+            match queue_respawn_db_save_like_cpp(
+                map_kind,
+                map_is_instanceable,
+                map_id,
+                instance_id,
+                rescheduled,
+            ) {
                 RespawnDbSaveQueueOutcomeLikeCpp::Queued(save) => {
                     summary.respawn_db_save_queued += 1;
                     summary.respawn_db_saves.push(save);
                 }
                 RespawnDbSaveQueueOutcomeLikeCpp::SkippedNonWorldMap => {
                     summary.respawn_db_save_skipped_non_world_map += 1;
+                }
+                RespawnDbSaveQueueOutcomeLikeCpp::SkippedInstanceableMap => {
+                    summary.respawn_db_save_skipped_instanceable_map += 1;
                 }
                 RespawnDbSaveQueueOutcomeLikeCpp::SkippedInvalidMapId => {
                     summary.respawn_db_save_skipped_invalid_map_id += 1;
@@ -10629,6 +11457,7 @@ fn canonical_map_update_tick_set_inactive_like_cpp(
         for &(object_type, spawn_id) in before_respawn_keys.difference(&after_respawn_keys) {
             match queue_respawn_db_delete_like_cpp(
                 map_kind,
+                map_is_instanceable,
                 map_id,
                 instance_id,
                 object_type,
@@ -10640,6 +11469,9 @@ fn canonical_map_update_tick_set_inactive_like_cpp(
                 }
                 RespawnDbDeleteQueueOutcomeLikeCpp::SkippedNonWorldMap => {
                     summary.respawn_db_delete_skipped_non_world_map += 1;
+                }
+                RespawnDbDeleteQueueOutcomeLikeCpp::SkippedInstanceableMap => {
+                    summary.respawn_db_delete_skipped_instanceable_map += 1;
                 }
                 RespawnDbDeleteQueueOutcomeLikeCpp::SkippedInvalidMapId => {
                     summary.respawn_db_delete_skipped_invalid_map_id += 1;
@@ -10736,7 +11568,11 @@ fn spawn_canonical_map_update_loop(
     respawn_condition_interval_ms: u32,
     canonical_spawn_metadata: SharedCanonicalSpawnMetadataLikeCpp,
     condition_store: Arc<wow_data::ConditionEntriesByTypeStore>,
+    map_store: Arc<wow_data::MapStore>,
     character_db: Arc<CharacterDatabase>,
+    respawn_db_writer_tx: RespawnDbWriterSenderLikeCpp,
+    respawn_db_mutation_order: SharedRespawnDbMutationOrderLikeCpp,
+    respawn_db_producer_stop: SharedRespawnDbProducerStopLikeCpp,
     loaded_grid_creature_respawn_caches: LoadedGridCreatureRespawnCachesLikeCpp,
     area_trigger_template_store: Arc<wow_data::AreaTriggerTemplateStore>,
     mut game_event_scheduler: CanonicalGameEventSchedulerLikeCpp,
@@ -10754,19 +11590,30 @@ fn spawn_canonical_map_update_loop(
             CanonicalRespawnConditionSchedulerLikeCpp::new(respawn_condition_interval_ms);
         loop {
             interval.tick().await;
+            let stop_after_tick = respawn_db_producer_stop.load(Ordering::Acquire);
 
             let now = Instant::now();
-            let diff_ms = now
+            let mut diff_ms = now
                 .duration_since(last_tick)
                 .as_millis()
                 .min(u128::from(u32::MAX)) as u32;
             last_tick = now;
 
             if diff_ms == 0 {
-                continue;
+                if !stop_after_tick {
+                    continue;
+                }
+                diff_ms = 1;
             }
 
             let (area_trigger_sweep_summary, tick_summary) = {
+                // Canonical and legacy respawn mutations share this ordering
+                // gate. Statements are coalesced before releasing it, so
+                // mailbox replacement order is the same as mutation order even
+                // when this loop later awaits unrelated game-event DB work.
+                let _respawn_db_mutation_order = respawn_db_mutation_order
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
                 let Ok(mut manager) = map_manager.lock() else {
                     tracing::error!(
                         "Canonical MapManager mutex poisoned; stopping map update loop"
@@ -10784,18 +11631,41 @@ fn spawn_canonical_map_update_loop(
                     &canonical_spawn_metadata,
                     area_trigger_template_store.as_ref(),
                 );
-                (
-                    area_trigger_sweep_summary,
-                    canonical_map_update_tick_set_inactive_like_cpp(
-                        &mut manager,
-                        Some(&legacy_map_manager),
-                        diff_ms,
-                        &mut respawn_condition_scheduler,
-                        &canonical_spawn_metadata,
-                        condition_store.as_ref(),
-                        &loaded_grid_creature_respawn_caches,
-                    ),
-                )
+                let mut tick_summary = canonical_map_update_tick_set_inactive_like_cpp(
+                    &mut manager,
+                    Some(&legacy_map_manager),
+                    diff_ms,
+                    &mut respawn_condition_scheduler,
+                    &canonical_spawn_metadata,
+                    condition_store.as_ref(),
+                    map_store.as_ref(),
+                    &loaded_grid_creature_respawn_caches,
+                );
+                drop(canonical_spawn_metadata);
+                drop(manager);
+
+                if let Some(summary) = tick_summary.as_mut() {
+                    for save in summary.respawn_db_saves.drain(..) {
+                        if respawn_db_writer_tx.send(save.statement).is_err() {
+                            summary.respawn_db_save_failed += 1;
+                            tracing::error!(
+                                "Shared respawn DB writer stopped before canonical REP_RESPAWN submission"
+                            );
+                        }
+                    }
+                    // A timer can be created and consumed in one canonical
+                    // update. Submit deletes last so the final state wins.
+                    for delete in summary.respawn_db_deletes.drain(..) {
+                        if respawn_db_writer_tx.send(delete.statement).is_err() {
+                            summary.respawn_db_delete_failed += 1;
+                            tracing::error!(
+                                "Shared respawn DB writer stopped before canonical DEL_RESPAWN submission"
+                            );
+                        }
+                    }
+                }
+
+                (area_trigger_sweep_summary, tick_summary)
             };
 
             if area_trigger_sweep_summary.loaded_grid_primary_records > 0
@@ -10819,7 +11689,7 @@ fn spawn_canonical_map_update_loop(
                 );
             }
 
-            if game_event_scheduler.update(diff_ms) {
+            if !stop_after_tick && game_event_scheduler.update(diff_ms) {
                 let current_time_secs = current_unix_time_secs_like_cpp();
                 let (game_event_outcome, active_event_ids, mut db_bridge_summary) = {
                     let Ok(mut canonical_spawn_metadata) = canonical_spawn_metadata.lock() else {
@@ -11024,51 +11894,7 @@ fn spawn_canonical_map_update_loop(
                 );
             }
 
-            if let Some(mut summary) = tick_summary {
-                let db_delete_total = summary.respawn_db_deletes.len();
-                for (db_delete_index, db_delete) in summary.respawn_db_deletes.drain(..).enumerate()
-                {
-                    match character_db.execute(&db_delete.statement).await {
-                        Ok(_) => {
-                            summary.respawn_db_delete_executed += 1;
-                        }
-                        Err(error) => {
-                            summary.respawn_db_delete_failed += 1;
-                            tracing::error!(
-                                error = %error,
-                                db_delete_index = db_delete_index + 1,
-                                db_delete_total,
-                                map_id = db_delete.map_id,
-                                instance_id = db_delete.instance_id,
-                                respawn_type = db_delete.object_type as u8,
-                                spawn_id = db_delete.spawn_id,
-                                "Failed to execute C++ Map::RemoveRespawnTime CHAR_DEL_RESPAWN side effect; continuing canonical map update loop"
-                            );
-                        }
-                    }
-                }
-                let db_save_total = summary.respawn_db_saves.len();
-                for (db_save_index, db_save) in summary.respawn_db_saves.drain(..).enumerate() {
-                    match character_db.execute(&db_save.statement).await {
-                        Ok(_) => {
-                            summary.respawn_db_save_executed += 1;
-                        }
-                        Err(error) => {
-                            summary.respawn_db_save_failed += 1;
-                            tracing::error!(
-                                error = %error,
-                                db_save_index = db_save_index + 1,
-                                db_save_total,
-                                map_id = db_save.map_id,
-                                instance_id = db_save.instance_id,
-                                respawn_type = db_save.object_type as u8,
-                                spawn_id = db_save.spawn_id,
-                                respawn_time = db_save.respawn_time,
-                                "Failed to execute C++ Map::SaveRespawnInfoDB CHAR_REP_RESPAWN side effect; continuing canonical map update loop"
-                            );
-                        }
-                    }
-                }
+            if let Some(summary) = tick_summary {
                 debug!(
                     maps_evaluated = summary.maps_evaluated,
                     outcomes = summary.outcomes,
@@ -11133,6 +11959,8 @@ fn spawn_canonical_map_update_loop(
                     respawn_db_delete_failed = summary.respawn_db_delete_failed,
                     respawn_db_delete_skipped_non_world_map =
                         summary.respawn_db_delete_skipped_non_world_map,
+                    respawn_db_delete_skipped_instanceable_map =
+                        summary.respawn_db_delete_skipped_instanceable_map,
                     respawn_db_delete_skipped_invalid_map_id =
                         summary.respawn_db_delete_skipped_invalid_map_id,
                     respawn_db_save_queued = summary.respawn_db_save_queued,
@@ -11140,10 +11968,16 @@ fn spawn_canonical_map_update_loop(
                     respawn_db_save_failed = summary.respawn_db_save_failed,
                     respawn_db_save_skipped_non_world_map =
                         summary.respawn_db_save_skipped_non_world_map,
+                    respawn_db_save_skipped_instanceable_map =
+                        summary.respawn_db_save_skipped_instanceable_map,
                     respawn_db_save_skipped_invalid_map_id =
                         summary.respawn_db_save_skipped_invalid_map_id,
-                    "C++ respawn-check timer fired; executed safe ProcessRespawns composite zero-delete branches plus linked future reschedules, represented pooled timer UpdatePool plans, safe DoRespawn unloaded-grid early-return timer removals, map-local SpawnGroupDespawn condition-failure side effects, and bounded loaded-grid SpawnGroupSpawn condition loads; queued/executed DEL_RESPAWN/REP_RESPAWN DB side effects outside the MapManager lock; full SpawnGroupSpawn AreaTrigger/ObjectAccessor/fanout/scripts/AI and Spawn1Object/ReSpawn1Object runtime remain pending"
+                    "C++ respawn-check timer fired; executed safe ProcessRespawns composite zero-delete branches plus linked future reschedules, represented pooled timer UpdatePool plans, safe DoRespawn unloaded-grid early-return timer removals, map-local SpawnGroupDespawn condition-failure side effects, and bounded loaded-grid SpawnGroupSpawn condition loads; submitted DEL_RESPAWN/REP_RESPAWN side effects to the shared async DB writer outside the MapManager lock; full SpawnGroupSpawn AreaTrigger/ObjectAccessor/fanout/scripts/AI and Spawn1Object/ReSpawn1Object runtime remain pending"
                 );
+            }
+
+            if stop_after_tick {
+                break;
             }
         }
     })
@@ -11260,6 +12094,97 @@ fn first_ipv4_address_like_cpp(
     })
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WorldSessionRunOutcomeLikeCpp {
+    Finished,
+    ForceCancelled,
+}
+
+async fn run_world_session_shutdown_finalize_step_like_cpp<F>(
+    world_runtime_state: &WorldRuntimeStateLikeCpp,
+    step_timeout: Duration,
+    step: F,
+) -> bool
+where
+    F: std::future::Future<Output = ()>,
+{
+    if tokio::time::timeout(step_timeout, step).await.is_ok() {
+        true
+    } else {
+        // A bounded shutdown must not look successful after abandoning player
+        // persistence or shared-runtime cleanup work.
+        world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
+        false
+    }
+}
+
+async fn run_world_session_until_disconnect_like_cpp(
+    session: &mut WorldSession,
+    account_id: u32,
+    active_session_registry: &ActiveWorldSessionRegistryLikeCpp,
+    cancellation: &ActiveWorldSessionCancellationLikeCpp,
+) -> WorldSessionRunOutcomeLikeCpp {
+    tokio::select! {
+        _ = cancellation.cancelled_like_cpp() => {
+            return WorldSessionRunOutcomeLikeCpp::ForceCancelled;
+        }
+        _ = session.load_global_account_data_like_cpp() => {}
+    }
+    tokio::select! {
+        _ = cancellation.cancelled_like_cpp() => {
+            return WorldSessionRunOutcomeLikeCpp::ForceCancelled;
+        }
+        _ = session.load_tutorials_data_like_cpp() => {}
+    }
+    session.send_session_init_packets();
+
+    info!("Session ready for account {account_id}");
+
+    let mut last_session_update = Instant::now();
+    loop {
+        if active_session_registry.should_stop_sessions_like_cpp() {
+            info!(
+                account_id,
+                "World session observed shutdown gate; disconnecting cooperatively"
+            );
+            return WorldSessionRunOutcomeLikeCpp::Finished;
+        }
+
+        let update = warn_about_sync_queries_scope_like_cpp(async {
+            let now = Instant::now();
+            let diff_ms = now
+                .saturating_duration_since(last_session_update)
+                .as_millis()
+                .min(u128::from(u32::MAX)) as u32;
+            last_session_update = now;
+
+            let count = session.update(diff_ms);
+            session.process_pending().await;
+            (count, session.is_disconnecting())
+        });
+        let (count, disconnecting) = tokio::select! {
+            _ = cancellation.cancelled_like_cpp() => {
+                return WorldSessionRunOutcomeLikeCpp::ForceCancelled;
+            }
+            result = update => result,
+        };
+
+        if disconnecting {
+            info!("Session for account {account_id} disconnecting");
+            return WorldSessionRunOutcomeLikeCpp::Finished;
+        }
+
+        if count == 0 {
+            tokio::select! {
+                _ = cancellation.cancelled_like_cpp() => {
+                    return WorldSessionRunOutcomeLikeCpp::ForceCancelled;
+                }
+                _ = tokio::time::sleep(tokio::time::Duration::from_millis(50)) => {}
+            }
+        }
+    }
+}
+
 /// Create and run a WorldSession for an authenticated connection.
 ///
 /// This is called by the accept loop after auth completes.
@@ -11281,6 +12206,7 @@ async fn create_session(
     mmap_pathfinder: Option<Arc<WorldMMapPathfinderWorkerLikeCpp>>,
     active_session_registry: Arc<ActiveWorldSessionRegistryLikeCpp>,
     legacy_creature_aggro_config: wow_world::session::LegacyCreatureAggroConfigLikeCpp,
+    world_runtime_state: Arc<WorldRuntimeStateLikeCpp>,
 ) {
     info!(
         "Creating session for account {} (bnet_id={})",
@@ -11312,9 +12238,20 @@ async fn create_session(
         pkt_rx,
         send_tx,
     );
-    let active_session_id =
-        active_session_registry.register(account.id, session.session_command_tx());
-
+    let Some((active_session_id, session_cancellation)) =
+        active_session_registry.try_register(account.id, session.session_command_tx())
+    else {
+        info!(
+            account_id = account.id,
+            "Rejecting authenticated world session because shutdown registration gate is closed"
+        );
+        return;
+    };
+    let active_session_registration = ActiveWorldSessionRegistrationGuardLikeCpp {
+        registry: Arc::clone(&active_session_registry),
+        id: active_session_id,
+    };
+    let account_id = account.id;
     // Configure session with resources
     if let Some(ref db) = resources.char_db {
         session.set_char_db(Arc::clone(db));
@@ -11412,6 +12349,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.item_limit_category_condition_store {
         session.set_item_limit_category_condition_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.player_create_info_store {
+        session.set_player_create_info_store_like_cpp(Arc::clone(store));
     }
     if let Some(ref store) = resources.player_create_cast_spell_store {
         session.set_player_create_cast_spell_store_like_cpp(Arc::clone(store));
@@ -11853,10 +12793,10 @@ async fn create_session(
     session.set_socket_timeouts_like_cpp(resources.socket_timeouts);
     session.set_packet_spoof_config_like_cpp(resources.packet_spoof_config);
     session.set_player_save_interval_ms_like_cpp(resources.player_save_interval_ms);
-    session.set_legacy_creature_aggro_config_like_cpp(legacy_creature_aggro_config);
-    session.set_mmap_runtime_config_like_cpp(mmap_runtime_config);
-    if let Some(pathfinder) = mmap_pathfinder {
-        session.set_mmap_pathfinder_like_cpp(pathfinder);
+    session.set_legacy_creature_aggro_config_like_cpp(legacy_creature_aggro_config.clone());
+    session.set_mmap_runtime_config_like_cpp(mmap_runtime_config.clone());
+    if let Some(ref pathfinder) = mmap_pathfinder {
+        session.set_mmap_pathfinder_like_cpp(Arc::clone(pathfinder));
     }
     let waypoint_spawn_metadata = Arc::clone(&canonical_spawn_metadata);
     session.set_waypoint_path_resolver_like_cpp(Arc::new(move |path_id| {
@@ -11869,6 +12809,7 @@ async fn create_session(
     let grid_legacy_manager = Arc::clone(&shared_map);
     let grid_spawn_metadata = Arc::clone(&canonical_spawn_metadata);
     let grid_loaded_caches = loaded_grid_creature_respawn_caches.clone();
+    let grid_map_store = resources.map_store.as_ref().map(Arc::clone);
     let grid_area_trigger_template_store = resources
         .area_trigger_template_store
         .as_ref()
@@ -11882,13 +12823,14 @@ async fn create_session(
                 &grid_spawn_metadata,
                 &grid_loaded_caches,
                 grid_area_trigger_template_store.as_ref(),
+                grid_map_store.as_deref(),
                 map_id,
                 instance_id,
                 position,
             )
         },
     ));
-    session.set_object_accessor(object_accessor);
+    session.set_object_accessor(Arc::clone(&object_accessor));
     if let (Some(greg), Some(pinv)) = (&resources.group_registry, &resources.pending_invites) {
         session.set_group_registry(Arc::clone(greg), Arc::clone(pinv));
     }
@@ -11898,8 +12840,8 @@ async fn create_session(
         resources.realm_id,
     );
     session.set_realm_names_like_cpp(resources.realm_names.iter().cloned());
-    session.set_map_manager(shared_map);
-    session.set_canonical_map_manager(canonical_map_manager);
+    session.set_map_manager(Arc::clone(&shared_map));
+    session.set_canonical_map_manager(Arc::clone(&canonical_map_manager));
 
     // Select the correct realm IP for ConnectTo based on client address.
     // C++ delegates to Trinity::Net::SelectAddressForClient after scanning
@@ -11913,53 +12855,61 @@ async fn create_session(
 
     // Configure C++ `SMSG_CONNECT_TO` flow — real clients enter the world on
     // the instance socket after `AuthContinuedSession`.
-    session.set_session_mgr(session_mgr);
+    session.set_session_mgr(Arc::clone(&session_mgr));
     session.set_instance_endpoint(connect_ip, instance_port);
 
-    // Send session init packets (AuthResponse + glue screen data).
-    // These are the first encrypted packets the client receives.
-    session.load_global_account_data_like_cpp().await;
-    session.load_tutorials_data_like_cpp().await;
-    session.send_session_init_packets();
-
-    info!("Session ready for account {}", account.id);
-
-    // Session update loop
-    let mut last_session_update = Instant::now();
-    loop {
-        let (count, disconnecting) = warn_about_sync_queries_scope_like_cpp(async {
-            let now = Instant::now();
-            let diff_ms = now
-                .saturating_duration_since(last_session_update)
-                .as_millis()
-                .min(u128::from(u32::MAX)) as u32;
-            last_session_update = now;
-
-            // Process incoming packets
-            let count = session.update(diff_ms);
-
-            // Dispatch pending packets (async handlers)
-            session.process_pending().await;
-
-            (count, session.is_disconnecting())
-        })
-        .await;
-
-        if disconnecting {
-            info!("Session for account {} disconnecting", account.id);
-            break;
-        }
-
-        // Sleep to avoid busy-waiting (50ms tick)
-        if count == 0 {
-            tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-        }
+    if run_world_session_until_disconnect_like_cpp(
+        &mut session,
+        account_id,
+        active_session_registry.as_ref(),
+        session_cancellation.as_ref(),
+    )
+    .await
+        == WorldSessionRunOutcomeLikeCpp::ForceCancelled
+    {
+        tracing::error!(
+            account_id,
+            "Force-cancelled world session after shutdown grace period"
+        );
     }
-    session.save_disconnect_player_to_db_like_cpp().await;
-    session
-        .cleanup_shared_runtime_state_on_disconnect_like_cpp()
-        .await;
-    active_session_registry.unregister(active_session_id);
+    // Cancellation only discards initialization/gameplay work. During server
+    // shutdown, disconnect persistence and cleanup each get an independent
+    // bounded attempt. Normal disconnects preserve the prior unbounded save
+    // contract and are never truncated by shutdown policy.
+    if active_session_registry.is_shutting_down_like_cpp() {
+        if !run_world_session_shutdown_finalize_step_like_cpp(
+            world_runtime_state.as_ref(),
+            WORLD_SESSION_FINALIZE_STEP_TIMEOUT_LIKE_CPP,
+            session.save_disconnect_player_to_db_like_cpp(),
+        )
+        .await
+        {
+            tracing::error!(
+                account_id,
+                timeout_ms = WORLD_SESSION_FINALIZE_STEP_TIMEOUT_LIKE_CPP.as_millis(),
+                "Timed out saving disconnected world session during shutdown finalization"
+            );
+        }
+        if !run_world_session_shutdown_finalize_step_like_cpp(
+            world_runtime_state.as_ref(),
+            WORLD_SESSION_FINALIZE_STEP_TIMEOUT_LIKE_CPP,
+            session.cleanup_shared_runtime_state_on_disconnect_like_cpp(),
+        )
+        .await
+        {
+            tracing::error!(
+                account_id,
+                timeout_ms = WORLD_SESSION_FINALIZE_STEP_TIMEOUT_LIKE_CPP.as_millis(),
+                "Timed out cleaning shared runtime state during world-session finalization"
+            );
+        }
+    } else {
+        session.save_disconnect_player_to_db_like_cpp().await;
+        session
+            .cleanup_shared_runtime_state_on_disconnect_like_cpp()
+            .await;
+    }
+    drop(active_session_registration);
 }
 
 /// Select the correct realm IP for a client, matching C++ `Realm::GetAddressForClient`.
@@ -12775,6 +13725,7 @@ fn run_legacy_creature_movement_tick_and_deliver_once_like_cpp(
 fn run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp(
     legacy_map_manager: &SharedMapManager,
     canonical_map_manager: Option<&SharedCanonicalMapManager>,
+    map_store: &wow_data::MapStore,
     now: std::time::Instant,
     registry: &wow_network::PlayerRegistry,
 ) -> (
@@ -12784,6 +13735,7 @@ fn run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp(
     let outcome = wow_world::session::run_legacy_creature_lifecycle_tick_once_like_cpp(
         legacy_map_manager,
         canonical_map_manager,
+        map_store,
         now,
     );
     let mut delivery = RuntimeVisibilityRefreshDeliverySummaryLikeCpp::default();
@@ -12875,20 +13827,43 @@ struct LegacyCreatureRuntimeTickBridgeOutcomeLikeCpp {
 fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
     legacy_map_manager: &SharedMapManager,
     canonical_map_manager: Option<&SharedCanonicalMapManager>,
+    map_store: &wow_data::MapStore,
     mmap_config: &MMapRuntimeConfigLikeCpp,
     mmap_pathfinder: Option<&WorldMMapPathfinderWorkerLikeCpp>,
     aggro_config: wow_world::session::LegacyCreatureAggroConfigLikeCpp,
     diff_ms: u32,
     now: std::time::Instant,
     registry: &wow_network::PlayerRegistry,
+    respawn_db_mutation_order: Option<&SharedRespawnDbMutationOrderLikeCpp>,
+    respawn_db_writer_tx: Option<&RespawnDbWriterSenderLikeCpp>,
 ) -> LegacyCreatureRuntimeTickBridgeOutcomeLikeCpp {
-    let (lifecycle, lifecycle_delivery) =
+    // Hold the same ordering gate as the canonical tick from before the
+    // lifecycle mutation until every resulting statement is in the shared
+    // mailbox. This makes DB operation order match runtime mutation order.
+    let respawn_db_mutation_order_guard = respawn_db_mutation_order.map(|order| {
+        order
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    });
+    let (mut lifecycle, lifecycle_delivery) =
         run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp(
             legacy_map_manager,
             canonical_map_manager,
+            map_store,
             now,
             registry,
         );
+    if let Some(respawn_db_writer_tx) = respawn_db_writer_tx {
+        for statement in lifecycle.respawn_db_statements.drain(..) {
+            if respawn_db_writer_tx.send(statement).is_err() {
+                tracing::error!(
+                    "Shared respawn DB writer stopped before legacy respawn statement submission"
+                );
+            }
+        }
+    }
+    drop(respawn_db_mutation_order_guard);
+
     let (movement, movement_delivery) = run_legacy_creature_movement_tick_and_deliver_once_like_cpp(
         legacy_map_manager,
         canonical_map_manager,
@@ -12941,15 +13916,26 @@ fn spawn_legacy_creature_runtime_update_loop_like_cpp(
     enabled: bool,
     legacy_map_manager: SharedMapManager,
     canonical_map_manager: SharedCanonicalMapManager,
+    map_store: Arc<wow_data::MapStore>,
     mmap_config: MMapRuntimeConfigLikeCpp,
     mmap_pathfinder: Option<Arc<WorldMMapPathfinderWorkerLikeCpp>>,
     aggro_config: wow_world::session::LegacyCreatureAggroConfigLikeCpp,
     tick_interval_ms: u32,
+    respawn_db_writer_tx: Option<RespawnDbWriterSenderLikeCpp>,
+    respawn_db_mutation_order: SharedRespawnDbMutationOrderLikeCpp,
+    respawn_db_producer_stop: SharedRespawnDbProducerStopLikeCpp,
     player_registry: Arc<PlayerRegistry>,
 ) -> tokio::task::JoinHandle<()> {
     if !enabled {
-        return tokio::spawn(async {
-            std::future::pending::<()>().await;
+        return tokio::spawn(async move {
+            let mut interval =
+                tokio::time::interval(Duration::from_millis(u64::from(tick_interval_ms.max(1))));
+            loop {
+                interval.tick().await;
+                if respawn_db_producer_stop.load(Ordering::Acquire) {
+                    break;
+                }
+            }
         });
     }
 
@@ -12960,24 +13946,31 @@ fn spawn_legacy_creature_runtime_update_loop_like_cpp(
 
         loop {
             interval.tick().await;
+            let stop_after_tick = respawn_db_producer_stop.load(Ordering::Acquire);
             let now = Instant::now();
             let legacy_for_tick = Arc::clone(&legacy_map_manager);
             let canonical_for_tick = Arc::clone(&canonical_map_manager);
+            let map_store_for_tick = Arc::clone(&map_store);
             let mmap_config_for_tick = mmap_config.clone();
             let mmap_pathfinder_for_tick = mmap_pathfinder.clone();
             let aggro_config_for_tick = aggro_config.clone();
             let registry_for_tick = Arc::clone(&player_registry);
+            let respawn_db_mutation_order_for_tick = Arc::clone(&respawn_db_mutation_order);
+            let respawn_db_writer_tx_for_tick = respawn_db_writer_tx.clone();
 
             let tick_result = tokio::task::spawn_blocking(move || {
                 run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
                     &legacy_for_tick,
                     Some(&canonical_for_tick),
+                    map_store_for_tick.as_ref(),
                     &mmap_config_for_tick,
                     mmap_pathfinder_for_tick.as_deref(),
                     aggro_config_for_tick,
                     tick_interval_ms,
                     now,
                     registry_for_tick.as_ref(),
+                    Some(&respawn_db_mutation_order_for_tick),
+                    respawn_db_writer_tx_for_tick.as_ref(),
                 )
             })
             .await;
@@ -13018,6 +14011,10 @@ fn spawn_legacy_creature_runtime_update_loop_like_cpp(
                     "Legacy global creature runtime tick produced visible work"
                 );
             }
+
+            if stop_after_tick {
+                break;
+            }
         }
     })
 }
@@ -13025,8 +14022,9 @@ fn spawn_legacy_creature_runtime_update_loop_like_cpp(
 #[cfg(test)]
 mod tests {
     use super::{
-        ActiveWorldSessionRegistryLikeCpp, KickAllSessionsSummaryLikeCpp,
-        StopWorldNetworkSummaryLikeCpp, UpdateSessionsShutdownFlushSummaryLikeCpp,
+        ActiveWorldSessionRegistrationGuardLikeCpp, ActiveWorldSessionRegistryLikeCpp,
+        KickAllSessionsSummaryLikeCpp, StopWorldNetworkSummaryLikeCpp,
+        UpdateSessionsShutdownFlushSummaryLikeCpp,
     };
     use super::{
         CanonicalGameEventSchedulerLikeCpp, CanonicalRespawnConditionSchedulerLikeCpp,
@@ -13038,9 +14036,10 @@ mod tests {
         PersistedRespawnLoadReportLikeCpp, PersistedRespawnRowLikeCpp,
         PersistedRespawnTimesLikeCpp, REQUIRED_TDB_CACHE_ID_LIKE_CPP,
         REQUIRED_TDB_VERSION_LIKE_CPP, RESTART_EXIT_CODE_LIKE_CPP,
-        RespawnDbDeleteQueueOutcomeLikeCpp, RespawnDbSaveQueueOutcomeLikeCpp,
-        SHUTDOWN_EXIT_CODE_LIKE_CPP, WorldDbVersionLikeCpp, WorldRuntimeStateLikeCpp,
-        WorldServerCliLikeCpp, WorldUpdateLoopStepOutcomeLikeCpp,
+        RespawnDbDeleteQueueOutcomeLikeCpp, RespawnDbRetryQueueLikeCpp,
+        RespawnDbSaveQueueOutcomeLikeCpp, RespawnDbSubmitErrorLikeCpp,
+        RespawnDbWriterSenderLikeCpp, SHUTDOWN_EXIT_CODE_LIKE_CPP, WorldDbVersionLikeCpp,
+        WorldRuntimeStateLikeCpp, WorldServerCliLikeCpp, WorldUpdateLoopStepOutcomeLikeCpp,
         apply_canonical_spawn_group_condition_update_loaded_grid_records_like_cpp,
         build_loaded_grid_area_trigger_record_like_cpp,
         build_loaded_grid_creature_respawn_record_like_cpp,
@@ -13083,10 +14082,11 @@ mod tests {
         process_exit_code_like_cpp, queue_respawn_db_delete_like_cpp,
         queue_respawn_db_save_like_cpp, realm_id_like_cpp, realm_list_entry_from_row_like_cpp,
         repair_cost_rate_like_cpp, reputation_rates_like_cpp, reset_schedule_like_cpp,
-        run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp,
+        respawn_db_retry_delay, run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp,
         run_legacy_creature_melee_tick_and_deliver_once_like_cpp,
         run_legacy_creature_movement_tick_and_deliver_once_like_cpp,
-        run_legacy_creature_runtime_tick_and_deliver_once_like_cpp, set_realm_offline_sql_like_cpp,
+        run_legacy_creature_runtime_tick_and_deliver_once_like_cpp,
+        run_world_session_shutdown_finalize_step_like_cpp, set_realm_offline_sql_like_cpp,
         set_realm_online_sql_like_cpp, spawn_legacy_creature_runtime_update_loop_like_cpp,
         spawn_store_loader, stop_world_network_like_cpp, target_icon_raw_from_db_bytes_like_cpp,
         update_sessions_shutdown_flush_once_like_cpp, updates_auto_setup_enabled_like_cpp,
@@ -13102,7 +14102,7 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
     use std::sync::{Arc, Mutex, RwLock};
-    use std::time::{Duration, SystemTime, UNIX_EPOCH};
+    use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
     use wow_constants::{ConditionSourceType, ConditionType};
     use wow_core::{ObjectGuid, Position, guid::HighGuid};
     use wow_data::{Condition, ConditionEntriesByTypeStore};
@@ -13126,6 +14126,30 @@ mod tests {
         ServerPacket,
         packets::chat::{ChatMsg, ChatPkt},
     };
+
+    fn legacy_runtime_world_map_store_like_cpp() -> wow_data::MapStore {
+        wow_data::MapStore::from_entries([wow_data::MapEntry {
+            id: 0,
+            instance_type: wow_data::map::MAP_COMMON,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+            flags2: 0,
+        }])
+    }
+
+    fn canonical_test_map_store_like_cpp() -> wow_data::MapStore {
+        wow_data::MapStore::from_entries([0, 530, 571, 999].map(|id| wow_data::MapEntry {
+            id,
+            instance_type: wow_data::map::MAP_COMMON,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+            flags2: 0,
+        }))
+    }
 
     #[test]
     fn target_icon_raw_from_db_bytes_preserves_cpp_binary_guid_shape() {
@@ -13496,6 +14520,106 @@ mod tests {
         assert!(registry.unregister(id).is_none());
     }
 
+    #[test]
+    fn active_world_session_registry_shutdown_gate_rejects_late_registration_like_cpp() {
+        let registry = ActiveWorldSessionRegistryLikeCpp::new();
+        let (command_tx_a, _command_rx_a) = flume::bounded(1);
+        let first_id = registry
+            .try_register(41, command_tx_a)
+            .expect("open registry accepts the existing session")
+            .0;
+
+        registry.begin_shutdown_like_cpp();
+
+        let (command_tx_b, _command_rx_b) = flume::bounded(1);
+        assert!(registry.try_register(42, command_tx_b).is_none());
+        assert!(registry.is_shutting_down_like_cpp());
+        assert!(!registry.should_stop_sessions_like_cpp());
+        registry.request_session_stop_like_cpp();
+        assert!(registry.should_stop_sessions_like_cpp());
+        assert_eq!(registry.len(), 1);
+        registry.unregister(first_id);
+    }
+
+    #[tokio::test]
+    async fn active_world_session_registry_closed_wait_observes_final_unregister_like_cpp() {
+        let registry = Arc::new(ActiveWorldSessionRegistryLikeCpp::new());
+        let (command_tx, _command_rx) = flume::bounded(1);
+        let id = registry.register(43, command_tx);
+        registry.begin_shutdown_like_cpp();
+
+        let unregister_registry = Arc::clone(&registry);
+        tokio::spawn(async move {
+            tokio::task::yield_now().await;
+            unregister_registry.unregister(id);
+        });
+
+        assert!(
+            registry
+                .wait_until_empty_like_cpp(Duration::from_secs(1))
+                .await
+        );
+        assert!(registry.is_empty_like_cpp());
+    }
+
+    #[tokio::test]
+    async fn active_world_session_registry_force_cancel_drops_registration_guard_like_cpp() {
+        let registry = Arc::new(ActiveWorldSessionRegistryLikeCpp::new());
+        let (command_tx, _command_rx) = flume::bounded(1);
+        let (id, cancellation) = registry
+            .try_register(44, command_tx)
+            .expect("open registry accepts session");
+        let registration = ActiveWorldSessionRegistrationGuardLikeCpp {
+            registry: Arc::clone(&registry),
+            id,
+        };
+        registry.begin_shutdown_like_cpp();
+
+        let session_task = tokio::spawn(async move {
+            cancellation.cancelled_like_cpp().await;
+            drop(registration);
+        });
+        assert_eq!(registry.cancel_all_sessions_like_cpp(), 1);
+        assert!(
+            registry
+                .wait_until_empty_like_cpp(Duration::from_secs(1))
+                .await
+        );
+        session_task.await.expect("cancelled session task joined");
+        assert!(registry.is_empty_like_cpp());
+    }
+
+    #[tokio::test]
+    async fn world_session_shutdown_finalize_success_keeps_clean_exit_like_cpp() {
+        let world = WorldRuntimeStateLikeCpp::new();
+
+        assert!(
+            run_world_session_shutdown_finalize_step_like_cpp(
+                &world,
+                Duration::from_secs(1),
+                async {},
+            )
+            .await
+        );
+        assert_eq!(world.get_exit_code_like_cpp(), SHUTDOWN_EXIT_CODE_LIKE_CPP);
+    }
+
+    #[tokio::test]
+    async fn world_session_shutdown_finalize_timeout_sets_terminal_error_like_cpp() {
+        let world = WorldRuntimeStateLikeCpp::new();
+
+        assert!(
+            !run_world_session_shutdown_finalize_step_like_cpp(
+                &world,
+                Duration::from_millis(1),
+                std::future::pending::<()>(),
+            )
+            .await
+        );
+        assert!(world.is_stopped_like_cpp());
+        assert_eq!(world.get_exit_code_like_cpp(), ERROR_EXIT_CODE_LIKE_CPP);
+    }
+
     #[tokio::test]
     async fn active_world_session_registry_wait_empty_returns_immediately_like_cpp() {
         let registry = ActiveWorldSessionRegistryLikeCpp::new();
@@ -13827,6 +14951,111 @@ mod tests {
                 wow_data::GameObjectOverrideLifecycleStoreLikeCpp::default(),
             ),
         }
+    }
+
+    fn loaded_grid_map_store_like_cpp(map_id: u32, instance_type: i8) -> wow_data::MapStore {
+        wow_data::MapStore::from_entries([wow_data::MapEntry {
+            id: map_id,
+            instance_type,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+            flags2: 0,
+        }])
+    }
+
+    #[test]
+    fn login_grid_world_fallback_rejects_instanceable_map_kinds_like_cpp() {
+        let world = loaded_grid_map_store_like_cpp(1, wow_data::map::MAP_COMMON);
+        let dungeon = loaded_grid_map_store_like_cpp(33, wow_data::map::MAP_INSTANCE);
+        let battleground = loaded_grid_map_store_like_cpp(489, wow_data::map::MAP_BATTLEGROUND);
+        let garrison = wow_data::MapEntry {
+            id: 1_151,
+            instance_type: wow_data::map::MAP_COMMON,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: wow_data::map::MAP_FLAG_GARRISON,
+            flags2: 0,
+        };
+        let faction_split_world = wow_data::MapEntry {
+            id: 609,
+            instance_type: wow_data::map::MAP_COMMON,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+            flags2: 0,
+        };
+
+        assert!(super::can_create_missing_login_grid_as_world_map_like_cpp(
+            *world.get(1).unwrap()
+        ));
+        assert!(!super::can_create_missing_login_grid_as_world_map_like_cpp(
+            *dungeon.get(33).unwrap()
+        ));
+        assert!(!super::can_create_missing_login_grid_as_world_map_like_cpp(
+            *battleground.get(489).unwrap()
+        ));
+        assert!(!super::can_create_missing_login_grid_as_world_map_like_cpp(
+            garrison
+        ));
+        assert!(!super::can_create_missing_login_grid_as_world_map_like_cpp(
+            faction_split_world
+        ));
+        assert!(super::existing_login_grid_map_matches_map_entry_like_cpp(
+            *world.get(1).unwrap(),
+            wow_map::ManagedMapKind::World,
+            0,
+            false,
+        ));
+        assert!(super::existing_login_grid_map_matches_map_entry_like_cpp(
+            *dungeon.get(33).unwrap(),
+            wow_map::ManagedMapKind::Dungeon {
+                has_reset_schedule: false,
+            },
+            77,
+            true,
+        ));
+        assert!(!super::existing_login_grid_map_matches_map_entry_like_cpp(
+            *dungeon.get(33).unwrap(),
+            wow_map::ManagedMapKind::Dungeon {
+                has_reset_schedule: false,
+            },
+            0,
+            true,
+        ));
+        assert!(!super::existing_login_grid_map_matches_map_entry_like_cpp(
+            *dungeon.get(33).unwrap(),
+            wow_map::ManagedMapKind::World,
+            77,
+            true,
+        ));
+        assert!(!super::existing_login_grid_map_matches_map_entry_like_cpp(
+            faction_split_world,
+            wow_map::ManagedMapKind::World,
+            0,
+            false,
+        ));
+        assert!(super::existing_login_grid_map_matches_map_entry_like_cpp(
+            faction_split_world,
+            wow_map::ManagedMapKind::World,
+            0,
+            true,
+        ));
+        assert!(!super::existing_login_grid_map_matches_map_entry_like_cpp(
+            garrison,
+            wow_map::ManagedMapKind::World,
+            0,
+            false,
+        ));
+        assert!(super::existing_login_grid_map_matches_map_entry_like_cpp(
+            garrison,
+            wow_map::ManagedMapKind::World,
+            0,
+            true,
+        ));
     }
 
     fn area_trigger_template_store_for_loaded_grid_like_cpp(
@@ -16865,6 +18094,7 @@ mmap.enablePathFinding = 0
             Arc::clone(&metadata),
             condition_store,
             Arc::new(PersistedRespawnTimesLikeCpp::default()),
+            Arc::new(canonical_test_map_store_like_cpp()),
         );
 
         let group_571 = metadata
@@ -16908,6 +18138,7 @@ mmap.enablePathFinding = 0
             Arc::clone(&metadata),
             condition_store,
             Arc::new(PersistedRespawnTimesLikeCpp::default()),
+            Arc::new(canonical_test_map_store_like_cpp()),
         );
 
         let group = metadata
@@ -16937,6 +18168,7 @@ mmap.enablePathFinding = 0
             metadata,
             condition_store,
             Arc::new(PersistedRespawnTimesLikeCpp::default()),
+            Arc::new(canonical_test_map_store_like_cpp()),
         );
 
         let map = manager.create_world_map(999, 0);
@@ -16998,6 +18230,7 @@ mmap.enablePathFinding = 0
             metadata,
             Arc::new(ConditionEntriesByTypeStore::default()),
             Arc::new(snapshot),
+            Arc::new(canonical_test_map_store_like_cpp()),
         );
 
         let map = manager.create_world_map(571, 0);
@@ -17062,6 +18295,7 @@ mmap.enablePathFinding = 0
             metadata,
             Arc::new(ConditionEntriesByTypeStore::default()),
             Arc::new(snapshot),
+            Arc::new(canonical_test_map_store_like_cpp()),
         );
 
         let map = manager.create_world_map(571, 0);
@@ -17103,6 +18337,7 @@ mmap.enablePathFinding = 0
             metadata,
             Arc::new(ConditionEntriesByTypeStore::default()),
             Arc::new(snapshot),
+            Arc::new(canonical_test_map_store_like_cpp()),
         );
 
         let map = manager.create_map_entry(
@@ -17113,6 +18348,48 @@ mmap.enablePathFinding = 0
                 has_reset_schedule: false,
             },
         );
+        assert_eq!(
+            map.map()
+                .get_respawn_time_like_cpp(SpawnObjectType::Creature, 1),
+            0
+        );
+    }
+
+    #[test]
+    fn canonical_map_creation_skips_persisted_respawns_for_instanceable_world_kind_like_cpp() {
+        let metadata = Arc::new(Mutex::new(test_spawn_metadata([])));
+        let mut snapshot = PersistedRespawnTimesLikeCpp::default();
+        snapshot.push(
+            wow_map::MapKey::new(1_151, 42),
+            RespawnInfoLikeCpp {
+                object_type: SpawnObjectType::Creature,
+                spawn_id: 1,
+                entry: 42,
+                respawn_time: 12_345,
+                grid_id: 7,
+            },
+        );
+        let map_store = wow_data::MapStore::from_entries([wow_data::MapEntry {
+            id: 1_151,
+            instance_type: wow_data::map::MAP_SCENARIO,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: wow_data::map::MAP_FLAG_GARRISON,
+            flags2: 0,
+        }]);
+        let mut manager = wow_map::MapManager::new(60_000, 10);
+        install_canonical_spawn_group_initializer_like_cpp(
+            &mut manager,
+            metadata,
+            Arc::new(ConditionEntriesByTypeStore::default()),
+            Arc::new(snapshot),
+            Arc::new(map_store),
+        );
+
+        // The current canonical manager represents garrisons as `World`, but
+        // C++ gates respawn persistence on `MapEntry::Instanceable()`.
+        let map = manager.create_world_map(1_151, 42);
         assert_eq!(
             map.map()
                 .get_respawn_time_like_cpp(SpawnObjectType::Creature, 1),
@@ -19905,6 +21182,7 @@ mmap.enablePathFinding = 0
             &mut scheduler,
             &metadata,
             &condition_store,
+            &canonical_test_map_store_like_cpp(),
             &empty_loaded_grid_creature_respawn_caches_like_cpp(),
         );
         assert!(early.is_none());
@@ -19924,6 +21202,7 @@ mmap.enablePathFinding = 0
             &mut scheduler,
             &metadata,
             &condition_store,
+            &canonical_test_map_store_like_cpp(),
             &empty_loaded_grid_creature_respawn_caches_like_cpp(),
         )
         .expect("map update accumulates 10ms and scheduler fires with effective diff");
@@ -19970,6 +21249,7 @@ mmap.enablePathFinding = 0
             &mut scheduler,
             &metadata,
             &condition_store,
+            &canonical_test_map_store_like_cpp(),
             &empty_loaded_grid_creature_respawn_caches_like_cpp(),
         );
         assert!(early.is_none());
@@ -19988,6 +21268,7 @@ mmap.enablePathFinding = 0
             &mut scheduler,
             &metadata,
             &condition_store,
+            &canonical_test_map_store_like_cpp(),
             &empty_loaded_grid_creature_respawn_caches_like_cpp(),
         )
         .expect("scheduler fires at interval");
@@ -20010,6 +21291,7 @@ mmap.enablePathFinding = 0
     fn respawn_db_delete_statement_like_cpp_uses_char_del_respawn_params_without_truncation() {
         let outcome = queue_respawn_db_delete_like_cpp(
             wow_map::ManagedMapKind::World,
+            false,
             571,
             0,
             SpawnObjectType::Creature,
@@ -20033,6 +21315,7 @@ mmap.enablePathFinding = 0
             wow_map::ManagedMapKind::Dungeon {
                 has_reset_schedule: false,
             },
+            false,
             571,
             1,
             SpawnObjectType::GameObject,
@@ -20043,8 +21326,22 @@ mmap.enablePathFinding = 0
             RespawnDbDeleteQueueOutcomeLikeCpp::SkippedNonWorldMap
         ));
 
+        let instanceable = queue_respawn_db_delete_like_cpp(
+            wow_map::ManagedMapKind::World,
+            true,
+            1_151,
+            42,
+            SpawnObjectType::Creature,
+            1,
+        );
+        assert!(matches!(
+            instanceable,
+            RespawnDbDeleteQueueOutcomeLikeCpp::SkippedInstanceableMap
+        ));
+
         let invalid_map_id = queue_respawn_db_delete_like_cpp(
             wow_map::ManagedMapKind::World,
+            false,
             u32::from(u16::MAX) + 1,
             0,
             SpawnObjectType::Creature,
@@ -20067,6 +21364,7 @@ mmap.enablePathFinding = 0
         };
         let outcome = queue_respawn_db_save_like_cpp(
             wow_map::ManagedMapKind::World,
+            false,
             571,
             u32::MAX,
             info.clone(),
@@ -20105,6 +21403,7 @@ mmap.enablePathFinding = 0
             wow_map::ManagedMapKind::Dungeon {
                 has_reset_schedule: false,
             },
+            false,
             571,
             1,
             info.clone(),
@@ -20114,8 +21413,21 @@ mmap.enablePathFinding = 0
             RespawnDbSaveQueueOutcomeLikeCpp::SkippedNonWorldMap
         ));
 
+        let instanceable = queue_respawn_db_save_like_cpp(
+            wow_map::ManagedMapKind::World,
+            true,
+            1_151,
+            42,
+            info.clone(),
+        );
+        assert!(matches!(
+            instanceable,
+            RespawnDbSaveQueueOutcomeLikeCpp::SkippedInstanceableMap
+        ));
+
         let invalid_map_id = queue_respawn_db_save_like_cpp(
             wow_map::ManagedMapKind::World,
+            false,
             u32::from(u16::MAX) + 1,
             0,
             info,
@@ -20124,6 +21436,262 @@ mmap.enablePathFinding = 0
             invalid_map_id,
             RespawnDbSaveQueueOutcomeLikeCpp::SkippedInvalidMapId
         ));
+    }
+
+    fn respawn_db_save_statement_fixture_like_cpp(
+        spawn_id: u64,
+        respawn_time: i64,
+    ) -> wow_database::PreparedStatement {
+        let RespawnDbSaveQueueOutcomeLikeCpp::Queued(save) = queue_respawn_db_save_like_cpp(
+            wow_map::ManagedMapKind::World,
+            false,
+            571,
+            0,
+            RespawnInfoLikeCpp {
+                object_type: SpawnObjectType::Creature,
+                spawn_id,
+                entry: 42,
+                respawn_time,
+                grid_id: 7,
+            },
+        ) else {
+            panic!("world-map fixture must queue REP_RESPAWN");
+        };
+        save.statement
+    }
+
+    fn respawn_db_delete_statement_fixture_like_cpp(
+        spawn_id: u64,
+    ) -> wow_database::PreparedStatement {
+        let RespawnDbDeleteQueueOutcomeLikeCpp::Queued(delete) = queue_respawn_db_delete_like_cpp(
+            wow_map::ManagedMapKind::World,
+            false,
+            571,
+            0,
+            SpawnObjectType::Creature,
+            spawn_id,
+        ) else {
+            panic!("world-map fixture must queue DEL_RESPAWN");
+        };
+        delete.statement
+    }
+
+    #[test]
+    fn respawn_db_mailbox_coalesces_before_writer_poll_like_cpp() {
+        let sender = RespawnDbWriterSenderLikeCpp::new_like_cpp();
+
+        for respawn_time in 0_i64..100_000 {
+            sender
+                .send(respawn_db_save_statement_fixture_like_cpp(18, respawn_time))
+                .expect("recognized respawn statement accepted");
+        }
+
+        let state = sender
+            .mailbox
+            .state
+            .lock()
+            .expect("respawn DB mailbox lock");
+        assert_eq!(state.queue.pending_len(), 1);
+        assert_rep_respawn_params_like_cpp(
+            &state.queue.pending[&(0, 18, 571, 0)].statement,
+            0,
+            18,
+            99_999,
+            571,
+            0,
+        );
+    }
+
+    #[test]
+    fn respawn_db_mailbox_keeps_latest_rep_del_order_and_rejects_after_close_like_cpp() {
+        let sender = RespawnDbWriterSenderLikeCpp::new_like_cpp();
+        sender
+            .send(respawn_db_save_statement_fixture_like_cpp(19, 100))
+            .expect("initial REP_RESPAWN accepted");
+        sender
+            .send(respawn_db_delete_statement_fixture_like_cpp(19))
+            .expect("newer DEL_RESPAWN accepted");
+
+        {
+            let state = sender
+                .mailbox
+                .state
+                .lock()
+                .expect("respawn DB mailbox lock");
+            assert_eq!(state.queue.pending_len(), 1);
+            assert_eq!(
+                state.queue.pending[&(0, 19, 571, 0)].statement.sql(),
+                CharStatements::DEL_RESPAWN.sql()
+            );
+        }
+
+        sender.close_like_cpp();
+        assert_eq!(
+            sender.send(respawn_db_save_statement_fixture_like_cpp(19, 200)),
+            Err(RespawnDbSubmitErrorLikeCpp::Closed)
+        );
+        let mut state = sender
+            .mailbox
+            .state
+            .lock()
+            .expect("respawn DB mailbox lock");
+        assert!(state.closed);
+        assert_eq!(
+            state
+                .queue
+                .take_due(Instant::now())
+                .expect("close makes retained state immediately due")
+                .pending
+                .statement
+                .sql(),
+            CharStatements::DEL_RESPAWN.sql()
+        );
+    }
+
+    #[tokio::test]
+    async fn respawn_db_mailbox_idle_writer_wakeup_is_not_lost_like_cpp() {
+        let sender = RespawnDbWriterSenderLikeCpp::new_like_cpp();
+        let notified = sender.mailbox.notify.notified();
+
+        sender
+            .send(respawn_db_save_statement_fixture_like_cpp(20, 100))
+            .expect("recognized respawn statement accepted");
+
+        tokio::time::timeout(Duration::from_secs(1), notified)
+            .await
+            .expect("idle writer notification retained across mailbox check race");
+    }
+
+    #[test]
+    fn respawn_db_retry_backoff_is_exponential_and_capped() {
+        let expected_delays = [1, 2, 4, 8, 16, 30, 30];
+        for (failed_flushes, expected_secs) in (1_u32..).zip(expected_delays) {
+            assert_eq!(
+                respawn_db_retry_delay(failed_flushes),
+                Duration::from_secs(expected_secs)
+            );
+        }
+        assert_eq!(respawn_db_retry_delay(u32::MAX), Duration::from_secs(30));
+
+        let start = std::time::Instant::now();
+        let mut queue = RespawnDbRetryQueueLikeCpp::default();
+        queue.enqueue_latest(respawn_db_save_statement_fixture_like_cpp(11, 100), start);
+        let attempted = queue.take_due(start).expect("first attempt due");
+        assert_eq!(
+            queue.retry_failed(attempted, start),
+            (Duration::from_secs(1), 1)
+        );
+        assert!(queue.take_due(start + Duration::from_millis(999)).is_none());
+        assert!(queue.take_due(start + Duration::from_secs(1)).is_some());
+    }
+
+    #[test]
+    fn respawn_db_retry_queue_does_not_retry_each_map_tick() {
+        let start = std::time::Instant::now();
+        let mut queue = RespawnDbRetryQueueLikeCpp::default();
+        queue.enqueue_latest(respawn_db_save_statement_fixture_like_cpp(12, 100), start);
+        let failed = queue.take_due(start).expect("first attempt due");
+        queue.retry_failed(failed, start);
+
+        for tick in 1..100 {
+            assert!(
+                queue
+                    .take_due(start + Duration::from_millis(tick * 10))
+                    .is_none()
+            );
+        }
+        assert!(queue.take_due(start + Duration::from_secs(1)).is_some());
+    }
+
+    #[test]
+    fn respawn_db_retry_queue_does_not_delay_fresh_unrelated_key() {
+        let start = std::time::Instant::now();
+        let mut queue = RespawnDbRetryQueueLikeCpp::default();
+        queue.enqueue_latest(respawn_db_save_statement_fixture_like_cpp(13, 100), start);
+        let failed = queue.take_due(start).expect("first attempt due");
+        queue.retry_failed(failed, start);
+
+        let fresh_at = start + Duration::from_millis(10);
+        queue.enqueue_latest(
+            respawn_db_save_statement_fixture_like_cpp(14, 200),
+            fresh_at,
+        );
+        let fresh = queue
+            .take_due(fresh_at)
+            .expect("unrelated fresh key remains immediately eligible");
+        assert_eq!(fresh.key.1, 14);
+        assert!(queue.take_due(fresh_at).is_none());
+        assert!(queue.take_due(start + Duration::from_secs(1)).is_some());
+    }
+
+    #[test]
+    fn respawn_db_retry_queue_coalesces_latest_and_makes_new_state_immediate() {
+        let start = std::time::Instant::now();
+        let mut queue = RespawnDbRetryQueueLikeCpp::default();
+        queue.enqueue_latest(respawn_db_save_statement_fixture_like_cpp(15, 100), start);
+        let failed = queue.take_due(start).expect("first attempt due");
+        queue.retry_failed(failed, start);
+
+        let replacement_at = start + Duration::from_millis(10);
+        queue.enqueue_latest(
+            respawn_db_delete_statement_fixture_like_cpp(15),
+            replacement_at,
+        );
+        assert_eq!(queue.pending_len(), 1);
+        let replacement = queue
+            .take_due(replacement_at)
+            .expect("newer same-key state must not wait behind stale backoff");
+        assert_eq!(
+            replacement.pending.statement.sql(),
+            CharStatements::DEL_RESPAWN.sql()
+        );
+
+        queue.enqueue_latest(
+            respawn_db_save_statement_fixture_like_cpp(15, 300),
+            replacement_at,
+        );
+        queue.enqueue_latest(
+            respawn_db_save_statement_fixture_like_cpp(16, 400),
+            replacement_at,
+        );
+        assert_eq!(queue.pending_len(), 2);
+        assert_rep_respawn_params_like_cpp(
+            &queue.pending[&(0, 15, 571, 0)].statement,
+            0,
+            15,
+            300,
+            571,
+            0,
+        );
+        assert_rep_respawn_params_like_cpp(
+            &queue.pending[&(0, 16, 571, 0)].statement,
+            0,
+            16,
+            400,
+            571,
+            0,
+        );
+    }
+
+    #[test]
+    fn respawn_db_retry_queue_shutdown_makes_existing_backoff_immediately_due() {
+        let start = std::time::Instant::now();
+        let mut queue = RespawnDbRetryQueueLikeCpp::default();
+        queue.enqueue_latest(respawn_db_save_statement_fixture_like_cpp(17, 100), start);
+        let failed = queue.take_due(start).expect("first attempt due");
+        queue.retry_failed(failed, start);
+
+        let shutdown_at = start + Duration::from_millis(10);
+        assert!(queue.take_due(shutdown_at).is_none());
+        queue.make_all_due(shutdown_at);
+        assert_eq!(
+            queue
+                .take_due(shutdown_at)
+                .expect("shutdown drain must bypass stale retry deadline")
+                .key
+                .1,
+            17
+        );
     }
 
     #[test]
@@ -20148,6 +21716,7 @@ mmap.enablePathFinding = 0
             &mut scheduler,
             &metadata,
             &condition_store,
+            &canonical_test_map_store_like_cpp(),
             &empty_loaded_grid_creature_respawn_caches_like_cpp(),
         )
         .expect("scheduler fires");
@@ -20220,6 +21789,7 @@ mmap.enablePathFinding = 0
             &mut scheduler,
             &metadata,
             &condition_store,
+            &canonical_test_map_store_like_cpp(),
             &empty_loaded_grid_creature_respawn_caches_like_cpp(),
         )
         .expect("scheduler fires");
@@ -20248,6 +21818,178 @@ mmap.enablePathFinding = 0
                 .get_respawn_time_like_cpp(SpawnObjectType::Creature, 1)
                 > now
         );
+    }
+
+    #[test]
+    fn canonical_gameobject_timer_replace_queues_respawn_save_before_condition_tick_like_cpp() {
+        let metadata = test_spawn_metadata([]);
+        let condition_store = ConditionEntriesByTypeStore::default();
+        let mut manager = wow_map::MapManager::new(60_000, 1);
+        manager.create_world_map(571, 0);
+        let spawn_id = 77;
+        let guid = test_guid_like_cpp(HighGuid::GameObject, 77, 99);
+        insert_live_gameobject_for_spawn_like_cpp(&mut manager, 571, spawn_id, 77);
+        {
+            let gameobject = manager
+                .find_map_mut(571, 0)
+                .unwrap()
+                .map_mut()
+                .get_typed_game_object_mut(guid)
+                .expect("test GameObject");
+            gameobject.set_represented_gameobject_data_present_like_cpp(true);
+            gameobject.set_respawn_compatibility_mode(false);
+            gameobject.set_respawn_delay_time(30);
+            gameobject.set_spawned_by_default(true);
+            gameobject.set_loot_state(wow_entities::LootState::JustDeactivated, None);
+        }
+        manager
+            .find_map_mut(571, 0)
+            .unwrap()
+            .map_mut()
+            .add_respawn_info_like_cpp(RespawnInfoLikeCpp {
+                object_type: SpawnObjectType::GameObject,
+                spawn_id,
+                entry: 99,
+                respawn_time: i64::MAX,
+                grid_id: 7,
+            });
+        // The spawn-group/ProcessRespawns timer deliberately does not fire.
+        // Persisting GameObject::SaveRespawnTime belongs to Map::Update itself.
+        let mut scheduler = CanonicalRespawnConditionSchedulerLikeCpp::new(100);
+
+        let summary = canonical_map_update_tick_set_inactive_like_cpp(
+            &mut manager,
+            None,
+            1,
+            &mut scheduler,
+            &metadata,
+            &condition_store,
+            &canonical_test_map_store_like_cpp(),
+            &empty_loaded_grid_creature_respawn_caches_like_cpp(),
+        )
+        .expect("replaced GameObject timer must surface a DB save without waiting 100ms");
+
+        assert_eq!(summary.maps_evaluated, 0);
+        assert_eq!(summary.respawn_db_save_queued, 1);
+        assert_eq!(summary.respawn_db_saves.len(), 1);
+        let save = &summary.respawn_db_saves[0];
+        assert_eq!(save.object_type, SpawnObjectType::GameObject);
+        assert_eq!(save.spawn_id, spawn_id);
+        assert!(save.respawn_time > 0);
+        assert_ne!(save.respawn_time, i64::MAX);
+        assert_rep_respawn_params_like_cpp(&save.statement, 1, spawn_id, save.respawn_time, 571, 0);
+        assert_eq!(
+            manager
+                .find_map(571, 0)
+                .unwrap()
+                .map()
+                .get_respawn_time_like_cpp(SpawnObjectType::GameObject, spawn_id),
+            save.respawn_time
+        );
+    }
+
+    #[test]
+    fn canonical_gameobject_compatibility_mode_queues_db_only_respawn_save_like_cpp() {
+        let metadata = test_spawn_metadata([]);
+        let condition_store = ConditionEntriesByTypeStore::default();
+        let mut manager = wow_map::MapManager::new(60_000, 1);
+        manager.create_world_map(571, 0);
+        let spawn_id = 78;
+        let guid = test_guid_like_cpp(HighGuid::GameObject, 78, 99);
+        insert_live_gameobject_for_spawn_like_cpp(&mut manager, 571, spawn_id, 78);
+        {
+            let gameobject = manager
+                .find_map_mut(571, 0)
+                .unwrap()
+                .map_mut()
+                .get_typed_game_object_mut(guid)
+                .expect("test GameObject");
+            gameobject.set_represented_gameobject_data_present_like_cpp(true);
+            gameobject.set_respawn_compatibility_mode(true);
+            gameobject.set_respawn_delay_time(30);
+            gameobject.set_spawned_by_default(true);
+            gameobject.set_loot_state(wow_entities::LootState::JustDeactivated, None);
+        }
+        let mut scheduler = CanonicalRespawnConditionSchedulerLikeCpp::new(100);
+
+        let summary = canonical_map_update_tick_set_inactive_like_cpp(
+            &mut manager,
+            None,
+            1,
+            &mut scheduler,
+            &metadata,
+            &condition_store,
+            &canonical_test_map_store_like_cpp(),
+            &empty_loaded_grid_creature_respawn_caches_like_cpp(),
+        )
+        .expect("compatibility-mode GameObject must surface its DB-only save");
+
+        assert_eq!(summary.respawn_db_save_queued, 1);
+        assert_eq!(summary.respawn_db_saves.len(), 1);
+        let save = &summary.respawn_db_saves[0];
+        assert_eq!(save.object_type, SpawnObjectType::GameObject);
+        assert_eq!(save.spawn_id, spawn_id);
+        assert_rep_respawn_params_like_cpp(&save.statement, 1, spawn_id, save.respawn_time, 571, 0);
+        assert_eq!(
+            manager
+                .find_map(571, 0)
+                .unwrap()
+                .map()
+                .get_respawn_time_like_cpp(SpawnObjectType::GameObject, spawn_id),
+            0,
+            "C++ compatibility mode writes DB directly without adding a map-owned timer"
+        );
+    }
+
+    #[test]
+    fn canonical_gameobject_compatibility_save_skips_instanceable_map_like_cpp() {
+        let metadata = test_spawn_metadata([]);
+        let condition_store = ConditionEntriesByTypeStore::default();
+        let map_id = 1_151;
+        let map_store = wow_data::MapStore::from_entries([wow_data::MapEntry {
+            id: map_id,
+            instance_type: wow_data::map::MAP_SCENARIO,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: wow_data::map::MAP_FLAG_GARRISON,
+            flags2: 0,
+        }]);
+        let mut manager = wow_map::MapManager::new(60_000, 1);
+        manager.create_world_map(map_id, 0);
+        let spawn_id = 79;
+        let guid = test_guid_like_cpp(HighGuid::GameObject, 79, 99);
+        insert_live_gameobject_for_spawn_like_cpp(&mut manager, map_id, spawn_id, 79);
+        {
+            let gameobject = manager
+                .find_map_mut(map_id, 0)
+                .unwrap()
+                .map_mut()
+                .get_typed_game_object_mut(guid)
+                .expect("test GameObject");
+            gameobject.set_represented_gameobject_data_present_like_cpp(true);
+            gameobject.set_respawn_compatibility_mode(true);
+            gameobject.set_respawn_delay_time(30);
+            gameobject.set_spawned_by_default(true);
+            gameobject.set_loot_state(wow_entities::LootState::JustDeactivated, None);
+        }
+        let mut scheduler = CanonicalRespawnConditionSchedulerLikeCpp::new(1);
+
+        let summary = canonical_map_update_tick_set_inactive_like_cpp(
+            &mut manager,
+            None,
+            1,
+            &mut scheduler,
+            &metadata,
+            &condition_store,
+            &map_store,
+            &empty_loaded_grid_creature_respawn_caches_like_cpp(),
+        )
+        .expect("scheduler fires");
+
+        assert_eq!(summary.respawn_db_save_queued, 0);
+        assert_eq!(summary.respawn_db_save_skipped_instanceable_map, 1);
+        assert!(summary.respawn_db_saves.is_empty());
     }
 
     #[test]
@@ -20284,6 +22026,7 @@ mmap.enablePathFinding = 0
             &mut scheduler,
             &metadata,
             &condition_store,
+            &canonical_test_map_store_like_cpp(),
             &empty_loaded_grid_creature_respawn_caches_like_cpp(),
         )
         .expect("scheduler fires");
@@ -20344,6 +22087,7 @@ mmap.enablePathFinding = 0
             &mut scheduler,
             &metadata,
             &condition_store,
+            &canonical_test_map_store_like_cpp(),
             &empty_loaded_grid_creature_respawn_caches_like_cpp(),
         )
         .expect("scheduler fires");
@@ -20375,6 +22119,305 @@ mmap.enablePathFinding = 0
                 .map()
                 .get_respawn_info_like_cpp(SpawnObjectType::Creature, 1)
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn persisted_restart_timer_respawns_once_through_canonical_owner_and_mirrors_legacy_like_cpp() {
+        let spawn_id = 54_987;
+        let entry = 42;
+        let mut metadata = test_spawn_metadata_with_explicit_spawn_ids([(
+            69,
+            571,
+            SpawnGroupFlags::NONE,
+            spawn_id,
+        )]);
+        metadata = metadata.with_creature_runtime_rows_like_cpp(BTreeMap::from([(
+            spawn_id,
+            super::spawn_store_loader::CreatureSpawnRuntimeRowLikeCpp {
+                spawn_id,
+                model_id: 999,
+                equipment_id: 3,
+                wander_distance: 15.0,
+                curhealth: 0,
+                curmana: 0,
+                movement_type: 1,
+                npc_flags: None,
+                unit_flags: None,
+                unit_flags2: None,
+                unit_flags3: None,
+                ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
+                swim_allowed: true,
+                flight_movement_type: 0,
+                rooted: false,
+                chase_movement_type: wow_constants::CreatureChaseMovementType::Run as u8,
+                random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
+                interaction_pause_timer_ms:
+                    wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
+                string_id: "restart-canonical-owner".to_string(),
+                spawn_time_secs: 120,
+            },
+        )]));
+        let metadata = Arc::new(Mutex::new(metadata));
+        let condition_store = Arc::new(ConditionEntriesByTypeStore::default());
+        let map_store = Arc::new(canonical_test_map_store_like_cpp());
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("test clock after unix epoch")
+            .as_secs() as i64;
+        let mut snapshot = PersistedRespawnTimesLikeCpp::default();
+        snapshot.push(
+            wow_map::MapKey::new(571, 0),
+            RespawnInfoLikeCpp {
+                object_type: SpawnObjectType::Creature,
+                spawn_id,
+                entry,
+                respawn_time: now.saturating_sub(1),
+                grid_id: wow_map::compute_grid_coord(0.0, 0.0).get_id(),
+            },
+        );
+        let mut manager = wow_map::MapManager::new(60_000, 1);
+        install_canonical_spawn_group_initializer_like_cpp(
+            &mut manager,
+            Arc::clone(&metadata),
+            Arc::clone(&condition_store),
+            Arc::new(snapshot),
+            Arc::clone(&map_store),
+        );
+        let map = manager.create_world_map(571, 0);
+        assert!(map.map_mut().load_grid(0.0, 0.0));
+        assert_eq!(map.map().map_object_count(), 0);
+        assert_eq!(
+            map.map()
+                .get_respawn_time_like_cpp(SpawnObjectType::Creature, spawn_id),
+            now.saturating_sub(1)
+        );
+
+        let legacy: wow_world::SharedMapManager =
+            Arc::new(std::sync::RwLock::new(wow_world::MapManager::new()));
+        let caches =
+            variable_loaded_grid_creature_respawn_caches_with_vehicle_id_and_difficulty_like_cpp(
+                entry, 0, 0,
+            );
+        let mut scheduler = CanonicalRespawnConditionSchedulerLikeCpp::new(1);
+        let metadata_guard = metadata.lock().unwrap();
+        let summary = canonical_map_update_tick_set_inactive_like_cpp(
+            &mut manager,
+            Some(&legacy),
+            1,
+            &mut scheduler,
+            &metadata_guard,
+            condition_store.as_ref(),
+            map_store.as_ref(),
+            &caches,
+        )
+        .expect("due persisted timer must run through canonical ProcessRespawns");
+
+        assert_eq!(summary.respawn_executed_loaded_grid_respawns, 1);
+        assert_eq!(summary.respawn_legacy_creature_mirrors, 1);
+        assert_eq!(summary.respawn_db_delete_queued, 1);
+        assert_eq!(summary.respawn_db_deletes.len(), 1);
+        assert_del_respawn_params_like_cpp(
+            &summary.respawn_db_deletes[0].statement,
+            0,
+            spawn_id,
+            571,
+            0,
+        );
+        let creature = manager
+            .find_map(571, 0)
+            .unwrap()
+            .map()
+            .get_creature_by_spawn_id_like_cpp(spawn_id)
+            .expect("canonical restart respawn");
+        let creature_guid = creature.guid();
+        assert!(
+            legacy
+                .read()
+                .unwrap()
+                .find_creature(571, 0, creature_guid)
+                .is_some()
+        );
+        assert_eq!(
+            manager
+                .find_map(571, 0)
+                .unwrap()
+                .map()
+                .get_respawn_time_like_cpp(SpawnObjectType::Creature, spawn_id),
+            0
+        );
+
+        let second = canonical_map_update_tick_set_inactive_like_cpp(
+            &mut manager,
+            Some(&legacy),
+            1,
+            &mut scheduler,
+            &metadata_guard,
+            condition_store.as_ref(),
+            map_store.as_ref(),
+            &caches,
+        )
+        .expect("second scheduler tick");
+        assert_eq!(second.respawn_executed_loaded_grid_respawns, 0);
+        assert_eq!(second.respawn_legacy_creature_mirrors, 0);
+        assert_eq!(second.respawn_db_delete_queued, 0);
+        assert_eq!(
+            manager
+                .find_map(571, 0)
+                .unwrap()
+                .map()
+                .creature_spawn_id_store_count_like_cpp(spawn_id),
+            1
+        );
+    }
+
+    #[test]
+    fn persisted_gameobject_restart_timer_respawns_once_and_queues_delete_like_cpp() {
+        let spawn_id = 54_988;
+        let entry = 9_001;
+        let spawn = SpawnData {
+            object_type: SpawnObjectType::GameObject,
+            spawn_id,
+            map_id: 571,
+            db_data: true,
+            spawn_group: SpawnGroupTemplateData::default_group(),
+            id: entry,
+            spawn_point: SpawnPosition::new(0.0, 0.0, 0.0, 0.0),
+            phase_use_flags: 0,
+            phase_id: 0,
+            phase_group: 0,
+            terrain_swap_map: -1,
+            pool_id: 0,
+            spawn_time_secs: 30,
+            spawn_difficulties: vec![0],
+            script_id: 0,
+            string_id: String::new(),
+        };
+        let mut store = SpawnStore::new();
+        store.add_object_spawn(&spawn, |_| false);
+        let metadata = Arc::new(Mutex::new(
+            super::spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(store, BTreeMap::new())
+                .with_gameobject_runtime_rows_like_cpp(BTreeMap::from([(
+                    spawn_id,
+                    super::spawn_store_loader::GameObjectSpawnRuntimeRowLikeCpp {
+                        spawn_id,
+                        rotation: [0.0, 0.0, 0.0, 1.0],
+                        anim_progress: 55,
+                        state: 1,
+                        string_id: "restart-gameobject".to_string(),
+                        spawn_time_secs: 30,
+                    },
+                )])),
+        ));
+        let mut data = [0; wow_entities::MAX_GAMEOBJECT_DATA];
+        data[11] = 1;
+        let mut caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
+        caches.gameobject_template_store = Arc::new(
+            wow_data::GameObjectTemplateLifecycleStoreLikeCpp::from_templates([
+                wow_data::GameObjectTemplateLifecycleRecordLikeCpp {
+                    entry,
+                    go_type: wow_entities::GAMEOBJECT_TYPE_GOOBER,
+                    display_id: 44,
+                    name: "Restart GameObject".to_string(),
+                    size: 1.0,
+                    data,
+                    content_tuning_id: 0,
+                    ai_name: String::new(),
+                    script_name: String::new(),
+                    string_id: String::new(),
+                    addon: None,
+                },
+            ]),
+        );
+        let condition_store = Arc::new(ConditionEntriesByTypeStore::default());
+        let map_store = Arc::new(canonical_test_map_store_like_cpp());
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("test clock after unix epoch")
+            .as_secs() as i64;
+        let mut snapshot = PersistedRespawnTimesLikeCpp::default();
+        snapshot.push(
+            wow_map::MapKey::new(571, 0),
+            RespawnInfoLikeCpp {
+                object_type: SpawnObjectType::GameObject,
+                spawn_id,
+                entry,
+                respawn_time: now.saturating_sub(1),
+                grid_id: wow_map::compute_grid_coord(0.0, 0.0).get_id(),
+            },
+        );
+        let mut manager = wow_map::MapManager::new(60_000, 1);
+        install_canonical_spawn_group_initializer_like_cpp(
+            &mut manager,
+            Arc::clone(&metadata),
+            Arc::clone(&condition_store),
+            Arc::new(snapshot),
+            Arc::clone(&map_store),
+        );
+        let map = manager.create_world_map(571, 0);
+        assert!(map.map_mut().load_grid(0.0, 0.0));
+        assert_eq!(map.map().map_object_count(), 0);
+
+        let mut scheduler = CanonicalRespawnConditionSchedulerLikeCpp::new(1);
+        let metadata_guard = metadata.lock().unwrap();
+        let summary = canonical_map_update_tick_set_inactive_like_cpp(
+            &mut manager,
+            None,
+            1,
+            &mut scheduler,
+            &metadata_guard,
+            condition_store.as_ref(),
+            map_store.as_ref(),
+            &caches,
+        )
+        .expect("due persisted GameObject timer must run through ProcessRespawns");
+
+        assert_eq!(summary.respawn_executed_loaded_grid_respawns, 1);
+        assert_eq!(summary.respawn_db_delete_queued, 1);
+        assert_del_respawn_params_like_cpp(
+            &summary.respawn_db_deletes[0].statement,
+            1,
+            spawn_id,
+            571,
+            0,
+        );
+        assert_eq!(
+            manager
+                .find_map(571, 0)
+                .unwrap()
+                .map()
+                .gameobject_spawn_id_store_count_like_cpp(spawn_id),
+            1
+        );
+        assert_eq!(
+            manager
+                .find_map(571, 0)
+                .unwrap()
+                .map()
+                .get_respawn_time_like_cpp(SpawnObjectType::GameObject, spawn_id),
+            0
+        );
+
+        let second = canonical_map_update_tick_set_inactive_like_cpp(
+            &mut manager,
+            None,
+            1,
+            &mut scheduler,
+            &metadata_guard,
+            condition_store.as_ref(),
+            map_store.as_ref(),
+            &caches,
+        )
+        .expect("second scheduler tick");
+        assert_eq!(second.respawn_executed_loaded_grid_respawns, 0);
+        assert_eq!(second.respawn_db_delete_queued, 0);
+        assert_eq!(
+            manager
+                .find_map(571, 0)
+                .unwrap()
+                .map()
+                .gameobject_spawn_id_store_count_like_cpp(spawn_id),
+            1
         );
     }
 
@@ -20716,6 +22759,234 @@ mmap.enablePathFinding = 0
     }
 
     #[test]
+    fn login_grid_load_preserves_precreated_dungeon_kind_like_cpp() {
+        let canonical: wow_world::SharedCanonicalMapManager =
+            Arc::new(Mutex::new(wow_map::MapManager::default()));
+        canonical.lock().unwrap().create_map_entry(
+            33,
+            77,
+            0,
+            wow_map::ManagedMapKind::Dungeon {
+                has_reset_schedule: false,
+            },
+        );
+        let legacy: wow_world::SharedMapManager =
+            Arc::new(RwLock::new(wow_world::MapManager::new()));
+        let metadata = Arc::new(Mutex::new(
+            super::spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(
+                SpawnStore::new(),
+                BTreeMap::new(),
+            ),
+        ));
+        let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
+        let area_trigger_templates = area_trigger_template_store_for_loaded_grid_like_cpp(1, 1);
+        let map_store = loaded_grid_map_store_like_cpp(33, wow_data::map::MAP_INSTANCE);
+
+        let outcome = super::ensure_login_player_grid_loaded_like_cpp(
+            &canonical,
+            &legacy,
+            &metadata,
+            &caches,
+            &area_trigger_templates,
+            Some(&map_store),
+            33,
+            Some(77),
+            Position::ZERO,
+        );
+
+        assert!(!outcome.map_unavailable);
+        assert!(!outcome.map_created);
+        assert!(matches!(
+            canonical.lock().unwrap().find_map(33, 77).unwrap().kind(),
+            wow_map::ManagedMapKind::Dungeon { .. }
+        ));
+    }
+
+    #[test]
+    fn login_grid_load_accepts_authoritative_garrison_world_map_like_cpp() {
+        let canonical: wow_world::SharedCanonicalMapManager =
+            Arc::new(Mutex::new(wow_map::MapManager::default()));
+        canonical.lock().unwrap().create_world_map(1_151, 0);
+        let legacy: wow_world::SharedMapManager =
+            Arc::new(RwLock::new(wow_world::MapManager::new()));
+        let metadata = Arc::new(Mutex::new(
+            super::spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(
+                SpawnStore::new(),
+                BTreeMap::new(),
+            ),
+        ));
+        let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
+        let area_trigger_templates = area_trigger_template_store_for_loaded_grid_like_cpp(1, 1);
+        let map_store = wow_data::MapStore::from_entries([wow_data::MapEntry {
+            id: 1_151,
+            instance_type: wow_data::map::MAP_COMMON,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: wow_data::map::MAP_FLAG_GARRISON,
+            flags2: 0,
+        }]);
+
+        let outcome = super::ensure_login_player_grid_loaded_like_cpp(
+            &canonical,
+            &legacy,
+            &metadata,
+            &caches,
+            &area_trigger_templates,
+            Some(&map_store),
+            1_151,
+            Some(0),
+            Position::ZERO,
+        );
+
+        assert!(!outcome.map_unavailable);
+        assert!(!outcome.map_created);
+        assert!(matches!(
+            canonical.lock().unwrap().find_map(1_151, 0).unwrap().kind(),
+            wow_map::ManagedMapKind::World
+        ));
+    }
+
+    #[test]
+    fn login_grid_load_does_not_fabricate_missing_instanceable_map_like_cpp() {
+        let canonical: wow_world::SharedCanonicalMapManager =
+            Arc::new(Mutex::new(wow_map::MapManager::default()));
+        let legacy: wow_world::SharedMapManager =
+            Arc::new(RwLock::new(wow_world::MapManager::new()));
+        let metadata = Arc::new(Mutex::new(
+            super::spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(
+                SpawnStore::new(),
+                BTreeMap::new(),
+            ),
+        ));
+        let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
+        let area_trigger_templates = area_trigger_template_store_for_loaded_grid_like_cpp(1, 1);
+        let map_store = loaded_grid_map_store_like_cpp(33, wow_data::map::MAP_INSTANCE);
+
+        let outcome = super::ensure_login_player_grid_loaded_like_cpp(
+            &canonical,
+            &legacy,
+            &metadata,
+            &caches,
+            &area_trigger_templates,
+            Some(&map_store),
+            33,
+            Some(77),
+            Position::ZERO,
+        );
+
+        assert!(outcome.map_unavailable);
+        assert!(!outcome.map_created);
+        assert!(canonical.lock().unwrap().find_map(33, 77).is_none());
+    }
+
+    #[test]
+    fn login_grid_load_rejects_stale_dungeon_zero_world_map_like_cpp() {
+        let canonical: wow_world::SharedCanonicalMapManager =
+            Arc::new(Mutex::new(wow_map::MapManager::default()));
+        canonical.lock().unwrap().create_world_map(33, 0);
+        let legacy: wow_world::SharedMapManager =
+            Arc::new(RwLock::new(wow_world::MapManager::new()));
+        let metadata = Arc::new(Mutex::new(
+            super::spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(
+                SpawnStore::new(),
+                BTreeMap::new(),
+            ),
+        ));
+        let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
+        let area_trigger_templates = area_trigger_template_store_for_loaded_grid_like_cpp(1, 1);
+        let map_store = loaded_grid_map_store_like_cpp(33, wow_data::map::MAP_INSTANCE);
+
+        let outcome = super::ensure_login_player_grid_loaded_like_cpp(
+            &canonical,
+            &legacy,
+            &metadata,
+            &caches,
+            &area_trigger_templates,
+            Some(&map_store),
+            33,
+            None,
+            Position::ZERO,
+        );
+
+        assert!(outcome.map_unavailable);
+        assert!(!outcome.grid_loaded_now);
+        assert!(matches!(
+            canonical.lock().unwrap().find_map(33, 0).unwrap().kind(),
+            wow_map::ManagedMapKind::World
+        ));
+    }
+
+    #[test]
+    fn login_grid_load_can_materialize_missing_common_world_map_like_cpp() {
+        let canonical: wow_world::SharedCanonicalMapManager =
+            Arc::new(Mutex::new(wow_map::MapManager::default()));
+        let legacy: wow_world::SharedMapManager =
+            Arc::new(RwLock::new(wow_world::MapManager::new()));
+        let metadata = Arc::new(Mutex::new(
+            super::spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(
+                SpawnStore::new(),
+                BTreeMap::new(),
+            ),
+        ));
+        let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
+        let area_trigger_templates = area_trigger_template_store_for_loaded_grid_like_cpp(1, 1);
+        let map_store = loaded_grid_map_store_like_cpp(571, wow_data::map::MAP_COMMON);
+
+        let outcome = super::ensure_login_player_grid_loaded_like_cpp(
+            &canonical,
+            &legacy,
+            &metadata,
+            &caches,
+            &area_trigger_templates,
+            Some(&map_store),
+            571,
+            None,
+            Position::ZERO,
+        );
+
+        assert!(!outcome.map_unavailable);
+        assert!(outcome.map_created);
+        assert!(matches!(
+            canonical.lock().unwrap().find_map(571, 0).unwrap().kind(),
+            wow_map::ManagedMapKind::World
+        ));
+    }
+
+    #[test]
+    fn login_grid_load_does_not_guess_missing_faction_split_world_map_like_cpp() {
+        let canonical: wow_world::SharedCanonicalMapManager =
+            Arc::new(Mutex::new(wow_map::MapManager::default()));
+        let legacy: wow_world::SharedMapManager =
+            Arc::new(RwLock::new(wow_world::MapManager::new()));
+        let metadata = Arc::new(Mutex::new(
+            super::spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(
+                SpawnStore::new(),
+                BTreeMap::new(),
+            ),
+        ));
+        let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
+        let area_trigger_templates = area_trigger_template_store_for_loaded_grid_like_cpp(1, 1);
+        let map_store = loaded_grid_map_store_like_cpp(609, wow_data::map::MAP_COMMON);
+
+        let outcome = super::ensure_login_player_grid_loaded_like_cpp(
+            &canonical,
+            &legacy,
+            &metadata,
+            &caches,
+            &area_trigger_templates,
+            Some(&map_store),
+            609,
+            None,
+            Position::ZERO,
+        );
+
+        assert!(outcome.map_unavailable);
+        assert!(!outcome.map_created);
+        assert!(canonical.lock().unwrap().find_map(609, 0).is_none());
+    }
+
+    #[test]
     fn login_grid_load_mirrors_already_loaded_canonical_creature_to_legacy_like_cpp() {
         let spawn_id = 70_001;
         let entry = 42;
@@ -20791,6 +23062,7 @@ mmap.enablePathFinding = 0
         let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
 
         let area_trigger_templates = area_trigger_template_store_for_loaded_grid_like_cpp(1, 1);
+        let map_store = loaded_grid_map_store_like_cpp(571, wow_data::map::MAP_COMMON);
 
         let outcome = super::ensure_login_player_grid_loaded_like_cpp(
             &canonical,
@@ -20798,8 +23070,9 @@ mmap.enablePathFinding = 0
             &metadata,
             &caches,
             &area_trigger_templates,
+            Some(&map_store),
             571,
-            0,
+            Some(0),
             position,
         );
 
@@ -20899,6 +23172,8 @@ mmap.enablePathFinding = 0
                 entry, 0, 0,
             );
         let area_trigger_templates = area_trigger_template_store_for_loaded_grid_like_cpp(1, 1);
+        canonical.lock().unwrap().create_world_map(1, 0);
+        let map_store = loaded_grid_map_store_like_cpp(1, wow_data::map::MAP_COMMON);
 
         let outcome = super::ensure_login_player_grid_loaded_like_cpp(
             &canonical,
@@ -20906,8 +23181,9 @@ mmap.enablePathFinding = 0
             &metadata,
             &caches,
             &area_trigger_templates,
+            Some(&map_store),
             1,
-            0,
+            Some(0),
             player_position,
         );
 
@@ -20998,6 +23274,8 @@ mmap.enablePathFinding = 0
         let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
         let area_trigger_templates =
             area_trigger_template_store_for_loaded_grid_like_cpp(create_properties_id, template_id);
+        canonical.lock().unwrap().create_world_map(571, 0);
+        let map_store = loaded_grid_map_store_like_cpp(571, wow_data::map::MAP_COMMON);
 
         let outcome = super::ensure_login_player_grid_loaded_like_cpp(
             &canonical,
@@ -21005,8 +23283,9 @@ mmap.enablePathFinding = 0
             &metadata,
             &caches,
             &area_trigger_templates,
+            Some(&map_store),
             571,
-            0,
+            Some(0),
             position,
         );
 
@@ -21243,6 +23522,7 @@ mmap.enablePathFinding = 0
             &mut scheduler,
             &metadata,
             &condition_store,
+            &canonical_test_map_store_like_cpp(),
             &caches,
         )
         .expect("scheduler fires and condition spawn executes");
@@ -22505,12 +24785,15 @@ mmap.enablePathFinding = 0
         let outcome = run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
             &legacy,
             Some(&canonical),
+            &legacy_runtime_world_map_store_like_cpp(),
             &mmap_config,
             None,
             aggro_config,
             10,
             std::time::Instant::now(),
             &registry,
+            None,
+            None,
         );
 
         assert!(!outcome.aggro.skipped_owner_not_global);
@@ -22899,6 +25182,7 @@ mmap.enablePathFinding = 0
         let (outcome, delivery) = run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp(
             &legacy,
             Some(&canonical),
+            &legacy_runtime_world_map_store_like_cpp(),
             now,
             &registry,
         );
@@ -23218,18 +25502,22 @@ mmap.enablePathFinding = 0
         let legacy_for_task = Arc::clone(&legacy);
         let canonical_for_task = Arc::clone(&canonical);
         let registry_for_task = Arc::clone(&registry);
+        let map_store_for_task = legacy_runtime_world_map_store_like_cpp();
         let tick_now = std::time::Instant::now() + std::time::Duration::from_millis(1);
         let handle = tokio::spawn(async move {
             tokio::task::spawn_blocking(move || {
                 run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
                     &legacy_for_task,
                     Some(&canonical_for_task),
+                    &map_store_for_task,
                     &mmap_config,
                     None,
                     wow_world::session::LegacyCreatureAggroConfigLikeCpp::default(),
                     10,
                     tick_now,
                     registry_for_task.as_ref(),
+                    None,
+                    None,
                 )
             })
             .await
@@ -23435,6 +25723,7 @@ mmap.enablePathFinding = 0
             true,
             Arc::clone(&legacy),
             Arc::clone(&canonical),
+            Arc::new(legacy_runtime_world_map_store_like_cpp()),
             wow_world::MMapRuntimeConfigLikeCpp {
                 enabled: false,
                 ..Default::default()
@@ -23442,6 +25731,9 @@ mmap.enablePathFinding = 0
             None,
             wow_world::session::LegacyCreatureAggroConfigLikeCpp::default(),
             1,
+            None,
+            Arc::new(Mutex::new(())),
+            Arc::new(std::sync::atomic::AtomicBool::new(false)),
             Arc::clone(&registry),
         );
 
@@ -23473,5 +25765,85 @@ mmap.enablePathFinding = 0
             typed.ai_state(),
             wow_entities::CreatureAiState::WalkingRandom
         );
+    }
+
+    #[tokio::test]
+    async fn legacy_respawn_producer_stop_runs_final_lifecycle_flush_like_cpp() {
+        let legacy: wow_world::SharedMapManager =
+            Arc::new(std::sync::RwLock::new(wow_world::MapManager::new()));
+        let canonical: wow_world::SharedCanonicalMapManager =
+            Arc::new(Mutex::new(wow_map::MapManager::default()));
+        canonical.lock().unwrap().create_world_map(0, 0);
+
+        let creature_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 9001, 95_001);
+        let position = Position::new(10.0, 10.0, 0.0, 0.0);
+        let mut creature = wow_world::map_manager::WorldCreature::new(
+            creature_guid,
+            9001,
+            position,
+            10,
+            2,
+            3,
+            5,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        creature.creature.set_spawn_id(95_001);
+        creature.take_damage(10);
+        {
+            let mut manager = legacy.write().unwrap();
+            manager.add_creature(
+                0,
+                0,
+                wow_world::map_manager::world_to_grid_x(position.x),
+                wow_world::map_manager::world_to_grid_y(position.y),
+                creature,
+            );
+            manager.set_tick_owner(wow_world::map_manager::RuntimeTickOwner::GlobalLegacy);
+        }
+
+        let producer_stop = Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let writer_tx = RespawnDbWriterSenderLikeCpp::new_like_cpp();
+        let writer_probe = writer_tx.clone();
+        let handle = spawn_legacy_creature_runtime_update_loop_like_cpp(
+            true,
+            legacy,
+            canonical,
+            Arc::new(legacy_runtime_world_map_store_like_cpp()),
+            wow_world::MMapRuntimeConfigLikeCpp {
+                enabled: false,
+                ..Default::default()
+            },
+            None,
+            wow_world::session::LegacyCreatureAggroConfigLikeCpp::default(),
+            1,
+            Some(writer_tx),
+            Arc::new(Mutex::new(())),
+            producer_stop,
+            Arc::new(PlayerRegistry::default()),
+        );
+
+        tokio::time::timeout(Duration::from_secs(2), handle)
+            .await
+            .expect("stopping producer must finish its final lifecycle tick")
+            .expect("final lifecycle tick must not panic");
+        let mut mailbox = writer_probe
+            .mailbox
+            .state
+            .lock()
+            .expect("respawn DB mailbox lock");
+        assert_eq!(mailbox.queue.pending_len(), 1);
+        let statement = mailbox
+            .queue
+            .take_due(Instant::now())
+            .expect("final lifecycle tick must persist the pending death")
+            .pending
+            .statement;
+        assert_eq!(statement.sql(), CharStatements::REP_RESPAWN.sql());
+        assert_eq!(mailbox.queue.pending_len(), 0);
     }
 }

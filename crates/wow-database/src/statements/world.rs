@@ -192,6 +192,8 @@ pub enum WorldStatements {
     SEL_PLAYER_LEVELSTATS,
     /// Load initial action buttons for character creation.
     SEL_PLAYER_CREATEINFO_ACTION,
+    /// C++ `ObjectMgr::LoadPlayerInfo` base playercreateinfo startup query.
+    SEL_PLAYER_CREATEINFO,
     /// C++ `ObjectMgr::LoadPlayerInfo` playercreateinfo_cast_spell startup query.
     SEL_PLAYER_CREATEINFO_CAST_SPELL,
     /// C++ `ObjectMgr::LoadPlayerInfo` playercreateinfo_spell_custom startup query.
@@ -835,6 +837,13 @@ impl StatementDef for WorldStatements {
             Self::SEL_PLAYER_CREATEINFO_ACTION => {
                 "SELECT race, class, button, action, Type FROM playercreateinfo_action"
             }
+            Self::SEL_PLAYER_CREATEINFO => concat!(
+                "SELECT p.race, p.class, p.map, p.position_x, p.position_y, p.position_z, p.orientation, ",
+                "p.npe_map, p.npe_position_x, p.npe_position_y, p.npe_position_z, ",
+                "p.npe_orientation, p.npe_transport_guid, ",
+                "(SELECT t.entry FROM transports t WHERE t.guid = p.npe_transport_guid LIMIT 1) ",
+                "FROM playercreateinfo p",
+            ),
             Self::SEL_PLAYER_CREATEINFO_CAST_SPELL => {
                 "SELECT raceMask, classMask, spell, createMode FROM playercreateinfo_cast_spell"
             }
@@ -1298,6 +1307,16 @@ impl StatementDef for WorldStatements {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn player_createinfo_startup_statement_keeps_cpp_position_and_transport_keys() {
+        let sql = WorldStatements::SEL_PLAYER_CREATEINFO.sql();
+
+        assert!(sql.starts_with("SELECT p.race, p.class, p.map"));
+        assert!(sql.ends_with("FROM playercreateinfo p"));
+        assert!(sql.contains("t.guid = p.npe_transport_guid LIMIT 1"));
+        assert_eq!(sql.matches('?').count(), 0);
+    }
 
     #[test]
     fn gossip_menu_options_select_keeps_cpp_load_column_order_like_cpp() {

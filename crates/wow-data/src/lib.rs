@@ -375,7 +375,9 @@ pub use player_create::{
     PLAYER_CREATE_MODE_NPE_LIKE_CPP, PlayerCreateInfoCastSpellLoadReportLikeCpp,
     PlayerCreateInfoCastSpellRowLikeCpp, PlayerCreateInfoCastSpellStoreLikeCpp,
     PlayerCreateInfoCustomSpellLoadReportLikeCpp, PlayerCreateInfoCustomSpellRowLikeCpp,
-    PlayerCreateInfoCustomSpellStoreLikeCpp,
+    PlayerCreateInfoCustomSpellStoreLikeCpp, PlayerCreateInfoLikeCpp,
+    PlayerCreateInfoLoadReportLikeCpp, PlayerCreateInfoRowLikeCpp, PlayerCreateInfoStoreLikeCpp,
+    PlayerCreatePositionLikeCpp,
 };
 pub use player_power::{
     ClassPowerIndexRecord, Db2PlayerPowerIndexResolver, PlayerClassPowerIndexStore,

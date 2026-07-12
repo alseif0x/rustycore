@@ -41,8 +41,8 @@ use wow_entities::{
     Creature, CreatureAddToWorldVehicleResetContextLikeCpp, CreatureAddonLifecycleRecordLikeCpp,
     CreatureCreateLifecycleRecord, CreatureFormationInfoLikeCpp, CreatureLifecycleStats,
     CreatureLoadFromDbLifecycleRecord, CreatureModelDimensions, CreatureSpawnLifecycleRecord,
-    CreatureTemplateLifecycleRecord, MapObjectRecord, MovementGeneratorType,
-    VehicleKitCreateInputLikeCpp,
+    CreatureTemplateLifecycleRecord, DEFAULT_CORPSE_DELAY_SECS, MapObjectRecord,
+    MovementGeneratorType, VehicleKitCreateInputLikeCpp,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -436,7 +436,11 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
         vehicle_id: (template.vehicle_id != 0).then_some(template.vehicle_id),
         vehicle_kit_create_input: None,
         add_to_world_vehicle_reset_context: None,
-        corpse_delay: 0,
+        // C++ `Creature::Creature` initializes `m_corpseDelay` to 60 seconds.
+        // The DB-backed template path has no corpse-delay column, so preserve
+        // that constructor default instead of turning every corpse into a
+        // next-tick removal.
+        corpse_delay: DEFAULT_CORPSE_DELAY_SECS,
         ignore_corpse_decay_ratio: false,
         addon,
     };
@@ -1657,35 +1661,36 @@ mod tests {
         let (display_store, model_store) = empty_display_stores();
         let model_info_store = loaded_grid_model_info_store_like_cpp();
         let mut random = TestLoadedGridCreatureRandomLikeCpp::default();
-        let (_, resolved_spawn, runtime) = build_loaded_grid_creature_inputs_from_db_like_cpp(
-            &spawn,
-            &runtime_row,
-            &db_backed_template_store(entry),
-            &CreatureDifficultyStoreLikeCpp::from_records(
-                [wow_data::CreatureDifficultyRecordLikeCpp {
-                    min_level: 19,
-                    max_level: 19,
-                    ..db_backed_difficulty_store(entry)
-                        .get_like_cpp(entry, 2)
-                        .clone()
-                }],
-                |_| 1.0,
-            ),
-            &db_backed_base_stats_store(),
-            &CreatureClassificationHealthRatesLikeCpp::default(),
-            &display_store,
-            &model_store,
-            &model_info_store,
-            None,
-            &CreatureAddonStoreLikeCpp::default(),
-            2,
-            0,
-            0,
-            false,
-            None,
-            &mut random,
-        )
-        .expect("first template model/full health fallback should resolve");
+        let (resolved_template, resolved_spawn, runtime) =
+            build_loaded_grid_creature_inputs_from_db_like_cpp(
+                &spawn,
+                &runtime_row,
+                &db_backed_template_store(entry),
+                &CreatureDifficultyStoreLikeCpp::from_records(
+                    [wow_data::CreatureDifficultyRecordLikeCpp {
+                        min_level: 19,
+                        max_level: 19,
+                        ..db_backed_difficulty_store(entry)
+                            .get_like_cpp(entry, 2)
+                            .clone()
+                    }],
+                    |_| 1.0,
+                ),
+                &db_backed_base_stats_store(),
+                &CreatureClassificationHealthRatesLikeCpp::default(),
+                &display_store,
+                &model_store,
+                &model_info_store,
+                None,
+                &CreatureAddonStoreLikeCpp::default(),
+                2,
+                0,
+                0,
+                false,
+                None,
+                &mut random,
+            )
+            .expect("first template model/full health fallback should resolve");
 
         assert_eq!(runtime.selected_display_id, 111);
         assert_eq!(
@@ -1697,6 +1702,10 @@ mod tests {
         );
         assert_eq!(runtime.stats.health, runtime.stats.max_health);
         assert_eq!(runtime.stats.mana, runtime.stats.max_mana);
+        assert_eq!(
+            resolved_template.corpse_delay, DEFAULT_CORPSE_DELAY_SECS,
+            "C++ Creature constructor keeps a 60-second corpse delay for DB spawns"
+        );
         assert_eq!(resolved_spawn.string_id.as_deref(), Some("spawn-string"));
         assert!(!resolved_spawn.add_to_map);
     }
