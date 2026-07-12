@@ -53,8 +53,8 @@ have capture-diff evidence before being called done.
 The handler accepts only Stand, Sit, Sleep, and Kneel. The bridge mutates
 canonical `UnitData::StandState`,
 removes `SpellAuraInterruptFlags::Standing` auras only when the resulting state
-is standing, and refreshes the canonical visible-aura slot and
-`ObjectAccessor` snapshot. Aura decisions use effective masks composed in C++
+is standing, and refreshes the canonical visible-aura slot and a clean
+canonical-state `ObjectAccessor` snapshot. Aura decisions use effective masks composed in C++
 load order from `SpellInterrupts.db2`, official/custom SQL rows that replace an
 exact DB2 record ID and then reindex its spell/difficulty relationship, world
 `serverside_spell` rows, and the five interrupt-mask mutations ported from
@@ -91,9 +91,14 @@ silently dropping a valid stand request and falsely reporting that a partial
 cancellation stopped the spell.
 
 The explicit visibility-registry VALUES fanout is transitional until canonical
-`Map::SendObjectUpdates` owns real per-viewer fanout. Other callers that change
-stand state (movement, chairs, death, creature addon loading) are not silently
-routed through this client-handler intent.
+`Map::SendObjectUpdates` owns real per-viewer fanout. It mirrors the delta while
+the generated-field equivalent queues the in-world Player and preserves the
+canonical StandState dirty bit; the represented canonical object-update seam
+then captures the complete Player VALUES update before consuming its masks.
+Missing session routing therefore does not lose the update or leave a stale
+unqueued delta.
+Other callers that change stand state (movement, chairs, death, creature addon
+loading) are not silently routed through this client-handler intent.
 
 Full `Spell::cancel()` cleanup remains an explicit represented-partial boundary
 and is not part of the clean golden below. The represented interruption stops

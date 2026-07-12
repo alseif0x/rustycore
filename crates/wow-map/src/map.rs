@@ -49,10 +49,10 @@ use wow_entities::{
     GameObjectUpdateOutcomeLikeCpp as EntityGameObjectUpdateOutcomeLikeCpp,
     GameObjectUpdateStatusLikeCpp as EntityGameObjectUpdateStatusLikeCpp, GoState, INVALID_HEIGHT,
     LineOfSightQuery, LootState, MAX_VISIBILITY_DISTANCE, MapBindingError, MapObjectRecord,
-    ObjectAccessorError, ObjectAccessorMapSource, ObjectNotifyFlags, Pet, Player, SceneObject,
-    TransportUpdateLikeCpp, Unit, UnitAddToWorldOutcomeLikeCpp, UnitRemoveFromWorldOutcomeLikeCpp,
-    UnitSharedVisionSetWorldObjectRequestLikeCpp, UnitValuesUpdate,
-    VehicleKitAddToWorldResetOutcomeLikeCpp, VehicleKitInstallOutcomeLikeCpp,
+    ObjectAccessorError, ObjectAccessorMapSource, ObjectNotifyFlags, Pet, Player,
+    PlayerValuesUpdate, SceneObject, TransportUpdateLikeCpp, Unit, UnitAddToWorldOutcomeLikeCpp,
+    UnitRemoveFromWorldOutcomeLikeCpp, UnitSharedVisionSetWorldObjectRequestLikeCpp,
+    UnitValuesUpdate, VehicleKitAddToWorldResetOutcomeLikeCpp, VehicleKitInstallOutcomeLikeCpp,
     VehicleKitRemoveOutcomeLikeCpp, WorldObject, WorldObjectEnvironment, WorldObjectHeightQuery,
 };
 
@@ -714,6 +714,19 @@ pub struct RepresentedDynamicObjectValuesUpdateLikeCpp {
     pub values_update: DynamicObjectValuesUpdate,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct RepresentedPlayerValuesUpdateLikeCpp {
+    pub guid: ObjectGuid,
+    pub values_update: PlayerValuesUpdate,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RepresentedUnitValuesUpdateLikeCpp {
+    pub guid: ObjectGuid,
+    pub kind: AccessorObjectKind,
+    pub values_update: UnitValuesUpdate,
+}
+
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct SendObjectUpdatesSummaryLikeCpp {
     /// Objects in canonical `Map::map_objects` with represented
@@ -737,6 +750,12 @@ pub struct SendObjectUpdatesSummaryLikeCpp {
     /// map-owned objects before the represented `BuildUpdate` clear. This is not
     /// session fanout and must not be read from live masks after clear.
     pub dynamic_object_values_updates: Vec<RepresentedDynamicObjectValuesUpdateLikeCpp>,
+    /// Complete Player/Unit/ActivePlayer VALUES snapshots captured before the
+    /// typed Player masks are cleared by represented `BuildUpdate`.
+    pub player_values_updates: Vec<RepresentedPlayerValuesUpdateLikeCpp>,
+    /// Complete Unit VALUES snapshots captured before typed Creature/Pet masks
+    /// are cleared by represented `BuildUpdate`.
+    pub unit_values_updates: Vec<RepresentedUnitValuesUpdateLikeCpp>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -4271,23 +4290,68 @@ where
             }
 
             // Represents `obj->BuildUpdate(update_players)` only up to its durable
-            // map-owned side effect: `WorldObject::BuildUpdate` snapshots VALUES
-            // for visible players before it eventually calls `ClearUpdateMask(false)`.
-            // Visible player iteration, `UpdateDataMapType`, packet construction,
-            // and direct sends remain open fanout gaps.
-            if let Some(dynamic_object) = record.dynamic_object_mut() {
-                let values_update = dynamic_object.values_update();
-                if values_update.has_data() {
-                    summary.dynamic_object_values_updates.push(
-                        RepresentedDynamicObjectValuesUpdateLikeCpp {
-                            guid,
-                            values_update,
-                        },
-                    );
+            // map-owned side effect: snapshot every represented typed VALUES mask
+            // before eventually calling `ClearUpdateMask(false)`. Visible-player
+            // iteration, `UpdateDataMapType`, packet construction, and direct sends
+            // remain open fanout gaps.
+            match record.kind() {
+                AccessorObjectKind::Player => {
+                    let player = record.player_mut().expect("typed Player record");
+                    let values_update = player.values_update(true);
+                    if values_update.has_data() {
+                        summary
+                            .player_values_updates
+                            .push(RepresentedPlayerValuesUpdateLikeCpp {
+                                guid,
+                                values_update,
+                            });
+                    }
+                    player.clear_data_changes();
                 }
-                dynamic_object.clear_dynamic_object_data_changes();
+                AccessorObjectKind::Creature => {
+                    let creature = record.creature_mut().expect("typed Creature record");
+                    let values_update = creature.unit().values_update();
+                    if values_update.has_data() {
+                        summary
+                            .unit_values_updates
+                            .push(RepresentedUnitValuesUpdateLikeCpp {
+                                guid,
+                                kind: AccessorObjectKind::Creature,
+                                values_update,
+                            });
+                    }
+                    creature.clear_data_changes();
+                }
+                AccessorObjectKind::Pet => {
+                    let pet = record.pet_mut().expect("typed Pet record");
+                    let values_update = pet.creature().unit().values_update();
+                    if values_update.has_data() {
+                        summary
+                            .unit_values_updates
+                            .push(RepresentedUnitValuesUpdateLikeCpp {
+                                guid,
+                                kind: AccessorObjectKind::Pet,
+                                values_update,
+                            });
+                    }
+                    pet.creature_mut().clear_data_changes();
+                }
+                _ => {
+                    if let Some(dynamic_object) = record.dynamic_object_mut() {
+                        let values_update = dynamic_object.values_update();
+                        if values_update.has_data() {
+                            summary.dynamic_object_values_updates.push(
+                                RepresentedDynamicObjectValuesUpdateLikeCpp {
+                                    guid,
+                                    values_update,
+                                },
+                            );
+                        }
+                        dynamic_object.clear_dynamic_object_data_changes();
+                    }
+                    record.object_mut().object_mut().clear_update_mask(false);
+                }
             }
-            record.object_mut().object_mut().clear_update_mask(false);
             summary.processed += 1;
             summary.cleared_update_masks += 1;
             summary.fanout_not_represented += 1;
@@ -14912,14 +14976,16 @@ mod tests {
     use crate::pool::{PoolGroupLikeCpp, PoolTemplateDataLikeCpp};
     use std::cell::RefCell;
     use std::collections::BTreeMap;
-    use wow_constants::{DeathState, TypeId, TypeMask};
+    use wow_constants::{DeathState, TypeId, TypeMask, UnitStandStateType};
     use wow_core::{ObjectGuid, Position, guid::HighGuid};
     use wow_entities::{
-        AccessorObjectRef, AppliedAuraRef, Creature, CreatureAddToWorldVehicleResetContextLikeCpp,
-        CreatureFormationInfoLikeCpp, GameObject, GameObjectLootSource, GameObjectOwnedLoot,
-        GooberUseSource, ObjectAccessor, ObjectNotifyFlags, OwnedAuraRef, Player,
-        SPELL_AURA_INTERRUPT_FLAG_ENTER_WORLD_LIKE_CPP, Transport, VehicleAccessory,
-        VehicleSeatAddon, VehicleSeatInfo, VehicleSpellImmunity, VehicleSpellImmunityKind,
+        ACTIVE_PLAYER_DATA_COINAGE_BIT, AccessorObjectRef, AppliedAuraRef, Creature,
+        CreatureAddToWorldVehicleResetContextLikeCpp, CreatureFormationInfoLikeCpp, GameObject,
+        GameObjectLootSource, GameObjectOwnedLoot, GooberUseSource, ObjectAccessor,
+        ObjectNotifyFlags, OwnedAuraRef, PLAYER_DATA_INEBRIATION_BIT, Player,
+        SPELL_AURA_INTERRUPT_FLAG_ENTER_WORLD_LIKE_CPP, Transport, UNIT_DATA_STAND_STATE_BIT,
+        VehicleAccessory, VehicleSeatAddon, VehicleSeatInfo, VehicleSpellImmunity,
+        VehicleSpellImmunityKind,
     };
 
     const GO_FLAG_MAP_OBJECT: u32 = 0x0010_0000;
@@ -27243,11 +27309,93 @@ mod tests {
                 missing_or_stale: 0,
                 fanout_not_represented: 1,
                 dynamic_object_values_updates: Vec::new(),
+                player_values_updates: Vec::new(),
+                unit_values_updates: Vec::new(),
             }
         );
         let after = map.map_object(game_object_guid).unwrap().object();
         assert!(!after.is_object_updated());
         assert!(after.changed_fields().is_empty());
+    }
+
+    #[test]
+    fn send_object_updates_consumes_queued_player_stand_state_like_cpp() {
+        let mut map = test_map();
+        let player_guid = ObjectGuid::create_player(1, 4_450_151);
+        let mut player = Player::new(Some(7), false);
+        player
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .create(player_guid);
+        player.unit_mut().world_mut().set_map(571, 7).unwrap();
+        player.unit_mut().world_mut().object_mut().add_to_world();
+        player.clear_data_changes();
+
+        player.set_inebriation_like_cpp(7);
+        player.set_money(42);
+        player
+            .unit_mut()
+            .set_stand_state_like_cpp(UnitStandStateType::Sit);
+        assert!(player.unit().world().object().is_object_updated());
+        assert!(
+            player
+                .unit()
+                .unit_data_changes_mask()
+                .is_set(UNIT_DATA_STAND_STATE_BIT)
+        );
+        map.insert_map_object_record(MapObjectRecord::new_player(player).unwrap())
+            .unwrap();
+
+        let summary = map.send_object_updates_like_cpp();
+
+        assert_eq!(summary.queued_before, 1);
+        assert_eq!(summary.processed, 1);
+        assert_eq!(summary.cleared_update_masks, 1);
+        assert_eq!(summary.player_values_updates.len(), 1);
+        let captured = &summary.player_values_updates[0];
+        assert_eq!(captured.guid, player_guid);
+        assert!(
+            captured
+                .values_update
+                .unit_data
+                .as_ref()
+                .is_some_and(|data| data.mask.is_set(UNIT_DATA_STAND_STATE_BIT))
+        );
+        assert!(
+            captured
+                .values_update
+                .player_data
+                .as_ref()
+                .is_some_and(|data| data.mask.is_set(PLAYER_DATA_INEBRIATION_BIT)),
+            "an unrelated PlayerData delta is captured before masks are cleared"
+        );
+        assert!(
+            captured
+                .values_update
+                .active_player_data
+                .as_ref()
+                .is_some_and(|data| data.mask.is_set(ACTIVE_PLAYER_DATA_COINAGE_BIT)),
+            "an unrelated ActivePlayerData delta is captured before masks are cleared"
+        );
+        let player = map
+            .map_object_record(player_guid)
+            .and_then(MapObjectRecord::player)
+            .expect("typed Player remains on map");
+        assert_eq!(
+            player.unit().stand_state_like_cpp(),
+            UnitStandStateType::Sit
+        );
+        assert!(!player.unit().world().object().is_object_updated());
+        assert!(!player.player_data_changes_mask().is_any_set());
+        assert!(!player.active_player_data_changes_mask().is_any_set());
+        assert!(
+            !player
+                .unit()
+                .unit_data_changes_mask()
+                .is_set(UNIT_DATA_STAND_STATE_BIT),
+            "canonical SendObjectUpdates consumes the Player UnitData delta"
+        );
     }
 
     #[test]

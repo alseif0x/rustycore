@@ -1767,18 +1767,11 @@ impl Unit {
             // block-parent and field bits. The ordinary scalar helper only
             // covers block zero, so preserve the generated mask explicitly.
             self.mark_unit_data_nested(UNIT_DATA_STAND_STATE_PARENT_BIT, UNIT_DATA_STAND_STATE_BIT);
-        }
-    }
-
-    /// Consume only the StandState bits after the transitional explicit
-    /// session fanout. Other pending UnitData fields in block 1 are preserved.
-    pub fn clear_stand_state_data_change_like_cpp(&mut self) {
-        self.unit_data_changes.reset(UNIT_DATA_STAND_STATE_BIT);
-        let parent_block = UNIT_DATA_STAND_STATE_PARENT_BIT / u32::BITS as usize;
-        let parent_bit = 1 << (UNIT_DATA_STAND_STATE_PARENT_BIT % u32::BITS as usize);
-        if self.unit_data_changes.get_block(parent_block) == parent_bit {
-            self.unit_data_changes
-                .reset(UNIT_DATA_STAND_STATE_PARENT_BIT);
+            // C++ UpdateField assignment also queues the owning Object for
+            // Map::SendObjectUpdates when it is in world.
+            self.world_mut()
+                .object_mut()
+                .add_to_object_update_if_needed();
         }
     }
 
@@ -3643,6 +3636,7 @@ mod tests {
         assert_eq!(unit.stand_state_like_cpp(), UnitStandStateType::Stand);
         assert!(unit.is_stand_state_like_cpp());
 
+        unit.world_mut().object_mut().add_to_world();
         unit.clear_unit_data_changes();
         unit.set_stand_state_like_cpp(UnitStandStateType::SitChair);
         assert_eq!(unit.stand_state_like_cpp(), UnitStandStateType::SitChair);
@@ -3660,22 +3654,13 @@ mod tests {
             !unit.unit_data_changes_mask().is_set(UNIT_DATA_PARENT_BIT),
             "StandState is in block parent 32, not block parent 0"
         );
-
-        unit.unit_data_changes.set(UNIT_DATA_FLAGS_BIT);
-        unit.clear_stand_state_data_change_like_cpp();
         assert!(
-            unit.unit_data_changes_mask()
-                .is_set(UNIT_DATA_STAND_STATE_PARENT_BIT),
-            "consuming StandState keeps the shared block parent for other fields"
-        );
-        assert!(unit.unit_data_changes_mask().is_set(UNIT_DATA_FLAGS_BIT));
-        assert!(
-            !unit
-                .unit_data_changes_mask()
-                .is_set(UNIT_DATA_STAND_STATE_BIT)
+            unit.world().object().is_object_updated(),
+            "C++ UpdateField assignment queues an in-world Unit for object updates"
         );
 
         unit.clear_unit_data_changes();
+        unit.world_mut().object_mut().clear_update_mask(false);
 
         unit.set_stand_state_like_cpp(UnitStandStateType::Sleep);
         assert!(!unit.is_stand_state_like_cpp());

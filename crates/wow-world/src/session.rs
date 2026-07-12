@@ -37769,17 +37769,18 @@ impl WorldSession {
             } else {
                 None
             };
-            if previous != state {
-                // This bridge owns the temporary explicit VALUES fanout;
-                // do not leave StandState dirty for unrelated later
-                // player-value snapshots.
-                unit.clear_stand_state_data_change_like_cpp();
-            }
             let canonical_snapshot = (publish_canonical_snapshot
                 && (previous != state
                     || !removed_auras.is_empty()
                     || !interrupted_spell_ids.is_empty()))
-            .then(|| player.clone());
+            .then(|| {
+                // ObjectAccessor is a state snapshot, not the owner of the
+                // canonical Map update queue. Preserve the canonical dirty
+                // masks on `player` while publishing a clean clone.
+                let mut snapshot = player.clone();
+                snapshot.clear_data_changes();
+                snapshot
+            });
             (
                 previous != state,
                 removed_auras,
@@ -37876,7 +37877,9 @@ impl WorldSession {
 
         // `UnitData::StandState` is `UpdateField<uint8, 32, 56>` in the C++
         // generated fields. Until map-owned SendObjectUpdates has real fanout,
-        // consume this one live delta through the existing visibility registry.
+        // mirror this one live delta through the existing visibility registry.
+        // Keep the canonical dirty bit set: only canonical object-update
+        // processing may consume it, including when session routing is absent.
         if canonical_field_changed {
             let mut values = wow_packet::packets::update::UnitDataValuesDeltaUpdate::default();
             values.unit_data_mask[1] = (1 << (32 - 32)) | (1 << (56 - 32));
@@ -62975,6 +62978,42 @@ mod tests {
                         drain_server_opcodes(&source_send_rx),
                         vec![ServerOpcodes::StandStateUpdate, ServerOpcodes::UpdateObject,]
                     );
+                    source
+                        .mutate_canonical_player_like_cpp(|player| {
+                            assert!(
+                                player
+                                    .unit()
+                                    .unit_data_changes_mask()
+                                    .is_set(wow_entities::UNIT_DATA_STAND_STATE_BIT),
+                                "without a visibility registry, the canonical delta remains pending"
+                            );
+                            assert!(
+                                player.unit().world().object().is_object_updated(),
+                                "the in-world Player is queued for canonical object updates"
+                            );
+                        })
+                        .unwrap();
+                    let canonical_send_summary = canonical
+                        .lock()
+                        .unwrap()
+                        .find_map_mut(571, 0)
+                        .expect("canonical test map")
+                        .map_mut()
+                        .send_object_updates_like_cpp();
+                    assert_eq!(canonical_send_summary.queued_before, 1);
+                    assert_eq!(canonical_send_summary.processed, 1);
+                    source
+                        .mutate_canonical_player_like_cpp(|player| {
+                            assert!(
+                                !player
+                                    .unit()
+                                    .unit_data_changes_mask()
+                                    .is_set(wow_entities::UNIT_DATA_STAND_STATE_BIT),
+                                "canonical SendObjectUpdates consumes the queued StandState delta"
+                            );
+                            assert!(!player.unit().world().object().is_object_updated());
+                        })
+                        .unwrap();
                     {
                         let accessor = accessor.read();
                         let player = accessor
@@ -63019,6 +63058,14 @@ mod tests {
                                 .auras
                                 .has_owned(canonical_snapshot_standing_owned)
                         );
+                        assert!(
+                            !player
+                                .unit()
+                                .unit_data_changes_mask()
+                                .is_set(wow_entities::UNIT_DATA_STAND_STATE_BIT),
+                            "ObjectAccessor snapshots do not own canonical dirty masks"
+                        );
+                        assert!(!player.unit().world().object().is_object_updated());
                     }
                     source.represented_live_applications_like_cpp.clear();
 
@@ -63153,11 +63200,11 @@ mod tests {
                                     .has_owned(canonical_snapshot_standing_owned)
                             );
                             assert!(
-                                !player
+                                player
                                     .unit()
                                     .unit_data_changes_mask()
                                     .is_set(wow_entities::UNIT_DATA_STAND_STATE_BIT),
-                                "the explicit bridge fanout consumes its StandState delta"
+                                "the transitional fanout must not consume the canonical StandState delta"
                             );
                         })
                         .unwrap();
