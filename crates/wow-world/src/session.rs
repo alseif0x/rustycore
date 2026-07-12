@@ -20711,6 +20711,52 @@ impl WorldSession {
         if item.is_broken() {
             return LoadedEquippedItemEnchantmentsOutcomeLikeCpp::default();
         }
+        let inventory_type = self
+            .item_storage_template(item.object().entry())
+            .map(|template| template.inventory_type);
+        let attack_type = match item.slot() {
+            EQUIPMENT_SLOT_MAINHAND
+                if matches!(
+                    inventory_type,
+                    Some(InventoryType::Ranged | InventoryType::RangedRight)
+                ) =>
+            {
+                WeaponAttackType::RangedAttack
+            }
+            EQUIPMENT_SLOT_MAINHAND => WeaponAttackType::BaseAttack,
+            EQUIPMENT_SLOT_OFFHAND => WeaponAttackType::OffAttack,
+            _ => WeaponAttackType::Max,
+        };
+        let can_use_attack_type = match attack_type {
+            WeaponAttackType::BaseAttack => self
+                .canonical_player_snapshot_like_cpp(|player| {
+                    !player
+                        .unit()
+                        .unit_flags_like_cpp()
+                        .contains(UnitFlags::DISARMED)
+                })
+                .unwrap_or(false),
+            WeaponAttackType::OffAttack => self
+                .canonical_player_snapshot_like_cpp(|player| {
+                    !player
+                        .unit()
+                        .unit_flags2_like_cpp()
+                        .contains(UnitFlags2::DISARM_OFFHAND)
+                })
+                .unwrap_or(false),
+            WeaponAttackType::RangedAttack => self
+                .canonical_player_snapshot_like_cpp(|player| {
+                    !player
+                        .unit()
+                        .unit_flags2_like_cpp()
+                        .contains(UnitFlags2::DISARM_RANGED)
+                })
+                .unwrap_or(false),
+            WeaponAttackType::Max => true,
+        };
+        if !can_use_attack_type {
+            return LoadedEquippedItemEnchantmentsOutcomeLikeCpp::default();
+        }
         let slots = item
             .data()
             .enchantments
@@ -120215,6 +120261,49 @@ mod tests {
         assert!(outcome.unrepresented_effect_actions.is_empty());
         session.send_loaded_equipped_item_enchantment_updates_like_cpp(&outcome);
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn loaded_disarmed_mainhand_skips_enchantment_replay_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 90_528);
+        let player_position = Position::new(1.0, 2.0, 3.0, 0.0);
+        let item_guid = ObjectGuid::create_item(1, 90_529);
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player
+                    .unit_mut()
+                    .set_unit_flags_like_cpp(UnitFlags::DISARMED);
+            })
+            .unwrap();
+
+        let mut item = session.make_inventory_item_object(
+            item_guid,
+            704,
+            player_guid,
+            1,
+            1,
+            ItemContext::None,
+            EQUIPMENT_SLOT_MAINHAND,
+        );
+        item.set_enchantment(EnchantmentSlot::EnhancementTemporary, 903, 6_000, 0);
+        session.insert_inventory_item_object(item);
+
+        let outcome = session.apply_loaded_equipped_item_enchantments_like_cpp(item_guid);
+
+        assert!(outcome.plans.is_empty());
+        assert!(outcome.duration_updates.is_empty());
+        session.send_loaded_equipped_item_enchantment_updates_like_cpp(&outcome);
+        assert!(send_rx.try_recv().is_err());
+        assert_eq!(
+            session.canonical_player_snapshot_like_cpp(|player| player.enchant_durations().len()),
+            Some(0)
+        );
     }
 
     #[test]

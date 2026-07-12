@@ -186,7 +186,10 @@ fn apply_loaded_item_instance_fields_like_cpp(
     random_properties_id: i32,
     random_properties_seed: i32,
 ) {
-    if random_properties_id != 0 {
+    if random_properties_id > 0 {
+        item.set_random_properties_id(random_properties_id);
+        item.set_property_seed(0);
+    } else if random_properties_id < 0 {
         item.set_random_properties_id(random_properties_id);
         item.set_property_seed(random_properties_seed);
     }
@@ -5016,7 +5019,11 @@ impl WorldSession {
                             let item_enchantment_values =
                                 loaded_item_enchantments_like_cpp(&item_enchantments);
                             let random_properties_id = eq_result.try_read::<i32>(9).unwrap_or(0);
-                            let random_properties_seed = eq_result.try_read::<i32>(10).unwrap_or(0);
+                            let random_properties_seed = if random_properties_id < 0 {
+                                eq_result.try_read::<i32>(10).unwrap_or(0)
+                            } else {
+                                0
+                            };
                             let item_create_enchantments =
                                 loaded_item_effective_enchantments_like_cpp(
                                     item_enchantment_values.as_ref(),
@@ -5200,8 +5207,11 @@ impl WorldSession {
                                     loaded_item_enchantments_like_cpp(&item_enchantments);
                                 let random_properties_id =
                                     bag_result.try_read::<i32>(10).unwrap_or(0);
-                                let random_properties_seed =
-                                    bag_result.try_read::<i32>(11).unwrap_or(0);
+                                let random_properties_seed = if random_properties_id < 0 {
+                                    bag_result.try_read::<i32>(11).unwrap_or(0)
+                                } else {
+                                    0
+                                };
                                 let item_create_enchantments =
                                     loaded_item_effective_enchantments_like_cpp(
                                         item_enchantment_values.as_ref(),
@@ -15207,6 +15217,20 @@ mod tests {
             item.data().enchantments[EnchantmentSlot::Property4 as usize].id,
             1003
         );
+        assert_eq!(item.data().property_seed, 0);
+    }
+
+    #[test]
+    fn loaded_positive_random_property_ignores_stale_seed_like_cpp() {
+        let mut item = wow_entities::Item::default();
+        let effective_enchantments =
+            [wow_packet::packets::update::ItemEnchantmentValuesUpdate::default();
+                wow_entities::MAX_ENCHANTMENT_SLOT];
+
+        apply_loaded_item_instance_fields_like_cpp(&mut item, &effective_enchantments, 77, 456);
+
+        assert_eq!(item.data().random_properties_id, 77);
+        assert_eq!(item.data().property_seed, 0);
     }
 
     #[test]
