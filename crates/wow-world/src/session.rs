@@ -20703,23 +20703,26 @@ impl WorldSession {
         &mut self,
         item_guid: ObjectGuid,
     ) -> LoadedEquippedItemEnchantmentsOutcomeLikeCpp {
-        let slots = self
-            .inventory_item_objects_like_cpp()
-            .get(&item_guid)
-            .map(|item| {
-                item.data()
-                    .enchantments
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(slot_index, enchantment)| {
-                        if enchantment.id == 0 {
-                            return None;
-                        }
-                        <EnchantmentSlot as num_traits::FromPrimitive>::from_usize(slot_index)
-                    })
-                    .collect::<Vec<_>>()
+        let Some(item) = self.inventory_item_objects_like_cpp().get(&item_guid) else {
+            return LoadedEquippedItemEnchantmentsOutcomeLikeCpp::default();
+        };
+        // C++ Player::_ApplyAllItemMods skips broken items before calling
+        // ApplyEnchantment, including its duration bookkeeping.
+        if item.is_broken() {
+            return LoadedEquippedItemEnchantmentsOutcomeLikeCpp::default();
+        }
+        let slots = item
+            .data()
+            .enchantments
+            .iter()
+            .enumerate()
+            .filter_map(|(slot_index, enchantment)| {
+                if enchantment.id == 0 {
+                    return None;
+                }
+                <EnchantmentSlot as num_traits::FromPrimitive>::from_usize(slot_index)
             })
-            .unwrap_or_default();
+            .collect::<Vec<_>>();
 
         let mut outcome = LoadedEquippedItemEnchantmentsOutcomeLikeCpp::default();
         for slot in slots {
@@ -120179,6 +120182,39 @@ mod tests {
                     == Some(ServerOpcodes::UpdateObject)),
             "permanent enchant visual update is emitted after login CREATE"
         );
+    }
+
+    #[test]
+    fn loaded_broken_equipped_item_skips_enchantment_replay_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 90_526);
+        let item_guid = ObjectGuid::create_item(1, 90_527);
+        session.set_player_guid(Some(player_guid));
+
+        let mut item = session.make_inventory_item_object(
+            item_guid,
+            703,
+            player_guid,
+            1,
+            0,
+            ItemContext::None,
+            EQUIPMENT_SLOT_MAINHAND,
+        );
+        item.set_max_durability(100);
+        item.set_enchantment(EnchantmentSlot::EnhancementTemporary, 903, 6_000, 0);
+        assert!(item.is_broken());
+        session.insert_inventory_item_object(item);
+
+        let outcome = session.apply_loaded_equipped_item_enchantments_like_cpp(item_guid);
+
+        assert!(outcome.plans.is_empty());
+        assert!(outcome.duration_updates.is_empty());
+        assert!(!outcome.send_stat_update);
+        assert!(outcome.visible_item_changes.is_empty());
+        assert!(outcome.effect_actions.is_empty());
+        assert!(outcome.unrepresented_effect_actions.is_empty());
+        session.send_loaded_equipped_item_enchantment_updates_like_cpp(&outcome);
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[test]
