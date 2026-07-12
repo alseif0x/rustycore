@@ -34,7 +34,18 @@ job is to convert represented→live for the playable path, then for everything.
 
 Initial bridge convention: [represented-live-bridge.md](represented-live-bridge.md) documents
 the handler → represented intent → live application boundary. The first converted example is
-accepted-duel countdown state.
+client stand-state change because it has one canonical owner and a deterministic, capturable
+realm response. Applied outcomes emit bounded telemetry only after the canonical mutation
+succeeds; client-controlled intent history is retained only in tests.
+
+Live evidence (2026-07-12): the stand-state bot passed a Sit request with distinct realm and
+instance sockets, and the bounded C++/Rust capture matched four packets exactly:
+`CMSG_STAND_STATE_CHANGE 0x318C` on connection 1, `SMSG_STAND_STATE_UPDATE 0x271C` on
+connection 0, `SMSG_UPDATE_OBJECT 0x27CB` on connection 1, and the `CMSG_PING 0x3768`
+fence on connection 1. Strict capture-diff reported CLEAN after symmetrically excluding only
+ambient `s2c:0x2DD4` creature movement. The slice remains represented-partial for the
+documented full `Spell::cancel`, original cast-difficulty metadata, hotfix/server-side spell,
+cross-Unit aura-application lifecycle, and canonical `Map::SendObjectUpdates` ownership gaps.
 
 ---
 

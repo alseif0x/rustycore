@@ -9,7 +9,9 @@
 //! - **order** — a moved packet falls out of the common subsequence and shows up
 //!   as a `MissingInRust` + `ExtraInRust` pair of the same opcode;
 //! - **value** — an aligned (matched) packet whose body bytes differ
-//!   (`BodyMismatch`).
+//!   (`BodyMismatch`);
+//! - **routing** — an aligned packet travelled over a different realm/instance
+//!   connection (`ConnectionMismatch`).
 
 use serde::{Deserialize, Serialize};
 
@@ -40,6 +42,26 @@ pub enum DivergenceKind {
     ExtraInRust,
     /// Aligned packet whose body bytes differ (value divergence).
     BodyMismatch,
+    /// Aligned packet whose realm/instance connection differs (routing
+    /// divergence).
+    ConnectionMismatch,
+}
+
+/// Connection routing comparison for two opcode-aligned packets.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ConnectionDiff {
+    /// C++ `ConnectionId` (`0` realm, `1` instance).
+    pub cpp_connection_id: u32,
+    /// RustyCore connection id (`0` realm, `1` instance).
+    pub rust_connection_id: u32,
+}
+
+impl ConnectionDiff {
+    /// True when both packets travelled over the same connection type.
+    #[must_use]
+    pub fn is_identical(&self) -> bool {
+        self.cpp_connection_id == self.rust_connection_id
+    }
 }
 
 /// Byte-level comparison of two matched packet bodies.
@@ -95,6 +117,9 @@ pub struct AlignedOp {
     pub rust_index: Option<usize>,
     /// Body comparison, present only on `Match`.
     pub body: Option<BodyDiff>,
+    /// Realm/instance routing comparison, present only on `Match`.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub connection: Option<ConnectionDiff>,
 }
 
 /// Summary tallies.
@@ -102,6 +127,8 @@ pub struct AlignedOp {
 pub struct DiffCounts {
     pub matched: usize,
     pub body_mismatches: usize,
+    #[serde(default)]
+    pub connection_mismatches: usize,
     pub missing_in_rust: usize,
     pub extra_in_rust: usize,
 }
@@ -133,6 +160,10 @@ pub struct DivergenceSignature {
     pub rust_body_len: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub first_diff_offset: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub cpp_connection_id: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub rust_connection_id: Option<u32>,
 }
 
 impl DiffReport {
@@ -152,10 +183,18 @@ impl DiffReport {
                 match step {
                     Step::Match(i, j) => {
                         let body = BodyDiff::compute(&cpp_pkts[i].body, &rust_pkts[j].body);
-                        if body.is_identical() {
-                            counts.matched += 1;
-                        } else {
+                        let connection = ConnectionDiff {
+                            cpp_connection_id: cpp_pkts[i].connection_id,
+                            rust_connection_id: rust_pkts[j].connection_id,
+                        };
+                        if !body.is_identical() {
                             counts.body_mismatches += 1;
+                        }
+                        if !connection.is_identical() {
+                            counts.connection_mismatches += 1;
+                        }
+                        if body.is_identical() && connection.is_identical() {
+                            counts.matched += 1;
                         }
                         ops.push(AlignedOp {
                             kind: OpKind::Match,
@@ -165,6 +204,7 @@ impl DiffReport {
                             cpp_index: Some(i),
                             rust_index: Some(j),
                             body: Some(body),
+                            connection: Some(connection),
                         });
                     }
                     Step::Del(i) => {
@@ -192,6 +232,7 @@ impl DiffReport {
     #[must_use]
     pub fn is_clean(&self) -> bool {
         self.counts.body_mismatches == 0
+            && self.counts.connection_mismatches == 0
             && self.counts.missing_in_rust == 0
             && self.counts.extra_in_rust == 0
     }
@@ -210,6 +251,8 @@ impl DiffReport {
                     cpp_body_len: None,
                     rust_body_len: None,
                     first_diff_offset: None,
+                    cpp_connection_id: None,
+                    rust_connection_id: None,
                 }),
                 OpKind::ExtraInRust => sigs.push(DivergenceSignature {
                     kind: DivergenceKind::ExtraInRust,
@@ -219,8 +262,25 @@ impl DiffReport {
                     cpp_body_len: None,
                     rust_body_len: None,
                     first_diff_offset: None,
+                    cpp_connection_id: None,
+                    rust_connection_id: None,
                 }),
                 OpKind::Match => {
+                    if let Some(connection) = &op.connection {
+                        if !connection.is_identical() {
+                            sigs.push(DivergenceSignature {
+                                kind: DivergenceKind::ConnectionMismatch,
+                                direction: op.direction,
+                                opcode: format!("0x{:04X}", op.opcode),
+                                name: op.name.clone(),
+                                cpp_body_len: None,
+                                rust_body_len: None,
+                                first_diff_offset: None,
+                                cpp_connection_id: Some(connection.cpp_connection_id),
+                                rust_connection_id: Some(connection.rust_connection_id),
+                            });
+                        }
+                    }
                     if let Some(body) = &op.body {
                         if !body.is_identical() {
                             sigs.push(DivergenceSignature {
@@ -231,6 +291,8 @@ impl DiffReport {
                                 cpp_body_len: Some(body.cpp_len),
                                 rust_body_len: Some(body.rust_len),
                                 first_diff_offset: body.first_diff_offset,
+                                cpp_connection_id: None,
+                                rust_connection_id: None,
                             });
                         }
                     }
@@ -255,6 +317,19 @@ impl DiffReport {
         for op in &self.ops {
             match op.kind {
                 OpKind::Match => {
+                    if let Some(connection) = &op.connection {
+                        if !connection.is_identical() {
+                            let _ = writeln!(
+                                s,
+                                "~ ROUTE  [{}] 0x{:04X} {} connection cpp={} rust={}",
+                                op.direction,
+                                op.opcode,
+                                op.name,
+                                connection.cpp_connection_id,
+                                connection.rust_connection_id,
+                            );
+                        }
+                    }
                     if let Some(body) = &op.body {
                         if !body.is_identical() {
                             let _ = writeln!(
@@ -300,8 +375,12 @@ impl DiffReport {
         let _ = writeln!(s);
         let _ = writeln!(
             s,
-            "summary: {} matched, {} value-diffs, {} missing-in-rust, {} extra-in-rust",
-            c.matched, c.body_mismatches, c.missing_in_rust, c.extra_in_rust
+            "summary: {} matched, {} value-diffs, {} routing-diffs, {} missing-in-rust, {} extra-in-rust",
+            c.matched,
+            c.body_mismatches,
+            c.connection_mismatches,
+            c.missing_in_rust,
+            c.extra_in_rust
         );
         let _ = writeln!(
             s,
@@ -373,6 +452,7 @@ fn missing(dir: Direction, pkt: &CapturedPacket, cpp_index: usize) -> AlignedOp 
         cpp_index: Some(cpp_index),
         rust_index: None,
         body: None,
+        connection: None,
     }
 }
 
@@ -385,6 +465,7 @@ fn extra(dir: Direction, pkt: &CapturedPacket, rust_index: usize) -> AlignedOp {
         cpp_index: None,
         rust_index: Some(rust_index),
         body: None,
+        connection: None,
     }
 }
 

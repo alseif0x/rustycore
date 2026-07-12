@@ -2318,11 +2318,53 @@ pub(crate) struct RepresentedDuelAcceptedLikeCpp {
     pub countdown_ms: u32,
 }
 
-/// Validated represented intent whose live side effect is applied through the
-/// represented->live bridge instead of directly inside the packet handler.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Validated session-owned intent whose side effects cross the represented to
+/// live boundary. Variants deliberately own their payload so future intents
+/// may contain non-`Copy` data.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum RepresentedLiveIntentLikeCpp {
-    DuelAccepted(RepresentedDuelAcceptedLikeCpp),
+    StandStateChanged(RepresentedStandStateChangedLikeCpp),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RepresentedStandStateChangedLikeCpp {
+    pub state: UnitStandStateType,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RepresentedStandChannelCancellationBoundary {
+    Interrupted {
+        spell_id: u32,
+        canonical_spells_interrupted: usize,
+        session_cast_interrupted: bool,
+    },
+    UnknownInterruptMetadata {
+        spell_id: u32,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RepresentedLiveIntentAppliedLikeCpp {
+    StandStateChanged {
+        canonical_field_changed: bool,
+        canonical_auras_removed: usize,
+        represented_auras_removed: usize,
+        channel_cancellation_boundary: Option<RepresentedStandChannelCancellationBoundary>,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RepresentedLiveIntentApplyOutcomeLikeCpp {
+    Applied(RepresentedLiveIntentAppliedLikeCpp),
+    RejectedMissingPlayer,
+    RejectedMissingCanonicalPlayer,
+}
+
+#[cfg(test)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RepresentedLiveApplicationLikeCpp {
+    pub intent: RepresentedLiveIntentLikeCpp,
+    pub outcome: RepresentedLiveIntentApplyOutcomeLikeCpp,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -4402,6 +4444,11 @@ pub struct WorldSession {
     under_map_damage_events_like_cpp: Vec<MovementUnderMapDamageEvent>,
     /// Represented stand state used by movement side effects until UnitData owns it.
     player_stand_state_like_cpp: UnitStandStateType,
+    /// Test-only successful represented->live evidence. Production emits
+    /// bounded structured telemetry instead of retaining client-controlled
+    /// history for the lifetime of the session.
+    #[cfg(test)]
+    represented_live_applications_like_cpp: Vec<RepresentedLiveApplicationLikeCpp>,
     /// Represented `UnitData::EmoteState`, used to clear stateful emotes on movement like C++.
     player_emote_state_like_cpp: u32,
     /// Count of C++ temporary pet unsummon side effects requested by movement.
@@ -6166,6 +6213,8 @@ impl WorldSession {
             player_out_of_bounds_like_cpp: false,
             under_map_damage_events_like_cpp: Vec::new(),
             player_stand_state_like_cpp: UnitStandStateType::Stand,
+            #[cfg(test)]
+            represented_live_applications_like_cpp: Vec::new(),
             player_emote_state_like_cpp: 0,
             temporary_pet_unsummon_requests_like_cpp: 0,
             movement_jump_proc_requests_like_cpp: 0,
@@ -25014,6 +25063,9 @@ impl WorldSession {
     }
 
     pub(crate) fn current_map_difficulty_id_like_cpp(&self) -> u8 {
+        if let Some(difficulty_id) = self.current_canonical_player_map_difficulty_id_like_cpp() {
+            return difficulty_id;
+        }
         let map_id = u32::from(self.player_map_id_like_cpp());
         self.canonical_map_manager
             .as_ref()
@@ -25024,6 +25076,24 @@ impl WorldSession {
                     .map(|managed| managed.map().spawn_mode())
             })
             .unwrap_or(0)
+    }
+
+    /// C++ `Map::GetDifficultyID` for the map that actually owns this Player.
+    ///
+    /// The same map id can have multiple live instances. Do not infer spell
+    /// metadata from the instance-zero map when the canonical player belongs
+    /// to a difficulty-specific `ManagedMap`.
+    pub(crate) fn current_canonical_player_map_difficulty_id_like_cpp(&self) -> Option<u8> {
+        let player_guid = self.player_guid()?;
+        let map_id = u32::from(self.player_map_id_like_cpp());
+        let manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
+        let mut difficulty_id = None;
+        manager.do_for_all_maps_with_map_id(map_id, |managed| {
+            if difficulty_id.is_none() && managed.map().get_typed_player(player_guid).is_some() {
+                difficulty_id = Some(managed.difficulty());
+            }
+        });
+        difficulty_id
     }
 
     fn represented_championing_faction_for_kill_like_cpp(&self) -> Option<u32> {
@@ -26996,10 +27066,17 @@ impl WorldSession {
     }
 
     pub(crate) fn sync_object_accessor_player(&self) {
-        let Some(accessor) = &self.object_accessor else {
+        let Some(player) = self.canonical_player_entity_snapshot_like_cpp() else {
             return;
         };
-        let Some(player) = self.canonical_player_entity_snapshot_like_cpp() else {
+        self.sync_object_accessor_player_entity_like_cpp(player);
+    }
+
+    /// Publish a caller-provided canonical `Player` snapshot into
+    /// `ObjectAccessor` while preserving the existing session-owned inventory
+    /// and item snapshot wiring.
+    fn sync_object_accessor_player_entity_like_cpp(&self, player: Player) {
+        let Some(accessor) = &self.object_accessor else {
             return;
         };
         let Some(name) = self.player_name_like_cpp() else {
@@ -37519,6 +37596,318 @@ impl WorldSession {
         self.player_stand_state_like_cpp = state;
     }
 
+    /// Session-owned represented->live boundary.
+    ///
+    /// Packet handlers construct a typed intent only after completing their
+    /// C++ validation. The bridge applies against the authoritative live owner
+    /// first and records evidence only when that application succeeds.
+    pub(crate) fn apply_represented_live_intent_like_cpp(
+        &mut self,
+        intent: RepresentedLiveIntentLikeCpp,
+    ) -> RepresentedLiveIntentApplyOutcomeLikeCpp {
+        let outcome = match &intent {
+            RepresentedLiveIntentLikeCpp::StandStateChanged(change) => {
+                self.apply_represented_stand_state_changed_live_like_cpp(change)
+            }
+        };
+
+        if matches!(
+            outcome,
+            RepresentedLiveIntentApplyOutcomeLikeCpp::Applied(_)
+        ) {
+            debug!(?intent, ?outcome, "represented->live intent applied");
+            #[cfg(test)]
+            self.represented_live_applications_like_cpp
+                .push(RepresentedLiveApplicationLikeCpp { intent, outcome });
+        }
+
+        outcome
+    }
+
+    /// C++ `Unit::SetStandState` (`Unit.cpp:9966-9977`).
+    ///
+    /// The canonical `Player::Unit` is the live owner. Session-local stand and
+    /// aura state remain mirrors until their remaining consumers migrate.
+    fn apply_represented_stand_state_changed_live_like_cpp(
+        &mut self,
+        change: &RepresentedStandStateChangedLikeCpp,
+    ) -> RepresentedLiveIntentApplyOutcomeLikeCpp {
+        let Some(player_guid) = self.player_guid() else {
+            return RepresentedLiveIntentApplyOutcomeLikeCpp::RejectedMissingPlayer;
+        };
+
+        let state = change.state;
+        let spell_store = self.spell_store.as_ref().map(Arc::clone);
+        let difficulty_store = self.difficulty_store.as_ref().map(Arc::clone);
+        let spell_difficulty_id = self
+            .current_canonical_player_map_difficulty_id_like_cpp()
+            .unwrap_or(0);
+        let standing_flag = wow_entities::SPELL_AURA_INTERRUPT_FLAG_STANDING_LIKE_CPP;
+        let publish_canonical_snapshot = self.object_accessor.is_some();
+        let Some((
+            canonical_field_changed,
+            canonical_removed_auras,
+            canonical_removed_visible_slots,
+            canonical_snapshot,
+            mut channel_cancellation_boundary,
+            canonical_interrupted_spell_ids,
+        )) = self.mutate_canonical_player_like_cpp(|player| {
+            let previous = player.unit().stand_state_like_cpp();
+            let unit = player.unit_mut();
+            unit.set_stand_state_like_cpp(state);
+
+            let mut removed_auras = Vec::new();
+            let mut removed_visible_slots = Vec::new();
+            if unit.is_stand_state_like_cpp() {
+                // Keep the locally registered masks as a
+                // fallback for transitional/test state, and use the real
+                // SpellInterrupts.db2 metadata for live auras whose older
+                // represented materializers still carry zero masks.
+                let metadata_matches: Vec<_> = {
+                    let auras = &unit.subsystems().auras;
+                    auras
+                        .applied_auras
+                        .iter()
+                        .copied()
+                        .filter(|aura| {
+                            if let Some(known) = auras.aura_interrupt_flags.get(aura) {
+                                // Presence means this applied aura already
+                                // carries resolved metadata, including a known
+                                // non-Standing mask. Never override it with a
+                                // DB2 row selected from the current map.
+                                return known.0 & standing_flag != 0;
+                            }
+                            let store_matches = i32::try_from(aura.spell_id)
+                                .ok()
+                                .and_then(|spell_id| {
+                                    spell_store
+                                        .as_ref()?
+                                        .aura_interrupt_flags_for_difficulty_like_cpp(
+                                            spell_id,
+                                            spell_difficulty_id,
+                                            difficulty_store.as_deref(),
+                                        )
+                                })
+                                .is_some_and(|known| known[0] & standing_flag != 0);
+                            // No canonical entry means this older materializer
+                            // supplied no interrupt metadata; hydrate only that
+                            // missing case through the current difficulty's C++
+                            // fallback chain.
+                            store_matches
+                        })
+                        .collect()
+                };
+                for aura in metadata_matches {
+                    let was_visible = unit
+                        .subsystems()
+                        .auras
+                        .visible_auras
+                        .get(&aura.slot)
+                        .is_some_and(|visible| *visible == aura.aura_ref());
+                    if unit
+                        .subsystems_mut()
+                        .auras
+                        .unapply_aura(aura, wow_entities::AURA_REMOVE_BY_INTERRUPT_LIKE_CPP)
+                    {
+                        // C++ Unit::RemoveAura removes the locally owned Aura
+                        // base after unapplying its application when this Unit
+                        // is the owner. Presence in the local owned store is
+                        // the bounded owner identity available to this model.
+                        // Cross-Unit applications still require the full Aura
+                        // runtime/fanout tracked by the represented boundary.
+                        unit.subsystems_mut()
+                            .auras
+                            .remove_owned_by_aura_ref_like_cpp(aura.aura_ref());
+                        removed_auras.push(aura);
+                        if was_visible {
+                            unit.subsystems_mut().auras.clear_visible(aura.slot);
+                            removed_visible_slots.push(aura.slot);
+                        }
+                    }
+                }
+            } else {
+                debug_assert!(removed_auras.is_empty());
+            }
+
+            // C++ evaluates the current channel only after the Standing aura
+            // removal loop and calls InterruptNonMeleeSpells(false). Reuse the
+            // canonical Unit implementation so generic, autorepeat, and
+            // channeled slots follow the same interruption ordering. Packet
+            // and owned-effect cleanup still remains a typed boundary.
+            let mut interrupted_spell_ids = Vec::new();
+            let channel_cancellation_boundary = if unit.is_stand_state_like_cpp()
+                && let Some(current) = unit.current_spell(wow_entities::CurrentSpellSlot::Channeled)
+                && current.state == wow_constants::SpellState::Casting
+            {
+                let channel_flags = i32::try_from(current.spell_id).ok().and_then(|spell_id| {
+                    spell_store
+                        .as_ref()?
+                        .channel_interrupt_flags_for_difficulty_like_cpp(
+                            spell_id,
+                            spell_difficulty_id,
+                            difficulty_store.as_deref(),
+                        )
+                });
+                match channel_flags {
+                    Some(flags) if flags[0] & standing_flag != 0 => {
+                        let interrupted = unit.interrupt_non_melee_spells(None, false, true);
+                        interrupted_spell_ids
+                            .extend(interrupted.iter().map(|(_, spell)| spell.spell_id));
+                        Some(RepresentedStandChannelCancellationBoundary::Interrupted {
+                            spell_id: current.spell_id,
+                            canonical_spells_interrupted: interrupted.len(),
+                            session_cast_interrupted: false,
+                        })
+                    }
+                    Some(_) => None,
+                    None => Some(
+                        RepresentedStandChannelCancellationBoundary::UnknownInterruptMetadata {
+                            spell_id: current.spell_id,
+                        },
+                    ),
+                }
+            } else {
+                None
+            };
+            if previous != state {
+                // This bridge owns the temporary explicit VALUES fanout;
+                // do not leave StandState dirty for unrelated later
+                // player-value snapshots.
+                unit.clear_stand_state_data_change_like_cpp();
+            }
+            let canonical_snapshot = (publish_canonical_snapshot
+                && (previous != state
+                    || !removed_auras.is_empty()
+                    || !interrupted_spell_ids.is_empty()))
+            .then(|| player.clone());
+            (
+                previous != state,
+                removed_auras,
+                removed_visible_slots,
+                canonical_snapshot,
+                channel_cancellation_boundary,
+                interrupted_spell_ids,
+            )
+        })
+        else {
+            return RepresentedLiveIntentApplyOutcomeLikeCpp::RejectedMissingCanonicalPlayer;
+        };
+
+        let session_cast_interrupted = self.active_spell_cast.as_ref().is_some_and(|active| {
+            u32::try_from(active.spell_id)
+                .ok()
+                .is_some_and(|spell_id| canonical_interrupted_spell_ids.contains(&spell_id))
+        });
+        if session_cast_interrupted {
+            self.active_spell_cast = None;
+        }
+        if let Some(RepresentedStandChannelCancellationBoundary::Interrupted {
+            session_cast_interrupted: recorded,
+            ..
+        }) = &mut channel_cancellation_boundary
+        {
+            *recorded = session_cast_interrupted;
+        }
+
+        if let Some(canonical_snapshot) = canonical_snapshot {
+            self.sync_object_accessor_player_entity_like_cpp(canonical_snapshot);
+        }
+
+        let mut represented_removed_slots = Vec::new();
+        if state == UnitStandStateType::Stand {
+            represented_removed_slots.extend(
+                self.visible_auras
+                    .values()
+                    .filter(|aura| {
+                        let snapshot_matches = aura.aura_interrupt_flags & standing_flag != 0;
+                        if aura.aura_interrupt_flags != 0 || aura.aura_interrupt_flags2 != 0 {
+                            return snapshot_matches;
+                        }
+                        let store_matches = spell_store
+                            .as_ref()
+                            .and_then(|store| {
+                                store.aura_interrupt_flags_for_difficulty_like_cpp(
+                                    aura.spell_id,
+                                    spell_difficulty_id,
+                                    difficulty_store.as_deref(),
+                                )
+                            })
+                            .is_some_and(|known| known[0] & standing_flag != 0);
+                        store_matches
+                    })
+                    .map(|aura| aura.slot),
+            );
+            represented_removed_slots.sort_unstable();
+            for slot in represented_removed_slots.iter().copied() {
+                let _ = self.remove_aura(slot);
+            }
+        }
+
+        self.set_player_stand_state_like_cpp(state);
+
+        use wow_packet::ServerPacket;
+        let mut removed_slots: Vec<u8> = canonical_removed_visible_slots
+            .into_iter()
+            .chain(represented_removed_slots.iter().copied())
+            .collect();
+        removed_slots.sort_unstable();
+        removed_slots.dedup();
+        for slot in removed_slots {
+            let aura_update = wow_packet::packets::misc::AuraUpdate {
+                unit_guid: player_guid,
+                update_all: false,
+                auras: vec![wow_packet::packets::misc::AuraInfoLikeCpp {
+                    slot,
+                    aura_data: None,
+                }],
+            };
+            if !represented_removed_slots.contains(&slot) {
+                self.send_packet(&aura_update);
+            }
+            self.broadcast_to_movement_set_like_cpp(aura_update.to_bytes(), false);
+        }
+
+        // Opcodes.cpp registers SMSG_STAND_STATE_UPDATE on
+        // CONNECTION_TYPE_REALM even though the CMSG is handled in-world.
+        self.send_packet_realm(&wow_packet::packets::misc::StandStateUpdate {
+            anim_kit_id: 0,
+            stand_state: state as u8,
+        });
+
+        // `UnitData::StandState` is `UpdateField<uint8, 32, 56>` in the C++
+        // generated fields. Until map-owned SendObjectUpdates has real fanout,
+        // consume this one live delta through the existing visibility registry.
+        if canonical_field_changed {
+            let mut values = wow_packet::packets::update::UnitDataValuesDeltaUpdate::default();
+            values.unit_data_mask[1] = (1 << (32 - 32)) | (1 << (56 - 32));
+            values.stand_state = state as u8;
+            let update = wow_packet::packets::update::UpdateObject::unit_values_update(
+                player_guid,
+                self.player_map_id_like_cpp(),
+                values,
+            );
+            let bytes = update.to_bytes();
+            self.send_raw_packet(&bytes);
+            self.broadcast_to_movement_set_like_cpp(bytes, false);
+        }
+
+        RepresentedLiveIntentApplyOutcomeLikeCpp::Applied(
+            RepresentedLiveIntentAppliedLikeCpp::StandStateChanged {
+                canonical_field_changed,
+                canonical_auras_removed: canonical_removed_auras.len(),
+                represented_auras_removed: represented_removed_slots.len(),
+                channel_cancellation_boundary,
+            },
+        )
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_live_applications_like_cpp(
+        &self,
+    ) -> &[RepresentedLiveApplicationLikeCpp] {
+        &self.represented_live_applications_like_cpp
+    }
+
     fn chair_stand_state_like_cpp(chair_height: u32) -> UnitStandStateType {
         let stand_state = 4_u32.saturating_add(chair_height);
         <UnitStandStateType as num_traits::FromPrimitive>::from_u32(stand_state)
@@ -38545,71 +38934,6 @@ impl WorldSession {
         }
     }
 
-    /// Single boundary for validated represented intents that now have a live
-    /// application. The handler constructs one intent after C++ validation;
-    /// this bridge records the represented evidence and applies the live state
-    /// mutation exactly once.
-    pub(crate) fn record_and_apply_represented_live_intent_like_cpp(
-        &mut self,
-        intent: RepresentedLiveIntentLikeCpp,
-    ) -> bool {
-        self.record_represented_live_intent_like_cpp(intent);
-        self.apply_represented_live_intent_like_cpp(intent)
-    }
-
-    fn record_represented_live_intent_like_cpp(&mut self, intent: RepresentedLiveIntentLikeCpp) {
-        match intent {
-            RepresentedLiveIntentLikeCpp::DuelAccepted(accepted) => {
-                self.represented_duel_accepts_like_cpp.push(accepted);
-            }
-        }
-    }
-
-    fn apply_represented_live_intent_like_cpp(
-        &mut self,
-        intent: RepresentedLiveIntentLikeCpp,
-    ) -> bool {
-        match intent {
-            RepresentedLiveIntentLikeCpp::DuelAccepted(accepted) => {
-                self.apply_represented_duel_accepted_live_like_cpp(accepted)
-            }
-        }
-    }
-
-    /// C++ `WorldSession::HandleDuelAccepted` switches both players to
-    /// `DUEL_STATE_COUNTDOWN` and sends one `DuelCountdown` packet to each.
-    fn apply_represented_duel_accepted_live_like_cpp(
-        &mut self,
-        accepted: RepresentedDuelAcceptedLikeCpp,
-    ) -> bool {
-        let Some(player_guid) = self.player_guid() else {
-            return false;
-        };
-
-        self.set_represented_duel_state_like_cpp(
-            player_guid,
-            accepted.opponent_guid,
-            wow_entities::PlayerDuelStateLikeCpp::Countdown,
-        );
-        self.set_represented_duel_state_like_cpp(
-            accepted.opponent_guid,
-            player_guid,
-            wow_entities::PlayerDuelStateLikeCpp::Countdown,
-        );
-
-        use wow_packet::ServerPacket;
-        let packet = wow_packet::packets::misc::DuelCountdown {
-            countdown_ms: accepted.countdown_ms,
-        };
-        let packet_bytes = packet.to_bytes();
-        self.send_raw_packet(&packet_bytes);
-        self.send_represented_duel_countdown_to_opponent_like_cpp(
-            accepted.opponent_guid,
-            packet_bytes,
-        );
-        true
-    }
-
     /// C++ `Spell::EffectDuel`.
     ///
     /// Represented boundary: canonical connected players only. This creates the
@@ -38725,13 +39049,31 @@ impl WorldSession {
             return false;
         }
 
-        self.record_and_apply_represented_live_intent_like_cpp(
-            RepresentedLiveIntentLikeCpp::DuelAccepted(RepresentedDuelAcceptedLikeCpp {
+        self.set_represented_duel_state_like_cpp(
+            player_guid,
+            opponent_guid,
+            wow_entities::PlayerDuelStateLikeCpp::Countdown,
+        );
+        self.set_represented_duel_state_like_cpp(
+            opponent_guid,
+            player_guid,
+            wow_entities::PlayerDuelStateLikeCpp::Countdown,
+        );
+
+        use wow_packet::ServerPacket;
+        let packet = wow_packet::packets::misc::DuelCountdown {
+            countdown_ms: DUEL_COUNTDOWN_MS_LIKE_CPP,
+        };
+        let packet_bytes = packet.to_bytes();
+        self.send_raw_packet(&packet_bytes);
+        self.send_represented_duel_countdown_to_opponent_like_cpp(opponent_guid, packet_bytes);
+        self.represented_duel_accepts_like_cpp
+            .push(RepresentedDuelAcceptedLikeCpp {
                 opponent_guid,
                 arbiter_guid,
                 countdown_ms: DUEL_COUNTDOWN_MS_LIKE_CPP,
-            }),
-        )
+            });
+        true
     }
 
     fn handle_duel_cancelled_like_cpp(&mut self) -> bool {
@@ -62404,6 +62746,946 @@ mod tests {
         packets
     }
 
+    #[test]
+    fn stand_state_live_bridge_removes_standing_auras_and_fans_out_values_like_cpp() {
+        run_object_accessor_sync_test(|| {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap()
+                .block_on(async {
+                    let (mut source, _, source_send_rx) = make_session();
+                    let (mut viewer, _, viewer_send_rx) = make_session();
+                    let canonical = shared_canonical_map_manager();
+                    let accessor = new_shared_object_accessor();
+                    let source_guid = ObjectGuid::create_player(1, 90_210);
+                    let viewer_guid = ObjectGuid::create_player(1, 90_211);
+                    let position = Position::ZERO;
+                    let represented_standing_slot = 11;
+                    let represented_kept_slot = 12;
+                    let represented_snapshot_standing_slot = 13;
+                    let standing_spell_id = 70_001;
+                    let kept_spell_id = 70_002;
+                    let snapshot_standing_spell_id = 70_003;
+                    let canonical_standing = wow_entities::AppliedAuraRef::new(
+                        standing_spell_id as u32,
+                        source_guid,
+                        represented_standing_slot,
+                        0x1,
+                    );
+                    let canonical_kept = wow_entities::AppliedAuraRef::new(
+                        kept_spell_id as u32,
+                        source_guid,
+                        represented_kept_slot,
+                        0x1,
+                    );
+                    let canonical_snapshot_standing = wow_entities::AppliedAuraRef::new(
+                        snapshot_standing_spell_id as u32,
+                        source_guid,
+                        represented_snapshot_standing_slot,
+                        0x1,
+                    );
+                    let canonical_standing_owned = wow_entities::OwnedAuraRef::new(
+                        standing_spell_id as u32,
+                        source_guid,
+                        None,
+                    );
+                    let canonical_kept_owned =
+                        wow_entities::OwnedAuraRef::new(kept_spell_id as u32, source_guid, None);
+                    let canonical_snapshot_standing_owned = wow_entities::OwnedAuraRef::new(
+                        snapshot_standing_spell_id as u32,
+                        source_guid,
+                        None,
+                    );
+                    let mut spell_store = wow_data::SpellStore::new();
+                    spell_store.insert_spell_interrupt_flags_like_cpp(
+                        standing_spell_id,
+                        [0x20, 0],
+                        [0, 0],
+                    );
+                    spell_store.insert_spell_interrupt_flags_for_difficulty_like_cpp(
+                        standing_spell_id,
+                        2,
+                        [wow_entities::SPELL_AURA_INTERRUPT_FLAG_STANDING_LIKE_CPP, 0],
+                        [0, 0],
+                    );
+                    spell_store.insert_spell_interrupt_flags_like_cpp(
+                        kept_spell_id,
+                        [wow_entities::SPELL_AURA_INTERRUPT_FLAG_STANDING_LIKE_CPP, 0],
+                        [0, 0],
+                    );
+                    spell_store.insert_spell_interrupt_flags_like_cpp(
+                        snapshot_standing_spell_id,
+                        [0x20, 0],
+                        [0, 0],
+                    );
+                    let difficulty_store =
+                        wow_data::DifficultyStore::from_entries([wow_data::DifficultyEntry {
+                            id: 2,
+                            instance_type: 0,
+                            flags: 0,
+                            fallback_difficulty_id: 0,
+                            toggle_difficulty_id: 0,
+                        }]);
+
+                    source.set_player_guid(Some(source_guid));
+                    source.player_name = Some("BridgeSource".into());
+                    source.set_player_map_position_like_cpp(571, position);
+                    source.set_canonical_map_manager(Arc::clone(&canonical));
+                    source.set_object_accessor(Arc::clone(&accessor));
+                    source.set_spell_store(Arc::new(spell_store));
+                    source.set_difficulty_store(Arc::new(difficulty_store));
+                    source.set_player_stand_state_like_cpp(UnitStandStateType::Sit);
+                    add_canonical_test_player_on_map_with_difficulty(
+                        &canonical,
+                        source_guid,
+                        position,
+                        571,
+                        0,
+                        2,
+                    );
+                    assert_eq!(
+                        source.current_canonical_player_map_difficulty_id_like_cpp(),
+                        Some(2)
+                    );
+                    source
+                        .mutate_canonical_player_like_cpp(|player| {
+                            player
+                                .unit_mut()
+                                .set_stand_state_like_cpp(UnitStandStateType::Sit);
+                            player.clear_data_changes();
+                            player
+                                .unit_mut()
+                                .subsystems_mut()
+                                .auras
+                                .register_applied_aura(canonical_standing, None, 0, 0);
+                            player
+                                .unit_mut()
+                                .subsystems_mut()
+                                .auras
+                                .add_owned(canonical_standing_owned);
+                            player
+                                .unit_mut()
+                                .subsystems_mut()
+                                .auras
+                                .register_applied_aura(canonical_kept, None, 0x20, 0);
+                            player
+                                .unit_mut()
+                                .subsystems_mut()
+                                .auras
+                                .add_owned(canonical_kept_owned);
+                            player
+                                .unit_mut()
+                                .subsystems_mut()
+                                .auras
+                                .register_applied_aura(
+                                    canonical_snapshot_standing,
+                                    None,
+                                    // A resolved difficulty/hotfix/server-side snapshot
+                                    // must not be overridden by the selected DB2 row.
+                                    wow_entities::SPELL_AURA_INTERRUPT_FLAG_STANDING_LIKE_CPP,
+                                    0,
+                                );
+                            player
+                                .unit_mut()
+                                .subsystems_mut()
+                                .auras
+                                .add_owned(canonical_snapshot_standing_owned);
+                            player.unit_mut().subsystems_mut().auras.set_visible(
+                                represented_standing_slot,
+                                canonical_standing.aura_ref(),
+                            );
+                            player
+                                .unit_mut()
+                                .subsystems_mut()
+                                .auras
+                                .set_visible(represented_kept_slot, canonical_kept.aura_ref());
+                            player.unit_mut().subsystems_mut().auras.set_visible(
+                                represented_snapshot_standing_slot,
+                                canonical_snapshot_standing.aura_ref(),
+                            );
+                        })
+                        .unwrap();
+                    source.sync_object_accessor_player();
+
+                    for (slot, spell_id) in [
+                        (represented_standing_slot, standing_spell_id),
+                        (represented_kept_slot, kept_spell_id),
+                        (
+                            represented_snapshot_standing_slot,
+                            snapshot_standing_spell_id,
+                        ),
+                    ] {
+                        source.visible_auras.insert(
+                            slot,
+                            AuraApplication {
+                                spell_id,
+                                caster_guid: source_guid,
+                                slot,
+                                duration_total: 30_000,
+                                duration_remaining: 30_000,
+                                stack_count: 1,
+                                aura_flags: 0x1,
+                                effect_mask: 0x1,
+                                // One removable aura proves a missing/zero snapshot is
+                                // hydrated from the active difficulty's SpellInfo. Two nonzero
+                                // resolved snapshots prove DB2 cannot add or remove Standing.
+                                aura_interrupt_flags: if spell_id == standing_spell_id {
+                                    0
+                                } else if spell_id == kept_spell_id {
+                                    0x20
+                                } else {
+                                    wow_entities::SPELL_AURA_INTERRUPT_FLAG_STANDING_LIKE_CPP
+                                },
+                                aura_interrupt_flags2: 0,
+                                represented_effect: None,
+                                represented_amount: 0,
+                                represented_effect_amounts: Vec::new(),
+                                represented_misc_value: None,
+                                represented_multiplier: 1.0,
+                                applied_at: Instant::now(),
+                            },
+                        );
+                    }
+
+                    let non_standing_outcome = source.apply_represented_live_intent_like_cpp(
+                        RepresentedLiveIntentLikeCpp::StandStateChanged(
+                            RepresentedStandStateChangedLikeCpp {
+                                state: UnitStandStateType::Kneel,
+                            },
+                        ),
+                    );
+                    assert_eq!(
+                        non_standing_outcome,
+                        RepresentedLiveIntentApplyOutcomeLikeCpp::Applied(
+                            RepresentedLiveIntentAppliedLikeCpp::StandStateChanged {
+                                canonical_field_changed: true,
+                                canonical_auras_removed: 0,
+                                represented_auras_removed: 0,
+                                channel_cancellation_boundary: None,
+                            },
+                        )
+                    );
+                    assert!(
+                        source
+                            .visible_auras
+                            .contains_key(&represented_standing_slot)
+                    );
+                    assert_eq!(
+                        drain_server_opcodes(&source_send_rx),
+                        vec![ServerOpcodes::StandStateUpdate, ServerOpcodes::UpdateObject,]
+                    );
+                    {
+                        let accessor = accessor.read();
+                        let player = accessor
+                            .find_connected_player_entity(source_guid)
+                            .expect("Kneel bridge refreshes canonical ObjectAccessor snapshot");
+                        assert_eq!(
+                            player.unit().stand_state_like_cpp(),
+                            UnitStandStateType::Kneel
+                        );
+                        assert!(
+                            player
+                                .unit()
+                                .subsystems()
+                                .auras
+                                .has_applied(canonical_standing)
+                        );
+                        assert!(
+                            player
+                                .unit()
+                                .subsystems()
+                                .auras
+                                .has_applied(canonical_snapshot_standing)
+                        );
+                        assert!(
+                            player
+                                .unit()
+                                .subsystems()
+                                .auras
+                                .has_owned(canonical_standing_owned)
+                        );
+                        assert!(
+                            player
+                                .unit()
+                                .subsystems()
+                                .auras
+                                .has_owned(canonical_kept_owned)
+                        );
+                        assert!(
+                            player
+                                .unit()
+                                .subsystems()
+                                .auras
+                                .has_owned(canonical_snapshot_standing_owned)
+                        );
+                    }
+                    source.represented_live_applications_like_cpp.clear();
+
+                    viewer.set_player_guid(Some(viewer_guid));
+                    viewer.set_player_map_position_like_cpp(571, position);
+                    viewer.state = SessionState::LoggedIn;
+                    viewer.client_visible_guids_like_cpp.insert(source_guid);
+                    let registry = Arc::new(PlayerRegistry::default());
+                    let (registry_send_tx, _registry_send_rx) = flume::bounded(8);
+                    let mut viewer_info = broadcast_info_with_command(
+                        viewer_guid,
+                        registry_send_tx,
+                        viewer.session_command_tx(),
+                    );
+                    viewer_info.map_id = 571;
+                    registry.insert(viewer_guid, viewer_info);
+                    source.set_player_registry(registry);
+
+                    let outcome = source.apply_represented_live_intent_like_cpp(
+                        RepresentedLiveIntentLikeCpp::StandStateChanged(
+                            RepresentedStandStateChangedLikeCpp {
+                                state: UnitStandStateType::Stand,
+                            },
+                        ),
+                    );
+                    viewer.process_represented_session_commands_like_cpp().await;
+
+                    assert_eq!(
+                        outcome,
+                        RepresentedLiveIntentApplyOutcomeLikeCpp::Applied(
+                            RepresentedLiveIntentAppliedLikeCpp::StandStateChanged {
+                                canonical_field_changed: true,
+                                canonical_auras_removed: 2,
+                                represented_auras_removed: 2,
+                                channel_cancellation_boundary: None,
+                            },
+                        )
+                    );
+                    assert_eq!(
+                        drain_server_opcodes(&source_send_rx),
+                        vec![
+                            ServerOpcodes::AuraUpdate,
+                            ServerOpcodes::AuraUpdate,
+                            ServerOpcodes::StandStateUpdate,
+                            ServerOpcodes::UpdateObject,
+                        ]
+                    );
+                    assert_eq!(
+                        drain_server_opcodes(&viewer_send_rx),
+                        vec![
+                            ServerOpcodes::AuraUpdate,
+                            ServerOpcodes::AuraUpdate,
+                            ServerOpcodes::UpdateObject,
+                        ]
+                    );
+                    assert!(
+                        !source
+                            .visible_auras
+                            .contains_key(&represented_standing_slot)
+                    );
+                    assert!(source.visible_auras.contains_key(&represented_kept_slot));
+                    assert!(
+                        !source
+                            .visible_auras
+                            .contains_key(&represented_snapshot_standing_slot)
+                    );
+                    source
+                        .mutate_canonical_player_like_cpp(|player| {
+                            assert_eq!(
+                                player.unit().stand_state_like_cpp(),
+                                UnitStandStateType::Stand
+                            );
+                            assert!(
+                                !player
+                                    .unit()
+                                    .subsystems()
+                                    .auras
+                                    .has_applied(canonical_standing)
+                            );
+                            assert!(player.unit().subsystems().auras.has_applied(canonical_kept));
+                            assert!(
+                                !player
+                                    .unit()
+                                    .subsystems()
+                                    .auras
+                                    .has_applied(canonical_snapshot_standing)
+                            );
+                            assert!(
+                                !player
+                                    .unit()
+                                    .subsystems()
+                                    .auras
+                                    .visible_auras
+                                    .contains_key(&represented_standing_slot)
+                            );
+                            assert_eq!(
+                                player
+                                    .unit()
+                                    .subsystems()
+                                    .auras
+                                    .visible_auras
+                                    .get(&represented_kept_slot),
+                                Some(&canonical_kept.aura_ref())
+                            );
+                            assert!(
+                                !player
+                                    .unit()
+                                    .subsystems()
+                                    .auras
+                                    .visible_auras
+                                    .contains_key(&represented_snapshot_standing_slot)
+                            );
+                            assert!(
+                                !player
+                                    .unit()
+                                    .subsystems()
+                                    .auras
+                                    .has_owned(canonical_standing_owned)
+                            );
+                            assert!(
+                                player
+                                    .unit()
+                                    .subsystems()
+                                    .auras
+                                    .has_owned(canonical_kept_owned)
+                            );
+                            assert!(
+                                !player
+                                    .unit()
+                                    .subsystems()
+                                    .auras
+                                    .has_owned(canonical_snapshot_standing_owned)
+                            );
+                            assert!(
+                                !player
+                                    .unit()
+                                    .unit_data_changes_mask()
+                                    .is_set(wow_entities::UNIT_DATA_STAND_STATE_BIT),
+                                "the explicit bridge fanout consumes its StandState delta"
+                            );
+                        })
+                        .unwrap();
+                    {
+                        let accessor = accessor.read();
+                        let player = accessor
+                            .find_connected_player_entity(source_guid)
+                            .expect("stand bridge refreshes ObjectAccessor snapshot");
+                        assert_eq!(
+                            player.unit().stand_state_like_cpp(),
+                            UnitStandStateType::Stand
+                        );
+                        assert!(
+                            !player
+                                .unit()
+                                .subsystems()
+                                .auras
+                                .has_applied(canonical_standing)
+                        );
+                        assert!(player.unit().subsystems().auras.has_applied(canonical_kept));
+                        assert!(
+                            !player
+                                .unit()
+                                .subsystems()
+                                .auras
+                                .has_applied(canonical_snapshot_standing)
+                        );
+                        assert!(
+                            !player
+                                .unit()
+                                .subsystems()
+                                .auras
+                                .visible_auras
+                                .contains_key(&represented_standing_slot)
+                        );
+                        assert_eq!(
+                            player
+                                .unit()
+                                .subsystems()
+                                .auras
+                                .visible_auras
+                                .get(&represented_kept_slot),
+                            Some(&canonical_kept.aura_ref())
+                        );
+                        assert!(
+                            !player
+                                .unit()
+                                .subsystems()
+                                .auras
+                                .visible_auras
+                                .contains_key(&represented_snapshot_standing_slot)
+                        );
+                        assert!(
+                            !player
+                                .unit()
+                                .subsystems()
+                                .auras
+                                .has_owned(canonical_standing_owned)
+                        );
+                        assert!(
+                            player
+                                .unit()
+                                .subsystems()
+                                .auras
+                                .has_owned(canonical_kept_owned)
+                        );
+                        assert!(
+                            !player
+                                .unit()
+                                .subsystems()
+                                .auras
+                                .has_owned(canonical_snapshot_standing_owned)
+                        );
+                    }
+                    assert_eq!(
+                        source.represented_live_applications_like_cpp(),
+                        &[RepresentedLiveApplicationLikeCpp {
+                            intent: RepresentedLiveIntentLikeCpp::StandStateChanged(
+                                RepresentedStandStateChangedLikeCpp {
+                                    state: UnitStandStateType::Stand,
+                                },
+                            ),
+                            outcome,
+                        }]
+                    );
+                });
+        });
+    }
+
+    #[test]
+    fn stand_state_casting_standing_channel_interrupts_non_melee_spells_like_cpp() {
+        run_object_accessor_sync_test(|| {
+            let (mut session, _, send_rx) = make_session();
+            let canonical = shared_canonical_map_manager();
+            let accessor = new_shared_object_accessor();
+            let player_guid = ObjectGuid::create_player(1, 90_212);
+            let position = Position::ZERO;
+            let generic_spell_id = 71_001;
+            let autorepeat_spell_id = 71_002;
+            let channel_spell_id = 71_003;
+            let melee_spell_id = 71_004;
+            let standing_aura_spell_id = 71_005;
+            let standing_aura_slot = 13;
+            let standing_aura = wow_entities::AppliedAuraRef::new(
+                standing_aura_spell_id as u32,
+                player_guid,
+                standing_aura_slot,
+                0x1,
+            );
+            let mut spell_store = wow_data::SpellStore::new();
+            spell_store.insert_spell_interrupt_flags_like_cpp(channel_spell_id, [0, 0], [0x20, 0]);
+            spell_store.insert_spell_interrupt_flags_for_difficulty_like_cpp(
+                channel_spell_id,
+                2,
+                [0, 0],
+                [wow_entities::SPELL_AURA_INTERRUPT_FLAG_STANDING_LIKE_CPP, 0],
+            );
+            spell_store.insert_spell_interrupt_flags_like_cpp(
+                standing_aura_spell_id,
+                [wow_entities::SPELL_AURA_INTERRUPT_FLAG_STANDING_LIKE_CPP, 0],
+                [0, 0],
+            );
+
+            session.set_player_guid(Some(player_guid));
+            session.player_name = Some("StandBoundary".into());
+            session.set_player_map_position_like_cpp(571, position);
+            session.set_canonical_map_manager(Arc::clone(&canonical));
+            session.set_object_accessor(Arc::clone(&accessor));
+            session.set_spell_store(Arc::new(spell_store));
+            session.set_difficulty_store(Arc::new(wow_data::DifficultyStore::from_entries([
+                wow_data::DifficultyEntry {
+                    id: 2,
+                    instance_type: 0,
+                    flags: 0,
+                    fallback_difficulty_id: 0,
+                    toggle_difficulty_id: 0,
+                },
+            ])));
+            session.set_player_stand_state_like_cpp(UnitStandStateType::Sit);
+            add_canonical_test_player_on_map_with_difficulty(
+                &canonical,
+                player_guid,
+                position,
+                571,
+                0,
+                2,
+            );
+
+            let generic = wow_entities::CurrentSpellRef::new(
+                generic_spell_id as u32,
+                Some(player_guid),
+                None,
+            )
+            .with_cast_time_ms(1_000)
+            .with_state(wow_constants::SpellState::Preparing);
+            let autorepeat = wow_entities::CurrentSpellRef::new(
+                autorepeat_spell_id as u32,
+                Some(player_guid),
+                None,
+            );
+            let channel = wow_entities::CurrentSpellRef::new(
+                channel_spell_id as u32,
+                Some(player_guid),
+                None,
+            )
+            .with_state(wow_constants::SpellState::Casting);
+            let melee =
+                wow_entities::CurrentSpellRef::new(melee_spell_id as u32, Some(player_guid), None);
+            session
+                .mutate_canonical_player_like_cpp(|player| {
+                    player
+                        .unit_mut()
+                        .set_stand_state_like_cpp(UnitStandStateType::Sit);
+                    let unit = player.unit_mut();
+                    let spells = &mut unit.subsystems_mut().spells;
+                    spells.set_current_spell(wow_entities::CurrentSpellSlot::Melee, melee);
+                    spells.set_current_spell(wow_entities::CurrentSpellSlot::Generic, generic);
+                    spells
+                        .set_current_spell(wow_entities::CurrentSpellSlot::Autorepeat, autorepeat);
+                    spells.set_current_spell(wow_entities::CurrentSpellSlot::Channeled, channel);
+                    unit.subsystems_mut().auras.register_applied_aura(
+                        standing_aura,
+                        None,
+                        wow_entities::SPELL_AURA_INTERRUPT_FLAG_STANDING_LIKE_CPP,
+                        0,
+                    );
+                    unit.subsystems_mut()
+                        .auras
+                        .set_visible(standing_aura_slot, standing_aura.aura_ref());
+                    player.clear_data_changes();
+                })
+                .unwrap();
+            session.visible_auras.insert(
+                standing_aura_slot,
+                AuraApplication {
+                    spell_id: standing_aura_spell_id,
+                    caster_guid: player_guid,
+                    slot: standing_aura_slot,
+                    duration_total: 30_000,
+                    duration_remaining: 30_000,
+                    stack_count: 1,
+                    aura_flags: 0x1,
+                    effect_mask: 0x1,
+                    aura_interrupt_flags: wow_entities::SPELL_AURA_INTERRUPT_FLAG_STANDING_LIKE_CPP,
+                    aura_interrupt_flags2: 0,
+                    represented_effect: None,
+                    represented_amount: 0,
+                    represented_effect_amounts: Vec::new(),
+                    represented_misc_value: None,
+                    represented_multiplier: 1.0,
+                    applied_at: Instant::now(),
+                },
+            );
+            let canonical_snapshot = session
+                .canonical_player_snapshot_like_cpp(Clone::clone)
+                .expect("canonical channel-boundary baseline");
+            session.sync_object_accessor_player_entity_like_cpp(canonical_snapshot);
+            session.active_spell_cast = Some(SpellCastState {
+                spell_id: generic_spell_id,
+                target_guid: player_guid,
+                target_data: SpellTargetData::default(),
+                cast_id: ObjectGuid::new(6, 71_006),
+                cast_start_time: Instant::now(),
+                cast_time_ms: 1_000,
+                spell_visual: wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 0,
+                    script_visual_id: 0,
+                },
+                metadata: SpellCastMetadata::default(),
+            });
+
+            let outcome = session.apply_represented_live_intent_like_cpp(
+                RepresentedLiveIntentLikeCpp::StandStateChanged(
+                    RepresentedStandStateChangedLikeCpp {
+                        state: UnitStandStateType::Stand,
+                    },
+                ),
+            );
+
+            assert_eq!(
+                outcome,
+                RepresentedLiveIntentApplyOutcomeLikeCpp::Applied(
+                    RepresentedLiveIntentAppliedLikeCpp::StandStateChanged {
+                        canonical_field_changed: true,
+                        canonical_auras_removed: 1,
+                        represented_auras_removed: 1,
+                        channel_cancellation_boundary: Some(
+                            RepresentedStandChannelCancellationBoundary::Interrupted {
+                                spell_id: channel_spell_id as u32,
+                                canonical_spells_interrupted: 3,
+                                session_cast_interrupted: true,
+                            },
+                        ),
+                    },
+                )
+            );
+            assert_eq!(
+                session.player_stand_state_like_cpp(),
+                UnitStandStateType::Stand
+            );
+            assert!(session.active_spell_cast.is_none());
+            assert!(!session.visible_auras.contains_key(&standing_aura_slot));
+            assert_eq!(
+                session.represented_live_applications_like_cpp(),
+                &[RepresentedLiveApplicationLikeCpp {
+                    intent: RepresentedLiveIntentLikeCpp::StandStateChanged(
+                        RepresentedStandStateChangedLikeCpp {
+                            state: UnitStandStateType::Stand,
+                        },
+                    ),
+                    outcome,
+                }]
+            );
+            assert_eq!(
+                drain_server_opcodes(&send_rx),
+                vec![
+                    ServerOpcodes::AuraUpdate,
+                    ServerOpcodes::StandStateUpdate,
+                    ServerOpcodes::UpdateObject,
+                ]
+            );
+            session
+                .mutate_canonical_player_like_cpp(|player| {
+                    let unit = player.unit();
+                    assert_eq!(unit.stand_state_like_cpp(), UnitStandStateType::Stand);
+                    assert!(!unit.subsystems().auras.has_applied(standing_aura));
+                    assert!(
+                        !unit
+                            .subsystems()
+                            .auras
+                            .visible_auras
+                            .contains_key(&standing_aura_slot)
+                    );
+                    assert_eq!(
+                        unit.current_spell(wow_entities::CurrentSpellSlot::Melee),
+                        Some(melee)
+                    );
+                    assert_eq!(
+                        unit.current_spell(wow_entities::CurrentSpellSlot::Generic),
+                        None
+                    );
+                    assert_eq!(
+                        unit.current_spell(wow_entities::CurrentSpellSlot::Autorepeat),
+                        None
+                    );
+                    assert_eq!(
+                        unit.current_spell(wow_entities::CurrentSpellSlot::Channeled),
+                        None
+                    );
+                    assert!(!unit.has_unit_state(UnitState::CASTING.bits()));
+                })
+                .unwrap();
+            {
+                let accessor = accessor.read();
+                let player = accessor
+                    .find_connected_player_entity(player_guid)
+                    .expect("channel-boundary bridge refreshes ObjectAccessor snapshot");
+                assert_eq!(
+                    player.unit().stand_state_like_cpp(),
+                    UnitStandStateType::Stand
+                );
+                assert!(!player.unit().subsystems().auras.has_applied(standing_aura));
+                assert_eq!(
+                    player
+                        .unit()
+                        .current_spell(wow_entities::CurrentSpellSlot::Channeled),
+                    None
+                );
+            }
+        });
+    }
+
+    #[test]
+    fn stand_state_channel_boundary_requires_casting_standing_transition() {
+        let run_case = |channel_state, channel_flags: [u32; 2], requested_state, guid_counter| {
+            let (mut session, _, send_rx) = make_session();
+            let canonical = shared_canonical_map_manager();
+            let player_guid = ObjectGuid::create_player(1, guid_counter);
+            let channel_spell_id = 72_001;
+            let mut spell_store = wow_data::SpellStore::new();
+            spell_store.insert_spell_interrupt_flags_like_cpp(
+                channel_spell_id,
+                [0, 0],
+                channel_flags,
+            );
+            session.set_player_guid(Some(player_guid));
+            session.set_player_map_position_like_cpp(571, Position::ZERO);
+            session.set_canonical_map_manager(Arc::clone(&canonical));
+            session.set_spell_store(Arc::new(spell_store));
+            add_canonical_test_player_on_map(&canonical, player_guid, Position::ZERO, 571, 0);
+            let channel = wow_entities::CurrentSpellRef::new(
+                channel_spell_id as u32,
+                Some(player_guid),
+                None,
+            )
+            .with_state(channel_state);
+            session
+                .mutate_canonical_player_like_cpp(|player| {
+                    player
+                        .unit_mut()
+                        .subsystems_mut()
+                        .spells
+                        .set_current_spell(wow_entities::CurrentSpellSlot::Channeled, channel);
+                    player.clear_data_changes();
+                })
+                .unwrap();
+            session.active_spell_cast = Some(SpellCastState {
+                spell_id: 72_002,
+                target_guid: player_guid,
+                target_data: SpellTargetData::default(),
+                cast_id: ObjectGuid::new(6, 72_003),
+                cast_start_time: Instant::now(),
+                cast_time_ms: 1_000,
+                spell_visual: wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 0,
+                    script_visual_id: 0,
+                },
+                metadata: SpellCastMetadata::default(),
+            });
+
+            let outcome = session.apply_represented_live_intent_like_cpp(
+                RepresentedLiveIntentLikeCpp::StandStateChanged(
+                    RepresentedStandStateChangedLikeCpp {
+                        state: requested_state,
+                    },
+                ),
+            );
+            assert!(session.active_spell_cast.is_some());
+            session
+                .mutate_canonical_player_like_cpp(|player| {
+                    assert_eq!(
+                        player
+                            .unit()
+                            .current_spell(wow_entities::CurrentSpellSlot::Channeled),
+                        Some(channel)
+                    );
+                })
+                .unwrap();
+            let mut expected_opcodes = vec![ServerOpcodes::StandStateUpdate];
+            if requested_state != UnitStandStateType::Stand {
+                expected_opcodes.push(ServerOpcodes::UpdateObject);
+            }
+            assert_eq!(drain_server_opcodes(&send_rx), expected_opcodes);
+            outcome
+        };
+
+        for (state, flags, requested_state, guid_counter, field_changed) in [
+            (
+                wow_constants::SpellState::Delayed,
+                [wow_entities::SPELL_AURA_INTERRUPT_FLAG_STANDING_LIKE_CPP, 0],
+                UnitStandStateType::Stand,
+                90_213,
+                false,
+            ),
+            (
+                wow_constants::SpellState::Casting,
+                [0, 0],
+                UnitStandStateType::Stand,
+                90_214,
+                false,
+            ),
+            (
+                wow_constants::SpellState::Casting,
+                [wow_entities::SPELL_AURA_INTERRUPT_FLAG_STANDING_LIKE_CPP, 0],
+                UnitStandStateType::Kneel,
+                90_215,
+                true,
+            ),
+        ] {
+            assert_eq!(
+                run_case(state, flags, requested_state, guid_counter),
+                RepresentedLiveIntentApplyOutcomeLikeCpp::Applied(
+                    RepresentedLiveIntentAppliedLikeCpp::StandStateChanged {
+                        canonical_field_changed: field_changed,
+                        canonical_auras_removed: 0,
+                        represented_auras_removed: 0,
+                        channel_cancellation_boundary: None,
+                    },
+                )
+            );
+        }
+    }
+
+    #[test]
+    fn stand_state_casting_channel_with_unknown_metadata_records_boundary_and_applies() {
+        let (mut session, _, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 90_216);
+        let channel_spell_id = 73_001;
+        session.set_player_guid(Some(player_guid));
+        session.set_player_map_position_like_cpp(571, Position::ZERO);
+        session.set_player_stand_state_like_cpp(UnitStandStateType::Sit);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_spell_store(Arc::new(wow_data::SpellStore::new()));
+        add_canonical_test_player_on_map(&canonical, player_guid, Position::ZERO, 571, 0);
+        let channel =
+            wow_entities::CurrentSpellRef::new(channel_spell_id as u32, Some(player_guid), None)
+                .with_state(wow_constants::SpellState::Casting);
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player
+                    .unit_mut()
+                    .set_stand_state_like_cpp(UnitStandStateType::Sit);
+                player
+                    .unit_mut()
+                    .subsystems_mut()
+                    .spells
+                    .set_current_spell(wow_entities::CurrentSpellSlot::Channeled, channel);
+                player.clear_data_changes();
+            })
+            .unwrap();
+
+        let outcome = session.apply_represented_live_intent_like_cpp(
+            RepresentedLiveIntentLikeCpp::StandStateChanged(RepresentedStandStateChangedLikeCpp {
+                state: UnitStandStateType::Stand,
+            }),
+        );
+
+        assert_eq!(
+            outcome,
+            RepresentedLiveIntentApplyOutcomeLikeCpp::Applied(
+                RepresentedLiveIntentAppliedLikeCpp::StandStateChanged {
+                    canonical_field_changed: true,
+                    canonical_auras_removed: 0,
+                    represented_auras_removed: 0,
+                    channel_cancellation_boundary: Some(
+                        RepresentedStandChannelCancellationBoundary::UnknownInterruptMetadata {
+                            spell_id: channel_spell_id as u32,
+                        },
+                    ),
+                },
+            )
+        );
+        assert_eq!(
+            session.player_stand_state_like_cpp(),
+            UnitStandStateType::Stand
+        );
+        assert_eq!(
+            session.represented_live_applications_like_cpp(),
+            &[RepresentedLiveApplicationLikeCpp {
+                intent: RepresentedLiveIntentLikeCpp::StandStateChanged(
+                    RepresentedStandStateChangedLikeCpp {
+                        state: UnitStandStateType::Stand,
+                    },
+                ),
+                outcome,
+            }]
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::StandStateUpdate, ServerOpcodes::UpdateObject]
+        );
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                assert_eq!(
+                    player.unit().stand_state_like_cpp(),
+                    UnitStandStateType::Stand
+                );
+                assert_eq!(
+                    player
+                        .unit()
+                        .current_spell(wow_entities::CurrentSpellSlot::Channeled),
+                    Some(channel)
+                );
+            })
+            .unwrap();
+    }
+
     fn party_update_sequence_num_like_cpp(bytes: &[u8]) -> i32 {
         let mut pkt = WorldPacket::from_bytes(bytes);
         assert_eq!(
@@ -73762,6 +75044,24 @@ mod tests {
         map_id: u32,
         instance_id: u32,
     ) {
+        add_canonical_test_player_on_map_with_difficulty(
+            canonical,
+            guid,
+            position,
+            map_id,
+            instance_id,
+            0,
+        );
+    }
+
+    fn add_canonical_test_player_on_map_with_difficulty(
+        canonical: &SharedCanonicalMapManager,
+        guid: ObjectGuid,
+        position: Position,
+        map_id: u32,
+        instance_id: u32,
+        difficulty_id: u8,
+    ) {
         let mut player = Player::new(Some(1), false);
         player.unit_mut().world_mut().object_mut().create(guid);
         player.unit_mut().world_mut().set_name("InstanceOwner");
@@ -73776,7 +75076,12 @@ mod tests {
         canonical
             .lock()
             .unwrap()
-            .create_world_map(map_id, instance_id)
+            .create_map_entry(
+                map_id,
+                instance_id,
+                difficulty_id,
+                wow_map::ManagedMapKind::World,
+            )
             .map_mut()
             .insert_map_object_record(wow_entities::MapObjectRecord::new_player(player).unwrap())
             .unwrap();

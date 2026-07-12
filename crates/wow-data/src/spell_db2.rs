@@ -979,6 +979,14 @@ impl SpellFocusObjectStore {
 }
 
 impl SpellInterruptsStore {
+    /// Iterate interrupt rows keyed internally by DB2 row id. C++ indexes all
+    /// difficulties and resolves fallback during SpellInfo construction; the
+    /// Rust `SpellStore` likewise retains every `(SpellID, DifficultyID)` row
+    /// and resolves the active difficulty through its fallback chain.
+    pub fn entries_like_cpp(&self) -> impl Iterator<Item = &SpellInterruptsEntry> {
+        self.entries.values()
+    }
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "SpellInterrupts.db2", |id, idx, r| {
             SpellInterruptsEntry {

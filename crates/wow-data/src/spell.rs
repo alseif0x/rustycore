@@ -5307,6 +5307,7 @@ const fn implicit_target_category_accepts_conditions_like_cpp(target: u32) -> bo
 pub struct SpellStore {
     spells: HashMap<i32, SpellInfo>,
     spell_misc_attributes: HashMap<i32, [u32; 15]>,
+    spell_interrupt_flags: HashMap<(i32, u8), ([u32; 2], [u32; 2])>,
     spell_shapeshift_masks: HashMap<i32, (u64, u64)>,
     implicit_target_conditions: HashMap<(i32, u32), ConditionsReference>,
 }
@@ -5317,6 +5318,7 @@ impl SpellStore {
         Self {
             spells: HashMap::new(),
             spell_misc_attributes: HashMap::new(),
+            spell_interrupt_flags: HashMap::new(),
             spell_shapeshift_masks: HashMap::new(),
             implicit_target_conditions: HashMap::new(),
         }
@@ -5423,11 +5425,14 @@ impl SpellStore {
         let spell_effect_store = crate::spell_db2::SpellEffectDb2Store::load(data_dir, locale)?;
         let spell_shapeshift_store =
             crate::spell_db2::SpellShapeshiftStore::load(data_dir, locale)?;
+        let spell_interrupts_store =
+            crate::spell_db2::SpellInterruptsStore::load(data_dir, locale)?;
         let mut store = Self::from_spell_db2_stores_like_cpp(
             &spell_misc_store,
             &spell_effect_store,
             &spell_shapeshift_store,
         );
+        store.apply_db2_interrupts_like_cpp(&spell_interrupts_store);
 
         let hotfix_store = Self::load(hotfix_db).await?;
         for spell in hotfix_store.spells.into_values() {
@@ -5521,6 +5526,28 @@ impl SpellStore {
         }
 
         store
+    }
+
+    /// C++ `SpellMgr::LoadSpellInfoStore` copies the difficulty-specific
+    /// `SpellInterrupts` row into `SpellInfo`. The current Rust `SpellInfo`
+    /// keeps related DB2 joins in `SpellStore`, so retain both interrupt masks
+    /// here without widening every dynamically constructed test SpellInfo.
+    fn apply_db2_interrupts_like_cpp(
+        &mut self,
+        spell_interrupts_store: &crate::spell_db2::SpellInterruptsStore,
+    ) {
+        for interrupts in spell_interrupts_store.entries_like_cpp() {
+            let Ok(spell_id) = i32::try_from(interrupts.spell_id) else {
+                continue;
+            };
+            self.spell_interrupt_flags.insert(
+                (spell_id, interrupts.difficulty_id),
+                (
+                    interrupts.aura_interrupt_flags.map(|flag| flag as u32),
+                    interrupts.channel_interrupt_flags.map(|flag| flag as u32),
+                ),
+            );
+        }
     }
 
     /// [M0.1/#14] Apply DB2 cast times onto already-built SpellInfo rows.
@@ -5817,6 +5844,101 @@ ORDER BY sm.ID, se.EffectIndex
         )
     }
 
+    /// Resolve the C++ `SpellInterrupts` row for one spell/difficulty.
+    ///
+    /// `SpellMgr::GetSpellInfo` tries the exact map difficulty before walking
+    /// `DifficultyEntry::FallbackDifficultyID`. Keep both aura and channel
+    /// words coupled to the same selected row rather than merging metadata
+    /// across difficulties.
+    pub fn interrupt_flags_for_difficulty_like_cpp(
+        &self,
+        spell_id: i32,
+        requested_difficulty_id: u8,
+        difficulty_store: Option<&crate::difficulty::DifficultyStore>,
+    ) -> Option<([u32; 2], [u32; 2])> {
+        let mut difficulty_id = requested_difficulty_id;
+        let mut visited = [false; 256];
+        loop {
+            if let Some(flags) = self
+                .spell_interrupt_flags
+                .get(&(spell_id, difficulty_id))
+                .copied()
+            {
+                return Some(flags);
+            }
+
+            let visited_entry = &mut visited[usize::from(difficulty_id)];
+            if *visited_entry {
+                return None;
+            }
+            *visited_entry = true;
+
+            difficulty_id = difficulty_store?.fallback_difficulty_id_like_cpp(difficulty_id)?;
+        }
+    }
+
+    /// C++ `SpellInfo::HasAuraInterruptFlag` for the two
+    /// `SpellAuraInterruptFlags` words loaded from difficulty zero.
+    ///
+    /// Transitional callers without map context retain the original base-row
+    /// behavior; live paths should call the difficulty-aware variant.
+    pub fn aura_interrupt_flags_like_cpp(&self, spell_id: i32) -> Option<[u32; 2]> {
+        self.aura_interrupt_flags_for_difficulty_like_cpp(spell_id, 0, None)
+    }
+
+    pub fn aura_interrupt_flags_for_difficulty_like_cpp(
+        &self,
+        spell_id: i32,
+        requested_difficulty_id: u8,
+        difficulty_store: Option<&crate::difficulty::DifficultyStore>,
+    ) -> Option<[u32; 2]> {
+        self.interrupt_flags_for_difficulty_like_cpp(
+            spell_id,
+            requested_difficulty_id,
+            difficulty_store,
+        )
+        .map(|(aura, _)| aura)
+    }
+
+    pub fn has_aura_interrupt_flag_like_cpp(&self, spell_id: i32, flags: u32, flags2: u32) -> bool {
+        self.aura_interrupt_flags_like_cpp(spell_id)
+            .is_some_and(|known| {
+                (flags != 0 && known[0] & flags != 0) || (flags2 != 0 && known[1] & flags2 != 0)
+            })
+    }
+
+    /// C++ `SpellInfo::HasChannelInterruptFlag` for the two
+    /// `SpellAuraInterruptFlags` words loaded from difficulty zero.
+    pub fn channel_interrupt_flags_like_cpp(&self, spell_id: i32) -> Option<[u32; 2]> {
+        self.channel_interrupt_flags_for_difficulty_like_cpp(spell_id, 0, None)
+    }
+
+    pub fn channel_interrupt_flags_for_difficulty_like_cpp(
+        &self,
+        spell_id: i32,
+        requested_difficulty_id: u8,
+        difficulty_store: Option<&crate::difficulty::DifficultyStore>,
+    ) -> Option<[u32; 2]> {
+        self.interrupt_flags_for_difficulty_like_cpp(
+            spell_id,
+            requested_difficulty_id,
+            difficulty_store,
+        )
+        .map(|(_, channel)| channel)
+    }
+
+    pub fn has_channel_interrupt_flag_like_cpp(
+        &self,
+        spell_id: i32,
+        flags: u32,
+        flags2: u32,
+    ) -> bool {
+        self.channel_interrupt_flags_like_cpp(spell_id)
+            .is_some_and(|known| {
+                (flags != 0 && known[0] & flags != 0) || (flags2 != 0 && known[1] & flags2 != 0)
+            })
+    }
+
     /// Port of C++ `SpellInfo::CheckShapeshift` for regular `SpellInfo`
     /// entries composed by `SpellMgr::LoadSpellInfoStore`.
     pub fn check_shapeshift_like_cpp<'a, F>(
@@ -5942,6 +6064,35 @@ ORDER BY sm.ID, se.EffectIndex
     }
 
     #[allow(dead_code)]
+    pub fn insert_spell_interrupt_flags_like_cpp(
+        &mut self,
+        spell_id: i32,
+        aura_interrupt_flags: [u32; 2],
+        channel_interrupt_flags: [u32; 2],
+    ) {
+        self.insert_spell_interrupt_flags_for_difficulty_like_cpp(
+            spell_id,
+            0,
+            aura_interrupt_flags,
+            channel_interrupt_flags,
+        );
+    }
+
+    #[allow(dead_code)]
+    pub fn insert_spell_interrupt_flags_for_difficulty_like_cpp(
+        &mut self,
+        spell_id: i32,
+        difficulty_id: u8,
+        aura_interrupt_flags: [u32; 2],
+        channel_interrupt_flags: [u32; 2],
+    ) {
+        self.spell_interrupt_flags.insert(
+            (spell_id, difficulty_id),
+            (aura_interrupt_flags, channel_interrupt_flags),
+        );
+    }
+
+    #[allow(dead_code)]
     pub fn insert_spell_shapeshift_masks_like_cpp(
         &mut self,
         spell_id: i32,
@@ -6060,6 +6211,91 @@ mod tests {
         );
         assert!(store.is_channeled_like_cpp(spell_id as i32));
         assert!(!store.is_channeled_like_cpp(99_999));
+    }
+
+    #[test]
+    fn spell_store_resolves_interrupt_masks_by_difficulty_and_fallback_like_cpp() {
+        let spell_id = 70_101;
+        let exact_without_difficulty_entry_spell_id = 70_102;
+        let interrupts = crate::spell_db2::SpellInterruptsStore::from_entries([
+            crate::spell_db2::SpellInterruptsEntry {
+                id: 1,
+                difficulty_id: 0,
+                interrupt_flags: 0,
+                aura_interrupt_flags: [0x0004_0000, 0],
+                channel_interrupt_flags: [0, 0],
+                spell_id,
+            },
+            crate::spell_db2::SpellInterruptsEntry {
+                id: 2,
+                difficulty_id: 2,
+                interrupt_flags: 0,
+                aura_interrupt_flags: [0, 0],
+                channel_interrupt_flags: [0x0004_0000, 0],
+                spell_id,
+            },
+            crate::spell_db2::SpellInterruptsEntry {
+                id: 3,
+                difficulty_id: 9,
+                interrupt_flags: 0,
+                aura_interrupt_flags: [0, 0x40],
+                channel_interrupt_flags: [0, 0x80],
+                spell_id: exact_without_difficulty_entry_spell_id,
+            },
+        ]);
+        let mut store = SpellStore::new();
+        let difficulties = crate::difficulty::DifficultyStore::from_entries([
+            crate::difficulty::DifficultyEntry {
+                id: 1,
+                instance_type: 0,
+                flags: 0,
+                fallback_difficulty_id: 0,
+                toggle_difficulty_id: 0,
+            },
+            crate::difficulty::DifficultyEntry {
+                id: 2,
+                instance_type: 0,
+                flags: 0,
+                fallback_difficulty_id: 1,
+                toggle_difficulty_id: 0,
+            },
+            crate::difficulty::DifficultyEntry {
+                id: 3,
+                instance_type: 0,
+                flags: 0,
+                fallback_difficulty_id: 1,
+                toggle_difficulty_id: 0,
+            },
+        ]);
+
+        store.apply_db2_interrupts_like_cpp(&interrupts);
+
+        assert_eq!(
+            store.interrupt_flags_for_difficulty_like_cpp(spell_id as i32, 2, Some(&difficulties),),
+            Some(([0, 0], [0x0004_0000, 0])),
+            "the exact row overrides its base row without merging words"
+        );
+        assert_eq!(
+            store.interrupt_flags_for_difficulty_like_cpp(spell_id as i32, 3, Some(&difficulties),),
+            Some(([0x0004_0000, 0], [0, 0])),
+            "difficulty 3 walks 3 -> 1 -> 0"
+        );
+        assert_eq!(
+            store.interrupt_flags_for_difficulty_like_cpp(
+                exact_without_difficulty_entry_spell_id as i32,
+                9,
+                Some(&difficulties),
+            ),
+            Some(([0, 0x40], [0, 0x80])),
+            "an exact SpellInterrupts row wins before Difficulty lookup"
+        );
+        assert_eq!(
+            store.interrupt_flags_for_difficulty_like_cpp(99_999, 3, Some(&difficulties)),
+            None,
+            "a fully missing fallback chain stays unknown"
+        );
+        assert!(store.has_aura_interrupt_flag_like_cpp(spell_id as i32, 0x0004_0000, 0));
+        assert!(!store.has_channel_interrupt_flag_like_cpp(spell_id as i32, 0x0004_0000, 0));
     }
 
     #[test]
