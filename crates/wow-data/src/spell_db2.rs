@@ -5,6 +5,7 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use tracing::info;
+use wow_database::{HotfixDatabase, HotfixStatements};
 
 use crate::wdc4::Wdc4Reader;
 
@@ -750,6 +751,41 @@ impl SpellNameStore {
             }
         })
     }
+
+    /// Apply C++ `DB2StorageBase::LoadFromDB` ordering for `SpellName.db2`:
+    /// official rows first, then custom rows. The name locale overlays remain
+    /// separate; callers that only need `HasRecord` receive the effective ID
+    /// set after both base-table passes.
+    pub async fn apply_hotfix_overlays_like_cpp(&mut self, db: &HotfixDatabase) -> Result<usize> {
+        let mut count = 0usize;
+        for official in [true, false] {
+            let mut stmt = db.prepare(HotfixStatements::SEL_SPELL_NAME);
+            stmt.set_bool(0, official);
+            let mut result = db.query(&stmt).await?;
+            if result.is_empty() {
+                continue;
+            }
+
+            loop {
+                if let Some(id) = result.try_read::<u32>(0) {
+                    self.overlay_hotfix_row_like_cpp(
+                        id,
+                        result.try_read::<String>(1).unwrap_or_default(),
+                    );
+                    count += 1;
+                }
+
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+        Ok(count)
+    }
+
+    fn overlay_hotfix_row_like_cpp(&mut self, id: u32, name: String) {
+        self.entries.insert(id, SpellNameEntry { id, name });
+    }
 }
 
 impl SpellPowerStore {
@@ -979,6 +1015,14 @@ impl SpellFocusObjectStore {
 }
 
 impl SpellInterruptsStore {
+    /// Iterate interrupt rows keyed internally by DB2 row id. C++ indexes all
+    /// difficulties and resolves fallback during SpellInfo construction; the
+    /// Rust `SpellStore` likewise retains every `(SpellID, DifficultyID)` row
+    /// and resolves the active difficulty through its fallback chain.
+    pub fn entries_like_cpp(&self) -> impl Iterator<Item = &SpellInterruptsEntry> {
+        self.entries.values()
+    }
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "SpellInterrupts.db2", |id, idx, r| {
             SpellInterruptsEntry {
@@ -1503,6 +1547,29 @@ mod tests {
         }]);
 
         assert_eq!(store.get(1).unwrap().spell_id, 10);
+    }
+
+    #[test]
+    fn spell_name_hotfix_rows_override_and_add_effective_ids_like_cpp() {
+        let mut store = SpellNameStore::from_entries([SpellNameEntry {
+            id: 1,
+            name: "File name".to_string(),
+        }]);
+
+        store.overlay_hotfix_row_like_cpp(1, "Official name".to_string());
+        store.overlay_hotfix_row_like_cpp(2, "SQL-only name".to_string());
+        store.overlay_hotfix_row_like_cpp(1, "Custom name".to_string());
+
+        assert_eq!(store.len(), 2);
+        assert_eq!(
+            store.get(1).map(|entry| entry.name.as_str()),
+            Some("Custom name")
+        );
+        assert_eq!(
+            store.get(2).map(|entry| entry.name.as_str()),
+            Some("SQL-only name"),
+            "a SQL-only SpellName ID must participate in the server-side collision gate"
+        );
     }
 
     #[test]

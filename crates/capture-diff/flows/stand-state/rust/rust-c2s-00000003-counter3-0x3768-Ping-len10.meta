@@ -1,0 +1,8 @@
+direction=c2s
+connection_id=1
+addr=127.0.0.1:0
+seq=3
+counter=3
+opcode=0x3768
+name=Ping
+len=10

@@ -7,8 +7,10 @@
 //! - `rust-<dir>-<seq:08>-counter<n>-0x<opcode>-<name>-len<n>.bin` — the raw
 //!   packet bytes **including** the 2-byte little-endian opcode prefix.
 //! - `...meta` — `key=value` lines: `direction`, `addr`, `seq`, `counter`,
-//!   `opcode=0x....`, `name`, `len`. `len` is the full `.bin` length (opcode
-//!   prefix + body); the parser ignores it and derives the body from `bin[2..]`.
+//!   `connection_id`, `opcode=0x....`, `name`, `len`. `len` is the full `.bin`
+//!   length (opcode prefix + body); the parser ignores it and derives the body
+//!   from `bin[2..]`. Legacy metadata without `connection_id` defaults to the
+//!   realm connection (`0`).
 //!   `direction` is `c2s`/`s2c`, or `c2s-unencrypted`/`s2c-unencrypted` for the
 //!   pre-encryption handshake packets — both normalize via [`Direction::from_tag`].
 //!
@@ -24,6 +26,7 @@ use crate::model::{Capture, CapturedPacket, Direction};
 /// A parsed `.meta` sidecar.
 struct Meta {
     direction: Direction,
+    connection_id: u32,
     seq: u64,
     opcode: u16,
     bin_path: std::path::PathBuf,
@@ -33,6 +36,7 @@ fn parse_meta(path: &Path) -> Result<Meta> {
     let text = std::fs::read_to_string(path)
         .with_context(|| format!("reading meta {}", path.display()))?;
     let mut direction = None;
+    let mut connection_id = None;
     let mut seq = None;
     let mut opcode = None;
     for line in text.lines() {
@@ -41,6 +45,15 @@ fn parse_meta(path: &Path) -> Result<Meta> {
         };
         match key.trim() {
             "direction" => direction = Direction::from_tag(value),
+            "connection_id" => {
+                connection_id = Some(value.trim().parse::<u32>().with_context(|| {
+                    format!(
+                        "meta {} has invalid connection_id {:?}",
+                        path.display(),
+                        value.trim()
+                    )
+                })?);
+            }
             "seq" => seq = value.trim().parse::<u64>().ok(),
             "opcode" => {
                 let v = value
@@ -59,6 +72,7 @@ fn parse_meta(path: &Path) -> Result<Meta> {
     let bin_path = path.with_extension("bin");
     Ok(Meta {
         direction,
+        connection_id: connection_id.unwrap_or(0),
         seq,
         opcode,
         bin_path,
@@ -88,6 +102,16 @@ pub fn parse_rust_dump(dir: &Path) -> Result<Capture> {
 
     // Global seq is the canonical cross-direction wire order.
     metas.sort_by_key(|m| m.seq);
+    for pair in metas.windows(2) {
+        if pair[0].seq == pair[1].seq {
+            bail!(
+                "duplicate packet dump seq {} in {} and {}; the world process may have restarted during capture",
+                pair[0].seq,
+                pair[0].bin_path.display(),
+                pair[1].bin_path.display(),
+            );
+        }
+    }
 
     let mut packets = Vec::with_capacity(metas.len());
     for meta in metas {
@@ -110,6 +134,7 @@ pub fn parse_rust_dump(dir: &Path) -> Result<Capture> {
         }
         packets.push(CapturedPacket {
             direction: meta.direction,
+            connection_id: meta.connection_id,
             opcode: meta.opcode,
             // Strip the 2-byte opcode prefix so the body matches PKT normalization.
             body: bin[2..].to_vec(),
@@ -138,8 +163,9 @@ pub fn write_rust_dump(dir: &Path, capture: &Capture) -> Result<()> {
         );
         std::fs::write(dir.join(format!("{stem}.bin")), &bin)?;
         let meta = format!(
-            "direction={}\naddr=127.0.0.1:0\nseq={seq}\ncounter={seq}\nopcode=0x{:04X}\nname={name}\nlen={}\n",
+            "direction={}\nconnection_id={}\naddr=127.0.0.1:0\nseq={seq}\ncounter={seq}\nopcode=0x{:04X}\nname={name}\nlen={}\n",
             pkt.direction.tag(),
+            pkt.connection_id,
             pkt.opcode,
             bin.len()
         );

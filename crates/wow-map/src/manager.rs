@@ -2759,6 +2759,8 @@ mod tests {
                 missing_or_stale: 0,
                 fanout_not_represented: 1,
                 dynamic_object_values_updates: Vec::new(),
+                player_values_updates: Vec::new(),
+                unit_values_updates: Vec::new(),
             }
         );
         let object = managed_map

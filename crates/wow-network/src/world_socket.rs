@@ -73,6 +73,8 @@ const ENABLE_ENCRYPTION_CONTEXT: [u8; 16] = [
 
 const DEFAULT_MAX_OVERSPEED_PINGS_LIKE_CPP: u32 = 2;
 const OVERSPEED_PING_WINDOW_LIKE_CPP: Duration = Duration::from_secs(27);
+const REALM_CONNECTION_ID_LIKE_CPP: u32 = 0;
+const INSTANCE_CONNECTION_ID_LIKE_CPP: u32 = 1;
 
 static PACKET_DUMP_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
@@ -99,6 +101,7 @@ fn sanitize_packet_dump_name(name: &str) -> String {
 
 fn dump_world_packet_like_cpp(
     direction: &str,
+    connection_id: u32,
     addr: SocketAddr,
     counter: u64,
     opcode_raw: u16,
@@ -133,7 +136,7 @@ fn dump_world_packet_like_cpp(
     }
 
     let meta = format!(
-        "direction={direction}\naddr={addr}\nseq={seq}\ncounter={counter}\nopcode=0x{opcode_raw:04X}\nname={opcode_name}\nlen={}\n",
+        "direction={direction}\nconnection_id={connection_id}\naddr={addr}\nseq={seq}\ncounter={counter}\nopcode=0x{opcode_raw:04X}\nname={opcode_name}\nlen={}\n",
         data.len()
     );
     if let Err(err) = fs::write(&meta_path, meta) {
@@ -146,6 +149,7 @@ fn dump_world_packet_like_cpp(
 
 fn trace_unencrypted_packet(
     direction: &str,
+    connection_id: u32,
     addr: SocketAddr,
     counter: u64,
     opcode_raw: u16,
@@ -154,12 +158,20 @@ fn trace_unencrypted_packet(
     data: &[u8],
 ) {
     if std::env::var_os("RUSTYCORE_PACKET_DUMP_DIR").is_some() {
-        dump_world_packet_like_cpp(direction, addr, counter, opcode_raw, opcode_name, data);
+        dump_world_packet_like_cpp(
+            direction,
+            connection_id,
+            addr,
+            counter,
+            opcode_raw,
+            opcode_name,
+            data,
+        );
     }
 
     if std::env::var_os("RUSTYCORE_HANDSHAKE_TRACE").is_some() {
         tracing::error!(
-            "RUST_HANDSHAKE {direction} addr={addr} counter={counter} opcode=0x{opcode_raw:04X} name={opcode_name} header={:02X?} len={} payload={:02X?}",
+            "RUST_HANDSHAKE {direction} connection_id={connection_id} addr={addr} counter={counter} opcode=0x{opcode_raw:04X} name={opcode_name} header={:02X?} len={} payload={:02X?}",
             header,
             data.len(),
             data
@@ -243,6 +255,9 @@ pub struct AccountInfo {
 pub struct WorldSocket {
     stream: TcpStream,
     addr: SocketAddr,
+    /// C++ `ConnectionType`: realm (`0`) or instance (`1`). Kept on the
+    /// socket so pre-encryption and split-I/O packet dumps use the same route.
+    connection_id: u32,
 
     // Crypto
     crypt: Option<WorldCrypt>,
@@ -293,6 +308,7 @@ impl WorldSocket {
         Self {
             stream,
             addr,
+            connection_id: REALM_CONNECTION_ID_LIKE_CPP,
             crypt: None,
             server_challenge: challenge,
             encrypt_key: None,
@@ -313,6 +329,12 @@ impl WorldSocket {
     /// Configure `MaxOverspeedPings`, matching TC's validated 0-or-2..infinity range.
     pub fn set_max_overspeed_pings_like_cpp(&mut self, max_overspeed_pings: u32) {
         self.max_overspeed_pings_like_cpp = max_overspeed_pings;
+    }
+
+    /// Mark this accepted socket as C++ `CONNECTION_TYPE_INSTANCE` before its
+    /// handshake starts, so every packet in the capture has `ConnectionId=1`.
+    pub fn mark_instance_connection_like_cpp(&mut self) {
+        self.connection_id = INSTANCE_CONNECTION_ID_LIKE_CPP;
     }
 
     /// Configure the shared C++ `sIPLocation` equivalent used by world auth.
@@ -638,6 +660,7 @@ impl WorldSocket {
         self.unencrypted_packets_sent += 1;
         trace_unencrypted_packet(
             "s2c-unencrypted",
+            self.connection_id,
             self.addr,
             self.unencrypted_packets_sent,
             opcode_raw,
@@ -717,6 +740,7 @@ impl WorldSocket {
             .unwrap_or_else(|| "UNKNOWN_CLIENT_OPCODE".to_string());
         trace_unencrypted_packet(
             "c2s-unencrypted",
+            self.connection_id,
             self.addr,
             self.unencrypted_packets_received,
             opcode_raw,
@@ -952,6 +976,7 @@ impl WorldSocket {
             session_tx,
             pong_tx,
             addr: self.addr,
+            connection_id: self.connection_id,
             max_overspeed_pings_like_cpp: self.max_overspeed_pings_like_cpp,
             overspeed_ping_tracker_like_cpp: self.overspeed_ping_tracker_like_cpp,
         };
@@ -966,6 +991,7 @@ impl WorldSocket {
             crypt: WorldCrypt::new_with_server_counter(&encrypt_key, self.unencrypted_packets_sent),
             send_rx,
             addr: self.addr,
+            connection_id: self.connection_id,
             compressor: compression::PacketCompressor::new(),
         };
 
@@ -997,6 +1023,7 @@ pub struct SocketReader {
     /// Sends serialized Pong packets to the write loop (bypasses session).
     pong_tx: flume::Sender<Vec<u8>>,
     addr: SocketAddr,
+    connection_id: u32,
     max_overspeed_pings_like_cpp: u32,
     overspeed_ping_tracker_like_cpp: OverspeedPingTrackerLikeCpp,
 }
@@ -1053,6 +1080,7 @@ impl SocketReader {
                 .unwrap_or_else(|| "Unknown".to_string());
             dump_world_packet_like_cpp(
                 "c2s",
+                self.connection_id,
                 self.addr,
                 self.crypt.client_counter(),
                 opcode,
@@ -1127,6 +1155,7 @@ pub struct SocketWriter {
     crypt: WorldCrypt,
     send_rx: flume::Receiver<Vec<u8>>,
     addr: SocketAddr,
+    connection_id: u32,
     compressor: compression::PacketCompressor,
 }
 
@@ -1163,6 +1192,7 @@ impl SocketWriter {
             .unwrap_or_else(|| "Unknown".to_string());
         dump_world_packet_like_cpp(
             "s2c",
+            self.connection_id,
             self.addr,
             self.crypt.server_counter(),
             opcode_raw,

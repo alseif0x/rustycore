@@ -56,6 +56,7 @@ timeout_secs="${WOW_BOT_LOGIN_TIMEOUT_SECS:-1}"
 report_path="${WOW_BOT_REPORT:-/tmp/rustycore-bot-login-only-report.json}"
 log_path="${WOW_BOT_LOG:-/tmp/rustycore-bot-login-only.log}"
 quest_timeout_secs="${WOW_BOT_QUEST_TIMEOUT_SECS:-5}"
+stand_state_timeout_secs="${WOW_BOT_STAND_STATE_TIMEOUT_SECS:-5}"
 ensure_accounts="${WOW_BOT_ENSURE_TEST_ACCOUNTS:-1}"
 
 export BNET_HOST="${BNET_HOST:-127.0.0.1}"
@@ -68,7 +69,27 @@ export WOW_BOT_CLIENT_BUILD="${WOW_BOT_CLIENT_BUILD:-${WOW_BOT_BUILD:-54261}}"
 export WOW_BOT_DB_CONF="${WOW_BOT_DB_CONF:-/home/server/trinity-legacy-install/etc/worldserver.conf}"
 
 mode_args=(--login-only --timeout "$timeout_secs")
+stand_state_requested=0
+if [[ "${WOW_BOT_STAND_STATE_SMOKE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ || -n "${WOW_BOT_STAND_STATE:-}" ]]; then
+  stand_state_requested=1
+fi
+quest_requested=0
 if [[ "${WOW_BOT_QUEST_SMOKE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  quest_requested=1
+fi
+if ((stand_state_requested && quest_requested)); then
+  echo "WOW_BOT_STAND_STATE_SMOKE/WOW_BOT_STAND_STATE and WOW_BOT_QUEST_SMOKE are separate modes" >&2
+  exit 2
+fi
+
+if ((stand_state_requested)); then
+  report_path="${WOW_BOT_REPORT:-/tmp/rustycore-bot-stand-state-report.json}"
+  log_path="${WOW_BOT_LOG:-/tmp/rustycore-bot-stand-state.log}"
+  mode_args=(--stand-state-smoke --stand-state-timeout "$stand_state_timeout_secs")
+  if [[ -n "${WOW_BOT_STAND_STATE:-}" ]]; then
+    mode_args=(--stand-state "$WOW_BOT_STAND_STATE" --stand-state-timeout "$stand_state_timeout_secs")
+  fi
+elif ((quest_requested)); then
   : "${WOW_BOT_QUEST_CREATURE_ENTRY:?Set WOW_BOT_QUEST_CREATURE_ENTRY for quest-smoke mode}"
   report_path="${WOW_BOT_REPORT:-/tmp/rustycore-bot-quest-smoke-report.json}"
   log_path="${WOW_BOT_LOG:-/tmp/rustycore-bot-quest-smoke.log}"
@@ -144,5 +165,5 @@ echo "log: $log_path"
 echo "report: $report_path"
 
 if command -v jq >/dev/null 2>&1; then
-  jq '{login_only, quest_smoke, results: [.results[] | {account, world_auth, enum_characters, player_login_verified, quest_smoke_passed, quest_target_entry, quest_target_spawn_guid, quest_target_guid_counter, quest_ids_seen, quest_titles_seen, quest_accept_sent, quest_accept_confirm_seen, quest_db_verified, quest_db_status, quest_failure, join_result}]}' "$report_path"
+  jq '{login_only, quest_smoke, stand_state_smoke, results: [.results[] | {account, world_auth, enum_characters, player_login_verified, stand_state_smoke, stand_state_smoke_passed, stand_states_requested, stand_states_confirmed, stand_state_failure, quest_smoke_passed, quest_target_entry, quest_target_spawn_guid, quest_target_guid_counter, quest_ids_seen, quest_titles_seen, quest_accept_sent, quest_accept_confirm_seen, quest_db_verified, quest_db_status, quest_failure, join_result}]}' "$report_path"
 fi

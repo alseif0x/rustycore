@@ -49,8 +49,26 @@ pub fn load_flow(name: &str) -> Result<Flow> {
     load_flow_from(&flows_root(), name)
 }
 
+/// Validate one path-component-safe flow name before joining it under a
+/// fixture/capture root. This guards every later write or recursive removal
+/// from absolute paths and `..` traversal.
+pub fn validate_flow_name(name: &str) -> Result<()> {
+    let mut bytes = name.bytes();
+    if !bytes
+        .next()
+        .is_some_and(|byte| byte.is_ascii_alphanumeric())
+        || !bytes.all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+    {
+        bail!(
+            "invalid flow name '{name}' (use only ASCII letters, digits, '.', '_', or '-' in one path component)"
+        );
+    }
+    Ok(())
+}
+
 /// Load a flow from an explicit root (used by tests).
 pub fn load_flow_from(root: &Path, name: &str) -> Result<Flow> {
+    validate_flow_name(name)?;
     let dir = root.join(name);
     if !dir.is_dir() {
         bail!(
@@ -107,4 +125,30 @@ fn list_flows_from(root: &Path) -> Vec<String> {
     }
     names.sort();
     names
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn flow_names_are_single_safe_path_components() {
+        for valid in ["stand-state", "login_3.4.3", "flow.01"] {
+            validate_flow_name(valid).unwrap();
+        }
+        for invalid in [
+            "",
+            ".",
+            "..",
+            ".hidden",
+            "_hidden",
+            "-hidden",
+            "../outside",
+            "/tmp/outside",
+            "a/b",
+            "a\\b",
+        ] {
+            assert!(validate_flow_name(invalid).is_err(), "accepted {invalid:?}");
+        }
+    }
 }

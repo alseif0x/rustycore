@@ -26,8 +26,8 @@ pub mod pkt;
 pub mod rustdump;
 
 pub use diff::{
-    AlignedOp, BaselineDelta, BodyDiff, DiffCounts, DiffReport, DivergenceKind,
+    AlignedOp, BaselineDelta, BodyDiff, ConnectionDiff, DiffCounts, DiffReport, DivergenceKind,
     DivergenceSignature, OpKind, baseline_delta,
 };
 pub use flow::{Flow, list_flows, load_flow};
-pub use model::{Capture, CapturedPacket, Direction, opcode_name};
+pub use model::{Capture, CapturedPacket, Direction, PacketBoundary, opcode_name};
