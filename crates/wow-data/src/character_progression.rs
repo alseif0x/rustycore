@@ -569,6 +569,10 @@ impl ChrModelStore {
 }
 
 impl ChrRaceXChrModelStore {
+    pub fn entries(&self) -> impl Iterator<Item = &ChrRaceXChrModelEntry> {
+        self.entries.values()
+    }
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "ChrRaceXChrModel.db2", |id, idx, r| {
             ChrRaceXChrModelEntry {

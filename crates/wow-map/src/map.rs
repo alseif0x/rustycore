@@ -1153,6 +1153,9 @@ pub struct GameObjectsUpdateSummaryLikeCpp {
     pub generic_respawn_save_missing_spawn_id: usize,
     pub generic_respawn_save_missing_gameobject_data: usize,
     pub generic_respawn_compatibility_db_only_represented: usize,
+    /// C++ `GameObject::SaveRespawnTime` DB side effects produced this update.
+    /// Compatibility mode writes DB-only; non-compat mode also owns a map timer.
+    pub respawn_db_saves: Vec<RespawnInfoLikeCpp>,
     pub generic_visibility_on_destroy_represented: usize,
     pub generic_visibility_on_destroy_guids: GameObjectVisibilityOnDestroyGuidsLikeCpp,
 }
@@ -3412,8 +3415,10 @@ where
     /// replacing the same map-owned respawn timer. DB effects, live record
     /// construction, grid/session fanout, and scripts stay outside this lock-owned
     /// helper.
-    /// If the oldest due timer needs an unavailable/error branch, it is left intact
-    /// and processing stops to preserve C++ queue order.
+    /// `consume_due_timer_on_load_failure_like_cpp` selects the live C++ path,
+    /// where `ProcessRespawns` has already popped the timer before a failed
+    /// `LoadFromDB`, versus the older represented safe wrapper, which has no
+    /// loader at all and must leave the timer intact rather than discard work.
     pub fn process_due_respawns_composite_loaded_grid_respawns_like_cpp<F, R, C, L>(
         &mut self,
         now: i64,
@@ -3425,6 +3430,7 @@ where
         mut is_creature_escorted: F,
         mut explicit_roll_for: R,
         mut choose_equal: C,
+        consume_due_timer_on_load_failure_like_cpp: bool,
         mut load_record: L,
     ) -> ProcessRespawnsSafeSideEffectsSummaryLikeCpp
     where
@@ -3486,6 +3492,13 @@ where
 
             if spawn_store.spawn_data(object_type, spawn_id).is_none() {
                 summary.blocked_missing_spawn_data += 1;
+                if consume_due_timer_on_load_failure_like_cpp {
+                    // C++ pops the due timer before `DoRespawn`; a stale DB
+                    // spawn makes `LoadFromDB` fail, but it must not pin the
+                    // queue head and starve every later respawn on the map.
+                    self.remove_respawn_time_like_cpp(object_type, spawn_id);
+                    continue;
+                }
                 break;
             }
 
@@ -3523,6 +3536,14 @@ where
                         let Some(records) = load_record(self, object_type, spawn_id) else {
                             summary.blocked_loaded_grid_respawn_loads += 1;
                             summary.blocked_do_respawn_runtime += 1;
+                            // `Map::ProcessRespawns` erases the timer before
+                            // `DoRespawn`; `Creature/GameObject::LoadFromDB`
+                            // failure deletes the temporary object and the loop
+                            // continues with the next due timer.
+                            if consume_due_timer_on_load_failure_like_cpp {
+                                self.remove_respawn_time_like_cpp(object_type, spawn_id);
+                                continue;
+                            }
                             break;
                         };
 
@@ -3613,6 +3634,7 @@ where
             is_creature_escorted,
             explicit_roll_for,
             choose_equal,
+            false,
             |_map, _object_type, _spawn_id| None,
         )
     }
@@ -6433,13 +6455,14 @@ where
             if outcome.generic_temporary_respawn_zeroed {
                 summary.generic_temporary_respawn_zeroed += 1;
             }
-            if matches!(
+            let map_timer_added = matches!(
                 outcome.generic_respawn_timer_add,
                 Some(
                     AddRespawnInfoOutcomeLikeCpp::Inserted
                         | AddRespawnInfoOutcomeLikeCpp::ReplacedExisting
                 )
-            ) {
+            );
+            if map_timer_added {
                 summary.generic_respawn_timer_added += 1;
             }
             if outcome.generic_respawn_save_missing_spawn_id {
@@ -6450,6 +6473,22 @@ where
             }
             if outcome.generic_respawn_compatibility_db_only_represented {
                 summary.generic_respawn_compatibility_db_only_represented += 1;
+            }
+            if (map_timer_added || outcome.generic_respawn_compatibility_db_only_represented)
+                && let (Some(respawn_time), Some(game_object)) = (
+                    outcome.generic_respawn_scheduled_time,
+                    self.map_object_record(outcome.game_object_guid)
+                        .and_then(MapObjectRecord::game_object),
+                )
+            {
+                let position = game_object.world().position();
+                summary.respawn_db_saves.push(RespawnInfoLikeCpp {
+                    object_type: SpawnObjectType::GameObject,
+                    spawn_id: game_object.spawn_id(),
+                    entry: game_object.world().object().entry(),
+                    respawn_time,
+                    grid_id: compute_grid_coord(position.x, position.y).get_id(),
+                });
             }
             if outcome.generic_visibility_on_destroy_represented {
                 summary.generic_visibility_on_destroy_represented += 1;
@@ -19499,6 +19538,7 @@ mod tests {
             |_, _| false,
             |_, _| 0.0,
             |_candidates, count| (0..count).collect(),
+            true,
             |map, object_type, spawn_id| {
                 loader_calls += 1;
                 assert_eq!(object_type, SpawnObjectType::Creature);
@@ -19566,6 +19606,7 @@ mod tests {
             |_, _| false,
             |_, _| 0.0,
             |_candidates, count| (0..count).collect(),
+            true,
             |_map, object_type, spawn_id| {
                 assert_eq!(object_type, SpawnObjectType::GameObject);
                 assert_eq!(spawn_id, 39801);
@@ -19624,6 +19665,7 @@ mod tests {
             |_, _| false,
             |_, _| 0.0,
             |_candidates, count| (0..count).collect(),
+            true,
             |_map, object_type, spawn_id| {
                 assert_eq!(object_type, SpawnObjectType::GameObject);
                 assert_eq!(spawn_id, 40901);
@@ -19665,7 +19707,7 @@ mod tests {
     }
 
     #[test]
-    fn process_respawns_loaded_grid_loader_none_preserves_timer_and_stops_like_cpp() {
+    fn process_respawns_loaded_grid_loader_none_removes_timer_and_continues_like_cpp() {
         let mut map = test_map();
         let mut store = SpawnStore::new();
         let active = spawn_group(399, SpawnGroupFlags::NONE);
@@ -19691,19 +19733,35 @@ mod tests {
             |_, _| false,
             |_, _| 0.0,
             |_candidates, count| (0..count).collect(),
-            |_map, _object_type, _spawn_id| None,
+            true,
+            |_map, object_type, spawn_id| {
+                assert_eq!(object_type, SpawnObjectType::Creature);
+                if spawn_id == 39901 {
+                    None
+                } else {
+                    Some(LoadedGridRespawnRecordsLikeCpp::primary_only(
+                        MapObjectRecord::new_creature(test_creature_for_spawn(
+                            spawn_id, 3990201, true,
+                        ))
+                        .unwrap(),
+                    ))
+                }
+            },
         );
 
-        assert_eq!(summary.executed_loaded_grid_respawns, 0);
+        assert_eq!(summary.executed_loaded_grid_respawns, 1);
         assert_eq!(summary.blocked_loaded_grid_respawn_loads, 1);
-        assert_eq!(map.map_object_count(), 0);
+        assert_eq!(summary.blocked_do_respawn_runtime, 1);
+        assert_eq!(map.map_object_count(), 1);
+        assert!(map.get_gameobject_by_spawn_id_like_cpp(39902).is_none());
+        assert!(map.get_creature_by_spawn_id_like_cpp(39902).is_some());
         assert_eq!(
             map.get_respawn_time_like_cpp(SpawnObjectType::Creature, 39901),
-            90
+            0
         );
         assert_eq!(
             map.get_respawn_time_like_cpp(SpawnObjectType::Creature, 39902),
-            100
+            0
         );
     }
 
@@ -19728,6 +19786,7 @@ mod tests {
             |_, _| false,
             |_, _| 0.0,
             |_candidates, count| (0..count).collect(),
+            true,
             |_map, _object_type, _spawn_id| {
                 loader_calls += 1;
                 None
@@ -19766,6 +19825,7 @@ mod tests {
             |_, _| false,
             |_, _| 0.0,
             |_candidates, count| (0..count).collect(),
+            true,
             |_map, _object_type, _spawn_id| {
                 let mut creature = test_creature_for_spawn(40101, 4010101, true);
                 creature
@@ -19835,6 +19895,7 @@ mod tests {
             |_, _| false,
             |_, _| 0.0,
             |_candidates, _count| vec![1],
+            true,
             |_map, object_type, spawn_id| {
                 loader_calls += 1;
                 assert_eq!(object_type, SpawnObjectType::Creature);
@@ -19970,6 +20031,7 @@ mod tests {
             |_, _| false,
             |_, _| 0.0,
             |_candidates, _count| vec![1],
+            true,
             |_map, object_type, spawn_id| {
                 assert_eq!(object_type, SpawnObjectType::Creature);
                 assert_eq!(spawn_id, 52802);
@@ -30247,6 +30309,16 @@ mod tests {
         let summary = map.update_game_objects_like_cpp(1, 2_000);
 
         assert_eq!(summary.generic_visibility_on_destroy_represented, 300);
+        assert_eq!(
+            summary.generic_respawn_compatibility_db_only_represented,
+            300
+        );
+        assert_eq!(summary.respawn_db_saves.len(), 300);
+        assert_eq!(
+            summary.respawn_db_saves[256].object_type,
+            SpawnObjectType::GameObject
+        );
+        assert_eq!(summary.respawn_db_saves[256].respawn_time, 2_030);
         let carried_guids = summary.generic_visibility_on_destroy_guids.as_slice();
         assert_eq!(carried_guids.len(), 300);
         assert!(carried_guids.contains(&expected_guids[256]));

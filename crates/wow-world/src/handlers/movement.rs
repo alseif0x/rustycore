@@ -274,17 +274,28 @@ impl WorldSession {
             let _ = self.mutate_canonical_player_like_cpp(|player| {
                 player.unit_mut().world_mut().relocate(info.position);
             });
+            let authoritative_grid_map_key = self
+                .current_canonical_player_map_key_like_cpp()
+                .filter(|key| key.map_id == u32::from(self.player_map_id_like_cpp()));
+            let grid_instance_id = authoritative_grid_map_key
+                .map(|key| key.instance_id)
+                .unwrap_or(0);
             if load_player_active_grid_like_cpp
-                && let Some(outcome) =
-                    self.ensure_player_grid_loaded_like_cpp(self.player_map_id_like_cpp(), 0, pos)
+                && let Some(outcome) = self.ensure_player_grid_loaded_like_cpp(
+                    self.player_map_id_like_cpp(),
+                    authoritative_grid_map_key.map(|key| key.instance_id),
+                    pos,
+                )
             {
                 trace!(
                     account = self.account_id,
                     map_id = self.player_map_id_like_cpp(),
+                    instance_id = grid_instance_id,
                     old_grid_x = old_player_cell_like_cpp.as_ref().map(|cell| cell.grid_x()),
                     old_grid_y = old_player_cell_like_cpp.as_ref().map(|cell| cell.grid_y()),
                     new_grid_x = new_player_cell_like_cpp.as_ref().map(|cell| cell.grid_x()),
                     new_grid_y = new_player_cell_like_cpp.as_ref().map(|cell| cell.grid_y()),
+                    map_unavailable = outcome.map_unavailable,
                     grid_loaded_now = outcome.grid_loaded_now,
                     creature_records_added = outcome.creature_records_added,
                     gameobject_records_added = outcome.gameobject_records_added,
@@ -294,7 +305,8 @@ impl WorldSession {
                 );
                 if (std::env::var_os("RUSTYCORE_PACKET_SEQUENCE_TRACE").is_some()
                     || std::env::var_os("RUSTYCORE_CREATURE_VIS_TRACE").is_some())
-                    && (outcome.map_created
+                    && (outcome.map_unavailable
+                        || outcome.map_created
                         || outcome.grid_loaded_now
                         || outcome.metadata_entries != 0
                         || outcome.skipped_already_loaded != 0
@@ -312,7 +324,7 @@ impl WorldSession {
                     info!(
                         account = self.account_id,
                         map_id = self.player_map_id_like_cpp(),
-                        instance_id = 0u32,
+                        instance_id = grid_instance_id,
                         x = pos.x,
                         y = pos.y,
                         z = pos.z,
@@ -320,6 +332,7 @@ impl WorldSession {
                         old_grid_y = old_player_cell_like_cpp.as_ref().map(|cell| cell.grid_y()),
                         new_grid_x = new_player_cell_like_cpp.as_ref().map(|cell| cell.grid_x()),
                         new_grid_y = new_player_cell_like_cpp.as_ref().map(|cell| cell.grid_y()),
+                        map_unavailable = outcome.map_unavailable,
                         map_created = outcome.map_created,
                         grid_loaded_now = outcome.grid_loaded_now,
                         metadata_entries = outcome.metadata_entries,
@@ -1088,6 +1101,46 @@ mod tests {
         let calls = Arc::new(AtomicUsize::new(0));
         let seen = Arc::new(Mutex::new(Vec::new()));
 
+        let canonical: crate::SharedCanonicalMapManager =
+            Arc::new(Mutex::new(wow_map::MapManager::default()));
+        let mut canonical_player = wow_entities::Player::new(Some(1), false);
+        canonical_player
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .create(guid);
+        canonical_player
+            .unit_mut()
+            .world_mut()
+            .set_map(1, 77)
+            .unwrap();
+        canonical_player
+            .unit_mut()
+            .world_mut()
+            .relocate(login_position);
+        canonical_player
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .add_to_world();
+        canonical
+            .lock()
+            .unwrap()
+            .create_map_entry(
+                1,
+                77,
+                0,
+                wow_map::ManagedMapKind::Dungeon {
+                    has_reset_schedule: false,
+                },
+            )
+            .map_mut()
+            .insert_map_object_record(
+                wow_entities::MapObjectRecord::new_player(canonical_player).unwrap(),
+            )
+            .unwrap();
+        session.set_canonical_map_manager(canonical);
+
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
             guid,
             "MovementGridLoader".to_string(),
@@ -1145,7 +1198,7 @@ mod tests {
         assert_eq!(calls.load(Ordering::SeqCst), 1);
         assert_eq!(
             seen.lock().unwrap().as_slice(),
-            &[(1, 0, new_grid_position)]
+            &[(1, Some(77), new_grid_position)]
         );
     }
 

@@ -25,10 +25,13 @@ use wow_constants::{
 use wow_core::guid::HighGuid;
 use wow_core::{ObjectGuid, Position};
 use wow_crypto::rsa_sign::rsa_sign_connect_to;
+#[cfg(test)]
+use wow_data::PlayerCreatePositionLikeCpp;
 use wow_data::{
     ConditionEntriesByTypeStore, ConditionId, CurrencyTypesStore, HotfixRecordStatus,
-    ItemExtendedCostStore, PlayerConditionContextLikeCpp, PlayerConditionStore, TaxiPathNodeEntry,
-    TaxiPathNodeStore, hotfix_locale_mask, is_player_meeting_condition_like_cpp,
+    ItemExtendedCostStore, PlayerConditionContextLikeCpp, PlayerConditionStore,
+    PlayerCreateInfoLikeCpp, TaxiPathNodeEntry, TaxiPathNodeStore, hotfix_locale_mask,
+    is_player_meeting_condition_like_cpp,
 };
 use wow_database::{
     CharStatements, CharacterDatabase, LoginStatements, PreparedStatement, SqlResult,
@@ -181,6 +184,126 @@ struct LoginWorldStateTemplateLikeCpp {
     default_value: i32,
     map_ids: BTreeSet<i32>,
     area_ids: BTreeSet<u32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct CharacterLoginLocationLikeCpp {
+    map_id: u32,
+    /// C++ `m_homebindAreaId`, loaded from `character_homebind.zoneId`.
+    /// This belongs to the bind packet and is distinct from the current
+    /// terrain-derived zone/area. Battleground join positions leave it unset.
+    bind_area_id: Option<u32>,
+    position: Position,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct CharacterBattlegroundLoginDataLikeCpp {
+    entry_point: CharacterLoginLocationLikeCpp,
+}
+
+fn usable_character_login_location_like_cpp(
+    location: CharacterLoginLocationLikeCpp,
+    map_store: Option<&wow_data::MapStore>,
+) -> bool {
+    location.map_id != u32::from(u16::MAX)
+        && u16::try_from(location.map_id).is_ok()
+        && location.position.is_valid_map_coord_like_cpp()
+        && map_store.is_some_and(|store| store.get(location.map_id).is_some())
+}
+
+fn usable_character_homebind_like_cpp(
+    location: CharacterLoginLocationLikeCpp,
+    map_store: Option<&wow_data::MapStore>,
+    session_expansion: u8,
+) -> bool {
+    usable_character_login_location_like_cpp(location, map_store)
+        && location.bind_area_id.is_some()
+        && map_store
+            .and_then(|store| store.get(location.map_id))
+            .is_some_and(|entry| {
+                !entry.is_instanceable_like_cpp() && session_expansion >= entry.expansion_like_cpp()
+            })
+}
+
+fn default_graveyard_safe_loc_ids_for_race_like_cpp(race: u8) -> [Option<u32>; 2] {
+    const RACE_PANDAREN_NEUTRAL_LIKE_CPP: u8 = 24;
+    const WANDERING_ISLE_STARTING_GRAVEYARD_LIKE_CPP: u32 = 3295;
+
+    [
+        wow_data::GraveyardStore::default_graveyard_safe_loc_id_like_cpp(player_team_for_race_cpp(
+            race,
+        ) as u32),
+        (race == RACE_PANDAREN_NEUTRAL_LIKE_CPP)
+            .then_some(WANDERING_ISLE_STARTING_GRAVEYARD_LIKE_CPP),
+    ]
+}
+
+fn first_login_creation_homebind_like_cpp(
+    player_create_info: PlayerCreateInfoLikeCpp,
+    create_mode: u8,
+) -> Option<CharacterLoginLocationLikeCpp> {
+    let create_position = if create_mode == wow_data::PLAYER_CREATE_MODE_NPE_LIKE_CPP {
+        player_create_info
+            .create_position_npe
+            .unwrap_or(player_create_info.create_position)
+    } else {
+        player_create_info.create_position
+    };
+
+    create_position
+        .transport_guid
+        .is_none()
+        .then_some(CharacterLoginLocationLikeCpp {
+            map_id: create_position.map_id,
+            bind_area_id: None,
+            position: create_position.position,
+        })
+}
+
+fn zone_and_area_from_area_id_like_cpp(
+    area_id: u32,
+    area_store: Option<&wow_data::AreaTableStore>,
+) -> (u32, u32) {
+    let zone_id = area_store
+        .and_then(|store| store.get(area_id))
+        .filter(|area| area.parent_area_id != 0 && area.is_subzone_like_cpp())
+        .map(|area| u32::from(area.parent_area_id))
+        .unwrap_or(area_id);
+    (zone_id, area_id)
+}
+
+fn login_location_zone_area_like_cpp(
+    location: CharacterLoginLocationLikeCpp,
+    resolve_terrain: impl FnOnce(u32, Position) -> std::io::Result<(u32, u32)>,
+) -> std::io::Result<(u32, u32)> {
+    resolve_terrain(location.map_id, location.position)
+}
+
+fn login_bind_point_update_like_cpp(homebind: CharacterLoginLocationLikeCpp) -> BindPointUpdate {
+    let bind_area_id = homebind
+        .bind_area_id
+        .expect("validated character homebind must have an area ID");
+    BindPointUpdate {
+        x: homebind.position.x,
+        y: homebind.position.y,
+        z: homebind.position.z,
+        map_id: i32::try_from(homebind.map_id).expect("character homebind map ID must fit packet"),
+        area_id: i32::try_from(bind_area_id).expect("character homebind area ID must fit packet"),
+    }
+}
+
+fn battleground_login_fallback_location_like_cpp(
+    battleground_data: Option<CharacterBattlegroundLoginDataLikeCpp>,
+    homebind: Option<CharacterLoginLocationLikeCpp>,
+    map_store: Option<&wow_data::MapStore>,
+) -> Option<CharacterLoginLocationLikeCpp> {
+    battleground_data
+        .map(|data| data.entry_point)
+        .filter(|location| usable_character_login_location_like_cpp(*location, map_store))
+        .or_else(|| {
+            homebind
+                .filter(|location| usable_character_login_location_like_cpp(*location, map_store))
+        })
 }
 
 fn parse_login_world_state_map_ids_like_cpp(
@@ -4201,15 +4324,136 @@ impl WorldSession {
         // C++ CHAR_SEL_CHARACTER column order:
         // 7=xp, 8=money, 14..18=position/map/orientation, 21=createMode, 23..24=played time,
         // 28=resettalents_cost, 29=resettalents_time, 39=at_login, 40=zone.
-        let zone: i32 = result.try_read::<u16>(40).unwrap_or(0) as i32; // smallint unsigned
-        let map_id: i32 = result.try_read::<u16>(17).unwrap_or(0) as i32; // smallint unsigned
+        let mut zone: i32 = result.try_read::<u16>(40).unwrap_or(0) as i32; // smallint unsigned
+        let at_login_flags = result.try_read::<u16>(39).unwrap_or(0);
+        let create_mode = result.try_read::<u8>(21).unwrap_or(0);
+        let mut map_id: i32 = result.try_read::<u16>(17).unwrap_or(0) as i32; // smallint unsigned
         let pos_x: f32 = result.try_read(14).unwrap_or(0.0);
         let pos_y: f32 = result.try_read(15).unwrap_or(0.0);
         let pos_z: f32 = result.try_read(16).unwrap_or(0.0);
         let orientation: f32 = result.try_read(18).unwrap_or(0.0);
 
-        let position = Position::new(pos_x, pos_y, pos_z, orientation);
+        let mut position = Position::new(pos_x, pos_y, pos_z, orientation);
         let display_id = default_display_id(race, gender);
+        let saved_character_map_is_battleground = self
+            .map_store()
+            .and_then(|store| store.get(map_id as u32))
+            .is_some_and(|entry| entry.is_battleground_or_arena());
+        let battleground_login_data = if saved_character_map_is_battleground {
+            let mut bg_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_BGDATA);
+            bg_stmt.set_u64(0, guid.counter() as u64);
+            match char_db.query(&bg_stmt).await {
+                Ok(bg_result) if !bg_result.is_empty() => {
+                    Some(CharacterBattlegroundLoginDataLikeCpp {
+                        entry_point: CharacterLoginLocationLikeCpp {
+                            map_id: u32::from(bg_result.try_read::<u16>(6).unwrap_or(u16::MAX)),
+                            bind_area_id: None,
+                            position: Position::new(
+                                bg_result.try_read::<f32>(2).unwrap_or(f32::NAN),
+                                bg_result.try_read::<f32>(3).unwrap_or(f32::NAN),
+                                bg_result.try_read::<f32>(4).unwrap_or(f32::NAN),
+                                bg_result.try_read::<f32>(5).unwrap_or(f32::NAN),
+                            ),
+                        },
+                    })
+                }
+                Ok(_) => None,
+                Err(error) => {
+                    warn!(
+                        player_guid = guid.counter(),
+                        %error,
+                        "failed to load character_battleground_data like C++ Player::_LoadBGData"
+                    );
+                    None
+                }
+            }
+        } else {
+            None
+        };
+        let loaded_login_homebind = {
+            let mut homebind_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_HOMEBIND);
+            homebind_stmt.set_u64(0, guid.counter() as u64);
+            match char_db.query(&homebind_stmt).await {
+                Ok(homebind_result) if !homebind_result.is_empty() => {
+                    Some(CharacterLoginLocationLikeCpp {
+                        map_id: u32::from(homebind_result.try_read::<u16>(0).unwrap_or(u16::MAX)),
+                        bind_area_id: Some(u32::from(
+                            homebind_result.try_read::<u16>(1).unwrap_or(0),
+                        )),
+                        position: Position::new(
+                            homebind_result.try_read::<f32>(2).unwrap_or(f32::NAN),
+                            homebind_result.try_read::<f32>(3).unwrap_or(f32::NAN),
+                            homebind_result.try_read::<f32>(4).unwrap_or(f32::NAN),
+                            homebind_result.try_read::<f32>(5).unwrap_or(f32::NAN),
+                        ),
+                    })
+                }
+                Ok(_) => None,
+                Err(error) => {
+                    warn!(
+                        player_guid = guid.counter(),
+                        %error,
+                        "failed to load character homebind like C++ Player::_LoadHomeBind"
+                    );
+                    self.kick("WorldSession::HandlePlayerLogin Player::_LoadHomeBind query failed");
+                    return;
+                }
+            }
+        };
+        let valid_login_homebind = loaded_login_homebind.filter(|homebind| {
+            usable_character_homebind_like_cpp(
+                *homebind,
+                self.map_store().map(Arc::as_ref),
+                self.expansion,
+            )
+        });
+        let first_login = at_login_flags & 0x020 != 0;
+        let Some(player_create_info) = self
+            .player_create_info_store_like_cpp()
+            .and_then(|store| store.get(race, class))
+            .copied()
+        else {
+            warn!(
+                player_guid = guid.counter(),
+                race,
+                class,
+                "C++ Player::_LoadHomeBind rejected missing/invalid playercreateinfo; aborting login"
+            );
+            self.kick("WorldSession::HandlePlayerLogin Player::_LoadHomeBind player info failed");
+            return;
+        };
+        if loaded_login_homebind.is_some() && valid_login_homebind.is_none() {
+            warn!(
+                player_guid = guid.counter(),
+                "repairing invalid, instanceable, or expansion-inaccessible character homebind like C++ Player::_LoadHomeBind"
+            );
+            self.delete_invalid_character_homebind_like_cpp(char_db.as_ref(), guid)
+                .await;
+        }
+        let repaired_or_valid_homebind = if let Some(homebind) = valid_login_homebind {
+            Some(homebind)
+        } else {
+            self.repair_character_homebind_like_cpp(
+                char_db.as_ref(),
+                guid,
+                race,
+                player_create_info,
+                create_mode,
+                first_login,
+            )
+            .await
+        };
+        let Some(login_homebind) = repaired_or_valid_homebind else {
+            warn!(
+                player_guid = guid.counter(),
+                race,
+                class,
+                create_mode,
+                "C++ Player::_LoadHomeBind could not establish a valid homebind; aborting login"
+            );
+            self.kick("WorldSession::HandlePlayerLogin Player::_LoadHomeBind failed");
+            return;
+        };
 
         // Load played time + money/xp from DB using C++ CHAR_SEL_CHARACTER order.
         self.total_played_time = result.try_read::<u32>(23).unwrap_or(0);
@@ -4223,8 +4467,8 @@ impl WorldSession {
         );
         self.set_represented_active_talent_group_like_cpp(result.try_read::<u8>(30).unwrap_or(0));
         self.set_represented_bonus_talent_groups_like_cpp(result.try_read::<u8>(31).unwrap_or(0));
-        self.set_player_create_mode_like_cpp(result.try_read::<u8>(21).unwrap_or(0));
-        self.set_represented_at_login_flags_like_cpp(result.try_read::<u16>(39).unwrap_or(0));
+        self.set_player_create_mode_like_cpp(create_mode);
+        self.set_represented_at_login_flags_like_cpp(at_login_flags);
         self.load_represented_explored_zones_like_cpp(&result.read_string(64));
         self.set_player_guid(Some(guid));
         self.set_loaded_player_identity_like_cpp(map_id as u16, race, class, level, gender);
@@ -4575,7 +4819,7 @@ impl WorldSession {
             }
         }
         self.refresh_next_level_xp();
-        if self.ensure_login_player_controller_like_cpp(
+        let attached_controller = self.ensure_login_player_controller_like_cpp(
             guid,
             name.clone(),
             position,
@@ -4584,8 +4828,54 @@ impl WorldSession {
             class,
             level,
             gender,
-        ) {
+        );
+        if saved_character_map_is_battleground {
+            // Rust does not yet have a live BattlegroundMgr roster/status
+            // authority, so it cannot prove C++'s `currentBg &&
+            // IsPlayerInBattleground && status != WAIT_LEAVE` resume branch.
+            // Follow C++'s BG-unavailable branch instead of fabricating or
+            // joining a canonical map from stale DB data.
+            let fallback = battleground_login_fallback_location_like_cpp(
+                battleground_login_data,
+                Some(login_homebind),
+                self.map_store().map(Arc::as_ref),
+            );
+            if let Some(fallback) = fallback {
+                let fallback_map_id = u16::try_from(fallback.map_id)
+                    .expect("validated battleground login fallback map ID");
+                map_id = i32::from(fallback_map_id);
+                position = fallback.position;
+                self.seed_login_location_zone_area_like_cpp(&mut zone, fallback);
+                self.set_player_map_position_like_cpp(fallback_map_id, fallback.position);
+                let _ = self.ensure_canonical_world_map_for_current_player_like_cpp();
+                info!(
+                    player_guid = guid.counter(),
+                    map_id,
+                    "battleground runtime unavailable; relocated to entry point/homebind like C++ Player::LoadFromDB"
+                );
+            } else {
+                warn!(
+                    player_guid = guid.counter(),
+                    saved_map_id = map_id,
+                    "battleground unavailable and no valid entry point/homebind was loaded"
+                );
+            }
+        } else if attached_controller {
             let _ = self.ensure_canonical_world_map_for_current_player_like_cpp();
+        }
+        if self.retry_login_at_homebind_like_cpp(
+            &mut map_id,
+            &mut zone,
+            &mut position,
+            login_homebind,
+        ) {
+            info!(
+                player_guid = guid.counter(),
+                map_id,
+                "initial canonical map selection failed; relocated to homebind like C++ Player::LoadFromDB"
+            );
+        }
+        if attached_controller {
             let _ = self.apply_represented_group_leader_flag_like_cpp();
         }
         self.load_represented_character_titles_like_cpp(
@@ -5793,31 +6083,36 @@ impl WorldSession {
             spell_charge_entries.clone(),
         );
 
-        self.send_login_sequence(
-            guid,
-            race,
-            class,
-            gender,
-            level,
-            display_id,
-            &position,
-            map_id,
-            zone,
-            visible_items,
-            inv_slots,
-            item_creates,
-            combat,
-            current_power0,
-            base_mana_like_cpp,
-            login_known_spells,
-            login_favorite_spells,
-            spell_history_entries,
-            spell_charge_entries,
-            action_buttons,
-            skill_info_tuples,
-            self.account_mount_rows_like_cpp(),
-        )
-        .await;
+        if !self
+            .send_login_sequence(
+                guid,
+                race,
+                class,
+                gender,
+                level,
+                display_id,
+                &position,
+                map_id,
+                zone,
+                login_homebind,
+                visible_items,
+                inv_slots,
+                item_creates,
+                combat,
+                current_power0,
+                base_mana_like_cpp,
+                login_known_spells,
+                login_favorite_spells,
+                spell_history_entries,
+                spell_charge_entries,
+                action_buttons,
+                skill_info_tuples,
+                self.account_mount_rows_like_cpp(),
+            )
+            .await
+        {
+            return;
+        }
         self.apply_represented_login_spell_reset_if_needed_like_cpp();
         self.apply_represented_login_talent_reset_if_needed_like_cpp();
         if self.apply_represented_first_login_flag_if_needed_like_cpp() {
@@ -13534,12 +13829,13 @@ impl WorldSession {
     /// the caller already has on hand (known/favorite spells, spell history/charges, action
     /// buttons, account mounts) plus the destination guid/position/map/zone are passed in.
     #[allow(clippy::too_many_arguments)]
-    pub(crate) async fn send_initial_packets_before_add_to_map(
+    async fn send_initial_packets_before_add_to_map(
         &mut self,
         guid: ObjectGuid,
-        position: &Position,
-        map_id: i32,
-        zone_id: i32,
+        _position: &Position,
+        _map_id: i32,
+        _zone_id: i32,
+        homebind: CharacterLoginLocationLikeCpp,
         known_spells: Vec<i32>,
         favorite_spells: Vec<i32>,
         spell_history_entries: Vec<SpellHistoryEntry>,
@@ -13564,14 +13860,10 @@ impl WorldSession {
         // 7. ContactList — C++ `GetSocial()->SendSocialList(this, SOCIAL_FLAG_ALL)`.
         self.send_contact_list_like_cpp(7).await;
 
-        // 8. BindPointUpdate (hearthstone location = start position)
-        self.send_packet(&BindPointUpdate {
-            x: position.x,
-            y: position.y,
-            z: position.z,
-            map_id,
-            area_id: zone_id,
-        });
+        // 8. BindPointUpdate — C++ `Player::SendBindPointUpdate` always uses
+        // `m_homebind`/`m_homebindAreaId`, independently of the current login
+        // location selected by `UpdatePositionData`.
+        self.send_packet(&login_bind_point_update_like_cpp(homebind));
 
         // 9. UpdateTalentData — C++ `Player::SendTalentsInfoData`.
         self.send_packet(&self.represented_update_talent_data_packet_like_cpp());
@@ -13773,6 +14065,266 @@ impl WorldSession {
         }
     }
 
+    /// Retry the final C++ `Player::LoadFromDB` recovery location after the
+    /// saved map cannot be selected. C++ first tries go-back/map-entrance
+    /// triggers; Rust's current MapEntry/instance-template stores do not expose
+    /// enough data to select those faithfully, so this implements the final
+    /// mandatory homebind retry and reports whether relocation succeeded.
+    fn resolved_homebind_area_id_like_cpp(&self, map_id: u32, position: Position) -> u32 {
+        let map_area_id = self
+            .map_store()
+            .as_deref()
+            .map(|store| u32::from(store.area_table_id_like_cpp(map_id)))
+            .unwrap_or(0);
+        zone_and_area_for_position_like_cpp(
+            &self.mmap_runtime_config_like_cpp().data_dir,
+            map_id,
+            position.x,
+            position.y,
+            self.area_table_store().map(|store| store.as_ref()),
+            |map_id| {
+                self.map_store()
+                    .as_deref()
+                    .map(|store| u32::from(store.area_table_id_like_cpp(map_id)))
+                    .unwrap_or(0)
+            },
+        )
+        .ok()
+        .map(|(_, area_id)| area_id)
+        .filter(|area_id| *area_id != 0)
+        .unwrap_or(map_area_id)
+    }
+
+    async fn load_default_graveyard_homebind_like_cpp(
+        &self,
+        race: u8,
+    ) -> Option<CharacterLoginLocationLikeCpp> {
+        let [primary_safe_loc_id, neutral_pandaren_safe_loc_id] =
+            default_graveyard_safe_loc_ids_for_race_like_cpp(race);
+        let primary_safe_loc_id = primary_safe_loc_id?;
+        let world_db = Arc::clone(self.world_db()?);
+        let stmt = world_db.prepare(WorldStatements::SEL_WORLD_SAFE_LOCS);
+        let mut result = match world_db.query(&stmt).await {
+            Ok(result) => result,
+            Err(error) => {
+                warn!(
+                    primary_safe_loc_id,
+                    %error,
+                    "failed to query C++ default graveyard while repairing character homebind"
+                );
+                return None;
+            }
+        };
+        if result.is_empty() {
+            return None;
+        }
+
+        let mut neutral_pandaren_fallback = None;
+        loop {
+            let safe_loc_id = result.try_read::<u32>(0).unwrap_or(0);
+            if safe_loc_id == primary_safe_loc_id
+                || neutral_pandaren_safe_loc_id == Some(safe_loc_id)
+            {
+                let map_id = result.try_read::<u32>(1).unwrap_or(u32::MAX);
+                let position = Position::new(
+                    result.try_read::<f32>(2).unwrap_or(f32::NAN),
+                    result.try_read::<f32>(3).unwrap_or(f32::NAN),
+                    result.try_read::<f32>(4).unwrap_or(f32::NAN),
+                    result.try_read::<f32>(5).unwrap_or(0.0).to_radians(),
+                );
+                if self
+                    .map_store()
+                    .is_some_and(|store| store.get(map_id).is_some())
+                    && position.is_valid_map_coord_like_cpp()
+                {
+                    let homebind = CharacterLoginLocationLikeCpp {
+                        map_id,
+                        bind_area_id: None,
+                        position,
+                    };
+                    if safe_loc_id == primary_safe_loc_id {
+                        return Some(homebind);
+                    }
+                    neutral_pandaren_fallback = Some(homebind);
+                }
+            }
+            if !result.next_row() {
+                break;
+            }
+        }
+        neutral_pandaren_fallback
+    }
+
+    async fn delete_invalid_character_homebind_like_cpp(
+        &self,
+        char_db: &CharacterDatabase,
+        guid: ObjectGuid,
+    ) {
+        let mut delete = char_db.prepare(CharStatements::DEL_PLAYER_HOMEBIND);
+        delete.set_u64(0, guid.counter() as u64);
+        if let Err(error) = char_db.execute(&delete).await {
+            warn!(
+                player_guid = guid.counter(),
+                %error,
+                "failed to delete invalid character homebind like C++ Player::_LoadHomeBind"
+            );
+        }
+    }
+
+    async fn persist_repaired_character_homebind_like_cpp(
+        &self,
+        char_db: &CharacterDatabase,
+        guid: ObjectGuid,
+        homebind: CharacterLoginLocationLikeCpp,
+    ) {
+        let Some(bind_area_id) = homebind.bind_area_id else {
+            return;
+        };
+        let Ok(map_id) = u16::try_from(homebind.map_id) else {
+            return;
+        };
+        let Ok(bind_area_id) = u16::try_from(bind_area_id) else {
+            return;
+        };
+
+        let mut insert = char_db.prepare(CharStatements::INS_PLAYER_HOMEBIND);
+        insert.set_u64(0, guid.counter() as u64);
+        insert.set_u16(1, map_id);
+        insert.set_u16(2, bind_area_id);
+        insert.set_f32(3, homebind.position.x);
+        insert.set_f32(4, homebind.position.y);
+        insert.set_f32(5, homebind.position.z);
+        insert.set_f32(6, homebind.position.orientation);
+        if let Err(error) = char_db.execute(&insert).await {
+            warn!(
+                player_guid = guid.counter(),
+                %error,
+                "failed to persist repaired character homebind like C++ Player::_LoadHomeBind"
+            );
+        }
+    }
+
+    async fn repair_character_homebind_like_cpp(
+        &self,
+        char_db: &CharacterDatabase,
+        guid: ObjectGuid,
+        race: u8,
+        player_create_info: PlayerCreateInfoLikeCpp,
+        create_mode: u8,
+        first_login: bool,
+    ) -> Option<CharacterLoginLocationLikeCpp> {
+        let mut replacement = if first_login {
+            first_login_creation_homebind_like_cpp(player_create_info, create_mode)
+        } else {
+            None
+        };
+        if replacement.is_none() {
+            replacement = self.load_default_graveyard_homebind_like_cpp(race).await;
+        }
+        let mut replacement = replacement?;
+        replacement.bind_area_id =
+            Some(self.resolved_homebind_area_id_like_cpp(replacement.map_id, replacement.position));
+
+        self.persist_repaired_character_homebind_like_cpp(char_db, guid, replacement)
+            .await;
+        Some(replacement)
+    }
+
+    fn seed_login_location_zone_area_like_cpp(
+        &mut self,
+        zone_id: &mut i32,
+        location: CharacterLoginLocationLikeCpp,
+    ) {
+        let resolved = login_location_zone_area_like_cpp(location, |map_id, position| {
+            zone_and_area_for_position_like_cpp(
+                &self.mmap_runtime_config_like_cpp().data_dir,
+                map_id,
+                position.x,
+                position.y,
+                self.area_table_store().map(|store| store.as_ref()),
+                |map_id| {
+                    self.map_store()
+                        .as_deref()
+                        .map(|store| u32::from(store.area_table_id_like_cpp(map_id)))
+                        .unwrap_or(0)
+                },
+            )
+        });
+        let fallback_area_id = location.bind_area_id.unwrap_or_else(|| {
+            self.map_store()
+                .as_deref()
+                .map(|store| u32::from(store.area_table_id_like_cpp(location.map_id)))
+                .unwrap_or(0)
+        });
+        let (fallback_zone_id, fallback_area_id) = zone_and_area_from_area_id_like_cpp(
+            fallback_area_id,
+            self.area_table_store().map(Arc::as_ref),
+        );
+
+        match resolved {
+            Ok((resolved_zone_id, resolved_area_id)) if resolved_area_id != 0 => {
+                *zone_id = i32::try_from(resolved_zone_id)
+                    .expect("resolved login zone ID must fit the packet field");
+                self.set_player_zone_area_like_cpp(resolved_zone_id, resolved_area_id);
+            }
+            Ok(_) => {
+                *zone_id = i32::try_from(fallback_zone_id)
+                    .expect("fallback login zone ID must fit the packet field");
+                self.set_player_zone_area_like_cpp(fallback_zone_id, fallback_area_id);
+                warn!(
+                    map_id = location.map_id,
+                    x = location.position.x,
+                    y = location.position.y,
+                    fallback_zone_id,
+                    fallback_area_id,
+                    "terrain returned no fallback login area for C++ UpdatePositionData"
+                );
+            }
+            Err(error) => {
+                *zone_id = i32::try_from(fallback_zone_id)
+                    .expect("fallback login zone ID must fit the packet field");
+                self.set_player_zone_area_like_cpp(fallback_zone_id, fallback_area_id);
+                warn!(
+                    map_id = location.map_id,
+                    x = location.position.x,
+                    y = location.position.y,
+                    %error,
+                    fallback_zone_id,
+                    fallback_area_id,
+                    "failed to refresh fallback login zone/area like C++ UpdatePositionData"
+                );
+            }
+        }
+    }
+
+    fn retry_login_at_homebind_like_cpp(
+        &mut self,
+        map_id: &mut i32,
+        zone_id: &mut i32,
+        position: &mut Position,
+        homebind: CharacterLoginLocationLikeCpp,
+    ) -> bool {
+        if self.current_canonical_player_map_key_like_cpp().is_some() {
+            return false;
+        }
+        if !usable_character_homebind_like_cpp(
+            homebind,
+            self.map_store().map(Arc::as_ref),
+            self.expansion,
+        ) {
+            return false;
+        }
+        let homebind_map_id =
+            u16::try_from(homebind.map_id).expect("validated character login homebind map ID");
+
+        *map_id = i32::from(homebind_map_id);
+        *position = homebind.position;
+        self.seed_login_location_zone_area_like_cpp(zone_id, homebind);
+        self.set_player_map_position_like_cpp(homebind_map_id, homebind.position);
+        let _ = self.ensure_canonical_world_map_for_current_player_like_cpp();
+        self.current_canonical_player_map_key_like_cpp().is_some()
+    }
+
     /// Send the player login packet sequence to the client.
     ///
     /// Follows the C++ login phases:
@@ -13793,6 +14345,7 @@ impl WorldSession {
         position: &Position,
         map_id: i32,
         zone_id: i32,
+        homebind: CharacterLoginLocationLikeCpp,
         visible_items: [(i32, u16, u16); 19],
         inv_slots: [ObjectGuid; 141],
         item_creates: Vec<wow_packet::packets::update::ItemCreateData>,
@@ -13806,8 +14359,32 @@ impl WorldSession {
         action_buttons: [i64; 180],
         skill_info: Vec<(u16, u16, u16, u16, u16, i16, u16)>,
         account_mounts: Vec<AccountMount>,
-    ) {
+    ) -> bool {
         let updateobject_trace_enabled = std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some();
+        let authoritative_grid_map_key = self
+            .current_canonical_player_map_key_like_cpp()
+            .filter(|key| u32::try_from(map_id).ok() == Some(key.map_id));
+        let grid_instance_id = authoritative_grid_map_key
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        // Rust's loaded-grid bridge also validates that the canonical map is
+        // usable. C++ finishes all fallible `Player::LoadFromDB` map selection
+        // before emitting successful-login packets, so run this bridge before
+        // Phase 1 and retain its outcome for the Map::AddPlayerToMap trace.
+        let grid_load_outcome = self.ensure_player_grid_loaded_like_cpp(
+            map_id as u16,
+            authoritative_grid_map_key.map(|key| key.instance_id),
+            *position,
+        );
+        if !self.continue_login_after_grid_load_like_cpp(
+            guid,
+            map_id,
+            grid_instance_id,
+            grid_load_outcome,
+        ) {
+            return false;
+        }
+
         // ── Phase 1: HandlePlayerLogin packets ──
 
         // 1. DungeonDifficultySet — C++ `Player::SendDungeonDifficulty()`
@@ -13845,6 +14422,7 @@ impl WorldSession {
             position,
             map_id,
             zone_id,
+            homebind,
             known_spells,
             favorite_spells,
             spell_history_entries,
@@ -13860,7 +14438,7 @@ impl WorldSession {
             info!(
                 guid = ?guid,
                 map_id,
-                instance_id = 0u32,
+                instance_id = grid_instance_id,
                 init_player = 1u8,
                 player_x = position.x,
                 player_y = position.y,
@@ -13870,17 +14448,16 @@ impl WorldSession {
             );
         }
 
-        // C++ `Map::AddPlayerToMap` performs, in this order:
-        // EnsureGridLoadedForActiveObject -> AddToGrid -> SetMap ->
-        // AddToWorld -> SendInitSelf (`Map.cpp:443-470`). Rust must have the
-        // represented/canonical player installed before building the self
-        // create block, otherwise the following packets are emitted from a
-        // world state that C++ would not have.
-        if let Some(outcome) = self.ensure_player_grid_loaded_like_cpp(map_id as u16, 0, *position)
-        {
+        // C++ `Map::AddPlayerToMap` performs EnsureGridLoadedForActiveObject
+        // before AddToWorld/SendInitSelf (`Map.cpp:443-470`). The Rust bridge
+        // was preflighted before Phase 1 above because it also contains
+        // fallible map validation; report the retained result at this
+        // equivalent map-add point.
+        if let Some(outcome) = grid_load_outcome {
             info!(
                 map_id,
-                instance_id = 0u32,
+                instance_id = grid_instance_id,
+                map_unavailable = outcome.map_unavailable,
                 map_created = outcome.map_created,
                 grid_loaded_now = outcome.grid_loaded_now,
                 metadata_entries = outcome.metadata_entries,
@@ -13899,12 +14476,6 @@ impl WorldSession {
                 area_trigger_load_record_missing = outcome.area_trigger_load_record_missing,
                 legacy_creature_mirrors = outcome.legacy_creature_mirrors,
                 "RUST_LOGIN grid_load"
-            );
-        } else {
-            warn!(
-                map_id,
-                instance_id = 0u32,
-                "RUST_LOGIN grid_load skipped: no C++ loaded-grid resolver installed"
             );
         }
         if updateobject_trace_enabled {
@@ -14161,6 +14732,43 @@ impl WorldSession {
             "Login sequence complete for {:?} (38 packets including broadcasts)",
             guid
         );
+        true
+    }
+
+    /// C++ `Player::LoadFromDB` first attempts go-back/homebind relocation and
+    /// never substitutes an arbitrary instance when authoritative map
+    /// selection fails. The caller has already tried the represented BG entry
+    /// point/homebind recovery; if that also produced no canonical map, fail
+    /// closed: tear down the partially loaded player while its GUID is still
+    /// present, then disconnect without `CharacterLoginFailed`, matching C++'s
+    /// final `LoadFromDB == false` cleanup path.
+    fn continue_login_after_grid_load_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+        map_id: i32,
+        instance_id: u32,
+        outcome: Option<crate::session::PlayerGridLoadOutcomeLikeCpp>,
+    ) -> bool {
+        if outcome.is_some_and(|outcome| !outcome.map_unavailable) {
+            return true;
+        }
+
+        let reason = if outcome.is_some() {
+            "authoritative canonical map unavailable"
+        } else {
+            "loaded-grid resolver unavailable"
+        };
+        warn!(
+            guid = ?guid,
+            map_id,
+            instance_id,
+            reason,
+            "RUST_LOGIN map_add aborted"
+        );
+        self.cleanup_shared_runtime_state();
+        self.set_player_guid(None);
+        self.kick("WorldSession::HandlePlayerLogin authoritative map resolution failed");
+        false
     }
 
     async fn load_initial_world_states_for_login_like_cpp(
@@ -14547,6 +15155,650 @@ mod tests {
             ),
             send_rx,
         )
+    }
+
+    fn run_login_grid_cleanup_test(test: impl FnOnce() + Send + 'static) {
+        std::thread::Builder::new()
+            .name("login-grid-cleanup".into())
+            .stack_size(8 * 1024 * 1024)
+            .spawn(test)
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    #[test]
+    fn invalid_homebind_repair_selects_cpp_create_mode_and_graveyard_order() {
+        let normal = PlayerCreatePositionLikeCpp {
+            map_id: 0,
+            position: Position::new(-8_946.0, -246.0, 59.0, 0.0),
+            transport_guid: None,
+        };
+        let npe = PlayerCreatePositionLikeCpp {
+            map_id: 2_175,
+            position: Position::new(1.0, 2.0, 3.0, 4.0),
+            transport_guid: None,
+        };
+        let info = PlayerCreateInfoLikeCpp {
+            create_position: normal,
+            create_position_npe: Some(npe),
+        };
+        assert_eq!(
+            first_login_creation_homebind_like_cpp(
+                info,
+                wow_data::PLAYER_CREATE_MODE_NORMAL_LIKE_CPP,
+            ),
+            Some(CharacterLoginLocationLikeCpp {
+                map_id: normal.map_id,
+                bind_area_id: None,
+                position: normal.position,
+            })
+        );
+        assert_eq!(
+            first_login_creation_homebind_like_cpp(
+                info,
+                wow_data::PLAYER_CREATE_MODE_NPE_LIKE_CPP,
+            )
+            .map(|homebind| homebind.position),
+            Some(npe.position)
+        );
+        assert_eq!(
+            first_login_creation_homebind_like_cpp(
+                PlayerCreateInfoLikeCpp {
+                    create_position_npe: None,
+                    ..info
+                },
+                wow_data::PLAYER_CREATE_MODE_NPE_LIKE_CPP,
+            )
+            .map(|homebind| homebind.position),
+            Some(normal.position),
+            "C++ falls back to the normal class/race creation position when NPE data is invalid"
+        );
+        assert_eq!(
+            first_login_creation_homebind_like_cpp(
+                PlayerCreateInfoLikeCpp {
+                    create_position_npe: Some(PlayerCreatePositionLikeCpp {
+                        transport_guid: Some(29),
+                        ..npe
+                    }),
+                    ..info
+                },
+                wow_data::PLAYER_CREATE_MODE_NPE_LIKE_CPP,
+            ),
+            None,
+            "C++ does not bind first-login transport offsets and falls through to graveyard"
+        );
+
+        assert_eq!(
+            default_graveyard_safe_loc_ids_for_race_like_cpp(1),
+            [Some(4), None]
+        );
+        assert_eq!(
+            default_graveyard_safe_loc_ids_for_race_like_cpp(2),
+            [Some(10), None]
+        );
+        assert_eq!(
+            default_graveyard_safe_loc_ids_for_race_like_cpp(24),
+            [Some(4), Some(3295)]
+        );
+
+        let area_store = wow_data::AreaTableStore::from_entries([
+            wow_data::AreaTableEntry {
+                id: 12,
+                continent_id: 0,
+                parent_area_id: 0,
+                area_bit: 0,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: 0,
+            },
+            wow_data::AreaTableEntry {
+                id: 13,
+                continent_id: 0,
+                parent_area_id: 12,
+                area_bit: 0,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: 0x4000_0000,
+            },
+        ]);
+        assert_eq!(
+            zone_and_area_from_area_id_like_cpp(13, Some(&area_store)),
+            (12, 13)
+        );
+
+        let scenario_garrison_store = wow_data::MapStore::from_entries([wow_data::MapEntry {
+            id: 1_151,
+            instance_type: wow_data::map::MAP_SCENARIO,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: wow_data::map::MAP_FLAG_GARRISON,
+            flags2: 0,
+        }]);
+        assert!(!usable_character_homebind_like_cpp(
+            CharacterLoginLocationLikeCpp {
+                map_id: 1_151,
+                bind_area_id: Some(12),
+                position: Position::ZERO,
+            },
+            Some(&scenario_garrison_store),
+            2,
+        ));
+    }
+
+    #[test]
+    fn battleground_login_fallback_prefers_valid_entry_point_then_homebind_like_cpp() {
+        let map_store = wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 1,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+            wow_data::MapEntry {
+                id: 0,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ]);
+        let entry_point = CharacterLoginLocationLikeCpp {
+            map_id: 1,
+            bind_area_id: None,
+            position: Position::new(10.0, 20.0, 30.0, 1.0),
+        };
+        let homebind = CharacterLoginLocationLikeCpp {
+            map_id: 0,
+            bind_area_id: Some(12),
+            position: Position::new(-1.0, -2.0, 3.0, 0.0),
+        };
+        let bg_data = CharacterBattlegroundLoginDataLikeCpp { entry_point };
+
+        assert!(usable_character_homebind_like_cpp(
+            homebind,
+            Some(&map_store),
+            2,
+        ));
+        assert!(!usable_character_homebind_like_cpp(
+            entry_point,
+            Some(&map_store),
+            2,
+        ));
+
+        assert_eq!(
+            login_location_zone_area_like_cpp(entry_point, |map_id, position| {
+                assert_eq!(map_id, 1);
+                assert_eq!(position, entry_point.position);
+                Ok((34, 56))
+            })
+            .unwrap(),
+            (34, 56)
+        );
+        assert_eq!(
+            login_location_zone_area_like_cpp(homebind, |map_id, position| {
+                assert_eq!(map_id, 0);
+                assert_eq!(position, homebind.position);
+                Ok((78, 90))
+            })
+            .unwrap(),
+            (78, 90)
+        );
+        let bind_update = login_bind_point_update_like_cpp(homebind);
+        assert_eq!(bind_update.x, homebind.position.x);
+        assert_eq!(bind_update.y, homebind.position.y);
+        assert_eq!(bind_update.z, homebind.position.z);
+        assert_eq!(bind_update.map_id, homebind.map_id as i32);
+        assert_eq!(bind_update.area_id, 12);
+
+        assert_eq!(
+            battleground_login_fallback_location_like_cpp(
+                Some(bg_data),
+                Some(homebind),
+                Some(&map_store),
+            ),
+            Some(entry_point)
+        );
+        assert_eq!(
+            battleground_login_fallback_location_like_cpp(
+                Some(CharacterBattlegroundLoginDataLikeCpp {
+                    entry_point: CharacterLoginLocationLikeCpp {
+                        map_id: u32::from(u16::MAX),
+                        bind_area_id: None,
+                        position: Position::ZERO,
+                    },
+                    ..bg_data
+                }),
+                Some(homebind),
+                Some(&map_store),
+            ),
+            Some(homebind)
+        );
+        assert_eq!(
+            battleground_login_fallback_location_like_cpp(
+                None,
+                Some(CharacterLoginLocationLikeCpp {
+                    position: Position::new(f32::NAN, 0.0, 0.0, 0.0),
+                    ..homebind
+                }),
+                Some(&map_store),
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn rejected_instance_login_retries_valid_homebind_before_disconnect_like_cpp() {
+        run_login_grid_cleanup_test(|| {
+            let (mut session, _send_rx) = make_session_with_send_capacity(2);
+            let guid = ObjectGuid::create_player(1, 45);
+            let saved_position = Position::new(1.0, 2.0, 3.0, 0.0);
+            let homebind_position = Position::new(10.0, 20.0, 30.0, 1.0);
+            let canonical: crate::session::SharedCanonicalMapManager =
+                Arc::new(std::sync::Mutex::new(wow_map::MapManager::default()));
+            session.set_canonical_map_manager(Arc::clone(&canonical));
+            session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+                wow_data::MapEntry {
+                    id: 33,
+                    instance_type: wow_data::map::MAP_INSTANCE,
+                    expansion_id: 0,
+                    parent_map_id: -1,
+                    cosmetic_parent_map_id: -1,
+                    flags1: 0,
+                    flags2: 0,
+                },
+                wow_data::MapEntry {
+                    id: 1,
+                    instance_type: wow_data::map::MAP_COMMON,
+                    expansion_id: 0,
+                    parent_map_id: -1,
+                    cosmetic_parent_map_id: -1,
+                    flags1: 0,
+                    flags2: 0,
+                },
+            ])));
+            assert!(session.ensure_login_player_controller_like_cpp(
+                guid,
+                "InstanceFallback".to_string(),
+                saved_position,
+                33,
+                1,
+                1,
+                10,
+                0,
+            ));
+            assert!(matches!(
+                session.ensure_canonical_world_map_for_current_player_like_cpp(),
+                Some(wow_map::CreateMapDecision::Reject { .. })
+            ));
+            assert!(
+                session
+                    .current_canonical_player_map_key_like_cpp()
+                    .is_none()
+            );
+
+            let mut map_id = 33;
+            let mut zone_id = 999;
+            let mut position = saved_position;
+            assert!(session.retry_login_at_homebind_like_cpp(
+                &mut map_id,
+                &mut zone_id,
+                &mut position,
+                CharacterLoginLocationLikeCpp {
+                    map_id: 1,
+                    bind_area_id: Some(12),
+                    position: homebind_position,
+                },
+            ));
+
+            assert_eq!(map_id, 1);
+            assert_eq!(zone_id, 12);
+            assert_eq!(session.player_zone_area_like_cpp(), (12, 12));
+            assert_eq!(position, homebind_position);
+            assert_eq!(
+                session.current_canonical_player_map_key_like_cpp(),
+                Some(wow_map::MapKey::new(1, 0))
+            );
+        });
+    }
+
+    #[test]
+    fn homebind_retry_refreshes_zone_when_saved_coordinates_already_match_like_cpp() {
+        run_login_grid_cleanup_test(|| {
+            let (mut session, _send_rx) = make_session_with_send_capacity(1);
+            let guid = ObjectGuid::create_player(1, 46);
+            let homebind_position = Position::new(10.0, 20.0, 30.0, 1.0);
+            let canonical: crate::session::SharedCanonicalMapManager =
+                Arc::new(std::sync::Mutex::new(wow_map::MapManager::default()));
+            session.set_canonical_map_manager(Arc::clone(&canonical));
+            session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+                wow_data::MapEntry {
+                    id: 1,
+                    instance_type: wow_data::map::MAP_COMMON,
+                    expansion_id: 0,
+                    parent_map_id: -1,
+                    cosmetic_parent_map_id: -1,
+                    flags1: 0,
+                    flags2: 0,
+                },
+            ])));
+            assert!(session.ensure_login_player_controller_like_cpp(
+                guid,
+                "MatchingHomebind".to_string(),
+                homebind_position,
+                1,
+                1,
+                1,
+                10,
+                0,
+            ));
+
+            let mut map_id = 1;
+            let mut zone_id = 999;
+            let mut position = homebind_position;
+            assert!(session.retry_login_at_homebind_like_cpp(
+                &mut map_id,
+                &mut zone_id,
+                &mut position,
+                CharacterLoginLocationLikeCpp {
+                    map_id: 1,
+                    bind_area_id: Some(12),
+                    position: homebind_position,
+                },
+            ));
+
+            assert_eq!(map_id, 1);
+            assert_eq!(zone_id, 12);
+            assert_eq!(position, homebind_position);
+            assert_eq!(session.player_zone_area_like_cpp(), (12, 12));
+            assert_eq!(
+                session.current_canonical_player_map_key_like_cpp(),
+                Some(wow_map::MapKey::new(1, 0))
+            );
+        });
+    }
+
+    #[test]
+    fn garrison_login_uses_create_map_world_branch_like_cpp() {
+        run_login_grid_cleanup_test(|| {
+            let (mut session, _send_rx) = make_session_with_send_capacity(1);
+            let guid = ObjectGuid::create_player(1, 47);
+            let canonical: crate::session::SharedCanonicalMapManager =
+                Arc::new(std::sync::Mutex::new(wow_map::MapManager::default()));
+            session.set_canonical_map_manager(Arc::clone(&canonical));
+            session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+                wow_data::MapEntry {
+                    id: 1_151,
+                    instance_type: wow_data::map::MAP_COMMON,
+                    expansion_id: 2,
+                    parent_map_id: -1,
+                    cosmetic_parent_map_id: -1,
+                    flags1: wow_data::map::MAP_FLAG_GARRISON,
+                    flags2: 0,
+                },
+            ])));
+            assert!(session.ensure_login_player_controller_like_cpp(
+                guid,
+                "GarrisonLogin".to_string(),
+                Position::ZERO,
+                1_151,
+                1,
+                1,
+                10,
+                0,
+            ));
+
+            assert!(matches!(
+                session.ensure_canonical_world_map_for_current_player_like_cpp(),
+                Some(wow_map::CreateMapDecision::Create {
+                    key,
+                    kind: wow_map::ManagedMapKind::World,
+                    ..
+                }) if key == wow_map::MapKey::new(1_151, 0)
+            ));
+            assert_eq!(
+                session.current_canonical_player_map_key_like_cpp(),
+                Some(wow_map::MapKey::new(1_151, 0))
+            );
+        });
+    }
+
+    #[test]
+    fn garrison_login_rejects_unsupported_expansion_and_retries_homebind_like_cpp() {
+        run_login_grid_cleanup_test(|| {
+            let (mut session, _send_rx) = make_session_with_send_capacity(1);
+            let guid = ObjectGuid::create_player(1, 48);
+            let canonical: crate::session::SharedCanonicalMapManager =
+                Arc::new(std::sync::Mutex::new(wow_map::MapManager::default()));
+            session.set_canonical_map_manager(Arc::clone(&canonical));
+            session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+                wow_data::MapEntry {
+                    id: 1,
+                    instance_type: wow_data::map::MAP_COMMON,
+                    expansion_id: 0,
+                    parent_map_id: -1,
+                    cosmetic_parent_map_id: -1,
+                    flags1: 0,
+                    flags2: 0,
+                },
+                wow_data::MapEntry {
+                    id: 1_151,
+                    instance_type: wow_data::map::MAP_COMMON,
+                    expansion_id: 3,
+                    parent_map_id: -1,
+                    cosmetic_parent_map_id: -1,
+                    flags1: wow_data::map::MAP_FLAG_GARRISON,
+                    flags2: 0,
+                },
+            ])));
+            assert!(session.ensure_login_player_controller_like_cpp(
+                guid,
+                "UnsupportedGarrisonLogin".to_string(),
+                Position::ZERO,
+                1_151,
+                1,
+                1,
+                10,
+                0,
+            ));
+
+            assert!(matches!(
+                session.ensure_canonical_world_map_for_current_player_like_cpp(),
+                Some(wow_map::CreateMapDecision::Reject { .. })
+            ));
+            assert!(
+                session
+                    .current_canonical_player_map_key_like_cpp()
+                    .is_none()
+            );
+            assert!(canonical.lock().unwrap().find_map(1_151, 0).is_none());
+
+            let mut map_id = 1_151;
+            let mut zone_id = 999;
+            let mut position = Position::ZERO;
+            let homebind_position = Position::new(10.0, 20.0, 30.0, 1.0);
+            assert!(session.retry_login_at_homebind_like_cpp(
+                &mut map_id,
+                &mut zone_id,
+                &mut position,
+                CharacterLoginLocationLikeCpp {
+                    map_id: 1,
+                    bind_area_id: Some(12),
+                    position: homebind_position,
+                },
+            ));
+            assert_eq!(map_id, 1);
+            assert_eq!(zone_id, 12);
+            assert_eq!(session.player_zone_area_like_cpp(), (12, 12));
+            assert_eq!(position, homebind_position);
+            assert_eq!(
+                session.current_canonical_player_map_key_like_cpp(),
+                Some(wow_map::MapKey::new(1, 0))
+            );
+        });
+    }
+
+    #[test]
+    fn unavailable_login_grid_cleans_partial_player_and_kicks_without_failure_packet_like_cpp() {
+        run_login_grid_cleanup_test(|| {
+            let (mut session, send_rx) = make_session_with_send_capacity(1);
+            let guid = ObjectGuid::create_player(1, 42);
+            let canonical: crate::session::SharedCanonicalMapManager =
+                Arc::new(std::sync::Mutex::new(wow_map::MapManager::default()));
+            let registry = Arc::new(wow_network::PlayerRegistry::default());
+            let accessor = crate::session::new_shared_object_accessor();
+            session.set_canonical_map_manager(Arc::clone(&canonical));
+            session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+                wow_data::MapEntry {
+                    id: 33,
+                    instance_type: wow_data::map::MAP_COMMON,
+                    expansion_id: 0,
+                    parent_map_id: -1,
+                    cosmetic_parent_map_id: -1,
+                    flags1: 0,
+                    flags2: 0,
+                },
+            ])));
+            session.set_player_registry(Arc::clone(&registry));
+            session.set_object_accessor(Arc::clone(&accessor));
+            assert!(session.ensure_login_player_controller_like_cpp(
+                guid,
+                "GridFailure".to_string(),
+                Position::ZERO,
+                33,
+                1,
+                1,
+                10,
+                0,
+            ));
+            let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+            session.register_in_player_registry();
+            session.sync_object_accessor_player();
+            assert!(
+                session
+                    .current_canonical_player_map_key_like_cpp()
+                    .is_some()
+            );
+            assert!(registry.contains_key(&guid));
+            assert!(accessor.read().find_connected_player_entity(guid).is_some());
+
+            assert!(!session.continue_login_after_grid_load_like_cpp(
+                guid,
+                33,
+                0,
+                Some(crate::session::PlayerGridLoadOutcomeLikeCpp {
+                    map_unavailable: true,
+                    ..Default::default()
+                }),
+            ));
+
+            assert_eq!(session.state(), crate::session::SessionState::Disconnecting);
+            assert!(session.player_guid().is_none());
+            assert!(
+                canonical
+                    .lock()
+                    .unwrap()
+                    .find_map(33, 0)
+                    .unwrap()
+                    .map()
+                    .get_typed_player(guid)
+                    .is_none()
+            );
+            assert!(!registry.contains_key(&guid));
+            assert!(accessor.read().find_connected_player_entity(guid).is_none());
+            assert!(send_rx.try_recv().is_err());
+        });
+    }
+
+    #[tokio::test]
+    async fn unavailable_login_grid_aborts_before_success_login_packets_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        let guid = ObjectGuid::create_player(1, 46);
+        assert!(session.ensure_login_player_controller_like_cpp(
+            guid,
+            "PreflightFailure".to_string(),
+            Position::ZERO,
+            1,
+            1,
+            1,
+            10,
+            0,
+        ));
+        session.set_player_grid_load_resolver_like_cpp(Arc::new(|_, _, _| {
+            crate::session::PlayerGridLoadOutcomeLikeCpp {
+                map_unavailable: true,
+                ..Default::default()
+            }
+        }));
+
+        assert!(
+            !session
+                .send_login_sequence(
+                    guid,
+                    1,
+                    1,
+                    0,
+                    10,
+                    49,
+                    &Position::ZERO,
+                    1,
+                    0,
+                    CharacterLoginLocationLikeCpp {
+                        map_id: 1,
+                        bind_area_id: Some(0),
+                        position: Position::ZERO,
+                    },
+                    [(0, 0, 0); 19],
+                    [ObjectGuid::EMPTY; 141],
+                    Vec::new(),
+                    PlayerCombatStats::default(),
+                    0,
+                    0,
+                    Vec::new(),
+                    Vec::new(),
+                    Vec::new(),
+                    Vec::new(),
+                    [0; 180],
+                    Vec::new(),
+                    Vec::new(),
+                )
+                .await
+        );
+
+        assert_eq!(session.state(), crate::session::SessionState::Disconnecting);
+        assert!(session.player_guid().is_none());
+        assert!(
+            send_rx.try_recv().is_err(),
+            "C++ LoadFromDB failure happens before DungeonDifficultySet/LoginVerifyWorld"
+        );
+    }
+
+    #[test]
+    fn login_without_grid_resolver_fails_closed_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        let guid = ObjectGuid::create_player(1, 43);
+        assert!(session.ensure_login_player_controller_like_cpp(
+            guid,
+            "MissingResolver".to_string(),
+            Position::ZERO,
+            1,
+            1,
+            1,
+            10,
+            0,
+        ));
+
+        assert!(!session.continue_login_after_grid_load_like_cpp(guid, 1, 0, None));
+
+        assert_eq!(session.state(), crate::session::SessionState::Disconnecting);
+        assert!(session.player_guid().is_none());
+        assert!(send_rx.try_recv().is_err());
     }
 
     fn make_session_with_realm_send_capacity(
