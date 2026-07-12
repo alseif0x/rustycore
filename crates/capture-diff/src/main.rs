@@ -2,6 +2,8 @@
 //!
 //! ```text
 //!   capture-diff diff <flow> [--rust DIR] [--cpp PKT] [--direction s2c|c2s|both]
+//!                            [--from-opcode ...] [--until-opcode ...]
+//!                            [--ignore-opcode s2c:0xNNNN]
 //!                            [--json] [--baseline FILE] [--strict]
 //!   capture-diff diff --cpp A.pkt --rust DIR [...]        # ad-hoc, no flow
 //!   capture-diff show <PKT|DUMPDIR>                       # list a capture
@@ -18,7 +20,7 @@ use std::process::ExitCode;
 use anyhow::{Context, Result, bail};
 
 use capture_diff::diff::{self, BaselineDelta, DivergenceSignature};
-use capture_diff::{Capture, DiffReport, Direction, flow, pkt, rustdump};
+use capture_diff::{Capture, DiffReport, Direction, PacketBoundary, flow, pkt, rustdump};
 
 fn main() -> ExitCode {
     match run() {
@@ -59,7 +61,9 @@ struct Opts {
     rust: Option<PathBuf>,
     direction: Option<Vec<Direction>>,
     baseline: Option<PathBuf>,
-    until_opcode: Option<u16>,
+    from_opcode: Option<PacketBoundary>,
+    until_opcode: Option<PacketBoundary>,
+    ignored_opcodes: Vec<PacketBoundary>,
     json: bool,
     strict: bool,
 }
@@ -71,7 +75,9 @@ fn parse_opts(args: &[String]) -> Result<Opts> {
         rust: None,
         direction: None,
         baseline: None,
+        from_opcode: None,
         until_opcode: None,
+        ignored_opcodes: Vec::new(),
         json: false,
         strict: false,
     };
@@ -81,12 +87,25 @@ fn parse_opts(args: &[String]) -> Result<Opts> {
             "--cpp" => opts.cpp = Some(PathBuf::from(next(&mut it, "--cpp")?)),
             "--rust" => opts.rust = Some(PathBuf::from(next(&mut it, "--rust")?)),
             "--baseline" => opts.baseline = Some(PathBuf::from(next(&mut it, "--baseline")?)),
+            "--from-opcode" => {
+                let raw = next(&mut it, "--from-opcode")?;
+                let boundary = parse_packet_boundary(&raw, "--from-opcode")?;
+                if boundary.direction.is_none() {
+                    bail!("--from-opcode requires a direction (for example c2s:0x318C)");
+                }
+                opts.from_opcode = Some(boundary);
+            }
             "--until-opcode" => {
                 let raw = next(&mut it, "--until-opcode")?;
-                let hex = raw.trim().trim_start_matches("0x").trim_start_matches("0X");
-                opts.until_opcode = Some(u16::from_str_radix(hex, 16).with_context(|| {
-                    format!("invalid --until-opcode '{raw}' (expected hex like 0x3A46)")
-                })?);
+                opts.until_opcode = Some(parse_packet_boundary(&raw, "--until-opcode")?);
+            }
+            "--ignore-opcode" => {
+                let raw = next(&mut it, "--ignore-opcode")?;
+                let ignored = parse_packet_boundary(&raw, "--ignore-opcode")?;
+                if ignored.direction.is_none() {
+                    bail!("--ignore-opcode requires a direction (for example s2c:0x2DD4)");
+                }
+                opts.ignored_opcodes.push(ignored);
             }
             "--direction" => {
                 opts.direction = Some(parse_directions(&next(&mut it, "--direction")?)?);
@@ -105,6 +124,28 @@ fn parse_opts(args: &[String]) -> Result<Opts> {
     Ok(opts)
 }
 
+fn parse_packet_boundary(raw: &str, flag: &str) -> Result<PacketBoundary> {
+    let raw = raw.trim();
+    let (direction, opcode) = match raw.split_once(':') {
+        Some((direction, opcode)) => {
+            let direction = match direction.trim().to_ascii_lowercase().as_str() {
+                "c2s" => Direction::C2S,
+                "s2c" => Direction::S2C,
+                other => bail!("invalid {flag} direction '{other}' (use c2s:0xNNNN or s2c:0xNNNN)"),
+            };
+            (Some(direction), opcode)
+        }
+        None => (None, raw),
+    };
+    let hex = opcode
+        .trim()
+        .trim_start_matches("0x")
+        .trim_start_matches("0X");
+    let opcode = u16::from_str_radix(hex, 16)
+        .with_context(|| format!("invalid {flag} '{raw}' (expected 0xNNNN or direction:0xNNNN)"))?;
+    Ok(PacketBoundary { direction, opcode })
+}
+
 fn next(it: &mut std::slice::Iter<'_, String>, flag: &str) -> Result<String> {
     it.next()
         .cloned()
@@ -120,14 +161,92 @@ fn parse_directions(spec: &str) -> Result<Vec<Direction>> {
     }
 }
 
+/// Reviewed periodic server traffic that may be removed from an isolated
+/// action window. Keep this allowlist deliberately small: a free-form filter
+/// could hide the request or response whose parity the flow is meant to prove.
+const APPROVED_AMBIENT_IGNORES: &[PacketBoundary] = &[
+    PacketBoundary {
+        direction: Some(Direction::S2C),
+        opcode: 0x2DD2, // SMSG_TIME_SYNC_REQUEST
+    },
+    PacketBoundary {
+        direction: Some(Direction::S2C),
+        opcode: 0x2DD4, // SMSG_ON_MONSTER_MOVE
+    },
+];
+
+fn boundaries_overlap(left: PacketBoundary, right: PacketBoundary) -> bool {
+    left.opcode == right.opcode
+        && (left.direction.is_none()
+            || right.direction.is_none()
+            || left.direction == right.direction)
+}
+
+fn validate_ignored_opcodes(opts: &Opts) -> Result<()> {
+    for ignored in &opts.ignored_opcodes {
+        if opts
+            .from_opcode
+            .is_some_and(|boundary| boundaries_overlap(boundary, *ignored))
+            || opts
+                .until_opcode
+                .is_some_and(|boundary| boundaries_overlap(boundary, *ignored))
+        {
+            bail!("--ignore-opcode {ignored} cannot remove an action boundary");
+        }
+        if !APPROVED_AMBIENT_IGNORES.contains(ignored) {
+            bail!(
+                "--ignore-opcode {ignored} is not approved ambient traffic; reviewed filters are s2c:0x2DD2 and s2c:0x2DD4"
+            );
+        }
+    }
+    Ok(())
+}
+
+/// Apply the same checked action boundaries when comparing or importing
+/// captures. Keeping this centralized prevents a CLI from accepting a boundary
+/// flag and silently comparing the full capture.
+fn apply_capture_boundaries(capture: Capture, opts: &Opts) -> Result<Capture> {
+    if opts.from_opcode.is_some() && opts.until_opcode.is_none() {
+        bail!("--from-opcode requires --until-opcode");
+    }
+    match (opts.from_opcode, opts.until_opcode) {
+        (Some(from), Some(until)) => capture.sliced_between(from, until),
+        (None, Some(until)) => capture.truncated_after_first_boundary(until),
+        (None, None) => Ok(capture),
+        (Some(_), None) => unreachable!("validated above"),
+    }
+}
+
+/// Drop explicitly declared ambient packets after selecting the action window.
+/// The filter is applied symmetrically to C++ and Rust captures and requires a
+/// direction, so an unrelated opcode in the opposite wire direction cannot be
+/// hidden accidentally.
+fn apply_ignored_opcodes(mut capture: Capture, opts: &Opts) -> Capture {
+    capture.packets.retain(|packet| {
+        !opts
+            .ignored_opcodes
+            .iter()
+            .any(|ignored| ignored.matches(packet))
+    });
+    capture
+}
+
+fn apply_capture_selection(capture: Capture, opts: &Opts) -> Result<Capture> {
+    validate_ignored_opcodes(opts)?;
+    Ok(apply_ignored_opcodes(
+        apply_capture_boundaries(capture, opts)?,
+        opts,
+    ))
+}
+
 fn cmd_diff(args: &[String]) -> Result<ExitCode> {
     let opts = parse_opts(args)?;
 
     // Resolve cpp/rust/directions/baseline either from a flow or explicit paths.
     let (cpp_path, rust_path, directions, baseline) = resolve_sources(&opts)?;
 
-    let cpp = load_capture(&cpp_path)?;
-    let rust = load_capture(&rust_path)?;
+    let cpp = apply_capture_selection(load_capture(&cpp_path)?, &opts)?;
+    let rust = apply_capture_selection(load_capture(&rust_path)?, &opts)?;
     let report = DiffReport::compute(&cpp, &rust, &directions);
 
     if opts.json {
@@ -194,8 +313,9 @@ fn cmd_show(args: &[String]) -> Result<ExitCode> {
     println!("{} ({} packets)", cap.source, cap.packets.len());
     for (i, p) in cap.packets.iter().enumerate() {
         println!(
-            "  {i:4} [{}] 0x{:04X} {} ({} body bytes)",
+            "  {i:4} [{} conn={}] 0x{:04X} {} ({} body bytes)",
             p.direction,
+            p.connection_id,
             p.opcode,
             p.opcode_name(),
             p.body.len()
@@ -227,19 +347,29 @@ fn cmd_list() -> Result<ExitCode> {
 fn cmd_import(args: &[String]) -> Result<ExitCode> {
     let opts = parse_opts(args)?;
     let name = opts.positional.as_deref().context(
-        "usage: capture-diff import <flow> --cpp <PKT> --rust <DIR> [--until-opcode 0xNNNN]",
+        "usage: capture-diff import <flow> --cpp <PKT> --rust <DIR> [--from-opcode c2s:0xNNNN --until-opcode s2c:0xNNNN] [--ignore-opcode s2c:0xNNNN]",
     )?;
+    flow::validate_flow_name(name)?;
     let cpp_path = opts.cpp.clone().context("import requires --cpp <PKT>")?;
     let rust_path = opts
         .rust
         .clone()
         .context("import requires --rust <DUMPDIR>")?;
 
-    let mut cpp = load_capture(&cpp_path)?;
-    let mut rust = load_capture(&rust_path)?;
-    if let Some(op) = opts.until_opcode {
-        cpp = cpp.truncated_after_first_opcode(op);
-        rust = rust.truncated_after_first_opcode(op);
+    let cpp = apply_capture_selection(load_capture(&cpp_path)?, &opts)?;
+    let rust = apply_capture_selection(load_capture(&rust_path)?, &opts)?;
+
+    let directions = opts
+        .direction
+        .clone()
+        .unwrap_or_else(|| vec![Direction::S2C, Direction::C2S]);
+    let report = DiffReport::compute(&cpp, &rust, &directions);
+    if opts.strict && !report.is_clean() {
+        print!("{}", report.render_text());
+        eprintln!(
+            "capture-diff: refusing to import a non-clean flow with --strict (no files written)"
+        );
+        return Ok(ExitCode::FAILURE);
     }
 
     let dir = flow::flows_root().join(name);
@@ -252,11 +382,6 @@ fn cmd_import(args: &[String]) -> Result<ExitCode> {
     }
     rustdump::write_rust_dump(&rust_dir, &rust)?;
 
-    let directions = opts
-        .direction
-        .clone()
-        .unwrap_or_else(|| vec![Direction::S2C, Direction::C2S]);
-    let report = DiffReport::compute(&cpp, &rust, &directions);
     std::fs::write(
         dir.join("expected-divergences.json"),
         serde_json::to_string_pretty(&report.signatures())?,
@@ -275,6 +400,12 @@ fn cmd_import(args: &[String]) -> Result<ExitCode> {
 
 fn cmd_update_baseline(args: &[String]) -> Result<ExitCode> {
     let opts = parse_opts(args)?;
+    if opts.from_opcode.is_some() || opts.until_opcode.is_some() || !opts.ignored_opcodes.is_empty()
+    {
+        bail!(
+            "update-baseline does not accept capture boundaries or opcode filters; use import to install consistently selected fixtures"
+        );
+    }
     let name = opts
         .positional
         .as_deref()
@@ -346,15 +477,219 @@ fn print_usage() {
         "capture-diff — C++(PKT) vs Rust packet capture diff (issue [01]/#66)\n\
          \n\
          USAGE:\n\
-         \x20 capture-diff diff <flow> [--rust DIR] [--cpp PKT] [--direction s2c|c2s|both] [--json] [--strict]\n\
+         \x20 capture-diff diff <flow> [--rust DIR] [--cpp PKT] [--direction s2c|c2s|both] [--from-opcode ...] [--until-opcode ...] [--ignore-opcode ...] [--json] [--strict]\n\
          \x20 capture-diff diff --cpp A.pkt --rust DIR [...]\n\
          \x20 capture-diff show <PKT|DUMPDIR>\n\
          \x20 capture-diff list\n\
-         \x20 capture-diff import <flow> --cpp PKT --rust DIR [--until-opcode 0xNNNN]\n\
+         \x20 capture-diff import <flow> --cpp PKT --rust DIR [--from-opcode c2s:0xNNNN] [--until-opcode s2c:0xNNNN] [--ignore-opcode s2c:0xNNNN] [--strict]\n\
          \x20 capture-diff update-baseline <flow> [--rust DIR]\n\
          \n\
          A flow resolves its golden C++ capture, reference Rust dump, and accepted-divergence\n\
          baseline from crates/capture-diff/flows/<flow>/. --strict exits non-zero when the diff\n\
          deviates from that baseline (the milestone regression gate)."
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn packet(direction: Direction, opcode: u16) -> capture_diff::CapturedPacket {
+        capture_diff::CapturedPacket {
+            direction,
+            connection_id: 0,
+            opcode,
+            body: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn parses_directional_packet_boundary() {
+        assert_eq!(
+            parse_packet_boundary("c2s:0x318C", "--from-opcode").unwrap(),
+            PacketBoundary {
+                direction: Some(Direction::C2S),
+                opcode: 0x318C,
+            }
+        );
+        assert_eq!(
+            parse_packet_boundary("S2C:271c", "--until-opcode").unwrap(),
+            PacketBoundary {
+                direction: Some(Direction::S2C),
+                opcode: 0x271C,
+            }
+        );
+    }
+
+    #[test]
+    fn preserves_legacy_directionless_until_boundary() {
+        assert_eq!(
+            parse_packet_boundary("0x3A46", "--until-opcode").unwrap(),
+            PacketBoundary {
+                direction: None,
+                opcode: 0x3A46,
+            }
+        );
+    }
+
+    #[test]
+    fn rejects_unknown_boundary_direction() {
+        let err = parse_packet_boundary("both:0x318C", "--from-opcode").unwrap_err();
+        assert!(err.to_string().contains("use c2s:0xNNNN or s2c:0xNNNN"));
+    }
+
+    #[test]
+    fn shared_diff_and_import_selection_slices_and_filters_ambient_packets() {
+        let opts = parse_opts(&[
+            "stand-state".into(),
+            "--from-opcode".into(),
+            "c2s:0x318C".into(),
+            "--until-opcode".into(),
+            "c2s:0x3768".into(),
+            "--ignore-opcode".into(),
+            "s2c:0x2DD4".into(),
+        ])
+        .unwrap();
+        let capture = Capture::new(
+            "full-session",
+            vec![
+                packet(Direction::S2C, 0x256D),
+                packet(Direction::C2S, 0x318C),
+                packet(Direction::S2C, 0x2DD4),
+                packet(Direction::S2C, 0x271C),
+                packet(Direction::C2S, 0x3768),
+                packet(Direction::S2C, 0x304E),
+            ],
+        );
+
+        let sliced = apply_capture_selection(capture, &opts).unwrap();
+        assert_eq!(
+            sliced
+                .packets
+                .iter()
+                .map(|packet| (packet.direction, packet.opcode))
+                .collect::<Vec<_>>(),
+            vec![
+                (Direction::C2S, 0x318C),
+                (Direction::S2C, 0x271C),
+                (Direction::C2S, 0x3768),
+            ]
+        );
+    }
+
+    #[test]
+    fn ignored_opcode_requires_an_explicit_direction() {
+        let error = parse_opts(&[
+            "stand-state".into(),
+            "--ignore-opcode".into(),
+            "0x2DD4".into(),
+        ])
+        .err()
+        .expect("directionless ignore must fail closed");
+        assert!(error.to_string().contains("requires a direction"));
+    }
+
+    #[test]
+    fn ignored_opcode_rejects_functional_packets_outside_the_ambient_allowlist() {
+        let opts = parse_opts(&[
+            "stand-state".into(),
+            "--ignore-opcode".into(),
+            "s2c:0x271C".into(),
+        ])
+        .unwrap();
+        let error = apply_capture_selection(Capture::new("capture", Vec::new()), &opts)
+            .expect_err("stand-state ACK must never be filterable");
+
+        assert!(error.to_string().contains("not approved ambient traffic"));
+    }
+
+    #[test]
+    fn ignored_ambient_opcode_cannot_also_be_an_action_boundary() {
+        let opts = parse_opts(&[
+            "stand-state".into(),
+            "--until-opcode".into(),
+            "s2c:0x2DD4".into(),
+            "--ignore-opcode".into(),
+            "s2c:0x2DD4".into(),
+        ])
+        .unwrap();
+        let error = apply_capture_selection(Capture::new("capture", Vec::new()), &opts)
+            .expect_err("an action boundary must never be filterable");
+
+        assert!(
+            error
+                .to_string()
+                .contains("cannot remove an action boundary")
+        );
+    }
+
+    #[test]
+    fn shared_boundaries_reject_start_without_end() {
+        let opts = parse_opts(&[
+            "stand-state".into(),
+            "--from-opcode".into(),
+            "c2s:0x318C".into(),
+        ])
+        .unwrap();
+        let err = apply_capture_boundaries(Capture::new("capture", Vec::new()), &opts).unwrap_err();
+        assert!(err.to_string().contains("requires --until-opcode"));
+    }
+
+    #[test]
+    fn update_baseline_rejects_boundaries_that_would_desync_fixtures() {
+        let error = cmd_update_baseline(&[
+            "stand-state".into(),
+            "--until-opcode".into(),
+            "c2s:0x3768".into(),
+        ])
+        .unwrap_err();
+        assert!(error.to_string().contains("use import"));
+
+        let filtered_error = cmd_update_baseline(&[
+            "stand-state".into(),
+            "--ignore-opcode".into(),
+            "s2c:0x2DD4".into(),
+        ])
+        .unwrap_err();
+        assert!(filtered_error.to_string().contains("use import"));
+    }
+
+    #[test]
+    fn strict_ad_hoc_diff_fails_on_connection_mismatch() {
+        let root = std::env::temp_dir().join(format!(
+            "capture-diff-strict-connection-mismatch-{}",
+            std::process::id()
+        ));
+        let rust_dir = root.join("rust");
+        let cpp_path = root.join("cpp.pkt");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+
+        let cpp = Capture::new(
+            "cpp",
+            vec![capture_diff::CapturedPacket {
+                direction: Direction::S2C,
+                connection_id: 0,
+                opcode: 0x271C,
+                body: vec![0, 0, 0, 0, 1],
+            }],
+        );
+        let mut rust_packet = cpp.packets[0].clone();
+        rust_packet.connection_id = 1;
+        let rust = Capture::new("rust", vec![rust_packet]);
+        std::fs::write(&cpp_path, pkt::write_pkt_bytes(&cpp)).unwrap();
+        rustdump::write_rust_dump(&rust_dir, &rust).unwrap();
+
+        let result = cmd_diff(&[
+            "--cpp".into(),
+            cpp_path.display().to_string(),
+            "--rust".into(),
+            rust_dir.display().to_string(),
+            "--direction".into(),
+            "s2c".into(),
+            "--strict".into(),
+        ])
+        .unwrap();
+        assert_eq!(result, ExitCode::FAILURE);
+    }
 }

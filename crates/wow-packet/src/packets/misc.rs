@@ -1172,6 +1172,26 @@ impl ClientPacket for StandStateChange {
     }
 }
 
+/// C++ `WorldPackets::Misc::StandStateUpdate`.
+///
+/// `Unit::SetStandState` sends this directly to players after updating the
+/// canonical `UnitData::StandState` field and removing Standing-interrupt
+/// auras. The wire order is `AnimKitID` followed by the stand state.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StandStateUpdate {
+    pub anim_kit_id: u32,
+    pub stand_state: u8,
+}
+
+impl ServerPacket for StandStateUpdate {
+    const OPCODE: ServerOpcodes = ServerOpcodes::StandStateUpdate;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint32(self.anim_kit_id);
+        pkt.write_uint8(self.stand_state);
+    }
+}
+
 /// C++ `WorldPackets::Misc::SetTaxiBenchmarkMode`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SetTaxiBenchmarkMode {
@@ -13029,6 +13049,26 @@ mod tests {
             StandStateChange { stand_state: 8 }
         );
         assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn stand_state_update_writes_anim_kit_then_state_like_cpp() {
+        let bytes = StandStateUpdate {
+            anim_kit_id: 0,
+            stand_state: 1,
+        }
+        .to_bytes();
+        let mut pkt = WorldPacket::from_bytes(&bytes);
+
+        assert_eq!(pkt.server_opcode(), Some(ServerOpcodes::StandStateUpdate));
+        assert_eq!(
+            pkt.read_uint16().unwrap(),
+            ServerOpcodes::StandStateUpdate as u16
+        );
+        assert_eq!(pkt.read_uint32().unwrap(), 0);
+        assert_eq!(pkt.read_uint8().unwrap(), 1);
+        assert_eq!(pkt.remaining(), 0);
+        assert_eq!(&bytes[2..], &[0, 0, 0, 0, 1]);
     }
 }
 

@@ -1023,8 +1023,8 @@ mod tests {
         PLAYER_DATA_PLAYER_TITLE_BIT, Player, SCENE_OBJECT_DATA_PARENT_BIT,
         SCENE_OBJECT_DATA_SCRIPT_PACKAGE_ID_BIT, SceneObject, UNIT_DATA_EMOTE_STATE_BIT,
         UNIT_DATA_HEALTH_BIT, UNIT_DATA_MODS_PARENT_BIT, UNIT_DATA_PARENT_BIT,
-        UNIT_DATA_STAND_STATE_BIT, UNIT_DATA_VIRTUAL_ITEMS_FIRST_BIT,
-        UNIT_DATA_VIRTUAL_ITEMS_PARENT_BIT, VisibleItemValues,
+        UNIT_DATA_STAND_STATE_BIT, UNIT_DATA_STAND_STATE_PARENT_BIT,
+        UNIT_DATA_VIRTUAL_ITEMS_FIRST_BIT, UNIT_DATA_VIRTUAL_ITEMS_PARENT_BIT, VisibleItemValues,
     };
     use wow_packet::ServerPacket;
 
@@ -1345,6 +1345,31 @@ mod tests {
         assert!(mask_has(&unit.unit_data_mask, UNIT_DATA_MODS_PARENT_BIT));
         assert!(mask_has(&unit.unit_data_mask, UNIT_DATA_EMOTE_STATE_BIT));
         assert_eq!(unit.emote_state, 10);
+    }
+
+    #[test]
+    fn bridges_unit_stand_state_with_generated_cpp_parent_mask() {
+        let mut player = Player::new(Some(7), false);
+        player.clear_data_changes();
+
+        player
+            .unit_mut()
+            .set_stand_state_like_cpp(wow_constants::UnitStandStateType::Sit);
+
+        let update = player.values_update(false);
+        let packet_update = player_values_update_to_packet(&update).unwrap();
+        let unit = packet_update.unit_data.unwrap();
+
+        assert!(mask_has(
+            &unit.unit_data_mask,
+            UNIT_DATA_STAND_STATE_PARENT_BIT
+        ));
+        assert!(mask_has(&unit.unit_data_mask, UNIT_DATA_STAND_STATE_BIT));
+        assert!(!mask_has(&unit.unit_data_mask, UNIT_DATA_PARENT_BIT));
+        assert_eq!(
+            unit.stand_state,
+            wow_constants::UnitStandStateType::Sit as u8
+        );
     }
 
     #[test]

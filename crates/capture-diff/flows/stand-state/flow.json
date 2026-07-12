@@ -1,0 +1,7 @@
+{
+  "description": "CMSG_STAND_STATE_CHANGE Sit: realm ACK + instance StandState VALUES delta, bounded through the instance CMSG_PING fence (ambient global-creature SMSG_ON_MONSTER_MOVE excluded symmetrically at import).",
+  "directions": [
+    "s2c",
+    "c2s"
+  ]
+}

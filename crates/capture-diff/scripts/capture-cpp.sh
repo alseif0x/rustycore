@@ -9,8 +9,13 @@
 # Output:  target/captures/<flow>/cpp.pkt   (gitignored)
 #
 # Honored env vars (defaults target this machine's layout):
-#   CPP_CONF        legacy worldserver.conf  (default: trinity-legacy-install/etc/worldserver.conf)
-#   CPP_LOGS_DIR    LogsDir from that conf   (default: trinity-legacy-install/logs)
+#   CPP_RUNTIME_DIR directory the PM2 wrapper enters before worldserver starts
+#                   (default: trinity-legacy-install/bin)
+#   CPP_CONF        active legacy worldserver.conf
+#                   (default: $CPP_RUNTIME_DIR/worldserver.conf)
+#   CPP_LOGS_DIR    PacketLogFile output directory. Defaults to LogsDir from
+#                   CPP_CONF, resolved under CPP_RUNTIME_DIR when relative;
+#                   an empty LogsDir means CPP_RUNTIME_DIR, matching C++.
 #   PM2_CPP_WORLD   pm2 name of the C++ world  (default: cpp-world)
 #   PM2_RUST_WORLD  pm2 name of the Rust world (default: rustycore-world)
 #
@@ -20,13 +25,30 @@ set -euo pipefail
 
 FLOW="${1:-}"
 [ -n "$FLOW" ] || { echo "usage: $0 <flow> [--yes]" >&2; exit 2; }
+[[ "$FLOW" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || {
+  echo "error: invalid flow name '${FLOW}' (use one ASCII path component: letters, digits, '.', '_', '-')" >&2
+  exit 2
+}
 CONFIRM="${2:-}"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-CPP_CONF="${CPP_CONF:-/home/server/trinity-legacy-install/etc/worldserver.conf}"
-CPP_LOGS_DIR="${CPP_LOGS_DIR:-/home/server/trinity-legacy-install/logs}"
+CPP_RUNTIME_DIR="${CPP_RUNTIME_DIR:-/home/server/trinity-legacy-install/bin}"
+CPP_CONF="${CPP_CONF:-${CPP_RUNTIME_DIR}/worldserver.conf}"
 PM2_CPP_WORLD="${PM2_CPP_WORLD:-cpp-world}"
 PM2_RUST_WORLD="${PM2_RUST_WORLD:-rustycore-world}"
+
+if [ -z "${CPP_LOGS_DIR+x}" ]; then
+  CONFIGURED_LOGS_DIR="$({
+    sed -n -E 's/^[[:space:]]*LogsDir[[:space:]]*=[[:space:]]*"([^"]*)".*/\1/p' "$CPP_CONF" 2>/dev/null || true
+  } | tail -n 1)"
+  if [ -z "$CONFIGURED_LOGS_DIR" ]; then
+    CPP_LOGS_DIR="$CPP_RUNTIME_DIR"
+  elif [[ "$CONFIGURED_LOGS_DIR" = /* ]]; then
+    CPP_LOGS_DIR="$CONFIGURED_LOGS_DIR"
+  else
+    CPP_LOGS_DIR="${CPP_RUNTIME_DIR}/${CONFIGURED_LOGS_DIR}"
+  fi
+fi
 
 PKT_NAME="rustycore-capture-${FLOW}.pkt"
 OUT_DIR="${REPO_ROOT}/target/captures/${FLOW}"
@@ -46,6 +68,7 @@ if [ "$CONFIRM" != "--yes" ]; then
 fi
 
 [ -f "$CPP_CONF" ] || { echo "error: conf not found: $CPP_CONF" >&2; exit 1; }
+[ -d "$CPP_LOGS_DIR" ] || { echo "error: packet log directory not found: $CPP_LOGS_DIR" >&2; exit 1; }
 
 CONF_BAK="${CPP_CONF}.capture-diff.bak"
 # A leftover backup means a prior run was killed before restoring. Refuse to
@@ -56,7 +79,10 @@ if [ -e "$CONF_BAK" ]; then
   echo "       restore it over ${CPP_CONF} and delete it before re-running." >&2
   exit 1
 fi
-cp -f "$CPP_CONF" "$CONF_BAK"
+# Preserve the active config's ownership/mode/timestamps exactly. A restrictive
+# caller umask must not turn the restored worldserver.conf into a different
+# runtime file after the capture.
+cp -a "$CPP_CONF" "$CONF_BAK"
 
 restore() {
   echo "restoring ${PM2_CPP_WORLD} -> ${PM2_RUST_WORLD} and conf..."
@@ -73,6 +99,16 @@ if grep -qE '^[[:space:]]*PacketLogFile' "$CPP_CONF"; then
   sed -i -E "s|^[[:space:]]*PacketLogFile.*|PacketLogFile = \"${PKT_NAME}\"|" "$CPP_CONF"
 else
   printf '\nPacketLogFile = "%s"\n' "$PKT_NAME" >>"$CPP_CONF"
+fi
+
+# A local C++ test-harness extension can bypass SMSG_CONNECT_TO for accounts
+# matching Bot.AccountPrefix. Golden captures must exercise stock realm→instance
+# routing, so disable that shortcut inside the already-backed-up config. The
+# EXIT trap restores the original value and file metadata exactly.
+if grep -qE '^[[:space:]]*Bot\.AccountPrefix[[:space:]]*=' "$CPP_CONF"; then
+  sed -i -E 's|^[[:space:]]*Bot\.AccountPrefix[[:space:]]*=.*|Bot.AccountPrefix = ""|' "$CPP_CONF"
+else
+  printf '\nBot.AccountPrefix = ""\n' >>"$CPP_CONF"
 fi
 
 rm -f "${CPP_LOGS_DIR}/${PKT_NAME}"

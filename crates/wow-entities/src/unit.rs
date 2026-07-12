@@ -25,6 +25,7 @@ pub const SPELL_AURA_MOD_STALKED_LIKE_CPP: i32 = 68;
 pub const SPELL_AURA_MOD_DETECT_RANGE_LIKE_CPP: i32 = 91;
 pub const SPELL_AURA_MOD_DETECTED_RANGE_LIKE_CPP: i32 = 152;
 pub const SPELL_AURA_INTERRUPT_FLAG_ATTACKING_LIKE_CPP: u32 = 0x0000_1000;
+pub const SPELL_AURA_INTERRUPT_FLAG_STANDING_LIKE_CPP: u32 = 0x0004_0000;
 pub const SPELL_AURA_INTERRUPT_FLAG_ENTER_WORLD_LIKE_CPP: u32 = 0x0040_0000;
 pub const MAX_VISIBILITY_AURA_TYPES_LIKE_CPP: usize = 38;
 pub const MAX_PLAYER_STEALTH_DETECT_RANGE_LIKE_CPP: f32 = 30.0;
@@ -46,6 +47,7 @@ pub const UNIT_DATA_DISPLAY_SCALE_BIT: usize = 48;
 pub const UNIT_DATA_NATIVE_DISPLAY_ID_BIT: usize = 49;
 pub const UNIT_DATA_NATIVE_DISPLAY_SCALE_BIT: usize = 50;
 pub const UNIT_DATA_MOUNT_DISPLAY_ID_BIT: usize = 51;
+pub const UNIT_DATA_STAND_STATE_PARENT_BIT: usize = 32;
 pub const UNIT_DATA_STAND_STATE_BIT: usize = 56;
 pub const UNIT_DATA_VIS_FLAGS_BIT: usize = 58;
 pub const UNIT_DATA_ANIM_TIER_BIT: usize = 59;
@@ -1758,9 +1760,19 @@ impl Unit {
     }
 
     pub fn set_stand_state_like_cpp(&mut self, state: UnitStandStateType) {
-        self.set_u8_field(UNIT_DATA_STAND_STATE_BIT, state as u8, |data| {
-            &mut data.stand_state
-        });
+        let target = &mut self.data.stand_state;
+        if *target != state as u8 {
+            *target = state as u8;
+            // C++ generated `UpdateField<uint8, 32, 56>` marks both the
+            // block-parent and field bits. The ordinary scalar helper only
+            // covers block zero, so preserve the generated mask explicitly.
+            self.mark_unit_data_nested(UNIT_DATA_STAND_STATE_PARENT_BIT, UNIT_DATA_STAND_STATE_BIT);
+            // C++ UpdateField assignment also queues the owning Object for
+            // Map::SendObjectUpdates when it is in world.
+            self.world_mut()
+                .object_mut()
+                .add_to_object_update_if_needed();
+        }
     }
 
     pub fn replace_all_vis_flags_like_cpp(&mut self, flags: u8) {
@@ -3624,6 +3636,7 @@ mod tests {
         assert_eq!(unit.stand_state_like_cpp(), UnitStandStateType::Stand);
         assert!(unit.is_stand_state_like_cpp());
 
+        unit.world_mut().object_mut().add_to_world();
         unit.clear_unit_data_changes();
         unit.set_stand_state_like_cpp(UnitStandStateType::SitChair);
         assert_eq!(unit.stand_state_like_cpp(), UnitStandStateType::SitChair);
@@ -3632,6 +3645,22 @@ mod tests {
             unit.unit_data_changes_mask()
                 .is_set(UNIT_DATA_STAND_STATE_BIT)
         );
+        assert!(
+            unit.unit_data_changes_mask()
+                .is_set(UNIT_DATA_STAND_STATE_PARENT_BIT),
+            "C++ UpdateField<uint8, 32, 56> marks its block parent"
+        );
+        assert!(
+            !unit.unit_data_changes_mask().is_set(UNIT_DATA_PARENT_BIT),
+            "StandState is in block parent 32, not block parent 0"
+        );
+        assert!(
+            unit.world().object().is_object_updated(),
+            "C++ UpdateField assignment queues an in-world Unit for object updates"
+        );
+
+        unit.clear_unit_data_changes();
+        unit.world_mut().object_mut().clear_update_mask(false);
 
         unit.set_stand_state_like_cpp(UnitStandStateType::Sleep);
         assert!(!unit.is_stand_state_like_cpp());

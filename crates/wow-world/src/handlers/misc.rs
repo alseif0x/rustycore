@@ -2094,7 +2094,11 @@ impl crate::session::WorldSession {
             _ => return,
         };
 
-        self.set_player_stand_state_like_cpp(stand_state);
+        let _ = self.apply_represented_live_intent_like_cpp(
+            crate::session::RepresentedLiveIntentLikeCpp::StandStateChanged(
+                crate::session::RepresentedStandStateChangedLikeCpp { state: stand_state },
+            ),
+        );
     }
 
     /// C++ `Map::SendInitSelf` (Map.cpp:1877), invoked by `Map::AddPlayerToMap(initPlayer=true)`
@@ -14742,21 +14746,56 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn stand_state_change_accepts_only_cpp_states_like_cpp() {
+    async fn stand_state_change_bridge_applies_valid_states_and_rejects_others_like_cpp() {
         let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager_for_misc_test();
+        let player_guid = ObjectGuid::create_player(1, 9010);
+        let position = Position::new(1.0, 2.0, 3.0, 0.0);
+        add_canonical_test_player_on_map_for_misc_test(&canonical, player_guid, position, 571, 0);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_map_position_like_cpp(571, position);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
 
         for state in [
-            UnitStandStateType::Stand,
             UnitStandStateType::Sit,
             UnitStandStateType::Sleep,
             UnitStandStateType::Kneel,
+            UnitStandStateType::Stand,
         ] {
             session
                 .handle_stand_state_change(stand_state_change_packet(state as u32))
                 .await;
             assert_eq!(session.player_stand_state_like_cpp(), state);
+
+            let stand_bytes = send_rx.try_recv().expect("SMSG_STAND_STATE_UPDATE");
+            let mut stand_packet = WorldPacket::from_bytes(&stand_bytes);
+            assert_eq!(
+                stand_packet.server_opcode(),
+                Some(ServerOpcodes::StandStateUpdate)
+            );
+            stand_packet.skip_opcode();
+            assert_eq!(stand_packet.read_uint32().unwrap(), 0);
+            assert_eq!(stand_packet.read_uint8().unwrap(), state as u8);
+            assert_eq!(stand_packet.remaining(), 0);
+
+            let values_bytes = send_rx.try_recv().expect("StandState VALUES update");
+            assert_eq!(
+                WorldPacket::from_bytes(&values_bytes).server_opcode(),
+                Some(ServerOpcodes::UpdateObject)
+            );
+            assert!(send_rx.try_recv().is_err());
+
+            let manager = canonical.lock().unwrap();
+            let player = manager
+                .find_map(571, 0)
+                .unwrap()
+                .map()
+                .get_typed_player(player_guid)
+                .unwrap();
+            assert_eq!(player.unit().stand_state_like_cpp(), state);
         }
 
+        let applied_before_invalid = session.represented_live_applications_like_cpp().len();
         session
             .handle_stand_state_change(stand_state_change_packet(
                 UnitStandStateType::SitChair as u32,
@@ -14764,9 +14803,101 @@ mod tests {
             .await;
         assert_eq!(
             session.player_stand_state_like_cpp(),
-            UnitStandStateType::Kneel
+            UnitStandStateType::Stand
+        );
+        assert_eq!(
+            session.represented_live_applications_like_cpp().len(),
+            applied_before_invalid
         );
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn stand_state_change_missing_live_owner_records_no_false_success_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 9011)));
+        session.set_player_map_position_like_cpp(571, Position::ZERO);
+
+        session
+            .handle_stand_state_change(stand_state_change_packet(UnitStandStateType::Sit as u32))
+            .await;
+
+        assert_eq!(
+            session.player_stand_state_like_cpp(),
+            UnitStandStateType::Stand
+        );
+        assert!(session.represented_live_applications_like_cpp().is_empty());
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn repeated_stand_state_still_sends_direct_cpp_packet_without_values_delta() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager_for_misc_test();
+        let player_guid = ObjectGuid::create_player(1, 9012);
+        let position = Position::new(1.0, 2.0, 3.0, 0.0);
+        add_canonical_test_player_on_map_for_misc_test(&canonical, player_guid, position, 571, 0);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_map_position_like_cpp(571, position);
+        session.set_canonical_map_manager(canonical);
+
+        session
+            .handle_stand_state_change(stand_state_change_packet(UnitStandStateType::Stand as u32))
+            .await;
+
+        let bytes = send_rx.try_recv().expect("repeated StandStateUpdate");
+        assert_eq!(
+            WorldPacket::from_bytes(&bytes).server_opcode(),
+            Some(ServerOpcodes::StandStateUpdate)
+        );
+        assert!(send_rx.try_recv().is_err());
+        assert_eq!(
+            session.represented_live_applications_like_cpp(),
+            &[crate::session::RepresentedLiveApplicationLikeCpp {
+                intent: crate::session::RepresentedLiveIntentLikeCpp::StandStateChanged(
+                    crate::session::RepresentedStandStateChangedLikeCpp {
+                        state: UnitStandStateType::Stand,
+                    },
+                ),
+                outcome: crate::session::RepresentedLiveIntentApplyOutcomeLikeCpp::Applied(
+                    crate::session::RepresentedLiveIntentAppliedLikeCpp::StandStateChanged {
+                        canonical_field_changed: false,
+                        canonical_auras_removed: 0,
+                        represented_auras_removed: 0,
+                        channel_cancellation_boundary: None,
+                    },
+                ),
+            }]
+        );
+    }
+
+    #[tokio::test]
+    async fn stand_state_update_uses_cpp_realm_connection_and_values_use_instance() {
+        let (mut session, instance_rx, realm_rx) = make_session_with_realm_send();
+        let canonical = shared_canonical_map_manager_for_misc_test();
+        let player_guid = ObjectGuid::create_player(1, 9013);
+        let position = Position::new(1.0, 2.0, 3.0, 0.0);
+        add_canonical_test_player_on_map_for_misc_test(&canonical, player_guid, position, 571, 0);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_map_position_like_cpp(571, position);
+        session.set_canonical_map_manager(canonical);
+
+        session
+            .handle_stand_state_change(stand_state_change_packet(UnitStandStateType::Sit as u32))
+            .await;
+
+        assert_eq!(
+            WorldPacket::from_bytes(&realm_rx.try_recv().expect("realm stand packet"))
+                .server_opcode(),
+            Some(ServerOpcodes::StandStateUpdate)
+        );
+        assert_eq!(
+            WorldPacket::from_bytes(&instance_rx.try_recv().expect("instance VALUES packet"))
+                .server_opcode(),
+            Some(ServerOpcodes::UpdateObject)
+        );
+        assert!(realm_rx.try_recv().is_err());
+        assert!(instance_rx.try_recv().is_err());
     }
 
     #[tokio::test]

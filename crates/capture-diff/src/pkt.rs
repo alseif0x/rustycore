@@ -130,7 +130,7 @@ pub fn parse_pkt_bytes(bytes: &[u8]) -> Result<Capture> {
                 cur.pos - 4
             ),
         };
-        let _connection_id = cur.u32()?;
+        let connection_id = cur.u32()?;
         let _arrival_ticks = cur.u32()?;
         let optional_size = cur.u32()? as usize;
         let length = cur.u32()? as usize;
@@ -142,6 +142,7 @@ pub fn parse_pkt_bytes(bytes: &[u8]) -> Result<Capture> {
         let body = cur.take(length - 4)?.to_vec();
         packets.push(CapturedPacket {
             direction,
+            connection_id,
             opcode: opcode as u16,
             body,
         });
@@ -180,7 +181,7 @@ pub fn write_pkt_bytes(capture: &Capture) -> Vec<u8> {
             Direction::S2C => DIR_SMSG,
         };
         out.extend_from_slice(&direction_raw.to_le_bytes());
-        out.extend_from_slice(&0u32.to_le_bytes()); // ConnectionId (realm)
+        out.extend_from_slice(&pkt.connection_id.to_le_bytes());
         out.extend_from_slice(&(index as u32).to_le_bytes()); // ArrivalTicks (deterministic)
         out.extend_from_slice(&OPTIONAL_SIZE.to_le_bytes());
         let length = pkt.body.len() as u32 + 4;

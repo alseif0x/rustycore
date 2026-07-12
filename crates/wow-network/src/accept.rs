@@ -650,6 +650,7 @@ async fn handle_instance_connection(
     session_mgr: &SessionManager,
 ) -> Result<(), WorldSocketError> {
     let mut socket = WorldSocket::new(stream, addr);
+    socket.mark_instance_connection_like_cpp();
 
     // Phase 1: Connection strings + AuthChallenge (same as realm)
     socket.start().await?;

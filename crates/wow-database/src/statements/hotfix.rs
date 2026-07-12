@@ -56,6 +56,10 @@ pub enum HotfixStatements {
     SEL_UI_MAP_X_MAP_ART,
     /// C++ `HOTFIX_SEL_LFG_DUNGEONS`.
     SEL_LFG_DUNGEONS,
+    /// C++ `HOTFIX_SEL_SPELL_INTERRUPTS`.
+    SEL_SPELL_INTERRUPTS,
+    /// C++ `HOTFIX_SEL_SPELL_NAME`.
+    SEL_SPELL_NAME,
     /// Generated C++ base hotfix statement.
     GENERATED_BASE {
         /// Exact SQL from C++ `PrepareStatement(HOTFIX_SEL_..., ...)`.
@@ -101,6 +105,8 @@ impl HotfixStatements {
                 | Self::SEL_PHASE_X_PHASE_GROUP
                 | Self::SEL_UI_MAP_X_MAP_ART
                 | Self::SEL_LFG_DUNGEONS
+                | Self::SEL_SPELL_INTERRUPTS
+                | Self::SEL_SPELL_NAME
         )
     }
 
@@ -211,6 +217,13 @@ impl StatementDef for HotfixStatements {
                 "TargetLevel, TargetLevelMin, TargetLevelMax, RandomID, ScenarioID, FinalEncounterID, CountTank, CountHealer, CountDamage, MinCountTank, ",
                 "MinCountHealer, MinCountDamage, BonusReputationAmount, MentorItemLevel, MentorCharLevel, Flags1, Flags2 FROM lfg_dungeons WHERE VerifiedBuild > 0"
             ),
+            Self::SEL_SPELL_INTERRUPTS => concat!(
+                "SELECT ID, DifficultyID, InterruptFlags, AuraInterruptFlags1, AuraInterruptFlags2, ",
+                "ChannelInterruptFlags1, ChannelInterruptFlags2, SpellID FROM spell_interrupts WHERE (`VerifiedBuild` > 0) = ?"
+            ),
+            Self::SEL_SPELL_NAME => {
+                "SELECT ID, Name FROM spell_name WHERE (`VerifiedBuild` > 0) = ?"
+            }
             Self::GENERATED_BASE { sql } => sql,
             Self::GENERATED_MAX_ID { table } => {
                 Box::leak(format!("SELECT MAX(ID) + 1 FROM {table}").into_boxed_str())
@@ -349,7 +362,28 @@ mod tests {
         assert!(!HotfixStatements::SEL_AREA_TABLE.is_control_table_like_cpp());
         assert!(HotfixStatements::SEL_AREA_TABLE.is_selected_overlay_like_cpp());
         assert!(HotfixStatements::SEL_VEHICLE_SEAT.is_selected_overlay_like_cpp());
+        assert!(HotfixStatements::SEL_SPELL_INTERRUPTS.is_selected_overlay_like_cpp());
+        assert!(HotfixStatements::SEL_SPELL_NAME.is_selected_overlay_like_cpp());
         assert!(!HotfixStatements::SEL_HOTFIX_DATA.is_selected_overlay_like_cpp());
+    }
+
+    #[test]
+    fn spell_interrupts_overlay_statement_matches_cpp_columns() {
+        assert_eq!(
+            HotfixStatements::SEL_SPELL_INTERRUPTS.sql(),
+            concat!(
+                "SELECT ID, DifficultyID, InterruptFlags, AuraInterruptFlags1, AuraInterruptFlags2, ",
+                "ChannelInterruptFlags1, ChannelInterruptFlags2, SpellID FROM spell_interrupts WHERE (`VerifiedBuild` > 0) = ?"
+            )
+        );
+    }
+
+    #[test]
+    fn spell_name_overlay_statement_matches_cpp_columns() {
+        assert_eq!(
+            HotfixStatements::SEL_SPELL_NAME.sql(),
+            "SELECT ID, Name FROM spell_name WHERE (`VerifiedBuild` > 0) = ?"
+        );
     }
 
     #[test]

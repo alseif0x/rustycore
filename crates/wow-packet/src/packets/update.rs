@@ -10308,6 +10308,33 @@ mod tests {
     }
 
     #[test]
+    fn full_unit_values_update_block_matches_cpp_stand_state_delta_shape() {
+        let mut data = UnitDataValuesDeltaUpdate {
+            stand_state: 1,
+            ..Default::default()
+        };
+        // C++ generated `UpdateField<uint8, 32, 56> StandState`.
+        data.unit_data_mask[1] = (1 << 0) | (1 << 24);
+
+        let mut block = WorldPacket::new_empty();
+        write_full_unit_values_update_block(&mut block, &ObjectGuid::EMPTY, &data);
+
+        let bytes = block.into_data();
+        assert_eq!(bytes[0], UpdateType::Values as u8);
+        assert_eq!(&bytes[1..3], &[0, 0]);
+        assert_eq!(u32::from_le_bytes(bytes[3..7].try_into().unwrap()), 10);
+
+        let mut values = WorldPacket::from_bytes(&bytes[7..]);
+        assert_eq!(values.read_uint32().unwrap(), VALUES_TYPE_UNIT);
+        assert_eq!(values.read_bits(8).unwrap(), 1 << 1);
+        assert_eq!(values.read_bits(32).unwrap(), (1 << 0) | (1 << 24));
+        values.reset_bits();
+        assert_eq!(values.read_uint8().unwrap(), 1);
+        assert_eq!(values.remaining(), 0);
+        assert_eq!(bytes.len(), 17);
+    }
+
+    #[test]
     fn full_unit_values_update_block_matches_cpp_unitdata_virtual_item_delta_shape() {
         let mut data = UnitDataValuesDeltaUpdate::default();
         data.unit_data_mask[5] = (1 << 7) | (1 << 8);

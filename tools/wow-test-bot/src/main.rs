@@ -1,7 +1,7 @@
 //! WoW Test Bot - TrinityCore 3.4.3 Modern Protocol with Full SRP6
 //! Combines BNet SRP6 Auth + World Server AES-GCM Encryption + LFG
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use flate2::{Decompress, FlushDecompress};
 use rand::RngCore;
 use serde::Serialize;
@@ -23,6 +23,23 @@ use protocol::*;
 use wow_crypto::WorldCrypt;
 
 const SMSG_COMPRESSED_PACKET: u16 = 0x3052;
+const CMSG_STAND_STATE_CHANGE: u16 = 0x318C;
+const SMSG_STAND_STATE_UPDATE: u16 = 0x271C;
+const CMSG_PING: u16 = 0x3768;
+const SMSG_PONG: u16 = 0x304E;
+const SMSG_UPDATE_OBJECT: u16 = 0x27CB;
+const SMSG_AURA_UPDATE: u16 = 0x2C1F;
+const SMSG_TIME_SYNC_REQUEST: u16 = 0x2DD2;
+const SMSG_ON_MONSTER_MOVE: u16 = 0x2DD4;
+const UNIT_STAND_STATE_STAND: u8 = 0;
+const UNIT_STAND_STATE_SIT: u8 = 1;
+const UNIT_STAND_STATE_SLEEP: u8 = 3;
+const UNIT_STAND_STATE_KNEEL: u8 = 8;
+const STAND_STATE_LOGIN_QUIET_PERIOD: Duration = Duration::from_millis(500);
+const STAND_STATE_LOGIN_DRAIN_LIMIT: Duration = Duration::from_secs(5);
+const STAND_STATE_POST_ACTION_QUIET_PERIOD: Duration = Duration::from_millis(250);
+const STAND_STATE_POST_ACTION_DRAIN_LIMIT: Duration = Duration::from_secs(5);
+const STAND_STATE_CAPTURE_FENCE_SERIAL: u32 = 0x5354_414E;
 
 #[derive(Debug)]
 struct ServerPacketInflater {
@@ -102,6 +119,9 @@ struct CliOptions {
     require_group: bool,
     ensure_test_accounts: bool,
     login_only: bool,
+    stand_state_smoke: bool,
+    stand_state: Option<u8>,
+    stand_state_timeout_secs: u64,
     quest_smoke: bool,
     quest_creature_entry: Option<u32>,
     quest_creature_guid: Option<u64>,
@@ -146,6 +166,11 @@ struct BotRunResult {
     enum_characters: bool,
     player_login_verified: bool,
     login_only: bool,
+    stand_state_smoke: bool,
+    stand_state_smoke_passed: Option<bool>,
+    stand_states_requested: Vec<u8>,
+    stand_states_confirmed: Vec<u8>,
+    stand_state_failure: Option<String>,
     quest_smoke: bool,
     quest_smoke_passed: Option<bool>,
     quest_target_entry: Option<u32>,
@@ -182,6 +207,12 @@ struct BotRunResult {
 
 impl BotRunResult {
     fn success(&self, require_proposal: bool, require_group: bool, login_only: bool) -> bool {
+        if self.stand_state_smoke {
+            return self.world_auth
+                && self.enum_characters
+                && self.player_login_verified
+                && self.stand_state_smoke_passed.unwrap_or(false);
+        }
         if self.quest_smoke {
             return self.world_auth
                 && self.enum_characters
@@ -205,6 +236,7 @@ struct RunReport {
     require_group: bool,
     auto_teleport: bool,
     login_only: bool,
+    stand_state_smoke: bool,
     quest_smoke: bool,
     results: Vec<BotRunResult>,
 }
@@ -216,6 +248,12 @@ struct ConnectToTarget {
     serial: u32,
     connection_type: u8,
     key: i64,
+}
+
+struct EncryptedWorldConnection {
+    stream: TcpStream,
+    crypt: WorldCrypt,
+    inflater: ServerPacketInflater,
 }
 
 #[derive(Debug, Clone)]
@@ -251,6 +289,12 @@ struct QuestSmokeOptions {
 }
 
 #[derive(Debug, Clone)]
+struct StandStateSmokeOptions {
+    states: Vec<u8>,
+    timeout_secs: u64,
+}
+
+#[derive(Debug, Clone)]
 struct ResolvedCreatureTarget {
     entry: u32,
     spawn_guid: u64,
@@ -279,6 +323,15 @@ fn test_dungeon_id(app_config: &config::AppConfig) -> u32 {
 }
 
 fn parse_cli() -> Result<CliOptions> {
+    let stand_state = std::env::var("WOW_BOT_STAND_STATE")
+        .ok()
+        .map(|value| value.parse::<u8>())
+        .transpose()?;
+    let stand_state_smoke = std::env::var("WOW_BOT_STAND_STATE_SMOKE")
+        .ok()
+        .is_some_and(|value| is_truthy(&value))
+        || stand_state.is_some();
+
     let mut opts = CliOptions {
         config_path: std::env::var("WOW_BOT_CONFIG").unwrap_or_else(|_| "config.json".to_string()),
         dungeon_id: std::env::var("WOW_BOT_DUNGEON_ID")
@@ -307,6 +360,13 @@ fn parse_cli() -> Result<CliOptions> {
             .ok()
             .map(|v| is_truthy(&v))
             .unwrap_or(false),
+        stand_state_smoke,
+        stand_state,
+        stand_state_timeout_secs: std::env::var("WOW_BOT_STAND_STATE_TIMEOUT_SECS")
+            .ok()
+            .map(|value| value.parse::<u64>())
+            .transpose()?
+            .unwrap_or(5),
         quest_smoke: std::env::var("WOW_BOT_QUEST_SMOKE")
             .ok()
             .map(|v| is_truthy(&v))
@@ -408,6 +468,15 @@ fn parse_cli() -> Result<CliOptions> {
             "--require-group" => opts.require_group = true,
             "--ensure-test-accounts" => opts.ensure_test_accounts = true,
             "--login-only" => opts.login_only = true,
+            "--stand-state-smoke" => opts.stand_state_smoke = true,
+            "--stand-state" => {
+                opts.stand_state_smoke = true;
+                opts.stand_state = Some(next_arg(&mut args, "--stand-state")?.parse()?);
+            }
+            "--stand-state-timeout" => {
+                opts.stand_state_timeout_secs =
+                    next_arg(&mut args, "--stand-state-timeout")?.parse()?;
+            }
             "--quest-smoke" => opts.quest_smoke = true,
             "--quest-creature-entry" => {
                 opts.quest_creature_entry =
@@ -537,6 +606,14 @@ fn print_help() {
     println!("  --require-group          Treat missing party info/group formation as failure");
     println!("  --ensure-test-accounts   Upsert local TESTBOT auth rows before login");
     println!("  --login-only             Stop after SMSG_LOGIN_VERIFY_WORLD; do not run LFG");
+    println!("  --stand-state-smoke      After login, verify Sit then Stand state round-trips");
+    println!(
+        "  --stand-state <n>        Verify one state instead (0=Stand, 1=Sit, 3=Sleep, 8=Kneel)"
+    );
+    println!("  --stand-state-timeout <secs>  Per-state response timeout (default: 5)");
+    println!(
+        "                           Env: WOW_BOT_STAND_STATE_SMOKE, WOW_BOT_STAND_STATE, WOW_BOT_STAND_STATE_TIMEOUT_SECS"
+    );
     println!("  --quest-smoke            After login, right-click/query one questgiver NPC");
     println!("  --quest-creature-entry <id>  Creature entry to resolve from world.creature");
     println!("  --quest-creature-guid <guid> Optional world.creature spawn guid override");
@@ -832,6 +909,14 @@ async fn main() -> Result<()> {
             .map_err(|e| anyhow!("DB worker join failed while ensuring test accounts: {}", e))?
             .map_err(|e| anyhow!("Failed to ensure test accounts: {}", e))?;
     }
+    if cli.stand_state_smoke && cli.quest_smoke {
+        bail!("--stand-state-smoke and --quest-smoke are separate post-login modes");
+    }
+    let stand_state_options = if cli.stand_state_smoke {
+        Some(stand_state_smoke_options_from_cli(&cli)?)
+    } else {
+        None
+    };
     let quest_options = if cli.quest_smoke {
         Some(quest_smoke_options_from_cli(&cli)?)
     } else {
@@ -855,9 +940,17 @@ async fn main() -> Result<()> {
 
     info!("Target dungeon: {}", dungeon_id);
     info!("Enabled bots: {}", bots.len());
+    if let Some(options) = &stand_state_options {
+        info!(
+            "Stand-state sequence: {:?}; per-state timeout: {}s",
+            options.states, options.timeout_secs
+        );
+    }
     info!(
         "Mode: {}; client_build={}; LFG timeout: {}s; auto_teleport={}; require_proposal={}; require_group={}",
-        if cli.quest_smoke {
+        if cli.stand_state_smoke {
+            "stand-state-smoke"
+        } else if cli.quest_smoke {
             "quest-smoke"
         } else if cli.login_only {
             "login-only"
@@ -871,7 +964,7 @@ async fn main() -> Result<()> {
         require_group
     );
 
-    if cleanup_groups && !cli.login_only {
+    if cleanup_groups && !cli.login_only && !cli.stand_state_smoke {
         cleanup_bot_group_state(&bots)?;
     }
 
@@ -886,6 +979,7 @@ async fn main() -> Result<()> {
                 timeout_secs,
                 auto_teleport,
                 cli.login_only,
+                stand_state_options.clone(),
                 quest_options.clone(),
             )
             .await
@@ -905,6 +999,7 @@ async fn main() -> Result<()> {
                 .launch_delay_ms
                 .saturating_mul(idx as u64);
             let quest_options_for_bot = quest_options.clone();
+            let stand_state_options_for_bot = stand_state_options.clone();
             handles.push(tokio::spawn(async move {
                 if delay_ms > 0 {
                     tokio::time::sleep(Duration::from_millis(delay_ms)).await;
@@ -916,6 +1011,7 @@ async fn main() -> Result<()> {
                     timeout_secs,
                     auto_teleport,
                     cli.login_only,
+                    stand_state_options_for_bot,
                     quest_options_for_bot,
                 )
                 .await;
@@ -944,6 +1040,7 @@ async fn main() -> Result<()> {
         require_group,
         auto_teleport,
         cli.login_only,
+        cli.stand_state_smoke,
         cli.quest_smoke,
         &results,
     )?;
@@ -965,6 +1062,35 @@ async fn main() -> Result<()> {
 
     info!("\n🎯 All tests completed");
     Ok(())
+}
+
+fn stand_state_smoke_options_from_cli(cli: &CliOptions) -> Result<StandStateSmokeOptions> {
+    if cli.stand_state_timeout_secs == 0 {
+        bail!("--stand-state-timeout must be greater than zero");
+    }
+
+    let states = match cli.stand_state {
+        Some(state) if is_client_stand_state_like_cpp(state) => vec![state],
+        Some(state) => bail!(
+            "unsupported stand state {state}; expected 0 (Stand), 1 (Sit), 3 (Sleep), or 8 (Kneel)"
+        ),
+        None => vec![UNIT_STAND_STATE_SIT, UNIT_STAND_STATE_STAND],
+    };
+
+    Ok(StandStateSmokeOptions {
+        states,
+        timeout_secs: cli.stand_state_timeout_secs,
+    })
+}
+
+fn is_client_stand_state_like_cpp(state: u8) -> bool {
+    matches!(
+        state,
+        UNIT_STAND_STATE_STAND
+            | UNIT_STAND_STATE_SIT
+            | UNIT_STAND_STATE_SLEEP
+            | UNIT_STAND_STATE_KNEEL
+    )
 }
 
 fn quest_smoke_options_from_cli(cli: &CliOptions) -> Result<QuestSmokeOptions> {
@@ -1035,6 +1161,7 @@ async fn run_bot(
     lfg_secs: u64,
     auto_teleport: bool,
     login_only: bool,
+    stand_state_options: Option<StandStateSmokeOptions>,
     quest_options: Option<QuestSmokeOptions>,
 ) -> Result<BotRunResult> {
     let bot_index = bot.account_id as usize;
@@ -1056,6 +1183,14 @@ async fn run_bot(
         enum_characters: false,
         player_login_verified: false,
         login_only,
+        stand_state_smoke: stand_state_options.is_some(),
+        stand_state_smoke_passed: None,
+        stand_states_requested: stand_state_options
+            .as_ref()
+            .map(|options| options.states.clone())
+            .unwrap_or_default(),
+        stand_states_confirmed: Vec::new(),
+        stand_state_failure: None,
         quest_smoke: quest_options.is_some(),
         quest_smoke_passed: None,
         quest_target_entry: None,
@@ -1306,6 +1441,7 @@ async fn run_bot(
     result.world_auth = true;
     let mut crypt = world_crypt.take().unwrap();
     let mut server_inflater = ServerPacketInflater::default();
+    let mut realm_connection: Option<EncryptedWorldConnection> = None;
 
     // ── Step 7a: Enumerate Characters ──────────────────────────────────────
     // The worldserver gates HandlePlayerLoginOpcode on `_legitCharacters` being
@@ -1374,7 +1510,13 @@ async fn run_bot(
                     // SMSG_LOGIN_VERIFY_WORLD
                     info!("[Bot {}] ✅ SMSG_LOGIN_VERIFY_WORLD received", bot_index);
                     login_ok = true;
-                    break;
+                    if stand_state_options.is_none() || realm_connection.is_some() {
+                        break;
+                    }
+                    // A stand-state capture validates connection routing, so
+                    // keep reading the realm socket until SMSG_CONNECT_TO has
+                    // created and authenticated a distinct instance socket.
+                    continue;
                 }
 
                 if op == 0x304D {
@@ -1391,10 +1533,27 @@ async fn run_bot(
                     );
                     let (instance_stream, instance_crypt) =
                         connect_to_instance(bot_index, &connect_to, &derived_session_key).await?;
-                    stream = instance_stream;
-                    crypt = instance_crypt;
-                    server_inflater = ServerPacketInflater::default();
+                    if stand_state_options.is_some() {
+                        if realm_connection.is_some() {
+                            bail!("Stand-state smoke received more than one SMSG_CONNECT_TO");
+                        }
+                        let realm_stream = std::mem::replace(&mut stream, instance_stream);
+                        let realm_crypt = std::mem::replace(&mut crypt, instance_crypt);
+                        let realm_inflater = std::mem::take(&mut server_inflater);
+                        realm_connection = Some(EncryptedWorldConnection {
+                            stream: realm_stream,
+                            crypt: realm_crypt,
+                            inflater: realm_inflater,
+                        });
+                    } else {
+                        stream = instance_stream;
+                        crypt = instance_crypt;
+                        server_inflater = ServerPacketInflater::default();
+                    }
                     info!("[Bot {}] ✅ Instance socket authenticated", bot_index);
+                    if login_ok && stand_state_options.is_some() {
+                        break;
+                    }
                 } else if op == 0x304B {
                     // SMSG_RESUME_COMMS
                     info!("[Bot {}] ✅ SMSG_RESUME_COMMS received", bot_index);
@@ -1411,6 +1570,20 @@ async fn run_bot(
         bail!("Login verification failed");
     }
     result.player_login_verified = true;
+
+    if let Some(stand_state_options) = stand_state_options {
+        run_stand_state_smoke(
+            bot_index,
+            &mut stream,
+            &mut crypt,
+            &mut server_inflater,
+            &mut realm_connection,
+            &stand_state_options,
+            &mut result,
+        )
+        .await;
+        return Ok(result);
+    }
 
     if let Some(quest_options) = quest_options {
         run_quest_smoke(
@@ -1623,6 +1796,16 @@ fn log_bot_summary(
     login_only: bool,
 ) {
     if result.success(require_proposal, require_group, login_only) {
+        if result.stand_state_smoke {
+            info!(
+                "✅ Bot {}: SUCCESS stand_state_smoke requested={:?} confirmed={:?} failure={:?}",
+                result.account,
+                result.stand_states_requested,
+                result.stand_states_confirmed,
+                result.stand_state_failure
+            );
+            return;
+        }
         if result.quest_smoke {
             info!(
                 "✅ Bot {}: SUCCESS quest_smoke target={:?}/{:?} ids={:?} details={} request_items={} accept_sent={} db_verified={} db_status={:?} obj_verified={} obj_before={:?} obj_after={:?} failure={:?}",
@@ -1655,6 +1838,16 @@ fn log_bot_summary(
             result.teleport_denied_reason
         );
     } else {
+        if result.stand_state_smoke {
+            error!(
+                "❌ Bot {}: FAILED stand_state_smoke requested={:?} confirmed={:?} failure={:?}",
+                result.account,
+                result.stand_states_requested,
+                result.stand_states_confirmed,
+                result.stand_state_failure
+            );
+            return;
+        }
         if result.quest_smoke {
             error!(
                 "❌ Bot {}: FAILED quest_smoke target={:?}/{:?} ids={:?} details={} request_items={} accept_sent={} db_verified={} db_status={:?} obj_verified={} obj_before={:?} obj_after={:?} failure={:?}",
@@ -1697,6 +1890,7 @@ fn write_report_if_requested(
     require_group: bool,
     auto_teleport: bool,
     login_only: bool,
+    stand_state_smoke: bool,
     quest_smoke: bool,
     results: &[BotRunResult],
 ) -> Result<()> {
@@ -1713,6 +1907,7 @@ fn write_report_if_requested(
         require_group,
         auto_teleport,
         login_only,
+        stand_state_smoke,
         quest_smoke,
         results: results.to_vec(),
     };
@@ -1761,6 +1956,486 @@ fn cleanup_bot_group_state(bots: &[config::BotConfig]) -> Result<()> {
         "Cleaned stale group rows for {} configured bot GUIDs",
         bots.len()
     );
+    Ok(())
+}
+
+async fn run_stand_state_smoke(
+    bot_index: usize,
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    server_inflater: &mut ServerPacketInflater,
+    realm_connection: &mut Option<EncryptedWorldConnection>,
+    options: &StandStateSmokeOptions,
+    result: &mut BotRunResult,
+) {
+    match run_stand_state_smoke_inner(
+        bot_index,
+        stream,
+        crypt,
+        server_inflater,
+        realm_connection,
+        options,
+        result,
+    )
+    .await
+    {
+        Ok(()) => {
+            result.stand_state_smoke_passed = Some(true);
+            info!(
+                "[Bot {}] ✅ Stand-state smoke passed: {:?}",
+                bot_index, result.stand_states_confirmed
+            );
+        }
+        Err(error) => {
+            result.stand_state_smoke_passed = Some(false);
+            result.stand_state_failure = Some(error.to_string());
+            warn!("[Bot {}] Stand-state smoke failed: {}", bot_index, error);
+        }
+    }
+}
+
+async fn run_stand_state_smoke_inner(
+    bot_index: usize,
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    server_inflater: &mut ServerPacketInflater,
+    realm_connection: &mut Option<EncryptedWorldConnection>,
+    options: &StandStateSmokeOptions,
+    result: &mut BotRunResult,
+) -> Result<()> {
+    validate_stand_state_socket_topology(realm_connection.is_some())?;
+
+    let _ = drain_connections_until_quiet_for_stand_state_smoke(
+        bot_index,
+        "login burst",
+        STAND_STATE_LOGIN_QUIET_PERIOD,
+        STAND_STATE_LOGIN_DRAIN_LIMIT,
+        false,
+        stream,
+        crypt,
+        server_inflater,
+        realm_connection,
+        result,
+    )
+    .await?;
+
+    let mut ack_side_effects = StandStateDrainSummary::default();
+    for &expected_state in &options.states {
+        let request = build_stand_state_change(expected_state);
+        send_encrypted_packet(stream, crypt, CMSG_STAND_STATE_CHANGE, &request).await?;
+        info!(
+            "[Bot {}] ✅ CMSG_STAND_STATE_CHANGE sent on instance (state={})",
+            bot_index, expected_state
+        );
+
+        let realm = realm_connection
+            .as_mut()
+            .context("stand-state realm socket disappeared after topology validation")?;
+        let summary = wait_for_stand_state_update(
+            bot_index,
+            "realm",
+            true,
+            &mut realm.stream,
+            &mut realm.crypt,
+            &mut realm.inflater,
+            options.timeout_secs,
+            expected_state,
+            result,
+        )
+        .await?;
+        ack_side_effects.active_update_objects += summary.active_update_objects;
+        ack_side_effects.active_aura_updates += summary.active_aura_updates;
+    }
+
+    // Keep both sockets alive until deferred UpdateObject/aura fanout has been
+    // observed, then write a deterministic CMSG_PING fence. Capture-diff trims
+    // at that CMSG, so the isolated action cannot end at the earlier realm ACK
+    // and silently omit instance-side state deltas.
+    let post_action = drain_connections_until_quiet_for_stand_state_smoke(
+        bot_index,
+        "stand-state side effects",
+        STAND_STATE_POST_ACTION_QUIET_PERIOD,
+        STAND_STATE_POST_ACTION_DRAIN_LIMIT,
+        true,
+        stream,
+        crypt,
+        server_inflater,
+        realm_connection,
+        result,
+    )
+    .await?;
+    info!(
+        "[Bot {}] ✅ stand side effects on active connection: UpdateObject={}, AuraUpdate={}",
+        bot_index,
+        ack_side_effects.active_update_objects + post_action.active_update_objects,
+        ack_side_effects.active_aura_updates + post_action.active_aura_updates
+    );
+    if options
+        .states
+        .iter()
+        .any(|state| *state != UNIT_STAND_STATE_STAND)
+        && ack_side_effects.active_update_objects + post_action.active_update_objects == 0
+    {
+        bail!(
+            "changed stand-state smoke received no instance SMSG_UPDATE_OBJECT before capture fence"
+        );
+    }
+    send_and_verify_stand_state_capture_fence(
+        bot_index,
+        stream,
+        crypt,
+        server_inflater,
+        options.timeout_secs,
+        result,
+    )
+    .await?;
+
+    Ok(())
+}
+
+fn validate_stand_state_socket_topology(has_separate_realm_connection: bool) -> Result<()> {
+    if !has_separate_realm_connection {
+        bail!(
+            "stand-state smoke requires SMSG_CONNECT_TO and distinct realm/instance sockets; single-socket login cannot validate opcode routing"
+        );
+    }
+    Ok(())
+}
+
+/// Opcodes.cpp registers SMSG_STAND_STATE_UPDATE on CONNECTION_TYPE_REALM.
+/// When login created a separate instance socket, accepting this opcode from
+/// that instance connection would hide a routing-parity bug.
+async fn wait_for_stand_state_update(
+    bot_index: usize,
+    connection_name: &str,
+    separate_realm_connection: bool,
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    server_inflater: &mut ServerPacketInflater,
+    timeout_secs: u64,
+    expected_state: u8,
+    result: &mut BotRunResult,
+) -> Result<StandStateDrainSummary> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(timeout_secs);
+    let mut side_effects = StandStateDrainSummary::default();
+    loop {
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        if remaining.is_zero() {
+            bail!(
+                "timed out waiting for realm SMSG_STAND_STATE_UPDATE state {}",
+                expected_state
+            );
+        }
+
+        let (opcode, payload) = tokio::time::timeout(
+            remaining,
+            read_encrypted_packet(stream, crypt, server_inflater),
+        )
+        .await
+        .map_err(|_| {
+            anyhow!(
+                "timed out waiting for realm SMSG_STAND_STATE_UPDATE state {}",
+                expected_state
+            )
+        })??;
+        result.seen_opcodes.push(format!("0x{:04X}", opcode));
+        info!(
+            "[Bot {}] 📦 {} {}",
+            bot_index,
+            connection_name,
+            parse_packet(opcode, &payload)
+        );
+
+        if opcode != SMSG_STAND_STATE_UPDATE {
+            if matches!(opcode, SMSG_UPDATE_OBJECT | SMSG_AURA_UPDATE) {
+                if separate_realm_connection {
+                    bail!(
+                        "{} arrived on the separate realm connection before StandStateUpdate; C++ routes stand side effects on instance",
+                        parse_packet(opcode, &payload)
+                    );
+                }
+                match opcode {
+                    SMSG_UPDATE_OBJECT => side_effects.active_update_objects += 1,
+                    SMSG_AURA_UPDATE => side_effects.active_aura_updates += 1,
+                    _ => unreachable!(),
+                }
+            }
+            continue;
+        }
+
+        validate_stand_state_update(&payload, expected_state)?;
+        result.stand_states_confirmed.push(expected_state);
+        info!(
+            "[Bot {}] ✅ realm SMSG_STAND_STATE_UPDATE matched (animKitID=0, state={})",
+            bot_index, expected_state
+        );
+        return Ok(side_effects);
+    }
+}
+
+#[derive(Debug, Default)]
+struct StandStateDrainSummary {
+    active_update_objects: usize,
+    active_aura_updates: usize,
+}
+
+fn stand_state_quiet_drain_ambient_opcode(opcode: u16) -> bool {
+    matches!(opcode, SMSG_TIME_SYNC_REQUEST | SMSG_ON_MONSTER_MOVE)
+}
+
+async fn drain_connections_until_quiet_for_stand_state_smoke(
+    bot_index: usize,
+    phase: &str,
+    quiet_period: Duration,
+    drain_limit: Duration,
+    enforce_instance_side_effect_routing: bool,
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    server_inflater: &mut ServerPacketInflater,
+    realm_connection: &mut Option<EncryptedWorldConnection>,
+    result: &mut BotRunResult,
+) -> Result<StandStateDrainSummary> {
+    enum DrainReady {
+        Active,
+        Realm,
+        Quiet,
+    }
+
+    let deadline = tokio::time::Instant::now() + drain_limit;
+    let mut quiet_deadline = tokio::time::Instant::now() + quiet_period;
+    let mut drained = 0usize;
+    let mut summary = StandStateDrainSummary::default();
+
+    loop {
+        let now = tokio::time::Instant::now();
+        let remaining = deadline.saturating_duration_since(now);
+        if remaining.is_zero() {
+            bail!(
+                "{} did not become quiet within {} ms",
+                phase,
+                drain_limit.as_millis()
+            );
+        }
+        let quiet_remaining = quiet_deadline.saturating_duration_since(now);
+        if quiet_remaining.is_zero() {
+            info!(
+                "[Bot {}] ✅ {} drained across realm/instance: {} packet(s), {} ms relevant quiet",
+                bot_index,
+                phase,
+                drained,
+                quiet_period.as_millis()
+            );
+            return Ok(summary);
+        }
+        let quiet_wait = remaining.min(quiet_remaining);
+
+        let quiet = tokio::time::sleep(quiet_wait);
+        tokio::pin!(quiet);
+        // `peek` waits for real bytes without consuming them. It is safe to
+        // cancel when the other socket or quiet timer wins, unlike selecting
+        // directly on the `read_exact`-based packet reader; it also avoids a
+        // stale Tokio readiness bit causing a full read to wait past quiet.
+        let mut active_peek = [0u8; 1];
+        let mut realm_peek = [0u8; 1];
+        let ready = if let Some(realm) = realm_connection.as_ref() {
+            tokio::select! {
+                result = stream.peek(&mut active_peek) => {
+                    if result.with_context(|| format!("active {phase} drain peek failed"))? == 0 {
+                        bail!("active connection closed during {phase} drain");
+                    }
+                    DrainReady::Active
+                }
+                result = realm.stream.peek(&mut realm_peek) => {
+                    if result.with_context(|| format!("realm {phase} drain peek failed"))? == 0 {
+                        bail!("realm connection closed during {phase} drain");
+                    }
+                    DrainReady::Realm
+                }
+                _ = &mut quiet => DrainReady::Quiet,
+            }
+        } else {
+            tokio::select! {
+                result = stream.peek(&mut active_peek) => {
+                    if result.with_context(|| format!("primary realm {phase} drain peek failed"))? == 0 {
+                        bail!("primary realm connection closed during {phase} drain");
+                    }
+                    DrainReady::Active
+                }
+                _ = &mut quiet => DrainReady::Quiet,
+            }
+        };
+
+        match ready {
+            DrainReady::Quiet => {
+                if tokio::time::Instant::now() >= quiet_deadline {
+                    info!(
+                        "[Bot {}] ✅ {} drained across realm/instance: {} packet(s), {} ms relevant quiet",
+                        bot_index,
+                        phase,
+                        drained,
+                        quiet_period.as_millis()
+                    );
+                    return Ok(summary);
+                }
+                bail!(
+                    "{} did not become quiet within {} ms",
+                    phase,
+                    drain_limit.as_millis()
+                );
+            }
+            DrainReady::Active => {
+                let read_remaining =
+                    deadline.saturating_duration_since(tokio::time::Instant::now());
+                let packet = tokio::time::timeout(
+                    read_remaining,
+                    read_encrypted_packet(stream, crypt, server_inflater),
+                )
+                .await
+                .map_err(|_| anyhow!("active {phase} drain packet read timed out"))?;
+                let (opcode, payload) = packet
+                    .map_err(|error| anyhow!("active {phase} drain packet read failed: {error}"))?;
+                drained += 1;
+                if !stand_state_quiet_drain_ambient_opcode(opcode) {
+                    quiet_deadline = tokio::time::Instant::now() + quiet_period;
+                }
+                if enforce_instance_side_effect_routing {
+                    match opcode {
+                        SMSG_UPDATE_OBJECT => summary.active_update_objects += 1,
+                        SMSG_AURA_UPDATE => summary.active_aura_updates += 1,
+                        _ => {}
+                    }
+                }
+                result.seen_opcodes.push(format!("0x{:04X}", opcode));
+                let connection_name = if realm_connection.is_some() {
+                    "instance"
+                } else {
+                    "primary realm"
+                };
+                info!(
+                    "[Bot {}] 📦 {} {} drain {}",
+                    bot_index,
+                    connection_name,
+                    phase,
+                    parse_packet(opcode, &payload)
+                );
+            }
+            DrainReady::Realm => {
+                let read_remaining =
+                    deadline.saturating_duration_since(tokio::time::Instant::now());
+                let realm = realm_connection.as_mut().with_context(|| {
+                    format!("realm connection disappeared during {phase} drain")
+                })?;
+                let packet = tokio::time::timeout(
+                    read_remaining,
+                    read_encrypted_packet(&mut realm.stream, &mut realm.crypt, &mut realm.inflater),
+                )
+                .await
+                .map_err(|_| anyhow!("realm {phase} drain packet read timed out"))?;
+                let (opcode, payload) = packet
+                    .map_err(|error| anyhow!("realm {phase} drain packet read failed: {error}"))?;
+                drained += 1;
+                if !stand_state_quiet_drain_ambient_opcode(opcode) {
+                    quiet_deadline = tokio::time::Instant::now() + quiet_period;
+                }
+                if enforce_instance_side_effect_routing
+                    && matches!(opcode, SMSG_UPDATE_OBJECT | SMSG_AURA_UPDATE)
+                {
+                    bail!(
+                        "{} arrived on realm during {} drain; C++ routes stand side effects on instance",
+                        parse_packet(opcode, &payload),
+                        phase
+                    );
+                }
+                result.seen_opcodes.push(format!("0x{:04X}", opcode));
+                info!(
+                    "[Bot {}] 📦 realm {} drain {}",
+                    bot_index,
+                    phase,
+                    parse_packet(opcode, &payload)
+                );
+            }
+        }
+    }
+}
+
+async fn send_and_verify_stand_state_capture_fence(
+    bot_index: usize,
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    server_inflater: &mut ServerPacketInflater,
+    timeout_secs: u64,
+    result: &mut BotRunResult,
+) -> Result<()> {
+    let mut payload = [0u8; 8];
+    payload[..4].copy_from_slice(&STAND_STATE_CAPTURE_FENCE_SERIAL.to_le_bytes());
+    send_encrypted_packet(stream, crypt, CMSG_PING, &payload).await?;
+    info!(
+        "[Bot {}] ✅ deterministic CMSG_PING capture fence sent (serial=0x{:08X})",
+        bot_index, STAND_STATE_CAPTURE_FENCE_SERIAL
+    );
+
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(timeout_secs);
+    loop {
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        if remaining.is_zero() {
+            bail!("timed out waiting for stand-state capture-fence SMSG_PONG");
+        }
+        let (opcode, payload) = tokio::time::timeout(
+            remaining,
+            read_encrypted_packet(stream, crypt, server_inflater),
+        )
+        .await
+        .map_err(|_| anyhow!("timed out waiting for stand-state capture-fence SMSG_PONG"))??;
+        result.seen_opcodes.push(format!("0x{:04X}", opcode));
+        info!(
+            "[Bot {}] 📦 active capture-fence {}",
+            bot_index,
+            parse_packet(opcode, &payload)
+        );
+        if opcode != SMSG_PONG {
+            continue;
+        }
+        if payload != STAND_STATE_CAPTURE_FENCE_SERIAL.to_le_bytes() {
+            bail!(
+                "capture-fence SMSG_PONG mismatch: expected serial 0x{:08X}, got {:02X?}",
+                STAND_STATE_CAPTURE_FENCE_SERIAL,
+                payload
+            );
+        }
+        return Ok(());
+    }
+}
+
+/// C++ WorldPackets::Misc::StandStateChange::Read: one little-endian uint32.
+fn build_stand_state_change(state: u8) -> [u8; 4] {
+    u32::from(state).to_le_bytes()
+}
+
+/// C++ StandStateUpdate::Write: uint32 AnimKitID followed by uint8 State.
+fn validate_stand_state_update(payload: &[u8], expected_state: u8) -> Result<()> {
+    if payload.len() != 5 {
+        bail!(
+            "SMSG_STAND_STATE_UPDATE payload length mismatch: expected 5, got {}",
+            payload.len()
+        );
+    }
+
+    let anim_kit_id = u32::from_le_bytes(payload[0..4].try_into()?);
+    let state = payload[4];
+    if anim_kit_id != 0 {
+        bail!(
+            "SMSG_STAND_STATE_UPDATE AnimKitID mismatch: expected 0, got {}",
+            anim_kit_id
+        );
+    }
+    if state != expected_state {
+        bail!(
+            "SMSG_STAND_STATE_UPDATE state mismatch: expected {}, got {}",
+            expected_state,
+            state
+        );
+    }
+
     Ok(())
 }
 
@@ -3095,6 +3770,74 @@ fn build_packed_guid(low: u64, high: u64) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stand_state_change_uses_cpp_uint32_wire_layout() {
+        assert_eq!(build_stand_state_change(UNIT_STAND_STATE_SIT), [1, 0, 0, 0]);
+        assert_eq!(
+            build_stand_state_change(UNIT_STAND_STATE_STAND),
+            [0, 0, 0, 0]
+        );
+    }
+
+    #[test]
+    fn stand_state_update_requires_exact_cpp_wire_layout() {
+        assert!(validate_stand_state_update(&[0, 0, 0, 0, UNIT_STAND_STATE_SIT], 1).is_ok());
+
+        let short = validate_stand_state_update(&[0, 0, 0, 0], UNIT_STAND_STATE_STAND)
+            .expect_err("four-byte response must fail");
+        assert!(short.to_string().contains("expected 5"));
+
+        let wrong_anim = validate_stand_state_update(
+            &[1, 0, 0, 0, UNIT_STAND_STATE_STAND],
+            UNIT_STAND_STATE_STAND,
+        )
+        .expect_err("nonzero AnimKitID must fail");
+        assert!(wrong_anim.to_string().contains("AnimKitID"));
+
+        let wrong_state = validate_stand_state_update(
+            &[0, 0, 0, 0, UNIT_STAND_STATE_STAND],
+            UNIT_STAND_STATE_SIT,
+        )
+        .expect_err("unexpected state must fail");
+        assert!(wrong_state.to_string().contains("state mismatch"));
+    }
+
+    #[test]
+    fn stand_state_smoke_only_accepts_states_allowed_by_cpp_handler() {
+        for state in [
+            UNIT_STAND_STATE_STAND,
+            UNIT_STAND_STATE_SIT,
+            UNIT_STAND_STATE_SLEEP,
+            UNIT_STAND_STATE_KNEEL,
+        ] {
+            assert!(is_client_stand_state_like_cpp(state));
+        }
+        assert!(!is_client_stand_state_like_cpp(7));
+        assert!(!is_client_stand_state_like_cpp(9));
+    }
+
+    #[test]
+    fn stand_state_smoke_requires_distinct_realm_and_instance_sockets() {
+        assert!(validate_stand_state_socket_topology(true).is_ok());
+        let error = validate_stand_state_socket_topology(false).unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("distinct realm/instance sockets"));
+    }
+
+    #[test]
+    fn stand_state_quiet_drain_ignores_only_periodic_world_traffic() {
+        assert!(stand_state_quiet_drain_ambient_opcode(SMSG_ON_MONSTER_MOVE));
+        assert!(stand_state_quiet_drain_ambient_opcode(
+            SMSG_TIME_SYNC_REQUEST
+        ));
+        assert!(!stand_state_quiet_drain_ambient_opcode(SMSG_UPDATE_OBJECT));
+        assert!(!stand_state_quiet_drain_ambient_opcode(SMSG_AURA_UPDATE));
+        assert!(!stand_state_quiet_drain_ambient_opcode(
+            SMSG_STAND_STATE_UPDATE
+        ));
+    }
 
     #[test]
     fn player_login_guid_uses_configured_realm() {

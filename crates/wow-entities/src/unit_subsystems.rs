@@ -8,6 +8,9 @@ use crate::{
     VehicleSeatInfo,
 };
 
+/// C++ `AuraRemoveMode::AURA_REMOVE_BY_INTERRUPT`.
+pub const AURA_REMOVE_BY_INTERRUPT_LIKE_CPP: u8 = 2;
+
 /// Minimal bridge for TrinityCore `Unit` aura containers.
 ///
 /// This is metadata/state only: it does not run aura scripts, periodic ticks, proc logic,
@@ -537,7 +540,7 @@ impl AuraSubsystem {
             })
             .collect();
         for aura in &removed {
-            self.unapply_aura(*aura, 1);
+            self.unapply_aura(*aura, AURA_REMOVE_BY_INTERRUPT_LIKE_CPP);
         }
         removed
     }
