@@ -54,20 +54,28 @@ The handler accepts only Stand, Sit, Sleep, and Kneel. The bridge mutates
 canonical `UnitData::StandState`,
 removes `SpellAuraInterruptFlags::Standing` auras only when the resulting state
 is standing, and refreshes the canonical visible-aura slot and
-`ObjectAccessor` snapshot. Aura decisions use the current `SpellInterrupts.db2`
-masks loaded into `SpellStore` only to hydrate older missing/zero snapshots.
-The lookup starts at the difficulty of the canonical `ManagedMap` that actually
-owns the Player and follows `DifficultyEntry::FallbackDifficultyID` like
-`SpellMgr::GetSpellInfo`; aura and channel words always come from the same
-selected row. A present canonical mask (or nonzero represented mask) remains
-authoritative, including a known non-`Standing` value, because it may already
-contain cast-difficulty-resolved, hotfixed, or server-side metadata. It then updates
-temporary session mirrors, sends
+`ObjectAccessor` snapshot. Aura decisions use effective masks composed in C++
+load order from `SpellInterrupts.db2`, official/custom SQL rows that replace an
+exact DB2 record ID and then reindex its spell/difficulty relationship, world
+`serverside_spell` rows, and the five interrupt-mask mutations ported from
+`LoadSpellInfoCorrections`. These masks only hydrate older
+missing/zero snapshots. The lookup starts at the difficulty of the canonical
+`ManagedMap` that actually owns the Player and follows
+`DifficultyEntry::FallbackDifficultyID` like `SpellMgr::GetSpellInfo`; aura and
+channel words always come from the same selected row. A present canonical mask
+(or nonzero represented mask) remains authoritative, including a known
+non-`Standing` value, because it may already contain cast-difficulty-resolved
+metadata. It then updates temporary session mirrors, sends
 `SMSG_STAND_STATE_UPDATE` on the realm connection (`u32 AnimKitID = 0`, then
 `u8 State`), and sends the changed StandState VALUES delta on the instance
 connection to self and visible observers. Repeating the current state still
 runs supported standing side effects and sends the direct packet, while
 omitting an unchanged VALUES delta.
+
+The server-side mask import uses the effective file plus official/custom
+`SpellName` base-table collision gate. Locale hydration, full server-side
+`SpellInfo`, and wider spell correction parity remain outside this bounded
+composition; locale rows do not change the collision ID set.
 
 After the canonical stand mutation and `Standing`-aura removal, the bridge also
 classifies canonical `CURRENT_CHANNELED_SPELL` in the same position as C++. If
@@ -94,12 +102,12 @@ casts do not yet populate canonical `CurrentSpellSlot`, and the thin
 `CurrentSpellRef` does not own the target list, channel update/interrupted/
 cast-result packet metadata, remote owned auras, dynamic objects, or
 gameobjects needed to reproduce every cancellation side effect. `SpellStore`
-now retains every DB2 difficulty and implements exact-to-fallback lookup.
-However, transitional aura/current-spell records do not yet retain their
-original cast difficulty when their resolved masks are absent; that case uses
-the current canonical map difficulty. Hotfix-overlay and server-side-spell
-coverage also remain spell-runtime work. Once full cancellation exists, the
-typed boundary must become the C++ aura-then-cancel path.
+now retains every DB2 difficulty, composes the bounded effective interrupt masks
+listed above, and implements exact-to-fallback lookup. However, transitional
+aura/current-spell records do not yet retain their original cast difficulty
+when their resolved masks are absent; that case uses the current canonical map
+difficulty. Once full cancellation exists, the typed boundary must become the
+C++ aura-then-cancel path.
 
 For interrupted auras, the bridge now removes a matching locally owned Aura
 base after unapplying it, matching the local-owner branch of C++

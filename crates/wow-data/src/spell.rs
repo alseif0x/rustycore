@@ -18,7 +18,9 @@ use std::f32::consts::TAU;
 use anyhow::Result;
 use tracing::info;
 use wow_constants::{PowerType, SpellCastResult};
-use wow_database::{HotfixDatabase, StatementDef, WorldDatabase, WorldStatements};
+use wow_database::{
+    HotfixDatabase, HotfixStatements, StatementDef, WorldDatabase, WorldStatements,
+};
 use wow_entities::PetAuraLikeCpp;
 
 use crate::{
@@ -5303,11 +5305,18 @@ const fn implicit_target_category_accepts_conditions_like_cpp(target: u32) -> bo
 }
 
 /// In-memory store of all spells loaded from DB2 or hotfixes database.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct SpellInterruptRowLikeCpp {
+    key: (i32, u8),
+    flags: ([u32; 2], [u32; 2]),
+}
+
 #[derive(Default)]
 pub struct SpellStore {
     spells: HashMap<i32, SpellInfo>,
     spell_misc_attributes: HashMap<i32, [u32; 15]>,
     spell_interrupt_flags: HashMap<(i32, u8), ([u32; 2], [u32; 2])>,
+    spell_interrupt_rows_by_id: BTreeMap<u32, SpellInterruptRowLikeCpp>,
     spell_shapeshift_masks: HashMap<i32, (u64, u64)>,
     implicit_target_conditions: HashMap<(i32, u32), ConditionsReference>,
 }
@@ -5319,6 +5328,7 @@ impl SpellStore {
             spells: HashMap::new(),
             spell_misc_attributes: HashMap::new(),
             spell_interrupt_flags: HashMap::new(),
+            spell_interrupt_rows_by_id: BTreeMap::new(),
             spell_shapeshift_masks: HashMap::new(),
             implicit_target_conditions: HashMap::new(),
         }
@@ -5433,6 +5443,10 @@ impl SpellStore {
             &spell_shapeshift_store,
         );
         store.apply_db2_interrupts_like_cpp(&spell_interrupts_store);
+        let hotfix_interrupt_rows = store.apply_hotfix_interrupts_like_cpp(hotfix_db).await?;
+        if hotfix_interrupt_rows != 0 {
+            info!("Loaded {hotfix_interrupt_rows} SpellInterrupts hotfix rows");
+        }
 
         let hotfix_store = Self::load(hotfix_db).await?;
         for spell in hotfix_store.spells.into_values() {
@@ -5455,6 +5469,7 @@ impl SpellStore {
         let spell_power_difficulty_store =
             crate::spell_db2::SpellPowerDifficultyStore::load(data_dir, locale)?;
         store.apply_db2_power_costs_like_cpp(&spell_power_store, &spell_power_difficulty_store);
+        store.apply_interrupt_flag_corrections_like_cpp();
 
         info!(
             "Loaded {} spells from SpellMisc/SpellEffect DB2 with hotfix overlay",
@@ -5537,16 +5552,160 @@ impl SpellStore {
         spell_interrupts_store: &crate::spell_db2::SpellInterruptsStore,
     ) {
         for interrupts in spell_interrupts_store.entries_like_cpp() {
-            let Ok(spell_id) = i32::try_from(interrupts.spell_id) else {
+            self.store_signed_interrupt_row_by_id_like_cpp(
+                interrupts.id,
+                interrupts.spell_id,
+                interrupts.difficulty_id,
+                interrupts.aura_interrupt_flags,
+                interrupts.channel_interrupt_flags,
+            );
+        }
+        self.rebuild_interrupt_flags_from_rows_like_cpp();
+    }
+
+    /// Apply one file/hotfix `SpellInterrupts` row. DB2 stores the bit fields
+    /// as signed integers, while C++ preserves their complete `uint32` bit
+    /// pattern in `SpellInfo`.
+    fn store_signed_interrupt_row_by_id_like_cpp(
+        &mut self,
+        row_id: u32,
+        spell_id: u32,
+        difficulty_id: u8,
+        aura_interrupt_flags: [i32; 2],
+        channel_interrupt_flags: [i32; 2],
+    ) -> bool {
+        let Ok(spell_id) = i32::try_from(spell_id) else {
+            return false;
+        };
+        self.spell_interrupt_rows_by_id.insert(
+            row_id,
+            SpellInterruptRowLikeCpp {
+                key: (spell_id, difficulty_id),
+                flags: (
+                    aura_interrupt_flags.map(|flag| flag as u32),
+                    channel_interrupt_flags.map(|flag| flag as u32),
+                ),
+            },
+        );
+        true
+    }
+
+    /// Rebuild the relational lookup once per load phase. C++ DB2 storage is
+    /// indexed and iterated by ascending record ID, so later IDs win if two
+    /// records resolve to the same spell/difficulty key.
+    fn rebuild_interrupt_flags_from_rows_like_cpp(&mut self) {
+        self.spell_interrupt_flags.clear();
+        for row in self.spell_interrupt_rows_by_id.values() {
+            self.spell_interrupt_flags.insert(row.key, row.flags);
+        }
+    }
+
+    /// Overlay the typed hotfix mirror of `SpellInterrupts.db2` after the
+    /// client-file rows. C++ `DB2StorageBase::LoadFromDB` loads official rows
+    /// first and custom rows second; a present SQL row replaces its exact DB2
+    /// record ID before the relational spell/difficulty lookup is rebuilt.
+    async fn apply_hotfix_interrupts_like_cpp(&mut self, db: &HotfixDatabase) -> Result<usize> {
+        let mut count = 0usize;
+        for official in [true, false] {
+            let mut stmt = db.prepare(HotfixStatements::SEL_SPELL_INTERRUPTS);
+            stmt.set_bool(0, official);
+            let mut result = db.query(&stmt).await?;
+            if result.is_empty() {
+                continue;
+            }
+
+            loop {
+                let difficulty_id = result.try_read::<u8>(1).unwrap_or(0);
+                if let (Some(row_id), Some(spell_id)) =
+                    (result.try_read::<u32>(0), result.try_read::<u32>(7))
+                {
+                    count += usize::from(self.store_signed_interrupt_row_by_id_like_cpp(
+                        row_id,
+                        spell_id,
+                        difficulty_id,
+                        [
+                            result.try_read::<i32>(3).unwrap_or(0),
+                            result.try_read::<i32>(4).unwrap_or(0),
+                        ],
+                        [
+                            result.try_read::<i32>(5).unwrap_or(0),
+                            result.try_read::<i32>(6).unwrap_or(0),
+                        ],
+                    ));
+                }
+
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+        self.rebuild_interrupt_flags_from_rows_like_cpp();
+        Ok(count)
+    }
+
+    /// Import world-DB `serverside_spell` interrupt masks into the same
+    /// effective lookup used by live aura/channel decisions. C++ inserts these
+    /// SpellInfo rows before applying corrections; effective file plus SQL
+    /// `SpellName` IDs were already rejected while the server-side store was
+    /// built.
+    pub fn apply_serverside_spell_interrupts_like_cpp(
+        &mut self,
+        serverside_spells: &ServersideSpellStoreLikeCpp,
+    ) {
+        for info in serverside_spells
+            .spell_infos_by_spell_and_difficulty
+            .values()
+        {
+            let Ok(spell_id) = i32::try_from(info.row.spell_id) else {
                 continue;
             };
-            self.spell_interrupt_flags.insert(
-                (spell_id, interrupts.difficulty_id),
-                (
-                    interrupts.aura_interrupt_flags.map(|flag| flag as u32),
-                    interrupts.channel_interrupt_flags.map(|flag| flag as u32),
-                ),
+            self.insert_spell_interrupt_flags_for_difficulty_like_cpp(
+                spell_id,
+                info.row.difficulty_id as u8,
+                info.row.aura_interrupt_flags,
+                info.row.channel_interrupt_flags,
             );
+        }
+        self.apply_interrupt_flag_corrections_like_cpp();
+    }
+
+    /// Interrupt-mask subset of C++ `SpellMgr::LoadSpellInfoCorrections`.
+    /// `ApplySpellFix` mutates every difficulty variant, so update every stored
+    /// key for each affected spell after DB2/hotfix/server-side composition.
+    fn apply_interrupt_flag_corrections_like_cpp(&mut self) {
+        const HOSTILE_ACTION_RECEIVED: u32 = 0x0000_0001;
+        const DAMAGE: u32 = 0x0000_0002;
+        const ACTION: u32 = 0x0000_0004;
+        const MOVING: u32 = 0x0000_0008;
+        const ANIM: u32 = 0x0000_0020;
+        const LEAVE_WORLD: u32 = 0x0008_0000;
+
+        for spell_id in [61_719, 29_726, 63_414, 24_314, 99_252] {
+            if self.spells.contains_key(&spell_id)
+                && !self
+                    .spell_interrupt_flags
+                    .keys()
+                    .any(|(known_spell_id, _)| *known_spell_id == spell_id)
+            {
+                self.spell_interrupt_flags
+                    .insert((spell_id, 0), ([0; 2], [0; 2]));
+            }
+        }
+
+        for ((spell_id, _), (aura, channel)) in &mut self.spell_interrupt_flags {
+            match *spell_id {
+                // Easter Lay Noblegarden Egg Aura.
+                61_719 => aura[0] = HOSTILE_ACTION_RECEIVED | DAMAGE,
+                // Test Ribbon Pole Channel.
+                29_726 => channel[0] &= !ACTION,
+                // Spinning Up (Mimiron).
+                63_414 => *channel = [0; 2],
+                // Threatening Gaze.
+                24_314 => aura[0] |= ACTION | MOVING | ANIM,
+                // Blaze of Glory.
+                99_252 => aura[0] |= LEAVE_WORLD,
+                _ => {}
+            }
         }
     }
 
@@ -6296,6 +6455,172 @@ mod tests {
         );
         assert!(store.has_aura_interrupt_flag_like_cpp(spell_id as i32, 0x0004_0000, 0));
         assert!(!store.has_channel_interrupt_flag_like_cpp(spell_id as i32, 0x0004_0000, 0));
+    }
+
+    #[test]
+    fn spell_store_effective_interrupt_masks_follow_cpp_load_order() {
+        let regular_spell_id = 24_314;
+        let serverside_spell_id = 70_001;
+        let interrupts = crate::spell_db2::SpellInterruptsStore::from_entries([
+            crate::spell_db2::SpellInterruptsEntry {
+                id: 1,
+                difficulty_id: 2,
+                interrupt_flags: 0,
+                aura_interrupt_flags: [0x100, 0x200],
+                channel_interrupt_flags: [0x300, 0x400],
+                spell_id: regular_spell_id,
+            },
+        ]);
+        let mut store = SpellStore::new();
+        store.apply_db2_interrupts_like_cpp(&interrupts);
+
+        assert_eq!(
+            store.interrupt_flags_for_difficulty_like_cpp(regular_spell_id as i32, 2, None),
+            Some(([0x100, 0x200], [0x300, 0x400]))
+        );
+
+        assert!(store.store_signed_interrupt_row_by_id_like_cpp(
+            1,
+            regular_spell_id,
+            2,
+            [0x10, -1],
+            [i32::MIN, 0x40],
+        ));
+        store.rebuild_interrupt_flags_from_rows_like_cpp();
+        assert_eq!(
+            store.interrupt_flags_for_difficulty_like_cpp(regular_spell_id as i32, 2, None),
+            Some(([0x10, u32::MAX], [0x8000_0000, 0x40])),
+            "the later row for the same DB2 record ID replaces its masks and preserves signed bit patterns"
+        );
+
+        let serverside = ServersideSpellStoreLikeCpp::from_rows_like_cpp(
+            [serverside_spell_row(serverside_spell_id, 2)],
+            &ServersideSpellEffectStoreLikeCpp::default(),
+            |_| false,
+        );
+        assert!(serverside.errors.is_empty());
+        store.apply_serverside_spell_interrupts_like_cpp(&serverside.store);
+
+        assert_eq!(
+            store.interrupt_flags_for_difficulty_like_cpp(regular_spell_id as i32, 2, None),
+            Some(([0x3c, u32::MAX], [0x8000_0000, 0x40])),
+            "the interrupt correction runs after the file/hotfix composition"
+        );
+        assert_eq!(
+            store.interrupt_flags_for_difficulty_like_cpp(serverside_spell_id as i32, 2, None),
+            Some(([43, 44], [45, 46])),
+            "server-side masks enter the same effective table before corrections"
+        );
+    }
+
+    #[test]
+    fn spell_store_hotfix_overlay_rekeys_by_db2_record_id_like_cpp() {
+        let original_spell_id = 70_201;
+        let rekeyed_spell_id = 70_202;
+        let interrupts = crate::spell_db2::SpellInterruptsStore::from_entries([
+            crate::spell_db2::SpellInterruptsEntry {
+                id: 10,
+                difficulty_id: 2,
+                interrupt_flags: 0,
+                aura_interrupt_flags: [0x10, 0],
+                channel_interrupt_flags: [0x20, 0],
+                spell_id: original_spell_id,
+            },
+            crate::spell_db2::SpellInterruptsEntry {
+                id: 20,
+                difficulty_id: 2,
+                interrupt_flags: 0,
+                aura_interrupt_flags: [0x30, 0],
+                channel_interrupt_flags: [0x40, 0],
+                spell_id: original_spell_id,
+            },
+        ]);
+        let mut store = SpellStore::new();
+        store.apply_db2_interrupts_like_cpp(&interrupts);
+
+        assert_eq!(
+            store.interrupt_flags_for_difficulty_like_cpp(original_spell_id as i32, 2, None),
+            Some(([0x30, 0], [0x40, 0])),
+            "the highest DB2 record ID wins when two rows have the same relational key"
+        );
+
+        assert!(store.store_signed_interrupt_row_by_id_like_cpp(
+            20,
+            rekeyed_spell_id,
+            3,
+            [0x50, 0],
+            [0x60, 0],
+        ));
+        store.rebuild_interrupt_flags_from_rows_like_cpp();
+        assert_eq!(
+            store.interrupt_flags_for_difficulty_like_cpp(original_spell_id as i32, 2, None),
+            Some(([0x10, 0], [0x20, 0])),
+            "replacing record ID 20 uncovers record ID 10 at its former key"
+        );
+        assert_eq!(
+            store.interrupt_flags_for_difficulty_like_cpp(rekeyed_spell_id as i32, 3, None),
+            Some(([0x50, 0], [0x60, 0])),
+            "the replacement row is indexed by its new spell/difficulty relationship"
+        );
+    }
+
+    #[test]
+    fn spell_store_interrupt_corrections_cover_every_stored_difficulty() {
+        let mut store = SpellStore::new();
+        for difficulty_id in [0, 2] {
+            store.insert_spell_interrupt_flags_for_difficulty_like_cpp(
+                29_726,
+                difficulty_id,
+                [0, 0],
+                [0xffff_ffff, 0x20],
+            );
+            store.insert_spell_interrupt_flags_for_difficulty_like_cpp(
+                24_314,
+                difficulty_id,
+                [0x10, 0x40],
+                [0x80, 0x100],
+            );
+            store.insert_spell_interrupt_flags_for_difficulty_like_cpp(
+                99_252,
+                difficulty_id,
+                [0x200, 0x400],
+                [0x800, 0x1000],
+            );
+        }
+        store.insert_spell_interrupt_flags_like_cpp(
+            63_414,
+            [0x10, 0x20],
+            [0xffff_ffff, 0xffff_ffff],
+        );
+        store
+            .spells
+            .insert(61_719, SpellStore::empty_spell_info_like_cpp(61_719));
+
+        store.apply_interrupt_flag_corrections_like_cpp();
+
+        for difficulty_id in [0, 2] {
+            assert_eq!(
+                store.interrupt_flags_for_difficulty_like_cpp(29_726, difficulty_id, None),
+                Some(([0, 0], [0xffff_fffb, 0x20]))
+            );
+            assert_eq!(
+                store.interrupt_flags_for_difficulty_like_cpp(24_314, difficulty_id, None),
+                Some(([0x3c, 0x40], [0x80, 0x100]))
+            );
+            assert_eq!(
+                store.interrupt_flags_for_difficulty_like_cpp(99_252, difficulty_id, None),
+                Some(([0x8_0200, 0x400], [0x800, 0x1000]))
+            );
+        }
+        assert_eq!(
+            store.interrupt_flags_for_difficulty_like_cpp(63_414, 0, None),
+            Some(([0x10, 0x20], [0, 0]))
+        );
+        assert_eq!(
+            store.interrupt_flags_for_difficulty_like_cpp(61_719, 0, None),
+            Some(([0x3, 0], [0, 0])),
+            "a corrected regular spell without a SpellInterrupts row receives a base mask"
+        );
     }
 
     #[test]

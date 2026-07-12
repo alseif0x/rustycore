@@ -1939,6 +1939,17 @@ async fn main() -> Result<ExitCode> {
         "Loaded {} SpellLearnSpell.db2 rows",
         spell_learn_spell_db2_store.len()
     );
+    let mut spell_name_store = wow_data::SpellNameStore::load(&data_dir, &locale)
+        .context("Failed to load SpellName.db2")?;
+    let spell_name_hotfix_rows = spell_name_store
+        .apply_hotfix_overlays_like_cpp(&hotfix_db)
+        .await
+        .context("Failed to apply SpellName hotfix overlays")?;
+    info!(
+        "Loaded {} effective SpellName rows ({} SQL overlay rows)",
+        spell_name_store.len(),
+        spell_name_hotfix_rows
+    );
     let mut spell_store =
         wow_data::SpellStore::load_with_db2_and_hotfixes(&data_dir, &locale, &hotfix_db)
             .await
@@ -3280,14 +3291,11 @@ async fn main() -> Result<ExitCode> {
     let serverside_spell_outcome = wow_data::ServersideSpellStoreLikeCpp::load_like_cpp(
         world_db.as_ref(),
         &serverside_spell_effect_store,
-        |spell_id| {
-            spell_store
-                .get(i32::try_from(spell_id).unwrap_or(-1))
-                .is_some()
-        },
+        |spell_id| spell_name_store.get(spell_id).is_some(),
     )
     .await
     .context("Failed to load C++ serverside_spell rows")?;
+    spell_store.apply_serverside_spell_interrupts_like_cpp(&serverside_spell_outcome.store);
     let serverside_spell_store = Arc::new(serverside_spell_outcome.store);
     info!(
         "Loaded {} C++ serverside_spell rows ({} validation errors; authoritative SpellInfo insertion still pending)",

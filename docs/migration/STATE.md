@@ -44,8 +44,11 @@ instance sockets, and the bounded C++/Rust capture matched four packets exactly:
 connection 0, `SMSG_UPDATE_OBJECT 0x27CB` on connection 1, and the `CMSG_PING 0x3768`
 fence on connection 1. Strict capture-diff reported CLEAN after symmetrically excluding only
 ambient `s2c:0x2DD4` creature movement. The slice remains represented-partial for the
-documented full `Spell::cancel`, original cast-difficulty metadata, hotfix/server-side spell,
-cross-Unit aura-application lifecycle, and canonical `Map::SendObjectUpdates` ownership gaps.
+documented full `Spell::cancel`, original cast-difficulty metadata, cross-Unit aura-application
+lifecycle, and canonical `Map::SendObjectUpdates` ownership gaps. Missing masks now resolve from
+an effective table composed in C++ load order from `SpellInterrupts.db2`, official/custom SQL
+overlays by DB2 record ID, world `serverside_spell` masks, and the interrupt-mask subset of
+`LoadSpellInfoCorrections`; this does not claim full server-side `SpellInfo` or correction parity.
 
 ---
 
