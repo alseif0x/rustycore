@@ -221,14 +221,7 @@ fn usable_character_homebind_like_cpp(
         && map_store
             .and_then(|store| store.get(location.map_id))
             .is_some_and(|entry| {
-                !matches!(
-                    entry.instance_type,
-                    wow_data::map::MAP_INSTANCE
-                        | wow_data::map::MAP_RAID
-                        | wow_data::map::MAP_BATTLEGROUND
-                        | wow_data::map::MAP_ARENA
-                        | wow_data::map::MAP_SCENARIO
-                ) && session_expansion >= entry.expansion_like_cpp()
+                !entry.is_instanceable_like_cpp() && session_expansion >= entry.expansion_like_cpp()
             })
 }
 

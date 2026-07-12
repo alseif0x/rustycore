@@ -59,6 +59,14 @@ impl MapEntry {
         matches!(self.instance_type, MAP_INSTANCE | MAP_RAID | MAP_SCENARIO) && !self.is_garrison()
     }
 
+    /// C++ `MapEntry::Instanceable()`; garrison flags do not exempt instance/scenario maps.
+    pub const fn is_instanceable_like_cpp(self) -> bool {
+        matches!(
+            self.instance_type,
+            MAP_INSTANCE | MAP_RAID | MAP_BATTLEGROUND | MAP_ARENA | MAP_SCENARIO
+        )
+    }
+
     pub const fn expansion_like_cpp(self) -> u8 {
         self.expansion_id
     }
@@ -604,6 +612,8 @@ mod tests {
         assert!(arena.is_battleground_or_arena());
         assert!(garrison.is_garrison());
         assert!(!garrison.is_dungeon());
+        assert!(garrison.is_instanceable_like_cpp());
+        assert!(!world.is_instanceable_like_cpp());
         assert!(split.is_split_by_faction());
 
         let pvp_item_level_map = MapEntry {

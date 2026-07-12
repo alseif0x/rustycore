@@ -100,7 +100,7 @@ impl PlayerCreateInfoStoreLikeCpp {
             }
             if map_store
                 .get(row.create_position.map_id)
-                .is_some_and(|entry| map_entry_instanceable_like_cpp(*entry))
+                .is_some_and(|entry| entry.is_instanceable_like_cpp())
             {
                 load_report.skipped_instanceable_map += 1;
                 continue;
@@ -237,17 +237,6 @@ impl PlayerCreateInfoStoreLikeCpp {
     }
 }
 
-fn map_entry_instanceable_like_cpp(entry: crate::MapEntry) -> bool {
-    matches!(
-        entry.instance_type,
-        crate::map::MAP_INSTANCE
-            | crate::map::MAP_RAID
-            | crate::map::MAP_BATTLEGROUND
-            | crate::map::MAP_ARENA
-            | crate::map::MAP_SCENARIO
-    )
-}
-
 fn valid_transport_template_like_cpp(
     transport_entry: u32,
     gameobject_template_store: &GameObjectTemplateLifecycleStoreLikeCpp,
@@ -278,7 +267,7 @@ fn valid_transport_template_like_cpp(
         && path_maps.iter().any(|map_id| {
             map_store
                 .get(*map_id)
-                .is_none_or(|entry| map_entry_instanceable_like_cpp(*entry))
+                .is_none_or(|entry| entry.is_instanceable_like_cpp())
         })
     {
         return false;

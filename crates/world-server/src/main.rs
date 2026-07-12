@@ -5003,6 +5003,7 @@ async fn main() -> Result<ExitCode> {
         legacy_creature_global_runtime_enabled,
         Arc::clone(&shared_map),
         Arc::clone(&canonical_map_manager),
+        Arc::clone(&map_store),
         mmap_runtime_config.clone(),
         mmap_pathfinder.clone(),
         legacy_creature_aggro_config.clone(),
@@ -12936,6 +12937,7 @@ fn run_legacy_creature_movement_tick_and_deliver_once_like_cpp(
 fn run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp(
     legacy_map_manager: &SharedMapManager,
     canonical_map_manager: Option<&SharedCanonicalMapManager>,
+    map_store: &wow_data::MapStore,
     now: std::time::Instant,
     registry: &wow_network::PlayerRegistry,
 ) -> (
@@ -12945,6 +12947,7 @@ fn run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp(
     let outcome = wow_world::session::run_legacy_creature_lifecycle_tick_once_like_cpp(
         legacy_map_manager,
         canonical_map_manager,
+        map_store,
         now,
     );
     let mut delivery = RuntimeVisibilityRefreshDeliverySummaryLikeCpp::default();
@@ -13036,6 +13039,7 @@ struct LegacyCreatureRuntimeTickBridgeOutcomeLikeCpp {
 fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
     legacy_map_manager: &SharedMapManager,
     canonical_map_manager: Option<&SharedCanonicalMapManager>,
+    map_store: &wow_data::MapStore,
     mmap_config: &MMapRuntimeConfigLikeCpp,
     mmap_pathfinder: Option<&WorldMMapPathfinderWorkerLikeCpp>,
     aggro_config: wow_world::session::LegacyCreatureAggroConfigLikeCpp,
@@ -13047,6 +13051,7 @@ fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
         run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp(
             legacy_map_manager,
             canonical_map_manager,
+            map_store,
             now,
             registry,
         );
@@ -13102,6 +13107,7 @@ fn spawn_legacy_creature_runtime_update_loop_like_cpp(
     enabled: bool,
     legacy_map_manager: SharedMapManager,
     canonical_map_manager: SharedCanonicalMapManager,
+    map_store: Arc<wow_data::MapStore>,
     mmap_config: MMapRuntimeConfigLikeCpp,
     mmap_pathfinder: Option<Arc<WorldMMapPathfinderWorkerLikeCpp>>,
     aggro_config: wow_world::session::LegacyCreatureAggroConfigLikeCpp,
@@ -13126,6 +13132,7 @@ fn spawn_legacy_creature_runtime_update_loop_like_cpp(
             let now = Instant::now();
             let legacy_for_tick = Arc::clone(&legacy_map_manager);
             let canonical_for_tick = Arc::clone(&canonical_map_manager);
+            let map_store_for_tick = Arc::clone(&map_store);
             let mmap_config_for_tick = mmap_config.clone();
             let mmap_pathfinder_for_tick = mmap_pathfinder.clone();
             let aggro_config_for_tick = aggro_config.clone();
@@ -13135,6 +13142,7 @@ fn spawn_legacy_creature_runtime_update_loop_like_cpp(
                 run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
                     &legacy_for_tick,
                     Some(&canonical_for_tick),
+                    map_store_for_tick.as_ref(),
                     &mmap_config_for_tick,
                     mmap_pathfinder_for_tick.as_deref(),
                     aggro_config_for_tick,
@@ -13312,6 +13320,18 @@ mod tests {
         ServerPacket,
         packets::chat::{ChatMsg, ChatPkt},
     };
+
+    fn legacy_runtime_world_map_store_like_cpp() -> wow_data::MapStore {
+        wow_data::MapStore::from_entries([wow_data::MapEntry {
+            id: 0,
+            instance_type: wow_data::map::MAP_COMMON,
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+            flags2: 0,
+        }])
+    }
 
     #[test]
     fn target_icon_raw_from_db_bytes_preserves_cpp_binary_guid_shape() {
@@ -23032,6 +23052,7 @@ mmap.enablePathFinding = 0
         let outcome = run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
             &legacy,
             Some(&canonical),
+            &legacy_runtime_world_map_store_like_cpp(),
             &mmap_config,
             None,
             aggro_config,
@@ -23426,6 +23447,7 @@ mmap.enablePathFinding = 0
         let (outcome, delivery) = run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp(
             &legacy,
             Some(&canonical),
+            &legacy_runtime_world_map_store_like_cpp(),
             now,
             &registry,
         );
@@ -23745,12 +23767,14 @@ mmap.enablePathFinding = 0
         let legacy_for_task = Arc::clone(&legacy);
         let canonical_for_task = Arc::clone(&canonical);
         let registry_for_task = Arc::clone(&registry);
+        let map_store_for_task = legacy_runtime_world_map_store_like_cpp();
         let tick_now = std::time::Instant::now() + std::time::Duration::from_millis(1);
         let handle = tokio::spawn(async move {
             tokio::task::spawn_blocking(move || {
                 run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
                     &legacy_for_task,
                     Some(&canonical_for_task),
+                    &map_store_for_task,
                     &mmap_config,
                     None,
                     wow_world::session::LegacyCreatureAggroConfigLikeCpp::default(),
@@ -23962,6 +23986,7 @@ mmap.enablePathFinding = 0
             true,
             Arc::clone(&legacy),
             Arc::clone(&canonical),
+            Arc::new(legacy_runtime_world_map_store_like_cpp()),
             wow_world::MMapRuntimeConfigLikeCpp {
                 enabled: false,
                 ..Default::default()
