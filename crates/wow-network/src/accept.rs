@@ -474,6 +474,7 @@ pub async fn start_world_listener<F, Fut>(
     account_lookup: Arc<dyn AccountLookup>,
     resources: Arc<SessionResources>,
     on_session_ready: F,
+    ready_tx: tokio::sync::oneshot::Sender<Result<(), String>>,
 ) -> std::io::Result<()>
 where
     F: Fn(
@@ -487,7 +488,16 @@ where
         + 'static,
     Fut: std::future::Future<Output = ()> + Send + 'static,
 {
-    let listener = TcpListener::bind(bind_addr).await?;
+    let listener = match TcpListener::bind(bind_addr).await {
+        Ok(listener) => {
+            let _ = ready_tx.send(Ok(()));
+            listener
+        }
+        Err(error) => {
+            let _ = ready_tx.send(Err(error.to_string()));
+            return Err(error);
+        }
+    };
     info!("World server listening on {bind_addr}");
 
     let on_session = Arc::new(on_session_ready);
@@ -593,8 +603,18 @@ const ENCRYPTION_KEY_SEED: [u8; 16] = [
 pub async fn start_instance_listener(
     bind_addr: SocketAddr,
     session_mgr: Arc<SessionManager>,
+    ready_tx: tokio::sync::oneshot::Sender<Result<(), String>>,
 ) -> std::io::Result<()> {
-    let listener = TcpListener::bind(bind_addr).await?;
+    let listener = match TcpListener::bind(bind_addr).await {
+        Ok(listener) => {
+            let _ = ready_tx.send(Ok(()));
+            listener
+        }
+        Err(error) => {
+            let _ = ready_tx.send(Err(error.to_string()));
+            return Err(error);
+        }
+    };
     info!("Instance server listening on {bind_addr}");
 
     loop {
@@ -818,4 +838,50 @@ async fn handle_instance_connection(
 
     // Run reader (blocks until disconnect)
     reader.run().await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::start_instance_listener;
+    use crate::SessionManager;
+    use std::sync::Arc;
+
+    #[tokio::test]
+    async fn instance_listener_reports_ready_only_after_successful_bind() {
+        let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
+        let handle = tokio::spawn(start_instance_listener(
+            "127.0.0.1:0".parse().unwrap(),
+            Arc::new(SessionManager::new()),
+            ready_tx,
+        ));
+
+        assert_eq!(
+            tokio::time::timeout(std::time::Duration::from_secs(1), ready_rx)
+                .await
+                .expect("listener readiness must not hang")
+                .expect("listener task must retain readiness sender"),
+            Ok(())
+        );
+        handle.abort();
+        let _ = handle.await;
+    }
+
+    #[tokio::test]
+    async fn instance_listener_reports_bind_failure_before_returning() {
+        let occupied = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let occupied_addr = occupied.local_addr().unwrap();
+        let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
+        let handle = tokio::spawn(start_instance_listener(
+            occupied_addr,
+            Arc::new(SessionManager::new()),
+            ready_tx,
+        ));
+
+        let readiness = tokio::time::timeout(std::time::Duration::from_secs(1), ready_rx)
+            .await
+            .expect("bind failure readiness must not hang")
+            .expect("listener must report its bind result");
+        assert!(readiness.is_err());
+        assert!(handle.await.expect("listener task must join").is_err());
+    }
 }
