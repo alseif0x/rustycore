@@ -1370,6 +1370,7 @@ pub struct ItemCreateData {
     pub random_properties_seed: i32,
     pub random_properties_id: i32,
     pub enchantments: [ItemEnchantmentValuesUpdate; 13],
+    pub gems: Vec<SocketedGemValuesUpdate>,
     pub context: u8,
     /// Non-zero for `Bag` objects. C++ writes those as TYPEID_CONTAINER
     /// and appends `ContainerData::WriteCreate` after `ItemData::WriteCreate`.
@@ -5369,7 +5370,7 @@ fn write_item_create_block(
 
     // ArtifactPowers.Size, Gems.Size
     val_buf.write_int32(0);
-    val_buf.write_int32(0);
+    val_buf.write_int32(data.gems.len() as i32);
 
     // Owner conditional block 4
     val_buf.write_uint32(0); // DynamicFlags2
@@ -5380,6 +5381,15 @@ fn write_item_create_block(
 
     // Owner conditional block 5
     val_buf.write_uint16(0); // DEBUGItemLevel
+
+    // C++ `SocketedGem::WriteCreate`.
+    for gem in &data.gems {
+        val_buf.write_int32(gem.item_id);
+        for bonus in gem.bonus_list_ids {
+            val_buf.write_uint16(bonus);
+        }
+        val_buf.write_uint8(gem.context);
+    }
 
     // ItemModList (dynamic) — 6 bits for size = 0, then FlushBits
     val_buf.write_bits(0, 6);
@@ -9555,7 +9565,7 @@ mod tests {
     }
 
     #[test]
-    fn item_create_serializes_random_properties_and_context() {
+    fn item_create_serializes_random_properties_context_and_socketed_gems() {
         let item_guid = ObjectGuid::create_item(1, 900);
         let owner_guid = ObjectGuid::create_player(1, 42);
         let pkt = UpdateObject::create_items(
@@ -9580,6 +9590,16 @@ mod tests {
                     };
                     enchantments
                 },
+                gems: vec![SocketedGemValuesUpdate {
+                    socketed_gem_mask: 0x000F_FFFF,
+                    item_id: 40111,
+                    context: 3,
+                    bonus_list_ids: {
+                        let mut bonuses = [0; 16];
+                        bonuses[0] = 77;
+                        bonuses
+                    },
+                }],
                 context: 2,
                 container_slots: 0,
                 container_item_guids: [ObjectGuid::EMPTY; 36],
@@ -9616,6 +9636,12 @@ mod tests {
                 .windows(4)
                 .any(|window| window == 2673i32.to_le_bytes())
         );
+        assert!(
+            bytes
+                .windows(4)
+                .any(|window| window == 40111i32.to_le_bytes())
+        );
+        assert!(bytes.windows(2).any(|window| window == 77u16.to_le_bytes()));
     }
 
     #[test]
@@ -9639,6 +9665,7 @@ mod tests {
                 random_properties_seed: 0,
                 random_properties_id: 0,
                 enchantments: [ItemEnchantmentValuesUpdate::default(); 13],
+                gems: Vec::new(),
                 context: 0,
                 container_slots: 16,
                 container_item_guids,

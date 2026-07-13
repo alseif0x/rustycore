@@ -72,20 +72,20 @@ use wow_data::{
     DisableWorldObjectRefLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
     DurabilityQualityStore, EmotesStore, EmotesTextStore, ExplorationBaseXpStoreLikeCpp,
     FishingBaseSkillStoreLikeCpp, GameObjectDisplayInfoStore,
-    GameObjectTemplateLifecycleStoreLikeCpp, GlyphPropertiesStore, GraveyardStore, HeirloomEntry,
-    HeirloomStore, HotfixBlobCache, ImportPriceStores, ItemAppearanceStore, ItemBonusDb2Store,
-    ItemClassStore, ItemCurrencyCostStore, ItemDisenchantLootStore, ItemEffectStore,
-    ItemExtendedCostStore, ItemLimitCategoryConditionStore, ItemLimitCategoryStore,
-    ItemModifiedAppearanceStore, ItemPriceBaseStore, ItemRandomEnchantmentTemplateStore,
-    ItemRandomPropertiesStore, ItemRandomPropertyTemplateEntry, ItemRandomSuffixStore,
-    ItemSearchNameStore, ItemSetSpellStore, ItemSetStore, ItemSpecOverrideStore, ItemStatsStore,
-    ItemStore, LfgDungeonStoreLikeCpp, LfgDungeonsStore, LockStore, MapDifficultyStore,
-    MapDifficultyXConditionStore, MapStore, MountCapabilityStore, MountDefinitionStoreLikeCpp,
-    MountStore, MountTypeXCapabilityStore, MountXDisplayStore, MovieStore,
-    NpcSpellClickStoreLikeCpp, PetDefaultSpellStoreLikeCpp, PetDefaultSpellsEntryLikeCpp,
-    PetFamilySpellStoreLikeCpp, PetLevelupSpellSetLikeCpp, PetLevelupSpellStoreLikeCpp,
-    PhaseGroupStore, PhaseStore, PlayerConditionAuraLikeCpp, PlayerConditionContextLikeCpp,
-    PlayerConditionCountLikeCpp, PlayerConditionPartyStatusLikeCpp,
+    GameObjectTemplateLifecycleStoreLikeCpp, GemPropertiesStore, GlyphPropertiesStore,
+    GraveyardStore, HeirloomEntry, HeirloomStore, HotfixBlobCache, ImportPriceStores,
+    ItemAppearanceStore, ItemBonusDb2Store, ItemClassStore, ItemCurrencyCostStore,
+    ItemDisenchantLootStore, ItemEffectStore, ItemExtendedCostStore,
+    ItemLimitCategoryConditionStore, ItemLimitCategoryStore, ItemModifiedAppearanceStore,
+    ItemPriceBaseStore, ItemRandomEnchantmentTemplateStore, ItemRandomPropertiesStore,
+    ItemRandomPropertyTemplateEntry, ItemRandomSuffixStore, ItemSearchNameStore, ItemSetSpellStore,
+    ItemSetStore, ItemSpecOverrideStore, ItemStatsStore, ItemStore, LfgDungeonStoreLikeCpp,
+    LfgDungeonsStore, LockStore, MapDifficultyStore, MapDifficultyXConditionStore, MapStore,
+    MountCapabilityStore, MountDefinitionStoreLikeCpp, MountStore, MountTypeXCapabilityStore,
+    MountXDisplayStore, MovieStore, NpcSpellClickStoreLikeCpp, PetDefaultSpellStoreLikeCpp,
+    PetDefaultSpellsEntryLikeCpp, PetFamilySpellStoreLikeCpp, PetLevelupSpellSetLikeCpp,
+    PetLevelupSpellStoreLikeCpp, PhaseGroupStore, PhaseStore, PlayerConditionAuraLikeCpp,
+    PlayerConditionContextLikeCpp, PlayerConditionCountLikeCpp, PlayerConditionPartyStatusLikeCpp,
     PlayerConditionQuestKillLikeCpp, PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp,
     PlayerConditionStore, PlayerCreateInfoCastSpellStoreLikeCpp,
     PlayerCreateInfoCustomSpellStoreLikeCpp, PlayerCreateInfoStoreLikeCpp, PlayerStatsStore,
@@ -96,12 +96,12 @@ use wow_data::{
     SpellChainStoreLikeCpp, SpellCustomAttributeStoreLikeCpp, SpellDurationStore,
     SpellEnchantProcEntryLikeCpp, SpellEnchantProcStoreLikeCpp, SpellEquippedItemsEntry,
     SpellEquippedItemsStore, SpellGroupStackRuleLikeCpp, SpellGroupStackRuleStoreLikeCpp,
-    SpellGroupStoreLikeCpp, SpellItemEnchantmentStore, SpellLearnSkillNodeLikeCpp,
-    SpellLearnSkillStoreLikeCpp, SpellLearnSpellNodeLikeCpp, SpellLearnSpellStoreLikeCpp,
-    SpellLevelsStore, SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp, SpellMiscStore,
-    SpellPetAuraStoreLikeCpp, SpellProcEntryLikeCpp, SpellProcStoreLikeCpp, SpellRadiusStore,
-    SpellRangeStore, SpellRequiredStoreLikeCpp, SpellShapeshiftFormStore, SpellStore,
-    SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp,
+    SpellGroupStoreLikeCpp, SpellItemEnchantmentConditionStore, SpellItemEnchantmentStore,
+    SpellLearnSkillNodeLikeCpp, SpellLearnSkillStoreLikeCpp, SpellLearnSpellNodeLikeCpp,
+    SpellLearnSpellStoreLikeCpp, SpellLevelsStore, SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp,
+    SpellMiscStore, SpellPetAuraStoreLikeCpp, SpellProcEntryLikeCpp, SpellProcStoreLikeCpp,
+    SpellRadiusStore, SpellRangeStore, SpellRequiredStoreLikeCpp, SpellShapeshiftFormStore,
+    SpellStore, SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp,
     SpellTotemModelStoreLikeCpp, SummonPropertiesEntry, TactKeyStore, TalentStore, TalentTabStore,
     ToyStore, TransmogSetEntry, TransmogSetItemStore, TrinityStringStoreLikeCpp,
     VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore,
@@ -4035,6 +4035,8 @@ pub struct WorldSession {
 
     // Spell item enchantment store (SpellItemEnchantment.db2 data)
     spell_item_enchantment_store: Option<Arc<SpellItemEnchantmentStore>>,
+    spell_item_enchantment_condition_store: Option<Arc<SpellItemEnchantmentConditionStore>>,
+    gem_properties_store: Option<Arc<GemPropertiesStore>>,
     spell_enchant_proc_store: Option<Arc<SpellEnchantProcStoreLikeCpp>>,
 
     // Hotfix blob cache: raw DB2 record bytes for DBReply responses
@@ -5992,6 +5994,8 @@ impl WorldSession {
             difficulty_store: None,
             lock_store: None,
             spell_item_enchantment_store: None,
+            spell_item_enchantment_condition_store: None,
+            gem_properties_store: None,
             spell_enchant_proc_store: None,
             hotfix_blob_cache: None,
             tact_key_store: None,
@@ -20592,9 +20596,110 @@ impl WorldSession {
         self.spell_item_enchantment_store = Some(store);
     }
 
+    pub fn set_spell_item_enchantment_condition_store(
+        &mut self,
+        store: Arc<SpellItemEnchantmentConditionStore>,
+    ) {
+        self.spell_item_enchantment_condition_store = Some(store);
+    }
+
+    pub fn set_gem_properties_store(&mut self, store: Arc<GemPropertiesStore>) {
+        self.gem_properties_store = Some(store);
+    }
+
     /// Get the spell item enchantment store reference.
     pub fn spell_item_enchantment_store(&self) -> Option<&Arc<SpellItemEnchantmentStore>> {
         self.spell_item_enchantment_store.as_ref()
+    }
+
+    /// C++ `Player::EnchantmentFitsRequirements` for the currently equipped gems.
+    fn enchantment_fits_requirements_like_cpp(
+        &self,
+        enchantment_condition: u32,
+        except_slot: Option<u8>,
+    ) -> bool {
+        if enchantment_condition == 0 {
+            return true;
+        }
+        let Some(condition) = self
+            .spell_item_enchantment_condition_store
+            .as_ref()
+            .and_then(|store| store.get(enchantment_condition))
+        else {
+            return true;
+        };
+
+        let mut gem_counts = [0u8; 4];
+        for slot in 0..EQUIPMENT_SLOT_END {
+            if except_slot == Some(slot) {
+                continue;
+            }
+            let Some(inventory_item) = self.inventory_items_like_cpp().get(&slot) else {
+                continue;
+            };
+            let Some(item) = self
+                .inventory_item_objects_like_cpp()
+                .get(&inventory_item.guid)
+            else {
+                continue;
+            };
+            if item.is_broken() {
+                continue;
+            }
+            for gem in &item.data().gems {
+                let Ok(gem_item_id) = u32::try_from(gem.item_id) else {
+                    continue;
+                };
+                let Some(gem_properties_id) = self
+                    .item_stats_store
+                    .as_ref()
+                    .and_then(|store| store.gem_properties(gem_item_id))
+                    .map(u32::from)
+                else {
+                    continue;
+                };
+                let Some(gem_type) = self
+                    .gem_properties_store
+                    .as_ref()
+                    .and_then(|store| store.get(gem_properties_id))
+                    .map(|properties| properties.gem_type)
+                else {
+                    continue;
+                };
+                for (color, count) in gem_counts.iter_mut().enumerate() {
+                    if gem_type & (1 << color) != 0 {
+                        *count = count.saturating_add(1);
+                    }
+                }
+            }
+        }
+
+        let mut activate = true;
+        for index in 0..5 {
+            let left_type = condition.lt_operand_type[index];
+            if left_type == 0 {
+                continue;
+            }
+            let Some(&left_count) = gem_counts.get(usize::from(left_type - 1)) else {
+                return false;
+            };
+            let right_type = condition.rt_operand_type[index];
+            let right_count = if right_type == 0 {
+                condition.rt_operand[index]
+            } else {
+                let Some(&count) = gem_counts.get(usize::from(right_type - 1)) else {
+                    return false;
+                };
+                count
+            };
+            activate &= match condition.operator[index] {
+                2 => left_count < right_count,
+                3 => left_count > right_count,
+                5 => left_count >= right_count,
+                _ => true,
+            };
+        }
+        activate
     }
 
     pub fn set_spell_enchant_proc_store(&mut self, store: Arc<SpellEnchantProcStoreLikeCpp>) {
@@ -20681,9 +20786,20 @@ impl WorldSession {
         slot: EnchantmentSlot,
         args: ApplyEnchantmentArgs,
     ) -> Option<ApplyEnchantmentPlan> {
+        let enchantment_id = self
+            .inventory_item_objects_like_cpp()
+            .get(&item_guid)?
+            .data()
+            .enchantments[slot as usize]
+            .id;
+        let condition_fits = u32::try_from(enchantment_id)
+            .ok()
+            .and_then(|id| self.spell_item_enchantment_store.as_ref()?.get(id))
+            .is_none_or(|entry| {
+                self.enchantment_fits_requirements_like_cpp(u32::from(entry.condition_id), None)
+            });
         let mut item = self.remove_inventory_item_object(item_guid)?;
-        let enchantment_id = item.data().enchantments[slot as usize].id;
-        let mut template = self.apply_enchantment_template_ref(enchantment_id, 0, true);
+        let mut template = self.apply_enchantment_template_ref(enchantment_id, 0, condition_fits);
         if let Some(template) = &mut template {
             if let Ok(skill_id) = u16::try_from(template.required_skill_id) {
                 template.required_skill_value = self.player_skill_value_like_cpp(skill_id);
@@ -55571,23 +55687,25 @@ mod tests {
     use wow_data::{
         ChrSpecializationEntry, ChrSpecializationStore, Condition, DifficultyEntry,
         DifficultyStore, DurabilityCostsEntry, DurabilityCostsStore, DurabilityQualityEntry,
-        DurabilityQualityStore, HeirloomEntry, HeirloomStore, ImportPriceArmorEntry,
-        ImportPriceArmorStore, ImportPriceQualityEntry, ImportPriceQualityStore,
-        ImportPriceShieldEntry, ImportPriceShieldStore, ImportPriceStores, ImportPriceWeaponEntry,
-        ImportPriceWeaponStore, ItemAppearanceEntry, ItemAppearanceStore, ItemBonusDb2Entry,
-        ItemBonusDb2Store, ItemClassEntry, ItemClassStore, ItemCurrencyCostEntry,
-        ItemCurrencyCostStore, ItemDisenchantLootEntry, ItemDisenchantLootStore, ItemEffectEntry,
-        ItemEffectStore, ItemLimitCategoryConditionEntry, ItemLimitCategoryConditionStore,
-        ItemLimitCategoryEntry, ItemLimitCategoryStore, ItemModifiedAppearanceEntry,
-        ItemModifiedAppearanceStore, ItemPriceBaseEntry, ItemPriceBaseStore,
-        ItemRandomPropertyTemplateEntry, ItemRandomSuffixEntry, ItemRandomSuffixStore, ItemRecord,
-        ItemSearchNameEntry, ItemSearchNameStore, ItemSetEntry, ItemSetSpellEntry,
-        ItemSetSpellStore, ItemSetStore, ItemSparseTemplateEntry, ItemSpecOverrideEntry,
-        ItemSpecOverrideStore, ItemStatsStore, ItemStore, ItemWeaponTemplateEntry, LockEntry,
-        LockStore, MapDifficultyEntry, MapDifficultyStore, PlayerConditionEntry,
-        PlayerConditionStore, ShieldBlockRegularEntryLikeCpp, ShieldBlockRegularGameTableLikeCpp,
-        SpellInfo, SpellItemEnchantmentEntry, SpellItemEnchantmentStore, SpellStore, ToyEntry,
-        ToyStore, TransmogSetEntry, TransmogSetItemEntry, TransmogSetItemStore,
+        DurabilityQualityStore, GemPropertiesEntry, GemPropertiesStore, HeirloomEntry,
+        HeirloomStore, ImportPriceArmorEntry, ImportPriceArmorStore, ImportPriceQualityEntry,
+        ImportPriceQualityStore, ImportPriceShieldEntry, ImportPriceShieldStore, ImportPriceStores,
+        ImportPriceWeaponEntry, ImportPriceWeaponStore, ItemAppearanceEntry, ItemAppearanceStore,
+        ItemBonusDb2Entry, ItemBonusDb2Store, ItemClassEntry, ItemClassStore,
+        ItemCurrencyCostEntry, ItemCurrencyCostStore, ItemDisenchantLootEntry,
+        ItemDisenchantLootStore, ItemEffectEntry, ItemEffectStore, ItemLimitCategoryConditionEntry,
+        ItemLimitCategoryConditionStore, ItemLimitCategoryEntry, ItemLimitCategoryStore,
+        ItemModifiedAppearanceEntry, ItemModifiedAppearanceStore, ItemPriceBaseEntry,
+        ItemPriceBaseStore, ItemRandomPropertyTemplateEntry, ItemRandomSuffixEntry,
+        ItemRandomSuffixStore, ItemRecord, ItemSearchNameEntry, ItemSearchNameStore, ItemSetEntry,
+        ItemSetSpellEntry, ItemSetSpellStore, ItemSetStore, ItemSparseTemplateEntry,
+        ItemSpecOverrideEntry, ItemSpecOverrideStore, ItemStatsStore, ItemStore,
+        ItemWeaponTemplateEntry, LockEntry, LockStore, MapDifficultyEntry, MapDifficultyStore,
+        PlayerConditionEntry, PlayerConditionStore, ShieldBlockRegularEntryLikeCpp,
+        ShieldBlockRegularGameTableLikeCpp, SpellInfo, SpellItemEnchantmentConditionEntry,
+        SpellItemEnchantmentConditionStore, SpellItemEnchantmentEntry, SpellItemEnchantmentStore,
+        SpellStore, ToyEntry, ToyStore, TransmogSetEntry, TransmogSetItemEntry,
+        TransmogSetItemStore,
         progression_rewards::{
             ContentTuningEntry, ContentTuningStore, CurveEntry, CurvePointEntry, CurvePointStore,
             CurveStore, FactionEntry, FactionStore, QUEST_PACKAGE_FILTER_CLASS_LIKE_CPP,
@@ -55601,11 +55719,11 @@ mod tests {
     use wow_database::SqlParam;
     use wow_entities::{
         AccessorObjectRef, ApplyEnchantmentDurationAction, ApplyEnchantmentResult,
-        BANK_SLOT_BAG_START, BANK_SLOT_ITEM_START, CharmType, EQUIPMENT_SLOT_CHEST,
-        EQUIPMENT_SLOT_HANDS, INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, ItemBonusKey,
-        MapObjectRecord, PlayerEnchantDuration, REAGENT_BAG_SLOT_START, SendNewItemInstancePlan,
-        SendNewItemModifier, TYPEID_UNIT, UNIT_DATA_BITS, UnitDataUpdate, UnitDataValues,
-        UnitValuesUpdate, UpdateMask,
+        ApplyEnchantmentSkipReason, BANK_SLOT_BAG_START, BANK_SLOT_ITEM_START, CharmType,
+        EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_HANDS, INVENTORY_SLOT_BAG_START,
+        INVENTORY_SLOT_ITEM_START, ItemBonusKey, MapObjectRecord, PlayerEnchantDuration,
+        REAGENT_BAG_SLOT_START, SendNewItemInstancePlan, SendNewItemModifier, SocketedGem,
+        TYPEID_UNIT, UNIT_DATA_BITS, UnitDataUpdate, UnitDataValues, UnitValuesUpdate, UpdateMask,
     };
     use wow_network::player_registry::{
         ApplyGroupRemovalLikeCppCommand, ApplyGroupSubgroupLikeCppCommand,
@@ -120326,6 +120444,119 @@ mod tests {
                     == Some(ServerOpcodes::UpdateObject)),
             "permanent enchant visual update is emitted after login CREATE"
         );
+    }
+
+    #[test]
+    fn loaded_conditional_enchantment_replay_uses_equipped_gem_colors_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 90_524);
+        let item_guid = ObjectGuid::create_item(1, 90_525);
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_player_on_map(
+            &canonical,
+            player_guid,
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            0,
+        );
+        session
+            .mutate_canonical_player_like_cpp(|player| player.unit_mut().set_level(80))
+            .unwrap();
+        session.set_spell_item_enchantment_store(Arc::new(
+            SpellItemEnchantmentStore::from_entries([SpellItemEnchantmentEntry {
+                id: 912,
+                effect_arg: [0; 3],
+                effect_points_min: [0; 3],
+                item_visual: 0,
+                flags: SpellItemEnchantmentFlags::empty(),
+                required_skill_id: 0,
+                required_skill_rank: 0,
+                item_level: 1,
+                charges: 0,
+                effect: [ItemEnchantmentType::None as u8; 3],
+                condition_id: 44,
+                min_level: 1,
+                max_level: 0,
+            }]),
+        ));
+        session.set_spell_item_enchantment_condition_store(Arc::new(
+            SpellItemEnchantmentConditionStore::from_entries([
+                SpellItemEnchantmentConditionEntry {
+                    id: 44,
+                    lt_operand_type: [2, 0, 0, 0, 0],
+                    lt_operand: [0; 5],
+                    operator: [5, 0, 0, 0, 0],
+                    rt_operand_type: [0; 5],
+                    rt_operand: [1, 0, 0, 0, 0],
+                    logic: [0; 5],
+                },
+            ]),
+        ));
+        session.set_item_stats_store(Arc::new(
+            ItemStatsStore::from_sparse_templates(
+                std::iter::empty::<(u32, ItemSparseTemplateEntry)>(),
+            )
+            .with_gem_properties([(800, 55)]),
+        ));
+        session.set_gem_properties_store(Arc::new(GemPropertiesStore::from_entries([
+            GemPropertiesEntry {
+                id: 55,
+                enchant_id: 0,
+                gem_type: 2,
+                min_item_level: 0,
+            },
+        ])));
+
+        session.insert_inventory_item_like_cpp(
+            EQUIPMENT_SLOT_CHEST,
+            InventoryItem {
+                guid: item_guid,
+                entry_id: 700,
+                db_guid: item_guid.counter() as u64,
+                inventory_type: Some(InventoryType::Chest as u8),
+            },
+        );
+        let mut item = session.make_inventory_item_object(
+            item_guid,
+            700,
+            player_guid,
+            1,
+            0,
+            ItemContext::None,
+            EQUIPMENT_SLOT_CHEST,
+        );
+        item.set_enchantment(EnchantmentSlot::EnhancementTemporary, 912, 6_000, 0);
+        session.insert_inventory_item_object(item);
+
+        let blocked = session.apply_loaded_equipped_item_enchantments_like_cpp(item_guid);
+        assert!(matches!(
+            blocked.plans.as_slice(),
+            [ApplyEnchantmentPlan {
+                result: ApplyEnchantmentResult::Skipped(
+                    ApplyEnchantmentSkipReason::ConditionFailed
+                )
+            }]
+        ));
+        assert!(blocked.duration_updates.is_empty());
+
+        session.update_inventory_item_object_like_cpp(item_guid, |item| {
+            item.set_gems(vec![SocketedGem {
+                item_id: 800,
+                context: 0,
+                bonus_list_ids: Vec::new(),
+            }]);
+        });
+        let allowed = session.apply_loaded_equipped_item_enchantments_like_cpp(item_guid);
+        assert!(matches!(
+            allowed.plans.as_slice(),
+            [ApplyEnchantmentPlan {
+                result: ApplyEnchantmentResult::Applied { .. }
+            }]
+        ));
+        assert_eq!(allowed.duration_updates.len(), 1);
     }
 
     #[test]

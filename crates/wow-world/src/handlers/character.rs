@@ -39,12 +39,12 @@ use wow_database::{
 };
 use wow_entities::{
     BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_START,
-    CreatureAddonLifecycleRecordLikeCpp, EQUIPMENT_SLOT_END, GAMEOBJECT_TYPE_FISHING_HOLE,
-    GAMEOBJECT_TYPE_QUESTGIVER, GameObjectTemplateData, INVENTORY_DEFAULT_SIZE,
-    INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
-    INVENTORY_SLOT_ITEM_START, MAX_BAG_SIZE, MAX_GAMEOBJECT_DATA, MovementGeneratorType, NULL_BAG,
-    NULL_SLOT, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, WorldObject, is_equipment_pos,
-    is_inventory_pos, normalize_creature_chase_movement_type_like_cpp,
+    CreatureAddonLifecycleRecordLikeCpp, GAMEOBJECT_TYPE_FISHING_HOLE, GAMEOBJECT_TYPE_QUESTGIVER,
+    GameObjectTemplateData, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END,
+    INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, MAX_BAG_SIZE, MAX_GAMEOBJECT_DATA,
+    MovementGeneratorType, NULL_BAG, NULL_SLOT, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START,
+    SocketedGem, WorldObject, is_equipment_pos, is_inventory_pos,
+    normalize_creature_chase_movement_type_like_cpp,
     normalize_creature_random_movement_type_like_cpp,
 };
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
@@ -236,6 +236,41 @@ fn apply_loaded_item_instance_fields_like_cpp(
 
 fn loaded_item_slot_applies_equipped_enchantments_like_cpp(slot: u8) -> bool {
     slot < INVENTORY_SLOT_BAG_END
+}
+
+fn loaded_socketed_gems_like_cpp(fields: [(i32, String, u8); 3]) -> Vec<SocketedGem> {
+    fields
+        .into_iter()
+        .filter_map(|(item_id, bonuses, context)| {
+            (item_id > 0).then(|| SocketedGem {
+                item_id,
+                context,
+                bonus_list_ids: bonuses
+                    .split_whitespace()
+                    .filter_map(|bonus| bonus.parse::<u16>().ok())
+                    .collect(),
+            })
+        })
+        .collect()
+}
+
+fn loaded_socketed_gem_create_updates_like_cpp(
+    gems: &[SocketedGem],
+) -> Vec<wow_packet::packets::update::SocketedGemValuesUpdate> {
+    gems.iter()
+        .map(|gem| {
+            let mut bonus_list_ids = [0; 16];
+            for (target, source) in bonus_list_ids.iter_mut().zip(&gem.bonus_list_ids) {
+                *target = *source;
+            }
+            wow_packet::packets::update::SocketedGemValuesUpdate {
+                socketed_gem_mask: 0x000F_FFFF,
+                item_id: gem.item_id,
+                context: gem.context,
+                bonus_list_ids,
+            }
+        })
+        .collect()
 }
 
 fn loaded_item_effective_enchantments_like_cpp(
@@ -5055,6 +5090,25 @@ impl WorldSession {
                                 random_properties.map(|random| random.id).unwrap_or(0);
                             let random_properties_seed =
                                 random_properties.map(|random| random.seed).unwrap_or(0);
+                            let socketed_gems = loaded_socketed_gems_like_cpp([
+                                (
+                                    eq_result.try_read::<i32>(11).unwrap_or(0),
+                                    eq_result.try_read::<String>(12).unwrap_or_default(),
+                                    eq_result.try_read::<u8>(13).unwrap_or(0),
+                                ),
+                                (
+                                    eq_result.try_read::<i32>(14).unwrap_or(0),
+                                    eq_result.try_read::<String>(15).unwrap_or_default(),
+                                    eq_result.try_read::<u8>(16).unwrap_or(0),
+                                ),
+                                (
+                                    eq_result.try_read::<i32>(17).unwrap_or(0),
+                                    eq_result.try_read::<String>(18).unwrap_or_default(),
+                                    eq_result.try_read::<u8>(19).unwrap_or(0),
+                                ),
+                            ]);
+                            let socketed_gem_create_updates =
+                                loaded_socketed_gem_create_updates_like_cpp(&socketed_gems);
                             let item_create_enchantments =
                                 loaded_item_effective_enchantments_like_cpp(
                                     item_enchantment_values.as_ref(),
@@ -5066,8 +5120,8 @@ impl WorldSession {
                             let refund_decision = loaded_item_refund_decision(
                                 item_flags,
                                 item_played_time,
-                                eq_result.try_read::<u64>(11),
-                                eq_result.try_read::<u16>(12),
+                                eq_result.try_read::<u64>(20),
+                                eq_result.try_read::<u16>(21),
                             );
                             if item_entry > 0 && (slot as usize) < 141 {
                                 let item_max_durability = self
@@ -5127,6 +5181,7 @@ impl WorldSession {
                                     random_properties_seed,
                                     random_properties_id,
                                     enchantments: item_create_enchantments,
+                                    gems: socketed_gem_create_updates,
                                     context: item_context as u8,
                                     container_slots,
                                     container_item_guids: [ObjectGuid::EMPTY; 36],
@@ -5160,6 +5215,7 @@ impl WorldSession {
                                     &item_create_enchantments,
                                     random_properties,
                                 );
+                                item_object.set_gems(socketed_gems);
                                 item_object.replace_all_item_flags(
                                     ItemFieldFlags::from_bits_retain(stored_flags),
                                 );
@@ -5246,6 +5302,25 @@ impl WorldSession {
                                     random_properties.map(|random| random.id).unwrap_or(0);
                                 let random_properties_seed =
                                     random_properties.map(|random| random.seed).unwrap_or(0);
+                                let socketed_gems = loaded_socketed_gems_like_cpp([
+                                    (
+                                        bag_result.try_read::<i32>(12).unwrap_or(0),
+                                        bag_result.try_read::<String>(13).unwrap_or_default(),
+                                        bag_result.try_read::<u8>(14).unwrap_or(0),
+                                    ),
+                                    (
+                                        bag_result.try_read::<i32>(15).unwrap_or(0),
+                                        bag_result.try_read::<String>(16).unwrap_or_default(),
+                                        bag_result.try_read::<u8>(17).unwrap_or(0),
+                                    ),
+                                    (
+                                        bag_result.try_read::<i32>(18).unwrap_or(0),
+                                        bag_result.try_read::<String>(19).unwrap_or_default(),
+                                        bag_result.try_read::<u8>(20).unwrap_or(0),
+                                    ),
+                                ]);
+                                let socketed_gem_create_updates =
+                                    loaded_socketed_gem_create_updates_like_cpp(&socketed_gems);
                                 let item_create_enchantments =
                                     loaded_item_effective_enchantments_like_cpp(
                                         item_enchantment_values.as_ref(),
@@ -5280,6 +5355,7 @@ impl WorldSession {
                                             &item_create_enchantments,
                                             random_properties,
                                         );
+                                        item_object.set_gems(socketed_gems);
                                         item_object.replace_all_item_flags(
                                             ItemFieldFlags::from_bits_retain(item_flags),
                                         );
@@ -5310,6 +5386,7 @@ impl WorldSession {
                                                 random_properties_seed,
                                                 random_properties_id,
                                                 enchantments: item_create_enchantments,
+                                                gems: socketed_gem_create_updates,
                                                 context: item_context as u8,
                                                 container_slots: 0,
                                                 container_item_guids: [ObjectGuid::EMPTY; 36],
@@ -11184,6 +11261,7 @@ impl WorldSession {
                     random_properties_seed: 0,
                     random_properties_id: 0,
                     enchantments: [ItemEnchantmentValuesUpdate::default(); 13],
+                    gems: Vec::new(),
                     context: 0,
                     container_slots: 0,
                     container_item_guids: [ObjectGuid::EMPTY; 36],
@@ -11734,6 +11812,7 @@ impl WorldSession {
                     random_properties_seed: 0,
                     random_properties_id: 0,
                     enchantments: [ItemEnchantmentValuesUpdate::default(); 13],
+                    gems: Vec::new(),
                     context: 0,
                     container_slots: 0,
                     container_item_guids: [ObjectGuid::EMPTY; 36],
@@ -12234,6 +12313,7 @@ impl WorldSession {
                     random_properties_seed: 0,
                     random_properties_id: 0,
                     enchantments: [ItemEnchantmentValuesUpdate::default(); 13],
+                    gems: Vec::new(),
                     context: 0,
                     container_slots: 0,
                     container_item_guids: [ObjectGuid::EMPTY; 36],
@@ -15378,7 +15458,7 @@ mod tests {
     #[test]
     fn loaded_item_slots_apply_equipped_enchantments_for_cpp_apply_all_item_mods_range() {
         assert!(loaded_item_slot_applies_equipped_enchantments_like_cpp(
-            EQUIPMENT_SLOT_END - 1
+            wow_entities::EQUIPMENT_SLOT_END - 1
         ));
         assert!(loaded_item_slot_applies_equipped_enchantments_like_cpp(
             INVENTORY_SLOT_BAG_START
@@ -15389,6 +15469,29 @@ mod tests {
         assert!(!loaded_item_slot_applies_equipped_enchantments_like_cpp(
             INVENTORY_SLOT_BAG_END
         ));
+    }
+
+    #[test]
+    fn loaded_socketed_gems_preserve_cpp_item_ids_context_and_bonus_lists() {
+        assert_eq!(
+            loaded_socketed_gems_like_cpp([
+                (700, "11 12".to_string(), 3),
+                (0, "13".to_string(), 4),
+                (701, "bad 14".to_string(), 5),
+            ]),
+            vec![
+                SocketedGem {
+                    item_id: 700,
+                    context: 3,
+                    bonus_list_ids: vec![11, 12],
+                },
+                SocketedGem {
+                    item_id: 701,
+                    context: 5,
+                    bonus_list_ids: vec![14],
+                },
+            ]
+        );
     }
 
     #[test]

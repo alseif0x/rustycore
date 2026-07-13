@@ -6853,6 +6853,7 @@ impl WorldSession {
                     random_properties_seed: stack.random_properties_seed,
                     random_properties_id: stack.random_properties_id,
                     enchantments: [ItemEnchantmentValuesUpdate::default(); 13],
+                    gems: Vec::new(),
                     context: stack.item_context,
                     container_slots: 0,
                     container_item_guids: [ObjectGuid::EMPTY; 36],

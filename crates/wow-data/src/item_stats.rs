@@ -255,6 +255,7 @@ pub struct ItemStatsStore {
     stats: HashMap<u32, ItemStatEntry>,
     flags: HashMap<u32, [u32; 4]>,
     sparse_templates: HashMap<u32, ItemSparseTemplateEntry>,
+    gem_properties: HashMap<u32, u16>,
     random_property_templates: HashMap<u32, ItemRandomPropertyTemplateEntry>,
     weapon_templates: HashMap<u32, ItemWeaponTemplateEntry>,
 }
@@ -364,6 +365,7 @@ impl ItemStatsStore {
             stats: stats.into_iter().collect(),
             flags: flags.into_iter().collect(),
             sparse_templates: HashMap::new(),
+            gem_properties: HashMap::new(),
             random_property_templates: HashMap::new(),
             weapon_templates: HashMap::new(),
         }
@@ -381,9 +383,18 @@ impl ItemStatsStore {
             stats: HashMap::new(),
             flags,
             sparse_templates,
+            gem_properties: HashMap::new(),
             random_property_templates: HashMap::new(),
             weapon_templates: HashMap::new(),
         }
+    }
+
+    pub fn with_gem_properties(
+        mut self,
+        gem_properties: impl IntoIterator<Item = (u32, u16)>,
+    ) -> Self {
+        self.gem_properties = gem_properties.into_iter().collect();
+        self
     }
 
     pub fn from_random_property_templates(
@@ -393,6 +404,7 @@ impl ItemStatsStore {
             stats: HashMap::new(),
             flags: HashMap::new(),
             sparse_templates: HashMap::new(),
+            gem_properties: HashMap::new(),
             random_property_templates: random_property_templates.into_iter().collect(),
             weapon_templates: HashMap::new(),
         }
@@ -411,6 +423,7 @@ impl ItemStatsStore {
             stats: HashMap::new(),
             flags,
             sparse_templates,
+            gem_properties: HashMap::new(),
             random_property_templates: random_property_templates.into_iter().collect(),
             weapon_templates: HashMap::new(),
         }
@@ -430,6 +443,7 @@ impl ItemStatsStore {
             stats: stats.into_iter().collect(),
             flags,
             sparse_templates,
+            gem_properties: HashMap::new(),
             random_property_templates: random_property_templates.into_iter().collect(),
             weapon_templates: HashMap::new(),
         }
@@ -442,6 +456,7 @@ impl ItemStatsStore {
             stats: HashMap::new(),
             flags: HashMap::new(),
             sparse_templates: HashMap::new(),
+            gem_properties: HashMap::new(),
             random_property_templates: HashMap::new(),
             weapon_templates: weapon_templates.into_iter().collect(),
         }
@@ -461,6 +476,7 @@ impl ItemStatsStore {
         let mut stats = HashMap::new();
         let mut flags = HashMap::with_capacity(reader.total_count());
         let mut sparse_templates = HashMap::with_capacity(reader.total_count());
+        let mut gem_properties = HashMap::with_capacity(reader.total_count());
         let mut random_property_templates = HashMap::with_capacity(reader.total_count());
         let mut weapon_templates = HashMap::with_capacity(reader.total_count());
         let mut loaded = 0u32;
@@ -495,6 +511,7 @@ impl ItemStatsStore {
             let mut player_level_to_item_level_curve_id_offset: usize = 0;
             let mut max_durability_offset: usize = 0;
             let mut limit_category_offset: usize = 0;
+            let mut gem_properties_offset: usize = 0;
             let mut instance_bound_offset: usize = 0;
             let mut zone_bound_offset: usize = 0;
             let mut required_reputation_faction_offset: usize = 0;
@@ -567,6 +584,9 @@ impl ItemStatsStore {
                 }
                 if fi == 32 {
                     limit_category_offset = pos;
+                }
+                if fi == 33 {
+                    gem_properties_offset = pos;
                 }
                 if fi == 36 {
                     instance_bound_offset = pos;
@@ -669,6 +689,7 @@ impl ItemStatsStore {
                 && player_level_to_item_level_curve_id_offset + 4 <= record.len()
                 && max_durability_offset + 4 <= record.len()
                 && limit_category_offset + 2 <= record.len()
+                && gem_properties_offset + 2 <= record.len()
                 && instance_bound_offset + 2 <= record.len()
                 && zone_bound_offset + 4 <= record.len()
                 && required_reputation_faction_offset + 2 <= record.len()
@@ -717,6 +738,7 @@ impl ItemStatsStore {
                         inventory_type: record[inventory_type_offset] as i8,
                     },
                 );
+                gem_properties.insert(id, read_u16(record, gem_properties_offset));
             }
 
             if item_level_offset + 2 <= record.len()
@@ -802,6 +824,7 @@ impl ItemStatsStore {
             stats,
             flags,
             sparse_templates,
+            gem_properties,
             random_property_templates,
             weapon_templates,
         })
@@ -810,6 +833,11 @@ impl ItemStatsStore {
     /// Look up stat modifiers for an item.
     pub fn get(&self, item_id: u32) -> Option<&ItemStatEntry> {
         self.stats.get(&item_id)
+    }
+
+    /// C++ `ItemTemplate::GetGemProperties` (`ItemSparseEntry::GemProperties`).
+    pub fn gem_properties(&self, item_id: u32) -> Option<u16> {
+        self.gem_properties.get(&item_id).copied()
     }
 
     /// Return C++ `ItemSparseEntry::Flags[0..4]` for an item.
@@ -1025,6 +1053,10 @@ mod tests {
         assert_eq!(loaded.allowable_class, -1);
         assert!(loaded.item_flags().contains(ItemFlags::IS_BOUND_TO_ACCOUNT));
         assert_eq!(store.raw_flags(1), Some(template.flags));
+
+        let store = store.with_gem_properties([(1, 77)]);
+        assert_eq!(store.gem_properties(1), Some(77));
+        assert_eq!(store.gem_properties(2), None);
 
         let unlimited = ItemSparseTemplateEntry {
             stackable: 0,

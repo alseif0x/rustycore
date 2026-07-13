@@ -1884,9 +1884,13 @@ impl StatementDef for CharStatements {
             Self::SEL_CHAR_EQUIPMENT => {
                 "SELECT ci.slot, ii.itemEntry, ci.item, ii.count, ii.durability, ii.context, \
                  ii.flags, ii.playedTime, ii.enchantments, ii.randomPropertiesId, \
-                 ii.randomPropertiesSeed, ir.paidMoney, ir.paidExtendedCost \
+                 ii.randomPropertiesSeed, ig.gemItemId1, ig.gemBonuses1, ig.gemContext1, \
+                 ig.gemItemId2, ig.gemBonuses2, ig.gemContext2, \
+                 ig.gemItemId3, ig.gemBonuses3, ig.gemContext3, \
+                 ir.paidMoney, ir.paidExtendedCost \
                  FROM character_inventory ci \
                  JOIN item_instance ii ON ci.item = ii.guid \
+                 LEFT JOIN item_instance_gems ig ON ii.guid = ig.itemGuid \
                  LEFT JOIN item_refund_instance ir \
                    ON ir.item_guid = ci.item AND ir.player_guid = ci.guid \
                  WHERE ci.guid = ? AND ci.bag = 0"
@@ -3120,11 +3124,15 @@ impl StatementDef for CharStatements {
             Self::SEL_CHAR_BAG_CONTENTS => {
                 "SELECT bag_ci.slot, ci.slot, ii.itemEntry, ci.item, ii.count, ii.durability, ii.context, \
                  ii.flags, ii.playedTime, ii.enchantments, ii.randomPropertiesId, \
-                 ii.randomPropertiesSeed, ir.paidMoney, ir.paidExtendedCost \
+                 ii.randomPropertiesSeed, ig.gemItemId1, ig.gemBonuses1, ig.gemContext1, \
+                 ig.gemItemId2, ig.gemBonuses2, ig.gemContext2, \
+                 ig.gemItemId3, ig.gemBonuses3, ig.gemContext3, \
+                 ir.paidMoney, ir.paidExtendedCost \
                  FROM character_inventory ci \
                  JOIN character_inventory bag_ci \
                    ON bag_ci.guid = ci.guid AND bag_ci.item = ci.bag \
                  JOIN item_instance ii ON ci.item = ii.guid \
+                 LEFT JOIN item_instance_gems ig ON ii.guid = ig.itemGuid \
                  LEFT JOIN item_refund_instance ir \
                    ON ir.item_guid = ci.item AND ir.player_guid = ci.guid \
                  WHERE ci.guid = ? AND bag_ci.bag = 0 AND ((bag_ci.slot >= 30 AND bag_ci.slot < 34) OR \
@@ -6051,6 +6059,16 @@ mod tests {
                 .sql()
                 .contains("ii.randomPropertiesSeed")
         );
+        assert!(
+            CharStatements::SEL_CHAR_EQUIPMENT
+                .sql()
+                .contains("LEFT JOIN item_instance_gems ig ON ii.guid = ig.itemGuid")
+        );
+        assert!(
+            CharStatements::SEL_CHAR_EQUIPMENT
+                .sql()
+                .contains("ig.gemItemId3")
+        );
         assert_eq!(
             CharStatements::INS_ITEM_INSTANCE_WITH_RANDOM_CONTEXT
                 .sql()
@@ -6112,6 +6130,16 @@ mod tests {
             CharStatements::SEL_CHAR_BAG_CONTENTS
                 .sql()
                 .contains("ii.randomPropertiesSeed")
+        );
+        assert!(
+            CharStatements::SEL_CHAR_BAG_CONTENTS
+                .sql()
+                .contains("LEFT JOIN item_instance_gems ig ON ii.guid = ig.itemGuid")
+        );
+        assert!(
+            CharStatements::SEL_CHAR_BAG_CONTENTS
+                .sql()
+                .contains("ig.gemItemId3")
         );
         assert_eq!(
             CharStatements::DEL_ITEM_REFUND_INSTANCE
