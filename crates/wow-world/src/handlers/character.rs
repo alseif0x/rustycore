@@ -180,18 +180,45 @@ fn primary_max_power_for_class_like_cpp(class_id: u8, max_mana: i64) -> i32 {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct LoadedItemRandomPropertiesLikeCpp {
+    id: i32,
+    seed: i32,
+}
+
+fn loaded_item_random_properties_like_cpp(
+    random_properties_id: i32,
+    random_properties_seed: i32,
+    item_random_properties_store: Option<&wow_data::ItemRandomPropertiesStore>,
+    item_random_suffix_store: Option<&wow_data::ItemRandomSuffixStore>,
+) -> Option<LoadedItemRandomPropertiesLikeCpp> {
+    if random_properties_id > 0 {
+        item_random_properties_store?
+            .get(random_properties_id as u32)
+            .map(|_| LoadedItemRandomPropertiesLikeCpp {
+                id: random_properties_id,
+                seed: 0,
+            })
+    } else if random_properties_id < 0 {
+        item_random_suffix_store?
+            .get(random_properties_id.unsigned_abs())
+            .map(|_| LoadedItemRandomPropertiesLikeCpp {
+                id: random_properties_id,
+                seed: random_properties_seed,
+            })
+    } else {
+        None
+    }
+}
+
 fn apply_loaded_item_instance_fields_like_cpp(
     item: &mut wow_entities::Item,
     enchantments: &[ItemEnchantmentValuesUpdate; wow_entities::MAX_ENCHANTMENT_SLOT],
-    random_properties_id: i32,
-    random_properties_seed: i32,
+    random_properties: Option<LoadedItemRandomPropertiesLikeCpp>,
 ) {
-    if random_properties_id > 0 {
-        item.set_random_properties_id(random_properties_id);
-        item.set_property_seed(0);
-    } else if random_properties_id < 0 {
-        item.set_random_properties_id(random_properties_id);
-        item.set_property_seed(random_properties_seed);
+    if let Some(random_properties) = random_properties {
+        item.set_random_properties_id(random_properties.id);
+        item.set_property_seed(random_properties.seed);
     }
 
     for (slot_index, enchantment) in enchantments.iter().enumerate() {
@@ -5018,12 +5045,17 @@ impl WorldSession {
                                 eq_result.try_read::<String>(8).unwrap_or_default();
                             let item_enchantment_values =
                                 loaded_item_enchantments_like_cpp(&item_enchantments);
-                            let random_properties_id = eq_result.try_read::<i32>(9).unwrap_or(0);
-                            let random_properties_seed = if random_properties_id < 0 {
-                                eq_result.try_read::<i32>(10).unwrap_or(0)
-                            } else {
-                                0
-                            };
+                            let random_properties = loaded_item_random_properties_like_cpp(
+                                eq_result.try_read::<i32>(9).unwrap_or(0),
+                                eq_result.try_read::<i32>(10).unwrap_or(0),
+                                self.item_random_properties_store()
+                                    .map(|store| store.as_ref()),
+                                self.item_random_suffix_store().map(|store| store.as_ref()),
+                            );
+                            let random_properties_id =
+                                random_properties.map(|random| random.id).unwrap_or(0);
+                            let random_properties_seed =
+                                random_properties.map(|random| random.seed).unwrap_or(0);
                             let item_create_enchantments =
                                 loaded_item_effective_enchantments_like_cpp(
                                     item_enchantment_values.as_ref(),
@@ -5127,8 +5159,7 @@ impl WorldSession {
                                 apply_loaded_item_instance_fields_like_cpp(
                                     &mut item_object,
                                     &item_create_enchantments,
-                                    random_properties_id,
-                                    random_properties_seed,
+                                    random_properties,
                                 );
                                 item_object.replace_all_item_flags(
                                     ItemFieldFlags::from_bits_retain(stored_flags),
@@ -5205,13 +5236,17 @@ impl WorldSession {
                                     bag_result.try_read::<String>(9).unwrap_or_default();
                                 let item_enchantment_values =
                                     loaded_item_enchantments_like_cpp(&item_enchantments);
+                                let random_properties = loaded_item_random_properties_like_cpp(
+                                    bag_result.try_read::<i32>(10).unwrap_or(0),
+                                    bag_result.try_read::<i32>(11).unwrap_or(0),
+                                    self.item_random_properties_store()
+                                        .map(|store| store.as_ref()),
+                                    self.item_random_suffix_store().map(|store| store.as_ref()),
+                                );
                                 let random_properties_id =
-                                    bag_result.try_read::<i32>(10).unwrap_or(0);
-                                let random_properties_seed = if random_properties_id < 0 {
-                                    bag_result.try_read::<i32>(11).unwrap_or(0)
-                                } else {
-                                    0
-                                };
+                                    random_properties.map(|random| random.id).unwrap_or(0);
+                                let random_properties_seed =
+                                    random_properties.map(|random| random.seed).unwrap_or(0);
                                 let item_create_enchantments =
                                     loaded_item_effective_enchantments_like_cpp(
                                         item_enchantment_values.as_ref(),
@@ -5244,8 +5279,7 @@ impl WorldSession {
                                         apply_loaded_item_instance_fields_like_cpp(
                                             &mut item_object,
                                             &item_create_enchantments,
-                                            random_properties_id,
-                                            random_properties_seed,
+                                            random_properties,
                                         );
                                         item_object.replace_all_item_flags(
                                             ItemFieldFlags::from_bits_retain(item_flags),
@@ -15095,6 +15129,12 @@ mod tests {
     #[test]
     fn loaded_item_instance_fields_preserve_enchantments_and_random_suffix_like_cpp() {
         let mut item = wow_entities::Item::default();
+        let suffixes =
+            wow_data::ItemRandomSuffixStore::from_entries([wow_data::ItemRandomSuffixEntry {
+                id: 77,
+                enchantments: [901, 902, 903, 0, 0],
+                allocation_pct: [1000, 2000, 3000, 0, 0],
+            }]);
         let enchantments = test_item_enchantments_db_string(&[
             (EnchantmentSlot::EnhancementPermanent as usize, 2673, 0, 0),
             (
@@ -15107,10 +15147,20 @@ mod tests {
         ]);
         let enchantments =
             loaded_item_enchantments_like_cpp(&enchantments).expect("valid C++ enchantment string");
-        let effective_enchantments =
-            loaded_item_effective_enchantments_like_cpp(Some(&enchantments), -77, None, None);
+        let random_properties =
+            loaded_item_random_properties_like_cpp(-77, 456, None, Some(&suffixes));
+        let effective_enchantments = loaded_item_effective_enchantments_like_cpp(
+            Some(&enchantments),
+            -77,
+            None,
+            Some(&suffixes),
+        );
 
-        apply_loaded_item_instance_fields_like_cpp(&mut item, &effective_enchantments, -77, 456);
+        apply_loaded_item_instance_fields_like_cpp(
+            &mut item,
+            &effective_enchantments,
+            random_properties,
+        );
 
         assert_eq!(item.data().random_properties_id, -77);
         assert_eq!(item.data().property_seed, 456);
@@ -15140,7 +15190,7 @@ mod tests {
         let effective_enchantments =
             loaded_item_effective_enchantments_like_cpp(enchantments.as_ref(), 0, None, None);
 
-        apply_loaded_item_instance_fields_like_cpp(&mut item, &effective_enchantments, 0, 0);
+        apply_loaded_item_instance_fields_like_cpp(&mut item, &effective_enchantments, None);
 
         assert!(
             item.data()
@@ -15163,8 +15213,14 @@ mod tests {
             }]);
         let effective_enchantments =
             loaded_item_effective_enchantments_like_cpp(None, -77, None, Some(&suffixes));
+        let random_properties =
+            loaded_item_random_properties_like_cpp(-77, 456, None, Some(&suffixes));
 
-        apply_loaded_item_instance_fields_like_cpp(&mut item, &effective_enchantments, -77, 456);
+        apply_loaded_item_instance_fields_like_cpp(
+            &mut item,
+            &effective_enchantments,
+            random_properties,
+        );
 
         assert_eq!(item.data().random_properties_id, -77);
         assert_eq!(item.data().property_seed, 456);
@@ -15197,8 +15253,14 @@ mod tests {
         ]);
         let effective_enchantments =
             loaded_item_effective_enchantments_like_cpp(None, 77, Some(&properties), None);
+        let random_properties =
+            loaded_item_random_properties_like_cpp(77, 0, Some(&properties), None);
 
-        apply_loaded_item_instance_fields_like_cpp(&mut item, &effective_enchantments, 77, 0);
+        apply_loaded_item_instance_fields_like_cpp(
+            &mut item,
+            &effective_enchantments,
+            random_properties,
+        );
 
         assert_eq!(item.data().random_properties_id, 77);
         assert_eq!(
@@ -15223,14 +15285,41 @@ mod tests {
     #[test]
     fn loaded_positive_random_property_ignores_stale_seed_like_cpp() {
         let mut item = wow_entities::Item::default();
+        let properties = wow_data::ItemRandomPropertiesStore::from_entries([
+            wow_data::ItemRandomPropertiesEntry {
+                id: 77,
+                enchantments: [1001, 1002, 1003, 0, 0],
+            },
+        ]);
         let effective_enchantments =
             [wow_packet::packets::update::ItemEnchantmentValuesUpdate::default();
                 wow_entities::MAX_ENCHANTMENT_SLOT];
+        let random_properties =
+            loaded_item_random_properties_like_cpp(77, 456, Some(&properties), None);
 
-        apply_loaded_item_instance_fields_like_cpp(&mut item, &effective_enchantments, 77, 456);
+        apply_loaded_item_instance_fields_like_cpp(
+            &mut item,
+            &effective_enchantments,
+            random_properties,
+        );
 
         assert_eq!(item.data().random_properties_id, 77);
         assert_eq!(item.data().property_seed, 0);
+    }
+
+    #[test]
+    fn loaded_missing_random_property_records_are_rejected_like_cpp() {
+        let properties = wow_data::ItemRandomPropertiesStore::from_entries([]);
+        let suffixes = wow_data::ItemRandomSuffixStore::from_entries([]);
+
+        assert_eq!(
+            loaded_item_random_properties_like_cpp(77, 456, Some(&properties), Some(&suffixes)),
+            None
+        );
+        assert_eq!(
+            loaded_item_random_properties_like_cpp(-77, 456, Some(&properties), Some(&suffixes)),
+            None
+        );
     }
 
     #[test]
