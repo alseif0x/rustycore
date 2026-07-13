@@ -16744,6 +16744,11 @@ impl WorldSession {
         &mut self,
         loaded_equipped_item_guids: &[ObjectGuid],
     ) -> InitialLoadedItemModsOutcomeLikeCpp {
+        // This is the initial C++ `_ApplyAllItemMods` replay for a newly
+        // constructed Player. Start from the same empty modifier state even
+        // after a failed/retried login that did not reach normal teardown.
+        self.reset_represented_item_bonus_runtime_like_cpp();
+
         let mut equipped = loaded_equipped_item_guids
             .iter()
             .filter_map(|&item_guid| {
@@ -17059,7 +17064,11 @@ impl WorldSession {
                     );
                 }
             }
-            (unit_mod, wow_entities::ApplyEnchantmentUnitModifier::BaseValue) => {
+            (
+                unit_mod,
+                wow_entities::ApplyEnchantmentUnitModifier::BaseValue
+                | wow_entities::ApplyEnchantmentUnitModifier::TotalValue,
+            ) => {
                 if let Some(index) = represented_unit_mod_stat_index_like_cpp(unit_mod) {
                     apply_represented_i32_delta_like_cpp(
                         &mut self.represented_item_bonus_state_like_cpp.stats_base[index],
@@ -17068,7 +17077,6 @@ impl WorldSession {
                     );
                 }
             }
-            _ => {}
         }
     }
 
@@ -18819,6 +18827,15 @@ impl WorldSession {
         self.mutate_player_inventory_runtime_like_cpp(|inventory| {
             *inventory = SessionPlayerInventoryRuntime::default();
         });
+        self.reset_represented_item_bonus_runtime_like_cpp();
+    }
+
+    fn reset_represented_item_bonus_runtime_like_cpp(&mut self) {
+        // C++ WorldSession::HandlePlayerLogin constructs a fresh Player, so
+        // item modifiers from a previous character cannot survive into the
+        // next login on the same session.
+        self.represented_item_bonus_actions_like_cpp.clear();
+        self.represented_item_bonus_state_like_cpp = RepresentedItemBonusStateLikeCpp::default();
     }
 
     pub(crate) fn clear_buyback_runtime_like_cpp(&mut self) {
@@ -21086,9 +21103,6 @@ impl WorldSession {
                 &[],
                 None,
             );
-        }
-        if outcome.send_stat_update {
-            self.send_represented_item_bonus_player_stat_update_like_cpp();
         }
     }
 
@@ -38782,7 +38796,6 @@ impl WorldSession {
         self.represented_item_set_effects_like_cpp.get(&item_set_id)
     }
 
-    #[cfg(test)]
     pub(crate) fn represented_item_bonus_state_like_cpp(
         &self,
     ) -> &RepresentedItemBonusStateLikeCpp {
@@ -120803,7 +120816,7 @@ mod tests {
     }
 
     #[test]
-    fn loaded_conditional_enchantment_replay_uses_equipped_gem_colors_like_cpp() {
+    fn loaded_condition_counts_persisted_gems_without_socket_template_like_cpp() {
         let (mut session, _, _) = make_session();
         let canonical = shared_canonical_map_manager();
         let player_guid = ObjectGuid::create_player(1, 90_524);
@@ -120897,6 +120910,15 @@ mod tests {
             }]
         ));
         assert!(blocked.duration_updates.is_empty());
+
+        assert!(
+            session
+                .item_stats_store
+                .as_ref()
+                .and_then(|store| store.socket_template(700))
+                .is_none(),
+            "C++ EnchantmentFitsRequirements counts SocketedGem rows and does not gate them on GetSocketColor(0)"
+        );
 
         session.update_inventory_item_object_like_cpp(item_guid, |item| {
             item.set_gems(vec![SocketedGem {
@@ -121271,7 +121293,7 @@ mod tests {
             EQUIPMENT_SLOT_CHEST,
         );
         item.set_enchantment(EnchantmentSlot::EnhancementPermanent, 906, 0, 0);
-        session.insert_inventory_item_object(item);
+        session.insert_inventory_item_object(item.clone());
 
         let outcome = session.apply_loaded_equipped_item_enchantments_like_cpp(item_guid);
 
@@ -121300,12 +121322,32 @@ mod tests {
             "loaded enchant stat update is queued until after login CREATE"
         );
         session.send_loaded_equipped_item_enchantment_updates_like_cpp(&outcome);
-        assert!(
-            drain_server_packet_bytes(&send_rx)
-                .iter()
-                .any(|bytes| WorldPacket::from_bytes(bytes).server_opcode()
-                    == Some(ServerOpcodes::UpdateObject)),
-            "loaded enchantment effects send a represented player stat update"
+        let packets = drain_server_packet_bytes(&send_rx);
+        assert_eq!(
+            packets.len(),
+            1,
+            "only the permanent-enchant visual delta remains; stat bonuses are folded into the full login snapshot"
+        );
+        assert_eq!(
+            WorldPacket::from_bytes(&packets[0]).server_opcode(),
+            Some(ServerOpcodes::UpdateObject)
+        );
+
+        session.clear_all_inventory_runtime_like_cpp();
+        assert!(session.represented_item_bonus_actions_like_cpp().is_empty());
+        assert_eq!(
+            session.represented_item_bonus_state_like_cpp().health_base,
+            0,
+            "logout discards the old Player's item modifier state"
+        );
+
+        session.insert_inventory_item_object(item);
+        let relogin = session.apply_initial_loaded_item_mods_like_cpp(&[item_guid]);
+        assert!(relogin.enchantments.send_stat_update);
+        assert_eq!(
+            session.represented_item_bonus_state_like_cpp().health_base,
+            17,
+            "relogin replays the new Player's enchantment once instead of carrying or doubling the previous bonus"
         );
     }
 

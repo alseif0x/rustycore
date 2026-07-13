@@ -13181,6 +13181,13 @@ impl WorldSession {
     /// C++ `Player::UpdateAllStats` updates max power but preserves current power,
     /// clamping only when the max drops below current (`Unit::SetMaxPower`).
     fn player_stat_changes_like_cpp(&mut self) -> Option<(ObjectGuid, PlayerStatChanges)> {
+        self.player_stat_changes_with_represented_item_bonuses_like_cpp(false)
+    }
+
+    fn player_stat_changes_with_represented_item_bonuses_like_cpp(
+        &mut self,
+        include_represented_item_bonuses: bool,
+    ) -> Option<(ObjectGuid, PlayerStatChanges)> {
         let player_guid = match self.player_guid() {
             Some(g) => g,
             None => return None,
@@ -13196,14 +13203,14 @@ impl WorldSession {
 
         // Sum gear stat bonuses from equipped items (slots 0-18)
         let (
-            gear_stats,
-            gear_ap,
-            gear_rap,
-            gear_health,
-            gear_mana,
-            gear_combat_ratings,
-            gear_spell_power,
-            gear_armor,
+            mut gear_stats,
+            mut gear_ap,
+            mut gear_rap,
+            mut gear_health,
+            mut gear_mana,
+            mut gear_combat_ratings,
+            mut gear_spell_power,
+            mut gear_armor,
         ) = if let Some(iss) = self.item_stats_store() {
             let mut bonuses = [0i32; 5];
             let mut g_ap = 0i32;
@@ -13239,6 +13246,27 @@ impl WorldSession {
         } else {
             ([0i32; 5], 0, 0, 0, 0, [0i32; 25], 0, 0)
         };
+
+        let represented_item_bonuses = include_represented_item_bonuses
+            .then(|| self.represented_item_bonus_state_like_cpp().clone());
+        if let Some(bonuses) = represented_item_bonuses.as_ref() {
+            for index in 0..gear_stats.len() {
+                gear_stats[index] = gear_stats[index].saturating_add(bonuses.stats_base[index]);
+            }
+            gear_ap = gear_ap.saturating_add(bonuses.attack_power_total);
+            gear_rap = gear_rap.saturating_add(bonuses.ranged_attack_power_total);
+            gear_health = gear_health.saturating_add(bonuses.health_base);
+            gear_mana = gear_mana.saturating_add(bonuses.mana_base);
+            for index in 0..gear_combat_ratings.len() {
+                gear_combat_ratings[index] =
+                    gear_combat_ratings[index].saturating_add(bonuses.combat_ratings[index]);
+            }
+            gear_spell_power = gear_spell_power.saturating_add(bonuses.spell_power_bonus);
+            gear_armor = gear_armor
+                .saturating_add(bonuses.armor_base)
+                .saturating_add(bonuses.armor_total)
+                .saturating_add(bonuses.resistances_base[0]);
+        }
 
         // Compute total stats from base + gear
         let store = match self.player_stats() {
@@ -13452,10 +13480,20 @@ impl WorldSession {
         let parry_from_attr = 0.0; // No STR-to-parry in WotLK without talent
 
         // ── Shield block value (from STR, for shield classes) ──
-        let shield_block_value = match class {
+        let mut shield_block_value = match class {
             1 | 2 | 7 => ((total_str as f32 * 0.5 - 10.0).max(0.0)) as i32,
             _ => 0,
         };
+        if let Some(bonuses) = represented_item_bonuses.as_ref() {
+            shield_block_value = shield_block_value
+                .saturating_add(bonuses.shield_block_base_mod)
+                .saturating_add(i32::try_from(bonuses.shield_block_value).unwrap_or(i32::MAX));
+        }
+        // C++ `Player::UpdateManaRegen` stores MP5 bonuses as per-second
+        // values in both normal and interrupted flat regen fields.
+        let represented_mana_regen_per_second = represented_item_bonuses
+            .as_ref()
+            .map_or(0.0, |bonuses| bonuses.mana_regen_bonus as f32 / 5.0);
 
         let changes = PlayerStatChanges {
             health,
@@ -13482,9 +13520,9 @@ impl WorldSession {
             ranged_crit_pct: melee_crit_pct,
             spell_crit_pct: spell_crit_arr,
             // Mana regen
-            mana_regen: spirit_regen,
-            mana_regen_combat: 0.0, // No talents = no in-combat spirit regen
-            mana_regen_mp5: 0.0,    // No MP5 auras without talent system
+            mana_regen: spirit_regen + represented_mana_regen_per_second,
+            mana_regen_combat: represented_mana_regen_per_second,
+            mana_regen_mp5: 0.0,
             // Expertise
             mainhand_expertise: expertise_value,
             offhand_expertise: expertise_value,
@@ -13537,6 +13575,18 @@ impl WorldSession {
     /// Called after equip/desequip changes to gear slots (0-18).
     pub(crate) fn send_stat_update(&mut self) {
         let Some((player_guid, changes)) = self.player_stat_changes_like_cpp() else {
+            return;
+        };
+
+        let update =
+            UpdateObject::player_stat_update(player_guid, self.player_map_id_like_cpp(), changes);
+        self.send_packet(&update);
+    }
+
+    fn send_login_stat_update_with_represented_item_bonuses_like_cpp(&mut self) {
+        let Some((player_guid, changes)) =
+            self.player_stat_changes_with_represented_item_bonuses_like_cpp(true)
+        else {
             return;
         };
 
@@ -15010,9 +15060,11 @@ impl WorldSession {
 
         // 33. Send full stat VALUES update so all character panel tabs
         //     (Melee, Ranged, Spell, Defense) display correct values on login.
-        //     The CREATE packet has basic defaults; this overwrites them with
-        //     fully computed stats (mana regen, expertise, shield block, etc.).
-        self.send_stat_update();
+        //     C++ has already applied loaded item enchantments at this point;
+        //     merge their represented modifiers into this absolute snapshot.
+        //     A second bonus-only packet would write its default fields as
+        //     zero and corrupt unrelated client-visible stats.
+        self.send_login_stat_update_with_represented_item_bonuses_like_cpp();
 
         info!(
             "Login sequence complete for {:?} (38 packets including broadcasts)",
@@ -16615,6 +16667,122 @@ mod tests {
         assert_eq!(
             session.canonical_player_health_snapshot_like_cpp(),
             Some((110, 110))
+        );
+    }
+
+    #[test]
+    fn login_stat_update_derives_and_syncs_loaded_enchantment_bonuses_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send_capacity(1);
+        let player_guid = ObjectGuid::create_player(1, 81);
+        let item_guid = ObjectGuid::create_item(1, 82);
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
+        session.set_player_stats(Arc::new(stats_store_with_priest_level80(1000, 40)));
+        attach_stat_update_player_with_mana_and_health(
+            &mut session,
+            player_guid,
+            777,
+            1320,
+            77,
+            110,
+        );
+        session
+            .mutate_canonical_player_like_cpp(|player| player.unit_mut().set_level(80))
+            .unwrap();
+        session.set_spell_item_enchantment_store(Arc::new(
+            wow_data::SpellItemEnchantmentStore::from_entries([
+                wow_data::SpellItemEnchantmentEntry {
+                    id: 920,
+                    effect_arg: [
+                        wow_constants::ItemModType::Stamina as u32,
+                        wow_constants::ItemModType::Mana as u32,
+                        wow_constants::ItemModType::Strength as u32,
+                    ],
+                    effect_points_min: [3, 4, 2],
+                    item_visual: 0,
+                    flags: wow_constants::SpellItemEnchantmentFlags::empty(),
+                    required_skill_id: 0,
+                    required_skill_rank: 0,
+                    item_level: 1,
+                    charges: 0,
+                    effect: [wow_constants::ItemEnchantmentType::Stat as u8; 3],
+                    condition_id: 0,
+                    min_level: 1,
+                    max_level: 0,
+                },
+                wow_data::SpellItemEnchantmentEntry {
+                    id: 921,
+                    effect_arg: [wow_constants::ItemModType::ManaRegeneration as u32, 0, 0],
+                    effect_points_min: [25, 0, 0],
+                    item_visual: 0,
+                    flags: wow_constants::SpellItemEnchantmentFlags::empty(),
+                    required_skill_id: 0,
+                    required_skill_rank: 0,
+                    item_level: 1,
+                    charges: 0,
+                    effect: [
+                        wow_constants::ItemEnchantmentType::Stat as u8,
+                        wow_constants::ItemEnchantmentType::None as u8,
+                        wow_constants::ItemEnchantmentType::None as u8,
+                    ],
+                    condition_id: 0,
+                    min_level: 1,
+                    max_level: 0,
+                },
+            ]),
+        ));
+        let mut item = session.make_inventory_item_object(
+            item_guid,
+            700,
+            player_guid,
+            1,
+            0,
+            ItemContext::None,
+            wow_entities::EQUIPMENT_SLOT_CHEST,
+        );
+        item.set_enchantment(EnchantmentSlot::EnhancementPermanent, 920, 0, 0);
+        item.set_enchantment(EnchantmentSlot::EnhancementTemporary, 921, 0, 0);
+        session.insert_inventory_item_object(item);
+
+        let outcome = session.apply_loaded_equipped_item_enchantments_like_cpp(item_guid);
+        assert!(outcome.send_stat_update);
+        assert_eq!(
+            session.represented_item_bonus_state_like_cpp().stats_base,
+            [2, 0, 3, 0, 0]
+        );
+        assert_eq!(session.represented_item_bonus_state_like_cpp().mana_base, 4);
+        assert_eq!(
+            session
+                .represented_item_bonus_state_like_cpp()
+                .mana_regen_bonus,
+            25
+        );
+        let (_, changes) = session
+            .player_stat_changes_with_represented_item_bonuses_like_cpp(true)
+            .expect("login stat changes with loaded enchantments");
+
+        assert_eq!(changes.health, 77, "current health remains authoritative");
+        assert_eq!(changes.max_health, 113, "stamina is derived before max HP");
+        assert_eq!(changes.power0, 777, "current mana remains authoritative");
+        assert_eq!(
+            changes.max_power0, 1324,
+            "flat mana is derived before max power"
+        );
+        assert_eq!(changes.stats, [12, 10, 13, 40, 30]);
+        assert_eq!(
+            changes.attack_power, 2,
+            "strength feeds the class AP formula"
+        );
+        assert_eq!(changes.mana_regen_combat, 5.0);
+        assert_eq!(changes.mana_regen_mp5, 0.0);
+        assert!(changes.mana_regen > changes.mana_regen_combat);
+        assert_eq!(
+            session.canonical_player_health_snapshot_like_cpp(),
+            Some((77, 113))
+        );
+        assert_eq!(
+            session.canonical_player_power_snapshot_like_cpp(PowerType::Mana),
+            Some((777, 1324))
         );
     }
 
