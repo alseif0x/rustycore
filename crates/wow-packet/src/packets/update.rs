@@ -5382,13 +5382,10 @@ fn write_item_create_block(
     // Owner conditional block 5
     val_buf.write_uint16(0); // DEBUGItemLevel
 
-    // C++ `SocketedGem::WriteCreate`.
+    // C++ `SocketedGem::WriteCreate`. Its CREATE order deliberately differs
+    // from `WriteUpdate`: ItemID, all 16 BonusListIDs, then Context.
     for gem in &data.gems {
-        val_buf.write_int32(gem.item_id);
-        for bonus in gem.bonus_list_ids {
-            val_buf.write_uint16(bonus);
-        }
-        val_buf.write_uint8(gem.context);
+        write_socketed_gem_create_like_cpp(&mut val_buf, gem);
     }
 
     // ItemModList (dynamic) — 6 bits for size = 0, then FlushBits
@@ -6310,6 +6307,14 @@ fn write_artifact_power_values_update(buf: &mut WorldPacket, data: &ArtifactPowe
     buf.write_int16(data.artifact_power_id);
     buf.write_uint8(data.purchased_rank);
     buf.write_uint8(data.current_rank_with_bonus);
+}
+
+fn write_socketed_gem_create_like_cpp(buf: &mut WorldPacket, data: &SocketedGemValuesUpdate) {
+    buf.write_int32(data.item_id);
+    for bonus in data.bonus_list_ids {
+        buf.write_uint16(bonus);
+    }
+    buf.write_uint8(data.context);
 }
 
 fn write_socketed_gem_values_update(buf: &mut WorldPacket, data: &SocketedGemValuesUpdate) {
@@ -9562,6 +9567,27 @@ mod tests {
         };
         let bytes = pkt.to_bytes();
         assert!(bytes.len() > 10);
+    }
+
+    #[test]
+    fn socketed_gem_create_uses_cpp_create_order_not_update_order() {
+        let gem = SocketedGemValuesUpdate {
+            socketed_gem_mask: 0x000F_FFFF,
+            item_id: 40_111,
+            context: 3,
+            bonus_list_ids: std::array::from_fn(|index| (index as u16) + 70),
+        };
+        let mut packet = WorldPacket::new_empty();
+
+        write_socketed_gem_create_like_cpp(&mut packet, &gem);
+
+        let mut expected = Vec::new();
+        expected.extend_from_slice(&gem.item_id.to_le_bytes());
+        for bonus in gem.bonus_list_ids {
+            expected.extend_from_slice(&bonus.to_le_bytes());
+        }
+        expected.push(gem.context);
+        assert_eq!(packet.into_data(), expected);
     }
 
     #[test]

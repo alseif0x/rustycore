@@ -67,8 +67,7 @@ use crate::session::{
     ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP, CharacterPetAuraEffectRowLikeCpp,
     CharacterPetAuraRowLikeCpp, CharacterPetDeclinedNamesRowLikeCpp,
     CharacterPetSpellChargeRowLikeCpp, CharacterPetSpellCooldownRowLikeCpp,
-    CharacterPetSpellRowLikeCpp, CharacterPetStableRowLikeCpp,
-    LoadedEquippedItemEnchantmentsOutcomeLikeCpp, RepresentedAlterAppearanceLikeCpp,
+    CharacterPetSpellRowLikeCpp, CharacterPetStableRowLikeCpp, RepresentedAlterAppearanceLikeCpp,
     RepresentedBankItemMoveLikeCpp, RepresentedConfirmBarbersChoiceLikeCpp,
     RepresentedGameObjectUseState,
 };
@@ -5840,12 +5839,6 @@ impl WorldSession {
         if loaded_skill_records_like_cpp {
             self.set_player_skill_records_like_cpp(skill_records);
         }
-        let mut loaded_enchantment_updates =
-            LoadedEquippedItemEnchantmentsOutcomeLikeCpp::default();
-        for item_guid in loaded_equipped_item_guids {
-            loaded_enchantment_updates
-                .append(self.apply_loaded_equipped_item_enchantments_like_cpp(item_guid));
-        }
 
         // ── Load talents from character_talent ──
         // C++ `Player::LoadFromDB` calls `_LoadTalents` before `_LoadSpells`;
@@ -6334,22 +6327,28 @@ impl WorldSession {
                 "Loaded represented character auras like C++ Player::_LoadAuras"
             );
         }
-        let initial_item_equip_auras = self.apply_initial_equipped_item_equip_auras_like_cpp();
-        if initial_item_equip_auras > 0 {
+        // C++ `Player::LoadFromDB` runs `_LoadAuras` before `_LoadInventory`,
+        // whose final `_ApplyAllItemMods` pass applies, for each equipment slot,
+        // the item-set effect, regular equip spell, and enchantments before
+        // advancing to the next item. Keep the replay here so loaded and
+        // item-provided auras receive the same slot order.
+        let initial_item_mods =
+            self.apply_initial_loaded_item_mods_like_cpp(&loaded_equipped_item_guids);
+        if initial_item_mods.item_set_auras > 0 {
             info!(
                 player_guid = guid.counter(),
-                initial_item_equip_auras,
-                "Applied represented initial item equip auras like C++ Player::_ApplyAllItemMods"
-            );
-        }
-        let initial_item_set_auras = self.apply_initial_equipped_item_set_auras_like_cpp();
-        if initial_item_set_auras > 0 {
-            info!(
-                player_guid = guid.counter(),
-                initial_item_set_auras,
+                initial_item_set_auras = initial_item_mods.item_set_auras,
                 "Applied represented initial item-set auras like C++ Player::_ApplyAllItemMods"
             );
         }
+        if initial_item_mods.item_equip_auras > 0 {
+            info!(
+                player_guid = guid.counter(),
+                initial_item_equip_auras = initial_item_mods.item_equip_auras,
+                "Applied represented initial item equip auras like C++ Player::_ApplyAllItemMods"
+            );
+        }
+        let loaded_enchantment_updates = initial_item_mods.enchantments;
         let login_known_spells = self.login_known_spells_after_account_collections_like_cpp();
         let login_favorite_spells =
             favorite_known_spells_for_send_like_cpp(&login_known_spells, &favorite_spell_rows);

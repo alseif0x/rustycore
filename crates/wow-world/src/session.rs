@@ -3387,6 +3387,13 @@ impl LoadedEquippedItemEnchantmentsOutcomeLikeCpp {
     }
 }
 
+#[derive(Debug, Clone, Default)]
+pub(crate) struct InitialLoadedItemModsOutcomeLikeCpp {
+    pub item_set_auras: usize,
+    pub item_equip_auras: usize,
+    pub enchantments: LoadedEquippedItemEnchantmentsOutcomeLikeCpp,
+}
+
 #[allow(dead_code)]
 fn represented_skill_records_from_values_like_cpp(
     skill_values: &HashMap<u16, u16>,
@@ -16578,77 +16585,92 @@ impl WorldSession {
     }
 
     pub(crate) fn apply_initial_equipped_item_equip_auras_like_cpp(&mut self) -> usize {
+        let mut equipped: Vec<_> = self
+            .inventory_item_objects_like_cpp()
+            .values()
+            .filter(|item| item.container_guid().is_empty() && item.slot() < INVENTORY_SLOT_BAG_END)
+            .map(|item| (item.slot(), item.object().guid()))
+            .collect();
+        equipped.sort_by_key(|(slot, guid)| (*slot, guid.counter()));
+        equipped
+            .into_iter()
+            .map(|(_slot, item_guid)| self.apply_initial_item_equip_auras_like_cpp(item_guid))
+            .sum()
+    }
+
+    fn apply_initial_item_equip_auras_like_cpp(&mut self, item_guid: ObjectGuid) -> usize {
         let Some(_player_guid) = self.player_guid() else {
             return 0;
         };
         let Some(item_effect_store) = self.item_effect_store.as_ref().cloned() else {
             return 0;
         };
-
-        let mut equipped: Vec<_> = self
+        let Some(item_entry) = self
             .inventory_item_objects_like_cpp()
-            .values()
+            .get(&item_guid)
             .filter(|item| item.container_guid().is_empty() && item.slot() < INVENTORY_SLOT_BAG_END)
-            .map(|item| (item.slot(), item.object().guid(), item.object().entry()))
-            .collect();
-        equipped.sort_by_key(|(slot, guid, _entry)| (*slot, guid.counter()));
+            .map(|item| item.object().entry())
+        else {
+            return 0;
+        };
+        if !self.initial_loaded_item_mods_can_apply_like_cpp(item_guid) {
+            return 0;
+        }
 
         let primary_spec = self.represented_primary_specialization_id_like_cpp();
         let mut applied = 0usize;
-        for (_slot, item_guid, item_entry) in equipped {
-            if self
-                .item_stats_store
-                .as_ref()
-                .and_then(|store| store.sparse_template(item_entry))
-                .is_some_and(|template| template.item_flags().contains(ItemFlags::LEGACY))
+        if self
+            .item_stats_store
+            .as_ref()
+            .and_then(|store| store.sparse_template(item_entry))
+            .is_some_and(|template| template.item_flags().contains(ItemFlags::LEGACY))
+        {
+            return 0;
+        }
+
+        let effects: Vec<_> = item_effect_store
+            .item_effects_for_item_id_like_cpp(item_entry)
+            .into_iter()
+            .cloned()
+            .collect();
+        for effect in effects {
+            if effect.trigger_type != 1 {
+                continue;
+            }
+            if effect.spell_id <= 0 {
+                continue;
+            }
+            if effect.chr_specialization_id != 0
+                && u32::from(effect.chr_specialization_id) != primary_spec
             {
                 continue;
             }
+            if !self.represented_equip_spell_fits_shapeshift_like_cpp(effect.spell_id as u32) {
+                continue;
+            }
 
-            let effects: Vec<_> = item_effect_store
-                .item_effects_for_item_id_like_cpp(item_entry)
-                .into_iter()
+            let Some(spell_info) = self
+                .spell_store()
+                .and_then(|store| store.get(effect.spell_id))
                 .cloned()
-                .collect();
-            for effect in effects {
-                if effect.trigger_type != 1 {
-                    continue;
-                }
-                if effect.spell_id <= 0 {
-                    continue;
-                }
-                if effect.chr_specialization_id != 0
-                    && u32::from(effect.chr_specialization_id) != primary_spec
-                {
-                    continue;
-                }
-                if !self.represented_equip_spell_fits_shapeshift_like_cpp(effect.spell_id as u32) {
-                    continue;
-                }
-
-                let Some(spell_info) = self
-                    .spell_store()
-                    .and_then(|store| store.get(effect.spell_id))
-                    .cloned()
-                else {
-                    continue;
-                };
-                let effect_mask = unit_owned_apply_aura_effect_mask_like_cpp(&spell_info);
-                if effect_mask == 0 {
-                    continue;
-                }
-                if self
-                    .apply_aura_with_effect_mask_like_cpp(
-                        effect.spell_id,
-                        item_guid,
-                        0,
-                        AFLAG_NOCASTER_LIKE_CPP | 0x0000_0100 | 0x0000_0200,
-                        effect_mask,
-                    )
-                    .is_ok()
-                {
-                    applied += 1;
-                }
+            else {
+                continue;
+            };
+            let effect_mask = unit_owned_apply_aura_effect_mask_like_cpp(&spell_info);
+            if effect_mask == 0 {
+                continue;
+            }
+            if self
+                .apply_aura_with_effect_mask_like_cpp(
+                    effect.spell_id,
+                    item_guid,
+                    0,
+                    AFLAG_NOCASTER_LIKE_CPP | 0x0000_0100 | 0x0000_0200,
+                    effect_mask,
+                )
+                .is_ok()
+            {
+                applied += 1;
             }
         }
 
@@ -16656,20 +16678,25 @@ impl WorldSession {
     }
 
     pub(crate) fn apply_initial_equipped_item_set_auras_like_cpp(&mut self) -> usize {
-        let Some(player_guid) = self.player_guid() else {
-            return 0;
-        };
-        let event_start = self.represented_item_set_spell_events_like_cpp.len();
         let mut equipped: Vec<_> = self
             .inventory_item_objects_like_cpp()
             .values()
             .filter(|item| item.container_guid().is_empty() && item.slot() < INVENTORY_SLOT_BAG_END)
-            .map(|item| item.object().guid())
+            .map(|item| (item.slot(), item.object().guid()))
             .collect();
-        equipped.sort_by_key(ObjectGuid::counter);
-        for item_guid in equipped {
-            let _ = self.record_represented_items_set_item_like_cpp(item_guid, true);
-        }
+        equipped.sort_by_key(|(slot, guid)| (*slot, guid.counter()));
+        equipped
+            .into_iter()
+            .map(|(_slot, item_guid)| self.apply_initial_item_set_auras_like_cpp(item_guid))
+            .sum()
+    }
+
+    fn apply_initial_item_set_auras_like_cpp(&mut self, item_guid: ObjectGuid) -> usize {
+        let Some(player_guid) = self.player_guid() else {
+            return 0;
+        };
+        let event_start = self.represented_item_set_spell_events_like_cpp.len();
+        let _ = self.record_represented_items_set_item_like_cpp(item_guid, true);
 
         let events = self.represented_item_set_spell_events_like_cpp[event_start..].to_vec();
         let mut applied = 0usize;
@@ -16707,6 +16734,40 @@ impl WorldSession {
             }
         }
         applied
+    }
+
+    /// Replays the aura-producing part of C++ `Player::_ApplyAllItemMods` after
+    /// `Player::_LoadAuras`. C++ walks equipment slots and, for each item,
+    /// applies its item-set effect, regular equip spell, and enchantments before
+    /// advancing to the next slot; preserve that exact order for aura slots.
+    pub(crate) fn apply_initial_loaded_item_mods_like_cpp(
+        &mut self,
+        loaded_equipped_item_guids: &[ObjectGuid],
+    ) -> InitialLoadedItemModsOutcomeLikeCpp {
+        let mut equipped = loaded_equipped_item_guids
+            .iter()
+            .filter_map(|&item_guid| {
+                self.inventory_item_objects_like_cpp()
+                    .get(&item_guid)
+                    .map(|item| (item.slot(), item_guid))
+            })
+            .collect::<Vec<_>>();
+        equipped.sort_by_key(|(slot, guid)| (*slot, guid.counter()));
+
+        let mut item_set_auras = 0usize;
+        let mut item_equip_auras = 0usize;
+        let mut enchantments = LoadedEquippedItemEnchantmentsOutcomeLikeCpp::default();
+        for (_slot, item_guid) in equipped {
+            item_set_auras += self.apply_initial_item_set_auras_like_cpp(item_guid);
+            item_equip_auras += self.apply_initial_item_equip_auras_like_cpp(item_guid);
+            enchantments.append(self.apply_loaded_equipped_item_enchantments_like_cpp(item_guid));
+        }
+
+        InitialLoadedItemModsOutcomeLikeCpp {
+            item_set_auras,
+            item_equip_auras,
+            enchantments,
+        }
     }
 
     pub(crate) fn apply_represented_item_set_aura_refresh_events_like_cpp(
@@ -20887,55 +20948,7 @@ impl WorldSession {
         if !item.is_equipped() {
             return LoadedEquippedItemEnchantmentsOutcomeLikeCpp::default();
         }
-        // C++ Player::_ApplyAllItemMods skips broken items before calling
-        // ApplyEnchantment, including its duration bookkeeping.
-        if item.is_broken() {
-            return LoadedEquippedItemEnchantmentsOutcomeLikeCpp::default();
-        }
-        let inventory_type = self
-            .item_storage_template(item.object().entry())
-            .map(|template| template.inventory_type);
-        let attack_type = match item.slot() {
-            EQUIPMENT_SLOT_MAINHAND
-                if matches!(
-                    inventory_type,
-                    Some(InventoryType::Ranged | InventoryType::RangedRight)
-                ) =>
-            {
-                WeaponAttackType::RangedAttack
-            }
-            EQUIPMENT_SLOT_MAINHAND => WeaponAttackType::BaseAttack,
-            EQUIPMENT_SLOT_OFFHAND => WeaponAttackType::OffAttack,
-            _ => WeaponAttackType::Max,
-        };
-        let can_use_attack_type = match attack_type {
-            WeaponAttackType::BaseAttack => self
-                .canonical_player_snapshot_like_cpp(|player| {
-                    !player
-                        .unit()
-                        .unit_flags_like_cpp()
-                        .contains(UnitFlags::DISARMED)
-                })
-                .unwrap_or(false),
-            WeaponAttackType::OffAttack => self
-                .canonical_player_snapshot_like_cpp(|player| {
-                    !player
-                        .unit()
-                        .unit_flags2_like_cpp()
-                        .contains(UnitFlags2::DISARM_OFFHAND)
-                })
-                .unwrap_or(false),
-            WeaponAttackType::RangedAttack => self
-                .canonical_player_snapshot_like_cpp(|player| {
-                    !player
-                        .unit()
-                        .unit_flags2_like_cpp()
-                        .contains(UnitFlags2::DISARM_RANGED)
-                })
-                .unwrap_or(false),
-            WeaponAttackType::Max => true,
-        };
-        if !can_use_attack_type {
+        if !self.initial_loaded_item_mods_can_apply_like_cpp(item_guid) {
             return LoadedEquippedItemEnchantmentsOutcomeLikeCpp::default();
         }
         let slots = item
@@ -20997,6 +21010,65 @@ impl WorldSession {
             }
         }
         outcome
+    }
+
+    fn initial_loaded_item_mods_can_apply_like_cpp(&self, item_guid: ObjectGuid) -> bool {
+        let Some(item) = self.inventory_item_objects_like_cpp().get(&item_guid) else {
+            return false;
+        };
+        // C++ `_ApplyAllItemMods` skips broken items before both
+        // `ApplyItemEquipSpell` and `ApplyEnchantment`.
+        if item.is_broken() {
+            return false;
+        }
+        let inventory_type = self
+            .item_storage_template(item.object().entry())
+            .map(|template| template.inventory_type);
+        // C++ `Player::GetAttackBySlot` has cases only for MAINHAND and
+        // OFFHAND. In particular, legacy `EQUIPMENT_SLOT_RANGED` deliberately
+        // falls through to `MAX_ATTACK`; ranged inventory types map to
+        // `RANGED_ATTACK` only when stored in MAINHAND.
+        let attack_type = match item.slot() {
+            EQUIPMENT_SLOT_MAINHAND
+                if matches!(
+                    inventory_type,
+                    Some(InventoryType::Ranged | InventoryType::RangedRight)
+                ) =>
+            {
+                WeaponAttackType::RangedAttack
+            }
+            EQUIPMENT_SLOT_MAINHAND => WeaponAttackType::BaseAttack,
+            EQUIPMENT_SLOT_OFFHAND => WeaponAttackType::OffAttack,
+            _ => WeaponAttackType::Max,
+        };
+        let can_use_attack_type = match attack_type {
+            WeaponAttackType::BaseAttack => self
+                .canonical_player_snapshot_like_cpp(|player| {
+                    !player
+                        .unit()
+                        .unit_flags_like_cpp()
+                        .contains(UnitFlags::DISARMED)
+                })
+                .unwrap_or(false),
+            WeaponAttackType::OffAttack => self
+                .canonical_player_snapshot_like_cpp(|player| {
+                    !player
+                        .unit()
+                        .unit_flags2_like_cpp()
+                        .contains(UnitFlags2::DISARM_OFFHAND)
+                })
+                .unwrap_or(false),
+            WeaponAttackType::RangedAttack => self
+                .canonical_player_snapshot_like_cpp(|player| {
+                    !player
+                        .unit()
+                        .unit_flags2_like_cpp()
+                        .contains(UnitFlags2::DISARM_RANGED)
+                })
+                .unwrap_or(false),
+            WeaponAttackType::Max => true,
+        };
+        can_use_attack_type
     }
 
     pub(crate) fn send_loaded_equipped_item_enchantment_updates_like_cpp(
@@ -115394,6 +115466,225 @@ mod tests {
     }
 
     #[test]
+    fn initial_loaded_item_mods_follow_cpp_loaded_equip_enchant_aura_order() {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 423);
+        let item_guid = ObjectGuid::create_item(1, 923);
+        let second_item_guid = ObjectGuid::create_item(1, 924);
+        let broken_item_guid = ObjectGuid::create_item(1, 925);
+        let item_id = 20_104;
+        let second_item_id = 20_105;
+        let broken_item_id = 20_106;
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_player_on_map(
+            &canonical,
+            player_guid,
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            0,
+        );
+        session
+            .mutate_canonical_player_like_cpp(|player| player.unit_mut().set_level(80))
+            .unwrap();
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_CHEST,
+            item_guid,
+            item_id,
+            InventoryType::Chest,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_HANDS,
+            second_item_guid,
+            second_item_id,
+            InventoryType::Hands,
+        );
+        equip_represented_test_item_like_cpp(
+            &mut session,
+            EQUIPMENT_SLOT_FEET,
+            broken_item_guid,
+            broken_item_id,
+            InventoryType::Feet,
+        );
+        session.update_inventory_item_object_like_cpp(item_guid, |item| {
+            item.set_enchantment(EnchantmentSlot::EnhancementPermanent, 908, 0, 0);
+        });
+        session.update_inventory_item_object_like_cpp(second_item_guid, |item| {
+            item.set_enchantment(EnchantmentSlot::EnhancementPermanent, 909, 0, 0);
+        });
+        session.update_inventory_item_object_like_cpp(broken_item_guid, |item| {
+            item.set_max_durability(100);
+            item.set_enchantment(EnchantmentSlot::EnhancementPermanent, 910, 0, 0);
+        });
+        session.set_item_stats_store(Arc::new(ItemStatsStore::from_sparse_templates([
+            (
+                item_id,
+                sparse_template_for_inventory_type_like_cpp(InventoryType::Chest, 0),
+            ),
+            (
+                second_item_id,
+                sparse_template_for_inventory_type_like_cpp(InventoryType::Hands, 0),
+            ),
+            (
+                broken_item_id,
+                sparse_template_for_inventory_type_like_cpp(InventoryType::Feet, 0),
+            ),
+        ])));
+        session.set_item_effect_store(Arc::new(ItemEffectStore::from_entries([
+            ItemEffectEntry {
+                id: 5,
+                legacy_slot_index: 0,
+                trigger_type: 1,
+                charges: 0,
+                cooldown_msec: -1,
+                category_cooldown_msec: -1,
+                spell_category_id: 0,
+                spell_id: 30_105,
+                chr_specialization_id: 0,
+                parent_item_id: item_id,
+            },
+            ItemEffectEntry {
+                id: 6,
+                legacy_slot_index: 0,
+                trigger_type: 1,
+                charges: 0,
+                cooldown_msec: -1,
+                category_cooldown_msec: -1,
+                spell_category_id: 0,
+                spell_id: 30_107,
+                chr_specialization_id: 0,
+                parent_item_id: second_item_id,
+            },
+            ItemEffectEntry {
+                id: 7,
+                legacy_slot_index: 0,
+                trigger_type: 1,
+                charges: 0,
+                cooldown_msec: -1,
+                category_cooldown_msec: -1,
+                spell_category_id: 0,
+                spell_id: 30_109,
+                chr_specialization_id: 0,
+                parent_item_id: broken_item_id,
+            },
+        ])));
+        let enchantment = |id, spell_id| SpellItemEnchantmentEntry {
+            id,
+            effect_arg: [spell_id, 0, 0],
+            effect_points_min: [0; 3],
+            item_visual: 0,
+            flags: SpellItemEnchantmentFlags::empty(),
+            required_skill_id: 0,
+            required_skill_rank: 0,
+            item_level: 1,
+            charges: 0,
+            effect: [
+                ItemEnchantmentType::EquipSpell as u8,
+                ItemEnchantmentType::None as u8,
+                ItemEnchantmentType::None as u8,
+            ],
+            condition_id: 0,
+            min_level: 1,
+            max_level: 0,
+        };
+        session.set_spell_item_enchantment_store(Arc::new(
+            SpellItemEnchantmentStore::from_entries([
+                enchantment(908, 30_106),
+                enchantment(909, 30_108),
+                enchantment(910, 30_110),
+            ]),
+        ));
+        let mut spell_store = SpellStore::new();
+        for spell_id in [30_104, 30_105, 30_106, 30_107, 30_108, 30_109, 30_110] {
+            spell_store.insert(
+                spell_id,
+                SpellInfo {
+                    spell_id,
+                    cast_time_ms: 0,
+                    cooldown_ms: 0,
+                    recovery_time_ms: 0,
+                    effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_base_points: 0,
+                    effect_bonus_coefficient: 0.0,
+                    aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE),
+                    display_flags: 0,
+                    requires_spell_focus: 0,
+                    power_costs: Vec::new(),
+                    effects: vec![wow_data::SpellEffectInfo {
+                        effect_index: 0,
+                        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                        effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE,
+                        ..Default::default()
+                    }],
+                },
+            );
+        }
+        session.set_spell_store(Arc::new(spell_store));
+
+        assert_eq!(
+            session.load_represented_character_auras_like_cpp(
+                [CharacterAuraRowLikeCpp {
+                    caster_guid: player_guid,
+                    spell_id: 30_104,
+                    effect_mask: 1,
+                    recalculate_mask: 0,
+                    difficulty: 0,
+                    stack_count: 1,
+                    max_duration_ms: -1,
+                    remain_time_ms: -1,
+                    remain_charges: 0,
+                }],
+                std::iter::empty::<CharacterAuraEffectRowLikeCpp>(),
+                0,
+            ),
+            1
+        );
+        let outcome = session.apply_initial_loaded_item_mods_like_cpp(&[
+            second_item_guid,
+            broken_item_guid,
+            item_guid,
+        ]);
+
+        assert_eq!(outcome.item_set_auras, 0);
+        assert_eq!(outcome.item_equip_auras, 2);
+        assert_eq!(
+            outcome
+                .enchantments
+                .effect_actions
+                .iter()
+                .filter_map(|action| match action.action {
+                    ApplyEnchantmentEffectAction::CastEquipSpell {
+                        spell_id,
+                        item_guid,
+                    } => Some((spell_id, item_guid)),
+                    _ => None,
+                })
+                .collect::<Vec<_>>(),
+            vec![(30_106, item_guid), (30_108, second_item_guid)]
+        );
+        let mut visible_auras = session.visible_auras.values().collect::<Vec<_>>();
+        visible_auras.sort_by_key(|aura| aura.slot);
+        assert_eq!(
+            visible_auras
+                .iter()
+                .map(|aura| (aura.slot, aura.spell_id, aura.caster_guid))
+                .collect::<Vec<_>>(),
+            vec![
+                (0, 30_104, player_guid),
+                (1, 30_105, item_guid),
+                (2, 30_106, item_guid),
+                (3, 30_107, second_item_guid),
+                (4, 30_108, second_item_guid),
+            ],
+            "C++ loads saved auras first, then replays equip and enchant auras per item in equipment-slot order"
+        );
+    }
+
+    #[test]
     fn login_passive_known_spell_auras_apply_like_cpp_addspell() {
         let (mut session, _, _send_rx) = make_session();
         let player_guid = ObjectGuid::create_player(1, 421);
@@ -120861,6 +121152,76 @@ mod tests {
         assert_eq!(
             session.canonical_player_snapshot_like_cpp(|player| player.enchant_durations().len()),
             Some(0)
+        );
+    }
+
+    #[test]
+    fn loaded_legacy_ranged_slot_uses_max_attack_like_cpp_get_attack_by_slot() {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 90_534);
+        let item_guid = ObjectGuid::create_item(1, 90_535);
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_player_on_map(
+            &canonical,
+            player_guid,
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            0,
+        );
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.unit_mut().set_level(80);
+                player
+                    .unit_mut()
+                    .set_unit_flags2_like_cpp(UnitFlags2::DISARM_RANGED);
+            })
+            .unwrap();
+        session.set_spell_item_enchantment_store(Arc::new(
+            SpellItemEnchantmentStore::from_entries([SpellItemEnchantmentEntry {
+                id: 903,
+                effect_arg: [0; 3],
+                effect_points_min: [0; 3],
+                item_visual: 0,
+                flags: SpellItemEnchantmentFlags::empty(),
+                required_skill_id: 0,
+                required_skill_rank: 0,
+                item_level: 1,
+                charges: 0,
+                effect: [ItemEnchantmentType::None as u8; 3],
+                condition_id: 0,
+                min_level: 1,
+                max_level: 0,
+            }]),
+        ));
+
+        let mut item = session.make_inventory_item_object(
+            item_guid,
+            705,
+            player_guid,
+            1,
+            1,
+            ItemContext::None,
+            EQUIPMENT_SLOT_RANGED,
+        );
+        item.set_enchantment(EnchantmentSlot::EnhancementTemporary, 903, 6_000, 0);
+        session.insert_inventory_item_object(item);
+
+        let outcome = session.apply_loaded_equipped_item_enchantments_like_cpp(item_guid);
+
+        assert!(matches!(
+            outcome.plans.as_slice(),
+            [ApplyEnchantmentPlan {
+                result: ApplyEnchantmentResult::Applied { .. }
+            }]
+        ));
+        assert_eq!(outcome.duration_updates.len(), 1);
+        assert_eq!(
+            session.canonical_player_snapshot_like_cpp(|player| player.enchant_durations().len()),
+            Some(1),
+            "C++ GetAttackBySlot maps legacy EQUIPMENT_SLOT_RANGED to MAX_ATTACK, so DISARM_RANGED does not gate this slot"
         );
     }
 
