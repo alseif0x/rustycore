@@ -20,6 +20,9 @@ the corresponding Rust server port is ready.
 - `--quest-smoke`: after login, resolves one creature questgiver, sends
   `CMSG_GOSSIP_HELLO`, falls back to `CMSG_QUEST_GIVER_HELLO`, optionally sends
   `CMSG_QUEST_GIVER_QUERY_QUEST`, and reports the quest ids/titles received.
+- `--bank-smoke`: runs a real `CMSG_BANKER_ACTIVATE` → `CMSG_AUTOBANK_ITEM` →
+  logout/relogin → `CMSG_AUTOSTORE_BANK_ITEM` → logout persistence round-trip
+  using an isolated local fixture item.
 - `WOW_BOT_LOGIN_ONLY=1`: env equivalent of `--login-only`.
 - `WOW_BOT_CLIENT_BUILD` / `WOW_BOT_BUILD`: build value printed by the smoke,
   default `54261`.
@@ -38,6 +41,25 @@ the corresponding Rust server port is ready.
 
 The bot still supports the previous LFG path. Do not use LFG as the RustyCore
 migration gate until the server-side LFG port is explicitly ready.
+
+## Personal bank persistence smoke
+
+Use the live low counter announced for the selected neutral banker; it is not
+the persistent `world.creature.guid` spawn id:
+
+```bash
+WOW_BOT_BANK_SMOKE=1 \
+WOW_BOT_BANK_RUNTIME_COUNTER=<live-banker-counter> \
+./run_rustycore_login_smoke.sh
+```
+
+The pass requires all of these results: banker interaction opened, the fixture
+item persisted from an empty backpack slot to an empty bank slot, a new full
+authentication/login observed it there, withdrawal persisted back to the
+backpack, and the second logout completed. Setup is restricted to `@bot.local`
+accounts; cleanup removes only the generated item and restores the original
+character position. `WOW_BOT_BANK_ITEM_ENTRY` (default `2589`) and
+`WOW_BOT_BANK_TIMEOUT_SECS` are optional overrides.
 
 ## Default RustyCore smoke command
 
@@ -205,10 +227,10 @@ saved map/position and picks the nearest `world.creature` row for the requested
 entry. The character must still be close enough in-game for RustyCore's
 interaction-distance checks.
 
-For DB-spawned creatures the bot intentionally uses `world.creature.guid` as
-the visible GUID counter, matching C++ `Creature::LoadFromDB` /
-`CreateFromProto`. A questgiver that only responds to a different counter is a
-server GUID bug, not a bot override case.
+For DB-spawned creatures, `world.creature.guid` is the persistent spawn
+identity while the live `ObjectGuid` low counter is map-generated. Quest and
+bank modes therefore accept an explicit runtime counter instead of pretending
+the two identities are interchangeable.
 
 ## Known notes
 
