@@ -270,8 +270,8 @@ pub use item_random_enchantment::{
 pub use item_random_properties::{ItemRandomPropertiesEntry, ItemRandomPropertiesStore};
 pub use item_random_suffix::{ItemRandomSuffixEntry, ItemRandomSuffixStore};
 pub use item_stats::{
-    ItemRandomPropertyTemplateEntry, ItemSparseTemplateEntry, ItemStatEntry, ItemStatsStore,
-    ItemWeaponTemplateEntry,
+    ItemRandomPropertyTemplateEntry, ItemSocketTemplateEntry, ItemSparseTemplateEntry,
+    ItemStatEntry, ItemStatsStore, ItemWeaponTemplateEntry,
 };
 pub use jump_charge::{
     JumpChargeParamsLoadOutcomeLikeCpp, JumpChargeParamsLoadReportLikeCpp,

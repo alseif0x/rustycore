@@ -1369,6 +1369,8 @@ pub struct ItemCreateData {
     pub max_durability: u32,
     pub random_properties_seed: i32,
     pub random_properties_id: i32,
+    pub enchantments: [ItemEnchantmentValuesUpdate; 13],
+    pub gems: Vec<SocketedGemValuesUpdate>,
     pub context: u8,
     /// Non-zero for `Bag` objects. C++ writes those as TYPEID_CONTAINER
     /// and appends `ContainerData::WriteCreate` after `ItemData::WriteCreate`.
@@ -5340,13 +5342,13 @@ fn write_item_create_block(
     // DynamicFlags
     val_buf.write_uint32(data.dynamic_flags);
 
-    // 13 x ItemEnchantment (all zeros)
-    for _ in 0..13 {
-        val_buf.write_int32(0); // ID
-        val_buf.write_int32(0); // Duration
-        val_buf.write_int16(0); // Charges
-        val_buf.write_uint8(0); // Field_A
-        val_buf.write_uint8(0); // Field_B
+    // 13 x ItemEnchantment
+    for enchantment in data.enchantments {
+        val_buf.write_int32(enchantment.id);
+        val_buf.write_uint32(enchantment.duration);
+        val_buf.write_int16(enchantment.charges);
+        val_buf.write_uint8(enchantment.field_a);
+        val_buf.write_uint8(enchantment.field_b);
     }
 
     // PropertySeed, RandomPropertiesID
@@ -5368,7 +5370,7 @@ fn write_item_create_block(
 
     // ArtifactPowers.Size, Gems.Size
     val_buf.write_int32(0);
-    val_buf.write_int32(0);
+    val_buf.write_int32(data.gems.len() as i32);
 
     // Owner conditional block 4
     val_buf.write_uint32(0); // DynamicFlags2
@@ -5379,6 +5381,12 @@ fn write_item_create_block(
 
     // Owner conditional block 5
     val_buf.write_uint16(0); // DEBUGItemLevel
+
+    // C++ `SocketedGem::WriteCreate`. Its CREATE order deliberately differs
+    // from `WriteUpdate`: ItemID, all 16 BonusListIDs, then Context.
+    for gem in &data.gems {
+        write_socketed_gem_create_like_cpp(&mut val_buf, gem);
+    }
 
     // ItemModList (dynamic) — 6 bits for size = 0, then FlushBits
     val_buf.write_bits(0, 6);
@@ -6299,6 +6307,14 @@ fn write_artifact_power_values_update(buf: &mut WorldPacket, data: &ArtifactPowe
     buf.write_int16(data.artifact_power_id);
     buf.write_uint8(data.purchased_rank);
     buf.write_uint8(data.current_rank_with_bonus);
+}
+
+fn write_socketed_gem_create_like_cpp(buf: &mut WorldPacket, data: &SocketedGemValuesUpdate) {
+    buf.write_int32(data.item_id);
+    for bonus in data.bonus_list_ids {
+        buf.write_uint16(bonus);
+    }
+    buf.write_uint8(data.context);
 }
 
 fn write_socketed_gem_values_update(buf: &mut WorldPacket, data: &SocketedGemValuesUpdate) {
@@ -9554,7 +9570,28 @@ mod tests {
     }
 
     #[test]
-    fn item_create_serializes_random_properties_and_context() {
+    fn socketed_gem_create_uses_cpp_create_order_not_update_order() {
+        let gem = SocketedGemValuesUpdate {
+            socketed_gem_mask: 0x000F_FFFF,
+            item_id: 40_111,
+            context: 3,
+            bonus_list_ids: std::array::from_fn(|index| (index as u16) + 70),
+        };
+        let mut packet = WorldPacket::new_empty();
+
+        write_socketed_gem_create_like_cpp(&mut packet, &gem);
+
+        let mut expected = Vec::new();
+        expected.extend_from_slice(&gem.item_id.to_le_bytes());
+        for bonus in gem.bonus_list_ids {
+            expected.extend_from_slice(&bonus.to_le_bytes());
+        }
+        expected.push(gem.context);
+        assert_eq!(packet.into_data(), expected);
+    }
+
+    #[test]
+    fn item_create_serializes_random_properties_context_and_socketed_gems() {
         let item_guid = ObjectGuid::create_item(1, 900);
         let owner_guid = ObjectGuid::create_player(1, 42);
         let pkt = UpdateObject::create_items(
@@ -9569,6 +9606,26 @@ mod tests {
                 max_durability: 20,
                 random_properties_seed: 456,
                 random_properties_id: -77,
+                enchantments: {
+                    let mut enchantments = [ItemEnchantmentValuesUpdate::default(); 13];
+                    enchantments[0] = ItemEnchantmentValuesUpdate {
+                        id: 2673,
+                        duration: 0,
+                        charges: 0,
+                        ..Default::default()
+                    };
+                    enchantments
+                },
+                gems: vec![SocketedGemValuesUpdate {
+                    socketed_gem_mask: 0x000F_FFFF,
+                    item_id: 40111,
+                    context: 3,
+                    bonus_list_ids: {
+                        let mut bonuses = [0; 16];
+                        bonuses[0] = 77;
+                        bonuses
+                    },
+                }],
                 context: 2,
                 container_slots: 0,
                 container_item_guids: [ObjectGuid::EMPTY; 36],
@@ -9600,6 +9657,17 @@ mod tests {
                 .any(|window| window == (-77i32).to_le_bytes())
         );
         assert!(bytes.windows(4).any(|window| window == 2i32.to_le_bytes()));
+        assert!(
+            bytes
+                .windows(4)
+                .any(|window| window == 2673i32.to_le_bytes())
+        );
+        assert!(
+            bytes
+                .windows(4)
+                .any(|window| window == 40111i32.to_le_bytes())
+        );
+        assert!(bytes.windows(2).any(|window| window == 77u16.to_le_bytes()));
     }
 
     #[test]
@@ -9622,6 +9690,8 @@ mod tests {
                 max_durability: 0,
                 random_properties_seed: 0,
                 random_properties_id: 0,
+                enchantments: [ItemEnchantmentValuesUpdate::default(); 13],
+                gems: Vec::new(),
                 context: 0,
                 container_slots: 16,
                 container_item_guids,

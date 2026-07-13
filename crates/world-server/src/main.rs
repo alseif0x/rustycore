@@ -3212,6 +3212,23 @@ async fn main() -> Result<ExitCode> {
         "Loaded {} spell item enchantments from SpellItemEnchantment.db2",
         spell_item_enchantment_store.len()
     );
+    let spell_item_enchantment_condition_store = Arc::new(
+        wow_data::SpellItemEnchantmentConditionStore::load(&data_dir, &locale).context(
+            "Failed to load SpellItemEnchantmentCondition.db2 — check DataDir and DBC.Locale config",
+        )?,
+    );
+    info!(
+        "Loaded {} spell item enchantment conditions from SpellItemEnchantmentCondition.db2",
+        spell_item_enchantment_condition_store.len()
+    );
+    let gem_properties_store = Arc::new(
+        wow_data::GemPropertiesStore::load(&data_dir, &locale)
+            .context("Failed to load GemProperties.db2 — check DataDir and DBC.Locale config")?,
+    );
+    info!(
+        "Loaded {} gem properties from GemProperties.db2",
+        gem_properties_store.len()
+    );
     let spell_enchant_proc_outcome = wow_data::SpellEnchantProcStoreLikeCpp::load_like_cpp(
         world_db.as_ref(),
         spell_item_enchantment_store.as_ref(),
@@ -5011,6 +5028,10 @@ async fn main() -> Result<ExitCode> {
         difficulty_store: Some(Arc::clone(&difficulty_store)),
         lock_store: Some(Arc::clone(&lock_store)),
         spell_item_enchantment_store: Some(Arc::clone(&spell_item_enchantment_store)),
+        spell_item_enchantment_condition_store: Some(Arc::clone(
+            &spell_item_enchantment_condition_store,
+        )),
+        gem_properties_store: Some(Arc::clone(&gem_properties_store)),
         spell_enchant_proc_store: Some(Arc::clone(&spell_enchant_proc_store)),
         hotfix_blob_cache: Some(Arc::clone(&hotfix_blob_cache)),
         tact_key_store: Some(Arc::clone(&tact_key_store)),
@@ -12450,6 +12471,12 @@ async fn create_session(
     }
     if let Some(ref store) = resources.spell_item_enchantment_store {
         session.set_spell_item_enchantment_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.spell_item_enchantment_condition_store {
+        session.set_spell_item_enchantment_condition_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.gem_properties_store {
+        session.set_gem_properties_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.spell_enchant_proc_store {
         session.set_spell_enchant_proc_store(Arc::clone(store));

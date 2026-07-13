@@ -43,7 +43,7 @@ use wow_entities::{
     GameObjectTemplateData, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END,
     INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, MAX_BAG_SIZE, MAX_GAMEOBJECT_DATA,
     MovementGeneratorType, NULL_BAG, NULL_SLOT, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START,
-    WorldObject, is_equipment_pos, is_inventory_pos,
+    SocketedGem, WorldObject, is_equipment_pos, is_inventory_pos,
     normalize_creature_chase_movement_type_like_cpp,
     normalize_creature_random_movement_type_like_cpp,
 };
@@ -108,6 +108,7 @@ const TRAINER_NPC_FLAGS_MASK_LIKE_CPP: u32 = 0x10 | 0x20 | 0x40;
 const GOSSIP_OPTION_ID_AUTO_TRAINER_LIKE_CPP: i32 = -1;
 const GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP: u8 = 3;
 const GOSSIP_OPTION_TRAINER_TEXT_LIKE_CPP: &str = "I would like to train.";
+const ITEM_ENCHANTMENT_DB_FIELDS: usize = 3;
 
 fn creature_has_trainer_flag_like_cpp(npc_flags: u32) -> bool {
     (npc_flags & TRAINER_NPC_FLAGS_MASK_LIKE_CPP) != 0
@@ -160,7 +161,6 @@ fn add_represented_trainer_gossip_option_if_missing_like_cpp(
     stored_options.push(represented_trainer_gossip_option_info_like_cpp());
     true
 }
-
 fn primary_power_type_for_class_like_cpp(class_id: u8) -> PowerType {
     match class_id {
         1 => PowerType::Rage,
@@ -176,6 +176,172 @@ fn primary_max_power_for_class_like_cpp(class_id: u8, max_mana: i64) -> i32 {
         4 => 100,
         _ => max_mana.max(0).min(i64::from(i32::MAX)) as i32,
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct LoadedItemRandomPropertiesLikeCpp {
+    id: i32,
+    seed: i32,
+}
+
+fn loaded_item_random_properties_like_cpp(
+    random_properties_id: i32,
+    random_properties_seed: i32,
+    item_random_properties_store: Option<&wow_data::ItemRandomPropertiesStore>,
+    item_random_suffix_store: Option<&wow_data::ItemRandomSuffixStore>,
+) -> Option<LoadedItemRandomPropertiesLikeCpp> {
+    if random_properties_id > 0 {
+        item_random_properties_store?
+            .get(random_properties_id as u32)
+            .map(|_| LoadedItemRandomPropertiesLikeCpp {
+                id: random_properties_id,
+                seed: 0,
+            })
+    } else if random_properties_id < 0 {
+        item_random_suffix_store?
+            .get(random_properties_id.unsigned_abs())
+            .map(|_| LoadedItemRandomPropertiesLikeCpp {
+                id: random_properties_id,
+                seed: random_properties_seed,
+            })
+    } else {
+        None
+    }
+}
+
+fn apply_loaded_item_instance_fields_like_cpp(
+    item: &mut wow_entities::Item,
+    enchantments: &[ItemEnchantmentValuesUpdate; wow_entities::MAX_ENCHANTMENT_SLOT],
+    random_properties: Option<LoadedItemRandomPropertiesLikeCpp>,
+) {
+    if let Some(random_properties) = random_properties {
+        item.set_random_properties_id(random_properties.id);
+        item.set_property_seed(random_properties.seed);
+    }
+
+    for (slot_index, enchantment) in enchantments.iter().enumerate() {
+        let Some(slot) = <EnchantmentSlot as num_traits::FromPrimitive>::from_usize(slot_index)
+        else {
+            continue;
+        };
+        item.set_enchantment(
+            slot,
+            enchantment.id,
+            enchantment.duration,
+            enchantment.charges,
+        );
+    }
+}
+
+fn loaded_item_slot_applies_equipped_enchantments_like_cpp(slot: u8) -> bool {
+    slot < INVENTORY_SLOT_BAG_END
+}
+
+fn loaded_socketed_gems_like_cpp(fields: [(i32, String, u8); 3]) -> Vec<SocketedGem> {
+    let Some(last_populated_socket) = fields.iter().rposition(|(item_id, _, _)| *item_id > 0)
+    else {
+        return Vec::new();
+    };
+    fields
+        .into_iter()
+        .take(last_populated_socket + 1)
+        .map(|(item_id, bonuses, context)| {
+            if item_id <= 0 {
+                return SocketedGem::default();
+            }
+            SocketedGem {
+                item_id,
+                context,
+                bonus_list_ids: bonuses
+                    .split_whitespace()
+                    .filter_map(|bonus| bonus.parse::<u16>().ok())
+                    .take(16)
+                    .collect(),
+            }
+        })
+        .collect()
+}
+
+fn loaded_socketed_gem_create_updates_like_cpp(
+    gems: &[SocketedGem],
+) -> Vec<wow_packet::packets::update::SocketedGemValuesUpdate> {
+    gems.iter()
+        .map(|gem| {
+            let mut bonus_list_ids = [0; 16];
+            for (target, source) in bonus_list_ids.iter_mut().zip(&gem.bonus_list_ids) {
+                *target = *source;
+            }
+            wow_packet::packets::update::SocketedGemValuesUpdate {
+                socketed_gem_mask: 0x000F_FFFF,
+                item_id: gem.item_id,
+                context: gem.context,
+                bonus_list_ids,
+            }
+        })
+        .collect()
+}
+
+fn loaded_item_effective_enchantments_like_cpp(
+    loaded_enchantments: Option<&[ItemEnchantmentValuesUpdate; wow_entities::MAX_ENCHANTMENT_SLOT]>,
+    random_properties_id: i32,
+    item_random_properties_store: Option<&wow_data::ItemRandomPropertiesStore>,
+    item_random_suffix_store: Option<&wow_data::ItemRandomSuffixStore>,
+) -> [ItemEnchantmentValuesUpdate; wow_entities::MAX_ENCHANTMENT_SLOT] {
+    let mut values = [ItemEnchantmentValuesUpdate::default(); wow_entities::MAX_ENCHANTMENT_SLOT];
+
+    if random_properties_id > 0 {
+        if let Some(entry) =
+            item_random_properties_store.and_then(|store| store.get(random_properties_id as u32))
+        {
+            for (offset, enchantment_id) in entry.enchantments.iter().take(3).enumerate() {
+                values[EnchantmentSlot::Property2 as usize + offset].id =
+                    i32::from(*enchantment_id);
+            }
+        }
+    } else if random_properties_id < 0 {
+        if let Some(entry) = item_random_suffix_store
+            .and_then(|store| store.get(random_properties_id.unsigned_abs()))
+        {
+            for (offset, enchantment_id) in entry.enchantments.iter().take(3).enumerate() {
+                values[EnchantmentSlot::Property0 as usize + offset].id =
+                    i32::from(*enchantment_id);
+            }
+        }
+    }
+
+    // C++ Item::LoadFromDB synthesizes random-property slots first, then a
+    // correctly sized persisted enchantment array overwrites every slot. A
+    // valid all-zero array is therefore authoritative; only a missing or
+    // malformed array keeps the synthesized fallback.
+    if let Some(loaded_enchantments) = loaded_enchantments {
+        values = *loaded_enchantments;
+    }
+
+    values
+}
+
+fn loaded_item_enchantments_like_cpp(
+    enchantments: &str,
+) -> Option<[ItemEnchantmentValuesUpdate; wow_entities::MAX_ENCHANTMENT_SLOT]> {
+    let mut values = [ItemEnchantmentValuesUpdate::default(); wow_entities::MAX_ENCHANTMENT_SLOT];
+    let tokens: Vec<&str> = enchantments.split_whitespace().collect();
+    if tokens.len() != wow_entities::MAX_ENCHANTMENT_SLOT * ITEM_ENCHANTMENT_DB_FIELDS {
+        return None;
+    }
+
+    for slot_index in 0..wow_entities::MAX_ENCHANTMENT_SLOT {
+        let base = slot_index * ITEM_ENCHANTMENT_DB_FIELDS;
+        values[slot_index] = ItemEnchantmentValuesUpdate {
+            item_enchantment_mask: 0,
+            id: tokens[base].parse::<i32>().unwrap_or(0),
+            duration: tokens[base + 1].parse::<u32>().unwrap_or(0),
+            charges: tokens[base + 2].parse::<i16>().unwrap_or(0),
+            field_a: 0,
+            field_b: 0,
+        };
+    }
+
+    Some(values)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -4894,6 +5060,7 @@ impl WorldSession {
         let mut inv_slots = [ObjectGuid::EMPTY; 141];
         let mut item_creates: Vec<wow_packet::packets::update::ItemCreateData> = Vec::new();
         let mut login_bag_create_index_by_slot: HashMap<u8, usize> = HashMap::new();
+        let mut loaded_equipped_item_guids: Vec<ObjectGuid> = Vec::new();
         let realm_id = self.realm_id();
         self.clear_inventory_items_and_objects_like_cpp();
         self.clear_player_currencies_like_cpp();
@@ -4916,11 +5083,53 @@ impl WorldSession {
                                 .unwrap_or(ItemContext::None);
                             let item_flags = eq_result.try_read::<u32>(6).unwrap_or(0);
                             let item_played_time = eq_result.try_read::<u32>(7).unwrap_or(0);
+                            let item_enchantments =
+                                eq_result.try_read::<String>(8).unwrap_or_default();
+                            let item_enchantment_values =
+                                loaded_item_enchantments_like_cpp(&item_enchantments);
+                            let random_properties = loaded_item_random_properties_like_cpp(
+                                eq_result.try_read::<i32>(9).unwrap_or(0),
+                                eq_result.try_read::<i32>(10).unwrap_or(0),
+                                self.item_random_properties_store()
+                                    .map(|store| store.as_ref()),
+                                self.item_random_suffix_store().map(|store| store.as_ref()),
+                            );
+                            let random_properties_id =
+                                random_properties.map(|random| random.id).unwrap_or(0);
+                            let random_properties_seed =
+                                random_properties.map(|random| random.seed).unwrap_or(0);
+                            let socketed_gems = loaded_socketed_gems_like_cpp([
+                                (
+                                    eq_result.try_read::<i32>(11).unwrap_or(0),
+                                    eq_result.try_read::<String>(12).unwrap_or_default(),
+                                    eq_result.try_read::<u8>(13).unwrap_or(0),
+                                ),
+                                (
+                                    eq_result.try_read::<i32>(14).unwrap_or(0),
+                                    eq_result.try_read::<String>(15).unwrap_or_default(),
+                                    eq_result.try_read::<u8>(16).unwrap_or(0),
+                                ),
+                                (
+                                    eq_result.try_read::<i32>(17).unwrap_or(0),
+                                    eq_result.try_read::<String>(18).unwrap_or_default(),
+                                    eq_result.try_read::<u8>(19).unwrap_or(0),
+                                ),
+                            ]);
+                            let socketed_gem_create_updates =
+                                loaded_socketed_gem_create_updates_like_cpp(&socketed_gems);
+                            let item_create_enchantments =
+                                loaded_item_effective_enchantments_like_cpp(
+                                    item_enchantment_values.as_ref(),
+                                    random_properties_id,
+                                    self.item_random_properties_store()
+                                        .map(|store| store.as_ref()),
+                                    self.item_random_suffix_store().map(|store| store.as_ref()),
+                                );
                             let refund_decision = loaded_item_refund_decision(
                                 item_flags,
                                 item_played_time,
-                                eq_result.try_read::<u64>(8),
-                                eq_result.try_read::<u16>(9),
+                                eq_result.try_read::<u64>(20),
+                                eq_result.try_read::<u16>(21),
                             );
                             if item_entry > 0 && (slot as usize) < 141 {
                                 let item_max_durability = self
@@ -4977,8 +5186,10 @@ impl WorldSession {
                                     dynamic_flags: stored_flags,
                                     durability: item_durability,
                                     max_durability: item_max_durability,
-                                    random_properties_seed: 0,
-                                    random_properties_id: 0,
+                                    random_properties_seed,
+                                    random_properties_id,
+                                    enchantments: item_create_enchantments,
+                                    gems: socketed_gem_create_updates,
                                     context: item_context as u8,
                                     container_slots,
                                     container_item_guids: [ObjectGuid::EMPTY; 36],
@@ -5007,6 +5218,12 @@ impl WorldSession {
                                     slot,
                                 );
                                 item_object.set_create_played_time(item_played_time);
+                                apply_loaded_item_instance_fields_like_cpp(
+                                    &mut item_object,
+                                    &item_create_enchantments,
+                                    random_properties,
+                                );
+                                item_object.set_gems(socketed_gems);
                                 item_object.replace_all_item_flags(
                                     ItemFieldFlags::from_bits_retain(stored_flags),
                                 );
@@ -5024,10 +5241,16 @@ impl WorldSession {
                                     &item_object,
                                 );
                                 item_object.set_state(ItemUpdateState::Unchanged);
+                                let visible_item_fields = ((slot as usize) < 19).then(|| {
+                                    self.loaded_inventory_item_visible_fields_like_cpp(&item_object)
+                                });
                                 self.insert_inventory_item_object(item_object);
+                                if loaded_item_slot_applies_equipped_enchantments_like_cpp(slot) {
+                                    loaded_equipped_item_guids.push(item_guid);
+                                }
                                 // Slots 0-18 also populate VisibleItems for character model
-                                if (slot as usize) < 19 {
-                                    visible_items[slot as usize] = (item_entry as i32, 0, 0);
+                                if let Some(fields) = visible_item_fields {
+                                    visible_items[slot as usize] = fields;
                                 }
                             }
                             if !eq_result.next_row() {
@@ -5072,6 +5295,48 @@ impl WorldSession {
                                     .unwrap_or(ItemContext::None);
                                 let item_flags = bag_result.try_read::<u32>(7).unwrap_or(0);
                                 let item_played_time = bag_result.try_read::<u32>(8).unwrap_or(0);
+                                let item_enchantments =
+                                    bag_result.try_read::<String>(9).unwrap_or_default();
+                                let item_enchantment_values =
+                                    loaded_item_enchantments_like_cpp(&item_enchantments);
+                                let random_properties = loaded_item_random_properties_like_cpp(
+                                    bag_result.try_read::<i32>(10).unwrap_or(0),
+                                    bag_result.try_read::<i32>(11).unwrap_or(0),
+                                    self.item_random_properties_store()
+                                        .map(|store| store.as_ref()),
+                                    self.item_random_suffix_store().map(|store| store.as_ref()),
+                                );
+                                let random_properties_id =
+                                    random_properties.map(|random| random.id).unwrap_or(0);
+                                let random_properties_seed =
+                                    random_properties.map(|random| random.seed).unwrap_or(0);
+                                let socketed_gems = loaded_socketed_gems_like_cpp([
+                                    (
+                                        bag_result.try_read::<i32>(12).unwrap_or(0),
+                                        bag_result.try_read::<String>(13).unwrap_or_default(),
+                                        bag_result.try_read::<u8>(14).unwrap_or(0),
+                                    ),
+                                    (
+                                        bag_result.try_read::<i32>(15).unwrap_or(0),
+                                        bag_result.try_read::<String>(16).unwrap_or_default(),
+                                        bag_result.try_read::<u8>(17).unwrap_or(0),
+                                    ),
+                                    (
+                                        bag_result.try_read::<i32>(18).unwrap_or(0),
+                                        bag_result.try_read::<String>(19).unwrap_or_default(),
+                                        bag_result.try_read::<u8>(20).unwrap_or(0),
+                                    ),
+                                ]);
+                                let socketed_gem_create_updates =
+                                    loaded_socketed_gem_create_updates_like_cpp(&socketed_gems);
+                                let item_create_enchantments =
+                                    loaded_item_effective_enchantments_like_cpp(
+                                        item_enchantment_values.as_ref(),
+                                        random_properties_id,
+                                        self.item_random_properties_store()
+                                            .map(|store| store.as_ref()),
+                                        self.item_random_suffix_store().map(|store| store.as_ref()),
+                                    );
                                 if item_entry > 0 && is_represented_bag_slot(bag_slot) {
                                     if let Some(bag_item_guid) = self
                                         .inventory_items_like_cpp()
@@ -5093,6 +5358,12 @@ impl WorldSession {
                                             inner_slot,
                                         );
                                         item_object.set_create_played_time(item_played_time);
+                                        apply_loaded_item_instance_fields_like_cpp(
+                                            &mut item_object,
+                                            &item_create_enchantments,
+                                            random_properties,
+                                        );
+                                        item_object.set_gems(socketed_gems);
                                         item_object.replace_all_item_flags(
                                             ItemFieldFlags::from_bits_retain(item_flags),
                                         );
@@ -5120,8 +5391,10 @@ impl WorldSession {
                                                 dynamic_flags: item_flags,
                                                 durability: item_durability,
                                                 max_durability: item_max_durability,
-                                                random_properties_seed: 0,
-                                                random_properties_id: 0,
+                                                random_properties_seed,
+                                                random_properties_id,
+                                                enchantments: item_create_enchantments,
+                                                gems: socketed_gem_create_updates,
                                                 context: item_context as u8,
                                                 container_slots: 0,
                                                 container_item_guids: [ObjectGuid::EMPTY; 36],
@@ -6054,22 +6327,28 @@ impl WorldSession {
                 "Loaded represented character auras like C++ Player::_LoadAuras"
             );
         }
-        let initial_item_equip_auras = self.apply_initial_equipped_item_equip_auras_like_cpp();
-        if initial_item_equip_auras > 0 {
+        // C++ `Player::LoadFromDB` runs `_LoadAuras` before `_LoadInventory`,
+        // whose final `_ApplyAllItemMods` pass applies, for each equipment slot,
+        // the item-set effect, regular equip spell, and enchantments before
+        // advancing to the next item. Keep the replay here so loaded and
+        // item-provided auras receive the same slot order.
+        let initial_item_mods =
+            self.apply_initial_loaded_item_mods_like_cpp(&loaded_equipped_item_guids);
+        if initial_item_mods.item_set_auras > 0 {
             info!(
                 player_guid = guid.counter(),
-                initial_item_equip_auras,
-                "Applied represented initial item equip auras like C++ Player::_ApplyAllItemMods"
-            );
-        }
-        let initial_item_set_auras = self.apply_initial_equipped_item_set_auras_like_cpp();
-        if initial_item_set_auras > 0 {
-            info!(
-                player_guid = guid.counter(),
-                initial_item_set_auras,
+                initial_item_set_auras = initial_item_mods.item_set_auras,
                 "Applied represented initial item-set auras like C++ Player::_ApplyAllItemMods"
             );
         }
+        if initial_item_mods.item_equip_auras > 0 {
+            info!(
+                player_guid = guid.counter(),
+                initial_item_equip_auras = initial_item_mods.item_equip_auras,
+                "Applied represented initial item equip auras like C++ Player::_ApplyAllItemMods"
+            );
+        }
+        let loaded_enchantment_updates = initial_item_mods.enchantments;
         let login_known_spells = self.login_known_spells_after_account_collections_like_cpp();
         let login_favorite_spells =
             favorite_known_spells_for_send_like_cpp(&login_known_spells, &favorite_spell_rows);
@@ -6113,6 +6392,7 @@ impl WorldSession {
         {
             return;
         }
+        self.send_loaded_equipped_item_enchantment_updates_like_cpp(&loaded_enchantment_updates);
         self.apply_represented_login_spell_reset_if_needed_like_cpp();
         self.apply_represented_login_talent_reset_if_needed_like_cpp();
         if self.apply_represented_first_login_flag_if_needed_like_cpp() {
@@ -10988,6 +11268,8 @@ impl WorldSession {
                     max_durability,
                     random_properties_seed: 0,
                     random_properties_id: 0,
+                    enchantments: [ItemEnchantmentValuesUpdate::default(); 13],
+                    gems: Vec::new(),
                     context: 0,
                     container_slots: 0,
                     container_item_guids: [ObjectGuid::EMPTY; 36],
@@ -11537,6 +11819,8 @@ impl WorldSession {
                     max_durability,
                     random_properties_seed: 0,
                     random_properties_id: 0,
+                    enchantments: [ItemEnchantmentValuesUpdate::default(); 13],
+                    gems: Vec::new(),
                     context: 0,
                     container_slots: 0,
                     container_item_guids: [ObjectGuid::EMPTY; 36],
@@ -12036,6 +12320,8 @@ impl WorldSession {
                     max_durability: stack.max_durability,
                     random_properties_seed: 0,
                     random_properties_id: 0,
+                    enchantments: [ItemEnchantmentValuesUpdate::default(); 13],
+                    gems: Vec::new(),
                     context: 0,
                     container_slots: 0,
                     container_item_guids: [ObjectGuid::EMPTY; 36],
@@ -12895,6 +13181,13 @@ impl WorldSession {
     /// C++ `Player::UpdateAllStats` updates max power but preserves current power,
     /// clamping only when the max drops below current (`Unit::SetMaxPower`).
     fn player_stat_changes_like_cpp(&mut self) -> Option<(ObjectGuid, PlayerStatChanges)> {
+        self.player_stat_changes_with_represented_item_bonuses_like_cpp(false)
+    }
+
+    fn player_stat_changes_with_represented_item_bonuses_like_cpp(
+        &mut self,
+        include_represented_item_bonuses: bool,
+    ) -> Option<(ObjectGuid, PlayerStatChanges)> {
         let player_guid = match self.player_guid() {
             Some(g) => g,
             None => return None,
@@ -12910,14 +13203,14 @@ impl WorldSession {
 
         // Sum gear stat bonuses from equipped items (slots 0-18)
         let (
-            gear_stats,
-            gear_ap,
-            gear_rap,
-            gear_health,
-            gear_mana,
-            gear_combat_ratings,
-            gear_spell_power,
-            gear_armor,
+            mut gear_stats,
+            mut gear_ap,
+            mut gear_rap,
+            mut gear_health,
+            mut gear_mana,
+            mut gear_combat_ratings,
+            mut gear_spell_power,
+            mut gear_armor,
         ) = if let Some(iss) = self.item_stats_store() {
             let mut bonuses = [0i32; 5];
             let mut g_ap = 0i32;
@@ -12953,6 +13246,27 @@ impl WorldSession {
         } else {
             ([0i32; 5], 0, 0, 0, 0, [0i32; 25], 0, 0)
         };
+
+        let represented_item_bonuses = include_represented_item_bonuses
+            .then(|| self.represented_item_bonus_state_like_cpp().clone());
+        if let Some(bonuses) = represented_item_bonuses.as_ref() {
+            for index in 0..gear_stats.len() {
+                gear_stats[index] = gear_stats[index].saturating_add(bonuses.stats_base[index]);
+            }
+            gear_ap = gear_ap.saturating_add(bonuses.attack_power_total);
+            gear_rap = gear_rap.saturating_add(bonuses.ranged_attack_power_total);
+            gear_health = gear_health.saturating_add(bonuses.health_base);
+            gear_mana = gear_mana.saturating_add(bonuses.mana_base);
+            for index in 0..gear_combat_ratings.len() {
+                gear_combat_ratings[index] =
+                    gear_combat_ratings[index].saturating_add(bonuses.combat_ratings[index]);
+            }
+            gear_spell_power = gear_spell_power.saturating_add(bonuses.spell_power_bonus);
+            gear_armor = gear_armor
+                .saturating_add(bonuses.armor_base)
+                .saturating_add(bonuses.armor_total)
+                .saturating_add(bonuses.resistances_base[0]);
+        }
 
         // Compute total stats from base + gear
         let store = match self.player_stats() {
@@ -13166,10 +13480,20 @@ impl WorldSession {
         let parry_from_attr = 0.0; // No STR-to-parry in WotLK without talent
 
         // ── Shield block value (from STR, for shield classes) ──
-        let shield_block_value = match class {
+        let mut shield_block_value = match class {
             1 | 2 | 7 => ((total_str as f32 * 0.5 - 10.0).max(0.0)) as i32,
             _ => 0,
         };
+        if let Some(bonuses) = represented_item_bonuses.as_ref() {
+            shield_block_value = shield_block_value
+                .saturating_add(bonuses.shield_block_base_mod)
+                .saturating_add(i32::try_from(bonuses.shield_block_value).unwrap_or(i32::MAX));
+        }
+        // C++ `Player::UpdateManaRegen` stores MP5 bonuses as per-second
+        // values in both normal and interrupted flat regen fields.
+        let represented_mana_regen_per_second = represented_item_bonuses
+            .as_ref()
+            .map_or(0.0, |bonuses| bonuses.mana_regen_bonus as f32 / 5.0);
 
         let changes = PlayerStatChanges {
             health,
@@ -13196,9 +13520,9 @@ impl WorldSession {
             ranged_crit_pct: melee_crit_pct,
             spell_crit_pct: spell_crit_arr,
             // Mana regen
-            mana_regen: spirit_regen,
-            mana_regen_combat: 0.0, // No talents = no in-combat spirit regen
-            mana_regen_mp5: 0.0,    // No MP5 auras without talent system
+            mana_regen: spirit_regen + represented_mana_regen_per_second,
+            mana_regen_combat: represented_mana_regen_per_second,
+            mana_regen_mp5: 0.0,
             // Expertise
             mainhand_expertise: expertise_value,
             offhand_expertise: expertise_value,
@@ -13251,6 +13575,18 @@ impl WorldSession {
     /// Called after equip/desequip changes to gear slots (0-18).
     pub(crate) fn send_stat_update(&mut self) {
         let Some((player_guid, changes)) = self.player_stat_changes_like_cpp() else {
+            return;
+        };
+
+        let update =
+            UpdateObject::player_stat_update(player_guid, self.player_map_id_like_cpp(), changes);
+        self.send_packet(&update);
+    }
+
+    fn send_login_stat_update_with_represented_item_bonuses_like_cpp(&mut self) {
+        let Some((player_guid, changes)) =
+            self.player_stat_changes_with_represented_item_bonuses_like_cpp(true)
+        else {
             return;
         };
 
@@ -14724,9 +15060,11 @@ impl WorldSession {
 
         // 33. Send full stat VALUES update so all character panel tabs
         //     (Melee, Ranged, Spell, Defense) display correct values on login.
-        //     The CREATE packet has basic defaults; this overwrites them with
-        //     fully computed stats (mana regen, expertise, shield block, etc.).
-        self.send_stat_update();
+        //     C++ has already applied loaded item enchantments at this point;
+        //     merge their represented modifiers into this absolute snapshot.
+        //     A second bonus-only packet would write its default fields as
+        //     zero and corrupt unrelated client-visible stats.
+        self.send_login_stat_update_with_represented_item_bonuses_like_cpp();
 
         info!(
             "Login sequence complete for {:?} (38 packets including broadcasts)",
@@ -14915,6 +15253,307 @@ mod tests {
         CreatureLoot, LOOT_TYPE_CORPSE_LIKE_CPP, LootEntry, LootEntryFlags,
     };
     use wow_packet::packets::quest::quest_giver_status;
+
+    fn test_item_enchantments_db_string(entries: &[(usize, i32, u32, i16)]) -> String {
+        let mut fields = vec!["0".to_string(); wow_entities::MAX_ENCHANTMENT_SLOT * 3];
+        for &(slot, id, duration, charges) in entries {
+            let base = slot * 3;
+            fields[base] = id.to_string();
+            fields[base + 1] = duration.to_string();
+            fields[base + 2] = charges.to_string();
+        }
+        fields.join(" ")
+    }
+
+    #[test]
+    fn loaded_item_instance_fields_preserve_enchantments_and_random_suffix_like_cpp() {
+        let mut item = wow_entities::Item::default();
+        let suffixes =
+            wow_data::ItemRandomSuffixStore::from_entries([wow_data::ItemRandomSuffixEntry {
+                id: 77,
+                enchantments: [901, 902, 903, 0, 0],
+                allocation_pct: [1000, 2000, 3000, 0, 0],
+            }]);
+        let enchantments = test_item_enchantments_db_string(&[
+            (EnchantmentSlot::EnhancementPermanent as usize, 2673, 0, 0),
+            (
+                EnchantmentSlot::EnhancementTemporary as usize,
+                3826,
+                30_000,
+                3,
+            ),
+            (EnchantmentSlot::Property2 as usize, 901, 0, 0),
+        ]);
+        let enchantments =
+            loaded_item_enchantments_like_cpp(&enchantments).expect("valid C++ enchantment string");
+        let random_properties =
+            loaded_item_random_properties_like_cpp(-77, 456, None, Some(&suffixes));
+        let effective_enchantments = loaded_item_effective_enchantments_like_cpp(
+            Some(&enchantments),
+            -77,
+            None,
+            Some(&suffixes),
+        );
+
+        apply_loaded_item_instance_fields_like_cpp(
+            &mut item,
+            &effective_enchantments,
+            random_properties,
+        );
+
+        assert_eq!(item.data().random_properties_id, -77);
+        assert_eq!(item.data().property_seed, 456);
+        assert_eq!(
+            item.data().enchantments[EnchantmentSlot::EnhancementPermanent as usize].id,
+            2673
+        );
+        assert_eq!(
+            item.data().enchantments[EnchantmentSlot::EnhancementTemporary as usize].duration,
+            30_000
+        );
+        assert_eq!(
+            item.data().enchantments[EnchantmentSlot::EnhancementTemporary as usize].charges,
+            3
+        );
+        assert_eq!(
+            item.data().enchantments[EnchantmentSlot::Property2 as usize].id,
+            901
+        );
+    }
+
+    #[test]
+    fn loaded_item_instance_fields_ignore_short_enchantment_string_like_cpp() {
+        let mut item = wow_entities::Item::default();
+        let enchantments = loaded_item_enchantments_like_cpp("2673 0 0");
+        assert!(enchantments.is_none());
+        let effective_enchantments =
+            loaded_item_effective_enchantments_like_cpp(enchantments.as_ref(), 0, None, None);
+
+        apply_loaded_item_instance_fields_like_cpp(&mut item, &effective_enchantments, None);
+
+        assert!(
+            item.data()
+                .enchantments
+                .iter()
+                .all(|enchantment| *enchantment == wow_entities::ItemEnchantment::default())
+        );
+        assert_eq!(item.data().random_properties_id, 0);
+        assert_eq!(item.data().property_seed, 0);
+    }
+
+    #[test]
+    fn loaded_item_instance_fields_rebuild_random_suffix_slots_like_cpp() {
+        let mut item = wow_entities::Item::default();
+        let suffixes =
+            wow_data::ItemRandomSuffixStore::from_entries([wow_data::ItemRandomSuffixEntry {
+                id: 77,
+                enchantments: [901, 902, 903, 904, 905],
+                allocation_pct: [1000, 2000, 3000, 4000, 5000],
+            }]);
+        let effective_enchantments =
+            loaded_item_effective_enchantments_like_cpp(None, -77, None, Some(&suffixes));
+        let random_properties =
+            loaded_item_random_properties_like_cpp(-77, 456, None, Some(&suffixes));
+
+        apply_loaded_item_instance_fields_like_cpp(
+            &mut item,
+            &effective_enchantments,
+            random_properties,
+        );
+
+        assert_eq!(item.data().random_properties_id, -77);
+        assert_eq!(item.data().property_seed, 456);
+        assert_eq!(
+            item.data().enchantments[EnchantmentSlot::Property0 as usize].id,
+            901
+        );
+        assert_eq!(
+            item.data().enchantments[EnchantmentSlot::Property1 as usize].id,
+            902
+        );
+        assert_eq!(
+            item.data().enchantments[EnchantmentSlot::Property2 as usize].id,
+            903
+        );
+        assert_eq!(
+            item.data().enchantments[EnchantmentSlot::Property3 as usize].id,
+            0
+        );
+    }
+
+    #[test]
+    fn loaded_item_instance_fields_rebuild_random_property_slots_like_cpp() {
+        let mut item = wow_entities::Item::default();
+        let properties = wow_data::ItemRandomPropertiesStore::from_entries([
+            wow_data::ItemRandomPropertiesEntry {
+                id: 77,
+                enchantments: [1001, 1002, 1003, 1004, 1005],
+            },
+        ]);
+        let effective_enchantments =
+            loaded_item_effective_enchantments_like_cpp(None, 77, Some(&properties), None);
+        let random_properties =
+            loaded_item_random_properties_like_cpp(77, 0, Some(&properties), None);
+
+        apply_loaded_item_instance_fields_like_cpp(
+            &mut item,
+            &effective_enchantments,
+            random_properties,
+        );
+
+        assert_eq!(item.data().random_properties_id, 77);
+        assert_eq!(
+            item.data().enchantments[EnchantmentSlot::Property0 as usize].id,
+            0
+        );
+        assert_eq!(
+            item.data().enchantments[EnchantmentSlot::Property2 as usize].id,
+            1001
+        );
+        assert_eq!(
+            item.data().enchantments[EnchantmentSlot::Property3 as usize].id,
+            1002
+        );
+        assert_eq!(
+            item.data().enchantments[EnchantmentSlot::Property4 as usize].id,
+            1003
+        );
+        assert_eq!(item.data().property_seed, 0);
+    }
+
+    #[test]
+    fn loaded_positive_random_property_ignores_stale_seed_like_cpp() {
+        let mut item = wow_entities::Item::default();
+        let properties = wow_data::ItemRandomPropertiesStore::from_entries([
+            wow_data::ItemRandomPropertiesEntry {
+                id: 77,
+                enchantments: [1001, 1002, 1003, 0, 0],
+            },
+        ]);
+        let effective_enchantments =
+            [wow_packet::packets::update::ItemEnchantmentValuesUpdate::default();
+                wow_entities::MAX_ENCHANTMENT_SLOT];
+        let random_properties =
+            loaded_item_random_properties_like_cpp(77, 456, Some(&properties), None);
+
+        apply_loaded_item_instance_fields_like_cpp(
+            &mut item,
+            &effective_enchantments,
+            random_properties,
+        );
+
+        assert_eq!(item.data().random_properties_id, 77);
+        assert_eq!(item.data().property_seed, 0);
+    }
+
+    #[test]
+    fn loaded_missing_random_property_records_are_rejected_like_cpp() {
+        let properties = wow_data::ItemRandomPropertiesStore::from_entries([]);
+        let suffixes = wow_data::ItemRandomSuffixStore::from_entries([]);
+
+        assert_eq!(
+            loaded_item_random_properties_like_cpp(77, 456, Some(&properties), Some(&suffixes)),
+            None
+        );
+        assert_eq!(
+            loaded_item_random_properties_like_cpp(-77, 456, Some(&properties), Some(&suffixes)),
+            None
+        );
+    }
+
+    #[test]
+    fn loaded_item_instance_fields_preserve_valid_zero_db_enchantments_like_cpp() {
+        let properties = wow_data::ItemRandomPropertiesStore::from_entries([
+            wow_data::ItemRandomPropertiesEntry {
+                id: 77,
+                enchantments: [1001, 1002, 1003, 0, 0],
+            },
+        ]);
+        let enchantments = test_item_enchantments_db_string(&[]);
+        let enchantments =
+            loaded_item_enchantments_like_cpp(&enchantments).expect("valid C++ enchantment string");
+
+        let effective_enchantments = loaded_item_effective_enchantments_like_cpp(
+            Some(&enchantments),
+            77,
+            Some(&properties),
+            None,
+        );
+
+        assert!(effective_enchantments.iter().all(|enchantment| {
+            *enchantment == wow_packet::packets::update::ItemEnchantmentValuesUpdate::default()
+        }));
+    }
+
+    #[test]
+    fn loaded_item_db_enchantments_override_random_property_slots_like_cpp() {
+        let properties = wow_data::ItemRandomPropertiesStore::from_entries([
+            wow_data::ItemRandomPropertiesEntry {
+                id: 77,
+                enchantments: [1001, 1002, 1003, 0, 0],
+            },
+        ]);
+        let enchantments =
+            test_item_enchantments_db_string(&[(EnchantmentSlot::Property2 as usize, 555, 0, 0)]);
+        let enchantments =
+            loaded_item_enchantments_like_cpp(&enchantments).expect("valid C++ enchantment string");
+
+        let effective_enchantments = loaded_item_effective_enchantments_like_cpp(
+            Some(&enchantments),
+            77,
+            Some(&properties),
+            None,
+        );
+
+        assert_eq!(
+            effective_enchantments[EnchantmentSlot::Property2 as usize].id,
+            555
+        );
+        assert_eq!(
+            effective_enchantments[EnchantmentSlot::Property3 as usize].id,
+            0
+        );
+    }
+
+    #[test]
+    fn loaded_item_slots_apply_equipped_enchantments_for_cpp_apply_all_item_mods_range() {
+        assert!(loaded_item_slot_applies_equipped_enchantments_like_cpp(
+            wow_entities::EQUIPMENT_SLOT_END - 1
+        ));
+        assert!(loaded_item_slot_applies_equipped_enchantments_like_cpp(
+            INVENTORY_SLOT_BAG_START
+        ));
+        assert!(loaded_item_slot_applies_equipped_enchantments_like_cpp(
+            INVENTORY_SLOT_BAG_END - 1
+        ));
+        assert!(!loaded_item_slot_applies_equipped_enchantments_like_cpp(
+            INVENTORY_SLOT_BAG_END
+        ));
+    }
+
+    #[test]
+    fn loaded_socketed_gems_preserve_cpp_item_ids_context_and_bonus_lists() {
+        assert_eq!(
+            loaded_socketed_gems_like_cpp([
+                (700, "11 12".to_string(), 3),
+                (0, "13".to_string(), 4),
+                (701, "bad 14".to_string(), 5),
+            ]),
+            vec![
+                SocketedGem {
+                    item_id: 700,
+                    context: 3,
+                    bonus_list_ids: vec![11, 12],
+                },
+                SocketedGem::default(),
+                SocketedGem {
+                    item_id: 701,
+                    context: 5,
+                    bonus_list_ids: vec![14],
+                },
+            ]
+        );
+    }
 
     #[test]
     fn sql_creature_template_speed_defaults_match_cpp_check_creature_template() {
@@ -16028,6 +16667,122 @@ mod tests {
         assert_eq!(
             session.canonical_player_health_snapshot_like_cpp(),
             Some((110, 110))
+        );
+    }
+
+    #[test]
+    fn login_stat_update_derives_and_syncs_loaded_enchantment_bonuses_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send_capacity(1);
+        let player_guid = ObjectGuid::create_player(1, 81);
+        let item_guid = ObjectGuid::create_item(1, 82);
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
+        session.set_player_stats(Arc::new(stats_store_with_priest_level80(1000, 40)));
+        attach_stat_update_player_with_mana_and_health(
+            &mut session,
+            player_guid,
+            777,
+            1320,
+            77,
+            110,
+        );
+        session
+            .mutate_canonical_player_like_cpp(|player| player.unit_mut().set_level(80))
+            .unwrap();
+        session.set_spell_item_enchantment_store(Arc::new(
+            wow_data::SpellItemEnchantmentStore::from_entries([
+                wow_data::SpellItemEnchantmentEntry {
+                    id: 920,
+                    effect_arg: [
+                        wow_constants::ItemModType::Stamina as u32,
+                        wow_constants::ItemModType::Mana as u32,
+                        wow_constants::ItemModType::Strength as u32,
+                    ],
+                    effect_points_min: [3, 4, 2],
+                    item_visual: 0,
+                    flags: wow_constants::SpellItemEnchantmentFlags::empty(),
+                    required_skill_id: 0,
+                    required_skill_rank: 0,
+                    item_level: 1,
+                    charges: 0,
+                    effect: [wow_constants::ItemEnchantmentType::Stat as u8; 3],
+                    condition_id: 0,
+                    min_level: 1,
+                    max_level: 0,
+                },
+                wow_data::SpellItemEnchantmentEntry {
+                    id: 921,
+                    effect_arg: [wow_constants::ItemModType::ManaRegeneration as u32, 0, 0],
+                    effect_points_min: [25, 0, 0],
+                    item_visual: 0,
+                    flags: wow_constants::SpellItemEnchantmentFlags::empty(),
+                    required_skill_id: 0,
+                    required_skill_rank: 0,
+                    item_level: 1,
+                    charges: 0,
+                    effect: [
+                        wow_constants::ItemEnchantmentType::Stat as u8,
+                        wow_constants::ItemEnchantmentType::None as u8,
+                        wow_constants::ItemEnchantmentType::None as u8,
+                    ],
+                    condition_id: 0,
+                    min_level: 1,
+                    max_level: 0,
+                },
+            ]),
+        ));
+        let mut item = session.make_inventory_item_object(
+            item_guid,
+            700,
+            player_guid,
+            1,
+            0,
+            ItemContext::None,
+            wow_entities::EQUIPMENT_SLOT_CHEST,
+        );
+        item.set_enchantment(EnchantmentSlot::EnhancementPermanent, 920, 0, 0);
+        item.set_enchantment(EnchantmentSlot::EnhancementTemporary, 921, 0, 0);
+        session.insert_inventory_item_object(item);
+
+        let outcome = session.apply_loaded_equipped_item_enchantments_like_cpp(item_guid);
+        assert!(outcome.send_stat_update);
+        assert_eq!(
+            session.represented_item_bonus_state_like_cpp().stats_base,
+            [2, 0, 3, 0, 0]
+        );
+        assert_eq!(session.represented_item_bonus_state_like_cpp().mana_base, 4);
+        assert_eq!(
+            session
+                .represented_item_bonus_state_like_cpp()
+                .mana_regen_bonus,
+            25
+        );
+        let (_, changes) = session
+            .player_stat_changes_with_represented_item_bonuses_like_cpp(true)
+            .expect("login stat changes with loaded enchantments");
+
+        assert_eq!(changes.health, 77, "current health remains authoritative");
+        assert_eq!(changes.max_health, 113, "stamina is derived before max HP");
+        assert_eq!(changes.power0, 777, "current mana remains authoritative");
+        assert_eq!(
+            changes.max_power0, 1324,
+            "flat mana is derived before max power"
+        );
+        assert_eq!(changes.stats, [12, 10, 13, 40, 30]);
+        assert_eq!(
+            changes.attack_power, 2,
+            "strength feeds the class AP formula"
+        );
+        assert_eq!(changes.mana_regen_combat, 5.0);
+        assert_eq!(changes.mana_regen_mp5, 0.0);
+        assert!(changes.mana_regen > changes.mana_regen_combat);
+        assert_eq!(
+            session.canonical_player_health_snapshot_like_cpp(),
+            Some((77, 113))
+        );
+        assert_eq!(
+            session.canonical_player_power_snapshot_like_cpp(PowerType::Mana),
+            Some((777, 1324))
         );
     }
 
