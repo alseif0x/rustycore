@@ -239,17 +239,26 @@ fn loaded_item_slot_applies_equipped_enchantments_like_cpp(slot: u8) -> bool {
 }
 
 fn loaded_socketed_gems_like_cpp(fields: [(i32, String, u8); 3]) -> Vec<SocketedGem> {
+    let Some(last_populated_socket) = fields.iter().rposition(|(item_id, _, _)| *item_id > 0)
+    else {
+        return Vec::new();
+    };
     fields
         .into_iter()
-        .filter_map(|(item_id, bonuses, context)| {
-            (item_id > 0).then(|| SocketedGem {
+        .take(last_populated_socket + 1)
+        .map(|(item_id, bonuses, context)| {
+            if item_id <= 0 {
+                return SocketedGem::default();
+            }
+            SocketedGem {
                 item_id,
                 context,
                 bonus_list_ids: bonuses
                     .split_whitespace()
                     .filter_map(|bonus| bonus.parse::<u16>().ok())
+                    .take(16)
                     .collect(),
-            })
+            }
         })
         .collect()
 }
@@ -15485,6 +15494,7 @@ mod tests {
                     context: 3,
                     bonus_list_ids: vec![11, 12],
                 },
+                SocketedGem::default(),
                 SocketedGem {
                     item_id: 701,
                     context: 5,
