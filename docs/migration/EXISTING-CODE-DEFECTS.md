@@ -22,8 +22,15 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
 - [ ] **D-C1 Item enchantments not loaded on relog.** `SEL_CHAR_EQUIPMENT`/`SEL_CHAR_BAG_CONTENTS`
   select enchantment cols but the load hardcodes 0 → equipped/bagged enchants vanish on
   logout. `handlers/character.rs:4617-4618,4760-4761`. C++ `Player::_LoadInventory`.
+  - 2026-07-01 issue #20 local slice: Rust now selects `item_instance.enchantments` for the
+    specialized equipment/bag login queries, parses the 13x `(id,duration,charges)` fields like
+    C++ `Item::LoadFromDB`, applies them to runtime `Item` objects, and includes them in item
+    `CREATE_OBJECT` blocks. Kept open until capture-diff/live relog QA is run.
 - [ ] **D-C2 Item random properties not loaded on relog.** Same query gap → magical items
   become non-magical. `handlers/character.rs:4617`.
+  - 2026-07-01 issue #20 local slice: the same login path now loads `randomPropertiesId` and
+    `randomPropertiesSeed` for equipped and bagged items into runtime item state and login create
+    data. Kept open until capture-diff/live relog QA is run.
 - [ ] **D-C3 Bank contents never persisted.** Bank moves recorded in-memory only
   (`represented_bank_item_moves`), no DB write → 100% bank loss on logout. `session.rs:31575`.
 - [ ] **D-C4 Inventory swap not transactional.** Two separate `execute()` calls; mid-fail

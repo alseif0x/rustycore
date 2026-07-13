@@ -261,6 +261,9 @@ pub struct SessionResources {
     pub difficulty_store: Option<Arc<wow_data::DifficultyStore>>,
     pub lock_store: Option<Arc<wow_data::LockStore>>,
     pub spell_item_enchantment_store: Option<Arc<wow_data::SpellItemEnchantmentStore>>,
+    pub spell_item_enchantment_condition_store:
+        Option<Arc<wow_data::SpellItemEnchantmentConditionStore>>,
+    pub gem_properties_store: Option<Arc<wow_data::GemPropertiesStore>>,
     pub spell_enchant_proc_store: Option<Arc<wow_data::SpellEnchantProcStoreLikeCpp>>,
     pub hotfix_blob_cache: Option<Arc<wow_data::HotfixBlobCache>>,
     pub tact_key_store: Option<Arc<wow_data::TactKeyStore>>,
