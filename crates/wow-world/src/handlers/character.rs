@@ -43,9 +43,8 @@ use wow_entities::{
     GAMEOBJECT_TYPE_QUESTGIVER, GameObjectTemplateData, INVENTORY_DEFAULT_SIZE,
     INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
     INVENTORY_SLOT_ITEM_START, MAX_BAG_SIZE, MAX_GAMEOBJECT_DATA, MovementGeneratorType, NULL_BAG,
-    NULL_SLOT, PROFESSION_SLOT_END, PROFESSION_SLOT_START, REAGENT_BAG_SLOT_END,
-    REAGENT_BAG_SLOT_START, WorldObject, is_equipment_pos, is_inventory_pos,
-    normalize_creature_chase_movement_type_like_cpp,
+    NULL_SLOT, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, WorldObject, is_equipment_pos,
+    is_inventory_pos, normalize_creature_chase_movement_type_like_cpp,
     normalize_creature_random_movement_type_like_cpp,
 };
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
@@ -236,7 +235,7 @@ fn apply_loaded_item_instance_fields_like_cpp(
 }
 
 fn loaded_item_slot_applies_equipped_enchantments_like_cpp(slot: u8) -> bool {
-    slot < EQUIPMENT_SLOT_END || (PROFESSION_SLOT_START..PROFESSION_SLOT_END).contains(&slot)
+    slot < INVENTORY_SLOT_BAG_END
 }
 
 fn loaded_item_effective_enchantments_like_cpp(
@@ -15377,18 +15376,18 @@ mod tests {
     }
 
     #[test]
-    fn loaded_item_slots_apply_equipped_enchantments_for_equipment_and_profession_like_cpp() {
+    fn loaded_item_slots_apply_equipped_enchantments_for_cpp_apply_all_item_mods_range() {
         assert!(loaded_item_slot_applies_equipped_enchantments_like_cpp(
             EQUIPMENT_SLOT_END - 1
         ));
         assert!(loaded_item_slot_applies_equipped_enchantments_like_cpp(
-            PROFESSION_SLOT_START
+            INVENTORY_SLOT_BAG_START
         ));
         assert!(loaded_item_slot_applies_equipped_enchantments_like_cpp(
-            PROFESSION_SLOT_END - 1
+            INVENTORY_SLOT_BAG_END - 1
         ));
         assert!(!loaded_item_slot_applies_equipped_enchantments_like_cpp(
-            INVENTORY_SLOT_BAG_START
+            INVENTORY_SLOT_BAG_END
         ));
     }
 
