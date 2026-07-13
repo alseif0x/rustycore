@@ -1,3 +1,31 @@
+# `#NEXT.R8.ENTITIES.1201` — atomic personal-bank item moves (issue #102).
+
+Source-of-truth C++ was checked before and throughout implementation:
+`Handlers/BankHandler.cpp:25-121`, `Player.cpp:11244-11372,11559-11645`, and
+`Item.cpp:383-576,748-765`. `AUTOBANK` / `AUTOSTORE_BANK_ITEM` now use the represented
+`CanBankItem` / `CanStoreItem` planners, persist every affected location plus the surviving items'
+count, expiration, spell charges, flags, enchantments, durability, and played time, together with
+item cleanup (including stored container-loot rows) and applicable quest state in one character
+transaction. Login also loads expiration and charges so the storage save cannot replace
+dirty/current DB values with defaults, normalizes a zero/nonzero duration mismatch from the
+ItemSparse template, limits charges to the real ItemEffect count, and restores item/non-equipped
+enchantment duration tracking before post-create timer packets. Rust then
+applies and fans out runtime changes only after commit. C++ removal/storage side effects covered
+include equipment/item-set modifiers, expertise/armor-penetration/Titan Grip/average item level,
+duration and tradeable references, destination-stack enchantment timer refresh without item-expiry
+registration, quest add/remove distinctions by opcode, the C++ first-match stop for quest-bound
+item objectives (using the special ItemPushResult and no generic item-objective credit packet),
+quest-log updates, and on-obtain spells. Fully merged sources delete refund,
+BOP-trade, gem, transmog, gift, stored-loot, and item
+rows. Focused positive/negative tests cover empty/merge/remainder/full/withdrawal, a real
+failed-connection SQL commit that exposes no runtime mutation, and quest, packet-mask,
+enchantment-timer, and SQL branches. That regression also replaced a false-positive hardcoded
+legacy backpack slot `19` with the 3.4.3 C++/Rust slot `35`; repeated local Codex review is CLEAN.
+
+Boundary: represented-partial until CharacterDB relog round-trip, installed runtime restart,
+capture-diff, bot/manual client QA, CI, and current-HEAD GitHub Codex verdict. This slice is the
+personal-bank part of D-C3 only; equipment-set and void-storage persistence remain open.
+
 # `#NEXT.R8.ENTITIES.986` — represented guild-bank tab, log, and text intents.
 
 Source-of-truth C++ was checked before code changes: `/home/server/woltk-trinity-legacy/src/server/game/Handlers/GuildHandler.cpp:470-511` (`WorldSession::HandleGuildBankBuyTab`, `HandleGuildBankUpdateTab`, `HandleGuildBankLogQuery`, `HandleGuildBankTextQuery`, `HandleGuildBankSetTabText`), `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/GuildPackets.cpp:649-660,878-943` and `/home/server/woltk-trinity-legacy/src/server/game/Server/Packets/GuildPackets.h:824-844,1105-1170` (packet `Read` shapes), `/home/server/woltk-trinity-legacy/src/server/game/Guilds/Guild.cpp:1553-1643,2198-2225,2944-2952` (guild tab/log/text behavior), and opcode metadata at `/home/server/woltk-trinity-legacy/src/server/game/Server/Protocol/Opcodes.cpp:501,503,506-508`.

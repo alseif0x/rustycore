@@ -263,6 +263,7 @@ pub struct ItemStatsStore {
     stats: HashMap<u32, ItemStatEntry>,
     flags: HashMap<u32, [u32; 4]>,
     sparse_templates: HashMap<u32, ItemSparseTemplateEntry>,
+    duration_in_inventory: HashMap<u32, u32>,
     gem_properties: HashMap<u32, u16>,
     socket_templates: HashMap<u32, ItemSocketTemplateEntry>,
     random_property_templates: HashMap<u32, ItemRandomPropertyTemplateEntry>,
@@ -374,6 +375,7 @@ impl ItemStatsStore {
             stats: stats.into_iter().collect(),
             flags: flags.into_iter().collect(),
             sparse_templates: HashMap::new(),
+            duration_in_inventory: HashMap::new(),
             gem_properties: HashMap::new(),
             socket_templates: HashMap::new(),
             random_property_templates: HashMap::new(),
@@ -393,6 +395,7 @@ impl ItemStatsStore {
             stats: HashMap::new(),
             flags,
             sparse_templates,
+            duration_in_inventory: HashMap::new(),
             gem_properties: HashMap::new(),
             socket_templates: HashMap::new(),
             random_property_templates: HashMap::new(),
@@ -405,6 +408,14 @@ impl ItemStatsStore {
         gem_properties: impl IntoIterator<Item = (u32, u16)>,
     ) -> Self {
         self.gem_properties = gem_properties.into_iter().collect();
+        self
+    }
+
+    pub fn with_duration_in_inventory(
+        mut self,
+        durations: impl IntoIterator<Item = (u32, u32)>,
+    ) -> Self {
+        self.duration_in_inventory = durations.into_iter().collect();
         self
     }
 
@@ -423,6 +434,7 @@ impl ItemStatsStore {
             stats: HashMap::new(),
             flags: HashMap::new(),
             sparse_templates: HashMap::new(),
+            duration_in_inventory: HashMap::new(),
             gem_properties: HashMap::new(),
             socket_templates: HashMap::new(),
             random_property_templates: random_property_templates.into_iter().collect(),
@@ -443,6 +455,7 @@ impl ItemStatsStore {
             stats: HashMap::new(),
             flags,
             sparse_templates,
+            duration_in_inventory: HashMap::new(),
             gem_properties: HashMap::new(),
             socket_templates: HashMap::new(),
             random_property_templates: random_property_templates.into_iter().collect(),
@@ -464,6 +477,7 @@ impl ItemStatsStore {
             stats: stats.into_iter().collect(),
             flags,
             sparse_templates,
+            duration_in_inventory: HashMap::new(),
             gem_properties: HashMap::new(),
             socket_templates: HashMap::new(),
             random_property_templates: random_property_templates.into_iter().collect(),
@@ -478,6 +492,7 @@ impl ItemStatsStore {
             stats: HashMap::new(),
             flags: HashMap::new(),
             sparse_templates: HashMap::new(),
+            duration_in_inventory: HashMap::new(),
             gem_properties: HashMap::new(),
             socket_templates: HashMap::new(),
             random_property_templates: HashMap::new(),
@@ -499,6 +514,7 @@ impl ItemStatsStore {
         let mut stats = HashMap::new();
         let mut flags = HashMap::with_capacity(reader.total_count());
         let mut sparse_templates = HashMap::with_capacity(reader.total_count());
+        let mut duration_in_inventory = HashMap::with_capacity(reader.total_count());
         let mut gem_properties = HashMap::with_capacity(reader.total_count());
         let mut socket_templates = HashMap::with_capacity(reader.total_count());
         let mut random_property_templates = HashMap::with_capacity(reader.total_count());
@@ -518,6 +534,7 @@ impl ItemStatsStore {
 
             // Field offsets for the stat fields we care about
             let mut dmg_variance_offset: usize = 0;
+            let mut duration_in_inventory_offset: usize = 0;
             let mut bag_family_offset: usize = 0;
             let mut start_quest_id_offset: usize = 0;
             let mut stackable_offset: usize = 0;
@@ -560,6 +577,9 @@ impl ItemStatsStore {
             for (fi, &(byte_size, is_string)) in layout.iter().enumerate() {
                 if fi == 6 {
                     dmg_variance_offset = pos;
+                }
+                if fi == 7 {
+                    duration_in_inventory_offset = pos;
                 }
                 if fi == 9 {
                     bag_family_offset = pos;
@@ -692,6 +712,10 @@ impl ItemStatsStore {
             // Extract stat data from the computed offsets
             if stat_amount_offset + 20 > record.len() || stat_type_offset + 10 > record.len() {
                 continue;
+            }
+
+            if duration_in_inventory_offset + 4 <= record.len() {
+                duration_in_inventory.insert(id, read_u32(record, duration_in_inventory_offset));
             }
 
             let mut raw_flags = [0u32; 4];
@@ -877,6 +901,7 @@ impl ItemStatsStore {
             stats,
             flags,
             sparse_templates,
+            duration_in_inventory,
             gem_properties,
             socket_templates,
             random_property_templates,
@@ -912,6 +937,11 @@ impl ItemStatsStore {
     /// Return the C++ `ItemSparseEntry` subset needed by `ItemTemplate` helpers.
     pub fn sparse_template(&self, item_id: u32) -> Option<&ItemSparseTemplateEntry> {
         self.sparse_templates.get(&item_id)
+    }
+
+    /// C++ `ItemTemplate::GetDuration` (`ItemSparseEntry::DurationInInventory`).
+    pub fn duration_in_inventory(&self, item_id: u32) -> Option<u32> {
+        self.duration_in_inventory.get(&item_id).copied()
     }
 
     /// Iterate over the represented C++ `_itemTemplateStore` extended-data subset.
@@ -1087,7 +1117,8 @@ mod tests {
             container_slots: 16,
             inventory_type: 18,
         };
-        let store = ItemStatsStore::from_sparse_templates([(1, template)]);
+        let store = ItemStatsStore::from_sparse_templates([(1, template)])
+            .with_duration_in_inventory([(1, 45_000)]);
 
         let loaded = store.sparse_template(1).unwrap();
         assert_eq!(loaded.max_stack_size(), 20);
@@ -1111,6 +1142,7 @@ mod tests {
         assert_eq!(loaded.allowable_class, -1);
         assert!(loaded.item_flags().contains(ItemFlags::IS_BOUND_TO_ACCOUNT));
         assert_eq!(store.raw_flags(1), Some(template.flags));
+        assert_eq!(store.duration_in_inventory(1), Some(45_000));
 
         let socket_template = ItemSocketTemplateEntry {
             socket_types: [1, 2, 4],
