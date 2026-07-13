@@ -202,6 +202,33 @@ struct InventoryStorageMovePlanLikeCpp {
     moved_destination: Option<(u8, u8, u32)>,
 }
 
+fn bank_move_runs_item_removed_quest_check_like_cpp(force_bank_destination: bool) -> bool {
+    // C++ BankHandler.cpp intentionally differs by opcode here:
+    // HandleAutoBankItemOpcode calls ItemRemovedQuestCheck, while the
+    // inventory-to-bank branch of HandleAutoStoreBankItemOpcode does not.
+    force_bank_destination
+}
+
+fn bank_store_item_added_quest_count_like_cpp(plan: &InventoryStorageMovePlanLikeCpp) -> u32 {
+    // C++ HandleAutoStoreBankItemOpcode passes storedItem->GetCount() after
+    // StoreItem. _StoreItem returns the last destination item, so a full merge
+    // reports that destination stack's total and a merge+remainder reports the
+    // final remainder stack count. This is deliberately not source_count.
+    plan.moved_destination
+        .map(|(_, _, count)| count)
+        .or_else(|| plan.existing_updates.last().map(|update| update.new_count))
+        .unwrap_or(0)
+}
+
+fn bank_store_destination_applies_obtain_spells_like_cpp(bag: u8) -> bool {
+    // C++ Player::_StoreItem checks only the bag value. INVENTORY_SLOT_BAG_0
+    // therefore includes top-level personal-bank slots as well as carried
+    // top-level slots; bank-bag containers remain excluded.
+    bag == INVENTORY_SLOT_BAG_0
+        || (wow_entities::INVENTORY_SLOT_BAG_START..wow_entities::INVENTORY_SLOT_BAG_END)
+            .contains(&bag)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ItemStorageMutablePersistenceLikeCpp {
     db_guid: u64,
@@ -9991,22 +10018,15 @@ impl WorldSession {
             self.quest_source_item_quest_log_item_id_like_cpp(plan.source.entry_id)
                 .await
         };
-        let added_quest_count = plan
-            .moved_destination
-            .map(|(_, _, count)| count)
-            .or_else(|| plan.existing_updates.last().map(|update| update.new_count))
-            .unwrap_or(0);
-        let destination_applies_obtain_spells = |bag: u8| {
-            bag == INVENTORY_SLOT_BAG_0
-                || (wow_entities::INVENTORY_SLOT_BAG_START..wow_entities::INVENTORY_SLOT_BAG_END)
-                    .contains(&bag)
-        };
+        let added_quest_count = bank_store_item_added_quest_count_like_cpp(&plan);
         let apply_obtain_spells = plan
             .moved_destination
-            .is_some_and(|(bag, _, _)| destination_applies_obtain_spells(bag))
+            .is_some_and(|(bag, _, _)| bank_store_destination_applies_obtain_spells_like_cpp(bag))
             || plan.existing_updates.iter().any(|update| {
                 self.get_inventory_item_by_guid_like_cpp(update.item.guid)
-                    .is_some_and(|(bag, _, _)| destination_applies_obtain_spells(bag))
+                    .is_some_and(|(bag, _, _)| {
+                        bank_store_destination_applies_obtain_spells_like_cpp(bag)
+                    })
             });
         let current_non_bank_count =
             self.represented_non_bank_item_count_like_cpp(plan.source.entry_id);
@@ -10016,25 +10036,26 @@ impl WorldSession {
             } else {
                 current_non_bank_count
             };
-        let planned_quest_statuses = if force_bank_destination {
-            self.plan_bank_item_quest_persistence_like_cpp(
-                plan.source.entry_id,
-                0,
-                true,
-                post_move_non_bank_count,
-                0,
-            )
-        } else if !moving_to_bank {
-            self.plan_bank_item_quest_persistence_like_cpp(
-                plan.source.entry_id,
-                quest_log_item_id,
-                false,
-                post_move_non_bank_count,
-                added_quest_count,
-            )
-        } else {
-            Vec::new()
-        };
+        let planned_quest_statuses =
+            if bank_move_runs_item_removed_quest_check_like_cpp(force_bank_destination) {
+                self.plan_bank_item_quest_persistence_like_cpp(
+                    plan.source.entry_id,
+                    0,
+                    true,
+                    post_move_non_bank_count,
+                    0,
+                )
+            } else if !moving_to_bank {
+                self.plan_bank_item_quest_persistence_like_cpp(
+                    plan.source.entry_id,
+                    quest_log_item_id,
+                    false,
+                    post_move_non_bank_count,
+                    added_quest_count,
+                )
+            } else {
+                Vec::new()
+            };
         let enchantment_persistence = plan.moved_destination.and_then(|_| {
             self.inventory_remove_enchantment_persistence_like_cpp(
                 plan.source.guid,
@@ -10384,11 +10405,12 @@ impl WorldSession {
                 .await;
         }
 
-        let mut changed_quest_ids = if force_bank_destination {
-            self.apply_quest_item_removed_like_cpp(plan.source.entry_id)
-        } else {
-            Vec::new()
-        };
+        let mut changed_quest_ids =
+            if bank_move_runs_item_removed_quest_check_like_cpp(force_bank_destination) {
+                self.apply_quest_item_removed_like_cpp(plan.source.entry_id)
+            } else {
+                Vec::new()
+            };
         if !moving_to_bank {
             changed_quest_ids.extend(
                 self.apply_quest_item_added_objective_progress_like_cpp(
@@ -19785,6 +19807,58 @@ mod tests {
         assert_eq!(
             plan.moved_destination,
             Some((INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START, 1))
+        );
+    }
+
+    #[test]
+    fn bank_move_quest_removal_follows_opcode_not_direction_like_cpp() {
+        assert!(bank_move_runs_item_removed_quest_check_like_cpp(true));
+        assert!(
+            !bank_move_runs_item_removed_quest_check_like_cpp(false),
+            "C++ AutoStore inventory-to-bank does not call ItemRemovedQuestCheck"
+        );
+    }
+
+    #[test]
+    fn autostore_full_merge_reports_destination_stack_total_like_cpp() {
+        let (mut session, _send_rx, _canonical) = make_bank_slot_session(1);
+        install_bank_move_item_fixture(&mut session, 709, 10);
+        insert_bank_move_test_item(
+            &mut session,
+            wow_entities::BANK_SLOT_ITEM_START,
+            709,
+            7_091,
+            2,
+        );
+        insert_bank_move_test_item(&mut session, INVENTORY_SLOT_ITEM_START, 709, 7_092, 8);
+
+        let plan = session
+            .plan_inventory_storage_move_like_cpp(
+                INVENTORY_SLOT_BAG_0,
+                wow_entities::BANK_SLOT_ITEM_START,
+                false,
+            )
+            .expect("source item")
+            .expect("valid inventory plan");
+
+        assert!(plan.moved_destination.is_none());
+        assert_eq!(plan.existing_updates[0].new_count, 10);
+        assert_eq!(bank_store_item_added_quest_count_like_cpp(&plan), 10);
+    }
+
+    #[test]
+    fn top_level_bank_destination_applies_obtain_spells_like_cpp_store_item() {
+        assert!(bank_store_destination_applies_obtain_spells_like_cpp(
+            INVENTORY_SLOT_BAG_0
+        ));
+        assert!(bank_store_destination_applies_obtain_spells_like_cpp(
+            wow_entities::INVENTORY_SLOT_BAG_START
+        ));
+        assert!(
+            !bank_store_destination_applies_obtain_spells_like_cpp(
+                wow_entities::BANK_SLOT_BAG_START
+            ),
+            "C++ _StoreItem excludes bank-bag containers but not bag-0 bank slots"
         );
     }
 
