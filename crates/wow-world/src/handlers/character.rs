@@ -13351,14 +13351,14 @@ impl WorldSession {
             return;
         }
 
-        let src_item = self.inventory_items_like_cpp().get(&src).cloned();
-        let dst_item = self.inventory_items_like_cpp().get(&dst).cloned();
-
-        // At least one slot must have an item
-        if src_item.is_none() && dst_item.is_none() {
-            self.send_packet(&InventoryChangeFailure::error(InventoryResult::SlotEmpty));
+        // C++ Player::SwapItem returns immediately when GetItemByPos(src) is
+        // null. A stale or malformed packet must never turn the occupied
+        // destination into an implicit source, especially now that the final
+        // positions are committed atomically below.
+        let Some(src_item) = self.inventory_items_like_cpp().get(&src).cloned() else {
             return;
-        }
+        };
+        let dst_item = self.inventory_items_like_cpp().get(&dst).cloned();
 
         let char_db = match self.char_db() {
             Some(db) => Arc::clone(db),
@@ -13377,7 +13377,7 @@ impl WorldSession {
         let persistence_updates = plan_direct_inventory_swap_persistence_like_cpp(
             src,
             dst,
-            src_item.as_ref(),
+            Some(&src_item),
             dst_item.as_ref(),
         );
         let mut tx = SqlTransaction::new();
@@ -13405,22 +13405,14 @@ impl WorldSession {
         // Expose the coherent move only after every persistent position committed.
         // When the move crosses equipment slots, mirror C++ RemoveItem/EquipItem
         // around the slot mutation.
-        let represented_item_mods_changed = if src_item.is_some() {
-            self.move_represented_direct_inventory_item_with_item_mods_like_cpp(src, dst)
-                .unwrap_or(false)
-        } else if dst_item.is_some() {
-            self.move_represented_direct_inventory_item_with_item_mods_like_cpp(dst, src)
-                .unwrap_or(false)
-        } else {
-            false
-        };
+        let represented_item_mods_changed = self
+            .move_represented_direct_inventory_item_with_item_mods_like_cpp(src, dst)
+            .unwrap_or(false);
         self.sync_object_accessor_player();
         self.sync_player_registry_state_like_cpp();
 
         let source_moved_bag_has_active_loot = is_represented_bag_slot(src)
-            && src_item.as_ref().is_some_and(|item| {
-                self.represented_bag_contains_active_item_loot_like_cpp(item.guid)
-            });
+            && self.represented_bag_contains_active_item_loot_like_cpp(src_item.guid);
         let destination_moved_bag_has_active_loot = is_represented_bag_slot(dst)
             && dst_item.as_ref().is_some_and(|item| {
                 self.represented_bag_contains_active_item_loot_like_cpp(item.guid)
@@ -13443,12 +13435,7 @@ impl WorldSession {
         inv_slot_changes.push((src, src_new_guid));
 
         // Destination slot
-        let dst_new_guid = if let Some(ref item) = src_item {
-            item.guid
-        } else {
-            ObjectGuid::EMPTY
-        };
-        inv_slot_changes.push((dst, dst_new_guid));
+        inv_slot_changes.push((dst, src_item.guid));
 
         // VisibleItems: equipment slots 0-18
         for &slot in &[src, dst] {
@@ -18817,6 +18804,51 @@ mod tests {
                 slot: 36,
                 item_db_guid: 60,
             }]
+        );
+    }
+
+    #[tokio::test]
+    async fn swap_inv_item_empty_source_returns_without_moving_destination_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(4);
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let destination_guid = ObjectGuid::create_item(1, 62);
+        session.insert_inventory_item_like_cpp(
+            INVENTORY_SLOT_ITEM_START + 1,
+            InventoryItem {
+                guid: destination_guid,
+                entry_id: 107,
+                db_guid: 62,
+                inventory_type: None,
+            },
+        );
+
+        session
+            .handle_swap_inv_item(SwapInvItem {
+                inv_update: InvUpdate {
+                    items: vec![
+                        (INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START),
+                        (INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START + 1),
+                    ],
+                },
+                src_slot: INVENTORY_SLOT_ITEM_START,
+                dst_slot: INVENTORY_SLOT_ITEM_START + 1,
+            })
+            .await;
+
+        assert!(
+            session
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)
+                .is_none()
+        );
+        assert_eq!(
+            session
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START + 1,)
+                .map(|item| item.guid),
+            Some(destination_guid)
+        );
+        assert!(
+            send_rx.try_recv().is_err(),
+            "C++ Player::SwapItem silently returns when the source is empty"
         );
     }
 
