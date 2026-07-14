@@ -3706,6 +3706,11 @@ pub struct SpellCastBattlePetItemModifiersLikeCpp {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SpellCastMetadata {
     pub from_client: bool,
+    /// Overrides the visible/effect caster for represented triggered casts.
+    /// Normal player casts leave this empty and use the logged-in player GUID.
+    pub caster_guid_override: Option<ObjectGuid>,
+    /// C++ `SpellCastData::CastFlags` for the emitted `SMSG_SPELL_GO`.
+    pub cast_flags: u32,
     pub misc: [i32; 2],
     pub cast_item_entry: Option<u32>,
     pub cast_item_battle_pet_modifiers: Option<SpellCastBattlePetItemModifiersLikeCpp>,
@@ -3720,6 +3725,8 @@ impl Default for SpellCastMetadata {
     fn default() -> Self {
         Self {
             from_client: false,
+            caster_guid_override: None,
+            cast_flags: 0,
             misc: [0, 0],
             cast_item_entry: None,
             cast_item_battle_pet_modifiers: None,
@@ -11691,7 +11698,9 @@ impl WorldSession {
             original_cast_id: cast_id,
             spell_id,
             visual: SpellCastVisual::default(),
+            cast_flags: 0,
             cast_flags_ex: 0,
+            cast_time_ms: Self::game_time_ms_like_cpp(),
             target: SpellTargetData {
                 flags: 0x2,
                 unit: target_guid,
@@ -27409,6 +27418,63 @@ impl WorldSession {
                 SendIfVisibleLikeCppCommand {
                     queued_at: Instant::now(),
                     source_guid: guid,
+                    map_id,
+                    instance_id,
+                    packet_bytes: bytes.clone(),
+                },
+            ));
+        }
+    }
+
+    /// Route a creature-originated packet through the existing
+    /// `MessageDistDeliverer`-style candidate and per-session visibility gates.
+    /// The activating session receives its direct packet separately; this
+    /// queues only nearby observers, matching `WorldObject::SendMessageToSet`.
+    pub(crate) fn broadcast_creature_packet_to_visible_set_like_cpp(
+        &self,
+        source_guid: ObjectGuid,
+        bytes: Vec<u8>,
+    ) {
+        let (Some(registry), Some(source)) = (
+            self.player_registry(),
+            self.canonical_creature_access_like_cpp(source_guid),
+        ) else {
+            return;
+        };
+        let player_guid = self.player_guid().unwrap_or(ObjectGuid::EMPTY);
+        let map_id = self.player_map_id_like_cpp();
+        let instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let range_sq =
+            crate::map_manager::VISIBILITY_RADIUS * crate::map_manager::VISIBILITY_RADIUS;
+
+        let candidates: Vec<_> = registry
+            .iter()
+            .filter_map(|entry| {
+                let (other_guid, other_info): (&ObjectGuid, &PlayerBroadcastInfo) = entry.pair();
+                if *other_guid == player_guid
+                    || !other_info.is_in_world
+                    || other_info.map_id != map_id
+                    || other_info.instance_id != instance_id
+                {
+                    return None;
+                }
+                let dx = other_info.position.x - source.position.x;
+                let dy = other_info.position.y - source.position.y;
+                if dx * dx + dy * dy > range_sq {
+                    return None;
+                }
+                Some(other_info.command_tx.clone())
+            })
+            .collect();
+
+        for command_tx in candidates {
+            let _ = command_tx.try_send(SessionCommand::SendIfVisibleLikeCpp(
+                SendIfVisibleLikeCppCommand {
+                    queued_at: Instant::now(),
+                    source_guid,
                     map_id,
                     instance_id,
                     packet_bytes: bytes.clone(),
@@ -52005,6 +52071,7 @@ impl WorldSession {
         metadata: SpellCastMetadata,
     ) -> Result<(), &'static str> {
         let player_guid = self.player_guid().ok_or("No player GUID")?;
+        let caster_guid = metadata.caster_guid_override.unwrap_or(player_guid);
 
         // Obtener SpellInfo
         let spell_info = self
@@ -52156,16 +52223,24 @@ impl WorldSession {
 
         let spell_visual_id = spell_visual.spell_visual_id;
         let go_pkt = SpellGoPkt {
-            caster: player_guid,
+            caster: caster_guid,
             cast_id,
             original_cast_id: metadata.original_cast_id_or(cast_id),
             spell_id,
             visual: spell_visual,
+            cast_flags: metadata.cast_flags,
             cast_flags_ex: metadata.cast_flags_ex,
+            cast_time_ms: Self::game_time_ms_like_cpp(),
             target: target_data.clone(),
             hit_targets: vec![target_guid],
         };
         self.send_packet(&go_pkt);
+        if caster_guid != player_guid && caster_guid.is_any_type_creature() {
+            self.broadcast_creature_packet_to_visible_set_like_cpp(
+                caster_guid,
+                wow_packet::ServerPacket::to_bytes(&go_pkt),
+            );
+        }
 
         let mut force_visibility_after_add_farsight = false;
         for effect in spell_info.effects() {
@@ -52203,7 +52278,7 @@ impl WorldSession {
                 .unwrap_or(&target_data);
             self.apply_effect_teleport_units_like_cpp(effect, target_guid, effect_target_data)
                 .await;
-            self.apply_effect_bind_like_cpp(effect, player_guid, target_guid, effect_target_data)
+            self.apply_effect_bind_like_cpp(effect, caster_guid, target_guid, effect_target_data)
                 .await;
         }
 
@@ -52222,7 +52297,7 @@ impl WorldSession {
             .await;
             self.apply_effect_bind_like_cpp(
                 &primary_effect_like_cpp,
-                player_guid,
+                caster_guid,
                 target_guid,
                 &target_data,
             )
@@ -52936,23 +53011,25 @@ impl WorldSession {
             }
         }
 
-        // Set global cooldown
-        self.last_spell_cast_time = Some(Instant::now());
+        if caster_guid == player_guid {
+            // This represented cooldown state belongs to the session player.
+            // A triggered creature cast (for example innkeeper bind spell
+            // 3286) must not start or advertise a player cooldown.
+            self.last_spell_cast_time = Some(Instant::now());
+            self.last_spell_cast_time_per_spell
+                .insert(spell_id, Instant::now());
+            self.record_cast_character_spell_cooldown_like_cpp(
+                spell_id,
+                spell_info.recovery_time_ms.max(spell_info.cooldown_ms),
+            );
 
-        // Set per-spell cooldown
-        self.last_spell_cast_time_per_spell
-            .insert(spell_id, Instant::now());
-        self.record_cast_character_spell_cooldown_like_cpp(
-            spell_id,
-            spell_info.recovery_time_ms.max(spell_info.cooldown_ms),
-        );
-
-        // Notify client so action bar shows the cooldown animation
-        use wow_packet::packets::spell::CooldownEvent;
-        self.send_packet(&CooldownEvent {
-            spell_id,
-            is_pet: false,
-        });
+            // Notify the owning player so the action bar shows the cooldown.
+            use wow_packet::packets::spell::CooldownEvent;
+            self.send_packet(&CooldownEvent {
+                spell_id,
+                is_pet: false,
+            });
+        }
 
         Ok(())
     }
@@ -53525,27 +53602,6 @@ impl WorldSession {
             },
         )
         .await;
-    }
-
-    pub(crate) async fn set_homebind_to_current_location_like_cpp(
-        &mut self,
-        binder_id: ObjectGuid,
-    ) -> bool {
-        let Some(position) = self.player_position_like_cpp() else {
-            return false;
-        };
-        let (_, area_id) = self.player_zone_area_like_cpp();
-        let map_id = u32::from(self.player_map_id_like_cpp());
-        self.set_homebind_like_cpp(
-            binder_id,
-            RepresentedHomebindLikeCpp {
-                map_id,
-                area_id,
-                position,
-            },
-        )
-        .await;
-        true
     }
 
     pub(crate) fn player_current_map_instanceable_like_cpp(&self) -> bool {
