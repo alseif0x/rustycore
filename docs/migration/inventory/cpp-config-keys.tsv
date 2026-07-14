@@ -285,7 +285,7 @@ Death.Bones.World	worldserver:server/worldserver/worldserver.conf.dist:2739	worl
 Death.CorpseReclaimDelay.PvE	worldserver:server/worldserver/worldserver.conf.dist:2728	worldserver=0	Bool:server/game/World/World.cpp:1308	Bool=true	CONFIG_DEATH_CORPSE_RECLAIM_DELAY_PVE		missing_in_rust	-
 Death.CorpseReclaimDelay.PvP	worldserver:server/worldserver/worldserver.conf.dist:2727	worldserver=1	Bool:server/game/World/World.cpp:1307	Bool=true	CONFIG_DEATH_CORPSE_RECLAIM_DELAY_PVP		missing_in_rust	-
 Death.SicknessLevel	worldserver:server/worldserver/worldserver.conf.dist:2718	worldserver=11	Int:server/game/World/World.cpp:1306	Int=11	CONFIG_DEATH_SICKNESS_LEVEL		missing_in_rust	-
-DeclinedNames	worldserver:server/worldserver/worldserver.conf.dist:705	worldserver=0	Bool:server/game/World/World.cpp:1316	Bool=false	CONFIG_DECLINED_NAMES_USED		missing_in_rust	-
+DeclinedNames	worldserver:server/worldserver/worldserver.conf.dist:705	worldserver=0	Bool:server/game/World/World.cpp:1316	Bool=false	CONFIG_DECLINED_NAMES_USED		represented	consumed by world-server character enum; Russian Cfg_Categories create charset forces true like C++
 DetectPosCollision	worldserver:server/worldserver/worldserver.conf.dist:458	worldserver=1	Bool:server/game/World/World.cpp:1290	Bool=true	CONFIG_DETECT_POS_COLLISION		missing_in_rust	-
 Die.Command.Mode	worldserver:server/worldserver/worldserver.conf.dist:2748	worldserver=1	Bool:server/game/World/World.cpp:1312	Bool=true	CONFIG_DIE_COMMAND_MODE		missing_in_rust	-
 DisableWaterBreath	worldserver:server/worldserver/worldserver.conf.dist:984	worldserver=4	Int:server/game/World/World.cpp:1230	Int=SEC_CONSOLE	CONFIG_DISABLE_BREATHING		missing_in_rust	-
