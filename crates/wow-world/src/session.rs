@@ -52218,6 +52218,70 @@ impl WorldSession {
             return Ok(());
         }
 
+        // C++ `Spell::SelectSpellTargets` resolves implicit destinations in
+        // effect/target order before `Spell::SendSpellGo`; later selections
+        // replace earlier ones through `SpellCastTargets::ModDst`.
+        let mut target_data = target_data;
+        let mut represented_implicit_destination = false;
+        let mut effect_target_data_like_cpp = Vec::new();
+        for effect in spell_info.effects() {
+            if effect.effect == 0 {
+                continue;
+            }
+            for implicit_target in [effect.implicit_target_1, effect.implicit_target_2] {
+                let mut isolated_effect = effect.clone();
+                isolated_effect.implicit_target_1 = implicit_target;
+                isolated_effect.implicit_target_2 = 0;
+                let mut selection_input = target_data.clone();
+                selection_input.flags &= !0x0000_0040;
+                selection_input.dst_location = None;
+                selection_input.map_id = None;
+                let selected = match implicit_target {
+                    wow_data::spell::implicit_targets::TARGET_DEST_HOME => self
+                        .represented_home_destination_target_data_like_cpp(
+                            &isolated_effect,
+                            &selection_input,
+                        ),
+                    wow_data::spell::implicit_targets::TARGET_DEST_DB => self
+                        .represented_db_caster_destination_target_data_like_cpp(
+                            &spell_info,
+                            &isolated_effect,
+                            &selection_input,
+                        ),
+                    wow_data::spell::implicit_targets::TARGET_DEST_NEARBY_ENTRY
+                    | wow_data::spell::implicit_targets::TARGET_DEST_NEARBY_ENTRY_2
+                    | wow_data::spell::implicit_targets::TARGET_DEST_NEARBY_ENTRY_OR_DB => self
+                        .represented_focus_destination_target_data_like_cpp(
+                            spell_id,
+                            &isolated_effect,
+                            &selection_input,
+                            represented_focus_object,
+                        )
+                        .or_else(|| {
+                            self.represented_nearby_entry_destination_target_data_like_cpp(
+                                spell_id,
+                                &isolated_effect,
+                                &selection_input,
+                            )
+                        }),
+                    _ => None,
+                };
+                if let Some(selected) = selected {
+                    target_data = selected;
+                    represented_implicit_destination = true;
+                }
+            }
+            // C++ snapshots `m_targets.GetDst()` into
+            // `m_destTargets[EffectIndex]` after selecting each effect.
+            effect_target_data_like_cpp.push((effect.effect_index, target_data.clone()));
+        }
+        let mut spell_go_target_data = target_data.clone();
+        if represented_implicit_destination {
+            // C++ retains map identity on SpellDestination for effect
+            // execution, while SpellCastTargets::Write emits DstLocation XYZ.
+            spell_go_target_data.map_id = None;
+        }
+
         // Send SMSG_SPELL_GO
         use wow_packet::packets::spell::SpellGoPkt;
 
@@ -52231,7 +52295,7 @@ impl WorldSession {
             cast_flags: metadata.cast_flags,
             cast_flags_ex: metadata.cast_flags_ex,
             cast_time_ms: Self::game_time_ms_like_cpp(),
-            target: target_data.clone(),
+            target: spell_go_target_data,
             hit_targets: vec![target_guid],
         };
         self.send_packet(&go_pkt);
@@ -52245,10 +52309,15 @@ impl WorldSession {
         let mut force_visibility_after_add_farsight = false;
         for effect in spell_info.effects() {
             if effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_ADD_FARSIGHT {
+                let effect_target_data = effect_target_data_like_cpp
+                    .iter()
+                    .find(|(effect_index, _)| *effect_index == effect.effect_index)
+                    .map(|(_, target_data)| target_data)
+                    .unwrap_or(&target_data);
                 if let Some(outcome) = self.apply_effect_add_farsight_like_cpp(
                     spell_id,
                     effect,
-                    &target_data,
+                    effect_target_data,
                     spell_visual_id,
                     spell_info.cast_time_ms,
                 ) {
@@ -52262,19 +52331,10 @@ impl WorldSession {
         }
 
         for effect in spell_info.effects() {
-            let represented_home_target_data =
-                self.represented_home_destination_target_data_like_cpp(effect, &target_data);
-            let represented_db_target_data = self
-                .represented_db_caster_destination_target_data_like_cpp(
-                    &spell_info,
-                    effect,
-                    represented_home_target_data
-                        .as_ref()
-                        .unwrap_or(&target_data),
-                );
-            let effect_target_data = represented_db_target_data
-                .as_ref()
-                .or(represented_home_target_data.as_ref())
+            let effect_target_data = effect_target_data_like_cpp
+                .iter()
+                .find(|(effect_index, _)| *effect_index == effect.effect_index)
+                .map(|(_, target_data)| target_data)
                 .unwrap_or(&target_data);
             self.apply_effect_teleport_units_like_cpp(effect, target_guid, effect_target_data)
                 .await;
@@ -52306,32 +52366,10 @@ impl WorldSession {
 
         let mut force_visibility_after_gameobject_summon = false;
         for effect in spell_info.effects() {
-            let represented_focus_target_data = self
-                .represented_focus_destination_target_data_like_cpp(
-                    spell_id,
-                    effect,
-                    &target_data,
-                    represented_focus_object,
-                );
-            let represented_db_target_data = if represented_focus_target_data.is_none() {
-                self.represented_db_caster_destination_target_data_like_cpp(
-                    &spell_info,
-                    effect,
-                    &target_data,
-                )
-                .or_else(|| {
-                    self.represented_nearby_entry_destination_target_data_like_cpp(
-                        spell_id,
-                        effect,
-                        &target_data,
-                    )
-                })
-            } else {
-                None
-            };
-            let effect_target_data = represented_focus_target_data
-                .as_ref()
-                .or(represented_db_target_data.as_ref())
+            let effect_target_data = effect_target_data_like_cpp
+                .iter()
+                .find(|(effect_index, _)| *effect_index == effect.effect_index)
+                .map(|(_, target_data)| target_data)
                 .unwrap_or(&target_data);
             if let Some(outcome) = self.apply_effect_summon_object_wild_with_focus_like_cpp(
                 spell_id,
@@ -52394,6 +52432,11 @@ impl WorldSession {
             direct_effect_trigger_spell,
         ) in direct_spell_effects_like_cpp
         {
+            let direct_effect_target_data = effect_target_data_like_cpp
+                .iter()
+                .find(|(effect_index, _)| *effect_index == direct_effect_index)
+                .map(|(_, target_data)| target_data)
+                .unwrap_or(&target_data);
             match direct_effect_type {
                 x if wow_data::spell::spell_effect_types::is_cpp_null_or_unused_noop(x) => {}
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_INSTAKILL => {
@@ -52510,7 +52553,7 @@ impl WorldSession {
                     self.apply_distract_effect_like_cpp(
                         direct_effect_base_points,
                         target_guid,
-                        &target_data,
+                        direct_effect_target_data,
                     )?;
                 }
                 x if x
@@ -52571,7 +52614,7 @@ impl WorldSession {
                 {
                     self.apply_change_raid_marker_effect_like_cpp(
                         direct_effect_base_points,
-                        &target_data,
+                        direct_effect_target_data,
                     );
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_SPELL => {
@@ -53747,6 +53790,7 @@ impl WorldSession {
         );
 
         let mut target_data = target_data.clone();
+        target_data.flags |= 0x0000_0040; // C++ TARGET_FLAG_DEST_LOCATION
         target_data.dst_location = Some(wow_packet::packets::spell::TargetLocation {
             transport: ObjectGuid::EMPTY,
             position: focus_position,
@@ -53806,20 +53850,19 @@ impl WorldSession {
         effect: &wow_data::SpellEffectInfo,
         target_data: &SpellTargetData,
     ) -> Option<SpellTargetData> {
-        if target_data.dst_location.is_some()
-            || !matches!(
-                effect.implicit_target_1,
-                wow_data::spell::implicit_targets::TARGET_DEST_HOME
-            ) && !matches!(
-                effect.implicit_target_2,
-                wow_data::spell::implicit_targets::TARGET_DEST_HOME
-            )
-        {
+        if !matches!(
+            effect.implicit_target_1,
+            wow_data::spell::implicit_targets::TARGET_DEST_HOME
+        ) && !matches!(
+            effect.implicit_target_2,
+            wow_data::spell::implicit_targets::TARGET_DEST_HOME
+        ) {
             return None;
         }
 
         let homebind = self.represented_homebind_like_cpp()?;
         let mut target_data = target_data.clone();
+        target_data.flags |= 0x0000_0040; // C++ TARGET_FLAG_DEST_LOCATION
         target_data.dst_location = Some(wow_packet::packets::spell::TargetLocation {
             transport: ObjectGuid::EMPTY,
             position: homebind.position,
@@ -53883,6 +53926,7 @@ impl WorldSession {
         );
 
         let mut target_data = target_data.clone();
+        target_data.flags |= 0x0000_0040; // C++ TARGET_FLAG_DEST_LOCATION
         target_data.dst_location = Some(wow_packet::packets::spell::TargetLocation {
             transport: ObjectGuid::EMPTY,
             position,
@@ -53965,6 +54009,7 @@ impl WorldSession {
             self.apply_spell_destination_facing_override_like_cpp(spell_id, effect, randomized)
         };
         let mut target_data = target_data.clone();
+        target_data.flags |= 0x0000_0040; // C++ TARGET_FLAG_DEST_LOCATION
         target_data.dst_location = Some(wow_packet::packets::spell::TargetLocation {
             transport: ObjectGuid::EMPTY,
             position,
@@ -71848,9 +71893,45 @@ mod tests {
         assert_eq!(session.state, SessionState::Transfer);
     }
 
+    fn decode_spell_go_target_data_like_cpp(
+        bytes: &[u8],
+        expected_spell_id: i32,
+    ) -> SpellTargetData {
+        let mut spell_go = WorldPacket::from_bytes(bytes);
+        assert_eq!(
+            spell_go.read_uint16().expect("SpellGo opcode"),
+            ServerOpcodes::SpellGo as u16
+        );
+        for label in ["caster", "caster unit", "cast id", "original cast id"] {
+            spell_go.read_packed_guid().expect(label);
+        }
+        assert_eq!(spell_go.read_int32().expect("spell id"), expected_spell_id);
+        wow_packet::packets::spell::SpellCastVisual::read(&mut spell_go).expect("spell visual");
+        spell_go.read_uint32().expect("cast flags");
+        spell_go.read_uint32().expect("cast flags ex");
+        spell_go.read_uint32().expect("cast time");
+        spell_go.read_int32().expect("missile travel time");
+        spell_go.read_float().expect("missile pitch");
+        spell_go.read_uint8().expect("destination cast index");
+        spell_go.read_uint32().expect("immunity school");
+        spell_go.read_uint32().expect("immunity value");
+        spell_go.read_uint32().expect("heal prediction points");
+        spell_go.read_uint8().expect("heal prediction type");
+        spell_go.read_packed_guid().expect("heal prediction beacon");
+        spell_go.read_bits(16).expect("hit target count");
+        spell_go.read_bits(16).expect("miss target count");
+        spell_go.read_bits(16).expect("miss status count");
+        spell_go.read_bits(9).expect("remaining power count");
+        spell_go.read_bit().expect("remaining runes presence");
+        spell_go.read_bits(16).expect("target point count");
+        spell_go.read_bit().expect("ammo display presence");
+        spell_go.read_bit().expect("ammo inventory presence");
+        SpellTargetData::read(&mut spell_go).expect("SpellGo target data")
+    }
+
     #[tokio::test]
     async fn teleport_units_target_dest_home_uses_represented_homebind_like_cpp() {
-        let (mut session, _, _send_rx) = make_session();
+        let (mut session, _, send_rx) = make_session();
         let spell_id = 8690_i32;
         let player_guid = ObjectGuid::create_player(1, 7040);
         let player_position = Position::new(300.0, 400.0, 60.0, 0.5);
@@ -71894,13 +71975,137 @@ mod tests {
                     spell_visual_id: 8690,
                     script_visual_id: 0,
                 },
-                SpellTargetData::default(),
+                SpellTargetData {
+                    flags: 0x0000_0040,
+                    dst_location: Some(wow_packet::packets::spell::TargetLocation {
+                        transport: ObjectGuid::EMPTY,
+                        position: Position::new(999.0, 998.0, 997.0, 0.0),
+                    }),
+                    map_id: Some(571),
+                    ..SpellTargetData::default()
+                },
             )
             .await
             .expect("TARGET_DEST_HOME hearthstone teleport should execute");
 
+        let bytes = send_rx.try_recv().expect("hearthstone SpellGo");
+        let packet_target = decode_spell_go_target_data_like_cpp(&bytes, spell_id);
+        assert_ne!(packet_target.flags & 0x0000_0040, 0);
+        assert_eq!(
+            packet_target
+                .dst_location
+                .expect("resolved home destination")
+                .position,
+            Position::new(home_position.x, home_position.y, home_position.z, 0.0),
+            "C++ SelectSpellTargets resolves TARGET_DEST_HOME before SpellGo"
+        );
+        assert_eq!(packet_target.map_id, None);
         assert_eq!(session.pending_teleport, Some((1, home_position)));
         assert_eq!(session.state, SessionState::Transfer);
+    }
+
+    #[tokio::test]
+    async fn implicit_destination_selection_uses_cpp_effect_order_before_spell_go() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 86_901_i32;
+        let player_guid = ObjectGuid::create_player(1, 7042);
+        let player_position = Position::new(310.0, 410.0, 62.0, 0.5);
+        let home_position = Position::new(40.0, 50.0, 60.0, 1.25);
+        let db_destination = Position::new(70.0, 80.0, 90.0, 2.5);
+        let canonical = shared_canonical_map_manager();
+        let home_effect = wow_data::SpellEffectInfo {
+            effect_index: 0,
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_BIND,
+            implicit_target_1: wow_data::spell::implicit_targets::TARGET_DEST_HOME,
+            ..Default::default()
+        };
+        let db_effect = wow_data::SpellEffectInfo {
+            effect_index: 1,
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS,
+            implicit_target_1: wow_data::spell::implicit_targets::TARGET_DEST_DB,
+            ..Default::default()
+        };
+        let empty_home_effect = wow_data::SpellEffectInfo {
+            effect_index: 2,
+            effect: 0,
+            implicit_target_1: wow_data::spell::implicit_targets::TARGET_DEST_HOME,
+            ..Default::default()
+        };
+        let spell_info = teleport_units_spell_info_like_cpp(
+            spell_id,
+            vec![home_effect, db_effect.clone(), empty_home_effect],
+        );
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "OrderedDestination".to_string(),
+            player_position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
+            map_id: 1,
+            area_id: 1519,
+            position: home_position,
+        });
+        add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(spell_id, spell_info.clone());
+        session.set_spell_store(Arc::new(spell_store));
+        let mut target_spell_store = wow_data::SpellStore::new();
+        target_spell_store.insert(spell_id, spell_info);
+        session.set_spell_target_position_store(Arc::new(
+            wow_data::SpellTargetPositionStoreLikeCpp::from_rows_like_cpp(
+                [wow_data::SpellTargetPositionRowLikeCpp {
+                    spell_id: spell_id as u32,
+                    effect_index: db_effect.effect_index,
+                    target_map_id: 1,
+                    x: db_destination.x,
+                    y: db_destination.y,
+                    z: db_destination.z,
+                    orientation: Some(db_destination.orientation),
+                }],
+                &target_spell_store,
+                |map_id| matches!(map_id, 1 | 571),
+            ),
+        ));
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual::default(),
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("ordered HOME then DB teleport should execute");
+
+        let bytes = send_rx.try_recv().expect("ordered destination SpellGo");
+        let packet_target = decode_spell_go_target_data_like_cpp(&bytes, spell_id);
+        assert_ne!(packet_target.flags & 0x0000_0040, 0);
+        assert_eq!(
+            packet_target
+                .dst_location
+                .expect("resolved final DB destination")
+                .position,
+            Position::new(db_destination.x, db_destination.y, db_destination.z, 0.0),
+            "later TARGET_DEST_DB replaces earlier TARGET_DEST_HOME like C++ ModDst"
+        );
+        assert_eq!(packet_target.map_id, None);
+        assert_eq!(
+            session
+                .represented_homebind_like_cpp()
+                .expect("bind effect home snapshot")
+                .position,
+            home_position,
+            "effect 0 BIND keeps its HOME snapshot while later TELEPORT uses DB"
+        );
+        assert_eq!(session.pending_teleport, Some((1, db_destination)));
     }
 
     #[tokio::test]
