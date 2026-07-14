@@ -53555,14 +53555,6 @@ impl WorldSession {
             .is_some_and(|entry| entry.instance_type != wow_data::map::MAP_COMMON)
     }
 
-    pub(crate) async fn seed_represented_homebind_from_load_like_cpp(
-        &mut self,
-        homebind: RepresentedHomebindLikeCpp,
-    ) {
-        self.represented_homebind_like_cpp = Some(homebind);
-        self.persist_player_homebind_like_cpp(homebind).await;
-    }
-
     async fn set_homebind_like_cpp(
         &mut self,
         binder_id: ObjectGuid,
@@ -53599,21 +53591,6 @@ impl WorldSession {
         stmt
     }
 
-    fn build_player_homebind_insert_statement_like_cpp(
-        homebind: RepresentedHomebindLikeCpp,
-        guid_counter: u64,
-    ) -> PreparedStatement {
-        let mut stmt = PreparedStatement::new(CharStatements::INS_PLAYER_HOMEBIND.sql());
-        stmt.set_u64(0, guid_counter);
-        stmt.set_u16(1, u16::try_from(homebind.map_id).unwrap_or(u16::MAX));
-        stmt.set_u16(2, u16::try_from(homebind.area_id).unwrap_or(u16::MAX));
-        stmt.set_f32(3, homebind.position.x);
-        stmt.set_f32(4, homebind.position.y);
-        stmt.set_f32(5, homebind.position.z);
-        stmt.set_f32(6, homebind.position.orientation);
-        stmt
-    }
-
     async fn persist_player_homebind_like_cpp(&self, homebind: RepresentedHomebindLikeCpp) {
         let (Some(player_guid), Some(char_db)) =
             (self.player_guid(), self.char_db().map(Arc::clone))
@@ -53623,30 +53600,12 @@ impl WorldSession {
         let guid_counter = player_guid.counter() as u64;
         let update_stmt =
             Self::build_player_homebind_update_statement_like_cpp(homebind, guid_counter);
-        match char_db.execute(&update_stmt).await {
-            Ok(0) => {
-                // C++ Player::_LoadHomebind creates a missing row before
-                // Player::SetHomebind later uses CHAR_UPD_PLAYER_HOMEBIND.
-                // Rust's represented login path can still lack that invariant,
-                // so recover it here without changing the C++ update bind order.
-                let insert_stmt =
-                    Self::build_player_homebind_insert_statement_like_cpp(homebind, guid_counter);
-                if let Err(error) = char_db.execute(&insert_stmt).await {
-                    warn!(
-                        player_guid = guid_counter,
-                        %error,
-                        "failed to insert represented player homebind after update affected zero rows"
-                    );
-                }
-            }
-            Ok(_) => {}
-            Err(error) => {
-                warn!(
-                    player_guid = guid_counter,
-                    %error,
-                    "failed to update represented player homebind"
-                );
-            }
+        if let Err(error) = char_db.execute(&update_stmt).await {
+            warn!(
+                player_guid = guid_counter,
+                %error,
+                "failed to update represented player homebind"
+            );
         }
     }
 
@@ -104522,32 +104481,6 @@ mod tests {
         assert!(
             matches!(stmt.params()[6], wow_database::SqlParam::U64(v) if v == guid.counter() as u64)
         );
-    }
-
-    #[test]
-    fn player_homebind_insert_statement_matches_cpp_load_fallback_bind_order() {
-        let guid = ObjectGuid::create_player(1, 5008);
-        let homebind = RepresentedHomebindLikeCpp {
-            map_id: 0,
-            area_id: 12,
-            position: Position::new(-1.0, -2.0, 3.0, 4.0),
-        };
-
-        let stmt = WorldSession::build_player_homebind_insert_statement_like_cpp(
-            homebind,
-            guid.counter() as u64,
-        );
-
-        assert_eq!(stmt.sql(), CharStatements::INS_PLAYER_HOMEBIND.sql());
-        assert!(
-            matches!(stmt.params()[0], wow_database::SqlParam::U64(v) if v == guid.counter() as u64)
-        );
-        assert!(matches!(stmt.params()[1], wow_database::SqlParam::U16(0)));
-        assert!(matches!(stmt.params()[2], wow_database::SqlParam::U16(12)));
-        assert!(matches!(stmt.params()[3], wow_database::SqlParam::F32(v) if v == -1.0));
-        assert!(matches!(stmt.params()[4], wow_database::SqlParam::F32(v) if v == -2.0));
-        assert!(matches!(stmt.params()[5], wow_database::SqlParam::F32(v) if v == 3.0));
-        assert!(matches!(stmt.params()[6], wow_database::SqlParam::F32(v) if v == 4.0));
     }
 
     #[test]

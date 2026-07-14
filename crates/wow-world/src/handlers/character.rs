@@ -4933,42 +4933,13 @@ impl WorldSession {
         // (`Player::SendInitialPacketsAfterAddToMap`). Seed from DB until
         // that post-add terrain pass runs.
         self.set_player_zone_area_like_cpp(zone as u32, zone as u32);
-        {
-            let mut homebind_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_HOMEBIND);
-            homebind_stmt.set_u64(0, guid.counter() as u64);
-            match char_db.query(&homebind_stmt).await {
-                Ok(homebind_result) => {
-                    if !homebind_result.is_empty() {
-                        let homebind = RepresentedHomebindLikeCpp {
-                            map_id: u32::from(homebind_result.try_read::<u16>(0).unwrap_or(0)),
-                            area_id: u32::from(homebind_result.try_read::<u16>(1).unwrap_or(0)),
-                            position: Position::new(
-                                homebind_result.try_read(2).unwrap_or(0.0),
-                                homebind_result.try_read(3).unwrap_or(0.0),
-                                homebind_result.try_read(4).unwrap_or(0.0),
-                                homebind_result.try_read(5).unwrap_or(0.0),
-                            ),
-                        };
-                        self.set_represented_homebind_like_cpp(homebind);
-                    } else {
-                        let homebind = RepresentedHomebindLikeCpp {
-                            map_id: u32::try_from(map_id).unwrap_or(0),
-                            area_id: u32::try_from(zone).unwrap_or(0),
-                            position,
-                        };
-                        self.seed_represented_homebind_from_load_like_cpp(homebind)
-                            .await;
-                    }
-                }
-                Err(error) => {
-                    warn!(
-                        player_guid = guid.counter(),
-                        %error,
-                        "failed to load represented character_homebind row"
-                    );
-                }
-            }
-        }
+        self.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
+            map_id: login_homebind.map_id,
+            area_id: login_homebind
+                .bind_area_id
+                .expect("validated character homebind must have an area ID"),
+            position: login_homebind.position,
+        });
         self.set_represented_guild_id_like_cpp(result.try_read::<u64>(11).unwrap_or(0));
         self.load_represented_player_difficulties_like_cpp(
             result.try_read::<u32>(44).unwrap_or(0),
@@ -10806,6 +10777,7 @@ impl WorldSession {
             );
             return;
         }
+        self.remove_represented_feign_death_if_needed_like_cpp();
 
         // C++ SendBindPoint has the creature cast spell 3286 on the player.
         // The represented spell hook stores the same current-location bind.
