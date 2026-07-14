@@ -129,7 +129,8 @@ impl ServerPacket for EnumCharactersResult {
     const OPCODE: ServerOpcodes = ServerOpcodes::EnumCharactersResult;
 
     fn write(&self, pkt: &mut WorldPacket) {
-        // Bit flags (from C# EnumCharactersResult.Write)
+        // C++ `WorldPackets::Character::EnumCharactersResult::Write`
+        // writes these presence/status bits before the fixed count block.
         pkt.write_bit(self.success);
         pkt.write_bit(false); // IsDeletedCharacters
         pkt.write_bit(false); // IsNewPlayerRestrictionSkipped
@@ -156,7 +157,7 @@ impl ServerPacket for EnumCharactersResult {
         // No UnlockedConditionalAppearances (count=0)
         // No RaceLimitDisables (count=0)
 
-        // Write each character (from C# CharacterInfo.Write)
+        // Write each character like C++ `EnumCharactersResult::CharacterInfo`.
         for ch in &self.characters {
             pkt.write_packed_guid(&ch.guid);
             pkt.write_uint64(ch.guild_club_member_id);
@@ -222,7 +223,7 @@ impl ServerPacket for EnumCharactersResult {
             pkt.write_string(&ch.name);
         }
 
-        // RaceUnlockData (C# CharacterPackets.cs RaceUnlock.Write)
+        // C++ `EnumCharactersResult::RaceUnlock` writes RaceID followed by four bits.
         for ru in &self.race_unlock_data {
             pkt.write_int32(ru.race_id as i32);
             pkt.write_bit(ru.has_expansion);
@@ -694,7 +695,7 @@ impl ServerPacket for CharCustomizeFailure {
 
 // ── Response codes ──────────────────────────────────────────────────
 
-/// Result codes for character operations (values from ResponseCodes enum in C#).
+/// Result codes for character operations (`SharedDefines.h` `ResponseCodes`).
 #[allow(dead_code)]
 pub mod response_codes {
     // Character creation results
@@ -753,6 +754,36 @@ mod tests {
         let bytes = pkt_data.to_bytes();
         // Should have at least opcode + bits + counts
         assert!(bytes.len() > 2);
+    }
+
+    #[test]
+    fn enum_characters_result_preserves_pet_data_field_order_like_cpp() {
+        let character = CharacterInfo {
+            name: "Petowner".to_string(),
+            pet_display_id: 0x1122_3344,
+            pet_level: 0x5566_7788,
+            pet_family: 0x99aa_bbcc,
+            ..CharacterInfo::default()
+        };
+        let bytes = EnumCharactersResult {
+            success: true,
+            characters: vec![character],
+            race_unlock_data: vec![],
+        }
+        .to_bytes();
+
+        let pet_sequence = [
+            0x44, 0x33, 0x22, 0x11, // PetCreatureDisplayID
+            0x88, 0x77, 0x66, 0x55, // PetExperienceLevel
+            0xcc, 0xbb, 0xaa, 0x99, // PetCreatureFamilyID
+        ];
+        assert_eq!(
+            bytes
+                .windows(pet_sequence.len())
+                .filter(|window| *window == pet_sequence)
+                .count(),
+            1
+        );
     }
 
     #[test]
