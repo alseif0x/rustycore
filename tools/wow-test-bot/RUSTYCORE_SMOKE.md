@@ -23,6 +23,9 @@ the corresponding Rust server port is ready.
 - `--bank-smoke`: runs a real `CMSG_BANKER_ACTIVATE` → `CMSG_AUTOBANK_ITEM` →
   logout/relogin → `CMSG_AUTOSTORE_BANK_ITEM` → logout persistence round-trip
   using an isolated local fixture item.
+- `--inventory-swap-smoke`: creates two distinct occupied backpack slots, sends
+  `CMSG_SWAP_INV_ITEM`, logs out/re-authenticates, swaps them back, and verifies
+  both atomic DB transitions before cleaning the isolated local fixture.
 - `WOW_BOT_LOGIN_ONLY=1`: env equivalent of `--login-only`.
 - `WOW_BOT_CLIENT_BUILD` / `WOW_BOT_BUILD`: build value printed by the smoke,
   default `54261`.
@@ -60,6 +63,19 @@ backpack, and the second logout completed. Setup is restricted to `@bot.local`
 accounts; cleanup removes only the generated item and restores the original
 character position. `WOW_BOT_BANK_ITEM_ENTRY` (default `2589`) and
 `WOW_BOT_BANK_TIMEOUT_SECS` are optional overrides.
+
+## Direct inventory swap persistence smoke
+
+```bash
+WOW_BOT_INVENTORY_SWAP_SMOKE=1 \
+./run_rustycore_login_smoke.sh
+```
+
+The pass requires two isolated items to exchange occupied backpack slots, a
+full relog to observe the persisted forward state, and the inverse exchange to
+persist after the second logout. Setup and cleanup are restricted to
+`@bot.local` accounts. `WOW_BOT_INVENTORY_SWAP_ITEM_ENTRY_A/B` (defaults
+`2589`/`2592`) and `WOW_BOT_INVENTORY_SWAP_TIMEOUT_SECS` are optional.
 
 ## Default RustyCore smoke command
 

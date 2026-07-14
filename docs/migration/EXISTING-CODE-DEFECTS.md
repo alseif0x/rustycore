@@ -62,8 +62,11 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
     and success logging now occur only after commit; missing/failed persistence sends
     `SMSG_INVENTORY_CHANGE_FAILURE` and leaves runtime unchanged. Focused coverage includes empty
     and occupied plans, generic commit failure, explicit auto-equip-slot failure, and all 2,763
-    `wow-world` library tests. Kept open until the complete bot relog persistence smoke and PR
-    current-HEAD gates pass.
+    `wow-world` library tests. The 2026-07-14 release-build live QA passed both the isolated bot
+    round-trip (occupied swap, logout, full re-auth/relogin, inverse swap, second persistence
+    check) and a manual client swap/relogin check. An accidental debug-binary deployment was
+    rejected after a stack overflow and replaced with the verified release artifact before these
+    passes. Kept open only until the PR current-HEAD gates pass.
 - [ ] **D-C5 Loot item TOCTOU → duplication.** Slot marked looted *after* the async inventory
   store; two concurrent looters both store it. `handlers/loot.rs:1143-1219`. C++ blocks the
   slot *before* store.
