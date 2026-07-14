@@ -16,14 +16,20 @@ report. For mutating accept-flow QA, combine `WOW_BOT_QUEST_RESET=1`,
 `WOW_BOT_QUEST_SET_CLASS=<id>`, `WOW_BOT_QUEST_SET_LEVEL=<1-80>`, and
 `WOW_BOT_QUEST_ACCEPT=1`; the bot will prepare the selected test character,
 accept the expected quest, and verify `character_queststatus`. The bot always
-uses the `world.creature.guid` spawn id as the creature GUID counter, matching
-C++ DB-spawned creature loading.
+requires the live map-generated creature GUID counter separately from the
+`world.creature.guid` spawn identity, matching C++ `Creature::LoadFromDB`.
 
 For quest objective persistence QA, add `WOW_BOT_QUEST_OBJECTIVE_PERSIST=1`
 and `WOW_BOT_QUEST_OBJECTIVES=<storage:data,...>`. The bot seeds the expected
 quest as active in `character_queststatus`, seeds nonzero
 `character_queststatus_objectives` rows, logs in, sends logout, and verifies the
 objective rows survived the server's logout save.
+
+For a full personal-bank persistence round-trip, set `WOW_BOT_BANK_SMOKE=1`
+and `WOW_BOT_BANK_RUNTIME_COUNTER=<live-counter>`. The bot creates one isolated
+test item for the local bot character, opens a neutral banker, deposits the
+item, logs out and authenticates again, withdraws it, logs out again, verifies
+both DB transitions, then deletes the item and restores the original position.
 
 `config.example.json` is versioned with blank passwords. Use `WOW_BOT_PASSWORD`,
 the per-account `WOW_BOT_PASSWORD_<ACCOUNT>` override, or an ignored local

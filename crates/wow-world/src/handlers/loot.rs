@@ -9577,12 +9577,123 @@ mod tests {
                 .objective_counts,
             vec![3]
         );
+        assert!(
+            send_rx.try_recv().is_err(),
+            "C++ UpdateQuestObjectiveProgress suppresses generic credit packets for ITEM objectives"
+        );
+    }
+
+    #[test]
+    fn banked_quest_item_recomputes_objective_and_reopens_quest_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(1);
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 1, 0);
+        let quest_id = 8_338;
+        let item_id = 20_484;
+        let mut quest = test_quest_template(quest_id);
+        quest.objectives.push(QuestObjective {
+            id: quest_id * 10,
+            quest_id,
+            obj_type: 1,
+            order: 0,
+            storage_index: 0,
+            object_id: item_id as i32,
+            amount: 3,
+            flags: 0,
+            flags2: 0,
+            progress_bar_weight: 0.0,
+            description: String::new(),
+        });
+        session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
+        session.player_quests.insert(
+            quest_id,
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![3],
+                slot: 0,
+            },
+        );
+
+        let planned = session.plan_bank_item_quest_persistence_like_cpp(item_id, 0, true, 0, 0);
+        assert_eq!(planned.len(), 1);
+        assert_eq!(planned[0].objective_counts, vec![0]);
+        assert_eq!(
+            planned[0].status,
+            crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP
+        );
+        assert_eq!(
+            session.apply_quest_item_removed_like_cpp(item_id),
+            vec![quest_id]
+        );
+        let status = session.player_quests.get(&quest_id).expect("active quest");
+        assert_eq!(
+            status.status,
+            crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP
+        );
+        assert_eq!(status.objective_counts, vec![0]);
         let update = send_rx
             .try_recv()
-            .expect("looted quest item progress should notify the client");
+            .expect("banking a quest item should update the quest-log slot");
         assert_eq!(
             WorldPacket::from_bytes(&update).server_opcode(),
-            Some(wow_constants::ServerOpcodes::QuestUpdateAddCredit)
+            Some(wow_constants::ServerOpcodes::UpdateObject)
+        );
+    }
+
+    #[tokio::test]
+    async fn withdrawn_banked_item_restores_bound_objective_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send_capacity(4);
+        let quest_id = 8_339;
+        let item_id = 20_485;
+        let mut quest = test_quest_template(quest_id);
+        quest.objectives.push(QuestObjective {
+            id: quest_id * 10,
+            quest_id,
+            obj_type: 1,
+            order: 0,
+            storage_index: 0,
+            object_id: item_id as i32,
+            amount: 1,
+            flags: 0,
+            flags2: 1,
+            progress_bar_weight: 0.0,
+            description: String::new(),
+        });
+        session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
+        session.player_quests.insert(
+            quest_id,
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![0],
+                slot: 0,
+            },
+        );
+
+        let planned = session.plan_bank_item_quest_persistence_like_cpp(item_id, 0, false, 0, 1);
+        assert_eq!(planned.len(), 1);
+        assert_eq!(planned[0].objective_counts, vec![1]);
+        assert_eq!(
+            planned[0].status,
+            crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP
+        );
+        let changed_quest_ids = session
+            .apply_quest_item_added_objective_progress_like_cpp(item_id, 0, 1)
+            .await;
+
+        assert_eq!(changed_quest_ids, vec![quest_id]);
+        let status = session.player_quests.get(&quest_id).expect("active quest");
+        assert_eq!(status.objective_counts, vec![1]);
+        assert_eq!(
+            status.status,
+            crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP
         );
     }
 

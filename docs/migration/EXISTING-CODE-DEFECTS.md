@@ -33,6 +33,22 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
     data. Kept open until capture-diff/live relog QA is run.
 - [ ] **D-C3 Bank contents never persisted.** Bank moves recorded in-memory only
   (`represented_bank_item_moves`), no DB write → 100% bank loss on logout. `session.rs:31575`.
+  - 2026-07-13 issue #102 local slice: personal `AUTOBANK` / `AUTOSTORE_BANK_ITEM` now plans
+    C++ `CanBankItem` / `CanStoreItem` destinations, commits every stack/location plus the
+    surviving items' count/expiration/charges/flags/enchantments/durability/played-time and
+    applicable quest-status change in one character transaction, and mutates runtime only after
+    a successful commit. Fully absorbed sources also delete both stored-container-loot tables.
+    Login now loads expiration/charges, normalizes template duration, limits charges to real
+    ItemEffects, and restores duration trackers so that mutable-state save cannot overwrite them
+    with defaults. Coverage includes empty destinations, merge+remainder, full bank,
+    bank withdrawal, the C++ first-match stop and special item-push packet for quest-bound
+    objectives (with no generic item-objective credit), equipment removal packet
+    masks, merge-destination enchantment timer refresh without item-expiration registration,
+    current enchantment durations, binding, obtain spells, a real failed-connection SQL commit
+    regression, and fully merged metadata cleanup. The regression also repaired an old
+    false-positive test that sent
+    legacy slot `19` instead of the 3.4.3 backpack start slot `35`.
+    Kept open until relog round-trip, capture-diff, and manual live-client QA are complete.
 - [ ] **D-C4 Inventory swap not transactional.** Two separate `execute()` calls; mid-fail
   orphans/dupes items. `handlers/character.rs:11668-11681`. C++ wraps slot mutations in a txn.
 - [ ] **D-C5 Loot item TOCTOU → duplication.** Slot marked looted *after* the async inventory

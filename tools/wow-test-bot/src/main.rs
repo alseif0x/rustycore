@@ -31,6 +31,19 @@ const SMSG_UPDATE_OBJECT: u16 = 0x27CB;
 const SMSG_AURA_UPDATE: u16 = 0x2C1F;
 const SMSG_TIME_SYNC_REQUEST: u16 = 0x2DD2;
 const SMSG_ON_MONSTER_MOVE: u16 = 0x2DD4;
+const CMSG_BANKER_ACTIVATE: u16 = 0x34B3;
+const CMSG_AUTOBANK_ITEM: u16 = 0x3997;
+const CMSG_AUTOSTORE_BANK_ITEM: u16 = 0x3996;
+const SMSG_NPC_INTERACTION_OPEN_RESULT: u16 = 0x288A;
+const SMSG_INVENTORY_CHANGE_FAILURE: u16 = 0x2DA5;
+const CMSG_LOGOUT_REQUEST: u16 = 0x34D6;
+const SMSG_LOGOUT_COMPLETE: u16 = 0x2684;
+const INVENTORY_SLOT_BAG_0: u8 = 255;
+const INVENTORY_SLOT_ITEM_START: u8 = 35;
+const BANK_SLOT_ITEM_START: u8 = 59;
+const BANK_SLOT_ITEM_END: u8 = 87;
+const NPC_FLAG_BANKER: u32 = 0x20000;
+const DEFAULT_BANK_SMOKE_ITEM_ENTRY: u32 = 2589;
 const UNIT_STAND_STATE_STAND: u8 = 0;
 const UNIT_STAND_STATE_SIT: u8 = 1;
 const UNIT_STAND_STATE_SLEEP: u8 = 3;
@@ -122,6 +135,10 @@ struct CliOptions {
     stand_state_smoke: bool,
     stand_state: Option<u8>,
     stand_state_timeout_secs: u64,
+    bank_smoke: bool,
+    bank_item_entry: u32,
+    bank_runtime_counter: Option<u64>,
+    bank_timeout_secs: u64,
     quest_smoke: bool,
     quest_creature_entry: Option<u32>,
     quest_creature_guid: Option<u64>,
@@ -171,6 +188,20 @@ struct BotRunResult {
     stand_states_requested: Vec<u8>,
     stand_states_confirmed: Vec<u8>,
     stand_state_failure: Option<String>,
+    bank_smoke: bool,
+    bank_smoke_passed: Option<bool>,
+    bank_banker_entry: Option<u32>,
+    bank_banker_spawn_guid: Option<u64>,
+    bank_banker_guid_counter: Option<u64>,
+    bank_item_guid: Option<u64>,
+    bank_item_entry: Option<u32>,
+    bank_inventory_slot: Option<u8>,
+    bank_bank_slot: Option<u8>,
+    bank_open_confirmed: bool,
+    bank_deposit_persisted: bool,
+    bank_relogin_after_deposit: bool,
+    bank_withdraw_persisted: bool,
+    bank_failure: Option<String>,
     quest_smoke: bool,
     quest_smoke_passed: Option<bool>,
     quest_target_entry: Option<u32>,
@@ -219,6 +250,12 @@ impl BotRunResult {
                 && self.player_login_verified
                 && self.quest_smoke_passed.unwrap_or(false);
         }
+        if self.bank_smoke {
+            return self.world_auth
+                && self.enum_characters
+                && self.player_login_verified
+                && self.bank_smoke_passed.unwrap_or(false);
+        }
         if login_only {
             return self.world_auth && self.enum_characters && self.player_login_verified;
         }
@@ -237,6 +274,7 @@ struct RunReport {
     auto_teleport: bool,
     login_only: bool,
     stand_state_smoke: bool,
+    bank_smoke: bool,
     quest_smoke: bool,
     results: Vec<BotRunResult>,
 }
@@ -292,6 +330,38 @@ struct QuestSmokeOptions {
 struct StandStateSmokeOptions {
     states: Vec<u8>,
     timeout_secs: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BankSmokePhase {
+    Deposit,
+    Withdraw,
+}
+
+#[derive(Debug, Clone)]
+struct BankSmokeOptions {
+    phase: BankSmokePhase,
+    banker: ResolvedCreatureTarget,
+    item_guid: u64,
+    item_entry: u32,
+    inventory_slot: u8,
+    bank_slot: u8,
+    timeout_secs: u64,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct CharacterPositionSnapshot {
+    map_id: u32,
+    x: f64,
+    y: f64,
+    z: f64,
+    orientation: f32,
+}
+
+#[derive(Debug, Clone)]
+struct BankSmokeFixture {
+    options: BankSmokeOptions,
+    original_position: CharacterPositionSnapshot,
 }
 
 #[derive(Debug, Clone)]
@@ -367,6 +437,24 @@ fn parse_cli() -> Result<CliOptions> {
             .map(|value| value.parse::<u64>())
             .transpose()?
             .unwrap_or(5),
+        bank_smoke: std::env::var("WOW_BOT_BANK_SMOKE")
+            .ok()
+            .map(|v| is_truthy(&v))
+            .unwrap_or(false),
+        bank_item_entry: std::env::var("WOW_BOT_BANK_ITEM_ENTRY")
+            .ok()
+            .map(|value| value.parse::<u32>())
+            .transpose()?
+            .unwrap_or(DEFAULT_BANK_SMOKE_ITEM_ENTRY),
+        bank_runtime_counter: std::env::var("WOW_BOT_BANK_RUNTIME_COUNTER")
+            .ok()
+            .map(|value| value.parse::<u64>())
+            .transpose()?,
+        bank_timeout_secs: std::env::var("WOW_BOT_BANK_TIMEOUT_SECS")
+            .ok()
+            .map(|value| value.parse::<u64>())
+            .transpose()?
+            .unwrap_or(8),
         quest_smoke: std::env::var("WOW_BOT_QUEST_SMOKE")
             .ok()
             .map(|v| is_truthy(&v))
@@ -476,6 +564,17 @@ fn parse_cli() -> Result<CliOptions> {
             "--stand-state-timeout" => {
                 opts.stand_state_timeout_secs =
                     next_arg(&mut args, "--stand-state-timeout")?.parse()?;
+            }
+            "--bank-smoke" => opts.bank_smoke = true,
+            "--bank-item-entry" => {
+                opts.bank_item_entry = next_arg(&mut args, "--bank-item-entry")?.parse()?;
+            }
+            "--bank-runtime-counter" => {
+                opts.bank_runtime_counter =
+                    Some(next_arg(&mut args, "--bank-runtime-counter")?.parse()?);
+            }
+            "--bank-timeout" => {
+                opts.bank_timeout_secs = next_arg(&mut args, "--bank-timeout")?.parse()?;
             }
             "--quest-smoke" => opts.quest_smoke = true,
             "--quest-creature-entry" => {
@@ -613,6 +712,15 @@ fn print_help() {
     println!("  --stand-state-timeout <secs>  Per-state response timeout (default: 5)");
     println!(
         "                           Env: WOW_BOT_STAND_STATE_SMOKE, WOW_BOT_STAND_STATE, WOW_BOT_STAND_STATE_TIMEOUT_SECS"
+    );
+    println!(
+        "  --bank-smoke             Deposit, logout/relogin, withdraw, logout, and verify DB persistence"
+    );
+    println!("  --bank-item-entry <id>   Controlled fixture item (default: 2589)");
+    println!("  --bank-runtime-counter <n> Live ObjectGuid low counter for the banker");
+    println!("  --bank-timeout <secs>    Per bank phase timeout (default: 8)");
+    println!(
+        "                           Env: WOW_BOT_BANK_SMOKE, WOW_BOT_BANK_ITEM_ENTRY, WOW_BOT_BANK_RUNTIME_COUNTER, WOW_BOT_BANK_TIMEOUT_SECS"
     );
     println!("  --quest-smoke            After login, right-click/query one questgiver NPC");
     println!("  --quest-creature-entry <id>  Creature entry to resolve from world.creature");
@@ -909,8 +1017,23 @@ async fn main() -> Result<()> {
             .map_err(|e| anyhow!("DB worker join failed while ensuring test accounts: {}", e))?
             .map_err(|e| anyhow!("Failed to ensure test accounts: {}", e))?;
     }
-    if cli.stand_state_smoke && cli.quest_smoke {
-        bail!("--stand-state-smoke and --quest-smoke are separate post-login modes");
+    let post_login_mode_count = [cli.stand_state_smoke, cli.bank_smoke, cli.quest_smoke]
+        .into_iter()
+        .filter(|enabled| *enabled)
+        .count();
+    if post_login_mode_count > 1 {
+        bail!("stand-state, bank, and quest smoke are separate post-login modes");
+    }
+    if cli.bank_smoke && bots.len() != 1 {
+        bail!("--bank-smoke requires exactly one bot; select it with --single");
+    }
+    if cli.bank_smoke && cli.bank_timeout_secs == 0 {
+        bail!("--bank-timeout must be greater than zero");
+    }
+    if cli.bank_smoke && cli.bank_runtime_counter.is_none() {
+        bail!(
+            "--bank-smoke requires --bank-runtime-counter or WOW_BOT_BANK_RUNTIME_COUNTER for the live banker ObjectGuid"
+        );
     }
     let stand_state_options = if cli.stand_state_smoke {
         Some(stand_state_smoke_options_from_cli(&cli)?)
@@ -950,6 +1073,8 @@ async fn main() -> Result<()> {
         "Mode: {}; client_build={}; LFG timeout: {}s; auto_teleport={}; require_proposal={}; require_group={}",
         if cli.stand_state_smoke {
             "stand-state-smoke"
+        } else if cli.bank_smoke {
+            "bank-smoke"
         } else if cli.quest_smoke {
             "quest-smoke"
         } else if cli.login_only {
@@ -964,7 +1089,7 @@ async fn main() -> Result<()> {
         require_group
     );
 
-    if cleanup_groups && !cli.login_only && !cli.stand_state_smoke {
+    if cleanup_groups && !cli.login_only && !cli.stand_state_smoke && !cli.bank_smoke {
         cleanup_bot_group_state(&bots)?;
     }
 
@@ -973,17 +1098,31 @@ async fn main() -> Result<()> {
     if cli.sequential || bots.len() == 1 {
         for bot in bots {
             info!("\n[Bot {}] Starting...", bot.account);
-            match run_bot(
-                bot,
-                dungeon_id,
-                timeout_secs,
-                auto_teleport,
-                cli.login_only,
-                stand_state_options.clone(),
-                quest_options.clone(),
-            )
-            .await
-            {
+            let run = if cli.bank_smoke {
+                run_bank_smoke_workflow(
+                    bot,
+                    dungeon_id,
+                    timeout_secs,
+                    auto_teleport,
+                    cli.bank_item_entry,
+                    cli.bank_runtime_counter,
+                    cli.bank_timeout_secs,
+                )
+                .await
+            } else {
+                run_bot(
+                    bot,
+                    dungeon_id,
+                    timeout_secs,
+                    auto_teleport,
+                    cli.login_only,
+                    stand_state_options.clone(),
+                    None,
+                    quest_options.clone(),
+                )
+                .await
+            };
+            match run {
                 Ok(result) => {
                     log_bot_summary(&result, require_proposal, require_group, cli.login_only);
                     results.push(result);
@@ -1012,6 +1151,7 @@ async fn main() -> Result<()> {
                     auto_teleport,
                     cli.login_only,
                     stand_state_options_for_bot,
+                    None,
                     quest_options_for_bot,
                 )
                 .await;
@@ -1041,6 +1181,7 @@ async fn main() -> Result<()> {
         auto_teleport,
         cli.login_only,
         cli.stand_state_smoke,
+        cli.bank_smoke,
         cli.quest_smoke,
         &results,
     )?;
@@ -1162,6 +1303,7 @@ async fn run_bot(
     auto_teleport: bool,
     login_only: bool,
     stand_state_options: Option<StandStateSmokeOptions>,
+    bank_options: Option<BankSmokeOptions>,
     quest_options: Option<QuestSmokeOptions>,
 ) -> Result<BotRunResult> {
     let bot_index = bot.account_id as usize;
@@ -1191,6 +1333,24 @@ async fn run_bot(
             .unwrap_or_default(),
         stand_states_confirmed: Vec::new(),
         stand_state_failure: None,
+        bank_smoke: bank_options.is_some(),
+        bank_smoke_passed: None,
+        bank_banker_entry: bank_options.as_ref().map(|options| options.banker.entry),
+        bank_banker_spawn_guid: bank_options
+            .as_ref()
+            .map(|options| options.banker.spawn_guid),
+        bank_banker_guid_counter: bank_options
+            .as_ref()
+            .map(|options| options.banker.guid_counter),
+        bank_item_guid: bank_options.as_ref().map(|options| options.item_guid),
+        bank_item_entry: bank_options.as_ref().map(|options| options.item_entry),
+        bank_inventory_slot: bank_options.as_ref().map(|options| options.inventory_slot),
+        bank_bank_slot: bank_options.as_ref().map(|options| options.bank_slot),
+        bank_open_confirmed: false,
+        bank_deposit_persisted: false,
+        bank_relogin_after_deposit: false,
+        bank_withdraw_persisted: false,
+        bank_failure: None,
         quest_smoke: quest_options.is_some(),
         quest_smoke_passed: None,
         quest_target_entry: None,
@@ -1617,6 +1777,24 @@ async fn run_bot(
         return Ok(result);
     }
 
+    if let Some(bank_options) = bank_options {
+        if let Err(error) = run_bank_smoke_phase(
+            bot_index,
+            &bot,
+            &mut stream,
+            &mut crypt,
+            &mut server_inflater,
+            &bank_options,
+            &mut result,
+        )
+        .await
+        {
+            result.bank_failure = Some(error.to_string());
+            result.bank_smoke_passed = Some(false);
+        }
+        return Ok(result);
+    }
+
     if login_only {
         info!(
             "[Bot {}] ✅ Login-only smoke passed: world_auth=true enum_characters=true player_login=true",
@@ -1825,6 +2003,24 @@ fn log_bot_summary(
             );
             return;
         }
+        if result.bank_smoke {
+            info!(
+                "✅ Bot {}: SUCCESS bank_smoke banker={:?}/{:?} item={:?}/entry={:?} slots={:?}->{:?} open={} deposit={} relog={} withdraw={} failure={:?}",
+                result.account,
+                result.bank_banker_entry,
+                result.bank_banker_spawn_guid,
+                result.bank_item_guid,
+                result.bank_item_entry,
+                result.bank_inventory_slot,
+                result.bank_bank_slot,
+                result.bank_open_confirmed,
+                result.bank_deposit_persisted,
+                result.bank_relogin_after_deposit,
+                result.bank_withdraw_persisted,
+                result.bank_failure
+            );
+            return;
+        }
         info!(
             "✅ Bot {}: SUCCESS login={{auth:{}, enum:{}, player:{}}} join={:?}/{:?} proposal={} group={} teleport_denied={:?}",
             result.account,
@@ -1867,6 +2063,24 @@ fn log_bot_summary(
             );
             return;
         }
+        if result.bank_smoke {
+            error!(
+                "❌ Bot {}: FAILED bank_smoke banker={:?}/{:?} item={:?}/entry={:?} slots={:?}->{:?} open={} deposit={} relog={} withdraw={} failure={:?}",
+                result.account,
+                result.bank_banker_entry,
+                result.bank_banker_spawn_guid,
+                result.bank_item_guid,
+                result.bank_item_entry,
+                result.bank_inventory_slot,
+                result.bank_bank_slot,
+                result.bank_open_confirmed,
+                result.bank_deposit_persisted,
+                result.bank_relogin_after_deposit,
+                result.bank_withdraw_persisted,
+                result.bank_failure
+            );
+            return;
+        }
         error!(
             "❌ Bot {}: FAILED login={{auth:{}, enum:{}, player:{}}} join={:?}/{:?} proposal={} group={} teleport_denied={:?}",
             result.account,
@@ -1891,6 +2105,7 @@ fn write_report_if_requested(
     auto_teleport: bool,
     login_only: bool,
     stand_state_smoke: bool,
+    bank_smoke: bool,
     quest_smoke: bool,
     results: &[BotRunResult],
 ) -> Result<()> {
@@ -1908,6 +2123,7 @@ fn write_report_if_requested(
         auto_teleport,
         login_only,
         stand_state_smoke,
+        bank_smoke,
         quest_smoke,
         results: results.to_vec(),
     };
@@ -2580,6 +2796,320 @@ async fn logout_and_verify_quest_objectives(
     Ok(())
 }
 
+async fn run_bank_smoke_workflow(
+    bot: config::BotConfig,
+    dungeon_id: u32,
+    lfg_secs: u64,
+    auto_teleport: bool,
+    item_entry: u32,
+    runtime_counter: Option<u64>,
+    timeout_secs: u64,
+) -> Result<BotRunResult> {
+    let bot_for_setup = bot.clone();
+    let fixture = tokio::task::spawn_blocking(move || {
+        prepare_bank_smoke_fixture(&bot_for_setup, item_entry, runtime_counter, timeout_secs)
+    })
+    .await
+    .map_err(|e| anyhow!("Bank smoke setup DB worker join failed: {e}"))??;
+
+    let mut deposit_options = fixture.options.clone();
+    deposit_options.phase = BankSmokePhase::Deposit;
+    let first = run_bot(
+        bot.clone(),
+        dungeon_id,
+        lfg_secs,
+        auto_teleport,
+        false,
+        None,
+        Some(deposit_options),
+        None,
+    )
+    .await;
+
+    let mut combined = match first {
+        Ok(result) => result,
+        Err(error) => {
+            let bot_for_cleanup = bot.clone();
+            let fixture_for_cleanup = fixture.clone();
+            let _ = tokio::task::spawn_blocking(move || {
+                cleanup_bank_smoke_fixture(&bot_for_cleanup, &fixture_for_cleanup)
+            })
+            .await;
+            return Err(error.context("Bank smoke deposit login/phase failed"));
+        }
+    };
+
+    if combined.bank_smoke_passed.unwrap_or(false) {
+        let mut withdraw_options = fixture.options.clone();
+        withdraw_options.phase = BankSmokePhase::Withdraw;
+        match run_bot(
+            bot.clone(),
+            dungeon_id,
+            lfg_secs,
+            auto_teleport,
+            false,
+            None,
+            Some(withdraw_options),
+            None,
+        )
+        .await
+        {
+            Ok(second) => {
+                combined.world_auth &= second.world_auth;
+                combined.enum_characters &= second.enum_characters;
+                combined.player_login_verified &= second.player_login_verified;
+                combined.bank_open_confirmed &= second.bank_open_confirmed;
+                combined.bank_relogin_after_deposit = second.bank_relogin_after_deposit;
+                combined.bank_withdraw_persisted = second.bank_withdraw_persisted;
+                combined.seen_opcodes.extend(second.seen_opcodes);
+                combined.bank_failure = second.bank_failure;
+                combined.bank_smoke_passed = Some(
+                    combined.bank_deposit_persisted
+                        && combined.bank_relogin_after_deposit
+                        && combined.bank_withdraw_persisted
+                        && second.bank_smoke_passed.unwrap_or(false),
+                );
+            }
+            Err(error) => {
+                combined.bank_failure = Some(format!("Withdrawal relog/phase failed: {error}"));
+                combined.bank_smoke_passed = Some(false);
+            }
+        }
+    }
+
+    let bot_for_cleanup = bot.clone();
+    let fixture_for_cleanup = fixture.clone();
+    let cleanup = tokio::task::spawn_blocking(move || {
+        cleanup_bank_smoke_fixture(&bot_for_cleanup, &fixture_for_cleanup)
+    })
+    .await
+    .map_err(|e| anyhow!("Bank smoke cleanup DB worker join failed: {e}"))?;
+    if let Err(error) = cleanup {
+        combined.bank_failure = Some(format!("Bank fixture cleanup failed: {error}"));
+        combined.bank_smoke_passed = Some(false);
+    }
+
+    Ok(combined)
+}
+
+async fn run_bank_smoke_phase(
+    bot_index: usize,
+    bot: &config::BotConfig,
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    server_inflater: &mut ServerPacketInflater,
+    options: &BankSmokeOptions,
+    result: &mut BotRunResult,
+) -> Result<()> {
+    let expected_before = match options.phase {
+        BankSmokePhase::Deposit => options.inventory_slot,
+        BankSmokePhase::Withdraw => options.bank_slot,
+    };
+    let bot_for_before = bot.clone();
+    let item_guid = options.item_guid;
+    let before = tokio::task::spawn_blocking(move || {
+        verify_bank_fixture_location(&bot_for_before, item_guid, expected_before)
+    })
+    .await
+    .map_err(|e| anyhow!("Bank pre-phase DB worker join failed: {e}"))??;
+    if !before {
+        bail!(
+            "fixture item {} was not in expected slot {} before {:?}",
+            options.item_guid,
+            expected_before,
+            options.phase
+        );
+    }
+    if options.phase == BankSmokePhase::Withdraw {
+        result.bank_relogin_after_deposit = true;
+    }
+
+    send_encrypted_packet(
+        stream,
+        crypt,
+        CMSG_BANKER_ACTIVATE,
+        &options.banker.packed_guid,
+    )
+    .await?;
+    info!(
+        "[Bot {}] ✅ CMSG_BANKER_ACTIVATE sent to entry={} spawn={}",
+        bot_index, options.banker.entry, options.banker.spawn_guid
+    );
+
+    wait_for_bank_open(
+        bot_index,
+        stream,
+        crypt,
+        server_inflater,
+        options.timeout_secs,
+        result,
+    )
+    .await?;
+
+    let (opcode, source_slot, expected_after) = match options.phase {
+        BankSmokePhase::Deposit => (
+            CMSG_AUTOBANK_ITEM,
+            options.inventory_slot,
+            options.bank_slot,
+        ),
+        BankSmokePhase::Withdraw => (
+            CMSG_AUTOSTORE_BANK_ITEM,
+            options.bank_slot,
+            options.inventory_slot,
+        ),
+    };
+    let payload = build_auto_bank_item_payload(source_slot);
+    send_encrypted_packet(stream, crypt, opcode, &payload).await?;
+    info!(
+        "[Bot {}] ✅ {} sent from bag={} slot={}",
+        bot_index,
+        if options.phase == BankSmokePhase::Deposit {
+            "CMSG_AUTOBANK_ITEM"
+        } else {
+            "CMSG_AUTOSTORE_BANK_ITEM"
+        },
+        INVENTORY_SLOT_BAG_0,
+        source_slot
+    );
+
+    wait_for_bank_item_location(
+        bot_index,
+        bot,
+        options.item_guid,
+        expected_after,
+        options.timeout_secs,
+    )
+    .await?;
+    logout_and_wait(bot_index, stream, crypt, server_inflater, result).await?;
+
+    let bot_for_after = bot.clone();
+    let item_guid = options.item_guid;
+    let persisted = tokio::task::spawn_blocking(move || {
+        verify_bank_fixture_location(&bot_for_after, item_guid, expected_after)
+    })
+    .await
+    .map_err(|e| anyhow!("Bank post-logout DB worker join failed: {e}"))??;
+    if !persisted {
+        bail!(
+            "fixture item {} did not persist in slot {} after logout",
+            options.item_guid,
+            expected_after
+        );
+    }
+
+    match options.phase {
+        BankSmokePhase::Deposit => result.bank_deposit_persisted = true,
+        BankSmokePhase::Withdraw => result.bank_withdraw_persisted = true,
+    }
+    result.bank_smoke_passed = Some(true);
+    Ok(())
+}
+
+async fn wait_for_bank_open(
+    bot_index: usize,
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    server_inflater: &mut ServerPacketInflater,
+    timeout_secs: u64,
+    result: &mut BotRunResult,
+) -> Result<()> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(timeout_secs);
+    while tokio::time::Instant::now() < deadline {
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        match tokio::time::timeout(
+            remaining,
+            read_encrypted_packet(stream, crypt, server_inflater),
+        )
+        .await
+        {
+            Ok(Ok((opcode, payload))) => {
+                result.seen_opcodes.push(format!("0x{opcode:04X}"));
+                if opcode == SMSG_INVENTORY_CHANGE_FAILURE {
+                    bail!("bank activation returned inventory failure payload {payload:?}");
+                }
+                if opcode == SMSG_NPC_INTERACTION_OPEN_RESULT {
+                    result.bank_open_confirmed = true;
+                    info!("[Bot {}] ✅ banker interaction open confirmed", bot_index);
+                    return Ok(());
+                }
+            }
+            Ok(Err(error)) => return Err(error),
+            Err(_) => break,
+        }
+    }
+    bail!("timed out waiting for SMSG_NPC_INTERACTION_OPEN_RESULT")
+}
+
+async fn wait_for_bank_item_location(
+    bot_index: usize,
+    bot: &config::BotConfig,
+    item_guid: u64,
+    expected_slot: u8,
+    timeout_secs: u64,
+) -> Result<()> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(timeout_secs);
+    while tokio::time::Instant::now() < deadline {
+        let bot_for_db = bot.clone();
+        let located = tokio::task::spawn_blocking(move || {
+            verify_bank_fixture_location(&bot_for_db, item_guid, expected_slot)
+        })
+        .await
+        .map_err(|e| anyhow!("Bank location DB worker join failed: {e}"))??;
+        if located {
+            info!(
+                "[Bot {}] ✅ fixture item {} reached persisted slot {}",
+                bot_index, item_guid, expected_slot
+            );
+            return Ok(());
+        }
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    bail!(
+        "timed out waiting for fixture item {} in slot {}",
+        item_guid,
+        expected_slot
+    )
+}
+
+async fn logout_and_wait(
+    bot_index: usize,
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    server_inflater: &mut ServerPacketInflater,
+    result: &mut BotRunResult,
+) -> Result<()> {
+    send_encrypted_packet(stream, crypt, CMSG_LOGOUT_REQUEST, &[0]).await?;
+    info!("[Bot {}] ✅ CMSG_LOGOUT_REQUEST sent", bot_index);
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(8);
+    while tokio::time::Instant::now() < deadline {
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        match tokio::time::timeout(
+            remaining,
+            read_encrypted_packet(stream, crypt, server_inflater),
+        )
+        .await
+        {
+            Ok(Ok((opcode, _))) => {
+                result.seen_opcodes.push(format!("0x{opcode:04X}"));
+                if opcode == SMSG_LOGOUT_COMPLETE {
+                    info!("[Bot {}] ✅ SMSG_LOGOUT_COMPLETE received", bot_index);
+                    return Ok(());
+                }
+            }
+            Ok(Err(error)) => return Err(error),
+            Err(_) => break,
+        }
+    }
+    bail!("timed out waiting for SMSG_LOGOUT_COMPLETE")
+}
+
+fn build_auto_bank_item_payload(slot: u8) -> [u8; 5] {
+    // C++ InvUpdate count=1 is two MSB-first bits `01`, followed by the
+    // affected position and then the packet's source bag/slot.
+    [0x40, INVENTORY_SLOT_BAG_0, slot, INVENTORY_SLOT_BAG_0, slot]
+}
+
 async fn run_quest_smoke_inner(
     bot_index: usize,
     bot: &config::BotConfig,
@@ -3136,6 +3666,318 @@ fn prepare_quest_smoke_before_login(
         );
     }
 
+    Ok(())
+}
+
+fn prepare_bank_smoke_fixture(
+    bot: &config::BotConfig,
+    item_entry: u32,
+    runtime_counter: Option<u64>,
+    timeout_secs: u64,
+) -> Result<BankSmokeFixture> {
+    use mysql::prelude::Queryable;
+
+    if !bot.account.to_ascii_uppercase().ends_with("@BOT.LOCAL") {
+        bail!(
+            "refusing destructive bank fixture setup for non-local account {}",
+            bot.account
+        );
+    }
+
+    let characters_url = characters_db_url()?;
+    let character_opts = mysql::Opts::from_url(&characters_url)
+        .map_err(|e| anyhow!("Bad characters DB URL: {e}"))?;
+    let mut characters = mysql::Conn::new(character_opts)
+        .map_err(|e| anyhow!("Connect to characters DB failed: {e}"))?;
+
+    let character: Option<(u32, u8, u32, f64, f64, f64, f32)> = characters
+        .exec_first(
+            "SELECT account, online, map, position_x, position_y, position_z, orientation \
+             FROM characters WHERE guid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|e| anyhow!("Load bank bot character: {e}"))?;
+    let (owner, online, map_id, x, y, z, orientation) =
+        character.ok_or_else(|| anyhow!("No characters row for guid {}", bot.character_guid))?;
+    if owner != bot.account_id {
+        bail!(
+            "character {} belongs to account {}, expected {}",
+            bot.character_guid,
+            owner,
+            bot.account_id
+        );
+    }
+    if online != 0 {
+        bail!(
+            "character {} is online; log it out before bank smoke setup",
+            bot.character_guid
+        );
+    }
+    let original_position = CharacterPositionSnapshot {
+        map_id,
+        x,
+        y,
+        z,
+        orientation,
+    };
+
+    let occupied_slots: Vec<u8> = characters
+        .exec_map(
+            "SELECT slot FROM character_inventory WHERE guid = ? AND bag = 0",
+            (bot.character_guid,),
+            |slot: u8| slot,
+        )
+        .map_err(|e| anyhow!("Load occupied bank bot slots: {e}"))?;
+    let inventory_slot = (INVENTORY_SLOT_ITEM_START..INVENTORY_SLOT_ITEM_START + 16)
+        .find(|slot| !occupied_slots.contains(slot))
+        .ok_or_else(|| anyhow!("No empty default backpack slot for bank smoke"))?;
+    let bank_slot = (BANK_SLOT_ITEM_START..BANK_SLOT_ITEM_END)
+        .find(|slot| !occupied_slots.contains(slot))
+        .ok_or_else(|| anyhow!("No empty personal bank slot for bank smoke"))?;
+
+    let same_entry_count: u64 = characters
+        .exec_first(
+            "SELECT COUNT(*) FROM character_inventory ci \
+             JOIN item_instance ii ON ii.guid = ci.item \
+             WHERE ci.guid = ? AND ii.itemEntry = ?",
+            (bot.character_guid, item_entry),
+        )
+        .map_err(|e| anyhow!("Check existing fixture item entry: {e}"))?
+        .unwrap_or(0);
+    if same_entry_count != 0 {
+        bail!(
+            "bot character already owns item entry {}; choose another --bank-item-entry to keep the fixture isolated",
+            item_entry
+        );
+    }
+
+    let max_item_guid: u64 = characters
+        .query_first("SELECT COALESCE(MAX(guid), 0) FROM item_instance")
+        .map_err(|e| anyhow!("Load max item guid: {e}"))?
+        .unwrap_or(0);
+    let item_guid = max_item_guid
+        .checked_add(10_000)
+        .ok_or_else(|| anyhow!("item guid overflow while reserving bank fixture"))?;
+
+    let world_url = world_db_url()?;
+    let world_opts =
+        mysql::Opts::from_url(&world_url).map_err(|e| anyhow!("Bad world DB URL: {e}"))?;
+    let mut world =
+        mysql::Conn::new(world_opts).map_err(|e| anyhow!("Connect to world DB failed: {e}"))?;
+    // Use a neutral banker fixture. Picking the geometrically nearest banker can
+    // cross faction boundaries on continent maps (for example Exodar vs.
+    // Silvermoon), and C++ `GetNPCIfCanInteractWith` correctly rejects hostile
+    // NPCs even when their BANKER flag and distance are valid.
+    let neutral: Option<(u64, u32, u32, f64, f64, f64, f32)> = world
+        .exec_first(
+            "SELECT c.guid, c.id, c.map, c.position_x, c.position_y, c.position_z, c.orientation \
+             FROM creature c JOIN creature_template ct ON ct.entry = c.id \
+             WHERE ct.faction = 35 \
+               AND ((IF(c.npcflag <> 0, c.npcflag, ct.npcflag) & ?) <> 0) \
+               AND c.phaseid = 0 AND c.phasegroup = 0 \
+               AND FIND_IN_SET('0', c.spawnDifficulties) > 0 \
+               AND ct.VehicleId = 0 \
+             ORDER BY c.guid LIMIT 1",
+            (NPC_FLAG_BANKER,),
+        )
+        .map_err(|e| anyhow!("Resolve neutral banker: {e}"))?;
+    let banker_row = match neutral {
+        Some(row) => row,
+        None => world
+            .exec_first(
+                "SELECT c.guid, c.id, c.map, c.position_x, c.position_y, c.position_z, c.orientation \
+                 FROM creature c JOIN creature_template ct ON ct.entry = c.id \
+                 WHERE ((IF(c.npcflag <> 0, c.npcflag, ct.npcflag) & ?) <> 0) \
+                 ORDER BY c.guid LIMIT 1",
+                (NPC_FLAG_BANKER,),
+            )
+            .map_err(|e| anyhow!("Resolve fallback banker: {e}"))?
+            .ok_or_else(|| anyhow!("No banker creature spawn exists in world DB"))?,
+    };
+    let (spawn_guid, entry, banker_map, banker_x, banker_y, banker_z, banker_orientation) =
+        banker_row;
+    let banker_map = u16::try_from(banker_map)
+        .map_err(|_| anyhow!("banker map id does not fit protocol: {banker_map}"))?;
+    let guid_counter = runtime_counter.ok_or_else(|| {
+        anyhow!(
+            "banker entry {entry} resolved world.creature guid {spawn_guid}, but needs the live ObjectGuid low counter"
+        )
+    })?;
+    let (low, high) = create_creature_guid_raw(banker_map, entry, guid_counter);
+    let banker = ResolvedCreatureTarget {
+        entry,
+        spawn_guid,
+        guid_counter,
+        map_id: banker_map,
+        x: banker_x,
+        y: banker_y,
+        z: banker_z,
+        orientation: banker_orientation,
+        packed_guid: build_packed_guid(low, high),
+    };
+
+    let mut transaction = characters
+        .start_transaction(mysql::TxOpts::default())
+        .map_err(|e| anyhow!("Start bank fixture transaction: {e}"))?;
+    transaction
+        .exec_drop(
+            "INSERT INTO item_instance \
+             (guid, itemEntry, owner_guid, creatorGuid, giftCreatorGuid, count, durability, \
+              enchantments, charges, flags, randomPropertiesId, randomPropertiesSeed, context) \
+             VALUES (?, ?, ?, 0, 0, 1, 0, '', '', 0, 0, 0, 0)",
+            (item_guid, item_entry, bot.character_guid),
+        )
+        .map_err(|e| anyhow!("Insert bank fixture item: {e}"))?;
+    transaction
+        .exec_drop(
+            "INSERT INTO character_inventory (guid, bag, slot, item) VALUES (?, 0, ?, ?)",
+            (bot.character_guid, inventory_slot, item_guid),
+        )
+        .map_err(|e| anyhow!("Insert bank fixture inventory row: {e}"))?;
+    transaction
+        .exec_drop(
+            "UPDATE characters SET map = ?, position_x = ?, position_y = ?, position_z = ?, orientation = ? \
+             WHERE guid = ?",
+            (
+                u32::from(banker_map),
+                banker_x + 2.0,
+                banker_y,
+                banker_z,
+                banker_orientation,
+                bot.character_guid,
+            ),
+        )
+        .map_err(|e| anyhow!("Relocate bank bot near banker: {e}"))?;
+    transaction
+        .commit()
+        .map_err(|e| anyhow!("Commit bank fixture transaction: {e}"))?;
+
+    info!(
+        "Bank smoke fixture: character={} item={}/entry={} inventory_slot={} bank_slot={} banker={}/{} runtime_counter={}",
+        bot.character_guid,
+        item_guid,
+        item_entry,
+        inventory_slot,
+        bank_slot,
+        entry,
+        spawn_guid,
+        guid_counter
+    );
+    Ok(BankSmokeFixture {
+        options: BankSmokeOptions {
+            phase: BankSmokePhase::Deposit,
+            banker,
+            item_guid,
+            item_entry,
+            inventory_slot,
+            bank_slot,
+            timeout_secs,
+        },
+        original_position,
+    })
+}
+
+fn verify_bank_fixture_location(
+    bot: &config::BotConfig,
+    item_guid: u64,
+    expected_slot: u8,
+) -> Result<bool> {
+    use mysql::prelude::Queryable;
+
+    let characters_url = characters_db_url()?;
+    let opts = mysql::Opts::from_url(&characters_url)
+        .map_err(|e| anyhow!("Bad characters DB URL: {e}"))?;
+    let mut conn =
+        mysql::Conn::new(opts).map_err(|e| anyhow!("Connect to characters DB failed: {e}"))?;
+    let row: Option<(u64, u8, u64, u64)> = conn
+        .exec_first(
+            "SELECT ci.bag, ci.slot, ii.owner_guid, ii.count \
+             FROM character_inventory ci JOIN item_instance ii ON ii.guid = ci.item \
+             WHERE ci.guid = ? AND ci.item = ?",
+            (bot.character_guid, item_guid),
+        )
+        .map_err(|e| anyhow!("Load bank fixture location: {e}"))?;
+    Ok(matches!(
+        row,
+        Some((0, slot, owner, 1)) if slot == expected_slot && owner == bot.character_guid
+    ))
+}
+
+fn cleanup_bank_smoke_fixture(bot: &config::BotConfig, fixture: &BankSmokeFixture) -> Result<()> {
+    use mysql::prelude::Queryable;
+
+    let characters_url = characters_db_url()?;
+    let opts = mysql::Opts::from_url(&characters_url)
+        .map_err(|e| anyhow!("Bad characters DB URL: {e}"))?;
+    let mut conn =
+        mysql::Conn::new(opts).map_err(|e| anyhow!("Connect to characters DB failed: {e}"))?;
+
+    // A failed packet phase can drop the socket before the normal logout path.
+    // Wait until the world server has finished its disconnect save before
+    // deleting the fixture, otherwise that late save could recreate it or
+    // overwrite the restored character position.
+    let offline_deadline = std::time::Instant::now() + Duration::from_secs(10);
+    loop {
+        let online: Option<u8> = conn
+            .exec_first(
+                "SELECT online FROM characters WHERE guid = ?",
+                (bot.character_guid,),
+            )
+            .map_err(|e| anyhow!("Check bank bot offline state before cleanup: {e}"))?;
+        match online {
+            Some(0) => break,
+            Some(_) if std::time::Instant::now() < offline_deadline => {
+                std::thread::sleep(Duration::from_millis(100));
+            }
+            Some(_) => {
+                bail!(
+                    "character {} remained online; refusing bank fixture cleanup before disconnect save",
+                    bot.character_guid
+                );
+            }
+            None => bail!(
+                "No characters row for guid {} during cleanup",
+                bot.character_guid
+            ),
+        }
+    }
+
+    let mut transaction = conn
+        .start_transaction(mysql::TxOpts::default())
+        .map_err(|e| anyhow!("Start bank cleanup transaction: {e}"))?;
+    transaction
+        .exec_drop(
+            "DELETE FROM character_inventory WHERE guid = ? AND item = ?",
+            (bot.character_guid, fixture.options.item_guid),
+        )
+        .map_err(|e| anyhow!("Delete bank fixture inventory row: {e}"))?;
+    transaction
+        .exec_drop(
+            "DELETE FROM item_instance WHERE guid = ? AND owner_guid = ?",
+            (fixture.options.item_guid, bot.character_guid),
+        )
+        .map_err(|e| anyhow!("Delete bank fixture item: {e}"))?;
+    transaction
+        .exec_drop(
+            "UPDATE characters SET map = ?, position_x = ?, position_y = ?, position_z = ?, orientation = ? \
+             WHERE guid = ?",
+            (
+                fixture.original_position.map_id,
+                fixture.original_position.x,
+                fixture.original_position.y,
+                fixture.original_position.z,
+                fixture.original_position.orientation,
+                bot.character_guid,
+            ),
+        )
+        .map_err(|e| anyhow!("Restore bank bot position: {e}"))?;
+    transaction
+        .commit()
+        .map_err(|e| anyhow!("Commit bank fixture cleanup: {e}"))?;
+    info!(
+        "Bank smoke fixture cleaned: character={} item={}",
+        bot.character_guid, fixture.options.item_guid
+    );
     Ok(())
 }
 
@@ -3770,6 +4612,12 @@ fn build_packed_guid(low: u64, high: u64) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn auto_bank_payload_uses_cpp_inv_update_then_source_position() {
+        assert_eq!(build_auto_bank_item_payload(35), [0x40, 255, 35, 255, 35]);
+        assert_eq!(build_auto_bank_item_payload(59), [0x40, 255, 59, 255, 59]);
+    }
 
     #[test]
     fn stand_state_change_uses_cpp_uint32_wire_layout() {

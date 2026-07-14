@@ -1221,6 +1221,14 @@ pub enum CharStatements {
     /// UPDATE item_instance SET flags = ? WHERE guid = ?
     UPD_ITEM_INSTANCE_FLAGS,
 
+    /// UPDATE item_instance SET enchantments = ? WHERE guid = ?
+    UPD_ITEM_INSTANCE_ENCHANTMENTS,
+
+    /// Persist the mutable `Item::SaveToDB` fields affected by storage moves.
+    /// UPDATE item_instance SET count = ?, duration = ?, charges = ?, flags = ?,
+    /// enchantments = ?, durability = ?, playedTime = ? WHERE guid = ?
+    UPD_ITEM_INSTANCE_STORAGE_MUTABLE,
+
     /// SELECT entry, flags FROM character_gifts WHERE item_guid = ?
     SEL_CHARACTER_GIFT_BY_ITEM,
 
@@ -1887,7 +1895,7 @@ impl StatementDef for CharStatements {
                  ii.randomPropertiesSeed, ig.gemItemId1, ig.gemBonuses1, ig.gemContext1, \
                  ig.gemItemId2, ig.gemBonuses2, ig.gemContext2, \
                  ig.gemItemId3, ig.gemBonuses3, ig.gemContext3, \
-                 ir.paidMoney, ir.paidExtendedCost \
+                 ir.paidMoney, ir.paidExtendedCost, ii.duration, ii.charges \
                  FROM character_inventory ci \
                  JOIN item_instance ii ON ci.item = ii.guid \
                  LEFT JOIN item_instance_gems ig ON ii.guid = ig.itemGuid \
@@ -2803,6 +2811,12 @@ impl StatementDef for CharStatements {
                 "UPDATE item_instance SET durability = ? WHERE guid = ?"
             }
             Self::UPD_ITEM_INSTANCE_FLAGS => "UPDATE item_instance SET flags = ? WHERE guid = ?",
+            Self::UPD_ITEM_INSTANCE_ENCHANTMENTS => {
+                "UPDATE item_instance SET enchantments = ? WHERE guid = ?"
+            }
+            Self::UPD_ITEM_INSTANCE_STORAGE_MUTABLE => {
+                "UPDATE item_instance SET count = ?, duration = ?, charges = ?, flags = ?, enchantments = ?, durability = ?, playedTime = ? WHERE guid = ?"
+            }
             Self::SEL_CHARACTER_GIFT_BY_ITEM => {
                 "SELECT entry, flags FROM character_gifts WHERE item_guid = ?"
             }
@@ -3127,7 +3141,7 @@ impl StatementDef for CharStatements {
                  ii.randomPropertiesSeed, ig.gemItemId1, ig.gemBonuses1, ig.gemContext1, \
                  ig.gemItemId2, ig.gemBonuses2, ig.gemContext2, \
                  ig.gemItemId3, ig.gemBonuses3, ig.gemContext3, \
-                 ir.paidMoney, ir.paidExtendedCost \
+                 ir.paidMoney, ir.paidExtendedCost, ii.duration, ii.charges \
                  FROM character_inventory ci \
                  JOIN character_inventory bag_ci \
                    ON bag_ci.guid = ci.guid AND bag_ci.item = ci.bag \
@@ -6062,6 +6076,11 @@ mod tests {
         assert!(
             CharStatements::SEL_CHAR_EQUIPMENT
                 .sql()
+                .contains("ii.duration, ii.charges")
+        );
+        assert!(
+            CharStatements::SEL_CHAR_EQUIPMENT
+                .sql()
                 .contains("LEFT JOIN item_instance_gems ig ON ii.guid = ig.itemGuid")
         );
         assert!(
@@ -6089,6 +6108,20 @@ mod tests {
                 .matches('?')
                 .count(),
             2
+        );
+        assert_eq!(
+            CharStatements::UPD_ITEM_INSTANCE_ENCHANTMENTS
+                .sql()
+                .matches('?')
+                .count(),
+            2
+        );
+        assert_eq!(
+            CharStatements::UPD_ITEM_INSTANCE_STORAGE_MUTABLE
+                .sql()
+                .matches('?')
+                .count(),
+            8
         );
         assert_eq!(
             CharStatements::SEL_CHARACTER_GIFT_BY_ITEM
@@ -6130,6 +6163,11 @@ mod tests {
             CharStatements::SEL_CHAR_BAG_CONTENTS
                 .sql()
                 .contains("ii.randomPropertiesSeed")
+        );
+        assert!(
+            CharStatements::SEL_CHAR_BAG_CONTENTS
+                .sql()
+                .contains("ii.duration, ii.charges")
         );
         assert!(
             CharStatements::SEL_CHAR_BAG_CONTENTS

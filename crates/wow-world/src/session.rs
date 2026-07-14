@@ -52,8 +52,8 @@ use wow_constants::unit::{
 use wow_constants::{
     BagFamilyMask, BuyResult, ClientOpcodes, InventoryResult, InventoryType, ItemBondingType,
     ItemClass, ItemContext, ItemEnchantmentType, ItemFlags, ItemFlags2, ItemFlags3, ItemModifier,
-    ItemQuality, ItemSubClassArmor, ItemSubClassWeapon, SellResult, ServerOpcodes, SpellCastResult,
-    SpellItemEnchantmentFlags, Stats, TypeId, UnitState,
+    ItemQuality, ItemSpelltriggerType, ItemSubClassArmor, ItemSubClassWeapon, SellResult,
+    ServerOpcodes, SpellCastResult, SpellItemEnchantmentFlags, Stats, TypeId, UnitState,
 };
 use wow_core::{ObjectGuid, ObjectGuidGenerator, Position, guid::HighGuid};
 use wow_data::character_progression::{ChrClassesStore, ChrRacesStore};
@@ -134,31 +134,33 @@ use wow_entities::{
     ApplyEnchantmentPlan, ApplyEnchantmentRandomSuffixRef, ApplyEnchantmentResult,
     ApplyEnchantmentSocketContext, ApplyEnchantmentTemplateRef, BANK_SLOT_BAG_END,
     BANK_SLOT_BAG_START, BUYBACK_SLOT_COUNT, BUYBACK_SLOT_END, BUYBACK_SLOT_START, BagTemplateRef,
-    CanEquipItemArgs, CanEquipUniqueItemArgs, CanStoreItemArgs, CanUnequipItemArgs, CanUseItemArgs,
-    CanUseItemTemplateArgs, CreatureAddonLifecycleRecordLikeCpp, EQUIPMENT_SLOT_BACK,
-    EQUIPMENT_SLOT_BODY, EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_END, EQUIPMENT_SLOT_FEET,
-    EQUIPMENT_SLOT_FINGER1, EQUIPMENT_SLOT_FINGER2, EQUIPMENT_SLOT_HANDS, EQUIPMENT_SLOT_HEAD,
-    EQUIPMENT_SLOT_LEGS, EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_NECK, EQUIPMENT_SLOT_OFFHAND,
-    EQUIPMENT_SLOT_RANGED, EQUIPMENT_SLOT_SHOULDERS, EQUIPMENT_SLOT_TABARD,
-    EQUIPMENT_SLOT_TRINKET1, EQUIPMENT_SLOT_TRINKET2, EQUIPMENT_SLOT_WAIST, EQUIPMENT_SLOT_WRISTS,
-    EquippedGemRef, GAMEOBJECT_TYPE_GUILD_BANK, GameObject, INVENTORY_DEFAULT_SIZE,
-    INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
-    INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS, ITEM_DATA_CONTAINED_IN_BIT,
-    ITEM_DATA_DURABILITY_BIT, Item, ItemCreateInfo, ItemDataUpdate, ItemLimitCategoryTemplate,
-    ItemPosCount, ItemSlotRef, ItemStorageRef, ItemStorageTemplate, ItemValuesUpdate, MAX_BAG_SIZE,
-    MAX_ITEM_SPELLS, MAX_MONEY_AMOUNT, MAX_POWERS, MAX_POWERS_PER_CLASS, MovementGeneratorKind,
-    MovementSlot, NULL_BAG, NULL_SLOT, ObjectAccessor, PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP,
-    PLAYER_SLOT_END, Pet, PetAuraLikeCpp, PetDeclinedNamesLikeCpp, PetSaveMode, PetSpellState,
-    PetSpellType, PetStable, PetStableInfo, PetType, PhaseShift, Player, PlayerEnchantTimeUpdate,
-    PlayerInventoryStorage, PlayerItemTimeUpdate, QUESTS_COMPLETED_BITS_PER_BLOCK,
-    QUESTS_COMPLETED_BITS_SIZE, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, ReactState,
-    SendNewItemDelivery, SendNewItemDisplayText, SendNewItemPlan, SocketedGemUniqueRef,
-    TYPEID_CONTAINER, TYPEID_ITEM, TitanGripPenaltyAction, UNIT_DATA_BITS,
-    UNIT_DATA_EMOTE_STATE_BIT, UNIT_DATA_HEALTH_BIT, UNIT_DATA_MODS_PARENT_BIT, Unit,
-    UnitDataUpdate, UnitDataValues, UnitVisibilityDetectionStateLikeCpp, UpdateMask, Vehicle,
-    VehicleAccessory, VisibleItemValues, WorldObject,
-    explored_zones_db_string_from_blocks_like_cpp, is_bag_pos, is_equipment_packed_pos,
-    is_inventory_pos, item_resistance_bonus_actions_like_cpp,
+    CanBankItemArgs, CanEquipItemArgs, CanEquipUniqueItemArgs, CanStoreItemArgs,
+    CanUnequipItemArgs, CanUseItemArgs, CanUseItemTemplateArgs,
+    CreatureAddonLifecycleRecordLikeCpp, EQUIPMENT_SLOT_BACK, EQUIPMENT_SLOT_BODY,
+    EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_END, EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_FINGER1,
+    EQUIPMENT_SLOT_FINGER2, EQUIPMENT_SLOT_HANDS, EQUIPMENT_SLOT_HEAD, EQUIPMENT_SLOT_LEGS,
+    EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_NECK, EQUIPMENT_SLOT_OFFHAND, EQUIPMENT_SLOT_RANGED,
+    EQUIPMENT_SLOT_SHOULDERS, EQUIPMENT_SLOT_TABARD, EQUIPMENT_SLOT_TRINKET1,
+    EQUIPMENT_SLOT_TRINKET2, EQUIPMENT_SLOT_WAIST, EQUIPMENT_SLOT_WRISTS, EquippedGemRef,
+    GAMEOBJECT_TYPE_GUILD_BANK, GameObject, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0,
+    INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS,
+    ITEM_DATA_CONTAINED_IN_BIT, ITEM_DATA_DURABILITY_BIT, ITEM_DATA_DYNAMIC_FLAGS_BIT,
+    ITEM_DATA_DYNAMIC_FLAGS2_BIT, ITEM_DATA_ENCHANTMENT_FIRST_BIT,
+    ITEM_DATA_ENCHANTMENT_PARENT_BIT, ITEM_DATA_PARENT_BIT, Item, ItemCreateInfo, ItemDataUpdate,
+    ItemLimitCategoryTemplate, ItemPosCount, ItemSlotRef, ItemStorageRef, ItemStorageTemplate,
+    ItemValuesUpdate, MAX_BAG_SIZE, MAX_ITEM_SPELLS, MAX_MONEY_AMOUNT, MAX_POWERS,
+    MAX_POWERS_PER_CLASS, MovementGeneratorKind, MovementSlot, NULL_BAG, NULL_SLOT, ObjectAccessor,
+    PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP, PLAYER_SLOT_END, PROFESSION_SLOT_END, Pet, PetAuraLikeCpp,
+    PetDeclinedNamesLikeCpp, PetSaveMode, PetSpellState, PetSpellType, PetStable, PetStableInfo,
+    PetType, PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerInventoryStorage,
+    PlayerItemTimeUpdate, QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE,
+    REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, ReactState, SendNewItemDelivery,
+    SendNewItemDisplayText, SendNewItemPlan, SocketedGemUniqueRef, TYPEID_CONTAINER, TYPEID_ITEM,
+    TitanGripPenaltyAction, UNIT_DATA_BITS, UNIT_DATA_EMOTE_STATE_BIT, UNIT_DATA_HEALTH_BIT,
+    UNIT_DATA_MODS_PARENT_BIT, Unit, UnitDataUpdate, UnitDataValues,
+    UnitVisibilityDetectionStateLikeCpp, UpdateMask, Vehicle, VehicleAccessory, VisibleItemValues,
+    WorldObject, explored_zones_db_string_from_blocks_like_cpp, is_bag_pos,
+    is_equipment_packed_pos, is_inventory_pos, item_resistance_bonus_actions_like_cpp,
     item_scaling_stat_bonus_actions_like_cpp, item_shield_block_bonus_action_like_cpp,
     item_stat_bonus_actions_like_cpp, item_weapon_damage_actions_like_cpp, make_item_pos,
     parse_explored_zones_db_string_like_cpp,
@@ -7087,6 +7089,142 @@ impl WorldSession {
             item.set_slot(dst_slot);
             item.set_container_guid_and_slot(bag_item.guid, dst_bag);
         })
+    }
+
+    /// Apply a previously validated and committed C++ `RemoveItem` +
+    /// `StoreItem`/`BankItem` relocation to the session-owned inventory.
+    ///
+    /// `character_inventory.bag` persistence is handled by the caller. This
+    /// method deliberately has no fallible database work so memory cannot move
+    /// ahead of the transaction.
+    pub(crate) fn apply_committed_inventory_item_relocation_like_cpp(
+        &mut self,
+        source_bag: u8,
+        source_slot: u8,
+        destination_bag: u8,
+        destination_slot: u8,
+        moved_count: u32,
+    ) -> bool {
+        if source_bag == destination_bag && source_slot == destination_slot {
+            return false;
+        }
+        if self
+            .get_inventory_item_by_pos(destination_bag, destination_slot)
+            .is_some()
+        {
+            return false;
+        }
+
+        let Some(inventory_item) = self.get_inventory_item_by_pos(source_bag, source_slot) else {
+            return false;
+        };
+        let destination_container = if destination_bag == INVENTORY_SLOT_BAG_0 {
+            None
+        } else {
+            self.inventory_items_like_cpp()
+                .get(&destination_bag)
+                .map(|bag| bag.guid)
+        };
+        if destination_bag != INVENTORY_SLOT_BAG_0 && destination_container.is_none() {
+            return false;
+        }
+
+        if source_bag == INVENTORY_SLOT_BAG_0 {
+            self.remove_inventory_item_like_cpp(source_slot);
+        }
+        if destination_bag == INVENTORY_SLOT_BAG_0 {
+            self.insert_inventory_item_like_cpp(destination_slot, inventory_item.clone());
+        }
+
+        let player_guid = self.player_guid().unwrap_or(ObjectGuid::EMPTY);
+        let destination_container = destination_container.unwrap_or(ObjectGuid::EMPTY);
+        let moved_bag_size = self
+            .item_storage_template(inventory_item.entry_id)
+            .map(|template| template.container_slots)
+            .filter(|size| *size > 0);
+        let moved_bag_children: Vec<_> = self
+            .inventory_item_objects_like_cpp()
+            .values()
+            .filter(|item| item.container_guid() == inventory_item.guid)
+            .map(|item| (item.slot(), item.object().guid()))
+            .collect();
+        self.update_inventory_item_object_like_cpp(inventory_item.guid, |item| {
+            item.set_count(moved_count);
+            item.set_slot(destination_slot);
+            item.set_container_guid_and_slot(destination_container, destination_bag);
+            item.set_contained_in(if destination_container.is_empty() {
+                player_guid
+            } else {
+                destination_container
+            });
+        });
+
+        // A bag's children keep the bag item GUID in the database, but the
+        // runtime also caches the bag's current top-level slot.
+        let child_guids: Vec<_> = self
+            .inventory_item_objects_like_cpp()
+            .values()
+            .filter(|item| item.container_guid() == inventory_item.guid)
+            .map(|item| item.object().guid())
+            .collect();
+        for child_guid in child_guids {
+            self.update_inventory_item_object_like_cpp(child_guid, |item| {
+                item.set_container_guid_and_slot(inventory_item.guid, destination_slot);
+            });
+        }
+
+        let item_guid = inventory_item.guid;
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            if source_bag == INVENTORY_SLOT_BAG_0 {
+                let _ = player.remove_top_level_item(source_slot);
+            } else {
+                let _ = player.remove_bag_item(source_bag, source_slot);
+            }
+            if destination_bag == INVENTORY_SLOT_BAG_0 {
+                let _ = player.store_top_level_item(destination_slot, item_guid);
+                if is_represented_bag_slot(destination_slot)
+                    && let Some(bag_size) = moved_bag_size
+                    && player
+                        .register_bag_storage(destination_slot, item_guid, bag_size)
+                        .is_ok()
+                {
+                    for &(child_slot, child_guid) in &moved_bag_children {
+                        let _ = player.store_bag_item(destination_slot, child_slot, child_guid);
+                    }
+                }
+            } else {
+                let _ = player.store_bag_item(destination_bag, destination_slot, item_guid);
+            }
+        });
+        true
+    }
+
+    /// Remove a source item after its complete stack was merged into existing
+    /// destination stacks by a committed storage transaction.
+    pub(crate) fn apply_committed_inventory_item_removal_like_cpp(
+        &mut self,
+        source_bag: u8,
+        source_slot: u8,
+        item_guid: ObjectGuid,
+    ) -> bool {
+        let Some(source) = self.get_inventory_item_by_pos(source_bag, source_slot) else {
+            return false;
+        };
+        if source.guid != item_guid {
+            return false;
+        }
+        if source_bag == INVENTORY_SLOT_BAG_0 {
+            self.remove_inventory_item_like_cpp(source_slot);
+        }
+        self.remove_inventory_item_object(item_guid);
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            if source_bag == INVENTORY_SLOT_BAG_0 {
+                let _ = player.remove_top_level_item(source_slot);
+            } else {
+                let _ = player.remove_bag_item(source_bag, source_slot);
+            }
+        });
+        true
     }
 
     fn sync_canonical_direct_inventory_move_like_cpp(
@@ -18293,6 +18431,18 @@ impl WorldSession {
         self.item_effect_store.as_ref()
     }
 
+    pub(crate) fn item_effect_count_like_cpp(&self, item_entry: u32) -> usize {
+        self.item_effect_store
+            .as_ref()
+            .map(|store| {
+                store
+                    .item_effects_for_item_id_like_cpp(item_entry)
+                    .len()
+                    .min(MAX_ITEM_SPELLS)
+            })
+            .unwrap_or(0)
+    }
+
     /// C++ `Item::CalculateDurabilityRepairCost`.
     pub(crate) fn item_durability_repair_cost_like_cpp(
         &self,
@@ -18971,6 +19121,30 @@ impl WorldSession {
             })
     }
 
+    /// C++ `GetItemCount(entry, false)`: count carried/equipped items while
+    /// excluding personal-bank slots and bank-bag contents.
+    pub(crate) fn represented_non_bank_item_count_like_cpp(&self, entry_id: u32) -> u32 {
+        let inventory_items = self.inventory_items_like_cpp();
+        let item_objects = self.inventory_item_objects_like_cpp();
+        let top_level_count = inventory_items
+            .iter()
+            .filter(|(slot, _)| !wow_entities::is_bank_pos(INVENTORY_SLOT_BAG_0, **slot))
+            .filter_map(|(_, inventory_item)| item_objects.get(&inventory_item.guid))
+            .filter(|item| item.object().entry() == entry_id && !item.is_in_trade())
+            .fold(0u32, |count, item| count.saturating_add(item.count()));
+        item_objects
+            .values()
+            .filter(|item| {
+                item.is_in_bag()
+                    && !wow_entities::is_bank_pos(item.bag_slot(), item.slot())
+                    && item.object().entry() == entry_id
+                    && !item.is_in_trade()
+            })
+            .fold(top_level_count, |count, item| {
+                count.saturating_add(item.count())
+            })
+    }
+
     pub(crate) fn represented_has_item_count_like_cpp(&self, item_entry: u32, count: u32) -> bool {
         if count == 0 {
             return true;
@@ -19444,6 +19618,7 @@ impl WorldSession {
             .object_mut()
             .create(player_guid);
         player.set_inventory_slot_count(INVENTORY_DEFAULT_SIZE);
+        player.set_bank_bag_slot_count(self.player_bank_bag_slot_count_like_cpp());
 
         let item_objects = self.inventory_item_objects_like_cpp();
         for (&slot, item) in self.inventory_items_like_cpp() {
@@ -19818,7 +19993,15 @@ impl WorldSession {
         &self,
         source_slot: u8,
     ) -> Option<(InventoryResult, Vec<ItemPosCount>, Option<u32>)> {
-        let inventory_item = self.inventory_items_like_cpp().get(&source_slot)?;
+        self.plan_store_existing_inventory_item_like_cpp(INVENTORY_SLOT_BAG_0, source_slot)
+    }
+
+    pub(crate) fn plan_store_existing_inventory_item_like_cpp(
+        &self,
+        source_bag: u8,
+        source_slot: u8,
+    ) -> Option<(InventoryResult, Vec<ItemPosCount>, Option<u32>)> {
+        let inventory_item = self.get_inventory_item_by_pos(source_bag, source_slot)?;
         let source_item = self
             .inventory_item_objects_like_cpp()
             .get(&inventory_item.guid)?;
@@ -19829,6 +20012,114 @@ impl WorldSession {
             NULL_SLOT,
             Some(source_item),
         )
+    }
+
+    pub(crate) fn plan_bank_existing_inventory_item_like_cpp(
+        &self,
+        source_bag: u8,
+        source_slot: u8,
+    ) -> Option<(InventoryResult, Vec<ItemPosCount>)> {
+        let inventory_item = self.get_inventory_item_by_pos(source_bag, source_slot)?;
+        let source_item = self
+            .inventory_item_objects_like_cpp()
+            .get(&inventory_item.guid)?;
+        let player = self.direct_inventory_player_snapshot()?;
+        let proto = self.item_storage_template(inventory_item.entry_id);
+        let inventory_items = self.inventory_items_like_cpp();
+        let item_objects = self.inventory_item_objects_like_cpp();
+
+        let mut template_cache = HashMap::new();
+        for item in item_objects.values() {
+            let entry_id = item.object().entry();
+            if let std::collections::hash_map::Entry::Vacant(entry) = template_cache.entry(entry_id)
+                && let Some(template) = self.item_storage_template(entry_id)
+            {
+                entry.insert(template);
+            }
+        }
+
+        let mut represented_bag_slots_by_guid = HashMap::new();
+        let mut bag_templates = Vec::new();
+        for (&slot, item) in inventory_items {
+            if Self::is_buyback_slot(slot) {
+                continue;
+            }
+            if is_represented_bag_slot(slot) && item_objects.contains_key(&item.guid) {
+                represented_bag_slots_by_guid.insert(item.guid, slot);
+                if let Some(template) = template_cache.get(&item.entry_id)
+                    && template.container_slots > 0
+                {
+                    bag_templates.push(BagTemplateRef::new(slot, template));
+                }
+            }
+        }
+
+        let mut slot_items = Vec::new();
+        let mut stored_items = Vec::new();
+        for (&slot, stored) in inventory_items {
+            if Self::is_buyback_slot(slot) {
+                continue;
+            }
+            let Some(item) = item_objects.get(&stored.guid) else {
+                continue;
+            };
+            slot_items.push(ItemSlotRef::new(INVENTORY_SLOT_BAG_0, slot, item));
+            stored_items.push(ItemStorageRef::new(
+                INVENTORY_SLOT_BAG_0,
+                slot,
+                item,
+                template_cache.get(&stored.entry_id),
+            ));
+        }
+        for item in item_objects.values() {
+            let container_guid = item.container_guid();
+            if container_guid.is_empty() {
+                continue;
+            }
+            let Some(&bag_slot) = represented_bag_slots_by_guid.get(&container_guid) else {
+                continue;
+            };
+            let entry_id = item.object().entry();
+            slot_items.push(ItemSlotRef::new(bag_slot, item.slot(), item));
+            stored_items.push(ItemStorageRef::new(
+                bag_slot,
+                item.slot(),
+                item,
+                template_cache.get(&entry_id),
+            ));
+        }
+
+        let limit_category = proto.as_ref().and_then(|proto| {
+            self.item_limit_category_template_like_cpp(proto.item_limit_category)
+        });
+        let can_use_result =
+            self.can_use_inventory_item_represented_like_cpp(&inventory_item, Some(source_item));
+        let mut dest = Vec::new();
+        let result = player.can_bank_item(
+            &mut dest,
+            CanBankItemArgs {
+                bag: NULL_BAG,
+                slot: NULL_SLOT,
+                proto: proto.as_ref(),
+                source_item: Some(source_item),
+                source_is_not_empty_bag: self.direct_item_contains_items(inventory_item.guid),
+                source_is_bag: proto
+                    .as_ref()
+                    .is_some_and(|proto| proto.container_slots > 0),
+                source_is_currency_token: proto
+                    .as_ref()
+                    .is_some_and(|proto| proto.bag_family.contains(BagFamilyMask::CURRENCY_TOKENS)),
+                source_bop_trade_allowed_for_player: false,
+                swap: false,
+                can_use_result,
+                limit_category: limit_category.as_ref(),
+                slot_items: &slot_items,
+                stored_items: &stored_items,
+                bag_templates: &bag_templates,
+            },
+        );
+
+        Some((result, dest))
     }
 
     fn plan_store_direct_inventory_item_like_cpp(
@@ -19918,7 +20209,8 @@ impl WorldSession {
                 count,
                 proto: proto.as_ref(),
                 source_item,
-                source_is_not_empty_bag: false,
+                source_is_not_empty_bag: source_item
+                    .is_some_and(|item| self.direct_item_contains_items(item.object().guid())),
                 source_bop_trade_allowed_for_player: false,
                 swap: false,
                 limit_category: limit_category.as_ref(),
@@ -35151,9 +35443,9 @@ impl WorldSession {
             return false;
         };
 
-        self.remove_represented_offhand_duration_refs_like_cpp(offhand_item.guid);
+        self.remove_inventory_item_duration_refs_like_cpp(offhand_item.guid);
         self.clear_represented_offhand_equipped_flag_like_cpp(offhand_item.guid);
-        self.remove_represented_offhand_tradeable_item_like_cpp(offhand_item.guid);
+        self.remove_inventory_tradeable_item_like_cpp(offhand_item.guid);
         let _item_set_changed = self.record_direct_inventory_item_set_remove_like_cpp(
             INVENTORY_SLOT_BAG_0,
             EQUIPMENT_SLOT_OFFHAND,
@@ -35161,7 +35453,7 @@ impl WorldSession {
         );
         let item_mods_changed =
             self.record_represented_offhand_item_mod_remove_like_cpp(offhand_item.guid);
-        self.record_represented_offhand_combat_stat_recalculations_like_cpp();
+        self.record_inventory_item_combat_stat_recalculations_like_cpp(EQUIPMENT_SLOT_OFFHAND);
 
         let mut stored_destination = None;
         let mut needs_mail_fallback = true;
@@ -35231,7 +35523,7 @@ impl WorldSession {
         });
     }
 
-    fn remove_represented_offhand_duration_refs_like_cpp(&mut self, item_guid: ObjectGuid) {
+    pub(crate) fn remove_inventory_item_duration_refs_like_cpp(&mut self, item_guid: ObjectGuid) {
         let Some(mut item) = self
             .inventory_item_objects_like_cpp()
             .get(&item_guid)
@@ -35259,7 +35551,7 @@ impl WorldSession {
         });
     }
 
-    fn remove_represented_offhand_tradeable_item_like_cpp(&mut self, item_guid: ObjectGuid) {
+    pub(crate) fn remove_inventory_tradeable_item_like_cpp(&mut self, item_guid: ObjectGuid) {
         let Some(item) = self
             .inventory_item_objects_like_cpp()
             .get(&item_guid)
@@ -35271,6 +35563,240 @@ impl WorldSession {
         let _ = self.mutate_canonical_player_like_cpp(|player| {
             player.remove_tradeable_item(&item);
         });
+    }
+
+    pub(crate) fn add_inventory_item_duration_refs_like_cpp(&mut self, item_guid: ObjectGuid) {
+        let Some(mut item) = self
+            .inventory_item_objects_like_cpp()
+            .get(&item_guid)
+            .cloned()
+        else {
+            return;
+        };
+        let Some((owner_guid, item_update, enchantment_updates)) = self
+            .mutate_canonical_player_like_cpp(|player| {
+                let item_update = player.add_item_durations(&item);
+                let enchantment_updates = player.add_enchantment_durations(&mut item);
+                (player.guid(), item_update, enchantment_updates)
+            })
+        else {
+            return;
+        };
+
+        self.insert_inventory_item_object(item);
+        if let Some(update) = item_update {
+            self.send_item_time_update_plan(&update);
+        }
+        self.send_item_enchant_time_update_plans(owner_guid, &enchantment_updates);
+    }
+
+    /// Restores C++ `Player::_LoadInventory` duration tracking before the login
+    /// create packet is sent. Equipped enchantments are registered later by the
+    /// ordered `_ApplyAllItemMods` replay, so only non-equipped enchantments are
+    /// added here.
+    pub(crate) fn register_loaded_inventory_item_duration_refs_like_cpp(
+        &mut self,
+        loaded_item_guids: &[ObjectGuid],
+        loaded_equipped_item_guids: &[ObjectGuid],
+    ) -> (Vec<PlayerItemTimeUpdate>, Vec<PlayerEnchantTimeUpdate>) {
+        let mut item_updates = Vec::new();
+        let mut enchantment_updates = Vec::new();
+
+        for &item_guid in loaded_item_guids {
+            let Some(mut item) = self
+                .inventory_item_objects_like_cpp()
+                .get(&item_guid)
+                .cloned()
+            else {
+                continue;
+            };
+            let is_equipped = loaded_equipped_item_guids.contains(&item_guid);
+            let Some((item_update, mut item_enchantment_updates)) = self
+                .mutate_canonical_player_like_cpp(|player| {
+                    let item_update = player.add_item_durations(&item);
+                    let enchantment_updates = if is_equipped {
+                        Vec::new()
+                    } else {
+                        player.add_enchantment_durations(&mut item)
+                    };
+                    (item_update, enchantment_updates)
+                })
+            else {
+                continue;
+            };
+
+            self.insert_inventory_item_object(item);
+            if let Some(item_update) = item_update {
+                item_updates.push(item_update);
+            }
+            enchantment_updates.append(&mut item_enchantment_updates);
+        }
+
+        (item_updates, enchantment_updates)
+    }
+
+    /// C++ `_StoreItem` merge branch calls `AddEnchantmentDurations(pItem2)`
+    /// without calling `AddItemDurations` for the existing destination stack.
+    pub(crate) fn refresh_inventory_item_enchantment_duration_refs_like_cpp(
+        &mut self,
+        item_guid: ObjectGuid,
+    ) {
+        let Some(mut item) = self
+            .inventory_item_objects_like_cpp()
+            .get(&item_guid)
+            .cloned()
+        else {
+            return;
+        };
+        let Some((owner_guid, enchantment_updates)) =
+            self.mutate_canonical_player_like_cpp(|player| {
+                (player.guid(), player.add_enchantment_durations(&mut item))
+            })
+        else {
+            return;
+        };
+
+        self.insert_inventory_item_object(item);
+        self.send_item_enchant_time_update_plans(owner_guid, &enchantment_updates);
+    }
+
+    /// C++ `Player::ApplyItemObtainSpells(item, true)` after `_StoreItem`.
+    pub(crate) async fn apply_inventory_item_obtain_spells_like_cpp(
+        &mut self,
+        item_entry: u32,
+    ) -> Vec<i32> {
+        if self
+            .item_template_flags(item_entry)
+            .is_some_and(|flags| flags.contains(ItemFlags::LEGACY))
+        {
+            return Vec::new();
+        }
+        let spell_ids = self
+            .item_effect_store
+            .as_ref()
+            .map(|store| {
+                store
+                    .item_effects_for_item_id_like_cpp(item_entry)
+                    .into_iter()
+                    .filter(|effect| {
+                        effect.trigger_type == ItemSpelltriggerType::OnPickup as i8
+                            && effect.spell_id > 0
+                    })
+                    .map(|effect| effect.spell_id)
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        let Some(player_guid) = self.player_guid() else {
+            return Vec::new();
+        };
+        let mut applied = Vec::new();
+        for spell_id in spell_ids {
+            if self
+                .visible_auras
+                .values()
+                .any(|aura| aura.spell_id == spell_id)
+            {
+                continue;
+            }
+            if self.execute_spell(spell_id, player_guid).await.is_ok() {
+                applied.push(spell_id);
+            }
+        }
+        applied
+    }
+
+    /// C++ `Player::RemoveItem` clears main-hand-only enchantments when the
+    /// main-hand item leaves that slot. Return both the post-remove DB value
+    /// and the runtime slots to clear, without mutating live state before the
+    /// caller's transaction commits.
+    pub(crate) fn inventory_remove_enchantment_persistence_like_cpp(
+        &self,
+        item_guid: ObjectGuid,
+        clear_mainhand_only: bool,
+    ) -> Option<(String, Vec<EnchantmentSlot>)> {
+        let item = self.inventory_item_objects_like_cpp().get(&item_guid)?;
+        let current_durations = self
+            .canonical_player_snapshot_like_cpp(|player| {
+                player
+                    .enchant_durations()
+                    .iter()
+                    .filter(|duration| duration.item_guid == item_guid)
+                    .copied()
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        let mut cleared = Vec::new();
+        let mut persisted = String::new();
+
+        for (index, enchantment) in item.data().enchantments.iter().enumerate() {
+            let Some(slot) = <EnchantmentSlot as num_traits::FromPrimitive>::from_usize(index)
+            else {
+                continue;
+            };
+            let enchantment_entry = u32::try_from(enchantment.id)
+                .ok()
+                .and_then(|id| self.spell_item_enchantment_store.as_ref()?.get(id))
+                .copied();
+            let clear_mainhand = clear_mainhand_only
+                && enchantment_entry.is_some_and(|entry| {
+                    entry
+                        .flags
+                        .contains(SpellItemEnchantmentFlags::MAINHAND_ONLY)
+                });
+            if clear_mainhand {
+                cleared.push(slot);
+            }
+            if clear_mainhand
+                || enchantment_entry.is_none_or(|entry| {
+                    entry
+                        .flags
+                        .contains(SpellItemEnchantmentFlags::DO_NOT_SAVE_TO_DB)
+                })
+            {
+                persisted.push_str("0 0 0 ");
+            } else {
+                let duration = current_durations
+                    .iter()
+                    .find(|duration| duration.slot == slot)
+                    .map_or(enchantment.duration, |duration| duration.left_duration_ms);
+                persisted.push_str(&format!(
+                    "{} {} {} ",
+                    enchantment.id, duration, enchantment.charges
+                ));
+            }
+        }
+
+        Some((persisted, cleared))
+    }
+
+    pub(crate) fn apply_inventory_item_remove_side_effects_like_cpp(
+        &mut self,
+        bag: u8,
+        slot: u8,
+        item_guid: ObjectGuid,
+        cleared_mainhand_enchantments: &[EnchantmentSlot],
+    ) -> bool {
+        self.remove_inventory_item_duration_refs_like_cpp(item_guid);
+        self.remove_inventory_tradeable_item_like_cpp(item_guid);
+
+        if bag != INVENTORY_SLOT_BAG_0 || slot >= INVENTORY_SLOT_BAG_END {
+            return false;
+        }
+
+        let _ = self.record_direct_inventory_item_set_remove_like_cpp(bag, slot, item_guid);
+        let item_mods_changed =
+            self.record_destroyed_inventory_item_mod_remove_like_cpp(bag, slot, item_guid);
+        self.update_inventory_item_object_like_cpp(item_guid, |item| {
+            item.remove_item_flag2(ItemFieldFlags2::EQUIPPED);
+            for enchantment_slot in cleared_mainhand_enchantments {
+                item.clear_enchantment(*enchantment_slot);
+            }
+        });
+
+        if slot < PROFESSION_SLOT_END {
+            self.record_inventory_item_combat_stat_recalculations_like_cpp(slot);
+        }
+        item_mods_changed
     }
 
     fn record_represented_offhand_item_mod_remove_like_cpp(
@@ -35290,20 +35816,24 @@ impl WorldSession {
         self.represented_item_bonus_actions_like_cpp.len() != action_start
     }
 
-    fn record_represented_offhand_combat_stat_recalculations_like_cpp(&mut self) {
-        self.represented_combat_stat_recalculations_like_cpp.push(
-            RepresentedCombatStatRecalculationLikeCpp::Expertise {
-                attack: WeaponAttackType::OffAttack,
-            },
-        );
-        self.represented_combat_stat_recalculations_like_cpp.push(
-            RepresentedCombatStatRecalculationLikeCpp::Rating {
-                combat_rating: CR_ARMOR_PENETRATION_LIKE_CPP,
-            },
-        );
+    pub(crate) fn record_inventory_item_combat_stat_recalculations_like_cpp(&mut self, slot: u8) {
+        let attack = match slot {
+            EQUIPMENT_SLOT_MAINHAND => Some(WeaponAttackType::BaseAttack),
+            EQUIPMENT_SLOT_OFFHAND => Some(WeaponAttackType::OffAttack),
+            _ => None,
+        };
+        if let Some(attack) = attack {
+            self.represented_combat_stat_recalculations_like_cpp
+                .push(RepresentedCombatStatRecalculationLikeCpp::Expertise { attack });
+            self.represented_combat_stat_recalculations_like_cpp.push(
+                RepresentedCombatStatRecalculationLikeCpp::Rating {
+                    combat_rating: CR_ARMOR_PENETRATION_LIKE_CPP,
+                },
+            );
+        }
     }
 
-    fn record_represented_titan_grip_penalty_action_like_cpp(&mut self) {
+    pub(crate) fn record_represented_titan_grip_penalty_action_like_cpp(&mut self) {
         let main_template = self
             .inventory_items_like_cpp()
             .get(&EQUIPMENT_SLOT_MAINHAND)
@@ -35340,7 +35870,7 @@ impl WorldSession {
         }
     }
 
-    fn record_represented_avg_equipped_item_level_update_like_cpp(&mut self) {
+    pub(crate) fn record_represented_avg_equipped_item_level_update_like_cpp(&mut self) {
         let avg_equipped_item_level = self.represented_avg_equipped_item_level_like_cpp();
         self.represented_avg_equipped_item_level_updates_like_cpp
             .push(avg_equipped_item_level);
@@ -35365,7 +35895,7 @@ impl WorldSession {
         );
     }
 
-    fn send_bag_slot_values_update_like_cpp(&self, bag_slot: u8, changed_slot: u8) {
+    pub(crate) fn send_bag_slot_values_update_like_cpp(&self, bag_slot: u8, changed_slot: u8) {
         if changed_slot as usize >= MAX_BAG_SIZE {
             return;
         }
@@ -35409,12 +35939,86 @@ impl WorldSession {
         }
     }
 
-    fn send_item_contained_in_values_update_like_cpp(&self, item_guid: ObjectGuid) {
+    pub(crate) fn send_item_contained_in_values_update_like_cpp(&self, item_guid: ObjectGuid) {
+        self.send_item_storage_fields_values_update_like_cpp(item_guid, true, false, &[]);
+    }
+
+    pub(crate) fn send_item_relocation_values_update_like_cpp(
+        &self,
+        item_guid: ObjectGuid,
+        dynamic_flags2_changed: bool,
+        cleared_enchantments: &[EnchantmentSlot],
+    ) {
+        self.send_item_storage_fields_values_update_like_cpp(
+            item_guid,
+            true,
+            dynamic_flags2_changed,
+            cleared_enchantments,
+        );
+    }
+
+    fn send_item_storage_fields_values_update_like_cpp(
+        &self,
+        item_guid: ObjectGuid,
+        contained_in_changed: bool,
+        dynamic_flags2_changed: bool,
+        changed_enchantments: &[EnchantmentSlot],
+    ) {
+        let Some(item) = self.inventory_item_objects_like_cpp().get(&item_guid) else {
+            return;
+        };
+        let update = Self::item_storage_fields_values_update_like_cpp(
+            item,
+            contained_in_changed,
+            dynamic_flags2_changed,
+            changed_enchantments,
+        );
+        if let Some(packet) =
+            item_values_update_to_update_object(item_guid, self.player_map_id_like_cpp(), &update)
+        {
+            self.send_packet(&packet);
+        }
+    }
+
+    pub(crate) fn item_storage_fields_values_update_like_cpp(
+        item: &Item,
+        contained_in_changed: bool,
+        dynamic_flags2_changed: bool,
+        changed_enchantments: &[EnchantmentSlot],
+    ) -> ItemValuesUpdate {
+        let mut item_data_mask = UpdateMask::new(ITEM_DATA_BITS);
+        if contained_in_changed || dynamic_flags2_changed {
+            item_data_mask.set(ITEM_DATA_PARENT_BIT);
+        }
+        if contained_in_changed {
+            item_data_mask.set(ITEM_DATA_CONTAINED_IN_BIT);
+        }
+        if dynamic_flags2_changed {
+            item_data_mask.set(ITEM_DATA_DYNAMIC_FLAGS2_BIT);
+        }
+        if !changed_enchantments.is_empty() {
+            item_data_mask.set(ITEM_DATA_ENCHANTMENT_PARENT_BIT);
+            for slot in changed_enchantments {
+                item_data_mask.set(ITEM_DATA_ENCHANTMENT_FIRST_BIT + *slot as usize);
+            }
+        }
+        ItemValuesUpdate {
+            changed_object_type_mask: 1 << TYPEID_ITEM,
+            object_data: None,
+            item_data: Some(ItemDataUpdate {
+                mask: item_data_mask,
+                values: item.data().clone(),
+            }),
+        }
+    }
+
+    pub(crate) fn send_item_dynamic_flags_values_update_like_cpp(&self, item_guid: ObjectGuid) {
         let Some(item) = self.inventory_item_objects_like_cpp().get(&item_guid) else {
             return;
         };
         let mut item_data_mask = UpdateMask::new(ITEM_DATA_BITS);
-        item_data_mask.set(ITEM_DATA_CONTAINED_IN_BIT);
+        item_data_mask.set(ITEM_DATA_PARENT_BIT);
+        item_data_mask.set(ITEM_DATA_DYNAMIC_FLAGS_BIT);
         let update = ItemValuesUpdate {
             changed_object_type_mask: 1 << TYPEID_ITEM,
             object_data: None,
@@ -121534,6 +122138,96 @@ mod tests {
         session.send_item_time_update_plan(&update);
 
         assert_eq!(send_rx.try_recv().unwrap(), expected);
+    }
+
+    #[test]
+    fn loaded_inventory_registers_item_and_non_equipped_enchantment_durations_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 122_126);
+        let equipped_guid = ObjectGuid::create_item(1, 122_127);
+        let backpack_guid = ObjectGuid::create_item(1, 122_128);
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_player_on_map(
+            &canonical,
+            player_guid,
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            0,
+        );
+
+        let mut equipped = session.make_inventory_item_object(
+            equipped_guid,
+            700,
+            player_guid,
+            1,
+            0,
+            ItemContext::None,
+            EQUIPMENT_SLOT_CHEST,
+        );
+        equipped.set_expiration(300);
+        equipped.set_enchantment(EnchantmentSlot::EnhancementTemporary, 900, 12_000, 0);
+        session.insert_inventory_item_object(equipped);
+
+        let mut backpack = session.make_inventory_item_object(
+            backpack_guid,
+            701,
+            player_guid,
+            1,
+            0,
+            ItemContext::None,
+            INVENTORY_SLOT_ITEM_START,
+        );
+        backpack.set_expiration(600);
+        backpack.set_enchantment(EnchantmentSlot::EnhancementTemporary, 901, 9_000, 0);
+        session.insert_inventory_item_object(backpack);
+
+        let (item_updates, enchantment_updates) = session
+            .register_loaded_inventory_item_duration_refs_like_cpp(
+                &[equipped_guid, backpack_guid],
+                &[equipped_guid],
+            );
+
+        assert_eq!(
+            item_updates,
+            vec![
+                PlayerItemTimeUpdate {
+                    item_guid: equipped_guid,
+                    expiration: 300,
+                },
+                PlayerItemTimeUpdate {
+                    item_guid: backpack_guid,
+                    expiration: 600,
+                },
+            ]
+        );
+        assert_eq!(
+            enchantment_updates,
+            vec![PlayerEnchantTimeUpdate {
+                item_guid: backpack_guid,
+                slot: EnchantmentSlot::EnhancementTemporary,
+                duration_secs: 9,
+            }]
+        );
+        assert_eq!(
+            session.canonical_player_snapshot_like_cpp(|player| player.item_durations().to_vec()),
+            Some(vec![equipped_guid, backpack_guid])
+        );
+        assert_eq!(
+            session
+                .canonical_player_snapshot_like_cpp(|player| player.enchant_durations().to_vec()),
+            Some(vec![PlayerEnchantDuration {
+                item_guid: backpack_guid,
+                slot: EnchantmentSlot::EnhancementTemporary,
+                left_duration_ms: 9_000,
+            }])
+        );
+        assert!(
+            send_rx.try_recv().is_err(),
+            "login duration packets are delayed until after the CREATE_OBJECT sequence"
+        );
     }
 
     #[test]

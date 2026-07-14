@@ -6711,6 +6711,7 @@ mod tests {
             0,
             0,
         );
+        creature.seed_runtime_rng_like_cpp(0x91_5EED);
         let mut path = WaypointPath::new(
             91,
             vec![
