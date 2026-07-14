@@ -34,6 +34,7 @@ const SMSG_ON_MONSTER_MOVE: u16 = 0x2DD4;
 const CMSG_BANKER_ACTIVATE: u16 = 0x34B3;
 const CMSG_AUTOBANK_ITEM: u16 = 0x3997;
 const CMSG_AUTOSTORE_BANK_ITEM: u16 = 0x3996;
+const CMSG_SWAP_INV_ITEM: u16 = 0x399B;
 const SMSG_NPC_INTERACTION_OPEN_RESULT: u16 = 0x288A;
 const SMSG_INVENTORY_CHANGE_FAILURE: u16 = 0x2DA5;
 const CMSG_LOGOUT_REQUEST: u16 = 0x34D6;
@@ -44,6 +45,8 @@ const BANK_SLOT_ITEM_START: u8 = 59;
 const BANK_SLOT_ITEM_END: u8 = 87;
 const NPC_FLAG_BANKER: u32 = 0x20000;
 const DEFAULT_BANK_SMOKE_ITEM_ENTRY: u32 = 2589;
+const DEFAULT_INVENTORY_SWAP_ITEM_ENTRY_A: u32 = 2589;
+const DEFAULT_INVENTORY_SWAP_ITEM_ENTRY_B: u32 = 2592;
 const UNIT_STAND_STATE_STAND: u8 = 0;
 const UNIT_STAND_STATE_SIT: u8 = 1;
 const UNIT_STAND_STATE_SLEEP: u8 = 3;
@@ -139,6 +142,10 @@ struct CliOptions {
     bank_item_entry: u32,
     bank_runtime_counter: Option<u64>,
     bank_timeout_secs: u64,
+    inventory_swap_smoke: bool,
+    inventory_swap_item_entry_a: u32,
+    inventory_swap_item_entry_b: u32,
+    inventory_swap_timeout_secs: u64,
     quest_smoke: bool,
     quest_creature_entry: Option<u32>,
     quest_creature_guid: Option<u64>,
@@ -202,6 +209,18 @@ struct BotRunResult {
     bank_relogin_after_deposit: bool,
     bank_withdraw_persisted: bool,
     bank_failure: Option<String>,
+    inventory_swap_smoke: bool,
+    inventory_swap_smoke_passed: Option<bool>,
+    inventory_swap_item_guid_a: Option<u64>,
+    inventory_swap_item_guid_b: Option<u64>,
+    inventory_swap_item_entry_a: Option<u32>,
+    inventory_swap_item_entry_b: Option<u32>,
+    inventory_swap_slot_a: Option<u8>,
+    inventory_swap_slot_b: Option<u8>,
+    inventory_swap_forward_persisted: bool,
+    inventory_swap_relogin_after_forward: bool,
+    inventory_swap_reverse_persisted: bool,
+    inventory_swap_failure: Option<String>,
     quest_smoke: bool,
     quest_smoke_passed: Option<bool>,
     quest_target_entry: Option<u32>,
@@ -256,6 +275,12 @@ impl BotRunResult {
                 && self.player_login_verified
                 && self.bank_smoke_passed.unwrap_or(false);
         }
+        if self.inventory_swap_smoke {
+            return self.world_auth
+                && self.enum_characters
+                && self.player_login_verified
+                && self.inventory_swap_smoke_passed.unwrap_or(false);
+        }
         if login_only {
             return self.world_auth && self.enum_characters && self.player_login_verified;
         }
@@ -275,6 +300,7 @@ struct RunReport {
     login_only: bool,
     stand_state_smoke: bool,
     bank_smoke: bool,
+    inventory_swap_smoke: bool,
     quest_smoke: bool,
     results: Vec<BotRunResult>,
 }
@@ -364,6 +390,29 @@ struct BankSmokeFixture {
     original_position: CharacterPositionSnapshot,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum InventorySwapSmokePhase {
+    Forward,
+    Reverse,
+}
+
+#[derive(Debug, Clone)]
+struct InventorySwapSmokeOptions {
+    phase: InventorySwapSmokePhase,
+    item_guid_a: u64,
+    item_guid_b: u64,
+    item_entry_a: u32,
+    item_entry_b: u32,
+    slot_a: u8,
+    slot_b: u8,
+    timeout_secs: u64,
+}
+
+#[derive(Debug, Clone)]
+struct InventorySwapSmokeFixture {
+    options: InventorySwapSmokeOptions,
+}
+
 #[derive(Debug, Clone)]
 struct ResolvedCreatureTarget {
     entry: u32,
@@ -451,6 +500,25 @@ fn parse_cli() -> Result<CliOptions> {
             .map(|value| value.parse::<u64>())
             .transpose()?,
         bank_timeout_secs: std::env::var("WOW_BOT_BANK_TIMEOUT_SECS")
+            .ok()
+            .map(|value| value.parse::<u64>())
+            .transpose()?
+            .unwrap_or(8),
+        inventory_swap_smoke: std::env::var("WOW_BOT_INVENTORY_SWAP_SMOKE")
+            .ok()
+            .map(|v| is_truthy(&v))
+            .unwrap_or(false),
+        inventory_swap_item_entry_a: std::env::var("WOW_BOT_INVENTORY_SWAP_ITEM_ENTRY_A")
+            .ok()
+            .map(|value| value.parse::<u32>())
+            .transpose()?
+            .unwrap_or(DEFAULT_INVENTORY_SWAP_ITEM_ENTRY_A),
+        inventory_swap_item_entry_b: std::env::var("WOW_BOT_INVENTORY_SWAP_ITEM_ENTRY_B")
+            .ok()
+            .map(|value| value.parse::<u32>())
+            .transpose()?
+            .unwrap_or(DEFAULT_INVENTORY_SWAP_ITEM_ENTRY_B),
+        inventory_swap_timeout_secs: std::env::var("WOW_BOT_INVENTORY_SWAP_TIMEOUT_SECS")
             .ok()
             .map(|value| value.parse::<u64>())
             .transpose()?
@@ -575,6 +643,19 @@ fn parse_cli() -> Result<CliOptions> {
             }
             "--bank-timeout" => {
                 opts.bank_timeout_secs = next_arg(&mut args, "--bank-timeout")?.parse()?;
+            }
+            "--inventory-swap-smoke" => opts.inventory_swap_smoke = true,
+            "--inventory-swap-item-entry-a" => {
+                opts.inventory_swap_item_entry_a =
+                    next_arg(&mut args, "--inventory-swap-item-entry-a")?.parse()?;
+            }
+            "--inventory-swap-item-entry-b" => {
+                opts.inventory_swap_item_entry_b =
+                    next_arg(&mut args, "--inventory-swap-item-entry-b")?.parse()?;
+            }
+            "--inventory-swap-timeout" => {
+                opts.inventory_swap_timeout_secs =
+                    next_arg(&mut args, "--inventory-swap-timeout")?.parse()?;
             }
             "--quest-smoke" => opts.quest_smoke = true,
             "--quest-creature-entry" => {
@@ -1017,12 +1098,17 @@ async fn main() -> Result<()> {
             .map_err(|e| anyhow!("DB worker join failed while ensuring test accounts: {}", e))?
             .map_err(|e| anyhow!("Failed to ensure test accounts: {}", e))?;
     }
-    let post_login_mode_count = [cli.stand_state_smoke, cli.bank_smoke, cli.quest_smoke]
-        .into_iter()
-        .filter(|enabled| *enabled)
-        .count();
+    let post_login_mode_count = [
+        cli.stand_state_smoke,
+        cli.bank_smoke,
+        cli.inventory_swap_smoke,
+        cli.quest_smoke,
+    ]
+    .into_iter()
+    .filter(|enabled| *enabled)
+    .count();
     if post_login_mode_count > 1 {
-        bail!("stand-state, bank, and quest smoke are separate post-login modes");
+        bail!("stand-state, bank, inventory-swap, and quest smoke are separate post-login modes");
     }
     if cli.bank_smoke && bots.len() != 1 {
         bail!("--bank-smoke requires exactly one bot; select it with --single");
@@ -1034,6 +1120,17 @@ async fn main() -> Result<()> {
         bail!(
             "--bank-smoke requires --bank-runtime-counter or WOW_BOT_BANK_RUNTIME_COUNTER for the live banker ObjectGuid"
         );
+    }
+    if cli.inventory_swap_smoke && bots.len() != 1 {
+        bail!("--inventory-swap-smoke requires exactly one bot; select it with --single");
+    }
+    if cli.inventory_swap_smoke && cli.inventory_swap_timeout_secs == 0 {
+        bail!("--inventory-swap-timeout must be greater than zero");
+    }
+    if cli.inventory_swap_smoke
+        && cli.inventory_swap_item_entry_a == cli.inventory_swap_item_entry_b
+    {
+        bail!("inventory-swap fixture item entries must be different to avoid stack merging");
     }
     let stand_state_options = if cli.stand_state_smoke {
         Some(stand_state_smoke_options_from_cli(&cli)?)
@@ -1075,6 +1172,8 @@ async fn main() -> Result<()> {
             "stand-state-smoke"
         } else if cli.bank_smoke {
             "bank-smoke"
+        } else if cli.inventory_swap_smoke {
+            "inventory-swap-smoke"
         } else if cli.quest_smoke {
             "quest-smoke"
         } else if cli.login_only {
@@ -1089,7 +1188,12 @@ async fn main() -> Result<()> {
         require_group
     );
 
-    if cleanup_groups && !cli.login_only && !cli.stand_state_smoke && !cli.bank_smoke {
+    if cleanup_groups
+        && !cli.login_only
+        && !cli.stand_state_smoke
+        && !cli.bank_smoke
+        && !cli.inventory_swap_smoke
+    {
         cleanup_bot_group_state(&bots)?;
     }
 
@@ -1109,6 +1213,17 @@ async fn main() -> Result<()> {
                     cli.bank_timeout_secs,
                 )
                 .await
+            } else if cli.inventory_swap_smoke {
+                run_inventory_swap_smoke_workflow(
+                    bot,
+                    dungeon_id,
+                    timeout_secs,
+                    auto_teleport,
+                    cli.inventory_swap_item_entry_a,
+                    cli.inventory_swap_item_entry_b,
+                    cli.inventory_swap_timeout_secs,
+                )
+                .await
             } else {
                 run_bot(
                     bot,
@@ -1117,6 +1232,7 @@ async fn main() -> Result<()> {
                     auto_teleport,
                     cli.login_only,
                     stand_state_options.clone(),
+                    None,
                     None,
                     quest_options.clone(),
                 )
@@ -1152,6 +1268,7 @@ async fn main() -> Result<()> {
                     cli.login_only,
                     stand_state_options_for_bot,
                     None,
+                    None,
                     quest_options_for_bot,
                 )
                 .await;
@@ -1182,6 +1299,7 @@ async fn main() -> Result<()> {
         cli.login_only,
         cli.stand_state_smoke,
         cli.bank_smoke,
+        cli.inventory_swap_smoke,
         cli.quest_smoke,
         &results,
     )?;
@@ -1304,6 +1422,7 @@ async fn run_bot(
     login_only: bool,
     stand_state_options: Option<StandStateSmokeOptions>,
     bank_options: Option<BankSmokeOptions>,
+    inventory_swap_options: Option<InventorySwapSmokeOptions>,
     quest_options: Option<QuestSmokeOptions>,
 ) -> Result<BotRunResult> {
     let bot_index = bot.account_id as usize;
@@ -1351,6 +1470,30 @@ async fn run_bot(
         bank_relogin_after_deposit: false,
         bank_withdraw_persisted: false,
         bank_failure: None,
+        inventory_swap_smoke: inventory_swap_options.is_some(),
+        inventory_swap_smoke_passed: None,
+        inventory_swap_item_guid_a: inventory_swap_options
+            .as_ref()
+            .map(|options| options.item_guid_a),
+        inventory_swap_item_guid_b: inventory_swap_options
+            .as_ref()
+            .map(|options| options.item_guid_b),
+        inventory_swap_item_entry_a: inventory_swap_options
+            .as_ref()
+            .map(|options| options.item_entry_a),
+        inventory_swap_item_entry_b: inventory_swap_options
+            .as_ref()
+            .map(|options| options.item_entry_b),
+        inventory_swap_slot_a: inventory_swap_options
+            .as_ref()
+            .map(|options| options.slot_a),
+        inventory_swap_slot_b: inventory_swap_options
+            .as_ref()
+            .map(|options| options.slot_b),
+        inventory_swap_forward_persisted: false,
+        inventory_swap_relogin_after_forward: false,
+        inventory_swap_reverse_persisted: false,
+        inventory_swap_failure: None,
         quest_smoke: quest_options.is_some(),
         quest_smoke_passed: None,
         quest_target_entry: None,
@@ -1795,6 +1938,24 @@ async fn run_bot(
         return Ok(result);
     }
 
+    if let Some(inventory_swap_options) = inventory_swap_options {
+        if let Err(error) = run_inventory_swap_smoke_phase(
+            bot_index,
+            &bot,
+            &mut stream,
+            &mut crypt,
+            &mut server_inflater,
+            &inventory_swap_options,
+            &mut result,
+        )
+        .await
+        {
+            result.inventory_swap_failure = Some(error.to_string());
+            result.inventory_swap_smoke_passed = Some(false);
+        }
+        return Ok(result);
+    }
+
     if login_only {
         info!(
             "[Bot {}] ✅ Login-only smoke passed: world_auth=true enum_characters=true player_login=true",
@@ -2021,6 +2182,23 @@ fn log_bot_summary(
             );
             return;
         }
+        if result.inventory_swap_smoke {
+            info!(
+                "✅ Bot {}: SUCCESS inventory_swap_smoke items={:?}/{:?} entries={:?}/{:?} slots={:?}<->{:?} forward={} relog={} reverse={} failure={:?}",
+                result.account,
+                result.inventory_swap_item_guid_a,
+                result.inventory_swap_item_guid_b,
+                result.inventory_swap_item_entry_a,
+                result.inventory_swap_item_entry_b,
+                result.inventory_swap_slot_a,
+                result.inventory_swap_slot_b,
+                result.inventory_swap_forward_persisted,
+                result.inventory_swap_relogin_after_forward,
+                result.inventory_swap_reverse_persisted,
+                result.inventory_swap_failure
+            );
+            return;
+        }
         info!(
             "✅ Bot {}: SUCCESS login={{auth:{}, enum:{}, player:{}}} join={:?}/{:?} proposal={} group={} teleport_denied={:?}",
             result.account,
@@ -2081,6 +2259,23 @@ fn log_bot_summary(
             );
             return;
         }
+        if result.inventory_swap_smoke {
+            error!(
+                "❌ Bot {}: FAILED inventory_swap_smoke items={:?}/{:?} entries={:?}/{:?} slots={:?}<->{:?} forward={} relog={} reverse={} failure={:?}",
+                result.account,
+                result.inventory_swap_item_guid_a,
+                result.inventory_swap_item_guid_b,
+                result.inventory_swap_item_entry_a,
+                result.inventory_swap_item_entry_b,
+                result.inventory_swap_slot_a,
+                result.inventory_swap_slot_b,
+                result.inventory_swap_forward_persisted,
+                result.inventory_swap_relogin_after_forward,
+                result.inventory_swap_reverse_persisted,
+                result.inventory_swap_failure
+            );
+            return;
+        }
         error!(
             "❌ Bot {}: FAILED login={{auth:{}, enum:{}, player:{}}} join={:?}/{:?} proposal={} group={} teleport_denied={:?}",
             result.account,
@@ -2106,6 +2301,7 @@ fn write_report_if_requested(
     login_only: bool,
     stand_state_smoke: bool,
     bank_smoke: bool,
+    inventory_swap_smoke: bool,
     quest_smoke: bool,
     results: &[BotRunResult],
 ) -> Result<()> {
@@ -2124,6 +2320,7 @@ fn write_report_if_requested(
         login_only,
         stand_state_smoke,
         bank_smoke,
+        inventory_swap_smoke,
         quest_smoke,
         results: results.to_vec(),
     };
@@ -2823,6 +3020,7 @@ async fn run_bank_smoke_workflow(
         None,
         Some(deposit_options),
         None,
+        None,
     )
     .await;
 
@@ -2850,6 +3048,7 @@ async fn run_bank_smoke_workflow(
             false,
             None,
             Some(withdraw_options),
+            None,
             None,
         )
         .await
@@ -3005,6 +3204,230 @@ async fn run_bank_smoke_phase(
     Ok(())
 }
 
+async fn run_inventory_swap_smoke_workflow(
+    bot: config::BotConfig,
+    dungeon_id: u32,
+    lfg_secs: u64,
+    auto_teleport: bool,
+    item_entry_a: u32,
+    item_entry_b: u32,
+    timeout_secs: u64,
+) -> Result<BotRunResult> {
+    let bot_for_setup = bot.clone();
+    let fixture = tokio::task::spawn_blocking(move || {
+        prepare_inventory_swap_smoke_fixture(
+            &bot_for_setup,
+            item_entry_a,
+            item_entry_b,
+            timeout_secs,
+        )
+    })
+    .await
+    .map_err(|e| anyhow!("Inventory swap smoke setup DB worker join failed: {e}"))??;
+
+    let mut forward_options = fixture.options.clone();
+    forward_options.phase = InventorySwapSmokePhase::Forward;
+    let first = run_bot(
+        bot.clone(),
+        dungeon_id,
+        lfg_secs,
+        auto_teleport,
+        false,
+        None,
+        None,
+        Some(forward_options),
+        None,
+    )
+    .await;
+
+    let mut combined = match first {
+        Ok(result) => result,
+        Err(error) => {
+            let bot_for_cleanup = bot.clone();
+            let fixture_for_cleanup = fixture.clone();
+            let _ = tokio::task::spawn_blocking(move || {
+                cleanup_inventory_swap_smoke_fixture(&bot_for_cleanup, &fixture_for_cleanup)
+            })
+            .await;
+            return Err(error.context("Inventory swap forward login/phase failed"));
+        }
+    };
+
+    if combined.inventory_swap_smoke_passed.unwrap_or(false) {
+        let mut reverse_options = fixture.options.clone();
+        reverse_options.phase = InventorySwapSmokePhase::Reverse;
+        match run_bot(
+            bot.clone(),
+            dungeon_id,
+            lfg_secs,
+            auto_teleport,
+            false,
+            None,
+            None,
+            Some(reverse_options),
+            None,
+        )
+        .await
+        {
+            Ok(second) => {
+                combined.world_auth &= second.world_auth;
+                combined.enum_characters &= second.enum_characters;
+                combined.player_login_verified &= second.player_login_verified;
+                combined.inventory_swap_relogin_after_forward =
+                    second.inventory_swap_relogin_after_forward;
+                combined.inventory_swap_reverse_persisted = second.inventory_swap_reverse_persisted;
+                combined.seen_opcodes.extend(second.seen_opcodes);
+                combined.inventory_swap_failure = second.inventory_swap_failure;
+                combined.inventory_swap_smoke_passed = Some(
+                    combined.inventory_swap_forward_persisted
+                        && combined.inventory_swap_relogin_after_forward
+                        && combined.inventory_swap_reverse_persisted
+                        && second.inventory_swap_smoke_passed.unwrap_or(false),
+                );
+            }
+            Err(error) => {
+                combined.inventory_swap_failure = Some(format!(
+                    "Inventory swap reverse relog/phase failed: {error}"
+                ));
+                combined.inventory_swap_smoke_passed = Some(false);
+            }
+        }
+    }
+
+    let bot_for_cleanup = bot.clone();
+    let fixture_for_cleanup = fixture.clone();
+    let cleanup = tokio::task::spawn_blocking(move || {
+        cleanup_inventory_swap_smoke_fixture(&bot_for_cleanup, &fixture_for_cleanup)
+    })
+    .await
+    .map_err(|e| anyhow!("Inventory swap cleanup DB worker join failed: {e}"))?;
+    if let Err(error) = cleanup {
+        combined.inventory_swap_failure = Some(format!("Inventory swap cleanup failed: {error}"));
+        combined.inventory_swap_smoke_passed = Some(false);
+    }
+
+    Ok(combined)
+}
+
+async fn run_inventory_swap_smoke_phase(
+    bot_index: usize,
+    bot: &config::BotConfig,
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    server_inflater: &mut ServerPacketInflater,
+    options: &InventorySwapSmokeOptions,
+    result: &mut BotRunResult,
+) -> Result<()> {
+    let (expected_before_a, expected_before_b, expected_after_a, expected_after_b) =
+        match options.phase {
+            InventorySwapSmokePhase::Forward => (
+                options.slot_a,
+                options.slot_b,
+                options.slot_b,
+                options.slot_a,
+            ),
+            InventorySwapSmokePhase::Reverse => {
+                result.inventory_swap_relogin_after_forward = true;
+                (
+                    options.slot_b,
+                    options.slot_a,
+                    options.slot_a,
+                    options.slot_b,
+                )
+            }
+        };
+
+    let bot_for_before = bot.clone();
+    let options_for_before = options.clone();
+    let before = tokio::task::spawn_blocking(move || {
+        verify_inventory_swap_fixture_locations(
+            &bot_for_before,
+            &options_for_before,
+            expected_before_a,
+            expected_before_b,
+        )
+    })
+    .await
+    .map_err(|e| anyhow!("Inventory swap pre-phase DB worker join failed: {e}"))??;
+    if !before {
+        bail!(
+            "inventory swap fixture was not in expected slots {expected_before_a}/{expected_before_b} before {:?}",
+            options.phase
+        );
+    }
+
+    let payload = build_swap_inv_item_payload(options.slot_a, options.slot_b);
+    send_encrypted_packet(stream, crypt, CMSG_SWAP_INV_ITEM, &payload).await?;
+    info!(
+        "[Bot {}] ✅ CMSG_SWAP_INV_ITEM sent slot {} -> {} ({:?})",
+        bot_index, options.slot_a, options.slot_b, options.phase
+    );
+
+    wait_for_inventory_swap_locations(
+        bot,
+        options,
+        expected_after_a,
+        expected_after_b,
+        options.timeout_secs,
+    )
+    .await?;
+    logout_and_wait(bot_index, stream, crypt, server_inflater, result).await?;
+
+    let bot_for_after = bot.clone();
+    let options_for_after = options.clone();
+    let persisted = tokio::task::spawn_blocking(move || {
+        verify_inventory_swap_fixture_locations(
+            &bot_for_after,
+            &options_for_after,
+            expected_after_a,
+            expected_after_b,
+        )
+    })
+    .await
+    .map_err(|e| anyhow!("Inventory swap post-logout DB worker join failed: {e}"))??;
+    if !persisted {
+        bail!(
+            "inventory swap fixture did not persist in expected slots {expected_after_a}/{expected_after_b} after logout"
+        );
+    }
+
+    match options.phase {
+        InventorySwapSmokePhase::Forward => result.inventory_swap_forward_persisted = true,
+        InventorySwapSmokePhase::Reverse => result.inventory_swap_reverse_persisted = true,
+    }
+    result.inventory_swap_smoke_passed = Some(true);
+    Ok(())
+}
+
+async fn wait_for_inventory_swap_locations(
+    bot: &config::BotConfig,
+    options: &InventorySwapSmokeOptions,
+    expected_slot_a: u8,
+    expected_slot_b: u8,
+    timeout_secs: u64,
+) -> Result<()> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(timeout_secs);
+    while tokio::time::Instant::now() < deadline {
+        let bot_for_check = bot.clone();
+        let options_for_check = options.clone();
+        let matches = tokio::task::spawn_blocking(move || {
+            verify_inventory_swap_fixture_locations(
+                &bot_for_check,
+                &options_for_check,
+                expected_slot_a,
+                expected_slot_b,
+            )
+        })
+        .await
+        .map_err(|e| anyhow!("Inventory swap polling DB worker join failed: {e}"))??;
+        if matches {
+            return Ok(());
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    bail!("timed out waiting for inventory swap DB slots {expected_slot_a}/{expected_slot_b}")
+}
+
 async fn wait_for_bank_open(
     bot_index: usize,
     stream: &mut TcpStream,
@@ -3108,6 +3531,20 @@ fn build_auto_bank_item_payload(slot: u8) -> [u8; 5] {
     // C++ InvUpdate count=1 is two MSB-first bits `01`, followed by the
     // affected position and then the packet's source bag/slot.
     [0x40, INVENTORY_SLOT_BAG_0, slot, INVENTORY_SLOT_BAG_0, slot]
+}
+
+fn build_swap_inv_item_payload(src_slot: u8, dst_slot: u8) -> [u8; 7] {
+    // C++ InvUpdate count=2 is two MSB-first bits `10`. The real 3.4.3
+    // client lists destination then source, followed by Slot2/Slot1.
+    [
+        0x80,
+        INVENTORY_SLOT_BAG_0,
+        dst_slot,
+        INVENTORY_SLOT_BAG_0,
+        src_slot,
+        dst_slot,
+        src_slot,
+    ]
 }
 
 async fn run_quest_smoke_inner(
@@ -3666,6 +4103,241 @@ fn prepare_quest_smoke_before_login(
         );
     }
 
+    Ok(())
+}
+
+fn prepare_inventory_swap_smoke_fixture(
+    bot: &config::BotConfig,
+    item_entry_a: u32,
+    item_entry_b: u32,
+    timeout_secs: u64,
+) -> Result<InventorySwapSmokeFixture> {
+    use mysql::prelude::Queryable;
+
+    if !bot.account.to_ascii_uppercase().ends_with("@BOT.LOCAL") {
+        bail!(
+            "refusing destructive inventory swap fixture setup for non-local account {}",
+            bot.account
+        );
+    }
+
+    let characters_url = characters_db_url()?;
+    let character_opts = mysql::Opts::from_url(&characters_url)
+        .map_err(|e| anyhow!("Bad characters DB URL: {e}"))?;
+    let mut characters = mysql::Conn::new(character_opts)
+        .map_err(|e| anyhow!("Connect to characters DB failed: {e}"))?;
+
+    let character: Option<(u32, u8)> = characters
+        .exec_first(
+            "SELECT account, online FROM characters WHERE guid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|e| anyhow!("Load inventory swap bot character: {e}"))?;
+    let (owner, online) =
+        character.ok_or_else(|| anyhow!("No characters row for guid {}", bot.character_guid))?;
+    if owner != bot.account_id {
+        bail!(
+            "character {} belongs to account {}, expected {}",
+            bot.character_guid,
+            owner,
+            bot.account_id
+        );
+    }
+    if online != 0 {
+        bail!(
+            "character {} is online; log it out before inventory swap smoke setup",
+            bot.character_guid
+        );
+    }
+
+    let occupied_slots: Vec<u8> = characters
+        .exec_map(
+            "SELECT slot FROM character_inventory WHERE guid = ? AND bag = 0",
+            (bot.character_guid,),
+            |slot: u8| slot,
+        )
+        .map_err(|e| anyhow!("Load occupied inventory swap slots: {e}"))?;
+    let free_slots: Vec<u8> = (INVENTORY_SLOT_ITEM_START..INVENTORY_SLOT_ITEM_START + 16)
+        .filter(|slot| !occupied_slots.contains(slot))
+        .take(2)
+        .collect();
+    if free_slots.len() != 2 {
+        bail!("Two empty default backpack slots are required for inventory swap smoke");
+    }
+    let slot_a = free_slots[0];
+    let slot_b = free_slots[1];
+
+    for item_entry in [item_entry_a, item_entry_b] {
+        let owned_count: u64 = characters
+            .exec_first(
+                "SELECT COUNT(*) FROM character_inventory ci \
+                 JOIN item_instance ii ON ii.guid = ci.item \
+                 WHERE ci.guid = ? AND ii.itemEntry = ?",
+                (bot.character_guid, item_entry),
+            )
+            .map_err(|e| anyhow!("Check existing inventory swap item entry: {e}"))?
+            .unwrap_or(0);
+        if owned_count != 0 {
+            bail!(
+                "bot character already owns item entry {item_entry}; choose isolated inventory-swap item entries"
+            );
+        }
+    }
+
+    let max_item_guid: u64 = characters
+        .query_first("SELECT COALESCE(MAX(guid), 0) FROM item_instance")
+        .map_err(|e| anyhow!("Load max item guid: {e}"))?
+        .unwrap_or(0);
+    let item_guid_a = max_item_guid
+        .checked_add(20_000)
+        .ok_or_else(|| anyhow!("item guid overflow while reserving inventory swap fixture"))?;
+    let item_guid_b = item_guid_a
+        .checked_add(1)
+        .ok_or_else(|| anyhow!("item guid overflow while reserving inventory swap fixture"))?;
+
+    let mut transaction = characters
+        .start_transaction(mysql::TxOpts::default())
+        .map_err(|e| anyhow!("Start inventory swap fixture transaction: {e}"))?;
+    for (item_guid, item_entry, slot) in [
+        (item_guid_a, item_entry_a, slot_a),
+        (item_guid_b, item_entry_b, slot_b),
+    ] {
+        transaction
+            .exec_drop(
+                "INSERT INTO item_instance \
+                 (guid, itemEntry, owner_guid, creatorGuid, giftCreatorGuid, count, durability, \
+                  enchantments, charges, flags, randomPropertiesId, randomPropertiesSeed, context) \
+                 VALUES (?, ?, ?, 0, 0, 1, 0, '', '', 0, 0, 0, 0)",
+                (item_guid, item_entry, bot.character_guid),
+            )
+            .map_err(|e| anyhow!("Insert inventory swap fixture item: {e}"))?;
+        transaction
+            .exec_drop(
+                "INSERT INTO character_inventory (guid, bag, slot, item) VALUES (?, 0, ?, ?)",
+                (bot.character_guid, slot, item_guid),
+            )
+            .map_err(|e| anyhow!("Insert inventory swap fixture inventory row: {e}"))?;
+    }
+    transaction
+        .commit()
+        .map_err(|e| anyhow!("Commit inventory swap fixture transaction: {e}"))?;
+
+    info!(
+        "Inventory swap fixture: character={} items={}/{} entries={}/{} slots={}/{}",
+        bot.character_guid, item_guid_a, item_guid_b, item_entry_a, item_entry_b, slot_a, slot_b
+    );
+    Ok(InventorySwapSmokeFixture {
+        options: InventorySwapSmokeOptions {
+            phase: InventorySwapSmokePhase::Forward,
+            item_guid_a,
+            item_guid_b,
+            item_entry_a,
+            item_entry_b,
+            slot_a,
+            slot_b,
+            timeout_secs,
+        },
+    })
+}
+
+fn verify_inventory_swap_fixture_locations(
+    bot: &config::BotConfig,
+    options: &InventorySwapSmokeOptions,
+    expected_slot_a: u8,
+    expected_slot_b: u8,
+) -> Result<bool> {
+    use mysql::prelude::Queryable;
+
+    let characters_url = characters_db_url()?;
+    let opts = mysql::Opts::from_url(&characters_url)
+        .map_err(|e| anyhow!("Bad characters DB URL: {e}"))?;
+    let mut conn =
+        mysql::Conn::new(opts).map_err(|e| anyhow!("Connect to characters DB failed: {e}"))?;
+
+    let load = |conn: &mut mysql::Conn, item_guid: u64| -> Result<Option<(u64, u8, u32, u64)>> {
+        conn.exec_first(
+            "SELECT ci.bag, ci.slot, ii.itemEntry, ii.owner_guid \
+             FROM character_inventory ci JOIN item_instance ii ON ii.guid = ci.item \
+             WHERE ci.guid = ? AND ci.item = ? AND ii.count = 1",
+            (bot.character_guid, item_guid),
+        )
+        .map_err(|e| anyhow!("Load inventory swap fixture location: {e}"))
+    };
+    let row_a = load(&mut conn, options.item_guid_a)?;
+    let row_b = load(&mut conn, options.item_guid_b)?;
+    Ok(matches!(
+        row_a,
+        Some((0, slot, entry, owner))
+            if slot == expected_slot_a
+                && entry == options.item_entry_a
+                && owner == bot.character_guid
+    ) && matches!(
+        row_b,
+        Some((0, slot, entry, owner))
+            if slot == expected_slot_b
+                && entry == options.item_entry_b
+                && owner == bot.character_guid
+    ))
+}
+
+fn cleanup_inventory_swap_smoke_fixture(
+    bot: &config::BotConfig,
+    fixture: &InventorySwapSmokeFixture,
+) -> Result<()> {
+    use mysql::prelude::Queryable;
+
+    let characters_url = characters_db_url()?;
+    let opts = mysql::Opts::from_url(&characters_url)
+        .map_err(|e| anyhow!("Bad characters DB URL: {e}"))?;
+    let mut conn =
+        mysql::Conn::new(opts).map_err(|e| anyhow!("Connect to characters DB failed: {e}"))?;
+
+    let offline_deadline = std::time::Instant::now() + Duration::from_secs(10);
+    loop {
+        let online: Option<u8> = conn
+            .exec_first(
+                "SELECT online FROM characters WHERE guid = ?",
+                (bot.character_guid,),
+            )
+            .map_err(|e| anyhow!("Check inventory swap bot offline state before cleanup: {e}"))?;
+        match online {
+            Some(0) => break,
+            Some(_) if std::time::Instant::now() < offline_deadline => {
+                std::thread::sleep(Duration::from_millis(100));
+            }
+            Some(_) => {
+                bail!(
+                    "character {} remained online; refusing inventory swap cleanup before disconnect save",
+                    bot.character_guid
+                );
+            }
+            None => bail!(
+                "No characters row for guid {} during inventory swap cleanup",
+                bot.character_guid
+            ),
+        }
+    }
+
+    let mut transaction = conn
+        .start_transaction(mysql::TxOpts::default())
+        .map_err(|e| anyhow!("Start inventory swap cleanup transaction: {e}"))?;
+    for item_guid in [fixture.options.item_guid_a, fixture.options.item_guid_b] {
+        transaction
+            .exec_drop(
+                "DELETE FROM character_inventory WHERE guid = ? AND item = ?",
+                (bot.character_guid, item_guid),
+            )
+            .map_err(|e| anyhow!("Delete inventory swap fixture inventory row: {e}"))?;
+        transaction
+            .exec_drop(
+                "DELETE FROM item_instance WHERE guid = ? AND owner_guid = ?",
+                (item_guid, bot.character_guid),
+            )
+            .map_err(|e| anyhow!("Delete inventory swap fixture item: {e}"))?;
+    }
+    transaction
+        .commit()
+        .map_err(|e| anyhow!("Commit inventory swap cleanup transaction: {e}"))?;
     Ok(())
 }
 
@@ -4617,6 +5289,14 @@ mod tests {
     fn auto_bank_payload_uses_cpp_inv_update_then_source_position() {
         assert_eq!(build_auto_bank_item_payload(35), [0x40, 255, 35, 255, 35]);
         assert_eq!(build_auto_bank_item_payload(59), [0x40, 255, 59, 255, 59]);
+    }
+
+    #[test]
+    fn inventory_swap_payload_matches_real_cpp_client_layout() {
+        assert_eq!(
+            build_swap_inv_item_payload(36, 40),
+            [0x80, 255, 40, 255, 36, 40, 36]
+        );
     }
 
     #[test]
