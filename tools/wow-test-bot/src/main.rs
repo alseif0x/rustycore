@@ -406,6 +406,8 @@ struct BankSmokeOptions {
 #[derive(Debug, Clone, Copy)]
 struct CharacterPositionSnapshot {
     map_id: u32,
+    zone_id: u32,
+    instance_id: u32,
     x: f64,
     y: f64,
     z: f64,
@@ -3555,7 +3557,8 @@ async fn run_homebind_smoke_phase(
             match (connection, opcode) {
                 ("instance", SMSG_SPELL_GO) => {
                     let player_high = (2u64 << 58) | ((u64::from(realm_id()) & 0x1FFF) << 42);
-                    result.homebind_spell_go_seen = spell_go_matches_bind(
+                    result.homebind_spell_go_seen = homebind_spell_go_seen_after_packet(
+                        result.homebind_spell_go_seen,
                         &payload,
                         runtime_low,
                         runtime_high,
@@ -4935,14 +4938,14 @@ fn prepare_bank_smoke_fixture(
     let mut characters = mysql::Conn::new(character_opts)
         .map_err(|e| anyhow!("Connect to characters DB failed: {e}"))?;
 
-    let character: Option<(u32, u8, u32, f64, f64, f64, f32)> = characters
+    let character: Option<(u32, u8, u32, u32, u32, f64, f64, f64, f32)> = characters
         .exec_first(
-            "SELECT account, online, map, position_x, position_y, position_z, orientation \
+            "SELECT account, online, map, zone, instance_id, position_x, position_y, position_z, orientation \
              FROM characters WHERE guid = ?",
             (bot.character_guid,),
         )
         .map_err(|e| anyhow!("Load bank bot character: {e}"))?;
-    let (owner, online, map_id, x, y, z, orientation) =
+    let (owner, online, map_id, zone_id, instance_id, x, y, z, orientation) =
         character.ok_or_else(|| anyhow!("No characters row for guid {}", bot.character_guid))?;
     if owner != bot.account_id {
         bail!(
@@ -4960,6 +4963,8 @@ fn prepare_bank_smoke_fixture(
     }
     let original_position = CharacterPositionSnapshot {
         map_id,
+        zone_id,
+        instance_id,
         x,
         y,
         z,
@@ -5141,14 +5146,14 @@ fn prepare_homebind_smoke_fixture(
         .map_err(|e| anyhow!("Bad characters DB URL: {e}"))?;
     let mut characters = mysql::Conn::new(character_opts)
         .map_err(|e| anyhow!("Connect to characters DB failed: {e}"))?;
-    let character: Option<(u32, u8, u8, u32, f64, f64, f64, f32)> = characters
+    let character: Option<(u32, u8, u8, u32, u32, u32, f64, f64, f64, f32)> = characters
         .exec_first(
-            "SELECT account, online, race, map, position_x, position_y, position_z, orientation \
+            "SELECT account, online, race, map, zone, instance_id, position_x, position_y, position_z, orientation \
              FROM characters WHERE guid = ?",
             (bot.character_guid,),
         )
         .map_err(|e| anyhow!("Load homebind bot character: {e}"))?;
-    let (owner, online, race, map_id, x, y, z, orientation) =
+    let (owner, online, race, map_id, zone_id, instance_id, x, y, z, orientation) =
         character.ok_or_else(|| anyhow!("No characters row for guid {}", bot.character_guid))?;
     if owner != bot.account_id {
         bail!(
@@ -5166,6 +5171,8 @@ fn prepare_homebind_smoke_fixture(
     }
     let original_position = CharacterPositionSnapshot {
         map_id,
+        zone_id,
+        instance_id,
         x,
         y,
         z,
@@ -5327,9 +5334,11 @@ fn cleanup_homebind_smoke_fixture(
         .start_transaction(mysql::TxOpts::default())
         .map_err(|e| anyhow!("Start homebind cleanup transaction: {e}"))?;
     tx.exec_drop(
-        "UPDATE characters SET map = ?, position_x = ?, position_y = ?, position_z = ?, orientation = ? WHERE guid = ?",
+        "UPDATE characters SET map = ?, zone = ?, instance_id = ?, position_x = ?, position_y = ?, position_z = ?, orientation = ? WHERE guid = ?",
         (
             fixture.original_position.map_id,
+            fixture.original_position.zone_id,
+            fixture.original_position.instance_id,
             fixture.original_position.x,
             fixture.original_position.y,
             fixture.original_position.z,
@@ -5447,10 +5456,12 @@ fn cleanup_bank_smoke_fixture(bot: &config::BotConfig, fixture: &BankSmokeFixtur
         .map_err(|e| anyhow!("Delete bank fixture item: {e}"))?;
     transaction
         .exec_drop(
-            "UPDATE characters SET map = ?, position_x = ?, position_y = ?, position_z = ?, orientation = ? \
+            "UPDATE characters SET map = ?, zone = ?, instance_id = ?, position_x = ?, position_y = ?, position_z = ?, orientation = ? \
              WHERE guid = ?",
             (
                 fixture.original_position.map_id,
+                fixture.original_position.zone_id,
+                fixture.original_position.instance_id,
                 fixture.original_position.x,
                 fixture.original_position.y,
                 fixture.original_position.z,
@@ -6241,6 +6252,24 @@ fn spell_go_matches_bind(
     target == (expected_player_low, expected_player_high) && hit_target == target && item == (0, 0)
 }
 
+fn homebind_spell_go_seen_after_packet(
+    already_seen: bool,
+    payload: &[u8],
+    expected_caster_low: u64,
+    expected_caster_high: u64,
+    expected_player_low: u64,
+    expected_player_high: u64,
+) -> bool {
+    already_seen
+        || spell_go_matches_bind(
+            payload,
+            expected_caster_low,
+            expected_caster_high,
+            expected_player_low,
+            expected_player_high,
+        )
+}
+
 fn player_bound_matches(
     payload: &[u8],
     expected_low: u64,
@@ -6538,6 +6567,35 @@ mod tests {
         payload[spell_offset..spell_offset + 4].copy_from_slice(&1u32.to_le_bytes());
         assert!(!spell_go_matches_bind(
             &payload,
+            caster_low,
+            caster_high,
+            player_low,
+            player_high,
+        ));
+    }
+
+    #[test]
+    fn homebind_smoke_keeps_match_after_later_unrelated_spell_go() {
+        let (caster_low, caster_high) = create_creature_guid_raw(1, 12_196, 733);
+        let player_low = 99;
+        let player_high = (2u64 << 58) | (1u64 << 42);
+        let matching = bind_spell_go_fixture(caster_low, caster_high, player_low, player_high);
+        let mut unrelated = matching.clone();
+        let spell_offset = 2 * build_packed_guid(caster_low, caster_high).len()
+            + 2 * build_packed_guid(1, 0).len();
+        unrelated[spell_offset..spell_offset + 4].copy_from_slice(&1u32.to_le_bytes());
+
+        let seen = homebind_spell_go_seen_after_packet(
+            false,
+            &matching,
+            caster_low,
+            caster_high,
+            player_low,
+            player_high,
+        );
+        assert!(homebind_spell_go_seen_after_packet(
+            seen,
+            &unrelated,
             caster_low,
             caster_high,
             player_low,

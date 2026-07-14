@@ -581,13 +581,19 @@ impl ClientPacket for SpellClick {
 
 /// Write a minimal `SpellCastData` (used by both SpellStart and SpellGo).
 ///
-/// C# ref: `SpellCastData.Write()` in SpellPackets.cs.
+/// C++ refs: `WorldPackets::Spells::SpellCastData` in `SpellPackets.h` and
+/// `WorldPackets::Spells::operator<<(ByteBuffer&, SpellCastData const&)` in
+/// `SpellPackets.cpp`. The fixed fields, bit counts, target data, and trailing
+/// vectors below follow that serializer in the same order.
 ///
 /// Parameters
-/// - `caster`      : player ObjectGuid
+/// - `caster`      : unit ObjectGuid written as both CasterGUID and CasterUnit
 /// - `cast_id`     : echo of the client's cast_id
+/// - `original_cast_id`: original cast ObjectGuid, or empty when absent
 /// - `spell_id`    : spell being cast
 /// - `visual`      : spell visual IDs
+/// - `cast_flags`  : C++ `SpellCastData::CastFlags`
+/// - `cast_flags_ex`: C++ `SpellCastData::CastFlagsEx`
 /// - `cast_time_ms`: 0 for instant
 /// - `target`      : SpellTargetData (unit + flags)
 /// - `hit_targets` : list of GUIDs that were hit (empty for visual-only)
@@ -606,7 +612,7 @@ fn write_spell_cast_data(
 ) {
     // CasterGUID, CasterUnit, CastID, OriginalCastID
     pkt.write_packed_guid(caster);
-    pkt.write_packed_guid(caster); // CasterUnit = same for player spells
+    pkt.write_packed_guid(caster); // This helper currently represents unit casters.
     pkt.write_packed_guid(cast_id);
     pkt.write_packed_guid(original_cast_id);
 
