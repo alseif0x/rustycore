@@ -31,6 +31,13 @@ test item for the local bot character, opens a neutral banker, deposits the
 item, logs out and authenticates again, withdraws it, logs out again, verifies
 both DB transitions, then deletes the item and restores the original position.
 
+For a full occupied-slot inventory-swap round-trip, set
+`WOW_BOT_INVENTORY_SWAP_SMOKE=1`. The bot creates two different isolated items
+in two free backpack slots, sends the real `CMSG_SWAP_INV_ITEM`, logs out and
+authenticates again, swaps them back, verifies both items after both commits,
+and removes the fixture. Optional entry overrides are
+`WOW_BOT_INVENTORY_SWAP_ITEM_ENTRY_A/B` (defaults `2589`/`2592`).
+
 `config.example.json` is versioned with blank passwords. Use `WOW_BOT_PASSWORD`,
 the per-account `WOW_BOT_PASSWORD_<ACCOUNT>` override, or an ignored local
 `config.json` for credentials. Do not commit real local bot passwords.
