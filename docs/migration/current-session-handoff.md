@@ -1,3 +1,41 @@
+- `#NEXT.R8.ENTITIES.1201` — issue #102 implements atomic personal-bank item moves for
+  `CMSG_AUTOBANK_ITEM` and `CMSG_AUTOSTORE_BANK_ITEM`. C++ anchors:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/BankHandler.cpp:25-121`,
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:11244-11372`,
+  `11559-11645`, and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Item/Item.cpp:383-576,748-765`.
+  Rust now uses the existing C++-mirroring bank/store planners, persists `character_inventory`
+  relocation plus every surviving affected item's mutable count/expiration/charges/flags/
+  enchantments/durability/played-time in one `SqlTransaction`, cleans all item-owned rows when
+  the source merges away (including stored container-loot rows), and loads expiration/charges on
+  login so this save cannot zero them,
+  appends applicable quest status/objective rows to the same commit, and exposes no runtime move
+  or applied telemetry on commit failure. After commit it synchronizes direct/nested runtime,
+  item stack/location/flag/enchantment updates, equipment bonuses and combat recalculations,
+  source duration refs plus merge-destination enchantment-only timer refresh, quest-log state,
+  the C++ first-match stop and special `ItemPushResult` (never generic credit) for quest-bound
+  item objectives, and on-obtain spells. Login normalizes a zero/nonzero duration mismatch from
+  `ItemSparse::DurationInInventory`, persists that repair, limits charges to the real ItemEffect
+  count, and registers item/non-equipped-enchantment duration trackers before their post-create
+  timer packets.
+  Positive/negative coverage includes bank full,
+  empty-slot relocation, merge plus remainder (including remainder in the source slot),
+  bank-to-inventory, missing persistence/source, a real failed-connection SQL commit with no
+  exposed runtime mutation, quest removal/restoration including bound items, main-hand-only and
+  unknown enchant cleanup, exact relocation update-field masks, destination enchantment-timer
+  refresh without item-expiration registration, item expiration/spell-charge load-to-save
+  round-trip, current enchant duration persistence, and SQL placeholder coverage.
+  The commit-failure test also corrected the old false-positive hardcoded backpack slot `19` to
+  the C++/Rust 3.4.3 `INVENTORY_SLOT_ITEM_START=35`. Checks so far: `cargo +1.88.0 fmt --all`;
+  `wow-world --lib` 2757/0; `wow-data --lib` 568/0; `wow-database --lib` 152/0 plus
+  one live-MariaDB test ignored by design; `PROTOC=... cargo +1.88.0 check -p world-server`;
+  committed capture-diff regression gate 38/0; `git diff --check`; the new TSV row has nine
+  columns (the file has 163 pre-existing ten-column rows); repeated
+  `./tools/pr-preflight.sh review-uncommitted`, final result CLEAN.
+  Boundary: D-C3 remains unchecked until a real CharacterDB relog round-trip, C++/Rust
+  capture-diff, installed server restart, bot/client manual QA, CI, and current-HEAD GitHub Codex
+  verdict complete; equipment sets and void storage remain separate D-C3 children.
+
 - `#NEXT.R8.ENTITIES.1200` — MO_TRANSPORT GameObject create blocks now carry
   the two `GameObjectData` fields the Wrath/Cata-classic client requires,
   fixing the client `ERROR #132` ACCESS_VIOLATION that crashed the player

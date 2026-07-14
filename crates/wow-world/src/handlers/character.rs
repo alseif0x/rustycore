@@ -43,7 +43,7 @@ use wow_entities::{
     GameObjectTemplateData, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END,
     INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, MAX_BAG_SIZE, MAX_GAMEOBJECT_DATA,
     MovementGeneratorType, NULL_BAG, NULL_SLOT, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START,
-    SocketedGem, WorldObject, is_equipment_pos, is_inventory_pos,
+    SocketedGem, WorldObject, is_bank_pos, is_equipment_pos, is_inventory_pos,
     normalize_creature_chase_movement_type_like_cpp,
     normalize_creature_random_movement_type_like_cpp,
 };
@@ -184,6 +184,63 @@ struct LoadedItemRandomPropertiesLikeCpp {
     seed: i32,
 }
 
+#[derive(Debug, Clone)]
+struct ExistingStorageStackUpdateLikeCpp {
+    item: InventoryItem,
+    bag: u8,
+    slot: u8,
+    new_count: u32,
+}
+
+#[derive(Debug, Clone)]
+struct InventoryStorageMovePlanLikeCpp {
+    source_bag: u8,
+    source_slot: u8,
+    source: InventoryItem,
+    source_count: u32,
+    existing_updates: Vec<ExistingStorageStackUpdateLikeCpp>,
+    moved_destination: Option<(u8, u8, u32)>,
+}
+
+fn bank_move_runs_item_removed_quest_check_like_cpp(force_bank_destination: bool) -> bool {
+    // C++ BankHandler.cpp intentionally differs by opcode here:
+    // HandleAutoBankItemOpcode calls ItemRemovedQuestCheck, while the
+    // inventory-to-bank branch of HandleAutoStoreBankItemOpcode does not.
+    force_bank_destination
+}
+
+fn bank_store_item_added_quest_count_like_cpp(plan: &InventoryStorageMovePlanLikeCpp) -> u32 {
+    // C++ HandleAutoStoreBankItemOpcode passes storedItem->GetCount() after
+    // StoreItem. _StoreItem returns the last destination item, so a full merge
+    // reports that destination stack's total and a merge+remainder reports the
+    // final remainder stack count. This is deliberately not source_count.
+    plan.moved_destination
+        .map(|(_, _, count)| count)
+        .or_else(|| plan.existing_updates.last().map(|update| update.new_count))
+        .unwrap_or(0)
+}
+
+fn bank_store_destination_applies_obtain_spells_like_cpp(bag: u8) -> bool {
+    // C++ Player::_StoreItem checks only the bag value. INVENTORY_SLOT_BAG_0
+    // therefore includes top-level personal-bank slots as well as carried
+    // top-level slots; bank-bag containers remain excluded.
+    bag == INVENTORY_SLOT_BAG_0
+        || (wow_entities::INVENTORY_SLOT_BAG_START..wow_entities::INVENTORY_SLOT_BAG_END)
+            .contains(&bag)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ItemStorageMutablePersistenceLikeCpp {
+    db_guid: u64,
+    count: u32,
+    expiration: u32,
+    charges: String,
+    flags: u32,
+    enchantments: String,
+    durability: u32,
+    played_time: u32,
+}
+
 fn loaded_item_random_properties_like_cpp(
     random_properties_id: i32,
     random_properties_seed: i32,
@@ -231,6 +288,43 @@ fn apply_loaded_item_instance_fields_like_cpp(
             enchantment.charges,
         );
     }
+}
+
+fn loaded_item_spell_charges_like_cpp(
+    charges: &str,
+    effect_count: usize,
+) -> [i32; wow_entities::MAX_ITEM_SPELLS] {
+    let mut values = [0; wow_entities::MAX_ITEM_SPELLS];
+    for (target, token) in values
+        .iter_mut()
+        .take(effect_count.min(wow_entities::MAX_ITEM_SPELLS))
+        .zip(charges.split_whitespace())
+    {
+        *target = token.parse::<i32>().unwrap_or(0);
+    }
+    values
+}
+
+fn apply_loaded_item_storage_mutable_fields_like_cpp(
+    item: &mut wow_entities::Item,
+    stored_expiration: u32,
+    template_expiration: u32,
+    charges: &str,
+    effect_count: usize,
+) -> bool {
+    let expiration_needs_save = (template_expiration == 0) != (stored_expiration == 0);
+    item.set_expiration(if expiration_needs_save {
+        template_expiration
+    } else {
+        stored_expiration
+    });
+    for (index, charge) in loaded_item_spell_charges_like_cpp(charges, effect_count)
+        .into_iter()
+        .enumerate()
+    {
+        item.set_spell_charges(index, charge);
+    }
+    expiration_needs_save
 }
 
 fn loaded_item_slot_applies_equipped_enchantments_like_cpp(slot: u8) -> bool {
@@ -2470,13 +2564,63 @@ fn sell_item_amount_action(current_count: u32, requested_amount: i32) -> SellIte
     }
 }
 
-fn item_spell_charges_db_string(charges: &[i32]) -> String {
+fn item_spell_charges_db_string(charges: &[i32], effect_count: usize) -> String {
     let mut out = String::new();
-    for charge in charges {
+    for charge in charges.iter().take(effect_count) {
         out.push_str(&charge.to_string());
         out.push(' ');
     }
     out
+}
+
+fn append_item_storage_mutable_persistence_like_cpp(
+    char_db: &CharacterDatabase,
+    tx: &mut SqlTransaction,
+    update: &ItemStorageMutablePersistenceLikeCpp,
+) {
+    let mut statement = char_db.prepare(CharStatements::UPD_ITEM_INSTANCE_STORAGE_MUTABLE);
+    statement.set_u32(0, update.count);
+    statement.set_u32(1, update.expiration);
+    statement.set_string(2, &update.charges);
+    statement.set_u32(3, update.flags);
+    statement.set_string(4, &update.enchantments);
+    statement.set_u32(5, update.durability);
+    statement.set_u32(6, update.played_time);
+    statement.set_u64(7, update.db_guid);
+    tx.append(statement);
+}
+
+fn fully_merged_item_cleanup_statements_like_cpp() -> [CharStatements; 7] {
+    [
+        CharStatements::DEL_ITEM_REFUND_INSTANCE,
+        CharStatements::DEL_ITEM_BOP_TRADE,
+        CharStatements::DEL_ITEM_INSTANCE_GEMS,
+        CharStatements::DEL_ITEM_INSTANCE_TRANSMOG,
+        CharStatements::DEL_GIFT,
+        CharStatements::DEL_ITEMCONTAINER_ITEMS,
+        CharStatements::DEL_ITEMCONTAINER_MONEY,
+    ]
+}
+
+fn item_storage_mutable_persistence_like_cpp(
+    db_guid: u64,
+    item: &wow_entities::Item,
+    count: u32,
+    flags: u32,
+    enchantments: String,
+    effect_count: usize,
+) -> ItemStorageMutablePersistenceLikeCpp {
+    let data = item.data();
+    ItemStorageMutablePersistenceLikeCpp {
+        db_guid,
+        count,
+        expiration: data.expiration,
+        charges: item_spell_charges_db_string(&data.spell_charges, effect_count),
+        flags,
+        enchantments,
+        durability: data.durability,
+        played_time: data.create_played_time,
+    }
 }
 
 fn item_is_currently_looted_like_cpp(item: &wow_entities::Item) -> bool {
@@ -5060,6 +5204,7 @@ impl WorldSession {
         let mut inv_slots = [ObjectGuid::EMPTY; 141];
         let mut item_creates: Vec<wow_packet::packets::update::ItemCreateData> = Vec::new();
         let mut login_bag_create_index_by_slot: HashMap<u8, usize> = HashMap::new();
+        let mut loaded_inventory_item_guids: Vec<ObjectGuid> = Vec::new();
         let mut loaded_equipped_item_guids: Vec<ObjectGuid> = Vec::new();
         let realm_id = self.realm_id();
         self.clear_inventory_items_and_objects_like_cpp();
@@ -5083,6 +5228,9 @@ impl WorldSession {
                                 .unwrap_or(ItemContext::None);
                             let item_flags = eq_result.try_read::<u32>(6).unwrap_or(0);
                             let item_played_time = eq_result.try_read::<u32>(7).unwrap_or(0);
+                            let item_expiration = eq_result.try_read::<u32>(22).unwrap_or(0);
+                            let item_spell_charges =
+                                eq_result.try_read::<String>(23).unwrap_or_default();
                             let item_enchantments =
                                 eq_result.try_read::<String>(8).unwrap_or_default();
                             let item_enchantment_values =
@@ -5218,6 +5366,19 @@ impl WorldSession {
                                     slot,
                                 );
                                 item_object.set_create_played_time(item_played_time);
+                                let template_expiration = self
+                                    .item_stats_store()
+                                    .and_then(|store| store.duration_in_inventory(item_entry))
+                                    .unwrap_or(0);
+                                let effect_count = self.item_effect_count_like_cpp(item_entry);
+                                let expiration_needs_save =
+                                    apply_loaded_item_storage_mutable_fields_like_cpp(
+                                        &mut item_object,
+                                        item_expiration,
+                                        template_expiration,
+                                        &item_spell_charges,
+                                        effect_count,
+                                    );
                                 apply_loaded_item_instance_fields_like_cpp(
                                     &mut item_object,
                                     &item_create_enchantments,
@@ -5227,6 +5388,15 @@ impl WorldSession {
                                 item_object.replace_all_item_flags(
                                     ItemFieldFlags::from_bits_retain(stored_flags),
                                 );
+                                if expiration_needs_save {
+                                    let mut update_item_on_load =
+                                        char_db.prepare(CharStatements::UPD_ITEM_INSTANCE_ON_LOAD);
+                                    update_item_on_load.set_u32(0, item_object.data().expiration);
+                                    update_item_on_load.set_u32(1, item_object.item_flags_bits());
+                                    update_item_on_load.set_u32(2, item_object.data().durability);
+                                    update_item_on_load.set_u64(3, item_db_guid);
+                                    refund_cleanup_tx.append(update_item_on_load);
+                                }
                                 if let LoadedItemRefundDecision::Valid {
                                     paid_money,
                                     paid_extended_cost,
@@ -5245,6 +5415,7 @@ impl WorldSession {
                                     self.loaded_inventory_item_visible_fields_like_cpp(&item_object)
                                 });
                                 self.insert_inventory_item_object(item_object);
+                                loaded_inventory_item_guids.push(item_guid);
                                 if loaded_item_slot_applies_equipped_enchantments_like_cpp(slot) {
                                     loaded_equipped_item_guids.push(item_guid);
                                 }
@@ -5279,6 +5450,7 @@ impl WorldSession {
             {
                 let mut bag_stmt = char_db.prepare(CharStatements::SEL_CHAR_BAG_CONTENTS);
                 bag_stmt.set_u64(0, guid.counter() as u64);
+                let mut bag_load_fix_tx = SqlTransaction::new();
                 match char_db.query(&bag_stmt).await {
                     Ok(mut bag_result) => {
                         if !bag_result.is_empty() {
@@ -5295,6 +5467,9 @@ impl WorldSession {
                                     .unwrap_or(ItemContext::None);
                                 let item_flags = bag_result.try_read::<u32>(7).unwrap_or(0);
                                 let item_played_time = bag_result.try_read::<u32>(8).unwrap_or(0);
+                                let item_expiration = bag_result.try_read::<u32>(23).unwrap_or(0);
+                                let item_spell_charges =
+                                    bag_result.try_read::<String>(24).unwrap_or_default();
                                 let item_enchantments =
                                     bag_result.try_read::<String>(9).unwrap_or_default();
                                 let item_enchantment_values =
@@ -5358,6 +5533,22 @@ impl WorldSession {
                                             inner_slot,
                                         );
                                         item_object.set_create_played_time(item_played_time);
+                                        let template_expiration = self
+                                            .item_stats_store()
+                                            .and_then(|store| {
+                                                store.duration_in_inventory(item_entry)
+                                            })
+                                            .unwrap_or(0);
+                                        let effect_count =
+                                            self.item_effect_count_like_cpp(item_entry);
+                                        let expiration_needs_save =
+                                            apply_loaded_item_storage_mutable_fields_like_cpp(
+                                                &mut item_object,
+                                                item_expiration,
+                                                template_expiration,
+                                                &item_spell_charges,
+                                                effect_count,
+                                            );
                                         apply_loaded_item_instance_fields_like_cpp(
                                             &mut item_object,
                                             &item_create_enchantments,
@@ -5367,6 +5558,18 @@ impl WorldSession {
                                         item_object.replace_all_item_flags(
                                             ItemFieldFlags::from_bits_retain(item_flags),
                                         );
+                                        if expiration_needs_save {
+                                            let mut update_item_on_load = char_db
+                                                .prepare(CharStatements::UPD_ITEM_INSTANCE_ON_LOAD);
+                                            update_item_on_load
+                                                .set_u32(0, item_object.data().expiration);
+                                            update_item_on_load
+                                                .set_u32(1, item_object.item_flags_bits());
+                                            update_item_on_load
+                                                .set_u32(2, item_object.data().durability);
+                                            update_item_on_load.set_u64(3, item_db_guid);
+                                            bag_load_fix_tx.append(update_item_on_load);
+                                        }
                                         item_object
                                             .set_container_guid_and_slot(bag_item_guid, bag_slot);
                                         self.apply_loaded_inventory_item_collection_hooks_like_cpp(
@@ -5401,6 +5604,7 @@ impl WorldSession {
                                             },
                                         );
                                         self.insert_inventory_item_object(item_object);
+                                        loaded_inventory_item_guids.push(item_guid);
                                     } else {
                                         warn!(
                                             "Skipping bag content {:?}/{} for {:?}: missing represented bag slot {}",
@@ -5421,12 +5625,25 @@ impl WorldSession {
                         warn!("Failed to load bag contents for {:?}: {}", guid, e);
                     }
                 }
+                if !bag_load_fix_tx.is_empty()
+                    && let Err(e) = char_db.commit_transaction(bag_load_fix_tx).await
+                {
+                    warn!(
+                        "Failed to normalize loaded bag item state for {:?}: {}",
+                        guid, e
+                    );
+                }
             }
 
             // inventory_type is now loaded from the canonical ItemTemplate bridge.
             // No SQL cache needed.
         }
         self.sync_player_inventory_like_cpp();
+        let (loaded_item_time_updates, loaded_non_equipped_enchantment_updates) = self
+            .register_loaded_inventory_item_duration_refs_like_cpp(
+                &loaded_inventory_item_guids,
+                &loaded_equipped_item_guids,
+            );
 
         // ── Load equipment sets / transmog outfits ──
         // C++ `Player::_LoadEquipmentSets` and `_LoadTransmogOutfits` rebuild
@@ -6392,6 +6609,8 @@ impl WorldSession {
         {
             return;
         }
+        self.send_item_time_update_plans(&loaded_item_time_updates);
+        self.send_item_enchant_time_update_plans(guid, &loaded_non_equipped_enchantment_updates);
         self.send_loaded_equipped_item_enchantment_updates_like_cpp(&loaded_enchantment_updates);
         self.apply_represented_login_spell_reset_if_needed_like_cpp();
         self.apply_represented_login_talent_reset_if_needed_like_cpp();
@@ -9651,6 +9870,567 @@ impl WorldSession {
         self.send_packet(&NpcInteractionOpenResult::new(hello.unit, 8)); // Banker
     }
 
+    fn plan_inventory_storage_move_like_cpp(
+        &self,
+        source_bag: u8,
+        source_slot: u8,
+        force_bank_destination: bool,
+    ) -> Option<Result<InventoryStorageMovePlanLikeCpp, InventoryResult>> {
+        let source = self.get_inventory_item_by_pos(source_bag, source_slot)?;
+        let source_object = self.inventory_item_objects_like_cpp().get(&source.guid)?;
+        let source_count = source_object.count();
+        let moving_to_bank = force_bank_destination || !is_bank_pos(source_bag, source_slot);
+        let (result, destinations) = if moving_to_bank {
+            self.plan_bank_existing_inventory_item_like_cpp(source_bag, source_slot)?
+        } else {
+            let (result, destinations, _) =
+                self.plan_store_existing_inventory_item_like_cpp(source_bag, source_slot)?;
+            (result, destinations)
+        };
+        if result != InventoryResult::Ok {
+            return Some(Err(result));
+        }
+
+        let destination_count = destinations.len();
+        let mut existing_updates = Vec::new();
+        let mut moved_destination = None;
+        let mut planned_count = 0u32;
+        for destination in destinations {
+            let [bag, slot] = destination.pos.to_be_bytes();
+            if destination.count == 0 {
+                return Some(Err(InventoryResult::InternalBagError));
+            }
+            planned_count = match planned_count.checked_add(destination.count) {
+                Some(count) => count,
+                None => return Some(Err(InventoryResult::InternalBagError)),
+            };
+
+            if bag == source_bag && slot == source_slot {
+                if destination_count == 1 {
+                    return Some(Err(InventoryResult::CantSwap));
+                }
+                if moved_destination
+                    .replace((bag, slot, destination.count))
+                    .is_some()
+                {
+                    return Some(Err(InventoryResult::InternalBagError));
+                }
+                continue;
+            }
+            if let Some(existing) = self.get_inventory_item_by_pos(bag, slot) {
+                if existing.guid == source.guid || existing.entry_id != source.entry_id {
+                    return Some(Err(InventoryResult::CantStack));
+                }
+                let Some(existing_object) =
+                    self.inventory_item_objects_like_cpp().get(&existing.guid)
+                else {
+                    return Some(Err(InventoryResult::ItemNotFound));
+                };
+                let Some(new_count) = existing_object.count().checked_add(destination.count) else {
+                    return Some(Err(InventoryResult::InternalBagError));
+                };
+                let max_stack = self
+                    .item_storage_template(existing.entry_id)
+                    .map_or(1, |template| template.max_stack_size.max(1));
+                if new_count > max_stack {
+                    return Some(Err(InventoryResult::CantStack));
+                }
+                existing_updates.push(ExistingStorageStackUpdateLikeCpp {
+                    item: existing,
+                    bag,
+                    slot,
+                    new_count,
+                });
+            } else if moved_destination
+                .replace((bag, slot, destination.count))
+                .is_some()
+            {
+                // One Item instance can supply merges plus at most one remainder stack.
+                return Some(Err(InventoryResult::InternalBagError));
+            }
+        }
+
+        if planned_count != source_count {
+            return Some(Err(InventoryResult::InternalBagError));
+        }
+
+        Some(Ok(InventoryStorageMovePlanLikeCpp {
+            source_bag,
+            source_slot,
+            source,
+            source_count,
+            existing_updates,
+            moved_destination,
+        }))
+    }
+
+    fn inventory_container_db_guid_like_cpp(&self, bag: u8) -> Option<u64> {
+        if bag == INVENTORY_SLOT_BAG_0 {
+            Some(0)
+        } else {
+            self.inventory_items_like_cpp()
+                .get(&bag)
+                .map(|item| item.db_guid)
+        }
+    }
+
+    async fn execute_inventory_storage_move_like_cpp(
+        &mut self,
+        source_bag: u8,
+        source_slot: u8,
+        force_bank_destination: bool,
+        represented_move: RepresentedBankItemMoveLikeCpp,
+    ) {
+        let Some(player_guid) = self.player_guid() else {
+            return;
+        };
+        let source_item = self.get_inventory_item_by_pos(source_bag, source_slot);
+        let source_guid = source_item.as_ref().map(|item| item.guid);
+        let source_limit_category = source_item
+            .as_ref()
+            .and_then(|item| self.item_storage_template(item.entry_id))
+            .map(|template| template.item_limit_category)
+            .unwrap_or(0);
+        let plan = match self.plan_inventory_storage_move_like_cpp(
+            source_bag,
+            source_slot,
+            force_bank_destination,
+        ) {
+            Some(Ok(plan)) => plan,
+            Some(Err(result)) => {
+                self.send_equip_error(result, source_guid, None, 0, source_limit_category);
+                return;
+            }
+            None => return,
+        };
+        let Some(char_db) = self.char_db().cloned() else {
+            return;
+        };
+
+        let source_stays_in_place = plan
+            .moved_destination
+            .is_some_and(|(bag, slot, _)| bag == plan.source_bag && slot == plan.source_slot);
+        let moving_to_bank =
+            force_bank_destination || !is_bank_pos(plan.source_bag, plan.source_slot);
+        let quest_log_item_id = if moving_to_bank {
+            0
+        } else {
+            self.quest_source_item_quest_log_item_id_like_cpp(plan.source.entry_id)
+                .await
+        };
+        let added_quest_count = bank_store_item_added_quest_count_like_cpp(&plan);
+        let apply_obtain_spells = plan
+            .moved_destination
+            .is_some_and(|(bag, _, _)| bank_store_destination_applies_obtain_spells_like_cpp(bag))
+            || plan.existing_updates.iter().any(|update| {
+                self.get_inventory_item_by_guid_like_cpp(update.item.guid)
+                    .is_some_and(|(bag, _, _)| {
+                        bank_store_destination_applies_obtain_spells_like_cpp(bag)
+                    })
+            });
+        let current_non_bank_count =
+            self.represented_non_bank_item_count_like_cpp(plan.source.entry_id);
+        let post_move_non_bank_count =
+            if moving_to_bank && !is_bank_pos(plan.source_bag, plan.source_slot) {
+                current_non_bank_count.saturating_sub(plan.source_count)
+            } else {
+                current_non_bank_count
+            };
+        let planned_quest_statuses =
+            if bank_move_runs_item_removed_quest_check_like_cpp(force_bank_destination) {
+                self.plan_bank_item_quest_persistence_like_cpp(
+                    plan.source.entry_id,
+                    0,
+                    true,
+                    post_move_non_bank_count,
+                    0,
+                )
+            } else if !moving_to_bank {
+                self.plan_bank_item_quest_persistence_like_cpp(
+                    plan.source.entry_id,
+                    quest_log_item_id,
+                    false,
+                    post_move_non_bank_count,
+                    added_quest_count,
+                )
+            } else {
+                Vec::new()
+            };
+        let enchantment_persistence = plan.moved_destination.and_then(|_| {
+            self.inventory_remove_enchantment_persistence_like_cpp(
+                plan.source.guid,
+                !source_stays_in_place
+                    && plan.source_bag == INVENTORY_SLOT_BAG_0
+                    && plan.source_slot == wow_entities::EQUIPMENT_SLOT_MAINHAND,
+            )
+        });
+        let mut binding_updates = Vec::new();
+        for update in &plan.existing_updates {
+            if let Some(mut item) = self
+                .inventory_item_objects_like_cpp()
+                .get(&update.item.guid)
+                .cloned()
+            {
+                let old_flags = item.item_flags_bits();
+                item.bind_if_stored(wow_entities::is_bag_pos(wow_entities::make_item_pos(
+                    update.bag,
+                    update.slot,
+                )));
+                if item.item_flags_bits() != old_flags {
+                    binding_updates.push((
+                        update.item.guid,
+                        update.item.db_guid,
+                        item.item_flags_bits(),
+                    ));
+                }
+            }
+        }
+        if let Some((destination_bag, destination_slot, _)) = plan.moved_destination
+            && let Some(mut item) = self
+                .inventory_item_objects_like_cpp()
+                .get(&plan.source.guid)
+                .cloned()
+        {
+            let old_flags = item.item_flags_bits();
+            item.bind_if_stored(wow_entities::is_bag_pos(wow_entities::make_item_pos(
+                destination_bag,
+                destination_slot,
+            )));
+            if item.item_flags_bits() != old_flags {
+                binding_updates.push((
+                    plan.source.guid,
+                    plan.source.db_guid,
+                    item.item_flags_bits(),
+                ));
+            }
+        }
+
+        let planned_flags = |item_guid: ObjectGuid, fallback: u32| {
+            binding_updates
+                .iter()
+                .find(|(guid, _, _)| *guid == item_guid)
+                .map_or(fallback, |(_, _, flags)| *flags)
+        };
+        let mut mutable_persistence = Vec::new();
+        for update in &plan.existing_updates {
+            let Some(item) = self
+                .inventory_item_objects_like_cpp()
+                .get(&update.item.guid)
+            else {
+                self.send_equip_error(
+                    InventoryResult::ItemNotFound,
+                    Some(update.item.guid),
+                    None,
+                    0,
+                    source_limit_category,
+                );
+                return;
+            };
+            let Some((enchantments, _)) =
+                self.inventory_remove_enchantment_persistence_like_cpp(update.item.guid, false)
+            else {
+                self.send_equip_error(
+                    InventoryResult::ItemNotFound,
+                    Some(update.item.guid),
+                    None,
+                    0,
+                    source_limit_category,
+                );
+                return;
+            };
+            mutable_persistence.push(item_storage_mutable_persistence_like_cpp(
+                update.item.db_guid,
+                item,
+                update.new_count,
+                planned_flags(update.item.guid, item.item_flags_bits()),
+                enchantments,
+                self.item_effect_count_like_cpp(update.item.entry_id),
+            ));
+        }
+        if let Some((_, _, moved_count)) = plan.moved_destination {
+            let Some(item) = self
+                .inventory_item_objects_like_cpp()
+                .get(&plan.source.guid)
+            else {
+                self.send_equip_error(
+                    InventoryResult::ItemNotFound,
+                    Some(plan.source.guid),
+                    None,
+                    0,
+                    source_limit_category,
+                );
+                return;
+            };
+            let Some((enchantments, _)) = enchantment_persistence.as_ref() else {
+                self.send_equip_error(
+                    InventoryResult::ItemNotFound,
+                    Some(plan.source.guid),
+                    None,
+                    0,
+                    source_limit_category,
+                );
+                return;
+            };
+            mutable_persistence.push(item_storage_mutable_persistence_like_cpp(
+                plan.source.db_guid,
+                item,
+                moved_count,
+                planned_flags(plan.source.guid, item.item_flags_bits()),
+                enchantments.clone(),
+                self.item_effect_count_like_cpp(plan.source.entry_id),
+            ));
+        }
+
+        let mut tx = SqlTransaction::new();
+        for update in &mutable_persistence {
+            append_item_storage_mutable_persistence_like_cpp(char_db.as_ref(), &mut tx, update);
+        }
+
+        if !source_stays_in_place {
+            let mut delete_source_inventory =
+                char_db.prepare(CharStatements::DEL_CHAR_INVENTORY_ITEM);
+            delete_source_inventory.set_u64(0, player_guid.counter() as u64);
+            delete_source_inventory.set_u64(1, plan.source.db_guid);
+            tx.append(delete_source_inventory);
+        }
+        if let Some((destination_bag, destination_slot, _moved_count)) = plan.moved_destination {
+            if !source_stays_in_place {
+                let Some(container_db_guid) =
+                    self.inventory_container_db_guid_like_cpp(destination_bag)
+                else {
+                    self.send_equip_error(
+                        InventoryResult::WrongBagType,
+                        Some(plan.source.guid),
+                        None,
+                        0,
+                        source_limit_category,
+                    );
+                    return;
+                };
+                // C++ `Item::SaveToDB` persists the containing bag item's DB GUID,
+                // not the bag's player-slot number.
+                let mut replace_inventory =
+                    char_db.prepare(CharStatements::REP_CHAR_INVENTORY_ITEM);
+                replace_inventory.set_u64(0, player_guid.counter() as u64);
+                replace_inventory.set_u64(1, container_db_guid);
+                replace_inventory.set_u8(2, destination_slot);
+                replace_inventory.set_u64(3, plan.source.db_guid);
+                tx.append(replace_inventory);
+            }
+        } else {
+            // C++ `_StoreItem` marks a fully merged source as removed after
+            // clearing refund/trade state, and `Item::SaveToDB` removes all
+            // item-owned persistence rows in the same character transaction.
+            for statement_kind in fully_merged_item_cleanup_statements_like_cpp() {
+                let mut cleanup = char_db.prepare(statement_kind);
+                cleanup.set_u64(0, plan.source.db_guid);
+                tx.append(cleanup);
+            }
+            let mut delete_source_item = char_db.prepare(CharStatements::DEL_ITEM_INSTANCE);
+            delete_source_item.set_u64(0, plan.source.db_guid);
+            tx.append(delete_source_item);
+        }
+        self.append_planned_quest_statuses_to_transaction_like_cpp(
+            &mut tx,
+            char_db.as_ref(),
+            player_guid.counter() as u64,
+            &planned_quest_statuses,
+        );
+
+        if let Err(error) = char_db.commit_transaction(tx).await {
+            warn!(
+                source_bag,
+                source_slot,
+                item_guid = plan.source.db_guid,
+                error = %error,
+                "bank storage transaction failed; runtime left unchanged"
+            );
+            self.send_equip_error(
+                InventoryResult::InternalBagError,
+                Some(plan.source.guid),
+                None,
+                0,
+                source_limit_category,
+            );
+            return;
+        }
+
+        let map_id = self.player_map_id_like_cpp();
+        for (item_guid, _, _) in &binding_updates {
+            self.update_inventory_item_object_like_cpp(*item_guid, |item| {
+                item.set_binding(true);
+            });
+            self.send_item_dynamic_flags_values_update_like_cpp(*item_guid);
+        }
+        for update in &plan.existing_updates {
+            self.update_inventory_item_object_like_cpp(update.item.guid, |item| {
+                item.set_count(update.new_count);
+            });
+            self.send_packet(&UpdateObject::item_stack_count_update(
+                update.item.guid,
+                map_id,
+                update.new_count,
+            ));
+            self.refresh_inventory_item_enchantment_duration_refs_like_cpp(update.item.guid);
+        }
+
+        let source_leaves_position = !source_stays_in_place;
+        let source_dynamic_flags2_changed = source_leaves_position
+            && plan.source_bag == INVENTORY_SLOT_BAG_0
+            && plan.source_slot < INVENTORY_SLOT_BAG_END
+            && self
+                .inventory_item_objects_like_cpp()
+                .get(&plan.source.guid)
+                .is_some_and(|item| item.has_item_flag2(wow_constants::ItemFieldFlags2::EQUIPPED));
+        if source_stays_in_place {
+            self.remove_inventory_item_duration_refs_like_cpp(plan.source.guid);
+            self.remove_inventory_tradeable_item_like_cpp(plan.source.guid);
+        }
+        let represented_item_mods_changed = if source_leaves_position {
+            self.apply_inventory_item_remove_side_effects_like_cpp(
+                plan.source_bag,
+                plan.source_slot,
+                plan.source.guid,
+                enchantment_persistence
+                    .as_ref()
+                    .map(|(_, slots)| slots.as_slice())
+                    .unwrap_or_default(),
+            )
+        } else {
+            false
+        };
+
+        let mut top_level_changes = Vec::new();
+        let mut visible_item_changes = Vec::new();
+        let mut virtual_item_changes = Vec::new();
+        if source_leaves_position && plan.source_bag == INVENTORY_SLOT_BAG_0 {
+            top_level_changes.push((plan.source_slot, ObjectGuid::EMPTY));
+            if plan.source_slot < 19 {
+                visible_item_changes.push((plan.source_slot, 0, 0, 0));
+            }
+            if (15..=17).contains(&plan.source_slot) {
+                virtual_item_changes.push((plan.source_slot - 15, 0, 0, 0));
+            }
+        }
+        if let Some((destination_bag, destination_slot, moved_count)) = plan.moved_destination {
+            if source_stays_in_place {
+                self.update_inventory_item_object_like_cpp(plan.source.guid, |item| {
+                    item.set_count(moved_count);
+                });
+                self.add_inventory_item_duration_refs_like_cpp(plan.source.guid);
+                self.send_packet(&UpdateObject::item_stack_count_update(
+                    plan.source.guid,
+                    map_id,
+                    moved_count,
+                ));
+            } else {
+                // All possible failure conditions were checked before the commit.
+                let relocated = self.apply_committed_inventory_item_relocation_like_cpp(
+                    plan.source_bag,
+                    plan.source_slot,
+                    destination_bag,
+                    destination_slot,
+                    moved_count,
+                );
+                debug_assert!(relocated);
+                self.add_inventory_item_duration_refs_like_cpp(plan.source.guid);
+                if destination_bag == INVENTORY_SLOT_BAG_0 {
+                    top_level_changes.push((destination_slot, plan.source.guid));
+                }
+                self.send_item_relocation_values_update_like_cpp(
+                    plan.source.guid,
+                    source_dynamic_flags2_changed,
+                    enchantment_persistence
+                        .as_ref()
+                        .map(|(_, slots)| slots.as_slice())
+                        .unwrap_or_default(),
+                );
+                if moved_count != plan.source_count {
+                    self.send_packet(&UpdateObject::item_stack_count_update(
+                        plan.source.guid,
+                        map_id,
+                        moved_count,
+                    ));
+                }
+                if plan.source_bag != INVENTORY_SLOT_BAG_0 {
+                    self.send_bag_slot_values_update_like_cpp(plan.source_bag, plan.source_slot);
+                }
+                if destination_bag != INVENTORY_SLOT_BAG_0 {
+                    self.send_bag_slot_values_update_like_cpp(destination_bag, destination_slot);
+                }
+            }
+        } else {
+            let removed = self.apply_committed_inventory_item_removal_like_cpp(
+                plan.source_bag,
+                plan.source_slot,
+                plan.source.guid,
+            );
+            debug_assert!(removed);
+            self.send_packet(&UpdateObject::destroy_objects(
+                vec![plan.source.guid],
+                map_id,
+            ));
+            if plan.source_bag != INVENTORY_SLOT_BAG_0 {
+                self.send_bag_slot_values_update_like_cpp(plan.source_bag, plan.source_slot);
+            }
+        }
+        if !top_level_changes.is_empty() {
+            self.send_player_values_update_from_entity_bridge(
+                &top_level_changes,
+                &visible_item_changes,
+                &virtual_item_changes,
+                &[],
+                None,
+            );
+        }
+        if source_leaves_position
+            && plan.source_bag == INVENTORY_SLOT_BAG_0
+            && plan.source_slot < 19
+        {
+            self.send_stat_update();
+        }
+        if represented_item_mods_changed {
+            self.send_represented_item_bonus_player_stat_update_like_cpp();
+        }
+        if source_leaves_position && plan.source_bag == INVENTORY_SLOT_BAG_0 {
+            if plan.source_slot < wow_entities::EQUIPMENT_SLOT_END {
+                self.record_represented_titan_grip_penalty_action_like_cpp();
+            }
+            self.record_represented_avg_equipped_item_level_update_like_cpp();
+        }
+        self.sync_object_accessor_player();
+        if apply_obtain_spells {
+            let _ = self
+                .apply_inventory_item_obtain_spells_like_cpp(plan.source.entry_id)
+                .await;
+        }
+
+        let mut changed_quest_ids =
+            if bank_move_runs_item_removed_quest_check_like_cpp(force_bank_destination) {
+                self.apply_quest_item_removed_like_cpp(plan.source.entry_id)
+            } else {
+                Vec::new()
+            };
+        if !moving_to_bank {
+            changed_quest_ids.extend(
+                self.apply_quest_item_added_objective_progress_like_cpp(
+                    plan.source.entry_id,
+                    quest_log_item_id,
+                    added_quest_count,
+                )
+                .await,
+            );
+        }
+        changed_quest_ids.sort_unstable();
+        changed_quest_ids.dedup();
+        debug_assert_eq!(
+            changed_quest_ids.len(),
+            planned_quest_statuses.len(),
+            "bank quest persistence plan must match committed runtime removal"
+        );
+        self.record_represented_bank_item_move_like_cpp(represented_move);
+    }
+
     /// CMSG_AUTOBANK_ITEM — player moves an inventory item into bank storage.
     ///
     /// C++ ref: `WorldSession::HandleAutoBankItemOpcode`.
@@ -9665,12 +10445,19 @@ impl WorldSession {
             return;
         }
 
-        self.record_represented_bank_item_move_like_cpp(RepresentedBankItemMoveLikeCpp {
+        let represented_move = RepresentedBankItemMoveLikeCpp {
             to_bank: true,
             inv_update_items: packet.inv_update.items,
             bag: packet.bag,
             slot: packet.slot,
-        });
+        };
+        self.execute_inventory_storage_move_like_cpp(
+            packet.bag,
+            packet.slot,
+            true,
+            represented_move,
+        )
+        .await;
     }
 
     /// CMSG_AUTOSTORE_BANK_ITEM — player moves a bank item back to inventory, or inventory to bank.
@@ -9687,12 +10474,19 @@ impl WorldSession {
             return;
         }
 
-        self.record_represented_bank_item_move_like_cpp(RepresentedBankItemMoveLikeCpp {
+        let represented_move = RepresentedBankItemMoveLikeCpp {
             to_bank: false,
             inv_update_items: packet.inv_update.items,
             bag: packet.bag,
             slot: packet.slot,
-        });
+        };
+        self.execute_inventory_storage_move_like_cpp(
+            packet.bag,
+            packet.slot,
+            false,
+            represented_move,
+        )
+        .await;
     }
 
     /// CMSG_BUY_BANK_SLOT — player buys the next personal bank bag slot.
@@ -11703,7 +12497,10 @@ impl WorldSession {
                 let cloned_item =
                     runtime_item.clone_item_for_store(new_item_guid, Some(player_guid), amount);
                 let cloned_data = cloned_item.data();
-                let charges = item_spell_charges_db_string(&cloned_data.spell_charges);
+                let charges = item_spell_charges_db_string(
+                    &cloned_data.spell_charges,
+                    self.item_effect_count_like_cpp(item.entry_id),
+                );
 
                 let mut ins_item = char_db.prepare(CharStatements::INS_ITEM_INSTANCE_CLONE);
                 ins_item.set_u64(0, new_db_guid);
@@ -15236,11 +16033,14 @@ mod tests {
     use crate::session::{
         InventoryItem, RepresentedHomebindLikeCpp, RepresentedTaxiFlightNodeLikeCpp,
     };
-    use wow_constants::ServerOpcodes;
+    use wow_constants::{ItemClass, ServerOpcodes};
     use wow_data::character_progression::{
         ChrClassesEntry, ChrClassesStore, ChrRacesEntry, ChrRacesStore,
     };
-    use wow_data::item_stats::{ItemModType, ItemStatEntry, ItemStatsStore};
+    use wow_data::item::ItemRecord;
+    use wow_data::item_stats::{
+        ItemModType, ItemSparseTemplateEntry, ItemStatEntry, ItemStatsStore,
+    };
     use wow_data::quest::{
         QUEST_ITEM_DROP_COUNT, QUEST_REWARD_CHOICES_COUNT, QUEST_REWARD_DISPLAY_SPELL_COUNT,
         QUEST_REWARD_ITEM_COUNT, QUEST_REWARD_REPUTATIONS_COUNT, QuestStore, QuestTemplate,
@@ -15263,6 +16063,76 @@ mod tests {
             fields[base + 2] = charges.to_string();
         }
         fields.join(" ")
+    }
+
+    #[test]
+    fn bank_storage_mutable_state_round_trips_loaded_expiration_and_charges_like_cpp() {
+        let mut item = wow_entities::Item::default();
+        assert!(!apply_loaded_item_storage_mutable_fields_like_cpp(
+            &mut item,
+            90_000,
+            90_000,
+            "5 -2 0 7 1 ",
+            5,
+        ));
+        item.set_durability(44);
+        item.set_create_played_time(55);
+
+        let persisted = item_storage_mutable_persistence_like_cpp(
+            7_777,
+            &item,
+            3,
+            0x1234,
+            "901 12000 2 ".to_string(),
+            5,
+        );
+
+        assert_eq!(persisted.db_guid, 7_777);
+        assert_eq!(persisted.count, 3);
+        assert_eq!(persisted.expiration, 90_000);
+        assert_eq!(persisted.charges, "5 -2 0 7 1 ");
+        assert_eq!(persisted.flags, 0x1234);
+        assert_eq!(persisted.enchantments, "901 12000 2 ");
+        assert_eq!(persisted.durability, 44);
+        assert_eq!(persisted.played_time, 55);
+    }
+
+    #[test]
+    fn loaded_item_storage_normalizes_template_duration_and_effect_charge_scope_like_cpp() {
+        let mut item = wow_entities::Item::default();
+
+        assert!(apply_loaded_item_storage_mutable_fields_like_cpp(
+            &mut item,
+            0,
+            45_000,
+            "7 -3 99 100 101 ",
+            2,
+        ));
+
+        assert_eq!(item.data().expiration, 45_000);
+        assert_eq!(item.data().spell_charges[0], 7);
+        assert_eq!(item.data().spell_charges[1], -3);
+        assert_eq!(item.data().spell_charges[2], 0);
+        assert_eq!(
+            item_spell_charges_db_string(&[7, -3, 99, 100, 101], 2),
+            "7 -3 "
+        );
+    }
+
+    #[test]
+    fn fully_merged_bank_item_cleanup_removes_stored_container_loot_like_cpp() {
+        let statements = fully_merged_item_cleanup_statements_like_cpp();
+
+        assert!(statements.contains(&CharStatements::DEL_ITEMCONTAINER_ITEMS));
+        assert!(statements.contains(&CharStatements::DEL_ITEMCONTAINER_MONEY));
+        assert_eq!(
+            CharStatements::DEL_ITEMCONTAINER_ITEMS.sql(),
+            "DELETE FROM item_loot_items WHERE container_id = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_ITEMCONTAINER_MONEY.sql(),
+            "DELETE FROM item_loot_money WHERE container_id = ?"
+        );
     }
 
     #[test]
@@ -18360,6 +19230,86 @@ mod tests {
         (session, send_rx, canonical)
     }
 
+    fn install_bank_move_item_fixture(
+        session: &mut WorldSession,
+        entry_id: u32,
+        max_stack_size: i32,
+    ) {
+        session.set_item_store(Arc::new(wow_data::ItemStore::from_records([ItemRecord {
+            id: entry_id,
+            class_id: ItemClass::Miscellaneous as u8,
+            subclass_id: 0,
+            material: 0,
+            inventory_type: InventoryType::NonEquip as i8,
+            sheathe_type: 0,
+            random_select: 0,
+            random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
+        }])));
+        session.set_item_stats_store(Arc::new(ItemStatsStore::from_sparse_templates([(
+            entry_id,
+            ItemSparseTemplateEntry {
+                flags: [0; 4],
+                bag_family: 0,
+                start_quest_id: 0,
+                stackable: max_stack_size,
+                max_count: 0,
+                lock_id: 0,
+                required_reputation_rank: 0,
+                sell_price: 0,
+                buy_price: 0,
+                vendor_stack_count: 1,
+                price_variance: 1.0,
+                price_random_value: 1.0,
+                max_durability: 0,
+                other_faction_item_id: 0,
+                content_tuning_id: 0,
+                player_level_to_item_level_curve_id: 0,
+                limit_category: 0,
+                instance_bound: 0,
+                zone_bound: [0; 2],
+                required_reputation_faction: 0,
+                allowable_class: -1,
+                required_expansion: 0,
+                bonding: ItemBondingType::None as u8,
+                container_slots: 0,
+                inventory_type: InventoryType::NonEquip as i8,
+            },
+        )])));
+    }
+
+    fn insert_bank_move_test_item(
+        session: &mut WorldSession,
+        slot: u8,
+        entry_id: u32,
+        db_guid: u64,
+        count: u32,
+    ) -> ObjectGuid {
+        let player_guid = session.player_guid().expect("test player");
+        let item_guid = ObjectGuid::create_item(1, db_guid as i64);
+        session.insert_inventory_item_like_cpp(
+            slot,
+            InventoryItem {
+                guid: item_guid,
+                entry_id,
+                db_guid,
+                inventory_type: Some(InventoryType::NonEquip as u8),
+            },
+        );
+        let item = session.make_inventory_item_object(
+            item_guid,
+            entry_id,
+            player_guid,
+            count,
+            0,
+            ItemContext::None,
+            slot,
+        );
+        session.insert_inventory_item_object(item);
+        item_guid
+    }
+
     fn make_hearth_and_resurrect_session(
         area_flags: u32,
     ) -> (WorldSession, flume::Receiver<Vec<u8>>) {
@@ -18662,11 +19612,404 @@ mod tests {
         assert!(send_rx.try_recv().is_err());
     }
 
+    #[test]
+    fn bank_move_plan_selects_first_personal_bank_slot_like_cpp() {
+        let (mut session, _send_rx, _canonical) = make_bank_slot_session(1);
+        install_bank_move_item_fixture(&mut session, 700, 10);
+        let source_guid =
+            insert_bank_move_test_item(&mut session, INVENTORY_SLOT_ITEM_START, 700, 7_001, 3);
+
+        let plan = session
+            .plan_inventory_storage_move_like_cpp(
+                INVENTORY_SLOT_BAG_0,
+                INVENTORY_SLOT_ITEM_START,
+                true,
+            )
+            .expect("source item")
+            .expect("valid bank plan");
+
+        assert_eq!(plan.source.guid, source_guid);
+        assert!(plan.existing_updates.is_empty());
+        assert_eq!(
+            plan.moved_destination,
+            Some((INVENTORY_SLOT_BAG_0, wow_entities::BANK_SLOT_ITEM_START, 3))
+        );
+    }
+
+    #[test]
+    fn bank_move_plan_merges_then_moves_one_remainder_stack_like_cpp() {
+        let (mut session, _send_rx, _canonical) = make_bank_slot_session(1);
+        install_bank_move_item_fixture(&mut session, 701, 10);
+        insert_bank_move_test_item(&mut session, INVENTORY_SLOT_ITEM_START, 701, 7_011, 5);
+        let existing_guid = insert_bank_move_test_item(
+            &mut session,
+            wow_entities::BANK_SLOT_ITEM_START,
+            701,
+            7_012,
+            8,
+        );
+
+        let plan = session
+            .plan_inventory_storage_move_like_cpp(
+                INVENTORY_SLOT_BAG_0,
+                INVENTORY_SLOT_ITEM_START,
+                true,
+            )
+            .expect("source item")
+            .expect("valid bank plan");
+
+        assert_eq!(plan.existing_updates.len(), 1);
+        assert_eq!(plan.existing_updates[0].item.guid, existing_guid);
+        assert_eq!(plan.existing_updates[0].new_count, 10);
+        assert_eq!(
+            plan.moved_destination,
+            Some((
+                INVENTORY_SLOT_BAG_0,
+                wow_entities::BANK_SLOT_ITEM_START + 1,
+                3,
+            ))
+        );
+    }
+
+    #[test]
+    fn bank_merge_refreshes_destination_enchant_timer_without_item_duration_like_cpp() {
+        let (mut session, send_rx, _canonical) = make_bank_slot_session(2);
+        install_bank_move_item_fixture(&mut session, 708, 10);
+        attach_stat_update_player_with_mana(&mut session, ObjectGuid::create_player(1, 42), 0, 0);
+        let destination_guid = insert_bank_move_test_item(
+            &mut session,
+            wow_entities::BANK_SLOT_ITEM_START,
+            708,
+            7_081,
+            8,
+        );
+        session.update_inventory_item_object_like_cpp(destination_guid, |item| {
+            item.set_expiration(300);
+            item.set_enchantment(EnchantmentSlot::EnhancementTemporary, 940, 12_000, 1);
+        });
+        let mut tracked_item = session.inventory_item_objects_like_cpp()[&destination_guid].clone();
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.add_enchantment_duration(
+                    &mut tracked_item,
+                    EnchantmentSlot::EnhancementTemporary,
+                    7_000,
+                )
+            })
+            .expect("canonical player");
+
+        session.refresh_inventory_item_enchantment_duration_refs_like_cpp(destination_guid);
+
+        let mut packet = WorldPacket::from_bytes(
+            &send_rx
+                .try_recv()
+                .expect("destination enchantment duration update"),
+        );
+        assert_eq!(
+            packet.read_uint16().unwrap(),
+            ServerOpcodes::ItemEnchantTimeUpdate as u16
+        );
+        assert_eq!(packet.read_packed_guid().unwrap(), destination_guid);
+        assert_eq!(packet.read_uint32().unwrap(), 12);
+        assert_eq!(
+            packet.read_uint32().unwrap(),
+            EnchantmentSlot::EnhancementTemporary as u32
+        );
+        assert_eq!(
+            packet.read_packed_guid().unwrap(),
+            session.player_guid().unwrap()
+        );
+        assert!(
+            send_rx.try_recv().is_err(),
+            "C++ merge branch refreshes AddEnchantmentDurations but does not emit AddItemDurations"
+        );
+    }
+
+    #[test]
+    fn bank_move_plan_can_merge_and_leave_remainder_in_source_slot_like_cpp() {
+        let (mut session, _send_rx, _canonical) = make_bank_slot_session(1);
+        install_bank_move_item_fixture(&mut session, 705, 10);
+        insert_bank_move_test_item(
+            &mut session,
+            wow_entities::BANK_SLOT_ITEM_START,
+            705,
+            7_051,
+            5,
+        );
+        let merge_guid = insert_bank_move_test_item(
+            &mut session,
+            wow_entities::BANK_SLOT_ITEM_START + 1,
+            705,
+            7_052,
+            8,
+        );
+
+        let plan = session
+            .plan_inventory_storage_move_like_cpp(
+                INVENTORY_SLOT_BAG_0,
+                wow_entities::BANK_SLOT_ITEM_START,
+                true,
+            )
+            .expect("source item")
+            .expect("valid consolidation plan");
+
+        assert_eq!(plan.existing_updates.len(), 1);
+        assert_eq!(plan.existing_updates[0].item.guid, merge_guid);
+        assert_eq!(plan.existing_updates[0].new_count, 10);
+        assert_eq!(
+            plan.moved_destination,
+            Some((INVENTORY_SLOT_BAG_0, wow_entities::BANK_SLOT_ITEM_START, 3))
+        );
+    }
+
+    #[test]
+    fn bank_move_plan_reports_bank_full_like_cpp() {
+        let (mut session, _send_rx, _canonical) = make_bank_slot_session(1);
+        install_bank_move_item_fixture(&mut session, 706, 1);
+        insert_bank_move_test_item(&mut session, INVENTORY_SLOT_ITEM_START, 706, 7_061, 1);
+        for (index, slot) in
+            (wow_entities::BANK_SLOT_ITEM_START..wow_entities::BANK_SLOT_ITEM_END).enumerate()
+        {
+            insert_bank_move_test_item(&mut session, slot, 706, 7_100 + index as u64, 1);
+        }
+
+        assert!(matches!(
+            session.plan_inventory_storage_move_like_cpp(
+                INVENTORY_SLOT_BAG_0,
+                INVENTORY_SLOT_ITEM_START,
+                true,
+            ),
+            Some(Err(InventoryResult::BankFull))
+        ));
+    }
+
+    #[test]
+    fn autostore_bank_move_plan_returns_item_to_backpack_like_cpp() {
+        let (mut session, _send_rx, _canonical) = make_bank_slot_session(1);
+        install_bank_move_item_fixture(&mut session, 702, 1);
+        insert_bank_move_test_item(
+            &mut session,
+            wow_entities::BANK_SLOT_ITEM_START,
+            702,
+            7_021,
+            1,
+        );
+
+        let plan = session
+            .plan_inventory_storage_move_like_cpp(
+                INVENTORY_SLOT_BAG_0,
+                wow_entities::BANK_SLOT_ITEM_START,
+                false,
+            )
+            .expect("source item")
+            .expect("valid inventory plan");
+
+        assert_eq!(
+            plan.moved_destination,
+            Some((INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START, 1))
+        );
+    }
+
+    #[test]
+    fn bank_move_quest_removal_follows_opcode_not_direction_like_cpp() {
+        assert!(bank_move_runs_item_removed_quest_check_like_cpp(true));
+        assert!(
+            !bank_move_runs_item_removed_quest_check_like_cpp(false),
+            "C++ AutoStore inventory-to-bank does not call ItemRemovedQuestCheck"
+        );
+    }
+
+    #[test]
+    fn autostore_full_merge_reports_destination_stack_total_like_cpp() {
+        let (mut session, _send_rx, _canonical) = make_bank_slot_session(1);
+        install_bank_move_item_fixture(&mut session, 709, 10);
+        insert_bank_move_test_item(
+            &mut session,
+            wow_entities::BANK_SLOT_ITEM_START,
+            709,
+            7_091,
+            2,
+        );
+        insert_bank_move_test_item(&mut session, INVENTORY_SLOT_ITEM_START, 709, 7_092, 8);
+
+        let plan = session
+            .plan_inventory_storage_move_like_cpp(
+                INVENTORY_SLOT_BAG_0,
+                wow_entities::BANK_SLOT_ITEM_START,
+                false,
+            )
+            .expect("source item")
+            .expect("valid inventory plan");
+
+        assert!(plan.moved_destination.is_none());
+        assert_eq!(plan.existing_updates[0].new_count, 10);
+        assert_eq!(bank_store_item_added_quest_count_like_cpp(&plan), 10);
+    }
+
+    #[test]
+    fn top_level_bank_destination_applies_obtain_spells_like_cpp_store_item() {
+        assert!(bank_store_destination_applies_obtain_spells_like_cpp(
+            INVENTORY_SLOT_BAG_0
+        ));
+        assert!(bank_store_destination_applies_obtain_spells_like_cpp(
+            wow_entities::INVENTORY_SLOT_BAG_START
+        ));
+        assert!(
+            !bank_store_destination_applies_obtain_spells_like_cpp(
+                wow_entities::BANK_SLOT_BAG_START
+            ),
+            "C++ _StoreItem excludes bank-bag containers but not bag-0 bank slots"
+        );
+    }
+
+    #[test]
+    fn mainhand_bank_remove_clears_and_persists_weapon_only_enchant_like_cpp() {
+        let (mut session, _send_rx, _canonical) = make_bank_slot_session(1);
+        install_bank_move_item_fixture(&mut session, 707, 1);
+        let item_guid =
+            insert_bank_move_test_item(&mut session, EQUIPMENT_SLOT_MAINHAND, 707, 7_071, 1);
+        attach_stat_update_player_with_mana(&mut session, ObjectGuid::create_player(1, 42), 0, 0);
+        let enchantment_entry = |id, flags| wow_data::SpellItemEnchantmentEntry {
+            id,
+            effect_arg: [0; 3],
+            effect_points_min: [0; 3],
+            item_visual: 0,
+            flags,
+            required_skill_id: 0,
+            required_skill_rank: 0,
+            item_level: 1,
+            charges: 0,
+            effect: [wow_constants::ItemEnchantmentType::None as u8; 3],
+            condition_id: 0,
+            min_level: 1,
+            max_level: 0,
+        };
+        session.set_spell_item_enchantment_store(Arc::new(
+            wow_data::SpellItemEnchantmentStore::from_entries([
+                enchantment_entry(930, wow_constants::SpellItemEnchantmentFlags::MAINHAND_ONLY),
+                enchantment_entry(931, wow_constants::SpellItemEnchantmentFlags::empty()),
+                enchantment_entry(
+                    932,
+                    wow_constants::SpellItemEnchantmentFlags::DO_NOT_SAVE_TO_DB,
+                ),
+            ]),
+        ));
+        session.update_inventory_item_object_like_cpp(item_guid, |item| {
+            item.set_item_flag2(wow_constants::ItemFieldFlags2::EQUIPPED);
+            item.set_enchantment(EnchantmentSlot::EnhancementPermanent, 930, 4_000, 2);
+            item.set_enchantment(EnchantmentSlot::EnhancementTemporary, 931, 3_000, 1);
+            item.set_enchantment(EnchantmentSlot::Property0, 932, 2_000, 3);
+            item.set_enchantment(EnchantmentSlot::Property1, 999, 1_000, 4);
+        });
+        let mut timed_item = session.inventory_item_objects_like_cpp()[&item_guid].clone();
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.add_enchantment_duration(
+                    &mut timed_item,
+                    EnchantmentSlot::EnhancementTemporary,
+                    1_500,
+                )
+            })
+            .expect("canonical player");
+
+        let (persisted, cleared) = session
+            .inventory_remove_enchantment_persistence_like_cpp(item_guid, true)
+            .expect("main-hand-only enchantment");
+        assert_eq!(cleared, vec![EnchantmentSlot::EnhancementPermanent]);
+        let fields: Vec<_> = persisted.split_whitespace().collect();
+        assert_eq!(&fields[0..3], &["0", "0", "0"]);
+        assert_eq!(&fields[3..6], &["931", "1500", "1"]);
+        assert_eq!(&fields[24..27], &["0", "0", "0"]);
+        assert_eq!(&fields[27..30], &["0", "0", "0"]);
+
+        let _ = session.apply_inventory_item_remove_side_effects_like_cpp(
+            INVENTORY_SLOT_BAG_0,
+            EQUIPMENT_SLOT_MAINHAND,
+            item_guid,
+            &cleared,
+        );
+        let item = &session.inventory_item_objects_like_cpp()[&item_guid];
+        assert!(!item.has_item_flag2(wow_constants::ItemFieldFlags2::EQUIPPED));
+        assert_eq!(
+            item.data().enchantments[EnchantmentSlot::EnhancementPermanent as usize].id,
+            0
+        );
+        let update =
+            WorldSession::item_storage_fields_values_update_like_cpp(item, true, true, &cleared);
+        let packet_update = crate::entity_update_bridge::item_values_update_to_packet(&update)
+            .expect("item values update");
+        let expected_mask = (1_u64 << wow_entities::ITEM_DATA_PARENT_BIT)
+            | (1_u64 << wow_entities::ITEM_DATA_CONTAINED_IN_BIT)
+            | (1_u64 << wow_entities::ITEM_DATA_DYNAMIC_FLAGS2_BIT)
+            | (1_u64 << wow_entities::ITEM_DATA_ENCHANTMENT_PARENT_BIT)
+            | (1_u64
+                << (wow_entities::ITEM_DATA_ENCHANTMENT_FIRST_BIT
+                    + EnchantmentSlot::EnhancementPermanent as usize));
+        assert_eq!(packet_update.item_data_mask, expected_mask);
+        assert_eq!(packet_update.dynamic_flags2, 0);
+        assert_eq!(
+            packet_update.enchantments[EnchantmentSlot::EnhancementPermanent as usize].id,
+            0
+        );
+        assert_eq!(
+            session.represented_combat_stat_recalculations_like_cpp(),
+            &[
+                crate::session::RepresentedCombatStatRecalculationLikeCpp::Expertise {
+                    attack: wow_constants::WeaponAttackType::BaseAttack,
+                },
+                crate::session::RepresentedCombatStatRecalculationLikeCpp::Rating {
+                    combat_rating: 24,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn committed_bank_relocation_updates_runtime_only_after_explicit_apply() {
+        let (mut session, _send_rx, _canonical) = make_bank_slot_session(1);
+        install_bank_move_item_fixture(&mut session, 703, 10);
+        let source_guid =
+            insert_bank_move_test_item(&mut session, INVENTORY_SLOT_ITEM_START, 703, 7_031, 4);
+
+        assert_eq!(
+            session
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)
+                .map(|item| item.guid),
+            Some(source_guid)
+        );
+        assert_eq!(session.represented_non_bank_item_count_like_cpp(703), 4);
+        assert!(session.apply_committed_inventory_item_relocation_like_cpp(
+            INVENTORY_SLOT_BAG_0,
+            INVENTORY_SLOT_ITEM_START,
+            INVENTORY_SLOT_BAG_0,
+            wow_entities::BANK_SLOT_ITEM_START,
+            4,
+        ));
+        assert!(
+            session
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)
+                .is_none()
+        );
+        assert_eq!(
+            session
+                .get_inventory_item_by_pos(
+                    INVENTORY_SLOT_BAG_0,
+                    wow_entities::BANK_SLOT_ITEM_START,
+                )
+                .map(|item| item.guid),
+            Some(source_guid)
+        );
+        assert_eq!(session.represented_non_bank_item_count_like_cpp(703), 0);
+    }
+
     #[tokio::test]
-    async fn autobank_item_records_move_after_banker_activation_like_cpp() {
+    async fn autobank_item_without_persistence_keeps_runtime_unchanged_like_cpp() {
         let (mut session, send_rx, canonical) = make_bank_slot_session(4);
         let banker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 40);
         insert_banker_creature(&canonical, banker, NPCFlags1::BANKER.bits());
+        install_bank_move_item_fixture(&mut session, 704, 1);
+        let source_guid =
+            insert_bank_move_test_item(&mut session, INVENTORY_SLOT_ITEM_START, 704, 7_041, 1);
 
         session.handle_banker_activate(Hello { unit: banker }).await;
         assert!(send_rx.try_recv().is_ok(), "bank open should be sent");
@@ -18674,28 +20017,101 @@ mod tests {
         session
             .handle_autobank_item(AutoBankItem {
                 inv_update: InvUpdate {
-                    items: vec![(255, 19)],
+                    items: vec![(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)],
                 },
-                bag: 255,
-                slot: 19,
+                bag: INVENTORY_SLOT_BAG_0,
+                slot: INVENTORY_SLOT_ITEM_START,
             })
             .await;
 
-        assert_eq!(session.represented_bank_item_moves_like_cpp().len(), 1);
         assert_eq!(
-            session.represented_bank_item_moves_like_cpp()[0],
-            RepresentedBankItemMoveLikeCpp {
-                to_bank: true,
-                inv_update_items: vec![(255, 19)],
-                bag: 255,
-                slot: 19,
-            }
+            session
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)
+                .map(|item| item.guid),
+            Some(source_guid),
+            "runtime must not move when no character database can commit the plan"
+        );
+        assert!(session.represented_bank_item_moves_like_cpp().is_empty());
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn autobank_item_commit_failure_keeps_runtime_unchanged_like_cpp() {
+        let (mut session, send_rx, canonical) = make_bank_slot_session(4);
+        let banker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 42);
+        insert_banker_creature(&canonical, banker, NPCFlags1::BANKER.bits());
+        install_bank_move_item_fixture(&mut session, 708, 1);
+        let source_guid =
+            insert_bank_move_test_item(&mut session, INVENTORY_SLOT_ITEM_START, 708, 7_081, 1);
+
+        session.handle_banker_activate(Hello { unit: banker }).await;
+        assert!(send_rx.try_recv().is_ok(), "bank open should be sent");
+
+        // A lazy pool lets the handler reach its real SQL transaction path while
+        // guaranteeing that acquiring the connection for COMMIT fails quickly.
+        let failing_pool = sqlx::mysql::MySqlPoolOptions::new()
+            .max_connections(1)
+            .acquire_timeout(std::time::Duration::from_millis(100))
+            .connect_lazy("mysql://rustycore:rustycore@127.0.0.1:1/characters")
+            .expect("syntactically valid lazy MySQL pool");
+        session.set_char_db(Arc::new(wow_database::CharacterDatabase::from_pool(
+            failing_pool,
+        )));
+        assert!(session.char_db().is_some());
+        assert!(session.represented_can_use_current_bank_like_cpp());
+        let precommit_plan = session
+            .plan_inventory_storage_move_like_cpp(
+                INVENTORY_SLOT_BAG_0,
+                INVENTORY_SLOT_ITEM_START,
+                true,
+            )
+            .expect("source item")
+            .expect("valid bank destination");
+        assert_eq!(
+            precommit_plan.moved_destination,
+            Some((INVENTORY_SLOT_BAG_0, wow_entities::BANK_SLOT_ITEM_START, 1))
+        );
+
+        session
+            .handle_autobank_item(AutoBankItem {
+                inv_update: InvUpdate {
+                    items: vec![(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)],
+                },
+                bag: INVENTORY_SLOT_BAG_0,
+                slot: INVENTORY_SLOT_ITEM_START,
+            })
+            .await;
+
+        assert_eq!(
+            session
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)
+                .map(|item| item.guid),
+            Some(source_guid),
+            "a failed SQL commit must not expose the planned bank location"
+        );
+        assert!(
+            session
+                .get_inventory_item_by_pos(
+                    INVENTORY_SLOT_BAG_0,
+                    wow_entities::BANK_SLOT_ITEM_START,
+                )
+                .is_none()
+        );
+        assert_eq!(session.represented_non_bank_item_count_like_cpp(708), 1);
+        assert!(session.represented_bank_item_moves_like_cpp().is_empty());
+
+        let error = send_rx
+            .try_recv()
+            .expect("commit failure should send an equipment error");
+        assert_eq!(
+            u16::from_le_bytes([error[0], error[1]]),
+            wow_constants::ServerOpcodes::InventoryChangeFailure as u16,
         );
         assert!(send_rx.try_recv().is_err());
     }
 
     #[tokio::test]
-    async fn autostore_bank_item_records_move_after_banker_activation_like_cpp() {
+    async fn autostore_missing_bank_item_does_not_record_unapplied_move_like_cpp() {
         let (mut session, send_rx, canonical) = make_bank_slot_session(4);
         let banker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 41);
         insert_banker_creature(&canonical, banker, NPCFlags1::BANKER.bits());
@@ -18713,16 +20129,7 @@ mod tests {
             })
             .await;
 
-        assert_eq!(session.represented_bank_item_moves_like_cpp().len(), 1);
-        assert_eq!(
-            session.represented_bank_item_moves_like_cpp()[0],
-            RepresentedBankItemMoveLikeCpp {
-                to_bank: false,
-                inv_update_items: vec![(255, 39)],
-                bag: 255,
-                slot: 39,
-            }
-        );
+        assert!(session.represented_bank_item_moves_like_cpp().is_empty());
         assert!(send_rx.try_recv().is_err());
     }
 
