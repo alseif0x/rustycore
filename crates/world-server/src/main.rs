@@ -91,6 +91,8 @@ const RESPAWN_DB_PRODUCER_STOP_TIMEOUT: Duration = Duration::from_secs(10);
 const RESPAWN_DB_WRITER_DRAIN_TIMEOUT: Duration = Duration::from_secs(10);
 const CREATURE_TYPE_MECHANICAL_LIKE_CPP: u32 = 9;
 const CREATURE_TYPE_FLAG_BOSS_MOB_LIKE_CPP: u32 = 0x0001_0000;
+const HARDCODED_DEVELOPMENT_REALM_CATEGORY_ID_LIKE_CPP: u32 = 1;
+const CFG_CATEGORIES_CHARSET_RUSSIAN_LIKE_CPP: u8 = 0x04;
 
 type RespawnDbStatementKeyLikeCpp = (u16, u64, u16, u32);
 type SharedRespawnDbMutationOrderLikeCpp = Arc<Mutex<()>>;
@@ -1787,6 +1789,12 @@ async fn main() -> Result<ExitCode> {
         wow_data::MovieStore::load(&data_dir, &locale).context("Failed to load Movie.db2")?,
     );
     info!("Loaded {} movie rows", movie_store.len());
+    let cfg_categories_store = wow_data::CfgCategoriesStore::load(&data_dir, &locale)
+        .context("Failed to load Cfg_Categories.db2")?;
+    info!(
+        "Loaded {} realm categories from Cfg_Categories.db2",
+        cfg_categories_store.len()
+    );
     let gameobject_display_info_store = Arc::new(
         wow_data::GameObjectDisplayInfoStore::load(&data_dir, &locale)
             .context("Failed to load GameObjectDisplayInfo.db2")?,
@@ -5202,6 +5210,7 @@ async fn main() -> Result<ExitCode> {
         addon_channel: world_config_bool(&world_configs, "CONFIG_ADDON_CHANNEL", true),
         server_expansion: world_config_u8(&world_configs, "CONFIG_EXPANSION", 2),
         characters_per_realm: world_config_u32(&world_configs, "CONFIG_CHARACTERS_PER_REALM", 60),
+        declined_names_used: declined_names_used_like_cpp(&world_configs, &cfg_categories_store),
         feature_system_bpay_store_enabled: world_config_bool(
             &world_configs,
             "CONFIG_FEATURE_SYSTEM_BPAY_STORE_ENABLED",
@@ -6589,6 +6598,34 @@ fn world_config_f32(configs: &WorldConfigSet, enum_name: &str, default: f32) -> 
 
 fn world_config_bool(configs: &WorldConfigSet, enum_name: &str, default: bool) -> bool {
     configs.get_bool(enum_name).unwrap_or(default)
+}
+
+fn declined_names_used_for_realm_category_like_cpp(
+    configured: bool,
+    realm_zone: u32,
+    categories: &wow_data::CfgCategoriesStore,
+) -> bool {
+    configured
+        || categories.get(realm_zone).is_some_and(|category| {
+            category.create_charset_mask & CFG_CATEGORIES_CHARSET_RUSSIAN_LIKE_CPP != 0
+        })
+}
+
+/// Mirrors C++ `World::LoadConfigSettings`: Russian realm categories always
+/// enable declined names, regardless of the explicit `DeclinedNames` value.
+fn declined_names_used_like_cpp(
+    configs: &WorldConfigSet,
+    categories: &wow_data::CfgCategoriesStore,
+) -> bool {
+    declined_names_used_for_realm_category_like_cpp(
+        world_config_bool(configs, "CONFIG_DECLINED_NAMES_USED", false),
+        world_config_u32(
+            configs,
+            "CONFIG_REALM_ZONE",
+            HARDCODED_DEVELOPMENT_REALM_CATEGORY_ID_LIKE_CPP,
+        ),
+        categories,
+    )
 }
 
 fn min_world_update_time_ms_like_cpp() -> u32 {
@@ -12806,6 +12843,7 @@ async fn create_session(
     session.set_addon_channel_like_cpp(resources.addon_channel);
     session.set_server_expansion_like_cpp(resources.server_expansion);
     session.set_characters_per_realm_like_cpp(resources.characters_per_realm);
+    session.set_declined_names_used_like_cpp(resources.declined_names_used);
     session.set_feature_system_bpay_store_enabled_like_cpp(
         resources.feature_system_bpay_store_enabled,
     );
@@ -14087,6 +14125,7 @@ mod tests {
         database_auto_create_enabled_like_cpp, database_pool_size_like_cpp,
         db_keepalive_database_names_like_cpp, db_keepalive_interval_minutes_like_cpp,
         db_keepalive_sql_like_cpp, db_updater_step_like_cpp,
+        declined_names_used_for_realm_category_like_cpp,
         deliver_creature_attack_start_commands_like_cpp,
         deliver_creature_melee_damage_commands_like_cpp,
         deliver_refresh_visible_world_creatures_like_cpp, deliver_runtime_plan_like_cpp,
@@ -17976,6 +18015,46 @@ ResetSchedule.WeekDay = 5
             world_config_f32(&configs, "CONFIG_LISTEN_RANGE_YELL", 300.0),
             301.0
         );
+    }
+
+    #[test]
+    fn declined_names_are_forced_for_russian_realm_categories_like_cpp() {
+        let categories = wow_data::CfgCategoriesStore::from_entries([
+            wow_data::CfgCategoriesEntry {
+                id: 1,
+                name: "Development".to_string(),
+                locale_mask: 0,
+                create_charset_mask: 0x01,
+                existing_charset_mask: 0,
+                flags: 0,
+                order: 0,
+            },
+            wow_data::CfgCategoriesEntry {
+                id: 12,
+                name: "Russian".to_string(),
+                locale_mask: 0,
+                create_charset_mask: 0x04,
+                existing_charset_mask: 0,
+                flags: 0,
+                order: 0,
+            },
+        ]);
+
+        assert!(!declined_names_used_for_realm_category_like_cpp(
+            false,
+            1,
+            &categories
+        ));
+        assert!(declined_names_used_for_realm_category_like_cpp(
+            false,
+            12,
+            &categories
+        ));
+        assert!(declined_names_used_for_realm_category_like_cpp(
+            true,
+            1,
+            &categories
+        ));
     }
 
     #[test]

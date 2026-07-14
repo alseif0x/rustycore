@@ -30,7 +30,7 @@ Bool	CONFIG_DEATH_CORPSE_RECLAIM_DELAY_PVE	server/game/World/World.h:131	Death.C
 Bool	CONFIG_DEATH_BONES_WORLD	server/game/World/World.h:132	Death.Bones.World	Bool	server/game/World/World.cpp:1309	true		missing_in_rust	-
 Bool	CONFIG_DEATH_BONES_BG_OR_ARENA	server/game/World/World.h:133	Death.Bones.BattlegroundOrArena	Bool	server/game/World/World.cpp:1310	true		missing_in_rust	-
 Bool	CONFIG_DIE_COMMAND_MODE	server/game/World/World.h:134	Die.Command.Mode	Bool	server/game/World/World.cpp:1312	true		missing_in_rust	-
-Bool	CONFIG_DECLINED_NAMES_USED	server/game/World/World.h:135	DeclinedNames	Bool	server/game/World/World.cpp:1316	false		missing_in_rust	-
+Bool	CONFIG_DECLINED_NAMES_USED	server/game/World/World.h:135	DeclinedNames	Bool	server/game/World/World.cpp:1316	false		represented	consumed by world-server character enum; Russian Cfg_Categories create charset forces true like C++
 Bool	CONFIG_BATTLEGROUND_CAST_DESERTER	server/game/World/World.h:136	Battleground.CastDeserter	Bool	server/game/World/World.cpp:1327	true		missing_in_rust	-
 Bool	CONFIG_BATTLEGROUND_QUEUE_ANNOUNCER_ENABLE	server/game/World/World.h:137	Battleground.QueueAnnouncer.Enable	Bool	server/game/World/World.cpp:1328	false		missing_in_rust	-
 Bool	CONFIG_BATTLEGROUND_QUEUE_ANNOUNCER_PLAYERONLY	server/game/World/World.h:138	Battleground.QueueAnnouncer.PlayerOnly	Bool	server/game/World/World.cpp:1329	false		missing_in_rust	-

@@ -3860,6 +3860,7 @@ pub struct WorldSession {
     pub account_expansion: u8,
     server_expansion_like_cpp: u8,
     characters_per_realm_like_cpp: u32,
+    declined_names_used_like_cpp: bool,
     feature_system_bpay_store_enabled_like_cpp: bool,
     feature_system_character_undelete_enabled_like_cpp: bool,
     instance_ignore_raid_like_cpp: bool,
@@ -5913,6 +5914,7 @@ impl WorldSession {
             account_expansion,
             server_expansion_like_cpp: 2,
             characters_per_realm_like_cpp: 60,
+            declined_names_used_like_cpp: false,
             feature_system_bpay_store_enabled_like_cpp: false,
             feature_system_character_undelete_enabled_like_cpp: false,
             instance_ignore_raid_like_cpp: false,
@@ -17795,6 +17797,14 @@ impl WorldSession {
 
     pub fn set_characters_per_realm_like_cpp(&mut self, characters_per_realm: u32) {
         self.characters_per_realm_like_cpp = characters_per_realm;
+    }
+
+    pub fn set_declined_names_used_like_cpp(&mut self, used: bool) {
+        self.declined_names_used_like_cpp = used;
+    }
+
+    pub(crate) fn declined_names_used_like_cpp(&self) -> bool {
+        self.declined_names_used_like_cpp
     }
 
     pub fn set_feature_system_bpay_store_enabled_like_cpp(&mut self, enabled: bool) {
