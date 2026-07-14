@@ -10828,7 +10828,7 @@ impl WorldSession {
         }
         // C++ closes gossip after attempting the triggered cast, even if the
         // spell execution itself cannot complete.
-        self.send_packet(&GossipComplete {
+        self.send_packet_realm(&GossipComplete {
             suppress_sound: false,
         });
     }
@@ -20467,7 +20467,9 @@ mod tests {
 
     #[tokio::test]
     async fn binder_activate_sets_current_homebind_and_sends_bind_packets_like_cpp() {
-        let (mut session, send_rx, canonical) = make_bank_slot_session(16);
+        let (mut session, instance_rx, canonical) = make_bank_slot_session(16);
+        let (realm_tx, realm_rx) = flume::bounded::<Vec<u8>>(16);
+        session.install_realm_send_channel_for_test(realm_tx);
         let innkeeper = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 30);
         insert_banker_creature(&canonical, innkeeper, NPCFlags1::INNKEEPER.bits());
         session.set_player_zone_area_like_cpp(12, 34);
@@ -20489,18 +20491,21 @@ mod tests {
                 position: Position::new(0.0, 0.0, 0.0, 0.0),
             })
         );
-        let packets: Vec<Vec<u8>> = send_rx.try_iter().collect();
+        let packets: Vec<Vec<u8>> = instance_rx.try_iter().collect();
         assert_eq!(
             packets
                 .iter()
                 .filter_map(|bytes| WorldPacket::from_bytes(bytes).server_opcode())
                 .collect::<Vec<_>>(),
-            vec![
-                ServerOpcodes::SpellGo,
-                ServerOpcodes::BindPointUpdate,
-                ServerOpcodes::PlayerBound,
-                ServerOpcodes::GossipComplete,
-            ]
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::BindPointUpdate,]
+        );
+        assert_eq!(
+            realm_rx
+                .try_iter()
+                .filter_map(|bytes| WorldPacket::from_bytes(&bytes).server_opcode())
+                .collect::<Vec<_>>(),
+            vec![ServerOpcodes::PlayerBound, ServerOpcodes::GossipComplete],
+            "C++ routes PlayerBound and GossipComplete on realm"
         );
         let mut spell_go = WorldPacket::from_bytes(&packets[0]);
         assert_eq!(

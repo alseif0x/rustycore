@@ -58,6 +58,7 @@ log_path="${WOW_BOT_LOG:-/tmp/rustycore-bot-login-only.log}"
 quest_timeout_secs="${WOW_BOT_QUEST_TIMEOUT_SECS:-5}"
 stand_state_timeout_secs="${WOW_BOT_STAND_STATE_TIMEOUT_SECS:-5}"
 bank_timeout_secs="${WOW_BOT_BANK_TIMEOUT_SECS:-8}"
+homebind_timeout_secs="${WOW_BOT_HOMEBIND_TIMEOUT_SECS:-8}"
 inventory_swap_timeout_secs="${WOW_BOT_INVENTORY_SWAP_TIMEOUT_SECS:-8}"
 ensure_accounts="${WOW_BOT_ENSURE_TEST_ACCOUNTS:-1}"
 
@@ -83,12 +84,16 @@ bank_requested=0
 if [[ "${WOW_BOT_BANK_SMOKE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
   bank_requested=1
 fi
+homebind_requested=0
+if [[ "${WOW_BOT_HOMEBIND_SMOKE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  homebind_requested=1
+fi
 inventory_swap_requested=0
 if [[ "${WOW_BOT_INVENTORY_SWAP_SMOKE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
   inventory_swap_requested=1
 fi
-if ((stand_state_requested + quest_requested + bank_requested + inventory_swap_requested > 1)); then
-  echo "Stand-state, quest, bank, and inventory-swap smoke are separate modes" >&2
+if ((stand_state_requested + quest_requested + bank_requested + homebind_requested + inventory_swap_requested > 1)); then
+  echo "Stand-state, quest, bank, homebind, and inventory-swap smoke are separate modes" >&2
   exit 2
 fi
 
@@ -106,6 +111,13 @@ elif ((bank_requested)); then
   mode_args=(--bank-smoke --bank-runtime-counter "$WOW_BOT_BANK_RUNTIME_COUNTER" --bank-timeout "$bank_timeout_secs")
   if [[ -n "${WOW_BOT_BANK_ITEM_ENTRY:-}" ]]; then
     mode_args+=(--bank-item-entry "$WOW_BOT_BANK_ITEM_ENTRY")
+  fi
+elif ((homebind_requested)); then
+  report_path="${WOW_BOT_REPORT:-/tmp/rustycore-bot-homebind-smoke-report.json}"
+  log_path="${WOW_BOT_LOG:-/tmp/rustycore-bot-homebind-smoke.log}"
+  mode_args=(--homebind-smoke --homebind-timeout "$homebind_timeout_secs")
+  if [[ -n "${WOW_BOT_HOMEBIND_RUNTIME_COUNTER:-}" ]]; then
+    mode_args+=(--homebind-runtime-counter "$WOW_BOT_HOMEBIND_RUNTIME_COUNTER")
   fi
 elif ((inventory_swap_requested)); then
   report_path="${WOW_BOT_REPORT:-/tmp/rustycore-bot-inventory-swap-smoke-report.json}"
@@ -193,5 +205,5 @@ echo "log: $log_path"
 echo "report: $report_path"
 
 if command -v jq >/dev/null 2>&1; then
-  jq '{login_only, quest_smoke, stand_state_smoke, bank_smoke, inventory_swap_smoke, results: [.results[] | {account, world_auth, enum_characters, player_login_verified, stand_state_smoke, stand_state_smoke_passed, stand_states_requested, stand_states_confirmed, stand_state_failure, bank_smoke, bank_smoke_passed, bank_banker_entry, bank_banker_spawn_guid, bank_banker_guid_counter, bank_item_guid, bank_item_entry, bank_inventory_slot, bank_bank_slot, bank_open_confirmed, bank_deposit_persisted, bank_relogin_after_deposit, bank_withdraw_persisted, bank_failure, inventory_swap_smoke, inventory_swap_smoke_passed, inventory_swap_item_guid_a, inventory_swap_item_guid_b, inventory_swap_item_entry_a, inventory_swap_item_entry_b, inventory_swap_slot_a, inventory_swap_slot_b, inventory_swap_forward_persisted, inventory_swap_relogin_after_forward, inventory_swap_reverse_persisted, inventory_swap_failure, quest_smoke_passed, quest_target_entry, quest_target_spawn_guid, quest_target_guid_counter, quest_ids_seen, quest_titles_seen, quest_accept_sent, quest_accept_confirm_seen, quest_db_verified, quest_db_status, quest_failure, join_result}]}' "$report_path"
+  jq '{login_only, quest_smoke, stand_state_smoke, bank_smoke, homebind_smoke, inventory_swap_smoke, results: [.results[] | {account, world_auth, enum_characters, player_login_verified, stand_state_smoke, stand_state_smoke_passed, stand_states_requested, stand_states_confirmed, stand_state_failure, bank_smoke, bank_smoke_passed, bank_banker_entry, bank_banker_spawn_guid, bank_banker_guid_counter, bank_item_guid, bank_item_entry, bank_inventory_slot, bank_bank_slot, bank_open_confirmed, bank_deposit_persisted, bank_relogin_after_deposit, bank_withdraw_persisted, bank_failure, homebind_smoke, homebind_smoke_passed, homebind_innkeeper_entry, homebind_innkeeper_spawn_guid, homebind_innkeeper_guid_counter, homebind_spell_go_seen, homebind_bind_point_update_seen, homebind_player_bound_seen, homebind_gossip_complete_seen, homebind_db_persisted, homebind_relogin_verified, homebind_failure, inventory_swap_smoke, inventory_swap_smoke_passed, inventory_swap_item_guid_a, inventory_swap_item_guid_b, inventory_swap_item_entry_a, inventory_swap_item_entry_b, inventory_swap_slot_a, inventory_swap_slot_b, inventory_swap_forward_persisted, inventory_swap_relogin_after_forward, inventory_swap_reverse_persisted, inventory_swap_failure, quest_smoke_passed, quest_target_entry, quest_target_spawn_guid, quest_target_guid_counter, quest_ids_seen, quest_titles_seen, quest_accept_sent, quest_accept_confirm_seen, quest_db_verified, quest_db_status, quest_failure, join_result}]}' "$report_path"
 fi

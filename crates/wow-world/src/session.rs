@@ -53626,7 +53626,7 @@ impl WorldSession {
             map_id: i32::try_from(homebind.map_id).unwrap_or(i32::MAX),
             area_id: i32::try_from(homebind.area_id).unwrap_or(i32::MAX),
         });
-        self.send_packet(&wow_packet::packets::misc::PlayerBound {
+        self.send_packet_realm(&wow_packet::packets::misc::PlayerBound {
             binder_id,
             area_id: homebind.area_id,
         });
