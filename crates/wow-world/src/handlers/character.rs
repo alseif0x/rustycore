@@ -110,6 +110,34 @@ const GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP: u8 = 3;
 const GOSSIP_OPTION_TRAINER_TEXT_LIKE_CPP: &str = "I would like to train.";
 const ITEM_ENCHANTMENT_DB_FIELDS: usize = 3;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct DirectInventoryPositionUpdateLikeCpp {
+    slot: u8,
+    item_db_guid: u64,
+}
+
+fn plan_direct_inventory_swap_persistence_like_cpp(
+    src: u8,
+    dst: u8,
+    src_item: Option<&InventoryItem>,
+    dst_item: Option<&InventoryItem>,
+) -> Vec<DirectInventoryPositionUpdateLikeCpp> {
+    let mut updates = Vec::with_capacity(2);
+    if let Some(item) = src_item {
+        updates.push(DirectInventoryPositionUpdateLikeCpp {
+            slot: dst,
+            item_db_guid: item.db_guid,
+        });
+    }
+    if let Some(item) = dst_item {
+        updates.push(DirectInventoryPositionUpdateLikeCpp {
+            slot: src,
+            item_db_guid: item.db_guid,
+        });
+    }
+    updates
+}
+
 fn creature_has_trainer_flag_like_cpp(npc_flags: u32) -> bool {
     (npc_flags & TRAINER_NPC_FLAGS_MASK_LIKE_CPP) != 0
 }
@@ -13334,11 +13362,49 @@ impl WorldSession {
 
         let char_db = match self.char_db() {
             Some(db) => Arc::clone(db),
-            None => return,
+            None => {
+                self.send_packet(&InventoryChangeFailure::error(
+                    InventoryResult::InternalBagError,
+                ));
+                return;
+            }
         };
 
-        // Perform the swap in memory. When the move crosses equipment slots,
-        // mirror C++ RemoveItem/EquipItem around the slot mutation.
+        // C++ Player::_SaveInventory appends CHAR_REP_INVENTORY_ITEM for every
+        // changed item to one character transaction. REPLACE is required here:
+        // character_inventory has a unique (guid, bag, slot) key, so two plain
+        // UPDATEs cannot exchange occupied slots without the first one colliding.
+        let persistence_updates = plan_direct_inventory_swap_persistence_like_cpp(
+            src,
+            dst,
+            src_item.as_ref(),
+            dst_item.as_ref(),
+        );
+        let mut tx = SqlTransaction::new();
+        for update in &persistence_updates {
+            let mut replace_inventory = char_db.prepare(CharStatements::REP_CHAR_INVENTORY_ITEM);
+            replace_inventory.set_u64(0, player_guid.counter() as u64);
+            replace_inventory.set_u64(1, 0);
+            replace_inventory.set_u8(2, update.slot);
+            replace_inventory.set_u64(3, update.item_db_guid);
+            tx.append(replace_inventory);
+        }
+        if let Err(error) = char_db.commit_transaction(tx).await {
+            warn!(
+                src,
+                dst,
+                error = %error,
+                "direct inventory swap transaction failed; runtime left unchanged"
+            );
+            self.send_packet(&InventoryChangeFailure::error(
+                InventoryResult::InternalBagError,
+            ));
+            return;
+        }
+
+        // Expose the coherent move only after every persistent position committed.
+        // When the move crosses equipment slots, mirror C++ RemoveItem/EquipItem
+        // around the slot mutation.
         let represented_item_mods_changed = if src_item.is_some() {
             self.move_represented_direct_inventory_item_with_item_mods_like_cpp(src, dst)
                 .unwrap_or(false)
@@ -13349,22 +13415,7 @@ impl WorldSession {
             false
         };
         self.sync_object_accessor_player();
-
-        // Update DB
-        if let Some(ref item) = src_item {
-            let mut stmt = char_db.prepare(CharStatements::UPD_CHAR_INVENTORY_SLOT);
-            stmt.set_u8(0, dst);
-            stmt.set_u64(1, player_guid.counter() as u64);
-            stmt.set_u64(2, item.db_guid);
-            let _ = char_db.execute(&stmt).await;
-        }
-        if let Some(ref item) = dst_item {
-            let mut stmt = char_db.prepare(CharStatements::UPD_CHAR_INVENTORY_SLOT);
-            stmt.set_u8(0, src);
-            stmt.set_u64(1, player_guid.counter() as u64);
-            stmt.set_u64(2, item.db_guid);
-            let _ = char_db.execute(&stmt).await;
-        }
+        self.sync_player_registry_state_like_cpp();
 
         let source_moved_bag_has_active_loot = is_represented_bag_slot(src)
             && src_item.as_ref().is_some_and(|item| {
@@ -13543,9 +13594,9 @@ impl WorldSession {
     /// nested bag/container swap parity remains part of the broader inventory
     /// runtime gap.
     pub async fn handle_auto_equip_item_slot(&mut self, equip: AutoEquipItemSlot) {
-        let Some(player_guid) = self.player_guid() else {
+        if self.player_guid().is_none() {
             return;
-        };
+        }
 
         if equip.inv_update.items.len() != 1
             || !is_equipment_pos(INVENTORY_SLOT_BAG_0, equip.item_dst_slot)
@@ -13572,25 +13623,19 @@ impl WorldSession {
             return;
         }
 
-        if let Some(represented_item_mods_changed) = self
-            .move_represented_direct_inventory_item_with_item_mods_like_cpp(
-                src_slot,
-                equip.item_dst_slot,
-            )
-        {
-            self.sync_object_accessor_player();
-            self.sync_player_registry_state_like_cpp();
-            if src_slot < 19 || equip.item_dst_slot < 19 {
-                self.send_stat_update();
-            }
-            if represented_item_mods_changed {
-                self.send_represented_item_bonus_player_stat_update_like_cpp();
-            }
-            debug!(
-                "AutoEquipItemSlot: swapped item {:?} from slot {} to {} for {:?}",
-                equip.item, src_slot, equip.item_dst_slot, player_guid
-            );
-        }
+        // Use the same commit-before-runtime boundary as every other represented
+        // direct-inventory SwapItem path.
+        self.handle_swap_inv_item(SwapInvItem {
+            inv_update: InvUpdate {
+                items: vec![
+                    (INVENTORY_SLOT_BAG_0, src_slot),
+                    (INVENTORY_SLOT_BAG_0, equip.item_dst_slot),
+                ],
+            },
+            src_slot,
+            dst_slot: equip.item_dst_slot,
+        })
+        .await;
     }
 
     /// Handle CMSG_SWAP_ITEM: container-aware swap between two positions.
@@ -18726,9 +18771,111 @@ mod tests {
         );
     }
 
+    #[test]
+    fn direct_inventory_swap_persistence_plan_replaces_both_occupied_positions_like_cpp() {
+        let src = InventoryItem {
+            guid: ObjectGuid::create_item(1, 58),
+            entry_id: 103,
+            db_guid: 58,
+            inventory_type: None,
+        };
+        let dst = InventoryItem {
+            guid: ObjectGuid::create_item(1, 59),
+            entry_id: 104,
+            db_guid: 59,
+            inventory_type: None,
+        };
+
+        assert_eq!(
+            plan_direct_inventory_swap_persistence_like_cpp(35, 36, Some(&src), Some(&dst)),
+            vec![
+                DirectInventoryPositionUpdateLikeCpp {
+                    slot: 36,
+                    item_db_guid: 58,
+                },
+                DirectInventoryPositionUpdateLikeCpp {
+                    slot: 35,
+                    item_db_guid: 59,
+                },
+            ],
+            "C++ _SaveInventory replaces each changed item's final position in one transaction"
+        );
+    }
+
+    #[test]
+    fn direct_inventory_swap_persistence_plan_moves_into_empty_position_like_cpp() {
+        let src = InventoryItem {
+            guid: ObjectGuid::create_item(1, 60),
+            entry_id: 105,
+            db_guid: 60,
+            inventory_type: None,
+        };
+
+        assert_eq!(
+            plan_direct_inventory_swap_persistence_like_cpp(35, 36, Some(&src), None),
+            vec![DirectInventoryPositionUpdateLikeCpp {
+                slot: 36,
+                item_db_guid: 60,
+            }]
+        );
+    }
+
     #[tokio::test]
-    async fn auto_equip_item_slot_swaps_direct_inventory_item_like_cpp() {
-        let (mut session, _send_rx) = make_session_with_send_capacity(4);
+    async fn swap_inv_item_commit_failure_keeps_runtime_unchanged_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(4);
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+        let item_guid = ObjectGuid::create_item(1, 61);
+        session.insert_inventory_item_like_cpp(
+            INVENTORY_SLOT_ITEM_START,
+            InventoryItem {
+                guid: item_guid,
+                entry_id: 106,
+                db_guid: 61,
+                inventory_type: None,
+            },
+        );
+        let failing_pool = sqlx::mysql::MySqlPoolOptions::new()
+            .max_connections(1)
+            .acquire_timeout(std::time::Duration::from_millis(100))
+            .connect_lazy("mysql://rustycore:rustycore@127.0.0.1:1/characters")
+            .expect("syntactically valid lazy MySQL pool");
+        session.set_char_db(Arc::new(wow_database::CharacterDatabase::from_pool(
+            failing_pool,
+        )));
+
+        session
+            .handle_swap_inv_item(SwapInvItem {
+                inv_update: InvUpdate {
+                    items: vec![
+                        (INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START),
+                        (INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START + 1),
+                    ],
+                },
+                src_slot: INVENTORY_SLOT_ITEM_START,
+                dst_slot: INVENTORY_SLOT_ITEM_START + 1,
+            })
+            .await;
+
+        assert_eq!(
+            session
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)
+                .map(|item| item.guid),
+            Some(item_guid)
+        );
+        assert!(
+            session
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START + 1)
+                .is_none()
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::InventoryChangeFailure]
+        );
+    }
+
+    #[tokio::test]
+    async fn auto_equip_item_slot_without_persistence_keeps_runtime_unchanged_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(4);
         session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
         let item_guid = ObjectGuid::create_item(1, 60);
         session.insert_inventory_item_like_cpp(
@@ -18753,20 +18900,27 @@ mod tests {
 
         assert_eq!(
             session
-                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_MAINHAND)
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)
                 .unwrap()
                 .guid,
             item_guid
         );
         assert!(
             session
-                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_MAINHAND)
                 .is_none()
+        );
+        let error = send_rx
+            .try_recv()
+            .expect("missing persistence should report an inventory failure");
+        assert_eq!(
+            u16::from_le_bytes([error[0], error[1]]),
+            ServerOpcodes::InventoryChangeFailure as u16,
         );
     }
 
     #[tokio::test]
-    async fn auto_equip_item_slot_applies_represented_item_mods_like_cpp() {
+    async fn auto_equip_item_slot_commit_failure_does_not_apply_item_mods_like_cpp() {
         let (mut session, send_rx) = make_session_with_send_capacity(4);
         let player_guid = ObjectGuid::create_player(1, 42);
         let item_guid = ObjectGuid::create_item(1, 64);
@@ -18811,6 +18965,14 @@ mod tests {
             INVENTORY_SLOT_ITEM_START,
         );
         session.insert_inventory_item_object(item);
+        let failing_pool = sqlx::mysql::MySqlPoolOptions::new()
+            .max_connections(1)
+            .acquire_timeout(std::time::Duration::from_millis(100))
+            .connect_lazy("mysql://rustycore:rustycore@127.0.0.1:1/characters")
+            .expect("syntactically valid lazy MySQL pool");
+        session.set_char_db(Arc::new(wow_database::CharacterDatabase::from_pool(
+            failing_pool,
+        )));
 
         session
             .handle_auto_equip_item_slot(AutoEquipItemSlot {
@@ -18824,24 +18986,30 @@ mod tests {
 
         assert_eq!(
             session.represented_item_bonus_state_like_cpp().stats_base[0],
-            7,
-            "C++ EquipItem calls _ApplyItemMods(..., true) for alive equipped items"
+            0,
+            "item mods must remain unchanged until the inventory transaction commits"
+        );
+        assert!(
+            session
+                .represented_item_set_spell_events_like_cpp()
+                .is_empty(),
+            "set-bonus events must not be exposed after a failed commit"
         );
         assert_eq!(
-            session.represented_item_set_spell_events_like_cpp(),
-            &[crate::session::RepresentedItemSetSpellEventLikeCpp {
-                item_set_id: 706,
-                spell_entry_id: 22,
-                spell_id: 9022,
-                threshold: 1,
-                apply: true,
-            }],
-            "C++ EquipItem calls AddItemsSetItem before _ApplyItemMods for equipped slots"
+            session
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)
+                .map(|item| item.guid),
+            Some(item_guid)
+        );
+        assert!(
+            session
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_MAINHAND)
+                .is_none()
         );
         assert_eq!(
             drain_server_opcodes(&send_rx),
-            vec![ServerOpcodes::UpdateObject],
-            "represented item-mod equip emits one current-session stat VALUES delta"
+            vec![ServerOpcodes::InventoryChangeFailure],
+            "failed persistence emits only the inventory failure"
         );
     }
 

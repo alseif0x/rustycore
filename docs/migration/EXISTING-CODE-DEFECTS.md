@@ -48,9 +48,22 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
     regression, and fully merged metadata cleanup. The regression also repaired an old
     false-positive test that sent
     legacy slot `19` instead of the 3.4.3 backpack start slot `35`.
-    Kept open until relog round-trip, capture-diff, and manual live-client QA are complete.
+    PR #103 merged on 2026-07-14 after the full live bot bank deposit/relog/withdraw/relog
+    round-trip passed. Personal-bank movement is therefore closed; equipment-set and void-storage
+    persistence remain under the wider D-C3 heading and keep this aggregate item open.
 - [ ] **D-C4 Inventory swap not transactional.** Two separate `execute()` calls; mid-fail
-  orphans/dupes items. `handlers/character.rs:11668-11681`. C++ wraps slot mutations in a txn.
+  orphans/dupes items. `handlers/character.rs:11668-11681`. C++ appends both changed positions to
+  the character save transaction through `Player::_SaveInventory`.
+  - 2026-07-14 issue #104 local slice: every represented direct-inventory `SwapItem` route now
+    appends the final positions to one character transaction with C++
+    `CHAR_REP_INVENTORY_ITEM`/`REPLACE INTO` semantics. `REPLACE` is required for occupied swaps
+    because `character_inventory.uk_location` forbids the first half of a two-`UPDATE` exchange.
+    Runtime slots, equipment modifiers, accessor/registry state, loot release, stat/value packets,
+    and success logging now occur only after commit; missing/failed persistence sends
+    `SMSG_INVENTORY_CHANGE_FAILURE` and leaves runtime unchanged. Focused coverage includes empty
+    and occupied plans, generic commit failure, explicit auto-equip-slot failure, and all 2,763
+    `wow-world` library tests. Kept open until the complete bot relog persistence smoke and PR
+    current-HEAD gates pass.
 - [ ] **D-C5 Loot item TOCTOU → duplication.** Slot marked looted *after* the async inventory
   store; two concurrent looters both store it. `handlers/loot.rs:1143-1219`. C++ blocks the
   slot *before* store.
