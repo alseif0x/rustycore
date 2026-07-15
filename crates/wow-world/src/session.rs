@@ -52257,6 +52257,7 @@ impl WorldSession {
                         ),
                     wow_data::spell::implicit_targets::TARGET_DEST_DB => self
                         .represented_db_caster_destination_target_data_like_cpp(
+                            caster_guid,
                             &spell_info,
                             &isolated_effect,
                             &selection_input,
@@ -53923,59 +53924,7 @@ impl WorldSession {
             let homebind = self.represented_homebind_like_cpp()?;
             (homebind.map_id, ObjectGuid::EMPTY, homebind.position)
         } else {
-            let map_key = self
-                .current_canonical_player_map_key_like_cpp()
-                .unwrap_or_else(|| {
-                    wow_map::MapKey::new(u32::from(self.player_map_id_like_cpp()), 0)
-                });
-            let legacy_map_id = u16::try_from(map_key.map_id).ok()?;
-            let (transport, position) = self
-                .canonical_map_manager
-                .as_ref()
-                .and_then(|manager| {
-                    let manager = manager.lock().ok()?;
-                    let map = manager.find_map(map_key.map_id, map_key.instance_id)?;
-                    let map = map.map();
-                    let creature = map.get_typed_creature(caster_guid)?;
-                    let world_position = creature.unit().world().position();
-                    if let Some(vehicle_base_guid) =
-                        creature.unit().subsystems().vehicle.vehicle_guid
-                    {
-                        let vehicle_base_position = map
-                            .get_typed_player(vehicle_base_guid)
-                            .map(|player| player.unit().world().position())
-                            .or_else(|| {
-                                map.get_typed_creature(vehicle_base_guid)
-                                    .map(|creature| creature.unit().world().position())
-                            })?;
-                        Some((
-                            vehicle_base_guid,
-                            wow_entities::calculate_passenger_offset(
-                                world_position,
-                                vehicle_base_position,
-                            ),
-                        ))
-                    } else if let Some(transport) =
-                        map.get_typed_transport_for_passenger_like_cpp(caster_guid)
-                    {
-                        Some((
-                            transport.world().guid(),
-                            transport.calculate_passenger_offset(world_position),
-                        ))
-                    } else {
-                        Some((ObjectGuid::EMPTY, world_position))
-                    }
-                })
-                .or_else(|| {
-                    self.map_manager.as_ref().and_then(|manager| {
-                        manager
-                            .read()
-                            .unwrap_or_else(|poisoned| poisoned.into_inner())
-                            .find_creature(legacy_map_id, map_key.instance_id, caster_guid)
-                            .map(|creature| (ObjectGuid::EMPTY, creature.position()))
-                    })
-                })?;
-            (map_key.map_id, transport, position)
+            self.represented_effective_caster_destination_like_cpp(caster_guid)?
         };
         let mut target_data = target_data.clone();
         target_data.flags |= 0x0000_0040; // C++ TARGET_FLAG_DEST_LOCATION
@@ -53985,6 +53934,71 @@ impl WorldSession {
         });
         target_data.map_id = Some(i32::try_from(map_id).unwrap_or(i32::MAX));
         Some(target_data)
+    }
+
+    fn represented_effective_caster_destination_like_cpp(
+        &self,
+        caster_guid: ObjectGuid,
+    ) -> Option<(u32, ObjectGuid, Position)> {
+        let map_key = self
+            .current_canonical_player_map_key_like_cpp()
+            .unwrap_or_else(|| wow_map::MapKey::new(u32::from(self.player_map_id_like_cpp()), 0));
+        let legacy_map_id = u16::try_from(map_key.map_id).ok()?;
+        let canonical_destination = self.canonical_map_manager.as_ref().and_then(|manager| {
+            let manager = manager.lock().ok()?;
+            let map = manager.find_map(map_key.map_id, map_key.instance_id)?;
+            let map = map.map();
+            let (world_position, vehicle_base_guid) = if Some(caster_guid) == self.player_guid() {
+                let player = map.get_typed_player(caster_guid)?;
+                (
+                    player.unit().world().position(),
+                    player.unit().subsystems().vehicle.vehicle_guid,
+                )
+            } else {
+                let creature = map.get_typed_creature(caster_guid)?;
+                (
+                    creature.unit().world().position(),
+                    creature.unit().subsystems().vehicle.vehicle_guid,
+                )
+            };
+            if let Some(vehicle_base_guid) = vehicle_base_guid {
+                let vehicle_base_position = map
+                    .get_typed_player(vehicle_base_guid)
+                    .map(|player| player.unit().world().position())
+                    .or_else(|| {
+                        map.get_typed_creature(vehicle_base_guid)
+                            .map(|creature| creature.unit().world().position())
+                    })?;
+                Some((
+                    vehicle_base_guid,
+                    wow_entities::calculate_passenger_offset(world_position, vehicle_base_position),
+                ))
+            } else if let Some(transport) =
+                map.get_typed_transport_for_passenger_like_cpp(caster_guid)
+            {
+                Some((
+                    transport.world().guid(),
+                    transport.calculate_passenger_offset(world_position),
+                ))
+            } else {
+                Some((ObjectGuid::EMPTY, world_position))
+            }
+        });
+        let (transport, position) = canonical_destination.or_else(|| {
+            if Some(caster_guid) == self.player_guid() {
+                self.player_position_like_cpp()
+                    .map(|position| (ObjectGuid::EMPTY, position))
+            } else {
+                self.map_manager.as_ref().and_then(|manager| {
+                    manager
+                        .read()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner())
+                        .find_creature(legacy_map_id, map_key.instance_id, caster_guid)
+                        .map(|creature| (ObjectGuid::EMPTY, creature.position()))
+                })
+            }
+        })?;
+        Some((map_key.map_id, transport, position))
     }
 
     fn represented_transport_destination_world_position_like_cpp(
@@ -54014,6 +54028,7 @@ impl WorldSession {
 
     fn represented_db_caster_destination_target_data_like_cpp(
         &self,
+        caster_guid: ObjectGuid,
         spell_info: &wow_data::SpellInfo,
         effect: &wow_data::SpellEffectInfo,
         target_data: &SpellTargetData,
@@ -54042,23 +54057,29 @@ impl WorldSession {
                     | wow_data::spell::spell_effect_types::SPELL_EFFECT_BIND
             )
         });
-        let (position, map_id) = if let Some(target_position) = target_position {
+        // C++ initializes SpellDestination from *m_caster before applying the
+        // optional DB/object overrides. This must use the effective caster,
+        // including triggered creature casts and transport offsets.
+        let (caster_map_id, caster_transport, caster_position) =
+            self.represented_effective_caster_destination_like_cpp(caster_guid)?;
+        let (position, map_id, transport) = if let Some(target_position) = target_position {
             if cross_map_allowed {
                 (
                     target_position.position,
                     Some(i32::from(target_position.target_map_id)),
+                    ObjectGuid::EMPTY,
                 )
-            } else if target_position.target_map_id == self.player_map_id_like_cpp() {
-                (target_position.position, None)
+            } else if u32::from(target_position.target_map_id) == caster_map_id {
+                (target_position.position, None, ObjectGuid::EMPTY)
             } else {
-                (self.player_position_like_cpp()?, None)
+                (caster_position, None, caster_transport)
             }
         } else if let Some(target_position) =
             self.represented_object_target_position_like_cpp(target_data)
         {
-            (target_position, None)
+            (target_position, None, ObjectGuid::EMPTY)
         } else {
-            (self.player_position_like_cpp()?, None)
+            (caster_position, None, caster_transport)
         };
         let position = self.apply_spell_destination_facing_override_like_cpp(
             spell_info.spell_id,
@@ -54069,7 +54090,7 @@ impl WorldSession {
         let mut target_data = target_data.clone();
         target_data.flags |= 0x0000_0040; // C++ TARGET_FLAG_DEST_LOCATION
         target_data.dst_location = Some(wow_packet::packets::spell::TargetLocation {
-            transport: ObjectGuid::EMPTY,
+            transport,
             position,
         });
         target_data.map_id = map_id;
@@ -73014,6 +73035,86 @@ mod tests {
         assert_eq!(damage_log.read_int32().expect("resisted"), 0);
         assert_eq!(damage_log.read_int32().expect("absorbed"), 0);
         assert!(!damage_log.has_bit().expect("has log data"));
+    }
+
+    #[tokio::test]
+    async fn creature_cast_db_destination_without_row_keeps_effective_caster_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 86_903_i32;
+        let template_entry = 9021_u32;
+        let player_guid = ObjectGuid::create_player(1, 7021);
+        let creature_guid = test_creature_guid(7022);
+        let player_position = Position::new(240.0, 340.0, 48.0, 0.25);
+        let creature_position = Position::new(246.0, 344.0, 49.0, 1.75);
+        let canonical = shared_canonical_map_manager();
+        let mut summon_effect =
+            summon_object_wild_effect_like_cpp(i32::try_from(template_entry).unwrap());
+        summon_effect.implicit_target_1 = wow_data::spell::implicit_targets::TARGET_DEST_DB;
+        let spell_info = gameobject_summon_spell_info_like_cpp(spell_id, 0, vec![summon_effect]);
+
+        configure_gameobject_summon_live_session_like_cpp(
+            &mut session,
+            &canonical,
+            player_guid,
+            player_position,
+            summon_go_template_store_like_cpp(template_entry),
+            spell_info,
+        );
+        add_canonical_test_creature_on_map(
+            &canonical,
+            creature_guid,
+            9022,
+            creature_position,
+            571,
+            0,
+            0,
+        );
+
+        session
+            .execute_spell_with_visual_and_target_data_with_metadata(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual::default(),
+                SpellTargetData::default(),
+                SpellCastMetadata {
+                    caster_guid_override: Some(creature_guid),
+                    ..SpellCastMetadata::default()
+                },
+            )
+            .await
+            .expect("creature TARGET_DEST_DB cast should execute without a DB row");
+
+        let manager = canonical.lock().unwrap();
+        let managed = manager.find_map(571, 0).expect("canonical map");
+        let summoned = session
+            .client_visible_guids_like_cpp
+            .iter()
+            .copied()
+            .filter(ObjectGuid::is_game_object)
+            .find_map(|guid| managed.map().get_typed_game_object(guid))
+            .expect("creature-cast summon should be visible");
+        assert_eq!(
+            summoned.world().position(),
+            creature_position,
+            "C++ TARGET_DEST_DB starts from SpellDestination(*m_caster), not the logged-in player"
+        );
+        drop(manager);
+
+        let bytes = send_rx.try_recv().expect("creature-cast SpellGo");
+        let packet_target = decode_spell_go_target_data_like_cpp(&bytes, spell_id);
+        assert_eq!(
+            packet_target
+                .dst_location
+                .expect("effective caster destination")
+                .position,
+            Position::new(
+                creature_position.x,
+                creature_position.y,
+                creature_position.z,
+                0.0,
+            )
+        );
     }
 
     #[tokio::test]
