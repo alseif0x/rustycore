@@ -64,6 +64,21 @@ accounts; cleanup removes only the generated item and restores the original
 character position. `WOW_BOT_BANK_ITEM_ENTRY` (default `2589`) and
 `WOW_BOT_BANK_TIMEOUT_SECS` are optional overrides.
 
+## Innkeeper homebind persistence smoke
+
+```bash
+WOW_BOT_HOMEBIND_SMOKE=1 \
+./run_rustycore_login_smoke.sh
+```
+
+The pass requires the triggered bind spell plus all three bind/gossip response
+packets, a matching `character_homebind` row, and a second complete
+authentication/login that observes the same persisted row. Setup is restricted
+to `@bot.local` accounts and cleanup restores the original character position
+and homebind exactly.
+`WOW_BOT_HOMEBIND_RUNTIME_COUNTER` is an optional override; the current
+default discovers the map-owned low counter from the login update stream.
+
 ## Direct inventory swap persistence smoke
 
 ```bash
@@ -245,7 +260,7 @@ interaction-distance checks.
 
 For DB-spawned creatures, `world.creature.guid` is the persistent spawn
 identity while the live `ObjectGuid` low counter is map-generated. Quest and
-bank modes therefore accept an explicit runtime counter instead of pretending
+bank mode therefore accepts an explicit runtime counter instead of pretending
 the two identities are interchangeable.
 
 ## Known notes

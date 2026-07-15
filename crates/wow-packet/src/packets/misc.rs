@@ -3080,8 +3080,8 @@ pub struct BindPointUpdate {
     pub x: f32,
     pub y: f32,
     pub z: f32,
-    pub map_id: i32,
-    pub area_id: i32,
+    pub map_id: u32,
+    pub area_id: u32,
 }
 
 impl ServerPacket for BindPointUpdate {
@@ -3091,8 +3091,8 @@ impl ServerPacket for BindPointUpdate {
         pkt.write_float(self.x);
         pkt.write_float(self.y);
         pkt.write_float(self.z);
-        pkt.write_int32(self.map_id);
-        pkt.write_int32(self.area_id);
+        pkt.write_uint32(self.map_id);
+        pkt.write_uint32(self.area_id);
     }
 }
 
@@ -10759,6 +10759,22 @@ mod tests {
         assert_eq!(bytes.len(), 22);
         let opcode = u16::from_le_bytes([bytes[0], bytes[1]]);
         assert_eq!(opcode, 0x257d);
+    }
+
+    #[test]
+    fn bind_point_update_preserves_full_uint32_area_like_cpp() {
+        let bytes = BindPointUpdate {
+            x: 1.0,
+            y: 2.0,
+            z: 3.0,
+            map_id: 571,
+            area_id: u32::MAX,
+        }
+        .to_bytes();
+        assert_eq!(
+            u32::from_le_bytes(bytes[18..22].try_into().unwrap()),
+            u32::MAX
+        );
     }
 
     #[test]

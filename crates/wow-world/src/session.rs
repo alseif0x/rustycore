@@ -1669,6 +1669,12 @@ pub(crate) struct RepresentedHomebindLikeCpp {
     pub position: wow_core::Position,
 }
 
+struct HomebindPersistenceJobLikeCpp {
+    char_db: Arc<CharacterDatabase>,
+    update_stmt: PreparedStatement,
+    guid_counter: u64,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct RepresentedResurrectionRequestLikeCpp {
     pub resurrecter: wow_core::ObjectGuid,
@@ -3706,6 +3712,11 @@ pub struct SpellCastBattlePetItemModifiersLikeCpp {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SpellCastMetadata {
     pub from_client: bool,
+    /// Overrides the visible/effect caster for represented triggered casts.
+    /// Normal player casts leave this empty and use the logged-in player GUID.
+    pub caster_guid_override: Option<ObjectGuid>,
+    /// C++ `SpellCastData::CastFlags` for the emitted `SMSG_SPELL_GO`.
+    pub cast_flags: u32,
     pub misc: [i32; 2],
     pub cast_item_entry: Option<u32>,
     pub cast_item_battle_pet_modifiers: Option<SpellCastBattlePetItemModifiersLikeCpp>,
@@ -3720,6 +3731,8 @@ impl Default for SpellCastMetadata {
     fn default() -> Self {
         Self {
             from_client: false,
+            caster_guid_override: None,
+            cast_flags: 0,
             misc: [0, 0],
             cast_item_entry: None,
             cast_item_battle_pet_modifiers: None,
@@ -3907,6 +3920,11 @@ pub struct WorldSession {
 
     // Character database
     char_db: Option<Arc<CharacterDatabase>>,
+    // FIFO sender for C++ CharacterDatabase.Execute-style detached homebind
+    // writes. Its single worker drains queued jobs after session teardown and
+    // preserves call order.
+    homebind_persistence_tx_like_cpp:
+        Option<tokio::sync::mpsc::UnboundedSender<HomebindPersistenceJobLikeCpp>>,
 
     // Login database (for realmcharacters updates)
     login_db: Option<Arc<LoginDatabase>>,
@@ -4690,8 +4708,8 @@ pub struct WorldSession {
         Option<(u32, wow_core::Position, TeleportToOptionsLikeCpp)>,
     /// Represented zone/area for the pending near-teleport destination.
     near_teleport_destination_zone_area_like_cpp: Option<(u32, u32)>,
-    /// C++ `Player::m_homebind` / `m_homebindAreaId` represented until
-    /// `character_homebind` loading/saving is wired into the player runtime.
+    /// C++ `Player::m_homebind` / `m_homebindAreaId` represented until full
+    /// player-owned load validation/fallback replaces the session field.
     represented_homebind_like_cpp: Option<RepresentedHomebindLikeCpp>,
     /// C++ `Player::_resurrectionData`, represented until real Player/Spell
     /// resurrection request ownership exists.
@@ -5947,6 +5965,7 @@ impl WorldSession {
             represented_runtime_rng_like_cpp: StdRng::from_entropy(),
             dispatch_table: build_dispatch_table(),
             char_db: None,
+            homebind_persistence_tx_like_cpp: None,
             login_db: None,
             world_db: None,
             bank_bag_slot_prices_store: None,
@@ -11691,7 +11710,9 @@ impl WorldSession {
             original_cast_id: cast_id,
             spell_id,
             visual: SpellCastVisual::default(),
+            cast_flags: 0,
             cast_flags_ex: 0,
+            cast_time_ms: Self::game_time_ms_like_cpp(),
             target: SpellTargetData {
                 flags: 0x2,
                 unit: target_guid,
@@ -27417,6 +27438,63 @@ impl WorldSession {
         }
     }
 
+    /// Route a creature-originated packet through the existing
+    /// `MessageDistDeliverer`-style candidate and per-session visibility gates.
+    /// The activating session receives its direct packet separately; this
+    /// queues only nearby observers, matching `WorldObject::SendMessageToSet`.
+    pub(crate) fn broadcast_creature_packet_to_visible_set_like_cpp(
+        &self,
+        source_guid: ObjectGuid,
+        bytes: Vec<u8>,
+    ) {
+        let (Some(registry), Some(source)) = (
+            self.player_registry(),
+            self.canonical_creature_access_like_cpp(source_guid),
+        ) else {
+            return;
+        };
+        let player_guid = self.player_guid().unwrap_or(ObjectGuid::EMPTY);
+        let map_id = self.player_map_id_like_cpp();
+        let instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let range_sq =
+            crate::map_manager::VISIBILITY_RADIUS * crate::map_manager::VISIBILITY_RADIUS;
+
+        let candidates: Vec<_> = registry
+            .iter()
+            .filter_map(|entry| {
+                let (other_guid, other_info): (&ObjectGuid, &PlayerBroadcastInfo) = entry.pair();
+                if *other_guid == player_guid
+                    || !other_info.is_in_world
+                    || other_info.map_id != map_id
+                    || other_info.instance_id != instance_id
+                {
+                    return None;
+                }
+                let dx = other_info.position.x - source.position.x;
+                let dy = other_info.position.y - source.position.y;
+                if dx * dx + dy * dy > range_sq {
+                    return None;
+                }
+                Some(other_info.command_tx.clone())
+            })
+            .collect();
+
+        for command_tx in candidates {
+            let _ = command_tx.try_send(SessionCommand::SendIfVisibleLikeCpp(
+                SendIfVisibleLikeCppCommand {
+                    queued_at: Instant::now(),
+                    source_guid,
+                    map_id,
+                    instance_id,
+                    packet_bytes: bytes.clone(),
+                },
+            ));
+        }
+    }
+
     /// Set the shared group registry and pending invites.
     pub fn set_group_registry(&mut self, reg: Arc<GroupRegistry>, invites: Arc<PendingInvites>) {
         self.group_registry = Some(reg);
@@ -27433,7 +27511,7 @@ impl WorldSession {
         self.pending_invites.as_ref()
     }
 
-    fn player_is_in_world_for_registry_like_cpp(&self) -> bool {
+    pub(crate) fn player_is_in_world_for_registry_like_cpp(&self) -> bool {
         let Some(guid) = self.player_guid() else {
             return false;
         };
@@ -27457,6 +27535,28 @@ impl WorldSession {
         // Registry insertion happens only after successful character login; logout/disconnect
         // unregisters instead of leaving a false/stale row behind.
         true
+    }
+
+    pub(crate) fn player_is_strictly_in_world_like_cpp(&self) -> bool {
+        let Some(guid) = self.player_guid() else {
+            return false;
+        };
+        let Some(manager) = self
+            .canonical_map_manager
+            .as_ref()
+            .and_then(|manager| manager.lock().ok())
+        else {
+            return false;
+        };
+        let mut is_in_world = None;
+        manager.do_for_all_maps(|managed| {
+            if is_in_world.is_none()
+                && let Some(player) = managed.map().get_typed_player(guid)
+            {
+                is_in_world = Some(player.unit().world().object().is_in_world());
+            }
+        });
+        is_in_world.unwrap_or(false)
     }
 
     pub(crate) fn player_unit_state_for_registry_like_cpp(&self) -> u32 {
@@ -52005,6 +52105,7 @@ impl WorldSession {
         metadata: SpellCastMetadata,
     ) -> Result<(), &'static str> {
         let player_guid = self.player_guid().ok_or("No player GUID")?;
+        let caster_guid = metadata.caster_guid_override.unwrap_or(player_guid);
 
         // Obtener SpellInfo
         let spell_info = self
@@ -52151,29 +52252,121 @@ impl WorldSession {
             return Ok(());
         }
 
+        // C++ `Spell::SelectSpellTargets` resolves implicit destinations in
+        // effect/target order before `Spell::SendSpellGo`; later selections
+        // replace earlier ones through `SpellCastTargets::ModDst`.
+        let mut target_data = target_data;
+        let mut represented_implicit_destination = false;
+        let mut effect_target_data_like_cpp = Vec::new();
+        for effect in spell_info.effects() {
+            if effect.effect == 0 {
+                continue;
+            }
+            for implicit_target in [effect.implicit_target_1, effect.implicit_target_2] {
+                let mut isolated_effect = effect.clone();
+                isolated_effect.implicit_target_1 = implicit_target;
+                isolated_effect.implicit_target_2 = 0;
+                let mut selection_input = target_data.clone();
+                selection_input.flags &= !0x0000_0040;
+                selection_input.dst_location = None;
+                selection_input.map_id = None;
+                let selected = match implicit_target {
+                    wow_data::spell::implicit_targets::TARGET_DEST_HOME => self
+                        .represented_home_destination_target_data_like_cpp(
+                            caster_guid,
+                            &isolated_effect,
+                            &selection_input,
+                        ),
+                    wow_data::spell::implicit_targets::TARGET_DEST_DB => self
+                        .represented_db_caster_destination_target_data_like_cpp(
+                            caster_guid,
+                            &spell_info,
+                            &isolated_effect,
+                            &selection_input,
+                        ),
+                    wow_data::spell::implicit_targets::TARGET_DEST_NEARBY_ENTRY
+                    | wow_data::spell::implicit_targets::TARGET_DEST_NEARBY_ENTRY_2
+                    | wow_data::spell::implicit_targets::TARGET_DEST_NEARBY_ENTRY_OR_DB => self
+                        .represented_focus_destination_target_data_like_cpp(
+                            spell_id,
+                            &isolated_effect,
+                            &selection_input,
+                            represented_focus_object,
+                        )
+                        .or_else(|| {
+                            self.represented_nearby_entry_destination_target_data_like_cpp(
+                                spell_id,
+                                &isolated_effect,
+                                &selection_input,
+                            )
+                        }),
+                    _ => None,
+                };
+                if let Some(selected) = selected {
+                    target_data = selected;
+                    represented_implicit_destination = true;
+                }
+            }
+            // C++ snapshots `m_targets.GetDst()` into
+            // `m_destTargets[EffectIndex]` after selecting each effect.
+            let mut effect_target_data = target_data.clone();
+            if let Some(destination) = effect_target_data.dst_location.as_mut()
+                && !destination.transport.is_empty()
+                && let Some(world_position) = self
+                    .represented_transport_destination_world_position_like_cpp(
+                        destination.transport,
+                        destination.position,
+                    )
+            {
+                // C++ serializes `_transportOffset` but keeps `_position` as
+                // world coordinates for effect execution.
+                destination.position = world_position;
+            }
+            effect_target_data_like_cpp.push((effect.effect_index, effect_target_data));
+        }
+        let mut spell_go_target_data = target_data.clone();
+        if represented_implicit_destination {
+            // C++ retains map identity on SpellDestination for effect
+            // execution, while SpellCastTargets::Write emits DstLocation XYZ.
+            spell_go_target_data.map_id = None;
+        }
+
         // Send SMSG_SPELL_GO
         use wow_packet::packets::spell::SpellGoPkt;
 
         let spell_visual_id = spell_visual.spell_visual_id;
         let go_pkt = SpellGoPkt {
-            caster: player_guid,
+            caster: caster_guid,
             cast_id,
             original_cast_id: metadata.original_cast_id_or(cast_id),
             spell_id,
             visual: spell_visual,
+            cast_flags: metadata.cast_flags,
             cast_flags_ex: metadata.cast_flags_ex,
-            target: target_data.clone(),
+            cast_time_ms: Self::game_time_ms_like_cpp(),
+            target: spell_go_target_data,
             hit_targets: vec![target_guid],
         };
         self.send_packet(&go_pkt);
+        if caster_guid != player_guid && caster_guid.is_any_type_creature() {
+            self.broadcast_creature_packet_to_visible_set_like_cpp(
+                caster_guid,
+                wow_packet::ServerPacket::to_bytes(&go_pkt),
+            );
+        }
 
         let mut force_visibility_after_add_farsight = false;
         for effect in spell_info.effects() {
             if effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_ADD_FARSIGHT {
+                let effect_target_data = effect_target_data_like_cpp
+                    .iter()
+                    .find(|(effect_index, _)| *effect_index == effect.effect_index)
+                    .map(|(_, target_data)| target_data)
+                    .unwrap_or(&target_data);
                 if let Some(outcome) = self.apply_effect_add_farsight_like_cpp(
                     spell_id,
                     effect,
-                    &target_data,
+                    effect_target_data,
                     spell_visual_id,
                     spell_info.cast_time_ms,
                 ) {
@@ -52187,16 +52380,15 @@ impl WorldSession {
         }
 
         for effect in spell_info.effects() {
-            let represented_db_target_data = self
-                .represented_db_caster_destination_target_data_like_cpp(
-                    &spell_info,
-                    effect,
-                    &target_data,
-                );
-            let effect_target_data = represented_db_target_data.as_ref().unwrap_or(&target_data);
+            let effect_target_data = effect_target_data_like_cpp
+                .iter()
+                .find(|(effect_index, _)| *effect_index == effect.effect_index)
+                .map(|(_, target_data)| target_data)
+                .unwrap_or(&target_data);
             self.apply_effect_teleport_units_like_cpp(effect, target_guid, effect_target_data)
                 .await;
-            self.apply_effect_bind_like_cpp(effect, player_guid, target_guid, effect_target_data);
+            self.apply_effect_bind_like_cpp(effect, caster_guid, target_guid, effect_target_data)
+                .await;
         }
 
         if spell_info.effects().is_empty() {
@@ -52214,40 +52406,19 @@ impl WorldSession {
             .await;
             self.apply_effect_bind_like_cpp(
                 &primary_effect_like_cpp,
-                player_guid,
+                caster_guid,
                 target_guid,
                 &target_data,
-            );
+            )
+            .await;
         }
 
         let mut force_visibility_after_gameobject_summon = false;
         for effect in spell_info.effects() {
-            let represented_focus_target_data = self
-                .represented_focus_destination_target_data_like_cpp(
-                    spell_id,
-                    effect,
-                    &target_data,
-                    represented_focus_object,
-                );
-            let represented_db_target_data = if represented_focus_target_data.is_none() {
-                self.represented_db_caster_destination_target_data_like_cpp(
-                    &spell_info,
-                    effect,
-                    &target_data,
-                )
-                .or_else(|| {
-                    self.represented_nearby_entry_destination_target_data_like_cpp(
-                        spell_id,
-                        effect,
-                        &target_data,
-                    )
-                })
-            } else {
-                None
-            };
-            let effect_target_data = represented_focus_target_data
-                .as_ref()
-                .or(represented_db_target_data.as_ref())
+            let effect_target_data = effect_target_data_like_cpp
+                .iter()
+                .find(|(effect_index, _)| *effect_index == effect.effect_index)
+                .map(|(_, target_data)| target_data)
                 .unwrap_or(&target_data);
             if let Some(outcome) = self.apply_effect_summon_object_wild_with_focus_like_cpp(
                 spell_id,
@@ -52310,6 +52481,11 @@ impl WorldSession {
             direct_effect_trigger_spell,
         ) in direct_spell_effects_like_cpp
         {
+            let direct_effect_target_data = effect_target_data_like_cpp
+                .iter()
+                .find(|(effect_index, _)| *effect_index == direct_effect_index)
+                .map(|(_, target_data)| target_data)
+                .unwrap_or(&target_data);
             match direct_effect_type {
                 x if wow_data::spell::spell_effect_types::is_cpp_null_or_unused_noop(x) => {}
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_INSTAKILL => {
@@ -52426,7 +52602,7 @@ impl WorldSession {
                     self.apply_distract_effect_like_cpp(
                         direct_effect_base_points,
                         target_guid,
-                        &target_data,
+                        direct_effect_target_data,
                     )?;
                 }
                 x if x
@@ -52487,7 +52663,7 @@ impl WorldSession {
                 {
                     self.apply_change_raid_marker_effect_like_cpp(
                         direct_effect_base_points,
-                        &target_data,
+                        direct_effect_target_data,
                     );
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_SPELL => {
@@ -52927,23 +53103,25 @@ impl WorldSession {
             }
         }
 
-        // Set global cooldown
-        self.last_spell_cast_time = Some(Instant::now());
+        if caster_guid == player_guid {
+            // This represented cooldown state belongs to the session player.
+            // A triggered creature cast (for example innkeeper bind spell
+            // 3286) must not start or advertise a player cooldown.
+            self.last_spell_cast_time = Some(Instant::now());
+            self.last_spell_cast_time_per_spell
+                .insert(spell_id, Instant::now());
+            self.record_cast_character_spell_cooldown_like_cpp(
+                spell_id,
+                spell_info.recovery_time_ms.max(spell_info.cooldown_ms),
+            );
 
-        // Set per-spell cooldown
-        self.last_spell_cast_time_per_spell
-            .insert(spell_id, Instant::now());
-        self.record_cast_character_spell_cooldown_like_cpp(
-            spell_id,
-            spell_info.recovery_time_ms.max(spell_info.cooldown_ms),
-        );
-
-        // Notify client so action bar shows the cooldown animation
-        use wow_packet::packets::spell::CooldownEvent;
-        self.send_packet(&CooldownEvent {
-            spell_id,
-            is_pet: false,
-        });
+            // Notify the owning player so the action bar shows the cooldown.
+            use wow_packet::packets::spell::CooldownEvent;
+            self.send_packet(&CooldownEvent {
+                spell_id,
+                is_pet: false,
+            });
+        }
 
         Ok(())
     }
@@ -53469,7 +53647,7 @@ impl WorldSession {
         self.teleport_to(target_map, destination).await;
     }
 
-    fn apply_effect_bind_like_cpp(
+    async fn apply_effect_bind_like_cpp(
         &mut self,
         effect: &wow_data::SpellEffectInfo,
         caster_guid: ObjectGuid,
@@ -53488,11 +53666,7 @@ impl WorldSession {
         }
 
         let (_, current_area_id) = self.player_zone_area_like_cpp();
-        let area_id = if effect.effect_misc_value_1 != 0 {
-            u32::try_from(effect.effect_misc_value_1).unwrap_or(current_area_id)
-        } else {
-            current_area_id
-        };
+        let area_id = Self::bind_area_id_like_cpp(effect.effect_misc_value_1, current_area_id);
 
         let Some(current_position) = self.player_position_like_cpp() else {
             return;
@@ -53507,30 +53681,121 @@ impl WorldSession {
             .and_then(|map_id| u32::try_from(map_id).ok())
             .unwrap_or_else(|| u32::from(self.player_map_id_like_cpp()));
 
-        self.represented_homebind_like_cpp = Some(RepresentedHomebindLikeCpp {
-            map_id,
-            area_id,
-            position,
-        });
+        self.set_homebind_like_cpp(
+            caster_guid,
+            RepresentedHomebindLikeCpp {
+                map_id,
+                area_id,
+                position,
+            },
+        );
+    }
+
+    fn bind_area_id_like_cpp(effect_misc_value: i32, current_area_id: u32) -> u32 {
+        if effect_misc_value != 0 {
+            // C++ assigns the signed SpellEffectInfo::MiscValue directly to
+            // uint32 areaId, preserving the underlying 32-bit value.
+            effect_misc_value as u32
+        } else {
+            current_area_id
+        }
+    }
+
+    pub(crate) fn player_current_map_instanceable_like_cpp(&self) -> bool {
+        let map_id = u32::from(self.player_map_id_like_cpp());
+        self.map_store()
+            .and_then(|store| store.get(map_id))
+            .is_some_and(|entry| entry.instance_type != wow_data::map::MAP_COMMON)
+    }
+
+    fn set_homebind_like_cpp(
+        &mut self,
+        binder_id: ObjectGuid,
+        homebind: RepresentedHomebindLikeCpp,
+    ) {
+        self.represented_homebind_like_cpp = Some(homebind);
+        self.persist_player_homebind_like_cpp(homebind);
 
         self.send_packet(&wow_packet::packets::misc::BindPointUpdate {
-            x: position.x,
-            y: position.y,
-            z: position.z,
-            map_id: i32::try_from(map_id).unwrap_or(i32::MAX),
-            area_id: i32::try_from(area_id).unwrap_or(i32::MAX),
+            x: homebind.position.x,
+            y: homebind.position.y,
+            z: homebind.position.z,
+            map_id: homebind.map_id,
+            area_id: homebind.area_id,
         });
-        self.send_packet(&wow_packet::packets::misc::PlayerBound {
-            binder_id: caster_guid,
-            area_id,
+        self.send_packet_realm(&wow_packet::packets::misc::PlayerBound {
+            binder_id,
+            area_id: homebind.area_id,
         });
+    }
+
+    fn build_player_homebind_update_statement_like_cpp(
+        homebind: RepresentedHomebindLikeCpp,
+        guid_counter: u64,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::UPD_PLAYER_HOMEBIND.sql());
+        // C++ PreparedStatement::setUInt16 receives these uint32 fields and
+        // narrows modulo 2^16 at the call boundary.
+        stmt.set_u16(0, homebind.map_id as u16);
+        stmt.set_u16(1, homebind.area_id as u16);
+        stmt.set_f32(2, homebind.position.x);
+        stmt.set_f32(3, homebind.position.y);
+        stmt.set_f32(4, homebind.position.z);
+        stmt.set_f32(5, homebind.position.orientation);
+        stmt.set_u64(6, guid_counter);
+        stmt
+    }
+
+    fn persist_player_homebind_like_cpp(&mut self, homebind: RepresentedHomebindLikeCpp) {
+        let (Some(player_guid), Some(char_db)) =
+            (self.player_guid(), self.char_db().map(Arc::clone))
+        else {
+            return;
+        };
+        let guid_counter = player_guid.counter() as u64;
+        let update_stmt =
+            Self::build_player_homebind_update_statement_like_cpp(homebind, guid_counter);
+        // C++ Player::SetHomebind queues CharacterDatabase.Execute(stmt) on
+        // the ordered database worker and immediately sends the bind packets.
+        // Send it to one FIFO worker so SQL latency stays off the packet path
+        // without allowing an older bind to finish after a newer one.
+        let persistence_tx = self
+            .homebind_persistence_tx_like_cpp
+            .get_or_insert_with(|| {
+                let (tx, mut rx) =
+                    tokio::sync::mpsc::unbounded_channel::<HomebindPersistenceJobLikeCpp>();
+                tokio::spawn(async move {
+                    while let Some(job) = rx.recv().await {
+                        if let Err(error) = job.char_db.execute(&job.update_stmt).await {
+                            warn!(
+                                player_guid = job.guid_counter,
+                                %error,
+                                "failed to update represented player homebind"
+                            );
+                        }
+                    }
+                });
+                tx
+            });
+        if persistence_tx
+            .send(HomebindPersistenceJobLikeCpp {
+                char_db,
+                update_stmt,
+                guid_counter,
+            })
+            .is_err()
+        {
+            warn!(
+                player_guid = guid_counter,
+                "represented homebind database worker stopped"
+            );
+        }
     }
 
     pub(crate) fn represented_homebind_like_cpp(&self) -> Option<RepresentedHomebindLikeCpp> {
         self.represented_homebind_like_cpp
     }
 
-    #[cfg(test)]
     pub(crate) fn set_represented_homebind_like_cpp(
         &mut self,
         homebind: RepresentedHomebindLikeCpp,
@@ -53609,6 +53874,7 @@ impl WorldSession {
         );
 
         let mut target_data = target_data.clone();
+        target_data.flags |= 0x0000_0040; // C++ TARGET_FLAG_DEST_LOCATION
         target_data.dst_location = Some(wow_packet::packets::spell::TargetLocation {
             transport: ObjectGuid::EMPTY,
             position: focus_position,
@@ -53663,8 +53929,136 @@ impl WorldSession {
             .map(|dynamic_object| dynamic_object.world().position())
     }
 
+    fn represented_home_destination_target_data_like_cpp(
+        &self,
+        caster_guid: ObjectGuid,
+        effect: &wow_data::SpellEffectInfo,
+        target_data: &SpellTargetData,
+    ) -> Option<SpellTargetData> {
+        if !matches!(
+            effect.implicit_target_1,
+            wow_data::spell::implicit_targets::TARGET_DEST_HOME
+        ) && !matches!(
+            effect.implicit_target_2,
+            wow_data::spell::implicit_targets::TARGET_DEST_HOME
+        ) {
+            return None;
+        }
+
+        // C++ starts `SelectImplicitCasterDestTargets` from
+        // `SpellDestination(*m_caster)`, then replaces it with `m_homebind`
+        // only when the effective caster is a Player. A triggered creature
+        // cast must therefore keep the creature's own position rather than
+        // borrowing the logged-in session player's homebind.
+        let (map_id, transport, position) = if Some(caster_guid) == self.player_guid() {
+            let homebind = self.represented_homebind_like_cpp()?;
+            (homebind.map_id, ObjectGuid::EMPTY, homebind.position)
+        } else {
+            self.represented_effective_caster_destination_like_cpp(caster_guid)?
+        };
+        let mut target_data = target_data.clone();
+        target_data.flags |= 0x0000_0040; // C++ TARGET_FLAG_DEST_LOCATION
+        target_data.dst_location = Some(wow_packet::packets::spell::TargetLocation {
+            transport,
+            position,
+        });
+        target_data.map_id = Some(i32::try_from(map_id).unwrap_or(i32::MAX));
+        Some(target_data)
+    }
+
+    fn represented_effective_caster_destination_like_cpp(
+        &self,
+        caster_guid: ObjectGuid,
+    ) -> Option<(u32, ObjectGuid, Position)> {
+        let map_key = self
+            .current_canonical_player_map_key_like_cpp()
+            .unwrap_or_else(|| wow_map::MapKey::new(u32::from(self.player_map_id_like_cpp()), 0));
+        let legacy_map_id = u16::try_from(map_key.map_id).ok()?;
+        let canonical_destination = self.canonical_map_manager.as_ref().and_then(|manager| {
+            let manager = manager.lock().ok()?;
+            let map = manager.find_map(map_key.map_id, map_key.instance_id)?;
+            let map = map.map();
+            let (world_position, vehicle_base_guid) = if Some(caster_guid) == self.player_guid() {
+                let player = map.get_typed_player(caster_guid)?;
+                (
+                    player.unit().world().position(),
+                    player.unit().subsystems().vehicle.vehicle_guid,
+                )
+            } else {
+                let creature = map.get_typed_creature(caster_guid)?;
+                (
+                    creature.unit().world().position(),
+                    creature.unit().subsystems().vehicle.vehicle_guid,
+                )
+            };
+            if let Some(vehicle_base_guid) = vehicle_base_guid {
+                let vehicle_base_position = map
+                    .get_typed_player(vehicle_base_guid)
+                    .map(|player| player.unit().world().position())
+                    .or_else(|| {
+                        map.get_typed_creature(vehicle_base_guid)
+                            .map(|creature| creature.unit().world().position())
+                    })?;
+                Some((
+                    vehicle_base_guid,
+                    wow_entities::calculate_passenger_offset(world_position, vehicle_base_position),
+                ))
+            } else if let Some(transport) =
+                map.get_typed_transport_for_passenger_like_cpp(caster_guid)
+            {
+                Some((
+                    transport.world().guid(),
+                    transport.calculate_passenger_offset(world_position),
+                ))
+            } else {
+                Some((ObjectGuid::EMPTY, world_position))
+            }
+        });
+        let (transport, position) = canonical_destination.or_else(|| {
+            if Some(caster_guid) == self.player_guid() {
+                self.player_position_like_cpp()
+                    .map(|position| (ObjectGuid::EMPTY, position))
+            } else {
+                self.map_manager.as_ref().and_then(|manager| {
+                    manager
+                        .read()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner())
+                        .find_creature(legacy_map_id, map_key.instance_id, caster_guid)
+                        .map(|creature| (ObjectGuid::EMPTY, creature.position()))
+                })
+            }
+        })?;
+        Some((map_key.map_id, transport, position))
+    }
+
+    fn represented_transport_destination_world_position_like_cpp(
+        &self,
+        transport_guid: ObjectGuid,
+        transport_offset: Position,
+    ) -> Option<Position> {
+        let map_key = self.current_canonical_player_map_key_like_cpp()?;
+        let manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
+        let map = manager.find_map(map_key.map_id, map_key.instance_id)?;
+        let map = map.map();
+        if let Some(transport) = map.get_typed_transport_like_cpp(transport_guid) {
+            return Some(transport.calculate_passenger_position(transport_offset));
+        }
+        let vehicle_base_position = map
+            .get_typed_player(transport_guid)
+            .map(|player| player.unit().world().position())
+            .or_else(|| {
+                map.get_typed_creature(transport_guid)
+                    .map(|creature| creature.unit().world().position())
+            })?;
+        Some(wow_entities::calculate_passenger_position(
+            transport_offset,
+            vehicle_base_position,
+        ))
+    }
+
     fn represented_db_caster_destination_target_data_like_cpp(
         &self,
+        caster_guid: ObjectGuid,
         spell_info: &wow_data::SpellInfo,
         effect: &wow_data::SpellEffectInfo,
         target_data: &SpellTargetData,
@@ -53693,23 +54087,29 @@ impl WorldSession {
                     | wow_data::spell::spell_effect_types::SPELL_EFFECT_BIND
             )
         });
-        let (position, map_id) = if let Some(target_position) = target_position {
+        // C++ initializes SpellDestination from *m_caster before applying the
+        // optional DB/object overrides. This must use the effective caster,
+        // including triggered creature casts and transport offsets.
+        let (caster_map_id, caster_transport, caster_position) =
+            self.represented_effective_caster_destination_like_cpp(caster_guid)?;
+        let (position, map_id, transport) = if let Some(target_position) = target_position {
             if cross_map_allowed {
                 (
                     target_position.position,
                     Some(i32::from(target_position.target_map_id)),
+                    ObjectGuid::EMPTY,
                 )
-            } else if target_position.target_map_id == self.player_map_id_like_cpp() {
-                (target_position.position, None)
+            } else if u32::from(target_position.target_map_id) == caster_map_id {
+                (target_position.position, None, ObjectGuid::EMPTY)
             } else {
-                (self.player_position_like_cpp()?, None)
+                (caster_position, None, caster_transport)
             }
         } else if let Some(target_position) =
             self.represented_object_target_position_like_cpp(target_data)
         {
-            (target_position, None)
+            (target_position, None, ObjectGuid::EMPTY)
         } else {
-            (self.player_position_like_cpp()?, None)
+            (caster_position, None, caster_transport)
         };
         let position = self.apply_spell_destination_facing_override_like_cpp(
             spell_info.spell_id,
@@ -53718,8 +54118,9 @@ impl WorldSession {
         );
 
         let mut target_data = target_data.clone();
+        target_data.flags |= 0x0000_0040; // C++ TARGET_FLAG_DEST_LOCATION
         target_data.dst_location = Some(wow_packet::packets::spell::TargetLocation {
-            transport: ObjectGuid::EMPTY,
+            transport,
             position,
         });
         target_data.map_id = map_id;
@@ -53800,6 +54201,7 @@ impl WorldSession {
             self.apply_spell_destination_facing_override_like_cpp(spell_id, effect, randomized)
         };
         let mut target_data = target_data.clone();
+        target_data.flags |= 0x0000_0040; // C++ TARGET_FLAG_DEST_LOCATION
         target_data.dst_location = Some(wow_packet::packets::spell::TargetLocation {
             transport: ObjectGuid::EMPTY,
             position,
@@ -71683,6 +72085,474 @@ mod tests {
         assert_eq!(session.state, SessionState::Transfer);
     }
 
+    fn decode_spell_go_target_data_like_cpp(
+        bytes: &[u8],
+        expected_spell_id: i32,
+    ) -> SpellTargetData {
+        let mut spell_go = WorldPacket::from_bytes(bytes);
+        assert_eq!(
+            spell_go.read_uint16().expect("SpellGo opcode"),
+            ServerOpcodes::SpellGo as u16
+        );
+        for label in ["caster", "caster unit", "cast id", "original cast id"] {
+            spell_go.read_packed_guid().expect(label);
+        }
+        assert_eq!(spell_go.read_int32().expect("spell id"), expected_spell_id);
+        wow_packet::packets::spell::SpellCastVisual::read(&mut spell_go).expect("spell visual");
+        spell_go.read_uint32().expect("cast flags");
+        spell_go.read_uint32().expect("cast flags ex");
+        spell_go.read_uint32().expect("cast time");
+        spell_go.read_int32().expect("missile travel time");
+        spell_go.read_float().expect("missile pitch");
+        spell_go.read_uint8().expect("destination cast index");
+        spell_go.read_uint32().expect("immunity school");
+        spell_go.read_uint32().expect("immunity value");
+        spell_go.read_uint32().expect("heal prediction points");
+        spell_go.read_uint8().expect("heal prediction type");
+        spell_go.read_packed_guid().expect("heal prediction beacon");
+        spell_go.read_bits(16).expect("hit target count");
+        spell_go.read_bits(16).expect("miss target count");
+        spell_go.read_bits(16).expect("miss status count");
+        spell_go.read_bits(9).expect("remaining power count");
+        spell_go.read_bit().expect("remaining runes presence");
+        spell_go.read_bits(16).expect("target point count");
+        spell_go.read_bit().expect("ammo display presence");
+        spell_go.read_bit().expect("ammo inventory presence");
+        SpellTargetData::read(&mut spell_go).expect("SpellGo target data")
+    }
+
+    #[tokio::test]
+    async fn teleport_units_target_dest_home_uses_represented_homebind_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 8690_i32;
+        let player_guid = ObjectGuid::create_player(1, 7040);
+        let player_position = Position::new(300.0, 400.0, 60.0, 0.5);
+        let home_position = Position::new(40.0, 50.0, 60.0, 1.25);
+        let canonical = shared_canonical_map_manager();
+        let hearth_effect = wow_data::SpellEffectInfo {
+            effect_index: 0,
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS,
+            implicit_target_1: wow_data::spell::implicit_targets::TARGET_DEST_HOME,
+            ..Default::default()
+        };
+        let spell_info = teleport_units_spell_info_like_cpp(spell_id, vec![hearth_effect]);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "HearthHome".to_string(),
+            player_position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
+            map_id: 1,
+            area_id: 1519,
+            position: home_position,
+        });
+        add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(spell_id, spell_info);
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 8690,
+                    script_visual_id: 0,
+                },
+                SpellTargetData {
+                    flags: 0x0000_0040,
+                    dst_location: Some(wow_packet::packets::spell::TargetLocation {
+                        transport: ObjectGuid::EMPTY,
+                        position: Position::new(999.0, 998.0, 997.0, 0.0),
+                    }),
+                    map_id: Some(571),
+                    ..SpellTargetData::default()
+                },
+            )
+            .await
+            .expect("TARGET_DEST_HOME hearthstone teleport should execute");
+
+        let bytes = send_rx.try_recv().expect("hearthstone SpellGo");
+        let packet_target = decode_spell_go_target_data_like_cpp(&bytes, spell_id);
+        assert_ne!(packet_target.flags & 0x0000_0040, 0);
+        assert_eq!(
+            packet_target
+                .dst_location
+                .expect("resolved home destination")
+                .position,
+            Position::new(home_position.x, home_position.y, home_position.z, 0.0),
+            "C++ SelectSpellTargets resolves TARGET_DEST_HOME before SpellGo"
+        );
+        assert_eq!(packet_target.map_id, None);
+        assert_eq!(session.pending_teleport, Some((1, home_position)));
+        assert_eq!(session.state, SessionState::Transfer);
+    }
+
+    #[tokio::test]
+    async fn creature_cast_target_dest_home_keeps_creature_destination_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 86_902_i32;
+        let player_guid = ObjectGuid::create_player(1, 7043);
+        let creature_guid = test_creature_guid(7043);
+        let vehicle_base_guid = test_vehicle_guid(7044);
+        let transport_guid =
+            ObjectGuid::create_transport(wow_core::guid::HighGuid::Transport, 7043);
+        let instance_id = 42_u32;
+        let player_position = Position::new(10.0, 20.0, 30.0, 0.5);
+        let creature_position = Position::new(70.0, 80.0, 90.0, 1.5);
+        let vehicle_base_position = Position::new(60.0, 65.0, 75.0, 0.75);
+        let vehicle_offset =
+            wow_entities::calculate_passenger_offset(creature_position, vehicle_base_position);
+        let transport_position = Position::new(50.0, 60.0, 70.0, 0.5);
+        let stale_instance_copy_position = Position::new(270.0, 280.0, 290.0, 2.0);
+        let base_map_copy_position = Position::new(170.0, 180.0, 190.0, 2.5);
+        let home_position = Position::new(40.0, 50.0, 60.0, 1.25);
+        let home_effect = wow_data::SpellEffectInfo {
+            effect_index: 0,
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS,
+            implicit_target_1: wow_data::spell::implicit_targets::TARGET_DEST_HOME,
+            ..Default::default()
+        };
+
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "CreatureHomeCaster".to_string(),
+            player_position,
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
+            map_id: 1,
+            area_id: 1519,
+            position: home_position,
+        });
+        let canonical = shared_canonical_map_manager();
+        add_canonical_test_player_on_map(&canonical, player_guid, player_position, 0, instance_id);
+        add_canonical_test_creature_on_map(
+            &canonical,
+            creature_guid,
+            9001,
+            creature_position,
+            0,
+            0,
+            instance_id,
+        );
+        add_canonical_test_creature_on_map(
+            &canonical,
+            vehicle_base_guid,
+            9002,
+            vehicle_base_position,
+            0,
+            0,
+            instance_id,
+        );
+        {
+            canonical
+                .lock()
+                .unwrap()
+                .find_map_mut(0, instance_id)
+                .unwrap()
+                .map_mut()
+                .get_typed_creature_mut(creature_guid)
+                .unwrap()
+                .unit_mut()
+                .subsystems_mut()
+                .vehicle
+                .enter_vehicle(vehicle_base_guid, Some(0));
+            let mut transport = wow_entities::Transport::new();
+            transport.world_mut().object_mut().create(transport_guid);
+            transport.world_mut().set_map(0, instance_id).unwrap();
+            transport.world_mut().relocate(transport_position);
+            transport.world_mut().object_mut().add_to_world();
+            assert!(transport.add_passenger(creature_guid));
+            canonical
+                .lock()
+                .unwrap()
+                .find_map_mut(0, instance_id)
+                .unwrap()
+                .map_mut()
+                .insert_map_object_record(
+                    wow_entities::MapObjectRecord::new_transport(transport).unwrap(),
+                )
+                .unwrap();
+        }
+        session.set_canonical_map_manager(canonical);
+        let explicit_transport_offset = Position::new(5.0, -3.0, 2.0, 0.25);
+        assert_eq!(
+            session.represented_transport_destination_world_position_like_cpp(
+                transport_guid,
+                explicit_transport_offset,
+            ),
+            Some(wow_entities::calculate_passenger_position(
+                explicit_transport_offset,
+                transport_position,
+            )),
+            "an explicit transported destination resolves its own offset, not the caster position"
+        );
+        let manager = shared_map_manager();
+        {
+            let mut manager_guard = manager.write().unwrap();
+            for (copy_instance_id, position) in [
+                (0_u32, base_map_copy_position),
+                (instance_id, stale_instance_copy_position),
+            ] {
+                let (grid_x, grid_y) =
+                    crate::map_manager::world_to_grid_coords(position.x, position.y);
+                assert!(manager_guard.add_creature(
+                    0,
+                    copy_instance_id,
+                    grid_x,
+                    grid_y,
+                    crate::map_manager::WorldCreature::new(
+                        creature_guid,
+                        9001,
+                        position,
+                        100,
+                        2,
+                        3,
+                        5,
+                        20.0,
+                        100,
+                        14,
+                        0,
+                        0,
+                    ),
+                ));
+            }
+        }
+        session.set_map_manager(manager);
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            teleport_units_spell_info_like_cpp(spell_id, vec![home_effect]),
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell_with_visual_and_target_data_with_metadata(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual::default(),
+                SpellTargetData::default(),
+                SpellCastMetadata {
+                    caster_guid_override: Some(creature_guid),
+                    ..SpellCastMetadata::default()
+                },
+            )
+            .await
+            .expect("creature TARGET_DEST_HOME cast should execute");
+
+        let bytes = send_rx.try_recv().expect("creature-cast SpellGo");
+        let packet_target = decode_spell_go_target_data_like_cpp(&bytes, spell_id);
+        let packet_destination = packet_target
+            .dst_location
+            .expect("creature's initial destination")
+            .clone();
+        assert_eq!(
+            packet_destination.transport, vehicle_base_guid,
+            "C++ Unit::GetTransGUID prioritizes the vehicle base over an ordinary transport"
+        );
+        assert_eq!(
+            packet_destination.position,
+            Position::new(vehicle_offset.x, vehicle_offset.y, vehicle_offset.z, 0.0),
+            "C++ SpellCastTargets::Write serializes the caster vehicle offset"
+        );
+        assert_ne!(
+            packet_destination.position,
+            Position::new(home_position.x, home_position.y, home_position.z, 0.0)
+        );
+        assert_ne!(
+            packet_destination.position,
+            Position::new(
+                stale_instance_copy_position.x,
+                stale_instance_copy_position.y,
+                stale_instance_copy_position.z,
+                0.0
+            ),
+            "the canonical caster validated by the interaction path wins over a stale legacy copy"
+        );
+        assert_ne!(
+            packet_destination.position,
+            Position::new(
+                base_map_copy_position.x,
+                base_map_copy_position.y,
+                base_map_copy_position.z,
+                0.0
+            ),
+            "the same runtime GUID in instance 0 must not shadow the effective caster"
+        );
+        assert_eq!(
+            session.pending_teleport_save_destination_like_cpp(),
+            Some((0_u16, creature_position)),
+            "effect execution keeps the global SpellDestination position"
+        );
+    }
+
+    #[tokio::test]
+    async fn implicit_destination_selection_uses_cpp_effect_order_before_spell_go() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 86_901_i32;
+        let player_guid = ObjectGuid::create_player(1, 7042);
+        let player_position = Position::new(310.0, 410.0, 62.0, 0.5);
+        let home_position = Position::new(40.0, 50.0, 60.0, 1.25);
+        let db_destination = Position::new(70.0, 80.0, 90.0, 2.5);
+        let canonical = shared_canonical_map_manager();
+        let home_effect = wow_data::SpellEffectInfo {
+            effect_index: 0,
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_BIND,
+            implicit_target_1: wow_data::spell::implicit_targets::TARGET_DEST_HOME,
+            ..Default::default()
+        };
+        let db_effect = wow_data::SpellEffectInfo {
+            effect_index: 1,
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS,
+            implicit_target_1: wow_data::spell::implicit_targets::TARGET_DEST_DB,
+            ..Default::default()
+        };
+        let empty_home_effect = wow_data::SpellEffectInfo {
+            effect_index: 2,
+            effect: 0,
+            implicit_target_1: wow_data::spell::implicit_targets::TARGET_DEST_HOME,
+            ..Default::default()
+        };
+        let spell_info = teleport_units_spell_info_like_cpp(
+            spell_id,
+            vec![home_effect, db_effect.clone(), empty_home_effect],
+        );
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "OrderedDestination".to_string(),
+            player_position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        session.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
+            map_id: 1,
+            area_id: 1519,
+            position: home_position,
+        });
+        add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(spell_id, spell_info.clone());
+        session.set_spell_store(Arc::new(spell_store));
+        let mut target_spell_store = wow_data::SpellStore::new();
+        target_spell_store.insert(spell_id, spell_info);
+        session.set_spell_target_position_store(Arc::new(
+            wow_data::SpellTargetPositionStoreLikeCpp::from_rows_like_cpp(
+                [wow_data::SpellTargetPositionRowLikeCpp {
+                    spell_id: spell_id as u32,
+                    effect_index: db_effect.effect_index,
+                    target_map_id: 1,
+                    x: db_destination.x,
+                    y: db_destination.y,
+                    z: db_destination.z,
+                    orientation: Some(db_destination.orientation),
+                }],
+                &target_spell_store,
+                |map_id| matches!(map_id, 1 | 571),
+            ),
+        ));
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual::default(),
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("ordered HOME then DB teleport should execute");
+
+        let bytes = send_rx.try_recv().expect("ordered destination SpellGo");
+        let packet_target = decode_spell_go_target_data_like_cpp(&bytes, spell_id);
+        assert_ne!(packet_target.flags & 0x0000_0040, 0);
+        assert_eq!(
+            packet_target
+                .dst_location
+                .expect("resolved final DB destination")
+                .position,
+            Position::new(db_destination.x, db_destination.y, db_destination.z, 0.0),
+            "later TARGET_DEST_DB replaces earlier TARGET_DEST_HOME like C++ ModDst"
+        );
+        assert_eq!(packet_target.map_id, None);
+        assert_eq!(
+            session
+                .represented_homebind_like_cpp()
+                .expect("bind effect home snapshot")
+                .position,
+            home_position,
+            "effect 0 BIND keeps its HOME snapshot while later TELEPORT uses DB"
+        );
+        assert_eq!(session.pending_teleport, Some((1, db_destination)));
+    }
+
+    #[tokio::test]
+    async fn teleport_units_target_dest_home_without_homebind_is_noop_boundary_like_cpp() {
+        let (mut session, _, _send_rx) = make_session();
+        let spell_id = 8690_i32;
+        let player_guid = ObjectGuid::create_player(1, 7041);
+        let player_position = Position::new(301.0, 401.0, 61.0, 0.5);
+        let canonical = shared_canonical_map_manager();
+        let hearth_effect = wow_data::SpellEffectInfo {
+            effect_index: 0,
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_TELEPORT_UNITS,
+            implicit_target_1: wow_data::spell::implicit_targets::TARGET_DEST_HOME,
+            ..Default::default()
+        };
+        let spell_info = teleport_units_spell_info_like_cpp(spell_id, vec![hearth_effect]);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "HearthNoHome".to_string(),
+            player_position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(spell_id, spell_info);
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell_with_visual_and_target_data(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual {
+                    spell_visual_id: 8690,
+                    script_visual_id: 0,
+                },
+                SpellTargetData::default(),
+            )
+            .await
+            .expect("missing represented homebind keeps current bounded no-op");
+
+        assert_eq!(session.pending_teleport, None);
+        assert_ne!(session.state, SessionState::Transfer);
+    }
+
     #[tokio::test]
     async fn teleport_units_without_destination_is_noop_like_cpp() {
         let (mut session, _, _send_rx) = make_session();
@@ -71891,6 +72761,17 @@ mod tests {
         let opcodes = drain_server_opcodes(&send_rx);
         assert!(opcodes.contains(&ServerOpcodes::BindPointUpdate));
         assert!(opcodes.contains(&ServerOpcodes::PlayerBound));
+    }
+
+    #[test]
+    fn bind_misc_area_preserves_cpp_uint32_conversion() {
+        assert_eq!(WorldSession::bind_area_id_like_cpp(777, 34), 777);
+        assert_eq!(WorldSession::bind_area_id_like_cpp(0, 34), 34);
+        assert_eq!(
+            WorldSession::bind_area_id_like_cpp(-1, 34),
+            u32::MAX,
+            "C++ assignment from int32 MiscValue to uint32 areaId preserves all 32 bits"
+        );
     }
 
     #[tokio::test]
@@ -72195,6 +73076,86 @@ mod tests {
         assert_eq!(damage_log.read_int32().expect("resisted"), 0);
         assert_eq!(damage_log.read_int32().expect("absorbed"), 0);
         assert!(!damage_log.has_bit().expect("has log data"));
+    }
+
+    #[tokio::test]
+    async fn creature_cast_db_destination_without_row_keeps_effective_caster_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 86_903_i32;
+        let template_entry = 9021_u32;
+        let player_guid = ObjectGuid::create_player(1, 7021);
+        let creature_guid = test_creature_guid(7022);
+        let player_position = Position::new(240.0, 340.0, 48.0, 0.25);
+        let creature_position = Position::new(246.0, 344.0, 49.0, 1.75);
+        let canonical = shared_canonical_map_manager();
+        let mut summon_effect =
+            summon_object_wild_effect_like_cpp(i32::try_from(template_entry).unwrap());
+        summon_effect.implicit_target_1 = wow_data::spell::implicit_targets::TARGET_DEST_DB;
+        let spell_info = gameobject_summon_spell_info_like_cpp(spell_id, 0, vec![summon_effect]);
+
+        configure_gameobject_summon_live_session_like_cpp(
+            &mut session,
+            &canonical,
+            player_guid,
+            player_position,
+            summon_go_template_store_like_cpp(template_entry),
+            spell_info,
+        );
+        add_canonical_test_creature_on_map(
+            &canonical,
+            creature_guid,
+            9022,
+            creature_position,
+            0,
+            571,
+            0,
+        );
+
+        session
+            .execute_spell_with_visual_and_target_data_with_metadata(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual::default(),
+                SpellTargetData::default(),
+                SpellCastMetadata {
+                    caster_guid_override: Some(creature_guid),
+                    ..SpellCastMetadata::default()
+                },
+            )
+            .await
+            .expect("creature TARGET_DEST_DB cast should execute without a DB row");
+
+        let manager = canonical.lock().unwrap();
+        let managed = manager.find_map(571, 0).expect("canonical map");
+        let summoned = session
+            .client_visible_guids_like_cpp
+            .iter()
+            .copied()
+            .filter(ObjectGuid::is_game_object)
+            .find_map(|guid| managed.map().get_typed_game_object(guid))
+            .expect("creature-cast summon should be visible");
+        assert_eq!(
+            summoned.world().position(),
+            creature_position,
+            "C++ TARGET_DEST_DB starts from SpellDestination(*m_caster), not the logged-in player"
+        );
+        drop(manager);
+
+        let bytes = send_rx.try_recv().expect("creature-cast SpellGo");
+        let packet_target = decode_spell_go_target_data_like_cpp(&bytes, spell_id);
+        assert_eq!(
+            packet_target
+                .dst_location
+                .expect("effective caster destination")
+                .position,
+            Position::new(
+                creature_position.x,
+                creature_position.y,
+                creature_position.z,
+                0.0,
+            )
+        );
     }
 
     #[tokio::test]
@@ -104242,6 +105203,49 @@ mod tests {
         assert!(
             matches!(stmt.params()[1], wow_database::SqlParam::U64(v) if v == guid.counter() as u64)
         );
+    }
+
+    #[test]
+    fn player_homebind_update_statement_matches_cpp_bind_order() {
+        let guid = ObjectGuid::create_player(1, 5007);
+        let homebind = RepresentedHomebindLikeCpp {
+            map_id: 571,
+            area_id: 495,
+            position: Position::new(11.0, 22.0, 33.0, 1.5),
+        };
+
+        let stmt = WorldSession::build_player_homebind_update_statement_like_cpp(
+            homebind,
+            guid.counter() as u64,
+        );
+
+        assert_eq!(stmt.sql(), CharStatements::UPD_PLAYER_HOMEBIND.sql());
+        assert!(matches!(stmt.params()[0], wow_database::SqlParam::U16(571)));
+        assert!(matches!(stmt.params()[1], wow_database::SqlParam::U16(495)));
+        assert!(matches!(stmt.params()[2], wow_database::SqlParam::F32(v) if v == 11.0));
+        assert!(matches!(stmt.params()[3], wow_database::SqlParam::F32(v) if v == 22.0));
+        assert!(matches!(stmt.params()[4], wow_database::SqlParam::F32(v) if v == 33.0));
+        assert!(matches!(stmt.params()[5], wow_database::SqlParam::F32(v) if v == 1.5));
+        assert!(
+            matches!(stmt.params()[6], wow_database::SqlParam::U64(v) if v == guid.counter() as u64)
+        );
+
+        let narrowed = WorldSession::build_player_homebind_update_statement_like_cpp(
+            RepresentedHomebindLikeCpp {
+                map_id: u32::MAX - 2,
+                area_id: u32::MAX - 1,
+                position: Position::ZERO,
+            },
+            guid.counter() as u64,
+        );
+        assert!(matches!(
+            narrowed.params()[0],
+            wow_database::SqlParam::U16(65_533)
+        ));
+        assert!(matches!(
+            narrowed.params()[1],
+            wow_database::SqlParam::U16(65_534)
+        ));
     }
 
     #[test]
