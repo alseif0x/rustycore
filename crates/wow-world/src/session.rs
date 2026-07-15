@@ -1669,6 +1669,12 @@ pub(crate) struct RepresentedHomebindLikeCpp {
     pub position: wow_core::Position,
 }
 
+struct HomebindPersistenceJobLikeCpp {
+    char_db: Arc<CharacterDatabase>,
+    update_stmt: PreparedStatement,
+    guid_counter: u64,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct RepresentedResurrectionRequestLikeCpp {
     pub resurrecter: wow_core::ObjectGuid,
@@ -3914,6 +3920,11 @@ pub struct WorldSession {
 
     // Character database
     char_db: Option<Arc<CharacterDatabase>>,
+    // FIFO sender for C++ CharacterDatabase.Execute-style detached homebind
+    // writes. Its single worker drains queued jobs after session teardown and
+    // preserves call order.
+    homebind_persistence_tx_like_cpp:
+        Option<tokio::sync::mpsc::UnboundedSender<HomebindPersistenceJobLikeCpp>>,
 
     // Login database (for realmcharacters updates)
     login_db: Option<Arc<LoginDatabase>>,
@@ -5954,6 +5965,7 @@ impl WorldSession {
             represented_runtime_rng_like_cpp: StdRng::from_entropy(),
             dispatch_table: build_dispatch_table(),
             char_db: None,
+            homebind_persistence_tx_like_cpp: None,
             login_db: None,
             world_db: None,
             bank_bag_slot_prices_store: None,
@@ -53657,8 +53669,7 @@ impl WorldSession {
                 area_id,
                 position,
             },
-        )
-        .await;
+        );
     }
 
     pub(crate) fn player_current_map_instanceable_like_cpp(&self) -> bool {
@@ -53668,13 +53679,13 @@ impl WorldSession {
             .is_some_and(|entry| entry.instance_type != wow_data::map::MAP_COMMON)
     }
 
-    async fn set_homebind_like_cpp(
+    fn set_homebind_like_cpp(
         &mut self,
         binder_id: ObjectGuid,
         homebind: RepresentedHomebindLikeCpp,
     ) {
         self.represented_homebind_like_cpp = Some(homebind);
-        self.persist_player_homebind_like_cpp(homebind).await;
+        self.persist_player_homebind_like_cpp(homebind);
 
         self.send_packet(&wow_packet::packets::misc::BindPointUpdate {
             x: homebind.position.x,
@@ -53704,7 +53715,7 @@ impl WorldSession {
         stmt
     }
 
-    async fn persist_player_homebind_like_cpp(&self, homebind: RepresentedHomebindLikeCpp) {
+    fn persist_player_homebind_like_cpp(&mut self, homebind: RepresentedHomebindLikeCpp) {
         let (Some(player_guid), Some(char_db)) =
             (self.player_guid(), self.char_db().map(Arc::clone))
         else {
@@ -53713,11 +53724,39 @@ impl WorldSession {
         let guid_counter = player_guid.counter() as u64;
         let update_stmt =
             Self::build_player_homebind_update_statement_like_cpp(homebind, guid_counter);
-        if let Err(error) = char_db.execute(&update_stmt).await {
+        // C++ Player::SetHomebind queues CharacterDatabase.Execute(stmt) on
+        // the ordered database worker and immediately sends the bind packets.
+        // Send it to one FIFO worker so SQL latency stays off the packet path
+        // without allowing an older bind to finish after a newer one.
+        let persistence_tx = self
+            .homebind_persistence_tx_like_cpp
+            .get_or_insert_with(|| {
+                let (tx, mut rx) =
+                    tokio::sync::mpsc::unbounded_channel::<HomebindPersistenceJobLikeCpp>();
+                tokio::spawn(async move {
+                    while let Some(job) = rx.recv().await {
+                        if let Err(error) = job.char_db.execute(&job.update_stmt).await {
+                            warn!(
+                                player_guid = job.guid_counter,
+                                %error,
+                                "failed to update represented player homebind"
+                            );
+                        }
+                    }
+                });
+                tx
+            });
+        if persistence_tx
+            .send(HomebindPersistenceJobLikeCpp {
+                char_db,
+                update_stmt,
+                guid_counter,
+            })
+            .is_err()
+        {
             warn!(
                 player_guid = guid_counter,
-                %error,
-                "failed to update represented player homebind"
+                "represented homebind database worker stopped"
             );
         }
     }

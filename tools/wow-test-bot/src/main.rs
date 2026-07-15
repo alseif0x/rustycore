@@ -3632,10 +3632,9 @@ async fn run_homebind_smoke_phase(
         let expected_homebind = bind_packet_homebind
             .ok_or_else(|| anyhow!("BindPointUpdate payload could not be decoded"))?;
         let bot_for_db = bot.clone();
+        let persistence_timeout = Duration::from_secs(options.timeout_secs.clamp(1, 10));
         result.homebind_db_persisted = tokio::task::spawn_blocking(move || {
-            Ok::<_, anyhow::Error>(
-                load_homebind_row(&bot_for_db)?.as_ref() == Some(&expected_homebind),
-            )
+            wait_for_homebind_row(&bot_for_db, &expected_homebind, persistence_timeout)
         })
         .await
         .map_err(|e| anyhow!("Homebind DB verification worker join failed: {e}"))??;
@@ -5293,6 +5292,23 @@ fn load_homebind_row(bot: &config::BotConfig) -> Result<Option<HomebindRowSnapsh
             orientation,
         },
     ))
+}
+
+fn wait_for_homebind_row(
+    bot: &config::BotConfig,
+    expected: &HomebindRowSnapshot,
+    timeout: Duration,
+) -> Result<bool> {
+    let deadline = std::time::Instant::now() + timeout;
+    loop {
+        if load_homebind_row(bot)?.as_ref() == Some(expected) {
+            return Ok(true);
+        }
+        if std::time::Instant::now() >= deadline {
+            return Ok(false);
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
 }
 
 fn cleanup_homebind_smoke_fixture(
