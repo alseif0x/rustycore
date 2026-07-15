@@ -17096,7 +17096,7 @@ mod tests {
         assert_eq!(bind_update.x, homebind.position.x);
         assert_eq!(bind_update.y, homebind.position.y);
         assert_eq!(bind_update.z, homebind.position.z);
-        assert_eq!(bind_update.map_id, homebind.map_id as i32);
+        assert_eq!(bind_update.map_id, homebind.map_id);
         assert_eq!(bind_update.area_id, 12);
 
         assert_eq!(
