@@ -73106,8 +73106,8 @@ mod tests {
             creature_guid,
             9022,
             creature_position,
-            571,
             0,
+            571,
             0,
         );
 

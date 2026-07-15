@@ -19631,6 +19631,32 @@ mod tests {
         (session, send_rx, canonical)
     }
 
+    fn insert_bank_test_player_in_world(
+        session: &WorldSession,
+        canonical: &Arc<std::sync::Mutex<wow_map::MapManager>>,
+    ) {
+        let player_guid = session.player_guid().expect("player guid");
+        let mut player = wow_entities::Player::new(Some(1), false);
+        player
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .create(player_guid);
+        player.unit_mut().world_mut().set_map(571, 0).unwrap();
+        player
+            .unit_mut()
+            .world_mut()
+            .relocate(Position::new(0.0, 0.0, 0.0, 0.0));
+        player.unit_mut().world_mut().object_mut().add_to_world();
+        canonical
+            .lock()
+            .unwrap()
+            .create_world_map(571, 0)
+            .map_mut()
+            .insert_map_object_record(wow_entities::MapObjectRecord::new_player(player).unwrap())
+            .unwrap();
+    }
+
     fn install_bind_spell_fixture(session: &mut WorldSession) {
         let mut spell_store = wow_data::SpellStore::new();
         spell_store.insert(
@@ -20468,6 +20494,7 @@ mod tests {
     #[tokio::test]
     async fn binder_activate_sets_current_homebind_and_sends_bind_packets_like_cpp() {
         let (mut session, instance_rx, canonical) = make_bank_slot_session(16);
+        insert_bank_test_player_in_world(&session, &canonical);
         let (realm_tx, realm_rx) = flume::bounded::<Vec<u8>>(16);
         session.install_realm_send_channel_for_test(realm_tx);
         let innkeeper = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 30);
@@ -20543,6 +20570,7 @@ mod tests {
     #[tokio::test]
     async fn binder_activate_fans_spell_go_to_visible_nearby_observers_like_cpp() {
         let (mut session, sender_rx, canonical) = make_bank_slot_session(16);
+        insert_bank_test_player_in_world(&session, &canonical);
         let innkeeper = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 32);
         insert_banker_creature(&canonical, innkeeper, NPCFlags1::INNKEEPER.bits());
         session.set_player_zone_area_like_cpp(12, 34);
@@ -20693,6 +20721,7 @@ mod tests {
     #[tokio::test]
     async fn binder_activate_rejects_non_innkeeper_like_cpp() {
         let (mut session, send_rx, canonical) = make_bank_slot_session(1);
+        insert_bank_test_player_in_world(&session, &canonical);
         let creature = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 31);
         insert_banker_creature(&canonical, creature, NPCFlags1::BANKER.bits());
         session.set_player_zone_area_like_cpp(12, 34);
@@ -20708,6 +20737,7 @@ mod tests {
     #[tokio::test]
     async fn binder_activate_rejects_player_outside_world_like_cpp() {
         let (mut session, send_rx, canonical) = make_bank_slot_session(1);
+        insert_bank_test_player_in_world(&session, &canonical);
         let innkeeper = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 33);
         insert_banker_creature(&canonical, innkeeper, NPCFlags1::INNKEEPER.bits());
         session.set_player_zone_area_like_cpp(12, 34);
@@ -20740,6 +20770,7 @@ mod tests {
     #[tokio::test]
     async fn binder_activate_rejects_player_missing_from_canonical_world_like_cpp() {
         let (mut session, send_rx, canonical) = make_bank_slot_session(1);
+        insert_bank_test_player_in_world(&session, &canonical);
         let innkeeper = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 34);
         insert_banker_creature(&canonical, innkeeper, NPCFlags1::INNKEEPER.bits());
         session.set_player_zone_area_like_cpp(12, 34);
