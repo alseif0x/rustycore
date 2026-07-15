@@ -13071,6 +13071,31 @@ where
         self.map_object_by_kind(guid, &[AccessorObjectKind::Transport])
     }
 
+    /// Return the typed canonical transport that currently owns a passenger.
+    ///
+    /// C++ `WorldObject::GetTransGUID` is backed by the object's transport
+    /// movement state. The canonical Rust transport runtime owns passenger
+    /// membership on `Transport`, so spell destination resolution uses this
+    /// map-local lookup instead of guessing from a generic transport object.
+    pub fn get_typed_transport_for_passenger_like_cpp(
+        &self,
+        passenger_guid: ObjectGuid,
+    ) -> Option<&wow_entities::Transport> {
+        self.map_objects.values().find_map(|record| {
+            let transport = record.transport()?;
+            (transport.passengers().contains(&passenger_guid)
+                || transport.static_passengers().contains(&passenger_guid))
+            .then_some(transport)
+        })
+    }
+
+    pub fn get_typed_transport_like_cpp(
+        &self,
+        guid: ObjectGuid,
+    ) -> Option<&wow_entities::Transport> {
+        self.map_objects.get(&guid)?.transport()
+    }
+
     pub fn get_dynamic_object(&self, guid: ObjectGuid) -> Option<&WorldObject> {
         self.map_object_by_kind(guid, &[AccessorObjectKind::DynamicObject])
     }

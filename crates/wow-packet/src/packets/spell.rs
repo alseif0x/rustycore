@@ -581,13 +581,19 @@ impl ClientPacket for SpellClick {
 
 /// Write a minimal `SpellCastData` (used by both SpellStart and SpellGo).
 ///
-/// C# ref: `SpellCastData.Write()` in SpellPackets.cs.
+/// C++ refs: `WorldPackets::Spells::SpellCastData` in `SpellPackets.h` and
+/// `WorldPackets::Spells::operator<<(ByteBuffer&, SpellCastData const&)` in
+/// `SpellPackets.cpp`. The fixed fields, bit counts, target data, and trailing
+/// vectors below follow that serializer in the same order.
 ///
 /// Parameters
-/// - `caster`      : player ObjectGuid
+/// - `caster`      : unit ObjectGuid written as both CasterGUID and CasterUnit
 /// - `cast_id`     : echo of the client's cast_id
+/// - `original_cast_id`: original cast ObjectGuid, or empty when absent
 /// - `spell_id`    : spell being cast
 /// - `visual`      : spell visual IDs
+/// - `cast_flags`  : C++ `SpellCastData::CastFlags`
+/// - `cast_flags_ex`: C++ `SpellCastData::CastFlagsEx`
 /// - `cast_time_ms`: 0 for instant
 /// - `target`      : SpellTargetData (unit + flags)
 /// - `hit_targets` : list of GUIDs that were hit (empty for visual-only)
@@ -598,6 +604,7 @@ fn write_spell_cast_data(
     original_cast_id: &ObjectGuid,
     spell_id: i32,
     visual: &SpellCastVisual,
+    cast_flags: u32,
     cast_flags_ex: u32,
     cast_time_ms: u32,
     target: &SpellTargetData,
@@ -605,7 +612,7 @@ fn write_spell_cast_data(
 ) {
     // CasterGUID, CasterUnit, CastID, OriginalCastID
     pkt.write_packed_guid(caster);
-    pkt.write_packed_guid(caster); // CasterUnit = same for player spells
+    pkt.write_packed_guid(caster); // This helper currently represents unit casters.
     pkt.write_packed_guid(cast_id);
     pkt.write_packed_guid(original_cast_id);
 
@@ -614,7 +621,7 @@ fn write_spell_cast_data(
     visual.write(pkt);
 
     // CastFlags, CastFlagsEx, CastTime
-    pkt.write_uint32(0); // CastFlags
+    pkt.write_uint32(cast_flags);
     pkt.write_uint32(cast_flags_ex);
     pkt.write_uint32(cast_time_ms);
 
@@ -701,6 +708,7 @@ impl ServerPacket for SpellStartPkt {
             &self.original_cast_id,
             self.spell_id,
             &self.visual,
+            0,
             self.cast_flags_ex,
             self.cast_time_ms,
             &self.target,
@@ -721,7 +729,11 @@ pub struct SpellGoPkt {
     pub original_cast_id: ObjectGuid,
     pub spell_id: i32,
     pub visual: SpellCastVisual,
+    pub cast_flags: u32,
     pub cast_flags_ex: u32,
+    /// C++ `SpellCastData::CastTime`; for `SMSG_SPELL_GO` this is the
+    /// server's wrapping `getMSTime()` timestamp, not the cast duration.
+    pub cast_time_ms: u32,
     pub target: SpellTargetData,
     /// GUIDs that were hit by the spell.
     pub hit_targets: Vec<ObjectGuid>,
@@ -739,8 +751,9 @@ impl ServerPacket for SpellGoPkt {
             &self.original_cast_id,
             self.spell_id,
             &self.visual,
+            self.cast_flags,
             self.cast_flags_ex,
-            0, // CastTime
+            self.cast_time_ms,
             &self.target,
             &self.hit_targets,
         );
@@ -1300,7 +1313,9 @@ mod tests {
             original_cast_id: client_cast_id,
             spell_id: 12_345,
             visual: SpellCastVisual::default(),
+            cast_flags: 0x0004_0101,
             cast_flags_ex: 0x08000,
+            cast_time_ms: 0x1234_5678,
             target: SpellTargetData::default(),
             hit_targets: Vec::new(),
         }
@@ -1316,7 +1331,8 @@ mod tests {
         let visual = SpellCastVisual::read(&mut pkt).unwrap();
         assert_eq!(visual.spell_visual_id, 0);
         assert_eq!(visual.script_visual_id, 0);
-        assert_eq!(pkt.read_uint32().unwrap(), 0);
+        assert_eq!(pkt.read_uint32().unwrap(), 0x0004_0101);
         assert_eq!(pkt.read_uint32().unwrap(), 0x08000);
+        assert_eq!(pkt.read_uint32().unwrap(), 0x1234_5678);
     }
 }

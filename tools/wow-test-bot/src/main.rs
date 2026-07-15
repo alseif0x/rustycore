@@ -32,11 +32,16 @@ const SMSG_AURA_UPDATE: u16 = 0x2C1F;
 const SMSG_TIME_SYNC_REQUEST: u16 = 0x2DD2;
 const SMSG_ON_MONSTER_MOVE: u16 = 0x2DD4;
 const CMSG_BANKER_ACTIVATE: u16 = 0x34B3;
+const CMSG_BINDER_ACTIVATE: u16 = 0x34B2;
 const CMSG_AUTOBANK_ITEM: u16 = 0x3997;
 const CMSG_AUTOSTORE_BANK_ITEM: u16 = 0x3996;
 const CMSG_SWAP_INV_ITEM: u16 = 0x399B;
 const SMSG_NPC_INTERACTION_OPEN_RESULT: u16 = 0x288A;
 const SMSG_INVENTORY_CHANGE_FAILURE: u16 = 0x2DA5;
+const SMSG_BIND_POINT_UPDATE: u16 = 0x257D;
+const SMSG_GOSSIP_COMPLETE: u16 = 0x2A97;
+const SMSG_PLAYER_BOUND: u16 = 0x2FF8;
+const SMSG_SPELL_GO: u16 = 0x2C36;
 const CMSG_LOGOUT_REQUEST: u16 = 0x34D6;
 const SMSG_LOGOUT_COMPLETE: u16 = 0x2684;
 const INVENTORY_SLOT_BAG_0: u8 = 255;
@@ -44,6 +49,7 @@ const INVENTORY_SLOT_ITEM_START: u8 = 35;
 const BANK_SLOT_ITEM_START: u8 = 59;
 const BANK_SLOT_ITEM_END: u8 = 87;
 const NPC_FLAG_BANKER: u32 = 0x20000;
+const NPC_FLAG_INNKEEPER: u32 = 0x10000;
 const DEFAULT_BANK_SMOKE_ITEM_ENTRY: u32 = 2589;
 const DEFAULT_INVENTORY_SWAP_ITEM_ENTRY_A: u32 = 2589;
 const DEFAULT_INVENTORY_SWAP_ITEM_ENTRY_B: u32 = 2592;
@@ -142,6 +148,9 @@ struct CliOptions {
     bank_item_entry: u32,
     bank_runtime_counter: Option<u64>,
     bank_timeout_secs: u64,
+    homebind_smoke: bool,
+    homebind_runtime_counter: Option<u64>,
+    homebind_timeout_secs: u64,
     inventory_swap_smoke: bool,
     inventory_swap_item_entry_a: u32,
     inventory_swap_item_entry_b: u32,
@@ -209,6 +218,18 @@ struct BotRunResult {
     bank_relogin_after_deposit: bool,
     bank_withdraw_persisted: bool,
     bank_failure: Option<String>,
+    homebind_smoke: bool,
+    homebind_smoke_passed: Option<bool>,
+    homebind_innkeeper_entry: Option<u32>,
+    homebind_innkeeper_spawn_guid: Option<u64>,
+    homebind_innkeeper_guid_counter: Option<u64>,
+    homebind_spell_go_seen: bool,
+    homebind_bind_point_update_seen: bool,
+    homebind_player_bound_seen: bool,
+    homebind_gossip_complete_seen: bool,
+    homebind_db_persisted: bool,
+    homebind_relogin_verified: bool,
+    homebind_failure: Option<String>,
     inventory_swap_smoke: bool,
     inventory_swap_smoke_passed: Option<bool>,
     inventory_swap_item_guid_a: Option<u64>,
@@ -275,6 +296,12 @@ impl BotRunResult {
                 && self.player_login_verified
                 && self.bank_smoke_passed.unwrap_or(false);
         }
+        if self.homebind_smoke {
+            return self.world_auth
+                && self.enum_characters
+                && self.player_login_verified
+                && self.homebind_smoke_passed.unwrap_or(false);
+        }
         if self.inventory_swap_smoke {
             return self.world_auth
                 && self.enum_characters
@@ -300,6 +327,7 @@ struct RunReport {
     login_only: bool,
     stand_state_smoke: bool,
     bank_smoke: bool,
+    homebind_smoke: bool,
     inventory_swap_smoke: bool,
     quest_smoke: bool,
     results: Vec<BotRunResult>,
@@ -378,6 +406,8 @@ struct BankSmokeOptions {
 #[derive(Debug, Clone, Copy)]
 struct CharacterPositionSnapshot {
     map_id: u32,
+    zone_id: u32,
+    instance_id: u32,
     x: f64,
     y: f64,
     z: f64,
@@ -388,6 +418,38 @@ struct CharacterPositionSnapshot {
 struct BankSmokeFixture {
     options: BankSmokeOptions,
     original_position: CharacterPositionSnapshot,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HomebindSmokePhase {
+    Bind,
+    VerifyRelog,
+}
+
+#[derive(Debug, Clone)]
+struct HomebindSmokeOptions {
+    phase: HomebindSmokePhase,
+    innkeeper: ResolvedCreatureTarget,
+    discover_runtime_guid: bool,
+    expected_homebind: Option<HomebindRowSnapshot>,
+    timeout_secs: u64,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct HomebindRowSnapshot {
+    map_id: u16,
+    zone_id: u16,
+    x: f32,
+    y: f32,
+    z: f32,
+    orientation: f32,
+}
+
+#[derive(Debug, Clone)]
+struct HomebindSmokeFixture {
+    options: HomebindSmokeOptions,
+    original_position: CharacterPositionSnapshot,
+    original_homebind: Option<HomebindRowSnapshot>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -500,6 +562,19 @@ fn parse_cli() -> Result<CliOptions> {
             .map(|value| value.parse::<u64>())
             .transpose()?,
         bank_timeout_secs: std::env::var("WOW_BOT_BANK_TIMEOUT_SECS")
+            .ok()
+            .map(|value| value.parse::<u64>())
+            .transpose()?
+            .unwrap_or(8),
+        homebind_smoke: std::env::var("WOW_BOT_HOMEBIND_SMOKE")
+            .ok()
+            .map(|v| is_truthy(&v))
+            .unwrap_or(false),
+        homebind_runtime_counter: std::env::var("WOW_BOT_HOMEBIND_RUNTIME_COUNTER")
+            .ok()
+            .map(|value| value.parse::<u64>())
+            .transpose()?,
+        homebind_timeout_secs: std::env::var("WOW_BOT_HOMEBIND_TIMEOUT_SECS")
             .ok()
             .map(|value| value.parse::<u64>())
             .transpose()?
@@ -643,6 +718,14 @@ fn parse_cli() -> Result<CliOptions> {
             }
             "--bank-timeout" => {
                 opts.bank_timeout_secs = next_arg(&mut args, "--bank-timeout")?.parse()?;
+            }
+            "--homebind-smoke" => opts.homebind_smoke = true,
+            "--homebind-runtime-counter" => {
+                opts.homebind_runtime_counter =
+                    Some(next_arg(&mut args, "--homebind-runtime-counter")?.parse()?);
+            }
+            "--homebind-timeout" => {
+                opts.homebind_timeout_secs = next_arg(&mut args, "--homebind-timeout")?.parse()?;
             }
             "--inventory-swap-smoke" => opts.inventory_swap_smoke = true,
             "--inventory-swap-item-entry-a" => {
@@ -802,6 +885,16 @@ fn print_help() {
     println!("  --bank-timeout <secs>    Per bank phase timeout (default: 8)");
     println!(
         "                           Env: WOW_BOT_BANK_SMOKE, WOW_BOT_BANK_ITEM_ENTRY, WOW_BOT_BANK_RUNTIME_COUNTER, WOW_BOT_BANK_TIMEOUT_SECS"
+    );
+    println!(
+        "  --homebind-smoke         Bind at an innkeeper, relog, and verify response packets plus DB persistence"
+    );
+    println!(
+        "  --homebind-runtime-counter <n> Optional ObjectGuid low-counter override for the innkeeper"
+    );
+    println!("  --homebind-timeout <secs> Bind response timeout (default: 8)");
+    println!(
+        "                           Env: WOW_BOT_HOMEBIND_SMOKE, WOW_BOT_HOMEBIND_RUNTIME_COUNTER, WOW_BOT_HOMEBIND_TIMEOUT_SECS"
     );
     println!("  --quest-smoke            After login, right-click/query one questgiver NPC");
     println!("  --quest-creature-entry <id>  Creature entry to resolve from world.creature");
@@ -1101,6 +1194,7 @@ async fn main() -> Result<()> {
     let post_login_mode_count = [
         cli.stand_state_smoke,
         cli.bank_smoke,
+        cli.homebind_smoke,
         cli.inventory_swap_smoke,
         cli.quest_smoke,
     ]
@@ -1108,7 +1202,7 @@ async fn main() -> Result<()> {
     .filter(|enabled| *enabled)
     .count();
     if post_login_mode_count > 1 {
-        bail!("stand-state, bank, inventory-swap, and quest smoke are separate post-login modes");
+        bail!("stand-state, bank, homebind, inventory-swap, and quest smoke are separate post-login modes");
     }
     if cli.bank_smoke && bots.len() != 1 {
         bail!("--bank-smoke requires exactly one bot; select it with --single");
@@ -1120,6 +1214,12 @@ async fn main() -> Result<()> {
         bail!(
             "--bank-smoke requires --bank-runtime-counter or WOW_BOT_BANK_RUNTIME_COUNTER for the live banker ObjectGuid"
         );
+    }
+    if cli.homebind_smoke && bots.len() != 1 {
+        bail!("--homebind-smoke requires exactly one bot; select it with --single");
+    }
+    if cli.homebind_smoke && cli.homebind_timeout_secs == 0 {
+        bail!("--homebind-timeout must be greater than zero");
     }
     if cli.inventory_swap_smoke && bots.len() != 1 {
         bail!("--inventory-swap-smoke requires exactly one bot; select it with --single");
@@ -1172,6 +1272,8 @@ async fn main() -> Result<()> {
             "stand-state-smoke"
         } else if cli.bank_smoke {
             "bank-smoke"
+        } else if cli.homebind_smoke {
+            "homebind-smoke"
         } else if cli.inventory_swap_smoke {
             "inventory-swap-smoke"
         } else if cli.quest_smoke {
@@ -1192,6 +1294,7 @@ async fn main() -> Result<()> {
         && !cli.login_only
         && !cli.stand_state_smoke
         && !cli.bank_smoke
+        && !cli.homebind_smoke
         && !cli.inventory_swap_smoke
     {
         cleanup_bot_group_state(&bots)?;
@@ -1213,6 +1316,16 @@ async fn main() -> Result<()> {
                     cli.bank_timeout_secs,
                 )
                 .await
+            } else if cli.homebind_smoke {
+                run_homebind_smoke_workflow(
+                    bot,
+                    dungeon_id,
+                    timeout_secs,
+                    auto_teleport,
+                    cli.homebind_runtime_counter,
+                    cli.homebind_timeout_secs,
+                )
+                .await
             } else if cli.inventory_swap_smoke {
                 run_inventory_swap_smoke_workflow(
                     bot,
@@ -1232,6 +1345,7 @@ async fn main() -> Result<()> {
                     auto_teleport,
                     cli.login_only,
                     stand_state_options.clone(),
+                    None,
                     None,
                     None,
                     quest_options.clone(),
@@ -1269,6 +1383,7 @@ async fn main() -> Result<()> {
                     stand_state_options_for_bot,
                     None,
                     None,
+                    None,
                     quest_options_for_bot,
                 )
                 .await;
@@ -1299,6 +1414,7 @@ async fn main() -> Result<()> {
         cli.login_only,
         cli.stand_state_smoke,
         cli.bank_smoke,
+        cli.homebind_smoke,
         cli.inventory_swap_smoke,
         cli.quest_smoke,
         &results,
@@ -1422,6 +1538,7 @@ async fn run_bot(
     login_only: bool,
     stand_state_options: Option<StandStateSmokeOptions>,
     bank_options: Option<BankSmokeOptions>,
+    homebind_options: Option<HomebindSmokeOptions>,
     inventory_swap_options: Option<InventorySwapSmokeOptions>,
     quest_options: Option<QuestSmokeOptions>,
 ) -> Result<BotRunResult> {
@@ -1470,6 +1587,24 @@ async fn run_bot(
         bank_relogin_after_deposit: false,
         bank_withdraw_persisted: false,
         bank_failure: None,
+        homebind_smoke: homebind_options.is_some(),
+        homebind_smoke_passed: None,
+        homebind_innkeeper_entry: homebind_options
+            .as_ref()
+            .map(|options| options.innkeeper.entry),
+        homebind_innkeeper_spawn_guid: homebind_options
+            .as_ref()
+            .map(|options| options.innkeeper.spawn_guid),
+        homebind_innkeeper_guid_counter: homebind_options
+            .as_ref()
+            .map(|options| options.innkeeper.guid_counter),
+        homebind_spell_go_seen: false,
+        homebind_bind_point_update_seen: false,
+        homebind_player_bound_seen: false,
+        homebind_gossip_complete_seen: false,
+        homebind_db_persisted: false,
+        homebind_relogin_verified: false,
+        homebind_failure: None,
         inventory_swap_smoke: inventory_swap_options.is_some(),
         inventory_swap_smoke_passed: None,
         inventory_swap_item_guid_a: inventory_swap_options
@@ -1797,6 +1932,7 @@ async fn run_bot(
     info!("[Bot {}] ✅ CMSG_PLAYER_LOGIN sent", bot_index);
 
     let mut login_ok = false;
+    let preserve_realm_connection = stand_state_options.is_some() || homebind_options.is_some();
     for _ in 0..30 {
         match tokio::time::timeout(
             Duration::from_secs(5),
@@ -1813,10 +1949,10 @@ async fn run_bot(
                     // SMSG_LOGIN_VERIFY_WORLD
                     info!("[Bot {}] ✅ SMSG_LOGIN_VERIFY_WORLD received", bot_index);
                     login_ok = true;
-                    if stand_state_options.is_none() || realm_connection.is_some() {
+                    if !preserve_realm_connection || realm_connection.is_some() {
                         break;
                     }
-                    // A stand-state capture validates connection routing, so
+                    // Routing-sensitive captures validate both connections, so
                     // keep reading the realm socket until SMSG_CONNECT_TO has
                     // created and authenticated a distinct instance socket.
                     continue;
@@ -1836,9 +1972,9 @@ async fn run_bot(
                     );
                     let (instance_stream, instance_crypt) =
                         connect_to_instance(bot_index, &connect_to, &derived_session_key).await?;
-                    if stand_state_options.is_some() {
+                    if preserve_realm_connection {
                         if realm_connection.is_some() {
-                            bail!("Stand-state smoke received more than one SMSG_CONNECT_TO");
+                            bail!("Routing smoke received more than one SMSG_CONNECT_TO");
                         }
                         let realm_stream = std::mem::replace(&mut stream, instance_stream);
                         let realm_crypt = std::mem::replace(&mut crypt, instance_crypt);
@@ -1854,7 +1990,7 @@ async fn run_bot(
                         server_inflater = ServerPacketInflater::default();
                     }
                     info!("[Bot {}] ✅ Instance socket authenticated", bot_index);
-                    if login_ok && stand_state_options.is_some() {
+                    if login_ok && preserve_realm_connection {
                         break;
                     }
                 } else if op == 0x304B {
@@ -1934,6 +2070,25 @@ async fn run_bot(
         {
             result.bank_failure = Some(error.to_string());
             result.bank_smoke_passed = Some(false);
+        }
+        return Ok(result);
+    }
+
+    if let Some(homebind_options) = homebind_options {
+        if let Err(error) = run_homebind_smoke_phase(
+            bot_index,
+            &bot,
+            &mut stream,
+            &mut crypt,
+            &mut server_inflater,
+            &mut realm_connection,
+            &homebind_options,
+            &mut result,
+        )
+        .await
+        {
+            result.homebind_failure = Some(error.to_string());
+            result.homebind_smoke_passed = Some(false);
         }
         return Ok(result);
     }
@@ -2182,6 +2337,22 @@ fn log_bot_summary(
             );
             return;
         }
+        if result.homebind_smoke {
+            info!(
+                "✅ Bot {}: SUCCESS homebind_smoke innkeeper={:?}/{:?} spell_go={} bind_update={} player_bound={} gossip_complete={} db_persisted={} relog={} failure={:?}",
+                result.account,
+                result.homebind_innkeeper_entry,
+                result.homebind_innkeeper_spawn_guid,
+                result.homebind_spell_go_seen,
+                result.homebind_bind_point_update_seen,
+                result.homebind_player_bound_seen,
+                result.homebind_gossip_complete_seen,
+                result.homebind_db_persisted,
+                result.homebind_relogin_verified,
+                result.homebind_failure
+            );
+            return;
+        }
         if result.inventory_swap_smoke {
             info!(
                 "✅ Bot {}: SUCCESS inventory_swap_smoke items={:?}/{:?} entries={:?}/{:?} slots={:?}<->{:?} forward={} relog={} reverse={} failure={:?}",
@@ -2259,6 +2430,22 @@ fn log_bot_summary(
             );
             return;
         }
+        if result.homebind_smoke {
+            error!(
+                "❌ Bot {}: FAILED homebind_smoke innkeeper={:?}/{:?} spell_go={} bind_update={} player_bound={} gossip_complete={} db_persisted={} relog={} failure={:?}",
+                result.account,
+                result.homebind_innkeeper_entry,
+                result.homebind_innkeeper_spawn_guid,
+                result.homebind_spell_go_seen,
+                result.homebind_bind_point_update_seen,
+                result.homebind_player_bound_seen,
+                result.homebind_gossip_complete_seen,
+                result.homebind_db_persisted,
+                result.homebind_relogin_verified,
+                result.homebind_failure
+            );
+            return;
+        }
         if result.inventory_swap_smoke {
             error!(
                 "❌ Bot {}: FAILED inventory_swap_smoke items={:?}/{:?} entries={:?}/{:?} slots={:?}<->{:?} forward={} relog={} reverse={} failure={:?}",
@@ -2301,6 +2488,7 @@ fn write_report_if_requested(
     login_only: bool,
     stand_state_smoke: bool,
     bank_smoke: bool,
+    homebind_smoke: bool,
     inventory_swap_smoke: bool,
     quest_smoke: bool,
     results: &[BotRunResult],
@@ -2320,6 +2508,7 @@ fn write_report_if_requested(
         login_only,
         stand_state_smoke,
         bank_smoke,
+        homebind_smoke,
         inventory_swap_smoke,
         quest_smoke,
         results: results.to_vec(),
@@ -3021,6 +3210,7 @@ async fn run_bank_smoke_workflow(
         Some(deposit_options),
         None,
         None,
+        None,
     )
     .await;
 
@@ -3048,6 +3238,7 @@ async fn run_bank_smoke_workflow(
             false,
             None,
             Some(withdraw_options),
+            None,
             None,
             None,
         )
@@ -3089,6 +3280,388 @@ async fn run_bank_smoke_workflow(
     }
 
     Ok(combined)
+}
+
+async fn run_homebind_smoke_workflow(
+    bot: config::BotConfig,
+    dungeon_id: u32,
+    lfg_secs: u64,
+    auto_teleport: bool,
+    runtime_counter: Option<u64>,
+    timeout_secs: u64,
+) -> Result<BotRunResult> {
+    let bot_for_setup = bot.clone();
+    let fixture = tokio::task::spawn_blocking(move || {
+        prepare_homebind_smoke_fixture(&bot_for_setup, runtime_counter, timeout_secs)
+    })
+    .await
+    .map_err(|e| anyhow!("Homebind smoke setup DB worker join failed: {e}"))??;
+
+    let first = run_bot(
+        bot.clone(),
+        dungeon_id,
+        lfg_secs,
+        auto_teleport,
+        false,
+        None,
+        None,
+        Some(fixture.options.clone()),
+        None,
+        None,
+    )
+    .await;
+
+    let mut combined = match first {
+        Ok(result) => result,
+        Err(error) => {
+            let bot_for_cleanup = bot.clone();
+            let fixture_for_cleanup = fixture.clone();
+            let cleanup = tokio::task::spawn_blocking(move || {
+                cleanup_homebind_smoke_fixture(&bot_for_cleanup, &fixture_for_cleanup)
+            })
+            .await
+            .map_err(|join_error| {
+                anyhow!(
+                    "Homebind smoke bind login/phase failed: {error}; cleanup worker failed: {join_error}"
+                )
+            })?;
+            if let Err(cleanup_error) = cleanup {
+                bail!(
+                    "Homebind smoke bind login/phase failed: {error}; fixture cleanup failed: {cleanup_error}"
+                );
+            }
+            return Err(error.context("Homebind smoke bind login/phase failed"));
+        }
+    };
+
+    if combined.homebind_smoke_passed.unwrap_or(false) {
+        let mut relog_options = fixture.options.clone();
+        relog_options.phase = HomebindSmokePhase::VerifyRelog;
+        let bot_for_db = bot.clone();
+        relog_options.expected_homebind =
+            match tokio::task::spawn_blocking(move || load_homebind_row(&bot_for_db)).await {
+                Ok(Ok(Some(row))) => Some(row),
+                Ok(Ok(None)) => {
+                    combined.homebind_failure =
+                        Some("character_homebind disappeared before relog".to_string());
+                    combined.homebind_smoke_passed = Some(false);
+                    None
+                }
+                Ok(Err(error)) => {
+                    combined.homebind_failure =
+                        Some(format!("Homebind expected-row query failed: {error}"));
+                    combined.homebind_smoke_passed = Some(false);
+                    None
+                }
+                Err(error) => {
+                    combined.homebind_failure =
+                        Some(format!("Homebind expected-row worker join failed: {error}"));
+                    combined.homebind_smoke_passed = Some(false);
+                    None
+                }
+            };
+        if relog_options.expected_homebind.is_some() {
+            match run_bot(
+                bot.clone(),
+                dungeon_id,
+                lfg_secs,
+                auto_teleport,
+                false,
+                None,
+                None,
+                Some(relog_options),
+                None,
+                None,
+            )
+            .await
+            {
+                Ok(second) => {
+                    combined.world_auth &= second.world_auth;
+                    combined.enum_characters &= second.enum_characters;
+                    combined.player_login_verified &= second.player_login_verified;
+                    combined.homebind_relogin_verified = second.homebind_relogin_verified;
+                    combined.seen_opcodes.extend(second.seen_opcodes);
+                    combined.homebind_failure = second.homebind_failure;
+                    combined.homebind_smoke_passed = Some(
+                        combined.homebind_spell_go_seen
+                            && combined.homebind_bind_point_update_seen
+                            && combined.homebind_player_bound_seen
+                            && combined.homebind_gossip_complete_seen
+                            && combined.homebind_db_persisted
+                            && combined.homebind_relogin_verified
+                            && second.homebind_smoke_passed.unwrap_or(false),
+                    );
+                }
+                Err(error) => {
+                    combined.homebind_failure = Some(format!("Homebind relog failed: {error}"));
+                    combined.homebind_smoke_passed = Some(false);
+                }
+            }
+        }
+    }
+
+    let bot_for_cleanup = bot.clone();
+    let fixture_for_cleanup = fixture.clone();
+    let cleanup = tokio::task::spawn_blocking(move || {
+        cleanup_homebind_smoke_fixture(&bot_for_cleanup, &fixture_for_cleanup)
+    })
+    .await
+    .map_err(|e| anyhow!("Homebind smoke cleanup DB worker join failed: {e}"))?;
+    if let Err(error) = cleanup {
+        combined.homebind_failure = Some(format!("Homebind fixture cleanup failed: {error}"));
+        combined.homebind_smoke_passed = Some(false);
+    }
+
+    Ok(combined)
+}
+
+async fn run_homebind_smoke_phase(
+    bot_index: usize,
+    bot: &config::BotConfig,
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    server_inflater: &mut ServerPacketInflater,
+    realm_connection: &mut Option<EncryptedWorldConnection>,
+    options: &HomebindSmokeOptions,
+    result: &mut BotRunResult,
+) -> Result<()> {
+    if options.phase == HomebindSmokePhase::Bind {
+        let mut runtime_components = (!options.discover_runtime_guid).then(|| {
+            let (_, low, high) = parse_packed_guid(&options.innkeeper.packed_guid)
+                .expect("fixture packed GUID was built locally");
+            (low, high)
+        });
+        let drain_deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+        while tokio::time::Instant::now() < drain_deadline {
+            match tokio::time::timeout(
+                Duration::from_millis(250),
+                read_encrypted_packet(stream, crypt, server_inflater),
+            )
+            .await
+            {
+                Ok(Ok((opcode, payload))) => {
+                    result.seen_opcodes.push(format!("0x{opcode:04X}"));
+                    if opcode == SMSG_UPDATE_OBJECT {
+                        if let Some((low, high)) = find_creature_guid_in_update_object(
+                            &payload,
+                            options.innkeeper.map_id,
+                            options.innkeeper.entry,
+                        ) {
+                            runtime_components = Some((low, high));
+                            result.homebind_innkeeper_guid_counter = Some(low & 0xFF_FFFF_FFFF);
+                        }
+                    }
+                }
+                Ok(Err(error)) => return Err(error),
+                Err(_) => break,
+            }
+        }
+        let (runtime_low, runtime_high) = runtime_components.ok_or_else(|| {
+            anyhow!(
+                "innkeeper entry {} was not discovered in login SMSG_UPDATE_OBJECT packets",
+                options.innkeeper.entry
+            )
+        })?;
+        let realm = realm_connection.as_mut().context(
+            "homebind smoke requires distinct realm/instance sockets to validate C++ routing",
+        )?;
+        loop {
+            match tokio::time::timeout(
+                Duration::from_millis(250),
+                read_encrypted_packet(&mut realm.stream, &mut realm.crypt, &mut realm.inflater),
+            )
+            .await
+            {
+                Ok(Ok((opcode, payload))) => {
+                    result.seen_opcodes.push(format!("0x{opcode:04X}"));
+                    info!(
+                        "[Bot {}] 📦 realm login drain {}",
+                        bot_index,
+                        parse_packet(opcode, &payload)
+                    );
+                }
+                Ok(Err(error)) => return Err(error),
+                Err(_) => break,
+            }
+        }
+        let runtime_guid = build_packed_guid(runtime_low, runtime_high);
+        send_encrypted_packet(stream, crypt, CMSG_BINDER_ACTIVATE, &runtime_guid).await?;
+        info!(
+            "[Bot {}] ✅ CMSG_BINDER_ACTIVATE sent to entry={} spawn={}",
+            bot_index, options.innkeeper.entry, options.innkeeper.spawn_guid
+        );
+
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(options.timeout_secs);
+        let mut bind_packet_homebind = None;
+        let mut pending_player_bound = None;
+        while tokio::time::Instant::now() < deadline {
+            let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+            enum HomebindReady {
+                Instance,
+                Realm,
+            }
+            let mut instance_peek = [0u8; 1];
+            let mut realm_peek = [0u8; 1];
+            let ready = tokio::time::timeout(remaining, async {
+                tokio::select! {
+                    result = stream.peek(&mut instance_peek) => {
+                        if result.context("homebind instance peek failed")? == 0 {
+                            bail!("instance connection closed during homebind smoke");
+                        }
+                        Ok(HomebindReady::Instance)
+                    }
+                    result = realm.stream.peek(&mut realm_peek) => {
+                        if result.context("homebind realm peek failed")? == 0 {
+                            bail!("realm connection closed during homebind smoke");
+                        }
+                        Ok(HomebindReady::Realm)
+                    }
+                }
+            })
+            .await;
+            let ready = match ready {
+                Ok(result) => result?,
+                Err(_) => break,
+            };
+            let (connection, opcode, payload) = match ready {
+                HomebindReady::Instance => {
+                    let (opcode, payload) = tokio::time::timeout(
+                        deadline.saturating_duration_since(tokio::time::Instant::now()),
+                        read_encrypted_packet(stream, crypt, server_inflater),
+                    )
+                    .await
+                    .map_err(|_| anyhow!("homebind instance packet read timed out"))??;
+                    ("instance", opcode, payload)
+                }
+                HomebindReady::Realm => {
+                    let (opcode, payload) = tokio::time::timeout(
+                        deadline.saturating_duration_since(tokio::time::Instant::now()),
+                        read_encrypted_packet(
+                            &mut realm.stream,
+                            &mut realm.crypt,
+                            &mut realm.inflater,
+                        ),
+                    )
+                    .await
+                    .map_err(|_| anyhow!("homebind realm packet read timed out"))??;
+                    ("realm", opcode, payload)
+                }
+            };
+            result.seen_opcodes.push(format!("0x{opcode:04X}"));
+            info!(
+                "[Bot {}] 📦 {} {}",
+                bot_index,
+                connection,
+                parse_packet(opcode, &payload)
+            );
+            match (connection, opcode) {
+                ("instance", SMSG_SPELL_GO) => {
+                    let player_high = (2u64 << 58) | ((u64::from(realm_id()) & 0x1FFF) << 42);
+                    result.homebind_spell_go_seen = homebind_spell_go_seen_after_packet(
+                        result.homebind_spell_go_seen,
+                        &payload,
+                        runtime_low,
+                        runtime_high,
+                        bot.character_guid,
+                        player_high,
+                    );
+                }
+                ("instance", SMSG_BIND_POINT_UPDATE) => {
+                    if let Some(homebind) =
+                        parse_bind_point_update(&payload, options.innkeeper.orientation)
+                    {
+                        result.homebind_bind_point_update_seen = true;
+                        if let Some(player_bound) = pending_player_bound.as_deref() {
+                            result.homebind_player_bound_seen = player_bound_matches(
+                                player_bound,
+                                runtime_low,
+                                runtime_high,
+                                u32::from(homebind.zone_id),
+                            );
+                        }
+                        bind_packet_homebind = Some(homebind);
+                    }
+                }
+                ("realm", SMSG_PLAYER_BOUND) => {
+                    if let Some(expected) = bind_packet_homebind.as_ref() {
+                        result.homebind_player_bound_seen = player_bound_matches(
+                            &payload,
+                            runtime_low,
+                            runtime_high,
+                            u32::from(expected.zone_id),
+                        );
+                    }
+                    pending_player_bound = Some(payload);
+                }
+                ("realm", SMSG_GOSSIP_COMPLETE) => result.homebind_gossip_complete_seen = true,
+                ("instance", SMSG_PLAYER_BOUND | SMSG_GOSSIP_COMPLETE) => {
+                    bail!(
+                        "{} arrived on instance; C++ routes it on realm",
+                        parse_packet(opcode, &payload)
+                    );
+                }
+                ("realm", SMSG_SPELL_GO | SMSG_BIND_POINT_UPDATE) => {
+                    bail!(
+                        "{} arrived on realm; C++ routes it on instance",
+                        parse_packet(opcode, &payload)
+                    );
+                }
+                _ => {}
+            }
+            if result.homebind_spell_go_seen
+                && result.homebind_bind_point_update_seen
+                && result.homebind_player_bound_seen
+                && result.homebind_gossip_complete_seen
+            {
+                break;
+            }
+        }
+        if !(result.homebind_spell_go_seen
+            && result.homebind_bind_point_update_seen
+            && result.homebind_player_bound_seen
+            && result.homebind_gossip_complete_seen)
+        {
+            bail!(
+                "missing bind responses: spell_go={} bind_update={} player_bound={} gossip_complete={}",
+                result.homebind_spell_go_seen,
+                result.homebind_bind_point_update_seen,
+                result.homebind_player_bound_seen,
+                result.homebind_gossip_complete_seen
+            );
+        }
+        let expected_homebind = bind_packet_homebind
+            .ok_or_else(|| anyhow!("BindPointUpdate payload could not be decoded"))?;
+        let bot_for_db = bot.clone();
+        let persistence_timeout = Duration::from_secs(options.timeout_secs.clamp(1, 10));
+        result.homebind_db_persisted = tokio::task::spawn_blocking(move || {
+            wait_for_homebind_row(&bot_for_db, &expected_homebind, persistence_timeout)
+        })
+        .await
+        .map_err(|e| anyhow!("Homebind DB verification worker join failed: {e}"))??;
+        if !result.homebind_db_persisted {
+            bail!("character_homebind did not persist the live bind location");
+        }
+    } else {
+        let expected_homebind = options
+            .expected_homebind
+            .clone()
+            .ok_or_else(|| anyhow!("Homebind relog phase missing expected complete row"))?;
+        let bot_for_db = bot.clone();
+        result.homebind_relogin_verified = tokio::task::spawn_blocking(move || {
+            Ok::<_, anyhow::Error>(
+                load_homebind_row(&bot_for_db)?.as_ref() == Some(&expected_homebind),
+            )
+        })
+        .await
+        .map_err(|e| anyhow!("Homebind relog DB worker join failed: {e}"))??;
+        if !result.homebind_relogin_verified {
+            bail!("character_homebind changed before the verification relog completed");
+        }
+    }
+
+    logout_and_wait(bot_index, stream, crypt, server_inflater, result).await?;
+    result.homebind_smoke_passed = Some(true);
+    Ok(())
 }
 
 async fn run_bank_smoke_phase(
@@ -3235,6 +3808,7 @@ async fn run_inventory_swap_smoke_workflow(
         false,
         None,
         None,
+        None,
         Some(forward_options),
         None,
     )
@@ -3262,6 +3836,7 @@ async fn run_inventory_swap_smoke_workflow(
             lfg_secs,
             auto_teleport,
             false,
+            None,
             None,
             None,
             Some(reverse_options),
@@ -4362,14 +4937,14 @@ fn prepare_bank_smoke_fixture(
     let mut characters = mysql::Conn::new(character_opts)
         .map_err(|e| anyhow!("Connect to characters DB failed: {e}"))?;
 
-    let character: Option<(u32, u8, u32, f64, f64, f64, f32)> = characters
+    let character: Option<(u32, u8, u32, u32, u32, f64, f64, f64, f32)> = characters
         .exec_first(
-            "SELECT account, online, map, position_x, position_y, position_z, orientation \
+            "SELECT account, online, map, zone, instance_id, position_x, position_y, position_z, orientation \
              FROM characters WHERE guid = ?",
             (bot.character_guid,),
         )
         .map_err(|e| anyhow!("Load bank bot character: {e}"))?;
-    let (owner, online, map_id, x, y, z, orientation) =
+    let (owner, online, map_id, zone_id, instance_id, x, y, z, orientation) =
         character.ok_or_else(|| anyhow!("No characters row for guid {}", bot.character_guid))?;
     if owner != bot.account_id {
         bail!(
@@ -4387,6 +4962,8 @@ fn prepare_bank_smoke_fixture(
     }
     let original_position = CharacterPositionSnapshot {
         map_id,
+        zone_id,
+        instance_id,
         x,
         y,
         z,
@@ -4549,6 +5126,270 @@ fn prepare_bank_smoke_fixture(
     })
 }
 
+fn prepare_homebind_smoke_fixture(
+    bot: &config::BotConfig,
+    runtime_counter: Option<u64>,
+    timeout_secs: u64,
+) -> Result<HomebindSmokeFixture> {
+    use mysql::prelude::Queryable;
+
+    if !bot.account.to_ascii_uppercase().ends_with("@BOT.LOCAL") {
+        bail!(
+            "refusing destructive homebind fixture setup for non-local account {}",
+            bot.account
+        );
+    }
+
+    let characters_url = characters_db_url()?;
+    let character_opts = mysql::Opts::from_url(&characters_url)
+        .map_err(|e| anyhow!("Bad characters DB URL: {e}"))?;
+    let mut characters = mysql::Conn::new(character_opts)
+        .map_err(|e| anyhow!("Connect to characters DB failed: {e}"))?;
+    let character: Option<(u32, u8, u8, u32, u32, u32, f64, f64, f64, f32)> = characters
+        .exec_first(
+            "SELECT account, online, race, map, zone, instance_id, position_x, position_y, position_z, orientation \
+             FROM characters WHERE guid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|e| anyhow!("Load homebind bot character: {e}"))?;
+    let (owner, online, race, map_id, zone_id, instance_id, x, y, z, orientation) =
+        character.ok_or_else(|| anyhow!("No characters row for guid {}", bot.character_guid))?;
+    if owner != bot.account_id {
+        bail!(
+            "character {} belongs to account {}, expected {}",
+            bot.character_guid,
+            owner,
+            bot.account_id
+        );
+    }
+    if online != 0 {
+        bail!(
+            "character {} is online; log it out before homebind smoke setup",
+            bot.character_guid
+        );
+    }
+    let original_position = CharacterPositionSnapshot {
+        map_id,
+        zone_id,
+        instance_id,
+        x,
+        y,
+        z,
+        orientation,
+    };
+    let original_homebind = characters
+        .exec_first(
+            "SELECT mapId, zoneId, posX, posY, posZ, orientation FROM character_homebind WHERE guid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|e| anyhow!("Load original character_homebind: {e}"))?
+        .map(|(map_id, zone_id, x, y, z, orientation)| HomebindRowSnapshot {
+            map_id,
+            zone_id,
+            x,
+            y,
+            z,
+            orientation,
+        });
+
+    let world_url = world_db_url()?;
+    let world_opts =
+        mysql::Opts::from_url(&world_url).map_err(|e| anyhow!("Bad world DB URL: {e}"))?;
+    let mut world =
+        mysql::Conn::new(world_opts).map_err(|e| anyhow!("Connect to world DB failed: {e}"))?;
+    let preferred_faction = if matches!(race, 2 | 5 | 6 | 8 | 9 | 10 | 26 | 27 | 28 | 35 | 36) {
+        29u32
+    } else {
+        12u32
+    };
+    let innkeeper_row: (u64, u32, u32, f64, f64, f64, f32) = world
+        .exec_first(
+            "SELECT c.guid, c.id, c.map, c.position_x, c.position_y, c.position_z, c.orientation \
+             FROM creature c JOIN creature_template ct ON ct.entry = c.id \
+             WHERE c.map IN (0, 1) \
+               AND ct.faction = ? \
+               AND ((IF(c.npcflag <> 0, c.npcflag, ct.npcflag) & ?) <> 0) \
+               AND c.phaseid = 0 AND c.phasegroup = 0 \
+               AND FIND_IN_SET('0', c.spawnDifficulties) > 0 \
+               AND ct.VehicleId = 0 \
+               AND NOT EXISTS (SELECT 1 FROM creature duplicate \
+                               WHERE duplicate.map = c.map AND duplicate.id = c.id \
+                                 AND duplicate.guid <> c.guid) \
+             ORDER BY c.guid LIMIT 1",
+            (preferred_faction, NPC_FLAG_INNKEEPER),
+        )
+        .map_err(|e| anyhow!("Resolve unique faction-friendly innkeeper: {e}"))?
+        .ok_or_else(|| anyhow!("No unique faction-friendly continent innkeeper exists"))?;
+    let (spawn_guid, entry, innkeeper_map, innkeeper_x, innkeeper_y, innkeeper_z, innkeeper_o) =
+        innkeeper_row;
+    let innkeeper_map = u16::try_from(innkeeper_map)
+        .map_err(|_| anyhow!("innkeeper map id does not fit protocol: {innkeeper_map}"))?;
+    let discover_runtime_guid = runtime_counter.is_none();
+    // The placeholder is replaced from the login UpdateObject stream. An
+    // explicit override remains useful for narrow packet captures.
+    let guid_counter = runtime_counter.unwrap_or(spawn_guid);
+    let (low, high) = create_creature_guid_raw(innkeeper_map, entry, guid_counter);
+    let innkeeper = ResolvedCreatureTarget {
+        entry,
+        spawn_guid,
+        guid_counter,
+        map_id: innkeeper_map,
+        x: innkeeper_x,
+        y: innkeeper_y,
+        z: innkeeper_z,
+        orientation: innkeeper_o,
+        packed_guid: build_packed_guid(low, high),
+    };
+
+    characters
+        .exec_drop(
+            "UPDATE characters SET map = ?, position_x = ?, position_y = ?, position_z = ?, orientation = ? WHERE guid = ?",
+            (
+                u32::from(innkeeper_map),
+                innkeeper_x + 2.0,
+                innkeeper_y,
+                innkeeper_z,
+                innkeeper_o,
+                bot.character_guid,
+            ),
+        )
+        .map_err(|e| anyhow!("Relocate homebind bot near innkeeper: {e}"))?;
+
+    Ok(HomebindSmokeFixture {
+        options: HomebindSmokeOptions {
+            phase: HomebindSmokePhase::Bind,
+            innkeeper,
+            discover_runtime_guid,
+            expected_homebind: None,
+            timeout_secs,
+        },
+        original_position,
+        original_homebind,
+    })
+}
+
+fn load_homebind_row(bot: &config::BotConfig) -> Result<Option<HomebindRowSnapshot>> {
+    use mysql::prelude::Queryable;
+
+    let characters_url = characters_db_url()?;
+    let opts = mysql::Opts::from_url(&characters_url)
+        .map_err(|e| anyhow!("Bad characters DB URL: {e}"))?;
+    let mut conn =
+        mysql::Conn::new(opts).map_err(|e| anyhow!("Connect to characters DB failed: {e}"))?;
+    let row: Option<(u16, u16, f32, f32, f32, f32)> = conn
+        .exec_first(
+            "SELECT mapId, zoneId, posX, posY, posZ, orientation FROM character_homebind WHERE guid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|e| anyhow!("Load bound character_homebind: {e}"))?;
+    Ok(row.map(
+        |(map_id, zone_id, x, y, z, orientation)| HomebindRowSnapshot {
+            map_id,
+            zone_id,
+            x,
+            y,
+            z,
+            orientation,
+        },
+    ))
+}
+
+fn wait_for_homebind_row(
+    bot: &config::BotConfig,
+    expected: &HomebindRowSnapshot,
+    timeout: Duration,
+) -> Result<bool> {
+    let deadline = std::time::Instant::now() + timeout;
+    loop {
+        if load_homebind_row(bot)?.as_ref() == Some(expected) {
+            return Ok(true);
+        }
+        if std::time::Instant::now() >= deadline {
+            return Ok(false);
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
+fn cleanup_homebind_smoke_fixture(
+    bot: &config::BotConfig,
+    fixture: &HomebindSmokeFixture,
+) -> Result<()> {
+    use mysql::prelude::Queryable;
+
+    let characters_url = characters_db_url()?;
+    let opts = mysql::Opts::from_url(&characters_url)
+        .map_err(|e| anyhow!("Bad characters DB URL: {e}"))?;
+    let mut conn =
+        mysql::Conn::new(opts).map_err(|e| anyhow!("Connect to characters DB failed: {e}"))?;
+    let offline_deadline = std::time::Instant::now() + Duration::from_secs(10);
+    loop {
+        let online: Option<u8> = conn
+            .exec_first(
+                "SELECT online FROM characters WHERE guid = ?",
+                (bot.character_guid,),
+            )
+            .map_err(|e| anyhow!("Check homebind bot offline state before cleanup: {e}"))?;
+        match online {
+            Some(0) => break,
+            Some(_) if std::time::Instant::now() < offline_deadline => {
+                std::thread::sleep(Duration::from_millis(100));
+            }
+            Some(_) => bail!(
+                "character {} remained online during homebind cleanup",
+                bot.character_guid
+            ),
+            None => bail!(
+                "No characters row for guid {} during homebind cleanup",
+                bot.character_guid
+            ),
+        }
+    }
+
+    let mut tx = conn
+        .start_transaction(mysql::TxOpts::default())
+        .map_err(|e| anyhow!("Start homebind cleanup transaction: {e}"))?;
+    tx.exec_drop(
+        "UPDATE characters SET map = ?, zone = ?, instance_id = ?, position_x = ?, position_y = ?, position_z = ?, orientation = ? WHERE guid = ?",
+        (
+            fixture.original_position.map_id,
+            fixture.original_position.zone_id,
+            fixture.original_position.instance_id,
+            fixture.original_position.x,
+            fixture.original_position.y,
+            fixture.original_position.z,
+            fixture.original_position.orientation,
+            bot.character_guid,
+        ),
+    )
+    .map_err(|e| anyhow!("Restore homebind bot position: {e}"))?;
+    if let Some(homebind) = &fixture.original_homebind {
+        tx.exec_drop(
+            "INSERT INTO character_homebind (guid, mapId, zoneId, posX, posY, posZ, orientation) \
+             VALUES (?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE mapId=VALUES(mapId), zoneId=VALUES(zoneId), posX=VALUES(posX), posY=VALUES(posY), posZ=VALUES(posZ), orientation=VALUES(orientation)",
+            (
+                bot.character_guid,
+                homebind.map_id,
+                homebind.zone_id,
+                homebind.x,
+                homebind.y,
+                homebind.z,
+                homebind.orientation,
+            ),
+        )
+        .map_err(|e| anyhow!("Restore original character_homebind: {e}"))?;
+    } else {
+        tx.exec_drop(
+            "DELETE FROM character_homebind WHERE guid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|e| anyhow!("Delete homebind fixture row: {e}"))?;
+    }
+    tx.commit()
+        .map_err(|e| anyhow!("Commit homebind fixture cleanup: {e}"))?;
+    Ok(())
+}
+
 fn verify_bank_fixture_location(
     bot: &config::BotConfig,
     item_guid: u64,
@@ -4631,10 +5472,12 @@ fn cleanup_bank_smoke_fixture(bot: &config::BotConfig, fixture: &BankSmokeFixtur
         .map_err(|e| anyhow!("Delete bank fixture item: {e}"))?;
     transaction
         .exec_drop(
-            "UPDATE characters SET map = ?, position_x = ?, position_y = ?, position_z = ?, orientation = ? \
+            "UPDATE characters SET map = ?, zone = ?, instance_id = ?, position_x = ?, position_y = ?, position_z = ?, orientation = ? \
              WHERE guid = ?",
             (
                 fixture.original_position.map_id,
+                fixture.original_position.zone_id,
+                fixture.original_position.instance_id,
                 fixture.original_position.x,
                 fixture.original_position.y,
                 fixture.original_position.z,
@@ -5270,6 +6113,198 @@ fn create_creature_guid_raw(map_id: u16, entry: u32, counter: u64) -> (u64, u64)
     (low, high)
 }
 
+fn find_creature_guid_in_update_object(
+    payload: &[u8],
+    map_id: u16,
+    entry: u32,
+) -> Option<(u64, u64)> {
+    // CreateObject blocks start with UpdateType (1/2) followed by a packed
+    // ObjectGuid. Scanning is intentional: blocks are variable-sized, while
+    // the GUID's high fields make a false match for type/map/entry negligible.
+    for offset in 0..payload.len().saturating_sub(2) {
+        if !matches!(payload[offset], 1 | 2) {
+            continue;
+        }
+        let Some((_, low, high)) = parse_packed_guid(&payload[offset + 1..]) else {
+            continue;
+        };
+        if ((high >> 58) & 0x3F) == 8
+            && ((high >> 29) & 0x1FFF) == u64::from(map_id)
+            && ((high >> 6) & 0x7F_FFFF) == u64::from(entry)
+        {
+            return Some((low, high));
+        }
+    }
+    None
+}
+
+fn parse_bind_point_update(
+    payload: &[u8],
+    expected_orientation: f32,
+) -> Option<HomebindRowSnapshot> {
+    if payload.len() != 20 {
+        return None;
+    }
+    let x = f32::from_le_bytes(payload[0..4].try_into().ok()?);
+    let y = f32::from_le_bytes(payload[4..8].try_into().ok()?);
+    let z = f32::from_le_bytes(payload[8..12].try_into().ok()?);
+    let map_id = u16::try_from(i32::from_le_bytes(payload[12..16].try_into().ok()?)).ok()?;
+    let zone_id = u16::try_from(i32::from_le_bytes(payload[16..20].try_into().ok()?)).ok()?;
+    Some(HomebindRowSnapshot {
+        map_id,
+        zone_id,
+        x,
+        y,
+        z,
+        orientation: expected_orientation,
+    })
+}
+
+fn read_msb_bits(data: &[u8], bit_offset: usize, bit_count: usize) -> Option<u32> {
+    if bit_count > 32 || bit_offset.checked_add(bit_count)? > data.len().checked_mul(8)? {
+        return None;
+    }
+    let mut value = 0u32;
+    for bit in bit_offset..bit_offset + bit_count {
+        value = (value << 1) | u32::from((data[bit / 8] >> (7 - bit % 8)) & 1);
+    }
+    Some(value)
+}
+
+fn take_packed_guid(data: &[u8], position: &mut usize) -> Option<(u64, u64)> {
+    let (consumed, low, high) = parse_packed_guid(data.get(*position..)?)?;
+    *position = position.checked_add(consumed)?;
+    Some((low, high))
+}
+
+fn take_u32(data: &[u8], position: &mut usize) -> Option<u32> {
+    let bytes: [u8; 4] = data
+        .get(*position..position.checked_add(4)?)?
+        .try_into()
+        .ok()?;
+    *position = position.checked_add(4)?;
+    Some(u32::from_le_bytes(bytes))
+}
+
+fn spell_go_matches_bind(
+    payload: &[u8],
+    expected_caster_low: u64,
+    expected_caster_high: u64,
+    expected_player_low: u64,
+    expected_player_high: u64,
+) -> bool {
+    let mut position = 0usize;
+    let Some(caster) = take_packed_guid(payload, &mut position) else {
+        return false;
+    };
+    let Some(caster_unit) = take_packed_guid(payload, &mut position) else {
+        return false;
+    };
+    if caster != (expected_caster_low, expected_caster_high) || caster_unit != caster {
+        return false;
+    }
+    if take_packed_guid(payload, &mut position).is_none()
+        || take_packed_guid(payload, &mut position).is_none()
+        || take_u32(payload, &mut position) != Some(3286)
+    {
+        return false;
+    }
+
+    // Visual, CastFlags, CastFlagsEx, CastTime, trajectory, destination index,
+    // immunities, heal prediction and empty prediction beacon GUID.
+    if take_u32(payload, &mut position).is_none()
+        || take_u32(payload, &mut position) != Some(0x0004_0101)
+        || take_u32(payload, &mut position) != Some(0)
+        || take_u32(payload, &mut position).is_none()
+    {
+        return false;
+    }
+    position = match position.checked_add(8 + 1 + 8 + 4 + 1) {
+        Some(end) if end <= payload.len() => end,
+        _ => return false,
+    };
+    let Some(beacon) = take_packed_guid(payload, &mut position) else {
+        return false;
+    };
+    if beacon != (0, 0) {
+        return false;
+    }
+
+    let Some(counts) = payload.get(position..position.saturating_add(10)) else {
+        return false;
+    };
+    if read_msb_bits(counts, 0, 16) != Some(1)
+        || read_msb_bits(counts, 16, 16) != Some(0)
+        || read_msb_bits(counts, 32, 16) != Some(0)
+        || read_msb_bits(counts, 48, 9) != Some(0)
+        || read_msb_bits(counts, 57, 1) != Some(0)
+        || read_msb_bits(counts, 58, 16) != Some(0)
+        || read_msb_bits(counts, 74, 1) != Some(0)
+        || read_msb_bits(counts, 75, 1) != Some(0)
+    {
+        return false;
+    }
+    position += 10;
+
+    let Some(target_header) = payload.get(position..position.saturating_add(5)) else {
+        return false;
+    };
+    if read_msb_bits(target_header, 0, 28) != Some(0x2)
+        || read_msb_bits(target_header, 28, 4) != Some(0)
+        || read_msb_bits(target_header, 32, 7) != Some(0)
+    {
+        return false;
+    }
+    position += 5;
+    let Some(target) = take_packed_guid(payload, &mut position) else {
+        return false;
+    };
+    let Some(item) = take_packed_guid(payload, &mut position) else {
+        return false;
+    };
+    let Some(hit_target) = take_packed_guid(payload, &mut position) else {
+        return false;
+    };
+    target == (expected_player_low, expected_player_high) && hit_target == target && item == (0, 0)
+}
+
+fn homebind_spell_go_seen_after_packet(
+    already_seen: bool,
+    payload: &[u8],
+    expected_caster_low: u64,
+    expected_caster_high: u64,
+    expected_player_low: u64,
+    expected_player_high: u64,
+) -> bool {
+    already_seen
+        || spell_go_matches_bind(
+            payload,
+            expected_caster_low,
+            expected_caster_high,
+            expected_player_low,
+            expected_player_high,
+        )
+}
+
+fn player_bound_matches(
+    payload: &[u8],
+    expected_low: u64,
+    expected_high: u64,
+    expected_area_id: u32,
+) -> bool {
+    let Some((consumed, low, high)) = parse_packed_guid(payload) else {
+        return false;
+    };
+    payload
+        .get(consumed..consumed + 4)
+        .and_then(|bytes| bytes.try_into().ok())
+        .map(u32::from_le_bytes)
+        == Some(expected_area_id)
+        && low == expected_low
+        && high == expected_high
+        && payload.len() == consumed + 4
+}
+
 fn build_packed_guid(low: u64, high: u64) -> Vec<u8> {
     let (low_mask, low_bytes) = pack_u64(low);
     let (high_mask, high_bytes) = pack_u64(high);
@@ -5284,6 +6319,69 @@ fn build_packed_guid(low: u64, high: u64) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn pack_msb_fields(fields: &[(u32, usize)]) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        let mut current = 0u8;
+        let mut used = 0usize;
+        for &(value, width) in fields {
+            for bit in (0..width).rev() {
+                current |= (((value >> bit) & 1) as u8) << (7 - used);
+                used += 1;
+                if used == 8 {
+                    bytes.push(current);
+                    current = 0;
+                    used = 0;
+                }
+            }
+        }
+        if used != 0 {
+            bytes.push(current);
+        }
+        bytes
+    }
+
+    fn bind_spell_go_fixture(
+        caster_low: u64,
+        caster_high: u64,
+        player_low: u64,
+        player_high: u64,
+    ) -> Vec<u8> {
+        let mut payload = Vec::new();
+        payload.extend(build_packed_guid(caster_low, caster_high));
+        payload.extend(build_packed_guid(caster_low, caster_high));
+        payload.extend(build_packed_guid(1, 0));
+        payload.extend(build_packed_guid(1, 0));
+        payload.extend_from_slice(&3286u32.to_le_bytes());
+        payload.extend_from_slice(&0u32.to_le_bytes());
+        payload.extend_from_slice(&0x0004_0101u32.to_le_bytes());
+        payload.extend_from_slice(&0u32.to_le_bytes());
+        payload.extend_from_slice(&1234u32.to_le_bytes());
+        payload.extend_from_slice(&0i32.to_le_bytes());
+        payload.extend_from_slice(&0f32.to_le_bytes());
+        payload.push(0);
+        payload.extend_from_slice(&0u32.to_le_bytes());
+        payload.extend_from_slice(&0u32.to_le_bytes());
+        payload.extend_from_slice(&0u32.to_le_bytes());
+        payload.push(0);
+        payload.extend(build_packed_guid(0, 0));
+        payload.extend(pack_msb_fields(&[
+            (1, 16),
+            (0, 16),
+            (0, 16),
+            (0, 9),
+            (0, 1),
+            (0, 16),
+            (0, 1),
+            (0, 1),
+        ]));
+        payload.extend(pack_msb_fields(&[(0x2, 28), (0, 4), (0, 7)]));
+        payload.extend(build_packed_guid(player_low, player_high));
+        payload.extend(build_packed_guid(0, 0));
+        payload.extend(build_packed_guid(player_low, player_high));
+        payload.push(0);
+        payload
+    }
 
     #[test]
     fn auto_bank_payload_uses_cpp_inv_update_then_source_position() {
@@ -5401,6 +6499,124 @@ mod tests {
         assert_eq!((high >> 42) & 0x1FFF, 0);
         assert_eq!((high >> 29) & 0x1FFF, 571);
         assert_eq!((high >> 6) & 0x7F_FFFF, 15_513);
+    }
+
+    #[test]
+    fn homebind_smoke_discovers_loaded_creature_guid_from_update_object() {
+        let (low, high) = create_creature_guid_raw(1, 12_196, 733);
+        let mut payload = vec![0, 0, 0, 0, 1, 0, 0, 0];
+        payload.push(1);
+        payload.extend(build_packed_guid(low, high));
+        payload.push(5);
+
+        assert_eq!(
+            find_creature_guid_in_update_object(&payload, 1, 12_196),
+            Some((low, high))
+        );
+        assert_eq!(
+            find_creature_guid_in_update_object(&payload, 1, 12_197),
+            None
+        );
+    }
+
+    #[test]
+    fn homebind_smoke_decodes_complete_bind_point_update() {
+        let mut payload = Vec::new();
+        payload.extend_from_slice(&1.25f32.to_le_bytes());
+        payload.extend_from_slice(&(-2.5f32).to_le_bytes());
+        payload.extend_from_slice(&3.75f32.to_le_bytes());
+        payload.extend_from_slice(&571i32.to_le_bytes());
+        payload.extend_from_slice(&4395i32.to_le_bytes());
+
+        assert_eq!(
+            parse_bind_point_update(&payload, 4.5),
+            Some(HomebindRowSnapshot {
+                map_id: 571,
+                zone_id: 4395,
+                x: 1.25,
+                y: -2.5,
+                z: 3.75,
+                orientation: 4.5,
+            })
+        );
+        assert_eq!(parse_bind_point_update(&payload[..19], 4.5), None);
+    }
+
+    #[test]
+    fn homebind_smoke_validates_exact_player_bound_payload() {
+        let (low, high) = create_creature_guid_raw(1, 12_196, 733);
+        let mut payload = build_packed_guid(low, high);
+        payload.extend_from_slice(&3430u32.to_le_bytes());
+
+        assert!(player_bound_matches(&payload, low, high, 3430));
+        assert!(!player_bound_matches(&payload, low, high, 3431));
+        assert!(!player_bound_matches(&payload, low + 1, high, 3430));
+
+        payload.push(0);
+        assert!(!player_bound_matches(&payload, low, high, 3430));
+    }
+
+    #[test]
+    fn homebind_smoke_requires_exact_bind_spell_go() {
+        let (caster_low, caster_high) = create_creature_guid_raw(1, 12_196, 733);
+        let player_low = 99;
+        let player_high = (2u64 << 58) | (1u64 << 42);
+        let mut payload = bind_spell_go_fixture(caster_low, caster_high, player_low, player_high);
+
+        assert!(spell_go_matches_bind(
+            &payload,
+            caster_low,
+            caster_high,
+            player_low,
+            player_high,
+        ));
+        assert!(!spell_go_matches_bind(
+            &payload,
+            caster_low + 1,
+            caster_high,
+            player_low,
+            player_high,
+        ));
+
+        let spell_offset = 2 * build_packed_guid(caster_low, caster_high).len()
+            + 2 * build_packed_guid(1, 0).len();
+        payload[spell_offset..spell_offset + 4].copy_from_slice(&1u32.to_le_bytes());
+        assert!(!spell_go_matches_bind(
+            &payload,
+            caster_low,
+            caster_high,
+            player_low,
+            player_high,
+        ));
+    }
+
+    #[test]
+    fn homebind_smoke_keeps_match_after_later_unrelated_spell_go() {
+        let (caster_low, caster_high) = create_creature_guid_raw(1, 12_196, 733);
+        let player_low = 99;
+        let player_high = (2u64 << 58) | (1u64 << 42);
+        let matching = bind_spell_go_fixture(caster_low, caster_high, player_low, player_high);
+        let mut unrelated = matching.clone();
+        let spell_offset = 2 * build_packed_guid(caster_low, caster_high).len()
+            + 2 * build_packed_guid(1, 0).len();
+        unrelated[spell_offset..spell_offset + 4].copy_from_slice(&1u32.to_le_bytes());
+
+        let seen = homebind_spell_go_seen_after_packet(
+            false,
+            &matching,
+            caster_low,
+            caster_high,
+            player_low,
+            player_high,
+        );
+        assert!(homebind_spell_go_seen_after_packet(
+            seen,
+            &unrelated,
+            caster_low,
+            caster_high,
+            player_low,
+            player_high,
+        ));
     }
 }
 

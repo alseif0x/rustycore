@@ -57,6 +57,7 @@ use wow_packet::packets::item::*;
 use wow_packet::packets::loot::LootReleaseAll;
 use wow_packet::packets::misc::*;
 use wow_packet::packets::quest::QuestGiverStatusMultiple;
+use wow_packet::packets::spell::{SpellCastVisual, SpellTargetData};
 use wow_packet::packets::update::*;
 use wow_packet::{ClientPacket, WorldPacket};
 
@@ -69,7 +70,7 @@ use crate::session::{
     CharacterPetSpellChargeRowLikeCpp, CharacterPetSpellCooldownRowLikeCpp,
     CharacterPetSpellRowLikeCpp, CharacterPetStableRowLikeCpp, RepresentedAlterAppearanceLikeCpp,
     RepresentedBankItemMoveLikeCpp, RepresentedConfirmBarbersChoiceLikeCpp,
-    RepresentedGameObjectUseState,
+    RepresentedGameObjectUseState, RepresentedHomebindLikeCpp, SpellCastMetadata,
 };
 
 // ── Handler registration ────────────────────────────────────────────
@@ -575,8 +576,8 @@ fn login_bind_point_update_like_cpp(homebind: CharacterLoginLocationLikeCpp) -> 
         x: homebind.position.x,
         y: homebind.position.y,
         z: homebind.position.z,
-        map_id: i32::try_from(homebind.map_id).expect("character homebind map ID must fit packet"),
-        area_id: i32::try_from(bind_area_id).expect("character homebind area ID must fit packet"),
+        map_id: homebind.map_id,
+        area_id: bind_area_id,
     }
 }
 
@@ -4933,6 +4934,13 @@ impl WorldSession {
         // (`Player::SendInitialPacketsAfterAddToMap`). Seed from DB until
         // that post-add terrain pass runs.
         self.set_player_zone_area_like_cpp(zone as u32, zone as u32);
+        self.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
+            map_id: login_homebind.map_id,
+            area_id: login_homebind
+                .bind_area_id
+                .expect("validated character homebind must have an area ID"),
+            position: login_homebind.position,
+        });
         self.set_represented_guild_id_like_cpp(result.try_read::<u64>(11).unwrap_or(0));
         self.load_represented_player_difficulties_like_cpp(
             result.try_read::<u32>(44).unwrap_or(0),
@@ -10740,16 +10748,89 @@ impl WorldSession {
     }
 
     /// CMSG_BINDER_ACTIVATE — player sets hearthstone at innkeeper.
-    /// C++ ref: `HandleBinderActivateOpcode`
-    /// (`Handlers/NPCHandler.cpp:373-381`).
+    /// C++ refs: `WorldSession::HandleBinderActivateOpcode` /
+    /// `WorldSession::SendBindPoint` (`Handlers/NPCHandler.cpp:373-402`).
     pub async fn handle_binder_activate(&mut self, hello: Hello) {
-        use wow_packet::packets::misc::NpcInteractionOpenResult;
         info!(
             "BinderActivate {:?} account {}",
             hello.unit, self.account_id
         );
-        // TODO: actually set hearthstone bind point in DB.
-        self.send_packet(&NpcInteractionOpenResult::new(hello.unit, 20)); // Binder
+        if !self.player_is_strictly_in_world_like_cpp() || !self.player_is_alive_like_cpp() {
+            return;
+        }
+        let Some(_innkeeper) = self.represented_npc_can_interact_with_like_cpp(
+            hello.unit,
+            NPCFlags1::INNKEEPER.bits(),
+            0,
+        ) else {
+            debug!(
+                innkeeper_guid = ?hello.unit,
+                account = self.account_id,
+                "BinderActivate rejected: NPC missing, out of range, dead, or lacks INNKEEPER flag"
+            );
+            return;
+        };
+        // C++ HandleBinderActivateOpcode removes feign death before
+        // SendBindPoint performs its instanceable-map rejection.
+        self.remove_represented_feign_death_if_needed_like_cpp();
+        if self.player_current_map_instanceable_like_cpp() {
+            debug!(
+                innkeeper_guid = ?hello.unit,
+                map_id = self.player_map_id_like_cpp(),
+                "BinderActivate rejected: current map is instanceable like C++ SendBindPoint"
+            );
+            return;
+        }
+
+        // C++ SendBindPoint calls innkeeper->CastSpell(player, 3286, true).
+        // Route the triggered creature cast through the represented spell
+        // pipeline so SpellGo, EffectBind, persistence, and bind packets keep
+        // their C++ ordering and caster identity.
+        const BIND_SPELL_ID_LIKE_CPP: i32 = 3286;
+        const CAST_FLAG_PENDING_LIKE_CPP: u32 = 0x0000_0001;
+        const CAST_FLAG_UNKNOWN_9_LIKE_CPP: u32 = 0x0000_0100;
+        const CAST_FLAG_NO_GCD_LIKE_CPP: u32 = 0x0004_0000;
+        const BIND_SPELL_GO_CAST_FLAGS_LIKE_CPP: u32 =
+            CAST_FLAG_UNKNOWN_9_LIKE_CPP | CAST_FLAG_PENDING_LIKE_CPP | CAST_FLAG_NO_GCD_LIKE_CPP;
+        if let Some(player_guid) = self.player_guid() {
+            let cast_id = self.next_represented_spell_cast_guid_like_cpp(BIND_SPELL_ID_LIKE_CPP);
+            if let Err(error) = self
+                .execute_spell_with_visual_and_target_data_with_metadata(
+                    BIND_SPELL_ID_LIKE_CPP,
+                    player_guid,
+                    cast_id,
+                    SpellCastVisual::default(),
+                    SpellTargetData {
+                        flags: 0x2,
+                        unit: player_guid,
+                        item: ObjectGuid::EMPTY,
+                        ..SpellTargetData::default()
+                    },
+                    SpellCastMetadata {
+                        caster_guid_override: Some(hello.unit),
+                        // C++ Spell::SendSpellGo starts with UNKNOWN_9, adds
+                        // PENDING for this non-client triggered cast, and
+                        // adds NO_GCD because spell 3286 has no
+                        // StartRecoveryTime row.
+                        cast_flags: BIND_SPELL_GO_CAST_FLAGS_LIKE_CPP,
+                        ..SpellCastMetadata::default()
+                    },
+                )
+                .await
+            {
+                warn!(
+                    innkeeper_guid = ?hello.unit,
+                    account = self.account_id,
+                    error,
+                    "BinderActivate bind spell failed"
+                );
+            }
+        }
+        // C++ closes gossip after attempting the triggered cast, even if the
+        // spell execution itself cannot complete.
+        self.send_packet_realm(&GossipComplete {
+            suppress_sound: false,
+        });
     }
 
     /// CMSG_TABARD_VENDOR_ACTIVATE — player talks to a tabard designer.
@@ -16182,7 +16263,8 @@ impl WorldSession {
 mod tests {
     use super::*;
     use crate::session::{
-        InventoryItem, RepresentedHomebindLikeCpp, RepresentedTaxiFlightNodeLikeCpp,
+        AuraApplication, InventoryItem, RepresentedAuraEffectLikeCpp, RepresentedHomebindLikeCpp,
+        RepresentedTaxiFlightNodeLikeCpp,
     };
     use wow_constants::{ItemClass, ServerOpcodes};
     use wow_data::character_progression::{
@@ -17014,7 +17096,7 @@ mod tests {
         assert_eq!(bind_update.x, homebind.position.x);
         assert_eq!(bind_update.y, homebind.position.y);
         assert_eq!(bind_update.z, homebind.position.z);
-        assert_eq!(bind_update.map_id, homebind.map_id as i32);
+        assert_eq!(bind_update.map_id, homebind.map_id);
         assert_eq!(bind_update.area_id, 12);
 
         assert_eq!(
@@ -19549,6 +19631,94 @@ mod tests {
         (session, send_rx, canonical)
     }
 
+    fn insert_bank_test_player_in_world(
+        session: &WorldSession,
+        canonical: &Arc<std::sync::Mutex<wow_map::MapManager>>,
+    ) {
+        let player_guid = session.player_guid().expect("player guid");
+        let mut player = wow_entities::Player::new(Some(1), false);
+        player
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .create(player_guid);
+        player.unit_mut().world_mut().set_map(571, 0).unwrap();
+        player
+            .unit_mut()
+            .world_mut()
+            .relocate(Position::new(0.0, 0.0, 0.0, 0.0));
+        player.unit_mut().world_mut().object_mut().add_to_world();
+        canonical
+            .lock()
+            .unwrap()
+            .create_world_map(571, 0)
+            .map_mut()
+            .insert_map_object_record(wow_entities::MapObjectRecord::new_player(player).unwrap())
+            .unwrap();
+    }
+
+    fn install_bind_spell_fixture(session: &mut WorldSession) {
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            3286,
+            wow_data::SpellInfo {
+                spell_id: 3286,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_BIND,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_BIND,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+    }
+
+    fn make_binder_observer(
+        guid_counter: u32,
+        position: Position,
+        innkeeper: ObjectGuid,
+        visible: bool,
+        registry: &Arc<wow_network::PlayerRegistry>,
+        canonical: &Arc<std::sync::Mutex<wow_map::MapManager>>,
+    ) -> (WorldSession, flume::Receiver<Vec<u8>>) {
+        let (mut observer, send_rx) = make_session_with_send_capacity(4);
+        let guid = ObjectGuid::create_player(1, i64::from(guid_counter));
+        observer.set_canonical_map_manager(Arc::clone(canonical));
+        observer.attach_player_controller_like_cpp(crate::session::SessionPlayerController::new(
+            guid,
+            format!("Observer{guid_counter}"),
+            position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        observer.set_state(crate::session::SessionState::LoggedIn);
+        observer.set_player_registry(Arc::clone(registry));
+        if visible {
+            observer.client_visible_guids_like_cpp.insert(innkeeper);
+        }
+        observer.register_in_player_registry();
+        let mut info = registry.get_mut(&guid).expect("observer registry entry");
+        info.is_in_world = true;
+        info.map_id = 571;
+        info.instance_id = 0;
+        info.position = position;
+        drop(info);
+        (observer, send_rx)
+    }
+
     fn install_bank_move_item_fixture(
         session: &mut WorldSession,
         entry_id: u32,
@@ -20319,6 +20489,315 @@ mod tests {
             Some(source_guid)
         );
         assert_eq!(session.represented_non_bank_item_count_like_cpp(703), 0);
+    }
+
+    #[tokio::test]
+    async fn binder_activate_sets_current_homebind_and_sends_bind_packets_like_cpp() {
+        let (mut session, instance_rx, canonical) = make_bank_slot_session(16);
+        insert_bank_test_player_in_world(&session, &canonical);
+        let (realm_tx, realm_rx) = flume::bounded::<Vec<u8>>(16);
+        session.install_realm_send_channel_for_test(realm_tx);
+        let innkeeper = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 30);
+        insert_banker_creature(&canonical, innkeeper, NPCFlags1::INNKEEPER.bits());
+        session.set_player_zone_area_like_cpp(12, 34);
+        install_bind_spell_fixture(&mut session);
+        let _ = WorldSession::game_time_ms_like_cpp();
+        std::thread::sleep(std::time::Duration::from_millis(2));
+        let cast_time_lower_bound = WorldSession::game_time_ms_like_cpp();
+
+        session
+            .handle_binder_activate(Hello { unit: innkeeper })
+            .await;
+        let cast_time_upper_bound = WorldSession::game_time_ms_like_cpp();
+
+        assert_eq!(
+            session.represented_homebind_like_cpp(),
+            Some(RepresentedHomebindLikeCpp {
+                map_id: 571,
+                area_id: 34,
+                position: Position::new(0.0, 0.0, 0.0, 0.0),
+            })
+        );
+        let packets: Vec<Vec<u8>> = instance_rx.try_iter().collect();
+        assert_eq!(
+            packets
+                .iter()
+                .filter_map(|bytes| WorldPacket::from_bytes(bytes).server_opcode())
+                .collect::<Vec<_>>(),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::BindPointUpdate,]
+        );
+        assert_eq!(
+            realm_rx
+                .try_iter()
+                .filter_map(|bytes| WorldPacket::from_bytes(&bytes).server_opcode())
+                .collect::<Vec<_>>(),
+            vec![ServerOpcodes::PlayerBound, ServerOpcodes::GossipComplete],
+            "C++ routes PlayerBound and GossipComplete on realm"
+        );
+        let mut spell_go = WorldPacket::from_bytes(&packets[0]);
+        assert_eq!(
+            spell_go.read_uint16().expect("SpellGo opcode"),
+            ServerOpcodes::SpellGo as u16
+        );
+        assert_eq!(
+            spell_go.read_packed_guid().expect("SpellGo caster"),
+            innkeeper,
+            "C++ creature CastSpell keeps the innkeeper as visible caster"
+        );
+        assert_eq!(
+            spell_go.read_packed_guid().expect("SpellGo caster unit"),
+            innkeeper
+        );
+        let _ = spell_go.read_packed_guid().expect("SpellGo cast id");
+        let _ = spell_go
+            .read_packed_guid()
+            .expect("SpellGo original cast id");
+        assert_eq!(spell_go.read_int32().expect("SpellGo spell id"), 3286);
+        let _ = SpellCastVisual::read(&mut spell_go).expect("SpellGo visual");
+        assert_eq!(
+            spell_go.read_uint32().expect("SpellGo cast flags"),
+            0x0004_0101,
+            "C++ bind SpellGo carries UNKNOWN_9 | PENDING | NO_GCD"
+        );
+        assert_eq!(spell_go.read_uint32().expect("SpellGo cast flags ex"), 0);
+        let cast_time_ms = spell_go.read_uint32().expect("SpellGo cast time");
+        assert!(
+            (cast_time_lower_bound..=cast_time_upper_bound).contains(&cast_time_ms),
+            "C++ SpellGo CastTime is the wrapping getMSTime() server timestamp"
+        );
+    }
+
+    #[tokio::test]
+    async fn binder_activate_fans_spell_go_to_visible_nearby_observers_like_cpp() {
+        let (mut session, sender_rx, canonical) = make_bank_slot_session(16);
+        insert_bank_test_player_in_world(&session, &canonical);
+        let innkeeper = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 32);
+        insert_banker_creature(&canonical, innkeeper, NPCFlags1::INNKEEPER.bits());
+        session.set_player_zone_area_like_cpp(12, 34);
+        install_bind_spell_fixture(&mut session);
+
+        let registry = Arc::new(wow_network::PlayerRegistry::default());
+        session.set_player_registry(Arc::clone(&registry));
+        let (mut nearby_visible, nearby_visible_rx) = make_binder_observer(
+            43,
+            Position::new(10.0, 0.0, 0.0, 0.0),
+            innkeeper,
+            true,
+            &registry,
+            &canonical,
+        );
+        let (mut nearby_hidden, nearby_hidden_rx) = make_binder_observer(
+            44,
+            Position::new(12.0, 0.0, 0.0, 0.0),
+            innkeeper,
+            false,
+            &registry,
+            &canonical,
+        );
+        let (mut distant_visible, distant_visible_rx) = make_binder_observer(
+            45,
+            Position::new(5_000.0, 0.0, 0.0, 0.0),
+            innkeeper,
+            true,
+            &registry,
+            &canonical,
+        );
+
+        session
+            .handle_binder_activate(Hello { unit: innkeeper })
+            .await;
+        let activating_player_spell_go = sender_rx.try_recv().expect("activator SpellGo");
+
+        nearby_visible
+            .process_represented_session_commands_like_cpp()
+            .await;
+        nearby_hidden
+            .process_represented_session_commands_like_cpp()
+            .await;
+        distant_visible
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        assert_eq!(
+            nearby_visible_rx
+                .try_recv()
+                .expect("visible nearby observer SpellGo"),
+            activating_player_spell_go
+        );
+        assert!(nearby_visible_rx.try_recv().is_err());
+        assert!(
+            nearby_hidden_rx.try_recv().is_err(),
+            "C++ HaveAtClient gate rejects a non-visible innkeeper"
+        );
+        assert!(
+            distant_visible_rx.try_recv().is_err(),
+            "C++ MessageDistDeliverer rejects observers outside visibility range"
+        );
+    }
+
+    #[tokio::test]
+    async fn binder_activate_rejects_instanceable_map_like_cpp() {
+        let (mut session, send_rx, canonical) = make_bank_slot_session(2);
+        let innkeeper = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 31);
+        insert_banker_creature(&canonical, innkeeper, NPCFlags1::INNKEEPER.bits());
+        let player_guid = session.player_guid().expect("player guid");
+        let mut player = wow_entities::Player::new(Some(1), false);
+        player
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .create(player_guid);
+        player.unit_mut().world_mut().set_map(571, 0).unwrap();
+        player
+            .unit_mut()
+            .world_mut()
+            .relocate(Position::new(0.0, 0.0, 0.0, 0.0));
+        player.unit_mut().world_mut().object_mut().add_to_world();
+        player
+            .unit_mut()
+            .add_unit_state(wow_constants::unit::UnitState::DIED.bits());
+        canonical
+            .lock()
+            .unwrap()
+            .create_world_map(571, 0)
+            .map_mut()
+            .insert_map_object_record(wow_entities::MapObjectRecord::new_player(player).unwrap())
+            .unwrap();
+        const FEIGN_DEATH_SLOT: u8 = 7;
+        session.visible_auras.insert(
+            FEIGN_DEATH_SLOT,
+            AuraApplication {
+                spell_id: 5384,
+                caster_guid: player_guid,
+                slot: FEIGN_DEATH_SLOT,
+                duration_total: 0,
+                duration_remaining: 0,
+                stack_count: 1,
+                aura_flags: 0,
+                effect_mask: 1,
+                aura_interrupt_flags: 0,
+                aura_interrupt_flags2: 0,
+                represented_effect: Some(RepresentedAuraEffectLikeCpp::FeignDeath),
+                represented_amount: 0,
+                represented_effect_amounts: Vec::new(),
+                represented_misc_value: None,
+                represented_multiplier: 1.0,
+                applied_at: std::time::Instant::now(),
+            },
+        );
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_INSTANCE,
+                expansion_id: 2,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+
+        session
+            .handle_binder_activate(Hello { unit: innkeeper })
+            .await;
+
+        assert!(session.represented_homebind_like_cpp().is_none());
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::AuraUpdate],
+            "C++ removes feign death before SendBindPoint rejects an instanceable map"
+        );
+        assert!(!session.visible_auras.contains_key(&FEIGN_DEATH_SLOT));
+        assert_eq!(
+            session
+                .mutate_canonical_player_like_cpp(|player| player
+                    .unit()
+                    .has_unit_state(wow_constants::unit::UnitState::DIED.bits()))
+                .expect("canonical player"),
+            false
+        );
+    }
+
+    #[tokio::test]
+    async fn binder_activate_rejects_non_innkeeper_like_cpp() {
+        let (mut session, send_rx, canonical) = make_bank_slot_session(1);
+        insert_bank_test_player_in_world(&session, &canonical);
+        let creature = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 31);
+        insert_banker_creature(&canonical, creature, NPCFlags1::BANKER.bits());
+        session.set_player_zone_area_like_cpp(12, 34);
+
+        session
+            .handle_binder_activate(Hello { unit: creature })
+            .await;
+
+        assert!(session.represented_homebind_like_cpp().is_none());
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn binder_activate_rejects_player_outside_world_like_cpp() {
+        let (mut session, send_rx, canonical) = make_bank_slot_session(1);
+        insert_bank_test_player_in_world(&session, &canonical);
+        let innkeeper = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 33);
+        insert_banker_creature(&canonical, innkeeper, NPCFlags1::INNKEEPER.bits());
+        session.set_player_zone_area_like_cpp(12, 34);
+        install_bind_spell_fixture(&mut session);
+        assert!(
+            session
+                .mutate_canonical_player_like_cpp(|player| {
+                    player
+                        .unit_mut()
+                        .world_mut()
+                        .object_mut()
+                        .remove_from_world();
+                })
+                .is_some(),
+            "canonical player fixture"
+        );
+        assert!(session.player_is_alive_like_cpp());
+
+        session
+            .handle_binder_activate(Hello { unit: innkeeper })
+            .await;
+
+        assert!(session.represented_homebind_like_cpp().is_none());
+        assert!(
+            send_rx.try_recv().is_err(),
+            "C++ returns before interaction, bind mutation, and packets when Player::IsInWorld is false"
+        );
+    }
+
+    #[tokio::test]
+    async fn binder_activate_rejects_player_missing_from_canonical_world_like_cpp() {
+        let (mut session, send_rx, canonical) = make_bank_slot_session(1);
+        insert_bank_test_player_in_world(&session, &canonical);
+        let innkeeper = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 34);
+        insert_banker_creature(&canonical, innkeeper, NPCFlags1::INNKEEPER.bits());
+        session.set_player_zone_area_like_cpp(12, 34);
+        install_bind_spell_fixture(&mut session);
+        let player_guid = session.player_guid().expect("player guid");
+        assert!(
+            canonical
+                .lock()
+                .unwrap()
+                .find_map_mut(571, 0)
+                .expect("canonical map")
+                .map_mut()
+                .remove_map_object(player_guid)
+                .is_some(),
+            "remove canonical player fixture"
+        );
+        assert!(session.player_is_alive_like_cpp());
+
+        session
+            .handle_binder_activate(Hello { unit: innkeeper })
+            .await;
+
+        assert!(session.represented_homebind_like_cpp().is_none());
+        assert!(
+            send_rx.try_recv().is_err(),
+            "C++ Player::IsInWorld is false after removal even while the session still has an alive player controller"
+        );
     }
 
     #[tokio::test]

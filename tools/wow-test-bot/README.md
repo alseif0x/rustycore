@@ -31,6 +31,15 @@ test item for the local bot character, opens a neutral banker, deposits the
 item, logs out and authenticates again, withdraws it, logs out again, verifies
 both DB transitions, then deletes the item and restores the original position.
 
+For an innkeeper bind round-trip, set `WOW_BOT_HOMEBIND_SMOKE=1`. The bot relocates one local
+test character beside a faction-friendly continent innkeeper, sends
+`CMSG_BINDER_ACTIVATE`, requires `SMSG_SPELL_GO`, `SMSG_BIND_POINT_UPDATE`,
+`SMSG_PLAYER_BOUND`, and `SMSG_GOSSIP_COMPLETE`, verifies
+`character_homebind`, authenticates again, re-verifies persistence, and restores
+the original position and homebind row. It discovers the map-owned low GUID
+counter from the login `SMSG_UPDATE_OBJECT` stream;
+`WOW_BOT_HOMEBIND_RUNTIME_COUNTER` remains an optional capture override.
+
 For a full occupied-slot inventory-swap round-trip, set
 `WOW_BOT_INVENTORY_SWAP_SMOKE=1`. The bot creates two different isolated items
 in two free backpack slots, sends the real `CMSG_SWAP_INV_ITEM`, logs out and
