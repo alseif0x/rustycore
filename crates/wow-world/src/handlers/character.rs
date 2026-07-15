@@ -576,8 +576,8 @@ fn login_bind_point_update_like_cpp(homebind: CharacterLoginLocationLikeCpp) -> 
         x: homebind.position.x,
         y: homebind.position.y,
         z: homebind.position.z,
-        map_id: i32::try_from(homebind.map_id).expect("character homebind map ID must fit packet"),
-        area_id: i32::try_from(bind_area_id).expect("character homebind area ID must fit packet"),
+        map_id: homebind.map_id,
+        area_id: bind_area_id,
     }
 }
 

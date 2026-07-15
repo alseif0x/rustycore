@@ -53666,11 +53666,7 @@ impl WorldSession {
         }
 
         let (_, current_area_id) = self.player_zone_area_like_cpp();
-        let area_id = if effect.effect_misc_value_1 != 0 {
-            u32::try_from(effect.effect_misc_value_1).unwrap_or(current_area_id)
-        } else {
-            current_area_id
-        };
+        let area_id = Self::bind_area_id_like_cpp(effect.effect_misc_value_1, current_area_id);
 
         let Some(current_position) = self.player_position_like_cpp() else {
             return;
@@ -53695,6 +53691,16 @@ impl WorldSession {
         );
     }
 
+    fn bind_area_id_like_cpp(effect_misc_value: i32, current_area_id: u32) -> u32 {
+        if effect_misc_value != 0 {
+            // C++ assigns the signed SpellEffectInfo::MiscValue directly to
+            // uint32 areaId, preserving the underlying 32-bit value.
+            effect_misc_value as u32
+        } else {
+            current_area_id
+        }
+    }
+
     pub(crate) fn player_current_map_instanceable_like_cpp(&self) -> bool {
         let map_id = u32::from(self.player_map_id_like_cpp());
         self.map_store()
@@ -53714,8 +53720,8 @@ impl WorldSession {
             x: homebind.position.x,
             y: homebind.position.y,
             z: homebind.position.z,
-            map_id: i32::try_from(homebind.map_id).unwrap_or(i32::MAX),
-            area_id: i32::try_from(homebind.area_id).unwrap_or(i32::MAX),
+            map_id: homebind.map_id,
+            area_id: homebind.area_id,
         });
         self.send_packet_realm(&wow_packet::packets::misc::PlayerBound {
             binder_id,
@@ -53728,8 +53734,10 @@ impl WorldSession {
         guid_counter: u64,
     ) -> PreparedStatement {
         let mut stmt = PreparedStatement::new(CharStatements::UPD_PLAYER_HOMEBIND.sql());
-        stmt.set_u16(0, u16::try_from(homebind.map_id).unwrap_or(u16::MAX));
-        stmt.set_u16(1, u16::try_from(homebind.area_id).unwrap_or(u16::MAX));
+        // C++ PreparedStatement::setUInt16 receives these uint32 fields and
+        // narrows modulo 2^16 at the call boundary.
+        stmt.set_u16(0, homebind.map_id as u16);
+        stmt.set_u16(1, homebind.area_id as u16);
         stmt.set_f32(2, homebind.position.x);
         stmt.set_f32(3, homebind.position.y);
         stmt.set_f32(4, homebind.position.z);
@@ -72753,6 +72761,17 @@ mod tests {
         let opcodes = drain_server_opcodes(&send_rx);
         assert!(opcodes.contains(&ServerOpcodes::BindPointUpdate));
         assert!(opcodes.contains(&ServerOpcodes::PlayerBound));
+    }
+
+    #[test]
+    fn bind_misc_area_preserves_cpp_uint32_conversion() {
+        assert_eq!(WorldSession::bind_area_id_like_cpp(777, 34), 777);
+        assert_eq!(WorldSession::bind_area_id_like_cpp(0, 34), 34);
+        assert_eq!(
+            WorldSession::bind_area_id_like_cpp(-1, 34),
+            u32::MAX,
+            "C++ assignment from int32 MiscValue to uint32 areaId preserves all 32 bits"
+        );
     }
 
     #[tokio::test]
@@ -105210,6 +105229,23 @@ mod tests {
         assert!(
             matches!(stmt.params()[6], wow_database::SqlParam::U64(v) if v == guid.counter() as u64)
         );
+
+        let narrowed = WorldSession::build_player_homebind_update_statement_like_cpp(
+            RepresentedHomebindLikeCpp {
+                map_id: u32::MAX - 2,
+                area_id: u32::MAX - 1,
+                position: Position::ZERO,
+            },
+            guid.counter() as u64,
+        );
+        assert!(matches!(
+            narrowed.params()[0],
+            wow_database::SqlParam::U16(65_533)
+        ));
+        assert!(matches!(
+            narrowed.params()[1],
+            wow_database::SqlParam::U16(65_534)
+        ));
     }
 
     #[test]
