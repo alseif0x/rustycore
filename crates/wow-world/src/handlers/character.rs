@@ -10755,7 +10755,7 @@ impl WorldSession {
             "BinderActivate {:?} account {}",
             hello.unit, self.account_id
         );
-        if !self.player_is_alive_like_cpp() {
+        if !self.player_is_strictly_in_world_like_cpp() || !self.player_is_alive_like_cpp() {
             return;
         }
         let Some(_innkeeper) = self.represented_npc_can_interact_with_like_cpp(
@@ -20703,6 +20703,70 @@ mod tests {
 
         assert!(session.represented_homebind_like_cpp().is_none());
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn binder_activate_rejects_player_outside_world_like_cpp() {
+        let (mut session, send_rx, canonical) = make_bank_slot_session(1);
+        let innkeeper = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 33);
+        insert_banker_creature(&canonical, innkeeper, NPCFlags1::INNKEEPER.bits());
+        session.set_player_zone_area_like_cpp(12, 34);
+        install_bind_spell_fixture(&mut session);
+        assert!(
+            session
+                .mutate_canonical_player_like_cpp(|player| {
+                    player
+                        .unit_mut()
+                        .world_mut()
+                        .object_mut()
+                        .remove_from_world();
+                })
+                .is_some(),
+            "canonical player fixture"
+        );
+        assert!(session.player_is_alive_like_cpp());
+
+        session
+            .handle_binder_activate(Hello { unit: innkeeper })
+            .await;
+
+        assert!(session.represented_homebind_like_cpp().is_none());
+        assert!(
+            send_rx.try_recv().is_err(),
+            "C++ returns before interaction, bind mutation, and packets when Player::IsInWorld is false"
+        );
+    }
+
+    #[tokio::test]
+    async fn binder_activate_rejects_player_missing_from_canonical_world_like_cpp() {
+        let (mut session, send_rx, canonical) = make_bank_slot_session(1);
+        let innkeeper = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 34);
+        insert_banker_creature(&canonical, innkeeper, NPCFlags1::INNKEEPER.bits());
+        session.set_player_zone_area_like_cpp(12, 34);
+        install_bind_spell_fixture(&mut session);
+        let player_guid = session.player_guid().expect("player guid");
+        assert!(
+            canonical
+                .lock()
+                .unwrap()
+                .find_map_mut(571, 0)
+                .expect("canonical map")
+                .map_mut()
+                .remove_map_object(player_guid)
+                .is_some(),
+            "remove canonical player fixture"
+        );
+        assert!(session.player_is_alive_like_cpp());
+
+        session
+            .handle_binder_activate(Hello { unit: innkeeper })
+            .await;
+
+        assert!(session.represented_homebind_like_cpp().is_none());
+        assert!(
+            send_rx.try_recv().is_err(),
+            "C++ Player::IsInWorld is false after removal even while the session still has an alive player controller"
+        );
     }
 
     #[tokio::test]

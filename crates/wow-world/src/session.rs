@@ -27511,7 +27511,7 @@ impl WorldSession {
         self.pending_invites.as_ref()
     }
 
-    fn player_is_in_world_for_registry_like_cpp(&self) -> bool {
+    pub(crate) fn player_is_in_world_for_registry_like_cpp(&self) -> bool {
         let Some(guid) = self.player_guid() else {
             return false;
         };
@@ -27535,6 +27535,28 @@ impl WorldSession {
         // Registry insertion happens only after successful character login; logout/disconnect
         // unregisters instead of leaving a false/stale row behind.
         true
+    }
+
+    pub(crate) fn player_is_strictly_in_world_like_cpp(&self) -> bool {
+        let Some(guid) = self.player_guid() else {
+            return false;
+        };
+        let Some(manager) = self
+            .canonical_map_manager
+            .as_ref()
+            .and_then(|manager| manager.lock().ok())
+        else {
+            return false;
+        };
+        let mut is_in_world = None;
+        manager.do_for_all_maps(|managed| {
+            if is_in_world.is_none()
+                && let Some(player) = managed.map().get_typed_player(guid)
+            {
+                is_in_world = Some(player.unit().world().object().is_in_world());
+            }
+        });
+        is_in_world.unwrap_or(false)
     }
 
     pub(crate) fn player_unit_state_for_registry_like_cpp(&self) -> u32 {
